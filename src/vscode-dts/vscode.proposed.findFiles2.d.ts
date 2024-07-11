@@ -6,8 +6,6 @@
 declare module 'vscode' {
 
 	export interface FindFiles2Options {
-		// note: this is just FindTextInFilesOptions without select properties (include, previewOptions, beforeContext, afterContext)
-
 		/**
 		 * A {@link GlobPattern glob pattern} that defines files and folders to exclude. The glob pattern
 		 * will be matched against the file paths of resulting matches relative to their workspace.
@@ -30,20 +28,7 @@ declare module 'vscode' {
 		 * Any time that `parent` or `global` is set to `true`, `local` must also be `true`.
 		 * Will log an error if an invalid combination is set.
 		 */
-		useIgnoreFiles?: {
-			/**
-			 * Use ignore files at the current workspace root.
-			 */
-			local?: boolean;
-			/**
-			 * Use ignore files at the parent directory.
-			 */
-			parent?: boolean;
-			/**
-			 * Use global ignore files.
-			 */
-			global?: boolean;
-		};
+		useIgnoreFiles?: Partial<IgnoreFileOptions>;
 
 		/**
 		 * Whether symlinks should be followed while searching.
@@ -51,27 +36,6 @@ declare module 'vscode' {
 		 * For more info, see the setting listed above.
 		 */
 		followSymlinks?: boolean;
-	}
-
-	/*
-	* Options for following search.exclude and files.exclude settings.
-	*/
-	export enum ExcludeSettingOptions {
-		/*
-		 * Don't use any exclude settings.
-		 */
-		none = 1,
-		/*
-		 * Use:
-		 * - files.exclude setting
-		 */
-		filesExclude = 2,
-		/*
-		 * Use:
-		 * - files.exclude setting
-		 * - search.exclude setting
-		 */
-		searchAndFilesExclude = 3
 	}
 
 	/**

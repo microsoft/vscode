@@ -10,12 +10,46 @@ declare module 'vscode' {
 	/**
 	 * Options that apply to file search.
 	 */
-	export interface FileSearchOptions extends SearchProviderOptions {
+	export interface FileSearchOptions {
+		folderOptions: {
+			/**
+			 * The root folder to search within.
+			 */
+			folder: Uri;
+
+			/**
+			 * Files that match an `includes` glob pattern should be included in the search.
+			 */
+			includes: string[];
+
+			/**
+			 * Files that match an `excludes` glob pattern should be excluded from the search.
+			 */
+			excludes: GlobPattern[];
+
+			/**
+			 * Whether symlinks should be followed while searching.
+			 * See the vscode setting `"search.followSymlinks"` for more information.
+			 */
+			followSymlinks: boolean;
+
+			/**
+			 * Which file locations we should look for ignore (.gitignore or .ignore) files to respect.
+			 * Any time that `parent` or `global` is set to `true`, `local` will also be `true`.
+			 */
+			useIgnoreFiles: IgnoreFileOptions;
+		}[];
+
 		/**
-		 * A CancellationToken that represents the session for this search query. If the provider chooses to, this object can be used as the key for a cache,
+		 * An object with a lifespan that matches the session's lifespan. If the provider chooses to, this object can be used as the key for a cache,
 		 * and searches with the same session object can search the same cache. When the token is cancelled, the session is complete and the cache can be cleared.
 		 */
-		session: CancellationToken;
+		session: object;
+
+		/**
+		 * The maximum number of results to be returned.
+		 */
+		maxResults: number;
 	}
 
 	/**
@@ -34,7 +68,7 @@ declare module 'vscode' {
 		 * @param options A set of options to consider while searching files.
 		 * @param token A cancellation token.
 		 */
-		provideFileSearchResults(pattern: string, options: FileSearchOptions, token: CancellationToken): ProviderResult<Uri[]>;
+		provideFileSearchResults(pattern: string, options: FileSearchOptions[], token: CancellationToken): ProviderResult<Uri[]>;
 	}
 
 	export namespace workspace {
