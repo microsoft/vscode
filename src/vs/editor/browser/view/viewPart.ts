@@ -12,6 +12,7 @@ export abstract class ViewPart extends ViewEventHandler {
 
 	_context: ViewContext;
 
+
 	constructor(context: ViewContext) {
 		super();
 		this._context = context;
@@ -25,6 +26,8 @@ export abstract class ViewPart extends ViewEventHandler {
 
 	public abstract prepareRender(ctx: RenderingContext): void;
 	public abstract render(ctx: RestrictedRenderingContext): void;
+
+	public abstract disposeDomNodes(): void;
 }
 
 export const enum PartFingerprint {

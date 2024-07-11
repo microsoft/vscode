@@ -72,6 +72,10 @@ export class ViewZones extends ViewPart {
 		this._zones = {};
 	}
 
+	public override disposeDomNodes(): void {
+		this.domNode.domNode.remove();
+	}
+
 	// ---- begin view event handlers
 
 	private _recomputeWhitespacesProps(): boolean {
