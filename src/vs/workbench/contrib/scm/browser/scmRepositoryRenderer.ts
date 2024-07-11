@@ -38,8 +38,13 @@ export class RepositoryActionRunner extends ActionRunner {
 			return super.runAction(action, context);
 		}
 
-		const selection = this.getSelectedRepositories().map(r => r.provider);
-		const actionContext = selection.some(s => s === context) ? selection : [context];
+		let actionContext: ISCMProvider[];
+		if (action.id === 'scm.openInIntegratedTerminal') {
+			actionContext = [context];
+		} else {
+			const selection = this.getSelectedRepositories().map(r => r.provider);
+			actionContext = selection.some(s => s === context) ? selection : [context];
+		}
 
 		await action.run(...actionContext);
 	}
