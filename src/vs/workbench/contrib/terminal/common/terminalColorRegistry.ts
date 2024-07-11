@@ -56,6 +56,7 @@ export const TERMINAL_COMMAND_DECORATION_ERROR_BACKGROUND_COLOR = registerColor(
 }, nls.localize('terminalCommandDecoration.errorBackground', 'The terminal command decoration background color for error commands.'));
 export const TERMINAL_OVERVIEW_RULER_CURSOR_FOREGROUND_COLOR = registerColor('terminalOverviewRuler.cursorForeground', '#A0A0A0CC', nls.localize('terminalOverviewRuler.cursorForeground', 'The overview ruler cursor color.'));
 export const TERMINAL_BORDER_COLOR = registerColor('terminal.border', PANEL_BORDER, nls.localize('terminal.border', 'The color of the border that separates split panes within the terminal. This defaults to panel.border.'));
+export const TERMINAL_OVERVIEW_RULER_BORDER_COLOR = registerColor('terminalOverviewRuler.border', TERMINAL_BORDER_COLOR, nls.localize('terminalOverviewRuler.border', 'The overview ruler left-side border color.'));
 export const TERMINAL_FIND_MATCH_BACKGROUND_COLOR = registerColor('terminal.findMatchBackground', {
 	dark: editorFindMatch,
 	light: editorFindMatch,

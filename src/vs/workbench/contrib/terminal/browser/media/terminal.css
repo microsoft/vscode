@@ -138,11 +138,6 @@
 .xterm.xterm-cursor-pointer .xterm-screen { cursor: pointer; }
 .xterm.column-select.focus .xterm-screen  { cursor: crosshair; }
 
-/* .monaco-workbench .terminal-editor .terminal-group .monaco-split-view2.horizontal .split-view-view:last-child .xterm,
-.monaco-workbench .pane-body.integrated-terminal .terminal-group .monaco-split-view2.horizontal .split-view-view:last-child .xterm {
-	padding-right: 20px;
-} */
-
 .monaco-workbench .terminal-editor .xterm a:not(.xterm-invalid-link),
 .monaco-workbench .pane-body.integrated-terminal .xterm a:not(.xterm-invalid-link) {
 	/* To support message box sizing */
