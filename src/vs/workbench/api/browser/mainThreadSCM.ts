@@ -241,7 +241,6 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 	get inputBoxTextModel(): ITextModel { return this._inputBoxTextModel; }
 	get contextValue(): string { return this._providerId; }
 
-	get historyProvider(): ISCMHistoryProvider | undefined { return this._historyProvider; }
 	get acceptInputCommand(): Command | undefined { return this.features.acceptInputCommand; }
 	get actionButton(): ISCMActionButtonDescriptor | undefined { return this.features.actionButton ?? undefined; }
 
@@ -257,16 +256,12 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 	private readonly _commitTemplate = observableValue<string>(this, '');
 	get commitTemplate() { return this._commitTemplate; }
 
-	private readonly _onDidChangeHistoryProvider = new Emitter<void>();
-	readonly onDidChangeHistoryProvider: Event<void> = this._onDidChangeHistoryProvider.event;
-
 	private readonly _onDidChange = new Emitter<void>();
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
 	private _quickDiff: IDisposable | undefined;
 	public readonly isSCM: boolean = true;
 
-	private _historyProvider: ISCMHistoryProvider | undefined;
 	private readonly _historyProviderObs = observableValue<MainThreadSCMHistoryProvider | undefined>(this, undefined);
 	get historyProviderObs() { return this._historyProviderObs; }
 
@@ -319,17 +314,11 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 			this._quickDiff = undefined;
 		}
 
-		if (features.hasHistoryProvider && !this._historyProvider) {
+		if (features.hasHistoryProvider && !this.historyProviderObs.get()) {
 			const historyProvider = new MainThreadSCMHistoryProvider(this.proxy, this.handle);
 			this._historyProviderObs.set(historyProvider, undefined);
-
-			this._historyProvider = historyProvider;
-			this._onDidChangeHistoryProvider.fire();
-		} else if (features.hasHistoryProvider === false && this._historyProvider) {
+		} else if (features.hasHistoryProvider === false && this.historyProviderObs.get()) {
 			this._historyProviderObs.set(undefined, undefined);
-
-			this._historyProvider = undefined;
-			this._onDidChangeHistoryProvider.fire();
 		}
 	}
 
@@ -446,7 +435,7 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 	}
 
 	$onDidChangeHistoryProviderCurrentHistoryItemGroup(currentHistoryItemGroup?: SCMHistoryItemGroupDto): void {
-		if (!this._historyProvider) {
+		if (!this.historyProviderObs.get()) {
 			return;
 		}
 
