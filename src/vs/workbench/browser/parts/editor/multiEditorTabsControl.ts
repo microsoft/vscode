@@ -1602,7 +1602,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			fileDecorationBadges = false; // not enough space when sticky tabs are compact
 		} else {
 
-			name = options.showTabIndex ? localize("tabIndexDisplay", "{0}: {1}", (tabIndex + 1), tabLabel.name) : tabLabel.name
+			name = options.showTabIndex ? localize("tabIndexDisplay", "{0}: {1}", (tabIndex + 1), tabLabel.name) : tabLabel.name;
 			description = tabLabel.description || '';
 		}
 
