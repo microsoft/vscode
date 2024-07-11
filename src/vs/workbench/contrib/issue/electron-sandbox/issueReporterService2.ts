@@ -27,11 +27,12 @@ export class IssueReporter2 extends BaseIssueReporterService {
 	private readonly processMainService: IProcessMainService;
 	constructor(
 		private readonly configuration: IssueReporterWindowConfiguration,
+		public override readonly window: Window,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@IIssueMainService issueMainService: IIssueMainService,
 		@IProcessMainService processMainService: IProcessMainService
 	) {
-		super(configuration.disableExtensions, configuration.data, configuration.os, configuration.product, mainWindow, false, issueMainService);
+		super(configuration.disableExtensions, configuration.data, configuration.os, configuration.product, window, false, issueMainService);
 
 		this.processMainService = processMainService;
 		this.processMainService.$getSystemInfo().then(info => {

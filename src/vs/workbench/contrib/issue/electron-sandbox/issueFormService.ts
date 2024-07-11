@@ -198,7 +198,7 @@ export class IssueFormService2 implements IIssueMainService {
 			};
 
 			// create issue reporter and instantiate
-			const issueReporter = this.instantiationService.createInstance(IssueReporter2, this.configuration);
+			const issueReporter = this.instantiationService.createInstance(IssueReporter2, this.configuration, this.issueReporterWindow);
 			issueReporter.render();
 		} else {
 			console.error('Failed to open auxiliary window');
