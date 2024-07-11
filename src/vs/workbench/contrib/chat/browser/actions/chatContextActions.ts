@@ -138,12 +138,21 @@ class AttachContextAction extends Action2 {
 
 	static readonly ID = 'workbench.action.chat.attachContext';
 
+	// used to enable/disable the keybinding and defined menu containment
+	private static _cdt = ContextKeyExpr.or(
+		ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Panel), CONTEXT_IN_QUICK_CHAT.isEqualTo(false)),
+		ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Editor), ContextKeyExpr.equals('config.chat.experimental.variables.editor', true)),
+		ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Notebook), ContextKeyExpr.equals('config.chat.experimental.variables.notebook', true)),
+		ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Terminal), ContextKeyExpr.equals('config.chat.experimental.variables.terminal', true)),
+	);
+
 	constructor() {
 		super({
 			id: AttachContextAction.ID,
 			title: localize2('workbench.action.chat.attachContext.label', "Attach Context"),
 			icon: Codicon.attach,
 			category: CHAT_CATEGORY,
+			precondition: AttachContextAction._cdt,
 			keybinding: {
 				when: CONTEXT_IN_CHAT_INPUT,
 				primary: KeyMod.CtrlCmd | KeyCode.Slash,
@@ -151,7 +160,7 @@ class AttachContextAction extends Action2 {
 			},
 			menu: [
 				{
-					when: ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Panel), CONTEXT_IN_QUICK_CHAT.isEqualTo(false)),
+					when: AttachContextAction._cdt,
 					id: MenuId.ChatExecute,
 					group: 'navigation',
 				},
