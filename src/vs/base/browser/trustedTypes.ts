@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { mainWindow } from 'vs/base/browser/window';
 import { onUnexpectedError } from 'vs/base/common/errors';
 
 export function createTrustedTypesPolicy<Options extends TrustedTypePolicyOptions>(
@@ -28,7 +27,7 @@ export function createTrustedTypesPolicy<Options extends TrustedTypePolicyOption
 		}
 	}
 	try {
-		return mainWindow.trustedTypes?.createPolicy(policyName, policyOptions);
+		return (globalThis as any).trustedTypes?.createPolicy(policyName, policyOptions);
 	} catch (err) {
 		onUnexpectedError(err);
 		return undefined;

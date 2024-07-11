@@ -22,6 +22,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
+import { autorun, observableFromEvent } from 'vs/base/common/observable';
 import { fuzzyContains } from 'vs/base/common/strings';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { isDefined } from 'vs/base/common/types';
@@ -30,7 +31,7 @@ import 'vs/css!./media/testing';
 import { MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
 import { localize } from 'vs/nls';
 import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
-import { MenuEntryActionViewItem, createActionViewItem, createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { MenuEntryActionViewItem, createActionViewItem, createAndFillInActionBarActions, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -78,6 +79,7 @@ import { ITestingContinuousRunService } from 'vs/workbench/contrib/testing/commo
 import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
 import { cmpPriority, isFailedState, isStateWithResult, statesInOrder } from 'vs/workbench/contrib/testing/common/testingStates';
 import { IActivityService, IconBadge, NumberBadge } from 'vs/workbench/services/activity/common/activity';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 const enum LastFocusState {
@@ -115,6 +117,7 @@ export class TestingExplorerView extends ViewPane {
 		@IHoverService hoverService: IHoverService,
 		@ITestProfileService private readonly testProfileService: ITestProfileService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IMenuService private readonly menuService: IMenuService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
 
@@ -349,10 +352,23 @@ export class TestingExplorerView extends ViewPane {
 			}
 		}
 
-		// If there's only one group, don't add a heading for it in the dropdown.
-		if (participatingGroups === 1) {
-			profileActions.shift();
+		const menuActions: IAction[] = [];
+		const contextKeys: [string, unknown][] = [];
+		// allow extension author to define context for when to show the test menu actions for run or debug menus
+		if (group === TestRunProfileBitset.Run) {
+			contextKeys.push(['testing.profile.context.group', 'run']);
 		}
+		if (group === TestRunProfileBitset.Debug) {
+			contextKeys.push(['testing.profile.context.group', 'debug']);
+		}
+		if (group === TestRunProfileBitset.Coverage) {
+			contextKeys.push(['testing.profile.context.group', 'coverage']);
+		}
+		const key = this.contextKeyService.createOverlay(contextKeys);
+		const menu = this.menuService.getMenuActions(MenuId.TestProfilesContext, key);
+
+		// fill if there are any actions
+		createAndFillInContextMenuActions(menu, menuActions);
 
 		const postActions: IAction[] = [];
 		if (profileActions.length > 1) {
@@ -375,7 +391,10 @@ export class TestingExplorerView extends ViewPane {
 			));
 		}
 
-		return Separator.join(profileActions, postActions);
+		// show menu actions if there are any otherwise don't
+		return menuActions.length > 0
+			? Separator.join(profileActions, menuActions, postActions)
+			: Separator.join(profileActions, postActions);
 	}
 
 	/**
@@ -648,6 +667,7 @@ class TestingExplorerViewModel extends Disposable {
 		onDidChangeVisibility: Event<boolean>,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IEditorService editorService: IEditorService,
+		@IEditorGroupsService editorGroupsService: IEditorGroupsService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@ITestService private readonly testService: ITestService,
@@ -818,27 +838,38 @@ class TestingExplorerViewModel extends Disposable {
 			this.tree.rerender();
 		}));
 
-		const onEditorChange = () => {
+		const allOpenEditorInputs = observableFromEvent(this,
+			editorService.onDidEditorsChange,
+			() => new Set(editorGroupsService.groups.flatMap(g => g.editors).map(e => e.resource).filter(isDefined)),
+		);
+
+		const activeResource = observableFromEvent(this, editorService.onDidActiveEditorChange, () => {
 			if (editorService.activeEditor instanceof DiffEditorInput) {
-				this.filter.filterToDocumentUri(editorService.activeEditor.primary.resource);
+				return editorService.activeEditor.primary.resource;
 			} else {
-				this.filter.filterToDocumentUri(editorService.activeEditor?.resource);
+				return editorService.activeEditor?.resource;
+			}
+		});
+
+		const filterText = observableFromEvent(this.filterState.text.onDidChange, () => this.filterState.text);
+		this._register(autorun(reader => {
+			filterText.read(reader);
+			if (this.filterState.isFilteringFor(TestFilterTerm.OpenedFiles)) {
+				this.filter.filterToDocumentUri([...allOpenEditorInputs.read(reader)]);
+			} else {
+				this.filter.filterToDocumentUri([activeResource.read(reader)].filter(isDefined));
 			}
 
-			if (this.filterState.isFilteringFor(TestFilterTerm.CurrentDoc)) {
+			if (this.filterState.isFilteringFor(TestFilterTerm.CurrentDoc) || this.filterState.isFilteringFor(TestFilterTerm.OpenedFiles)) {
 				this.tree.refilter();
 			}
-		};
-
-		this._register(editorService.onDidActiveEditorChange(onEditorChange));
+		}));
 
 		this._register(this.storageService.onWillSaveState(({ reason, }) => {
 			if (reason === WillSaveStateReason.SHUTDOWN) {
 				this.lastViewState.store(this.tree.getOptimizedViewState());
 			}
 		}));
-
-		onEditorChange();
 	}
 
 	/**
@@ -1067,7 +1098,7 @@ const hasNodeInOrParentOfUri = (collection: IMainThreadTestCollection, ident: IU
 };
 
 class TestsFilter implements ITreeFilter<TestExplorerTreeElement> {
-	private documentUri: URI | undefined;
+	private documentUris: URI[] = [];
 
 	constructor(
 		private readonly collection: IMainThreadTestCollection,
@@ -1102,8 +1133,8 @@ class TestsFilter implements ITreeFilter<TestExplorerTreeElement> {
 		}
 	}
 
-	public filterToDocumentUri(uri: URI | undefined) {
-		this.documentUri = uri;
+	public filterToDocumentUri(uris: readonly URI[]) {
+		this.documentUris = [...uris];
 	}
 
 	private testTags(element: TestItemTreeElement): FilterResult {
@@ -1131,15 +1162,15 @@ class TestsFilter implements ITreeFilter<TestExplorerTreeElement> {
 	}
 
 	private testLocation(element: TestItemTreeElement): FilterResult {
-		if (!this.documentUri) {
+		if (this.documentUris.length === 0) {
 			return FilterResult.Include;
 		}
 
-		if (!this.state.isFilteringFor(TestFilterTerm.CurrentDoc) || !(element instanceof TestItemTreeElement)) {
+		if ((!this.state.isFilteringFor(TestFilterTerm.CurrentDoc) && !this.state.isFilteringFor(TestFilterTerm.OpenedFiles)) || !(element instanceof TestItemTreeElement)) {
 			return FilterResult.Include;
 		}
 
-		if (hasNodeInOrParentOfUri(this.collection, this.uriIdentityService, this.documentUri, element.test.item.extId)) {
+		if (this.documentUris.some(uri => hasNodeInOrParentOfUri(this.collection, this.uriIdentityService, uri, element.test.item.extId))) {
 			return FilterResult.Include;
 		}
 
@@ -1530,20 +1561,17 @@ const getActionableElementActions = (
 	}
 
 	const contextOverlay = contextKeyService.createOverlay(contextKeys);
-	const menu = menuService.createMenu(MenuId.TestItem, contextOverlay);
+	const menu = menuService.getMenuActions(MenuId.TestItem, contextOverlay, {
+		shouldForwardArgs: true,
+	});
 
-	try {
-		const primary: IAction[] = [];
-		const secondary: IAction[] = [];
-		const result = { primary, secondary };
-		createAndFillInActionBarActions(menu, {
-			shouldForwardArgs: true,
-		}, result, 'inline');
+	const primary: IAction[] = [];
+	const secondary: IAction[] = [];
+	const result = { primary, secondary };
+	createAndFillInActionBarActions(menu, result, 'inline');
 
-		return { actions: result, contextOverlay };
-	} finally {
-		menu.dispose();
-	}
+	return { actions: result, contextOverlay };
+
 };
 
 registerThemingParticipant((theme, collector) => {

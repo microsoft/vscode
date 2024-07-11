@@ -178,10 +178,10 @@ export class ExtensionFeaturesTab extends Themable {
 			return;
 		}
 
-		const splitView = new SplitView<number>(this.domNode, {
+		const splitView = this._register(new SplitView<number>(this.domNode, {
 			orientation: Orientation.HORIZONTAL,
 			proportionalLayout: true
-		});
+		}));
 		this.layoutParticipants.push({
 			layout: (height: number, width: number) => {
 				splitView.el.style.height = `${height - 14}px`;
@@ -190,7 +190,7 @@ export class ExtensionFeaturesTab extends Themable {
 		});
 
 		const featuresListContainer = $('.features-list-container');
-		const list = this.createFeaturesList(featuresListContainer);
+		const list = this._register(this.createFeaturesList(featuresListContainer));
 		list.splice(0, list.length, features);
 
 		const featureViewContainer = $('.feature-view-container');

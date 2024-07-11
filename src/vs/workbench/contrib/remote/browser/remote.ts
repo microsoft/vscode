@@ -22,7 +22,7 @@ import { VIEWLET_ID } from 'vs/workbench/contrib/remote/browser/remoteExplorer';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IViewDescriptor, IViewsRegistry, Extensions, ViewContainerLocation, IViewContainersRegistry, IViewDescriptorService } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IExtensionDescription, IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -290,7 +290,7 @@ abstract class HelpItemBase implements IHelpItem {
 		label: string;
 		url: string;
 		description: string;
-		extensionDescription: Readonly<IRelaxedExtensionDescription>;
+		extensionDescription: IExtensionDescription;
 	}[]> {
 		return (await Promise.all(this.values.map(async (value) => {
 			return {
@@ -419,7 +419,7 @@ class IssueReporterItem extends HelpItemBase {
 		label: string;
 		description: string;
 		url: string;
-		extensionDescription: Readonly<IRelaxedExtensionDescription>;
+		extensionDescription: IExtensionDescription;
 	}[]> {
 		return Promise.all(this.values.map(async (value) => {
 			return {

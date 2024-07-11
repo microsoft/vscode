@@ -109,9 +109,6 @@ export class ExtensionManagementChannel implements IServerChannel {
 				const uri = await this.service.zip(extension);
 				return transformOutgoingURI(uri, uriTransformer);
 			}
-			case 'unzip': {
-				return this.service.unzip(transformIncomingURI(args[0], uriTransformer));
-			}
 			case 'install': {
 				return this.service.install(transformIncomingURI(args[0], uriTransformer), transformIncomingOptions(args[1], uriTransformer));
 			}
@@ -157,6 +154,9 @@ export class ExtensionManagementChannel implements IServerChannel {
 			case 'updateMetadata': {
 				const e = await this.service.updateMetadata(transformIncomingExtension(args[0], uriTransformer), args[1], transformIncomingURI(args[2], uriTransformer));
 				return transformOutgoingExtension(e, uriTransformer);
+			}
+			case 'resetPinnedStateForAllUserExtensions': {
+				return this.service.resetPinnedStateForAllUserExtensions(args[0]);
 			}
 			case 'getExtensionsControlManifest': {
 				return this.service.getExtensionsControlManifest();
@@ -238,10 +238,6 @@ export class ExtensionManagementChannelClient extends Disposable implements IExt
 		return Promise.resolve(this.channel.call<UriComponents>('zip', [extension]).then(result => URI.revive(result)));
 	}
 
-	unzip(zipLocation: URI): Promise<IExtensionIdentifier> {
-		return Promise.resolve(this.channel.call<IExtensionIdentifier>('unzip', [zipLocation]));
-	}
-
 	install(vsix: URI, options?: InstallOptions): Promise<ILocalExtension> {
 		return Promise.resolve(this.channel.call<ILocalExtension>('install', [vsix, options])).then(local => transformIncomingExtension(local, null));
 	}
@@ -287,6 +283,10 @@ export class ExtensionManagementChannelClient extends Disposable implements IExt
 	updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>, extensionsProfileResource?: URI): Promise<ILocalExtension> {
 		return Promise.resolve(this.channel.call<ILocalExtension>('updateMetadata', [local, metadata, extensionsProfileResource]))
 			.then(extension => transformIncomingExtension(extension, null));
+	}
+
+	resetPinnedStateForAllUserExtensions(pinned: boolean): Promise<void> {
+		return this.channel.call<void>('resetPinnedStateForAllUserExtensions', [pinned]);
 	}
 
 	toggleAppliationScope(local: ILocalExtension, fromProfileLocation: URI): Promise<ILocalExtension> {

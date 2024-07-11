@@ -169,6 +169,32 @@ export const enum TestMessageType {
 	Output
 }
 
+export interface ITestMessageStackFrame {
+	label: string;
+	uri: URI | undefined;
+	position: Position | undefined;
+}
+
+export namespace ITestMessageStackFrame {
+	export interface Serialized {
+		label: string;
+		uri: UriComponents | undefined;
+		position: IPosition | undefined;
+	}
+
+	export const serialize = (stack: Readonly<ITestMessageStackFrame>): Serialized => ({
+		label: stack.label,
+		uri: stack.uri?.toJSON(),
+		position: stack.position?.toJSON(),
+	});
+
+	export const deserialize = (uriIdentity: ITestUriCanonicalizer, stack: Serialized): ITestMessageStackFrame => ({
+		label: stack.label,
+		uri: stack.uri ? uriIdentity.asCanonicalUri(URI.revive(stack.uri)) : undefined,
+		position: stack.position ? Position.lift(stack.position) : undefined,
+	});
+}
+
 export interface ITestErrorMessage {
 	message: string | IMarkdownString;
 	type: TestMessageType.Error;
@@ -176,6 +202,7 @@ export interface ITestErrorMessage {
 	actual: string | undefined;
 	contextValue: string | undefined;
 	location: IRichLocation | undefined;
+	stackTrace: undefined | ITestMessageStackFrame[];
 }
 
 export namespace ITestErrorMessage {
@@ -186,6 +213,7 @@ export namespace ITestErrorMessage {
 		actual: string | undefined;
 		contextValue: string | undefined;
 		location: IRichLocation.Serialize | undefined;
+		stackTrace: undefined | ITestMessageStackFrame.Serialized[];
 	}
 
 	export const serialize = (message: Readonly<ITestErrorMessage>): Serialized => ({
@@ -195,6 +223,7 @@ export namespace ITestErrorMessage {
 		actual: message.actual,
 		contextValue: message.contextValue,
 		location: message.location && IRichLocation.serialize(message.location),
+		stackTrace: message.stackTrace?.map(ITestMessageStackFrame.serialize),
 	});
 
 	export const deserialize = (uriIdentity: ITestUriCanonicalizer, message: Serialized): ITestErrorMessage => ({
@@ -204,6 +233,7 @@ export namespace ITestErrorMessage {
 		actual: message.actual,
 		contextValue: message.contextValue,
 		location: message.location && IRichLocation.deserialize(uriIdentity, message.location),
+		stackTrace: message.stackTrace && message.stackTrace.map(s => ITestMessageStackFrame.deserialize(uriIdentity, s)),
 	});
 }
 
@@ -258,6 +288,9 @@ export namespace ITestMessage {
 
 	export const deserialize = (uriIdentity: ITestUriCanonicalizer, message: Serialized): ITestMessage =>
 		message.type === TestMessageType.Error ? ITestErrorMessage.deserialize(uriIdentity, message) : ITestOutputMessage.deserialize(uriIdentity, message);
+
+	export const isDiffable = (message: ITestMessage): message is ITestErrorMessage & { actual: string; expected: string } =>
+		message.type === TestMessageType.Error && message.actual !== undefined && message.expected !== undefined;
 }
 
 export interface ITestTaskState {
@@ -573,7 +606,7 @@ export namespace ICoverageCount {
 export interface IFileCoverage {
 	id: string;
 	uri: URI;
-	testId?: TestId;
+	testIds?: string[];
 	statement: ICoverageCount;
 	branch?: ICoverageCount;
 	declaration?: ICoverageCount;
@@ -583,7 +616,7 @@ export namespace IFileCoverage {
 	export interface Serialized {
 		id: string;
 		uri: UriComponents;
-		testId: string | undefined;
+		testIds: string[] | undefined;
 		statement: ICoverageCount;
 		branch?: ICoverageCount;
 		declaration?: ICoverageCount;
@@ -594,7 +627,7 @@ export namespace IFileCoverage {
 		statement: original.statement,
 		branch: original.branch,
 		declaration: original.declaration,
-		testId: original.testId?.toString(),
+		testIds: original.testIds,
 		uri: original.uri.toJSON(),
 	});
 
@@ -603,14 +636,13 @@ export namespace IFileCoverage {
 		statement: serialized.statement,
 		branch: serialized.branch,
 		declaration: serialized.declaration,
-		testId: serialized.testId ? TestId.fromString(serialized.testId) : undefined,
+		testIds: serialized.testIds,
 		uri: uriIdentity.asCanonicalUri(URI.revive(serialized.uri)),
 	});
 
 	export const empty = (id: string, uri: URI): IFileCoverage => ({
 		id,
 		uri,
-		testId: undefined,
 		statement: ICoverageCount.empty(),
 	});
 }

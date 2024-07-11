@@ -103,7 +103,7 @@ class NativeLocalizationWorkbenchContribution extends BaseLocalizationWorkbenchC
 		if (!this.galleryService.isEnabled()) {
 			return;
 		}
-		if (!language || !locale || locale === 'en' || locale.indexOf('en-') === 0) {
+		if (!language || !locale || platform.Language.isDefaultVariant()) {
 			return;
 		}
 		if (locale.startsWith(language) || languagePackSuggestionIgnoreList.includes(locale)) {

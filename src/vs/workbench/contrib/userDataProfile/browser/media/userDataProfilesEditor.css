@@ -112,10 +112,21 @@
 	font-size: large;
 	padding: 4px;
 	margin-right: 8px;
+	border-radius: 5px;
+}
+
+.profiles-editor .contents-container .profile-title-container .codicon.disabled {
+	cursor: default;
+}
+
+.profiles-editor .contents-container .profile-title-container .codicon:not(.disabled):hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	outline: 1px dashed var(--vscode-toolbar-hoverOutline);
 }
 
 .profiles-editor .contents-container .profile-title-container .monaco-inputbox {
-	width: 340px;
+	margin-right: 10px;
+	flex: 1;
 }
 
 .profiles-editor .contents-container .profile-header .profile-button-container {
@@ -166,7 +177,7 @@
 .profiles-editor .contents-container .profile-copy-from-container {
 	display: flex;
 	align-items: center;
-	margin: 0px 0px 20px 36px;
+	margin: 0px 0px 15px 36px;
 }
 
 .profiles-editor .contents-container .profile-copy-from-container > .profile-copy-from-label {
@@ -201,7 +212,7 @@
 
 .profiles-editor .contents-container .profile-content-tree-header {
 	display: grid;
-	grid-template-columns: 30px repeat(2, 1fr) 100px;
+	grid-template-columns: 30px repeat(1, 1fr) 150px 100px;
 	height: 24px;
 	align-items: center;
 	margin-bottom: 2px;
@@ -210,13 +221,12 @@
 }
 
 .profiles-editor .contents-container .profile-tree-item-container {
-	display: flex;
+	display: grid;
 	align-items: center;
 }
 
 .profiles-editor .contents-container .profile-tree-item-container.existing-profile-resource-type-container {
-	display: grid;
-	grid-template-columns: repeat(2, 1fr) 100px;
+	grid-template-columns: repeat(1, 1fr) 150px 100px;
 }
 
 .profiles-editor .contents-container .profile-content-tree-header > .inherit-label,
@@ -235,26 +245,26 @@
 	align-items: center;
 }
 
-.profiles-editor .contents-container .profile-tree-item-container.profile-resource-child-container > .profile-tree-item-actions-container {
-	width: 100px;
+.profiles-editor .contents-container .profile-content-tree-header.new-profile {
+	grid-template-columns: 30px repeat(2, 1fr) 100px;
 }
 
-.profiles-editor .contents-container .profile-tree-item-container.new-profile-resource-type-container > .profile-resource-type-label-container {
+.profiles-editor .contents-container .profile-tree-item-container.new-profile-resource-type-container {
+	grid-template-columns: repeat(2, 1fr) 100px;
+}
+
+.profiles-editor .contents-container .profile-tree-item-container.new-profile-resource-type-container .profile-select-container {
 	width: 170px;
 }
 
-.profiles-editor .contents-container .profile-tree-item-container.new-profile-resource-type-container > .profile-select-container {
-	width: 170px;
+.profiles-editor .contents-container .profile-tree-item-container.profile-resource-child-container {
+	grid-template-columns: repeat(1, 1fr) 100px;
 }
 
 .profiles-editor .contents-container .profile-tree-item-container .profile-resource-type-description {
 	margin-left: 10px;
 	font-size: 0.9em;
 	opacity: 0.7;
-}
-
-.profiles-editor .contents-container .profile-tree-item-container.profile-resource-child-container > .monaco-icon-label {
-	flex: 1
 }
 
 .profiles-editor .contents-container .profile-tree-item-container .profile-tree-item-actions-container {

@@ -17,7 +17,7 @@ import { isCancellationError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, dispose, type IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/settingsEditor2';
@@ -109,7 +109,7 @@ export class SettingsEditor2 extends EditorPane {
 	private static TOC_RESET_WIDTH: number = 200;
 	private static EDITOR_MIN_WIDTH: number = 500;
 	// Below NARROW_TOTAL_WIDTH, we only render the editor rather than the ToC.
-	private static NARROW_TOTAL_WIDTH: number = SettingsEditor2.TOC_RESET_WIDTH + SettingsEditor2.EDITOR_MIN_WIDTH;
+	private static NARROW_TOTAL_WIDTH: number = this.TOC_RESET_WIDTH + this.EDITOR_MIN_WIDTH;
 
 	private static SUGGESTIONS: string[] = [
 		`@${MODIFIED_SETTING_TAG}`,
@@ -219,6 +219,8 @@ export class SettingsEditor2 extends EditorPane {
 
 	private installedExtensionIds: string[] = [];
 
+	private readonly inputChangeListener: MutableDisposable<IDisposable>;
+
 	constructor(
 		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -289,6 +291,7 @@ export class SettingsEditor2 extends EditorPane {
 		if (ENABLE_LANGUAGE_FILTER && !SettingsEditor2.SUGGESTIONS.includes(`@${LANGUAGE_SETTING_TAG}`)) {
 			SettingsEditor2.SUGGESTIONS.push(`@${LANGUAGE_SETTING_TAG}`);
 		}
+		this.inputChangeListener = this._register(new MutableDisposable());
 	}
 
 	override get minimumWidth(): number { return SettingsEditor2.EDITOR_MIN_WIDTH; }
@@ -382,9 +385,9 @@ export class SettingsEditor2 extends EditorPane {
 
 		// Don't block setInput on render (which can trigger an async search)
 		this.onConfigUpdate(undefined, true).then(() => {
-			this._register(input.onWillDispose(() => {
+			this.inputChangeListener.value = input.onWillDispose(() => {
 				this.searchWidget.setValue('');
-			}));
+			});
 
 			// Init TOC selection
 			this.updateTreeScrollSync();
@@ -791,10 +794,10 @@ export class SettingsEditor2 extends EditorPane {
 		this.createTOC(this.tocTreeContainer);
 		this.createSettingsTree(this.settingsTreeContainer);
 
-		this.splitView = new SplitView(this.bodyContainer, {
+		this.splitView = this._register(new SplitView(this.bodyContainer, {
 			orientation: Orientation.HORIZONTAL,
 			proportionalLayout: true
-		});
+		}));
 		const startingWidth = this.storageService.getNumber('settingsEditor2.splitViewWidth', StorageScope.PROFILE, SettingsEditor2.TOC_RESET_WIDTH);
 		this.splitView.addView({
 			onDidChange: Event.None,
@@ -911,7 +914,7 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	private createSettingsTree(container: HTMLElement): void {
-		this.settingRenderers = this.instantiationService.createInstance(SettingTreeRenderers);
+		this.settingRenderers = this._register(this.instantiationService.createInstance(SettingTreeRenderers));
 		this._register(this.settingRenderers.onDidChangeSetting(e => this.onDidChangeSetting(e.key, e.value, e.type, e.manualReset, e.scope)));
 		this._register(this.settingRenderers.onDidOpenSettings(settingKey => {
 			this.openSettingsFile({ revealSetting: { key: settingKey, edit: true } });
@@ -1301,6 +1304,7 @@ export class SettingsEditor2 extends EditorPane {
 		const toggleData = await getExperimentalExtensionToggleData(this.extensionGalleryService, this.productService);
 		if (toggleData && groups.filter(g => g.extensionInfo).length) {
 			for (const key in toggleData.settingsEditorRecommendedExtensions) {
+				const recommendationInfo = toggleData.settingsEditorRecommendedExtensions[key];
 				const extension = toggleData.recommendedExtensionsGalleryInfo[key];
 				let manifest: IExtensionManifest | null = null;
 				try {
@@ -1327,16 +1331,17 @@ export class SettingsEditor2 extends EditorPane {
 					keyRange: nullRange,
 					value: null,
 					valueRange: nullRange,
-					description: [extension?.description || ''],
+					description: [recommendationInfo.onSettingsEditorOpen?.descriptionOverride ?? extension.description],
 					descriptionIsMarkdown: false,
 					descriptionRanges: [],
-					title: extensionName,
 					scope: ConfigurationScope.WINDOW,
 					type: 'null',
 					displayExtensionId: extension.identifier.id,
 					prereleaseExtensionId: key,
 					stableExtensionId: key,
-					extensionGroupTitle: groupTitle ?? extensionName
+					extensionGroupTitle: groupTitle ?? extensionName,
+					categoryLabel: 'Extensions',
+					title: extensionName
 				};
 				const additionalGroup = this.addOrRemoveManageExtensionSetting(setting, extension, groups);
 				if (additionalGroup) {
@@ -1405,9 +1410,7 @@ export class SettingsEditor2 extends EditorPane {
 				keys.forEach(key => this.settingsTreeModel.updateElementsByName(key));
 			}
 
-			// Attempt to render the tree once rather than
-			// once for each key to avoid redundant calls to this.refreshTree()
-			this.renderTree();
+			keys.forEach(key => this.renderTree(key));
 		} else {
 			this.renderTree();
 		}
@@ -1447,7 +1450,6 @@ export class SettingsEditor2 extends EditorPane {
 					// update `list`s live, as they have a separate "submit edit" step built in before this
 					(focusedSetting.parentElement && !focusedSetting.parentElement.classList.contains('setting-item-list'))
 				) {
-
 					this.updateModifiedLabelForKey(key);
 					this.scheduleRefresh(focusedSetting, key);
 					return;
@@ -1463,8 +1465,10 @@ export class SettingsEditor2 extends EditorPane {
 		if (key) {
 			const elements = this.currentSettingsModel.getElementsByName(key);
 			if (elements && elements.length) {
-				// TODO https://github.com/microsoft/vscode/issues/57360
-				this.refreshTree();
+				if (elements.length >= 2) {
+					console.warn('More than one setting with key ' + key + ' found');
+				}
+				this.refreshSingleElement(elements[0]);
 			} else {
 				// Refresh requested for a key that we don't know about
 				return;
@@ -1478,6 +1482,12 @@ export class SettingsEditor2 extends EditorPane {
 
 	private contextViewFocused(): boolean {
 		return !!DOM.findParentWithClass(<HTMLElement>this.rootElement.ownerDocument.activeElement, 'context-view');
+	}
+
+	private refreshSingleElement(element: SettingsTreeSettingElement): void {
+		if (this.isVisible()) {
+			this.settingsTree.rerender(element);
+		}
 	}
 
 	private refreshTree(): void {

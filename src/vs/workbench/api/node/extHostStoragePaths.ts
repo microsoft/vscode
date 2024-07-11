@@ -69,14 +69,14 @@ export class ExtensionStoragePaths extends CommonExtensionStoragePaths {
 
 async function mkdir(dir: string): Promise<void> {
 	try {
-		await Promises.stat(dir);
+		await fs.promises.stat(dir);
 		return;
 	} catch {
 		// doesn't exist, that's OK
 	}
 
 	try {
-		await Promises.mkdir(dir, { recursive: true });
+		await fs.promises.mkdir(dir, { recursive: true });
 	} catch {
 	}
 }
@@ -103,7 +103,7 @@ class Lock extends Disposable {
 				this._timer.cancel();
 			}
 			try {
-				await Promises.utimes(filename, new Date(), new Date());
+				await fs.promises.utimes(filename, new Date(), new Date());
 			} catch (err) {
 				logService.error(err);
 				logService.info(`Lock '${filename}': Could not update mtime.`);
@@ -174,7 +174,7 @@ interface ILockfileContents {
 async function readLockfileContents(logService: ILogService, filename: string): Promise<ILockfileContents | null> {
 	let contents: Buffer;
 	try {
-		contents = await Promises.readFile(filename);
+		contents = await fs.promises.readFile(filename);
 	} catch (err) {
 		// cannot read the file
 		logService.error(err);
@@ -196,7 +196,7 @@ async function readLockfileContents(logService: ILogService, filename: string): 
 async function readmtime(logService: ILogService, filename: string): Promise<number> {
 	let stats: fs.Stats;
 	try {
-		stats = await Promises.stat(filename);
+		stats = await fs.promises.stat(filename);
 	} catch (err) {
 		// cannot read the file stats to check if it is stale or not
 		logService.error(err);
@@ -279,7 +279,7 @@ async function checkStaleAndTryAcquireLock(logService: ILogService, filename: st
 async function tryDeleteAndAcquireLock(logService: ILogService, filename: string): Promise<Lock | null> {
 	logService.info(`Lock '${filename}': Deleting a stale lock.`);
 	try {
-		await Promises.unlink(filename);
+		await fs.promises.unlink(filename);
 	} catch (err) {
 		// cannot delete the file
 		// maybe the file is already deleted

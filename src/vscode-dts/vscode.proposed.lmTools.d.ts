@@ -3,6 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+// version: 2
+// https://github.com/microsoft/vscode/issues/213274
+
 declare module 'vscode' {
 
 	// TODO@API capabilities
@@ -13,7 +16,7 @@ declare module 'vscode' {
 	export interface LanguageModelChatFunction {
 		name: string;
 		description: string;
-		parametersSchema: JSONSchema;
+		parametersSchema?: JSONSchema;
 	}
 
 	// API -> LM: add tools as request option
@@ -54,5 +57,35 @@ declare module 'vscode' {
 
 	export interface LanguageModelChatMessage {
 		content2: string | LanguageModelChatMessageFunctionResultPart;
+	}
+
+	// Tool registration/invoking between extensions
+
+	export namespace lm {
+		/**
+		 * Register a LanguageModelTool. The tool must also be registered in the package.json `languageModelTools` contribution point.
+		 */
+		export function registerTool(name: string, tool: LanguageModelTool): Disposable;
+
+		/**
+		 * A list of all available tools.
+		 */
+		export const tools: ReadonlyArray<LanguageModelToolDescription>;
+
+		/**
+		 * Invoke a tool with the given parameters.
+		 */
+		export function invokeTool(name: string, parameters: Object, token: CancellationToken): Thenable<string>;
+	}
+
+	// Is the same as LanguageModelChatFunction now, but could have more details in the future
+	export interface LanguageModelToolDescription {
+		name: string;
+		description: string;
+		parametersSchema?: JSONSchema;
+	}
+
+	export interface LanguageModelTool {
+		invoke(parameters: any, token: CancellationToken): Thenable<string>;
 	}
 }

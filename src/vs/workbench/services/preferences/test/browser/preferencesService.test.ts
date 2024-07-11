@@ -9,6 +9,7 @@ import { TestCommandService } from 'vs/editor/test/browser/editorTestServices';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { IURLService } from 'vs/platform/url/common/url';
 import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { TestJSONEditingService } from 'vs/workbench/services/configuration/test/common/testServices';
@@ -32,11 +33,12 @@ suite('PreferencesService', () => {
 		testInstantiationService.stub(IJSONEditingService, TestJSONEditingService);
 		testInstantiationService.stub(IRemoteAgentService, TestRemoteAgentService);
 		testInstantiationService.stub(ICommandService, TestCommandService);
+		testInstantiationService.stub(IURLService, { registerHandler: () => { } });
 
 		// PreferencesService creates a PreferencesEditorInput which depends on IPreferencesService, add the real one, not a stub
 		const collection = new ServiceCollection();
 		collection.set(IPreferencesService, new SyncDescriptor(PreferencesService));
-		const instantiationService = testInstantiationService.createChild(collection);
+		const instantiationService = disposables.add(testInstantiationService.createChild(collection));
 		testObject = disposables.add(instantiationService.createInstance(PreferencesService));
 	});
 	test('options are preserved when calling openEditor', async () => {

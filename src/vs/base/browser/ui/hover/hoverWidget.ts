@@ -50,11 +50,17 @@ export class HoverAction extends Disposable {
 		return new HoverAction(parent, actionOptions, keybindingLabel);
 	}
 
+	public readonly actionLabel: string;
+	public readonly actionKeybindingLabel: string | null;
+
 	private readonly actionContainer: HTMLElement;
 	private readonly action: HTMLElement;
 
 	private constructor(parent: HTMLElement, actionOptions: { label: string; iconClass?: string; run: (target: HTMLElement) => void; commandId: string }, keybindingLabel: string | null) {
 		super();
+
+		this.actionLabel = actionOptions.label;
+		this.actionKeybindingLabel = keybindingLabel;
 
 		this.actionContainer = dom.append(parent, $('div.action-container'));
 		this.actionContainer.setAttribute('tabindex', '0');

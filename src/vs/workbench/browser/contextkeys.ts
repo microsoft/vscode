@@ -203,17 +203,16 @@ export class WorkbenchContextKeysHandler extends Disposable {
 	private registerListeners(): void {
 		this.editorGroupService.whenReady.then(() => {
 			this.updateEditorAreaContextKeys();
-			this.updateEditorGroupContextKeys();
+			this.updateActiveEditorGroupContextKeys();
 			this.updateVisiblePanesContextKeys();
 		});
 
-		this._register(this.editorService.onDidActiveEditorChange(() => this.updateEditorGroupContextKeys()));
+		this._register(this.editorService.onDidActiveEditorChange(() => this.updateActiveEditorGroupContextKeys()));
 		this._register(this.editorService.onDidVisibleEditorsChange(() => this.updateVisiblePanesContextKeys()));
-		this._register(this.editorGroupService.onDidAddGroup(() => this.updateEditorGroupContextKeys()));
-		this._register(this.editorGroupService.onDidRemoveGroup(() => this.updateEditorGroupContextKeys()));
-		this._register(this.editorGroupService.onDidChangeGroupIndex(() => this.updateEditorGroupContextKeys()));
-		this._register(this.editorGroupService.onDidChangeActiveGroup(() => this.updateEditorGroupsContextKeys()));
-		this._register(this.editorGroupService.onDidChangeGroupLocked(() => this.updateEditorGroupsContextKeys()));
+		this._register(this.editorGroupService.onDidAddGroup(() => this.updateEditorGroupsContextKeys()));
+		this._register(this.editorGroupService.onDidRemoveGroup(() => this.updateEditorGroupsContextKeys()));
+		this._register(this.editorGroupService.onDidChangeGroupIndex(() => this.updateActiveEditorGroupContextKeys()));
+		this._register(this.editorGroupService.onDidChangeGroupLocked(() => this.updateActiveEditorGroupContextKeys()));
 
 		this._register(this.editorGroupService.onDidChangeEditorPartOptions(() => this.updateEditorAreaContextKeys()));
 
@@ -266,15 +265,22 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		}
 	}
 
-	private updateEditorGroupContextKeys(): void {
+	// Context keys depending on the state of the editor group itself
+	private updateActiveEditorGroupContextKeys(): void {
 		if (!this.editorService.activeEditor) {
 			this.activeEditorGroupEmpty.set(true);
 		} else {
 			this.activeEditorGroupEmpty.reset();
 		}
+
+		const activeGroup = this.editorGroupService.activeGroup;
+		this.activeEditorGroupIndex.set(activeGroup.index + 1); // not zero-indexed
+		this.activeEditorGroupLocked.set(activeGroup.isLocked);
+
 		this.updateEditorGroupsContextKeys();
 	}
 
+	// Context keys depending on the state of other editor groups
 	private updateEditorGroupsContextKeys(): void {
 		const groupCount = this.editorGroupService.count;
 		if (groupCount > 1) {
@@ -284,9 +290,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		}
 
 		const activeGroup = this.editorGroupService.activeGroup;
-		this.activeEditorGroupIndex.set(activeGroup.index + 1); // not zero-indexed
 		this.activeEditorGroupLast.set(activeGroup.index === groupCount - 1);
-		this.activeEditorGroupLocked.set(activeGroup.isLocked);
 	}
 
 	private updateEditorAreaContextKeys(): void {
