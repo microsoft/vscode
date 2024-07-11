@@ -20,7 +20,6 @@ export class CommentsAccessibleView extends Disposable implements IAccessibleVie
 	readonly name = 'comment';
 	readonly when = CONTEXT_KEY_HAS_COMMENTS;
 	readonly type = AccessibleViewType.View;
-	private _provider: AccessibleContentProvider | undefined;
 	getProvider(accessor: ServicesAccessor) {
 		const contextKeyService = accessor.get(IContextKeyService);
 		const viewsService = accessor.get(IViewsService);
@@ -77,11 +76,7 @@ export class CommentsAccessibleView extends Disposable implements IAccessibleVie
 				}
 			);
 		}
-		this._provider = resolveProvider();
-		if (this._provider) {
-			this._register(this._provider);
-		}
-		return this._provider;
+		return resolveProvider();
 	}
 	constructor() {
 		super();

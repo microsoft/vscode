@@ -582,6 +582,7 @@ export class AccessibleView extends Disposable {
 			this._lastProvider = undefined;
 			this._currentContent = undefined;
 			this._currentProvider?.dispose();
+			this._currentProvider = undefined;
 		};
 		const disposableStore = new DisposableStore();
 		disposableStore.add(this._editorWidget.onKeyDown((e) => {
