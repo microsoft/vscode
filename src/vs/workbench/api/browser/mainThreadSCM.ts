@@ -161,11 +161,11 @@ class MainThreadSCMResource implements ISCMResource {
 }
 
 class MainThreadSCMHistoryProvider implements ISCMHistoryProvider {
-	readonly currentHistoryItemGroupIdObs = derived<string | undefined>(this, reader => this._currentHistoryItemGroupObs.read(reader)?.id);
-	readonly currentHistoryItemGroupNameObs = derived<string | undefined>(this, reader => this._currentHistoryItemGroupObs.read(reader)?.name);
+	readonly currentHistoryItemGroupId = derived<string | undefined>(this, reader => this.currentHistoryItemGroup.read(reader)?.id);
+	readonly currentHistoryItemGroupName = derived<string | undefined>(this, reader => this.currentHistoryItemGroup.read(reader)?.name);
 
-	private readonly _currentHistoryItemGroupObs = observableValueOpts<ISCMHistoryItemGroup | undefined>({ owner: this, equalsFn: structuralEquals }, undefined);
-	get currentHistoryItemGroupObs() { return this._currentHistoryItemGroupObs; }
+	private readonly _currentHistoryItemGroup = observableValueOpts<ISCMHistoryItemGroup | undefined>({ owner: this, equalsFn: structuralEquals }, undefined);
+	get currentHistoryItemGroup() { return this._currentHistoryItemGroup; }
 
 	constructor(private readonly proxy: ExtHostSCMShape, private readonly handle: number) { }
 
@@ -203,7 +203,7 @@ class MainThreadSCMHistoryProvider implements ISCMHistoryProvider {
 	}
 
 	$onDidChangeCurrentHistoryItemGroup(historyItemGroup: ISCMHistoryItemGroup | undefined): void {
-		this._currentHistoryItemGroupObs.set(historyItemGroup, undefined);
+		this._currentHistoryItemGroup.set(historyItemGroup, undefined);
 	}
 }
 

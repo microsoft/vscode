@@ -1240,7 +1240,7 @@ class SeparatorRenderer implements ICompressibleTreeRenderer<SCMViewSeparatorEle
 		return { label, toolBar, elementDisposables: new DisposableStore(), templateDisposables };
 	}
 	renderElement(element: ITreeNode<SCMViewSeparatorElement, void>, index: number, templateData: SeparatorTemplate, height: number | undefined): void {
-		const currentHistoryItemGroup = element.element.repository.provider.historyProvider?.currentHistoryItemGroupObs.get();
+		const currentHistoryItemGroup = element.element.repository.provider.historyProvider?.currentHistoryItemGroup.get();
 
 		// Label
 		templateData.label.setLabel(element.element.label, undefined, { title: element.element.ariaLabel });
@@ -3362,7 +3362,7 @@ export class SCMViewPane extends ViewPane {
 			repositoryDisposables.add(repository.provider.onDidChangeResourceGroups(() => this.updateChildren(repository)));
 
 			repositoryDisposables.add(autorun(reader => {
-				repository.provider.historyProviderObs.read(reader)?.currentHistoryItemGroupObs.read(reader);
+				repository.provider.historyProviderObs.read(reader)?.currentHistoryItemGroup.read(reader);
 
 				this.historyProviderDataSource.deleteCacheEntry(repository);
 				this.updateChildren(repository);
@@ -3769,7 +3769,7 @@ class SCMTreeHistoryProviderDataSource extends Disposable {
 
 		const scmProvider = element.provider;
 		const historyProvider = scmProvider.historyProvider;
-		const currentHistoryItemGroup = historyProvider?.currentHistoryItemGroupObs.get();
+		const currentHistoryItemGroup = historyProvider?.currentHistoryItemGroup.get();
 
 		if (!historyProvider || !currentHistoryItemGroup || (showIncomingChanges === 'never' && showOutgoingChanges === 'never') || showHistoryGraph) {
 			return [];
@@ -3887,7 +3887,7 @@ class SCMTreeHistoryProviderDataSource extends Disposable {
 		const { showHistoryGraph } = this._getConfiguration();
 
 		const historyProvider = element.provider.historyProvider;
-		const currentHistoryItemGroup = historyProvider?.currentHistoryItemGroupObs.get();
+		const currentHistoryItemGroup = historyProvider?.currentHistoryItemGroup.get();
 
 		if (!historyProvider || !currentHistoryItemGroup || !showHistoryGraph) {
 			return [];

@@ -17,9 +17,9 @@ export interface ISCMHistoryProviderMenus {
 }
 
 export interface ISCMHistoryProvider {
-	readonly currentHistoryItemGroupIdObs: IObservable<string | undefined>;
-	readonly currentHistoryItemGroupNameObs: IObservable<string | undefined>;
-	readonly currentHistoryItemGroupObs: IObservable<ISCMHistoryItemGroup | undefined>;
+	readonly currentHistoryItemGroupId: IObservable<string | undefined>;
+	readonly currentHistoryItemGroupName: IObservable<string | undefined>;
+	readonly currentHistoryItemGroup: IObservable<ISCMHistoryItemGroup | undefined>;
 
 	provideHistoryItems(historyItemGroupId: string, options: ISCMHistoryOptions): Promise<ISCMHistoryItem[] | undefined>;
 	provideHistoryItems2(options: ISCMHistoryOptions): Promise<ISCMHistoryItem[] | undefined>;

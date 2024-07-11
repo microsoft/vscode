@@ -135,7 +135,7 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 		this._register(autorun(reader => {
 			const repository = this._activeRepository.read(reader);
 			const historyProvider = repository?.provider.historyProviderObs.read(reader);
-			const branchName = historyProvider?.currentHistoryItemGroupNameObs.read(reader);
+			const branchName = historyProvider?.currentHistoryItemGroupName.read(reader);
 
 			this._updateActiveRepositoryContextKeys(repository?.provider.name, branchName);
 		}));
