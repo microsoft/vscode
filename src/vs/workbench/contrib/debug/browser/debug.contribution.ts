@@ -58,6 +58,7 @@ import { DisassemblyViewInput } from 'vs/workbench/contrib/debug/common/disassem
 import { COPY_NOTEBOOK_VARIABLE_VALUE_ID, COPY_NOTEBOOK_VARIABLE_VALUE_LABEL } from 'vs/workbench/contrib/notebook/browser/contrib/notebookVariables/notebookVariableCommands';
 import { launchSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import './debugSettingMigration';
 
 const debugCategory = nls.localize('debugCategory', "Debug");
 registerColors();
@@ -618,9 +619,15 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('debug.disassemblyView.showSourceCode', "Show Source Code in Disassembly View.")
 		},
 		'debug.autoExpandLazyVariables': {
-			type: 'boolean',
-			default: false,
-			description: nls.localize('debug.autoExpandLazyVariables', "Automatically show values for variables that are lazily resolved by the debugger, such as getters.")
+			type: 'string',
+			enum: ['auto', 'on', 'off'],
+			default: 'auto',
+			enumDescriptions: [
+				nls.localize('debug.autoExpandLazyVariables.auto', "When in screen reader optimized mode, automatically expand lazy variables."),
+				nls.localize('debug.autoExpandLazyVariables.on', "Always automatically expand lazy variables."),
+				nls.localize('debug.autoExpandLazyVariables.off', "Never automatically expand lazy variables.")
+			],
+			description: nls.localize('debug.autoExpandLazyVariables', "Controls if variables, such as getters, are automatically resolved and expanded by the debugger.")
 		},
 		'debug.enableStatusBarColor': {
 			type: 'boolean',
