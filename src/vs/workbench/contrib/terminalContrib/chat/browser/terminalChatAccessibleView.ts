@@ -12,7 +12,6 @@ import { TerminalChatContextKeys } from 'vs/workbench/contrib/terminal/browser/t
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
 export class TerminalInlineChatAccessibleView implements IAccessibleViewImplentation {
-	private _provider: AccessibleContentProvider | undefined;
 	readonly priority = 105;
 	readonly name = 'terminalInlineChat';
 	readonly type = AccessibleViewType.View;
@@ -24,7 +23,7 @@ export class TerminalInlineChatAccessibleView implements IAccessibleViewImplenta
 			return;
 		}
 		const responseContent = controller.lastResponseContent;
-		this._provider = new AccessibleContentProvider(
+		return new AccessibleContentProvider(
 			AccessibleViewProviderId.TerminalChat,
 			{ type: AccessibleViewType.View },
 			() => { return responseContent; },
@@ -33,9 +32,5 @@ export class TerminalInlineChatAccessibleView implements IAccessibleViewImplenta
 			},
 			AccessibilityVerbositySettingId.InlineChat,
 		);
-		return this._provider;
-	}
-	dispose() {
-		this._provider?.dispose();
 	}
 }

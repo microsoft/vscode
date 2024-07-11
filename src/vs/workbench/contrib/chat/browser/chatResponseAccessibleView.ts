@@ -20,12 +20,10 @@ export class ChatResponseAccessibleView implements IAccessibleViewImplentation {
 	readonly name = 'panelChat';
 	readonly type = AccessibleViewType.View;
 	readonly when = CONTEXT_IN_CHAT_SESSION;
-	private _provider: AccessibleContentProvider | undefined;
 	getProvider(accessor: ServicesAccessor) {
 		const widgetService = accessor.get(IChatWidgetService);
 		const codeEditorService = accessor.get(ICodeEditorService);
-		this._provider = resolveProvider(widgetService, codeEditorService, true);
-		return this._provider;
+		return resolveProvider(widgetService, codeEditorService, true);
 		function resolveProvider(widgetService: IChatWidgetService, codeEditorService: ICodeEditorService, initialRender?: boolean) {
 			const widget = widgetService.lastFocusedWidget;
 			if (!widget) {
@@ -99,8 +97,5 @@ export class ChatResponseAccessibleView implements IAccessibleViewImplentation {
 			);
 			return provider;
 		}
-	}
-	dispose() {
-		this._provider?.dispose();
 	}
 }

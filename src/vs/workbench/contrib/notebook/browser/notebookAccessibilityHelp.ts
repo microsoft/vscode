@@ -18,20 +18,15 @@ export class NotebookAccessibilityHelp implements IAccessibleViewImplentation {
 	readonly name = 'notebook';
 	readonly when = NOTEBOOK_IS_ACTIVE_EDITOR;
 	readonly type: AccessibleViewType = AccessibleViewType.Help;
-	private _provider: AccessibleContentProvider | undefined;
 	getProvider(accessor: ServicesAccessor) {
 		const activeEditor = accessor.get(ICodeEditorService).getActiveCodeEditor()
 			|| accessor.get(ICodeEditorService).getFocusedCodeEditor()
 			|| accessor.get(IEditorService).activeEditorPane;
 
-		if (activeEditor) {
-			this._provider = getAccessibilityHelpProvider(accessor, activeEditor);
-			return this._provider;
+		if (!activeEditor) {
+			return;
 		}
-		return;
-	}
-	dispose() {
-		this._provider?.dispose();
+		return getAccessibilityHelpProvider(accessor, activeEditor);
 	}
 }
 

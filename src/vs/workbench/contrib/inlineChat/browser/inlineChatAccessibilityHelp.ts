@@ -25,7 +25,4 @@ export class InlineChatAccessibilityHelp implements IAccessibleViewImplentation 
 		this._provider = getChatAccessibilityHelpProvider(accessor, codeEditor, 'inlineChat');
 		return this._provider;
 	}
-	dispose() {
-		this._provider?.dispose();
-	}
 }

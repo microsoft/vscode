@@ -22,7 +22,6 @@ export class NotificationAccessibleView implements IAccessibleViewImplentation {
 	readonly name = 'notifications';
 	readonly when = NotificationFocusedContext;
 	readonly type = AccessibleViewType.View;
-	private _provider: AccessibleContentProvider | undefined;
 	getProvider(accessor: ServicesAccessor) {
 		const accessibleViewService = accessor.get(IAccessibleViewService);
 		const listService = accessor.get(IListService);
@@ -90,11 +89,7 @@ export class NotificationAccessibleView implements IAccessibleViewImplentation {
 				},
 			);
 		}
-		this._provider = getProvider();
-		return this._provider;
-	}
-	dispose() {
-		this._provider?.dispose();
+		return getProvider();
 	}
 }
 

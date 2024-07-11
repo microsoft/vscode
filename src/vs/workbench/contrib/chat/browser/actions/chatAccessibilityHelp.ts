@@ -21,14 +21,9 @@ export class ChatAccessibilityHelp implements IAccessibleViewImplentation {
 	readonly name = 'panelChat';
 	readonly type = AccessibleViewType.Help;
 	readonly when = ContextKeyExpr.or(CONTEXT_IN_CHAT_SESSION, CONTEXT_RESPONSE, CONTEXT_REQUEST);
-	private _provider: AccessibleContentProvider | undefined;
 	getProvider(accessor: ServicesAccessor) {
 		const codeEditor = accessor.get(ICodeEditorService).getActiveCodeEditor() || accessor.get(ICodeEditorService).getFocusedCodeEditor();
-		this._provider = getChatAccessibilityHelpProvider(accessor, codeEditor ?? undefined, 'panelChat');
-		return this._provider;
-	}
-	dispose() {
-		this._provider?.dispose();
+		return getChatAccessibilityHelpProvider(accessor, codeEditor ?? undefined, 'panelChat');
 	}
 }
 

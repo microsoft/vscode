@@ -19,7 +19,6 @@ export class InlineChatAccessibleView implements IAccessibleViewImplentation {
 	readonly name = 'inlineChat';
 	readonly when = ContextKeyExpr.or(CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_RESPONSE_FOCUSED);
 	readonly type = AccessibleViewType.View;
-	private _provider: AccessibleContentProvider | undefined;
 	getProvider(accessor: ServicesAccessor) {
 		const codeEditorService = accessor.get(ICodeEditorService);
 
@@ -35,16 +34,12 @@ export class InlineChatAccessibleView implements IAccessibleViewImplentation {
 		if (!responseContent) {
 			return;
 		}
-		this._provider = new AccessibleContentProvider(
+		return new AccessibleContentProvider(
 			AccessibleViewProviderId.InlineChat,
 			{ type: AccessibleViewType.View },
 			() => renderMarkdownAsPlaintext(new MarkdownString(responseContent), true),
 			() => controller.focus(),
 			AccessibilityVerbositySettingId.InlineChat
 		);
-		return this._provider;
-	}
-	dispose() {
-		this._provider?.dispose();
 	}
 }

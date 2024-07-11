@@ -16,14 +16,9 @@ export class NotebookAccessibleView implements IAccessibleViewImplentation {
 	readonly name = 'notebook';
 	readonly type = AccessibleViewType.View;
 	readonly when = ContextKeyExpr.and(NOTEBOOK_OUTPUT_FOCUSED, ContextKeyExpr.equals('resourceExtname', '.ipynb'));
-	private _provider: AccessibleContentProvider | undefined;
 	getProvider(accessor: ServicesAccessor) {
 		const editorService = accessor.get(IEditorService);
-		this._provider = getAccessibleOutputProvider(editorService);
-		return this._provider;
-	}
-	dispose() {
-		this._provider?.dispose();
+		return getAccessibleOutputProvider(editorService);
 	}
 }
 

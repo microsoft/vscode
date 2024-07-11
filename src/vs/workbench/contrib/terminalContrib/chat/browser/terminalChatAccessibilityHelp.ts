@@ -18,7 +18,6 @@ export class TerminalChatAccessibilityHelp implements IAccessibleViewImplentatio
 	readonly name = 'terminalChat';
 	readonly when = TerminalChatContextKeys.focused;
 	readonly type = AccessibleViewType.Help;
-	private _provider: AccessibleContentProvider | undefined;
 	getProvider(accessor: ServicesAccessor) {
 		const terminalService = accessor.get(ITerminalService);
 
@@ -28,17 +27,13 @@ export class TerminalChatAccessibilityHelp implements IAccessibleViewImplentatio
 		}
 
 		const helpText = getAccessibilityHelpText(accessor);
-		this._provider = new AccessibleContentProvider(
+		return new AccessibleContentProvider(
 			AccessibleViewProviderId.TerminalChat,
 			{ type: AccessibleViewType.Help },
 			() => helpText,
 			() => TerminalChatController.get(instance)?.focus(),
 			AccessibilityVerbositySettingId.TerminalChat,
 		);
-		return this._provider;
-	}
-	dispose() {
-		this._provider?.dispose();
 	}
 }
 

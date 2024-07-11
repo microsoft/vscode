@@ -15,14 +15,11 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
 
-export class DebugAccessibleView extends Disposable implements IAccessibleViewImplentation {
+export class DebugAccessibleView implements IAccessibleViewImplentation {
 	priority = 70;
 	name = 'debugConsole';
 	when = ContextKeyExpr.equals('focusedView', 'workbench.panel.repl.view');
 	type: AccessibleViewType = AccessibleViewType.View;
-	constructor() {
-		super();
-	}
 	getProvider(accessor: ServicesAccessor) {
 		const viewsService = accessor.get(IViewsService);
 		const debugService = accessor.get(IDebugService);

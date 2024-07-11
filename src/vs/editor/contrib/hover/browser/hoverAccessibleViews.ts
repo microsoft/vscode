@@ -52,10 +52,6 @@ export class HoverAccessibleView implements IAccessibleViewImplentation {
 		this._provider = accessor.get(IInstantiationService).createInstance(HoverAccessibleViewProvider, keybindingService, codeEditor, hoverController);
 		return this._provider;
 	}
-
-	dispose(): void {
-		this._provider?.dispose();
-	}
 }
 
 export class HoverAccessibilityHelp implements IAccessibleViewImplentation {
@@ -64,8 +60,6 @@ export class HoverAccessibilityHelp implements IAccessibleViewImplentation {
 	public readonly name = 'hover';
 	public readonly type = AccessibleViewType.Help;
 	public readonly when = EditorContextKeys.hoverVisible;
-
-	private _provider: HoverAccessibleViewProvider | undefined;
 
 	getProvider(accessor: ServicesAccessor): AccessibleContentProvider | undefined {
 		const codeEditorService = accessor.get(ICodeEditorService);
@@ -78,10 +72,6 @@ export class HoverAccessibilityHelp implements IAccessibleViewImplentation {
 			return;
 		}
 		return accessor.get(IInstantiationService).createInstance(HoverAccessibilityHelpProvider, hoverController);
-	}
-
-	dispose(): void {
-		this._provider?.dispose();
 	}
 }
 
@@ -246,7 +236,6 @@ export class HoverAccessibleViewProvider extends BaseHoverAccessibleViewProvider
 }
 
 export class ExtHoverAccessibleView implements IAccessibleViewImplentation {
-	private _provider: AccessibleContentProvider | undefined;
 	public readonly type = AccessibleViewType.View;
 	public readonly priority = 90;
 	public readonly name = 'extension-hover';
@@ -261,7 +250,7 @@ export class ExtHoverAccessibleView implements IAccessibleViewImplentation {
 			// The accessible view, itself, uses the context view service to display the text. We don't want to read that.
 			return;
 		}
-		this._provider = new AccessibleContentProvider(
+		return new AccessibleContentProvider(
 			AccessibleViewProviderId.Hover,
 			{ language: 'typescript', type: AccessibleViewType.View },
 			() => { return extensionHoverContent; },
@@ -270,10 +259,5 @@ export class ExtHoverAccessibleView implements IAccessibleViewImplentation {
 			},
 			'accessibility.verbosity.hover',
 		);
-		return this._provider;
-	}
-
-	dispose() {
-		this._provider?.dispose();
 	}
 }

@@ -21,7 +21,6 @@ export class DiffEditorAccessibilityHelp implements IAccessibleViewImplentation 
 	readonly name = 'diff-editor';
 	readonly when = ContextKeyEqualsExpr.create('isInDiffEditor', true);
 	readonly type = AccessibleViewType.Help;
-	private _provider: AccessibleContentProvider | undefined;
 	getProvider(accessor: ServicesAccessor) {
 		const editorService = accessor.get(IEditorService);
 		const codeEditorService = accessor.get(ICodeEditorService);
@@ -52,16 +51,12 @@ export class DiffEditorAccessibilityHelp implements IAccessibleViewImplentation 
 		if (commentCommandInfo) {
 			content.push(commentCommandInfo);
 		}
-		this._provider = new AccessibleContentProvider(
+		return new AccessibleContentProvider(
 			AccessibleViewProviderId.DiffEditor,
 			{ type: AccessibleViewType.Help },
 			() => content.join('\n\n'),
 			() => codeEditor.focus(),
 			AccessibilityVerbositySettingId.DiffEditor,
 		);
-		return this._provider;
-	}
-	dispose() {
-		this._provider?.dispose();
 	}
 }
