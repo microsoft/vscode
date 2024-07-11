@@ -103,8 +103,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private _onDidAcceptInput = this._register(new Emitter<void>());
 	readonly onDidAcceptInput = this._onDidAcceptInput.event;
 
-	private _onDidDeleteContext = this._register(new Emitter<IChatRequestVariableEntry>());
-	readonly onDidDeleteContext = this._onDidDeleteContext.event;
+	private _onDidChangeContext = this._register(new Emitter<{ removed?: IChatRequestVariableEntry[]; added?: IChatRequestVariableEntry[] }>());
+	readonly onDidChangeContext = this._onDidChangeContext.event;
 
 	private _onDidHide = this._register(new Emitter<void>());
 	readonly onDidHide = this._onDidHide.event;
@@ -593,7 +593,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			});
 		}));
 		this._register(this.inputPart.onDidFocus(() => this._onDidFocus.fire()));
-		this._register(this.inputPart.onDidDeleteContext((e) => this._onDidDeleteContext.fire(e)));
+		this._register(this.inputPart.onDidChangeContext((e) => this._onDidChangeContext.fire(e)));
 		this._register(this.inputPart.onDidAcceptFollowup(e => {
 			if (!this.viewModel) {
 				return;
@@ -775,7 +775,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			});
 
 			if (result) {
-				this.inputPart.attachedContext.clear();
+				this.inputPart.clearContext();
 				this.inputPart.acceptInput(isUserQuery);
 				this._onDidSubmitAgent.fire({ agent: result.agent, slashCommand: result.slashCommand });
 				this.inputPart.updateState(this.collectInputState());
@@ -793,9 +793,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	setContext(overwrite: boolean, ...contentReferences: IChatRequestVariableEntry[]) {
 		if (overwrite) {
-			this.inputPart.attachedContext.clear();
+			this.inputPart.clearContext();
 		}
-		this.inputPart.attachContext(...contentReferences);
+		this.inputPart.attachContext(contentReferences);
 
 		if (this.bodyDimension) {
 			this.layout(this.bodyDimension.height, this.bodyDimension.width);
