@@ -1,0 +1,48 @@
+parameters:
+  - name: VSCODE_ARCH
+    type: string
+    default: x64
+
+steps:
+  - powershell: yarn gulp "vscode-symbols-win32-${{ parameters.VSCODE_ARCH }}"
+    env:
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
+    displayName: Download Symbols
+
+  - task: BinSkim@4
+    inputs:
+      InputType: "Basic"
+      Function: "analyze"
+      TargetPattern: "guardianGlob"
+      AnalyzeIgnorePdbLoadError: true
+      AnalyzeTargetGlob: '$(agent.builddirectory)\scanbin\**.dll;$(agent.builddirectory)\scanbin\**.exe;$(agent.builddirectory)\scanbin\**.node'
+      AnalyzeLocalSymbolDirectories: '$(agent.builddirectory)\scanbin\VSCode-win32-${{ parameters.VSCODE_ARCH }}\pdb'
+
+  - task: CopyFiles@2
+    displayName: 'Collect Symbols for API Scan'
+    inputs:
+      SourceFolder: $(Agent.BuildDirectory)
+      Contents: 'scanbin\**\*.pdb'
+      TargetFolder: '$(agent.builddirectory)\symbols'
+      flattenFolders: true
+    condition: succeeded()
+
+  # - task: APIScan@2
+  #   inputs:
+  #     softwareFolder: $(agent.builddirectory)\scanbin
+  #     softwareName: 'vscode-client'
+  #     softwareVersionNum: '1'
+  #     symbolsFolder: 'SRV*http://symweb;$(agent.builddirectory)\symbols'
+  #     isLargeApp: false
+  #     toolVersion: 'Latest'
+  #   displayName: Run ApiScan
+  #   condition: succeeded()
+  #   env:
+  #     AzureServicesAuthConnectionString: $(apiscan-connectionstring)
+
+  - task: PublishSecurityAnalysisLogs@3
+    inputs:
+      ArtifactName: CodeAnalysisLogs
+      ArtifactType: Container
+      PublishProcessedResults: false
+      AllTools: true

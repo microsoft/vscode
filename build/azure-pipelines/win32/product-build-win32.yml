@@ -89,6 +89,37 @@ steps:
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Authentication
 
+  - pwsh: |
+      $includes = @'
+        {
+          'target_defaults': {
+            'conditions': [
+              ['OS=="win"', {
+                'msvs_settings': {
+                  'VCCLCompilerTool': {
+                    'AdditionalOptions': [
+                      '/Zi',
+                      '/FS'
+                    ],
+                  },
+                  'VCLinkerTool': {
+                    'AdditionalOptions': [
+                      '/profile'
+                    ]
+                  }
+                }
+              }]
+            ]
+          }
+        }
+      '@
+
+      if (!(Test-Path "~/.gyp")) {
+        mkdir "~/.gyp"
+      }
+      echo $includes > "~/.gyp/include.gypi"
+    displayName: Create include.gypi
+
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       . build/azure-pipelines/win32/retry.ps1
@@ -122,6 +153,10 @@ steps:
       displayName: Mixin distro quality
 
   - template: ../common/install-builtin-extensions.yml@self
+
+  - template: sdl-scan-win32.yml@self
+    parameters:
+      VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
 
   - ${{ if and(ne(parameters.VSCODE_CIBUILD, true), ne(parameters.VSCODE_QUALITY, 'oss')) }}:
     - powershell: node build\lib\policies
