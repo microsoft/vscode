@@ -705,6 +705,18 @@ export interface IInputBox extends IQuickInput {
 	severity: Severity;
 }
 
+export enum QuickInputButtonLocation {
+	/**
+	 * In the title bar.
+	 */
+	Title = 1,
+
+	/**
+	 * To the right of the input box.
+	 */
+	Inline = 2
+}
+
 /**
  * Represents a button in the quick input UI.
  */
@@ -728,6 +740,11 @@ export interface IQuickInputButton {
 	 * By default, buttons are only visible when hovering over them with the mouse.
 	 */
 	alwaysVisible?: boolean;
+	/**
+	 * Where the button should be rendered. The default is {@link QuickInputButtonLocation.Title}.
+	 * @note This property is ignored if the button was added to a QuickPickItem.
+	 */
+	location?: QuickInputButtonLocation;
 }
 
 /**

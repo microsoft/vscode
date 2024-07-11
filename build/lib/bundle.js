@@ -5,6 +5,7 @@
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.bundle = bundle;
+exports.removeDuplicateTSBoilerplate = removeDuplicateTSBoilerplate;
 const fs = require("fs");
 const path = require("path");
 const vm = require("vm");
@@ -127,7 +128,7 @@ function emitEntryPoints(modules, entryPoints) {
     });
     return {
         // TODO@TS 2.1.2
-        files: extractStrings(removeDuplicateTSBoilerplate(result)),
+        files: extractStrings(removeAllDuplicateTSBoilerplate(result)),
         bundleData: bundleData
     };
 }
@@ -216,7 +217,16 @@ function extractStrings(destFiles) {
     });
     return destFiles;
 }
-function removeDuplicateTSBoilerplate(destFiles) {
+function removeAllDuplicateTSBoilerplate(destFiles) {
+    destFiles.forEach((destFile) => {
+        const SEEN_BOILERPLATE = [];
+        destFile.sources.forEach((source) => {
+            source.contents = removeDuplicateTSBoilerplate(source.contents, SEEN_BOILERPLATE);
+        });
+    });
+    return destFiles;
+}
+function removeDuplicateTSBoilerplate(source, SEEN_BOILERPLATE = []) {
     // Taken from typescript compiler => emitFiles
     const BOILERPLATE = [
         { start: /^var __extends/, end: /^}\)\(\);$/ },
@@ -230,45 +240,39 @@ function removeDuplicateTSBoilerplate(destFiles) {
         { start: /^var __setModuleDefault/, end: /^}\);$/ },
         { start: /^var __importStar/, end: /^};$/ },
     ];
-    destFiles.forEach((destFile) => {
-        const SEEN_BOILERPLATE = [];
-        destFile.sources.forEach((source) => {
-            const lines = source.contents.split(/\r\n|\n|\r/);
-            const newLines = [];
-            let IS_REMOVING_BOILERPLATE = false, END_BOILERPLATE;
-            for (let i = 0; i < lines.length; i++) {
-                const line = lines[i];
-                if (IS_REMOVING_BOILERPLATE) {
-                    newLines.push('');
-                    if (END_BOILERPLATE.test(line)) {
-                        IS_REMOVING_BOILERPLATE = false;
-                    }
-                }
-                else {
-                    for (let j = 0; j < BOILERPLATE.length; j++) {
-                        const boilerplate = BOILERPLATE[j];
-                        if (boilerplate.start.test(line)) {
-                            if (SEEN_BOILERPLATE[j]) {
-                                IS_REMOVING_BOILERPLATE = true;
-                                END_BOILERPLATE = boilerplate.end;
-                            }
-                            else {
-                                SEEN_BOILERPLATE[j] = true;
-                            }
-                        }
-                    }
-                    if (IS_REMOVING_BOILERPLATE) {
-                        newLines.push('');
+    const lines = source.split(/\r\n|\n|\r/);
+    const newLines = [];
+    let IS_REMOVING_BOILERPLATE = false, END_BOILERPLATE;
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (IS_REMOVING_BOILERPLATE) {
+            newLines.push('');
+            if (END_BOILERPLATE.test(line)) {
+                IS_REMOVING_BOILERPLATE = false;
+            }
+        }
+        else {
+            for (let j = 0; j < BOILERPLATE.length; j++) {
+                const boilerplate = BOILERPLATE[j];
+                if (boilerplate.start.test(line)) {
+                    if (SEEN_BOILERPLATE[j]) {
+                        IS_REMOVING_BOILERPLATE = true;
+                        END_BOILERPLATE = boilerplate.end;
                     }
                     else {
-                        newLines.push(line);
+                        SEEN_BOILERPLATE[j] = true;
                     }
                 }
             }
-            source.contents = newLines.join('\n');
-        });
-    });
-    return destFiles;
+            if (IS_REMOVING_BOILERPLATE) {
+                newLines.push('');
+            }
+            else {
+                newLines.push(line);
+            }
+        }
+    }
+    return newLines.join('\n');
 }
 function emitEntryPoint(modulesMap, deps, entryPoint, includedModules, prepend, append, dest) {
     if (!dest) {

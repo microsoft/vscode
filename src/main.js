@@ -15,7 +15,6 @@
 const path = require('path');
 const fs = require('original-fs');
 const os = require('os');
-const minimist = require('minimist');
 const bootstrap = require('./bootstrap');
 const bootstrapNode = require('./bootstrap-node');
 const bootstrapAmd = require('./bootstrap-amd');
@@ -31,12 +30,11 @@ const { app, protocol, crashReporter, Menu, contentTracing } = require('electron
 // import * as path from 'path';
 // import * as fs from 'original-fs';
 // import * as os from 'os';
-// import { fileURLToPath } from 'url';
-// import { app, protocol, crashReporter, Menu, contentTracing } from 'electron';
-// import minimist from 'minimist';
 // import * as bootstrap from './bootstrap.js';
 // import * as bootstrapNode from './bootstrap-node.js';
 // import * as bootstrapAmd from './bootstrap-amd.js';
+// import { fileURLToPath } from 'url';
+// import { app, protocol, crashReporter, Menu, contentTracing } from 'electron';
 // import { product } from './bootstrap-meta.js';
 // import { parse } from './vs/base/common/jsonc.js';
 // import { getUserDataPath } from './vs/platform/environment/node/userDataPath.js';
@@ -54,6 +52,13 @@ const portable = bootstrapNode.configurePortable(product);
 
 // Enable ASAR support
 bootstrap.enableASARSupport();
+
+// ESM-comment-begin
+const minimist = require('minimist'); // !!! IMPORTANT: MUST come after bootstrap#enableASARSupport
+// ESM-comment-end
+// ESM-uncomment-begin
+// import minimist from 'minimist'; // !!! IMPORTANT: MUST come after bootstrap#enableASARSupport
+// ESM-uncomment-end
 
 const args = parseCLIArgs();
 // Configure static command line arguments

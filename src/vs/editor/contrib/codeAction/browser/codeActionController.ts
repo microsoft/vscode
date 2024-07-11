@@ -157,11 +157,12 @@ export class CodeActionController extends Disposable implements IEditorContribut
 
 	public hideLightBulbWidget(): void {
 		this._lightBulbWidget.rawValue?.hide();
+		this._lightBulbWidget.rawValue?.gutterHide();
 	}
 
 	private async update(newState: CodeActionsState.State): Promise<void> {
 		if (newState.type !== CodeActionsState.Type.Triggered) {
-			this._lightBulbWidget.rawValue?.hide();
+			this.hideLightBulbWidget();
 			return;
 		}
 
@@ -186,7 +187,7 @@ export class CodeActionController extends Disposable implements IEditorContribut
 				const validActionToApply = this.tryGetValidActionToApply(newState.trigger, actions);
 				if (validActionToApply) {
 					try {
-						this._lightBulbWidget.value?.hide();
+						this.hideLightBulbWidget();
 						await this._applyCodeAction(validActionToApply, false, false, ApplyCodeActionReason.FromCodeActions);
 					} finally {
 						actions.dispose();

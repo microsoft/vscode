@@ -399,14 +399,6 @@ export class View extends ViewEventHandler {
 		}
 
 		super.dispose();
-
-		// See https://github.com/microsoft/vscode/pull/219297
-		// Reduces the impact of detached dom node memory leaks
-		// E.g when a memory leak occurs in a child component
-		// of the editor (e.g. Minimap, GlyphMarginWidgets,...)
-		// the editor dom (linked to the child dom) should not be
-		// leaked as well.
-		dom.clearNodeRecursively(this.domNode.domNode);
 	}
 
 	private _scheduleRender(): void {
