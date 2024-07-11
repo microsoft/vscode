@@ -104,10 +104,13 @@ export class MouseHandler extends ViewEventHandler {
 				this._mouseLeaveMonitor = dom.addDisposableListener(this.viewHelper.viewDomNode.ownerDocument, 'mousemove', (e) => {
 					if (!this.viewHelper.viewDomNode.contains(e.target as Node | null)) {
 						// went outside the editor!
-						if (!this._mouseOnOverflowWidgetsDomNode) {
-							console.log('before onMouseLeave of onMouseMove of this.viewHelper.viewDomNode');
-							this._onMouseLeave(new EditorMouseEvent(e, false, this.viewHelper.viewDomNode));
-						}
+						console.log('before onMouseLeave of onMouseMove of this.viewHelper.viewDomNode');
+						setTimeout(() => {
+							console.log('this._mousOnOverflowWidgetsDomNode after timeout : ', this._mouseOnOverflowWidgetsDomNode);
+							if (!this._mouseOnOverflowWidgetsDomNode) {
+								this._onMouseLeave(new EditorMouseEvent(e, false, this.viewHelper.viewDomNode));
+							}
+						}, 100);
 					}
 				});
 			}
@@ -300,7 +303,7 @@ export class MouseHandler extends ViewEventHandler {
 	protected _onMouseMoveOverView(e: EditorMouseEvent): void {
 		const shouldIgnoreMouseMoveEvent = this._shouldIgnoreMouseMoveEvent(e);
 		if (shouldIgnoreMouseMoveEvent) {
-			return;
+			return undefined;
 		}
 		this.viewController.emitMouseMove({
 			event: e,
@@ -311,7 +314,7 @@ export class MouseHandler extends ViewEventHandler {
 	private _onMouseMoveOverOverflowWidgetsDomNode(e: EditorMouseEvent): void {
 		const shouldIgnoreMouseMoveEvent = this._shouldIgnoreMouseMoveEvent(e);
 		if (shouldIgnoreMouseMoveEvent) {
-			return;
+			return undefined;
 		}
 		this.viewController.emitMouseMove({
 			event: e,

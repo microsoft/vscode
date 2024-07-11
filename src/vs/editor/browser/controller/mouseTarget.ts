@@ -417,7 +417,7 @@ class HitTestRequest extends BareHitTestRequest {
 	private _useHitTestTarget: boolean;
 	private _targetPathCacheElement: HTMLElement | null = null;
 	private _targetPathCacheValue: Uint8Array = new Uint8Array(0);
-	private _overflowWidgetsDomNodeTarget: boolean;
+	private _overflowWidgetsDomNodeIsTarget: boolean;
 
 	public get target(): HTMLElement | null {
 		if (this._useHitTestTarget) {
@@ -430,7 +430,7 @@ class HitTestRequest extends BareHitTestRequest {
 		if (this._targetPathCacheElement !== this.target) {
 			this._targetPathCacheElement = this.target;
 			const overflowWidgetsDomNode = this._ctx.getOverflowWidgetsDomNode();
-			if (this._overflowWidgetsDomNodeTarget && overflowWidgetsDomNode) {
+			if (this._overflowWidgetsDomNodeIsTarget && overflowWidgetsDomNode) {
 				this._targetPathCacheValue = PartFingerprints.collect(this.target, overflowWidgetsDomNode);
 			} else {
 				this._targetPathCacheValue = PartFingerprints.collect(this.target, this._ctx.viewDomNode);
@@ -439,11 +439,11 @@ class HitTestRequest extends BareHitTestRequest {
 		return this._targetPathCacheValue;
 	}
 
-	constructor(ctx: HitTestContext, editorPos: EditorPagePosition, pos: PageCoordinates, relativePos: CoordinatesRelativeToEditor, eventTarget: HTMLElement | null, overflowWidgetsDomNodeTarget: boolean) {
+	constructor(ctx: HitTestContext, editorPos: EditorPagePosition, pos: PageCoordinates, relativePos: CoordinatesRelativeToEditor, eventTarget: HTMLElement | null, overflowWidgetsDomNodeIsTarget: boolean) {
 		super(ctx, editorPos, pos, relativePos);
 		this._ctx = ctx;
 		this._eventTarget = eventTarget;
-		this._overflowWidgetsDomNodeTarget = overflowWidgetsDomNodeTarget;
+		this._overflowWidgetsDomNodeIsTarget = overflowWidgetsDomNodeIsTarget;
 
 		// If no event target is passed in, we will use the hit test target
 		const hasEventTarget = Boolean(this._eventTarget);
