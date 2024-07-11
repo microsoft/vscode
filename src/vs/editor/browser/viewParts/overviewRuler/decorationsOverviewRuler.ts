@@ -270,6 +270,10 @@ export class DecorationsOverviewRuler extends ViewPart {
 		this._tokensColorTrackerListener.dispose();
 	}
 
+	public override disposeDomNodes(): void {
+		this._domNode.domNode.remove();
+	}
+
 	private _updateSettings(renderNow: boolean): boolean {
 		const newSettings = new Settings(this._context.configuration, this._context.theme);
 		if (this._settings && this._settings.equals(newSettings)) {

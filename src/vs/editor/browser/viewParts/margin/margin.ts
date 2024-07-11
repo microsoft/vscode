@@ -50,6 +50,10 @@ export class Margin extends ViewPart {
 		super.dispose();
 	}
 
+	public override disposeDomNodes(): void {
+		this._domNode.domNode.remove();
+	}
+
 	public getDomNode(): FastDomNode<HTMLElement> {
 		return this._domNode;
 	}

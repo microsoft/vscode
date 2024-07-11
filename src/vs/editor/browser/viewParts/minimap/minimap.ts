@@ -840,6 +840,10 @@ export class Minimap extends ViewPart implements IMinimapModel {
 		super.dispose();
 	}
 
+	public override disposeDomNodes(): void {
+		this._actual.getDomNode().domNode.remove();
+	}
+
 	public getDomNode(): FastDomNode<HTMLElement> {
 		return this._actual.getDomNode();
 	}
@@ -2192,4 +2196,3 @@ class ContiguousLineMap<T> {
 		return this._values[lineNumber - this._startLineNumber];
 	}
 }
-

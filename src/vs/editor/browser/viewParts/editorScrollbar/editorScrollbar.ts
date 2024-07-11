@@ -103,6 +103,10 @@ export class EditorScrollbar extends ViewPart {
 		super.dispose();
 	}
 
+	public override disposeDomNodes(): void {
+		this.scrollbarDomNode.domNode.remove();
+	}
+
 	private _setLayout(): void {
 		const options = this._context.configuration.options;
 		const layoutInfo = options.get(EditorOption.layoutInfo);

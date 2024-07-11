@@ -46,6 +46,11 @@ export class ViewContentWidgets extends ViewPart {
 		this._widgets = {};
 	}
 
+
+	public override disposeDomNodes(): void {
+		this.domNode.domNode.remove();
+	}
+
 	// --- begin event handlers
 
 	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
