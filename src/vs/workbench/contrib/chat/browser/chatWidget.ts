@@ -792,14 +792,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 
 	setContext(overwrite: boolean, ...contentReferences: IChatRequestVariableEntry[]) {
-		if (overwrite) {
-			this.inputPart.clearContext();
-		}
-		this.inputPart.attachContext(contentReferences);
-
-		if (this.bodyDimension) {
-			this.layout(this.bodyDimension.height, this.bodyDimension.width);
-		}
+		this.inputPart.attachContext(overwrite, ...contentReferences);
 	}
 
 	getCodeBlockInfosForResponse(response: IChatResponseViewModel): IChatCodeBlockInfo[] {

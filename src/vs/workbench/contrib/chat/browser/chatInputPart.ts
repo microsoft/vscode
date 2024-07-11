@@ -347,7 +347,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 	}
 
-	attachContext(contentReferences: IChatRequestVariableEntry[]): void {
+	attachContext(overwrite: boolean, ...contentReferences: IChatRequestVariableEntry[]): void {
+		if (overwrite) {
+			this._attachedContext.clear();
+		}
+
 		if (contentReferences.length > 0) {
 			for (const reference of contentReferences) {
 				this._attachedContext.add(reference);
@@ -489,6 +493,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	private initAttachedContext(container: HTMLElement) {
+		const oldHeight = container.offsetHeight;
 		dom.clearNode(container);
 		this.attachedContextDisposables.clear();
 		dom.setVisibility(Boolean(this.attachedContext.size), this.attachedContextContainer);
@@ -547,6 +552,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			});
 			this.attachedContextDisposables.add(disp);
 		});
+
+		if (oldHeight !== container.offsetHeight) {
+			this._onDidChangeHeight.fire();
+		}
 	}
 
 	async renderFollowups(items: IChatFollowup[] | undefined, response: IChatResponseViewModel | undefined): Promise<void> {
