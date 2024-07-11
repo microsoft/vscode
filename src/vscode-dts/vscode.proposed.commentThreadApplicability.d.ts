@@ -36,7 +36,5 @@ declare module 'vscode' {
 		contextValue?: string;
 		label?: string;
 		dispose(): void;
-		// Part of the comment reveal proposal
-		reveal(options?: CommentThreadRevealOptions): Thenable<void>;
 	}
 }

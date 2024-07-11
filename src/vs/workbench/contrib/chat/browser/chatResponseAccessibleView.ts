@@ -6,7 +6,7 @@
 import { renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { AccessibleViewProviderId, AccessibleViewType } from 'vs/platform/accessibility/browser/accessibleView';
+import { AccessibleViewProviderId, AccessibleViewType, AccessibleContentProvider } from 'vs/platform/accessibility/browser/accessibleView';
 import { alertAccessibleViewFocusChange, IAccessibleViewImplentation } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
@@ -69,11 +69,11 @@ export class ChatResponseAccessibleView implements IAccessibleViewImplentation {
 			const length = responses?.length;
 			const responseIndex = responses?.findIndex(i => i === focusedItem);
 
-			return {
-				id: AccessibleViewProviderId.Chat,
-				verbositySettingKey: AccessibilityVerbositySettingId.Chat,
-				provideContent(): string { return renderMarkdownAsPlaintext(new MarkdownString(responseContent), true); },
-				onClose() {
+			const provider = new AccessibleContentProvider(
+				AccessibleViewProviderId.Chat,
+				{ type: AccessibleViewType.View },
+				() => { return renderMarkdownAsPlaintext(new MarkdownString(responseContent), true); },
+				() => {
 					verifiedWidget.reveal(focusedItem);
 					if (chatInputFocused) {
 						verifiedWidget.focusInput();
@@ -81,19 +81,21 @@ export class ChatResponseAccessibleView implements IAccessibleViewImplentation {
 						verifiedWidget.focus(focusedItem);
 					}
 				},
-				next() {
+				AccessibilityVerbositySettingId.Chat,
+				undefined,
+				undefined,
+				() => {
 					verifiedWidget.moveFocus(focusedItem, 'next');
 					alertAccessibleViewFocusChange(responseIndex, length, 'next');
 					resolveProvider(widgetService, codeEditorService);
 				},
-				previous() {
+				() => {
 					verifiedWidget.moveFocus(focusedItem, 'previous');
 					alertAccessibleViewFocusChange(responseIndex, length, 'previous');
 					resolveProvider(widgetService, codeEditorService);
 				},
-				options: { type: AccessibleViewType.View }
-			};
+			);
+			return provider;
 		}
 	}
-	dispose() { }
 }

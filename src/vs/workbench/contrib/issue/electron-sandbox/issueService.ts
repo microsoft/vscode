@@ -41,11 +41,10 @@ export class NativeIssueService implements IWorkbenchIssueService {
 		ipcRenderer.on('vscode:triggerReporterMenu', async (event, arg) => {
 			const extensionId = arg.extensionId;
 
-			// creates menu from contributed
-			const menu = this.menuService.createMenu(MenuId.IssueReporter, this.contextKeyService);
+			// gets menu from contributed
+			const actions = this.menuService.getMenuActions(MenuId.IssueReporter, this.contextKeyService, { renderShortTitle: true }).flatMap(entry => entry[1]);
 
 			// render menu and dispose
-			const actions = menu.getActions({ renderShortTitle: true }).flatMap(entry => entry[1]);
 			actions.forEach(async action => {
 				try {
 					if (action.item && 'source' in action.item && action.item.source?.id === extensionId) {
@@ -61,7 +60,6 @@ export class NativeIssueService implements IWorkbenchIssueService {
 				// send undefined to indicate no action was taken
 				ipcRenderer.send(`vscode:triggerReporterMenuResponse:${extensionId}`, undefined);
 			}
-			menu.dispose();
 		});
 	}
 

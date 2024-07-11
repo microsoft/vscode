@@ -71,9 +71,14 @@ export interface IConfigurationRegistry {
 	deltaConfiguration(delta: IConfigurationDelta): void;
 
 	/**
+	 * Return the registered default configurations
+	 */
+	getRegisteredDefaultConfigurations(): IConfigurationDefaults[];
+
+	/**
 	 * Return the registered configuration defaults overrides
 	 */
-	getConfigurationDefaultsOverrides(): Map<string, IConfigurationDefaultOverride>;
+	getConfigurationDefaultsOverrides(): Map<string, IConfigurationDefaultOverrideValue>;
 
 	/**
 	 * Signal that the schema of a configuration setting has changes. It is currently only supported to change enumeration values.
@@ -192,6 +197,11 @@ export interface IConfigurationPropertySchema extends IJSONSchema {
 	disallowSyncIgnore?: boolean;
 
 	/**
+	 * Disallow extensions to contribute configuration default value for this setting.
+	 */
+	disallowConfigurationDefault?: boolean;
+
+	/**
 	 * Labels for enumeration items
 	 */
 	enumItemLabels?: string[];
@@ -233,12 +243,11 @@ export interface IConfigurationNode {
 	restrictedProperties?: string[];
 }
 
-export type ConfigurationDefaultSource = IExtensionInfo | string;
-export type ConfigurationDefaultValueSource = ConfigurationDefaultSource | Map<string, ConfigurationDefaultSource>;
+export type ConfigurationDefaultValueSource = IExtensionInfo | Map<string, IExtensionInfo>;
 
 export interface IConfigurationDefaults {
 	overrides: IStringDictionary<any>;
-	source?: ConfigurationDefaultSource;
+	source?: IExtensionInfo;
 }
 
 export type IRegisteredConfigurationPropertySchema = IConfigurationPropertySchema & {
@@ -247,11 +256,15 @@ export type IRegisteredConfigurationPropertySchema = IConfigurationPropertySchem
 	defaultValueSource?: ConfigurationDefaultValueSource; // Source of the Default Value
 };
 
-export type IConfigurationDefaultOverride = {
+export interface IConfigurationDefaultOverride {
 	readonly value: any;
-	readonly source?: ConfigurationDefaultValueSource;  // Source of the default override
-	readonly valuesSources?: Map<string, ConfigurationDefaultValueSource>; // Source of each value in default language overrides
-};
+	readonly source?: IExtensionInfo;  // Source of the default override
+}
+
+export interface IConfigurationDefaultOverrideValue {
+	readonly value: any;
+	readonly source?: ConfigurationDefaultValueSource;
+}
 
 export const allSettings: { properties: IStringDictionary<IConfigurationPropertySchema>; patternProperties: IStringDictionary<IConfigurationPropertySchema> } = { properties: {}, patternProperties: {} };
 export const applicationSettings: { properties: IStringDictionary<IConfigurationPropertySchema>; patternProperties: IStringDictionary<IConfigurationPropertySchema> } = { properties: {}, patternProperties: {} };
@@ -267,7 +280,8 @@ const contributionRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensio
 
 class ConfigurationRegistry implements IConfigurationRegistry {
 
-	private readonly configurationDefaultsOverrides: Map<string, IConfigurationDefaultOverride>;
+	private readonly registeredConfigurationDefaults: IConfigurationDefaults[] = [];
+	private readonly configurationDefaultsOverrides: Map<string, { configurationDefaultOverrides: IConfigurationDefaultOverride[]; configurationDefaultOverrideValue?: IConfigurationDefaultOverrideValue }>;
 	private readonly defaultLanguageConfigurationOverridesNode: IConfigurationNode;
 	private readonly configurationContributors: IConfigurationNode[];
 	private readonly configurationProperties: IStringDictionary<IRegisteredConfigurationPropertySchema>;
@@ -283,7 +297,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 	readonly onDidUpdateConfiguration = this._onDidUpdateConfiguration.event;
 
 	constructor() {
-		this.configurationDefaultsOverrides = new Map<string, IConfigurationDefaultOverride>();
+		this.configurationDefaultsOverrides = new Map();
 		this.defaultLanguageConfigurationOverridesNode = {
 			id: 'defaultOverrides',
 			title: nls.localize('defaultLanguageConfigurationOverrides.title', "Default Language Configuration Overrides"),
@@ -346,107 +360,47 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 
 	private doRegisterDefaultConfigurations(configurationDefaults: IConfigurationDefaults[], bucket: Set<string>) {
 
+		this.registeredConfigurationDefaults.push(...configurationDefaults);
+
 		const overrideIdentifiers: string[] = [];
 
 		for (const { overrides, source } of configurationDefaults) {
 			for (const key in overrides) {
 				bucket.add(key);
 
+				const configurationDefaultOverridesForKey = this.configurationDefaultsOverrides.get(key)
+					?? this.configurationDefaultsOverrides.set(key, { configurationDefaultOverrides: [] }).get(key)!;
+
+				const value = overrides[key];
+				configurationDefaultOverridesForKey.configurationDefaultOverrides.push({ value, source });
+
+				// Configuration defaults for Override Identifiers
 				if (OVERRIDE_PROPERTY_REGEX.test(key)) {
-					const configurationDefaultOverride = this.configurationDefaultsOverrides.get(key);
-					const valuesSources = configurationDefaultOverride?.valuesSources ?? new Map<string, ConfigurationDefaultValueSource>();
-
-					const defaultValue = configurationDefaultOverride?.value || {};
-					for (const configuration of Object.keys(overrides[key])) {
-						const overrideValue = overrides[key][configuration];
-
-						const isObjectSetting = types.isObject(overrideValue) && (types.isUndefined(defaultValue[configuration]) || types.isObject(defaultValue[configuration]));
-						if (isObjectSetting) {
-							// Objects are merged instead of overridden
-							defaultValue[configuration] = { ...(defaultValue[configuration] ?? {}), ...overrideValue };
-
-							// Track the source of each value in the object
-							if (source) {
-								let objectConfigurationSources = valuesSources.get(configuration);
-								if (!objectConfigurationSources) {
-									objectConfigurationSources = new Map<string, ConfigurationDefaultSource>();
-									valuesSources.set(configuration, objectConfigurationSources);
-								}
-								if (!(objectConfigurationSources instanceof Map)) {
-									console.error('objectConfigurationSources is not a Map');
-									continue;
-								}
-
-								for (const objectKey in overrideValue) {
-									objectConfigurationSources.set(objectKey, source);
-								}
-							}
-						} else {
-							// Primitive values are overridden
-							defaultValue[configuration] = overrideValue;
-							if (source) {
-								valuesSources.set(configuration, source);
-							}
-						}
+					const newDefaultOverride = this.mergeDefaultConfigurationsForOverrideIdentifier(key, value, source, configurationDefaultOverridesForKey.configurationDefaultOverrideValue);
+					if (!newDefaultOverride) {
+						continue;
 					}
 
-					this.configurationDefaultsOverrides.set(key, { source, value: defaultValue, valuesSources });
-					const plainKey = getLanguageTagSettingPlainKey(key);
-					const property: IRegisteredConfigurationPropertySchema = {
-						type: 'object',
-						default: defaultValue,
-						description: nls.localize('defaultLanguageConfiguration.description', "Configure settings to be overridden for the {0} language.", plainKey),
-						$ref: resourceLanguageSettingsSchemaId,
-						defaultDefaultValue: defaultValue,
-						source: types.isString(source) ? undefined : source,
-						defaultValueSource: source
-					};
+					configurationDefaultOverridesForKey.configurationDefaultOverrideValue = newDefaultOverride;
+					this.updateDefaultOverrideProperty(key, newDefaultOverride, source);
 					overrideIdentifiers.push(...overrideIdentifiersFromKey(key));
-					this.configurationProperties[key] = property;
-					this.defaultLanguageConfigurationOverridesNode.properties![key] = property;
-				} else {
-					const property = this.configurationProperties[key];
+				}
 
-					const existingDefaultOverride = this.configurationDefaultsOverrides.get(key);
-					let existingDefaultValue = existingDefaultOverride?.value ?? property?.defaultDefaultValue;
-
-					let newDefaultValue = overrides[key];
-					let newDefaultValueSource: ConfigurationDefaultValueSource | undefined = source;
-
-					const isObjectSetting = types.isObject(newDefaultValue) && (
-						property !== undefined && property.type === 'object' ||
-						property === undefined && (types.isUndefined(existingDefaultValue) || types.isObject(existingDefaultValue)));
-
-					// If the default value is an object, merge the objects and store the source of each keys
-					if (isObjectSetting) {
-						if (!types.isObject(existingDefaultValue)) {
-							existingDefaultValue = {};
-						}
-
-						newDefaultValue = { ...existingDefaultValue, ...newDefaultValue };
-
-						newDefaultValueSource = existingDefaultOverride?.source ?? new Map<string, ConfigurationDefaultSource>();
-						if (!(newDefaultValueSource instanceof Map)) {
-							console.error('defaultValueSource is not a Map');
-							continue;
-						}
-
-						for (const overrideObjectKey in overrides[key]) {
-							if (source) {
-								newDefaultValueSource.set(overrideObjectKey, source);
-							} else {
-								newDefaultValueSource.delete(overrideObjectKey);
-							}
-						}
+				// Configuration defaults for Configuration Properties
+				else {
+					const newDefaultOverride = this.mergeDefaultConfigurationsForConfigurationProperty(key, value, source, configurationDefaultOverridesForKey.configurationDefaultOverrideValue);
+					if (!newDefaultOverride) {
+						continue;
 					}
 
-					this.configurationDefaultsOverrides.set(key, { value: newDefaultValue, source: newDefaultValueSource });
-
+					configurationDefaultOverridesForKey.configurationDefaultOverrideValue = newDefaultOverride;
+					const property = this.configurationProperties[key];
 					if (property) {
 						this.updatePropertyDefaultValue(key, property);
 						this.updateSchema(key, property);
 					}
 				}
+
 			}
 		}
 
@@ -461,94 +415,147 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 	}
 
 	private doDeregisterDefaultConfigurations(defaultConfigurations: IConfigurationDefaults[], bucket: Set<string>): void {
+		for (const defaultConfiguration of defaultConfigurations) {
+			const index = this.registeredConfigurationDefaults.indexOf(defaultConfiguration);
+			if (index !== -1) {
+				this.registeredConfigurationDefaults.splice(index, 1);
+			}
+		}
 
 		for (const { overrides, source } of defaultConfigurations) {
 			for (const key in overrides) {
-				const id = types.isString(source) ? source : source?.id;
-
-				const configurationDefaultsOverride = this.configurationDefaultsOverrides.get(key);
-				if (!configurationDefaultsOverride) {
+				const configurationDefaultOverridesForKey = this.configurationDefaultsOverrides.get(key);
+				if (!configurationDefaultOverridesForKey) {
 					continue;
 				}
 
+				const index = configurationDefaultOverridesForKey.configurationDefaultOverrides
+					.findIndex(configurationDefaultOverride => source ? configurationDefaultOverride.source?.id === source.id : configurationDefaultOverride.value === overrides[key]);
+				if (index === -1) {
+					continue;
+				}
+
+				configurationDefaultOverridesForKey.configurationDefaultOverrides.splice(index, 1);
+				if (configurationDefaultOverridesForKey.configurationDefaultOverrides.length === 0) {
+					this.configurationDefaultsOverrides.delete(key);
+				}
+
 				if (OVERRIDE_PROPERTY_REGEX.test(key)) {
-					for (const configuration of Object.keys(overrides[key])) {
-						const overrideValue = overrides[key][configuration];
-
-						if (types.isObject(overrideValue)) {
-							const configurationSource = configurationDefaultsOverride.valuesSources?.get(configuration) as Map<string, ConfigurationDefaultSource> | undefined;
-
-							for (const overrideObjectKey of Object.keys(overrideValue)) {
-								const keySource = configurationSource?.get(overrideObjectKey);
-								const keySourceId = types.isString(keySource) ? keySource : keySource?.id;
-								if (keySourceId === id) {
-									configurationSource?.delete(overrideObjectKey);
-									delete configurationDefaultsOverride.value[configuration][overrideObjectKey];
-								}
-							}
-
-							if (Object.keys(configurationDefaultsOverride.value[configuration]).length === 0) {
-								delete configurationDefaultsOverride.value[configuration];
-								configurationDefaultsOverride.valuesSources?.delete(configuration);
-							}
-						} else {
-							const configurationSource = configurationDefaultsOverride.valuesSources?.get(configuration) as string | IExtensionInfo | undefined;
-
-							const keySourceId = types.isString(configurationSource) ? configurationSource : configurationSource?.id;
-							if (keySourceId === id) {
-								configurationDefaultsOverride.valuesSources?.delete(configuration);
-								delete configurationDefaultsOverride.value[configuration];
-							}
-						}
+					let configurationDefaultOverrideValue: IConfigurationDefaultOverrideValue | undefined;
+					for (const configurationDefaultOverride of configurationDefaultOverridesForKey.configurationDefaultOverrides) {
+						configurationDefaultOverrideValue = this.mergeDefaultConfigurationsForOverrideIdentifier(key, configurationDefaultOverride.value, configurationDefaultOverride.source, configurationDefaultOverrideValue);
 					}
-					// Remove language configuration if empty ({[css]: {}} => {})
-					const languageValues = this.configurationDefaultsOverrides.get(key);
-					if (languageValues && Object.keys(languageValues.value).length === 0) {
+					if (configurationDefaultOverrideValue && !types.isEmptyObject(configurationDefaultOverrideValue.value)) {
+						configurationDefaultOverridesForKey.configurationDefaultOverrideValue = configurationDefaultOverrideValue;
+						this.updateDefaultOverrideProperty(key, configurationDefaultOverrideValue, source);
+					} else {
 						this.configurationDefaultsOverrides.delete(key);
 						delete this.configurationProperties[key];
 						delete this.defaultLanguageConfigurationOverridesNode.properties![key];
 					}
 				} else {
-					// If the default value is an object, remove the source of each key
-					if (configurationDefaultsOverride.source instanceof Map) {
-
-						const keySources = configurationDefaultsOverride.source;
-						for (const objectKey in overrides[key]) {
-							const keySource = keySources.get(objectKey);
-							const keySourceId = types.isString(keySource) ? keySource : keySource?.id;
-
-							if (keySourceId === id) {
-								keySources.delete(objectKey);
-								delete configurationDefaultsOverride.value[objectKey];
-							}
-						}
-
-						if (keySources.size === 0) {
-							this.configurationDefaultsOverrides.delete(key);
-						}
+					let configurationDefaultOverrideValue: IConfigurationDefaultOverrideValue | undefined;
+					for (const configurationDefaultOverride of configurationDefaultOverridesForKey.configurationDefaultOverrides) {
+						configurationDefaultOverrideValue = this.mergeDefaultConfigurationsForConfigurationProperty(key, configurationDefaultOverride.value, configurationDefaultOverride.source, configurationDefaultOverrideValue);
 					}
-					// Otherwise, remove the default value if the source matches
-					else {
-						const configurationDefaultsOverrideSourceId = types.isString(configurationDefaultsOverride.source) ? configurationDefaultsOverride.source : configurationDefaultsOverride.source?.id;
-						if (id !== configurationDefaultsOverrideSourceId) {
-							continue; // Another source is overriding this default value
-						}
-
-						this.configurationDefaultsOverrides.delete(key);
-
-					}
+					configurationDefaultOverridesForKey.configurationDefaultOverrideValue = configurationDefaultOverrideValue;
 					const property = this.configurationProperties[key];
 					if (property) {
 						this.updatePropertyDefaultValue(key, property);
 						this.updateSchema(key, property);
 					}
 				}
-
 				bucket.add(key);
 			}
 		}
-
 		this.updateOverridePropertyPatternKey();
+	}
+
+	private updateDefaultOverrideProperty(key: string, newDefaultOverride: IConfigurationDefaultOverrideValue, source: IExtensionInfo | undefined): void {
+		const property: IRegisteredConfigurationPropertySchema = {
+			type: 'object',
+			default: newDefaultOverride.value,
+			description: nls.localize('defaultLanguageConfiguration.description', "Configure settings to be overridden for the {0} language.", getLanguageTagSettingPlainKey(key)),
+			$ref: resourceLanguageSettingsSchemaId,
+			defaultDefaultValue: newDefaultOverride.value,
+			source,
+			defaultValueSource: source
+		};
+		this.configurationProperties[key] = property;
+		this.defaultLanguageConfigurationOverridesNode.properties![key] = property;
+	}
+
+	private mergeDefaultConfigurationsForOverrideIdentifier(overrideIdentifier: string, configurationValueObject: IStringDictionary<any>, valueSource: IExtensionInfo | undefined, existingDefaultOverride: IConfigurationDefaultOverrideValue | undefined): IConfigurationDefaultOverrideValue | undefined {
+		const defaultValue = existingDefaultOverride?.value || {};
+		const source = existingDefaultOverride?.source ?? new Map<string, IExtensionInfo>();
+
+		// This should not happen
+		if (!(source instanceof Map)) {
+			console.error('objectConfigurationSources is not a Map');
+			return undefined;
+		}
+
+		for (const propertyKey of Object.keys(configurationValueObject)) {
+			const propertyDefaultValue = configurationValueObject[propertyKey];
+
+			const isObjectSetting = types.isObject(propertyDefaultValue) &&
+				(types.isUndefined(defaultValue[propertyKey]) || types.isObject(defaultValue[propertyKey]));
+
+			// If the default value is an object, merge the objects and store the source of each keys
+			if (isObjectSetting) {
+				defaultValue[propertyKey] = { ...(defaultValue[propertyKey] ?? {}), ...propertyDefaultValue };
+				// Track the source of each value in the object
+				if (valueSource) {
+					for (const objectKey in propertyDefaultValue) {
+						source.set(`${propertyKey}.${objectKey}`, valueSource);
+					}
+				}
+			}
+
+			// Primitive values are overridden
+			else {
+				defaultValue[propertyKey] = propertyDefaultValue;
+				if (valueSource) {
+					source.set(propertyKey, valueSource);
+				} else {
+					source.delete(propertyKey);
+				}
+			}
+		}
+
+		return { value: defaultValue, source };
+	}
+
+	private mergeDefaultConfigurationsForConfigurationProperty(propertyKey: string, value: any, valuesSource: IExtensionInfo | undefined, existingDefaultOverride: IConfigurationDefaultOverrideValue | undefined): IConfigurationDefaultOverrideValue | undefined {
+		const property = this.configurationProperties[propertyKey];
+		const existingDefaultValue = existingDefaultOverride?.value ?? property?.defaultDefaultValue;
+		let source: ConfigurationDefaultValueSource | undefined = valuesSource;
+
+		const isObjectSetting = types.isObject(value) &&
+			(
+				property !== undefined && property.type === 'object' ||
+				property === undefined && (types.isUndefined(existingDefaultValue) || types.isObject(existingDefaultValue))
+			);
+
+		// If the default value is an object, merge the objects and store the source of each keys
+		if (isObjectSetting) {
+			source = existingDefaultOverride?.source ?? new Map<string, IExtensionInfo>();
+
+			// This should not happen
+			if (!(source instanceof Map)) {
+				console.error('defaultValueSource is not a Map');
+				return undefined;
+			}
+
+			for (const objectKey in value) {
+				if (valuesSource) {
+					source.set(`${propertyKey}.${objectKey}`, valuesSource);
+				}
+			}
+			value = { ...(types.isObject(existingDefaultValue) ? existingDefaultValue : {}), ...value };
+		}
+
+		return { value, source };
 	}
 
 	public deltaConfiguration(delta: IConfigurationDelta): void {
@@ -699,8 +706,18 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 		return this.excludedConfigurationProperties;
 	}
 
-	getConfigurationDefaultsOverrides(): Map<string, IConfigurationDefaultOverride> {
-		return this.configurationDefaultsOverrides;
+	getRegisteredDefaultConfigurations(): IConfigurationDefaults[] {
+		return [...this.registeredConfigurationDefaults];
+	}
+
+	getConfigurationDefaultsOverrides(): Map<string, IConfigurationDefaultOverrideValue> {
+		const configurationDefaultsOverrides = new Map<string, IConfigurationDefaultOverrideValue>();
+		for (const [key, value] of this.configurationDefaultsOverrides) {
+			if (value.configurationDefaultOverrideValue) {
+				configurationDefaultsOverrides.set(key, value.configurationDefaultOverrideValue);
+			}
+		}
+		return configurationDefaultsOverrides;
 	}
 
 	private registerJSONConfiguration(configuration: IConfigurationNode) {
@@ -801,9 +818,15 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 	}
 
 	private updatePropertyDefaultValue(key: string, property: IRegisteredConfigurationPropertySchema): void {
-		const configurationdefaultOverride = this.configurationDefaultsOverrides.get(key);
-		let defaultValue = configurationdefaultOverride?.value;
-		let defaultSource = configurationdefaultOverride?.source;
+		const configurationdefaultOverride = this.configurationDefaultsOverrides.get(key)?.configurationDefaultOverrideValue;
+		let defaultValue = undefined;
+		let defaultSource = undefined;
+		if (configurationdefaultOverride
+			&& (!property.disallowConfigurationDefault || !configurationdefaultOverride.source) // Prevent overriding the default value if the property is disallowed to be overridden by configuration defaults from extensions
+		) {
+			defaultValue = configurationdefaultOverride.value;
+			defaultSource = configurationdefaultOverride.source;
+		}
 		if (types.isUndefined(defaultValue)) {
 			defaultValue = property.defaultDefaultValue;
 			defaultSource = undefined;
@@ -887,4 +910,37 @@ export function getScopes(): [string, ConfigurationScope | undefined][] {
 	scopes.push(['launch', ConfigurationScope.RESOURCE]);
 	scopes.push(['task', ConfigurationScope.RESOURCE]);
 	return scopes;
+}
+
+export function getAllConfigurationProperties(configurationNode: IConfigurationNode[]): IStringDictionary<IRegisteredConfigurationPropertySchema> {
+	const result: IStringDictionary<IRegisteredConfigurationPropertySchema> = {};
+	for (const configuration of configurationNode) {
+		const properties = configuration.properties;
+		if (types.isObject(properties)) {
+			for (const key in properties) {
+				result[key] = properties[key];
+			}
+		}
+		if (configuration.allOf) {
+			Object.assign(result, getAllConfigurationProperties(configuration.allOf));
+		}
+	}
+	return result;
+}
+
+export function parseScope(scope: string): ConfigurationScope {
+	switch (scope) {
+		case 'application':
+			return ConfigurationScope.APPLICATION;
+		case 'machine':
+			return ConfigurationScope.MACHINE;
+		case 'resource':
+			return ConfigurationScope.RESOURCE;
+		case 'machine-overridable':
+			return ConfigurationScope.MACHINE_OVERRIDABLE;
+		case 'language-overridable':
+			return ConfigurationScope.LANGUAGE_OVERRIDABLE;
+		default:
+			return ConfigurationScope.WINDOW;
+	}
 }

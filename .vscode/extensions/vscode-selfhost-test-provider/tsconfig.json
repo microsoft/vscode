@@ -11,6 +11,7 @@
 		"src/**/*",
 		"../../../src/vscode-dts/vscode.d.ts",
 		"../../../src/vscode-dts/vscode.proposed.testObserver.d.ts",
+		"../../../src/vscode-dts/vscode.proposed.testMessageStackTrace.d.ts",
 		"../../../src/vscode-dts/vscode.proposed.attributableCoverage.d.ts"
 	]
 }

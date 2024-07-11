@@ -16,13 +16,18 @@
 .quick-input-titlebar {
 	display: flex;
 	align-items: center;
-	border-radius: inherit;
+	border-top-right-radius: 5px;
+	border-top-left-radius: 5px;
 }
 
 .quick-input-left-action-bar {
 	display: flex;
 	margin-left: 4px;
 	flex: 1;
+}
+
+.quick-input-inline-action-bar {
+	margin: 2px 0 0 5px;
 }
 
 .quick-input-title {

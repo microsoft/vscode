@@ -145,7 +145,7 @@ export class InlineChatWidget {
 				renderStyle: 'minimal',
 				renderInputOnTop: false,
 				renderFollowups: true,
-				supportsFileReferences: false,
+				supportsFileReferences: _configurationService.getValue(`chat.experimental.variables.${location.location}`) === true,
 				filter: item => !isWelcomeVM(item),
 				...options.chatWidgetViewOptions
 			},
@@ -490,6 +490,7 @@ export class InlineChatWidget {
 	}
 
 	reset() {
+		this._chatWidget.setContext(true);
 		this._chatWidget.saveState();
 		this.updateChatMessage(undefined);
 
