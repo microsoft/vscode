@@ -30,8 +30,6 @@ export class NotebookAccessibilityHelp implements IAccessibleViewImplentation {
 	}
 }
 
-
-
 export function getAccessibilityHelpText(): string {
 	return [
 		localize('notebook.overview', 'The notebook view is a collection of code and markdown cells. Code cells can be executed and will produce output directly below the cell.'),
