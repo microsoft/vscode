@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { AccessibleViewProviderId, AccessibleViewType } from 'vs/platform/accessibility/browser/accessibleView';
+import { AccessibleViewProviderId, AccessibleViewType, AccessibleContentProvider } from 'vs/platform/accessibility/browser/accessibleView';
 import { IAccessibleViewImplentation } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -16,15 +16,19 @@ export class NotebookAccessibleView implements IAccessibleViewImplentation {
 	readonly name = 'notebook';
 	readonly type = AccessibleViewType.View;
 	readonly when = ContextKeyExpr.and(NOTEBOOK_OUTPUT_FOCUSED, ContextKeyExpr.equals('resourceExtname', '.ipynb'));
+	private _provider: AccessibleContentProvider | undefined;
 	getProvider(accessor: ServicesAccessor) {
 		const editorService = accessor.get(IEditorService);
-		return showAccessibleOutput(editorService);
+		this._provider = getAccessibleOutputProvider(editorService);
+		return this._provider;
 	}
-	dispose() { }
+	dispose() {
+		this._provider?.dispose();
+	}
 }
 
 
-export function showAccessibleOutput(editorService: IEditorService) {
+export function getAccessibleOutputProvider(editorService: IEditorService) {
 	const activePane = editorService.activeEditorPane;
 	const notebookEditor = getNotebookEditorFromEditorPane(activePane);
 	const notebookViewModel = notebookEditor?.getViewModel();
@@ -73,15 +77,15 @@ export function showAccessibleOutput(editorService: IEditorService) {
 		return;
 	}
 
-	return {
-		id: AccessibleViewProviderId.Notebook,
-		verbositySettingKey: AccessibilityVerbositySettingId.Notebook,
-		provideContent(): string { return outputContent; },
-		onClose() {
+	return new AccessibleContentProvider(
+		AccessibleViewProviderId.Notebook,
+		{ type: AccessibleViewType.View },
+		() => { return outputContent; },
+		() => {
 			notebookEditor?.setFocus(selections[0]);
 			activePane?.focus();
 		},
-		options: { type: AccessibleViewType.View }
-	};
+		AccessibilityVerbositySettingId.Notebook,
+	);
 }
 

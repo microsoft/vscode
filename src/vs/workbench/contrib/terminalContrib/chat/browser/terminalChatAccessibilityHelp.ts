@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { AccessibleViewProviderId, AccessibleViewType } from 'vs/platform/accessibility/browser/accessibleView';
+import { AccessibleViewProviderId, AccessibleViewType, AccessibleContentProvider } from 'vs/platform/accessibility/browser/accessibleView';
 import { IAccessibleViewImplentation } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -18,6 +18,7 @@ export class TerminalChatAccessibilityHelp implements IAccessibleViewImplentatio
 	readonly name = 'terminalChat';
 	readonly when = TerminalChatContextKeys.focused;
 	readonly type = AccessibleViewType.Help;
+	private _provider: AccessibleContentProvider | undefined;
 	getProvider(accessor: ServicesAccessor) {
 		const terminalService = accessor.get(ITerminalService);
 
@@ -27,15 +28,18 @@ export class TerminalChatAccessibilityHelp implements IAccessibleViewImplentatio
 		}
 
 		const helpText = getAccessibilityHelpText(accessor);
-		return {
-			id: AccessibleViewProviderId.TerminalChat,
-			verbositySettingKey: AccessibilityVerbositySettingId.TerminalChat,
-			provideContent: () => helpText,
-			onClose: () => TerminalChatController.get(instance)?.focus(),
-			options: { type: AccessibleViewType.Help }
-		};
+		this._provider = new AccessibleContentProvider(
+			AccessibleViewProviderId.TerminalChat,
+			{ type: AccessibleViewType.Help },
+			() => helpText,
+			() => TerminalChatController.get(instance)?.focus(),
+			AccessibilityVerbositySettingId.TerminalChat,
+		);
+		return this._provider;
 	}
-	dispose() { }
+	dispose() {
+		this._provider?.dispose();
+	}
 }
 
 export function getAccessibilityHelpText(accessor: ServicesAccessor): string {

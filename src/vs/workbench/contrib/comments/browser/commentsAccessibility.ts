@@ -13,6 +13,7 @@ import { CommentCommandId } from 'vs/workbench/contrib/comments/common/commentCo
 import { ToggleTabFocusModeAction } from 'vs/editor/contrib/toggleTabFocusMode/browser/toggleTabFocusMode';
 import { IAccessibleViewContentProvider, AccessibleViewProviderId, IAccessibleViewOptions, AccessibleViewType } from 'vs/platform/accessibility/browser/accessibleView';
 import { IAccessibleViewImplentation } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
+import { Disposable } from 'vs/base/common/lifecycle';
 
 export namespace CommentAccessibilityHelpNLS {
 	export const intro = nls.localize('intro', "The editor contains commentable range(s). Some useful commands include:");
@@ -27,7 +28,7 @@ export namespace CommentAccessibilityHelpNLS {
 	export const submitComment = nls.localize('submitComment', "- Submit Comment{0}", `<keybinding:${CommentCommandId.Submit}>`);
 }
 
-export class CommentsAccessibilityHelpProvider implements IAccessibleViewContentProvider {
+export class CommentsAccessibilityHelpProvider extends Disposable implements IAccessibleViewContentProvider {
 	id = AccessibleViewProviderId.Comments;
 	verbositySettingKey: AccessibilityVerbositySettingId = AccessibilityVerbositySettingId.Comments;
 	options: IAccessibleViewOptions = { type: AccessibleViewType.Help };
@@ -45,8 +46,12 @@ export class CommentsAccessibilityHelp implements IAccessibleViewImplentation {
 	readonly name = 'comments';
 	readonly type = AccessibleViewType.Help;
 	readonly when = ContextKeyExpr.or(ctxCommentEditorFocused, CommentContextKeys.commentFocused);
+	private _provider: CommentsAccessibilityHelpProvider | undefined;
 	getProvider(accessor: ServicesAccessor) {
-		return accessor.get(IInstantiationService).createInstance(CommentsAccessibilityHelpProvider);
+		this._provider = accessor.get(IInstantiationService).createInstance(CommentsAccessibilityHelpProvider);
+		return this._provider;
 	}
-	dispose() { }
+	dispose() {
+		this._provider?.dispose();
+	}
 }

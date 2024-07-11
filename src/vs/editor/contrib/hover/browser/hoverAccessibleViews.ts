@@ -5,7 +5,7 @@
 import { localize } from 'vs/nls';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { HoverController } from 'vs/editor/contrib/hover/browser/hoverController';
-import { AccessibleViewType, AccessibleViewProviderId, AdvancedContentProvider, IAccessibleViewContentProvider, IAccessibleViewOptions } from 'vs/platform/accessibility/browser/accessibleView';
+import { AccessibleViewType, AccessibleViewProviderId, AccessibleContentProvider, IAccessibleViewContentProvider, IAccessibleViewOptions } from 'vs/platform/accessibility/browser/accessibleView';
 import { IAccessibleViewImplentation } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
@@ -38,7 +38,7 @@ export class HoverAccessibleView implements IAccessibleViewImplentation {
 
 	private _provider: HoverAccessibleViewProvider | undefined;
 
-	getProvider(accessor: ServicesAccessor): AdvancedContentProvider | undefined {
+	getProvider(accessor: ServicesAccessor): AccessibleContentProvider | undefined {
 		const codeEditorService = accessor.get(ICodeEditorService);
 		const codeEditor = codeEditorService.getActiveCodeEditor() || codeEditorService.getFocusedCodeEditor();
 		if (!codeEditor) {
@@ -67,7 +67,7 @@ export class HoverAccessibilityHelp implements IAccessibleViewImplentation {
 
 	private _provider: HoverAccessibleViewProvider | undefined;
 
-	getProvider(accessor: ServicesAccessor): AdvancedContentProvider | undefined {
+	getProvider(accessor: ServicesAccessor): AccessibleContentProvider | undefined {
 		const codeEditorService = accessor.get(ICodeEditorService);
 		const codeEditor = codeEditorService.getActiveCodeEditor() || codeEditorService.getFocusedCodeEditor();
 		if (!codeEditor) {
@@ -124,7 +124,6 @@ abstract class BaseHoverAccessibleViewProvider extends Disposable implements IAc
 		}
 		this._focusedHoverPartIndex = -1;
 		this._hoverController.shouldKeepOpenOnEditorMouseMoveOrLeave = false;
-		this.dispose();
 	}
 
 	provideContentAtIndex(focusedHoverIndex: number, includeVerbosityActions: boolean): string {
@@ -247,12 +246,12 @@ export class HoverAccessibleViewProvider extends BaseHoverAccessibleViewProvider
 }
 
 export class ExtHoverAccessibleView implements IAccessibleViewImplentation {
-
+	private _provider: AccessibleContentProvider | undefined;
 	public readonly type = AccessibleViewType.View;
 	public readonly priority = 90;
 	public readonly name = 'extension-hover';
 
-	getProvider(accessor: ServicesAccessor): AdvancedContentProvider | undefined {
+	getProvider(accessor: ServicesAccessor): AccessibleContentProvider | undefined {
 		const contextViewService = accessor.get(IContextViewService);
 		const contextViewElement = contextViewService.getContextViewElement();
 		const extensionHoverContent = contextViewElement?.textContent ?? undefined;
@@ -262,16 +261,19 @@ export class ExtHoverAccessibleView implements IAccessibleViewImplentation {
 			// The accessible view, itself, uses the context view service to display the text. We don't want to read that.
 			return;
 		}
-		return {
-			id: AccessibleViewProviderId.Hover,
-			verbositySettingKey: 'accessibility.verbosity.hover',
-			provideContent() { return extensionHoverContent; },
-			onClose() {
+		this._provider = new AccessibleContentProvider(
+			AccessibleViewProviderId.Hover,
+			{ language: 'typescript', type: AccessibleViewType.View },
+			() => { return extensionHoverContent; },
+			() => {
 				hoverService.showAndFocusLastHover();
 			},
-			options: { language: 'typescript', type: AccessibleViewType.View }
-		};
+			'accessibility.verbosity.hover',
+		);
+		return this._provider;
 	}
 
-	dispose() { }
+	dispose() {
+		this._provider?.dispose();
+	}
 }

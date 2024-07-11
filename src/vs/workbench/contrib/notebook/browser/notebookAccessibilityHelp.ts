@@ -7,7 +7,7 @@ import { IAccessibleViewImplentation } from 'vs/platform/accessibility/browser/a
 import { NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { localize } from 'vs/nls';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { AccessibleViewProviderId, AccessibleViewType } from 'vs/platform/accessibility/browser/accessibleView';
+import { AccessibleViewProviderId, AccessibleViewType, AccessibleContentProvider } from 'vs/platform/accessibility/browser/accessibleView';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IVisibleEditorPane } from 'vs/workbench/common/editor';
@@ -18,17 +18,21 @@ export class NotebookAccessibilityHelp implements IAccessibleViewImplentation {
 	readonly name = 'notebook';
 	readonly when = NOTEBOOK_IS_ACTIVE_EDITOR;
 	readonly type: AccessibleViewType = AccessibleViewType.Help;
+	private _provider: AccessibleContentProvider | undefined;
 	getProvider(accessor: ServicesAccessor) {
 		const activeEditor = accessor.get(ICodeEditorService).getActiveCodeEditor()
 			|| accessor.get(ICodeEditorService).getFocusedCodeEditor()
 			|| accessor.get(IEditorService).activeEditorPane;
 
 		if (activeEditor) {
-			return runAccessibilityHelpAction(accessor, activeEditor);
+			this._provider = getAccessibilityHelpProvider(accessor, activeEditor);
+			return this._provider;
 		}
 		return;
 	}
-	dispose() { }
+	dispose() {
+		this._provider?.dispose();
+	}
 }
 
 
@@ -48,15 +52,13 @@ export function getAccessibilityHelpText(): string {
 	].join('\n\n');
 }
 
-export function runAccessibilityHelpAction(accessor: ServicesAccessor, editor: ICodeEditor | IVisibleEditorPane) {
+export function getAccessibilityHelpProvider(accessor: ServicesAccessor, editor: ICodeEditor | IVisibleEditorPane) {
 	const helpText = getAccessibilityHelpText();
-	return {
-		id: AccessibleViewProviderId.Notebook,
-		verbositySettingKey: AccessibilityVerbositySettingId.Notebook,
-		provideContent: () => helpText,
-		onClose: () => {
-			editor.focus();
-		},
-		options: { type: AccessibleViewType.Help }
-	};
+	return new AccessibleContentProvider(
+		AccessibleViewProviderId.Notebook,
+		{ type: AccessibleViewType.Help },
+		() => helpText,
+		() => editor.focus(),
+		AccessibilityVerbositySettingId.Notebook,
+	);
 }

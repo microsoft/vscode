@@ -39,10 +39,11 @@ export class EditorAccessibilityHelpContribution extends Disposable {
 	}
 }
 
-class EditorAccessibilityHelpProvider implements IAccessibleViewContentProvider {
+class EditorAccessibilityHelpProvider extends Disposable implements IAccessibleViewContentProvider {
 	id = AccessibleViewProviderId.Editor;
 	onClose() {
 		this._editor.focus();
+		this.dispose();
 	}
 	options: IAccessibleViewOptions = { type: AccessibleViewType.Help, readMoreUrl: 'https://go.microsoft.com/fwlink/?linkid=851010' };
 	verbositySettingKey = AccessibilityVerbositySettingId.Editor;
@@ -51,6 +52,7 @@ class EditorAccessibilityHelpProvider implements IAccessibleViewContentProvider 
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
+		super();
 	}
 
 	provideContent(): string {

@@ -7,18 +7,19 @@ import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/in
 import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_RESPONSE_FOCUSED } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { AccessibleViewProviderId, AccessibleViewType } from 'vs/platform/accessibility/browser/accessibleView';
-import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { AccessibleViewProviderId, AccessibleViewType, AccessibleContentProvider } from 'vs/platform/accessibility/browser/accessibleView';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IAccessibleViewImplentation } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
+import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 
 export class InlineChatAccessibleView implements IAccessibleViewImplentation {
 	readonly priority = 100;
 	readonly name = 'inlineChat';
 	readonly when = ContextKeyExpr.or(CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_RESPONSE_FOCUSED);
 	readonly type = AccessibleViewType.View;
+	private _provider: AccessibleContentProvider | undefined;
 	getProvider(accessor: ServicesAccessor) {
 		const codeEditorService = accessor.get(ICodeEditorService);
 
@@ -34,15 +35,16 @@ export class InlineChatAccessibleView implements IAccessibleViewImplentation {
 		if (!responseContent) {
 			return;
 		}
-		return {
-			id: AccessibleViewProviderId.InlineChat,
-			verbositySettingKey: AccessibilityVerbositySettingId.InlineChat,
-			provideContent(): string { return renderMarkdownAsPlaintext(new MarkdownString(responseContent), true); },
-			onClose() {
-				controller.focus();
-			},
-			options: { type: AccessibleViewType.View }
-		};
+		this._provider = new AccessibleContentProvider(
+			AccessibleViewProviderId.InlineChat,
+			{ type: AccessibleViewType.View },
+			() => renderMarkdownAsPlaintext(new MarkdownString(responseContent), true),
+			() => controller.focus(),
+			AccessibilityVerbositySettingId.InlineChat
+		);
+		return this._provider;
 	}
-	dispose() { }
+	dispose() {
+		this._provider?.dispose();
+	}
 }

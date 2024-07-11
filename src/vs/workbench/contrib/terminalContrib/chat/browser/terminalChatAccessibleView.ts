@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AccessibleViewProviderId, AccessibleViewType } from 'vs/platform/accessibility/browser/accessibleView';
+import { AccessibleViewProviderId, AccessibleViewType, AccessibleContentProvider } from 'vs/platform/accessibility/browser/accessibleView';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalChatController } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChatController';
@@ -12,6 +12,7 @@ import { TerminalChatContextKeys } from 'vs/workbench/contrib/terminal/browser/t
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
 export class TerminalInlineChatAccessibleView implements IAccessibleViewImplentation {
+	private _provider: AccessibleContentProvider | undefined;
 	readonly priority = 105;
 	readonly name = 'terminalInlineChat';
 	readonly type = AccessibleViewType.View;
@@ -23,15 +24,18 @@ export class TerminalInlineChatAccessibleView implements IAccessibleViewImplenta
 			return;
 		}
 		const responseContent = controller.lastResponseContent;
-		return {
-			id: AccessibleViewProviderId.TerminalChat,
-			verbositySettingKey: AccessibilityVerbositySettingId.InlineChat,
-			provideContent(): string { return responseContent; },
-			onClose() {
+		this._provider = new AccessibleContentProvider(
+			AccessibleViewProviderId.TerminalChat,
+			{ type: AccessibleViewType.View },
+			() => { return responseContent; },
+			() => {
 				controller.focus();
 			},
-			options: { type: AccessibleViewType.View }
-		};
+			AccessibilityVerbositySettingId.InlineChat,
+		);
+		return this._provider;
 	}
-	dispose() { }
+	dispose() {
+		this._provider?.dispose();
+	}
 }
