@@ -196,7 +196,8 @@ import { assertNoRpc } from '../utils';
 		await closeTerminalAsync(terminal);
 	});
 
-	test('executeCommand(commandLine)', async () => {
+	// TODO: https://github.com/microsoft/vscode/issues/221399
+	(platform() === 'linux' ? test.skip : test)('executeCommand(commandLine)', async () => {
 		const { terminal, shellIntegration } = await createTerminalAndWaitForShellIntegration();
 		const { execution, endEvent } = executeCommandAsync(shellIntegration, 'echo hello');
 		const executionSync = await execution;
@@ -211,7 +212,8 @@ import { assertNoRpc } from '../utils';
 		await closeTerminalAsync(terminal);
 	});
 
-	test('executeCommand(executable, args)', async () => {
+	// TODO: https://github.com/microsoft/vscode/issues/221399
+	(platform() === 'linux' ? test.skip : test)('executeCommand(executable, args)', async () => {
 		const { terminal, shellIntegration } = await createTerminalAndWaitForShellIntegration();
 		const { execution, endEvent } = executeCommandAsync(shellIntegration, 'echo', ['hello']);
 		const executionSync = await execution;
