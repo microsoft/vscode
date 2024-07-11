@@ -36,8 +36,6 @@ export class HoverAccessibleView implements IAccessibleViewImplentation {
 	public readonly name = 'hover';
 	public readonly when = EditorContextKeys.hoverFocused;
 
-	private _provider: HoverAccessibleViewProvider | undefined;
-
 	getProvider(accessor: ServicesAccessor): AccessibleContentProvider | undefined {
 		const codeEditorService = accessor.get(ICodeEditorService);
 		const codeEditor = codeEditorService.getActiveCodeEditor() || codeEditorService.getFocusedCodeEditor();
@@ -49,8 +47,7 @@ export class HoverAccessibleView implements IAccessibleViewImplentation {
 			return;
 		}
 		const keybindingService = accessor.get(IKeybindingService);
-		this._provider = accessor.get(IInstantiationService).createInstance(HoverAccessibleViewProvider, keybindingService, codeEditor, hoverController);
-		return this._provider;
+		return accessor.get(IInstantiationService).createInstance(HoverAccessibleViewProvider, keybindingService, codeEditor, hoverController);
 	}
 }
 

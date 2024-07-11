@@ -46,12 +46,7 @@ export class CommentsAccessibilityHelp implements IAccessibleViewImplentation {
 	readonly name = 'comments';
 	readonly type = AccessibleViewType.Help;
 	readonly when = ContextKeyExpr.or(ctxCommentEditorFocused, CommentContextKeys.commentFocused);
-	private _provider: CommentsAccessibilityHelpProvider | undefined;
 	getProvider(accessor: ServicesAccessor) {
-		this._provider = accessor.get(IInstantiationService).createInstance(CommentsAccessibilityHelpProvider);
-		return this._provider;
-	}
-	dispose() {
-		this._provider?.dispose();
+		return accessor.get(IInstantiationService).createInstance(CommentsAccessibilityHelpProvider);
 	}
 }
