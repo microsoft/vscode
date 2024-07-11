@@ -39,6 +39,10 @@ export class ScrollDecorationViewPart extends ViewPart {
 		super.dispose();
 	}
 
+	public override disposeDomNodes(): void {
+		this._domNode.domNode.remove();
+	}
+
 	private _updateShouldShow(): boolean {
 		const newShouldShow = (this._useShadows && this._scrollTop > 0);
 		if (this._shouldShow !== newShouldShow) {

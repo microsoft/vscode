@@ -487,6 +487,11 @@ export class TextAreaHandler extends ViewPart {
 		super.dispose();
 	}
 
+	public override disposeDomNodes(): void {
+		this.textArea.domNode.remove();
+		this.textAreaCover.domNode.remove();
+	}
+
 	private _getAndroidWordAtPosition(position: Position): [string, number] {
 		const ANDROID_WORD_SEPARATORS = '`~!@#$%^&*()-=+[{]}\\|;:",.<>/?';
 		const lineContent = this._context.viewModel.getLineContent(position.lineNumber);

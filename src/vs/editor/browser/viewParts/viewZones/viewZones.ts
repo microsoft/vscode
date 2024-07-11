@@ -74,6 +74,7 @@ export class ViewZones extends ViewPart {
 
 	public override disposeDomNodes(): void {
 		this.domNode.domNode.remove();
+		this.marginDomNode.domNode.remove();
 	}
 
 	// ---- begin view event handlers
