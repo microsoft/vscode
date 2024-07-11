@@ -1787,7 +1787,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	private async autoUpdateExtensions(): Promise<void> {
-		const toUpdate = this.outdated.filter(e => !e.local?.pinned && this.shouldAutoUpdateExtension(e));
+		const toUpdate = this.outdated.filter(e => this.shouldAutoUpdateExtension(e));
 		if (!toUpdate.length) {
 			return;
 		}
@@ -1881,10 +1881,6 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			if (isString(extensionOrPublisher)) {
 				throw new Error('Expected extension, found publisher string');
 			}
-			if (!extensionOrPublisher.local) {
-				throw new Error('Only installed extensions can be pinned');
-			}
-
 			const disabledAutoUpdateExtensions = this.getDisabledAutoUpdateExtensions();
 			const extensionId = extensionOrPublisher.identifier.id.toLowerCase();
 			const extensionIndex = disabledAutoUpdateExtensions.indexOf(extensionId);
@@ -1899,7 +1895,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				}
 			}
 			this.setDisabledAutoUpdateExtensions(disabledAutoUpdateExtensions);
-			if (enable && extensionOrPublisher.pinned) {
+			if (enable && extensionOrPublisher.local && extensionOrPublisher.pinned) {
 				await this.extensionManagementService.updateMetadata(extensionOrPublisher.local, { pinned: false });
 			}
 			this._onChange.fire(extensionOrPublisher);

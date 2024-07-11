@@ -18,6 +18,7 @@ import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserT
 import { ChatAgentVoteDirection, IChatContentReference, IChatFollowup, IChatProgressMessage, IChatResponseErrorDetails, IChatTask, IChatUsedContext } from 'vs/workbench/contrib/chat/common/chatService';
 import { countWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 import { CodeBlockModelCollection } from './codeBlockModelCollection';
+import { hash } from 'vs/base/common/hash';
 
 export function isRequestVM(item: unknown): item is IChatRequestViewModel {
 	return !!item && typeof item === 'object' && 'message' in item;
@@ -335,7 +336,7 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 	}
 
 	get dataId() {
-		return this.id + `_${ChatModelInitState[this._model.session.initState]}`;
+		return this.id + `_${ChatModelInitState[this._model.session.initState]}_${hash(this.variables)}`;
 	}
 
 	get sessionId() {

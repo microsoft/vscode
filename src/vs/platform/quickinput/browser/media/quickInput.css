@@ -16,7 +16,8 @@
 .quick-input-titlebar {
 	display: flex;
 	align-items: center;
-	border-radius: inherit;
+	border-top-right-radius: 5px;
+	border-top-left-radius: 5px;
 }
 
 .quick-input-left-action-bar {

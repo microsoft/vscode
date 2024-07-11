@@ -42,6 +42,7 @@ declare module 'vscode' {
 	export interface SourceControlHistoryItemGroup {
 		readonly id: string;
 		readonly name: string;
+		readonly revision?: string;
 		readonly base?: Omit<Omit<SourceControlHistoryItemGroup, 'base'>, 'remote'>;
 		readonly remote?: Omit<Omit<SourceControlHistoryItemGroup, 'base'>, 'remote'>;
 	}
