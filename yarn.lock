@@ -1666,6 +1666,11 @@
     tar-fs "^3.0.6"
     vscode-uri "^3.0.8"
 
+"@vscode/tree-sitter-wasm@^0.0.1":
+  version "0.0.1"
+  resolved "https://registry.yarnpkg.com/@vscode/tree-sitter-wasm/-/tree-sitter-wasm-0.0.1.tgz#ffb2e295a416698f4c77cbffeca3b28567d6754b"
+  integrity sha512-m0GKnQ3BxWnVd+20KLGwr1+Qvt/RiiaJmKAqHNU35pNydDtduUzyBm7ETz/T0vOVKoeIAaiYsJOA1aKWs7Y1tA==
+
 "@vscode/v8-heap-parser@^0.1.0":
   version "0.1.0"
   resolved "https://registry.yarnpkg.com/@vscode/v8-heap-parser/-/v8-heap-parser-0.1.0.tgz#f3fe61ce954cc3dd78ed42e09f865450685e351f"
