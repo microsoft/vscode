@@ -354,6 +354,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'boolean',
 			description: localize('scm.experimental.showHistoryGraph', "Controls whether to show the history graph instead of incoming/outgoing changes in the Source Control view."),
 			default: false
+		},
+		'scm.compactFolders': {
+			type: 'boolean',
+			description: localize('scm.compactFolders', "Controls whether the Explorer should render folders in a compact form. In such a form, single child folders will be compressed in a combined tree element. Useful for Java package structures, for example."),
+			default: true
 		}
 	}
 });

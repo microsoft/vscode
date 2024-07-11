@@ -3137,6 +3137,8 @@ export class SCMViewPane extends ViewPane {
 		const treeDataSource = this.instantiationService.createInstance(SCMTreeDataSource, () => this.viewMode, this.historyProviderCache);
 		this.disposables.add(treeDataSource);
 
+		const isCompressionEnabled = () => this.configurationService.getValue<boolean>('scm.compactFolders');
+
 		this.tree = this.instantiationService.createInstance(
 			WorkbenchCompressibleAsyncDataTree,
 			'SCM Tree Repo',
@@ -3166,6 +3168,7 @@ export class SCMViewPane extends ViewPane {
 				sorter: new SCMTreeSorter(() => this.viewMode, () => this.viewSortKey),
 				keyboardNavigationLabelProvider: this.instantiationService.createInstance(SCMTreeKeyboardNavigationLabelProvider, () => this.viewMode),
 				overrideStyles: this.getLocationBasedColors().listOverrideStyles,
+				compressionEnabled: isCompressionEnabled(),
 				collapseByDefault: (e: unknown) => {
 					// Repository, Resource Group, Resource Folder (Tree), History Item Change Folder (Tree)
 					if (isSCMRepository(e) || isSCMResourceGroup(e) || isSCMResourceNode(e) || isSCMHistoryItemChangeNode(e)) {
@@ -3184,6 +3187,14 @@ export class SCMViewPane extends ViewPane {
 		this.tree.onContextMenu(this.onListContextMenu, this, this.disposables);
 		this.tree.onDidScroll(this.inputRenderer.clearValidation, this.inputRenderer, this.disposables);
 		Event.filter(this.tree.onDidChangeCollapseState, e => isSCMRepository(e.node.element?.element), this.disposables)(this.updateRepositoryCollapseAllContextKeys, this, this.disposables);
+
+		Event.filter(this.configurationService.onDidChangeConfiguration,
+			e => e.affectsConfiguration('scm.compactFolders'),
+			this.disposables)(() => {
+				this.tree.updateOptions({
+					compressionEnabled: isCompressionEnabled()
+				});
+			}, this, this.disposables);
 
 		append(container, overflowWidgetsDomNode);
 	}
