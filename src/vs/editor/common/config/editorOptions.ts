@@ -2908,10 +2908,16 @@ export interface IEditorInlayHintsOptions {
 	padding?: boolean;
 
 	/**
-	 * Maximum length for inlay hints.
+	 * Maximum length for inlay hints per line
 	 * Set to 0 to have an unlimited length.
 	 */
-	maximumLength?: number;
+	maximumLineLength?: number;
+
+	/**
+	 * Maximum length for inlay hints per hint
+	 * Set to 0 to have an unlimited length.
+	 */
+	maximumLabelLength?: number;
 }
 
 /**
@@ -2922,7 +2928,7 @@ export type EditorInlayHintsOptions = Readonly<Required<IEditorInlayHintsOptions
 class EditorInlayHints extends BaseEditorOption<EditorOption.inlayHints, IEditorInlayHintsOptions, EditorInlayHintsOptions> {
 
 	constructor() {
-		const defaults: EditorInlayHintsOptions = { enabled: 'on', fontSize: 0, fontFamily: '', padding: false, maximumLength: 43 };
+		const defaults: EditorInlayHintsOptions = { enabled: 'on', fontSize: 0, fontFamily: '', padding: false, maximumLineLength: 43, maximumLabelLength: 20 };
 		super(
 			EditorOption.inlayHints, 'inlayHints', defaults,
 			{
@@ -2953,10 +2959,15 @@ class EditorInlayHints extends BaseEditorOption<EditorOption.inlayHints, IEditor
 					default: defaults.padding,
 					description: nls.localize('inlayHints.padding', "Enables the padding around the inlay hints in the editor.")
 				},
-				'editor.inlayHints.maximumLength': {
+				'editor.inlayHints.maximumLabelLength': {
 					type: 'number',
-					default: defaults.maximumLength,
-					description: nls.localize('inlayHints.maximumLength', "Maximum length for inlay hints before they get truncated by the editor. Set to 0 to have an unlimited length.")
+					default: defaults.maximumLabelLength,
+					description: nls.localize('inlayHints.maximumLabelLength', "Maximum length for each inlay hint before it gets truncated by the editor. Set to 0 to never truncate")
+				},
+				'editor.inlayHints.maximumLineLength': {
+					type: 'number',
+					default: defaults.maximumLineLength,
+					description: nls.localize('inlayHints.maximumLineLength', "Maximum length for inlay hints per line before they get truncated by the editor. Set to 0 to never truncate")
 				}
 			}
 		);
@@ -2975,7 +2986,8 @@ class EditorInlayHints extends BaseEditorOption<EditorOption.inlayHints, IEditor
 			fontSize: EditorIntOption.clampedInt(input.fontSize, this.defaultValue.fontSize, 0, 100),
 			fontFamily: EditorStringOption.string(input.fontFamily, this.defaultValue.fontFamily),
 			padding: boolean(input.padding, this.defaultValue.padding),
-			maximumLength: EditorIntOption.clampedInt(input.maximumLength, this.defaultValue.maximumLength, 0, Number.MAX_SAFE_INTEGER)
+			maximumLineLength: EditorIntOption.clampedInt(input.maximumLineLength, this.defaultValue.maximumLineLength, 0, Number.MAX_SAFE_INTEGER),
+			maximumLabelLength: EditorIntOption.clampedInt(input.maximumLabelLength, this.defaultValue.maximumLabelLength, 0, Number.MAX_SAFE_INTEGER)
 		};
 	}
 }

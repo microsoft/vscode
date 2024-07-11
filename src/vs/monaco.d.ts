@@ -4268,10 +4268,15 @@ declare namespace monaco.editor {
 		 */
 		padding?: boolean;
 		/**
-		 * Maximum length for inlay hints.
+		 * Maximum length for inlay hints per line
 		 * Set to 0 to have an unlimited length.
 		 */
-		maximumLength?: number;
+		maximumLineLength?: number;
+		/**
+		 * Maximum length for inlay hints per hint
+		 * Set to 0 to have an unlimited length.
+		 */
+		maximumLabelLength?: number;
 	}
 
 	/**
