@@ -176,7 +176,7 @@ export class SCMRepositoryMenus implements ISCMRepositoryMenus, IDisposable {
 
 	private _historyProviderMenu: SCMHistoryProviderMenus | undefined;
 	get historyProviderMenu(): SCMHistoryProviderMenus | undefined {
-		if (this.provider.historyProvider && !this._historyProviderMenu) {
+		if (this.provider.historyProvider.get() && !this._historyProviderMenu) {
 			this._historyProviderMenu = new SCMHistoryProviderMenus(this.contextKeyService, this.menuService);
 			this.disposables.add(this._historyProviderMenu);
 		}
@@ -306,7 +306,7 @@ export class SCMHistoryProviderMenus implements ISCMHistoryProviderMenus, IDispo
 
 	private getOutgoingHistoryItemGroupMenu(menuId: MenuId, historyItemGroup: SCMHistoryItemGroupTreeElement): IMenu {
 		const contextKeyService = this.contextKeyService.createOverlay([
-			['scmHistoryItemGroupHasRemote', !!historyItemGroup.repository.provider.historyProvider?.currentHistoryItemGroup.get()?.remote],
+			['scmHistoryItemGroupHasRemote', !!historyItemGroup.repository.provider.historyProvider.get()?.currentHistoryItemGroup.get()?.remote],
 		]);
 
 		return this.menuService.createMenu(menuId, contextKeyService);
