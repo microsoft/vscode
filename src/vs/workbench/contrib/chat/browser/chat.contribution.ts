@@ -228,7 +228,7 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 				}
 
 				const variables = [
-					...chatVariablesService.getVariables(),
+					...chatVariablesService.getVariables(ChatAgentLocation.Panel),
 					{ name: 'file', description: nls.localize('file', "Choose a file in the workspace") }
 				];
 				const variableText = variables

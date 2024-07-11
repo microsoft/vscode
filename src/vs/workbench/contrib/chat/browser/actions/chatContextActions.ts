@@ -259,7 +259,7 @@ class AttachContextAction extends Action2 {
 		const usedAgent = widget.parsedInput.parts.find(p => p instanceof ChatRequestAgentPart);
 		const slowSupported = usedAgent ? usedAgent.agent.metadata.supportsSlowVariables : true;
 		const quickPickItems: (IChatContextQuickPickItem | QuickPickItem)[] = [];
-		for (const variable of chatVariablesService.getVariables()) {
+		for (const variable of chatVariablesService.getVariables(widget.location)) {
 			if (variable.fullName && (!variable.isSlow || slowSupported)) {
 				quickPickItems.push({
 					label: `${variable.icon ? `$(${variable.icon.id}) ` : ''}${variable.fullName}`,
