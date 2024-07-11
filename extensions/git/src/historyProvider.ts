@@ -83,13 +83,16 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		this.currentHistoryItemGroup = {
 			id: `refs/heads/${this.repository.HEAD.name ?? ''}`,
 			name: this.repository.HEAD.name ?? '',
+			revision: this.repository.HEAD.commit,
 			remote: this.repository.HEAD.upstream ? {
 				id: `refs/remotes/${this.repository.HEAD.upstream.remote}/${this.repository.HEAD.upstream.name}`,
 				name: `${this.repository.HEAD.upstream.remote}/${this.repository.HEAD.upstream.name}`,
+				revision: this.repository.HEAD.upstream.commit
 			} : undefined,
 			base: mergeBase ? {
 				id: `refs/remotes/${mergeBase.remote}/${mergeBase.name}`,
 				name: `${mergeBase.remote}/${mergeBase.name}`,
+				revision: mergeBase.commit
 			} : undefined
 		};
 
@@ -132,44 +135,48 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 	}
 
 	async provideHistoryItems2(options: SourceControlHistoryOptions): Promise<SourceControlHistoryItem[]> {
-		if (!this.currentHistoryItemGroup || !options.historyItemGroupIds) {
+		if (!this.currentHistoryItemGroup || !options.historyItemGroupIds || typeof options.limit === 'number' || !options.limit?.id) {
 			return [];
 		}
 
 		// Deduplicate refNames
 		const refNames = Array.from(new Set<string>(options.historyItemGroupIds));
 
-		// Get the merge base of the refNames
-		const refsMergeBase = await this.resolveHistoryItemGroupsMergeBase(refNames);
-		if (!refsMergeBase) {
+		try {
+			// Get the common ancestor commit, and commits
+			const [mergeBaseCommit, commits] = await Promise.all([
+				this.repository.getCommit(options.limit.id),
+				this.repository.log({ range: `${options.limit.id}..`, refNames, shortStats: true })
+			]);
+
+			// Add common ancestor commit
+			if (commits.length !== 0) {
+				commits.push(mergeBaseCommit);
+			}
+
+			await ensureEmojis();
+
+			return commits.map(commit => {
+				const newLineIndex = commit.message.indexOf('\n');
+				const subject = newLineIndex !== -1 ? commit.message.substring(0, newLineIndex) : commit.message;
+
+				const labels = this.resolveHistoryItemLabels(commit, refNames);
+
+				return {
+					id: commit.hash,
+					parentIds: commit.parents,
+					message: emojify(subject),
+					author: commit.authorName,
+					icon: new ThemeIcon('git-commit'),
+					timestamp: commit.authorDate?.getTime(),
+					statistics: commit.shortStat ?? { files: 0, insertions: 0, deletions: 0 },
+					labels: labels.length !== 0 ? labels : undefined
+				};
+			});
+		} catch (err) {
+			this.logger.error(`[GitHistoryProvider][provideHistoryItems2] Failed to get history items '${options.limit.id}..': ${err}`);
 			return [];
 		}
-
-		// Get the commits
-		const commits = await this.repository.log({ range: `${refsMergeBase}^..`, refNames, shortStats: true });
-
-		await ensureEmojis();
-
-		const historyItems: SourceControlHistoryItem[] = [];
-		historyItems.push(...commits.map(commit => {
-			const newLineIndex = commit.message.indexOf('\n');
-			const subject = newLineIndex !== -1 ? commit.message.substring(0, newLineIndex) : commit.message;
-
-			const labels = this.resolveHistoryItemLabels(commit, refNames);
-
-			return {
-				id: commit.hash,
-				parentIds: commit.parents,
-				message: emojify(subject),
-				author: commit.authorName,
-				icon: new ThemeIcon('git-commit'),
-				timestamp: commit.authorDate?.getTime(),
-				statistics: commit.shortStat ?? { files: 0, insertions: 0, deletions: 0 },
-				labels: labels.length !== 0 ? labels : undefined
-			};
-		}));
-
-		return historyItems;
 	}
 
 	async provideHistoryItemSummary(historyItemId: string, historyItemParentId: string | undefined): Promise<SourceControlHistoryItem> {
@@ -247,17 +254,39 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		return undefined;
 	}
 
-	provideFileDecoration(uri: Uri): FileDecoration | undefined {
-		return this.historyItemDecorations.get(uri.toString());
-	}
+	async resolveHistoryItemGroupCommonAncestor2(historyItemGroupIds: string[]): Promise<string | undefined> {
+		try {
+			if (historyItemGroupIds.length === 0) {
+				// TODO@lszomoru - log
+				return undefined;
+			} else if (historyItemGroupIds.length === 1 && historyItemGroupIds[0] === this.currentHistoryItemGroup?.id) {
+				// Remote
+				if (this.currentHistoryItemGroup.remote) {
+					const ancestor = await this.repository.getMergeBase(historyItemGroupIds[0], this.currentHistoryItemGroup.remote.id);
+					return ancestor;
+				}
 
-	private async resolveHistoryItemGroupsMergeBase(refNames: string[]): Promise<string | undefined> {
-		if (refNames.length < 2) {
-			return undefined;
+				// Base
+				if (this.currentHistoryItemGroup.base) {
+					const ancestor = await this.repository.getMergeBase(historyItemGroupIds[0], this.currentHistoryItemGroup.base.id);
+					return ancestor;
+				}
+
+				// TODO@lszomoru - Return first commit
+			} else if (historyItemGroupIds.length > 1) {
+				const ancestor = await this.repository.getMergeBase(historyItemGroupIds[0], historyItemGroupIds[1], ...historyItemGroupIds.slice(2));
+				return ancestor;
+			}
+		}
+		catch (err) {
+			this.logger.error(`[GitHistoryProvider][resolveHistoryItemGroupCommonAncestor2] Failed to resolve common ancestor for ${historyItemGroupIds.join(',')}: ${err}`);
 		}
 
-		const refsMergeBase = await this.repository.getMergeBase(refNames[0], refNames[1], ...refNames.slice(2));
-		return refsMergeBase;
+		return undefined;
+	}
+
+	provideFileDecoration(uri: Uri): FileDecoration | undefined {
+		return this.historyItemDecorations.get(uri.toString());
 	}
 
 	private resolveHistoryItemLabels(commit: Commit, refNames: string[]): SourceControlHistoryItemLabel[] {

@@ -7,8 +7,8 @@ import { IAction } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { localize } from 'vs/nls';
-import { IAccessibleViewService, AccessibleViewProviderId, AccessibleViewType } from 'vs/platform/accessibility/browser/accessibleView';
-import { IAccessibleViewImplentation, alertAccessibleViewFocusChange } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
+import { IAccessibleViewService, AccessibleViewProviderId, AccessibleViewType, AccessibleContentProvider } from 'vs/platform/accessibility/browser/accessibleView';
+import { alertAccessibleViewFocusChange, IAccessibleViewImplentation } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
 import { IAccessibilitySignalService, AccessibilitySignal } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -59,15 +59,17 @@ export class NotificationAccessibleView implements IAccessibleViewImplentation {
 				return;
 			}
 			notification.onDidClose(() => accessibleViewService.next());
-			return {
-				id: AccessibleViewProviderId.Notification,
-				provideContent: () => {
+			return new AccessibleContentProvider(
+				AccessibleViewProviderId.Notification,
+				{ type: AccessibleViewType.View },
+				() => {
 					return notification.source ? localize('notification.accessibleViewSrc', '{0} Source: {1}', message, notification.source) : localize('notification.accessibleView', '{0}', message);
 				},
-				onClose(): void {
-					focusList();
-				},
-				next(): void {
+				() => focusList(),
+				'accessibility.verbosity.notification',
+				undefined,
+				getActionsFromNotification(notification, accessibilitySignalService),
+				() => {
 					if (!list) {
 						return;
 					}
@@ -76,7 +78,7 @@ export class NotificationAccessibleView implements IAccessibleViewImplentation {
 					alertAccessibleViewFocusChange(notificationIndex, length, 'next');
 					getProvider();
 				},
-				previous(): void {
+				() => {
 					if (!list) {
 						return;
 					}
@@ -85,14 +87,10 @@ export class NotificationAccessibleView implements IAccessibleViewImplentation {
 					alertAccessibleViewFocusChange(notificationIndex, length, 'previous');
 					getProvider();
 				},
-				verbositySettingKey: 'accessibility.verbosity.notification',
-				options: { type: AccessibleViewType.View },
-				actions: getActionsFromNotification(notification, accessibilitySignalService)
-			};
+			);
 		}
 		return getProvider();
 	}
-	dispose() { }
 }
 
 

@@ -701,7 +701,7 @@
 	},
 	{
 		"c": "spotSize:",
-		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.mapping.yaml meta.map.value.yaml invalid.illegal.unrecognized.yaml markup.strikethrough",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.mapping.yaml meta.map.value.yaml invalid.illegal.unrecognized.yaml",
 		"r": {
 			"dark_plus": "invalid: #F44747",
 			"light_plus": "invalid: #CD3131",

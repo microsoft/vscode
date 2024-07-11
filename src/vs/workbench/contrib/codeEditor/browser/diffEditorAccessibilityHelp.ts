@@ -7,7 +7,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { AccessibleDiffViewerNext, AccessibleDiffViewerPrev } from 'vs/editor/browser/widget/diffEditor/commands';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
 import { localize } from 'vs/nls';
-import { AccessibleViewProviderId, AccessibleViewType } from 'vs/platform/accessibility/browser/accessibleView';
+import { AccessibleViewProviderId, AccessibleViewType, AccessibleContentProvider } from 'vs/platform/accessibility/browser/accessibleView';
 import { IAccessibleViewImplentation } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
 import { ContextKeyEqualsExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -51,15 +51,12 @@ export class DiffEditorAccessibilityHelp implements IAccessibleViewImplentation 
 		if (commentCommandInfo) {
 			content.push(commentCommandInfo);
 		}
-		return {
-			id: AccessibleViewProviderId.DiffEditor,
-			verbositySettingKey: AccessibilityVerbositySettingId.DiffEditor,
-			provideContent: () => content.join('\n\n'),
-			onClose: () => {
-				codeEditor.focus();
-			},
-			options: { type: AccessibleViewType.Help }
-		};
+		return new AccessibleContentProvider(
+			AccessibleViewProviderId.DiffEditor,
+			{ type: AccessibleViewType.Help },
+			() => content.join('\n\n'),
+			() => codeEditor.focus(),
+			AccessibilityVerbositySettingId.DiffEditor,
+		);
 	}
-	dispose() { }
 }
