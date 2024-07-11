@@ -104,7 +104,7 @@ configurationRegistry.registerConfiguration({
 		'chat.experimental.variables.editor': {
 			type: 'boolean',
 			description: nls.localize('chat.experimental.variables.editor', "Enables variables for editor chat."),
-			default: false
+			default: true
 		},
 		'chat.experimental.variables.notebook': {
 			type: 'boolean',
