@@ -149,6 +149,8 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	readonly onDidRequestSendText = this._onDidRequestSendText.event;
 	private readonly _onDidRequestFreePort = this._register(new Emitter<string>());
 	readonly onDidRequestFreePort = this._onDidRequestFreePort.event;
+	private readonly _onDidRequestRefreshDimensions = this._register(new Emitter<void>());
+	readonly onDidRequestRefreshDimensions = this._onDidRequestRefreshDimensions.event;
 	private readonly _onDidChangeFindResults = this._register(new Emitter<{ resultIndex: number; resultCount: number }>());
 	readonly onDidChangeFindResults = this._onDidChangeFindResults.event;
 	private readonly _onDidChangeSelection = this._register(new Emitter<void>());
@@ -694,6 +696,9 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 				this._disposeOfWebglRenderer();
 			});
 			this._refreshImageAddon();
+			// WebGL renderer cell dimensions differ from the DOM renderer, make sure the terminal
+			// gets resized after the webgl addon is loaded
+			this._onDidRequestRefreshDimensions.fire();
 			// Uncomment to add the texture atlas to the DOM
 			// setTimeout(() => {
 			// 	if (this._webglAddon?.textureAtlas) {
@@ -862,7 +867,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	}
 }
 
-export function getXtermScaledDimensions(w: Window, font: ITerminalFont, width: number, height: number) {
+export function getXtermScaledDimensions(w: Window, font: ITerminalFont, width: number, height: number): { rows: number; cols: number } | null {
 	if (!font.charWidth || !font.charHeight) {
 		return null;
 	}
