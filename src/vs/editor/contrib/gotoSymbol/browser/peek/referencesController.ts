@@ -105,7 +105,7 @@ export abstract class ReferencesController implements IEditorContribution {
 			modelPromise.cancel();
 			if (this._widget) {
 				this._storageService.store(storageKey, JSON.stringify(this._widget.layoutData), StorageScope.PROFILE, StorageTarget.MACHINE);
-				if (!this._widget.closed) {
+				if (!this._widget.isClosing) {
 					// to prevent calling this too many times, check whether it was already closing.
 					this.closeWidget();
 				}
@@ -232,7 +232,7 @@ export abstract class ReferencesController implements IEditorContribution {
 	}
 
 	closeWidget(focusEditor = true): void {
-		this._widget?.disposeFromClose();
+		this._widget?.dispose();
 		this._model?.dispose();
 		this._referenceSearchVisible.reset();
 		this._disposables.clear();
