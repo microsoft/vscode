@@ -12,13 +12,13 @@ import { IMenuService } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { COMMENTS_VIEW_ID, CommentsMenus } from 'vs/workbench/contrib/comments/browser/commentsTreeViewer';
-import { CommentsPanel, CONTEXT_KEY_HAS_COMMENTS } from 'vs/workbench/contrib/comments/browser/commentsView';
+import { CommentsPanel, CONTEXT_KEY_COMMENT_FOCUSED } from 'vs/workbench/contrib/comments/browser/commentsView';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 
 export class CommentsAccessibleView extends Disposable implements IAccessibleViewImplentation {
 	readonly priority = 90;
 	readonly name = 'comment';
-	readonly when = CONTEXT_KEY_HAS_COMMENTS;
+	readonly when = CONTEXT_KEY_COMMENT_FOCUSED;
 	readonly type = AccessibleViewType.View;
 	getProvider(accessor: ServicesAccessor) {
 		const contextKeyService = accessor.get(IContextKeyService);
@@ -68,7 +68,7 @@ class CommentsAccessibleContentProvider extends Disposable implements IAccessibl
 		const commentNode = this._commentsView.focusedCommentNode;
 		const content = this._commentsView.focusedCommentInfo?.toString();
 		if (!commentNode || !content) {
-			return '';
+			throw new Error('Comment tree is focused but no comment is selected');
 		}
 		return content;
 	}
