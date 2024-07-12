@@ -63,11 +63,13 @@ class InlineCompletionsAccessibleViewContentProvider extends Disposable implemen
 		return lineText + ghostText;
 	}
 	public next(): string | undefined {
-		this._model.next().then(() => setTimeout(() => this._onDidChangeContent.fire(), 50));
+		// asynchronously update the model and fire the event
+		this._model.next().then((() => this._onDidChangeContent.fire()));
 		return;
 	}
 	public previous(): string | undefined {
-		this._model.previous().then(() => setTimeout(() => this._onDidChangeContent.fire(), 50));
+		// asynchronously update the model and fire the event
+		this._model.previous().then((() => this._onDidChangeContent.fire()));
 		return;
 	}
 	public onClose(): void {
