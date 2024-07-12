@@ -398,6 +398,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			insertMode: 'replace',
 		};
 		options.scrollbar = { ...(options.scrollbar ?? {}), vertical: 'hidden' };
+		options.stickyScroll = { enabled: false };
 
 		this._inputEditorElement = dom.append(inputContainer, $('.interactive-input-editor'));
 		const editorOptions = getSimpleCodeEditorWidgetOptions();
