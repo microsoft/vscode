@@ -47,6 +47,7 @@ function getWorker(workerMainLocation: URI | undefined, label: string): Worker |
 
 		const workerURL = new URL(workerMainLocation.toString(true));
 		COI.addSearchParam(workerURL.searchParams, true, true);
+		workerURL.searchParams.append('_VSCODE_FILE_ROOT', globalThis._VSCODE_FILE_ROOT);
 
 		return new Worker(ttPolicy ? ttPolicy.createScriptURL(workerURL.href) as unknown as string : workerURL.href, { name: label });
 	}

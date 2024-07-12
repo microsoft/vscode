@@ -18,6 +18,7 @@
 	// ESM-comment-end
 	// ESM-uncomment-begin
 	// const isESM = true;
+	// globalThis._VSCODE_FILE_ROOT = new URL(self.location.href).searchParams.get('_VSCODE_FILE_ROOT') ?? '';
 	// ESM-uncomment-end
 
 	// SHARED-PROCESS: worker with node integration but with blink's import
@@ -127,9 +128,8 @@
 
 	function loadCode(moduleId: string): Promise<SimpleWorkerModule> {
 		if (isESM) {
-			// TODO: this won't work when bundling
-			// My path is: vs/base/worker/workerMain.ts
-			return import(`../../../${moduleId}.js`);
+			const moduleUrl = new URL(`${moduleId}.js`, globalThis._VSCODE_FILE_ROOT);
+			return import(moduleUrl.href);
 		} else {
 			return loadAMDLoader().then(() => {
 				configureAMDLoader();
