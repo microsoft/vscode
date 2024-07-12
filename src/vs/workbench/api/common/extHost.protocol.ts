@@ -83,6 +83,7 @@ import * as search from 'vs/workbench/services/search/common/search';
 import { ISaveProfileResult } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import type { TerminalShellExecutionCommandLineConfidence } from 'vscode';
 import { AuthInfo, Credentials } from 'vs/platform/request/common/request';
+import { ChatCustomInstruction } from 'vs/workbench/contrib/chat/common/chatCustomInstructions';
 
 export interface IWorkspaceData extends IStaticWorkspaceData {
 	folders: { uri: UriComponents; name: string; index: number }[];
@@ -1307,6 +1308,12 @@ export type IChatRequestVariableValueDto = Dto<IChatRequestVariableValue>;
 export interface ExtHostChatVariablesShape {
 	$resolveVariable(handle: number, requestId: string, messageText: string, token: CancellationToken): Promise<IChatRequestVariableValueDto | undefined>;
 }
+
+export interface ExtHostChatCustomInstructionsShape {
+	$provideCustomInstructions(handle: number, token: CancellationToken): Promise<IChatCustomInstructionDto[]>;
+}
+
+export type IChatCustomInstructionDto = Dto<ChatCustomInstruction>;
 
 export interface ExtHostLanguageModelToolsShape {
 	$acceptToolDelta(delta: IToolDelta): Promise<void>;
@@ -2962,6 +2969,7 @@ export const ExtHostContext = {
 	ExtHostInteractive: createProxyIdentifier<ExtHostInteractiveShape>('ExtHostInteractive'),
 	ExtHostChatAgents2: createProxyIdentifier<ExtHostChatAgentsShape2>('ExtHostChatAgents'),
 	ExtHostChatVariables: createProxyIdentifier<ExtHostChatVariablesShape>('ExtHostChatVariables'),
+	ExtHostChatCustomInstructions: createProxyIdentifier<ExtHostChatCustomInstructionsShape>('ExtHostChatCustomInstructions'),
 	ExtHostLanguageModelTools: createProxyIdentifier<ExtHostLanguageModelToolsShape>('ExtHostChatSkills'),
 	ExtHostChatProvider: createProxyIdentifier<ExtHostLanguageModelsShape>('ExtHostChatProvider'),
 	ExtHostSpeech: createProxyIdentifier<ExtHostSpeechShape>('ExtHostSpeech'),

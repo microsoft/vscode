@@ -4343,6 +4343,11 @@ export class ChatCompletionItem implements vscode.ChatCompletionItem {
 	}
 }
 
+export class ChatCustomInstruction implements vscode.ChatCustomInstruction {
+	constructor(public readonly name: string, public readonly resource: vscode.Uri) {
+	}
+}
+
 //#endregion
 
 //#region Interactive Editor

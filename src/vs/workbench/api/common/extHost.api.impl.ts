@@ -212,6 +212,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	rpcProtocol.set(ExtHostContext.ExtHostInteractive, new ExtHostInteractive(rpcProtocol, extHostNotebook, extHostDocumentsAndEditors, extHostCommands, extHostLogService));
 	const extHostChatAgents2 = rpcProtocol.set(ExtHostContext.ExtHostChatAgents2, new ExtHostChatAgents2(rpcProtocol, extHostLogService, extHostCommands, extHostDocuments));
 	const extHostChatVariables = rpcProtocol.set(ExtHostContext.ExtHostChatVariables, new ExtHostChatVariables(rpcProtocol));
+	const extHostChatCustomInstructions = rpcProtocol.set(ExtHostContext.ExtHostChatCustomInstructions, new ExtHostChatCustomInstructions(rpcProtocol));
 	const extHostLanguageModelTools = rpcProtocol.set(ExtHostContext.ExtHostLanguageModelTools, new ExtHostLanguageModelTools(rpcProtocol));
 	const extHostAiRelatedInformation = rpcProtocol.set(ExtHostContext.ExtHostAiRelatedInformation, new ExtHostRelatedInformation(rpcProtocol));
 	const extHostAiEmbeddingVector = rpcProtocol.set(ExtHostContext.ExtHostAiEmbeddingVector, new ExtHostAiEmbeddingVector(rpcProtocol));
@@ -1435,6 +1436,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'chatParticipantPrivate');
 				return extHostChatAgents2.createDynamicChatAgent(extension, id, dynamicProps, handler);
 			},
+			registerCustomInstructionProvider(provider: ChatCustomInstructionProvider) {
+				checkProposedApiEnabled(extension, 'chatCustomInstructions');
+				return extHostChatCustomInstructions.registerCustomInstructionProvider(extension, provider);
+			}
 		};
 
 		// namespace: lm
@@ -1520,6 +1525,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ChatResultFeedbackKind: extHostTypes.ChatResultFeedbackKind,
 			ChatVariableLevel: extHostTypes.ChatVariableLevel,
 			ChatCompletionItem: extHostTypes.ChatCompletionItem,
+			ChatCustomInstruction: extHostTypes.ChatCustomInstruction,
 			CallHierarchyIncomingCall: extHostTypes.CallHierarchyIncomingCall,
 			CallHierarchyItem: extHostTypes.CallHierarchyItem,
 			CallHierarchyOutgoingCall: extHostTypes.CallHierarchyOutgoingCall,
