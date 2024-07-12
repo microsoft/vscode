@@ -90,7 +90,7 @@ steps:
     displayName: Setup NPM Authentication
 
   # Adds options to help with BinSkim and APIScan tasks
-  # We can remove the guard:cf and SpectreMitigation flags once they have been added to kerberos.js
+  # We can remove the guard:cf and SpectreMitigation flags once they have been added to kerberos
   - pwsh: |
       $includes = @'
         {
