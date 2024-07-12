@@ -102,6 +102,22 @@ export class NativeEditContext extends AbstractEditContext {
 
 		this._register(editContextAddDisposableListener(this._ctx, 'textupdate', e => this._handleTextUpdate(e)));
 		this._register(editContextAddDisposableListener(this._ctx, 'textformatupdate', e => this._handleTextFormatUpdate(e)));
+		this._ctx.addEventListener('textformatupdate', e => {
+			console.log('text format update');
+			console.log('e : ', e);
+		});
+		this._ctx.addEventListener('textupdate', e => {
+			console.log('text update');
+			console.log('e : ', e);
+		});
+		this._ctx.addEventListener('oncompositionstart', e => {
+			console.log('composition start');
+			console.log('e : ', e);
+		});
+		this._ctx.addEventListener('oncompositionend', e => {
+			console.log('composition end');
+			console.log('e : ', e);
+		});
 		console.log('this._domElement : ', this._domElement);
 	}
 
