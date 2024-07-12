@@ -9,6 +9,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { AppResourcePath, FileAccess } from 'vs/base/common/network';
 import { getAllMethodNames } from 'vs/base/common/objects';
+import { isWeb } from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 
 const INITIALIZE = '$initialize';
@@ -28,6 +29,10 @@ export interface IWorkerFactory {
 
 let webWorkerWarningLogged = false;
 export function logOnceWebWorkerWarning(err: any): void {
+	if (!isWeb) {
+		// running tests
+		return;
+	}
 	if (!webWorkerWarningLogged) {
 		webWorkerWarningLogged = true;
 		console.warn('Could not create web worker(s). Falling back to loading web worker code in main thread, which might cause UI freezes. Please see https://github.com/microsoft/monaco-editor#faq');
