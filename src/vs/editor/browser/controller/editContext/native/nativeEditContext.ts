@@ -5,6 +5,7 @@
 
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { isDefined } from 'vs/base/common/types';
 import { AbstractEditContext } from 'vs/editor/browser/controller/editContext/editContext';
@@ -12,7 +13,7 @@ import { DebugEditContext } from 'vs/editor/browser/controller/editContext/nativ
 import { IEditorAriaOptions } from 'vs/editor/browser/editorBrowser';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
 import { ViewController } from 'vs/editor/browser/view/viewController';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { EditorOption, IComputedEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { Position } from 'vs/editor/common/core/position';
@@ -22,9 +23,17 @@ import { SingleTextEdit, TextEdit, LineBasedText } from 'vs/editor/common/core/t
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { ViewConfigurationChangedEvent, ViewCursorStateChangedEvent, ViewScrollChangedEvent } from 'vs/editor/common/viewEvents';
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
+import * as nls from 'vs/nls';
+import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+
+// TODO
+// 1. Need to rerender the dom element on selection change, so that contains correct elements
+// 2. Make screen reader read only part of the text area, why is it currently reading the full text area?
 
 export class NativeEditContext extends AbstractEditContext {
 	private readonly _domElement = new FastDomNode(document.createElement('div'));
+	private readonly _domTextAreaElement = new FastDomNode(document.createElement('textarea'));
 	private readonly _ctx: EditContext = this._domElement.domNode.editContext = new DebugEditContext();
 
 
@@ -39,6 +48,7 @@ export class NativeEditContext extends AbstractEditContext {
 	constructor(
 		context: ViewContext,
 		private readonly _viewController: ViewController,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
 		super(context);
 
@@ -66,12 +76,33 @@ export class NativeEditContext extends AbstractEditContext {
 			this._viewController.emitKeyUp(x);
 		};
 
-		const options = this._context.configuration.options;
+		const options = context.configuration.options;
+		const domTextAreaElement = this._domTextAreaElement;
+		domTextAreaElement.setClassName(`inputarea ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`);
+		domTextAreaElement.setAttribute('wrap', false ? 'on' : 'off'); // TODO
+		const { tabSize } = this._context.viewModel.model.getOptions();
+		domTextAreaElement.domNode.style.tabSize = `${tabSize * 18}px`; // TODO
+		domTextAreaElement.setAttribute('autocorrect', 'off');
+		domTextAreaElement.setAttribute('autocapitalize', 'off');
+		domTextAreaElement.setAttribute('autocomplete', 'off');
+		domTextAreaElement.setAttribute('spellcheck', 'false');
+		domTextAreaElement.setAttribute('aria-label', this._getAriaLabel(options));
+		domTextAreaElement.setAttribute('aria-required', false ? 'true' : 'false'); // TODO
+		domTextAreaElement.setAttribute('tabindex', '0'); // TODO
+		domTextAreaElement.setAttribute('role', 'textbox');
+		domTextAreaElement.setAttribute('aria-roledescription', nls.localize('editor', "editor"));
+		domTextAreaElement.setAttribute('aria-multiline', 'true');
+		domTextAreaElement.setAttribute('aria-autocomplete', false ? 'none' : 'both'); // TODO
+		domTextAreaElement.setAttribute('height', '18px');
+		domTextAreaElement.setAttribute('width', '1px');
+		this._domElement.domNode.appendChild(domTextAreaElement.domNode);
+
 		const layoutInfo = options.get(EditorOption.layoutInfo);
 		this._contentLeft = layoutInfo.contentLeft;
 
 		this._register(editContextAddDisposableListener(this._ctx, 'textupdate', e => this._handleTextUpdate(e)));
 		this._register(editContextAddDisposableListener(this._ctx, 'textformatupdate', e => this._handleTextFormatUpdate(e)));
+		console.log('this._domElement : ', this._domElement);
 	}
 
 	private _decorations: string[] = [];
@@ -130,6 +161,7 @@ export class NativeEditContext extends AbstractEditContext {
 	}
 
 	private updateText() {
+		console.log('updateText');
 		const primaryViewState = this._context.viewModel.getCursorStates()[0].viewState;
 
 		const doc = new LineBasedText(lineNumber => this._context.viewModel.getLineContent(lineNumber), this._context.viewModel.getLineCount());
@@ -156,11 +188,18 @@ export class NativeEditContext extends AbstractEditContext {
 
 		this._editContextState = new EditContextState(textEdit, t, positionOffset, selection);
 
+		console.log('before update text value : ', value);
+		console.log('before update text selection start : ', selection.start, ', and end : ', selection.endExclusive);
+
 		this._ctx.updateText(0, Number.MAX_SAFE_INTEGER, value);
 		this._ctx.updateSelection(selection.start, selection.endExclusive);
+
+		this._domTextAreaElement.domNode.value = value;
+		this._domTextAreaElement.domNode.setSelectionRange(selection.start, selection.endExclusive);
 	}
 
 	public override prepareRender(ctx: RenderingContext): void {
+		console.log('prepareRender');
 		const primaryViewState = this._context.viewModel.getCursorStates()[0].viewState;
 
 		const linesVisibleRanges = ctx.linesVisibleRangesForRange(primaryViewState.selection, true) ?? [];
@@ -200,6 +239,7 @@ export class NativeEditContext extends AbstractEditContext {
 	}
 
 	override onCursorStateChanged(e: ViewCursorStateChangedEvent): boolean {
+		console.log('onCursorStateChanged');
 		return true;
 	}
 
@@ -216,7 +256,33 @@ export class NativeEditContext extends AbstractEditContext {
 	}
 
 	public override focusTextArea(): void {
-		this._domElement.domNode.focus();
+		console.log('focusTextArea');
+		console.log('this._domNode.domNode : ', this._domElement.domNode);
+		console.log('this._domTextAreaElement.domNode : ', this._domTextAreaElement.domNode);
+		console.log('this._domTextAreaElement.domNode.value : ', this._domTextAreaElement.domNode.value);
+		console.log('this._domTextAreaElement.domNode.selectionStart : ', this._domTextAreaElement.domNode.selectionStart);
+		console.log('this._domTextAreaElement.domNode.selectionEnd : ', this._domTextAreaElement.domNode.selectionEnd);
+		this._domTextAreaElement.domNode.focus();
+	}
+
+	private _getAriaLabel(options: IComputedEditorOptions): string {
+		const accessibilitySupport = options.get(EditorOption.accessibilitySupport);
+		if (accessibilitySupport === AccessibilitySupport.Disabled) {
+			const toggleKeybindingLabel = this._keybindingService.lookupKeybinding('editor.action.toggleScreenReaderAccessibilityMode')?.getAriaLabel();
+			const runCommandKeybindingLabel = this._keybindingService.lookupKeybinding('workbench.action.showCommands')?.getAriaLabel();
+			const keybindingEditorKeybindingLabel = this._keybindingService.lookupKeybinding('workbench.action.openGlobalKeybindings')?.getAriaLabel();
+			const editorNotAccessibleMessage = nls.localize('accessibilityModeOff', "The editor is not accessible at this time.");
+			if (toggleKeybindingLabel) {
+				return nls.localize('accessibilityOffAriaLabel', "{0} To enable screen reader optimized mode, use {1}", editorNotAccessibleMessage, toggleKeybindingLabel);
+			} else if (runCommandKeybindingLabel) {
+				return nls.localize('accessibilityOffAriaLabelNoKb', "{0} To enable screen reader optimized mode, open the quick pick with {1} and run the command Toggle Screen Reader Accessibility Mode, which is currently not triggerable via keyboard.", editorNotAccessibleMessage, runCommandKeybindingLabel);
+			} else if (keybindingEditorKeybindingLabel) {
+				return nls.localize('accessibilityOffAriaLabelNoKbs', "{0} Please assign a keybinding for the command Toggle Screen Reader Accessibility Mode by accessing the keybindings editor with {1} and run it.", editorNotAccessibleMessage, keybindingEditorKeybindingLabel);
+			} else {
+				return editorNotAccessibleMessage;
+			}
+		}
+		return options.get(EditorOption.ariaLabel);
 	}
 
 	public override refreshFocusState(): void { }
