@@ -208,7 +208,7 @@ export interface ITerminalConfiguration {
 	autoReplies: { [key: string]: string };
 	shellIntegration?: {
 		enabled: boolean;
-		decorationsEnabled: boolean;
+		decorationsEnabled: 'both' | 'gutter' | 'overviewRuler' | 'never';
 	};
 	enableImages: boolean;
 	smoothScrolling: boolean;

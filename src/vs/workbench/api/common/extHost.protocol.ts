@@ -446,7 +446,7 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$resolvePasteFileData(handle: number, requestId: number, dataId: string): Promise<VSBuffer>;
 	$resolveDocumentOnDropFileData(handle: number, requestId: number, dataId: string): Promise<VSBuffer>;
 	$setLanguageConfiguration(handle: number, languageId: string, configuration: ILanguageConfigurationDto): void;
-	$registerMappedEditsProvider(handle: number, selector: IDocumentFilterDto[]): void;
+	$registerMappedEditsProvider(handle: number, selector: IDocumentFilterDto[], displayName: string): void;
 }
 
 export interface MainThreadLanguagesShape extends IDisposable {
@@ -1388,6 +1388,7 @@ export interface MainThreadWorkspaceShape extends IDisposable {
 	$updateWorkspaceFolders(extensionName: string, index: number, deleteCount: number, workspaceFoldersToAdd: { uri: UriComponents; name?: string }[]): Promise<void>;
 	$resolveProxy(url: string): Promise<string | undefined>;
 	$lookupAuthorization(authInfo: AuthInfo): Promise<Credentials | undefined>;
+	$lookupKerberosAuthorization(url: string): Promise<string | undefined>;
 	$loadCertificates(): Promise<string[]>;
 	$requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<boolean | undefined>;
 	$registerEditSessionIdentityProvider(handle: number, scheme: string): void;
@@ -1516,6 +1517,7 @@ export type SCMRawResourceSplices = [
 export interface SCMHistoryItemGroupDto {
 	readonly id: string;
 	readonly name: string;
+	readonly revision?: string;
 	readonly base?: Omit<Omit<SCMHistoryItemGroupDto, 'base'>, 'remote'>;
 	readonly remote?: Omit<Omit<SCMHistoryItemGroupDto, 'base'>, 'remote'>;
 }
@@ -2333,6 +2335,7 @@ export interface ExtHostSCMShape {
 	$provideHistoryItemSummary(sourceControlHandle: number, historyItemId: string, historyItemParentId: string | undefined, token: CancellationToken): Promise<SCMHistoryItemDto | undefined>;
 	$provideHistoryItemChanges(sourceControlHandle: number, historyItemId: string, historyItemParentId: string | undefined, token: CancellationToken): Promise<SCMHistoryItemChangeDto[] | undefined>;
 	$resolveHistoryItemGroupCommonAncestor(sourceControlHandle: number, historyItemGroupId1: string, historyItemGroupId2: string | undefined, token: CancellationToken): Promise<{ id: string; ahead: number; behind: number } | undefined>;
+	$resolveHistoryItemGroupCommonAncestor2(sourceControlHandle: number, historyItemGroupIds: string[], token: CancellationToken): Promise<string | undefined>;
 }
 
 export interface ExtHostQuickDiffShape {

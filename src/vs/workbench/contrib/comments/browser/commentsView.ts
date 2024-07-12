@@ -40,6 +40,7 @@ import { AccessibleViewAction } from 'vs/workbench/contrib/accessibility/browser
 
 export const CONTEXT_KEY_HAS_COMMENTS = new RawContextKey<boolean>('commentsView.hasComments', false);
 export const CONTEXT_KEY_SOME_COMMENTS_EXPANDED = new RawContextKey<boolean>('commentsView.someCommentsExpanded', false);
+export const CONTEXT_KEY_COMMENT_FOCUSED = new RawContextKey<boolean>('commentsView.commentFocused', false);
 const VIEW_STORAGE_ID = 'commentsViewState';
 
 function createResourceCommentsIterator(model: ICommentsModel): Iterable<ITreeElement<ResourceWithCommentThreads | CommentNode>> {
@@ -59,6 +60,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 	private totalComments: number = 0;
 	private readonly hasCommentsContextKey: IContextKey<boolean>;
 	private readonly someCommentsExpandedContextKey: IContextKey<boolean>;
+	private readonly commentsFocusedContextKey: IContextKey<boolean>;
 	private readonly filter: Filter;
 	readonly filters: CommentsFilters;
 
@@ -152,6 +154,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
 		this.hasCommentsContextKey = CONTEXT_KEY_HAS_COMMENTS.bindTo(contextKeyService);
 		this.someCommentsExpandedContextKey = CONTEXT_KEY_SOME_COMMENTS_EXPANDED.bindTo(contextKeyService);
+		this.commentsFocusedContextKey = CONTEXT_KEY_COMMENT_FOCUSED.bindTo(contextKeyService);
 		this.stateMemento = stateMemento;
 		this.viewState = viewState;
 
@@ -423,6 +426,8 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		this._register(this.tree.onDidChangeCollapseState(() => {
 			this.updateSomeCommentsExpanded();
 		}));
+		this._register(this.tree.onDidFocus(() => this.commentsFocusedContextKey.set(true)));
+		this._register(this.tree.onDidBlur(() => this.commentsFocusedContextKey.set(false)));
 	}
 
 	private openFile(element: any, pinned?: boolean, preserveFocus?: boolean, sideBySide?: boolean): void {

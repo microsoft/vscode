@@ -23,7 +23,6 @@ export interface IChatVariableData {
 	description: string;
 	modelDescription?: string;
 	isSlow?: boolean;
-	hidden?: boolean;
 	canTakeArgument?: boolean;
 }
 
@@ -44,7 +43,7 @@ export interface IChatVariablesService {
 	registerVariable(data: IChatVariableData, resolver: IChatVariableResolver): IDisposable;
 	hasVariable(name: string): boolean;
 	getVariable(name: string): IChatVariableData | undefined;
-	getVariables(): Iterable<Readonly<IChatVariableData>>;
+	getVariables(location: ChatAgentLocation): Iterable<Readonly<IChatVariableData>>;
 	getDynamicVariables(sessionId: string): ReadonlyArray<IDynamicVariable>; // should be its own service?
 	attachContext(name: string, value: string | URI | Location | unknown, location: ChatAgentLocation): void;
 

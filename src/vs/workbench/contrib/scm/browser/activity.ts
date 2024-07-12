@@ -25,7 +25,6 @@ import { autorun, autorunWithStore, derived, IObservable, observableFromEvent } 
 import { observableConfigValue } from 'vs/platform/observable/common/platformObservableUtils';
 import { derivedObservableWithCache, latestChangedValue, observableFromEventOpts } from 'vs/base/common/observableInternal/utils';
 import { Command } from 'vs/editor/common/languages';
-import { ISCMHistoryItemGroup } from 'vs/workbench/contrib/scm/common/history';
 
 const ActiveRepositoryContextKeys = {
 	ActiveRepositoryName: new RawContextKey<string>('scmActiveRepositoryName', ''),
@@ -135,9 +134,10 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 
 		this._register(autorun(reader => {
 			const repository = this._activeRepository.read(reader);
-			const currentHistoryItemGroup = repository?.provider.historyProviderObs.read(reader)?.currentHistoryItemGroupObs.read(reader);
+			const historyProvider = repository?.provider.historyProvider.read(reader);
+			const branchName = historyProvider?.currentHistoryItemGroupName.read(reader);
 
-			this._updateActiveRepositoryContextKeys(repository, currentHistoryItemGroup);
+			this._updateActiveRepositoryContextKeys(repository?.provider.name, branchName);
 		}));
 	}
 
@@ -196,9 +196,9 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 		}
 	}
 
-	private _updateActiveRepositoryContextKeys(repository: ISCMRepository | undefined, currentHistoryItemGroup: ISCMHistoryItemGroup | undefined): void {
-		this._activeRepositoryNameContextKey.set(repository?.provider.name ?? '');
-		this._activeRepositoryBranchNameContextKey.set(currentHistoryItemGroup?.name ?? '');
+	private _updateActiveRepositoryContextKeys(repositoryName: string | undefined, branchName: string | undefined): void {
+		this._activeRepositoryNameContextKey.set(repositoryName ?? '');
+		this._activeRepositoryBranchNameContextKey.set(branchName ?? '');
 	}
 }
 

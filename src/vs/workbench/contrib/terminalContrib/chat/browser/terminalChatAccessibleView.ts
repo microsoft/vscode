@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AccessibleViewProviderId, AccessibleViewType } from 'vs/platform/accessibility/browser/accessibleView';
+import { AccessibleViewProviderId, AccessibleViewType, AccessibleContentProvider } from 'vs/platform/accessibility/browser/accessibleView';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalChatController } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChatController';
@@ -23,15 +23,14 @@ export class TerminalInlineChatAccessibleView implements IAccessibleViewImplenta
 			return;
 		}
 		const responseContent = controller.lastResponseContent;
-		return {
-			id: AccessibleViewProviderId.TerminalChat,
-			verbositySettingKey: AccessibilityVerbositySettingId.InlineChat,
-			provideContent(): string { return responseContent; },
-			onClose() {
+		return new AccessibleContentProvider(
+			AccessibleViewProviderId.TerminalChat,
+			{ type: AccessibleViewType.View },
+			() => { return responseContent; },
+			() => {
 				controller.focus();
 			},
-			options: { type: AccessibleViewType.View }
-		};
+			AccessibilityVerbositySettingId.InlineChat,
+		);
 	}
-	dispose() { }
 }
