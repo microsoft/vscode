@@ -423,9 +423,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		const scopedContextKeyService = this._register(_contextKeyService.createScoped(this._wrapperElement));
 		this._scopedContextKeyService = scopedContextKeyService;
-		this._scopedInstantiationService = instantiationService.createChild(new ServiceCollection(
+		this._scopedInstantiationService = this._register(instantiationService.createChild(new ServiceCollection(
 			[IContextKeyService, scopedContextKeyService]
-		));
+		)));
 
 		this._terminalFocusContextKey = TerminalContextKeys.focus.bindTo(scopedContextKeyService);
 		this._terminalHasFixedWidth = TerminalContextKeys.terminalHasFixedWidth.bindTo(scopedContextKeyService);
