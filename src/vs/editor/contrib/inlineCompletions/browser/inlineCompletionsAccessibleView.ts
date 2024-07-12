@@ -53,12 +53,12 @@ class InlineCompletionsAccessibleViewContentProvider extends Disposable implemen
 	public provideContent(): string {
 		const state = this._model.state.get();
 		if (!state) {
-			return '';
+			throw new Error('Inline completion is visible but state is not available');
 		}
 		const lineText = this._model.textModel.getLineContent(state.primaryGhostText.lineNumber);
 		const ghostText = state.primaryGhostText.renderForScreenReader(lineText);
 		if (!ghostText) {
-			return '';
+			throw new Error('Inline completion is visible but ghost text is not available');
 		}
 		return lineText + ghostText;
 	}
