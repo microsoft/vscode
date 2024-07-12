@@ -99,15 +99,12 @@ class DebugAccessibleViewProvider extends Disposable implements IAccessibleViewC
 		if (!dataSource) {
 			return;
 		}
-		let line = 0;
+		let line = 1;
 		const content: string[] = [];
 		for (const e of elements) {
 			content.push(e.toString().replace(/\n/g, ''));
 			this._elementPositionMap.set(e.getId(), new Position(line, 1));
 			line++;
-			if (e.sourceData) {
-				line++;
-			}
 			if (dataSource.hasChildren(e)) {
 				const childContent: string[] = [];
 				const children = await dataSource.getChildren(e);
