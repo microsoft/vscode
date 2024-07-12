@@ -378,7 +378,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		};
 
 		const files = await collectFilesFromDirectory(extension.location.fsPath);
-		return files.map(f => (<IFile>{ path: `extension/${path.relative(extension.location.fsPath, f)}`, localPath: f }));
+		return files.map(f => ({ path: `extension/${path.relative(extension.location.fsPath, f)}`, localPath: f }));
 	}
 
 	private async onDidChangeExtensionsFromAnotherSource({ added, removed }: DidChangeProfileExtensionsEvent): Promise<void> {

@@ -446,7 +446,7 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$resolvePasteFileData(handle: number, requestId: number, dataId: string): Promise<VSBuffer>;
 	$resolveDocumentOnDropFileData(handle: number, requestId: number, dataId: string): Promise<VSBuffer>;
 	$setLanguageConfiguration(handle: number, languageId: string, configuration: ILanguageConfigurationDto): void;
-	$registerMappedEditsProvider(handle: number, selector: IDocumentFilterDto[]): void;
+	$registerMappedEditsProvider(handle: number, selector: IDocumentFilterDto[], displayName: string): void;
 }
 
 export interface MainThreadLanguagesShape extends IDisposable {
@@ -1388,6 +1388,7 @@ export interface MainThreadWorkspaceShape extends IDisposable {
 	$updateWorkspaceFolders(extensionName: string, index: number, deleteCount: number, workspaceFoldersToAdd: { uri: UriComponents; name?: string }[]): Promise<void>;
 	$resolveProxy(url: string): Promise<string | undefined>;
 	$lookupAuthorization(authInfo: AuthInfo): Promise<Credentials | undefined>;
+	$lookupKerberosAuthorization(url: string): Promise<string | undefined>;
 	$loadCertificates(): Promise<string[]>;
 	$requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<boolean | undefined>;
 	$registerEditSessionIdentityProvider(handle: number, scheme: string): void;

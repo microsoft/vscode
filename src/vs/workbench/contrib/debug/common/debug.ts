@@ -792,7 +792,7 @@ export interface IDebugConfiguration {
 	disassemblyView: {
 		showSourceCode: boolean;
 	};
-	autoExpandLazyVariables: boolean;
+	autoExpandLazyVariables: 'auto' | 'off' | 'on';
 	enableStatusBarColor: boolean;
 	showVariableTypes: boolean;
 }
