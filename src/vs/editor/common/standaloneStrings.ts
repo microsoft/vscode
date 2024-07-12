@@ -27,7 +27,7 @@ export namespace AccessibilityHelpNLS {
 	export const quickChat = nls.localize("quickChatCommand", "Toggle quick chat<keybinding:workbench.action.quickchat.toggle> to open or close a chat session.",);
 	export const startInlineChat = nls.localize("startInlineChatCommand", "Start inline chat<keybinding:inlineChat.start> to create an in editor chat session.");
 	export const setBreakpoint = nls.localize('debugConsole.setBreakpoint', "The Debug: Inline Breakpoint command<keybinding:editor.debug.action.toggleInlineBreakpoint> will set or unset a breakpoint at the current cursor position.");
-	export const debugExecuteSelection = nls.localize('debugConsole.executeSelection', "The Execute Selection command<keybinding:editor.debug.action.selectionToRepl> will execute the editor selected text in the console.");
+	export const debugExecuteSelection = nls.localize('debugConsole.executeSelection', "The Debug: Execute Selection command<keybinding:editor.debug.action.selectionToRepl> will execute the selected text in the debug console.");
 }
 
 export namespace InspectTokensNLS {
