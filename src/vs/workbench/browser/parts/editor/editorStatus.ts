@@ -1453,13 +1453,16 @@ export class ChangeEncodingAction extends Action2 {
 
 		let guessedEncoding: string | undefined = undefined;
 		if (fileService.hasProvider(resource)) {
-			const content = await textFileService.readStream(resource, { autoGuessEncoding: true });
+			const content = await textFileService.readStream(resource, {
+				autoGuessEncoding: true,
+				candidateGuessEncodings: textResourceConfigurationService.getValue(resource, 'files.candidateGuessEncodings')
+			});
 			guessedEncoding = content.encoding;
 		}
 
 		const isReopenWithEncoding = (action === reopenWithEncodingPick);
 
-		const configuredEncoding = textResourceConfigurationService.getValue(resource ?? undefined, 'files.encoding');
+		const configuredEncoding = textResourceConfigurationService.getValue(resource, 'files.encoding');
 
 		let directMatchIndex: number | undefined;
 		let aliasMatchIndex: number | undefined;

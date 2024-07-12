@@ -26,7 +26,7 @@ export interface IAccessibilitySignalService {
 	playSignalLoop(signal: AccessibilitySignal, milliseconds: number): IDisposable;
 
 	getEnabledState(signal: AccessibilitySignal, userGesture: boolean, modality?: AccessibilityModality | undefined): IValueWithChangeEvent<boolean>;
-	getDelayMs(signal: AccessibilitySignal, modality: AccessibilityModality): number;
+	getDelayMs(signal: AccessibilitySignal, modality: AccessibilityModality, mode: 'line' | 'positional'): number;
 	/**
 	 * Avoid this method and prefer `.playSignal`!
 	 * Only use it when you want to play the sound regardless of enablement, e.g. in the settings quick pick.
@@ -67,7 +67,7 @@ export interface IAccessbilitySignalOptions {
 export class AccessibilitySignalService extends Disposable implements IAccessibilitySignalService {
 	readonly _serviceBrand: undefined;
 	private readonly sounds: Map<string, HTMLAudioElement> = new Map();
-	private readonly screenReaderAttached = observableFromEvent(
+	private readonly screenReaderAttached = observableFromEvent(this,
 		this.accessibilityService.onDidChangeScreenReaderOptimized,
 		() => /** @description accessibilityService.onDidChangeScreenReaderOptimized */ this.accessibilityService.isScreenReaderOptimized()
 	);
@@ -241,10 +241,19 @@ export class AccessibilitySignalService extends Disposable implements IAccessibi
 		return this.getEnabledState(signal, false).onDidChange;
 	}
 
-	public getDelayMs(signal: AccessibilitySignal, modality: AccessibilityModality): number {
-		const delaySettingsKey = signal.delaySettingsKey ?? 'accessibility.signalOptions.delays.general';
-		const delaySettingsValue: { sound: number; announcement: number } = this.configurationService.getValue(delaySettingsKey);
-		return modality === 'sound' ? delaySettingsValue.sound : delaySettingsValue.announcement;
+	public getDelayMs(signal: AccessibilitySignal, modality: AccessibilityModality, mode: 'line' | 'positional'): number {
+		if (!this.configurationService.getValue('accessibility.signalOptions.debouncePositionChanges')) {
+			return 0;
+		}
+		let value: { sound: number; announcement: number };
+		if (signal.name === AccessibilitySignal.errorAtPosition.name && mode === 'positional') {
+			value = this.configurationService.getValue('accessibility.signalOptions.experimental.delays.errorAtPosition');
+		} else if (signal.name === AccessibilitySignal.warningAtPosition.name && mode === 'positional') {
+			value = this.configurationService.getValue('accessibility.signalOptions.experimental.delays.warningAtPosition');
+		} else {
+			value = this.configurationService.getValue('accessibility.signalOptions.experimental.delays.general');
+		}
+		return modality === 'sound' ? value.sound : value.announcement;
 	}
 }
 

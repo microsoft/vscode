@@ -32,8 +32,8 @@ suite('Workbench - Test Results Service', () => {
 	let tests: TestTestCollection;
 
 	const defaultOpts = (testIds: string[]): ResolvedTestRunRequest => ({
+		group: TestRunProfileBitset.Run,
 		targets: [{
-			profileGroup: TestRunProfileBitset.Run,
 			profileId: 0,
 			controllerId: 'ctrlId',
 			testIds,

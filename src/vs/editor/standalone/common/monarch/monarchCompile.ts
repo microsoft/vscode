@@ -434,21 +434,21 @@ export function compile(languageId: string, json: IMonarchLanguage): monarchComm
 	}
 
 	// Create our lexer
-	const lexer: monarchCommon.ILexer = <monarchCommon.ILexer>{};
-	lexer.languageId = languageId;
-	lexer.includeLF = bool(json.includeLF, false);
-	lexer.noThrow = false; // raise exceptions during compilation
-	lexer.maxStack = 100;
-
-	// Set standard fields: be defensive about types
-	lexer.start = (typeof json.start === 'string' ? json.start : null);
-	lexer.ignoreCase = bool(json.ignoreCase, false);
-	lexer.unicode = bool(json.unicode, false);
-
-	lexer.tokenPostfix = string(json.tokenPostfix, '.' + lexer.languageId);
-	lexer.defaultToken = string(json.defaultToken, 'source');
-
-	lexer.usesEmbedded = false; // becomes true if we find a nextEmbedded action
+	const lexer: monarchCommon.ILexer = {
+		languageId: languageId,
+		includeLF: bool(json.includeLF, false),
+		noThrow: false, // raise exceptions during compilation
+		maxStack: 100,
+		start: (typeof json.start === 'string' ? json.start : null),
+		ignoreCase: bool(json.ignoreCase, false),
+		unicode: bool(json.unicode, false),
+		tokenPostfix: string(json.tokenPostfix, '.' + languageId),
+		defaultToken: string(json.defaultToken, 'source'),
+		usesEmbedded: false, // becomes true if we find a nextEmbedded action
+		stateNames: {},
+		tokenizer: {},
+		brackets: []
+	};
 
 	// For calling compileAction later on
 	const lexerMin: monarchCommon.ILexerMin = <any>json;

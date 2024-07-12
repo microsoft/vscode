@@ -101,7 +101,7 @@ suite('FileDialogService', function () {
 
 		const dialogService = instantiationService.createInstance(TestFileDialogService, new TestSimpleFileDialog());
 		instantiationService.set(IFileDialogService, dialogService);
-		const workspaceService: IWorkspaceEditingService = instantiationService.createInstance(BrowserWorkspaceEditingService);
+		const workspaceService: IWorkspaceEditingService = disposables.add(instantiationService.createInstance(BrowserWorkspaceEditingService));
 		assert.strictEqual((await workspaceService.pickNewWorkspacePath())?.path.startsWith(testFile.path), true);
 		assert.strictEqual(await dialogService.pickWorkspaceAndOpen({}), undefined);
 	});
@@ -126,7 +126,7 @@ suite('FileDialogService', function () {
 		} as IPathService);
 		const dialogService = instantiationService.createInstance(TestFileDialogService, new TestSimpleFileDialog());
 		instantiationService.set(IFileDialogService, dialogService);
-		const workspaceService: IWorkspaceEditingService = instantiationService.createInstance(BrowserWorkspaceEditingService);
+		const workspaceService: IWorkspaceEditingService = disposables.add(instantiationService.createInstance(BrowserWorkspaceEditingService));
 		assert.strictEqual((await workspaceService.pickNewWorkspacePath())?.path.startsWith(testFile.path), true);
 		assert.strictEqual(await dialogService.pickWorkspaceAndOpen({}), undefined);
 	});
@@ -158,7 +158,7 @@ suite('FileDialogService', function () {
 		} as IPathService);
 		const dialogService = instantiationService.createInstance(TestFileDialogService, new TestSimpleFileDialog());
 		instantiationService.set(IFileDialogService, dialogService);
-		const workspaceService: IWorkspaceEditingService = instantiationService.createInstance(BrowserWorkspaceEditingService);
+		const workspaceService: IWorkspaceEditingService = disposables.add(instantiationService.createInstance(BrowserWorkspaceEditingService));
 		assert.strictEqual((await workspaceService.pickNewWorkspacePath())?.path.startsWith(testFile.path), true);
 		assert.strictEqual(await dialogService.pickWorkspaceAndOpen({}), undefined);
 	});

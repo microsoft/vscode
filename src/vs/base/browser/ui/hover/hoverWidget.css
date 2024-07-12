@@ -134,6 +134,11 @@
 	padding-right: 4px;
 }
 
+.monaco-hover .hover-row.status-bar .actions .action-container a {
+	color: var(--vscode-textLink-foreground);
+	text-decoration: var(--text-link-decoration);
+}
+
 .monaco-hover .markdown-hover .hover-contents .codicon {
 	color: inherit;
 	font-size: inherit;
@@ -169,6 +174,10 @@
 .monaco-hover .markdown-hover .hover-contents:not(.code-hover-contents):not(.html-hover-contents) span {
 	margin-bottom: 4px;
 	display: inline-block;
+}
+
+.monaco-hover .markdown-hover .hover-contents:not(.code-hover-contents):not(.html-hover-contents) span.codicon {
+	margin-bottom: 2px;
 }
 
 .monaco-hover-content .action-container a {

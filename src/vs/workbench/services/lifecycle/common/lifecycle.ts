@@ -65,9 +65,34 @@ export interface BeforeShutdownErrorEvent {
 	readonly error: Error;
 }
 
+export enum WillShutdownJoinerOrder {
+
+	/**
+	 * Joiners to run before the `Last` joiners. This is the default order and best for
+	 * most cases. You can be sure that services are still functional at this point.
+	 */
+	Default = 1,
+
+	/**
+	 * The joiners to run last. This should ONLY be used in rare cases when you have no
+	 * dependencies to workbench services or state. The workbench may be in a state where
+	 * resources can no longer be accessed or changed.
+	 */
+	Last
+}
+
 export interface IWillShutdownEventJoiner {
-	id: string;
-	label: string;
+	readonly id: string;
+	readonly label: string;
+	readonly order?: WillShutdownJoinerOrder;
+}
+
+export interface IWillShutdownEventDefaultJoiner extends IWillShutdownEventJoiner {
+	readonly order?: WillShutdownJoinerOrder.Default;
+}
+
+export interface IWillShutdownEventLastJoiner extends IWillShutdownEventJoiner {
+	readonly order: WillShutdownJoinerOrder.Last;
 }
 
 /**
@@ -95,10 +120,21 @@ export interface WillShutdownEvent {
 	 * Allows to join the shutdown. The promise can be a long running operation but it
 	 * will block the application from closing.
 	 *
+	 * @param promise the promise to join the shutdown event.
 	 * @param joiner to identify the join operation in case it takes very long or never
 	 * completes.
 	 */
-	join(promise: Promise<void>, joiner: IWillShutdownEventJoiner): void;
+	join(promise: Promise<void>, joiner: IWillShutdownEventDefaultJoiner): void;
+
+	/**
+	 * Allows to join the shutdown at the end. The promise can be a long running operation but it
+	 * will block the application from closing.
+	 *
+	 * @param promiseFn the promise to join the shutdown event.
+	 * @param joiner to identify the join operation in case it takes very long or never
+	 * completes.
+	 */
+	join(promiseFn: (() => Promise<void>), joiner: IWillShutdownEventLastJoiner): void;
 
 	/**
 	 * Allows to access the joiners that have not finished joining this event.

@@ -44,7 +44,8 @@ suite('ExtensionDescriptionRegistry', () => {
 			activationEvents,
 			main: 'index.js',
 			targetPlatform: TargetPlatform.UNDEFINED,
-			extensionDependencies: []
+			extensionDependencies: [],
+			enabledApiProposals: undefined,
 		};
 	}
 });

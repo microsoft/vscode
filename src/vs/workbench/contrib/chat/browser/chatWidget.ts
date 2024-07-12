@@ -36,7 +36,7 @@ import { CONTEXT_CHAT_INPUT_HAS_AGENT, CONTEXT_CHAT_LOCATION, CONTEXT_CHAT_REQUE
 import { ChatModelInitState, IChatModel, IChatRequestVariableEntry, IChatResponseModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { ChatRequestAgentPart, IParsedChatRequest, chatAgentLeader, chatSubcommandLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { ChatRequestParser } from 'vs/workbench/contrib/chat/common/chatRequestParser';
-import { IChatFollowup, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatFollowup, IChatLocationData, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatSlashCommandService } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 import { ChatViewModel, IChatResponseViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { CodeBlockModelCollection } from 'vs/workbench/contrib/chat/common/codeBlockModelCollection';
@@ -69,10 +69,17 @@ export interface IChatWidgetContrib extends IDisposable {
 	 */
 	getInputState?(): any;
 
+	onDidChangeInputState?: Event<void>;
+
 	/**
 	 * Called with the result of getInputState when navigating input history.
 	 */
 	setInputState?(s: any): void;
+}
+
+export interface IChatWidgetLocationOptions {
+	location: ChatAgentLocation;
+	resolveData?(): IChatLocationData | undefined;
 }
 
 export class ChatWidget extends Disposable implements IChatWidget {
@@ -96,8 +103,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private _onDidAcceptInput = this._register(new Emitter<void>());
 	readonly onDidAcceptInput = this._onDidAcceptInput.event;
 
-	private _onDidDeleteContext = this._register(new Emitter<IChatRequestVariableEntry>());
-	readonly onDidDeleteContext = this._onDidDeleteContext.event;
+	private _onDidChangeContext = this._register(new Emitter<{ removed?: IChatRequestVariableEntry[]; added?: IChatRequestVariableEntry[] }>());
+	readonly onDidChangeContext = this._onDidChangeContext.event;
 
 	private _onDidHide = this._register(new Emitter<void>());
 	readonly onDidHide = this._onDidHide.event;
@@ -105,13 +112,16 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private _onDidChangeParsedInput = this._register(new Emitter<void>());
 	readonly onDidChangeParsedInput = this._onDidChangeParsedInput.event;
 
+	private readonly _onWillMaybeChangeHeight = new Emitter<void>();
+	readonly onWillMaybeChangeHeight: Event<void> = this._onWillMaybeChangeHeight.event;
+
 	private _onDidChangeHeight = this._register(new Emitter<number>());
 	readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
 	private readonly _onDidChangeContentHeight = new Emitter<void>();
 	readonly onDidChangeContentHeight: Event<void> = this._onDidChangeContentHeight.event;
 
-	private contribs: IChatWidgetContrib[] = [];
+	private contribs: ReadonlyArray<IChatWidgetContrib> = [];
 
 	private tree!: WorkbenchObjectTree<ChatTreeItem>;
 	private renderer!: ChatListItemRenderer;
@@ -171,8 +181,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return this.contextKeyService;
 	}
 
+	private readonly _location: IChatWidgetLocationOptions;
+
+	get location() {
+		return this._location.location;
+	}
+
 	constructor(
-		readonly location: ChatAgentLocation,
+		location: ChatAgentLocation | IChatWidgetLocationOptions,
 		readonly viewContext: IChatWidgetViewContext,
 		private readonly viewOptions: IChatWidgetViewOptions,
 		private readonly styles: IChatWidgetStyles,
@@ -189,8 +205,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IChatSlashCommandService private readonly chatSlashCommandService: IChatSlashCommandService,
 	) {
 		super();
+
+		if (typeof location === 'object') {
+			this._location = location;
+		} else {
+			this._location = { location };
+		}
+
 		CONTEXT_IN_CHAT_SESSION.bindTo(contextKeyService).set(true);
-		CONTEXT_CHAT_LOCATION.bindTo(contextKeyService).set(location);
+		CONTEXT_CHAT_LOCATION.bindTo(contextKeyService).set(this._location.location);
 		CONTEXT_IN_QUICK_CHAT.bindTo(contextKeyService).set('resource' in viewContext);
 		this.agentInInput = CONTEXT_CHAT_INPUT_HAS_AGENT.bindTo(contextKeyService);
 		this.requestInProgress = CONTEXT_CHAT_REQUEST_IN_PROGRESS.bindTo(contextKeyService);
@@ -311,6 +334,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				return undefined;
 			}
 		}).filter(isDefined);
+
+		this.contribs.forEach(c => {
+			if (c.onDidChangeInputState) {
+				this._register(c.onDidChangeInputState(() => {
+					const state = this.collectInputState();
+					this.inputPart.updateState(state);
+				}));
+			}
+		});
 	}
 
 	getContrib<T extends IChatWidgetContrib>(id: string): T | undefined {
@@ -362,6 +394,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 						collapsible: false
 					};
 				});
+
+			this._onWillMaybeChangeHeight.fire();
 
 			this.tree.setChildren(null, treeItems, {
 				diffIdentityProvider: {
@@ -424,7 +458,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private createList(listContainer: HTMLElement, options: IChatListItemRendererOptions): void {
-		const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.contextKeyService])));
+		const scopedInstantiationService = this._register(this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.contextKeyService]))));
 		const delegate = scopedInstantiationService.createInstance(ChatListDelegate, this.viewOptions.defaultElementHeight ?? 200);
 		const rendererDelegate: IChatRendererDelegate = {
 			getListLength: () => this.tree.getNode(null).visibleChildrenCount,
@@ -538,12 +572,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._onDidChangeContentHeight.fire();
 	}
 
-	private createInput(container: HTMLElement, options?: { renderFollowups: boolean; renderStyle?: 'default' | 'compact' }): void {
+	private createInput(container: HTMLElement, options?: { renderFollowups: boolean; renderStyle?: 'default' | 'compact' | 'minimal' }): void {
 		this.inputPart = this._register(this.instantiationService.createInstance(ChatInputPart,
 			this.location,
 			{
 				renderFollowups: options?.renderFollowups ?? true,
-				renderStyle: options?.renderStyle,
+				renderStyle: options?.renderStyle === 'minimal' ? 'compact' : options?.renderStyle,
 				menus: { executeToolbar: MenuId.ChatExecute, ...this.viewOptions.menus },
 				editorOverflowWidgetsDomNode: this.viewOptions.editorOverflowWidgetsDomNode,
 			}
@@ -552,13 +586,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this._register(this.inputPart.onDidLoadInputState(state => {
 			this.contribs.forEach(c => {
-				if (c.setInputState && typeof state === 'object' && state?.[c.id]) {
-					c.setInputState(state[c.id]);
+				if (c.setInputState) {
+					const contribState = (typeof state === 'object' && state?.[c.id]) ?? {};
+					c.setInputState(contribState);
 				}
 			});
 		}));
 		this._register(this.inputPart.onDidFocus(() => this._onDidFocus.fire()));
-		this._register(this.inputPart.onDidDeleteContext((e) => this._onDidDeleteContext.fire(e)));
+		this._register(this.inputPart.onDidChangeContext((e) => this._onDidChangeContext.fire(e)));
 		this._register(this.inputPart.onDidAcceptFollowup(e => {
 			if (!this.viewModel) {
 				return;
@@ -593,6 +628,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				sessionId: this.viewModel.sessionId,
 				requestId: e.response.requestId,
 				agentId: e.response.agent?.id,
+				command: e.response.slashCommand?.name,
 				result: e.response.result,
 				action: {
 					kind: 'followUp',
@@ -646,7 +682,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.viewModel = undefined;
 			this.onDidChangeItems();
 		}));
-		this.inputPart.setState(viewState.inputValue);
+		this.inputPart.initForNewChatModel(viewState.inputValue, viewState.inputState ?? this.collectInputState());
 		this.contribs.forEach(c => {
 			if (c.setInputState && viewState.inputState?.[c.id]) {
 				c.setInputState(viewState.inputState?.[c.id]);
@@ -692,11 +728,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	setInput(value = ''): void {
-		this.inputPart.setValue(value);
+		this.inputPart.setValue(value, false);
 	}
 
 	getInput(): string {
 		return this.inputPart.inputEditor.getValue();
+	}
+
+	logInputHistory(): void {
+		this.inputPart.logInputHistory();
 	}
 
 	async acceptInput(query?: string): Promise<IChatResponseModel | undefined> {
@@ -727,13 +767,18 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				'query' in opts ? opts.query :
 					`${opts.prefix} ${editorValue}`;
 			const isUserQuery = !opts || 'prefix' in opts;
-			const result = await this.chatService.sendRequest(this.viewModel.sessionId, input, { location: this.location, parserContext: { selectedAgent: this._lastSelectedAgent }, attachedContext: [...this.inputPart.attachedContext.values()] });
+			const result = await this.chatService.sendRequest(this.viewModel.sessionId, input, {
+				location: this.location,
+				locationData: this._location.resolveData?.(),
+				parserContext: { selectedAgent: this._lastSelectedAgent },
+				attachedContext: [...this.inputPart.attachedContext.values()]
+			});
 
 			if (result) {
-				this.inputPart.attachedContext.clear();
-				const inputState = this.collectInputState();
-				this.inputPart.acceptInput(isUserQuery ? input : undefined, isUserQuery ? inputState : undefined);
+				this.inputPart.clearContext();
+				this.inputPart.acceptInput(isUserQuery);
 				this._onDidSubmitAgent.fire({ agent: result.agent, slashCommand: result.slashCommand });
+				this.inputPart.updateState(this.collectInputState());
 				result.responseCompletePromise.then(() => {
 					const responses = this.viewModel?.getItems().filter(isResponseVM);
 					const lastResponse = responses?.[responses.length - 1];
@@ -747,14 +792,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 
 	setContext(overwrite: boolean, ...contentReferences: IChatRequestVariableEntry[]) {
-		if (overwrite) {
-			this.inputPart.attachedContext.clear();
-		}
-		this.inputPart.attachContext(...contentReferences);
-
-		if (this.bodyDimension) {
-			this.layout(this.bodyDimension.height, this.bodyDimension.width);
-		}
+		this.inputPart.attachContext(overwrite, ...contentReferences);
 	}
 
 	getCodeBlockInfosForResponse(response: IChatResponseViewModel): IChatCodeBlockInfo[] {
@@ -918,8 +956,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.inputPart.saveState();
 		return { inputValue: this.getInput(), inputState: this.collectInputState() };
 	}
-
-
 }
 
 export class ChatWidgetService implements IChatWidgetService {

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
 import assert from 'assert';
 import * as path from 'vs/base/common/path';
 import { SingleModifierChord, ResolvedKeybinding, Keybinding } from 'vs/base/common/keybindings';
@@ -46,7 +47,7 @@ export function assertResolveKeybinding(mapper: IKeyboardMapper, keybinding: Key
 }
 
 export function readRawMapping<T>(file: string): Promise<T> {
-	return Promises.readFile(FileAccess.asFileUri(`vs/workbench/services/keybinding/test/node/${file}.js`).fsPath).then((buff) => {
+	return fs.promises.readFile(FileAccess.asFileUri(`vs/workbench/services/keybinding/test/node/${file}.js`).fsPath).then((buff) => {
 		const contents = buff.toString();
 		const func = new Function('define', contents);// CodeQL [SM01632] This is used in tests and we read the files as JS to avoid slowing down TS compilation
 		let rawMappings: T | null = null;
@@ -60,7 +61,7 @@ export function readRawMapping<T>(file: string): Promise<T> {
 export function assertMapping(writeFileIfDifferent: boolean, mapper: IKeyboardMapper, file: string): Promise<void> {
 	const filePath = path.normalize(FileAccess.asFileUri(`vs/workbench/services/keybinding/test/node/${file}`).fsPath);
 
-	return Promises.readFile(filePath).then((buff) => {
+	return fs.promises.readFile(filePath).then((buff) => {
 		const expected = buff.toString().replace(/\r\n/g, '\n');
 		const actual = mapper.dumpDebugInfo().replace(/\r\n/g, '\n');
 		if (actual !== expected && writeFileIfDifferent) {

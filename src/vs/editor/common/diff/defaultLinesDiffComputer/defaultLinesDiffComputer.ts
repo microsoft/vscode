@@ -17,7 +17,7 @@ import { extendDiffsToEntireWordIfAppropriate, optimizeSequenceDiffs, removeShor
 import { LineSequence } from 'vs/editor/common/diff/defaultLinesDiffComputer/lineSequence';
 import { LinesSliceCharSequence } from 'vs/editor/common/diff/defaultLinesDiffComputer/linesSliceCharSequence';
 import { ILinesDiffComputer, ILinesDiffComputerOptions, LinesDiff, MovedText } from 'vs/editor/common/diff/linesDiffComputer';
-import { DetailedLineRangeMapping, RangeMapping } from '../rangeMapping';
+import { DetailedLineRangeMapping, LineRangeMapping, RangeMapping } from '../rangeMapping';
 
 export class DefaultLinesDiffComputer implements ILinesDiffComputer {
 	private readonly dynamicProgrammingDiffing = new DynamicProgrammingDiffing();
@@ -167,7 +167,9 @@ export class DefaultLinesDiffComputer implements ILinesDiffComputer {
 				for (const ic of c.innerChanges) {
 					const valid = validatePosition(ic.modifiedRange.getStartPosition(), modifiedLines) && validatePosition(ic.modifiedRange.getEndPosition(), modifiedLines) &&
 						validatePosition(ic.originalRange.getStartPosition(), originalLines) && validatePosition(ic.originalRange.getEndPosition(), originalLines);
-					if (!valid) { return false; }
+					if (!valid) {
+						return false;
+					}
 				}
 				if (!validateRange(c.modified, modifiedLines) || !validateRange(c.original, originalLines)) {
 					return false;
@@ -208,18 +210,28 @@ export class DefaultLinesDiffComputer implements ILinesDiffComputer {
 	}
 
 	private refineDiff(originalLines: string[], modifiedLines: string[], diff: SequenceDiff, timeout: ITimeout, considerWhitespaceChanges: boolean): { mappings: RangeMapping[]; hitTimeout: boolean } {
-		const slice1 = new LinesSliceCharSequence(originalLines, diff.seq1Range, considerWhitespaceChanges);
-		const slice2 = new LinesSliceCharSequence(modifiedLines, diff.seq2Range, considerWhitespaceChanges);
+		const lineRangeMapping = toLineRangeMapping(diff);
+		const rangeMapping = lineRangeMapping.toRangeMapping2(originalLines, modifiedLines);
+
+		const slice1 = new LinesSliceCharSequence(originalLines, rangeMapping.originalRange, considerWhitespaceChanges);
+		const slice2 = new LinesSliceCharSequence(modifiedLines, rangeMapping.modifiedRange, considerWhitespaceChanges);
 
 		const diffResult = slice1.length + slice2.length < 500
 			? this.dynamicProgrammingDiffing.compute(slice1, slice2, timeout)
 			: this.myersDiffingAlgorithm.compute(slice1, slice2, timeout);
 
+		const check = false;
+
 		let diffs = diffResult.diffs;
+		if (check) { SequenceDiff.assertSorted(diffs); }
 		diffs = optimizeSequenceDiffs(slice1, slice2, diffs);
+		if (check) { SequenceDiff.assertSorted(diffs); }
 		diffs = extendDiffsToEntireWordIfAppropriate(slice1, slice2, diffs);
+		if (check) { SequenceDiff.assertSorted(diffs); }
 		diffs = removeShortMatches(slice1, slice2, diffs);
+		if (check) { SequenceDiff.assertSorted(diffs); }
 		diffs = removeVeryShortMatchingTextBetweenLongDiffs(slice1, slice2, diffs);
+		if (check) { SequenceDiff.assertSorted(diffs); }
 
 		const result = diffs.map(
 			(d) =>
@@ -228,6 +240,8 @@ export class DefaultLinesDiffComputer implements ILinesDiffComputer {
 					slice2.translateRange(d.seq2Range)
 				)
 		);
+
+		if (check) { RangeMapping.assertSorted(result); }
 
 		// Assert: result applied on original should be the same as diff applied to original
 
@@ -311,4 +325,11 @@ export function getLineRangeMapping(rangeMapping: RangeMapping, originalLines: s
 	);
 
 	return new DetailedLineRangeMapping(originalLineRange, modifiedLineRange, [rangeMapping]);
+}
+
+function toLineRangeMapping(sequenceDiff: SequenceDiff) {
+	return new LineRangeMapping(
+		new LineRange(sequenceDiff.seq1Range.start + 1, sequenceDiff.seq1Range.endExclusive + 1),
+		new LineRange(sequenceDiff.seq2Range.start + 1, sequenceDiff.seq2Range.endExclusive + 1),
+	);
 }

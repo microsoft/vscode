@@ -90,11 +90,15 @@ export class ChatVariablesService implements IChatVariablesService {
 
 		await Promise.allSettled(jobs);
 
+		// Make array not sparse
 		resolvedVariables = coalesce<IChatRequestVariableEntry>(resolvedVariables);
 
 		// "reverse", high index first so that replacement is simple
 		resolvedVariables.sort((a, b) => b.range!.start - a.range!.start);
-		resolvedVariables.push(...resolvedAttachedContext);
+
+		// resolvedAttachedContext is a sparse array
+		resolvedVariables.push(...coalesce(resolvedAttachedContext));
+
 
 		return {
 			variables: resolvedVariables,
@@ -118,9 +122,12 @@ export class ChatVariablesService implements IChatVariablesService {
 		return this._resolver.get(name.toLowerCase())?.data;
 	}
 
-	getVariables(): Iterable<Readonly<IChatVariableData>> {
+	getVariables(location: ChatAgentLocation): Iterable<Readonly<IChatVariableData>> {
 		const all = Iterable.map(this._resolver.values(), data => data.data);
-		return Iterable.filter(all, data => !data.hidden);
+		return Iterable.filter(all, data => {
+			// TODO@jrieken this is improper and should be know from the variable registeration data
+			return location !== ChatAgentLocation.Editor || !new Set(['selection', 'editor']).has(data.name);
+		});
 	}
 
 	getDynamicVariables(sessionId: string): ReadonlyArray<IDynamicVariable> {

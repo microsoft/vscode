@@ -16,7 +16,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
-import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { localize } from 'vs/nls';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -41,7 +41,7 @@ import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { AbstractExpressionDataSource, AbstractExpressionsRenderer, IExpressionTemplateData, IInputBoxOptions, renderExpressionValue, renderVariable, renderViewTree } from 'vs/workbench/contrib/debug/browser/baseDebugView';
 import { ADD_TO_WATCH_ID, ADD_TO_WATCH_LABEL, COPY_EVALUATE_PATH_ID, COPY_EVALUATE_PATH_LABEL, COPY_VALUE_ID, COPY_VALUE_LABEL } from 'vs/workbench/contrib/debug/browser/debugCommands';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
-import { CONTEXT_BREAK_WHEN_VALUE_CHANGES_SUPPORTED, CONTEXT_BREAK_WHEN_VALUE_IS_ACCESSED_SUPPORTED, CONTEXT_BREAK_WHEN_VALUE_IS_READ_SUPPORTED, CONTEXT_VARIABLES_FOCUSED, DataBreakpointSetType, DebugVisualizationType, IDataBreakpointInfoResponse, IDebugService, IExpression, IScope, IStackFrame, IViewModel, VARIABLES_VIEW_ID } from 'vs/workbench/contrib/debug/common/debug';
+import { CONTEXT_BREAK_WHEN_VALUE_CHANGES_SUPPORTED, CONTEXT_BREAK_WHEN_VALUE_IS_ACCESSED_SUPPORTED, CONTEXT_BREAK_WHEN_VALUE_IS_READ_SUPPORTED, CONTEXT_VARIABLES_FOCUSED, DataBreakpointSetType, DebugVisualizationType, IDataBreakpointInfoResponse, IDebugConfiguration, IDebugService, IExpression, IScope, IStackFrame, IViewModel, VARIABLES_VIEW_ID } from 'vs/workbench/contrib/debug/common/debug';
 import { getContextForVariable } from 'vs/workbench/contrib/debug/common/debugContext';
 import { ErrorScope, Expression, Scope, StackFrame, Variable, VisualizedExpression, getUriForDebugMemory } from 'vs/workbench/contrib/debug/common/debugModel';
 import { DebugVisualizer, IDebugVisualizerService } from 'vs/workbench/contrib/debug/common/debugVisualizers';
@@ -246,22 +246,16 @@ export async function openContextMenuForVariableTreeElement(parentContextKeyServ
 		return;
 	}
 
-	const toDispose = new DisposableStore();
+	const contextKeyService = await getContextForVariableMenuWithDataAccess(parentContextKeyService, variable);
+	const context: IVariablesContext = getVariablesContext(variable);
+	const menu = menuService.getMenuActions(menuId, contextKeyService, { arg: context, shouldForwardArgs: false });
 
-	try {
-		const contextKeyService = await getContextForVariableMenuWithDataAccess(parentContextKeyService, variable);
-		const menu = toDispose.add(menuService.createMenu(menuId, contextKeyService));
-
-		const context: IVariablesContext = getVariablesContext(variable);
-		const secondary: IAction[] = [];
-		createAndFillInContextMenuActions(menu, { arg: context, shouldForwardArgs: false }, { primary: [], secondary }, 'inline');
-		contextMenuService.showContextMenu({
-			getAnchor: () => e.anchor,
-			getActions: () => secondary
-		});
-	} finally {
-		toDispose.dispose();
-	}
+	const secondary: IAction[] = [];
+	createAndFillInContextMenuActions(menu, { primary: [], secondary }, 'inline');
+	contextMenuService.showContextMenu({
+		getAnchor: () => e.anchor,
+		getActions: () => secondary
+	});
 }
 
 const getVariablesContext = (variable: Variable): IVariablesContext => ({
@@ -455,6 +449,7 @@ export class VisualizedVariableRenderer extends AbstractExpressionsRenderer {
 	}
 
 	public override renderElement(node: ITreeNode<IExpression, FuzzyScore>, index: number, data: IExpressionTemplateData): void {
+		data.elementDisposable.clear();
 		super.renderExpressionElement(node.element, node, data);
 	}
 
@@ -499,11 +494,11 @@ export class VisualizedVariableRenderer extends AbstractExpressionsRenderer {
 	protected override renderActionBar(actionBar: ActionBar, expression: IExpression, _data: IExpressionTemplateData) {
 		const viz = expression as VisualizedExpression;
 		const contextKeyService = viz.original ? getContextForVariableMenuBase(this.contextKeyService, viz.original) : this.contextKeyService;
-		const menu = this.menuService.createMenu(MenuId.DebugVariablesContext, contextKeyService);
+		const context = viz.original ? getVariablesContext(viz.original) : undefined;
+		const menu = this.menuService.getMenuActions(MenuId.DebugVariablesContext, contextKeyService, { arg: context, shouldForwardArgs: false });
 
 		const primary: IAction[] = [];
-		const context = viz.original ? getVariablesContext(viz.original) : undefined;
-		createAndFillInContextMenuActions(menu, { arg: context, shouldForwardArgs: false }, { primary, secondary: [] }, 'inline');
+		createAndFillInContextMenuActions(menu, { primary, secondary: [] }, 'inline');
 
 		if (viz.original) {
 			const action = new Action('debugViz', localize('removeVisualizer', 'Remove Visualizer'), ThemeIcon.asClassName(Codicon.eye), true, () => this.debugService.getViewModel().setVisualizedExpression(viz.original!, undefined));
@@ -531,6 +526,7 @@ export class VariablesRenderer extends AbstractExpressionsRenderer {
 		@IDebugService debugService: IDebugService,
 		@IContextViewService contextViewService: IContextViewService,
 		@IHoverService hoverService: IHoverService,
+		@IConfigurationService private configurationService: IConfigurationService,
 	) {
 		super(debugService, contextViewService, hoverService);
 	}
@@ -540,10 +536,17 @@ export class VariablesRenderer extends AbstractExpressionsRenderer {
 	}
 
 	protected renderExpression(expression: IExpression, data: IExpressionTemplateData, highlights: IHighlight[]): void {
-		renderVariable(data.elementDisposable, this.commandService, this.hoverService, expression as Variable, data, true, highlights, this.linkDetector);
+		const showType = this.configurationService.getValue<IDebugConfiguration>('debug').showVariableTypes;
+		renderVariable(data.elementDisposable, this.commandService, this.hoverService, expression as Variable, data, true, highlights, this.linkDetector, showType);
 	}
 
 	public override renderElement(node: ITreeNode<IExpression, FuzzyScore>, index: number, data: IExpressionTemplateData): void {
+		data.elementDisposable.clear();
+		data.elementDisposable.add(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('debug.showVariableTypes')) {
+				super.renderExpressionElement(node.element, node, data);
+			}
+		}));
 		super.renderExpressionElement(node.element, node, data);
 	}
 
@@ -574,11 +577,11 @@ export class VariablesRenderer extends AbstractExpressionsRenderer {
 	protected override renderActionBar(actionBar: ActionBar, expression: IExpression, data: IExpressionTemplateData) {
 		const variable = expression as Variable;
 		const contextKeyService = getContextForVariableMenuBase(this.contextKeyService, variable);
-		const menu = this.menuService.createMenu(MenuId.DebugVariablesContext, contextKeyService);
 
 		const primary: IAction[] = [];
 		const context = getVariablesContext(variable);
-		createAndFillInContextMenuActions(menu, { arg: context, shouldForwardArgs: false }, { primary, secondary: [] }, 'inline');
+		const menu = this.menuService.getMenuActions(MenuId.DebugVariablesContext, contextKeyService, { arg: context, shouldForwardArgs: false });
+		createAndFillInContextMenuActions(menu, { primary, secondary: [] }, 'inline');
 
 		actionBar.clear();
 		actionBar.context = context;

@@ -57,7 +57,6 @@ export class FindMatchDecorationModel extends Disposable {
 		});
 
 		this._currentMatchCellDecorations = this._notebookEditor.deltaCellDecorations(this._currentMatchCellDecorations, [{
-			ownerId: cell.handle,
 			handle: cell.handle,
 			options: {
 				overviewRuler: {
@@ -67,7 +66,7 @@ export class FindMatchDecorationModel extends Disposable {
 					position: NotebookOverviewRulerLane.Center
 				}
 			}
-		} as INotebookDeltaDecoration]);
+		}]);
 
 		return null;
 	}
@@ -80,7 +79,6 @@ export class FindMatchDecorationModel extends Disposable {
 		this._currentMatchDecorations = { kind: 'output', index: index };
 
 		this._currentMatchCellDecorations = this._notebookEditor.deltaCellDecorations(this._currentMatchCellDecorations, [{
-			ownerId: cell.handle,
 			handle: cell.handle,
 			options: {
 				overviewRuler: {
@@ -90,7 +88,7 @@ export class FindMatchDecorationModel extends Disposable {
 					position: NotebookOverviewRulerLane.Center
 				}
 			}
-		} as INotebookDeltaDecoration]);
+		} satisfies INotebookDeltaDecoration]);
 
 		return offset;
 	}

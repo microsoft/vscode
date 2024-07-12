@@ -12,6 +12,7 @@ import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtil
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { ITestResult, LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { InMemoryResultStorage, RETAIN_MAX_RESULTS } from 'vs/workbench/contrib/testing/common/testResultStorage';
+import { TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
 import { testStubs } from 'vs/workbench/contrib/testing/test/common/testStubs';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 
@@ -23,7 +24,7 @@ suite('Workbench - Test Result Storage', () => {
 		const t = ds.add(new LiveTestResult(
 			'',
 			true,
-			{ targets: [] },
+			{ targets: [], group: TestRunProfileBitset.Run },
 			NullTelemetryService,
 		));
 

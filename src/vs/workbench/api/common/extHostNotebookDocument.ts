@@ -211,6 +211,9 @@ export class ExtHostNotebookDocument {
 				},
 				save() {
 					return that._save();
+				},
+				[Symbol.for('debug.description')]() {
+					return `NotebookDocument(${this.uri.toString()})`;
 				}
 			};
 			this._notebook = Object.freeze(apiObject);

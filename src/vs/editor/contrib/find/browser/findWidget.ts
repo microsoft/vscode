@@ -410,9 +410,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		}
 
 		// remove previous content
-		if (this._matchesCount.firstChild) {
-			this._matchesCount.removeChild(this._matchesCount.firstChild);
-		}
+		this._matchesCount.firstChild?.remove();
 
 		let label: string;
 		if (this._state.matchesCount > 0) {
@@ -1345,7 +1343,7 @@ export class SimpleButton extends Widget {
 		this._domNode.className = className;
 		this._domNode.setAttribute('role', 'button');
 		this._domNode.setAttribute('aria-label', this._opts.label);
-		this._register(hoverService.setupUpdatableHover(opts.hoverDelegate ?? getDefaultHoverDelegate('element'), this._domNode, this._opts.label));
+		this._register(hoverService.setupManagedHover(opts.hoverDelegate ?? getDefaultHoverDelegate('element'), this._domNode, this._opts.label));
 
 		this.onclick(this._domNode, (e) => {
 			this._opts.onTrigger();

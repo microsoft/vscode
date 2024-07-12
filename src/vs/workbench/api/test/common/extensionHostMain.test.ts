@@ -10,7 +10,7 @@ import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { URI } from 'vs/base/common/uri';
 import { mock } from 'vs/base/test/common/mock';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { ExtensionIdentifier, IExtensionDescription, IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
@@ -48,7 +48,7 @@ suite('ExtensionHostMain#ErrorHandler - Wrapping prepareStackTrace can cause slo
 			declare readonly _serviceBrand: undefined;
 			getExtensionPathIndex() {
 				return new class extends ExtensionPaths {
-					override findSubstr(key: URI): Readonly<IRelaxedExtensionDescription> | undefined {
+					override findSubstr(key: URI): IExtensionDescription | undefined {
 						findSubstrCount++;
 						return nullExtensionDescription;
 					}

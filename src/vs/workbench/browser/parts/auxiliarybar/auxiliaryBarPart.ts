@@ -191,10 +191,9 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 			actions.push(viewsSubmenuAction);
 		}
 
-		const activityBarPositionMenu = this.menuService.createMenu(MenuId.ActivityBarPositionMenu, this.contextKeyService);
+		const activityBarPositionMenu = this.menuService.getMenuActions(MenuId.ActivityBarPositionMenu, this.contextKeyService, { shouldForwardArgs: true, renderShortTitle: true });
 		const positionActions: IAction[] = [];
-		createAndFillInContextMenuActions(activityBarPositionMenu, { shouldForwardArgs: true, renderShortTitle: true }, { primary: [], secondary: positionActions });
-		activityBarPositionMenu.dispose();
+		createAndFillInContextMenuActions(activityBarPositionMenu, { primary: [], secondary: positionActions });
 
 		actions.push(...[
 			new Separator(),

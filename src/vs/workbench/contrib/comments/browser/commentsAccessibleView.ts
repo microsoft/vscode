@@ -6,7 +6,7 @@
 import { Disposable } from 'vs/base/common/lifecycle';
 import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { AccessibleViewProviderId, AccessibleViewType } from 'vs/platform/accessibility/browser/accessibleView';
+import { AccessibleViewProviderId, AccessibleViewType, AccessibleContentProvider } from 'vs/platform/accessibility/browser/accessibleView';
 import { IAccessibleViewImplentation } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
 import { IMenuService } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -56,28 +56,25 @@ export class CommentsAccessibleView extends Disposable implements IAccessibleVie
 					}
 				};
 			});
-			return {
-				id: AccessibleViewProviderId.Notification,
-				provideContent: () => {
-					return content;
-				},
-				onClose(): void {
-					commentsView.focus();
-				},
-				next(): void {
+			return new AccessibleContentProvider(
+				AccessibleViewProviderId.Notification,
+				{ type: AccessibleViewType.View },
+				() => content,
+				() => commentsView.focus(),
+				AccessibilityVerbositySettingId.Comments,
+				undefined,
+				actions,
+				() => {
 					commentsView.focus();
 					commentsView.focusNextNode();
 					resolveProvider();
 				},
-				previous(): void {
+				() => {
 					commentsView.focus();
 					commentsView.focusPreviousNode();
 					resolveProvider();
-				},
-				verbositySettingKey: AccessibilityVerbositySettingId.Comments,
-				options: { type: AccessibleViewType.View },
-				actions
-			};
+				}
+			);
 		}
 		return resolveProvider();
 	}

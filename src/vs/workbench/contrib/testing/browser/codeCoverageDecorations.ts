@@ -51,7 +51,6 @@ import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { CoverageDetails, DetailType, IDeclarationCoverage, IStatementCoverage } from 'vs/workbench/contrib/testing/common/testTypes';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 
-const MAX_HOVERED_LINES = 30;
 const CLASS_HIT = 'coverage-deco-hit';
 const CLASS_MISS = 'coverage-deco-miss';
 const TOGGLE_INLINE_COMMAND_TEXT = localize('testing.toggleInlineCoverage', 'Toggle Inline');
@@ -59,8 +58,6 @@ const TOGGLE_INLINE_COMMAND_ID = 'testing.toggleInlineCoverage';
 const BRANCH_MISS_INDICATOR_CHARS = 4;
 
 export class CodeCoverageDecorations extends Disposable implements IEditorContribution {
-	private static readonly fileCoverageDecorations = new WeakMap<FileCoverage, CoverageDetailsModel>();
-
 	private loadingCancellation?: CancellationTokenSource;
 	private readonly displayedStore = this._register(new DisposableStore());
 	private readonly hoveredStore = this._register(new DisposableStore());
@@ -84,8 +81,8 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 
 		this.summaryWidget = new Lazy(() => this._register(instantiationService.createInstance(CoverageToolbarWidget, this.editor)));
 
-		const modelObs = observableFromEvent(editor.onDidChangeModel, () => editor.getModel());
-		const configObs = observableFromEvent(editor.onDidChangeConfiguration, i => i);
+		const modelObs = observableFromEvent(this, editor.onDidChangeModel, () => editor.getModel());
+		const configObs = observableFromEvent(this, editor.onDidChangeConfiguration, i => i);
 
 		const fileCoverage = derived(reader => {
 			const report = coverage.selected.read(reader);
@@ -98,24 +95,19 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 				return;
 			}
 
-			let file = report.getUri(model.uri);
-			if (file) {
-				const testFilter = coverage.filterToTest.read(reader);
-				if (testFilter) {
-					file = file.perTestData?.get(testFilter.toString()) || file;
-				}
-
-				return file;
+			const file = report.getUri(model.uri);
+			if (!file) {
+				return;
 			}
 
 			report.didAddCoverage.read(reader); // re-read if changes when there's no report
-			return undefined;
+			return { file, testId: coverage.filterToTest.read(reader) };
 		});
 
 		this._register(autorun(reader => {
 			const c = fileCoverage.read(reader);
 			if (c) {
-				this.apply(editor.getModel()!, c, coverage.showInline.read(reader));
+				this.apply(editor.getModel()!, c.file, c.testId, coverage.showInline.read(reader));
 			} else {
 				this.clear();
 			}
@@ -125,9 +117,9 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 		this._register(autorun(reader => {
 			const c = fileCoverage.read(reader);
 			if (c && toolbarEnabled.read(reader)) {
-				this.summaryWidget.value.setCoverage(c);
+				this.summaryWidget.value.setCoverage(c.file, c.testId);
 			} else {
-				this.summaryWidget.rawValue?.setCoverage(undefined);
+				this.summaryWidget.rawValue?.clearCoverage();
 			}
 		}));
 
@@ -213,9 +205,14 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 
 		const todo = [{ line: lineNumber, dir: 0 }];
 		const toEnable = new Set<string>();
+		const ranges = this.editor.getVisibleRanges();
 		if (!this.coverage.showInline.get()) {
-			for (let i = 0; i < todo.length && i < MAX_HOVERED_LINES; i++) {
+			for (let i = 0; i < todo.length; i++) {
 				const { line, dir } = todo[i];
+				if (!ranges.some(r => r.startLineNumber <= line && r.endLineNumber >= line)) {
+					continue; // stop once outside the viewport
+				}
+
 				let found = false;
 				for (const decoration of model.getLineDecorations(line)) {
 					if (this.decorationIds.has(decoration.id)) {
@@ -261,8 +258,8 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 		}));
 	}
 
-	private async apply(model: ITextModel, coverage: FileCoverage, showInlineByDefault: boolean) {
-		const details = this.details = await this.loadDetails(coverage, model);
+	private async apply(model: ITextModel, coverage: FileCoverage, testId: TestId | undefined, showInlineByDefault: boolean) {
+		const details = this.details = await this.loadDetails(coverage, testId, model);
 		if (!details) {
 			return this.clear();
 		}
@@ -347,24 +344,18 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 		this.hoveredStore.clear();
 	}
 
-	private async loadDetails(coverage: FileCoverage, textModel: ITextModel) {
-		const existing = CodeCoverageDecorations.fileCoverageDecorations.get(coverage);
-		if (existing) {
-			return existing;
-		}
-
+	private async loadDetails(coverage: FileCoverage, testId: TestId | undefined, textModel: ITextModel) {
 		const cts = this.loadingCancellation = new CancellationTokenSource();
 		this.displayedStore.add(this.loadingCancellation);
 
 		try {
-			const details = await coverage.details(this.loadingCancellation.token);
+			const details = testId
+				? await coverage.detailsForTest(testId, this.loadingCancellation.token)
+				: await coverage.details(this.loadingCancellation.token);
 			if (cts.token.isCancellationRequested) {
 				return;
 			}
-			const model = CodeCoverageDecorations.fileCoverageDecorations.get(coverage)
-				|| new CoverageDetailsModel(details, textModel);
-			CodeCoverageDecorations.fileCoverageDecorations.set(coverage, model);
-			return model;
+			return new CoverageDetailsModel(details, textModel);
 		} catch (e) {
 			this.log.error('Error loading coverage details', e);
 		}
@@ -534,7 +525,7 @@ function wrapName(functionNameOrCode: string) {
 }
 
 class CoverageToolbarWidget extends Disposable implements IOverlayWidget {
-	private current: FileCoverage | undefined;
+	private current: { coverage: FileCoverage; testId: TestId | undefined } | undefined;
 	private registered = false;
 	private isRunning = false;
 	private readonly showStore = this._register(new DisposableStore());
@@ -609,8 +600,14 @@ class CoverageToolbarWidget extends Disposable implements IOverlayWidget {
 		};
 	}
 
-	public setCoverage(coverage: FileCoverage | undefined) {
-		this.current = coverage;
+	public clearCoverage() {
+		this.current = undefined;
+		this.bars.setCoverageInfo(undefined);
+		this.hide();
+	}
+
+	public setCoverage(coverage: FileCoverage, testId: TestId | undefined) {
+		this.current = { coverage, testId };
 		this.bars.setCoverageInfo(coverage);
 
 		if (!coverage) {
@@ -623,8 +620,8 @@ class CoverageToolbarWidget extends Disposable implements IOverlayWidget {
 
 	private setActions() {
 		this.actionBar.clear();
-		const coverage = this.current;
-		if (!coverage) {
+		const current = this.current;
+		if (!current) {
 			return;
 		}
 
@@ -645,21 +642,21 @@ class CoverageToolbarWidget extends Disposable implements IOverlayWidget {
 
 		this.actionBar.push(toggleAction);
 
-		if (coverage.isForTest) {
-			const testItem = coverage.fromResult.getTestById(coverage.isForTest.id.toString());
+		if (current.testId) {
+			const testItem = current.coverage.fromResult.getTestById(current.testId.toString());
 			assert(!!testItem, 'got coverage for an unreported test');
 			this.actionBar.push(new ActionWithIcon('perTestFilter',
 				coverUtils.labels.showingFilterFor(testItem.label),
 				testingFilterIcon,
 				undefined,
-				() => this.commandService.executeCommand(TestCommandId.CoverageFilterToTestInEditor, this.current),
+				() => this.commandService.executeCommand(TestCommandId.CoverageFilterToTestInEditor, this.current, this.editor),
 			));
-		} else if (coverage.perTestData?.size) {
+		} else if (current.coverage.perTestData?.size) {
 			this.actionBar.push(new ActionWithIcon('perTestFilter',
-				localize('testing.coverageForTestAvailable', "{0} test(s) ran code in this file", coverage.perTestData.size),
+				localize('testing.coverageForTestAvailable', "{0} test(s) ran code in this file", current.coverage.perTestData.size),
 				testingFilterIcon,
 				undefined,
-				() => this.commandService.executeCommand(TestCommandId.CoverageFilterToTestInEditor, this.current),
+				() => this.commandService.executeCommand(TestCommandId.CoverageFilterToTestInEditor, this.current, this.editor),
 			));
 		}
 
@@ -701,8 +698,8 @@ class CoverageToolbarWidget extends Disposable implements IOverlayWidget {
 		}));
 
 		ds.add(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(TestingConfigKeys.CoverageBarThresholds) || e.affectsConfiguration(TestingConfigKeys.CoveragePercent)) {
-				this.setCoverage(this.current);
+			if (this.current && (e.affectsConfiguration(TestingConfigKeys.CoverageBarThresholds) || e.affectsConfiguration(TestingConfigKeys.CoveragePercent))) {
+				this.setCoverage(this.current.coverage, this.current.testId);
 			}
 		}));
 	}
@@ -712,7 +709,7 @@ class CoverageToolbarWidget extends Disposable implements IOverlayWidget {
 		if (current) {
 			this.isRunning = true;
 			this.setActions();
-			this.testService.runResolvedTests(current.fromResult.request).finally(() => {
+			this.testService.runResolvedTests(current.coverage.fromResult.request).finally(() => {
 				this.isRunning = false;
 				this.setActions();
 			});
@@ -798,10 +795,10 @@ registerAction2(class FilterCoverageToTestInEditor extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor, coverageOrUri?: FileCoverage | URI): void {
+	run(accessor: ServicesAccessor, coverageOrUri?: FileCoverage | URI, editor?: ICodeEditor): void {
 		const testCoverageService = accessor.get(ITestCoverageService);
 		const quickInputService = accessor.get(IQuickInputService);
-		const activeEditor = accessor.get(ICodeEditorService).getActiveCodeEditor();
+		const activeEditor = editor ?? accessor.get(ICodeEditorService).getActiveCodeEditor();
 		let coverage: FileCoverage | undefined;
 		if (coverageOrUri instanceof FileCoverage) {
 			coverage = coverageOrUri;
@@ -812,26 +809,21 @@ registerAction2(class FilterCoverageToTestInEditor extends Action2 {
 			coverage = uri && testCoverageService.selected.get()?.getUri(uri);
 		}
 
-		if (!coverage || !(coverage.isForTest || coverage.perTestData?.size)) {
+		if (!coverage || !coverage.perTestData?.size) {
 			return;
 		}
 
-		const options = coverage?.perTestData ?? coverage?.isForTest?.parent.perTestData;
-		if (!options) {
-			return;
-		}
-
-		const tests = [...options.values()];
-		const commonPrefix = TestId.getLengthOfCommonPrefix(tests.length, i => tests[i].isForTest!.id);
+		const tests = [...coverage.perTestData].map(TestId.fromString);
+		const commonPrefix = TestId.getLengthOfCommonPrefix(tests.length, i => tests[i]);
 		const result = coverage.fromResult;
 		const previousSelection = testCoverageService.filterToTest.get();
 
-		type TItem = { label: string; description?: string; item: FileCoverage | undefined };
+		type TItem = { label: string; testId: TestId | undefined };
 
 		const items: QuickPickInput<TItem>[] = [
-			{ label: coverUtils.labels.allTests, item: undefined },
+			{ label: coverUtils.labels.allTests, testId: undefined },
 			{ type: 'separator' },
-			...tests.map(item => ({ label: coverUtils.getLabelForItem(result, item.isForTest!.id, commonPrefix), description: coverUtils.labels.percentCoverage(item.tpc), item })),
+			...tests.map(id => ({ label: coverUtils.getLabelForItem(result, id, commonPrefix), testId: id })),
 		];
 
 		// These handle the behavior that reveals the start of coverage when the
@@ -844,13 +836,13 @@ registerAction2(class FilterCoverageToTestInEditor extends Action2 {
 			activeItem: items.find((item): item is TItem => 'item' in item && item.item === coverage),
 			placeHolder: coverUtils.labels.pickShowCoverage,
 			onDidFocus: (entry) => {
-				if (!entry.item) {
+				if (!entry.testId) {
 					revealScrollCts.clear();
 					activeEditor?.setScrollTop(scrollTop);
 					testCoverageService.filterToTest.set(undefined, undefined);
 				} else {
 					const cts = revealScrollCts.value = new CancellationTokenSource();
-					entry.item.details(cts.token).then(
+					coverage.detailsForTest(entry.testId, cts.token).then(
 						details => {
 							const first = details.find(d => d.type === DetailType.Statement);
 							if (!cts.token.isCancellationRequested && first) {
@@ -859,7 +851,7 @@ registerAction2(class FilterCoverageToTestInEditor extends Action2 {
 						},
 						() => { /* ignored */ }
 					);
-					testCoverageService.filterToTest.set(entry.item.isForTest!.id, undefined);
+					testCoverageService.filterToTest.set(entry.testId, undefined);
 				}
 			},
 		}).then(selected => {
@@ -868,7 +860,7 @@ registerAction2(class FilterCoverageToTestInEditor extends Action2 {
 			}
 
 			revealScrollCts.dispose();
-			testCoverageService.filterToTest.set(selected ? selected.item?.isForTest!.id : previousSelection, undefined);
+			testCoverageService.filterToTest.set(selected ? selected.testId : previousSelection, undefined);
 		});
 	}
 });

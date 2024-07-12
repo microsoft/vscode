@@ -574,6 +574,15 @@ export class TimelinePane extends ViewPane {
 		}
 
 		if (options === undefined) {
+			if (
+				!reset &&
+				timeline !== undefined &&
+				timeline.items.length > 0 &&
+				!timeline.more
+			) {
+				// If we are not resetting, have item(s), and already know there are no more to fetch, we're done here
+				return false;
+			}
 			options = { cursor: reset ? undefined : timeline?.cursor, limit: this.pageSize };
 		}
 
@@ -1306,13 +1315,11 @@ class TimelinePaneCommands extends Disposable {
 			[context.key, context.value],
 		]);
 
-		const menu = this.menuService.createMenu(menuId, contextKeyService);
+		const menu = this.menuService.getMenuActions(menuId, contextKeyService, { shouldForwardArgs: true });
 		const primary: IAction[] = [];
 		const secondary: IAction[] = [];
 		const result = { primary, secondary };
-		createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, result, 'inline');
-
-		menu.dispose();
+		createAndFillInContextMenuActions(menu, result, 'inline');
 
 		return result;
 	}

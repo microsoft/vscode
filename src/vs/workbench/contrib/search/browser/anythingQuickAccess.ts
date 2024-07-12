@@ -319,13 +319,12 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		disposables: DisposableStore,
 		token: CancellationToken
 	): Picks<IAnythingQuickPickItem> | Promise<Picks<IAnythingQuickPickItem>> | FastAndSlowPicks<IAnythingQuickPickItem> {
-		const configuration = { ...this.configuration, includeSymbols: options.includeSymbols ?? this.configuration.includeSymbols };
 		const query = prepareQuery(filter);
 
 		// Return early if we have editor symbol picks. We support this by:
 		// - having a previously active global pick (e.g. a file)
 		// - the user typing `@` to start the local symbol query
-		if (options.enableEditorSymbolSearch && options.includeSymbols) {
+		if (options.enableEditorSymbolSearch) {
 			const editorSymbolPicks = this.getEditorSymbolPicks(query, disposables, token);
 			if (editorSymbolPicks) {
 				return editorSymbolPicks;
@@ -397,7 +396,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 					}
 				}
 
-				let additionalPicks = await this.getAdditionalPicks(query, additionalPicksExcludes, configuration.includeSymbols, token);
+				let additionalPicks = await this.getAdditionalPicks(query, additionalPicksExcludes, this.configuration.includeSymbols, token);
 				if (options.filter) {
 					additionalPicks = additionalPicks.filter((p) => options.filter?.(p));
 				}
@@ -406,7 +405,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 				}
 
 				return additionalPicks.length > 0 ? [
-					{ type: 'separator', label: configuration.includeSymbols ? localize('fileAndSymbolResultsSeparator', "file and symbol results") : localize('fileResultsSeparator', "file results") },
+					{ type: 'separator', label: this.configuration.includeSymbols ? localize('fileAndSymbolResultsSeparator', "file and symbol results") : localize('fileResultsSeparator', "file results") },
 					...additionalPicks
 				] : [];
 			})(),

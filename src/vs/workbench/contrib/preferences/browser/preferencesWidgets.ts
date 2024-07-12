@@ -35,7 +35,7 @@ import { settingsEditIcon, settingsScopeDropDownIcon } from 'vs/workbench/contri
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import type { IUpdatableHover } from 'vs/base/browser/ui/hover/hover';
+import type { IManagedHover } from 'vs/base/browser/ui/hover/hover';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 export class FolderSettingsActionViewItem extends BaseActionViewItem {
@@ -45,7 +45,7 @@ export class FolderSettingsActionViewItem extends BaseActionViewItem {
 
 	private container!: HTMLElement;
 	private anchorElement!: HTMLElement;
-	private anchorElementHover!: IUpdatableHover;
+	private anchorElementHover!: IManagedHover;
 	private labelElement!: HTMLElement;
 	private detailsElement!: HTMLElement;
 	private dropDownElement!: HTMLElement;
@@ -93,7 +93,7 @@ export class FolderSettingsActionViewItem extends BaseActionViewItem {
 			'aria-haspopup': 'true',
 			'tabindex': '0'
 		}, this.labelElement, this.detailsElement, this.dropDownElement);
-		this.anchorElementHover = this._register(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), this.anchorElement, ''));
+		this.anchorElementHover = this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this.anchorElement, ''));
 		this._register(DOM.addDisposableListener(this.anchorElement, DOM.EventType.MOUSE_DOWN, e => DOM.EventHelper.stop(e)));
 		this._register(DOM.addDisposableListener(this.anchorElement, DOM.EventType.CLICK, e => this.onClick(e)));
 		this._register(DOM.addDisposableListener(this.container, DOM.EventType.KEY_UP, e => this.onKeyUp(e)));
