@@ -68,6 +68,7 @@ interface IFlowTriggerOptions {
 	callbackUri: Uri;
 	uriHandler: UriEventHandler;
 	enterpriseUri?: Uri;
+	existingLogin?: string;
 }
 
 interface IFlow {
@@ -149,7 +150,8 @@ const allFlows: IFlow[] = [
 			nonce,
 			callbackUri,
 			uriHandler,
-			enterpriseUri
+			enterpriseUri,
+			existingLogin
 		}: IFlowTriggerOptions): Promise<string> {
 			logger.info(`Trying without local server... (${scopes})`);
 			return await window.withProgress<string>({
@@ -169,6 +171,11 @@ const allFlows: IFlow[] = [
 					['scope', scopes],
 					['state', encodeURIComponent(callbackUri.toString(true))]
 				]);
+				if (existingLogin) {
+					searchParams.append('login', existingLogin);
+				} else {
+					searchParams.append('prompt', 'select_account');
+				}
 
 				// The extra toString, parse is apparently needed for env.openExternal
 				// to open the correct URL.
@@ -215,7 +222,8 @@ const allFlows: IFlow[] = [
 			baseUri,
 			redirectUri,
 			logger,
-			enterpriseUri
+			enterpriseUri,
+			existingLogin
 		}: IFlowTriggerOptions): Promise<string> {
 			logger.info(`Trying with local server... (${scopes})`);
 			return await window.withProgress<string>({
@@ -232,6 +240,11 @@ const allFlows: IFlow[] = [
 					['redirect_uri', redirectUri.toString(true)],
 					['scope', scopes],
 				]);
+				if (existingLogin) {
+					searchParams.append('login', existingLogin);
+				} else {
+					searchParams.append('prompt', 'select_account');
+				}
 
 				const loginUrl = baseUri.with({
 					path: '/login/oauth/authorize',

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { Range } from 'vs/editor/common/core/range';
 import { FindMatch, IReadonlyTextBuffer } from 'vs/editor/common/model';
 import { IFileMatch, ISearchRange, ITextSearchMatch, QueryType } from 'vs/workbench/services/search/common/search';
@@ -217,6 +217,7 @@ suite('searchNotebookHelpers', () => {
 			const fileMatch = instantiationService.createInstance(FileMatch, {
 				pattern: ''
 			}, undefined, undefined, folderMatch, rawMatch, null, '');
+			fileMatch.createMatches(false);
 			store.add(folderMatch);
 			store.add(fileMatch);
 

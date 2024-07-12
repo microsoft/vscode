@@ -10,12 +10,10 @@ import { MenuId, MenuRegistry, IMenuItem } from 'vs/platform/actions/common/acti
 import { ITerminalGroupService, ITerminalService as IIntegratedTerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ResourceContextKey } from 'vs/workbench/common/contextkeys';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IListService } from 'vs/platform/list/browser/listService';
-import { getMultiSelectedResources, IExplorerService } from 'vs/workbench/contrib/files/browser/files';
+import { getMultiSelectedResources } from 'vs/workbench/contrib/files/browser/files';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { Schemas } from 'vs/base/common/network';
 import { distinct } from 'vs/base/common/arrays';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
@@ -36,7 +34,6 @@ function registerOpenTerminalCommand(id: string, explorerKind: 'integrated' | 'e
 		handler: async (accessor, resource: URI) => {
 
 			const configurationService = accessor.get(IConfigurationService);
-			const editorService = accessor.get(IEditorService);
 			const fileService = accessor.get(IFileService);
 			const integratedTerminalService = accessor.get(IIntegratedTerminalService);
 			const remoteAgentService = accessor.get(IRemoteAgentService);
@@ -47,7 +44,7 @@ function registerOpenTerminalCommand(id: string, explorerKind: 'integrated' | 'e
 			} catch {
 			}
 
-			const resources = getMultiSelectedResources(resource, accessor.get(IListService), editorService, accessor.get(IExplorerService));
+			const resources = getMultiSelectedResources(accessor, resource);
 			return fileService.resolveAll(resources.map(r => ({ resource: r }))).then(async stats => {
 				// Always use integrated terminal when using a remote
 				const config = configurationService.getValue<IExternalTerminalConfiguration>();
@@ -137,11 +134,11 @@ export class ExternalTerminalContribution extends Disposable implements IWorkben
 		MenuRegistry.appendMenuItem(MenuId.ExplorerContext, this._openInTerminalMenuItem);
 		MenuRegistry.appendMenuItem(MenuId.ExplorerContext, this._openInIntegratedTerminalMenuItem);
 
-		this._configurationService.onDidChangeConfiguration(e => {
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('terminal.explorerKind') || e.affectsConfiguration('terminal.external')) {
 				this._refreshOpenInTerminalMenuItemTitle();
 			}
-		});
+		}));
 
 		this._refreshOpenInTerminalMenuItemTitle();
 	}

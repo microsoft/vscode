@@ -5,31 +5,38 @@
 
 import { URI } from 'vs/base/common/uri';
 import { IRange } from 'vs/editor/common/core/range';
-import { Comment, CommentThread, CommentThreadChangedEvent, CommentThreadState } from 'vs/editor/common/languages';
+import { Comment, CommentThread, CommentThreadChangedEvent, CommentThreadApplicability, CommentThreadState } from 'vs/editor/common/languages';
 
 export interface ICommentThreadChangedEvent extends CommentThreadChangedEvent<IRange> {
+	uniqueOwner: string;
 	owner: string;
 	ownerLabel: string;
 }
 
 export class CommentNode {
-	owner: string;
-	threadId: string;
-	range: IRange | undefined;
-	comment: Comment;
+	isRoot: boolean = false;
 	replies: CommentNode[] = [];
-	resource: URI;
-	isRoot: boolean;
-	threadState?: CommentThreadState;
+	public readonly threadId: string;
+	public readonly range: IRange | undefined;
+	public readonly threadState: CommentThreadState | undefined;
+	public readonly threadRelevance: CommentThreadApplicability | undefined;
+	public readonly contextValue: string | undefined;
+	public readonly controllerHandle: number;
+	public readonly threadHandle: number;
 
-	constructor(owner: string, threadId: string, resource: URI, comment: Comment, range: IRange | undefined, threadState: CommentThreadState | undefined) {
-		this.owner = owner;
-		this.threadId = threadId;
-		this.comment = comment;
-		this.resource = resource;
-		this.range = range;
-		this.isRoot = false;
-		this.threadState = threadState;
+	constructor(
+		public readonly uniqueOwner: string,
+		public readonly owner: string,
+		public readonly resource: URI,
+		public readonly comment: Comment,
+		public readonly thread: CommentThread) {
+		this.threadId = thread.threadId;
+		this.range = thread.range;
+		this.threadState = thread.state;
+		this.threadRelevance = thread.applicability;
+		this.contextValue = thread.contextValue;
+		this.controllerHandle = thread.controllerHandle;
+		this.threadHandle = thread.commentThreadHandle;
 	}
 
 	hasReply(): boolean {
@@ -39,21 +46,23 @@ export class CommentNode {
 
 export class ResourceWithCommentThreads {
 	id: string;
+	uniqueOwner: string;
 	owner: string;
 	ownerLabel: string | undefined;
 	commentThreads: CommentNode[]; // The top level comments on the file. Replys are nested under each node.
 	resource: URI;
 
-	constructor(owner: string, resource: URI, commentThreads: CommentThread[]) {
+	constructor(uniqueOwner: string, owner: string, resource: URI, commentThreads: CommentThread[]) {
+		this.uniqueOwner = uniqueOwner;
 		this.owner = owner;
 		this.id = resource.toString();
 		this.resource = resource;
-		this.commentThreads = commentThreads.filter(thread => thread.comments && thread.comments.length).map(thread => ResourceWithCommentThreads.createCommentNode(owner, resource, thread));
+		this.commentThreads = commentThreads.filter(thread => thread.comments && thread.comments.length).map(thread => ResourceWithCommentThreads.createCommentNode(uniqueOwner, owner, resource, thread));
 	}
 
-	public static createCommentNode(owner: string, resource: URI, commentThread: CommentThread): CommentNode {
-		const { threadId, comments, range } = commentThread;
-		const commentNodes: CommentNode[] = comments!.map(comment => new CommentNode(owner, threadId, resource, comment, range, commentThread.state));
+	public static createCommentNode(uniqueOwner: string, owner: string, resource: URI, commentThread: CommentThread): CommentNode {
+		const { comments } = commentThread;
+		const commentNodes: CommentNode[] = comments!.map(comment => new CommentNode(uniqueOwner, owner, resource, comment, commentThread));
 		if (commentNodes.length > 1) {
 			commentNodes[0].replies = commentNodes.slice(1, commentNodes.length);
 		}

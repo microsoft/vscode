@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
+import { IObservable } from 'vs/base/common/observable';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
 import { IMenu } from 'vs/platform/actions/common/actions';
@@ -17,34 +17,38 @@ export interface ISCMHistoryProviderMenus {
 }
 
 export interface ISCMHistoryProvider {
-
-	readonly onDidChangeCurrentHistoryItemGroup: Event<void>;
-
-	get currentHistoryItemGroup(): ISCMHistoryItemGroup | undefined;
-	set currentHistoryItemGroup(historyItemGroup: ISCMHistoryItemGroup | undefined);
+	readonly currentHistoryItemGroupId: IObservable<string | undefined>;
+	readonly currentHistoryItemGroupName: IObservable<string | undefined>;
+	readonly currentHistoryItemGroup: IObservable<ISCMHistoryItemGroup | undefined>;
 
 	provideHistoryItems(historyItemGroupId: string, options: ISCMHistoryOptions): Promise<ISCMHistoryItem[] | undefined>;
+	provideHistoryItems2(options: ISCMHistoryOptions): Promise<ISCMHistoryItem[] | undefined>;
 	provideHistoryItemSummary(historyItemId: string, historyItemParentId: string | undefined): Promise<ISCMHistoryItem | undefined>;
 	provideHistoryItemChanges(historyItemId: string, historyItemParentId: string | undefined): Promise<ISCMHistoryItemChange[] | undefined>;
 	resolveHistoryItemGroupCommonAncestor(historyItemGroupId1: string, historyItemGroupId2: string | undefined): Promise<{ id: string; ahead: number; behind: number } | undefined>;
+	resolveHistoryItemGroupCommonAncestor2(historyItemGroupIds: string[]): Promise<string | undefined>;
 }
 
 export interface ISCMHistoryProviderCacheEntry {
 	readonly incomingHistoryItemGroup: SCMHistoryItemGroupTreeElement | undefined;
 	readonly outgoingHistoryItemGroup: SCMHistoryItemGroupTreeElement | undefined;
 	readonly historyItems: Map<string, [ISCMHistoryItem | undefined, ISCMHistoryItem[]]>;
+	readonly historyItems2: Map<string, ISCMHistoryItem[]>;
 	readonly historyItemChanges: Map<string, ISCMHistoryItemChange[]>;
 }
 
 export interface ISCMHistoryOptions {
 	readonly cursor?: string;
 	readonly limit?: number | { id?: string };
+	readonly historyItemGroupIds?: readonly string[];
 }
 
 export interface ISCMHistoryItemGroup {
 	readonly id: string;
-	readonly label: string;
-	readonly base?: Omit<ISCMHistoryItemGroup, 'base'>;
+	readonly name: string;
+	readonly revision?: string;
+	readonly base?: Omit<Omit<ISCMHistoryItemGroup, 'base'>, 'remote'>;
+	readonly remote?: Omit<Omit<ISCMHistoryItemGroup, 'base'>, 'remote'>;
 }
 
 export interface SCMHistoryItemGroupTreeElement {
@@ -66,14 +70,37 @@ export interface ISCMHistoryItemStatistics {
 	readonly deletions: number;
 }
 
+export interface ISCMHistoryItemLabel {
+	readonly title: string;
+	readonly icon?: URI | { light: URI; dark: URI } | ThemeIcon;
+}
+
 export interface ISCMHistoryItem {
 	readonly id: string;
 	readonly parentIds: string[];
-	readonly label: string;
-	readonly description?: string;
+	readonly message: string;
+	readonly author?: string;
 	readonly icon?: URI | { light: URI; dark: URI } | ThemeIcon;
 	readonly timestamp?: number;
 	readonly statistics?: ISCMHistoryItemStatistics;
+	readonly labels?: ISCMHistoryItemLabel[];
+}
+
+export interface ISCMHistoryItemGraphNode {
+	readonly id: string;
+	readonly color: number;
+}
+
+export interface ISCMHistoryItemViewModel {
+	readonly historyItem: ISCMHistoryItem;
+	readonly inputSwimlanes: ISCMHistoryItemGraphNode[];
+	readonly outputSwimlanes: ISCMHistoryItemGraphNode[];
+}
+
+export interface SCMHistoryItemViewModelTreeElement {
+	readonly repository: ISCMRepository;
+	readonly historyItemViewModel: ISCMHistoryItemViewModel;
+	readonly type: 'historyItem2';
 }
 
 export interface SCMHistoryItemTreeElement extends ISCMHistoryItem {

@@ -10,7 +10,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { isIOS } from 'vs/base/common/platform';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
+import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { DetailedLineRangeMapping } from 'vs/editor/common/diff/rangeMapping';

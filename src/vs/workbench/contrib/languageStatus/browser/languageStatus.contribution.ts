@@ -33,6 +33,7 @@ import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { IHoverService, nativeHoverDelegate } from 'vs/platform/hover/browser/hover';
 
 class LanguageStatusViewModel {
 
@@ -71,9 +72,9 @@ class LanguageStatusContribution extends Disposable implements IWorkbenchContrib
 		super();
 
 		// --- main language status
-		const mainInstantiationService = instantiationService.createChild(new ServiceCollection(
+		const mainInstantiationService = this._register(instantiationService.createChild(new ServiceCollection(
 			[IEditorService, editorService.createScoped('main', this._store)]
-		));
+		)));
 		this._register(mainInstantiationService.createInstance(LanguageStatus));
 
 		// --- auxiliary language status
@@ -103,6 +104,7 @@ class LanguageStatus {
 		@ILanguageStatusService private readonly _languageStatusService: ILanguageStatusService,
 		@IStatusbarService private readonly _statusBarService: IStatusbarService,
 		@IEditorService private readonly _editorService: IEditorService,
+		@IHoverService private readonly _hoverService: IHoverService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IStorageService private readonly _storageService: IStorageService,
 	) {
@@ -120,7 +122,7 @@ class LanguageStatus {
 				this._update();
 				this._storeState();
 			}
-		}, this._disposables);
+		}, undefined, this._disposables);
 
 	}
 
@@ -229,7 +231,7 @@ class LanguageStatus {
 			const targetWindow = dom.getWindow(editor?.getContainerDomNode());
 			const node = targetWindow.document.querySelector('.monaco-workbench .statusbar DIV#status\\.languageStatus A>SPAN.codicon');
 			const container = targetWindow.document.querySelector('.monaco-workbench .statusbar DIV#status\\.languageStatus');
-			if (node instanceof HTMLElement && container) {
+			if (dom.isHTMLElement(node) && container) {
 				const _wiggle = 'wiggle';
 				const _flash = 'flash';
 				if (!isOneBusy) {
@@ -249,7 +251,7 @@ class LanguageStatus {
 			//  use that as signal that the user has interacted/learned language status items work
 			if (!userHasInteractedWithStatus) {
 				const hoverTarget = targetWindow.document.querySelector('.monaco-workbench .context-view');
-				if (hoverTarget instanceof HTMLElement) {
+				if (dom.isHTMLElement(hoverTarget)) {
 					const observer = new MutationObserver(() => {
 						if (targetWindow.document.contains(element)) {
 							this._interactionCounter.increment();
@@ -323,11 +325,11 @@ class LanguageStatus {
 				href: URI.from({
 					scheme: 'command', path: command.id, query: command.arguments && JSON.stringify(command.arguments)
 				}).toString()
-			}, undefined, this._openerService));
+			}, { hoverDelegate: nativeHoverDelegate }, this._hoverService, this._openerService));
 		}
 
 		// -- pin
-		const actionBar = new ActionBar(right, {});
+		const actionBar = new ActionBar(right, { hoverDelegate: nativeHoverDelegate });
 		store.add(actionBar);
 		let action: Action;
 		if (!isPinned) {
@@ -373,7 +375,7 @@ class LanguageStatus {
 				const parts = renderLabelWithIcons(node);
 				dom.append(target, ...parts);
 			} else {
-				store.add(new Link(target, node, undefined, this._openerService));
+				store.add(new Link(target, node, undefined, this._hoverService, this._openerService));
 			}
 		}
 	}

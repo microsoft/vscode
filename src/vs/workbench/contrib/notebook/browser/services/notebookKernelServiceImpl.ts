@@ -16,8 +16,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IAction } from 'vs/base/common/actions';
 import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { Schemas } from 'vs/base/common/network';
-import { $window } from 'vs/base/browser/window';
-import { runWhenWindowIdle } from 'vs/base/browser/dom';
+import { getActiveWindow, runWhenWindowIdle } from 'vs/base/browser/dom';
 
 class KernelInfo {
 
@@ -38,12 +37,12 @@ class KernelInfo {
 
 class NotebookTextModelLikeId {
 	static str(k: INotebookTextModelLike): string {
-		return `${k.viewType}/${k.uri.toString()}`;
+		return `${k.notebookType}/${k.uri.toString()}`;
 	}
 	static obj(s: string): INotebookTextModelLike {
 		const idx = s.indexOf('/');
 		return {
-			viewType: s.substring(0, idx),
+			notebookType: s.substring(0, idx),
 			uri: URI.parse(s.substring(idx + 1))
 		};
 	}
@@ -171,7 +170,7 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 
 	private _persistMementos(): void {
 		this._persistSoonHandle?.dispose();
-		this._persistSoonHandle = runWhenWindowIdle($window, () => {
+		this._persistSoonHandle = runWhenWindowIdle(getActiveWindow(), () => {
 			this._storageService.store(NotebookKernelService._storageNotebookBinding, JSON.stringify(this._notebookBindings), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		}, 100);
 	}
@@ -179,7 +178,7 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 	private static _score(kernel: INotebookKernel, notebook: INotebookTextModelLike): number {
 		if (kernel.viewType === '*') {
 			return 5;
-		} else if (kernel.viewType === notebook.viewType) {
+		} else if (kernel.viewType === notebook.notebookType) {
 			return 10;
 		} else {
 			return 0;
@@ -344,7 +343,7 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 					const stateChangeListener = sourceAction.onDidChangeState(() => {
 						this._onDidChangeSourceActions.fire({
 							notebook: document.uri,
-							viewType: document.viewType,
+							viewType: document.notebookType,
 						});
 					});
 					sourceActions.push([sourceAction, stateChangeListener]);
@@ -352,7 +351,7 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 			});
 			info.actions = sourceActions;
 			this._kernelSources.set(id, info);
-			this._onDidChangeSourceActions.fire({ notebook: document.uri, viewType: document.viewType });
+			this._onDidChangeSourceActions.fire({ notebook: document.uri, viewType: document.notebookType });
 		};
 
 		this._kernelSourceActionsUpdates.get(id)?.dispose();
@@ -383,7 +382,7 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 	}
 
 	getKernelDetectionTasks(notebook: INotebookTextModelLike): INotebookKernelDetectionTask[] {
-		return this._kernelDetectionTasks.get(notebook.viewType) ?? [];
+		return this._kernelDetectionTasks.get(notebook.notebookType) ?? [];
 	}
 
 	registerKernelSourceActionProvider(viewType: string, provider: IKernelSourceActionProvider): IDisposable {
@@ -412,7 +411,7 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 	 * Get kernel source actions from providers
 	 */
 	getKernelSourceActions2(notebook: INotebookTextModelLike): Promise<INotebookKernelSourceAction[]> {
-		const viewType = notebook.viewType;
+		const viewType = notebook.notebookType;
 		const providers = this._kernelSourceActionProviders.get(viewType) ?? [];
 		const promises = providers.map(provider => provider.provideKernelSourceActions());
 		return Promise.all(promises).then(actions => {

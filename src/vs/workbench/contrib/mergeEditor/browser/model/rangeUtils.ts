@@ -5,7 +5,7 @@
 
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { LengthObj } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/length';
+import { TextLength } from 'vs/editor/common/core/textLength';
 
 export function rangeContainsPosition(range: Range, position: Position): boolean {
 	if (position.lineNumber < range.startLineNumber || position.lineNumber > range.endLineNumber) {
@@ -20,23 +20,23 @@ export function rangeContainsPosition(range: Range, position: Position): boolean
 	return true;
 }
 
-export function lengthOfRange(range: Range): LengthObj {
+export function lengthOfRange(range: Range): TextLength {
 	if (range.startLineNumber === range.endLineNumber) {
-		return new LengthObj(0, range.endColumn - range.startColumn);
+		return new TextLength(0, range.endColumn - range.startColumn);
 	} else {
-		return new LengthObj(range.endLineNumber - range.startLineNumber, range.endColumn - 1);
+		return new TextLength(range.endLineNumber - range.startLineNumber, range.endColumn - 1);
 	}
 }
 
-export function lengthBetweenPositions(position1: Position, position2: Position): LengthObj {
+export function lengthBetweenPositions(position1: Position, position2: Position): TextLength {
 	if (position1.lineNumber === position2.lineNumber) {
-		return new LengthObj(0, position2.column - position1.column);
+		return new TextLength(0, position2.column - position1.column);
 	} else {
-		return new LengthObj(position2.lineNumber - position1.lineNumber, position2.column - 1);
+		return new TextLength(position2.lineNumber - position1.lineNumber, position2.column - 1);
 	}
 }
 
-export function addLength(position: Position, length: LengthObj): Position {
+export function addLength(position: Position, length: TextLength): Position {
 	if (length.lineCount === 0) {
 		return new Position(position.lineNumber, position.column + length.columnCount);
 	} else {

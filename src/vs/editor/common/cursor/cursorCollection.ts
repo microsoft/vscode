@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { compareBy } from 'vs/base/common/arrays';
-import { findLastMaxBy, findFirstMinBy } from 'vs/base/common/arraysFind';
+import { findLastMax, findFirstMin } from 'vs/base/common/arraysFind';
 import { CursorState, PartialCursorState } from 'vs/editor/common/cursorCommon';
 import { CursorContext } from 'vs/editor/common/cursor/cursorContext';
 import { Cursor } from 'vs/editor/common/cursor/oneCursor';
@@ -73,14 +73,14 @@ export class CursorCollection {
 	}
 
 	public getTopMostViewPosition(): Position {
-		return findFirstMinBy(
+		return findFirstMin(
 			this.cursors,
 			compareBy(c => c.viewState.position, Position.compare)
 		)!.viewState.position;
 	}
 
 	public getBottomMostViewPosition(): Position {
-		return findLastMaxBy(
+		return findLastMax(
 			this.cursors,
 			compareBy(c => c.viewState.position, Position.compare)
 		)!.viewState.position;

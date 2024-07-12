@@ -23,7 +23,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { Action } from 'vs/base/common/actions';
 import { DEFAULT_LABELS_CONTAINER, IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { IDecorationData, IDecorationsProvider, IDecorationsService } from 'vs/workbench/services/decorations/common/decorations';
-import { IHoverAction, IHoverService } from 'vs/platform/hover/browser/hover';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 import Severity from 'vs/base/common/severity';
 import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IListDragAndDrop, IListDragOverReaction, IListRenderer, ListDragOverEffectPosition, ListDragOverEffectType } from 'vs/base/browser/ui/list/list';
@@ -50,6 +50,8 @@ import { Emitter } from 'vs/base/common/event';
 import { Schemas } from 'vs/base/common/network';
 import { getColorForSeverity } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import { TerminalContextActionRunner } from 'vs/workbench/contrib/terminal/browser/terminalContextMenu';
+import type { IHoverAction } from 'vs/base/browser/ui/hover/hover';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 const $ = DOM.$;
 
@@ -130,11 +132,16 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 
 		// Dispose of instance listeners on shutdown to avoid extra work and so tabs don't disappear
 		// briefly
-		lifecycleService.onWillShutdown(e => {
+		this.disposables.add(lifecycleService.onWillShutdown(e => {
 			dispose(instanceDisposables);
-		});
+			instanceDisposables.length = 0;
+		}));
+		this.disposables.add(toDisposable(() => {
+			dispose(instanceDisposables);
+			instanceDisposables.length = 0;
+		}));
 
-		this.onMouseDblClick(async e => {
+		this.disposables.add(this.onMouseDblClick(async e => {
 			const focus = this.getFocus();
 			if (focus.length === 0) {
 				const instance = await this._terminalService.createTerminal({ location: TerminalLocation.Panel });
@@ -149,11 +156,11 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 			if (this._getFocusMode() === 'doubleClick' && this.getFocus().length === 1) {
 				e.element?.focus(true);
 			}
-		});
+		}));
 
 		// on left click, if focus mode = single click, focus the element
 		// unless multi-selection is in progress
-		this.onMouseClick(async e => {
+		this.disposables.add(this.onMouseClick(async e => {
 			if (this._terminalService.getEditingTerminal()?.instanceId === e.element?.instanceId) {
 				return;
 			}
@@ -165,11 +172,11 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 					e.element?.focus(true);
 				}
 			}
-		});
+		}));
 
 		// on right click, set the focus to that element
 		// unless multi-selection is in progress
-		this.onContextMenu(e => {
+		this.disposables.add(this.onContextMenu(e => {
 			if (!e.element) {
 				this.setSelection([]);
 				return;
@@ -178,15 +185,15 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 			if (!selection || !selection.find(s => e.element === s)) {
 				this.setFocus(e.index !== undefined ? [e.index] : []);
 			}
-		});
+		}));
 
 		this._terminalTabsSingleSelectedContextKey = TerminalContextKeys.tabsSingularSelection.bindTo(contextKeyService);
 		this._isSplitContextKey = TerminalContextKeys.splitTerminal.bindTo(contextKeyService);
 
-		this.onDidChangeSelection(e => this._updateContextKey());
-		this.onDidChangeFocus(() => this._updateContextKey());
+		this.disposables.add(this.onDidChangeSelection(e => this._updateContextKey()));
+		this.disposables.add(this.onDidChangeFocus(() => this._updateContextKey()));
 
-		this.onDidOpen(async e => {
+		this.disposables.add(this.onDidOpen(async e => {
 			const instance = e.element;
 			if (!instance) {
 				return;
@@ -195,7 +202,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 			if (!e.editorOptions.preserveFocus) {
 				await instance.focusWhenReady();
 			}
-		});
+		}));
 		if (!this._decorationsProvider) {
 			this._decorationsProvider = this.disposables.add(instantiationService.createInstance(TabDecorationsProvider));
 			this.disposables.add(decorationsService.registerDecorationsProvider(this._decorationsProvider));
@@ -279,9 +286,9 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 
 		const actionBar = new ActionBar(actionsContainer, {
 			actionRunner: new TerminalContextActionRunner(),
-			actionViewItemProvider: action =>
+			actionViewItemProvider: (action, options) =>
 				action instanceof MenuItemAction
-					? this._instantiationService.createInstance(MenuEntryActionViewItem, action, undefined)
+					? this._instantiationService.createInstance(MenuEntryActionViewItem, action, { hoverDelegate: options.hoverDelegate })
 					: undefined
 		});
 
@@ -571,6 +578,7 @@ class TerminalTabsDragAndDrop extends Disposable implements IListDragAndDrop<ITe
 	constructor(
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
+		@IHostService private readonly _hostService: IHostService,
 	) {
 		super();
 		this._primaryBackend = this._terminalService.getPrimaryBackend();
@@ -727,9 +735,9 @@ class TerminalTabsDragAndDrop extends Disposable implements IListDragAndDrop<ITe
 			resource = URI.file(JSON.parse(rawCodeFiles)[0]);
 		}
 
-		if (!resource && e.dataTransfer.files.length > 0 && e.dataTransfer.files[0].path /* Electron only */) {
+		if (!resource && e.dataTransfer.files.length > 0 && this._hostService.getPathForFile(e.dataTransfer.files[0])) {
 			// Check if the file was dragged from the filesystem
-			resource = URI.file(e.dataTransfer.files[0].path);
+			resource = URI.file(this._hostService.getPathForFile(e.dataTransfer.files[0])!);
 		}
 
 		if (!resource) {

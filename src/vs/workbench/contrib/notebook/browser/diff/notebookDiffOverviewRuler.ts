@@ -28,7 +28,7 @@ export class NotebookDiffOverviewRuler extends Themable {
 	private _removeColor: Color | null;
 	private _removeColorHex: string | null;
 
-	private _disposables: DisposableStore;
+	private readonly _disposables: DisposableStore;
 	private _renderAnimationFrame: IDisposable | null;
 
 	constructor(readonly notebookEditor: INotebookTextDiffEditor, readonly width: number, container: HTMLElement, @IThemeService themeService: IThemeService) {

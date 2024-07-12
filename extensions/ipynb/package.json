@@ -11,12 +11,12 @@
   },
   "enabledApiProposals": [
     "documentPaste",
-    "diffContentOptions",
-    "dropMetadata"
+    "diffContentOptions"
   ],
   "activationEvents": [
     "onNotebook:jupyter-notebook",
-    "onNotebookSerializer:interactive"
+    "onNotebookSerializer:interactive",
+    "onNotebookSerializer:repl"
   ],
   "extensionKind": [
     "workspace",
@@ -61,6 +61,11 @@
       {
         "command": "notebook.cellOutput.copy",
         "title": "%copyCellOutput.title%",
+        "category": "Notebook"
+      },
+      {
+        "command": "notebook.cellOutput.openInTextEditor",
+        "title": "%openCellOutput.title%",
         "category": "Notebook"
       }
     ],
@@ -108,12 +113,24 @@
         {
           "command": "notebook.cellOutput.copy",
           "when": "notebookCellHasOutputs"
+        },
+        {
+          "command": "notebook.cellOutput.openInTextEditor",
+          "when": "false"
         }
       ],
       "webview/context": [
         {
           "command": "notebook.cellOutput.copy",
           "when": "webviewId == 'notebook.output' && webviewSection == 'image'"
+        },
+        {
+          "command": "notebook.cellOutput.copy",
+          "when": "webviewId == 'notebook.output' && webviewSection == 'text'"
+        },
+        {
+          "command": "notebook.cellOutput.openInTextEditor",
+          "when": "webviewId == 'notebook.output' && webviewSection == 'text'"
         }
       ]
     }

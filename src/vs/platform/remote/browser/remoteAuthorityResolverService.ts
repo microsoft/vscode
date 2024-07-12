@@ -15,7 +15,7 @@ import { URI } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IRemoteAuthorityResolverService, IRemoteConnectionData, RemoteConnectionType, ResolvedAuthority, ResolvedOptions, ResolverResult, WebSocketRemoteConnection, getRemoteAuthorityPrefix } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { getRemoteServerRootPath, parseAuthorityWithOptionalPort } from 'vs/platform/remote/common/remoteHosts';
+import { parseAuthorityWithOptionalPort } from 'vs/platform/remote/common/remoteHosts';
 
 export class RemoteAuthorityResolverService extends Disposable implements IRemoteAuthorityResolverService {
 
@@ -34,6 +34,7 @@ export class RemoteAuthorityResolverService extends Disposable implements IRemot
 		isWorkbenchOptionsBasedResolution: boolean,
 		connectionToken: Promise<string> | string | undefined,
 		resourceUriProvider: ((uri: URI) => URI) | undefined,
+		serverBasePath: string | undefined,
 		@IProductService productService: IProductService,
 		@ILogService private readonly _logService: ILogService,
 	) {
@@ -44,7 +45,7 @@ export class RemoteAuthorityResolverService extends Disposable implements IRemot
 		if (resourceUriProvider) {
 			RemoteAuthorities.setDelegate(resourceUriProvider);
 		}
-		RemoteAuthorities.setServerRootPath(getRemoteServerRootPath(productService));
+		RemoteAuthorities.setServerRootPath(productService, serverBasePath);
 	}
 
 	async resolveAuthority(authority: string): Promise<ResolverResult> {

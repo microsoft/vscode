@@ -10,13 +10,13 @@ import { Action, IAction, IRunEvent, WorkbenchActionExecutedClassification, Work
 import * as arrays from 'vs/base/common/arrays';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import * as errors from 'vs/base/common/errors';
-import { DisposableStore, dispose, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, dispose, IDisposable, markAsSingleton, MutableDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/debugToolBar';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
 import { ICommandAction, ICommandActionTitle } from 'vs/platform/action/common/action';
-import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
+import { DropdownWithPrimaryActionViewItem, IDropdownWithPrimaryActionViewItemOptions } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
 import { createActionViewItem, createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenu, IMenuService, MenuId, MenuItemAction, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -40,6 +40,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { CodeWindow, mainWindow } from 'vs/base/browser/window';
 import { clamp } from 'vs/base/common/numbers';
 import { PixelRatio } from 'vs/base/browser/pixelRatio';
+import { IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 
 const DEBUG_TOOLBAR_POSITION_KEY = 'debug.actionswidgetposition';
 const DEBUG_TOOLBAR_Y_KEY = 'debug.actionswidgety';
@@ -52,7 +53,6 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 	private activeActions: IAction[];
 	private updateScheduler: RunOnceScheduler;
 	private debugToolBarMenu: IMenu;
-	private yCoordinate = 0;
 
 	private isVisible = false;
 	private isBuilt = false;
@@ -89,18 +89,18 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		this.activeActions = [];
 		this.actionBar = this._register(new ActionBar(actionBarContainer, {
 			orientation: ActionsOrientation.HORIZONTAL,
-			actionViewItemProvider: (action: IAction) => {
+			actionViewItemProvider: (action: IAction, options: IBaseActionViewItemOptions) => {
 				if (action.id === FOCUS_SESSION_ID) {
 					return this.instantiationService.createInstance(FocusSessionActionViewItem, action, undefined);
 				} else if (action.id === STOP_ID || action.id === DISCONNECT_ID) {
 					this.stopActionViewItemDisposables.clear();
-					const item = this.instantiationService.invokeFunction(accessor => createDisconnectMenuItemAction(action as MenuItemAction, this.stopActionViewItemDisposables, accessor));
+					const item = this.instantiationService.invokeFunction(accessor => createDisconnectMenuItemAction(action as MenuItemAction, this.stopActionViewItemDisposables, accessor, { hoverDelegate: options.hoverDelegate }));
 					if (item) {
 						return item;
 					}
 				}
 
-				return createActionViewItem(this.instantiationService, action);
+				return createActionViewItem(this.instantiationService, action, options);
 			}
 		}));
 
@@ -140,7 +140,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 			}
 			if (e.affectsConfiguration(LayoutSettings.EDITOR_TABS_MODE) || e.affectsConfiguration(LayoutSettings.COMMAND_CENTER)) {
 				this._yRange = undefined;
-				this.setYCoordinate();
+				this.setCoordinates();
 			}
 		}));
 		this._register(this.debugToolBarMenu.onDidChange(() => this.updateScheduler.schedule()));
@@ -186,37 +186,44 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 			});
 		}));
 
-		this._register(this.layoutService.onDidChangePartVisibility(() => this.setYCoordinate()));
+		this._register(this.layoutService.onDidChangePartVisibility(() => this.setCoordinates()));
 
 		const resizeListener = this._register(new MutableDisposable());
+		const registerResizeListener = () => {
+			resizeListener.value = this._register(dom.addDisposableListener(
+				dom.getWindow(this.layoutService.activeContainer), dom.EventType.RESIZE, () => this.setCoordinates())
+			);
+		};
 
-		this._register(this.layoutService.onDidChangeActiveContainer(() => {
+		this._register(this.layoutService.onDidChangeActiveContainer(async () => {
 			this._yRange = undefined;
 
-			// note: we intentionally don't read the activeContainer before the
-			// `then` clause to avoid any races due to quickly switching windows.
-			this.layoutService.whenActiveContainerStylesLoaded.then(() => {
-				if (this.isBuilt) {
-					this.doShowInActiveContainer();
-					this.setCoordinates();
-				}
+			// note: we intentionally don't keep the activeContainer before the
+			// `await` clause to avoid any races due to quickly switching windows.
+			await this.layoutService.whenContainerStylesLoaded(dom.getWindow(this.layoutService.activeContainer));
+			if (this.isBuilt) {
+				this.doShowInActiveContainer();
+				this.setCoordinates();
+			}
 
-				resizeListener.value = this._register(dom.addDisposableListener(
-					dom.getWindow(this.layoutService.activeContainer), dom.EventType.RESIZE, () => this.setYCoordinate()));
-			});
+			registerResizeListener();
 		}));
+
+		registerResizeListener();
 	}
 
 	private storePosition(): void {
 		const activeWindow = dom.getWindow(this.layoutService.activeContainer);
 		const isMainWindow = this.layoutService.activeContainer === this.layoutService.mainContainer;
 
-		const left = this.$el.getBoundingClientRect().left / activeWindow.innerWidth;
+		const rect = this.$el.getBoundingClientRect();
+		const y = rect.top;
+		const x = rect.left / activeWindow.innerWidth;
 		if (isMainWindow) {
-			this.storageService.store(DEBUG_TOOLBAR_POSITION_KEY, left, StorageScope.PROFILE, StorageTarget.MACHINE);
-			this.storageService.store(DEBUG_TOOLBAR_Y_KEY, this.yCoordinate, StorageScope.PROFILE, StorageTarget.MACHINE);
+			this.storageService.store(DEBUG_TOOLBAR_POSITION_KEY, x, StorageScope.PROFILE, StorageTarget.MACHINE);
+			this.storageService.store(DEBUG_TOOLBAR_Y_KEY, y, StorageScope.PROFILE, StorageTarget.MACHINE);
 		} else {
-			this.auxWindowCoordinates.set(activeWindow, { x: left, y: this.yCoordinate });
+			this.auxWindowCoordinates.set(activeWindow, { x, y });
 		}
 	}
 
@@ -254,7 +261,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 			const positionPercentage = isMainWindow
 				? Number(this.storageService.get(DEBUG_TOOLBAR_POSITION_KEY, StorageScope.PROFILE))
 				: this.auxWindowCoordinates.get(currentWindow)?.x;
-			x = positionPercentage !== undefined
+			x = positionPercentage !== undefined && !isNaN(positionPercentage)
 				? positionPercentage * currentWindow.innerWidth
 				: (0.5 * currentWindow.innerWidth - 0.5 * widgetWidth);
 		}
@@ -271,11 +278,10 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		this.setYCoordinate(y ?? this.yDefault);
 	}
 
-	private setYCoordinate(y = this.yCoordinate): void {
+	private setYCoordinate(y: number): void {
 		const [yMin, yMax] = this.yRange;
 		y = Math.max(yMin, Math.min(y, yMax));
 		this.$el.style.top = `${y}px`;
-		this.yCoordinate = y;
 	}
 
 	private get yDefault() {
@@ -322,7 +328,9 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 
 	private doShowInActiveContainer(): void {
 		this.layoutService.activeContainer.appendChild(this.$el);
-		this.trackPixelRatioListener.value = PixelRatio.getInstance(dom.getWindow(this.$el)).onDidChange(() => this.setYCoordinate());
+		this.trackPixelRatioListener.value = PixelRatio.getInstance(dom.getWindow(this.$el)).onDidChange(
+			() => this.setCoordinates()
+		);
 	}
 
 	private hide(): void {
@@ -337,15 +345,15 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 	}
 }
 
-export function createDisconnectMenuItemAction(action: MenuItemAction, disposables: DisposableStore, accessor: ServicesAccessor): IActionViewItem | undefined {
+export function createDisconnectMenuItemAction(action: MenuItemAction, disposables: DisposableStore, accessor: ServicesAccessor, options: IDropdownWithPrimaryActionViewItemOptions): IActionViewItem | undefined {
 	const menuService = accessor.get(IMenuService);
 	const contextKeyService = accessor.get(IContextKeyService);
 	const instantiationService = accessor.get(IInstantiationService);
 	const contextMenuService = accessor.get(IContextMenuService);
 
-	const menu = menuService.createMenu(MenuId.DebugToolBarStop, contextKeyService);
+	const menu = menuService.getMenuActions(MenuId.DebugToolBarStop, contextKeyService, { shouldForwardArgs: true });
 	const secondary: IAction[] = [];
-	createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, secondary);
+	createAndFillInActionBarActions(menu, secondary);
 
 	if (!secondary.length) {
 		return undefined;
@@ -358,7 +366,7 @@ export function createDisconnectMenuItemAction(action: MenuItemAction, disposabl
 		secondary,
 		'debug-stop-actions',
 		contextMenuService,
-		{});
+		options);
 	return item;
 }
 
@@ -393,7 +401,7 @@ const registerDebugToolBarItem = (id: string, title: string | ICommandActionTitl
 	}));
 };
 
-MenuRegistry.onDidChangeMenu(e => {
+markAsSingleton(MenuRegistry.onDidChangeMenu(e => {
 	// In case the debug toolbar is docked we need to make sure that the docked toolbar has the up to date commands registered #115945
 	if (e.has(MenuId.DebugToolBar)) {
 		dispose(debugViewTitleItems);
@@ -405,7 +413,7 @@ MenuRegistry.onDidChangeMenu(e => {
 			}));
 		}
 	}
-});
+}));
 
 
 const CONTEXT_TOOLBAR_COMMAND_CENTER = ContextKeyExpr.equals('config.debug.toolBarLocation', 'commandCenter');

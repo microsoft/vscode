@@ -13,7 +13,7 @@ import { disposableTimeout } from 'vs/base/common/async';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { StartVoiceChatAction, StopListeningAction } from 'vs/workbench/contrib/chat/electron-sandbox/actions/voiceChatActions';
+import { StartVoiceChatAction, StopListeningAction, VOICE_KEY_HOLD_THRESHOLD } from 'vs/workbench/contrib/chat/electron-sandbox/actions/voiceChatActions';
 import { IChatExecuteActionContext } from 'vs/workbench/contrib/chat/browser/actions/chatExecuteActions';
 import { CTX_INLINE_CHAT_VISIBLE, InlineChatConfigKeys } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { HasSpeechProvider, ISpeechService } from 'vs/workbench/contrib/speech/common/speechService';
@@ -62,12 +62,12 @@ function holdForSpeech(accessor: ServicesAccessor, ctrl: InlineChatController, a
 		// start VOICE input
 		commandService.executeCommand(StartVoiceChatAction.ID, { voice: { disableTimeout: true } } satisfies IChatExecuteActionContext);
 		listening = true;
-	}, 250);
+	}, VOICE_KEY_HOLD_THRESHOLD);
 
 	holdMode.finally(() => {
 		if (listening) {
 			commandService.executeCommand(StopListeningAction.ID).finally(() => {
-				ctrl!.acceptInput();
+				ctrl.acceptInput();
 			});
 		}
 		handle.dispose();

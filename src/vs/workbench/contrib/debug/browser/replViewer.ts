@@ -6,20 +6,25 @@
 import * as dom from 'vs/base/browser/dom';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { HighlightedLabel, IHighlight } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
+import { IManagedHover } from 'vs/base/browser/ui/hover/hover';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { CachedListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IAsyncDataSource, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { createMatches, FuzzyScore } from 'vs/base/common/filters';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { basename } from 'vs/base/common/path';
 import severity from 'vs/base/common/severity';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { localize } from 'vs/nls';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { defaultCountBadgeStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ThemeIcon } from 'vs/base/common/themables';
 import { AbstractExpressionsRenderer, IExpressionTemplateData, IInputBoxOptions, renderExpressionValue, renderVariable } from 'vs/workbench/contrib/debug/browser/baseDebugView';
 import { handleANSIOutput } from 'vs/workbench/contrib/debug/browser/debugANSIHandling';
 import { debugConsoleEvaluationInput } from 'vs/workbench/contrib/debug/browser/debugIcons';
@@ -37,6 +42,7 @@ interface IReplEvaluationInputTemplateData {
 
 interface IReplGroupTemplateData {
 	label: HTMLElement;
+	source: SourceWidget;
 }
 
 interface IReplEvaluationResultTemplateData {
@@ -48,9 +54,8 @@ interface IOutputReplElementTemplateData {
 	count: CountBadge;
 	countContainer: HTMLElement;
 	value: HTMLElement;
-	source: HTMLElement;
+	source: SourceWidget;
 	getReplElementSource(): IReplElementSource | undefined;
-	toDispose: IDisposable[];
 	elementListener: IDisposable;
 }
 
@@ -82,7 +87,7 @@ export class ReplEvaluationInputsRenderer implements ITreeRenderer<ReplEvaluatio
 	}
 
 	disposeTemplate(templateData: IReplEvaluationInputTemplateData): void {
-		// noop
+		templateData.label.dispose();
 	}
 }
 
@@ -91,7 +96,8 @@ export class ReplGroupRenderer implements ITreeRenderer<ReplGroup, FuzzyScore, I
 
 	constructor(
 		private readonly linkDetector: LinkDetector,
-		@IThemeService private readonly themeService: IThemeService
+		@IThemeService private readonly themeService: IThemeService,
+		@IInstantiationService private readonly instaService: IInstantiationService,
 	) { }
 
 	get templateId(): string {
@@ -99,8 +105,11 @@ export class ReplGroupRenderer implements ITreeRenderer<ReplGroup, FuzzyScore, I
 	}
 
 	renderTemplate(container: HTMLElement): IReplGroupTemplateData {
-		const label = dom.append(container, $('.expression'));
-		return { label };
+		container.classList.add('group');
+		const expression = dom.append(container, $('.output.expression.value-and-source'));
+		const label = dom.append(expression, $('span.label'));
+		const source = this.instaService.createInstance(SourceWidget, expression);
+		return { label, source };
 	}
 
 	renderElement(element: ITreeNode<ReplGroup, FuzzyScore>, _index: number, templateData: IReplGroupTemplateData): void {
@@ -108,10 +117,11 @@ export class ReplGroupRenderer implements ITreeRenderer<ReplGroup, FuzzyScore, I
 		dom.clearNode(templateData.label);
 		const result = handleANSIOutput(replGroup.name, this.linkDetector, this.themeService, undefined);
 		templateData.label.appendChild(result);
+		templateData.source.setSource(replGroup.sourceData);
 	}
 
-	disposeTemplate(_templateData: IReplGroupTemplateData): void {
-		// noop
+	disposeTemplate(templateData: IReplGroupTemplateData): void {
+		templateData.source.dispose();
 	}
 }
 
@@ -122,7 +132,10 @@ export class ReplEvaluationResultsRenderer implements ITreeRenderer<ReplEvaluati
 		return ReplEvaluationResultsRenderer.ID;
 	}
 
-	constructor(private readonly linkDetector: LinkDetector) { }
+	constructor(
+		private readonly linkDetector: LinkDetector,
+		private readonly hoverService: IHoverService
+	) { }
 
 	renderTemplate(container: HTMLElement): IReplEvaluationResultTemplateData {
 		const output = dom.append(container, $('.evaluation-result.expression'));
@@ -134,10 +147,9 @@ export class ReplEvaluationResultsRenderer implements ITreeRenderer<ReplEvaluati
 	renderElement(element: ITreeNode<ReplEvaluationResult | Variable, FuzzyScore>, index: number, templateData: IReplEvaluationResultTemplateData): void {
 		const expression = element.element;
 		renderExpressionValue(expression, templateData.value, {
-			showHover: false,
 			colorize: true,
 			linkDetector: this.linkDetector
-		});
+		}, this.hoverService);
 	}
 
 	disposeTemplate(templateData: IReplEvaluationResultTemplateData): void {
@@ -150,9 +162,8 @@ export class ReplOutputElementRenderer implements ITreeRenderer<ReplOutputElemen
 
 	constructor(
 		private readonly linkDetector: LinkDetector,
-		@IEditorService private readonly editorService: IEditorService,
-		@ILabelService private readonly labelService: ILabelService,
-		@IThemeService private readonly themeService: IThemeService
+		@IThemeService private readonly themeService: IThemeService,
+		@IInstantiationService private readonly instaService: IInstantiationService,
 	) { }
 
 	get templateId(): string {
@@ -167,22 +178,8 @@ export class ReplOutputElementRenderer implements ITreeRenderer<ReplOutputElemen
 		data.container = container;
 		data.countContainer = dom.append(expression, $('.count-badge-wrapper'));
 		data.count = new CountBadge(data.countContainer, {}, defaultCountBadgeStyles);
-		data.value = dom.append(expression, $('span.value'));
-		data.source = dom.append(expression, $('.source'));
-		data.toDispose = [];
-		data.toDispose.push(dom.addDisposableListener(data.source, 'click', e => {
-			e.preventDefault();
-			e.stopPropagation();
-			const source = data.getReplElementSource();
-			if (source) {
-				source.source.openInEditor(this.editorService, {
-					startLineNumber: source.lineNumber,
-					startColumn: source.column,
-					endLineNumber: source.lineNumber,
-					endColumn: source.column
-				});
-			}
-		}));
+		data.value = dom.append(expression, $('span.value.label'));
+		data.source = this.instaService.createInstance(SourceWidget, expression);
 
 		return data;
 	}
@@ -198,8 +195,7 @@ export class ReplOutputElementRenderer implements ITreeRenderer<ReplOutputElemen
 		templateData.value.appendChild(handleANSIOutput(element.value, this.linkDetector, this.themeService, element.session.root));
 
 		templateData.value.classList.add((element.severity === severity.Warning) ? 'warn' : (element.severity === severity.Error) ? 'error' : (element.severity === severity.Ignore) ? 'ignore' : 'info');
-		templateData.source.textContent = element.sourceData ? `${basename(element.sourceData.source.name)}:${element.sourceData.lineNumber}` : '';
-		templateData.source.title = element.sourceData ? `${this.labelService.getUriLabel(element.sourceData.source.uri)}:${element.sourceData.lineNumber}` : '';
+		templateData.source.setSource(element.sourceData);
 		templateData.getReplElementSource = () => element.sourceData;
 	}
 
@@ -213,7 +209,7 @@ export class ReplOutputElementRenderer implements ITreeRenderer<ReplOutputElemen
 	}
 
 	disposeTemplate(templateData: IOutputReplElementTemplateData): void {
-		dispose(templateData.toDispose);
+		templateData.source.dispose();
 	}
 
 	disposeElement(_element: ITreeNode<ReplOutputElement, FuzzyScore>, _index: number, templateData: IOutputReplElementTemplateData): void {
@@ -233,12 +229,15 @@ export class ReplVariablesRenderer extends AbstractExpressionsRenderer<IExpressi
 		private readonly linkDetector: LinkDetector,
 		@IDebugService debugService: IDebugService,
 		@IContextViewService contextViewService: IContextViewService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IHoverService hoverService: IHoverService
 	) {
-		super(debugService, contextViewService);
+		super(debugService, contextViewService, hoverService);
 	}
 
 	public renderElement(node: ITreeNode<IExpression | ReplVariableElement, FuzzyScore>, _index: number, data: IExpressionTemplateData): void {
 		const element = node.element;
+		data.elementDisposable.clear();
 		super.renderExpressionElement(element instanceof ReplVariableElement ? element.expression : element, node, data);
 	}
 
@@ -246,10 +245,10 @@ export class ReplVariablesRenderer extends AbstractExpressionsRenderer<IExpressi
 		const isReplVariable = expression instanceof ReplVariableElement;
 		if (isReplVariable || !expression.name) {
 			data.label.set('');
-			renderExpressionValue(isReplVariable ? expression.expression : expression, data.value, { showHover: false, colorize: true, linkDetector: this.linkDetector });
+			renderExpressionValue(isReplVariable ? expression.expression : expression, data.value, { colorize: true, linkDetector: this.linkDetector }, this.hoverService);
 			data.expression.classList.remove('nested-variable');
 		} else {
-			renderVariable(expression as Variable, data, true, highlights, this.linkDetector);
+			renderVariable(data.elementDisposable, this.commandService, this.hoverService, expression as Variable, data, true, highlights, this.linkDetector);
 			data.expression.classList.toggle('nested-variable', isNestedVariable(expression));
 		}
 	}
@@ -262,7 +261,10 @@ export class ReplVariablesRenderer extends AbstractExpressionsRenderer<IExpressi
 export class ReplRawObjectsRenderer implements ITreeRenderer<RawObjectReplElement, FuzzyScore, IRawObjectReplTemplateData> {
 	static readonly ID = 'rawObject';
 
-	constructor(private readonly linkDetector: LinkDetector) { }
+	constructor(
+		private readonly linkDetector: LinkDetector,
+		private readonly hoverService: IHoverService
+	) { }
 
 	get templateId(): string {
 		return ReplRawObjectsRenderer.ID;
@@ -291,13 +293,12 @@ export class ReplRawObjectsRenderer implements ITreeRenderer<RawObjectReplElemen
 
 		// value
 		renderExpressionValue(element.value, templateData.value, {
-			showHover: false,
 			linkDetector: this.linkDetector
-		});
+		}, this.hoverService);
 	}
 
 	disposeTemplate(templateData: IRawObjectReplTemplateData): void {
-		// noop
+		templateData.label.dispose();
 	}
 }
 
@@ -419,5 +420,41 @@ export class ReplAccessibilityProvider implements IListAccessibilityProvider<IRe
 		}
 
 		return '';
+	}
+}
+
+class SourceWidget extends Disposable {
+	private readonly el: HTMLElement;
+	private source?: IReplElementSource;
+	private hover?: IManagedHover;
+
+	constructor(container: HTMLElement,
+		@IEditorService editorService: IEditorService,
+		@IHoverService private readonly hoverService: IHoverService,
+		@ILabelService private readonly labelService: ILabelService,
+	) {
+		super();
+		this.el = dom.append(container, $('.source'));
+		this._register(dom.addDisposableListener(this.el, 'click', e => {
+			e.preventDefault();
+			e.stopPropagation();
+			if (this.source) {
+				this.source.source.openInEditor(editorService, {
+					startLineNumber: this.source.lineNumber,
+					startColumn: this.source.column,
+					endLineNumber: this.source.lineNumber,
+					endColumn: this.source.column
+				});
+			}
+		}));
+
+	}
+
+	public setSource(source?: IReplElementSource) {
+		this.source = source;
+		this.el.textContent = source ? `${basename(source.source.name)}:${source.lineNumber}` : '';
+
+		this.hover ??= this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this.el, ''));
+		this.hover.update(source ? `${this.labelService.getUriLabel(source.source.uri)}:${source.lineNumber}` : '');
 	}
 }

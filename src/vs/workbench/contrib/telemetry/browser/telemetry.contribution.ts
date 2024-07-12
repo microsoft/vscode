@@ -31,8 +31,9 @@ import { mainWindow } from 'vs/base/browser/window';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { isBoolean, isNumber, isString } from 'vs/base/common/types';
 import { LayoutSettings } from 'vs/workbench/services/layout/browser/layoutService';
-import { AutoUpdateConfigurationKey } from 'vs/workbench/contrib/extensions/common/extensions';
+import { AutoRestartConfigurationKey, AutoUpdateConfigurationKey } from 'vs/workbench/contrib/extensions/common/extensions';
 import { KEYWORD_ACTIVIATION_SETTING_ID } from 'vs/workbench/contrib/chat/common/chatService';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 type TelemetryData = {
 	mimeType: TelemetryTrustedValue<string>;
@@ -46,7 +47,7 @@ type FileTelemetryDataFragment = {
 	mimeType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language type of the file (for example XML).' };
 	ext: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The file extension of the file (for example xml).' };
 	path: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The path of the file as a hash.' };
-	reason?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The reason why a file is read or written. Allows to e.g. distinguish auto save from normal save.' };
+	reason?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The reason why a file is read or written. Allows to e.g. distinguish auto save from normal save.' };
 	allowlistedjson?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The name of the file but only if it matches some well known file names such as package.json or tsconfig.json.' };
 };
 
@@ -73,28 +74,28 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 		const activeViewlet = paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar);
 
 		type WindowSizeFragment = {
-			innerHeight: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The height of the current window.' };
-			innerWidth: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The width of the current window.' };
-			outerHeight: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The height of the current window with all decoration removed.' };
-			outerWidth: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The width of the current window with all decoration removed.' };
+			innerHeight: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The height of the current window.' };
+			innerWidth: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The width of the current window.' };
+			outerHeight: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The height of the current window with all decoration removed.' };
+			outerWidth: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The width of the current window with all decoration removed.' };
 			owner: 'bpasero';
 			comment: 'The size of the window.';
 		};
 
 		type WorkspaceLoadClassification = {
 			owner: 'bpasero';
-			emptyWorkbench: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether a folder or workspace is opened or not.' };
+			emptyWorkbench: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether a folder or workspace is opened or not.' };
 			windowSize: WindowSizeFragment;
-			'workbench.filesToOpenOrCreate': { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files that should open or be created.' };
-			'workbench.filesToDiff': { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files that should be compared.' };
-			'workbench.filesToMerge': { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files that should be merged.' };
-			customKeybindingsCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of custom keybindings' };
+			'workbench.filesToOpenOrCreate': { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of files that should open or be created.' };
+			'workbench.filesToDiff': { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of files that should be compared.' };
+			'workbench.filesToMerge': { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of files that should be merged.' };
+			customKeybindingsCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of custom keybindings' };
 			theme: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The current theme of the window.' };
 			language: { classification: 'SystemMetaData'; purpose: 'BusinessInsight'; comment: 'The display language of the window.' };
 			pinnedViewlets: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifiers of views that are pinned.' };
 			restoredViewlet?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the view that is restored.' };
-			restoredEditors: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of editors that restored.' };
-			startupKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How the window was opened, e.g via reload or not.' };
+			restoredEditors: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of editors that restored.' };
+			startupKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How the window was opened, e.g via reload or not.' };
 			comment: 'Metadata around the workspace that is being loaded into a window.';
 		};
 
@@ -240,6 +241,7 @@ class ConfigurationTelemetryContribution extends Disposable implements IWorkbenc
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
@@ -250,7 +252,7 @@ class ConfigurationTelemetryContribution extends Disposable implements IWorkbenc
 			return { ...cur, affectedKeys: newAffectedKeys };
 		}, 1000, true);
 
-		debouncedConfigService(event => {
+		this._register(debouncedConfigService(event => {
 			if (event.source !== ConfigurationTarget.DEFAULT) {
 				type UpdateConfigurationClassification = {
 					owner: 'sandy081';
@@ -267,7 +269,7 @@ class ConfigurationTelemetryContribution extends Disposable implements IWorkbenc
 					configurationKeys: Array.from(event.affectedKeys)
 				});
 			}
-		});
+		}));
 
 		const { user, workspace } = configurationService.keys();
 		for (const setting of user) {
@@ -282,12 +284,13 @@ class ConfigurationTelemetryContribution extends Disposable implements IWorkbenc
 	 * Report value of a setting only if it is an enum, boolean, or number or an array of those.
 	 */
 	private getValueToReport(key: string, target: ConfigurationTarget.USER_LOCAL | ConfigurationTarget.WORKSPACE): string | undefined {
-		const schema = this.configurationRegistry.getConfigurationProperties()[key];
 		const inpsectData = this.configurationService.inspect(key);
 		const value = target === ConfigurationTarget.USER_LOCAL ? inpsectData.user?.value : inpsectData.workspace?.value;
 		if (isNumber(value) || isBoolean(value)) {
 			return value.toString();
 		}
+
+		const schema = this.configurationRegistry.getConfigurationProperties()[key];
 		if (isString(value)) {
 			if (schema?.enum?.includes(value)) {
 				return value;
@@ -304,7 +307,7 @@ class ConfigurationTelemetryContribution extends Disposable implements IWorkbenc
 
 	private reportTelemetry(key: string, target: ConfigurationTarget.USER_LOCAL | ConfigurationTarget.WORKSPACE): void {
 		type UpdatedSettingEvent = {
-			value: string | undefined;
+			settingValue: string | undefined;
 			source: string;
 		};
 		const source = ConfigurationTargetToString(target);
@@ -315,90 +318,134 @@ class ConfigurationTelemetryContribution extends Disposable implements IWorkbenc
 				this.telemetryService.publicLog2<UpdatedSettingEvent, {
 					owner: 'sandy081';
 					comment: 'This is used to know where activity bar is shown in the workbench.';
-					value: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
+					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
 					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
-				}>('workbench.activityBar.location', { value: this.getValueToReport(key, target), source });
+				}>('workbench.activityBar.location', { settingValue: this.getValueToReport(key, target), source });
 				return;
 
 			case AutoUpdateConfigurationKey:
 				this.telemetryService.publicLog2<UpdatedSettingEvent, {
 					owner: 'sandy081';
 					comment: 'This is used to know if extensions are getting auto updated or not';
-					value: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
+					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
 					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
-				}>('extensions.autoUpdate', { value: this.getValueToReport(key, target), source });
+				}>('extensions.autoUpdate', { settingValue: this.getValueToReport(key, target), source });
 				return;
 
 			case 'files.autoSave':
 				this.telemetryService.publicLog2<UpdatedSettingEvent, {
 					owner: 'isidorn';
 					comment: 'This is used to know if auto save is enabled or not';
-					value: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
+					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
 					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
-				}>('files.autoSave', { value: this.getValueToReport(key, target), source });
+				}>('files.autoSave', { settingValue: this.getValueToReport(key, target), source });
 				return;
 
 			case 'editor.stickyScroll.enabled':
 				this.telemetryService.publicLog2<UpdatedSettingEvent, {
 					owner: 'aiday-mar';
 					comment: 'This is used to know if editor sticky scroll is enabled or not';
-					value: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
+					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
 					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
-				}>('editor.stickyScroll.enabled', { value: this.getValueToReport(key, target), source });
+				}>('editor.stickyScroll.enabled', { settingValue: this.getValueToReport(key, target), source });
 				return;
 
 			case KEYWORD_ACTIVIATION_SETTING_ID:
 				this.telemetryService.publicLog2<UpdatedSettingEvent, {
 					owner: 'bpasero';
 					comment: 'This is used to know if voice keyword activation is enabled or not';
-					value: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
+					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
 					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
-				}>('accessibility.voice.keywordActivation', { value: this.getValueToReport(key, target), source });
+				}>('accessibility.voice.keywordActivation', { settingValue: this.getValueToReport(key, target), source });
 				return;
 
 			case 'window.zoomLevel':
 				this.telemetryService.publicLog2<UpdatedSettingEvent, {
 					owner: 'bpasero';
 					comment: 'This is used to know if window zoom level is configured or not';
-					value: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
+					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
 					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
-				}>('window.zoomLevel', { value: this.getValueToReport(key, target), source });
+				}>('window.zoomLevel', { settingValue: this.getValueToReport(key, target), source });
 				return;
 
 			case 'window.zoomPerWindow':
 				this.telemetryService.publicLog2<UpdatedSettingEvent, {
 					owner: 'bpasero';
 					comment: 'This is used to know if window zoom per window is configured or not';
-					value: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
+					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
 					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
-				}>('window.zoomPerWindow', { value: this.getValueToReport(key, target), source });
+				}>('window.zoomPerWindow', { settingValue: this.getValueToReport(key, target), source });
 				return;
 
 			case 'window.titleBarStyle':
 				this.telemetryService.publicLog2<UpdatedSettingEvent, {
 					owner: 'benibenj';
 					comment: 'This is used to know if window title bar style is set to custom or not';
-					value: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
+					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
 					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
-				}>('window.titleBarStyle', { value: this.getValueToReport(key, target), source });
+				}>('window.titleBarStyle', { settingValue: this.getValueToReport(key, target), source });
 				return;
 
 			case 'window.customTitleBarVisibility':
 				this.telemetryService.publicLog2<UpdatedSettingEvent, {
 					owner: 'benibenj';
 					comment: 'This is used to know if window custom title bar visibility is configured or not';
-					value: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
+					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
 					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
-				}>('window.customTitleBarVisibility', { value: this.getValueToReport(key, target), source });
+				}>('window.customTitleBarVisibility', { settingValue: this.getValueToReport(key, target), source });
 				return;
 
 			case 'window.nativeTabs':
 				this.telemetryService.publicLog2<UpdatedSettingEvent, {
 					owner: 'benibenj';
 					comment: 'This is used to know if window native tabs are enabled or not';
-					value: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
+					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
 					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
-				}>('window.nativeTabs', { value: this.getValueToReport(key, target), source });
+				}>('window.nativeTabs', { settingValue: this.getValueToReport(key, target), source });
+				return;
+
+			case 'extensions.verifySignature':
+				this.telemetryService.publicLog2<UpdatedSettingEvent, {
+					owner: 'sandy081';
+					comment: 'This is used to know if extensions signature verification is enabled or not';
+					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
+					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
+				}>('extensions.verifySignature', { settingValue: this.getValueToReport(key, target), source });
+				return;
+
+			case 'window.systemColorTheme':
+				this.telemetryService.publicLog2<UpdatedSettingEvent, {
+					owner: 'bpasero';
+					comment: 'This is used to know how system color theme is enforced';
+					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
+					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
+				}>('window.systemColorTheme', { settingValue: this.getValueToReport(key, target), source });
+				return;
+
+			case 'window.newWindowProfile':
+				{
+					const valueToReport = this.getValueToReport(key, target);
+					const settingValue =
+						valueToReport === null ? 'null'
+							: valueToReport === this.userDataProfilesService.defaultProfile.name
+								? 'default'
+								: 'custom';
+					this.telemetryService.publicLog2<UpdatedSettingEvent, {
+						owner: 'sandy081';
+						comment: 'This is used to know the new window profile that is being used';
+						settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'if the profile is default or not' };
+						source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
+					}>('window.newWindowProfile', { settingValue, source });
+					return;
+				}
+
+			case AutoRestartConfigurationKey:
+				this.telemetryService.publicLog2<UpdatedSettingEvent, {
+					owner: 'sandy081';
+					comment: 'This is used to know if extensions are getting auto restarted or not';
+					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
+					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
+				}>('extensions.autoRestart', { settingValue: this.getValueToReport(key, target), source });
 				return;
 		}
 	}

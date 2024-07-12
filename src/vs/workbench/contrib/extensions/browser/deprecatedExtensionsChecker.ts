@@ -14,12 +14,14 @@ import { distinct } from 'vs/base/common/arrays';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 
 export class DeprecatedExtensionsChecker extends Disposable implements IWorkbenchContribution {
 
 	constructor(
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionManagementService extensionManagementService: IExtensionManagementService,
+		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IStorageService private readonly storageService: IStorageService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -45,7 +47,7 @@ export class DeprecatedExtensionsChecker extends Disposable implements IWorkbenc
 		}
 		const local = await this.extensionsWorkbenchService.queryLocal();
 		const previouslyNotified = this.getNotifiedDeprecatedExtensions();
-		const toNotify = local.filter(e => !!e.deprecationInfo).filter(e => !previouslyNotified.includes(e.identifier.id.toLowerCase()));
+		const toNotify = local.filter(e => !!e.deprecationInfo && e.local && this.extensionEnablementService.isEnabled(e.local)).filter(e => !previouslyNotified.includes(e.identifier.id.toLowerCase()));
 		if (toNotify.length) {
 			this.notificationService.prompt(
 				Severity.Warning,

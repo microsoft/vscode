@@ -22,7 +22,6 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 
 	private readonly _context: ViewContext;
 	private _primaryPosition: Position | null;
-	private _lineHeight: number;
 	private _spaceWidth: number;
 	private _renderResult: string[] | null;
 	private _maxIndentLeft: number;
@@ -37,7 +36,6 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 		const wrappingInfo = options.get(EditorOption.wrappingInfo);
 		const fontInfo = options.get(EditorOption.fontInfo);
 
-		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._spaceWidth = fontInfo.spaceWidth;
 		this._maxIndentLeft = wrappingInfo.wrappingColumn === -1 ? -1 : (wrappingInfo.wrappingColumn * fontInfo.typicalHalfwidthCharacterWidth);
 		this._bracketPairGuideOptions = options.get(EditorOption.guides);
@@ -60,7 +58,6 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 		const wrappingInfo = options.get(EditorOption.wrappingInfo);
 		const fontInfo = options.get(EditorOption.fontInfo);
 
-		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._spaceWidth = fontInfo.spaceWidth;
 		this._maxIndentLeft = wrappingInfo.wrappingColumn === -1 ? -1 : (wrappingInfo.wrappingColumn * fontInfo.typicalHalfwidthCharacterWidth);
 		this._bracketPairGuideOptions = options.get(EditorOption.guides);
@@ -114,7 +111,6 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 		const visibleStartLineNumber = ctx.visibleRange.startLineNumber;
 		const visibleEndLineNumber = ctx.visibleRange.endLineNumber;
 		const scrollWidth = ctx.scrollWidth;
-		const lineHeight = this._lineHeight;
 
 		const activeCursorPosition = this._primaryPosition;
 
@@ -150,7 +146,7 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 					)?.left ?? (left + this._spaceWidth)) - left
 					: this._spaceWidth;
 
-				result += `<div class="core-guide ${guide.className} ${className}" style="left:${left}px;height:${lineHeight}px;width:${width}px"></div>`;
+				result += `<div class="core-guide ${guide.className} ${className}" style="left:${left}px;width:${width}px"></div>`;
 			}
 			output[lineIndex] = result;
 		}

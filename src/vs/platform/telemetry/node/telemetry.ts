@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
 import { join } from 'vs/base/common/path';
 import { Promises } from 'vs/base/node/pfs';
 
@@ -21,7 +22,7 @@ export async function buildTelemetryMessage(appRoot: string, extensionsPath?: st
 		const files = await Promises.readdir(extensionsPath);
 		for (const file of files) {
 			try {
-				const fileStat = await Promises.stat(join(extensionsPath, file));
+				const fileStat = await fs.promises.stat(join(extensionsPath, file));
 				if (fileStat.isDirectory()) {
 					dirs.push(file);
 				}
@@ -39,15 +40,15 @@ export async function buildTelemetryMessage(appRoot: string, extensionsPath?: st
 		}
 
 		for (const folder of telemetryJsonFolders) {
-			const contents = (await Promises.readFile(join(extensionsPath, folder, 'telemetry.json'))).toString();
+			const contents = (await fs.promises.readFile(join(extensionsPath, folder, 'telemetry.json'))).toString();
 			mergeTelemetry(contents, folder);
 		}
 	}
 
-	let contents = (await Promises.readFile(join(appRoot, 'telemetry-core.json'))).toString();
+	let contents = (await fs.promises.readFile(join(appRoot, 'telemetry-core.json'))).toString();
 	mergeTelemetry(contents, 'vscode-core');
 
-	contents = (await Promises.readFile(join(appRoot, 'telemetry-extensions.json'))).toString();
+	contents = (await fs.promises.readFile(join(appRoot, 'telemetry-extensions.json'))).toString();
 	mergeTelemetry(contents, 'vscode-extensions');
 
 	return JSON.stringify(mergedTelemetry, null, 4);

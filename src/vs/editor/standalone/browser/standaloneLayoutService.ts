@@ -19,7 +19,6 @@ class StandaloneLayoutService implements ILayoutService {
 	readonly onDidLayoutContainer = Event.None;
 	readonly onDidChangeActiveContainer = Event.None;
 	readonly onDidAddContainer = Event.None;
-	readonly whenActiveContainerStylesLoaded = Promise.resolve();
 
 	get mainContainer(): HTMLElement {
 		return firstOrDefault(this._codeEditorService.listCodeEditors())?.getContainerDomNode() ?? mainWindow.document.body;
@@ -49,6 +48,8 @@ class StandaloneLayoutService implements ILayoutService {
 	getContainer() {
 		return this.activeContainer;
 	}
+
+	whenContainerStylesLoaded() { return undefined; }
 
 	focus(): void {
 		this._codeEditorService.getFocusedCodeEditor()?.focus();

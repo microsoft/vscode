@@ -7,7 +7,7 @@ import * as dom from 'vs/base/browser/dom';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { CancelablePromise, createCancelablePromise, disposableTimeout } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { basename } from 'vs/base/common/resources';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -20,7 +20,7 @@ import { getCodeActions, quickFixCommandId } from 'vs/editor/contrib/codeAction/
 import { CodeActionController } from 'vs/editor/contrib/codeAction/browser/codeActionController';
 import { CodeActionKind, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/common/types';
 import { MarkerController, NextMarkerAction } from 'vs/editor/contrib/gotoError/browser/gotoError';
-import { HoverAnchor, HoverAnchorType, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
+import { HoverAnchor, HoverAnchorType, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, IRenderedHoverPart, IRenderedHoverParts, RenderedHoverParts } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import * as nls from 'vs/nls';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IMarker, IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
@@ -90,18 +90,28 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 		return result;
 	}
 
-	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: MarkerHover[]): IDisposable {
+	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: MarkerHover[]): IRenderedHoverParts<MarkerHover> {
 		if (!hoverParts.length) {
-			return Disposable.None;
+			return new RenderedHoverParts([]);
 		}
 		const disposables = new DisposableStore();
-		hoverParts.forEach(msg => context.fragment.appendChild(this.renderMarkerHover(msg, disposables)));
+		const renderedHoverParts: IRenderedHoverPart<MarkerHover>[] = [];
+		hoverParts.forEach(hoverPart => {
+			const renderedMarkerHover = this._renderMarkerHover(hoverPart);
+			context.fragment.appendChild(renderedMarkerHover.hoverElement);
+			renderedHoverParts.push(renderedMarkerHover);
+		});
 		const markerHoverForStatusbar = hoverParts.length === 1 ? hoverParts[0] : hoverParts.sort((a, b) => MarkerSeverity.compare(a.marker.severity, b.marker.severity))[0];
 		this.renderMarkerStatusbar(context, markerHoverForStatusbar, disposables);
-		return disposables;
+		return new RenderedHoverParts(renderedHoverParts);
 	}
 
-	private renderMarkerHover(markerHover: MarkerHover, disposables: DisposableStore): HTMLElement {
+	public getAccessibleContent(hoverPart: MarkerHover): string {
+		return hoverPart.marker.message;
+	}
+
+	private _renderMarkerHover(markerHover: MarkerHover): IRenderedHoverPart<MarkerHover> {
+		const disposables: DisposableStore = new DisposableStore();
 		const hoverElement = $('div.hover-row');
 		const markerElement = dom.append(hoverElement, $('div.marker.hover-contents'));
 		const { source, message, code, relatedInformation } = markerHover.marker;
@@ -165,20 +175,28 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 			}
 		}
 
-		return hoverElement;
+		const renderedHoverPart: IRenderedHoverPart<MarkerHover> = {
+			hoverPart: markerHover,
+			hoverElement,
+			dispose: () => disposables.dispose()
+		};
+		return renderedHoverPart;
 	}
 
 	private renderMarkerStatusbar(context: IEditorHoverRenderContext, markerHover: MarkerHover, disposables: DisposableStore): void {
 		if (markerHover.marker.severity === MarkerSeverity.Error || markerHover.marker.severity === MarkerSeverity.Warning || markerHover.marker.severity === MarkerSeverity.Info) {
-			context.statusBar.addAction({
-				label: nls.localize('view problem', "View Problem"),
-				commandId: NextMarkerAction.ID,
-				run: () => {
-					context.hide();
-					MarkerController.get(this._editor)?.showAtMarker(markerHover.marker);
-					this._editor.focus();
-				}
-			});
+			const markerController = MarkerController.get(this._editor);
+			if (markerController) {
+				context.statusBar.addAction({
+					label: nls.localize('view problem', "View Problem"),
+					commandId: NextMarkerAction.ID,
+					run: () => {
+						context.hide();
+						markerController.showAtMarker(markerHover.marker);
+						this._editor.focus();
+					}
+				});
+			}
 		}
 
 		if (!this._editor.getOption(EditorOption.readOnly)) {

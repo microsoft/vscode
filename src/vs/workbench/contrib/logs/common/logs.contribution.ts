@@ -70,11 +70,11 @@ class LogOutputChannels extends Disposable implements IWorkbenchContribution {
 		super();
 		const contextKey = CONTEXT_LOG_LEVEL.bindTo(contextKeyService);
 		contextKey.set(LogLevelToString(loggerService.getLogLevel()));
-		loggerService.onDidChangeLogLevel(e => {
+		this._register(loggerService.onDidChangeLogLevel(e => {
 			if (isLogLevel(e)) {
 				contextKey.set(LogLevelToString(loggerService.getLogLevel()));
 			}
-		});
+		}));
 
 		this.onDidAddLoggers(loggerService.getRegisteredLoggers());
 		this._register(loggerService.onDidChangeLoggers(({ added, removed }) => {
@@ -195,7 +195,7 @@ class LogOutputChannels extends Disposable implements IWorkbenchContribution {
 	}
 
 	private registerShowWindowLogAction(): void {
-		registerAction2(class ShowWindowLogAction extends Action2 {
+		this._register(registerAction2(class ShowWindowLogAction extends Action2 {
 			constructor() {
 				super({
 					id: showWindowLogActionId,
@@ -208,9 +208,8 @@ class LogOutputChannels extends Disposable implements IWorkbenchContribution {
 				const outputService = servicesAccessor.get(IOutputService);
 				outputService.showChannel(windowLogId);
 			}
-		});
+		}));
 	}
-
 }
 
 class LogLevelMigration implements IWorkbenchContribution {

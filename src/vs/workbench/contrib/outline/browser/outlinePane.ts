@@ -6,7 +6,7 @@
 import 'vs/css!./outlinePane';
 import * as dom from 'vs/base/browser/dom';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
-import { TimeoutTimer } from 'vs/base/common/async';
+import { TimeoutTimer, timeout } from 'vs/base/common/async';
 import { IDisposable, toDisposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { LRUCache } from 'vs/base/common/map';
 import { localize } from 'vs/nls';
@@ -36,6 +36,7 @@ import { AbstractTreeViewState, IAbstractTreeViewState, TreeFindMode } from 'vs/
 import { URI } from 'vs/base/common/uri';
 import { ctxAllCollapsed, ctxFilterOnType, ctxFollowsCursor, ctxSortMode, IOutlinePane, OutlineSortOrder } from 'vs/workbench/contrib/outline/browser/outline';
 import { defaultProgressBarStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 class OutlineTreeSorter<E> implements ITreeSorter<E> {
 
@@ -94,8 +95,9 @@ export class OutlinePane extends ViewPane implements IOutlinePane {
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IHoverService hoverService: IHoverService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, _instantiationService, openerService, themeService, telemetryService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, _instantiationService, openerService, themeService, telemetryService, hoverService);
 		this._outlineViewState.restore(this._storageService);
 		this._disposables.add(this._outlineViewState);
 
@@ -264,7 +266,7 @@ export class OutlinePane extends ViewPane implements IOutlinePane {
 				multipleSelectionSupport: false,
 				hideTwistiesOfChildlessElements: true,
 				defaultFindMode: this._outlineViewState.filterOnType ? TreeFindMode.Filter : TreeFindMode.Highlight,
-				overrideStyles: { listBackground: this.getBackgroundColor() }
+				overrideStyles: this.getLocationBasedColors().listOverrideStyles
 			}
 		);
 
@@ -295,7 +297,7 @@ export class OutlinePane extends ViewPane implements IOutlinePane {
 		// feature: apply panel background to tree
 		this._editorControlDisposables.add(this.viewDescriptorService.onDidChangeLocation(({ views }) => {
 			if (views.some(v => v.id === this.id)) {
-				tree.updateOptions({ overrideStyles: { listBackground: this.getBackgroundColor() } });
+				tree.updateOptions({ overrideStyles: this.getLocationBasedColors().listOverrideStyles });
 			}
 		}));
 
@@ -304,7 +306,19 @@ export class OutlinePane extends ViewPane implements IOutlinePane {
 
 		// feature: reveal outline selection in editor
 		// on change -> reveal/select defining range
-		this._editorControlDisposables.add(tree.onDidOpen(e => newOutline.reveal(e.element, e.editorOptions, e.sideBySide)));
+		let idPool = 0;
+		this._editorControlDisposables.add(tree.onDidOpen(async e => {
+			const myId = ++idPool;
+			const isDoubleClick = e.browserEvent?.type === 'dblclick';
+			if (!isDoubleClick) {
+				// workaround for https://github.com/microsoft/vscode/issues/206424
+				await timeout(150);
+				if (myId !== idPool) {
+					return;
+				}
+			}
+			await newOutline.reveal(e.element, e.editorOptions, e.sideBySide, isDoubleClick);
+		}));
 		// feature: reveal editor selection in outline
 		const revealActiveElement = () => {
 			if (!this._outlineViewState.followCursor || !newOutline.activeElement) {

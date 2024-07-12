@@ -38,7 +38,7 @@ export class ElectronPtyHostStarter extends Disposable implements IPtyHostStarte
 	) {
 		super();
 
-		this._lifecycleMainService.onWillShutdown(() => this._onWillShutdown.fire());
+		this._register(this._lifecycleMainService.onWillShutdown(() => this._onWillShutdown.fire()));
 		// Listen for new windows to establish connection directly to pty host
 		validatedIpcMain.on('vscode:createPtyHostMessageChannel', (e, nonce) => this._onWindowConnection(e, nonce));
 		this._register(toDisposable(() => {

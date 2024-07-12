@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserWindowConstructorOptions, Display, Rectangle, WebContents, screen } from 'electron';
+import electron from 'electron';
 import { Event } from 'vs/base/common/event';
 import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
@@ -53,7 +53,7 @@ export interface IWindowsMainService {
 	getLastActiveWindow(): ICodeWindow | undefined;
 
 	getWindowById(windowId: number): ICodeWindow | undefined;
-	getWindowByWebContents(webContents: WebContents): ICodeWindow | undefined;
+	getWindowByWebContents(webContents: electron.WebContents): ICodeWindow | undefined;
 }
 
 export interface IWindowsCountChangedEvent {
@@ -115,7 +115,7 @@ export interface IOpenConfiguration extends IBaseOpenConfiguration {
 
 export interface IOpenEmptyConfiguration extends IBaseOpenConfiguration { }
 
-export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowState?: IWindowState, overrides?: BrowserWindowConstructorOptions): BrowserWindowConstructorOptions & { experimentalDarkMode: boolean } {
+export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowState: IWindowState, webPreferences?: electron.WebPreferences): electron.BrowserWindowConstructorOptions & { experimentalDarkMode: boolean } {
 	const themeMainService = accessor.get(IThemeMainService);
 	const productService = accessor.get(IProductService);
 	const configurationService = accessor.get(IConfigurationService);
@@ -123,32 +123,29 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 
 	const windowSettings = configurationService.getValue<IWindowSettings | undefined>('window');
 
-	const options: BrowserWindowConstructorOptions & { experimentalDarkMode: boolean } = {
+	const options: electron.BrowserWindowConstructorOptions & { experimentalDarkMode: boolean } = {
 		backgroundColor: themeMainService.getBackgroundColor(),
 		minWidth: WindowMinimumSize.WIDTH,
 		minHeight: WindowMinimumSize.HEIGHT,
 		title: productService.nameLong,
-		...overrides,
+		show: windowState.mode !== WindowMode.Maximized && windowState.mode !== WindowMode.Fullscreen, // reduce flicker by showing later
+		x: windowState.x,
+		y: windowState.y,
+		width: windowState.width,
+		height: windowState.height,
 		webPreferences: {
+			...webPreferences,
 			enableWebSQL: false,
 			spellcheck: false,
-			zoomFactor: zoomLevelToZoomFactor(windowState?.zoomLevel ?? windowSettings?.zoomLevel),
+			zoomFactor: zoomLevelToZoomFactor(windowState.zoomLevel ?? windowSettings?.zoomLevel),
 			autoplayPolicy: 'user-gesture-required',
 			// Enable experimental css highlight api https://chromestatus.com/feature/5436441440026624
 			// Refs https://github.com/microsoft/vscode/issues/140098
 			enableBlinkFeatures: 'HighlightAPI',
-			...overrides?.webPreferences,
 			sandbox: true
 		},
 		experimentalDarkMode: true
 	};
-
-	if (windowState) {
-		options.x = windowState.x;
-		options.y = windowState.y;
-		options.width = windowState.width;
-		options.height = windowState.height;
-	}
 
 	if (isLinux) {
 		options.icon = join(environmentMainService.appRoot, 'resources/linux/code.png'); // always on Linux
@@ -218,7 +215,7 @@ export function getLastFocused(windows: ICodeWindow[] | IAuxiliaryWindow[]): ICo
 
 export namespace WindowStateValidator {
 
-	export function validateWindowState(logService: ILogService, state: IWindowState, displays = screen.getAllDisplays()): IWindowState | undefined {
+	export function validateWindowState(logService: ILogService, state: IWindowState, displays = electron.screen.getAllDisplays()): IWindowState | undefined {
 		logService.trace(`window#validateWindowState: validating window state on ${displays.length} display(s)`, state);
 
 		if (
@@ -246,8 +243,9 @@ export namespace WindowStateValidator {
 		//          some pixels (128) visible on the screen for the user to drag it back.
 		if (displays.length === 1) {
 			const displayWorkingArea = getWorkingArea(displays[0]);
+			logService.trace('window#validateWindowState: single monitor working area', displayWorkingArea);
+
 			if (displayWorkingArea) {
-				logService.trace('window#validateWindowState: 1 monitor working area', displayWorkingArea);
 
 				function ensureStateInDisplayWorkingArea(): void {
 					if (!state || typeof state.x !== 'number' || typeof state.y !== 'number' || !displayWorkingArea) {
@@ -315,15 +313,18 @@ export namespace WindowStateValidator {
 		}
 
 		// Multi Monitor (non-fullscreen): ensure window is within display bounds
-		let display: Display | undefined;
-		let displayWorkingArea: Rectangle | undefined;
+		let display: electron.Display | undefined;
+		let displayWorkingArea: electron.Rectangle | undefined;
 		try {
-			display = screen.getDisplayMatching({ x: state.x, y: state.y, width: state.width, height: state.height });
+			display = electron.screen.getDisplayMatching({ x: state.x, y: state.y, width: state.width, height: state.height });
 			displayWorkingArea = getWorkingArea(display);
+
+			logService.trace('window#validateWindowState: multi-monitor working area', displayWorkingArea);
 		} catch (error) {
 			// Electron has weird conditions under which it throws errors
 			// e.g. https://github.com/microsoft/vscode/issues/100334 when
 			// large numbers are passed in
+			logService.error('window#validateWindowState: error finding display for window state', error);
 		}
 
 		if (
@@ -334,15 +335,15 @@ export namespace WindowStateValidator {
 			state.x < displayWorkingArea.x + displayWorkingArea.width &&	// prevent window from falling out of the screen to the right
 			state.y < displayWorkingArea.y + displayWorkingArea.height		// prevent window from falling out of the screen to the bottom
 		) {
-			logService.trace('window#validateWindowState: multi-monitor working area', displayWorkingArea);
-
 			return state;
 		}
+
+		logService.trace('window#validateWindowState: state is outside of the multi-monitor working area');
 
 		return undefined;
 	}
 
-	function getWorkingArea(display: Display): Rectangle | undefined {
+	function getWorkingArea(display: electron.Display): electron.Rectangle | undefined {
 
 		// Prefer the working area of the display to account for taskbars on the
 		// desktop being positioned somewhere (https://github.com/microsoft/vscode/issues/50830).

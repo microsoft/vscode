@@ -81,6 +81,7 @@ module.exports.indentationFilter = [
 	'!resources/linux/snap/electron-launch',
 	'!build/ext.js',
 	'!build/npm/gyp/patches/gyp_spectre_mitigation_support.patch',
+	'!product.overrides.json',
 
 	// except specific folders
 	'!test/automation/out/**',
@@ -198,7 +199,7 @@ module.exports.eslintFilter = [
 		.toString().split(/\r\n|\n/)
 		.filter(line => !line.startsWith('#'))
 		.filter(line => !!line)
-		.map(line => `!${line}`)
+		.map(line => line.startsWith('!') ? line.slice(1) : `!${line}`)
 ];
 
 module.exports.stylelintFilter = [

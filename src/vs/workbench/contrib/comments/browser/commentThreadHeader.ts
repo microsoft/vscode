@@ -7,7 +7,7 @@ import * as dom from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action, ActionRunner } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import * as languages from 'vs/editor/common/languages';
 import { IRange } from 'vs/editor/common/core/range';
@@ -22,6 +22,7 @@ import { CommentMenus } from 'vs/workbench/contrib/comments/browser/commentMenus
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { MarshalledCommentThread } from 'vs/workbench/common/comments';
 
 const collapseIcon = registerIcon('review-comment-collapse', Codicon.chevronUp, nls.localize('collapseIcon', 'Icon to collapse a review comment.'));
 const COLLAPSE_ACTION_CLASS = 'expand-review-action ' + ThemeIcon.asClassName(collapseIcon);
@@ -45,6 +46,7 @@ export class CommentThreadHeader<T = IRange> extends Disposable {
 		super();
 		this._headElement = <HTMLDivElement>dom.$('.head');
 		container.appendChild(this._headElement);
+		this._register(toDisposable(() => this._headElement.remove()));
 		this._fillHead();
 	}
 
@@ -64,6 +66,7 @@ export class CommentThreadHeader<T = IRange> extends Disposable {
 		this._collapseAction = new Action('review.expand', nls.localize('label.collapse', "Collapse"), COLLAPSE_ACTION_CLASS, true, () => this._delegate.collapse());
 
 		const menu = this._commentMenus.getCommentThreadTitleActions(this._contextKeyService);
+		this._register(menu);
 		this.setActionBarActions(menu);
 
 		this._register(menu);
@@ -122,7 +125,7 @@ export class CommentThreadHeader<T = IRange> extends Disposable {
 			getAnchor: () => event,
 			getActions: () => actions,
 			actionRunner: new ActionRunner(),
-			getActionsContext: () => {
+			getActionsContext: (): MarshalledCommentThread => {
 				return {
 					commentControlHandle: this._commentThread.controllerHandle,
 					commentThreadHandle: this._commentThread.commentThreadHandle,

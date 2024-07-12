@@ -26,7 +26,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { URI } from 'vs/base/common/uri';
 import { badgeBackground, badgeForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { IHoverWidget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import type { IHoverWidget } from 'vs/base/browser/ui/hover/hover';
 
 export interface ICompositeBar {
 
@@ -144,7 +144,7 @@ export interface ICompositeBarActionViewItemOptions extends IActionViewItemOptio
 	readonly compact?: boolean;
 }
 
-export class CompoisteBarActionViewItem extends BaseActionViewItem {
+export class CompositeBarActionViewItem extends BaseActionViewItem {
 
 	private static hoverLeaveTime = 0;
 
@@ -319,11 +319,7 @@ export class CompoisteBarActionViewItem extends BaseActionViewItem {
 			else if (badge instanceof NumberBadge) {
 				if (badge.number) {
 					let number = badge.number.toString();
-					if (this.options.compact) {
-						if (badge.number > 99) {
-							number = '';
-						}
-					} else if (badge.number > 999) {
+					if (badge.number > 999) {
 						const noOfThousands = badge.number / 1000;
 						const floor = Math.floor(noOfThousands);
 						if (noOfThousands > floor) {
@@ -331,6 +327,9 @@ export class CompoisteBarActionViewItem extends BaseActionViewItem {
 						} else {
 							number = `${noOfThousands}K`;
 						}
+					}
+					if (this.options.compact && number.length >= 3) {
+						classes.push('compact-content');
 					}
 					this.badgeContent.textContent = number;
 					show(this.badge);
@@ -394,7 +393,7 @@ export class CompoisteBarActionViewItem extends BaseActionViewItem {
 
 		this.hoverDisposables.add(addDisposableListener(this.container, EventType.MOUSE_OVER, () => {
 			if (!this.showHoverScheduler.isScheduled()) {
-				if (Date.now() - CompoisteBarActionViewItem.hoverLeaveTime < 200) {
+				if (Date.now() - CompositeBarActionViewItem.hoverLeaveTime < 200) {
 					this.showHover(true);
 				} else {
 					this.showHoverScheduler.schedule(this.configurationService.getValue<number>('workbench.hover.delay'));
@@ -404,7 +403,7 @@ export class CompoisteBarActionViewItem extends BaseActionViewItem {
 
 		this.hoverDisposables.add(addDisposableListener(this.container, EventType.MOUSE_LEAVE, e => {
 			if (e.target === this.container) {
-				CompoisteBarActionViewItem.hoverLeaveTime = Date.now();
+				CompositeBarActionViewItem.hoverLeaveTime = Date.now();
 				this.hoverService.hideHover();
 				this.showHoverScheduler.cancel();
 			}
@@ -467,7 +466,7 @@ export class CompositeOverflowActivityAction extends CompositeBarAction {
 	}
 }
 
-export class CompositeOverflowActivityActionViewItem extends CompoisteBarActionViewItem {
+export class CompositeOverflowActivityActionViewItem extends CompositeBarActionViewItem {
 
 	constructor(
 		action: CompositeBarAction,
@@ -529,7 +528,7 @@ class ManageExtensionAction extends Action {
 	}
 }
 
-export class CompositeActionViewItem extends CompoisteBarActionViewItem {
+export class CompositeActionViewItem extends CompositeBarActionViewItem {
 
 	private static manageExtensionAction: ManageExtensionAction;
 
@@ -706,12 +705,12 @@ export class CompositeActionViewItem extends CompoisteBarActionViewItem {
 	protected override updateChecked(): void {
 		if (this.action.checked) {
 			this.container.classList.add('checked');
-			this.container.setAttribute('aria-label', this.container.title);
+			this.container.setAttribute('aria-label', this.getTooltip() ?? this.container.title);
 			this.container.setAttribute('aria-expanded', 'true');
 			this.container.setAttribute('aria-selected', 'true');
 		} else {
 			this.container.classList.remove('checked');
-			this.container.setAttribute('aria-label', this.container.title);
+			this.container.setAttribute('aria-label', this.getTooltip() ?? this.container.title);
 			this.container.setAttribute('aria-expanded', 'false');
 			this.container.setAttribute('aria-selected', 'false');
 		}

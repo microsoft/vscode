@@ -58,7 +58,7 @@ export class ExeBasedRecommendations extends ExtensionRecommendations {
 
 	private toExtensionRecommendation(tip: IExecutableBasedExtensionTip): ExtensionRecommendation {
 		return {
-			extensionId: tip.extensionId.toLowerCase(),
+			extension: tip.extensionId.toLowerCase(),
 			reason: {
 				reasonId: ExtensionRecommendationReason.Executable,
 				reasonText: localize('exeBasedRecommendation', "This extension is recommended because you have {0} installed.", tip.exeFriendlyName)

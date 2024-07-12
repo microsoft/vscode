@@ -310,6 +310,11 @@ class WordHighlighter {
 			this._onPositionChanged(e);
 		}));
 		this.toUnhook.add(editor.onDidFocusEditorText((e) => {
+			if (this.occurrencesHighlight === 'off') {
+				// Early exit if nothing needs to be done
+				return;
+			}
+
 			if (!this.workerRequest) {
 				this._run();
 			}

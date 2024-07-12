@@ -7,7 +7,7 @@ import { ok } from 'assert';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
+import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ACTIVE_TASK_STATUS, FAILED_TASK_STATUS, SUCCEEDED_TASK_STATUS, TaskTerminalStatus } from 'vs/workbench/contrib/tasks/browser/taskTerminalStatus';
@@ -28,8 +28,8 @@ class TestTaskService implements Partial<ITaskService> {
 	}
 }
 
-class TestAudioCueService implements Partial<IAudioCueService> {
-	async playAudioCue(cue: AudioCue): Promise<void> {
+class TestaccessibilitySignalService implements Partial<IAccessibilitySignalService> {
+	async playSignal(cue: AccessibilitySignal): Promise<void> {
 		return;
 	}
 }
@@ -74,13 +74,13 @@ suite('Task Terminal Status', () => {
 	let testTerminal: ITerminalInstance;
 	let testTask: Task;
 	let problemCollector: AbstractProblemCollector;
-	let audioCueService: TestAudioCueService;
+	let accessibilitySignalService: TestaccessibilitySignalService;
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	setup(() => {
 		instantiationService = store.add(new TestInstantiationService());
 		taskService = new TestTaskService();
-		audioCueService = new TestAudioCueService();
-		taskTerminalStatus = store.add(new TaskTerminalStatus(taskService as any, audioCueService as any));
+		accessibilitySignalService = new TestaccessibilitySignalService();
+		taskTerminalStatus = store.add(new TaskTerminalStatus(taskService as any, accessibilitySignalService as any));
 		testTerminal = store.add(instantiationService.createInstance(TestTerminal) as any);
 		testTask = instantiationService.createInstance(TestTask) as unknown as Task;
 		problemCollector = store.add(instantiationService.createInstance(TestProblemCollector) as any);

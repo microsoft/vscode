@@ -20,7 +20,7 @@ import type { IDecoration, Terminal } from '@xterm/xterm';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
+import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 import { IActionWidgetService } from 'vs/platform/actionWidget/browser/actionWidget';
 import { ActionSet } from 'vs/platform/actionWidget/common/actionWidget';
 import { getLinesForCommand } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
@@ -36,8 +36,12 @@ import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 
+const enum QuickFixDecorationSelector {
+	QuickFix = 'quick-fix'
+}
+
 const quickFixClasses = [
-	DecorationSelector.QuickFix,
+	QuickFixDecorationSelector.QuickFix,
 	DecorationSelector.Codicon,
 	DecorationSelector.CommandDecoration,
 	DecorationSelector.XtermDecoration
@@ -77,7 +81,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		@ITerminalQuickFixService private readonly _quickFixService: ITerminalQuickFixService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IAudioCueService private readonly _audioCueService: IAudioCueService,
+		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
@@ -114,19 +118,15 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 			return;
 		}
 
-		// TODO: What's documentation do? Need a vscode command?
 		const actions = this._currentRenderContext.quickFixes.map(f => new TerminalQuickFixItem(f, f.type, f.source, f.label, f.kind));
-		const documentation = this._currentRenderContext.quickFixes.map(f => { return { id: f.source, title: f.label, tooltip: f.source }; });
 		const actionSet = {
-			// TODO: Documentation and actions are separate?
-			documentation,
 			allActions: actions,
 			hasAutoFix: false,
 			hasAIFix: false,
 			allAIFixes: false,
 			validActions: actions,
 			dispose: () => { }
-		} as ActionSet<TerminalQuickFixItem>;
+		} satisfies ActionSet<TerminalQuickFixItem>;
 		const delegate = {
 			onSelect: async (fix: TerminalQuickFixItem) => {
 				fix.action?.run();
@@ -268,7 +268,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 				height: rect.height
 			};
 
-			if (e.classList.contains(DecorationSelector.QuickFix)) {
+			if (e.classList.contains(QuickFixDecorationSelector.QuickFix)) {
 				if (this._currentRenderContext) {
 					this._currentRenderContext.anchor = anchor;
 				}
@@ -284,7 +284,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 			e.classList.add(...ThemeIcon.asClassNameArray(isExplainOnly ? Codicon.sparkle : Codicon.lightBulb));
 
 			updateLayout(this._configurationService, e);
-			this._audioCueService.playAudioCue(AudioCue.terminalQuickFix);
+			this._accessibilitySignalService.playSignal(AccessibilitySignal.terminalQuickFix);
 
 			const parentElement = (e.closest('.xterm') as HTMLElement).parentElement;
 			if (!parentElement) {

@@ -38,8 +38,6 @@ import 'vs/workbench/services/textfile/electron-sandbox/nativeTextFileService';
 import 'vs/workbench/services/dialogs/electron-sandbox/fileDialogService';
 import 'vs/workbench/services/workspaces/electron-sandbox/workspacesService';
 import 'vs/workbench/services/menubar/electron-sandbox/menubarService';
-import 'vs/workbench/services/issue/electron-sandbox/issueMainService';
-import 'vs/workbench/services/issue/electron-sandbox/issueService';
 import 'vs/workbench/services/update/electron-sandbox/updateService';
 import 'vs/workbench/services/url/electron-sandbox/urlService';
 import 'vs/workbench/services/lifecycle/electron-sandbox/lifecycleService';
@@ -85,15 +83,13 @@ import 'vs/workbench/services/userDataSync/browser/userDataSyncEnablementService
 import 'vs/workbench/services/extensions/electron-sandbox/nativeExtensionService';
 import 'vs/platform/userDataProfile/electron-sandbox/userDataProfileStorageService';
 import 'vs/workbench/services/auxiliaryWindow/electron-sandbox/auxiliaryWindowService';
+import 'vs/platform/extensionManagement/electron-sandbox/extensionsProfileScannerService';
 
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IUserDataInitializationService, UserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
-import { IExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
-import { ExtensionsProfileScannerService } from 'vs/platform/extensionManagement/electron-sandbox/extensionsProfileScannerService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 
 registerSingleton(IUserDataInitializationService, new SyncDescriptor(UserDataInitializationService, [[]], true));
-registerSingleton(IExtensionsProfileScannerService, ExtensionsProfileScannerService, InstantiationType.Delayed);
 
 
 //#endregion
@@ -121,6 +117,9 @@ import 'vs/workbench/contrib/extensions/electron-sandbox/extensions.contribution
 
 // Issues
 import 'vs/workbench/contrib/issue/electron-sandbox/issue.contribution';
+
+// Process
+import 'vs/workbench/contrib/issue/electron-sandbox/process.contribution';
 
 // Remote
 import 'vs/workbench/contrib/remote/electron-sandbox/remote.contribution';

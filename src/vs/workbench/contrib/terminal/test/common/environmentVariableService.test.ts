@@ -26,8 +26,6 @@ suite('EnvironmentVariable - EnvironmentVariableService', () => {
 
 	let instantiationService: TestInstantiationService;
 	let environmentVariableService: TestEnvironmentVariableService;
-	let storageService: TestStorageService;
-	let historyService: TestHistoryService;
 	let changeExtensionsEvent: Emitter<void>;
 
 	setup(() => {
@@ -35,9 +33,8 @@ suite('EnvironmentVariable - EnvironmentVariableService', () => {
 
 		instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IExtensionService, TestExtensionService);
-		storageService = store.add(new TestStorageService());
-		historyService = new TestHistoryService();
-		instantiationService.stub(IStorageService, storageService);
+		instantiationService.stub(IStorageService, store.add(new TestStorageService()));
+		instantiationService.stub(IHistoryService, new TestHistoryService());
 		instantiationService.stub(IExtensionService, TestExtensionService);
 		instantiationService.stub(IExtensionService, 'onDidChangeExtensions', changeExtensionsEvent.event);
 		instantiationService.stub(IExtensionService, 'extensions', [
@@ -45,7 +42,6 @@ suite('EnvironmentVariable - EnvironmentVariableService', () => {
 			{ identifier: { value: 'ext2' } },
 			{ identifier: { value: 'ext3' } }
 		]);
-		instantiationService.stub(IHistoryService, historyService);
 
 		environmentVariableService = store.add(instantiationService.createInstance(TestEnvironmentVariableService));
 	});

@@ -250,7 +250,6 @@ function isNameTakenInFile(node, name) {
 const skippedExportMangledFiles = [
     // Build
     'css.build',
-    'nls.build',
     // Monaco
     'editorCommon',
     'editorOptions',

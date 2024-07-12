@@ -36,9 +36,9 @@ import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { editorFindMatchHighlight, editorFindMatchHighlightBorder } from 'vs/platform/theme/common/colorRegistry';
 import { isHighContrast } from 'vs/platform/theme/common/theme';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { CodeActionAutoApply, CodeActionFilter, CodeActionItem, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource } from '../common/types';
-import { CodeActionModel, CodeActionsState } from './codeActionModel';
-
+import { CodeActionAutoApply, CodeActionFilter, CodeActionItem, CodeActionKind, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/common/types';
+import { CodeActionModel, CodeActionsState } from 'vs/editor/contrib/codeAction/browser/codeActionModel';
+import { HierarchicalKind } from 'vs/base/common/hierarchicalKind';
 
 interface IActionShowOptions {
 	readonly includeDisabledActions?: boolean;
@@ -77,7 +77,7 @@ export class CodeActionController extends Disposable implements IEditorContribut
 		@ICommandService private readonly _commandService: ICommandService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
 
@@ -112,12 +112,7 @@ export class CodeActionController extends Disposable implements IEditorContribut
 					command.arguments[0] = { ...command.arguments[0], autoSend: false };
 				}
 			}
-			try {
-				this._lightBulbWidget.value?.hide();
-				await this._applyCodeAction(actionItem, false, false, ApplyCodeActionReason.FromAILightbulb);
-			} finally {
-				actions.dispose();
-			}
+			await this._applyCodeAction(actionItem, false, false, ApplyCodeActionReason.FromAILightbulb);
 			return;
 		}
 		await this.showCodeActionList(actions, at, { includeDisabledActions: false, fromLightbulb: true });
@@ -162,11 +157,12 @@ export class CodeActionController extends Disposable implements IEditorContribut
 
 	public hideLightBulbWidget(): void {
 		this._lightBulbWidget.rawValue?.hide();
+		this._lightBulbWidget.rawValue?.gutterHide();
 	}
 
 	private async update(newState: CodeActionsState.State): Promise<void> {
 		if (newState.type !== CodeActionsState.Type.Triggered) {
-			this._lightBulbWidget.rawValue?.hide();
+			this.hideLightBulbWidget();
 			return;
 		}
 
@@ -191,7 +187,7 @@ export class CodeActionController extends Disposable implements IEditorContribut
 				const validActionToApply = this.tryGetValidActionToApply(newState.trigger, actions);
 				if (validActionToApply) {
 					try {
-						this._lightBulbWidget.value?.hide();
+						this.hideLightBulbWidget();
 						await this._applyCodeAction(validActionToApply, false, false, ApplyCodeActionReason.FromCodeActions);
 					} finally {
 						actions.dispose();
@@ -284,15 +280,11 @@ export class CodeActionController extends Disposable implements IEditorContribut
 
 		const delegate: IActionListDelegate<CodeActionItem> = {
 			onSelect: async (action: CodeActionItem, preview?: boolean) => {
-				try {
-					await this._applyCodeAction(action, /* retrigger */ true, !!preview, ApplyCodeActionReason.FromCodeActions);
-				} finally {
-					actions.dispose();
-				}
-				this._actionWidgetService.hide();
+				this._applyCodeAction(action, /* retrigger */ true, !!preview, options.fromLightbulb ? ApplyCodeActionReason.FromAILightbulb : ApplyCodeActionReason.FromCodeActions);
+				this._actionWidgetService.hide(false);
 				currentDecorations.clear();
 			},
-			onHide: () => {
+			onHide: (didCancel?) => {
 				this._editor?.focus();
 				currentDecorations.clear();
 			},
@@ -300,7 +292,24 @@ export class CodeActionController extends Disposable implements IEditorContribut
 				if (token.isCancellationRequested) {
 					return;
 				}
-				return { canPreview: !!action.action.edit?.edits.length };
+
+				let canPreview = false;
+				const actionKind = action.action.kind;
+
+				if (actionKind) {
+					const hierarchicalKind = new HierarchicalKind(actionKind);
+					const refactorKinds = [
+						CodeActionKind.RefactorExtract,
+						CodeActionKind.RefactorInline,
+						CodeActionKind.RefactorRewrite,
+						CodeActionKind.RefactorMove,
+						CodeActionKind.Source
+					];
+
+					canPreview = refactorKinds.some(refactorKind => refactorKind.contains(hierarchicalKind));
+				}
+
+				return { canPreview: canPreview || !!action.action.edit?.edits.length };
 			},
 			onFocus: (action: CodeActionItem | undefined) => {
 				if (action && action.action) {

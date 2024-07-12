@@ -30,6 +30,7 @@ import { localize } from 'vs/nls';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
+import { ICustomEditorLabelService } from 'vs/workbench/services/editor/common/customEditorLabelService';
 
 export interface NotebookEditorInputOptions {
 	startDirty?: boolean;
@@ -42,29 +43,17 @@ export interface NotebookEditorInputOptions {
 
 export class NotebookEditorInput extends AbstractResourceEditorInput {
 
-	private static EditorCache: Record<string, NotebookEditorInput> = {};
-
 	static getOrCreate(instantiationService: IInstantiationService, resource: URI, preferredResource: URI | undefined, viewType: string, options: NotebookEditorInputOptions = {}) {
-		const cacheId = `${resource.toString()}|${viewType}|${options._workingCopy?.typeId}`;
-		let editor = NotebookEditorInput.EditorCache[cacheId];
-
-		if (!editor) {
-			editor = instantiationService.createInstance(NotebookEditorInput, resource, preferredResource, viewType, options);
-			NotebookEditorInput.EditorCache[cacheId] = editor;
-
-			editor.onWillDispose(() => {
-				delete NotebookEditorInput.EditorCache[cacheId];
-			});
-		} else if (preferredResource) {
+		const editor = instantiationService.createInstance(NotebookEditorInput, resource, preferredResource, viewType, options);
+		if (preferredResource) {
 			editor.setPreferredResource(preferredResource);
 		}
-
 		return editor;
 	}
 
 	static readonly ID: string = 'workbench.input.notebook';
 
-	private _editorModelReference: IReference<IResolvedNotebookEditorModel> | null = null;
+	protected editorModelReference: IReference<IResolvedNotebookEditorModel> | null = null;
 	private _sideLoadedListener: IDisposable;
 	private _defaultDirtyState: boolean = false;
 
@@ -81,9 +70,10 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
 		@IExtensionService extensionService: IExtensionService,
 		@IEditorService editorService: IEditorService,
-		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService
+		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
+		@ICustomEditorLabelService customEditorLabelService: ICustomEditorLabelService
 	) {
-		super(resource, preferredResource, labelService, fileService, filesConfigurationService, textResourceConfigurationService);
+		super(resource, preferredResource, labelService, fileService, filesConfigurationService, textResourceConfigurationService, customEditorLabelService);
 		this._defaultDirtyState = !!options.startDirty;
 
 		// Automatically resolve this input when the "wanted" model comes to life via
@@ -115,8 +105,8 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 
 	override dispose() {
 		this._sideLoadedListener.dispose();
-		this._editorModelReference?.dispose();
-		this._editorModelReference = null;
+		this.editorModelReference?.dispose();
+		this.editorModelReference = null;
 		super.dispose();
 	}
 
@@ -135,8 +125,8 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 			capabilities |= EditorInputCapabilities.Untitled;
 		}
 
-		if (this._editorModelReference) {
-			if (this._editorModelReference.object.isReadonly()) {
+		if (this.editorModelReference) {
+			if (this.editorModelReference.object.isReadonly()) {
 				capabilities |= EditorInputCapabilities.Readonly;
 			}
 		} else {
@@ -153,7 +143,7 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 	}
 
 	override getDescription(verbosity = Verbosity.MEDIUM): string | undefined {
-		if (!this.hasCapability(EditorInputCapabilities.Untitled) || this._editorModelReference?.object.hasAssociatedFilePath()) {
+		if (!this.hasCapability(EditorInputCapabilities.Untitled) || this.editorModelReference?.object.hasAssociatedFilePath()) {
 			return super.getDescription(verbosity);
 		}
 
@@ -161,21 +151,21 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 	}
 
 	override isReadonly(): boolean | IMarkdownString {
-		if (!this._editorModelReference) {
+		if (!this.editorModelReference) {
 			return this.filesConfigurationService.isReadonly(this.resource);
 		}
-		return this._editorModelReference.object.isReadonly();
+		return this.editorModelReference.object.isReadonly();
 	}
 
 	override isDirty() {
-		if (!this._editorModelReference) {
+		if (!this.editorModelReference) {
 			return this._defaultDirtyState;
 		}
-		return this._editorModelReference.object.isDirty();
+		return this.editorModelReference.object.isDirty();
 	}
 
 	override isSaving(): boolean {
-		const model = this._editorModelReference?.object;
+		const model = this.editorModelReference?.object;
 		if (!model || !model.isDirty() || model.hasErrorState || this.hasCapability(EditorInputCapabilities.Untitled)) {
 			return false; // require the model to be dirty, file-backed and not in an error state
 		}
@@ -185,12 +175,12 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 	}
 
 	override async save(group: GroupIdentifier, options?: ISaveOptions): Promise<EditorInput | IUntypedEditorInput | undefined> {
-		if (this._editorModelReference) {
+		if (this.editorModelReference) {
 
 			if (this.hasCapability(EditorInputCapabilities.Untitled)) {
 				return this.saveAs(group, options);
 			} else {
-				await this._editorModelReference.object.save(options);
+				await this.editorModelReference.object.save(options);
 			}
 
 			return this;
@@ -200,7 +190,7 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 	}
 
 	override async saveAs(group: GroupIdentifier, options?: ISaveOptions): Promise<IUntypedEditorInput | undefined> {
-		if (!this._editorModelReference) {
+		if (!this.editorModelReference) {
 			return undefined;
 		}
 
@@ -210,9 +200,9 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 			return undefined;
 		}
 
-		const pathCandidate = this.hasCapability(EditorInputCapabilities.Untitled) ? await this._suggestName(provider, this.labelService.getUriBasenameLabel(this.resource)) : this._editorModelReference.object.resource;
+		const pathCandidate = this.hasCapability(EditorInputCapabilities.Untitled) ? await this._suggestName(provider, this.labelService.getUriBasenameLabel(this.resource)) : this.editorModelReference.object.resource;
 		let target: URI | undefined;
-		if (this._editorModelReference.object.hasAssociatedFilePath()) {
+		if (this.editorModelReference.object.hasAssociatedFilePath()) {
 			target = pathCandidate;
 		} else {
 			target = await this._fileDialogService.pickFileToSave(pathCandidate, options?.availableFileSystems);
@@ -241,7 +231,7 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 			throw new Error(`File name ${target} is not supported by ${provider.providerDisplayName}.\n\nPlease make sure the file name matches following patterns:\n${patterns}`);
 		}
 
-		return await this._editorModelReference.object.saveAs(target);
+		return await this.editorModelReference.object.saveAs(target);
 	}
 
 	private async _suggestName(provider: NotebookProviderInfo, suggestedFilename: string) {
@@ -270,7 +260,7 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 
 	// called when users rename a notebook document
 	override async rename(group: GroupIdentifier, target: URI): Promise<IMoveResult | undefined> {
-		if (this._editorModelReference) {
+		if (this.editorModelReference) {
 			return { editor: { resource: target }, options: { override: this.viewType } };
 
 		}
@@ -278,8 +268,8 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 	}
 
 	override async revert(_group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
-		if (this._editorModelReference && this._editorModelReference.object.isDirty()) {
-			await this._editorModelReference.object.revert(options);
+		if (this.editorModelReference && this.editorModelReference.object.isDirty()) {
+			await this.editorModelReference.object.revert(options);
 		}
 	}
 
@@ -294,42 +284,43 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		// "other" loading anymore
 		this._sideLoadedListener.dispose();
 
-		if (!this._editorModelReference) {
-			const ref = await this._notebookModelResolverService.resolve(this.resource, this.viewType, this.ensureLimits(_options));
-			if (this._editorModelReference) {
+		if (!this.editorModelReference) {
+			const scratchpad = this.capabilities & EditorInputCapabilities.Scratchpad ? true : false;
+			const ref = await this._notebookModelResolverService.resolve(this.resource, this.viewType, { limits: this.ensureLimits(_options), scratchpad });
+			if (this.editorModelReference) {
 				// Re-entrant, double resolve happened. Dispose the addition references and proceed
 				// with the truth.
 				ref.dispose();
-				return (<IReference<IResolvedNotebookEditorModel>>this._editorModelReference).object;
+				return (<IReference<IResolvedNotebookEditorModel>>this.editorModelReference).object;
 			}
-			this._editorModelReference = ref;
+			this.editorModelReference = ref;
 			if (this.isDisposed()) {
-				this._editorModelReference.dispose();
-				this._editorModelReference = null;
+				this.editorModelReference.dispose();
+				this.editorModelReference = null;
 				return null;
 			}
-			this._register(this._editorModelReference.object.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
-			this._register(this._editorModelReference.object.onDidChangeReadonly(() => this._onDidChangeCapabilities.fire()));
-			this._register(this._editorModelReference.object.onDidRevertUntitled(() => this.dispose()));
-			if (this._editorModelReference.object.isDirty()) {
+			this._register(this.editorModelReference.object.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
+			this._register(this.editorModelReference.object.onDidChangeReadonly(() => this._onDidChangeCapabilities.fire()));
+			this._register(this.editorModelReference.object.onDidRevertUntitled(() => this.dispose()));
+			if (this.editorModelReference.object.isDirty()) {
 				this._onDidChangeDirty.fire();
 			}
 		} else {
-			this._editorModelReference.object.load({ limits: this.ensureLimits(_options) });
+			this.editorModelReference.object.load({ limits: this.ensureLimits(_options) });
 		}
 
 		if (this.options._backupId) {
-			const info = await this._notebookService.withNotebookDataProvider(this._editorModelReference.object.notebook.viewType);
+			const info = await this._notebookService.withNotebookDataProvider(this.editorModelReference.object.notebook.viewType);
 			if (!(info instanceof SimpleNotebookProviderInfo)) {
 				throw new Error('CANNOT open file notebook with this provider');
 			}
 
 			const data = await info.serializer.dataToNotebook(VSBuffer.fromString(JSON.stringify({ __webview_backup: this.options._backupId })));
-			this._editorModelReference.object.notebook.applyEdits([
+			this.editorModelReference.object.notebook.applyEdits([
 				{
 					editType: CellEditType.Replace,
 					index: 0,
-					count: this._editorModelReference.object.notebook.length,
+					count: this.editorModelReference.object.notebook.length,
 					cells: data.cells
 				}
 			], true, undefined, () => undefined, undefined, false);
@@ -341,7 +332,7 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 			}
 		}
 
-		return this._editorModelReference.object;
+		return this.editorModelReference.object;
 	}
 
 	override toUntyped(): IResourceEditorInput {
@@ -373,4 +364,10 @@ export function isCompositeNotebookEditorInput(thing: unknown): thing is ICompos
 		&& typeof thing === 'object'
 		&& Array.isArray((<ICompositeNotebookEditorInput>thing).editorInputs)
 		&& ((<ICompositeNotebookEditorInput>thing).editorInputs.every(input => input instanceof NotebookEditorInput));
+}
+
+export function isNotebookEditorInput(thing: unknown): thing is NotebookEditorInput {
+	return !!thing
+		&& typeof thing === 'object'
+		&& thing instanceof NotebookEditorInput;
 }
