@@ -1888,6 +1888,11 @@ export namespace TestMessage {
 			actual: message.actualOutput,
 			contextValue: message.contextValue,
 			location: message.location && ({ range: Range.from(message.location.range), uri: message.location.uri }),
+			stackTrace: (message as vscode.TestMessage2).stackTrace?.map(s => ({
+				label: s.label,
+				position: s.position && Position.from(s.position),
+				uri: s.file && URI.revive(s.file).toJSON(),
+			})),
 		};
 	}
 
@@ -2354,7 +2359,8 @@ export namespace ChatResponseConfirmationPart {
 			kind: 'confirmation',
 			title: part.title,
 			message: part.message,
-			data: part.data
+			data: part.data,
+			buttons: part.buttons
 		};
 	}
 }

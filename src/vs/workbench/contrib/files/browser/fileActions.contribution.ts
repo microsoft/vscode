@@ -417,7 +417,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 });
 
 MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, {
-	group: '3_compare',
+	group: '1_compare',
 	order: 30,
 	command: compareSelectedCommand,
 	when: ContextKeyExpr.and(ResourceContextKey.HasResource, TwoEditorsSelectedInGroupContext, SelectedEditorsInGroupFileOrUntitledResourceContextKey)

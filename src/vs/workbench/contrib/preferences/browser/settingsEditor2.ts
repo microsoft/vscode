@@ -218,6 +218,9 @@ export class SettingsEditor2 extends EditorPane {
 	private dimension!: DOM.Dimension;
 
 	private installedExtensionIds: string[] = [];
+	private dismissedExtensionSettings: string[] = [];
+
+	private readonly DISMISSED_EXTENSION_SETTINGS_STORAGE_KEY = 'settingsEditor2.dismissedExtensionSettings';
 
 	private readonly inputChangeListener: MutableDisposable<IDisposable>;
 
@@ -265,6 +268,8 @@ export class SettingsEditor2 extends EditorPane {
 
 		this.editorMemento = this.getEditorMemento<ISettingsEditor2State>(editorGroupService, textResourceConfigurationService, SETTINGS_EDITOR_STATE_KEY);
 
+		this.dismissedExtensionSettings = this.storageService.get(this.DISMISSED_EXTENSION_SETTINGS_STORAGE_KEY, StorageScope.PROFILE, '').split('\t');
+
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.source !== ConfigurationTarget.DEFAULT) {
 				this.onConfigUpdate(e.affectedKeys);
@@ -284,6 +289,13 @@ export class SettingsEditor2 extends EditorPane {
 			if (e.default.length && this.currentSettingsModel) {
 				this.updateElementsByKey(new Set(e.default));
 			}
+		}));
+
+		this._register(extensionManagementService.onDidInstallExtensions(() => {
+			this.refreshInstalledExtensionsList();
+		}));
+		this._register(extensionManagementService.onDidUninstallExtension(() => {
+			this.refreshInstalledExtensionsList();
 		}));
 
 		this.modelDisposables = this._register(new DisposableStore());
@@ -399,7 +411,7 @@ export class SettingsEditor2 extends EditorPane {
 	private async refreshInstalledExtensionsList(): Promise<void> {
 		const installedExtensions = await this.extensionManagementService.getInstalled();
 		this.installedExtensionIds = installedExtensions
-			.filter(ext => ext.manifest && ext.manifest.contributes && ext.manifest.contributes.configuration)
+			.filter(ext => ext.manifest.contributes?.configuration)
 			.map(ext => ext.identifier.id);
 	}
 
@@ -679,6 +691,16 @@ export class SettingsEditor2 extends EditorPane {
 		this.onConfigUpdate(undefined, true);
 	}
 
+	private onDidDismissExtensionSetting(extensionId: string): void {
+		if (this.dismissedExtensionSettings.includes(extensionId)) {
+			return;
+		}
+
+		this.dismissedExtensionSettings.push(extensionId);
+		this.storageService.store(this.DISMISSED_EXTENSION_SETTINGS_STORAGE_KEY, this.dismissedExtensionSettings.join('\t'), StorageScope.PROFILE, StorageTarget.USER);
+		this.onConfigUpdate(undefined, true);
+	}
+
 	private onDidClickSetting(evt: ISettingLinkClickEvent, recursed?: boolean): void {
 		const targetElement = this.currentSettingsModel.getElementsByName(evt.targetKey)?.[0];
 		let revealFailed = false;
@@ -916,6 +938,7 @@ export class SettingsEditor2 extends EditorPane {
 	private createSettingsTree(container: HTMLElement): void {
 		this.settingRenderers = this._register(this.instantiationService.createInstance(SettingTreeRenderers));
 		this._register(this.settingRenderers.onDidChangeSetting(e => this.onDidChangeSetting(e.key, e.value, e.type, e.manualReset, e.scope)));
+		this._register(this.settingRenderers.onDidDismissExtensionSetting((e) => this.onDidDismissExtensionSetting(e)));
 		this._register(this.settingRenderers.onDidOpenSettings(settingKey => {
 			this.openSettingsFile({ revealSetting: { key: settingKey, edit: true } });
 		}));
@@ -1210,43 +1233,6 @@ export class SettingsEditor2 extends EditorPane {
 		});
 	}
 
-	private addOrRemoveManageExtensionSetting(setting: ISetting, extension: IGalleryExtension, groups: ISettingsGroup[]): ISettingsGroup | undefined {
-		const matchingGroups = groups.filter(g => {
-			const lowerCaseId = g.extensionInfo?.id.toLowerCase();
-			return (lowerCaseId === setting.stableExtensionId!.toLowerCase() ||
-				lowerCaseId === setting.prereleaseExtensionId!.toLowerCase());
-		});
-
-		const extensionId = setting.displayExtensionId!;
-		const extensionInstalled = this.installedExtensionIds.includes(extensionId);
-		if (!matchingGroups.length && !extensionInstalled) {
-			// Only show the recommendation when the extension hasn't been installed.
-			const newGroup: ISettingsGroup = {
-				sections: [{
-					settings: [setting],
-				}],
-				id: extensionId,
-				title: setting.extensionGroupTitle!,
-				titleRange: nullRange,
-				range: nullRange,
-				extensionInfo: {
-					id: extensionId,
-					displayName: extension?.displayName,
-				}
-			};
-			groups.push(newGroup);
-			return newGroup;
-		} else if (matchingGroups.length >= 2 || extensionInstalled) {
-			// Remove the group with the manage extension setting.
-			const matchingGroupIndex = matchingGroups.findIndex(group =>
-				group.sections.length === 1 && group.sections[0].settings.length === 1 && group.sections[0].settings[0].displayExtensionId);
-			if (matchingGroupIndex !== -1) {
-				groups.splice(matchingGroupIndex, 1);
-			}
-		}
-		return undefined;
-	}
-
 	private createSettingsOrderByTocIndex(resolvedSettingsRoot: ITOCEntry<ISetting>): Map<string, number> {
 		const index = new Map<string, number>();
 		function indexSettings(resolvedSettingsRoot: ITOCEntry<ISetting>, counter = 0): number {
@@ -1301,10 +1287,37 @@ export class SettingsEditor2 extends EditorPane {
 		}
 
 		const additionalGroups: ISettingsGroup[] = [];
+		let setAdditionalGroups = false;
 		const toggleData = await getExperimentalExtensionToggleData(this.extensionGalleryService, this.productService);
 		if (toggleData && groups.filter(g => g.extensionInfo).length) {
 			for (const key in toggleData.settingsEditorRecommendedExtensions) {
-				const extension = toggleData.recommendedExtensionsGalleryInfo[key];
+				const extension: IGalleryExtension = toggleData.recommendedExtensionsGalleryInfo[key];
+				if (!extension) {
+					continue;
+				}
+
+				const extensionId = extension.identifier.id;
+				const extensionInstalled = this.installedExtensionIds.includes(extensionId);
+
+				// Drill down to see whether the group and setting already exist
+				// and need to be removed.
+				const matchingGroupIndex = groups.findIndex(g =>
+					g.extensionInfo && g.extensionInfo!.id.toLowerCase() === extensionId.toLowerCase() &&
+					g.sections.length === 1 && g.sections[0].settings.length === 1 && g.sections[0].settings[0].displayExtensionId
+				);
+				if (extensionInstalled || this.dismissedExtensionSettings.includes(extensionId)) {
+					if (matchingGroupIndex !== -1) {
+						groups.splice(matchingGroupIndex, 1);
+						setAdditionalGroups = true;
+					}
+					continue;
+				}
+
+				if (matchingGroupIndex !== -1) {
+					continue;
+				}
+
+				// Create the entry. extensionInstalled is false in this case.
 				let manifest: IExtensionManifest | null = null;
 				try {
 					manifest = await this.extensionGalleryService.getManifest(extension, CancellationToken.None);
@@ -1322,7 +1335,8 @@ export class SettingsEditor2 extends EditorPane {
 					groupTitle = contributesConfiguration[0].title;
 				}
 
-				const extensionName = extension?.displayName ?? extension?.name ?? extension.identifier.id;
+				const recommendationInfo = toggleData.settingsEditorRecommendedExtensions[key];
+				const extensionName = extension.displayName ?? extension.name ?? extensionId;
 				const settingKey = `${key}.manageExtension`;
 				const setting: ISetting = {
 					range: nullRange,
@@ -1330,21 +1344,31 @@ export class SettingsEditor2 extends EditorPane {
 					keyRange: nullRange,
 					value: null,
 					valueRange: nullRange,
-					description: [extension?.description || ''],
+					description: [recommendationInfo.onSettingsEditorOpen?.descriptionOverride ?? extension.description],
 					descriptionIsMarkdown: false,
 					descriptionRanges: [],
-					title: extensionName,
 					scope: ConfigurationScope.WINDOW,
 					type: 'null',
-					displayExtensionId: extension.identifier.id,
-					prereleaseExtensionId: key,
-					stableExtensionId: key,
-					extensionGroupTitle: groupTitle ?? extensionName
+					displayExtensionId: extensionId,
+					extensionGroupTitle: groupTitle ?? extensionName,
+					categoryLabel: 'Extensions',
+					title: extensionName
 				};
-				const additionalGroup = this.addOrRemoveManageExtensionSetting(setting, extension, groups);
-				if (additionalGroup) {
-					additionalGroups.push(additionalGroup);
-				}
+				const additionalGroup: ISettingsGroup = {
+					sections: [{
+						settings: [setting],
+					}],
+					id: extensionId,
+					title: setting.extensionGroupTitle!,
+					titleRange: nullRange,
+					range: nullRange,
+					extensionInfo: {
+						id: extensionId,
+						displayName: extension.displayName,
+					}
+				};
+				additionalGroups.push(additionalGroup);
+				setAdditionalGroups = true;
 			}
 		}
 
@@ -1354,7 +1378,7 @@ export class SettingsEditor2 extends EditorPane {
 		const commonlyUsed = resolveSettingsTree(commonlyUsedDataToUse, groups, this.logService);
 		resolvedSettingsRoot.children!.unshift(commonlyUsed.tree);
 
-		if (toggleData) {
+		if (toggleData && setAdditionalGroups) {
 			// Add the additional groups to the model to help with searching.
 			this.defaultSettingsEditorModel.setAdditionalGroups(additionalGroups);
 		}
@@ -1408,9 +1432,7 @@ export class SettingsEditor2 extends EditorPane {
 				keys.forEach(key => this.settingsTreeModel.updateElementsByName(key));
 			}
 
-			// Attempt to render the tree once rather than
-			// once for each key to avoid redundant calls to this.refreshTree()
-			this.renderTree();
+			keys.forEach(key => this.renderTree(key));
 		} else {
 			this.renderTree();
 		}
@@ -1450,7 +1472,6 @@ export class SettingsEditor2 extends EditorPane {
 					// update `list`s live, as they have a separate "submit edit" step built in before this
 					(focusedSetting.parentElement && !focusedSetting.parentElement.classList.contains('setting-item-list'))
 				) {
-
 					this.updateModifiedLabelForKey(key);
 					this.scheduleRefresh(focusedSetting, key);
 					return;
@@ -1466,8 +1487,10 @@ export class SettingsEditor2 extends EditorPane {
 		if (key) {
 			const elements = this.currentSettingsModel.getElementsByName(key);
 			if (elements && elements.length) {
-				// TODO https://github.com/microsoft/vscode/issues/57360
-				this.refreshTree();
+				if (elements.length >= 2) {
+					console.warn('More than one setting with key ' + key + ' found');
+				}
+				this.refreshSingleElement(elements[0]);
 			} else {
 				// Refresh requested for a key that we don't know about
 				return;
@@ -1481,6 +1504,12 @@ export class SettingsEditor2 extends EditorPane {
 
 	private contextViewFocused(): boolean {
 		return !!DOM.findParentWithClass(<HTMLElement>this.rootElement.ownerDocument.activeElement, 'context-view');
+	}
+
+	private refreshSingleElement(element: SettingsTreeSettingElement): void {
+		if (this.isVisible()) {
+			this.settingsTree.rerender(element);
+		}
 	}
 
 	private refreshTree(): void {

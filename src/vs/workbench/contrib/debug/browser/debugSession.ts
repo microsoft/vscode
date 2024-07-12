@@ -45,6 +45,7 @@ import { isDefined } from 'vs/base/common/types';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 const TRIGGERED_BREAKPOINT_MAX_DELAY = 1500;
 
@@ -117,6 +118,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 		@ILogService private readonly logService: ILogService,
 		@ITestService private readonly testService: ITestService,
 		@ITestResultService testResultService: ITestResultService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 	) {
 		this._options = options || {};
 		this.parentSession = this._options.parentSession;
@@ -238,7 +240,9 @@ export class DebugSession implements IDebugSession, IDisposable {
 
 	get autoExpandLazyVariables(): boolean {
 		// This tiny helper avoids converting the entire debug model to use service injection
-		return this.configurationService.getValue<IDebugConfiguration>('debug').autoExpandLazyVariables;
+		const screenReaderOptimized = this.accessibilityService.isScreenReaderOptimized();
+		const value = this.configurationService.getValue<IDebugConfiguration>('debug').autoExpandLazyVariables;
+		return value === 'auto' && screenReaderOptimized || value === 'on';
 	}
 
 	setConfiguration(configuration: { resolved: IConfig; unresolved: IConfig | undefined }) {

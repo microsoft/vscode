@@ -855,7 +855,9 @@ export class UninstallAction extends ExtensionAction {
 			await this.extensionsWorkbenchService.uninstall(this.extension);
 			alert(localize('uninstallExtensionComplete', "Please reload Visual Studio Code to complete the uninstallation of the extension {0}.", this.extension.displayName));
 		} catch (error) {
-			this.dialogService.error(getErrorMessage(error));
+			if (!isCancellationError(error)) {
+				this.dialogService.error(getErrorMessage(error));
+			}
 		}
 	}
 }
