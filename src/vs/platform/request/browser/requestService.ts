@@ -40,6 +40,10 @@ export class RequestService extends AbstractRequestService implements IRequestSe
 		return undefined; // not implemented in the web
 	}
 
+	async lookupKerberosAuthorization(url: string): Promise<string | undefined> {
+		return undefined; // not implemented in the web
+	}
+
 	async loadCertificates(): Promise<string[]> {
 		return []; // not implemented in the web
 	}
