@@ -172,6 +172,10 @@ const configuration: IConfigurationNode = {
 			description: localize('verbosity.diffEditorActive', 'Indicate when a diff editor becomes the active editor.'),
 			...baseVerbosityProperty
 		},
+		[AccessibilityVerbositySettingId.DebugConsole]: {
+			description: localize('verbosity.debugConsole', 'Provide information about how to access the debug console accessibility help dialog when the debug console is focused.'),
+			...baseVerbosityProperty
+		},
 		[AccessibilityWorkbenchSettingId.AccessibleViewCloseOnKeyPress]: {
 			markdownDescription: localize('terminal.integrated.accessibleView.closeOnKeyPress', "On keypress, close the Accessible View and focus the element from which it was invoked."),
 			type: 'boolean',

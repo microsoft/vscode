@@ -29,6 +29,7 @@ export const enum AccessibleViewProviderId {
 	EmptyEditorHint = 'emptyEditorHint',
 	Comments = 'comments',
 	DebugConsole = 'debugConsole',
+	DebugConsoleHelp = 'debugConsole-help',
 }
 
 export const enum AccessibleViewType {

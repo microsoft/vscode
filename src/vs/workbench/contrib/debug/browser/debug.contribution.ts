@@ -59,6 +59,7 @@ import { COPY_NOTEBOOK_VARIABLE_VALUE_ID, COPY_NOTEBOOK_VARIABLE_VALUE_LABEL } f
 import { launchSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import './debugSettingMigration';
+import { DebugAccessibilityHelp } from 'vs/workbench/contrib/debug/browser/debugAccessibilityHelp';
 
 const debugCategory = nls.localize('debugCategory', "Debug");
 registerColors();
@@ -643,3 +644,4 @@ configurationRegistry.registerConfiguration({
 });
 
 AccessibleViewRegistry.register(new DebugAccessibleView());
+AccessibleViewRegistry.register(new DebugAccessibilityHelp());
