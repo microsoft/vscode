@@ -598,7 +598,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 	private readonly extensionsGallerySearchUrl: string | undefined;
 	private readonly extensionsControlUrl: string | undefined;
 
-	private readonly commonHeadersPromise: Promise<IStringDictionary<string>>;
+	private readonly commonHeadersPromise: Promise<IHeaders>;
 	private readonly extensionsEnabledWithApiProposalVersion: string[];
 
 	constructor(
@@ -1022,9 +1022,9 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 				return {
 					galleryExtensions,
 					total,
-					context: {
+					context: context.res.headers['activityid'] ? {
 						[ACTIVITY_HEADER_NAME]: context.res.headers['activityid']
-					}
+					} : {}
 				};
 			}
 			return { galleryExtensions: [], total };
