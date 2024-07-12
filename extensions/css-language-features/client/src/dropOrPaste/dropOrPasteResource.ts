@@ -5,8 +5,7 @@
 
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { getDocumentDir } from '../document';
-import { Mimes, Schemes } from './shared';
+import { getDocumentDir, Mimes, Schemes } from './shared';
 import { UriList } from './uriList';
 
 class DropOrPasteResourceProvider implements vscode.DocumentDropEditProvider, vscode.DocumentPasteEditProvider {
