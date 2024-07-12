@@ -13,10 +13,6 @@ import { IAccessibleViewImplentation } from 'vs/platform/accessibility/browser/a
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { SingleTextEdit } from 'vs/editor/common/core/textEdit';
-import { GhostTextOrReplacement } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
-import { InlineCompletionWithUpdatedRange } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsSource';
-import { SuggestItemInfo } from 'vs/editor/contrib/inlineCompletions/browser/suggestWidgetInlineCompletionProvider';
 import { InlineCompletionsModel } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsModel';
 
 export class InlineCompletionsAccessibleView implements IAccessibleViewImplentation {
@@ -32,12 +28,11 @@ export class InlineCompletionsAccessibleView implements IAccessibleViewImplentat
 		}
 
 		const model = InlineCompletionsController.get(editor)?.model.get();
-		const state = model?.state.get();
-		if (!model || !state) {
+		if (!model?.state.get()) {
 			return;
 		}
 
-		return new InlineCompletionsAccessibleViewContentProvider(editor, model, state);
+		return new InlineCompletionsAccessibleViewContentProvider(editor, model);
 	}
 }
 
@@ -47,7 +42,6 @@ class InlineCompletionsAccessibleViewContentProvider extends Disposable implemen
 	constructor(
 		private readonly _editor: ICodeEditor,
 		private readonly _model: InlineCompletionsModel,
-		private readonly _state: IGhostTextState,
 	) {
 		super();
 	}
@@ -57,19 +51,23 @@ class InlineCompletionsAccessibleViewContentProvider extends Disposable implemen
 	public readonly options = { language: this._editor.getModel()?.getLanguageId() ?? undefined, type: AccessibleViewType.View };
 
 	public provideContent(): string {
-		const lineText = this._model.textModel.getLineContent(this._state.primaryGhostText.lineNumber);
-		const ghostText = this._state.primaryGhostText.renderForScreenReader(lineText);
+		const state = this._model.state.get();
+		if (!state) {
+			return '';
+		}
+		const lineText = this._model.textModel.getLineContent(state.primaryGhostText.lineNumber);
+		const ghostText = state.primaryGhostText.renderForScreenReader(lineText);
 		if (!ghostText) {
 			return '';
 		}
 		return lineText + ghostText;
 	}
 	public next(): string | undefined {
-		this._model.next().then(() => this._onDidChangeContent.fire());
+		this._model.next().then(() => setTimeout(() => this._onDidChangeContent.fire(), 50));
 		return;
 	}
 	public previous(): string | undefined {
-		this._model.previous().then(() => this._onDidChangeContent.fire());
+		this._model.previous().then(() => setTimeout(() => this._onDidChangeContent.fire(), 50));
 		return;
 	}
 	public onClose(): void {
@@ -78,10 +76,3 @@ class InlineCompletionsAccessibleViewContentProvider extends Disposable implemen
 	}
 }
 
-interface IGhostTextState {
-	edits: readonly SingleTextEdit[];
-	primaryGhostText: GhostTextOrReplacement;
-	ghostTexts: readonly GhostTextOrReplacement[];
-	suggestItem: SuggestItemInfo | undefined;
-	inlineCompletion: InlineCompletionWithUpdatedRange | undefined;
-}
