@@ -372,9 +372,11 @@ extends:
 
             - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_WIN32, true)) }}:
               - job: Windows
-                timeoutInMinutes: 120
+                timeoutInMinutes: 150
                 variables:
-                  VSCODE_ARCH: x64
+                  - group: 'API Scan'
+                  - name: 'VSCODE_ARCH'
+                    value: x64
                 steps:
                   - template: build/azure-pipelines/win32/product-build-win32.yml@self
                     parameters:
