@@ -2422,6 +2422,7 @@ class TerminalInstanceDragAndDropController extends Disposable implements dom.ID
 interface ITerminalLabelTemplateProperties {
 	cwd?: string | null | undefined;
 	cwdFolder?: string | null | undefined;
+	workspaceFolderName?: string | null | undefined;
 	workspaceFolder?: string | null | undefined;
 	local?: string | null | undefined;
 	process?: string | null | undefined;
@@ -2471,6 +2472,7 @@ export class TerminalLabelComputer extends Disposable {
 		const templateProperties: ITerminalLabelTemplateProperties = {
 			cwd: instance.cwd || instance.initialCwd || '',
 			cwdFolder: '',
+			workspaceFolderName: instance.workspaceFolder?.name,
 			workspaceFolder: instance.workspaceFolder ? path.basename(instance.workspaceFolder.uri.fsPath) : undefined,
 			local: type === 'Local' ? terminalStrings.typeLocal : undefined,
 			process: instance.processName,
@@ -2481,6 +2483,7 @@ export class TerminalLabelComputer extends Disposable {
 				: (instance.fixedRows ? `\u2195${instance.fixedRows}` : ''),
 			separator: { label: this._terminalConfigurationService.config.tabs.separator }
 		};
+		templateProperties.workspaceFolderName = instance.workspaceFolder?.name ?? templateProperties.workspaceFolder;
 		labelTemplate = labelTemplate.trim();
 		if (!labelTemplate) {
 			return labelType === TerminalLabelType.Title ? (instance.processName || '') : '';
@@ -2508,7 +2511,6 @@ export class TerminalLabelComputer extends Disposable {
 				showCwd = cwdUri.fsPath.localeCompare(instance.workspaceFolder.uri.fsPath, undefined, { sensitivity: caseSensitive ? 'case' : 'base' }) !== 0;
 			}
 			if (showCwd) {
-
 				templateProperties.cwdFolder = path.basename(templateProperties.cwd);
 			}
 		}
