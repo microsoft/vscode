@@ -6,7 +6,7 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { getDocumentDir } from '../document';
-import { Mimes, QuoteTypes, Schemes, getQuoteTypeSetting } from './shared';
+import { Mimes, Schemes } from './shared';
 import { UriList } from './uriList';
 
 class DropOrPasteResourceProvider implements vscode.DocumentDropEditProvider, vscode.DocumentPasteEditProvider {
@@ -23,7 +23,7 @@ class DropOrPasteResourceProvider implements vscode.DocumentDropEditProvider, vs
 			return;
 		}
 
-		const snippet = await this.createUriListSnippet(document, uriList);
+		const snippet = await this.createUriListSnippet(uriList);
 		if (!snippet || token.isCancellationRequested) {
 			return;
 		}
@@ -48,7 +48,7 @@ class DropOrPasteResourceProvider implements vscode.DocumentDropEditProvider, vs
 			return;
 		}
 
-		const snippet = await this.createUriListSnippet(document, uriList);
+		const snippet = await this.createUriListSnippet(uriList);
 		if (!snippet || token.isCancellationRequested) {
 			return;
 		}
@@ -79,33 +79,18 @@ class DropOrPasteResourceProvider implements vscode.DocumentDropEditProvider, vs
 		return new UriList(uris.map(uri => ({ uri, str: uri.toString(true) })));
 	}
 
-	private async createUriListSnippet(document: vscode.TextDocument, uriList: UriList): Promise<{ readonly snippet: vscode.SnippetString; readonly label: string } | undefined> {
+	private async createUriListSnippet(uriList: UriList): Promise<{ readonly snippet: vscode.SnippetString; readonly label: string } | undefined> {
 		if (!uriList.entries.length) {
 			return;
 		}
-
-		const quoteType = getQuoteTypeSetting(document);
 
 		const snippet = new vscode.SnippetString();
 		for (let i = 0; i < uriList.entries.length; i++) {
 			const uri = uriList.entries[i];
 			const relativePath = getRelativePath(uri.uri);
-			const urlText = escapeForUrlFunction(relativePath ?? uri.str, quoteType);
+			const urlText = relativePath ?? uri.str;
 
-			switch (quoteType) {
-				case QuoteTypes.Single:
-					snippet.appendText(`url('${urlText}')`);
-					break;
-
-				case QuoteTypes.Double:
-					snippet.appendText(`url("${urlText}")`);
-					break;
-
-				case QuoteTypes.Default:
-					snippet.appendText(`url(${urlText})`);
-					break;
-			}
-
+			snippet.appendText(`url(${urlText})`);
 			if (i !== uriList.entries.length - 1) {
 				snippet.appendText(' ');
 			}
@@ -145,19 +130,6 @@ function getRelativePath(file: vscode.Uri): string | undefined {
 	}
 
 	return undefined;
-}
-
-function escapeForUrlFunction(value: string, quoteType: QuoteTypes): string {
-	switch (quoteType) {
-		case QuoteTypes.Single:
-			return value.replace(/'/g, '\\\'');
-
-		case QuoteTypes.Double:
-			return value.replace(/"/g, '\\"');
-
-		case QuoteTypes.Default:
-			return value;
-	}
 }
 
 export function registerDropOrPasteResourceSupport(selector: vscode.DocumentSelector): vscode.Disposable {

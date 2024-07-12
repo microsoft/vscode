@@ -360,16 +360,6 @@
             "scope": "resource",
             "default": null,
             "markdownDescription": "%css.format.maxPreserveNewLines.desc%"
-          },
-          "css.format.formattedFileQuoteType":{
-            "type": "string",
-            "scope": "resource",
-            "default": "single",
-            "enum": [
-              "single",
-              "double"
-            ],
-            "markdownDescription": "%css.format.formattedFileQuoteType.desc%"
           }
         }
       },
