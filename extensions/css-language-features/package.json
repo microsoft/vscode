@@ -361,18 +361,6 @@
             "default": null,
             "markdownDescription": "%css.format.maxPreserveNewLines.desc%"
           },
-          "css.format.formatPastedFiles": {
-            "type": "boolean",
-            "scope": "resource",
-            "default": false,
-            "markdownDescription": "%css.format.formatPastedFiles.desc%"
-          },
-          "css.format.formatDroppedFiles": {
-            "type": "boolean",
-            "scope": "resource",
-            "default": false,
-            "markdownDescription": "%css.format.formatDroppedFiles.desc%"
-          },
           "css.format.formattedFileQuoteType":{
             "type": "string",
             "scope": "resource",

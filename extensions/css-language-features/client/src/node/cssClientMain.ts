@@ -8,9 +8,7 @@ import { Disposable, DocumentSelector, ExtensionContext, extensions, l10n } from
 import { startClient, LanguageClientConstructor } from '../cssClient';
 import { ServerOptions, TransportKind, LanguageClientOptions, LanguageClient, BaseLanguageClient } from 'vscode-languageclient/node';
 import { TextDecoder } from 'util';
-import { registerDropIntoEditorSupport } from './dropIntoEditor';
-import { registerPasteIntoEditorSupport } from './pasteIntoEditor';
-import { registerPasteLinkIntoEditorSupport } from './pasteUrlIntoEditor';
+import { registerDropOrPasteResourceSupport } from './dropOrPaste/dropOrPasteResource';
 let client: BaseLanguageClient | undefined;
 
 // this method is called when vs code is activated
@@ -52,8 +50,6 @@ function registerCssLanguageFeatures(): Disposable {
 	const selector: DocumentSelector = { language: 'css', scheme: '*' };
 	return Disposable.from(
 		// Language features
-		registerDropIntoEditorSupport(selector),
-		registerPasteIntoEditorSupport(selector),
-		registerPasteLinkIntoEditorSupport(selector)
+		registerDropOrPasteResourceSupport(selector),
 	);
 }
