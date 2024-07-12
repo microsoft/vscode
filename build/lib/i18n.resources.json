@@ -59,6 +59,14 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/mappedEdits",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/markdown",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/comments",
 			"project": "vscode-workbench"
 		},
@@ -71,11 +79,19 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/multiDiffEditor",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/emmet",
 			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/services/assignment",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/auxiliaryWindow",
 			"project": "vscode-workbench"
 		},
 		{
@@ -207,6 +223,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/speech",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/surveys",
 			"project": "vscode-workbench"
 		},
@@ -311,7 +331,7 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/contrib/audioCues",
+			"name": "vs/workbench/contrib/accessibilitySignals",
 			"project": "vscode-workbench"
 		},
 		{
@@ -320,6 +340,10 @@
 		},
 		{
 			"name": "vs/workbench/contrib/bracketPairColorizer2Telemetry",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/scrollLocking",
 			"project": "vscode-workbench"
 		},
 		{
@@ -528,6 +552,14 @@
 		},
 		{
 			"name": "vs/workbench/services/secrets",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/accountEntitlements",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/authentication",
 			"project": "vscode-workbench"
 		}
 	]

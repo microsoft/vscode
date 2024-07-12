@@ -141,8 +141,8 @@ export interface INativeEnvironmentService extends IEnvironmentService {
 	extensionsDownloadLocation: URI;
 	builtinExtensionsPath: string;
 
-	// --- use keytar for credentials
-	disableKeytar?: boolean;
+	// --- use in-memory Secret Storage
+	useInMemorySecretStorage?: boolean;
 
 	crossOriginIsolated?: boolean;
 

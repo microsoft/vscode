@@ -14,7 +14,7 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 
 class NotebookKernelDetection extends Disposable implements IWorkbenchContribution {
 	private _detectionMap = new Map<string, IDisposable>();
-	private _localDisposableStore = this._register(new DisposableStore());
+	private readonly _localDisposableStore = this._register(new DisposableStore());
 
 	constructor(
 		@INotebookKernelService private readonly _notebookKernelService: INotebookKernelService,

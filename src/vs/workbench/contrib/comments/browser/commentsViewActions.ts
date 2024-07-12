@@ -48,7 +48,7 @@ export class CommentsFilters extends Disposable {
 	set showUnresolved(showUnresolved: boolean) {
 		if (this._showUnresolved.get() !== showUnresolved) {
 			this._showUnresolved.set(showUnresolved);
-			this._onDidChange.fire(<CommentsFiltersChangeEvent>{ showUnresolved: true });
+			this._onDidChange.fire({ showUnresolved: true });
 		}
 	}
 
@@ -59,7 +59,7 @@ export class CommentsFilters extends Disposable {
 	set showResolved(showResolved: boolean) {
 		if (this._showResolved.get() !== showResolved) {
 			this._showResolved.set(showResolved);
-			this._onDidChange.fire(<CommentsFiltersChangeEvent>{ showResolved: true });
+			this._onDidChange.fire({ showResolved: true });
 		}
 	}
 
@@ -123,7 +123,7 @@ registerAction2(class extends ViewAction<ICommentsView> {
 	constructor() {
 		super({
 			id: `workbench.actions.${COMMENTS_VIEW_ID}.toggleUnResolvedComments`,
-			title: localize('toggle unresolved', "Toggle Unresolved Comments"),
+			title: localize('toggle unresolved', "Show Unresolved"),
 			category: localize('comments', "Comments"),
 			toggled: {
 				condition: CONTEXT_KEY_SHOW_UNRESOLVED,
@@ -148,7 +148,7 @@ registerAction2(class extends ViewAction<ICommentsView> {
 	constructor() {
 		super({
 			id: `workbench.actions.${COMMENTS_VIEW_ID}.toggleResolvedComments`,
-			title: localize('toggle resolved', "Toggle Resolved Comments"),
+			title: localize('toggle resolved', "Show Resolved"),
 			category: localize('comments', "Comments"),
 			toggled: {
 				condition: CONTEXT_KEY_SHOW_RESOLVED,

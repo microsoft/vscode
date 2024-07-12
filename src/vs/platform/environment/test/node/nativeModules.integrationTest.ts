@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { isLinux, isWindows } from 'vs/base/common/platform';
+import assert from 'assert';
+import { isWindows } from 'vs/base/common/platform';
 import { flakySuite } from 'vs/base/test/common/testUtils';
 
 function testErrorMessage(module: string): string {
@@ -19,7 +19,7 @@ flakySuite('Native Modules (all platforms)', () => {
 	});
 
 	test('native-is-elevated', async () => {
-		const isElevated = await import('native-is-elevated');
+		const isElevated = (await import('native-is-elevated')).default;
 		assert.ok(typeof isElevated === 'function', testErrorMessage('native-is-elevated '));
 
 		const result = isElevated();
@@ -56,7 +56,12 @@ flakySuite('Native Modules (all platforms)', () => {
 	});
 
 	test('@vscode/sqlite3', async () => {
+		// ESM-comment-begin
 		const sqlite3 = await import('@vscode/sqlite3');
+		// ESM-comment-end
+		// ESM-uncomment-begin
+		// const { default: sqlite3 } = await import('@vscode/sqlite3');
+		// ESM-uncomment-end
 		assert.ok(typeof sqlite3.Database === 'function', testErrorMessage('@vscode/sqlite3'));
 	});
 
@@ -70,28 +75,6 @@ flakySuite('Native Modules (all platforms)', () => {
 			if (error.code !== 'MODULE_NOT_FOUND') {
 				throw error;
 			}
-		}
-	});
-});
-
-(isLinux ? suite.skip : suite)('Native Modules (Windows, macOS)', () => {
-
-	test('keytar', async () => {
-		const keytar = await import('keytar');
-		const name = `VSCode Test ${Math.floor(Math.random() * 1e9)}`;
-		try {
-			await keytar.setPassword(name, 'foo', 'bar');
-			assert.strictEqual(await keytar.findPassword(name), 'bar');
-			assert.strictEqual((await keytar.findCredentials(name)).length, 1);
-			assert.strictEqual(await keytar.getPassword(name, 'foo'), 'bar');
-			await keytar.deletePassword(name, 'foo');
-			assert.strictEqual(await keytar.getPassword(name, 'foo'), null);
-		} catch (err) {
-			try {
-				await keytar.deletePassword(name, 'foo'); // try to clean up
-			} catch { }
-
-			throw err;
 		}
 	});
 });

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { DiagnosticCollection, ExtHostDiagnostics } from 'vs/workbench/api/common/extHostDiagnostics';
 import { Diagnostic, DiagnosticSeverity, Range, DiagnosticRelatedInformation, Location } from 'vs/workbench/api/common/extHostTypes';
@@ -18,6 +18,7 @@ import { ExtUri, extUri } from 'vs/base/common/resources';
 import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 import { IExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('ExtHostDiagnostics', () => {
 
@@ -37,6 +38,8 @@ suite('ExtHostDiagnostics', () => {
 	const versionProvider = (uri: URI): number | undefined => {
 		return undefined;
 	};
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('disposeCheck', () => {
 
@@ -208,7 +211,7 @@ suite('ExtHostDiagnostics', () => {
 		let eventCount = 0;
 
 		const emitter = new Emitter<any>();
-		emitter.event(_ => eventCount += 1);
+		store.add(emitter.event(_ => eventCount += 1));
 		const collection = new DiagnosticCollection('test', 'test', 100, 100, versionProvider, extUri, new class extends DiagnosticsShape {
 			override $changeMany() {
 				changeCount += 1;
@@ -225,6 +228,7 @@ suite('ExtHostDiagnostics', () => {
 		collection.set(uri, [diag]);
 		assert.strictEqual(changeCount, 2);
 		assert.strictEqual(eventCount, 2);
+
 	});
 
 	test('diagnostics collection, tuples and undefined (small array), #15585', function () {

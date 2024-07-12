@@ -544,7 +544,7 @@ taskDefinitions.push(processTask);
 
 taskDefinitions.push({
 	$ref: '#/definitions/taskDescription'
-} as IJSONSchema);
+});
 
 const definitionsTaskRunnerConfigurationProperties = definitions.taskRunnerConfiguration.properties!;
 const tasks = definitionsTaskRunnerConfigurationProperties.tasks;

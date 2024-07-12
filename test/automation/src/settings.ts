@@ -8,8 +8,9 @@ import { Editors } from './editors';
 import { Code } from './code';
 import { QuickAccess } from './quickaccess';
 
-export class SettingsEditor {
+const SEARCH_BOX = '.settings-editor .suggest-input-container .monaco-editor textarea';
 
+export class SettingsEditor {
 	constructor(private code: Code, private editors: Editors, private editor: Editor, private quickaccess: QuickAccess) { }
 
 	/**
@@ -56,12 +57,13 @@ export class SettingsEditor {
 
 	async openUserSettingsUI(): Promise<void> {
 		await this.quickaccess.runCommand('workbench.action.openSettings2');
-		await this.code.waitForElement('.settings-editor');
+		await this.code.waitForActiveElement(SEARCH_BOX);
 	}
 
 	async searchSettingsUI(query: string): Promise<void> {
 		await this.openUserSettingsUI();
-		await this.code.waitAndClick('.settings-editor .suggest-input-container .monaco-editor textarea');
+
+		await this.code.waitAndClick(SEARCH_BOX);
 		if (process.platform === 'darwin') {
 			await this.code.dispatchKeybinding('cmd+a');
 		} else {

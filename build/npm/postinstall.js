@@ -36,6 +36,7 @@ function yarnInstall(dir, opts) {
 		...(opts ?? {}),
 		cwd: dir,
 		stdio: 'inherit',
+		shell: true
 	};
 
 	const raw = process.env['npm_config_argv'] || '{}';
@@ -85,22 +86,38 @@ for (let dir of dirs) {
 		continue;
 	}
 
+	let opts;
+
 	if (dir === 'build') {
+		const env = { ...process.env };
 		setupBuildYarnrc();
-		yarnInstall('build');
+		opts = { env };
+		if (process.env['CC']) { env['CC'] = 'gcc'; }
+		if (process.env['CXX']) { env['CXX'] = 'g++'; }
+		if (process.env['CXXFLAGS']) { env['CXXFLAGS'] = ''; }
+		if (process.env['LDFLAGS']) { env['LDFLAGS'] = ''; }
+		yarnInstall('build', opts);
 		continue;
 	}
-
-	let opts;
 
 	if (/^(.build\/distro\/npm\/)?remote$/.test(dir)) {
 		// node modules used by vscode server
 		const env = { ...process.env };
-		if (process.env['VSCODE_REMOTE_CC']) { env['CC'] = process.env['VSCODE_REMOTE_CC']; }
-		if (process.env['VSCODE_REMOTE_CXX']) { env['CXX'] = process.env['VSCODE_REMOTE_CXX']; }
+		if (process.env['VSCODE_REMOTE_CC']) {
+			env['CC'] = process.env['VSCODE_REMOTE_CC'];
+		} else {
+			delete env['CC'];
+		}
+		if (process.env['VSCODE_REMOTE_CXX']) {
+			env['CXX'] = process.env['VSCODE_REMOTE_CXX'];
+		} else {
+			delete env['CXX'];
+		}
 		if (process.env['CXXFLAGS']) { delete env['CXXFLAGS']; }
 		if (process.env['CFLAGS']) { delete env['CFLAGS']; }
 		if (process.env['LDFLAGS']) { delete env['LDFLAGS']; }
+		if (process.env['VSCODE_REMOTE_CXXFLAGS']) { env['CXXFLAGS'] = process.env['VSCODE_REMOTE_CXXFLAGS']; }
+		if (process.env['VSCODE_REMOTE_LDFLAGS']) { env['LDFLAGS'] = process.env['VSCODE_REMOTE_LDFLAGS']; }
 		if (process.env['VSCODE_REMOTE_NODE_GYP']) { env['npm_config_node_gyp'] = process.env['VSCODE_REMOTE_NODE_GYP']; }
 
 		opts = { env };
@@ -112,4 +129,4 @@ for (let dir of dirs) {
 }
 
 cp.execSync('git config pull.rebase merges');
-cp.execSync('git config blame.ignoreRevsFile .git-blame-ignore');
+cp.execSync('git config blame.ignoreRevsFile .git-blame-ignore-revs');

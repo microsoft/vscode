@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Selection } from 'vs/editor/common/core/selection';
 import { CopyLinesCommand } from 'vs/editor/contrib/linesOperations/browser/copyLinesCommand';
 import { DuplicateSelectionAction } from 'vs/editor/contrib/linesOperations/browser/linesOperations';
@@ -19,6 +20,8 @@ function testCopyLinesUpCommand(lines: string[], selection: Selection, expectedL
 }
 
 suite('Editor Contrib - Copy Lines Command', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('copy first line down', function () {
 		testCopyLinesDownCommand(
@@ -200,6 +203,8 @@ suite('Editor Contrib - Copy Lines Command', () => {
 });
 
 suite('Editor Contrib - Duplicate Selection', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const duplicateSelectionAction = new DuplicateSelectionAction();
 

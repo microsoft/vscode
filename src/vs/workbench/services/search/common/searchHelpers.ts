@@ -5,7 +5,7 @@
 
 import { Range } from 'vs/editor/common/core/range';
 import { FindMatch, ITextModel } from 'vs/editor/common/model';
-import { ITextSearchPreviewOptions, TextSearchMatch, ITextSearchResult, ITextSearchMatch, ITextQuery, ITextSearchContext } from 'vs/workbench/services/search/common/search';
+import { ITextSearchPreviewOptions, TextSearchMatch, ITextSearchResult, ITextSearchMatch, ITextQuery } from 'vs/workbench/services/search/common/search';
 
 function editorMatchToTextSearchResult(matches: FindMatch[], model: ITextModel, previewOptions?: ITextSearchPreviewOptions): TextSearchMatch {
 	const firstLine = matches[0].range.startLineNumber;
@@ -44,7 +44,7 @@ export function editorMatchesToTextSearchResults(matches: FindMatch[], model: IT
 	});
 }
 
-export function addContextToEditorMatches(matches: ITextSearchMatch[], model: ITextModel, query: ITextQuery): ITextSearchResult[] {
+export function getTextSearchMatchWithModelContext(matches: ITextSearchMatch[], model: ITextModel, query: ITextQuery): ITextSearchResult[] {
 	const results: ITextSearchResult[] = [];
 
 	let prevLine = -1;
@@ -53,9 +53,9 @@ export function addContextToEditorMatches(matches: ITextSearchMatch[], model: IT
 		if (typeof query.beforeContext === 'number' && query.beforeContext > 0) {
 			const beforeContextStartLine = Math.max(prevLine + 1, matchStartLine - query.beforeContext);
 			for (let b = beforeContextStartLine; b < matchStartLine; b++) {
-				results.push(<ITextSearchContext>{
+				results.push({
 					text: model.getLineContent(b + 1),
-					lineNumber: b
+					lineNumber: b + 1
 				});
 			}
 		}
@@ -67,9 +67,9 @@ export function addContextToEditorMatches(matches: ITextSearchMatch[], model: IT
 		if (typeof query.afterContext === 'number' && query.afterContext > 0) {
 			const afterContextToLine = Math.min(nextMatchStartLine - 1, matchEndLine + query.afterContext, model.getLineCount() - 1);
 			for (let a = matchEndLine + 1; a <= afterContextToLine; a++) {
-				results.push(<ITextSearchContext>{
+				results.push({
 					text: model.getLineContent(a + 1),
-					lineNumber: a
+					lineNumber: a + 1
 				});
 			}
 		}

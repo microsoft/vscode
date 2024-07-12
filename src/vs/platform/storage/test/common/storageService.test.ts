@@ -5,17 +5,21 @@
 
 import { deepStrictEqual, ok, strictEqual } from 'assert';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { InMemoryStorageService, IStorageService, IStorageTargetChangeEvent, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 
 export function createSuite<T extends IStorageService>(params: { setup: () => Promise<T>; teardown: (service: T) => Promise<void> }): void {
 
 	let storageService: T;
 
+	const disposables = new DisposableStore();
+
 	setup(async () => {
 		storageService = await params.setup();
 	});
 
 	teardown(() => {
+		disposables.clear();
 		return params.teardown(storageService);
 	});
 
@@ -33,7 +37,7 @@ export function createSuite<T extends IStorageService>(params: { setup: () => Pr
 
 	test('Storage change source', () => {
 		const storageValueChangeEvents: IStorageValueChangeEvent[] = [];
-		storageService.onDidChangeValue(StorageScope.WORKSPACE, undefined, new DisposableStore())(e => storageValueChangeEvents.push(e));
+		storageService.onDidChangeValue(StorageScope.WORKSPACE, undefined, disposables)(e => storageValueChangeEvents.push(e), undefined, disposables);
 
 		// Explicit external source
 		storageService.storeAll([{ key: 'testExternalChange', value: 'foobar', scope: StorageScope.WORKSPACE, target: StorageTarget.MACHINE }], true);
@@ -52,7 +56,7 @@ export function createSuite<T extends IStorageService>(params: { setup: () => Pr
 
 	test('Storage change event scope (all keys)', () => {
 		const storageValueChangeEvents: IStorageValueChangeEvent[] = [];
-		storageService.onDidChangeValue(StorageScope.WORKSPACE, undefined, new DisposableStore())(e => storageValueChangeEvents.push(e));
+		storageService.onDidChangeValue(StorageScope.WORKSPACE, undefined, disposables)(e => storageValueChangeEvents.push(e), undefined, disposables);
 
 		storageService.store('testChange', 'foobar', StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		storageService.store('testChange2', 'foobar', StorageScope.WORKSPACE, StorageTarget.MACHINE);
@@ -64,7 +68,7 @@ export function createSuite<T extends IStorageService>(params: { setup: () => Pr
 
 	test('Storage change event scope (specific key)', () => {
 		const storageValueChangeEvents: IStorageValueChangeEvent[] = [];
-		storageService.onDidChangeValue(StorageScope.WORKSPACE, 'testChange', new DisposableStore())(e => storageValueChangeEvents.push(e));
+		storageService.onDidChangeValue(StorageScope.WORKSPACE, 'testChange', disposables)(e => storageValueChangeEvents.push(e), undefined, disposables);
 
 		storageService.store('testChange', 'foobar', StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		storageService.store('testChange', 'foobar', StorageScope.PROFILE, StorageTarget.USER);
@@ -77,7 +81,7 @@ export function createSuite<T extends IStorageService>(params: { setup: () => Pr
 
 	function storeData(scope: StorageScope): void {
 		let storageValueChangeEvents: IStorageValueChangeEvent[] = [];
-		storageService.onDidChangeValue(scope, undefined, new DisposableStore())(e => storageValueChangeEvents.push(e));
+		storageService.onDidChangeValue(scope, undefined, disposables)(e => storageValueChangeEvents.push(e), undefined, disposables);
 
 		strictEqual(storageService.get('test.get', scope, 'foobar'), 'foobar');
 		strictEqual(storageService.get('test.get', scope, ''), '');
@@ -153,7 +157,7 @@ export function createSuite<T extends IStorageService>(params: { setup: () => Pr
 
 	function removeData(scope: StorageScope): void {
 		const storageValueChangeEvents: IStorageValueChangeEvent[] = [];
-		storageService.onDidChangeValue(scope, undefined, new DisposableStore())(e => storageValueChangeEvents.push(e));
+		storageService.onDidChangeValue(scope, undefined, disposables)(e => storageValueChangeEvents.push(e), undefined, disposables);
 
 		storageService.store('test.remove', 'foobar', scope, StorageTarget.MACHINE);
 		strictEqual('foobar', storageService.get('test.remove', scope, (undefined)!));
@@ -167,7 +171,7 @@ export function createSuite<T extends IStorageService>(params: { setup: () => Pr
 
 	test('Keys (in-memory)', () => {
 		let storageTargetEvent: IStorageTargetChangeEvent | undefined = undefined;
-		storageService.onDidChangeTarget(e => storageTargetEvent = e);
+		storageService.onDidChangeTarget(e => storageTargetEvent = e, undefined, disposables);
 
 		// Empty
 		for (const scope of [StorageScope.WORKSPACE, StorageScope.PROFILE, StorageScope.APPLICATION]) {
@@ -180,7 +184,7 @@ export function createSuite<T extends IStorageService>(params: { setup: () => Pr
 
 		// Add values
 		for (const scope of [StorageScope.WORKSPACE, StorageScope.PROFILE, StorageScope.APPLICATION]) {
-			storageService.onDidChangeValue(scope, undefined, new DisposableStore())(e => storageValueChangeEvent = e);
+			storageService.onDidChangeValue(scope, undefined, disposables)(e => storageValueChangeEvent = e, undefined, disposables);
 
 			for (const target of [StorageTarget.MACHINE, StorageTarget.USER]) {
 				storageTargetEvent = Object.create(null);
@@ -281,8 +285,17 @@ export function createSuite<T extends IStorageService>(params: { setup: () => Pr
 }
 
 suite('StorageService (in-memory)', function () {
+
+	const disposables = new DisposableStore();
+
+	teardown(() => {
+		disposables.clear();
+	});
+
 	createSuite<InMemoryStorageService>({
-		setup: async () => new InMemoryStorageService(),
+		setup: async () => disposables.add(new InMemoryStorageService()),
 		teardown: async () => { }
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

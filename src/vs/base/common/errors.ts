@@ -137,6 +137,19 @@ export function transformErrorForSerialization(error: any): any {
 	return error;
 }
 
+export function transformErrorFromSerialization(data: SerializedError): Error {
+	let error: Error;
+	if (data.noTelemetry) {
+		error = new ErrorNoTelemetry();
+	} else {
+		error = new Error();
+		error.name = data.name;
+	}
+	error.message = data.message;
+	error.stack = data.stack;
+	return error;
+}
+
 // see https://github.com/v8/v8/wiki/Stack%20Trace%20API#basic-stack-traces
 export interface V8CallSite {
 	getThis(): unknown;
@@ -201,16 +214,10 @@ export function illegalState(name?: string): Error {
 	}
 }
 
-export function readonly(name?: string): Error {
-	return name
-		? new Error(`readonly property '${name} cannot be changed'`)
-		: new Error('readonly property cannot be changed');
-}
-
-export function disposed(what: string): Error {
-	const result = new Error(`${what} has been disposed`);
-	result.name = 'DISPOSED';
-	return result;
+export class ReadonlyError extends TypeError {
+	constructor(name?: string) {
+		super(name ? `${name} is read-only and cannot be changed` : 'Cannot change read-only property');
+	}
 }
 
 export function getErrorMessage(err: any): string {

@@ -5,12 +5,22 @@
 
 import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { localize } from 'vs/nls';
-import { DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, DEFAULT_COMMANDS_TO_SKIP_SHELL, SUGGESTIONS_FONT_WEIGHT, MINIMUM_FONT_WEIGHT, MAXIMUM_FONT_WEIGHT, DEFAULT_LOCAL_ECHO_EXCLUDE } from 'vs/workbench/contrib/terminal/common/terminal';
+import { DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, DEFAULT_COMMANDS_TO_SKIP_SHELL, SUGGESTIONS_FONT_WEIGHT, MINIMUM_FONT_WEIGHT, MAXIMUM_FONT_WEIGHT } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalLocationString, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Codicon } from 'vs/base/common/codicons';
 import { terminalColorSchema, terminalIconSchema } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
+import { Extensions as WorkbenchExtensions, IConfigurationMigrationRegistry, ConfigurationKeyValuePairs } from 'vs/workbench/common/configuration';
+
+// Import configuration schemes from terminalContrib - this is an exception to the eslint rule since
+// they need to be declared at part of the rest of the terminal configuration
+import { terminalAccessibilityConfiguration } from 'vs/workbench/contrib/terminalContrib/accessibility/common/terminalAccessibilityConfiguration'; // eslint-disable-line local/code-import-patterns
+import { terminalStickyScrollConfiguration } from 'vs/workbench/contrib/terminalContrib/stickyScroll/common/terminalStickyScrollConfiguration'; // eslint-disable-line local/code-import-patterns
+import { terminalTypeAheadConfiguration } from 'vs/workbench/contrib/terminalContrib/typeAhead/common/terminalTypeAheadConfiguration'; // eslint-disable-line local/code-import-patterns
+import { terminalZoomConfiguration } from 'vs/workbench/contrib/terminalContrib/zoom/common/terminal.zoom'; // eslint-disable-line local/code-import-patterns
+import { terminalSuggestConfiguration } from 'vs/workbench/contrib/terminalContrib/suggest/common/terminalSuggestConfiguration'; // eslint-disable-line local/code-import-patterns
+import { terminalInitialHintConfiguration } from 'vs/workbench/contrib/terminalContrib/chat/common/terminalInitialHintConfiguration';  // eslint-disable-line local/code-import-patterns
 
 const terminalDescriptors = '\n- ' + [
 	'`\${cwd}`: ' + localize("cwd", "the terminal's current working directory"),
@@ -28,6 +38,8 @@ terminalTitle += terminalDescriptors;
 
 let terminalDescription = localize('terminalDescription', "Controls the terminal description, which appears to the right of the title. Variables are substituted based on the context:");
 terminalDescription += terminalDescriptors;
+
+export const defaultTerminalFontSize = isMacintosh ? 12 : 14;
 
 const terminalConfiguration: IConfigurationNode = {
 	id: 'terminal',
@@ -106,11 +118,6 @@ const terminalConfiguration: IConfigurationNode = {
 			default: 'right',
 			description: localize('terminal.integrated.tabs.location', "Controls the location of the terminal tabs, either to the left or right of the actual terminal(s).")
 		},
-		[TerminalSettingId.TabFocusMode]: {
-			markdownDescription: localize('tabFocusMode', "Controls whether the terminal receives tabs or defers them to the workbench for navigation. When set, this overrides {0} when the terminal is focused.", '`#editor.tabFocusMode#`'),
-			type: ['boolean', 'null'],
-			default: null
-		},
 		[TerminalSettingId.DefaultLocation]: {
 			type: 'string',
 			enum: [TerminalLocationString.Editor, TerminalLocationString.TerminalView],
@@ -152,9 +159,15 @@ const terminalConfiguration: IConfigurationNode = {
 			default: false
 		},
 		[TerminalSettingId.EnableMultiLinePasteWarning]: {
-			markdownDescription: localize('terminal.integrated.enableMultiLinePasteWarning', "Show a warning dialog when pasting multiple lines into the terminal. The dialog does not show when:\n\n- Bracketed paste mode is enabled (the shell supports multi-line paste natively)\n- The paste is handled by the shell's readline (in the case of pwsh)"),
-			type: 'boolean',
-			default: true
+			markdownDescription: localize('terminal.integrated.enableMultiLinePasteWarning', "Controls whether to show a warning dialog when pasting multiple lines into the terminal."),
+			type: 'string',
+			enum: ['auto', 'always', 'never'],
+			markdownEnumDescriptions: [
+				localize('terminal.integrated.enableMultiLinePasteWarning.auto', "Enable the warning but do not show it when:\n\n- Bracketed paste mode is enabled (the shell supports multi-line paste natively)\n- The paste is handled by the shell's readline (in the case of pwsh)"),
+				localize('terminal.integrated.enableMultiLinePasteWarning.always', "Always show the warning if the text contains a new line."),
+				localize('terminal.integrated.enableMultiLinePasteWarning.never', "Never show the warning.")
+			],
+			default: 'auto'
 		},
 		[TerminalSettingId.DrawBoldTextInBrightColors]: {
 			description: localize('terminal.integrated.drawBoldTextInBrightColors', "Controls whether bold text in the terminal will always use the \"bright\" ANSI color variant."),
@@ -174,7 +187,7 @@ const terminalConfiguration: IConfigurationNode = {
 		[TerminalSettingId.FontSize]: {
 			description: localize('terminal.integrated.fontSize', "Controls the font size in pixels of the terminal."),
 			type: 'number',
-			default: isMacintosh ? 12 : 14,
+			default: defaultTerminalFontSize,
 			minimum: 6,
 			maximum: 100
 		},
@@ -291,12 +304,11 @@ const terminalConfiguration: IConfigurationNode = {
 		},
 		[TerminalSettingId.GpuAcceleration]: {
 			type: 'string',
-			enum: ['auto', 'on', 'off', 'canvas'],
+			enum: ['auto', 'on', 'off'],
 			markdownEnumDescriptions: [
 				localize('terminal.integrated.gpuAcceleration.auto', "Let VS Code detect which renderer will give the best experience."),
 				localize('terminal.integrated.gpuAcceleration.on', "Enable GPU acceleration within the terminal."),
 				localize('terminal.integrated.gpuAcceleration.off', "Disable GPU acceleration within the terminal. The terminal will render much slower when GPU acceleration is off but it should reliably work on all systems."),
-				localize('terminal.integrated.gpuAcceleration.canvas', "Use the terminal's fallback canvas renderer which uses a 2d context instead of webgl which may perform better on some systems. Note that some features are limited in the canvas renderer like opaque selection.")
 			],
 			default: 'auto',
 			description: localize('terminal.integrated.gpuAcceleration', "Controls whether the terminal will leverage the GPU to do its rendering.")
@@ -304,7 +316,7 @@ const terminalConfiguration: IConfigurationNode = {
 		[TerminalSettingId.TerminalTitleSeparator]: {
 			'type': 'string',
 			'default': ' - ',
-			'markdownDescription': localize("terminal.integrated.tabs.separator", "Separator used by {0} and {0}.", `\`${TerminalSettingId.TerminalTitle}\``, `\`${TerminalSettingId.TerminalDescription}\``)
+			'markdownDescription': localize("terminal.integrated.tabs.separator", "Separator used by {0} and {1}.", `\`#${TerminalSettingId.TerminalTitle}#\``, `\`#${TerminalSettingId.TerminalDescription}#\``)
 		},
 		[TerminalSettingId.TerminalTitle]: {
 			'type': 'string',
@@ -328,6 +340,16 @@ const terminalConfiguration: IConfigurationNode = {
 			],
 			default: isMacintosh ? 'selectWord' : isWindows ? 'copyPaste' : 'default',
 			description: localize('terminal.integrated.rightClickBehavior', "Controls how terminal reacts to right click.")
+		},
+		[TerminalSettingId.MiddleClickBehavior]: {
+			type: 'string',
+			enum: ['default', 'paste'],
+			enumDescriptions: [
+				localize('terminal.integrated.middleClickBehavior.default', "The platform default to focus the terminal. On Linux this will also paste the selection."),
+				localize('terminal.integrated.middleClickBehavior.paste', "Paste on middle click."),
+			],
+			default: 'default',
+			description: localize('terminal.integrated.middleClickBehavior', "Controls how terminal reacts to middle click.")
 		},
 		[TerminalSettingId.Cwd]: {
 			restricted: true,
@@ -360,7 +382,12 @@ const terminalConfiguration: IConfigurationNode = {
 			default: 'editor'
 		},
 		[TerminalSettingId.EnableBell]: {
-			description: localize('terminal.integrated.enableBell', "Controls whether the terminal bell is enabled. This shows up as a visual bell next to the terminal's name."),
+			markdownDeprecationMessage: localize('terminal.integrated.enableBell', "This is now deprecated. Instead use the `terminal.integrated.enableVisualBell` and `accessibility.signals.terminalBell` settings."),
+			type: 'boolean',
+			default: false
+		},
+		[TerminalSettingId.EnableVisualBell]: {
+			description: localize('terminal.integrated.enableVisualBell', "Controls whether the visual terminal bell is enabled. This shows up next to the terminal's name."),
 			type: 'boolean',
 			default: false
 		},
@@ -427,7 +454,7 @@ const terminalConfiguration: IConfigurationNode = {
 			default: 'warnonly'
 		},
 		[TerminalSettingId.EnvironmentChangesRelaunch]: {
-			markdownDescription: localize('terminal.integrated.environmentChangesRelaunch', "Whether to relaunch terminals automatically if extension want to contribute to their environment and have not been interacted with yet."),
+			markdownDescription: localize('terminal.integrated.environmentChangesRelaunch', "Whether to relaunch terminals automatically if extensions want to contribute to their environment and have not been interacted with yet."),
 			type: 'boolean',
 			default: true
 		},
@@ -456,7 +483,7 @@ const terminalConfiguration: IConfigurationNode = {
 			markdownDescription: localize('terminal.integrated.wordSeparators', "A string containing all characters to be considered word separators when double-clicking to select word and in the fallback 'word' link detection. Since this is used for link detection, including characters such as `:` that are used when detecting links will cause the line and column part of links like `file:10:5` to be ignored."),
 			type: 'string',
 			// allow-any-unicode-next-line
-			default: ' ()[]{}\',"`─‘’|'
+			default: ' ()[]{}\',"`─‘’“”|'
 		},
 		[TerminalSettingId.EnableFileLinks]: {
 			description: localize('terminal.integrated.enableFileLinks', "Whether to enable file links in terminals. Links can be slow when working on a network drive in particular because each file link is verified against the file system. Changing this will take effect only in new terminals."),
@@ -469,6 +496,21 @@ const terminalConfiguration: IConfigurationNode = {
 			],
 			default: 'on'
 		},
+		[TerminalSettingId.AllowedLinkSchemes]: {
+			description: localize('terminal.integrated.allowedLinkSchemes', "An array of strings containing the URI schemes that the terminal is allowed to open links for. By default, only a small subset of possible schemes are allowed for security reasons."),
+			type: 'array',
+			items: {
+				type: 'string'
+			},
+			default: [
+				'file',
+				'http',
+				'https',
+				'mailto',
+				'vscode',
+				'vscode-insiders',
+			]
+		},
 		[TerminalSettingId.UnicodeVersion]: {
 			type: 'string',
 			enum: ['6', '11'],
@@ -478,45 +520,6 @@ const terminalConfiguration: IConfigurationNode = {
 			],
 			default: '11',
 			description: localize('terminal.integrated.unicodeVersion', "Controls what version of Unicode to use when evaluating the width of characters in the terminal. If you experience emoji or other wide characters not taking up the right amount of space or backspace either deleting too much or too little then you may want to try tweaking this setting.")
-		},
-		[TerminalSettingId.LocalEchoLatencyThreshold]: {
-			description: localize('terminal.integrated.localEchoLatencyThreshold', "Length of network delay, in milliseconds, where local edits will be echoed on the terminal without waiting for server acknowledgement. If '0', local echo will always be on, and if '-1' it will be disabled."),
-			type: 'integer',
-			minimum: -1,
-			default: 30,
-		},
-		[TerminalSettingId.LocalEchoEnabled]: {
-			markdownDescription: localize('terminal.integrated.localEchoEnabled', "When local echo should be enabled. This will override {0}", '`#terminal.integrated.localEchoLatencyThreshold#`'),
-			type: 'string',
-			enum: ['on', 'off', 'auto'],
-			enumDescriptions: [
-				localize('terminal.integrated.localEchoEnabled.on', "Always enabled"),
-				localize('terminal.integrated.localEchoEnabled.off', "Always disabled"),
-				localize('terminal.integrated.localEchoEnabled.auto', "Enabled only for remote workspaces")
-			],
-			default: 'auto'
-		},
-		[TerminalSettingId.LocalEchoExcludePrograms]: {
-			description: localize('terminal.integrated.localEchoExcludePrograms', "Local echo will be disabled when any of these program names are found in the terminal title."),
-			type: 'array',
-			items: {
-				type: 'string',
-				uniqueItems: true
-			},
-			default: DEFAULT_LOCAL_ECHO_EXCLUDE,
-		},
-		[TerminalSettingId.LocalEchoStyle]: {
-			description: localize('terminal.integrated.localEchoStyle', "Terminal style of locally echoed text; either a font style or an RGB color."),
-			default: 'dim',
-			anyOf: [
-				{
-					enum: ['bold', 'dim', 'italic', 'underlined', 'inverted', '#ff0000'],
-				},
-				{
-					type: 'string',
-					format: 'color-hex',
-				}
-			]
 		},
 		[TerminalSettingId.EnablePersistentSessions]: {
 			description: localize('terminal.integrated.enablePersistentSessions', "Persist terminal sessions/history for the workspace across window reloads."),
@@ -546,7 +549,12 @@ const terminalConfiguration: IConfigurationNode = {
 			default: 'never'
 		},
 		[TerminalSettingId.CustomGlyphs]: {
-			description: localize('terminal.integrated.customGlyphs', "Whether to draw custom glyphs for block element and box drawing characters instead of using the font, which typically yields better rendering with continuous lines. Note that this doesn't work when {0} is disabled.", `\`#${TerminalSettingId.GpuAcceleration}#\``),
+			markdownDescription: localize('terminal.integrated.customGlyphs', "Whether to draw custom glyphs for block element and box drawing characters instead of using the font, which typically yields better rendering with continuous lines. Note that this doesn't work when {0} is disabled.", `\`#${TerminalSettingId.GpuAcceleration}#\``),
+			type: 'boolean',
+			default: true
+		},
+		[TerminalSettingId.RescaleOverlappingGlyphs]: {
+			markdownDescription: localize('terminal.integrated.rescaleOverlappingGlyphs', "Whether to rescale glyphs horizontally that are a single cell wide but have glyphs that would overlap following cell(s). This typically happens for ambiguous width characters (eg. the roman numeral characters U+2160+) which aren't featured in monospace fonts. Emoji glyphs are never rescaled."),
 			type: 'boolean',
 			default: true
 		},
@@ -564,7 +572,7 @@ const terminalConfiguration: IConfigurationNode = {
 		},
 		[TerminalSettingId.ShellIntegrationEnabled]: {
 			restricted: true,
-			markdownDescription: localize('terminal.integrated.shellIntegration.enabled', "Determines whether or not shell integration is auto-injected to support features like enhanced command tracking and current working directory detection. \n\nShell integration works by injecting the shell with a startup script. The script gives VS Code insight into what is happening within the terminal.\n\nSupported shells:\n\n- Linux/macOS: bash, fish, pwsh, zsh\n - Windows: pwsh\n\nThis setting applies only when terminals are created, so you will need to restart your terminals for it to take effect.\n\n Note that the script injection may not work if you have custom arguments defined in the terminal profile, have enabled {1}, have a [complex bash `PROMPT_COMMAND`](https://code.visualstudio.com/docs/editor/integrated-terminal#_complex-bash-promptcommand), or other unsupported setup. To disable decorations, see {0}", '`#terminal.integrated.shellIntegrations.decorationsEnabled#`', '`#editor.accessibilitySupport#`'),
+			markdownDescription: localize('terminal.integrated.shellIntegration.enabled', "Determines whether or not shell integration is auto-injected to support features like enhanced command tracking and current working directory detection. \n\nShell integration works by injecting the shell with a startup script. The script gives VS Code insight into what is happening within the terminal.\n\nSupported shells:\n\n- Linux/macOS: bash, fish, pwsh, zsh\n - Windows: pwsh, git bash\n\nThis setting applies only when terminals are created, so you will need to restart your terminals for it to take effect.\n\n Note that the script injection may not work if you have custom arguments defined in the terminal profile, have enabled {1}, have a [complex bash `PROMPT_COMMAND`](https://code.visualstudio.com/docs/editor/integrated-terminal#_complex-bash-promptcommand), or other unsupported setup. To disable decorations, see {0}", '`#terminal.integrated.shellIntegrations.decorationsEnabled#`', '`#editor.accessibilitySupport#`'),
 			type: 'boolean',
 			default: true
 		},
@@ -587,12 +595,6 @@ const terminalConfiguration: IConfigurationNode = {
 			type: 'number',
 			default: 100
 		},
-		[TerminalSettingId.ShellIntegrationSuggestEnabled]: {
-			restricted: true,
-			markdownDescription: localize('terminal.integrated.shellIntegration.suggestEnabled', "Enables experimental terminal Intellisense suggestions for supported shells when {0} is set to {1}. If shell integration is installed manually, {2} needs to be set to {3} before calling the script.", '`#terminal.integrated.shellIntegration.enabled#`', '`true`', '`VSCODE_SUGGEST`', '`1`'),
-			type: 'boolean',
-			default: false
-		},
 		[TerminalSettingId.SmoothScrolling]: {
 			markdownDescription: localize('terminal.integrated.smoothScrolling', "Controls whether the terminal will scroll using an animation."),
 			type: 'boolean',
@@ -607,8 +609,25 @@ const terminalConfiguration: IConfigurationNode = {
 			restricted: true,
 			markdownDescription: localize('terminal.integrated.enableImages', "Enables image support in the terminal, this will only work when {0} is enabled. Both sixel and iTerm's inline image protocol are supported on Linux and macOS, Windows support will light up automatically when ConPTY passes through the sequences. Images will currently not be restored between window reloads/reconnects.", `\`#${TerminalSettingId.GpuAcceleration}#\``),
 			type: 'boolean',
-			default: true
+			default: false
 		},
+		[TerminalSettingId.FocusAfterRun]: {
+			markdownDescription: localize('terminal.integrated.focusAfterRun', "Controls whether the terminal, accessible buffer, or neither will be focused after `Terminal: Run Selected Text In Active Terminal` has been run."),
+			enum: ['terminal', 'accessible-buffer', 'none'],
+			default: 'none',
+			tags: ['accessibility'],
+			markdownEnumDescriptions: [
+				localize('terminal.integrated.focusAfterRun.terminal', "Always focus the terminal."),
+				localize('terminal.integrated.focusAfterRun.accessible-buffer', "Always focus the accessible buffer."),
+				localize('terminal.integrated.focusAfterRun.none', "Do nothing."),
+			]
+		},
+		...terminalAccessibilityConfiguration,
+		...terminalInitialHintConfiguration,
+		...terminalStickyScrollConfiguration,
+		...terminalSuggestConfiguration,
+		...terminalTypeAheadConfiguration,
+		...terminalZoomConfiguration,
 	}
 };
 
@@ -616,3 +635,19 @@ export function registerTerminalConfiguration() {
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 	configurationRegistry.registerConfiguration(terminalConfiguration);
 }
+
+Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMigration)
+	.registerConfigurationMigrations([{
+		key: TerminalSettingId.EnableBell,
+		migrateFn: (enableBell, accessor) => {
+			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [];
+			let announcement = accessor('accessibility.signals.terminalBell')?.announcement ?? accessor('accessibility.alert.terminalBell');
+			if (announcement !== undefined && typeof announcement !== 'string') {
+				announcement = announcement ? 'auto' : 'off';
+			}
+			configurationKeyValuePairs.push(['accessibility.signals.terminalBell', { value: { sound: enableBell ? 'on' : 'off', announcement } }]);
+			configurationKeyValuePairs.push([TerminalSettingId.EnableBell, { value: undefined }]);
+			configurationKeyValuePairs.push([TerminalSettingId.EnableVisualBell, { value: enableBell }]);
+			return configurationKeyValuePairs;
+		}
+	}]);

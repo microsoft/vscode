@@ -39,7 +39,7 @@ export class EnvironmentVariableInfoStale implements IEnvironmentVariableInfo {
 
 	private _getActions(): ITerminalStatusHoverAction[] {
 		return [{
-			label: localize('relaunchTerminalLabel', "Relaunch terminal"),
+			label: localize('relaunchTerminalLabel', "Relaunch Terminal"),
 			run: () => this._terminalService.getInstanceFromId(this._terminalId)?.relaunch(),
 			commandId: TerminalCommandId.Relaunch
 		}];
@@ -77,7 +77,7 @@ export class EnvironmentVariableInfoChangesActive implements IEnvironmentVariabl
 
 	private _getActions(scope: EnvironmentVariableScope | undefined): ITerminalStatusHoverAction[] {
 		return [{
-			label: localize('showEnvironmentContributions', "Show environment contributions"),
+			label: localize('showEnvironmentContributions', "Show Environment Contributions"),
 			run: () => this._commandService.executeCommand(TerminalCommandId.ShowEnvironmentContributions, scope),
 			commandId: TerminalCommandId.ShowEnvironmentContributions
 		}];

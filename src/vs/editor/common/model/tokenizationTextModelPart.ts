@@ -17,7 +17,7 @@ import { IWordAtPosition, getWordAtText } from 'vs/editor/common/core/wordHelper
 import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
 import { IBackgroundTokenizationStore, IBackgroundTokenizer, ILanguageIdCodec, IState, ITokenizationSupport, TokenizationRegistry } from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
-import { ILanguageConfigurationService, ResolvedLanguageConfiguration } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { ILanguageConfigurationService, LanguageConfigurationServiceChangeEvent, ResolvedLanguageConfiguration } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { IAttachedView } from 'vs/editor/common/model';
 import { BracketPairsTextModelPart } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsImpl';
 import { AttachedViews, IAttachedViewState, TextModel } from 'vs/editor/common/model/textModel';
@@ -56,12 +56,6 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 	) {
 		super();
 
-		this._register(this._languageConfigurationService.onDidChange(e => {
-			if (e.affects(this._languageId)) {
-				this._onDidChangeLanguageConfiguration.fire({});
-			}
-		}));
-
 		this._register(this.grammarTokens.onDidChangeTokens(e => {
 			this._emitModelTokensChangedEvent(e);
 		}));
@@ -75,6 +69,12 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 		return (this._onDidChangeLanguage.hasListeners()
 			|| this._onDidChangeLanguageConfiguration.hasListeners()
 			|| this._onDidChangeTokens.hasListeners());
+	}
+
+	public handleLanguageConfigurationServiceChange(e: LanguageConfigurationServiceChangeEvent): void {
+		if (e.affects(this._languageId)) {
+			this._onDidChangeLanguageConfiguration.fire({});
+		}
 	}
 
 	public handleDidChangeContent(e: IModelContentChangedEvent): void {
@@ -140,6 +140,11 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 	public forceTokenization(lineNumber: number): void {
 		this.validateLineNumber(lineNumber);
 		this.grammarTokens.forceTokenization(lineNumber);
+	}
+
+	public hasAccurateTokensForLine(lineNumber: number): boolean {
+		this.validateLineNumber(lineNumber);
+		return this.grammarTokens.hasAccurateTokensForLine(lineNumber);
 	}
 
 	public isCheapToTokenize(lineNumber: number): boolean {
@@ -461,7 +466,7 @@ class GrammarTokens extends Disposable {
 			if (tokenizationSupport && tokenizationSupport.createBackgroundTokenizer && !tokenizationSupport.backgroundTokenizerShouldOnlyVerifyTokens) {
 				this._backgroundTokenizer.value = tokenizationSupport.createBackgroundTokenizer(this._textModel, b);
 			}
-			if (!this._backgroundTokenizer.value) {
+			if (!this._backgroundTokenizer.value && !this._textModel.isTooLargeForTokenization()) {
 				this._backgroundTokenizer.value = this._defaultBackgroundTokenizer =
 					new DefaultBackgroundTokenizer(this._tokenizer, b);
 				this._defaultBackgroundTokenizer.handleChanges();
@@ -566,6 +571,13 @@ class GrammarTokens extends Disposable {
 		this._tokenizer?.updateTokensUntilLine(builder, lineNumber);
 		this.setTokens(builder.finalize());
 		this._defaultBackgroundTokenizer?.checkFinished();
+	}
+
+	public hasAccurateTokensForLine(lineNumber: number): boolean {
+		if (!this._tokenizer) {
+			return true;
+		}
+		return this._tokenizer.hasAccurateTokensForLine(lineNumber);
 	}
 
 	public isCheapToTokenize(lineNumber: number): boolean {

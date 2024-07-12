@@ -53,7 +53,7 @@ export async function changeCellToKind(kind: CellKind, context: INotebookActionC
 				cells: [{
 					cellKind: kind,
 					source: text,
-					language: language!,
+					language: language,
 					mime: mime ?? cell.mime,
 					outputs: cell.model.outputs,
 					metadata: cell.metadata,
@@ -96,7 +96,7 @@ export async function changeCellToKind(kind: CellKind, context: INotebookActionC
 					cells: [{
 						cellKind: kind,
 						source: text,
-						language: language!,
+						language: language,
 						mime: mime ?? cell.mime,
 						outputs: cell.model.outputs,
 						metadata: cell.metadata,

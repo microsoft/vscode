@@ -102,7 +102,7 @@ export function getExactExpressionStartAndEnd(lineContent: string, looseStart: n
 	// If there are non-word characters after the cursor, we want to truncate the expression then.
 	// For example in expression 'a.b.c.d', if the focus was under 'b', 'a.b' would be evaluated.
 	if (matchingExpression) {
-		const subExpression: RegExp = /\w+/g;
+		const subExpression: RegExp = /(\w|\p{L})+/gu;
 		let subExpressionResult: RegExpExecArray | null = null;
 		while (subExpressionResult = subExpression.exec(matchingExpression)) {
 			const subEnd = subExpressionResult.index + 1 + startOffset + subExpressionResult[0].length;
@@ -373,3 +373,6 @@ export async function saveAllBeforeDebugStart(configurationService: IConfigurati
 	}
 	await configurationService.reloadConfiguration();
 }
+
+export const sourcesEqual = (a: DebugProtocol.Source | undefined, b: DebugProtocol.Source | undefined): boolean =>
+	!a || !b ? a === b : a.name === b.name && a.path === b.path && a.sourceReference === b.sourceReference;

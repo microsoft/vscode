@@ -1,7 +1,9 @@
 steps:
   - task: NodeTool@0
     inputs:
-      versionSpec: "18.x"
+      versionSource: fromFile
+      versionFilePath: .nvmrc
+      nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
 
   - task: DownloadPipelineArtifact@0
     displayName: "Download Pipeline Artifact"
@@ -44,11 +46,28 @@ steps:
         *) SNAPCRAFT_TARGET_ARGS="--target-arch $(VSCODE_ARCH)" ;;
       esac
       (cd $SNAP_ROOT/code-* && sudo --preserve-env snapcraft snap $SNAPCRAFT_TARGET_ARGS --output "$SNAP_PATH")
-
-      # Export SNAP_PATH
-      echo "##vso[task.setvariable variable=SNAP_PATH]$SNAP_PATH"
     displayName: Prepare for publish
 
-  - publish: $(SNAP_PATH)
-    artifact: vscode_client_linux_$(VSCODE_ARCH)_snap
+  - script: |
+      set -e
+      SNAP_ROOT="$(pwd)/.build/linux/snap/$(VSCODE_ARCH)"
+      SNAP_EXTRACTED_PATH=$(find $SNAP_ROOT -maxdepth 1 -type d -name 'code-*')
+      SNAP_PATH=$(find $SNAP_ROOT -maxdepth 1 -type f -name '*.snap')
+
+      # SBOM tool doesn't like recursive symlinks
+      sudo find $SNAP_EXTRACTED_PATH -type l -delete
+
+      echo "##vso[task.setvariable variable=SNAP_EXTRACTED_PATH]$SNAP_EXTRACTED_PATH"
+      echo "##vso[task.setvariable variable=SNAP_PATH]$SNAP_PATH"
+    target:
+      container: host
+    displayName: Find host snap path & prepare for SBOM
+
+  - task: 1ES.PublishPipelineArtifact@1
+    inputs:
+      targetPath: $(SNAP_PATH)
+      artifactName: vscode_client_linux_$(VSCODE_ARCH)_snap
+      sbomBuildDropPath: $(SNAP_EXTRACTED_PATH)
+      sbomPackageName: "VS Code Linux $(VSCODE_ARCH) SNAP"
+      sbomPackageVersion: $(Build.SourceVersion)
     displayName: Publish snap package

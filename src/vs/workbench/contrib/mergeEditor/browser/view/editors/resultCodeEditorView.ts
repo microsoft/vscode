@@ -129,8 +129,7 @@ export class ResultCodeEditorView extends CodeEditorView {
 		);
 	}
 
-	private readonly decorations = derived(reader => {
-		/** @description result.decorations */
+	private readonly decorations = derived(this, reader => {
 		const viewModel = this.viewModel.read(reader);
 		if (!viewModel) {
 			return [];

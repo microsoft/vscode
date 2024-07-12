@@ -15,7 +15,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { INativeHostService } from 'vs/platform/native/common/native';
+import { INativeHostOptions, INativeHostService } from 'vs/platform/native/common/native';
 import { AbstractFileDialogService } from 'vs/workbench/services/dialogs/browser/abstractFileDialogService';
 import { Schemas } from 'vs/base/common/network';
 import { ILanguageService } from 'vs/editor/common/languages/language';
@@ -26,6 +26,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ILogService } from 'vs/platform/log/common/log';
+import { getActiveWindow } from 'vs/base/browser/dom';
 
 export class FileDialogService extends AbstractFileDialogService implements IFileDialogService {
 
@@ -143,13 +144,14 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		return;
 	}
 
-	private toNativeSaveDialogOptions(options: ISaveDialogOptions): SaveDialogOptions {
+	private toNativeSaveDialogOptions(options: ISaveDialogOptions): SaveDialogOptions & INativeHostOptions {
 		options.defaultUri = options.defaultUri ? URI.file(options.defaultUri.path) : undefined;
 		return {
 			defaultPath: options.defaultUri?.fsPath,
 			buttonLabel: options.saveLabel,
 			filters: options.filters,
-			title: options.title
+			title: options.title,
+			targetWindowId: getActiveWindow().vscodeWindowId
 		};
 	}
 
@@ -173,12 +175,13 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 			return this.showOpenDialogSimplified(schema, options);
 		}
 
-		const newOptions: OpenDialogOptions & { properties: string[] } = {
+		const newOptions: OpenDialogOptions & { properties: string[] } & INativeHostOptions = {
 			title: options.title,
 			defaultPath: options.defaultUri?.fsPath,
 			buttonLabel: options.openLabel,
 			filters: options.filters,
-			properties: []
+			properties: [],
+			targetWindowId: getActiveWindow().vscodeWindowId
 		};
 
 		newOptions.properties.push('createDirectory');

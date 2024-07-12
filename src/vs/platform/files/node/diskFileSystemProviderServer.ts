@@ -292,7 +292,8 @@ export abstract class AbstractSessionFileWatcher extends Disposable implements I
 			sessionEmitter.fire(
 				events.map(e => ({
 					resource: this.uriTransformer.transformOutgoingURI(e.resource),
-					type: e.type
+					type: e.type,
+					cId: e.cId
 				}))
 			);
 		}));
@@ -324,11 +325,11 @@ export abstract class AbstractSessionFileWatcher extends Disposable implements I
 	}
 
 	override dispose(): void {
-		super.dispose();
-
 		for (const [, disposable] of this.watcherRequests) {
 			disposable.dispose();
 		}
 		this.watcherRequests.clear();
+
+		super.dispose();
 	}
 }

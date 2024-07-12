@@ -9,7 +9,7 @@ import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
-import { IInlineChatSessionService } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
+import { IInlineChatSessionService } from './inlineChatSessionService';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 import { CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
@@ -23,17 +23,42 @@ export class InlineChatNotebookContribution {
 	) {
 
 		this._store.add(sessionService.registerSessionKeyComputer(Schemas.vscodeNotebookCell, {
-			getComparisonKey: (_editor, uri) => {
+			getComparisonKey: (editor, uri) => {
 				const data = CellUri.parse(uri);
 				if (!data) {
-					throw illegalState('Expected notebook');
+					throw illegalState('Expected notebook cell uri');
 				}
-				for (const editor of notebookEditorService.listNotebookEditors()) {
-					if (isEqual(editor.textModel?.uri, data.notebook)) {
-						return `<notebook>${editor.getId()}#${uri}`;
+				let fallback: string | undefined;
+				for (const notebookEditor of notebookEditorService.listNotebookEditors()) {
+					if (notebookEditor.hasModel() && isEqual(notebookEditor.textModel.uri, data.notebook)) {
+
+						const candidate = `<notebook>${notebookEditor.getId()}#${uri}`;
+
+						if (!fallback) {
+							fallback = candidate;
+						}
+
+						// find the code editor in the list of cell-code editors
+						if (notebookEditor.codeEditors.find((tuple) => tuple[1] === editor)) {
+							return candidate;
+						}
+
+						// 	// reveal cell and try to find code editor again
+						// 	const cell = notebookEditor.getCellByHandle(data.handle);
+						// 	if (cell) {
+						// 		notebookEditor.revealInViewAtTop(cell);
+						// 		if (notebookEditor.codeEditors.find((tuple) => tuple[1] === editor)) {
+						// 			return candidate;
+						// 		}
+						// 	}
 					}
 				}
-				throw illegalState('Expected notebook');
+
+				if (fallback) {
+					return fallback;
+				}
+
+				throw illegalState('Expected notebook editor');
 			}
 		}));
 

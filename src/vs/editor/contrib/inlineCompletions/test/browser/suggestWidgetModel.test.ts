@@ -25,7 +25,7 @@ import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { InMemoryStorageService, IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import * as assert from 'assert';
+import assert from 'assert';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
@@ -34,9 +34,12 @@ import { InlineCompletionsModel } from 'vs/editor/contrib/inlineCompletions/brow
 import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsController';
 import { autorun } from 'vs/base/common/observable';
 import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
-import { IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
+import { IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('Suggest Widget Model', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	setup(() => {
 		setUnexpectedErrorHandler(function (err) {
 			throw err;
@@ -136,7 +139,7 @@ async function withAsyncTestCodeEditorAndInlineCompletionsModel(
 			const serviceCollection = new ServiceCollection(
 				[ITelemetryService, NullTelemetryService],
 				[ILogService, new NullLogService()],
-				[IStorageService, new InMemoryStorageService()],
+				[IStorageService, disposableStore.add(new InMemoryStorageService())],
 				[IKeybindingService, new MockKeybindingService()],
 				[IEditorWorkerService, new class extends mock<IEditorWorkerService>() {
 					override computeWordRanges() {
@@ -157,17 +160,16 @@ async function withAsyncTestCodeEditorAndInlineCompletionsModel(
 				}],
 				[ILabelService, new class extends mock<ILabelService>() { }],
 				[IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { }],
-				[IAudioCueService, {
-					playAudioCue: async () => { },
-					isEnabled(cue: unknown) { return false; },
+				[IAccessibilitySignalService, {
+					playSignal: async () => { },
+					isSoundEnabled(signal: unknown) { return false; },
 				} as any]
 			);
 
 			if (options.provider) {
 				const languageFeaturesService = new LanguageFeaturesService();
 				serviceCollection.set(ILanguageFeaturesService, languageFeaturesService);
-				const d = languageFeaturesService.completionProvider.register({ pattern: '**' }, options.provider);
-				disposableStore.add(d);
+				disposableStore.add(languageFeaturesService.completionProvider.register({ pattern: '**' }, options.provider));
 			}
 
 			await withAsyncTestCodeEditor(text, { ...options, serviceCollection }, async (editor, editorViewModel, instantiationService) => {

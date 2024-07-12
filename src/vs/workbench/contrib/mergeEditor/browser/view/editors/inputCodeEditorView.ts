@@ -227,8 +227,7 @@ export class ModifiedBaseRangeGutterItemModel implements IGutterItemInfo {
 
 	public readonly enabled = this.model.isUpToDate;
 
-	public readonly toggleState: IObservable<InputState> = derived(reader => {
-		/** @description checkbox is checked */
+	public readonly toggleState: IObservable<InputState> = derived(this, reader => {
 		const input = this.model
 			.getState(this.baseRange)
 			.read(reader)
@@ -238,8 +237,7 @@ export class ModifiedBaseRangeGutterItemModel implements IGutterItemInfo {
 			: input;
 	});
 
-	public readonly state: IObservable<{ handled: boolean; focused: boolean }> = derived(reader => {
-		/** @description checkbox state */
+	public readonly state: IObservable<{ handled: boolean; focused: boolean }> = derived(this, reader => {
 		const active = this.viewModel.activeModifiedBaseRange.read(reader);
 		if (!this.model.hasBaseRange(this.baseRange)) {
 			return { handled: false, focused: false }; // Invalid state, should only be observed temporarily
@@ -365,7 +363,7 @@ export class MergeConflictGutterItemView extends Disposable implements IGutterIt
 	private readonly item: ISettableObservable<ModifiedBaseRangeGutterItemModel>;
 
 	private readonly checkboxDiv: HTMLDivElement;
-	private readonly isMultiLine = observableValue('isMultiLine', false);
+	private readonly isMultiLine = observableValue(this, false);
 
 	constructor(
 		item: ModifiedBaseRangeGutterItemModel,
@@ -374,7 +372,7 @@ export class MergeConflictGutterItemView extends Disposable implements IGutterIt
 	) {
 		super();
 
-		this.item = observableValue('item', item);
+		this.item = observableValue(this, item);
 
 		const checkBox = new Toggle({
 			isChecked: false,

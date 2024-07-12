@@ -6,6 +6,7 @@
 import * as electron from 'electron';
 import { memoize } from 'vs/base/common/decorators';
 import { Event } from 'vs/base/common/event';
+import { hash } from 'vs/base/common/hash';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
@@ -15,7 +16,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUpdate, State, StateType, UpdateType } from 'vs/platform/update/common/update';
-import { AbstractUpdateService, createUpdateURL, UpdateNotAvailableClassification } from 'vs/platform/update/electron-main/abstractUpdateService';
+import { AbstractUpdateService, createUpdateURL, UpdateErrorClassification, UpdateNotAvailableClassification } from 'vs/platform/update/electron-main/abstractUpdateService';
 
 export class DarwinUpdateService extends AbstractUpdateService implements IRelaunchHandler {
 
@@ -23,8 +24,8 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 
 	@memoize private get onRawError(): Event<string> { return Event.fromNodeEventEmitter(electron.autoUpdater, 'error', (_, message) => message); }
 	@memoize private get onRawUpdateNotAvailable(): Event<void> { return Event.fromNodeEventEmitter<void>(electron.autoUpdater, 'update-not-available'); }
-	@memoize private get onRawUpdateAvailable(): Event<IUpdate> { return Event.fromNodeEventEmitter(electron.autoUpdater, 'update-available', (_, url, version) => ({ url, version, productVersion: version })); }
-	@memoize private get onRawUpdateDownloaded(): Event<IUpdate> { return Event.fromNodeEventEmitter(electron.autoUpdater, 'update-downloaded', (_, releaseNotes, version, date) => ({ releaseNotes, version, productVersion: version, date })); }
+	@memoize private get onRawUpdateAvailable(): Event<void> { return Event.fromNodeEventEmitter(electron.autoUpdater, 'update-available'); }
+	@memoize private get onRawUpdateDownloaded(): Event<IUpdate> { return Event.fromNodeEventEmitter(electron.autoUpdater, 'update-downloaded', (_, releaseNotes, version, timestamp) => ({ version, productVersion: version, timestamp })); }
 
 	constructor(
 		@ILifecycleMainService lifecycleMainService: ILifecycleMainService,
@@ -64,6 +65,7 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 	}
 
 	private onError(err: string): void {
+		this.telemetryService.publicLog2<{ messageHash: string }, UpdateErrorClassification>('update:error', { messageHash: String(hash(String(err))) });
 		this.logService.error('UpdateService error:', err);
 
 		// only show message when explicitly checking for updates
@@ -94,18 +96,20 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 		electron.autoUpdater.checkForUpdates();
 	}
 
-	private onUpdateAvailable(update: IUpdate): void {
+	private onUpdateAvailable(): void {
 		if (this.state.type !== StateType.CheckingForUpdates) {
 			return;
 		}
 
-		this.setState(State.Downloading(update));
+		this.setState(State.Downloading);
 	}
 
 	private onUpdateDownloaded(update: IUpdate): void {
 		if (this.state.type !== StateType.Downloading) {
 			return;
 		}
+
+		this.setState(State.Downloaded(update));
 
 		type UpdateDownloadedClassification = {
 			owner: 'joaomoreno';

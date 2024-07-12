@@ -119,6 +119,10 @@ export class LinkDetector extends Disposable implements IEditorContribution {
 
 		const model = this.editor.getModel();
 
+		if (model.isTooLargeForSyncing()) {
+			return;
+		}
+
 		if (!this.providers.has(model)) {
 			return;
 		}
@@ -233,9 +237,9 @@ export class LinkDetector extends Disposable implements IEditorContribution {
 						const fsPath = resources.originalFSPath(parsedUri);
 
 						let relativePath: string | null = null;
-						if (fsPath.startsWith('/./')) {
+						if (fsPath.startsWith('/./') || fsPath.startsWith('\\.\\')) {
 							relativePath = `.${fsPath.substr(1)}`;
-						} else if (fsPath.startsWith('//./')) {
+						} else if (fsPath.startsWith('//./') || fsPath.startsWith('\\\\.\\')) {
 							relativePath = `.${fsPath.substr(2)}`;
 						}
 

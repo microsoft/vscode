@@ -6,7 +6,7 @@
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, EditorAction2, ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { StandaloneColorPickerController } from 'vs/editor/contrib/colorPicker/browser/standaloneColorPickerWidget';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -18,14 +18,16 @@ export class ShowOrFocusStandaloneColorPicker extends EditorAction2 {
 		super({
 			id: 'editor.action.showOrFocusStandaloneColorPicker',
 			title: {
-				value: localize('showOrFocusStandaloneColorPicker', "Show or Focus Standalone Color Picker"),
+				...localize2('showOrFocusStandaloneColorPicker', "Show or Focus Standalone Color Picker"),
 				mnemonicTitle: localize({ key: 'mishowOrFocusStandaloneColorPicker', comment: ['&& denotes a mnemonic'] }, "&&Show or Focus Standalone Color Picker"),
-				original: 'Show or Focus Standalone Color Picker',
 			},
 			precondition: undefined,
 			menu: [
 				{ id: MenuId.CommandPalette },
-			]
+			],
+			metadata: {
+				description: localize2('showOrFocusStandaloneColorPickerDescription', "Show or focus a standalone color picker which uses the default color provider. It displays hex/rgb/hsl colors."),
+			}
 		});
 	}
 	runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor) {
@@ -48,6 +50,9 @@ class HideStandaloneColorPicker extends EditorAction {
 			kbOpts: {
 				primary: KeyCode.Escape,
 				weight: KeybindingWeight.EditorContrib
+			},
+			metadata: {
+				description: localize2('hideColorPickerDescription', "Hide the standalone color picker."),
 			}
 		});
 	}
@@ -71,6 +76,9 @@ class InsertColorWithStandaloneColorPicker extends EditorAction {
 			kbOpts: {
 				primary: KeyCode.Enter,
 				weight: KeybindingWeight.EditorContrib
+			},
+			metadata: {
+				description: localize2('insertColorWithStandaloneColorPickerDescription', "Insert hex/rgb/hsl colors with the focused standalone color picker."),
 			}
 		});
 	}

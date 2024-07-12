@@ -113,7 +113,7 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 					if (/\.d\.ts$/.test(fileName)) {
 						// if it's already a d.ts file just emit it signature
 						const snapshot = host.getScriptSnapshot(fileName);
-						const signature = crypto.createHash('md5')
+						const signature = crypto.createHash('sha256')
 							.update(snapshot.getText(0, snapshot.getLength()))
 							.digest('base64');
 
@@ -134,7 +134,7 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 						}
 
 						if (/\.d\.ts$/.test(file.name)) {
-							signature = crypto.createHash('md5')
+							signature = crypto.createHash('sha256')
 								.update(file.text)
 								.digest('base64');
 

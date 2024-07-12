@@ -7,7 +7,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { Codicon } from 'vs/base/common/codicons';
 import { URI } from 'vs/base/common/uri';
 import { ILanguageService } from 'vs/editor/common/languages/language';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { ILocalizedString } from 'vs/platform/action/common/action';
 import { Action2 } from 'vs/platform/actions/common/actions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -21,20 +21,14 @@ import { MergeEditor } from 'vs/workbench/contrib/mergeEditor/browser/view/merge
 import { ctxIsMergeEditor, MergeEditorContents } from 'vs/workbench/contrib/mergeEditor/common/mergeEditor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
-const MERGE_EDITOR_CATEGORY: ILocalizedString = { value: localize('mergeEditor', "Merge Editor (Dev)"), original: 'Merge Editor (Dev)' };
+const MERGE_EDITOR_CATEGORY: ILocalizedString = localize2('mergeEditor', 'Merge Editor (Dev)');
 
 export class MergeEditorCopyContentsToJSON extends Action2 {
 	constructor() {
 		super({
 			id: 'merge.dev.copyContentsJson',
 			category: MERGE_EDITOR_CATEGORY,
-			title: {
-				value: localize(
-					'merge.dev.copyState',
-					'Copy Merge Editor State as JSON'
-				),
-				original: 'Copy Merge Editor State as JSON',
-			},
+			title: localize2('merge.dev.copyState', "Copy Merge Editor State as JSON"),
 			icon: Codicon.layoutCentered,
 			f1: true,
 			precondition: ctxIsMergeEditor,
@@ -80,13 +74,7 @@ export class MergeEditorSaveContentsToFolder extends Action2 {
 		super({
 			id: 'merge.dev.saveContentsToFolder',
 			category: MERGE_EDITOR_CATEGORY,
-			title: {
-				value: localize(
-					'merge.dev.saveContentsToFolder',
-					'Save Merge Editor State to Folder'
-				),
-				original: 'Save Merge Editor State to Folder',
-			},
+			title: localize2('merge.dev.saveContentsToFolder', "Save Merge Editor State to Folder"),
 			icon: Codicon.layoutCentered,
 			f1: true,
 			precondition: ctxIsMergeEditor,
@@ -149,13 +137,7 @@ export class MergeEditorLoadContentsFromFolder extends Action2 {
 		super({
 			id: 'merge.dev.loadContentsFromFolder',
 			category: MERGE_EDITOR_CATEGORY,
-			title: {
-				value: localize(
-					'merge.dev.loadContentsFromFolder',
-					'Load Merge Editor State from Folder'
-				),
-				original: 'Load Merge Editor State from Folder',
-			},
+			title: localize2('merge.dev.loadContentsFromFolder', "Load Merge Editor State from Folder"),
 			icon: Codicon.layoutCentered,
 			f1: true
 		});

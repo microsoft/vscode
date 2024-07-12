@@ -323,8 +323,8 @@ fn format(level: Level, prefix: &str, message: &str, use_colors: bool) -> String
 }
 
 pub fn emit(level: Level, prefix: &str, message: &str) {
-	let line = format(level, prefix, message, true);
-	if level == Level::Trace {
+	let line = format(level, prefix, message, *COLORS_ENABLED);
+	if level == Level::Trace && *COLORS_ENABLED {
 		print!("\x1b[2m{}\x1b[0m", line);
 	} else {
 		print!("{}", line);

@@ -5,15 +5,18 @@
 
 import { IDimension } from 'vs/base/browser/dom';
 import { Event } from 'vs/base/common/event';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const ILayoutService = createDecorator<ILayoutService>('layoutService');
 
 export interface ILayoutOffsetInfo {
+
 	/**
 	 * Generic top offset
 	 */
 	readonly top: number;
+
 	/**
 	 * Quick pick specific top offset.
 	 */
@@ -25,42 +28,83 @@ export interface ILayoutService {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * The dimensions of the container.
+	 * An event that is emitted when the main container is layed out.
 	 */
-	readonly dimension: IDimension;
+	readonly onDidLayoutMainContainer: Event<IDimension>;
 
 	/**
-	 * Does the application have a single container?
+	 * An event that is emitted when any container is layed out.
 	 */
-	readonly hasContainer: boolean;
+	readonly onDidLayoutContainer: Event<{ readonly container: HTMLElement; readonly dimension: IDimension }>;
 
 	/**
-	 * Container of the application.
-	 *
-	 * **NOTE**: In the standalone editor case, multiple editors can be created on a page.
-	 * Therefore, in the standalone editor case, there are multiple containers, not just
-	 * a single one. If you ship code that needs a "container" for the standalone editor,
-	 * please use `ICodeEditorService` to get the current focused code editor and use its
-	 * container if necessary. You can also instantiate `EditorScopedLayoutService`
-	 * which implements `ILayoutService` but is not a part of the service collection because
-	 * it is code editor instance specific.
-	 *
+	 * An event that is emitted when the active container is layed out.
 	 */
-	readonly container: HTMLElement;
+	readonly onDidLayoutActiveContainer: Event<IDimension>;
+
+	/**
+	 * An event that is emitted when a new container is added. This
+	 * can happen in multi-window environments.
+	 */
+	readonly onDidAddContainer: Event<{ readonly container: HTMLElement; readonly disposables: DisposableStore }>;
+
+	/**
+	 * An event that is emitted when the active container changes.
+	 */
+	readonly onDidChangeActiveContainer: Event<void>;
+
+	/**
+	 * The dimensions of the main container.
+	 */
+	readonly mainContainerDimension: IDimension;
+
+	/**
+	 * The dimensions of the active container.
+	 */
+	readonly activeContainerDimension: IDimension;
+
+	/**
+	 * Main container of the application.
+	 */
+	readonly mainContainer: HTMLElement;
+
+	/**
+	 * Active container of the application. When multiple windows are opened, will return
+	 * the container of the active, focused window.
+	 */
+	readonly activeContainer: HTMLElement;
+
+	/**
+	 * All the containers of the application. There can be one container per window.
+	 */
+	readonly containers: Iterable<HTMLElement>;
+
+	/**
+	 * Get the container for the given window.
+	 */
+	getContainer(window: Window): HTMLElement;
+
+	/**
+	 * Ensures that the styles for the container associated
+	 * to the window have loaded. For the main window, this
+	 * will resolve instantly, but for floating windows, this
+	 * will resolve once the styles have been loaded and helps
+	 * for when certain layout assumptions are made.
+	 */
+	whenContainerStylesLoaded(window: Window): Promise<void> | undefined;
+
+	/**
+	 * An offset to use for positioning elements inside the main container.
+	 */
+	readonly mainContainerOffset: ILayoutOffsetInfo;
 
 	/**
 	 * An offset to use for positioning elements inside the container.
 	 */
-	readonly offset: ILayoutOffsetInfo;
+	readonly activeContainerOffset: ILayoutOffsetInfo;
 
 	/**
-	 * An event that is emitted when the container is layed out. The
-	 * event carries the dimensions of the container as part of it.
-	 */
-	readonly onDidLayout: Event<IDimension>;
-
-	/**
-	 * Focus the primary component of the container.
+	 * Focus the primary component of the active container.
 	 */
 	focus(): void;
 }

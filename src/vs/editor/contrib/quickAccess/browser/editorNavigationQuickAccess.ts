@@ -5,17 +5,18 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
-import { once } from 'vs/base/common/functional';
+import { createSingleCallFunction } from 'vs/base/common/functional';
 import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { getCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IRange } from 'vs/editor/common/core/range';
 import { IDiffEditor, IEditor, ScrollType } from 'vs/editor/common/editorCommon';
 import { IModelDeltaDecoration, ITextModel, OverviewRulerLane } from 'vs/editor/common/model';
 import { overviewRulerRangeHighlight } from 'vs/editor/common/core/editorColorRegistry';
-import { IQuickAccessProvider } from 'vs/platform/quickinput/common/quickAccess';
+import { IQuickAccessProvider, IQuickAccessProviderRunOptions } from 'vs/platform/quickinput/common/quickAccess';
 import { IKeyMods, IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { status } from 'vs/base/browser/ui/aria/aria';
+import { TextEditorSelectionSource } from 'vs/platform/editor/common/editor';
 
 interface IEditorLineDecoration {
 	readonly rangeHighlightId: string;
@@ -51,7 +52,7 @@ export abstract class AbstractEditorNavigationQuickAccessProvider implements IQu
 
 	//#region Provider methods
 
-	provide(picker: IQuickPick<IQuickPickItem>, token: CancellationToken): IDisposable {
+	provide(picker: IQuickPick<IQuickPickItem>, token: CancellationToken, runOptions?: IQuickAccessProviderRunOptions): IDisposable {
 		const disposables = new DisposableStore();
 
 		// Apply options if any
@@ -62,7 +63,7 @@ export abstract class AbstractEditorNavigationQuickAccessProvider implements IQu
 
 		// Provide based on current active editor
 		const pickerDisposable = disposables.add(new MutableDisposable());
-		pickerDisposable.value = this.doProvide(picker, token);
+		pickerDisposable.value = this.doProvide(picker, token, runOptions);
 
 		// Re-create whenever the active editor changes
 		disposables.add(this.onDidActiveTextEditorControlChange(() => {
@@ -77,7 +78,7 @@ export abstract class AbstractEditorNavigationQuickAccessProvider implements IQu
 		return disposables;
 	}
 
-	private doProvide(picker: IQuickPick<IQuickPickItem>, token: CancellationToken): IDisposable {
+	private doProvide(picker: IQuickPick<IQuickPickItem>, token: CancellationToken, runOptions?: IQuickAccessProviderRunOptions): IDisposable {
 		const disposables = new DisposableStore();
 
 		// With text control
@@ -105,14 +106,14 @@ export abstract class AbstractEditorNavigationQuickAccessProvider implements IQu
 					}
 				};
 
-				disposables.add(once(token.onCancellationRequested)(() => context.restoreViewState?.()));
+				disposables.add(createSingleCallFunction(token.onCancellationRequested)(() => context.restoreViewState?.()));
 			}
 
 			// Clean up decorations on dispose
 			disposables.add(toDisposable(() => this.clearDecorations(editor)));
 
 			// Ask subclass for entries
-			disposables.add(this.provideWithTextEditor(context, picker, token));
+			disposables.add(this.provideWithTextEditor(context, picker, token, runOptions));
 		}
 
 		// Without text control
@@ -133,7 +134,7 @@ export abstract class AbstractEditorNavigationQuickAccessProvider implements IQu
 	/**
 	 * Subclasses to implement to provide picks for the picker when an editor is active.
 	 */
-	protected abstract provideWithTextEditor(context: IQuickAccessTextEditorContext, picker: IQuickPick<IQuickPickItem>, token: CancellationToken): IDisposable;
+	protected abstract provideWithTextEditor(context: IQuickAccessTextEditorContext, picker: IQuickPick<IQuickPickItem>, token: CancellationToken, runOptions?: IQuickAccessProviderRunOptions): IDisposable;
 
 	/**
 	 * Subclasses to implement to provide picks for the picker when no editor is active.
@@ -141,7 +142,7 @@ export abstract class AbstractEditorNavigationQuickAccessProvider implements IQu
 	protected abstract provideWithoutTextEditor(picker: IQuickPick<IQuickPickItem>, token: CancellationToken): IDisposable;
 
 	protected gotoLocation({ editor }: IQuickAccessTextEditorContext, options: { range: IRange; keyMods: IKeyMods; forceSideBySide?: boolean; preserveFocus?: boolean }): void {
-		editor.setSelection(options.range);
+		editor.setSelection(options.range, TextEditorSelectionSource.JUMP);
 		editor.revealRangeInCenter(options.range, ScrollType.Smooth);
 		if (!options.preserveFocus) {
 			editor.focus();

@@ -23,7 +23,7 @@ import { listFocusForeground, listFocusBackground, foreground, editorBackground 
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { IListAccessibilityProvider, IListStyles } from 'vs/base/browser/ui/list/listWidget';
+import { IListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { IStyleOverride } from 'vs/platform/theme/browser/defaultStyles';
 import { getAriaLabelForExtension } from 'vs/workbench/contrib/extensions/browser/extensionsViews';
@@ -73,7 +73,7 @@ export class ExtensionsGridView extends Disposable {
 			e.preventDefault();
 		};
 
-		this.disposableStore.add(dom.addDisposableListener(template.name, dom.EventType.CLICK, (e: MouseEvent) => handleEvent(new StandardMouseEvent(e))));
+		this.disposableStore.add(dom.addDisposableListener(template.name, dom.EventType.CLICK, (e: MouseEvent) => handleEvent(new StandardMouseEvent(dom.getWindow(template.name), e))));
 		this.disposableStore.add(dom.addDisposableListener(template.name, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => handleEvent(new StandardKeyboardEvent(e))));
 		this.disposableStore.add(dom.addDisposableListener(extensionContainer, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => handleEvent(new StandardKeyboardEvent(e))));
 
@@ -264,7 +264,7 @@ export class ExtensionsTree extends WorkbenchAsyncDataTree<IExtensionData, IExte
 				identityProvider,
 				multipleSelectionSupport: false,
 				overrideStyles,
-				accessibilityProvider: <IListAccessibilityProvider<IExtensionData>>{
+				accessibilityProvider: {
 					getAriaLabel(extensionData: IExtensionData): string {
 						return getAriaLabelForExtension(extensionData.extension);
 					},
@@ -279,7 +279,7 @@ export class ExtensionsTree extends WorkbenchAsyncDataTree<IExtensionData, IExte
 		this.setInput(input);
 
 		this.disposables.add(this.onDidChangeSelection(event => {
-			if (event.browserEvent && event.browserEvent instanceof KeyboardEvent) {
+			if (dom.isKeyboardEvent(event.browserEvent)) {
 				extensionsWorkdbenchService.open(event.elements[0].extension, { sideByside: false });
 			}
 		}));

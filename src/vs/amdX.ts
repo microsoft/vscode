@@ -7,6 +7,7 @@ import { isESM } from 'vs/base/common/amd';
 import { AppResourcePath, FileAccess, nodeModulesAsarPath, nodeModulesPath } from 'vs/base/common/network';
 import * as platform from 'vs/base/common/platform';
 import { IProductConfiguration } from 'vs/base/common/product';
+import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 
 
@@ -57,8 +58,10 @@ class AMDModuleImporter {
 		(<any>globalThis).define.amd = true;
 
 		if (this._isRenderer) {
+			// eslint-disable-next-line no-restricted-globals
 			this._amdPolicy = window.trustedTypes?.createPolicy('amdLoader', {
 				createScriptURL(value) {
+					// eslint-disable-next-line no-restricted-globals
 					if (value.startsWith(window.location.origin)) {
 						return value;
 					}
@@ -121,7 +124,8 @@ class AMDModuleImporter {
 				scriptSrc = this._amdPolicy.createScriptURL(scriptSrc) as any as string;
 			}
 			scriptElement.setAttribute('src', scriptSrc);
-			document.getElementsByTagName('head')[0].appendChild(scriptElement);
+			// eslint-disable-next-line no-restricted-globals
+			window.document.getElementsByTagName('head')[0].appendChild(scriptElement);
 		});
 	}
 
@@ -184,7 +188,7 @@ export async function importAMDNodeModule<T>(nodeModuleName: string, pathInsideN
 			nodeModuleName = _paths[nodeModuleName];
 		}
 
-		const nodeModulePath = `${nodeModuleName}/${pathInsideNodeModule}`;
+		const nodeModulePath = pathInsideNodeModule ? `${nodeModuleName}/${pathInsideNodeModule}` : nodeModuleName;
 		if (cache.has(nodeModulePath)) {
 			return cache.get(nodeModulePath)!;
 		}
@@ -205,4 +209,17 @@ export async function importAMDNodeModule<T>(nodeModuleName: string, pathInsideN
 	} else {
 		return await import(nodeModuleName);
 	}
+}
+
+export function resolveAmdNodeModulePath(nodeModuleName: string, pathInsideNodeModule: string): string {
+	assertType(isESM);
+
+	const product = globalThis._VSCODE_PRODUCT_JSON as unknown as IProductConfiguration;
+	const isBuilt = Boolean((product ?? (<any>globalThis).vscode?.context?.configuration()?.product)?.commit);
+	const useASAR = (isBuilt && !platform.isWeb);
+
+	const nodeModulePath = `${nodeModuleName}/${pathInsideNodeModule}`;
+	const actualNodeModulesPath = (useASAR ? nodeModulesAsarPath : nodeModulesPath);
+	const resourcePath: AppResourcePath = `${actualNodeModulesPath}/${nodeModulePath}`;
+	return FileAccess.asBrowserUri(resourcePath).toString(true);
 }

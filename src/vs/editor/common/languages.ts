@@ -9,6 +9,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { Color } from 'vs/base/common/color';
 import { IReadonlyVSDataTransfer } from 'vs/base/common/dataTransfer';
 import { Event } from 'vs/base/common/event';
+import { HierarchicalKind } from 'vs/base/common/hierarchicalKind';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/base/common/themables';
@@ -18,6 +19,7 @@ import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { LanguageId } from 'vs/editor/common/encodedTokenAttributes';
+import { LanguageSelector } from 'vs/editor/common/languageSelector';
 import * as model from 'vs/editor/common/model';
 import { TokenizationRegistry as TokenizationRegistryImpl } from 'vs/editor/common/tokenizationRegistry';
 import { ContiguousMultilineTokens } from 'vs/editor/common/tokens/contiguousMultilineTokens';
@@ -166,19 +168,58 @@ export interface Hover {
 	 * current position itself.
 	 */
 	range?: IRange;
+
+	/**
+	 * Can increase the verbosity of the hover
+	 */
+	canIncreaseVerbosity?: boolean;
+
+	/**
+	 * Can decrease the verbosity of the hover
+	 */
+	canDecreaseVerbosity?: boolean;
 }
 
 /**
  * The hover provider interface defines the contract between extensions and
  * the [hover](https://code.visualstudio.com/docs/editor/intellisense)-feature.
  */
-export interface HoverProvider {
+export interface HoverProvider<THover = Hover> {
 	/**
-	 * Provide a hover for the given position and document. Multiple hovers at the same
+	 * Provide a hover for the given position, context and document. Multiple hovers at the same
 	 * position will be merged by the editor. A hover can have a range which defaults
 	 * to the word range at the position when omitted.
 	 */
-	provideHover(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<Hover>;
+	provideHover(model: model.ITextModel, position: Position, token: CancellationToken, context?: HoverContext<THover>): ProviderResult<THover>;
+}
+
+export interface HoverContext<THover = Hover> {
+	/**
+	 * Hover verbosity request
+	 */
+	verbosityRequest?: HoverVerbosityRequest<THover>;
+}
+
+export interface HoverVerbosityRequest<THover = Hover> {
+	/**
+	 * The delta by which to increase/decrease the hover verbosity level
+	 */
+	verbosityDelta: number;
+	/**
+	 * The previous hover for the same position
+	 */
+	previousHover: THover;
+}
+
+export enum HoverVerbosityAction {
+	/**
+	 * Increase the verbosity of the hover
+	 */
+	Increase,
+	/**
+	 * Decrease the verbosity of the hover
+	 */
+	Decrease
 }
 
 /**
@@ -547,6 +588,22 @@ export interface CompletionList {
 }
 
 /**
+ * Info provided on partial acceptance.
+ */
+export interface PartialAcceptInfo {
+	kind: PartialAcceptTriggerKind;
+}
+
+/**
+ * How a partial acceptance was triggered.
+ */
+export const enum PartialAcceptTriggerKind {
+	Word = 0,
+	Line = 1,
+	Suggest = 2,
+}
+
+/**
  * How a suggest provider was triggered.
  */
 export const enum CompletionTriggerKind {
@@ -630,6 +687,11 @@ export interface InlineCompletionContext {
 	 */
 	readonly triggerKind: InlineCompletionTriggerKind;
 	readonly selectedSuggestionInfo: SelectedSuggestionInfo | undefined;
+	/**
+	 * @experimental
+	 * @internal
+	*/
+	readonly userPrompt?: string | undefined;
 }
 
 export class SelectedSuggestionInfo {
@@ -709,6 +771,12 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 	provideInlineCompletions(model: model.ITextModel, position: Position, context: InlineCompletionContext, token: CancellationToken): ProviderResult<T>;
 
 	/**
+	 * @experimental
+	 * @internal
+	*/
+	provideInlineEdits?(model: model.ITextModel, range: Range, context: InlineCompletionContext, token: CancellationToken): ProviderResult<T>;
+
+	/**
 	 * Will be called when an item is shown.
 	 * @param updatedInsertText Is useful to understand bracket completion.
 	*/
@@ -717,7 +785,7 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 	/**
 	 * Will be called when an item is partially accepted.
 	 */
-	handlePartialAccept?(completions: T, item: T['items'][number], acceptedCharacters: number): void;
+	handlePartialAccept?(completions: T, item: T['items'][number], acceptedCharacters: number, info: PartialAcceptInfo): void;
 
 	/**
 	 * Will be called when a completions list is no longer in use and can be garbage-collected.
@@ -746,7 +814,9 @@ export interface CodeAction {
 	diagnostics?: IMarkerData[];
 	kind?: string;
 	isPreferred?: boolean;
+	isAI?: boolean;
 	disabled?: string;
+	ranges?: IRange[];
 }
 
 export const enum CodeActionTriggerType {
@@ -775,6 +845,8 @@ export interface CodeActionProvider {
 
 	displayName?: string;
 
+	extensionId?: string;
+
 	/**
 	 * Provide commands for the given document and range.
 	 */
@@ -802,8 +874,8 @@ export interface CodeActionProvider {
  * @internal
  */
 export interface DocumentPasteEdit {
-	readonly label: string;
-	readonly detail: string;
+	readonly title: string;
+	readonly kind: HierarchicalKind;
 	readonly handledMimeType?: string;
 	readonly yieldTo?: readonly DropYieldTo[];
 	insertText: string | { readonly snippet: string };
@@ -813,16 +885,41 @@ export interface DocumentPasteEdit {
 /**
  * @internal
  */
+export enum DocumentPasteTriggerKind {
+	Automatic = 0,
+	PasteAs = 1,
+}
+
+/**
+ * @internal
+ */
+export interface DocumentPasteContext {
+	readonly only?: HierarchicalKind;
+	readonly triggerKind: DocumentPasteTriggerKind;
+}
+
+/**
+ * @internal
+ */
+export interface DocumentPasteEditsSession {
+	edits: readonly DocumentPasteEdit[];
+	dispose(): void;
+}
+
+/**
+ * @internal
+ */
 export interface DocumentPasteEditProvider {
-
-	readonly id: string;
-
+	readonly id?: string;
 	readonly copyMimeTypes?: readonly string[];
 	readonly pasteMimeTypes?: readonly string[];
+	readonly providedPasteEditKinds?: readonly HierarchicalKind[];
 
 	prepareDocumentPaste?(model: model.ITextModel, ranges: readonly IRange[], dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): Promise<undefined | IReadonlyVSDataTransfer>;
 
-	provideDocumentPasteEdits?(model: model.ITextModel, ranges: readonly IRange[], dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): Promise<DocumentPasteEdit | undefined>;
+	provideDocumentPasteEdits?(model: model.ITextModel, ranges: readonly IRange[], dataTransfer: IReadonlyVSDataTransfer, context: DocumentPasteContext, token: CancellationToken): Promise<DocumentPasteEditsSession | undefined>;
+
+	resolveDocumentPasteEdit?(edit: DocumentPasteEdit, token: CancellationToken): Promise<DocumentPasteEdit>;
 }
 
 /**
@@ -952,6 +1049,22 @@ export interface DocumentHighlight {
 	 */
 	kind?: DocumentHighlightKind;
 }
+
+/**
+ * Represents a set of document highlights for a specific URI.
+ */
+export interface MultiDocumentHighlight {
+	/**
+	 * The URI of the document that the highlights belong to.
+	 */
+	uri: URI;
+
+	/**
+	 * The set of highlights for the document.
+	 */
+	highlights: DocumentHighlight[];
+}
+
 /**
  * The document highlight provider interface defines the contract between extensions and
  * the word-highlight-feature.
@@ -962,6 +1075,28 @@ export interface DocumentHighlightProvider {
 	 * all exit-points of a function.
 	 */
 	provideDocumentHighlights(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<DocumentHighlight[]>;
+}
+
+/**
+ * A provider that can provide document highlights across multiple documents.
+ */
+export interface MultiDocumentHighlightProvider {
+	readonly selector: LanguageSelector;
+
+	/**
+	 * Provide a Map of URI --> document highlights, like all occurrences of a variable or
+	 * all exit-points of a function.
+	 *
+	 * Used in cases such as split view, notebooks, etc. where there can be multiple documents
+	 * with shared symbols.
+	 *
+	 * @param primaryModel The primary text model.
+	 * @param position The position at which to provide document highlights.
+	 * @param otherModels The other text models to search for document highlights.
+	 * @param token A cancellation token.
+	 * @returns A map of URI to document highlights.
+	 */
+	provideMultiDocumentHighlights(primaryModel: model.ITextModel, position: Position, otherModels: model.ITextModel[], token: CancellationToken): ProviderResult<Map<URI, DocumentHighlight[]>>;
 }
 
 /**
@@ -1280,10 +1415,6 @@ export interface FormattingOptions {
 	 * Prefer spaces over tabs.
 	 */
 	insertSpaces: boolean;
-	/**
-	 * The list of multiple ranges to format at once, if the provider supports it.
-	 */
-	ranges?: Range[];
 }
 /**
  * The document formatting provider interface defines the contract between extensions and
@@ -1607,6 +1738,25 @@ export interface RenameProvider {
 	resolveRenameLocation?(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<RenameLocation & Rejection>;
 }
 
+export enum NewSymbolNameTag {
+	AIGenerated = 1
+}
+
+export enum NewSymbolNameTriggerKind {
+	Invoke = 0,
+	Automatic = 1,
+}
+
+export interface NewSymbolName {
+	readonly newSymbolName: string;
+	readonly tags?: readonly NewSymbolNameTag[];
+}
+
+export interface NewSymbolNamesProvider {
+	supportsAutomaticNewSymbolNamesTriggerKind?: Promise<boolean | undefined>;
+	provideNewSymbolNames(model: model.ITextModel, range: IRange, triggerKind: NewSymbolNameTriggerKind, token: CancellationToken): ProviderResult<NewSymbolName[]>;
+}
+
 export interface Command {
 	id: string;
 	title: string;
@@ -1645,10 +1795,19 @@ export interface CommentThreadTemplate {
 /**
  * @internal
  */
-export interface CommentInfo {
+export interface CommentInfo<T = IRange> {
 	extensionId?: string;
-	threads: CommentThread[];
+	threads: CommentThread<T>[];
+	pendingCommentThreads?: PendingCommentThread[];
 	commentingRanges: CommentingRanges;
+}
+
+
+/**
+ * @internal
+ */
+export interface CommentingRangeResourceHint {
+	schemes: readonly string[];
 }
 
 /**
@@ -1676,6 +1835,14 @@ export enum CommentThreadState {
 /**
  * @internal
  */
+export enum CommentThreadApplicability {
+	Current = 0,
+	Outdated = 1
+}
+
+/**
+ * @internal
+ */
 export interface CommentWidget {
 	commentThread: CommentThread;
 	comment?: Comment;
@@ -1689,6 +1856,11 @@ export interface CommentWidget {
 export interface CommentInput {
 	value: string;
 	uri: URI;
+}
+
+export interface CommentThreadRevealOptions {
+	preserveFocus: boolean;
+	focusReply: boolean;
 }
 
 /**
@@ -1710,6 +1882,7 @@ export interface CommentThread<T = IRange> {
 	initialCollapsibleState?: CommentThreadCollapsibleState;
 	onDidChangeInitialCollapsibleState: Event<CommentThreadCollapsibleState | undefined>;
 	state?: CommentThreadState;
+	applicability?: CommentThreadApplicability;
 	canReply: boolean;
 	input?: CommentInput;
 	onDidChangeInput: Event<CommentInput | undefined>;
@@ -1725,11 +1898,24 @@ export interface CommentThread<T = IRange> {
 /**
  * @internal
  */
+export interface AddedCommentThread<T = IRange> extends CommentThread<T> {
+	editorId?: string;
+}
+
+/**
+ * @internal
+ */
 
 export interface CommentingRanges {
 	readonly resource: URI;
 	ranges: IRange[];
 	fileComments: boolean;
+}
+
+export interface CommentAuthorInformation {
+	name: string;
+	iconPath?: UriComponents;
+
 }
 
 /**
@@ -1741,6 +1927,7 @@ export interface CommentReaction {
 	readonly count?: number;
 	readonly hasReacted?: boolean;
 	readonly canEdit?: boolean;
+	readonly reactors?: readonly string[];
 }
 
 /**
@@ -1789,14 +1976,27 @@ export interface Comment {
 	readonly timestamp?: string;
 }
 
+export interface PendingCommentThread {
+	body: string;
+	range: IRange | undefined;
+	uri: URI;
+	uniqueOwner: string;
+	isReply: boolean;
+}
+
 /**
  * @internal
  */
 export interface CommentThreadChangedEvent<T> {
 	/**
+	 * Pending comment threads.
+	 */
+	readonly pending: PendingCommentThread[];
+
+	/**
 	 * Added comment threads.
 	 */
-	readonly added: CommentThread<T>[];
+	readonly added: AddedCommentThread<T>[];
 
 	/**
 	 * Removed comment threads.
@@ -2011,13 +2211,14 @@ export enum ExternalUriOpenerPriority {
 /**
  * @internal
  */
-export type DropYieldTo = { readonly providerId: string } | { readonly mimeType: string };
+export type DropYieldTo = { readonly kind: HierarchicalKind } | { readonly mimeType: string };
 
 /**
  * @internal
  */
-export interface DocumentOnDropEdit {
-	readonly label: string;
+export interface DocumentDropEdit {
+	readonly title: string;
+	readonly kind: HierarchicalKind | undefined;
 	readonly handledMimeType?: string;
 	readonly yieldTo?: readonly DropYieldTo[];
 	insertText: string | { readonly snippet: string };
@@ -2027,9 +2228,70 @@ export interface DocumentOnDropEdit {
 /**
  * @internal
  */
-export interface DocumentOnDropEditProvider {
+export interface DocumentDropEditsSession {
+	edits: readonly DocumentDropEdit[];
+	dispose(): void;
+}
+
+/**
+ * @internal
+ */
+export interface DocumentDropEditProvider {
 	readonly id?: string;
 	readonly dropMimeTypes?: readonly string[];
 
-	provideDocumentOnDropEdits(model: model.ITextModel, position: IPosition, dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): ProviderResult<DocumentOnDropEdit>;
+	provideDocumentDropEdits(model: model.ITextModel, position: IPosition, dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): ProviderResult<DocumentDropEditsSession>;
+	resolveDocumentDropEdit?(edit: DocumentDropEdit, token: CancellationToken): Promise<DocumentDropEdit>;
+}
+
+export interface DocumentContextItem {
+	readonly uri: URI;
+	readonly version: number;
+	readonly ranges: IRange[];
+}
+
+export interface MappedEditsContext {
+	/** The outer array is sorted by priority - from highest to lowest. The inner arrays contain elements of the same priority. */
+	documents: DocumentContextItem[][];
+}
+
+export interface MappedEditsProvider {
+
+	/**
+	 * Provider maps code blocks from the chat into a workspace edit.
+	 *
+	 * @param document The document to provide mapped edits for.
+	 * @param codeBlocks Code blocks that come from an LLM's reply.
+	 * 						"Apply in Editor" in the panel chat only sends one edit that the user clicks on, but inline chat can send multiple blocks and let the lang server decide what to do with them.
+	 * @param context The context for providing mapped edits.
+	 * @param token A cancellation token.
+	 * @returns A provider result of text edits.
+	 */
+	provideMappedEdits(
+		document: model.ITextModel,
+		codeBlocks: string[],
+		context: MappedEditsContext,
+		token: CancellationToken
+	): Promise<WorkspaceEdit | null>;
+}
+
+export interface IInlineEdit {
+	text: string;
+	range: IRange;
+	accepted?: Command;
+	rejected?: Command;
+}
+
+export interface IInlineEditContext {
+	triggerKind: InlineEditTriggerKind;
+}
+
+export enum InlineEditTriggerKind {
+	Invoke = 0,
+	Automatic = 1,
+}
+
+export interface InlineEditProvider<T extends IInlineEdit = IInlineEdit> {
+	provideInlineEdit(model: model.ITextModel, context: IInlineEditContext, token: CancellationToken): ProviderResult<T>;
+	freeInlineEdit(edit: T): void;
 }

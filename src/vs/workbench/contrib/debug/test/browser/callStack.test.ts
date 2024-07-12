@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import * as sinon from 'sinon';
-import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { Constants } from 'vs/base/common/uint';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Range } from 'vs/editor/common/core/range';
+import { TestAccessibilityService } from 'vs/platform/accessibility/test/common/testAccessibilityService';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { NullLogService } from 'vs/platform/log/common/log';
@@ -34,7 +34,7 @@ const mockWorkspaceContextService = {
 } as any;
 
 export function createTestSession(model: DebugModel, name = 'mockSession', options?: IDebugSessionOptions): DebugSession {
-	return new DebugSession(generateUuid(), { resolved: { name, type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, options, {
+	return new DebugSession(generateUuid(), { resolved: { name, type: 'node', request: 'launch' }, unresolved: undefined }, undefined, model, options, {
 		getViewModel(): any {
 			return {
 				updateViews(): void {
@@ -42,7 +42,7 @@ export function createTestSession(model: DebugModel, name = 'mockSession', optio
 				}
 			};
 		}
-	} as IDebugService, undefined!, undefined!, new TestConfigurationService({ debug: { console: { collapseIdenticalLines: true } } }), undefined!, mockWorkspaceContextService, undefined!, undefined!, undefined!, mockUriIdentityService, new TestInstantiationService(), undefined!, undefined!, new NullLogService());
+	} as IDebugService, undefined!, undefined!, new TestConfigurationService({ debug: { console: { collapseIdenticalLines: true } } }), undefined!, mockWorkspaceContextService, undefined!, undefined!, undefined!, mockUriIdentityService, new TestInstantiationService(), undefined!, undefined!, new NullLogService(), undefined!, undefined!, new TestAccessibilityService());
 }
 
 function createTwoStackFrames(session: DebugSession): { firstStackFrame: StackFrame; secondStackFrame: StackFrame } {
@@ -72,20 +72,16 @@ function createTwoStackFrames(session: DebugSession): { firstStackFrame: StackFr
 suite('Debug - CallStack', () => {
 	let model: DebugModel;
 	let mockRawSession: MockRawSession;
-	let disposables: DisposableStore;
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(() => {
-		disposables = new DisposableStore();
 		model = createMockDebugModel(disposables);
 		mockRawSession = new MockRawSession();
 	});
 
 	teardown(() => {
-		disposables.dispose();
 		sinon.restore();
 	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	// Threads
 
@@ -450,7 +446,7 @@ suite('Debug - CallStack', () => {
 			override get state(): State {
 				return State.Stopped;
 			}
-		}(generateUuid(), { resolved: { name: 'stoppedSession', type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, undefined, undefined!, undefined!, undefined!, undefined!, undefined!, mockWorkspaceContextService, undefined!, undefined!, undefined!, mockUriIdentityService, new TestInstantiationService(), undefined!, undefined!, new NullLogService());
+		}(generateUuid(), { resolved: { name: 'stoppedSession', type: 'node', request: 'launch' }, unresolved: undefined }, undefined, model, undefined, undefined!, undefined!, undefined!, undefined!, undefined!, mockWorkspaceContextService, undefined!, undefined!, undefined!, mockUriIdentityService, new TestInstantiationService(), undefined!, undefined!, new NullLogService(), undefined!, undefined!, new TestAccessibilityService());
 		disposables.add(session);
 
 		const runningSession = createTestSession(model);

@@ -21,7 +21,7 @@
 	"html.format.wrapAttributes.preservealigned": "Preserve wrapping of attributes but align.",
 	"html.format.templating.desc": "Honor django, erb, handlebars and php templating language tags.",
 	"html.format.unformattedContentDelimiter.desc": "Keep text content together between this string.",
-	"html.format.wrapAttributesIndentSize.desc": "Indent wrapped attributes to after N characters. Use `null` to use the default indent size. Ignored if `#html.format.wrapAttributes#` is set to 'aligned'.",
+	"html.format.wrapAttributesIndentSize.desc": "Indent wrapped attributes to after N characters. Use `null` to use the default indent size. Ignored if `#html.format.wrapAttributes#` is set to `aligned`.",
 	"html.suggest.html5.desc": "Controls whether the built-in HTML language support suggests HTML5 tags, properties and values.",
 	"html.trace.server.desc": "Traces the communication between VS Code and the HTML language server.",
 	"html.validate.scripts": "Controls whether the built-in HTML language support validates embedded scripts.",

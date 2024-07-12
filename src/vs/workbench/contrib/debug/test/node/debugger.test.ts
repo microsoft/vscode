@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { join, normalize } from 'vs/base/common/path';
 import * as platform from 'vs/base/common/platform';
 import { IDebugAdapterExecutable, IConfig, IDebugSession, IAdapterManager } from 'vs/workbench/contrib/debug/common/debug';
@@ -13,6 +13,7 @@ import { URI } from 'vs/base/common/uri';
 import { ExecutableDebugAdapter } from 'vs/workbench/contrib/debug/node/debugAdapter';
 import { TestTextResourcePropertiesService } from 'vs/editor/test/common/services/testTextResourcePropertiesService';
 import { ExtensionIdentifier, IExtensionDescription, TargetPlatform } from 'vs/platform/extensions/common/extensions';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 
 suite('Debug - Debugger', () => {
@@ -63,7 +64,8 @@ suite('Debug - Debugger', () => {
 			'debuggers': [
 				debuggerContribution
 			]
-		}
+		},
+		enabledApiProposals: undefined,
 	};
 
 	const extensionDescriptor1 = {
@@ -88,7 +90,8 @@ suite('Debug - Debugger', () => {
 					args: ['parg']
 				}
 			]
-		}
+		},
+		enabledApiProposals: undefined,
 	};
 
 	const extensionDescriptor2 = {
@@ -121,7 +124,8 @@ suite('Debug - Debugger', () => {
 					}
 				}
 			]
-		}
+		},
+		enabledApiProposals: undefined,
 	};
 
 
@@ -130,6 +134,8 @@ suite('Debug - Debugger', () => {
 			return Promise.resolve(undefined);
 		}
 	};
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const configurationService = new TestConfigurationService();
 	const testResourcePropertiesService = new TestTextResourcePropertiesService(configurationService);

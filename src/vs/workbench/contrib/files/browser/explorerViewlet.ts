@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/explorerviewlet';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { mark } from 'vs/base/common/performance';
 import { VIEWLET_ID, VIEW_ID, IFilesConfiguration, ExplorerViewletVisibleContext } from 'vs/workbench/contrib/files/common/files';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
@@ -37,11 +37,14 @@ import { OpenRecentAction } from 'vs/workbench/browser/actions/windowActions';
 import { isMacintosh, isWeb } from 'vs/base/common/platform';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+import { isMouseEvent } from 'vs/base/browser/dom';
 
 const explorerViewIcon = registerIcon('explorer-view-icon', Codicon.files, localize('explorerViewIcon', 'View icon of the explorer view.'));
 const openEditorsViewIcon = registerIcon('open-editors-view-icon', Codicon.book, localize('openEditorsIcon', 'View icon of the open editors view.'));
 
 export class ExplorerViewletViewsContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.explorerViewletViews';
 
 	constructor(
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
@@ -91,11 +94,11 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 			}
 		}
 
-		if (viewDescriptorsToRegister.length) {
-			viewsRegistry.registerViews(viewDescriptorsToRegister, VIEW_CONTAINER);
-		}
 		if (viewDescriptorsToDeregister.length) {
 			viewsRegistry.deregisterViews(viewDescriptorsToDeregister, VIEW_CONTAINER);
+		}
+		if (viewDescriptorsToRegister.length) {
+			viewsRegistry.registerViews(viewDescriptorsToRegister, VIEW_CONTAINER);
 		}
 
 		mark('code/didRegisterExplorerViews');
@@ -136,7 +139,7 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 	private createExplorerViewDescriptor(): IViewDescriptor {
 		return {
 			id: VIEW_ID,
-			name: localize('folders', "Folders"),
+			name: localize2('folders', "Folders"),
 			containerIcon: explorerViewIcon,
 			ctorDescriptor: new SyncDescriptor(ExplorerView),
 			order: 1,
@@ -183,7 +186,7 @@ export class ExplorerViewPaneContainer extends ViewPaneContainer {
 			return this.instantiationService.createInstance(ExplorerView, {
 				...options, delegate: {
 					willOpenElement: e => {
-						if (!(e instanceof MouseEvent)) {
+						if (!isMouseEvent(e)) {
 							return; // only delay when user clicks
 						}
 
@@ -206,7 +209,7 @@ export class ExplorerViewPaneContainer extends ViewPaneContainer {
 						}
 					},
 					didOpenElement: e => {
-						if (!(e instanceof MouseEvent)) {
+						if (!isMouseEvent(e)) {
 							return; // only delay when user clicks
 						}
 
@@ -252,7 +255,7 @@ const viewContainerRegistry = Registry.as<IViewContainersRegistry>(Extensions.Vi
  */
 export const VIEW_CONTAINER: ViewContainer = viewContainerRegistry.registerViewContainer({
 	id: VIEWLET_ID,
-	title: localize('explore', "Explorer"),
+	title: localize2('explore', "Explorer"),
 	ctorDescriptor: new SyncDescriptor(ExplorerViewPaneContainer),
 	storageId: 'workbench.explorer.views.state',
 	icon: explorerViewIcon,
@@ -261,7 +264,7 @@ export const VIEW_CONTAINER: ViewContainer = viewContainerRegistry.registerViewC
 	order: 0,
 	openCommandActionDescriptor: {
 		id: VIEWLET_ID,
-		title: { value: localize('explore', "Explorer"), original: 'Explorer' },
+		title: localize2('explore', "Explorer"),
 		mnemonicTitle: localize({ key: 'miViewExplorer', comment: ['&& denotes a mnemonic'] }, "&&Explorer"),
 		keybindings: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyE },
 		order: 0
@@ -280,7 +283,7 @@ const openRecentButton = `[${openRecent}](command:${OpenRecentAction.ID})`;
 
 const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 viewsRegistry.registerViewWelcomeContent(EmptyView.ID, {
-	content: localize({ key: 'noWorkspaceHelp', comment: ['Please do not translate the word "commmand", it is part of our internal syntax which must not change'] },
+	content: localize({ key: 'noWorkspaceHelp', comment: ['Please do not translate the word "command", it is part of our internal syntax which must not change'] },
 		"You have not yet added a folder to the workspace.\n{0}", addRootFolderButton),
 	when: ContextKeyExpr.and(
 		// inside a .code-workspace
@@ -293,7 +296,7 @@ viewsRegistry.registerViewWelcomeContent(EmptyView.ID, {
 });
 
 viewsRegistry.registerViewWelcomeContent(EmptyView.ID, {
-	content: localize({ key: 'noFolderHelpWeb', comment: ['Please do not translate the word "commmand", it is part of our internal syntax which must not change'] },
+	content: localize({ key: 'noFolderHelpWeb', comment: ['Please do not translate the word "command", it is part of our internal syntax which must not change'] },
 		"You have not yet opened a folder.\n{0}\n{1}", openFolderViaWorkspaceButton, openRecentButton),
 	when: ContextKeyExpr.and(
 		// inside a .code-workspace
@@ -306,7 +309,7 @@ viewsRegistry.registerViewWelcomeContent(EmptyView.ID, {
 });
 
 viewsRegistry.registerViewWelcomeContent(EmptyView.ID, {
-	content: localize({ key: 'remoteNoFolderHelp', comment: ['Please do not translate the word "commmand", it is part of our internal syntax which must not change'] },
+	content: localize({ key: 'remoteNoFolderHelp', comment: ['Please do not translate the word "command", it is part of our internal syntax which must not change'] },
 		"Connected to remote.\n{0}", openFolderButton),
 	when: ContextKeyExpr.and(
 		// not inside a .code-workspace
@@ -320,7 +323,7 @@ viewsRegistry.registerViewWelcomeContent(EmptyView.ID, {
 });
 
 viewsRegistry.registerViewWelcomeContent(EmptyView.ID, {
-	content: localize({ key: 'noFolderButEditorsHelp', comment: ['Please do not translate the word "commmand", it is part of our internal syntax which must not change'] },
+	content: localize({ key: 'noFolderButEditorsHelp', comment: ['Please do not translate the word "command", it is part of our internal syntax which must not change'] },
 		"You have not yet opened a folder.\n{0}\nOpening a folder will close all currently open editors. To keep them open, {1} instead.", openFolderButton, addAFolderButton),
 	when: ContextKeyExpr.and(
 		// editors are opened
@@ -337,7 +340,7 @@ viewsRegistry.registerViewWelcomeContent(EmptyView.ID, {
 });
 
 viewsRegistry.registerViewWelcomeContent(EmptyView.ID, {
-	content: localize({ key: 'noFolderHelp', comment: ['Please do not translate the word "commmand", it is part of our internal syntax which must not change'] },
+	content: localize({ key: 'noFolderHelp', comment: ['Please do not translate the word "command", it is part of our internal syntax which must not change'] },
 		"You have not yet opened a folder.\n{0}", openFolderButton),
 	when: ContextKeyExpr.and(
 		// no editor is open

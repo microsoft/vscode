@@ -1,0 +1,33 @@
+{
+  parts: [
+    {
+      range: {
+        start: 0,
+        endExclusive: 4
+      },
+      editorRange: {
+        startLineNumber: 1,
+        startColumn: 1,
+        endLineNumber: 1,
+        endColumn: 5
+      },
+      slashCommand: { command: "fix" },
+      kind: "slash"
+    },
+    {
+      range: {
+        start: 4,
+        endExclusive: 9
+      },
+      editorRange: {
+        startLineNumber: 1,
+        startColumn: 5,
+        endLineNumber: 1,
+        endColumn: 10
+      },
+      text: " /fix",
+      kind: "text"
+    }
+  ],
+  text: "/fix /fix"
+}

@@ -17,7 +17,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { getResolvedShellEnv } from 'vs/platform/shell/node/shellEnv';
 import { ILogService, ILoggerService } from 'vs/platform/log/common/log';
-import { AbstractRequestService, IRequestService } from 'vs/platform/request/common/request';
+import { AbstractRequestService, AuthInfo, Credentials, IRequestService } from 'vs/platform/request/common/request';
 import { Agent, getProxyAgent } from 'vs/platform/request/node/proxy';
 import { createGunzip } from 'zlib';
 
@@ -108,6 +108,15 @@ export class RequestService extends AbstractRequestService implements IRequestSe
 
 	async resolveProxy(url: string): Promise<string | undefined> {
 		return undefined; // currently not implemented in node
+	}
+
+	async lookupAuthorization(authInfo: AuthInfo): Promise<Credentials | undefined> {
+		return undefined; // currently not implemented in node
+	}
+
+	async loadCertificates(): Promise<string[]> {
+		const proxyAgent = await import('@vscode/proxy-agent');
+		return proxyAgent.loadSystemCertificates({ log: this.logService });
 	}
 }
 

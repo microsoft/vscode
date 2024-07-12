@@ -3,13 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { InlineDecoration, InlineDecorationType } from 'vs/editor/common/viewModel';
 import { testViewModel } from 'vs/editor/test/browser/viewModel/testViewModel';
 
 suite('ViewModelDecorations', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('getDecorationsViewportData', () => {
 		const text = [
 			'hello world, this is a buffer that will be wrapped'

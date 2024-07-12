@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { Codicon, getCodiconFontCharacters } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
+import { getCodiconFontCharacters } from 'vs/base/common/codiconsUtil';
 import { ThemeIcon, IconIdentifier } from 'vs/base/common/themables';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';

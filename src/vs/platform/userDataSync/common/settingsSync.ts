@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { distinct } from 'vs/base/common/arrays';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
@@ -12,6 +13,7 @@ import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configur
 import { ConfigurationModelParser } from 'vs/platform/configuration/common/configurationModels';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -19,7 +21,7 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { AbstractInitializer, AbstractJsonFileSynchroniser, IAcceptResult, IFileResourcePreview, IMergeResult } from 'vs/platform/userDataSync/common/abstractSynchronizer';
 import { getIgnoredSettings, isEmpty, merge, updateIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
-import { Change, IRemoteUserData, IUserDataSyncBackupStoreService, IUserDataSyncConfiguration, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncStoreService, IUserDataSyncUtilService, SyncResource, UserDataSyncError, UserDataSyncErrorCode, USER_DATA_SYNC_CONFIGURATION_SCOPE, USER_DATA_SYNC_SCHEME, IUserDataResourceManifest } from 'vs/platform/userDataSync/common/userDataSync';
+import { Change, IRemoteUserData, IUserDataSyncLocalStoreService, IUserDataSyncConfiguration, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncStoreService, IUserDataSyncUtilService, SyncResource, UserDataSyncError, UserDataSyncErrorCode, USER_DATA_SYNC_CONFIGURATION_SCOPE, USER_DATA_SYNC_SCHEME, IUserDataResourceManifest, getIgnoredSettingsForExtension } from 'vs/platform/userDataSync/common/userDataSync';
 
 interface ISettingsResourcePreview extends IFileResourcePreview {
 	previewResult: IMergeResult;
@@ -51,13 +53,13 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 	readonly acceptedResource: URI = this.previewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'accepted' });
 
 	constructor(
-		profile: IUserDataProfile,
+		private readonly profile: IUserDataProfile,
 		collection: string | undefined,
 		@IFileService fileService: IFileService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IStorageService storageService: IStorageService,
 		@IUserDataSyncStoreService userDataSyncStoreService: IUserDataSyncStoreService,
-		@IUserDataSyncBackupStoreService userDataSyncBackupStoreService: IUserDataSyncBackupStoreService,
+		@IUserDataSyncLocalStoreService userDataSyncLocalStoreService: IUserDataSyncLocalStoreService,
 		@IUserDataSyncLogService logService: IUserDataSyncLogService,
 		@IUserDataSyncUtilService userDataSyncUtilService: IUserDataSyncUtilService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -66,14 +68,14 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
-		super(profile.settingsResource, { syncResource: SyncResource.Settings, profile }, collection, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncEnablementService, telemetryService, logService, userDataSyncUtilService, configurationService, uriIdentityService);
+		super(profile.settingsResource, { syncResource: SyncResource.Settings, profile }, collection, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncLocalStoreService, userDataSyncEnablementService, telemetryService, logService, userDataSyncUtilService, configurationService, uriIdentityService);
 	}
 
 	async getRemoteUserDataSyncConfiguration(manifest: IUserDataResourceManifest | null): Promise<IUserDataSyncConfiguration> {
 		const lastSyncUserData = await this.getLastSyncUserData();
 		const remoteUserData = await this.getLatestRemoteUserData(manifest, lastSyncUserData);
 		const remoteSettingsSyncContent = this.getSettingsSyncContent(remoteUserData);
-		const parser = new ConfigurationModelParser(USER_DATA_SYNC_CONFIGURATION_SCOPE);
+		const parser = new ConfigurationModelParser(USER_DATA_SYNC_CONFIGURATION_SCOPE, this.logService);
 		if (remoteSettingsSyncContent?.settings) {
 			parser.parse(remoteSettingsSyncContent.settings);
 		}
@@ -315,19 +317,37 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 		return { settings };
 	}
 
-	private _defaultIgnoredSettings: Promise<string[]> | undefined = undefined;
+	private coreIgnoredSettings: Promise<string[]> | undefined = undefined;
+	private systemExtensionsIgnoredSettings: Promise<string[]> | undefined = undefined;
+	private userExtensionsIgnoredSettings: Promise<string[]> | undefined = undefined;
 	private async getIgnoredSettings(content?: string): Promise<string[]> {
-		if (!this._defaultIgnoredSettings) {
-			this._defaultIgnoredSettings = this.userDataSyncUtilService.resolveDefaultIgnoredSettings();
-			const disposable = Event.any<any>(
+		if (!this.coreIgnoredSettings) {
+			this.coreIgnoredSettings = this.userDataSyncUtilService.resolveDefaultCoreIgnoredSettings();
+		}
+		if (!this.systemExtensionsIgnoredSettings) {
+			this.systemExtensionsIgnoredSettings = this.getIgnoredSettingForSystemExtensions();
+		}
+		if (!this.userExtensionsIgnoredSettings) {
+			this.userExtensionsIgnoredSettings = this.getIgnoredSettingForUserExtensions();
+			const disposable = this._register(Event.any<any>(
 				Event.filter(this.extensionManagementService.onDidInstallExtensions, (e => e.some(({ local }) => !!local))),
 				Event.filter(this.extensionManagementService.onDidUninstallExtension, (e => !e.error)))(() => {
 					disposable.dispose();
-					this._defaultIgnoredSettings = undefined;
-				});
+					this.userExtensionsIgnoredSettings = undefined;
+				}));
 		}
-		const defaultIgnoredSettings = await this._defaultIgnoredSettings;
+		const defaultIgnoredSettings = (await Promise.all([this.coreIgnoredSettings, this.systemExtensionsIgnoredSettings, this.userExtensionsIgnoredSettings])).flat();
 		return getIgnoredSettings(defaultIgnoredSettings, this.configurationService, content);
+	}
+
+	private async getIgnoredSettingForSystemExtensions(): Promise<string[]> {
+		const systemExtensions = await this.extensionManagementService.getInstalled(ExtensionType.System);
+		return distinct(systemExtensions.map(e => getIgnoredSettingsForExtension(e.manifest)).flat());
+	}
+
+	private async getIgnoredSettingForUserExtensions(): Promise<string[]> {
+		const userExtensions = await this.extensionManagementService.getInstalled(ExtensionType.User, this.profile.extensionsResource);
+		return distinct(userExtensions.map(e => getIgnoredSettingsForExtension(e.manifest)).flat());
 	}
 
 	private validateContent(content: string): void {

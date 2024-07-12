@@ -15,10 +15,9 @@ export function registerCellToolbarStickyScroll(notebookEditor: INotebookEditor,
 		if (cell.isInputCollapsed) {
 			element.style.top = '';
 		} else {
-			const stickyHeight = notebookEditor.getLayoutInfo().stickyHeight;
 			const scrollTop = notebookEditor.scrollTop;
 			const elementTop = notebookEditor.getAbsoluteTopOfElement(cell);
-			const diff = scrollTop - elementTop + extraOffset + stickyHeight;
+			const diff = scrollTop - elementTop + extraOffset;
 			const maxTop = cell.layoutInfo.editorHeight + cell.layoutInfo.statusBarHeight - 45; // subtract roughly the height of the execution order label plus padding
 			const top = maxTop > 20 ? // Don't move the run button if it can only move a very short distance
 				clamp(min, diff, maxTop) :

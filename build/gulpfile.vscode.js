@@ -6,10 +6,7 @@
 'use strict';
 
 const gulp = require('gulp');
-const merge = require('gulp-merge-json');
 const fs = require('fs');
-const os = require('os');
-const cp = require('child_process');
 const path = require('path');
 const es = require('event-stream');
 const vfs = require('vinyl-fs');
@@ -18,9 +15,11 @@ const replace = require('gulp-replace');
 const filter = require('gulp-filter');
 const util = require('./lib/util');
 const { getVersion } = require('./lib/getVersion');
+const { readISODate } = require('./lib/date');
 const task = require('./lib/task');
 const buildfile = require('../src/buildfile');
 const optimize = require('./lib/optimize');
+const { inlineMeta } = require('./lib/inlineMeta');
 const root = path.dirname(__dirname);
 const commit = getVersion(root);
 const packageJson = require('../package.json');
@@ -51,19 +50,16 @@ const vscodeEntryPoints = [
 ].flat();
 
 const vscodeResources = [
-	'out-build/bootstrap.js',
-	'out-build/bootstrap-fork.js',
-	'out-build/bootstrap-amd.js',
-	'out-build/bootstrap-node.js',
-	'out-build/bootstrap-window.js',
+	'out-build/nls.messages.json',
+	'out-build/nls.keys.json',
 	'out-build/vs/**/*.{svg,png,html,jpg,mp3}',
 	'!out-build/vs/code/browser/**/*.html',
 	'!out-build/vs/code/**/*-dev.html',
 	'!out-build/vs/editor/standalone/**/*.svg',
-	'out-build/vs/base/common/performance.js',
 	'out-build/vs/base/node/{stdForkStart.js,terminateProcess.sh,cpuUsage.sh,ps.sh}',
 	'out-build/vs/base/browser/ui/codicons/codicon/**',
 	'out-build/vs/base/parts/sandbox/electron-sandbox/preload.js',
+	'out-build/vs/base/parts/sandbox/electron-sandbox/preload-aux.js',
 	'out-build/vs/workbench/browser/media/*-theme.css',
 	'out-build/vs/workbench/contrib/debug/**/*.json',
 	'out-build/vs/workbench/contrib/externalTerminal/**/*.scpt',
@@ -72,10 +68,10 @@ const vscodeResources = [
 	'out-build/vs/workbench/contrib/terminal/browser/media/*.sh',
 	'out-build/vs/workbench/contrib/terminal/browser/media/*.zsh',
 	'out-build/vs/workbench/contrib/webview/browser/pre/*.js',
+	'!out-build/vs/workbench/contrib/issue/browser/*.html',
+	'!out-build/vs/workbench/contrib/issue/**/*-dev.html',
 	'out-build/vs/**/markdown.css',
 	'out-build/vs/workbench/contrib/tasks/**/*.json',
-	'out-build/vs/platform/files/**/*.exe',
-	'out-build/vs/platform/files/**/*.md',
 	'!**/test/**'
 ];
 
@@ -86,6 +82,12 @@ const windowBootstrapFiles = [
 	'out-build/bootstrap.js',
 	'out-build/vs/loader.js',
 	'out-build/bootstrap-window.js'
+];
+
+const commonJSEntryPoints = [
+	'out-build/main.js',
+	'out-build/cli.js',
+	'out-build/bootstrap-fork.js'
 ];
 
 const optimizeVSCodeTask = task.define('optimize-vscode', task.series(
@@ -106,24 +108,24 @@ const optimizeVSCodeTask = task.define('optimize-vscode', task.series(
 			},
 			commonJS: {
 				src: 'out-build',
-				entryPoints: [
-					'out-build/main.js',
-					'out-build/cli.js'
-				],
+				entryPoints: commonJSEntryPoints,
 				platform: 'node',
 				external: [
 					'electron',
 					'minimist',
-					// TODO: we cannot inline `product.json` because
+					'original-fs',
+					// We cannot inline `product.json` from here because
 					// it is being changed during build time at a later
 					// point in time (such as `checksums`)
+					// We have a manual step to inline these later.
 					'../product.json',
 					'../package.json',
 				]
 			},
 			manual: [
 				{ src: [...windowBootstrapFiles, 'out-build/vs/code/electron-sandbox/workbench/workbench.js'], out: 'vs/code/electron-sandbox/workbench/workbench.js' },
-				{ src: [...windowBootstrapFiles, 'out-build/vs/code/electron-sandbox/issue/issueReporter.js'], out: 'vs/code/electron-sandbox/issue/issueReporter.js' },
+				// TODO: @justchen https://github.com/microsoft/vscode/issues/213332 make sure to remove when we use window.open on desktop.
+				{ src: [...windowBootstrapFiles, 'out-build/vs/workbench/contrib/issue/electron-sandbox/issueReporter.js'], out: 'vs/workbench/contrib/issue/electron-sandbox/issueReporter.js' },
 				{ src: [...windowBootstrapFiles, 'out-build/vs/code/electron-sandbox/processExplorer/processExplorer.js'], out: 'vs/code/electron-sandbox/processExplorer/processExplorer.js' }
 			]
 		}
@@ -131,7 +133,7 @@ const optimizeVSCodeTask = task.define('optimize-vscode', task.series(
 ));
 gulp.task(optimizeVSCodeTask);
 
-const sourceMappingURLBase = `https://ticino.blob.core.windows.net/sourcemaps/${commit}`;
+const sourceMappingURLBase = `https://main.vscode-cdn.net/sourcemaps/${commit}`;
 const minifyVSCodeTask = task.define('minify-vscode', task.series(
 	optimizeVSCodeTask,
 	util.rimraf('out-vscode-min'),
@@ -185,7 +187,7 @@ function computeChecksum(filename) {
 	const contents = fs.readFileSync(filename);
 
 	const hash = crypto
-		.createHash('md5')
+		.createHash('sha256')
 		.update(contents)
 		.digest('base64')
 		.replace(/=+$/, '');
@@ -247,14 +249,21 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 			packageJsonUpdates.desktopName = `${product.applicationName}-url-handler.desktop`;
 		}
 
+		let packageJsonContents;
 		const packageJsonStream = gulp.src(['package.json'], { base: '.' })
-			.pipe(json(packageJsonUpdates));
+			.pipe(json(packageJsonUpdates))
+			.pipe(es.through(function (file) {
+				packageJsonContents = file.contents.toString();
+				this.emit('data', file);
+			}));
 
-		const date = new Date().toISOString();
-		const productJsonUpdate = { commit, date, checksums, version };
-
+		let productJsonContents;
 		const productJsonStream = gulp.src(['product.json'], { base: '.' })
-			.pipe(json(productJsonUpdate));
+			.pipe(json({ commit, date: readISODate('out-build'), checksums, version }))
+			.pipe(es.through(function (file) {
+				productJsonContents = file.contents.toString();
+				this.emit('data', file);
+			}));
 
 		const license = gulp.src([product.licenseFileName, 'ThirdPartyNotices.txt', 'licenses/**'], { base: '.', allowEmpty: true });
 
@@ -282,7 +291,9 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 				'**/node-pty/lib/worker/conoutSocketWorker.js',
 				'**/node-pty/lib/shared/conout.js',
 				'**/*.wasm',
-				'**/node-vsce-sign/bin/*',
+				'**/@vscode/vsce-sign/bin/*',
+			], [
+				'**/*.mk',
 			], 'node_modules.asar'));
 
 		let all = es.merge(
@@ -387,6 +398,12 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 				.pipe(rename('bin/' + product.applicationName)));
 		}
 
+		result = inlineMeta(result, {
+			targetPaths: commonJSEntryPoints,
+			packageJsonFn: () => packageJsonContents,
+			productJsonFn: () => productJsonContents
+		});
+
 		return result.pipe(vfs.dest(destination));
 	};
 }
@@ -423,12 +440,10 @@ function patchWin32DependenciesTask(destinationFolderName) {
 const buildRoot = path.dirname(root);
 
 const BUILD_TARGETS = [
-	{ platform: 'win32', arch: 'ia32' },
 	{ platform: 'win32', arch: 'x64' },
 	{ platform: 'win32', arch: 'arm64' },
 	{ platform: 'darwin', arch: 'x64', opts: { stats: true } },
 	{ platform: 'darwin', arch: 'arm64', opts: { stats: true } },
-	{ platform: 'linux', arch: 'ia32' },
 	{ platform: 'linux', arch: 'x64' },
 	{ platform: 'linux', arch: 'armhf' },
 	{ platform: 'linux', arch: 'arm64' },
@@ -496,17 +511,12 @@ gulp.task(task.define(
 		core,
 		compileExtensionsBuildTask,
 		function () {
-			const pathToMetadata = './out-vscode/nls.metadata.json';
-			const pathToRehWebMetadata = './out-vscode-reh-web/nls.metadata.json';
+			const pathToMetadata = './out-build/nls.metadata.json';
 			const pathToExtensions = '.build/extensions/*';
 			const pathToSetup = 'build/win32/i18n/messages.en.isl';
 
 			return es.merge(
-				gulp.src([pathToMetadata, pathToRehWebMetadata]).pipe(merge({
-					fileName: 'nls.metadata.json',
-					jsonSpace: '',
-					concatArrays: true
-				})).pipe(i18n.createXlfFilesForCoreBundle()),
+				gulp.src(pathToMetadata).pipe(i18n.createXlfFilesForCoreBundle()),
 				gulp.src(pathToSetup).pipe(i18n.createXlfFilesForIsl()),
 				gulp.src(pathToExtensions).pipe(i18n.createXlfFilesForExtensions())
 			).pipe(vfs.dest('../vscode-translations-export'));

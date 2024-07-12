@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable, IReference } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ITextModel, ITextSnapshot } from 'vs/editor/common/model';
-import { IEditorModel } from 'vs/platform/editor/common/editor';
+import { IResolvableEditorModel } from 'vs/platform/editor/common/editor';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const ITextModelService = createDecorator<ITextModelService>('textModelService');
@@ -40,7 +41,12 @@ export interface ITextModelContentProvider {
 	provideTextContent(resource: URI): Promise<ITextModel | null> | null;
 }
 
-export interface ITextEditorModel extends IEditorModel {
+export interface ITextEditorModel extends IResolvableEditorModel {
+
+	/**
+	 * Emitted when the text model is about to be disposed.
+	 */
+	readonly onWillDispose: Event<void>;
 
 	/**
 	 * Provides access to the underlying `ITextModel`.
@@ -62,6 +68,11 @@ export interface ITextEditorModel extends IEditorModel {
 	 * The language id of the text model if known.
 	 */
 	getLanguageId(): string | undefined;
+
+	/**
+	 * Find out if this text model has been disposed.
+	 */
+	isDisposed(): boolean;
 }
 
 export interface IResolvedTextEditorModel extends ITextEditorModel {

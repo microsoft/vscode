@@ -16,6 +16,7 @@ use serde::{Deserialize, Serialize};
 #[allow(non_camel_case_types)]
 pub enum ClientRequestMethod<'a> {
 	servermsg(RefServerMessageParams<'a>),
+	serverclose(ServerClosedParams),
 	serverlog(ServerLog<'a>),
 	makehttpreq(HttpRequestParams<'a>),
 	version(VersionResponse),
@@ -46,6 +47,8 @@ pub struct HttpHeadersParams {
 #[derive(Deserialize, Debug)]
 pub struct ForwardParams {
 	pub port: u16,
+	#[serde(default)]
+	pub public: bool,
 }
 
 #[derive(Deserialize, Debug)]
@@ -90,6 +93,11 @@ pub struct ServerMessageParams {
 }
 
 #[derive(Serialize, Debug)]
+pub struct ServerClosedParams {
+	pub i: u16,
+}
+
+#[derive(Serialize, Debug)]
 pub struct RefServerMessageParams<'a> {
 	pub i: u16,
 	#[serde(with = "serde_bytes")]
@@ -127,9 +135,53 @@ pub struct GetEnvResponse {
 	pub os_release: String,
 }
 
+/// Method: `kill`. Sends a generic, platform-specific kill command to the process.
 #[derive(Deserialize)]
-pub struct FsStatRequest {
+pub struct SysKillRequest {
+	pub pid: u32,
+}
+
+#[derive(Serialize)]
+pub struct SysKillResponse {
+	pub success: bool,
+}
+
+/// Methods: `fs_read`/`fs_write`/`fs_rm`/`fs_mkdirp`/`fs_stat`
+///  - fs_read: reads into a stream returned from the method,
+///  - fs_write: writes from a stream passed to the method.
+///  - fs_rm: recursively removes the file
+///  - fs_mkdirp: recursively creates the directory
+///  - fs_readdir: reads directory contents
+///  - fs_stat: stats the given path
+///  - fs_connect: connect to the given unix or named pipe socket, streaming
+///    data in and out from the method's stream.
+#[derive(Deserialize)]
+pub struct FsSinglePathRequest {
 	pub path: String,
+}
+
+#[derive(Serialize)]
+pub enum FsFileKind {
+	#[serde(rename = "dir")]
+	Directory,
+	#[serde(rename = "file")]
+	File,
+	#[serde(rename = "link")]
+	Link,
+}
+
+impl From<std::fs::FileType> for FsFileKind {
+	fn from(kind: std::fs::FileType) -> Self {
+		if kind.is_dir() {
+			Self::Directory
+		} else if kind.is_file() {
+			Self::File
+		} else if kind.is_symlink() {
+			Self::Link
+		} else {
+			unreachable!()
+		}
+	}
 }
 
 #[derive(Serialize, Default)]
@@ -137,7 +189,33 @@ pub struct FsStatResponse {
 	pub exists: bool,
 	pub size: Option<u64>,
 	#[serde(rename = "type")]
-	pub kind: Option<&'static str>,
+	pub kind: Option<FsFileKind>,
+}
+
+#[derive(Serialize)]
+pub struct FsReadDirResponse {
+	pub contents: Vec<FsReadDirEntry>,
+}
+
+#[derive(Serialize)]
+pub struct FsReadDirEntry {
+	pub name: String,
+	#[serde(rename = "type")]
+	pub kind: Option<FsFileKind>,
+}
+
+/// Method: `fs_reaname`. Renames a file.
+#[derive(Deserialize)]
+pub struct FsRenameRequest {
+	pub from_path: String,
+	pub to_path: String,
+}
+
+/// Method: `net_connect`. Connects to a port.
+#[derive(Deserialize)]
+pub struct NetConnectRequest {
+	pub port: u16,
+	pub host: String,
 }
 
 #[derive(Deserialize, Debug)]
@@ -221,10 +299,40 @@ pub enum PortPrivacy {
 	Private,
 }
 
+#[derive(Serialize, Deserialize, PartialEq, Copy, Eq, Clone, Debug)]
+#[serde(rename_all = "lowercase")]
+pub enum PortProtocol {
+	Auto,
+	Http,
+	Https,
+}
+
+impl std::fmt::Display for PortProtocol {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		write!(f, "{}", self.to_contract_str())
+	}
+}
+
+impl Default for PortProtocol {
+	fn default() -> Self {
+		Self::Auto
+	}
+}
+
+impl PortProtocol {
+	pub fn to_contract_str(&self) -> &'static str {
+		match *self {
+			Self::Auto => tunnels::contracts::TUNNEL_PROTOCOL_AUTO,
+			Self::Http => tunnels::contracts::TUNNEL_PROTOCOL_HTTP,
+			Self::Https => tunnels::contracts::TUNNEL_PROTOCOL_HTTPS,
+		}
+	}
+}
+
 pub mod forward_singleton {
 	use serde::{Deserialize, Serialize};
 
-	use super::PortPrivacy;
+	use super::{PortPrivacy, PortProtocol};
 
 	pub const METHOD_SET_PORTS: &str = "set_ports";
 
@@ -232,6 +340,7 @@ pub mod forward_singleton {
 	pub struct PortRec {
 		pub number: u16,
 		pub privacy: PortPrivacy,
+		pub protocol: PortProtocol,
 	}
 
 	pub type PortList = Vec<PortRec>;

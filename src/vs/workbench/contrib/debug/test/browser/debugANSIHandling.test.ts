@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
+import { isHTMLSpanElement } from 'vs/base/browser/dom';
 import { Color, RGBA } from 'vs/base/common/color';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -17,7 +18,7 @@ import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
 import { DebugModel } from 'vs/workbench/contrib/debug/common/debugModel';
 import { createTestSession } from 'vs/workbench/contrib/debug/test/browser/callStack.test';
 import { createMockDebugModel } from 'vs/workbench/contrib/debug/test/browser/mockDebugModel';
-import { ansiColorMap } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
+import { ansiColorMap, registerColors } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 
 suite('Debug - ANSI Handling', () => {
@@ -45,6 +46,7 @@ suite('Debug - ANSI Handling', () => {
 		}
 		const testTheme = new TestColorTheme(colors);
 		themeService = new TestThemeService(testTheme);
+		registerColors();
 	});
 
 	teardown(() => {
@@ -65,7 +67,7 @@ suite('Debug - ANSI Handling', () => {
 		assert.strictEqual(2, root.children.length);
 
 		child = root.firstChild!;
-		if (child instanceof HTMLSpanElement) {
+		if (isHTMLSpanElement(child)) {
 			assert.strictEqual('content1', child.textContent);
 			assert(child.classList.contains('class1'));
 			assert(child.classList.contains('class2'));
@@ -74,7 +76,7 @@ suite('Debug - ANSI Handling', () => {
 		}
 
 		child = root.lastChild!;
-		if (child instanceof HTMLSpanElement) {
+		if (isHTMLSpanElement(child)) {
 			assert.strictEqual('content2', child.textContent);
 			assert(child.classList.contains('class2'));
 			assert(child.classList.contains('class3'));
@@ -93,7 +95,7 @@ suite('Debug - ANSI Handling', () => {
 		const root: HTMLSpanElement = handleANSIOutput(sequence, linkDetector, themeService, session.root);
 		assert.strictEqual(1, root.children.length);
 		const child: Node = root.lastChild!;
-		if (child instanceof HTMLSpanElement) {
+		if (isHTMLSpanElement(child)) {
 			return child;
 		} else {
 			assert.fail('Unexpected assertion error');
@@ -407,7 +409,7 @@ suite('Debug - ANSI Handling', () => {
 		assert.strictEqual(elementsExpected, root.children.length);
 		for (let i = 0; i < elementsExpected; i++) {
 			const child: Node = root.children[i];
-			if (child instanceof HTMLSpanElement) {
+			if (isHTMLSpanElement(child)) {
 				assertions[i](child);
 			} else {
 				assert.fail('Unexpected assertion error');

@@ -246,7 +246,7 @@ export class BulkEditDataSource implements IAsyncDataSource<BulkFileOperations, 
 			}
 
 			const result = element.edit.textEdits.map((edit, idx) => {
-				const range = Range.lift(edit.textEdit.textEdit.range);
+				const range = textModel.validateRange(edit.textEdit.textEdit.range);
 
 				//prefix-math
 				const startTokens = textModel.tokenization.getLineTokens(range.startLineNumber);
@@ -286,7 +286,7 @@ export class BulkEditSorter implements ITreeSorter<BulkEditElement> {
 
 	compare(a: BulkEditElement, b: BulkEditElement): number {
 		if (a instanceof FileElement && b instanceof FileElement) {
-			return compare(a.edit.uri.toString(), b.edit.uri.toString());
+			return compareBulkFileOperations(a.edit, b.edit);
 		}
 
 		if (a instanceof TextEditElement && b instanceof TextEditElement) {
@@ -295,6 +295,10 @@ export class BulkEditSorter implements ITreeSorter<BulkEditElement> {
 
 		return 0;
 	}
+}
+
+export function compareBulkFileOperations(a: BulkFileOperation, b: BulkFileOperation): number {
+	return compare(a.uri.toString(), b.uri.toString());
 }
 
 // --- ACCESSI
@@ -576,7 +580,7 @@ class TextEditElementTemplate {
 		this._icon = document.createElement('div');
 		container.appendChild(this._icon);
 
-		this._label = new HighlightedLabel(container);
+		this._label = this._disposables.add(new HighlightedLabel(container));
 	}
 
 	dispose(): void {

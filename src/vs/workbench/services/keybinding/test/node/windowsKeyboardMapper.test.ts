@@ -9,6 +9,7 @@ import { OperatingSystem } from 'vs/base/common/platform';
 import { WindowsKeyboardMapper } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
 import { IResolvedKeybinding, assertMapping, assertResolveKeyboardEvent, assertResolveKeybinding, readRawMapping } from 'vs/workbench/services/keybinding/test/node/keyboardMapperTestUtils';
 import { IWindowsKeyboardMapping } from 'vs/platform/keyboardLayout/common/keyboardLayout';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 const WRITE_FILE_IF_DIFFERENT = false;
 
@@ -23,6 +24,8 @@ function _assertResolveKeybinding(mapper: WindowsKeyboardMapper, k: number, expe
 }
 
 suite('keyboardMapper - WINDOWS de_ch', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	let mapper: WindowsKeyboardMapper;
 
@@ -338,6 +341,8 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 
 suite('keyboardMapper - WINDOWS en_us', () => {
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	let mapper: WindowsKeyboardMapper;
 
 	suiteSetup(async () => {
@@ -563,6 +568,8 @@ suite('keyboardMapper - WINDOWS en_us', () => {
 
 suite('keyboardMapper - WINDOWS por_ptb', () => {
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	let mapper: WindowsKeyboardMapper;
 
 	suiteSetup(async () => {
@@ -628,6 +635,8 @@ suite('keyboardMapper - WINDOWS por_ptb', () => {
 
 suite('keyboardMapper - WINDOWS ru', () => {
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	let mapper: WindowsKeyboardMapper;
 
 	suiteSetup(async () => {
@@ -657,6 +666,9 @@ suite('keyboardMapper - WINDOWS ru', () => {
 });
 
 suite('keyboardMapper - misc', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('issue #23513: Toggle Sidebar Visibility and Go to Line display same key mapping in Arabic keyboard', () => {
 		const mapper = new WindowsKeyboardMapper(false, {
 			'KeyB': {

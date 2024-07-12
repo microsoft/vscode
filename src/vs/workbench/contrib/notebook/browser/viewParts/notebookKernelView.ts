@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { ActionViewItem, IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { Action, IAction } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
@@ -44,7 +44,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: SELECT_KERNEL_ID,
 			category: NOTEBOOK_ACTIONS_CATEGORY,
-			title: { value: localize('notebookActions.selectKernel', "Select Notebook Kernel"), original: 'Select Notebook Kernel' },
+			title: localize2('notebookActions.selectKernel', 'Select Notebook Kernel'),
 			icon: selectKernelIcon,
 			f1: true,
 			precondition: NOTEBOOK_IS_ACTIVE_EDITOR,
@@ -67,7 +67,7 @@ registerAction2(class extends Action2 {
 				group: 'status',
 				order: -10
 			}],
-			description: {
+			metadata: {
 				description: localize('notebookActions.selectKernel.args', "Notebook Kernel Args"),
 				args: [
 					{
@@ -136,13 +136,14 @@ export class NotebooKernelActionViewItem extends ActionViewItem {
 	constructor(
 		actualAction: IAction,
 		private readonly _editor: { onDidChangeModel: Event<void>; textModel: NotebookTextModel | undefined; scopedContextKeyService?: IContextKeyService } | INotebookEditor,
+		options: IActionViewItemOptions,
 		@INotebookKernelService private readonly _notebookKernelService: INotebookKernelService,
 		@INotebookKernelHistoryService private readonly _notebookKernelHistoryService: INotebookKernelHistoryService,
 	) {
 		super(
 			undefined,
 			new Action('fakeAction', undefined, ThemeIcon.asClassName(selectKernelIcon), true, (event) => actualAction.run(event)),
-			{ label: false, icon: true }
+			{ ...options, label: false, icon: true }
 		);
 		this._register(_editor.onDidChangeModel(this._update, this));
 		this._register(_notebookKernelService.onDidAddKernel(this._update, this));
@@ -166,7 +167,6 @@ export class NotebooKernelActionViewItem extends ActionViewItem {
 		if (this._kernelLabel) {
 			this._kernelLabel.classList.add('kernel-label');
 			this._kernelLabel.innerText = this._action.label;
-			this._kernelLabel.title = this._action.tooltip;
 		}
 	}
 

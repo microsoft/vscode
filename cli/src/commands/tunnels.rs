@@ -8,7 +8,11 @@ use base64::{engine::general_purpose as b64, Engine as _};
 use futures::{stream::FuturesUnordered, StreamExt};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
-use std::{str::FromStr, time::Duration};
+use std::{
+	net::{IpAddr, Ipv4Addr, SocketAddr},
+	str::FromStr,
+	time::Duration,
+};
 use sysinfo::Pid;
 use tokio::{
 	io::{AsyncBufReadExt, BufReader},
@@ -47,7 +51,9 @@ use crate::{
 	},
 	util::{
 		app_lock::AppMutex,
+		command::new_std_command,
 		errors::{wrap, AnyError, CodeError},
+		machine::canonical_exe,
 		prereqs::PreReqChecker,
 	},
 };
@@ -132,6 +138,11 @@ impl ServiceContainer for TunnelServiceContainer {
 
 pub async fn command_shell(ctx: CommandContext, args: CommandShellArgs) -> Result<i32, AnyError> {
 	let platform = PreReqChecker::new().verify().await?;
+	let mut shutdown_reqs = vec![ShutdownRequest::CtrlC];
+	if let Some(p) = args.parent_process_id.and_then(|p| Pid::from_str(&p).ok()) {
+		shutdown_reqs.push(ShutdownRequest::ParentProcessKilled(p));
+	}
+
 	let mut params = ServeStreamParams {
 		log: ctx.log,
 		launcher_paths: ctx.paths,
@@ -140,12 +151,13 @@ pub async fn command_shell(ctx: CommandContext, args: CommandShellArgs) -> Resul
 			.require_token
 			.map(AuthRequired::VSDAWithToken)
 			.unwrap_or(AuthRequired::VSDA),
-		exit_barrier: ShutdownRequest::create_rx([ShutdownRequest::CtrlC]),
+		exit_barrier: ShutdownRequest::create_rx(shutdown_reqs),
 		code_server_args: (&ctx.args).into(),
 	};
 
-	let mut listener: Box<dyn AsyncRWAccepter> = match (args.on_port, args.on_socket) {
-		(_, true) => {
+	let mut listener: Box<dyn AsyncRWAccepter> = match (args.on_port, &args.on_host, args.on_socket)
+	{
+		(_, _, true) => {
 			let socket = get_socket_name();
 			let listener = listen_socket_rw_stream(&socket)
 				.await
@@ -157,8 +169,15 @@ pub async fn command_shell(ctx: CommandContext, args: CommandShellArgs) -> Resul
 
 			Box::new(listener)
 		}
-		(true, _) => {
-			let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+		(Some(_), _, _) | (_, Some(_), _) => {
+			let addr = SocketAddr::new(
+				args.on_host
+					.as_ref()
+					.map(|h| h.parse().map_err(CodeError::InvalidHostAddress))
+					.unwrap_or(Ok(IpAddr::V4(Ipv4Addr::LOCALHOST)))?,
+				args.on_port.unwrap_or_default(),
+			);
+			let listener = tokio::net::TcpListener::bind(addr)
 				.await
 				.map_err(|e| wrap(e, "error listening on port"))?;
 
@@ -219,8 +238,7 @@ pub async fn service(
 			// likewise for license consent
 			legal::require_consent(&ctx.paths, args.accept_server_license_terms)?;
 
-			let current_exe =
-				std::env::current_exe().map_err(|e| wrap(e, "could not get current exe"))?;
+			let current_exe = canonical_exe().map_err(|e| wrap(e, "could not get current exe"))?;
 
 			manager
 				.register(
@@ -256,10 +274,11 @@ pub async fn service(
 pub async fn user(ctx: CommandContext, user_args: TunnelUserSubCommands) -> Result<i32, AnyError> {
 	let auth = Auth::new(&ctx.paths, ctx.log.clone());
 	match user_args {
-		TunnelUserSubCommands::Login(login_args) => {
+		TunnelUserSubCommands::Login(mut login_args) => {
 			auth.login(
 				login_args.provider.map(|p| p.into()),
-				login_args.access_token.to_owned(),
+				login_args.access_token.take(),
+				login_args.refresh_token.take(),
 			)
 			.await?;
 		}
@@ -349,7 +368,7 @@ pub async fn status(ctx: CommandContext) -> Result<i32, AnyError> {
 			service_installed,
 			tunnel: match tunnel {
 				Ok(s) => Some(s),
-				Err(CodeError::NoRunningTunnel) => None,
+				Err(CodeError::NoRunningTunnel | CodeError::AsyncPipeFailed(_)) => None,
 				Err(e) => return Err(e.into()),
 			},
 		})
@@ -396,7 +415,8 @@ pub async fn serve(ctx: CommandContext, gateway_args: TunnelServeArgs) -> Result
 
 	legal::require_consent(&paths, gateway_args.accept_server_license_terms)?;
 
-	let csa = (&args).into();
+	let mut csa = (&args).into();
+	gateway_args.apply_to_server_args(&mut csa);
 	let result = serve_with_csa(paths, log, gateway_args, csa, TUNNEL_CLI_LOCK_NAME).await;
 	drop(no_sleep);
 
@@ -469,7 +489,12 @@ pub async fn forward(
 		forward_args.login.provider.take(),
 		forward_args.login.access_token.take(),
 	) {
-		auth.login(Some(p.into()), Some(at)).await?;
+		auth.login(
+			Some(p.into()),
+			Some(at),
+			forward_args.login.refresh_token.take(),
+		)
+		.await?;
 	}
 
 	let mut tunnels = DevTunnels::new_port_forwarding(&ctx.log, auth, &ctx.paths);
@@ -486,7 +511,12 @@ fn get_connection_token(tunnel: &ActiveTunnel) -> String {
 	let mut hash = Sha256::new();
 	hash.update(tunnel.id.as_bytes());
 	let result = hash.finalize();
-	b64::URL_SAFE_NO_PAD.encode(result)
+	let mut result = b64::URL_SAFE_NO_PAD.encode(result);
+	if result.starts_with('-') {
+		result.insert(0, 'a'); // avoid arg parsing issue
+	}
+
+	result
 }
 
 async fn serve_with_csa(
@@ -522,7 +552,7 @@ async fn serve_with_csa(
 	{
 		vec.push(ShutdownRequest::ParentProcessKilled(p));
 	}
-	let shutdown = ShutdownRequest::create_rx(vec);
+	let mut shutdown = ShutdownRequest::create_rx(vec);
 
 	let server = loop {
 		if shutdown.is_open() {
@@ -532,6 +562,16 @@ async fn serve_with_csa(
 		match acquire_singleton(&paths.tunnel_lockfile()).await {
 			Ok(SingletonConnection::Client(stream)) => {
 				debug!(log, "starting as client to singleton");
+				if gateway_args.name.is_some()
+					|| !gateway_args.install_extension.is_empty()
+					|| gateway_args.tunnel.tunnel_id.is_some()
+				{
+					warning!(
+						log,
+						"Command-line options will not be applied until the existing tunnel exits."
+					);
+				}
+
 				let should_exit = start_singleton_client(SingletonClientArgs {
 					log: log.clone(),
 					shutdown: shutdown.clone(),
@@ -565,12 +605,10 @@ async fn serve_with_csa(
 		{
 			dt.start_existing_tunnel(t).await
 		} else {
-			dt.start_new_launcher_tunnel(
-				gateway_args.name.as_deref(),
-				gateway_args.random_name,
-				&[CONTROL_PORT],
-			)
-			.await
+			tokio::select! {
+				t = dt.start_new_launcher_tunnel(gateway_args.name.as_deref(), gateway_args.random_name, &[CONTROL_PORT]) => t,
+				_ = shutdown.wait() => return Ok(1),
+			}
 		}?;
 
 		csa.connection_token = Some(get_connection_token(&tunnel));
@@ -594,7 +632,7 @@ async fn serve_with_csa(
 				// reuse current args, but specify no-forward since tunnels will
 				// already be running in this process, and we cannot do a login
 				let args = std::env::args().skip(1).collect::<Vec<String>>();
-				let exit = std::process::Command::new(current_exe)
+				let exit = new_std_command(current_exe)
 					.args(args)
 					.spawn()
 					.map_err(|e| wrap(e, "error respawning after update"))?

@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { isLinux, isWindows, OS } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { join } from 'vs/base/common/path';
 import { validateFileName } from 'vs/workbench/contrib/files/browser/fileActions';
 import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
-import { toResource } from 'vs/base/test/common/utils';
+import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from 'vs/base/test/common/utils';
 import { TestFileService, TestPathService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { NullFilesConfigurationService } from 'vs/workbench/test/common/workbenchTestServices';
@@ -277,4 +277,6 @@ suite('Files - View Model', function () {
 		ExplorerItem.mergeLocalWithDisk(merge2, merge1);
 		assert.ok(existingChild === merge1.getChild(existingChild!.name));
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

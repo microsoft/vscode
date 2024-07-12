@@ -61,5 +61,7 @@ export const TEXT_BASED_MIMETYPES = [
 	'application/x.notebook.stream',
 	'application/vnd.code.notebook.stderr',
 	'application/x.notebook.stderr',
-	'text/plain'
+	'text/plain',
+	'text/markdown',
+	'application/json'
 ];

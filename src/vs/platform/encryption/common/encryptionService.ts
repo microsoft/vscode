@@ -31,8 +31,6 @@ export interface ICommonEncryptionService {
 export const enum PasswordStoreCLIOption {
 	kwallet = 'kwallet',
 	kwallet5 = 'kwallet5',
-	gnome = 'gnome',
-	gnomeKeyring = 'gnome-keyring',
 	gnomeLibsecret = 'gnome-libsecret',
 	basic = 'basic'
 }

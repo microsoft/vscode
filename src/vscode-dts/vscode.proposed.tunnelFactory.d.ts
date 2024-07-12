@@ -22,6 +22,10 @@ declare module 'vscode' {
 			 * One of the the options must have the ID "private".
 			 */
 			privacyOptions: TunnelPrivacy[];
+			/**
+			 * Defaults to true for backwards compatibility.
+			 */
+			protocol?: boolean;
 		};
 	}
 

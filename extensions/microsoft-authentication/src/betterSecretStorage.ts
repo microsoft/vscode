@@ -240,11 +240,8 @@ export class BetterTokenStorage<T> {
 				},
 				err => {
 					Logger.error(err);
-					resolve(tokens);
-				}).then(resolve, err => {
-					Logger.error(err);
-					resolve(tokens);
-				});
+					return tokens;
+				}).then(resolve);
 		});
 		this._operationInProgress = false;
 	}

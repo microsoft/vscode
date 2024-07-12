@@ -63,7 +63,6 @@ export class PtyHostService extends Disposable implements IPtyHostService {
 	private _wasQuitRequested = false;
 	private _restartCount = 0;
 	private _isResponsive = true;
-	private _isDisposed = false;
 	private _heartbeatFirstTimeout?: NodeJS.Timeout;
 	private _heartbeatSecondTimeout?: NodeJS.Timeout;
 
@@ -109,14 +108,16 @@ export class PtyHostService extends Disposable implements IPtyHostService {
 		this._register(toDisposable(() => this._disposePtyHost()));
 
 		this._resolveVariablesRequestStore = this._register(new RequestStore(undefined, this._logService));
-		this._resolveVariablesRequestStore.onCreateRequest(this._onPtyHostRequestResolveVariables.fire, this._onPtyHostRequestResolveVariables);
+		this._register(this._resolveVariablesRequestStore.onCreateRequest(this._onPtyHostRequestResolveVariables.fire, this._onPtyHostRequestResolveVariables));
 
 		// Start the pty host when a window requests a connection, if the starter has that capability.
 		if (this._ptyHostStarter.onRequestConnection) {
-			Event.once(this._ptyHostStarter.onRequestConnection)(() => this._ensurePtyHost());
+			this._register(Event.once(this._ptyHostStarter.onRequestConnection)(() => this._ensurePtyHost()));
 		}
 
-		this._ptyHostStarter.onWillShutdown?.(() => this._wasQuitRequested = true);
+		if (this._ptyHostStarter.onWillShutdown) {
+			this._register(this._ptyHostStarter.onWillShutdown(() => this._wasQuitRequested = true));
+		}
 	}
 
 	private get _ignoreProcessNames(): string[] {
@@ -158,7 +159,7 @@ export class PtyHostService extends Disposable implements IPtyHostService {
 		// Handle exit
 		this._register(connection.onDidProcessExit(e => {
 			this._onPtyHostExit.fire(e.code);
-			if (!this._wasQuitRequested && !this._isDisposed) {
+			if (!this._wasQuitRequested && !this._store.isDisposed) {
 				if (this._restartCount <= Constants.MaxRestarts) {
 					this._logService.error(`ptyHost terminated unexpectedly with code ${e.code}`);
 					this._restartCount++;
@@ -194,11 +195,6 @@ export class PtyHostService extends Disposable implements IPtyHostService {
 		this._refreshIgnoreProcessNames();
 
 		return [connection, proxy];
-	}
-
-	override dispose() {
-		this._isDisposed = true;
-		super.dispose();
 	}
 
 	async createProcess(

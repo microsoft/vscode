@@ -7,7 +7,10 @@ import { Button } from 'vs/base/browser/ui/button/button';
 import { IAction } from 'vs/base/common/actions';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { IMenu } from 'vs/platform/actions/common/actions';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { CommentCommandId } from 'vs/workbench/contrib/comments/common/commentCommandIds';
 
 export class CommentFormActions implements IDisposable {
 	private _buttonElements: HTMLElement[] = [];
@@ -15,6 +18,8 @@ export class CommentFormActions implements IDisposable {
 	private _actions: IAction[] = [];
 
 	constructor(
+		private readonly keybindingService: IKeybindingService,
+		private readonly contextKeyService: IContextKeyService,
 		private container: HTMLElement,
 		private actionHandler: (action: IAction) => void,
 		private readonly maxActions?: number
@@ -33,7 +38,12 @@ export class CommentFormActions implements IDisposable {
 
 			this._actions = actions;
 			for (const action of actions) {
-				const button = new Button(this.container, { secondary: !isPrimary, ...defaultButtonStyles });
+				let keybinding = this.keybindingService.lookupKeybinding(action.id, this.contextKeyService)?.getLabel();
+				if (!keybinding && isPrimary) {
+					keybinding = this.keybindingService.lookupKeybinding(CommentCommandId.Submit, this.contextKeyService)?.getLabel();
+				}
+				const title = keybinding ? `${action.label} (${keybinding})` : action.label;
+				const button = new Button(this.container, { secondary: !isPrimary, title, ...defaultButtonStyles });
 
 				isPrimary = false;
 				this._buttonElements.push(button.element);

@@ -35,6 +35,12 @@ class ViewCursorRenderData {
 	) { }
 }
 
+export enum CursorPlurality {
+	Single,
+	MultiPrimary,
+	MultiSecondary,
+}
+
 export class ViewCursor {
 	private readonly _context: ViewContext;
 	private readonly _domNode: FastDomNode<HTMLElement>;
@@ -47,11 +53,12 @@ export class ViewCursor {
 	private _isVisible: boolean;
 
 	private _position: Position;
+	private _pluralityClass: string;
 
 	private _lastRenderedContent: string;
 	private _renderData: ViewCursorRenderData | null;
 
-	constructor(context: ViewContext) {
+	constructor(context: ViewContext, plurality: CursorPlurality) {
 		this._context = context;
 		const options = this._context.configuration.options;
 		const fontInfo = options.get(EditorOption.fontInfo);
@@ -73,6 +80,8 @@ export class ViewCursor {
 		this._domNode.setDisplay('none');
 
 		this._position = new Position(1, 1);
+		this._pluralityClass = '';
+		this.setPlurality(plurality);
 
 		this._lastRenderedContent = '';
 		this._renderData = null;
@@ -84,6 +93,23 @@ export class ViewCursor {
 
 	public getPosition(): Position {
 		return this._position;
+	}
+
+	public setPlurality(plurality: CursorPlurality) {
+		switch (plurality) {
+			default:
+			case CursorPlurality.Single:
+				this._pluralityClass = '';
+				break;
+
+			case CursorPlurality.MultiPrimary:
+				this._pluralityClass = 'cursor-primary';
+				break;
+
+			case CursorPlurality.MultiSecondary:
+				this._pluralityClass = 'cursor-secondary';
+				break;
+		}
 	}
 
 	public show(): void {
@@ -146,15 +172,16 @@ export class ViewCursor {
 				return null;
 			}
 
+			const window = dom.getWindow(this._domNode.domNode);
 			let width: number;
 			if (this._cursorStyle === TextEditorCursorStyle.Line) {
-				width = dom.computeScreenAwareSize(this._lineCursorWidth > 0 ? this._lineCursorWidth : 2);
+				width = dom.computeScreenAwareSize(window, this._lineCursorWidth > 0 ? this._lineCursorWidth : 2);
 				if (width > 2) {
 					textContent = nextGrapheme;
 					textContentClassName = this._getTokenClassName(position);
 				}
 			} else {
-				width = dom.computeScreenAwareSize(1);
+				width = dom.computeScreenAwareSize(window, 1);
 			}
 
 			let left = visibleRange.left;
@@ -228,7 +255,7 @@ export class ViewCursor {
 			this._domNode.domNode.textContent = this._lastRenderedContent;
 		}
 
-		this._domNode.setClassName(`cursor ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME} ${this._renderData.textContentClassName}`);
+		this._domNode.setClassName(`cursor ${this._pluralityClass} ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME} ${this._renderData.textContentClassName}`);
 
 		this._domNode.setDisplay('block');
 		this._domNode.setTop(this._renderData.top);

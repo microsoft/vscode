@@ -3,19 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Range } from 'vs/editor/common/core/range';
 import { FindMatch, ITextModel } from 'vs/editor/common/model';
-import { ISearchRange, ITextQuery, ITextSearchContext, QueryType } from 'vs/workbench/services/search/common/search';
-import { addContextToEditorMatches, editorMatchesToTextSearchResults } from 'vs/workbench/services/search/common/searchHelpers';
+import { ISearchRange, ITextQuery, ITextSearchContext, ITextSearchResult, QueryType } from 'vs/workbench/services/search/common/search';
+import { getTextSearchMatchWithModelContext, editorMatchesToTextSearchResults } from 'vs/workbench/services/search/common/searchHelpers';
 
 suite('SearchHelpers', () => {
 	suite('editorMatchesToTextSearchResults', () => {
-		const mockTextModel: ITextModel = <ITextModel>{
+		ensureNoDisposablesAreLeakedInTestSuite();
+		const mockTextModel = {
 			getLineContent(lineNumber: number): string {
 				return '' + lineNumber;
 			}
-		};
+		} as ITextModel;
 
 		function assertRangesEqual(actual: ISearchRange | ISearchRange[], expected: ISearchRange[]) {
 			if (!Array.isArray(actual)) {
@@ -72,9 +74,10 @@ suite('SearchHelpers', () => {
 	});
 
 	suite('addContextToEditorMatches', () => {
+		ensureNoDisposablesAreLeakedInTestSuite();
 		const MOCK_LINE_COUNT = 100;
 
-		const mockTextModel: ITextModel = <ITextModel>{
+		const mockTextModel = {
 			getLineContent(lineNumber: number): string {
 				if (lineNumber < 1 || lineNumber > MOCK_LINE_COUNT) {
 					throw new Error(`invalid line count: ${lineNumber}`);
@@ -86,7 +89,7 @@ suite('SearchHelpers', () => {
 			getLineCount(): number {
 				return MOCK_LINE_COUNT;
 			}
-		};
+		} as ITextModel;
 
 		function getQuery(beforeContext?: number, afterContext?: number): ITextQuery {
 			return {
@@ -107,7 +110,7 @@ suite('SearchHelpers', () => {
 				ranges: new Range(0, 0, 0, 10)
 			}];
 
-			assert.deepStrictEqual(addContextToEditorMatches(matches, mockTextModel, getQuery()), matches);
+			assert.deepStrictEqual(getTextSearchMatchWithModelContext(matches, mockTextModel, getQuery()), matches);
 		});
 
 		test('simple', () => {
@@ -119,21 +122,21 @@ suite('SearchHelpers', () => {
 				ranges: new Range(1, 0, 1, 10)
 			}];
 
-			assert.deepStrictEqual(addContextToEditorMatches(matches, mockTextModel, getQuery(1, 2)), [
-				<ITextSearchContext>{
+			assert.deepStrictEqual(getTextSearchMatchWithModelContext(matches, mockTextModel, getQuery(1, 2)), [
+				{
 					text: '1',
-					lineNumber: 0
+					lineNumber: 1
 				},
 				...matches,
-				<ITextSearchContext>{
+				{
 					text: '3',
-					lineNumber: 2
-				},
-				<ITextSearchContext>{
-					text: '4',
 					lineNumber: 3
 				},
-			]);
+				{
+					text: '4',
+					lineNumber: 4
+				},
+			] satisfies ITextSearchResult[]);
 		});
 
 		test('multiple matches next to each other', () => {
@@ -153,19 +156,19 @@ suite('SearchHelpers', () => {
 					ranges: new Range(2, 0, 2, 10)
 				}];
 
-			assert.deepStrictEqual(addContextToEditorMatches(matches, mockTextModel, getQuery(1, 2)), [
+			assert.deepStrictEqual(getTextSearchMatchWithModelContext(matches, mockTextModel, getQuery(1, 2)), [
 				<ITextSearchContext>{
 					text: '1',
-					lineNumber: 0
+					lineNumber: 1
 				},
 				...matches,
 				<ITextSearchContext>{
 					text: '4',
-					lineNumber: 3
+					lineNumber: 4
 				},
 				<ITextSearchContext>{
 					text: '5',
-					lineNumber: 4
+					lineNumber: 5
 				},
 			]);
 		});
@@ -187,19 +190,19 @@ suite('SearchHelpers', () => {
 					ranges: new Range(MOCK_LINE_COUNT - 1, 0, MOCK_LINE_COUNT - 1, 10)
 				}];
 
-			assert.deepStrictEqual(addContextToEditorMatches(matches, mockTextModel, getQuery(1, 2)), [
+			assert.deepStrictEqual(getTextSearchMatchWithModelContext(matches, mockTextModel, getQuery(1, 2)), [
 				matches[0],
 				<ITextSearchContext>{
 					text: '2',
-					lineNumber: 1
-				},
-				<ITextSearchContext>{
-					text: '3',
 					lineNumber: 2
 				},
 				<ITextSearchContext>{
+					text: '3',
+					lineNumber: 3
+				},
+				<ITextSearchContext>{
 					text: '' + (MOCK_LINE_COUNT - 1),
-					lineNumber: MOCK_LINE_COUNT - 2
+					lineNumber: MOCK_LINE_COUNT - 1
 				},
 				matches[1]
 			]);

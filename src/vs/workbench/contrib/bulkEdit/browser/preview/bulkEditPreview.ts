@@ -351,9 +351,9 @@ export class BulkFileOperations {
 
 export class BulkEditPreviewProvider implements ITextModelContentProvider {
 
-	static readonly Schema = 'vscode-bulkeditpreview';
+	private static readonly Schema = 'vscode-bulkeditpreview-editor';
 
-	static emptyPreview = URI.from({ scheme: BulkEditPreviewProvider.Schema, fragment: 'empty' });
+	static emptyPreview = URI.from({ scheme: this.Schema, fragment: 'empty' });
 
 
 	static fromPreviewUri(uri: URI): URI {

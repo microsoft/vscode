@@ -13,10 +13,8 @@ import { ISignService } from 'vs/platform/sign/common/sign';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Severity } from 'vs/platform/notification/common/notification';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions } from 'vs/workbench/common/contributions';
+import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { IRemoteSocketFactoryService } from 'vs/platform/remote/common/remoteSocketFactoryService';
 
@@ -29,13 +27,15 @@ export class RemoteAgentService extends AbstractRemoteAgentService implements IR
 		@IProductService productService: IProductService,
 		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@ISignService signService: ISignService,
-		@ILogService logService: ILogService
+		@ILogService logService: ILogService,
 	) {
 		super(remoteSocketFactoryService, userDataProfileService, environmentService, productService, remoteAuthorityResolverService, signService, logService);
 	}
 }
 
 class RemoteConnectionFailureNotificationContribution implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.browserRemoteConnectionFailureNotification';
 
 	constructor(
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
@@ -67,5 +67,4 @@ class RemoteConnectionFailureNotificationContribution implements IWorkbenchContr
 
 }
 
-const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(RemoteConnectionFailureNotificationContribution, LifecyclePhase.Ready);
+registerWorkbenchContribution2(RemoteConnectionFailureNotificationContribution.ID, RemoteConnectionFailureNotificationContribution, WorkbenchPhase.BlockRestore);

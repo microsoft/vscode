@@ -9,6 +9,7 @@ import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 
 export const selectKernelIcon = registerIcon('notebook-kernel-select', Codicon.serverEnvironment, localize('selectKernelIcon', 'Configure icon to select a kernel in notebook editors.'));
 export const executeIcon = registerIcon('notebook-execute', Codicon.play, localize('executeIcon', 'Icon to execute in notebook editors.'));
+export const configIcon = registerIcon('notebook-config', Codicon.gear, localize('configIcon', 'Icon to configure in notebook editors.'));
 export const executeAboveIcon = registerIcon('notebook-execute-above', Codicon.runAbove, localize('executeAboveIcon', 'Icon to execute above cells in notebook editors.'));
 export const executeBelowIcon = registerIcon('notebook-execute-below', Codicon.runBelow, localize('executeBelowIcon', 'Icon to execute below cells in notebook editors.'));
 export const stopIcon = registerIcon('notebook-stop', Codicon.primitiveSquare, localize('stopIcon', 'Icon to stop an execution in notebook editors.'));
@@ -36,3 +37,4 @@ export const copyIcon = registerIcon('notebook-copy', Codicon.copy, localize('co
 export const previousChangeIcon = registerIcon('notebook-diff-editor-previous-change', Codicon.arrowUp, localize('previousChangeIcon', 'Icon for the previous change action in the diff editor.'));
 export const nextChangeIcon = registerIcon('notebook-diff-editor-next-change', Codicon.arrowDown, localize('nextChangeIcon', 'Icon for the next change action in the diff editor.'));
 
+export const variablesViewIcon = registerIcon('variables-view-icon', Codicon.debugAlt, localize('variablesViewIcon', 'View icon of the variables view.'));

@@ -112,12 +112,19 @@ export interface TypeScriptServiceConfiguration {
 	readonly useSyntaxServer: SyntaxServerConfiguration;
 	readonly webProjectWideIntellisenseEnabled: boolean;
 	readonly webProjectWideIntellisenseSuppressSemanticErrors: boolean;
+	readonly webTypeAcquisitionEnabled: boolean;
+	readonly enableDiagnosticsTelemetry: boolean;
 	readonly enableProjectDiagnostics: boolean;
 	readonly maxTsServerMemory: number;
 	readonly enablePromptUseWorkspaceTsdk: boolean;
+	readonly useVsCodeWatcher: boolean; // TODO@bpasero remove this setting eventually
 	readonly watchOptions: Proto.WatchOptions | undefined;
 	readonly includePackageJsonAutoImports: 'auto' | 'on' | 'off' | undefined;
 	readonly enableTsServerTracing: boolean;
+	readonly localNodePath: string | null;
+	readonly globalNodePath: string | null;
+	readonly workspaceSymbolsExcludeLibrarySymbols: boolean;
+	readonly enableRegionDiagnostics: boolean;
 }
 
 export function areServiceConfigurationsEqual(a: TypeScriptServiceConfiguration, b: TypeScriptServiceConfiguration): boolean {
@@ -144,17 +151,26 @@ export abstract class BaseServiceConfigurationProvider implements ServiceConfigu
 			useSyntaxServer: this.readUseSyntaxServer(configuration),
 			webProjectWideIntellisenseEnabled: this.readWebProjectWideIntellisenseEnable(configuration),
 			webProjectWideIntellisenseSuppressSemanticErrors: this.readWebProjectWideIntellisenseSuppressSemanticErrors(configuration),
+			webTypeAcquisitionEnabled: this.readWebTypeAcquisition(configuration),
+			enableDiagnosticsTelemetry: this.readEnableDiagnosticsTelemetry(configuration),
 			enableProjectDiagnostics: this.readEnableProjectDiagnostics(configuration),
 			maxTsServerMemory: this.readMaxTsServerMemory(configuration),
 			enablePromptUseWorkspaceTsdk: this.readEnablePromptUseWorkspaceTsdk(configuration),
+			useVsCodeWatcher: this.readUseVsCodeWatcher(configuration),
 			watchOptions: this.readWatchOptions(configuration),
 			includePackageJsonAutoImports: this.readIncludePackageJsonAutoImports(configuration),
 			enableTsServerTracing: this.readEnableTsServerTracing(configuration),
+			localNodePath: this.readLocalNodePath(configuration),
+			globalNodePath: this.readGlobalNodePath(configuration),
+			workspaceSymbolsExcludeLibrarySymbols: this.readWorkspaceSymbolsExcludeLibrarySymbols(configuration),
+			enableRegionDiagnostics: this.readEnableRegionDiagnostics(configuration),
 		};
 	}
 
 	protected abstract readGlobalTsdk(configuration: vscode.WorkspaceConfiguration): string | null;
 	protected abstract readLocalTsdk(configuration: vscode.WorkspaceConfiguration): string | null;
+	protected abstract readLocalNodePath(configuration: vscode.WorkspaceConfiguration): string | null;
+	protected abstract readGlobalNodePath(configuration: vscode.WorkspaceConfiguration): string | null;
 
 	protected readTsServerLogLevel(configuration: vscode.WorkspaceConfiguration): TsServerLogLevel {
 		const setting = configuration.get<string>('typescript.tsserver.log', 'off');
@@ -197,11 +213,20 @@ export abstract class BaseServiceConfigurationProvider implements ServiceConfigu
 		return SyntaxServerConfiguration.Never;
 	}
 
+	protected readEnableDiagnosticsTelemetry(configuration: vscode.WorkspaceConfiguration): boolean {
+		// This setting does not appear in the settings view, as it is not to be enabled by users outside the team
+		return configuration.get<boolean>('typescript.enableDiagnosticsTelemetry', false);
+	}
+
 	protected readEnableProjectDiagnostics(configuration: vscode.WorkspaceConfiguration): boolean {
 		return configuration.get<boolean>('typescript.tsserver.experimental.enableProjectDiagnostics', false);
 	}
 
-	protected readWatchOptions(configuration: vscode.WorkspaceConfiguration): Proto.WatchOptions | undefined {
+	private readUseVsCodeWatcher(configuration: vscode.WorkspaceConfiguration): boolean {
+		return configuration.get<boolean>('typescript.tsserver.experimental.useVsCodeWatcher', false);
+	}
+
+	private readWatchOptions(configuration: vscode.WorkspaceConfiguration): Proto.WatchOptions | undefined {
 		const watchOptions = configuration.get<Proto.WatchOptions>('typescript.tsserver.watchOptions');
 		// Returned value may be a proxy. Clone it into a normal object
 		return { ...(watchOptions ?? {}) };
@@ -229,11 +254,23 @@ export abstract class BaseServiceConfigurationProvider implements ServiceConfigu
 		return configuration.get<boolean>('typescript.tsserver.enableTracing', false);
 	}
 
+	private readWorkspaceSymbolsExcludeLibrarySymbols(configuration: vscode.WorkspaceConfiguration): boolean {
+		return configuration.get<boolean>('typescript.workspaceSymbols.excludeLibrarySymbols', true);
+	}
+
 	private readWebProjectWideIntellisenseEnable(configuration: vscode.WorkspaceConfiguration): boolean {
 		return configuration.get<boolean>('typescript.tsserver.web.projectWideIntellisense.enabled', true);
 	}
 
 	private readWebProjectWideIntellisenseSuppressSemanticErrors(configuration: vscode.WorkspaceConfiguration): boolean {
 		return configuration.get<boolean>('typescript.tsserver.web.projectWideIntellisense.suppressSemanticErrors', true);
+	}
+
+	private readWebTypeAcquisition(configuration: vscode.WorkspaceConfiguration): boolean {
+		return configuration.get<boolean>('typescript.tsserver.web.typeAcquisition.enabled', false);
+	}
+
+	private readEnableRegionDiagnostics(configuration: vscode.WorkspaceConfiguration): boolean {
+		return configuration.get<boolean>('typescript.tsserver.enableRegionDiagnostics', true);
 	}
 }

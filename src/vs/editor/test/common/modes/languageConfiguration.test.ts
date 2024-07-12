@@ -3,12 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
 import { StandardAutoClosingPairConditional } from 'vs/editor/common/languages/languageConfiguration';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 
 suite('StandardAutoClosingPairConditional', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('Missing notIn', () => {
 		const v = new StandardAutoClosingPairConditional({ open: '{', close: '}' });
@@ -98,5 +101,6 @@ suite('StandardAutoClosingPairConditional', () => {
 		assert.strictEqual(languageConfigurationService.getLanguageConfiguration(id).comments?.lineCommentToken, '1');
 		d1.dispose();
 		d2.dispose();
+		languageConfigurationService.dispose();
 	});
 });

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { INotification, INotificationHandle, INotificationActions, INotificationProgress, NoOpNotification, Severity, NotificationMessage, IPromptChoice, IStatusMessageOptions, NotificationsFilter, INotificationProgressProperties, IPromptChoiceWithMenu, NotificationPriority } from 'vs/platform/notification/common/notification';
+import { INotification, INotificationHandle, INotificationActions, INotificationProgress, NoOpNotification, Severity, NotificationMessage, IPromptChoice, IStatusMessageOptions, NotificationsFilter, INotificationProgressProperties, IPromptChoiceWithMenu, NotificationPriority, INotificationSource, isNotificationSource } from 'vs/platform/notification/common/notification';
 import { toErrorMessage, isErrorWithActions } from 'vs/base/common/errorMessage';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -11,6 +11,7 @@ import { isCancellationError } from 'vs/base/common/errors';
 import { Action } from 'vs/base/common/actions';
 import { equals } from 'vs/base/common/arrays';
 import { parseLinkedText, LinkedText } from 'vs/base/common/linkedText';
+import { mapsStrictEqualIgnoreOrder } from 'vs/base/common/map';
 
 export interface INotificationsModel {
 
@@ -19,11 +20,11 @@ export interface INotificationsModel {
 	readonly notifications: INotificationViewItem[];
 
 	readonly onDidChangeNotification: Event<INotificationChangeEvent>;
-	readonly onDidChangeFilter: Event<NotificationsFilter>;
+	readonly onDidChangeFilter: Event<Partial<INotificationsFilter>>;
 
 	addNotification(notification: INotification): INotificationHandle;
 
-	setFilter(filter: NotificationsFilter): void;
+	setFilter(filter: Partial<INotificationsFilter>): void;
 
 	//#endregion
 
@@ -160,6 +161,11 @@ export class NotificationHandle extends Disposable implements INotificationHandl
 	}
 }
 
+export interface INotificationsFilter {
+	readonly global: NotificationsFilter;
+	readonly sources: Map<string, NotificationsFilter>;
+}
+
 export class NotificationsModel extends Disposable implements INotificationsModel {
 
 	private static readonly NO_OP_NOTIFICATION = new NoOpNotification();
@@ -170,7 +176,7 @@ export class NotificationsModel extends Disposable implements INotificationsMode
 	private readonly _onDidChangeStatusMessage = this._register(new Emitter<IStatusMessageChangeEvent>());
 	readonly onDidChangeStatusMessage = this._onDidChangeStatusMessage.event;
 
-	private readonly _onDidChangeFilter = this._register(new Emitter<NotificationsFilter>());
+	private readonly _onDidChangeFilter = this._register(new Emitter<Partial<INotificationsFilter>>());
 	readonly onDidChangeFilter = this._onDidChangeFilter.event;
 
 	private readonly _notifications: INotificationViewItem[] = [];
@@ -179,12 +185,30 @@ export class NotificationsModel extends Disposable implements INotificationsMode
 	private _statusMessage: IStatusMessageViewItem | undefined;
 	get statusMessage(): IStatusMessageViewItem | undefined { return this._statusMessage; }
 
-	private filter = NotificationsFilter.OFF;
+	private readonly filter = {
+		global: NotificationsFilter.OFF,
+		sources: new Map<string, NotificationsFilter>()
+	};
 
-	setFilter(filter: NotificationsFilter): void {
-		this.filter = filter;
+	setFilter(filter: Partial<INotificationsFilter>): void {
+		let globalChanged = false;
+		if (typeof filter.global === 'number') {
+			globalChanged = this.filter.global !== filter.global;
+			this.filter.global = filter.global;
+		}
 
-		this._onDidChangeFilter.fire(filter);
+		let sourcesChanged = false;
+		if (filter.sources) {
+			sourcesChanged = !mapsStrictEqualIgnoreOrder(this.filter.sources, filter.sources);
+			this.filter.sources = filter.sources;
+		}
+
+		if (globalChanged || sourcesChanged) {
+			this._onDidChangeFilter.fire({
+				global: globalChanged ? filter.global : undefined,
+				sources: sourcesChanged ? filter.sources : undefined
+			});
+		}
 	}
 
 	addNotification(notification: INotification): INotificationHandle {
@@ -443,7 +467,7 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 	private readonly _onDidChangeVisibility = this._register(new Emitter<boolean>());
 	readonly onDidChangeVisibility = this._onDidChangeVisibility.event;
 
-	static create(notification: INotification, filter: NotificationsFilter = NotificationsFilter.OFF): INotificationViewItem | undefined {
+	static create(notification: INotification, filter: INotificationsFilter): INotificationViewItem | undefined {
 		if (!notification || !notification.message || isCancellationError(notification.message)) {
 			return undefined; // we need a message to show
 		}
@@ -468,8 +492,12 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 		}
 
 		let priority = notification.priority ?? NotificationPriority.DEFAULT;
-		if (priority === NotificationPriority.DEFAULT && (filter === NotificationsFilter.SILENT || (filter === NotificationsFilter.ERROR && notification.severity !== Severity.Error))) {
-			priority = NotificationPriority.SILENT;
+		if (priority === NotificationPriority.DEFAULT && severity !== Severity.Error) {
+			if (filter.global === NotificationsFilter.ERROR) {
+				priority = NotificationPriority.SILENT; // filtered globally
+			} else if (isNotificationSource(notification.source) && filter.sources.get(notification.source.id) === NotificationsFilter.ERROR) {
+				priority = NotificationPriority.SILENT; // filtered by source
+			}
 		}
 
 		return new NotificationViewItem(notification.id, severity, notification.sticky, priority, message, notification.source, notification.progress, actions);
@@ -509,7 +537,7 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 		private _sticky: boolean | undefined,
 		private _priority: NotificationPriority,
 		private _message: INotificationMessage,
-		private _source: string | { label: string; id: string } | undefined,
+		private _source: string | INotificationSource | undefined,
 		progress: INotificationProgressProperties | undefined,
 		actions?: INotificationActions
 	) {

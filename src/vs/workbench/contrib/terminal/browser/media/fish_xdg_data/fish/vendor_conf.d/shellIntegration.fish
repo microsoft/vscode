@@ -28,30 +28,37 @@ if status --is-login; and set -q VSCODE_PATH_PREFIX
 end
 set -e VSCODE_PATH_PREFIX
 
-# Apply EnvironmentVariableCollections if needed
-if test -n "$VSCODE_ENV_REPLACE"
-	set ITEMS (string split : $VSCODE_ENV_REPLACE)
-	for B in $ITEMS
-		set split (string split = $B)
-		set -gx "$split[1]" (echo -e "$split[2]")
+set -g __vsc_applied_env_vars 0
+function __vsc_apply_env_vars
+	if test $__vsc_applied_env_vars -eq 1;
+		return
 	end
-	set -e VSCODE_ENV_REPLACE
-end
-if test -n "$VSCODE_ENV_PREPEND"
-	set ITEMS (string split : $VSCODE_ENV_PREPEND)
-	for B in $ITEMS
-		set split (string split = $B)
-		set -gx "$split[1]" (echo -e "$split[2]")"$$split[1]" # avoid -p as it adds a space
+	set -l __vsc_applied_env_vars 1
+	# Apply EnvironmentVariableCollections if needed
+	if test -n "$VSCODE_ENV_REPLACE"
+		set ITEMS (string split : $VSCODE_ENV_REPLACE)
+		for B in $ITEMS
+			set split (string split = $B)
+			set -gx "$split[1]" (echo -e "$split[2]")
+		end
+		set -e VSCODE_ENV_REPLACE
 	end
-	set -e VSCODE_ENV_PREPEND
-end
-if test -n "$VSCODE_ENV_APPEND"
-	set ITEMS (string split : $VSCODE_ENV_APPEND)
-	for B in $ITEMS
-		set split (string split = $B)
-		set -gx "$split[1]" "$$split[1]"(echo -e "$split[2]") # avoid -a as it adds a space
+	if test -n "$VSCODE_ENV_PREPEND"
+		set ITEMS (string split : $VSCODE_ENV_PREPEND)
+		for B in $ITEMS
+			set split (string split = $B)
+			set -gx "$split[1]" (echo -e "$split[2]")"$$split[1]" # avoid -p as it adds a space
+		end
+		set -e VSCODE_ENV_PREPEND
 	end
-	set -e VSCODE_ENV_APPEND
+	if test -n "$VSCODE_ENV_APPEND"
+		set ITEMS (string split : $VSCODE_ENV_APPEND)
+		for B in $ITEMS
+			set split (string split = $B)
+			set -gx "$split[1]" "$$split[1]"(echo -e "$split[2]") # avoid -a as it adds a space
+		end
+		set -e VSCODE_ENV_APPEND
+	end
 end
 
 # Handle the shell integration nonce
@@ -68,8 +75,8 @@ end
 # Sent right before executing an interactive command.
 # Marks the beginning of command output.
 function __vsc_cmd_executed --on-event fish_preexec
-	__vsc_esc C
 	__vsc_esc E (__vsc_escape_value "$argv") $__vsc_nonce
+	__vsc_esc C
 
 	# Creates a marker to indicate a command was run.
 	set --global _vsc_has_cmd
@@ -140,6 +147,9 @@ end
 # Sent at the start of the prompt.
 # Marks the beginning of the prompt (and, implicitly, a new line).
 function __vsc_fish_prompt_start
+	# Applying environment variables is deferred to after config.fish has been
+	# evaluated
+	__vsc_apply_env_vars
 	__vsc_esc A
 end
 
@@ -163,11 +173,11 @@ function __init_vscode_shell_integration
 		function fish_mode_prompt
 			__vsc_fish_prompt_start
 			__vsc_fish_mode_prompt
-			__vsc_fish_cmd_start
 		end
 
 		function fish_prompt
 			__vsc_fish_prompt
+			__vsc_fish_cmd_start
 		end
 	else
 		# No fish_mode_prompt, so put everything in fish_prompt.

@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { timeout } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { URI } from 'vs/base/common/uri';
 import { mock } from 'vs/base/test/common/mock';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { MainThreadDecorationsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostDecorations } from 'vs/workbench/api/common/extHostDecorations';
@@ -19,6 +20,8 @@ suite('ExtHostDecorations', function () {
 	let mainThreadShape: MainThreadDecorationsShape;
 	let extHostDecorations: ExtHostDecorations;
 	const providers = new Set<number>();
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(function () {
 
@@ -79,6 +82,9 @@ suite('ExtHostDecorations', function () {
 
 		const secondResult = await Promise.race([second, timeout(30).then(() => false)]);
 		assert.strictEqual(typeof secondResult, 'object');
+
+
+		await timeout(30);
 	});
 
 });

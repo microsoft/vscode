@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Color } from 'vs/base/common/color';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions, IColorRegistry } from 'vs/platform/theme/common/colorRegistry';
 
@@ -17,4 +18,6 @@ suite('ColorRegistry', () => {
 			console.log(`#colors:${JSON.stringify(colors, replacer)}\n`);
 		});
 	}
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

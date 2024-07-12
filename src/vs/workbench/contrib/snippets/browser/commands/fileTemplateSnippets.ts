@@ -8,7 +8,7 @@ import { compare } from 'vs/base/common/strings';
 import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { SnippetsAction } from 'vs/workbench/contrib/snippets/browser/commands/abstractSnippetsActions';
@@ -23,10 +23,7 @@ export class ApplyFileSnippetAction extends SnippetsAction {
 	constructor() {
 		super({
 			id: ApplyFileSnippetAction.Id,
-			title: {
-				value: localize('label', 'Fill File with Snippet'),
-				original: 'Fill File with Snippet'
-			},
+			title: localize2('label', "Fill File with Snippet"),
 			f1: true,
 		});
 	}

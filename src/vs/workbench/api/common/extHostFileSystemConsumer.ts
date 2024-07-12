@@ -110,7 +110,7 @@ export class ExtHostConsumerFileSystem {
 						// use shortcut
 						await that._proxy.$ensureActivation(uri.scheme);
 						await that.mkdirp(provider.impl, provider.extUri, provider.extUri.dirname(uri));
-						return await that._writeQueue.queueFor(uri).queue(() => Promise.resolve(provider.impl.writeFile(uri, content, { create: true, overwrite: true })));
+						return await that._writeQueue.queueFor(uri, () => Promise.resolve(provider.impl.writeFile(uri, content, { create: true, overwrite: true })));
 					} else {
 						return await that._proxy.$writeFile(uri, VSBuffer.wrap(content));
 					}
@@ -121,7 +121,7 @@ export class ExtHostConsumerFileSystem {
 			async delete(uri: vscode.Uri, options?: { recursive?: boolean; useTrash?: boolean }): Promise<void> {
 				try {
 					const provider = that._fileSystemProvider.get(uri.scheme);
-					if (provider && !provider.isReadonly) {
+					if (provider && !provider.isReadonly && !options?.useTrash /* no shortcut: use trash */) {
 						// use shortcut
 						await that._proxy.$ensureActivation(uri.scheme);
 						return await provider.impl.delete(uri, { recursive: false, ...options });

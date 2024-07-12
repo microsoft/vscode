@@ -13,9 +13,10 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IMessage } from 'vs/workbench/services/extensions/common/extensions';
 import { IExtensionDescription, EXTENSION_CATEGORIES, ExtensionIdentifierSet } from 'vs/platform/extensions/common/extensions';
 import { ExtensionKind } from 'vs/platform/environment/common/environment';
-import { allApiProposals } from 'vs/workbench/services/extensions/common/extensionsApiProposals';
 import { productSchemaId } from 'vs/platform/product/common/productService';
 import { ImplicitActivationEvents, IActivationEventsGenerator } from 'vs/platform/extensionManagement/common/implicitActivationEvents';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { allApiProposals } from 'vs/platform/extensions/common/extensionsApiProposals';
 
 const schemaRegistry = Registry.as<IJSONContributionRegistry>(Extensions.JSONContribution);
 
@@ -67,7 +68,7 @@ export type IExtensionPointHandler<T> = (extensions: readonly IExtensionPointUse
 
 export interface IExtensionPoint<T> {
 	readonly name: string;
-	setHandler(handler: IExtensionPointHandler<T>): void;
+	setHandler(handler: IExtensionPointHandler<T>): IDisposable;
 	readonly defaultExtensionKind: ExtensionKind[] | undefined;
 }
 
@@ -121,12 +122,18 @@ export class ExtensionPoint<T> implements IExtensionPoint<T> {
 		this._delta = null;
 	}
 
-	setHandler(handler: IExtensionPointHandler<T>): void {
+	setHandler(handler: IExtensionPointHandler<T>): IDisposable {
 		if (this._handler !== null) {
 			throw new Error('Handler already set!');
 		}
 		this._handler = handler;
 		this._handle();
+
+		return {
+			dispose: () => {
+				this._handler = null;
+			}
+		};
 	}
 
 	acceptUsers(users: IExtensionPointUser<T>[]): void {
@@ -235,8 +242,8 @@ export const schema: IJSONSchema = {
 			uniqueItems: true,
 			items: {
 				type: 'string',
-				enum: Object.keys(allApiProposals),
-				markdownEnumDescriptions: Object.values(allApiProposals)
+				enum: Object.keys(allApiProposals).map(proposalName => proposalName),
+				markdownEnumDescriptions: Object.values(allApiProposals).map(value => value.proposal)
 			}
 		},
 		api: {
@@ -372,6 +379,21 @@ export const schema: IJSONSchema = {
 						label: 'onWalkthrough',
 						body: 'onWalkthrough:${1:walkthroughID}',
 						description: nls.localize('vscode.extension.activationEvents.onWalkthrough', 'An activation event emitted when a specified walkthrough is opened.'),
+					},
+					{
+						label: 'onIssueReporterOpened',
+						body: 'onIssueReporterOpened',
+						description: nls.localize('vscode.extension.activationEvents.onIssueReporterOpened', 'An activation event emitted when the issue reporter is opened.'),
+					},
+					{
+						label: 'onChatParticipant',
+						body: 'onChatParticipant:${1:participantId}',
+						description: nls.localize('vscode.extension.activationEvents.onChatParticipant', 'An activation event emitted when the specified chat participant is invoked.'),
+					},
+					{
+						label: 'onLanguageModelTool',
+						body: 'onLanguageModelTool:${1:toolName}',
+						description: nls.localize('vscode.extension.activationEvents.onLanguageModelTool', 'An activation event emitted when the specified language model tool is invoked.'),
 					},
 					{
 						label: '*',
@@ -569,6 +591,12 @@ export const schema: IJSONSchema = {
 					'{Locked="vscode.l10n API"}'
 				]
 			}, 'The relative path to a folder containing localization (bundle.l10n.*.json) files. Must be specified if you are using the vscode.l10n API.')
+		},
+		pricing: {
+			type: 'string',
+			markdownDescription: nls.localize('vscode.extension.pricing', 'The pricing information for the extension. Can be Free (default) or Trial. For more details visit: https://code.visualstudio.com/api/working-with-extensions/publishing-extension#extension-pricing-label'),
+			enum: ['Free', 'Trial'],
+			default: 'Free'
 		}
 	}
 };
@@ -634,7 +662,7 @@ schemaRegistry.registerSchema(productSchemaId, {
 					items: {
 						type: 'string',
 						enum: Object.keys(allApiProposals),
-						markdownEnumDescriptions: Object.values(allApiProposals)
+						markdownEnumDescriptions: Object.values(allApiProposals).map(value => value.proposal)
 					}
 				}]
 			}

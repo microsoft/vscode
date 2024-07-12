@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from 'vs/nls';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter, Event } from 'vs/base/common/event';
 import { hash } from 'vs/base/common/hash';
@@ -12,6 +13,7 @@ import { isWindows } from 'vs/base/common/platform';
 import { joinPath } from 'vs/base/common/resources';
 import { Mutable, isNumber, isString } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
+import { ILocalizedString } from 'vs/platform/action/common/action';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -378,10 +380,6 @@ export class ConsoleMainLogger extends AbstractLogger implements ILogger {
 		}
 	}
 
-	override dispose(): void {
-		// noop
-	}
-
 	flush(): void {
 		// noop
 	}
@@ -445,9 +443,6 @@ export class ConsoleLogger extends AbstractLogger implements ILogger {
 		}
 	}
 
-	override dispose(): void {
-		// noop
-	}
 
 	flush(): void {
 		// noop
@@ -497,10 +492,6 @@ export class AdapterLogger extends AbstractLogger implements ILogger {
 		}
 
 		return toErrorMessage(msg, this.checkLogLevel(LogLevel.Trace));
-	}
-
-	override dispose(): void {
-		// noop
 	}
 
 	flush(): void {
@@ -564,6 +555,7 @@ export class MultiplexLogger extends AbstractLogger implements ILogger {
 		for (const logger of this.loggers) {
 			logger.dispose();
 		}
+		super.dispose();
 	}
 }
 
@@ -752,6 +744,17 @@ export function LogLevelToString(logLevel: LogLevel): string {
 		case LogLevel.Warning: return 'warn';
 		case LogLevel.Error: return 'error';
 		case LogLevel.Off: return 'off';
+	}
+}
+
+export function LogLevelToLocalizedString(logLevel: LogLevel): ILocalizedString {
+	switch (logLevel) {
+		case LogLevel.Trace: return { original: 'Trace', value: nls.localize('trace', "Trace") };
+		case LogLevel.Debug: return { original: 'Debug', value: nls.localize('debug', "Debug") };
+		case LogLevel.Info: return { original: 'Info', value: nls.localize('info', "Info") };
+		case LogLevel.Warning: return { original: 'Warning', value: nls.localize('warn', "Warning") };
+		case LogLevel.Error: return { original: 'Error', value: nls.localize('error', "Error") };
+		case LogLevel.Off: return { original: 'Off', value: nls.localize('off', "Off") };
 	}
 }
 

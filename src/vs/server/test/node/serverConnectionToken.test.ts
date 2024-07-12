@@ -3,15 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { parseServerConnectionToken, ServerConnectionToken, ServerConnectionTokenParseError, ServerConnectionTokenType } from 'vs/server/node/serverConnectionToken';
 import { ServerParsedArgs } from 'vs/server/node/serverEnvironmentService';
 
 suite('parseServerConnectionToken', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function isError(r: ServerConnectionToken | ServerConnectionTokenParseError): r is ServerConnectionTokenParseError {
 		return (r instanceof ServerConnectionTokenParseError);

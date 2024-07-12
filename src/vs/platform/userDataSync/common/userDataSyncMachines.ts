@@ -16,14 +16,14 @@ import { getServiceMachineId } from 'vs/platform/externalServices/common/service
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IUserData, IUserDataManifest, IUserDataSyncLogService, IUserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSync';
 
-interface IMachineData {
+export interface IMachineData {
 	id: string;
 	name: string;
 	disabled?: boolean;
 	platform?: string;
 }
 
-interface IMachinesData {
+export interface IMachinesData {
 	version: number;
 	machines: IMachineData[];
 }

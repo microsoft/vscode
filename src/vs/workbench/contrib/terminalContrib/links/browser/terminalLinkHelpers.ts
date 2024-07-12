@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IViewportRange, IBufferRange, IBufferLine, IBuffer, IBufferCellPosition } from 'xterm';
+import type { IViewportRange, IBufferRange, IBufferLine, IBuffer, IBufferCellPosition } from '@xterm/xterm';
 import { IRange } from 'vs/editor/common/core/range';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { IPath, posix, win32 } from 'vs/base/common/path';

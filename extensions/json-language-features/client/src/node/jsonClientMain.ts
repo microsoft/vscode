@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ExtensionContext, OutputChannel, window, workspace, l10n } from 'vscode';
-import { startClient, LanguageClientConstructor, SchemaRequestService, languageServerDescription } from '../jsonClient';
-import { ServerOptions, TransportKind, LanguageClientOptions, LanguageClient, BaseLanguageClient } from 'vscode-languageclient/node';
+import { Disposable, ExtensionContext, LogOutputChannel, window, l10n, env, LogLevel } from 'vscode';
+import { startClient, LanguageClientConstructor, SchemaRequestService, languageServerDescription, AsyncDisposable } from '../jsonClient';
+import { ServerOptions, TransportKind, LanguageClientOptions, LanguageClient } from 'vscode-languageclient/node';
 
 import { promises as fs } from 'fs';
 import * as path from 'path';
@@ -14,15 +14,16 @@ import { xhr, XHRResponse, getErrorStatusDescription, Headers } from 'request-li
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { JSONSchemaCache } from './schemaCache';
 
-let telemetry: TelemetryReporter | undefined;
-let client: BaseLanguageClient | undefined;
+let client: AsyncDisposable | undefined;
 
 // this method is called when vs code is activated
 export async function activate(context: ExtensionContext) {
 	const clientPackageJSON = await getPackageInfo(context);
-	telemetry = new TelemetryReporter(clientPackageJSON.aiKey);
+	const telemetry = new TelemetryReporter(clientPackageJSON.aiKey);
+	context.subscriptions.push(telemetry);
 
-	const outputChannel = window.createOutputChannel(languageServerDescription);
+	const logOutputChannel = window.createOutputChannel(languageServerDescription, { log: true });
+	context.subscriptions.push(logOutputChannel);
 
 	const serverMain = `./server/${clientPackageJSON.main.indexOf('/dist/') !== -1 ? 'dist' : 'out'}/node/jsonServerMain`;
 	const serverModule = context.asAbsolutePath(serverMain);
@@ -38,26 +39,29 @@ export async function activate(context: ExtensionContext) {
 	};
 
 	const newLanguageClient: LanguageClientConstructor = (id: string, name: string, clientOptions: LanguageClientOptions) => {
-		clientOptions.outputChannel = outputChannel;
 		return new LanguageClient(id, name, serverOptions, clientOptions);
 	};
-	const log = getLog(outputChannel);
-	context.subscriptions.push(log);
+
+	const timer = {
+		setTimeout(callback: (...args: any[]) => void, ms: number, ...args: any[]): Disposable {
+			const handle = setTimeout(callback, ms, ...args);
+			return { dispose: () => clearTimeout(handle) };
+		}
+	};
 
 	// pass the location of the localization bundle to the server
 	process.env['VSCODE_L10N_BUNDLE_LOCATION'] = l10n.uri?.toString() ?? '';
 
-	const schemaRequests = await getSchemaRequestService(context, log);
+	const schemaRequests = await getSchemaRequestService(context, logOutputChannel);
 
-	client = await startClient(context, newLanguageClient, { schemaRequests, telemetry });
+	client = await startClient(context, newLanguageClient, { schemaRequests, telemetry, timer, logOutputChannel });
 }
 
 export async function deactivate(): Promise<any> {
 	if (client) {
-		await client.stop();
+		await client.dispose();
 		client = undefined;
 	}
-	telemetry?.dispose();
 }
 
 interface IPackageInfo {
@@ -77,36 +81,9 @@ async function getPackageInfo(context: ExtensionContext): Promise<IPackageInfo> 
 	}
 }
 
-interface Log {
-	trace(message: string): void;
-	isTrace(): boolean;
-	dispose(): void;
-}
-
-const traceSetting = 'json.trace.server';
-function getLog(outputChannel: OutputChannel): Log {
-	let trace = workspace.getConfiguration().get(traceSetting) === 'verbose';
-	const configListener = workspace.onDidChangeConfiguration(e => {
-		if (e.affectsConfiguration(traceSetting)) {
-			trace = workspace.getConfiguration().get(traceSetting) === 'verbose';
-		}
-	});
-	return {
-		trace(message: string) {
-			if (trace) {
-				outputChannel.appendLine(message);
-			}
-		},
-		isTrace() {
-			return trace;
-		},
-		dispose: () => configListener.dispose()
-	};
-}
-
 const retryTimeoutInHours = 2 * 24; // 2 days
 
-async function getSchemaRequestService(context: ExtensionContext, log: Log): Promise<SchemaRequestService> {
+async function getSchemaRequestService(context: ExtensionContext, log: LogOutputChannel): Promise<SchemaRequestService> {
 	let cache: JSONSchemaCache | undefined = undefined;
 	const globalStorage = context.globalStorageUri;
 
@@ -129,7 +106,10 @@ async function getSchemaRequestService(context: ExtensionContext, log: Log): Pro
 	const isXHRResponse = (error: any): error is XHRResponse => typeof error?.status === 'number';
 
 	const request = async (uri: string, etag?: string): Promise<string> => {
-		const headers: Headers = { 'Accept-Encoding': 'gzip, deflate' };
+		const headers: Headers = {
+			'Accept-Encoding': 'gzip, deflate',
+			'User-Agent': `${env.appName} (${env.appHost})`
+		};
 		if (etag) {
 			headers['If-None-Match'] = etag;
 		}
@@ -181,7 +161,7 @@ async function getSchemaRequestService(context: ExtensionContext, log: Log): Pro
 			if (cache && /^https?:\/\/json\.schemastore\.org\//.test(uri)) {
 				const content = await cache.getSchemaIfUpdatedSince(uri, retryTimeoutInHours);
 				if (content) {
-					if (log.isTrace()) {
+					if (log.logLevel === LogLevel.Trace) {
 						log.trace(`[json schema cache] Schema ${uri} from cache without request (last accessed ${cache.getLastUpdatedInHours(uri)} hours ago)`);
 					}
 

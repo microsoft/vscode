@@ -7,42 +7,50 @@ declare module 'vscode' {
 
 	// https://github.com/microsoft/vscode/issues/152399
 
-	export interface AuthenticationForceNewSessionOptions {
-		/**
-		 * The session that you are asking to be recreated. The Auth Provider can use this to
-		 * help guide the user to log in to the correct account.
-		 */
-		sessionToRecreate?: AuthenticationSession;
-	}
+	// FOR THE CONSUMER
 
 	export namespace authentication {
 		/**
-		 * Get all authentication sessions matching the desired scopes that this extension has access to. In order to request access,
-		 * use {@link getSession}. To request an additional account, specify {@link AuthenticationGetSessionOptions.clearSessionPreference}
-		 * and {@link AuthenticationGetSessionOptions.createIfNone} together.
+		 * Get all accounts that the user is logged in to for the specified provider.
+		 * Use this paired with {@link getSession} in order to get an authentication session for a specific account.
 		 *
 		 * Currently, there are only two authentication providers that are contributed from built in extensions
 		 * to the editor that implement GitHub and Microsoft authentication: their providerId's are 'github' and 'microsoft'.
 		 *
-		 * @param providerId The id of the provider to use
-		 * @param scopes A list of scopes representing the permissions requested. These are dependent on the authentication provider
-		 * @returns A thenable that resolves to a readonly array of authentication sessions.
-		 */
-		export function getSessions(providerId: string, scopes: readonly string[]): Thenable<readonly AuthenticationSession[]>;
+		 * Note: Getting accounts does not imply that your extension has access to that account or its authentication sessions. You can verify access to the account by calling {@link getSession}.
+		 *
+			 * @param providerId The id of the provider to use
+			 * @returns A thenable that resolves to a readonly array of authentication accounts.
+			 */
+		export function getAccounts(providerId: string): Thenable<readonly AuthenticationSessionAccountInformation[]>;
 	}
 
-	/**
-	 * The options passed in to the provider when creating a session.
-	 */
-	export interface AuthenticationProviderCreateSessionOptions {
+	export interface AuthenticationGetSessionOptions {
 		/**
-		 * The session that is being asked to be recreated. If this is passed in, the provider should
-		 * attempt to recreate the session based on the information in this session.
+		 * The account that you would like to get a session for. This is passed down to the Authentication Provider to be used for creating the correct session.
 		 */
-		sessionToRecreate?: AuthenticationSession;
+		account?: AuthenticationSessionAccountInformation;
+	}
+
+	// FOR THE AUTH PROVIDER
+
+	export interface AuthenticationProviderSessionOptions {
+		/**
+		 * The account that is being asked about. If this is passed in, the provider should
+		 * attempt to return the sessions that are only related to this account.
+		 */
+		account?: AuthenticationSessionAccountInformation;
 	}
 
 	export interface AuthenticationProvider {
+		/**
+		 * Get a list of sessions.
+		 * @param scopes An optional list of scopes. If provided, the sessions returned should match
+		 * these permissions, otherwise all sessions should be returned.
+		 * @param options Additional options for getting sessions.
+		 * @returns A promise that resolves to an array of authentication sessions.
+		 */
+		getSessions(scopes: readonly string[] | undefined, options: AuthenticationProviderSessionOptions): Thenable<AuthenticationSession[]>;
 		/**
 		 * Prompts a user to login.
 		 *
@@ -57,6 +65,6 @@ declare module 'vscode' {
 		 * @param options Additional options for creating a session.
 		 * @returns A promise that resolves to an authentication session.
 		 */
-		createSession(scopes: readonly string[], options: AuthenticationProviderCreateSessionOptions): Thenable<AuthenticationSession>;
+		createSession(scopes: readonly string[], options: AuthenticationProviderSessionOptions): Thenable<AuthenticationSession>;
 	}
 }

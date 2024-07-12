@@ -37,14 +37,19 @@
 	clip-path: inset(50%);
 }
 
-/*.monaco-editor.vs [tabindex="0"]:focus {
-	outline: 1px solid rgba(0, 122, 204, 0.4);
+.monaco-editor, .monaco-diff-editor .synthetic-focus,
+.monaco-editor, .monaco-diff-editor [tabindex="0"]:focus,
+.monaco-editor, .monaco-diff-editor [tabindex="-1"]:focus,
+.monaco-editor, .monaco-diff-editor button:focus,
+.monaco-editor, .monaco-diff-editor input[type=button]:focus,
+.monaco-editor, .monaco-diff-editor input[type=checkbox]:focus,
+.monaco-editor, .monaco-diff-editor input[type=search]:focus,
+.monaco-editor, .monaco-diff-editor input[type=text]:focus,
+.monaco-editor, .monaco-diff-editor select:focus,
+.monaco-editor, .monaco-diff-editor textarea:focus {
+	outline-width: 1px;
+	outline-style: solid;
 	outline-offset: -1px;
-	opacity: 1 !important;
+	outline-color: var(--vscode-focusBorder);
+	opacity: 1
 }
-
-.monaco-editor.vs-dark [tabindex="0"]:focus {
-	outline: 1px solid rgba(14, 99, 156, 0.6);
-	outline-offset: -1px;
-	opacity: 1 !important;
-}*/

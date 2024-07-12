@@ -152,7 +152,19 @@ export interface IPromptResultWithCancel<T> extends IPromptResult<T> {
 	readonly result: T;
 }
 
-export type IDialogResult = IConfirmationResult | IInputResult | IPromptResult<unknown>;
+export interface IAsyncPromptResult<T> extends ICheckboxResult {
+
+	/**
+	 * The result of the `IPromptButton` that was pressed or `undefined` if none.
+	 */
+	readonly result?: Promise<T>;
+}
+
+export interface IAsyncPromptResultWithCancel<T> extends IAsyncPromptResult<T> {
+	readonly result: Promise<T>;
+}
+
+export type IDialogResult = IConfirmationResult | IInputResult | IAsyncPromptResult<unknown>;
 
 export type DialogType = 'none' | 'info' | 'error' | 'question' | 'warning';
 
@@ -286,7 +298,7 @@ export interface IDialogHandler {
 	/**
 	 * Prompt the user with a modal dialog.
 	 */
-	prompt<T>(prompt: IPrompt<T>): Promise<IPromptResult<T>>;
+	prompt<T>(prompt: IPrompt<T>): Promise<IAsyncPromptResult<T>>;
 
 	/**
 	 * Present a modal dialog to the user asking for input.
@@ -409,20 +421,23 @@ export abstract class AbstractDialogHandler implements IDialogHandler {
 		return undefined;
 	}
 
-	protected async getPromptResult<T>(prompt: IPrompt<T>, buttonIndex: number, checkboxChecked: boolean | undefined): Promise<IPromptResult<T>> {
+	protected getPromptResult<T>(prompt: IPrompt<T>, buttonIndex: number, checkboxChecked: boolean | undefined): IAsyncPromptResult<T> {
 		const promptButtons: IPromptBaseButton<T>[] = [...(prompt.buttons ?? [])];
 		if (prompt.cancelButton && typeof prompt.cancelButton !== 'string' && typeof prompt.cancelButton !== 'boolean') {
 			promptButtons.push(prompt.cancelButton);
 		}
 
-		const result = await promptButtons[buttonIndex]?.run({ checkboxChecked });
+		let result = promptButtons[buttonIndex]?.run({ checkboxChecked });
+		if (!(result instanceof Promise)) {
+			result = Promise.resolve(result);
+		}
 
 		return { result, checkboxChecked };
 	}
 
 	abstract confirm(confirmation: IConfirmation): Promise<IConfirmationResult>;
 	abstract input(input: IInput): Promise<IInputResult>;
-	abstract prompt<T>(prompt: IPrompt<T>): Promise<IPromptResult<T>>;
+	abstract prompt<T>(prompt: IPrompt<T>): Promise<IAsyncPromptResult<T>>;
 	abstract about(): Promise<void>;
 }
 

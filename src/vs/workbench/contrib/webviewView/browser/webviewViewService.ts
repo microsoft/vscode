@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { promiseWithResolvers } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -130,10 +131,9 @@ export class WebviewViewService extends Disposable implements IWebviewViewServic
 				throw new Error('View already awaiting revival');
 			}
 
-			let resolve: () => void;
-			const p = new Promise<void>(r => resolve = r);
-			this._awaitingRevival.set(viewType, { webview, resolve: resolve! });
-			return p;
+			const { promise, resolve } = promiseWithResolvers<void>();
+			this._awaitingRevival.set(viewType, { webview, resolve });
+			return promise;
 		}
 
 		return resolver.resolve(webview, cancellation);

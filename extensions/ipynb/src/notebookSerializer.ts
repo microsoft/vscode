@@ -10,6 +10,7 @@ import { defaultNotebookFormat } from './constants';
 import { getPreferredLanguage, jupyterNotebookModelToNotebookData } from './deserializers';
 import { createJupyterCellFromNotebookCell, pruneCell, sortObjectPropertiesRecursively } from './serializers';
 import * as fnv from '@enonic/fnv-plus';
+import { useCustomPropertyInMetadata } from './common';
 
 export class NotebookSerializer implements vscode.NotebookSerializer {
 	constructor(readonly context: vscode.ExtensionContext) {
@@ -63,7 +64,7 @@ export class NotebookSerializer implements vscode.NotebookSerializer {
 
 		// For notebooks without metadata default the language in metadata to the preferred language.
 		if (!json.metadata || (!json.metadata.kernelspec && !json.metadata.language_info)) {
-			json.metadata = json.metadata || { orig_nbformat: defaultNotebookFormat.major };
+			json.metadata = json.metadata || {};
 			json.metadata.language_info = json.metadata.language_info || { name: preferredCellLanguage };
 		}
 
@@ -99,10 +100,11 @@ export class NotebookSerializer implements vscode.NotebookSerializer {
 }
 
 export function getNotebookMetadata(document: vscode.NotebookDocument | vscode.NotebookData) {
-	const notebookContent: Partial<nbformat.INotebookContent> = document.metadata?.custom || {};
-	notebookContent.cells = notebookContent.cells || [];
-	notebookContent.nbformat = notebookContent.nbformat || 4;
-	notebookContent.nbformat_minor = notebookContent.nbformat_minor ?? 2;
-	notebookContent.metadata = notebookContent.metadata || { orig_nbformat: 4 };
+	const existingContent: Partial<nbformat.INotebookContent> = (useCustomPropertyInMetadata() ? document.metadata?.custom : document.metadata) || {};
+	const notebookContent: Partial<nbformat.INotebookContent> = {};
+	notebookContent.cells = existingContent.cells || [];
+	notebookContent.nbformat = existingContent.nbformat || defaultNotebookFormat.major;
+	notebookContent.nbformat_minor = existingContent.nbformat_minor ?? defaultNotebookFormat.minor;
+	notebookContent.metadata = existingContent.metadata || {};
 	return notebookContent;
 }

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { localize2 } from 'vs/nls';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { Action2, IMenuService } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -14,10 +14,7 @@ export class MenuHiddenStatesReset extends Action2 {
 	constructor() {
 		super({
 			id: 'menu.resetHiddenStates',
-			title: {
-				value: localize('title', 'Reset All Menus'),
-				original: 'Reset All Menus'
-			},
+			title: localize2('title', "Reset All Menus"),
 			category: Categories.View,
 			f1: true
 		});

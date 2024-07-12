@@ -10,6 +10,7 @@ import { join } from 'vs/base/common/path';
 import { isWindows, OperatingSystem } from 'vs/base/common/platform';
 import { env } from 'vs/base/common/process';
 import { URI } from 'vs/base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -40,20 +41,20 @@ const expectedCommands = [
 ];
 
 suite('Terminal history', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
 	suite('TerminalPersistedHistory', () => {
 		let history: ITerminalPersistedHistory<number>;
 		let instantiationService: TestInstantiationService;
-		let storageService: TestStorageService;
 		let configurationService: TestConfigurationService;
 
 		setup(() => {
 			configurationService = new TestConfigurationService(getConfig(5));
-			storageService = new TestStorageService();
-			instantiationService = new TestInstantiationService();
+			instantiationService = store.add(new TestInstantiationService());
 			instantiationService.set(IConfigurationService, configurationService);
-			instantiationService.set(IStorageService, storageService);
+			instantiationService.set(IStorageService, store.add(new TestStorageService()));
 
-			history = instantiationService.createInstance(TerminalPersistedHistory<number>, 'test');
+			history = store.add(instantiationService.createInstance(TerminalPersistedHistory<number>, 'test'));
 		});
 
 		teardown(() => {
@@ -116,7 +117,7 @@ suite('Terminal history', () => {
 			history.add('2', 2);
 			history.add('3', 3);
 			strictEqual(Array.from(history.entries).length, 3);
-			const history2 = instantiationService.createInstance(TerminalPersistedHistory, 'test');
+			const history2 = store.add(instantiationService.createInstance(TerminalPersistedHistory, 'test'));
 			strictEqual(Array.from(history2.entries).length, 3);
 		});
 	});

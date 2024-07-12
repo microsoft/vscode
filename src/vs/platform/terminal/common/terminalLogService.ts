@@ -9,6 +9,8 @@ import { localize } from 'vs/nls';
 import { ILogger, ILoggerService, LogLevel } from 'vs/platform/log/common/log';
 import { ITerminalLogService } from 'vs/platform/terminal/common/terminal';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { joinPath } from 'vs/base/common/resources';
 
 export class TerminalLogService extends Disposable implements ITerminalLogService {
 	declare _serviceBrand: undefined;
@@ -22,10 +24,11 @@ export class TerminalLogService extends Disposable implements ITerminalLogServic
 
 	constructor(
 		@ILoggerService private readonly _loggerService: ILoggerService,
-		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService
+		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
+		@IEnvironmentService environmentService: IEnvironmentService,
 	) {
 		super();
-		this._logger = this._loggerService.createLogger('terminal', { name: localize('terminalLoggerName', 'Terminal') });
+		this._logger = this._loggerService.createLogger(joinPath(environmentService.logsHome, 'terminal.log'), { id: 'terminal', name: localize('terminalLoggerName', 'Terminal') });
 		this._register(Event.runAndSubscribe(workspaceContextService.onDidChangeWorkspaceFolders, () => {
 			this._workspaceId = workspaceContextService.getWorkspace().id.substring(0, 7);
 		}));

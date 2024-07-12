@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
 import * as cp from 'child_process';
 import { Codicon } from 'vs/base/common/codicons';
 import { basename, delimiter, normalize } from 'vs/base/common/path';
@@ -17,6 +18,10 @@ import { ITerminalEnvironment, ITerminalExecutable, ITerminalProfile, ITerminalP
 import { findExecutable, getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { dirname, resolve } from 'path';
+
+const enum Constants {
+	UnixShellsPath = '/etc/shells'
+}
 
 let profileSources: Map<string, IPotentialTerminalProfile> | undefined;
 let logIfWslNotInstalled: boolean = true;
@@ -34,7 +39,7 @@ export function detectAvailableProfiles(
 ): Promise<ITerminalProfile[]> {
 	fsProvider = fsProvider || {
 		existsFile: pfs.SymlinkSupport.existsFile,
-		readFile: pfs.Promises.readFile
+		readFile: fs.promises.readFile
 	};
 	if (isWindows) {
 		return detectAvailableWindowsProfiles(
@@ -123,6 +128,8 @@ async function detectAvailableWindowsProfiles(
 				{ path: `${process.env['HOMEDRIVE']}\\msys64\\usr\\bin\\bash.exe`, isUnsafe: true },
 			],
 			args: ['--login', '-i'],
+			// CHERE_INVOKING retains current working directory
+			env: { CHERE_INVOKING: '1' },
 			icon: Codicon.terminalBash,
 			isAutoDetected: true
 		});
@@ -150,7 +157,7 @@ async function detectAvailableWindowsProfiles(
 			}
 		} catch (e) {
 			if (logIfWslNotInstalled) {
-				logService?.info('WSL is not installed, so could not detect WSL profiles');
+				logService?.trace('WSL is not installed, so could not detect WSL profiles');
 				logIfWslNotInstalled = false;
 			}
 		}
@@ -323,6 +330,7 @@ async function getGitBashPaths(): Promise<string[]> {
 	}
 
 	// Add special installs that don't follow the standard directory structure
+	gitBashPaths.push(`${process.env['UserProfile']}\\scoop\\apps\\git\\current\\bin\\bash.exe`);
 	gitBashPaths.push(`${process.env['UserProfile']}\\scoop\\apps\\git-with-openssh\\current\\bin\\bash.exe`);
 
 	return gitBashPaths;
@@ -404,8 +412,8 @@ async function detectAvailableUnixProfiles(
 	const detectedProfiles: Map<string, IUnresolvedTerminalProfile> = new Map();
 
 	// Add non-quick launch profiles
-	if (includeDetectedProfiles) {
-		const contents = (await fsProvider.readFile('/etc/shells')).toString();
+	if (includeDetectedProfiles && await fsProvider.existsFile(Constants.UnixShellsPath)) {
+		const contents = (await fsProvider.readFile(Constants.UnixShellsPath)).toString();
 		const profiles = (
 			(testPaths || contents.split('\n'))
 				.map(e => {

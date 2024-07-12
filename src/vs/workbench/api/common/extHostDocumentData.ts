@@ -37,11 +37,11 @@ export class ExtHostDocumentData extends MirrorTextModel {
 		uri: URI, lines: string[], eol: string, versionId: number,
 		private _languageId: string,
 		private _isDirty: boolean,
-		public readonly notebook?: vscode.NotebookDocument | undefined
 	) {
 		super(uri, lines, eol, versionId);
 	}
 
+	// eslint-disable-next-line local/code-must-use-super-dispose
 	override dispose(): void {
 		// we don't really dispose documents but let
 		// extensions still read from them. some
@@ -76,6 +76,9 @@ export class ExtHostDocumentData extends MirrorTextModel {
 				validateRange(ran) { return that._validateRange(ran); },
 				validatePosition(pos) { return that._validatePosition(pos); },
 				getWordRangeAtPosition(pos, regexp?) { return that._getWordRangeAtPosition(pos, regexp); },
+				[Symbol.for('debug.description')]() {
+					return `TextDocument(${that._uri.toString()})`;
+				}
 			};
 		}
 		return Object.freeze(this._document);

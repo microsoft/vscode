@@ -17,8 +17,8 @@ import { rgPath } from '@vscode/ripgrep';
 // If @vscode/ripgrep is in an .asar file, then the binary is unpacked.
 const rgDiskPath = rgPath.replace(/\bnode_modules\.asar\b/, 'node_modules.asar.unpacked');
 
-export function spawnRipgrepCmd(config: IFileQuery, folderQuery: IFolderQuery, includePattern?: glob.IExpression, excludePattern?: glob.IExpression) {
-	const rgArgs = getRgArgs(config, folderQuery, includePattern, excludePattern);
+export function spawnRipgrepCmd(config: IFileQuery, folderQuery: IFolderQuery, includePattern?: glob.IExpression, excludePattern?: glob.IExpression, numThreads?: number) {
+	const rgArgs = getRgArgs(config, folderQuery, includePattern, excludePattern, numThreads);
 	const cwd = folderQuery.folder.fsPath;
 	return {
 		cmd: cp.spawn(rgDiskPath, rgArgs.args, { cwd }),
@@ -29,7 +29,7 @@ export function spawnRipgrepCmd(config: IFileQuery, folderQuery: IFolderQuery, i
 	};
 }
 
-function getRgArgs(config: IFileQuery, folderQuery: IFolderQuery, includePattern?: glob.IExpression, excludePattern?: glob.IExpression) {
+function getRgArgs(config: IFileQuery, folderQuery: IFolderQuery, includePattern?: glob.IExpression, excludePattern?: glob.IExpression, numThreads?: number) {
 	const args = ['--files', '--hidden', '--case-sensitive', '--no-require-git'];
 
 	// includePattern can't have siblingClauses
@@ -69,6 +69,10 @@ function getRgArgs(config: IFileQuery, folderQuery: IFolderQuery, includePattern
 
 	if (config.exists) {
 		args.push('--quiet');
+	}
+
+	if (numThreads) {
+		args.push('--threads', `${numThreads}`);
 	}
 
 	args.push('--no-config');

@@ -14,8 +14,8 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { isFolderToOpen, isWorkspaceToOpen } from 'vs/platform/window/common/window';
 import { IWorkspaceContextService, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, toWorkspaceIdentifier, hasWorkspaceFileExtension } from 'vs/platform/workspace/common/workspace';
+import { IWorkspace, IWorkspaceProvider } from 'vs/workbench/browser/web.api';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
-import { IWorkspace, IWorkspaceProvider } from 'vs/workbench/services/host/browser/browserHostService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 

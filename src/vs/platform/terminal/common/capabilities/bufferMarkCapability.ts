@@ -8,7 +8,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IBufferMarkCapability, TerminalCapability, IMarkProperties } from 'vs/platform/terminal/common/capabilities/capabilities';
 // Importing types is safe in any layer
 // eslint-disable-next-line local/code-import-patterns
-import type { IMarker, Terminal } from 'xterm-headless';
+import type { IMarker, Terminal } from '@xterm/headless';
 
 /**
  * Manages "marks" in the buffer which are lines that are tracked when lines are added to or removed

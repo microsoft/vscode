@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { localize2 } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -16,7 +16,7 @@ export class ToggleCellToolbarPositionAction extends Action2 {
 	constructor() {
 		super({
 			id: TOGGLE_CELL_TOOLBAR_POSITION,
-			title: { value: localize('notebook.toggleCellToolbarPosition', "Toggle Cell Toolbar Position"), original: 'Toggle Cell Toolbar Position' },
+			title: localize2('notebook.toggleCellToolbarPosition', 'Toggle Cell Toolbar Position'),
 			menu: [{
 				id: MenuId.NotebookCellTitle,
 				group: 'View',

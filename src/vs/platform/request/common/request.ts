@@ -16,12 +16,28 @@ import { Registry } from 'vs/platform/registry/common/platform';
 
 export const IRequestService = createDecorator<IRequestService>('requestService');
 
+export interface AuthInfo {
+	isProxy: boolean;
+	scheme: string;
+	host: string;
+	port: number;
+	realm: string;
+	attempt: number;
+}
+
+export interface Credentials {
+	username: string;
+	password: string;
+}
+
 export interface IRequestService {
 	readonly _serviceBrand: undefined;
 
 	request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext>;
 
 	resolveProxy(url: string): Promise<string | undefined>;
+	lookupAuthorization(authInfo: AuthInfo): Promise<Credentials | undefined>;
+	loadCertificates(): Promise<string[]>;
 }
 
 class LoggableHeaders {
@@ -79,13 +95,15 @@ export abstract class AbstractRequestService extends Disposable implements IRequ
 
 	abstract request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext>;
 	abstract resolveProxy(url: string): Promise<string | undefined>;
+	abstract lookupAuthorization(authInfo: AuthInfo): Promise<Credentials | undefined>;
+	abstract loadCertificates(): Promise<string[]>;
 }
 
 export function isSuccess(context: IRequestContext): boolean {
 	return (context.res.statusCode && context.res.statusCode >= 200 && context.res.statusCode < 300) || context.res.statusCode === 1223;
 }
 
-function hasNoContent(context: IRequestContext): boolean {
+export function hasNoContent(context: IRequestContext): boolean {
 	return context.res.statusCode === 204;
 }
 
@@ -153,6 +171,12 @@ function registerProxyConfigurations(scope: ConfigurationScope): void {
 				markdownDescription: localize('proxyKerberosServicePrincipal', "Overrides the principal service name for Kerberos authentication with the HTTP proxy. A default based on the proxy hostname is used when this is not set."),
 				restricted: true
 			},
+			'http.noProxy': {
+				type: 'array',
+				items: { type: 'string' },
+				markdownDescription: localize('noProxy', "Specifies domain names for which proxy settings should be ignored for HTTP/HTTPS requests."),
+				restricted: true
+			},
 			'http.proxyAuthorization': {
 				type: ['null', 'string'],
 				default: null,
@@ -176,6 +200,13 @@ function registerProxyConfigurations(scope: ConfigurationScope): void {
 				type: 'boolean',
 				default: true,
 				description: localize('systemCertificates', "Controls whether CA certificates should be loaded from the OS. (On Windows and macOS, a reload of the window is required after turning this off.)"),
+				restricted: true
+			},
+			'http.experimental.systemCertificatesV2': {
+				type: 'boolean',
+				tags: ['experimental'],
+				default: false,
+				description: localize('systemCertificatesV2', "Controls whether experimental loading of CA certificates from the OS should be enabled. This uses a more general approach than the default implemenation."),
 				restricted: true
 			}
 		}

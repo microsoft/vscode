@@ -155,7 +155,7 @@ steps:
       condition: succeededOrFailed()
 
   - ${{ if or(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
-    - task: PublishPipelineArtifact@0
+    - task: 1ES.PublishPipelineArtifact@1
       inputs:
         targetPath: .build/crashes
         ${{ if and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
@@ -164,13 +164,14 @@ steps:
           artifactName: crash-dump-macos-$(VSCODE_ARCH)-smoke-$(System.JobAttempt)
         ${{ else }}:
           artifactName: crash-dump-macos-$(VSCODE_ARCH)-$(System.JobAttempt)
+        sbomEnabled: false
       displayName: "Publish Crash Reports"
       continueOnError: true
       condition: failed()
 
     # In order to properly symbolify above crash reports
     # (if any), we need the compiled native modules too
-    - task: PublishPipelineArtifact@0
+    - task: 1ES.PublishPipelineArtifact@1
       inputs:
         targetPath: node_modules
         ${{ if and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
@@ -179,11 +180,12 @@ steps:
           artifactName: node-modules-macos-$(VSCODE_ARCH)-smoke-$(System.JobAttempt)
         ${{ else }}:
           artifactName: node-modules-macos-$(VSCODE_ARCH)-$(System.JobAttempt)
+        sbomEnabled: false
       displayName: "Publish Node Modules"
       continueOnError: true
       condition: failed()
 
-    - task: PublishPipelineArtifact@0
+    - task: 1ES.PublishPipelineArtifact@1
       inputs:
         targetPath: .build/logs
         ${{ if and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
@@ -192,6 +194,7 @@ steps:
           artifactName: logs-macos-$(VSCODE_ARCH)-smoke-$(System.JobAttempt)
         ${{ else }}:
           artifactName: logs-macos-$(VSCODE_ARCH)-$(System.JobAttempt)
+        sbomEnabled: false
       displayName: "Publish Log Files"
       continueOnError: true
       condition: succeededOrFailed()

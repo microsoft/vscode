@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
+import assert from 'assert';
 import { Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
@@ -40,15 +40,17 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { getSnippetSuggestSupport, setSnippetSuggestSupport } from 'vs/editor/contrib/suggest/browser/suggest';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 
 function createMockEditor(model: TextModel, languageFeaturesService: ILanguageFeaturesService): ITestCodeEditor {
 
+	const storeService = new InMemoryStorageService();
 	const editor = createTestCodeEditor(model, {
 		serviceCollection: new ServiceCollection(
 			[ILanguageFeaturesService, languageFeaturesService],
 			[ITelemetryService, NullTelemetryService],
-			[IStorageService, new InMemoryStorageService()],
+			[IStorageService, storeService],
 			[IKeybindingService, new MockKeybindingService()],
 			[ISuggestMemoryService, new class implements ISuggestMemoryService {
 				declare readonly _serviceBrand: undefined;
@@ -66,8 +68,11 @@ function createMockEditor(model: TextModel, languageFeaturesService: ILanguageFe
 			}],
 		),
 	});
-	editor.registerAndInstantiateContribution(SnippetController2.ID, SnippetController2);
+	const ctrl = editor.registerAndInstantiateContribution(SnippetController2.ID, SnippetController2);
 	editor.hasWidgetFocus = () => true;
+
+	editor.registerDisposable(ctrl);
+	editor.registerDisposable(storeService);
 	return editor;
 }
 
@@ -140,6 +145,8 @@ suite('SuggestModel - Context', function () {
 	teardown(function () {
 		disposables.dispose();
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('Context - shouldAutoTrigger', function () {
 		const model = createTextModel('Das Pferd frisst keinen Gurkensalat - Philipp Reis 1861.\nWer hat\'s erfunden?');
@@ -219,6 +226,8 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 	teardown(() => {
 		disposables.dispose();
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function withOracle(callback: (model: SuggestModel, editor: ITestCodeEditor) => any): Promise<any> {
 

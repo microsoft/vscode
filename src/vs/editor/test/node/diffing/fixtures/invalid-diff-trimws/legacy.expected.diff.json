@@ -33,16 +33,16 @@
 					"modifiedRange": "[745,4 -> 745,8]"
 				},
 				{
-					"originalRange": "[744,59 -> 745,6]",
-					"modifiedRange": "[745,56 -> 745,59]"
+					"originalRange": "[744,59 -> 745,6 EOL]",
+					"modifiedRange": "[745,56 -> 745,59 EOL]"
 				},
 				{
 					"originalRange": "[746,24 -> 746,25]",
 					"modifiedRange": "[746,26 -> 746,26]"
 				},
 				{
-					"originalRange": "[746,37 -> 746,37]",
-					"modifiedRange": "[747,4 -> 750,20]"
+					"originalRange": "[746,37 -> 746,37 EOL]",
+					"modifiedRange": "[747,4 -> 750,20 EOL]"
 				}
 			]
 		},

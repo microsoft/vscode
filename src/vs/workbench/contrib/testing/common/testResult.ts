@@ -7,12 +7,14 @@ import { DeferredPromise } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Lazy } from 'vs/base/common/lazy';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { IObservable, observableValue } from 'vs/base/common/observable';
 import { language } from 'vs/base/common/platform';
 import { WellDefinedPrefixTree } from 'vs/base/common/prefixTree';
-import { removeAnsiEscapeCodes } from 'vs/base/common/strings';
 import { localize } from 'vs/nls';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IComputedStateAccessor, refreshComputedState } from 'vs/workbench/contrib/testing/common/getComputedState';
-import { IObservableValue, MutableObservableValue, staticObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
 import { TestCoverage } from 'vs/workbench/contrib/testing/common/testCoverage';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { makeEmptyCounts, maxPriority, statesInOrder, terminalStatePriorities, TestStateCount } from 'vs/workbench/contrib/testing/common/testingStates';
@@ -22,7 +24,7 @@ export interface ITestRunTaskResults extends ITestRunTask {
 	/**
 	 * Contains test coverage for the result, if it's available.
 	 */
-	readonly coverage: IObservableValue<TestCoverage | undefined>;
+	readonly coverage: IObservable<TestCoverage | undefined>;
 
 	/**
 	 * Messages from the task not associated with any specific test.
@@ -274,11 +276,11 @@ export type TestResultItemChange = { item: TestResultItem; result: ITestResult }
  * Results of a test. These are created when the test initially started running
  * and marked as "complete" when the run finishes.
  */
-export class LiveTestResult implements ITestResult {
-	private readonly completeEmitter = new Emitter<void>();
-	private readonly newTaskEmitter = new Emitter<number>();
-	private readonly endTaskEmitter = new Emitter<number>();
-	private readonly changeEmitter = new Emitter<TestResultItemChange>();
+export class LiveTestResult extends Disposable implements ITestResult {
+	private readonly completeEmitter = this._register(new Emitter<void>());
+	private readonly newTaskEmitter = this._register(new Emitter<number>());
+	private readonly endTaskEmitter = this._register(new Emitter<number>());
+	private readonly changeEmitter = this._register(new Emitter<TestResultItemChange>());
 	/** todo@connor4312: convert to a WellDefinedPrefixTree */
 	private readonly testById = new Map<string, TestResultItemWithChildren>();
 	private testMarkerCounter = 0;
@@ -311,6 +313,11 @@ export class LiveTestResult implements ITestResult {
 		return this.testById.values();
 	}
 
+	/** Gets an included test item by ID. */
+	public getTestById(id: string) {
+		return this.testById.get(id)?.item;
+	}
+
 	private readonly computedStateAccessor: IComputedStateAccessor<TestResultItemWithChildren> = {
 		getOwnState: i => i.ownComputedState,
 		getCurrentComputedState: i => i.computedState,
@@ -333,7 +340,9 @@ export class LiveTestResult implements ITestResult {
 		public readonly id: string,
 		public readonly persist: boolean,
 		public readonly request: ResolvedTestRunRequest,
+		@ITelemetryService private readonly telemetry: ITelemetryService,
 	) {
+		super();
 	}
 
 	/**
@@ -362,7 +371,7 @@ export class LiveTestResult implements ITestResult {
 		const { offset, length } = task.output.append(output, marker);
 		const message: ITestOutputMessage = {
 			location,
-			message: removeAnsiEscapeCodes(preview),
+			message: preview,
 			offset,
 			length,
 			marker,
@@ -382,7 +391,7 @@ export class LiveTestResult implements ITestResult {
 	 * Adds a new run task to the results.
 	 */
 	public addTask(task: ITestRunTask) {
-		this.tasks.push({ ...task, coverage: new MutableObservableValue(undefined), otherMessages: [], output: new TaskRawOutput() });
+		this.tasks.push({ ...task, coverage: observableValue(this, undefined), otherMessages: [], output: new TaskRawOutput() });
 
 		for (const test of this.tests) {
 			test.tasks.push({ duration: undefined, messages: [], state: TestResultState.Unset });
@@ -479,6 +488,21 @@ export class LiveTestResult implements ITestResult {
 
 		this._completedAt = Date.now();
 		this.completeEmitter.fire();
+
+		this.telemetry.publicLog2<
+			{ failures: number; passes: number; controller: string },
+			{
+				owner: 'connor4312';
+				comment: 'Test outcome metrics. This helps us understand magnitude of feature use and how to build fix suggestions.';
+				failures: { comment: 'Number of test failures'; classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+				passes: { comment: 'Number of test failures'; classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+				controller: { comment: 'The test controller being used'; classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+			}
+		>('test.outcomes', {
+			failures: this.counts[TestResultState.Errored] + this.counts[TestResultState.Failed],
+			passes: this.counts[TestResultState.Passed],
+			controller: this.request.targets.map(t => t.controllerId).join(',')
+		});
 	}
 
 	/**
@@ -643,6 +667,7 @@ export class HydratedTestResult implements ITestResult {
 	private readonly testById = new Map<string, TestResultItem>();
 
 	constructor(
+		identity: IUriIdentityService,
 		private readonly serialized: ISerializedTestResults,
 		private readonly persist = true,
 	) {
@@ -652,7 +677,7 @@ export class HydratedTestResult implements ITestResult {
 			id: task.id,
 			name: task.name,
 			running: false,
-			coverage: staticObservableValue(undefined),
+			coverage: observableValue(this, undefined),
 			output: emptyRawOutput,
 			otherMessages: []
 		}));
@@ -660,7 +685,7 @@ export class HydratedTestResult implements ITestResult {
 		this.request = serialized.request;
 
 		for (const item of serialized.items) {
-			const de = TestResultItem.deserialize(item);
+			const de = TestResultItem.deserialize(identity, item);
 			this.counts[de.ownComputedState]++;
 			this.testById.set(item.item.extId, de);
 		}

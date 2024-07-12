@@ -20,13 +20,15 @@ import { createMonacoBaseAPI } from 'vs/editor/common/services/editorBaseApi';
 import { IEditorWorkerHost } from 'vs/editor/common/services/editorWorkerHost';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { UnicodeTextModelHighlighter, UnicodeHighlighterOptions } from 'vs/editor/common/services/unicodeTextModelHighlighter';
-import { DiffComputer, IChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
-import { ILinesDiffComputer, ILinesDiffComputerOptions, LineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
+import { DiffComputer, IChange } from 'vs/editor/common/diff/legacyLinesDiffComputer';
+import { ILinesDiffComputer, ILinesDiffComputerOptions } from 'vs/editor/common/diff/linesDiffComputer';
+import { DetailedLineRangeMapping } from '../diff/rangeMapping';
 import { linesDiffComputers } from 'vs/editor/common/diff/linesDiffComputers';
 import { createProxyObject, getAllMethodNames } from 'vs/base/common/objects';
 import { IDocumentDiffProviderOptions } from 'vs/editor/common/diff/documentDiffProvider';
 import { BugIndicatingError } from 'vs/base/common/errors';
 import { IDocumentColorComputerTarget, computeDefaultDocumentColors } from 'vs/editor/common/languages/defaultDocumentColorsComputer';
+import { FindSectionHeaderOptions, SectionHeader, findSectionHeaders } from 'vs/editor/common/services/findSectionHeaders';
 
 export interface IMirrorModel extends IMirrorTextModel {
 	readonly uri: URI;
@@ -400,6 +402,14 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 		return UnicodeTextModelHighlighter.computeUnicodeHighlights(model, options, range);
 	}
 
+	public async findSectionHeaders(url: string, options: FindSectionHeaderOptions): Promise<SectionHeader[]> {
+		const model = this._getModel(url);
+		if (!model) {
+			return [];
+		}
+		return findSectionHeaders(model, options);
+	}
+
 	// ---- BEGIN diff --------------------------------------------------------------------------
 
 	public async computeDiff(originalUrl: string, modifiedUrl: string, options: IDocumentDiffProviderOptions, algorithm: DiffAlgorithmName): Promise<IDiffComputationResult | null> {
@@ -409,11 +419,12 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 			return null;
 		}
 
-		return EditorSimpleWorker.computeDiff(original, modified, options, algorithm);
+		const result = EditorSimpleWorker.computeDiff(original, modified, options, algorithm);
+		return result;
 	}
 
 	private static computeDiff(originalTextModel: ICommonModel | ITextModel, modifiedTextModel: ICommonModel | ITextModel, options: IDocumentDiffProviderOptions, algorithm: DiffAlgorithmName): IDiffComputationResult {
-		const diffAlgorithm: ILinesDiffComputer = algorithm === 'advanced' ? linesDiffComputers.getAdvanced() : linesDiffComputers.getLegacy();
+		const diffAlgorithm: ILinesDiffComputer = algorithm === 'advanced' ? linesDiffComputers.getDefault() : linesDiffComputers.getLegacy();
 
 		const originalLines = originalTextModel.getLinesContent();
 		const modifiedLines = modifiedTextModel.getLinesContent();
@@ -422,8 +433,8 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 
 		const identical = (result.changes.length > 0 ? false : this._modelsAreIdentical(originalTextModel, modifiedTextModel));
 
-		function getLineChanges(changes: readonly LineRangeMapping[]): ILineChange[] {
-			return changes.map(m => ([m.originalRange.startLineNumber, m.originalRange.endLineNumberExclusive, m.modifiedRange.startLineNumber, m.modifiedRange.endLineNumberExclusive, m.innerChanges?.map(m => [
+		function getLineChanges(changes: readonly DetailedLineRangeMapping[]): ILineChange[] {
+			return changes.map(m => ([m.original.startLineNumber, m.original.endLineNumberExclusive, m.modified.startLineNumber, m.modified.endLineNumberExclusive, m.innerChanges?.map(m => [
 				m.originalRange.startLineNumber,
 				m.originalRange.startColumn,
 				m.originalRange.endLineNumber,
@@ -510,6 +521,19 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 			return aRng - bRng;
 		});
 
+		// merge adjacent edits
+		let writeIndex = 0;
+		for (let readIndex = 1; readIndex < edits.length; readIndex++) {
+			if (Range.getEndPosition(edits[writeIndex].range).equals(Range.getStartPosition(edits[readIndex].range))) {
+				edits[writeIndex].range = Range.fromPositions(Range.getStartPosition(edits[writeIndex].range), Range.getEndPosition(edits[readIndex].range));
+				edits[writeIndex].text += edits[readIndex].text;
+			} else {
+				writeIndex++;
+				edits[writeIndex] = edits[readIndex];
+			}
+		}
+		edits.length = writeIndex + 1;
+
 		for (let { range, text, eol } of edits) {
 
 			if (typeof eol === 'number') {
@@ -560,7 +584,7 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 		return result;
 	}
 
-	public async computeHumanReadableDiff(modelUrl: string, edits: TextEdit[], options: ILinesDiffComputerOptions): Promise<TextEdit[]> {
+	public computeHumanReadableDiff(modelUrl: string, edits: TextEdit[], options: ILinesDiffComputerOptions): TextEdit[] {
 		const model = this._getModel(modelUrl);
 		if (!model) {
 			return edits;
@@ -609,7 +633,7 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 			const originalLines = original.split(/\r\n|\n|\r/);
 			const modifiedLines = text.split(/\r\n|\n|\r/);
 
-			const diff = linesDiffComputers.getAdvanced().computeDiff(originalLines, modifiedLines, options);
+			const diff = linesDiffComputers.getDefault().computeDiff(originalLines, modifiedLines, options);
 
 			const start = Range.lift(range).getStartPosition();
 

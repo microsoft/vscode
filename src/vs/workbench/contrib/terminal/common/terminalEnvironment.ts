@@ -13,7 +13,7 @@ import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspac
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { sanitizeProcessEnvironment } from 'vs/base/common/processes';
 import { IShellLaunchConfig, ITerminalBackend, ITerminalEnvironment, TerminalShellType, WindowsShellType } from 'vs/platform/terminal/common/terminal';
-import { IProcessEnvironment, isWindows, language, OperatingSystem } from 'vs/base/common/platform';
+import { IProcessEnvironment, isWindows, isMacintosh, language, OperatingSystem } from 'vs/base/common/platform';
 import { escapeNonWindowsPath, sanitizeCwd } from 'vs/platform/terminal/common/terminalEnvironment';
 import { isString } from 'vs/base/common/types';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -266,6 +266,26 @@ export async function createTerminalEnvironment(
 			}
 			if (shellLaunchConfig.env) {
 				await resolveConfigurationVariables(variableResolver, shellLaunchConfig.env);
+			}
+		}
+
+		// Workaround for https://github.com/microsoft/vscode/issues/204005
+		// We should restore the following environment variables when a user
+		// launches the application using the CLI so that integrated terminal
+		// can still inherit these variables.
+		// We are not bypassing the restrictions implied in https://github.com/electron/electron/pull/40770
+		// since this only affects integrated terminal and not the application itself.
+		if (isMacintosh) {
+			// Restore NODE_OPTIONS if it was set
+			if (env['VSCODE_NODE_OPTIONS']) {
+				env['NODE_OPTIONS'] = env['VSCODE_NODE_OPTIONS'];
+				delete env['VSCODE_NODE_OPTIONS'];
+			}
+
+			// Restore NODE_REPL_EXTERNAL_MODULE if it was set
+			if (env['VSCODE_NODE_REPL_EXTERNAL_MODULE']) {
+				env['NODE_REPL_EXTERNAL_MODULE'] = env['VSCODE_NODE_REPL_EXTERNAL_MODULE'];
+				delete env['VSCODE_NODE_REPL_EXTERNAL_MODULE'];
 			}
 		}
 

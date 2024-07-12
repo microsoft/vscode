@@ -5,7 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { BaseActionViewItem, IActionViewItemOptions, IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
 import { Action, IAction, IActionRunner, Separator } from 'vs/base/common/actions';
@@ -28,6 +28,7 @@ const testFilterDescriptions: { [K in TestFilterTerm]: string } = {
 	[TestFilterTerm.Failed]: localize('testing.filters.showOnlyFailed', "Show Only Failed Tests"),
 	[TestFilterTerm.Executed]: localize('testing.filters.showOnlyExecuted', "Show Only Executed Tests"),
 	[TestFilterTerm.CurrentDoc]: localize('testing.filters.currentFile', "Show in Active File Only"),
+	[TestFilterTerm.OpenedFiles]: localize('testing.filters.openedFiles', "Show in Opened Files Only"),
 	[TestFilterTerm.Hidden]: localize('testing.filters.showExcludedTests', "Show Hidden Tests"),
 };
 
@@ -46,11 +47,12 @@ export class TestingExplorerFilter extends BaseActionViewItem {
 
 	constructor(
 		action: IAction,
+		options: IBaseActionViewItemOptions,
 		@ITestExplorerFilterState private readonly state: ITestExplorerFilterState,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITestService private readonly testService: ITestService,
 	) {
-		super(null, action);
+		super(null, action, options);
 		this.updateFilterActiveState();
 		this._register(testService.excluded.onTestExclusionsChanged(this.updateFilterActiveState, this));
 	}
@@ -91,7 +93,7 @@ export class TestingExplorerFilter extends BaseActionViewItem {
 						});
 					}),
 				].filter(r => !this.state.text.value.includes(r.label)),
-			} as SuggestResultsProvider,
+			} satisfies SuggestResultsProvider,
 			resourceHandle: 'testing:filter',
 			suggestOptions: {
 				value: this.state.text.value,
@@ -120,9 +122,9 @@ export class TestingExplorerFilter extends BaseActionViewItem {
 		})));
 
 		const actionbar = this._register(new ActionBar(container, {
-			actionViewItemProvider: action => {
+			actionViewItemProvider: (action, options) => {
 				if (action.id === this.filtersAction.id) {
-					return this.instantiationService.createInstance(FiltersDropdownMenuActionViewItem, action, this.state, this.actionRunner);
+					return this.instantiationService.createInstance(FiltersDropdownMenuActionViewItem, action, options, this.state, this.actionRunner);
 				}
 				return undefined;
 			},
@@ -135,7 +137,7 @@ export class TestingExplorerFilter extends BaseActionViewItem {
 	public layout(width: number) {
 		this.input.layout(new dom.Dimension(
 			width - /* horizontal padding */ 24 - /* editor padding */ 8 - /* filter button padding */ 22,
-			/* line height */ 27 - /* editor padding */ 4,
+			20, // line height from suggestEnabledInput.ts
 		));
 	}
 
@@ -175,6 +177,7 @@ class FiltersDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
 
 	constructor(
 		action: IAction,
+		options: IActionViewItemOptions,
 		private readonly filters: ITestExplorerFilterState,
 		actionRunner: IActionRunner,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -199,7 +202,7 @@ class FiltersDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
 
 	private getActions(): IAction[] {
 		return [
-			...[TestFilterTerm.Failed, TestFilterTerm.Executed, TestFilterTerm.CurrentDoc].map(term => ({
+			...[TestFilterTerm.Failed, TestFilterTerm.Executed, TestFilterTerm.CurrentDoc, TestFilterTerm.OpenedFiles].map(term => ({
 				checked: this.filters.isFilteringFor(term),
 				class: undefined,
 				enabled: true,
@@ -230,7 +233,6 @@ class FiltersDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
 				tooltip: ''
 			},
 			{
-				checked: false,
 				class: undefined,
 				enabled: this.testService.excluded.hasAny,
 				id: 'removeExcluded',

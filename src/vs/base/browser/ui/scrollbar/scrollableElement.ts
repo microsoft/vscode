@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getZoomFactor } from 'vs/base/browser/browser';
+import { getZoomFactor, isChrome } from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
-import { createFastDomNode, FastDomNode } from 'vs/base/browser/fastDomNode';
+import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { IMouseEvent, IMouseWheelEvent, StandardWheelEvent } from 'vs/base/browser/mouseEvent';
 import { ScrollbarHost } from 'vs/base/browser/ui/scrollbar/abstractScrollbar';
 import { HorizontalScrollbar } from 'vs/base/browser/ui/scrollbar/horizontalScrollbar';
@@ -14,9 +14,9 @@ import { VerticalScrollbar } from 'vs/base/browser/ui/scrollbar/verticalScrollba
 import { Widget } from 'vs/base/browser/ui/widget';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
-import { INewScrollDimensions, INewScrollPosition, IScrollDimensions, IScrollPosition, Scrollable, ScrollbarVisibility, ScrollEvent } from 'vs/base/common/scrollable';
+import { INewScrollDimensions, INewScrollPosition, IScrollDimensions, IScrollPosition, ScrollEvent, Scrollable, ScrollbarVisibility } from 'vs/base/common/scrollable';
 import 'vs/css!./media/scrollbars';
 
 const HIDE_TIMEOUT = 500;
@@ -87,25 +87,28 @@ export class MouseWheelClassifier {
 	}
 
 	public acceptStandardWheelEvent(e: StandardWheelEvent): void {
-		const osZoomFactor = window.devicePixelRatio / getZoomFactor();
-		if (platform.isWindows || platform.isLinux) {
-			// On Windows and Linux, the incoming delta events are multiplied with the OS zoom factor.
+		if (isChrome) {
+			const targetWindow = dom.getWindow(e.browserEvent);
+			const pageZoomFactor = getZoomFactor(targetWindow);
+			// On Chrome, the incoming delta events are multiplied with the OS zoom factor.
 			// The OS zoom factor can be reverse engineered by using the device pixel ratio and the configured zoom factor into account.
-			this.accept(Date.now(), e.deltaX / osZoomFactor, e.deltaY / osZoomFactor);
+			this.accept(Date.now(), e.deltaX * pageZoomFactor, e.deltaY * pageZoomFactor);
 		} else {
 			this.accept(Date.now(), e.deltaX, e.deltaY);
 		}
 	}
 
 	public accept(timestamp: number, deltaX: number, deltaY: number): void {
+		let previousItem = null;
 		const item = new MouseWheelClassifierItem(timestamp, deltaX, deltaY);
-		item.score = this._computeScore(item);
 
 		if (this._front === -1 && this._rear === -1) {
 			this._memory[0] = item;
 			this._front = 0;
 			this._rear = 0;
 		} else {
+			previousItem = this._memory[this._rear];
+
 			this._rear = (this._rear + 1) % this._capacity;
 			if (this._rear === this._front) {
 				// Drop oldest
@@ -113,6 +116,8 @@ export class MouseWheelClassifier {
 			}
 			this._memory[this._rear] = item;
 		}
+
+		item.score = this._computeScore(item, previousItem);
 	}
 
 	/**
@@ -120,7 +125,7 @@ export class MouseWheelClassifier {
 	 *  - a score towards 0 indicates that the source appears to be a physical mouse wheel
 	 *  - a score towards 1 indicates that the source appears to be a touchpad or magic mouse, etc.
 	 */
-	private _computeScore(item: MouseWheelClassifierItem): number {
+	private _computeScore(item: MouseWheelClassifierItem, previousItem: MouseWheelClassifierItem | null): number {
 
 		if (Math.abs(item.deltaX) > 0 && Math.abs(item.deltaY) > 0) {
 			// both axes exercised => definitely not a physical mouse wheel
@@ -128,23 +133,32 @@ export class MouseWheelClassifier {
 		}
 
 		let score: number = 0.5;
-		const prev = (this._front === -1 && this._rear === -1 ? null : this._memory[this._rear]);
-		if (prev) {
-			// const deltaT = item.timestamp - prev.timestamp;
-			// if (deltaT < 1000 / 30) {
-			// 	// sooner than X times per second => indicator that this is not a physical mouse wheel
-			// 	score += 0.25;
-			// }
-
-			// if (item.deltaX === prev.deltaX && item.deltaY === prev.deltaY) {
-			// 	// equal amplitude => indicator that this is a physical mouse wheel
-			// 	score -= 0.25;
-			// }
-		}
 
 		if (!this._isAlmostInt(item.deltaX) || !this._isAlmostInt(item.deltaY)) {
 			// non-integer deltas => indicator that this is not a physical mouse wheel
 			score += 0.25;
+		}
+
+		// Non-accelerating scroll => indicator that this is a physical mouse wheel
+		// These can be identified by seeing whether they are the module of one another.
+		if (previousItem) {
+			const absDeltaX = Math.abs(item.deltaX);
+			const absDeltaY = Math.abs(item.deltaY);
+
+			const absPreviousDeltaX = Math.abs(previousItem.deltaX);
+			const absPreviousDeltaY = Math.abs(previousItem.deltaY);
+
+			// Min 1 to avoid division by zero, module 1 will still be 0.
+			const minDeltaX = Math.max(Math.min(absDeltaX, absPreviousDeltaX), 1);
+			const minDeltaY = Math.max(Math.min(absDeltaY, absPreviousDeltaY), 1);
+
+			const maxDeltaX = Math.max(absDeltaX, absPreviousDeltaX);
+			const maxDeltaY = Math.max(absDeltaY, absPreviousDeltaY);
+
+			const isSameModulo = (maxDeltaX % minDeltaX === 0 && maxDeltaY % minDeltaY === 0);
+			if (isSameModulo) {
+				score -= 0.5;
+			}
 		}
 
 		return Math.min(Math.max(score, 0), 1);
@@ -382,6 +396,7 @@ export abstract class AbstractScrollableElement extends Widget {
 			classifier.acceptStandardWheelEvent(e);
 		}
 
+		// useful for creating unit tests:
 		// console.log(`${Date.now()}, ${e.deltaY}, ${e.deltaX}`);
 
 		let didScroll = false;
@@ -576,7 +591,7 @@ export class ScrollableElement extends AbstractScrollableElement {
 		const scrollable = new Scrollable({
 			forceIntegerValues: true,
 			smoothScrollDuration: 0,
-			scheduleAtNextAnimationFrame: (callback) => dom.scheduleAtNextAnimationFrame(callback)
+			scheduleAtNextAnimationFrame: (callback) => dom.scheduleAtNextAnimationFrame(dom.getWindow(element), callback)
 		});
 		super(element, options, scrollable);
 		this._register(scrollable);
@@ -621,19 +636,19 @@ export class DomScrollableElement extends AbstractScrollableElement {
 		const scrollable = new Scrollable({
 			forceIntegerValues: false, // See https://github.com/microsoft/vscode/issues/139877
 			smoothScrollDuration: 0,
-			scheduleAtNextAnimationFrame: (callback) => dom.scheduleAtNextAnimationFrame(callback)
+			scheduleAtNextAnimationFrame: (callback) => dom.scheduleAtNextAnimationFrame(dom.getWindow(element), callback)
 		});
 		super(element, options, scrollable);
 		this._register(scrollable);
 		this._element = element;
-		this.onScroll((e) => {
+		this._register(this.onScroll((e) => {
 			if (e.scrollTopChanged) {
 				this._element.scrollTop = e.scrollTop;
 			}
 			if (e.scrollLeftChanged) {
 				this._element.scrollLeft = e.scrollLeft;
 			}
-		});
+		}));
 		this.scanDomNode();
 	}
 

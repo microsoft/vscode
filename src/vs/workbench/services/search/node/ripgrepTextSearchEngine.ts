@@ -10,7 +10,6 @@ import { coalesce } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { groupBy } from 'vs/base/common/collections';
 import { splitGlobAware } from 'vs/base/common/glob';
-import * as path from 'vs/base/common/path';
 import { createRegExp, escapeRegExpCharacters } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { Progress } from 'vs/platform/progress/common/progress';
@@ -19,13 +18,14 @@ import { Range, TextSearchComplete, TextSearchContext, TextSearchMatch, TextSear
 import { AST as ReAST, RegExpParser, RegExpVisitor } from 'vscode-regexpp';
 import { rgPath } from '@vscode/ripgrep';
 import { anchorGlob, createTextSearchResult, IOutputChannel, Maybe } from './ripgrepSearchUtils';
+import type { RipgrepTextSearchOptions } from 'vs/workbench/services/search/common/searchExtTypesInternal';
 
 // If @vscode/ripgrep is in an .asar file, then the binary is unpacked.
 const rgDiskPath = rgPath.replace(/\bnode_modules\.asar\b/, 'node_modules.asar.unpacked');
 
 export class RipgrepTextSearchEngine {
 
-	constructor(private outputChannel: IOutputChannel) { }
+	constructor(private outputChannel: IOutputChannel, private readonly _numThreads?: number | undefined) { }
 
 	provideTextSearchResults(query: TextSearchQuery, options: TextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): Promise<TextSearchComplete> {
 		this.outputChannel.appendLine(`provideTextSearchResults ${query.pattern}, ${JSON.stringify({
@@ -38,7 +38,11 @@ export class RipgrepTextSearchEngine {
 		return new Promise((resolve, reject) => {
 			token.onCancellationRequested(() => cancel());
 
-			const rgArgs = getRgArgs(query, options);
+			const extendedOptions: RipgrepTextSearchOptions = {
+				...options,
+				numThreads: this._numThreads
+			};
+			const rgArgs = getRgArgs(query, extendedOptions);
 
 			const cwd = options.folder.fsPath;
 
@@ -55,7 +59,7 @@ export class RipgrepTextSearchEngine {
 			});
 
 			let gotResult = false;
-			const ripgrepParser = new RipgrepParser(options.maxResults, cwd, options.previewOptions);
+			const ripgrepParser = new RipgrepParser(options.maxResults, options.folder, options.previewOptions);
 			ripgrepParser.on('result', (match: TextSearchResult) => {
 				gotResult = true;
 				dataWithoutResult = '';
@@ -184,7 +188,7 @@ export class RipgrepParser extends EventEmitter {
 
 	private numResults = 0;
 
-	constructor(private maxResults: number, private rootFolder: string, private previewOptions?: TextSearchPreviewOptions) {
+	constructor(private maxResults: number, private root: URI, private previewOptions?: TextSearchPreviewOptions) {
 		super();
 		this.stringDecoder = new StringDecoder();
 	}
@@ -253,7 +257,7 @@ export class RipgrepParser extends EventEmitter {
 
 		if (parsedLine.type === 'match') {
 			const matchPath = bytesOrTextToString(parsedLine.data.path);
-			const uri = URI.file(path.join(this.rootFolder, matchPath));
+			const uri = URI.joinPath(this.root, matchPath);
 			const result = this.createTextSearchMatch(parsedLine.data, uri);
 			this.onResult(result);
 
@@ -263,7 +267,7 @@ export class RipgrepParser extends EventEmitter {
 			}
 		} else if (parsedLine.type === 'context') {
 			const contextPath = bytesOrTextToString(parsedLine.data.path);
-			const uri = URI.file(path.join(this.rootFolder, contextPath));
+			const uri = URI.joinPath(this.root, contextPath);
 			const result = this.createTextSearchContext(parsedLine.data, uri);
 			result.forEach(r => this.onResult(r));
 		}
@@ -369,7 +373,7 @@ function getNumLinesAndLastNewlineLength(text: string): { numLines: number; last
 }
 
 // exported for testing
-export function getRgArgs(query: TextSearchQuery, options: TextSearchOptions): string[] {
+export function getRgArgs(query: TextSearchQuery, options: RipgrepTextSearchOptions): string[] {
 	const args = ['--hidden', '--no-require-git'];
 	args.push(query.isCaseSensitive ? '--case-sensitive' : '--ignore-case');
 
@@ -421,6 +425,10 @@ export function getRgArgs(query: TextSearchQuery, options: TextSearchOptions): s
 
 	if (options.encoding && options.encoding !== 'utf8') {
 		args.push('--encoding', options.encoding);
+	}
+
+	if (options.numThreads) {
+		args.push('--threads', `${options.numThreads}`);
 	}
 
 	// Ripgrep handles -- as a -- arg separator. Only --.

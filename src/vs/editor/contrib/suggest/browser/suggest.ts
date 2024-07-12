@@ -146,7 +146,6 @@ export class CompletionItem {
 			this._resolveCache = Promise.resolve(this.provider.resolveCompletionItem!(this.completion, token)).then(value => {
 				Object.assign(this.completion, value);
 				this._resolveDuration = sw.elapsed();
-				sub.dispose();
 			}, err => {
 				if (isCancellationError(err)) {
 					// the IPC queue will reject the request with the
@@ -154,6 +153,8 @@ export class CompletionItem {
 					this._resolveCache = undefined;
 					this._resolveDuration = undefined;
 				}
+			}).finally(() => {
+				sub.dispose();
 			});
 		}
 		return this._resolveCache;

@@ -73,7 +73,7 @@ export class IntellisenseStatus extends Disposable {
 		commandManager.register({
 			id: this.createOrOpenConfigCommandId,
 			execute: async (root: vscode.Uri, projectType: ProjectType) => {
-				await openOrCreateConfig(projectType, root, this._client.configuration);
+				await openOrCreateConfig(this._client.apiVersion, projectType, root, this._client.configuration);
 			},
 		});
 

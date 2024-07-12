@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { isWindows } from 'vs/base/common/platform';
 import { insert } from 'vs/base/common/arrays';
 import { hash } from 'vs/base/common/hash';
@@ -30,6 +30,10 @@ import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFil
 import { generateUuid } from 'vs/base/common/uuid';
 import { INativeWindowConfiguration } from 'vs/platform/window/common/window';
 import product from 'vs/platform/product/common/product';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 
 const homeDir = URI.file('home').with({ scheme: Schemas.inMemory });
 const tmpDir = URI.file('tmp').with({ scheme: Schemas.inMemory });
@@ -51,6 +55,8 @@ const NULL_PROFILE = {
 const TestNativeWindowConfiguration: INativeWindowConfiguration = {
 	windowId: 0,
 	machineId: 'testMachineId',
+	sqmId: 'testSqmId',
+	devDeviceId: 'testdevDeviceId',
 	logLevel: LogLevel.Error,
 	loggers: { global: [], window: [] },
 	mainPid: 0,
@@ -65,6 +71,10 @@ const TestNativeWindowConfiguration: INativeWindowConfiguration = {
 	tmpDir: tmpDir.fsPath,
 	userDataDir: joinPath(homeDir, product.nameShort).fsPath,
 	profiles: { profile: NULL_PROFILE, all: [NULL_PROFILE], home: homeDir },
+	nls: {
+		messages: [],
+		language: 'en'
+	},
 	_: []
 };
 
@@ -94,7 +104,9 @@ export class NodeTestWorkingCopyBackupService extends NativeWorkingCopyBackupSer
 
 		const fsp = new InMemoryFileSystemProvider();
 		fileService.registerProvider(Schemas.inMemory, fsp);
-		fileService.registerProvider(Schemas.vscodeUserData, new FileUserDataProvider(Schemas.file, fsp, Schemas.vscodeUserData, logService));
+		const uriIdentityService = new UriIdentityService(fileService);
+		const userDataProfilesService = new UserDataProfilesService(environmentService, fileService, uriIdentityService, logService);
+		fileService.registerProvider(Schemas.vscodeUserData, new FileUserDataProvider(Schemas.file, fsp, Schemas.vscodeUserData, userDataProfilesService, uriIdentityService, logService));
 
 		this._fileService = fileService;
 
@@ -170,6 +182,8 @@ suite('WorkingCopyBackupService', () => {
 	let service: NodeTestWorkingCopyBackupService;
 	let fileService: IFileService;
 
+	const disposables = new DisposableStore();
+
 	const workspaceResource = URI.file(isWindows ? 'c:\\workspace' : '/workspace');
 	const fooFile = URI.file(isWindows ? 'c:\\Foo' : '/Foo');
 	const customFile = URI.parse('customScheme://some/path');
@@ -184,12 +198,16 @@ suite('WorkingCopyBackupService', () => {
 		workspacesJsonPath = joinPath(backupHome, 'workspaces.json');
 		workspaceBackupPath = joinPath(backupHome, hash(workspaceResource.fsPath).toString(16));
 
-		service = new NodeTestWorkingCopyBackupService(testDir, workspaceBackupPath);
+		service = disposables.add(new NodeTestWorkingCopyBackupService(testDir, workspaceBackupPath));
 		fileService = service._fileService;
 
 		await fileService.createFolder(backupHome);
 
 		return fileService.writeFile(workspacesJsonPath, VSBuffer.fromString(''));
+	});
+
+	teardown(() => {
+		disposables.clear();
 	});
 
 	suite('hashIdentifier', () => {
@@ -1296,4 +1314,6 @@ suite('WorkingCopyBackupService', () => {
 			assert.ok(backups.every(backup => backup.typeId === ''));
 		});
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

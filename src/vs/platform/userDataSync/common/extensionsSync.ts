@@ -15,7 +15,7 @@ import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { GlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
-import { IExtensionGalleryService, IExtensionManagementService, IGlobalExtensionEnablementService, ILocalExtension, ExtensionManagementError, ExtensionManagementErrorCode, IGalleryExtension, DISABLED_EXTENSIONS_STORAGE_PATH, EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT, EXTENSION_INSTALL_SYNC_CONTEXT, InstallExtensionInfo } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionGalleryService, IExtensionManagementService, IGlobalExtensionEnablementService, ILocalExtension, ExtensionManagementError, ExtensionManagementErrorCode, IGalleryExtension, DISABLED_EXTENSIONS_STORAGE_PATH, EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT, EXTENSION_INSTALL_SOURCE_CONTEXT, InstallExtensionInfo, ExtensionInstallSource } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionStorageService, IExtensionStorageService } from 'vs/platform/extensionManagement/common/extensionStorage';
 import { ExtensionType, IExtensionIdentifier, isApplicationScopedExtension } from 'vs/platform/extensions/common/extensions';
@@ -30,7 +30,7 @@ import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userData
 import { AbstractInitializer, AbstractSynchroniser, getSyncResourceLogLabel, IAcceptResult, IMergeResult, IResourcePreview } from 'vs/platform/userDataSync/common/abstractSynchronizer';
 import { IMergeResult as IExtensionMergeResult, merge } from 'vs/platform/userDataSync/common/extensionsMerge';
 import { IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
-import { Change, IRemoteUserData, ISyncData, ISyncExtension, IUserDataSyncBackupStoreService, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncStoreService, SyncResource, USER_DATA_SYNC_SCHEME, ILocalSyncExtension } from 'vs/platform/userDataSync/common/userDataSync';
+import { Change, IRemoteUserData, ISyncData, ISyncExtension, IUserDataSyncLocalStoreService, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncStoreService, SyncResource, USER_DATA_SYNC_SCHEME, ILocalSyncExtension } from 'vs/platform/userDataSync/common/userDataSync';
 import { IUserDataProfileStorageService } from 'vs/platform/userDataProfile/common/userDataProfileStorageService';
 
 type IExtensionResourceMergeResult = IAcceptResult & IExtensionMergeResult;
@@ -120,7 +120,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		@IFileService fileService: IFileService,
 		@IStorageService storageService: IStorageService,
 		@IUserDataSyncStoreService userDataSyncStoreService: IUserDataSyncStoreService,
-		@IUserDataSyncBackupStoreService userDataSyncBackupStoreService: IUserDataSyncBackupStoreService,
+		@IUserDataSyncLocalStoreService userDataSyncLocalStoreService: IUserDataSyncLocalStoreService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IIgnoredExtensionsManagementService private readonly ignoredExtensionsManagementService: IIgnoredExtensionsManagementService,
 		@IUserDataSyncLogService logService: IUserDataSyncLogService,
@@ -132,7 +132,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		@IUserDataProfileStorageService userDataProfileStorageService: IUserDataProfileStorageService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
-		super({ syncResource: SyncResource.Extensions, profile }, collection, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncEnablementService, telemetryService, logService, configurationService, uriIdentityService);
+		super({ syncResource: SyncResource.Extensions, profile }, collection, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncLocalStoreService, userDataSyncEnablementService, telemetryService, logService, configurationService, uriIdentityService);
 		this.localExtensionsProvider = this.instantiationService.createInstance(LocalExtensionsProvider);
 		this._register(
 			Event.any<any>(
@@ -483,10 +483,11 @@ export class LocalExtensionsProvider {
 											isMachineScoped: false /* set isMachineScoped value to prevent install and sync dialog in web */,
 											donotIncludePackAndDependencies: true,
 											installGivenVersion: e.pinned && !!e.version,
+											pinned: e.pinned,
 											installPreReleaseVersion: e.preRelease,
 											profileLocation: profile.extensionsResource,
 											isApplicationScoped: e.isApplicationScoped,
-											context: { [EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT]: true, [EXTENSION_INSTALL_SYNC_CONTEXT]: true }
+											context: { [EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT]: true, [EXTENSION_INSTALL_SOURCE_CONTEXT]: ExtensionInstallSource.SETTINGS_SYNC }
 										}
 									});
 									syncExtensionsToInstall.set(extension.identifier.id.toLowerCase(), e);
@@ -532,7 +533,7 @@ export class LocalExtensionsProvider {
 					addToSkipped.push(e);
 					this.logService.info(`${syncResourceLogLabel}: Skipped synchronizing extension`, gallery.displayName || gallery.identifier.id);
 				}
-				if (error instanceof ExtensionManagementError && [ExtensionManagementErrorCode.Incompatible, ExtensionManagementErrorCode.IncompatibleTargetPlatform].includes(error.code)) {
+				if (error instanceof ExtensionManagementError && [ExtensionManagementErrorCode.Incompatible, ExtensionManagementErrorCode.IncompatibleApi, ExtensionManagementErrorCode.IncompatibleTargetPlatform].includes(error.code)) {
 					this.logService.info(`${syncResourceLogLabel}: Skipped synchronizing extension because the compatible extension is not found.`, gallery.displayName || gallery.identifier.id);
 				} else if (error) {
 					this.logService.error(error);
@@ -569,7 +570,7 @@ export class LocalExtensionsProvider {
 		return this.userDataProfileStorageService.withProfileScopedStorageService(profile,
 			async storageService => {
 				const disposables = new DisposableStore();
-				const instantiationService = this.instantiationService.createChild(new ServiceCollection([IStorageService, storageService]));
+				const instantiationService = disposables.add(this.instantiationService.createChild(new ServiceCollection([IStorageService, storageService])));
 				const extensionEnablementService = disposables.add(instantiationService.createInstance(GlobalExtensionEnablementService));
 				const extensionStorageService = disposables.add(instantiationService.createInstance(ExtensionStorageService));
 				try {

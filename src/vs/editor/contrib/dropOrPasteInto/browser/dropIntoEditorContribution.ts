@@ -16,6 +16,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { DropIntoEditorController, changeDropTypeCommandId, defaultProviderConfig, dropWidgetVisibleCtx } from './dropIntoEditorController';
 
 registerEditorContribution(DropIntoEditorController.ID, DropIntoEditorController, EditorContributionInstantiation.BeforeFirstInteraction);
+registerEditorFeature(DefaultDropProvidersFeature);
 
 registerEditorCommand(new class extends EditorCommand {
 	constructor() {
@@ -34,7 +35,22 @@ registerEditorCommand(new class extends EditorCommand {
 	}
 });
 
-registerEditorFeature(DefaultDropProvidersFeature);
+registerEditorCommand(new class extends EditorCommand {
+	constructor() {
+		super({
+			id: 'editor.hideDropWidget',
+			precondition: dropWidgetVisibleCtx,
+			kbOpts: {
+				weight: KeybindingWeight.EditorContrib,
+				primary: KeyCode.Escape,
+			}
+		});
+	}
+
+	public override runEditorCommand(_accessor: ServicesAccessor | null, editor: ICodeEditor, _args: any) {
+		DropIntoEditorController.get(editor)?.clearWidgets();
+	}
+});
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	...editorConfigurationBaseNode,

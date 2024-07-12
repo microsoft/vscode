@@ -3,19 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { timeout } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { NullLogService } from 'vs/platform/log/common/log';
+import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { TestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
-import { HydratedTestResult, LiveTestResult, resultItemParents, TaskRawOutput, TestResultItemChange, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
+import { HydratedTestResult, LiveTestResult, TaskRawOutput, TestResultItemChange, TestResultItemChangeReason, resultItemParents } from 'vs/workbench/contrib/testing/common/testResult';
 import { TestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
-import { InMemoryResultStorage, ITestResultStorage } from 'vs/workbench/contrib/testing/common/testResultStorage';
+import { ITestResultStorage, InMemoryResultStorage } from 'vs/workbench/contrib/testing/common/testResultStorage';
 import { ITestTaskState, ResolvedTestRunRequest, TestResultItem, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
 import { makeEmptyCounts } from 'vs/workbench/contrib/testing/common/testingStates';
-import { getInitializedMainTestCollection, testStubs, TestTestCollection } from 'vs/workbench/contrib/testing/test/common/testStubs';
+import { TestTestCollection, getInitializedMainTestCollection, testStubs } from 'vs/workbench/contrib/testing/test/common/testStubs';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 
 suite('Workbench - Test Results Service', () => {
@@ -28,8 +32,8 @@ suite('Workbench - Test Results Service', () => {
 	let tests: TestTestCollection;
 
 	const defaultOpts = (testIds: string[]): ResolvedTestRunRequest => ({
+		group: TestRunProfileBitset.Run,
 		targets: [{
-			profileGroup: TestRunProfileBitset.Run,
 			profileId: 0,
 			controllerId: 'ctrlId',
 			testIds,
@@ -37,27 +41,40 @@ suite('Workbench - Test Results Service', () => {
 	});
 
 	class TestLiveTestResult extends LiveTestResult {
+		constructor(
+			id: string,
+			persist: boolean,
+			request: ResolvedTestRunRequest,
+		) {
+			super(id, persist, request, NullTelemetryService);
+			ds.add(this);
+		}
+
 		public setAllToStatePublic(state: TestResultState, taskId: string, when: (task: ITestTaskState, item: TestResultItem) => boolean) {
 			this.setAllToState(state, taskId, when);
 		}
 	}
 
+	const ds = ensureNoDisposablesAreLeakedInTestSuite();
+
 	setup(async () => {
 		changed = new Set();
-		r = new TestLiveTestResult(
+		r = ds.add(new TestLiveTestResult(
 			'foo',
 			true,
 			defaultOpts(['id-a']),
-		);
+		));
 
-		r.onChange(e => changed.add(e));
+		ds.add(r.onChange(e => changed.add(e)));
 		r.addTask({ id: 't', name: undefined, running: true });
 
-		tests = testStubs.nested();
+		tests = ds.add(testStubs.nested());
+		const cts = ds.add(new CancellationTokenSource());
 		const ok = await Promise.race([
 			Promise.resolve(tests.expand(tests.root.id, Infinity)).then(() => true),
-			timeout(1000).then(() => false),
+			timeout(1000, cts.token).then(() => false),
 		]);
+		cts.cancel();
 
 		// todo@connor4312: debug for tests #137853:
 		if (!ok) {
@@ -75,6 +92,8 @@ suite('Workbench - Test Results Service', () => {
 			tests.root.children.get('id-a')!.children.get('id-ab')!.toTestItem(),
 		]);
 	});
+
+	// ensureNoDisposablesAreLeakedInTestSuite(); todo@connor4312
 
 	suite('LiveTestResult', () => {
 		test('is empty if no tests are yet present', async () => {
@@ -190,8 +209,17 @@ suite('Workbench - Test Results Service', () => {
 		}
 
 		setup(() => {
-			storage = new InMemoryResultStorage(new TestStorageService(), new NullLogService());
-			results = new TestTestResultService(new MockContextKeyService(), storage, new TestProfileService(new MockContextKeyService(), new TestStorageService()));
+			storage = ds.add(new InMemoryResultStorage({
+				asCanonicalUri(uri) {
+					return uri;
+				},
+			} as IUriIdentityService, ds.add(new TestStorageService()), new NullLogService()));
+			results = ds.add(new TestTestResultService(
+				new MockContextKeyService(),
+				storage,
+				ds.add(new TestProfileService(new MockContextKeyService(), ds.add(new TestStorageService()))),
+				NullTelemetryService,
+			));
 		});
 
 		test('pushes new result', () => {
@@ -205,11 +233,12 @@ suite('Workbench - Test Results Service', () => {
 			r.markComplete();
 			await timeout(10); // allow persistImmediately async to happen
 
-			results = new TestResultService(
+			results = ds.add(new TestResultService(
 				new MockContextKeyService(),
 				storage,
-				new TestProfileService(new MockContextKeyService(), new TestStorageService()),
-			);
+				ds.add(new TestProfileService(new MockContextKeyService(), ds.add(new TestStorageService()))),
+				NullTelemetryService,
+			));
 
 			assert.strictEqual(0, results.results.length);
 			await timeout(10); // allow load promise to resolve
@@ -234,6 +263,7 @@ suite('Workbench - Test Results Service', () => {
 				'',
 				false,
 				defaultOpts([]),
+				NullTelemetryService,
 			));
 			results.clear();
 
@@ -246,6 +276,7 @@ suite('Workbench - Test Results Service', () => {
 				'',
 				false,
 				defaultOpts([]),
+				NullTelemetryService,
 			));
 
 			assert.deepStrictEqual(results.results, [r2, r]);
@@ -256,6 +287,10 @@ suite('Workbench - Test Results Service', () => {
 		});
 
 		const makeHydrated = async (completedAt = 42, state = TestResultState.Passed) => new HydratedTestResult({
+			asCanonicalUri(uri) {
+				return uri;
+			},
+		} as IUriIdentityService, {
 			completedAt,
 			id: 'some-id',
 			tasks: [{ id: 't', name: undefined }],

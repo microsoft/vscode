@@ -24,6 +24,8 @@ import { NodeExtHostVariableResolverProviderService } from 'vs/workbench/api/nod
 import { IExtHostVariableResolverProvider } from 'vs/workbench/api/common/extHostVariableResolverService';
 import { ExtHostLogService } from 'vs/workbench/api/common/extHostLogService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { ISignService } from 'vs/platform/sign/common/sign';
+import { SignService } from 'vs/platform/sign/node/signService';
 
 // #########################################################################
 // ###                                                                   ###
@@ -34,6 +36,7 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 registerSingleton(IExtHostExtensionService, ExtHostExtensionService, InstantiationType.Eager);
 registerSingleton(ILoggerService, ExtHostLoggerService, InstantiationType.Delayed);
 registerSingleton(ILogService, new SyncDescriptor(ExtHostLogService, [false], true));
+registerSingleton(ISignService, SignService, InstantiationType.Delayed);
 registerSingleton(IExtensionStoragePaths, ExtensionStoragePaths, InstantiationType.Eager);
 
 registerSingleton(IExtHostDebugService, ExtHostDebugService, InstantiationType.Eager);

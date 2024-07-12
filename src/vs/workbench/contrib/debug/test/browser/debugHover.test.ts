@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { findExpressionInStackFrame } from 'vs/workbench/contrib/debug/browser/debugHover';
@@ -15,16 +14,7 @@ import { createTestSession } from 'vs/workbench/contrib/debug/test/browser/callS
 import { createMockDebugModel, mockUriIdentityService } from 'vs/workbench/contrib/debug/test/browser/mockDebugModel';
 
 suite('Debug - Hover', () => {
-	let disposables: DisposableStore;
-	setup(() => {
-		disposables = new DisposableStore();
-	});
-
-	teardown(() => {
-		disposables.dispose();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('find expression in stack frame', async () => {
 		const model = createMockDebugModel(disposables);
@@ -59,8 +49,8 @@ suite('Debug - Hover', () => {
 			override getChildren(): Promise<IExpression[]> {
 				return Promise.resolve([variableB]);
 			}
-		}(session, 1, scope, 2, 'A', 'A', undefined!, 0, 0, undefined, {}, 'string');
-		const variableB = new Variable(session, 1, scope, 2, 'B', 'A.B', undefined!, 0, 0, undefined, {}, 'string');
+		}(session, 1, scope, 2, 'A', 'A', undefined, 0, 0, undefined, {}, 'string');
+		const variableB = new Variable(session, 1, scope, 2, 'B', 'A.B', undefined, 0, 0, undefined, {}, 'string');
 
 		assert.strictEqual(await findExpressionInStackFrame(stackFrame, []), undefined);
 		assert.strictEqual(await findExpressionInStackFrame(stackFrame, ['A']), variableA);

@@ -10,7 +10,7 @@ steps:
   - pwsh: |
       "machine github.com`nlogin vscode`npassword $(github-distro-mixin-password)" | Out-File "$Home/_netrc" -Encoding ASCII
     condition: and(succeeded(), contains(variables['Agent.OS'], 'windows'))
-    displayName: Setup distro auth
+    displayName: Setup distro auth (Windows)
 
   - pwsh: |
       $ErrorActionPreference = "Stop"
@@ -26,7 +26,7 @@ steps:
       Expand-Archive -Path $ArchivePath -DestinationPath .build
       Rename-Item -Path ".build/microsoft-vscode-distro-$DistroVersion" -NewName distro
     condition: and(succeeded(), contains(variables['Agent.OS'], 'windows'))
-    displayName: Download distro
+    displayName: Download distro (Windows)
 
   - script: |
       mkdir -p .build
@@ -36,7 +36,7 @@ steps:
       password $(github-distro-mixin-password)
       EOF
     condition: and(succeeded(), not(contains(variables['Agent.OS'], 'windows')))
-    displayName: Setup distro auth
+    displayName: Setup distro auth (non-Windows)
 
   - script: |
       set -e
@@ -53,4 +53,4 @@ steps:
       mv .build/microsoft-vscode-distro-$DistroVersion .build/distro
       cp remote/.yarnrc .build/distro/npm/remote/.yarnrc
     condition: and(succeeded(), not(contains(variables['Agent.OS'], 'windows')))
-    displayName: Download distro
+    displayName: Download distro (non-Windows)

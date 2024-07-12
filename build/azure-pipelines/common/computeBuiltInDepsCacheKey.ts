@@ -8,7 +8,7 @@ import * as path from 'path';
 import * as crypto from 'crypto';
 
 const productjson = JSON.parse(fs.readFileSync(path.join(__dirname, '../../../product.json'), 'utf8'));
-const shasum = crypto.createHash('sha1');
+const shasum = crypto.createHash('sha256');
 
 for (const ext of productjson.builtInExtensions) {
 	shasum.update(`${ext.name}@${ext.version}`);

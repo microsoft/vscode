@@ -8,7 +8,7 @@ import { hash } from 'vs/base/common/hash';
 import { toFormattedString } from 'vs/base/common/jsonFormatter';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
+import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { fixedEditorPadding } from 'vs/workbench/contrib/notebook/browser/diff/diffCellEditorOptions';
@@ -567,7 +567,7 @@ export class SingleSideDiffElementViewModel extends DiffElementViewModelBase {
 		super(mainDocumentTextModel, original, modified, type, editorEventDispatcher, initData);
 		this.type = type;
 
-		this._register(this.cellViewModel!.onDidChangeOutputLayout(() => {
+		this._register(this.cellViewModel.onDidChangeOutputLayout(() => {
 			this._layout({ recomputeOutput: true });
 		}));
 	}
@@ -590,11 +590,11 @@ export class SingleSideDiffElementViewModel extends DiffElementViewModelBase {
 	}
 
 	getOutputOffsetInContainer(diffSide: DiffSide, index: number) {
-		return this.cellViewModel!.getOutputOffset(index);
+		return this.cellViewModel.getOutputOffset(index);
 	}
 
 	getOutputOffsetInCell(diffSide: DiffSide, index: number) {
-		const offsetInOutputsContainer = this.cellViewModel!.getOutputOffset(index);
+		const offsetInOutputsContainer = this.cellViewModel.getOutputOffset(index);
 
 		return this._layoutInfo.editorHeight
 			+ this._layoutInfo.editorMargin
@@ -620,7 +620,7 @@ export class SingleSideDiffElementViewModel extends DiffElementViewModelBase {
 	}
 
 	getCellByUri(cellUri: URI): IGenericCellViewModel {
-		return this.cellViewModel!;
+		return this.cellViewModel;
 	}
 }
 

@@ -31,7 +31,7 @@ type AutoSyncClassification = {
 type AutoSyncErrorClassification = {
 	owner: 'sandy081';
 	comment: 'Information about the error that causes auto sync to fail';
-	code: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'error code' };
+	code: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'error code' };
 	service: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Settings sync service for which this error has occurred' };
 };
 
@@ -424,7 +424,10 @@ class AutoSync extends Disposable {
 	}
 
 	private waitUntilNextIntervalAndSync(): void {
-		this.intervalHandler.value = disposableTimeout(() => this.sync(AutoSync.INTERVAL_SYNCING, false), this.interval);
+		this.intervalHandler.value = disposableTimeout(() => {
+			this.sync(AutoSync.INTERVAL_SYNCING, false);
+			this.intervalHandler.value = undefined;
+		}, this.interval);
 	}
 
 	sync(reason: string, disableCache: boolean): Promise<void> {

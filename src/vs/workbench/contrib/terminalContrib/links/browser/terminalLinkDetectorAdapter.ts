@@ -10,7 +10,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ITerminalLinkDetector, ITerminalSimpleLink, TerminalBuiltinLinkType, TerminalLinkType } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
 import { TerminalLink } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLink';
 import { XtermLinkMatcherHandler } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkManager';
-import type { IBufferLine, ILink, ILinkProvider, IViewportRange } from 'xterm';
+import type { IBufferLine, ILink, ILinkProvider, IViewportRange } from '@xterm/xterm';
 
 export interface IActivateLinkEvent {
 	link: ITerminalSimpleLink;
@@ -76,7 +76,7 @@ export class TerminalLinkDetectorAdapter extends Disposable implements ILinkProv
 		// Cap the maximum context on either side of the line being provided, by taking the context
 		// around the line being provided for this ensures the line the pointer is on will have
 		// links provided.
-		const maxLineContext = Math.max(this._detector.maxLinkLength / this._detector.xterm.cols);
+		const maxLineContext = Math.max(this._detector.maxLinkLength, this._detector.xterm.cols);
 		const minStartLine = Math.max(startLine - maxLineContext, 0);
 		const maxEndLine = Math.min(endLine + maxLineContext, this._detector.xterm.buffer.active.length);
 
@@ -92,9 +92,7 @@ export class TerminalLinkDetectorAdapter extends Disposable implements ILinkProv
 
 		const detectedLinks = await this._detector.detect(lines, startLine, endLine);
 		for (const link of detectedLinks) {
-			links.push(this._createTerminalLink(link, async (event) => {
-				this._onDidActivateLink.fire({ link, event });
-			}));
+			links.push(this._createTerminalLink(link, async (event) => this._onDidActivateLink.fire({ link, event })));
 		}
 
 		return links;
@@ -110,6 +108,8 @@ export class TerminalLinkDetectorAdapter extends Disposable implements ILinkProv
 			this._detector.xterm,
 			l.bufferRange,
 			l.text,
+			l.uri,
+			l.parsedLink,
 			l.actions,
 			this._detector.xterm.buffer.active.viewportY,
 			activateCallback,

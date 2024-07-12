@@ -5,7 +5,8 @@
 
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
+import { MarshalledId } from 'vs/base/common/marshallingIds';
+import { IProcessEnvironment, isLinux, OperatingSystem } from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
@@ -18,6 +19,12 @@ import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/commo
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { IExtensionPointDescriptor } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 
+// Import commands to skip shell from terminalContrib - this is an exception to the eslint rule
+// since they need to be included in the terminal module
+import { defaultTerminalAccessibilityCommandsToSkipShell } from 'vs/workbench/contrib/terminalContrib/accessibility/common/terminal.accessibility'; // eslint-disable-line local/code-import-patterns
+import { defaultTerminalFindCommandToSkipShell } from 'vs/workbench/contrib/terminalContrib/find/common/terminal.find'; // eslint-disable-line local/code-import-patterns
+import { defaultTerminalSuggestCommandsToSkipShell } from 'vs/workbench/contrib/terminalContrib/suggest/common/terminal.suggest'; // eslint-disable-line local/code-import-patterns
+
 export const TERMINAL_VIEW_ID = 'terminal';
 
 export const TERMINAL_CREATION_COMMANDS = ['workbench.action.terminal.toggleTerminal', 'workbench.action.terminal.new', 'workbench.action.togglePanel', 'workbench.action.terminal.focus'];
@@ -26,7 +33,12 @@ export const TERMINAL_CONFIG_SECTION = 'terminal.integrated';
 
 export const DEFAULT_LETTER_SPACING = 0;
 export const MINIMUM_LETTER_SPACING = -5;
-export const DEFAULT_LINE_HEIGHT = 1;
+// HACK: On Linux it's common for fonts to include an underline that is rendered lower than the
+// bottom of the cell which causes it to be cut off due to `overflow:hidden` in the DOM renderer.
+// See:
+// - https://github.com/microsoft/vscode/issues/211933
+// - https://github.com/xtermjs/xterm.js/issues/4067
+export const DEFAULT_LINE_HEIGHT = isLinux ? 1.1 : 1;
 
 export const MINIMUM_FONT_WEIGHT = 1;
 export const MAXIMUM_FONT_WEIGHT = 1000;
@@ -50,7 +62,6 @@ export interface ITerminalProfileResolverService {
 	getDefaultShellArgs(options: IShellLaunchConfigResolveOptions): Promise<string | string[]>;
 	getDefaultIcon(): TerminalIcon & ThemeIcon;
 	getEnvironment(remoteAuthority: string | undefined): Promise<IProcessEnvironment>;
-	createProfileFromShellAndShellArgs(shell?: unknown, shellArgs?: unknown): Promise<ITerminalProfile | string>;
 }
 
 /*
@@ -135,8 +146,9 @@ export interface ITerminalConfiguration {
 	altClickMovesCursor: boolean;
 	macOptionIsMeta: boolean;
 	macOptionClickForcesSelection: boolean;
-	gpuAcceleration: 'auto' | 'on' | 'canvas' | 'off';
+	gpuAcceleration: 'auto' | 'on' | 'off';
 	rightClickBehavior: 'default' | 'copyPaste' | 'paste' | 'selectWord' | 'nothing';
+	middleClickBehavior: 'default' | 'paste';
 	cursorBlinking: boolean;
 	cursorStyle: 'block' | 'underline' | 'line';
 	cursorStyleInactive: 'outline' | 'block' | 'underline' | 'line' | 'none';
@@ -175,11 +187,8 @@ export interface ITerminalConfiguration {
 	windowsEnableConpty: boolean;
 	wordSeparators: string;
 	enableFileLinks: 'off' | 'on' | 'notRemote';
+	allowedLinkSchemes: string[];
 	unicodeVersion: '6' | '11';
-	localEchoLatencyThreshold: number;
-	localEchoExcludePrograms: ReadonlyArray<string>;
-	localEchoEnabled: 'auto' | 'on' | 'off';
-	localEchoStyle: 'bold' | 'dim' | 'italic' | 'underlined' | 'inverted' | string;
 	enablePersistentSessions: boolean;
 	tabs: {
 		enabled: boolean;
@@ -204,16 +213,7 @@ export interface ITerminalConfiguration {
 	enableImages: boolean;
 	smoothScrolling: boolean;
 	ignoreBracketedPasteMode: boolean;
-}
-
-export const DEFAULT_LOCAL_ECHO_EXCLUDE: ReadonlyArray<string> = ['vim', 'vi', 'nano', 'tmux'];
-
-export interface ITerminalConfigHelper {
-	config: ITerminalConfiguration;
-
-	configFontIsMonospace(): boolean;
-	getFont(): ITerminalFont;
-	showRecommendations(shellLaunchConfig: IShellLaunchConfig): void;
+	rescaleOverlappingGlyphs: boolean;
 }
 
 export interface ITerminalFont {
@@ -253,7 +253,8 @@ export interface IDefaultShellAndArgsRequest {
 	callback: (shell: string, args: string[] | string | undefined) => void;
 }
 
-export interface ITerminalProcessManager extends IDisposable {
+/** Read-only process information that can apply to detached terminals. */
+export interface ITerminalProcessInfo {
 	readonly processState: ProcessState;
 	readonly ptyProcessReady: Promise<void>;
 	readonly shellProcessId: number | undefined;
@@ -270,7 +271,11 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly capabilities: ITerminalCapabilityStore;
 	readonly shellIntegrationNonce: string;
 	readonly extEnvironmentVariableCollection: IMergedEnvironmentVariableCollection | undefined;
+}
 
+export const isTerminalProcessManager = (t: ITerminalProcessInfo | ITerminalProcessManager): t is ITerminalProcessManager => typeof (t as ITerminalProcessManager).write === 'function';
+
+export interface ITerminalProcessManager extends IDisposable, ITerminalProcessInfo {
 	readonly onPtyDisconnect: Event<void>;
 	readonly onPtyReconnect: Event<void>;
 
@@ -374,11 +379,17 @@ export interface ITerminalStatusHoverAction {
 	run: () => void;
 }
 
+/**
+ * Context for actions taken on terminal instances.
+ */
+export interface ISerializedTerminalInstanceContext {
+	$mid: MarshalledId.TerminalContext;
+	instanceId: number;
+}
+
 export const QUICK_LAUNCH_PROFILE_CHOICE = 'workbench.action.terminal.profile.choice';
 
 export const enum TerminalCommandId {
-	FindNext = 'workbench.action.terminal.findNext',
-	FindPrevious = 'workbench.action.terminal.findPrevious',
 	Toggle = 'workbench.action.terminal.toggleTerminal',
 	Kill = 'workbench.action.terminal.kill',
 	KillViewOrEditor = 'workbench.action.terminal.killViewOrEditor',
@@ -387,17 +398,11 @@ export const enum TerminalCommandId {
 	KillAll = 'workbench.action.terminal.killAll',
 	QuickKill = 'workbench.action.terminal.quickKill',
 	ConfigureTerminalSettings = 'workbench.action.terminal.openSettings',
-	OpenDetectedLink = 'workbench.action.terminal.openDetectedLink',
-	OpenWordLink = 'workbench.action.terminal.openWordLink',
 	ShellIntegrationLearnMore = 'workbench.action.terminal.learnMore',
-	OpenFileLink = 'workbench.action.terminal.openFileLink',
-	OpenWebLink = 'workbench.action.terminal.openUrlLink',
 	RunRecentCommand = 'workbench.action.terminal.runRecentCommand',
-	FocusAccessibleBuffer = 'workbench.action.terminal.focusAccessibleBuffer',
-	NavigateAccessibleBuffer = 'workbench.action.terminal.navigateAccessibleBuffer',
-	AccessibleBufferGoToNextCommand = 'workbench.action.terminal.accessibleBufferGoToNextCommand',
-	AccessibleBufferGoToPreviousCommand = 'workbench.action.terminal.accessibleBufferGoToPreviousCommand',
+	CopyLastCommand = 'workbench.action.terminal.copyLastCommand',
 	CopyLastCommandOutput = 'workbench.action.terminal.copyLastCommandOutput',
+	CopyLastCommandAndLastCommandOutput = 'workbench.action.terminal.copyLastCommandAndLastCommandOutput',
 	GoToRecentDirectory = 'workbench.action.terminal.goToRecentDirectory',
 	CopyAndClearSelection = 'workbench.action.terminal.copyAndClearSelection',
 	CopySelection = 'workbench.action.terminal.copySelection',
@@ -416,9 +421,7 @@ export const enum TerminalCommandId {
 	Split = 'workbench.action.terminal.split',
 	SplitActiveTab = 'workbench.action.terminal.splitActiveTab',
 	SplitInActiveWorkspace = 'workbench.action.terminal.splitInActiveWorkspace',
-	ShowQuickFixes = 'workbench.action.terminal.showQuickFixes',
 	Unsplit = 'workbench.action.terminal.unsplit',
-	UnsplitActiveTab = 'workbench.action.terminal.unsplitActiveTab',
 	JoinActiveTab = 'workbench.action.terminal.joinActiveTab',
 	Join = 'workbench.action.terminal.join',
 	Relaunch = 'workbench.action.terminal.relaunch',
@@ -452,17 +455,12 @@ export const enum TerminalCommandId {
 	Clear = 'workbench.action.terminal.clear',
 	ClearSelection = 'workbench.action.terminal.clearSelection',
 	ChangeIcon = 'workbench.action.terminal.changeIcon',
-	ChangeIconPanel = 'workbench.action.terminal.changeIconPanel',
 	ChangeIconActiveTab = 'workbench.action.terminal.changeIconActiveTab',
 	ChangeColor = 'workbench.action.terminal.changeColor',
-	ChangeColorPanel = 'workbench.action.terminal.changeColorPanel',
 	ChangeColorActiveTab = 'workbench.action.terminal.changeColorActiveTab',
 	Rename = 'workbench.action.terminal.rename',
-	RenamePanel = 'workbench.action.terminal.renamePanel',
 	RenameActiveTab = 'workbench.action.terminal.renameActiveTab',
 	RenameWithArgs = 'workbench.action.terminal.renameWithArg',
-	FindFocus = 'workbench.action.terminal.focusFind',
-	FindHide = 'workbench.action.terminal.hideFind',
 	QuickOpenTerm = 'workbench.action.quickOpenTerm',
 	ScrollToPreviousCommand = 'workbench.action.terminal.scrollToPreviousCommand',
 	ScrollToNextCommand = 'workbench.action.terminal.scrollToNextCommand',
@@ -471,31 +469,17 @@ export const enum TerminalCommandId {
 	SelectToPreviousLine = 'workbench.action.terminal.selectToPreviousLine',
 	SelectToNextLine = 'workbench.action.terminal.selectToNextLine',
 	SendSequence = 'workbench.action.terminal.sendSequence',
-	ToggleFindRegex = 'workbench.action.terminal.toggleFindRegex',
-	ToggleFindWholeWord = 'workbench.action.terminal.toggleFindWholeWord',
-	ToggleFindCaseSensitive = 'workbench.action.terminal.toggleFindCaseSensitive',
-	SearchWorkspace = 'workbench.action.terminal.searchWorkspace',
 	AttachToSession = 'workbench.action.terminal.attachToSession',
 	DetachSession = 'workbench.action.terminal.detachSession',
 	MoveToEditor = 'workbench.action.terminal.moveToEditor',
-	MoveToEditorActiveTab = 'workbench.action.terminal.moveToEditorActiveTab',
 	MoveToTerminalPanel = 'workbench.action.terminal.moveToTerminalPanel',
+	MoveIntoNewWindow = 'workbench.action.terminal.moveIntoNewWindow',
 	SetDimensions = 'workbench.action.terminal.setDimensions',
 	ClearPreviousSessionHistory = 'workbench.action.terminal.clearPreviousSessionHistory',
-	SelectPrevSuggestion = 'workbench.action.terminal.selectPrevSuggestion',
-	SelectPrevPageSuggestion = 'workbench.action.terminal.selectPrevPageSuggestion',
-	SelectNextSuggestion = 'workbench.action.terminal.selectNextSuggestion',
-	SelectNextPageSuggestion = 'workbench.action.terminal.selectNextPageSuggestion',
-	AcceptSelectedSuggestion = 'workbench.action.terminal.acceptSelectedSuggestion',
-	HideSuggestWidget = 'workbench.action.terminal.hideSuggestWidget',
 	FocusHover = 'workbench.action.terminal.focusHover',
 	ShowEnvironmentContributions = 'workbench.action.terminal.showEnvironmentContributions',
-
-	// Developer commands
-
-	WriteDataToTerminal = 'workbench.action.terminal.writeDataToTerminal',
-	ShowTextureAtlas = 'workbench.action.terminal.showTextureAtlas',
-	RestartPtyHost = 'workbench.action.terminal.restartPtyHost',
+	StartVoice = 'workbench.action.terminal.startVoice',
+	StopVoice = 'workbench.action.terminal.stopVoice',
 }
 
 export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
@@ -504,18 +488,13 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	TerminalCommandId.CopyAndClearSelection,
 	TerminalCommandId.CopySelection,
 	TerminalCommandId.CopySelectionAsHtml,
+	TerminalCommandId.CopyLastCommand,
 	TerminalCommandId.CopyLastCommandOutput,
+	TerminalCommandId.CopyLastCommandAndLastCommandOutput,
 	TerminalCommandId.DeleteToLineStart,
 	TerminalCommandId.DeleteWordLeft,
 	TerminalCommandId.DeleteWordRight,
-	TerminalCommandId.FindFocus,
-	TerminalCommandId.FindHide,
-	TerminalCommandId.FindNext,
-	TerminalCommandId.FindPrevious,
 	TerminalCommandId.GoToRecentDirectory,
-	TerminalCommandId.ToggleFindRegex,
-	TerminalCommandId.ToggleFindWholeWord,
-	TerminalCommandId.ToggleFindCaseSensitive,
 	TerminalCommandId.FocusNextPane,
 	TerminalCommandId.FocusNext,
 	TerminalCommandId.FocusPreviousPane,
@@ -556,12 +535,6 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	TerminalCommandId.SplitInActiveWorkspace,
 	TerminalCommandId.Split,
 	TerminalCommandId.Toggle,
-	TerminalCommandId.SelectPrevSuggestion,
-	TerminalCommandId.SelectPrevPageSuggestion,
-	TerminalCommandId.SelectNextSuggestion,
-	TerminalCommandId.SelectNextPageSuggestion,
-	TerminalCommandId.AcceptSelectedSuggestion,
-	TerminalCommandId.HideSuggestWidget,
 	TerminalCommandId.FocusHover,
 	AccessibilityCommandId.OpenAccessibilityHelp,
 	'editor.action.toggleTabFocusMode',
@@ -636,7 +609,21 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	'workbench.action.quickOpenView',
 	'workbench.action.toggleMaximizedPanel',
 	'notification.acceptPrimaryAction',
-	'runCommands'
+	'runCommands',
+	'workbench.action.terminal.chat.start',
+	'workbench.action.terminal.chat.close',
+	'workbench.action.terminal.chat.discard',
+	'workbench.action.terminal.chat.makeRequest',
+	'workbench.action.terminal.chat.cancel',
+	'workbench.action.terminal.chat.feedbackHelpful',
+	'workbench.action.terminal.chat.feedbackUnhelpful',
+	'workbench.action.terminal.chat.feedbackReportIssue',
+	'workbench.action.terminal.chat.runCommand',
+	'workbench.action.terminal.chat.insertCommand',
+	'workbench.action.terminal.chat.viewInChat',
+	...defaultTerminalAccessibilityCommandsToSkipShell,
+	...defaultTerminalFindCommandToSkipShell,
+	...defaultTerminalSuggestCommandsToSkipShell,
 ];
 
 export const terminalContributionsDescriptor: IExtensionPointDescriptor<ITerminalContributions> = {

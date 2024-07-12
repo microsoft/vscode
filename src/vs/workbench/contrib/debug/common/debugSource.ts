@@ -134,7 +134,7 @@ export function getUriFromSource(raw: DebugProtocol.Source, path: string | undef
 		if (typeof raw.sourceReference === 'number' && raw.sourceReference > 0) {
 			return URI.from({
 				scheme: DEBUG_SCHEME,
-				path,
+				path: path?.replace(/^\/+/g, '/'), // #174054
 				query: `session=${sessionId}&ref=${raw.sourceReference}`
 			});
 		}

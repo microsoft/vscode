@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
 import { top } from 'vs/base/common/arrays';
 import { DeferredPromise } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -20,6 +21,7 @@ import { IS_NEW_KEY } from 'vs/platform/storage/common/storage';
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { currentSessionDateStorageKey, firstSessionDateStorageKey, lastSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
 import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IAnyWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
+import { Schemas } from 'vs/base/common/network';
 
 export interface IStorageMainOptions {
 
@@ -97,6 +99,11 @@ export interface IStorageMain extends IDisposable {
 	isInMemory(): boolean;
 
 	/**
+	 * Attempts to reduce the DB size via optimization commands if supported.
+	 */
+	optimize(): Promise<void>;
+
+	/**
 	 * Close the storage connection.
 	 */
 	close(): Promise<void>;
@@ -116,7 +123,7 @@ abstract class BaseStorageMain extends Disposable implements IStorageMain {
 	private readonly _onDidCloseStorage = this._register(new Emitter<void>());
 	readonly onDidCloseStorage = this._onDidCloseStorage.event;
 
-	private _storage = new Storage(new InMemoryStorageDatabase(), { hint: StorageHint.STORAGE_IN_MEMORY }); // storage is in-memory until initialized
+	private _storage = this._register(new Storage(new InMemoryStorageDatabase(), { hint: StorageHint.STORAGE_IN_MEMORY })); // storage is in-memory until initialized
 	get storage(): IStorage { return this._storage; }
 
 	abstract get path(): string | undefined;
@@ -149,7 +156,7 @@ abstract class BaseStorageMain extends Disposable implements IStorageMain {
 				try {
 
 					// Create storage via subclasses
-					const storage = await this.doCreate();
+					const storage = this._register(await this.doCreate());
 
 					// Replace our in-memory storage with the real
 					// once as soon as possible without awaiting
@@ -215,6 +222,10 @@ abstract class BaseStorageMain extends Disposable implements IStorageMain {
 		return this._storage.delete(key);
 	}
 
+	optimize(): Promise<void> {
+		return this._storage.optimize();
+	}
+
 	async close(): Promise<void> {
 
 		// Measure how long it takes to close storage
@@ -275,7 +286,7 @@ class BaseProfileAwareStorageMain extends BaseStorageMain {
 
 	get path(): string | undefined {
 		if (!this.options.useInMemoryStorage) {
-			return join(this.profile.globalStorageHome.fsPath, BaseProfileAwareStorageMain.STORAGE_NAME);
+			return join(this.profile.globalStorageHome.with({ scheme: Schemas.file }).fsPath, BaseProfileAwareStorageMain.STORAGE_NAME);
 		}
 
 		return undefined;
@@ -352,7 +363,7 @@ export class WorkspaceStorageMain extends BaseStorageMain {
 
 	get path(): string | undefined {
 		if (!this.options.useInMemoryStorage) {
-			return join(this.environmentService.workspaceStorageHome.fsPath, this.workspace.id, WorkspaceStorageMain.WORKSPACE_STORAGE_NAME);
+			return join(this.environmentService.workspaceStorageHome.with({ scheme: Schemas.file }).fsPath, this.workspace.id, WorkspaceStorageMain.WORKSPACE_STORAGE_NAME);
 		}
 
 		return undefined;
@@ -384,7 +395,7 @@ export class WorkspaceStorageMain extends BaseStorageMain {
 		}
 
 		// Otherwise, ensure the storage folder exists on disk
-		const workspaceStorageFolderPath = join(this.environmentService.workspaceStorageHome.fsPath, this.workspace.id);
+		const workspaceStorageFolderPath = join(this.environmentService.workspaceStorageHome.with({ scheme: Schemas.file }).fsPath, this.workspace.id);
 		const workspaceStorageDatabasePath = join(workspaceStorageFolderPath, WorkspaceStorageMain.WORKSPACE_STORAGE_NAME);
 
 		const storageExists = await Promises.exists(workspaceStorageFolderPath);
@@ -393,7 +404,7 @@ export class WorkspaceStorageMain extends BaseStorageMain {
 		}
 
 		// Ensure storage folder exists
-		await Promises.mkdir(workspaceStorageFolderPath, { recursive: true });
+		await fs.promises.mkdir(workspaceStorageFolderPath, { recursive: true });
 
 		// Write metadata into folder (but do not await)
 		this.ensureWorkspaceStorageFolderMeta(workspaceStorageFolderPath);

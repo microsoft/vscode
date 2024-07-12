@@ -16,10 +16,11 @@ import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/ext
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 import { INotebookCellExecution, INotebookExecution, INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { IKernelSourceActionProvider, INotebookKernel, INotebookKernelChangeEvent, INotebookKernelDetectionTask, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { IKernelSourceActionProvider, INotebookKernel, INotebookKernelChangeEvent, INotebookKernelDetectionTask, INotebookKernelService, VariablesResult } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { ExtHostContext, ExtHostNotebookKernelsShape, ICellExecuteUpdateDto, ICellExecutionCompleteDto, INotebookKernelDto2, MainContext, MainThreadNotebookKernelsShape } from '../common/extHost.protocol';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { AsyncIterableObject, AsyncIterableSource } from 'vs/base/common/async';
 
 abstract class MainThreadKernel implements INotebookKernel {
 	private readonly _onDidChange = new Emitter<INotebookKernelChangeEvent>();
@@ -36,6 +37,7 @@ abstract class MainThreadKernel implements INotebookKernel {
 	detail?: string;
 	supportedLanguages: string[];
 	implementsExecutionOrder: boolean;
+	hasVariableProvider: boolean;
 	localResourceRoot: URI;
 
 	public get preloadUris() {
@@ -43,7 +45,7 @@ abstract class MainThreadKernel implements INotebookKernel {
 	}
 
 	public get preloadProvides() {
-		return this.preloads.map(p => p.provides).flat();
+		return this.preloads.flatMap(p => p.provides);
 	}
 
 	constructor(data: INotebookKernelDto2, private _languageService: ILanguageService) {
@@ -57,6 +59,7 @@ abstract class MainThreadKernel implements INotebookKernel {
 		this.detail = data.detail;
 		this.supportedLanguages = isNonEmptyArray(data.supportedLanguages) ? data.supportedLanguages : _languageService.getRegisteredLanguageIds();
 		this.implementsExecutionOrder = data.supportsExecutionOrder ?? false;
+		this.hasVariableProvider = data.hasVariableProvider ?? false;
 		this.localResourceRoot = URI.revive(data.extensionLocation);
 		this.preloads = data.preloads?.map(u => ({ uri: URI.revive(u.uri), provides: u.provides })) ?? [];
 	}
@@ -89,11 +92,16 @@ abstract class MainThreadKernel implements INotebookKernel {
 			this.implementsInterrupt = data.supportsInterrupt;
 			event.hasInterruptHandler = true;
 		}
+		if (data.hasVariableProvider !== undefined) {
+			this.hasVariableProvider = data.hasVariableProvider;
+			event.hasVariableProvider = true;
+		}
 		this._onDidChange.fire(event);
 	}
 
 	abstract executeNotebookCellsRequest(uri: URI, cellHandles: number[]): Promise<void>;
 	abstract cancelNotebookCellExecution(uri: URI, cellHandles: number[]): Promise<void>;
+	abstract provideVariables(notebookUri: URI, parentId: number | undefined, kind: 'named' | 'indexed', start: number, token: CancellationToken): AsyncIterableObject<VariablesResult>;
 }
 
 class MainThreadKernelDetectionTask implements INotebookKernelDetectionTask {
@@ -214,6 +222,15 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 		return didSend;
 	}
 
+	private variableRequestIndex = 0;
+	private variableRequestMap = new Map<string, AsyncIterableSource<VariablesResult>>();
+	$receiveVariable(requestId: string, variable: VariablesResult) {
+		const source = this.variableRequestMap.get(requestId);
+		if (source) {
+			source.emitOne(variable);
+		}
+	}
+
 	// --- kernel adding/updating/removal
 
 	async $addKernel(handle: number, data: INotebookKernelDto2): Promise<void> {
@@ -224,6 +241,24 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 			}
 			async cancelNotebookCellExecution(uri: URI, handles: number[]): Promise<void> {
 				await that._proxy.$cancelCells(handle, uri, handles);
+			}
+			provideVariables(notebookUri: URI, parentId: number | undefined, kind: 'named' | 'indexed', start: number, token: CancellationToken): AsyncIterableObject<VariablesResult> {
+				const requestId = `${handle}variables${that.variableRequestIndex++}`;
+				if (that.variableRequestMap.has(requestId)) {
+					return that.variableRequestMap.get(requestId)!.asyncIterable;
+				}
+
+				const source = new AsyncIterableSource<VariablesResult>();
+				that.variableRequestMap.set(requestId, source);
+				that._proxy.$provideVariables(handle, requestId, notebookUri, parentId, kind, start, token).then(() => {
+					source.resolve();
+					that.variableRequestMap.delete(requestId);
+				}).catch((err) => {
+					source.reject(err);
+					that.variableRequestMap.delete(requestId);
+				});
+
+				return source.asyncIterable;
 			}
 		}(data, this._languageService);
 
@@ -404,5 +439,9 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 		if (emitter instanceof Emitter) {
 			emitter.fire(undefined);
 		}
+	}
+
+	$variablesUpdated(notebookUri: UriComponents): void {
+		this._notebookKernelService.notifyVariablesChange(URI.revive(notebookUri));
 	}
 }

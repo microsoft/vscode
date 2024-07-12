@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IReader, transaction } from 'vs/base/common/observable';
 import { isDefined } from 'vs/base/common/types';
@@ -290,9 +290,9 @@ class MergeModelInterface extends Disposable {
 				);
 				const changes = result.changes.map(c =>
 					new DetailedLineRangeMapping(
-						toLineRange(c.originalRange),
+						toLineRange(c.original),
 						textModel1,
-						toLineRange(c.modifiedRange),
+						toLineRange(c.modified),
 						textModel2,
 						c.innerChanges?.map(ic => toRangeMapping(ic)).filter(isDefined)
 					)

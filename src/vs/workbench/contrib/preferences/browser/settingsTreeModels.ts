@@ -10,14 +10,14 @@ import { URI } from 'vs/base/common/uri';
 import { ConfigurationTarget, IConfigurationValue } from 'vs/platform/configuration/common/configuration';
 import { SettingsTarget } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
 import { ITOCEntry, knownAcronyms, knownTermMappings, tocData } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
-import { ENABLE_EXTENSION_TOGGLE_SETTINGS, ENABLE_LANGUAGE_FILTER, MODIFIED_SETTING_TAG, POLICY_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG } from 'vs/workbench/contrib/preferences/common/preferences';
-import { IExtensionSetting, ISearchResult, ISetting, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
+import { ENABLE_EXTENSION_TOGGLE_SETTINGS, ENABLE_LANGUAGE_FILTER, MODIFIED_SETTING_TAG, POLICY_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, compareTwoNullableNumbers } from 'vs/workbench/contrib/preferences/common/preferences';
+import { IExtensionSetting, ISearchResult, ISetting, ISettingMatch, SettingMatchType, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { FOLDER_SCOPES, WORKSPACE_SCOPES, REMOTE_MACHINE_SCOPES, LOCAL_MACHINE_SCOPES, IWorkbenchConfigurationService, APPLICATION_SCOPES } from 'vs/workbench/services/configuration/common/configuration';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
-import { ConfigurationScope, EditPresentationTypes, Extensions, IConfigurationRegistry, IExtensionInfo } from 'vs/platform/configuration/common/configurationRegistry';
+import { ConfigurationDefaultValueSource, ConfigurationScope, EditPresentationTypes, Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
@@ -135,7 +135,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 	 * The source of the default value to display.
 	 * This value also accounts for extension-contributed language-specific default value overrides.
 	 */
-	defaultValueSource: string | IExtensionInfo | undefined;
+	defaultValueSource: ConfigurationDefaultValueSource | undefined;
 
 	/**
 	 * Whether the setting is configured in the selected scope.
@@ -203,7 +203,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 	private initLabels(): void {
 		if (this.setting.title) {
 			this._displayLabel = this.setting.title;
-			this._displayCategory = '';
+			this._displayCategory = this.setting.categoryLabel ?? null;
 			return;
 		}
 		const displayKeyFormat = settingKeyToDisplayFormat(this.setting.key, this.parent!.id, this.setting.isLanguageTagSetting);
@@ -273,7 +273,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 	}
 
 	private getTargetToInspect(setting: ISetting): SettingsTarget {
-		if (!this.userDataProfileService.currentProfile.isDefault) {
+		if (!this.userDataProfileService.currentProfile.isDefault && !this.userDataProfileService.currentProfile.useDefaultFlags?.settings) {
 			if (setting.scope === ConfigurationScope.APPLICATION) {
 				return ConfigurationTarget.APPLICATION;
 			}
@@ -351,7 +351,8 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			this.defaultValue = overrideValues.defaultValue ?? inspected.defaultValue;
 
 			const registryValues = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationDefaultsOverrides();
-			const overrideValueSource = registryValues.get(`[${languageSelector}]`)?.valuesSources?.get(this.setting.key);
+			const source = registryValues.get(`[${languageSelector}]`)?.source;
+			const overrideValueSource = source instanceof Map ? source.get(this.setting.key) : undefined;
 			if (overrideValueSource) {
 				this.defaultValueSource = overrideValueSource;
 			}
@@ -382,7 +383,9 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 	}
 
 	matchesAllTags(tagFilters?: Set<string>): boolean {
-		if (!tagFilters || !tagFilters.size) {
+		if (!tagFilters?.size) {
+			// This setting, which may have tags,
+			// matches against a query with no tags.
 			return true;
 		}
 
@@ -392,15 +395,9 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			this.inspectSelf();
 		}
 
-		if (this.tags) {
-			let hasFilteredTag = true;
-			tagFilters.forEach(tag => {
-				hasFilteredTag = hasFilteredTag && this.tags!.has(tag);
-			});
-			return hasFilteredTag;
-		} else {
-			return false;
-		}
+		// Check that the filter tags are a subset of this setting's tags
+		return !!this.tags?.size &&
+			Array.from(tagFilters).every(tag => this.tags!.has(tag));
 	}
 
 	matchesScope(scope: SettingsTarget, isRemote: boolean): boolean {
@@ -796,11 +793,25 @@ function isIncludeSetting(setting: ISetting): boolean {
 	return setting.key === 'files.readonlyInclude';
 }
 
-function isObjectRenderableSchema({ type }: IJSONSchema): boolean {
-	return type === 'string' || type === 'boolean' || type === 'integer' || type === 'number';
+// The values of the following settings when a default values has been removed
+export function objectSettingSupportsRemoveDefaultValue(key: string): boolean {
+	return key === 'workbench.editor.customLabels.patterns';
+}
+
+function isObjectRenderableSchema({ type }: IJSONSchema, key: string): boolean {
+	if (type === 'string' || type === 'boolean' || type === 'integer' || type === 'number') {
+		return true;
+	}
+
+	if (objectSettingSupportsRemoveDefaultValue(key) && Array.isArray(type) && type.length === 2) {
+		return type.includes('null') && (type.includes('string') || type.includes('boolean') || type.includes('integer') || type.includes('number'));
+	}
+
+	return false;
 }
 
 function isObjectSetting({
+	key,
 	type,
 	objectProperties,
 	objectPatternProperties,
@@ -835,14 +846,14 @@ function isObjectSetting({
 	}
 
 	// Flatten anyof schemas
-	const flatSchemas = arrays.flatten(schemas.map((schema): IJSONSchema[] => {
+	const flatSchemas = schemas.map((schema): IJSONSchema[] => {
 		if (Array.isArray(schema.anyOf)) {
 			return schema.anyOf;
 		}
 		return [schema];
-	}));
+	}).flat();
 
-	return flatSchemas.every(isObjectRenderableSchema);
+	return flatSchemas.every((schema) => isObjectRenderableSchema(schema, key));
 }
 
 function settingTypeEnumRenderable(_type: string | string[]) {
@@ -859,48 +870,96 @@ export const enum SearchResultIdx {
 
 export class SearchResultModel extends SettingsTreeModel {
 	private rawSearchResults: ISearchResult[] | null = null;
-	private cachedUniqueSearchResults: ISearchResult[] | null = null;
+	private cachedUniqueSearchResults: ISearchResult | null = null;
 	private newExtensionSearchResults: ISearchResult | null = null;
 	private searchResultCount: number | null = null;
+	private settingsOrderByTocIndex: Map<string, number> | null;
 
 	readonly id = 'searchResultModel';
 
 	constructor(
 		viewState: ISettingsEditorViewState,
+		settingsOrderByTocIndex: Map<string, number> | null,
 		isWorkspaceTrusted: boolean,
 		@IWorkbenchConfigurationService configurationService: IWorkbenchConfigurationService,
-		@IWorkbenchEnvironmentService private environmentService: IWorkbenchEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@ILanguageService languageService: ILanguageService,
 		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
 		@IProductService productService: IProductService
 	) {
 		super(viewState, isWorkspaceTrusted, configurationService, languageService, userDataProfileService, productService);
+		this.settingsOrderByTocIndex = settingsOrderByTocIndex;
 		this.update({ id: 'searchResultModel', label: '' });
 	}
 
-	getUniqueResults(): ISearchResult[] {
+	private sortResults(filterMatches: ISettingMatch[]): ISettingMatch[] {
+		if (this.settingsOrderByTocIndex) {
+			for (const match of filterMatches) {
+				match.setting.internalOrder = this.settingsOrderByTocIndex.get(match.setting.key);
+			}
+		}
+
+		// The search only has filters, so we can sort by the order in the TOC.
+		if (!this._viewState.query) {
+			return filterMatches.sort((a, b) => compareTwoNullableNumbers(a.setting.internalOrder, b.setting.internalOrder));
+		}
+
+		// Sort the settings according to their relevancy.
+		// https://github.com/microsoft/vscode/issues/197773
+		filterMatches.sort((a, b) => {
+			if (a.matchType !== b.matchType) {
+				// Sort by match type if the match types are not the same.
+				// The priority of the match type is given by the SettingMatchType enum.
+				return b.matchType - a.matchType;
+			} else if (a.matchType === SettingMatchType.RemoteMatch) {
+				// The match types are the same and are RemoteMatch.
+				// Sort by score.
+				return b.score - a.score;
+			} else {
+				// The match types are the same but are not RemoteMatch.
+				// Sort by their order in the table of contents.
+				return compareTwoNullableNumbers(a.setting.internalOrder, b.setting.internalOrder);
+			}
+		});
+
+		// Remove duplicates, which sometimes occur with settings
+		// such as the experimental toggle setting.
+		return arrays.distinct(filterMatches, (match) => match.setting.key);
+	}
+
+	getUniqueResults(): ISearchResult | null {
 		if (this.cachedUniqueSearchResults) {
 			return this.cachedUniqueSearchResults;
 		}
 
 		if (!this.rawSearchResults) {
-			return [];
+			return null;
 		}
+
+		let combinedFilterMatches: ISettingMatch[] = [];
 
 		const localMatchKeys = new Set();
 		const localResult = this.rawSearchResults[SearchResultIdx.Local];
-		localResult?.filterMatches.forEach(m => localMatchKeys.add(m.setting.key));
+		if (localResult) {
+			localResult.filterMatches.forEach(m => localMatchKeys.add(m.setting.key));
+			combinedFilterMatches = localResult.filterMatches;
+		}
 
 		const remoteResult = this.rawSearchResults[SearchResultIdx.Remote];
 		if (remoteResult) {
 			remoteResult.filterMatches = remoteResult.filterMatches.filter(m => !localMatchKeys.has(m.setting.key));
-		}
+			combinedFilterMatches = combinedFilterMatches.concat(remoteResult.filterMatches);
 
-		if (remoteResult) {
 			this.newExtensionSearchResults = this.rawSearchResults[SearchResultIdx.NewExtensions];
 		}
 
-		this.cachedUniqueSearchResults = [localResult, remoteResult];
+		combinedFilterMatches = this.sortResults(combinedFilterMatches);
+
+		this.cachedUniqueSearchResults = {
+			filterMatches: combinedFilterMatches,
+			exactMatch: localResult?.exactMatch || remoteResult?.exactMatch
+		};
+
 		return this.cachedUniqueSearchResults;
 	}
 
@@ -960,14 +1019,7 @@ export class SearchResultModel extends SettingsTreeModel {
 	}
 
 	private getFlatSettings(): ISetting[] {
-		const flatSettings: ISetting[] = [];
-		arrays.coalesce(this.getUniqueResults())
-			.forEach(r => {
-				flatSettings.push(
-					...r.filterMatches.map(m => m.setting));
-			});
-
-		return flatSettings;
+		return this.getUniqueResults()?.filterMatches.map(m => m.setting) ?? [];
 	}
 }
 

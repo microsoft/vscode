@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
@@ -26,6 +26,7 @@ import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/te
 import { NullLogService } from 'vs/platform/log/common/log';
 import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
 import { ILanguageService } from 'vs/editor/common/languages/language';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('suggest, word distance', function () {
 
@@ -87,6 +88,8 @@ suite('suggest, word distance', function () {
 	teardown(function () {
 		disposables.clear();
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function createSuggestItem(label: string, overwriteBefore: number, position: IPosition): CompletionItem {
 		const suggestion: languages.CompletionItem = {

@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IntervalTimer } from 'vs/base/common/async';
+import { WindowIntervalTimer } from 'vs/base/browser/dom';
+import { mainWindow } from 'vs/base/browser/window';
 import { memoize } from 'vs/base/common/decorators';
 import { FileAccess } from 'vs/base/common/network';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -57,7 +58,7 @@ export class SignService extends AbstractSignService implements ISignService {
 
 	@memoize
 	private async vsda(): Promise<typeof vsda_web> {
-		const checkInterval = new IntervalTimer();
+		const checkInterval = new WindowIntervalTimer();
 		let [wasm] = await Promise.all([
 			this.getWasmBytes(),
 			new Promise<void>((resolve, reject) => {
@@ -69,8 +70,8 @@ export class SignService extends AbstractSignService implements ISignService {
 					if (typeof vsda_web !== 'undefined') {
 						resolve();
 					}
-				}, 50);
-			}).finally(() => checkInterval!.dispose()),
+				}, 50, mainWindow);
+			}).finally(() => checkInterval.dispose()),
 		]);
 
 

@@ -27,7 +27,7 @@ export function createTrustedTypesPolicy<Options extends TrustedTypePolicyOption
 		}
 	}
 	try {
-		return window.trustedTypes?.createPolicy(policyName, policyOptions);
+		return (globalThis as any).trustedTypes?.createPolicy(policyName, policyOptions);
 	} catch (err) {
 		onUnexpectedError(err);
 		return undefined;

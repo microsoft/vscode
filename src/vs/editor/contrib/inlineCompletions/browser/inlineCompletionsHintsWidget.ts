@@ -4,14 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { h } from 'vs/base/browser/dom';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { KeybindingLabel, unthemedKeybindingLabelOptions } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { Action, IAction, Separator } from 'vs/base/common/actions';
 import { equals } from 'vs/base/common/arrays';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, autorun, autorunWithStore, derived, observableFromEvent } from 'vs/base/common/observable';
+import { IObservable, autorun, autorunWithStore, derived, derivedObservableWithCache, observableFromEvent } from 'vs/base/common/observable';
+import { derivedWithStore } from 'vs/base/common/observableInternal/derived';
 import { OS } from 'vs/base/common/platform';
 import { ThemeIcon } from 'vs/base/common/themables';
 import 'vs/css!./inlineCompletionsHintsWidget';
@@ -35,13 +36,12 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 
 export class InlineCompletionsHintsWidget extends Disposable {
-	private readonly alwaysShowToolbar = observableFromEvent(this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineSuggest).showToolbar === 'always');
+	private readonly alwaysShowToolbar = observableFromEvent(this, this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineSuggest).showToolbar === 'always');
 
 	private sessionPosition: Position | undefined = undefined;
 
-	private readonly position = derived(reader => {
-		/** @description position */
-		const ghostText = this.model.read(reader)?.ghostText.read(reader);
+	private readonly position = derived(this, reader => {
+		const ghostText = this.model.read(reader)?.primaryGhostText.read(reader);
 
 		if (!this.alwaysShowToolbar.read(reader) || !ghostText || ghostText.parts.length === 0) {
 			this.sessionPosition = undefined;
@@ -72,26 +72,36 @@ export class InlineCompletionsHintsWidget extends Disposable {
 				return;
 			}
 
-			const contentWidget = store.add(this.instantiationService.createInstance(
-				InlineSuggestionHintsContentWidget,
-				this.editor,
-				true,
-				this.position,
-				model.selectedInlineCompletionIndex,
-				model.inlineCompletionsCount,
-				model.selectedInlineCompletion.map(v => v?.inlineCompletion.source.inlineCompletions.commands ?? []),
-			));
-			editor.addContentWidget(contentWidget);
-			store.add(toDisposable(() => editor.removeContentWidget(contentWidget)));
+			const contentWidgetValue = derivedWithStore((reader, store) => {
+				const contentWidget = store.add(this.instantiationService.createInstance(
+					InlineSuggestionHintsContentWidget,
+					this.editor,
+					true,
+					this.position,
+					model.selectedInlineCompletionIndex,
+					model.inlineCompletionsCount,
+					model.activeCommands,
+				));
+				editor.addContentWidget(contentWidget);
+				store.add(toDisposable(() => editor.removeContentWidget(contentWidget)));
 
+				store.add(autorun(reader => {
+					/** @description request explicit */
+					const position = this.position.read(reader);
+					if (!position) {
+						return;
+					}
+					if (model.lastTriggerKind.read(reader) !== InlineCompletionTriggerKind.Explicit) {
+						model.triggerExplicitly();
+					}
+				}));
+				return contentWidget;
+			});
+
+			const hadPosition = derivedObservableWithCache(this, (reader, lastValue) => !!this.position.read(reader) || !!lastValue);
 			store.add(autorun(reader => {
-				/** @description request explicit */
-				const position = this.position.read(reader);
-				if (!position) {
-					return;
-				}
-				if (model.lastTriggerKind.read(reader) !== InlineCompletionTriggerKind.Explicit) {
-					model.triggerExplicitly();
+				if (hadPosition.read(reader)) {
+					contentWidgetValue.read(reader);
 				}
 			}));
 		}));
@@ -112,10 +122,7 @@ export class InlineSuggestionHintsContentWidget extends Disposable implements IC
 	public readonly suppressMouseDown = false;
 
 	private readonly nodes = h('div.inlineSuggestionsHints', { className: this.withBorder ? '.withBorder' : '' }, [
-		h('div', { style: { display: 'flex' } }, [
-			h('div@actionBar', { className: 'custom-actions' }),
-			h('div@toolBar'),
-		])
+		h('div@toolBar'),
 	]);
 
 	private createCommandAction(commandId: string, label: string, iconClassName: string): Action {
@@ -155,8 +162,6 @@ export class InlineSuggestionHintsContentWidget extends Disposable implements IC
 		this.previousAction.enabled = this.nextAction.enabled = false;
 	}, 100));
 
-	private lastCommands: Command[] = [];
-
 	constructor(
 		private readonly editor: ICodeEditor,
 		private readonly withBorder: boolean,
@@ -173,20 +178,28 @@ export class InlineSuggestionHintsContentWidget extends Disposable implements IC
 	) {
 		super();
 
-		const actionBar = this._register(new ActionBar(this.nodes.actionBar));
-
-		actionBar.push(this.previousAction, { icon: true, label: false });
-		actionBar.push(this.availableSuggestionCountAction);
-		actionBar.push(this.nextAction, { icon: true, label: false });
-
 		this.toolBar = this._register(instantiationService.createInstance(CustomizedMenuWorkbenchToolBar, this.nodes.toolBar, MenuId.InlineSuggestionToolbar, {
 			menuOptions: { renderShortTitle: true },
 			toolbarOptions: { primaryGroup: g => g.startsWith('primary') },
 			actionViewItemProvider: (action, options) => {
-				return action instanceof MenuItemAction ? instantiationService.createInstance(StatusBarViewItem, action, undefined) : undefined;
+				if (action instanceof MenuItemAction) {
+					return instantiationService.createInstance(StatusBarViewItem, action, undefined);
+				}
+				if (action === this.availableSuggestionCountAction) {
+					const a = new ActionViewItemWithClassName(undefined, action, { label: true, icon: false });
+					a.setClass('availableSuggestionCount');
+					return a;
+				}
+				return undefined;
 			},
 			telemetrySource: 'InlineSuggestionToolbar',
 		}));
+
+		this.toolBar.setPrependedPrimaryActions([
+			this.previousAction,
+			this.availableSuggestionCountAction,
+			this.nextAction,
+		]);
 
 		this._register(this.toolBar.onDidChangeDropdownVisibility(e => {
 			InlineSuggestionHintsContentWidget._dropDownVisible = e;
@@ -221,13 +234,6 @@ export class InlineSuggestionHintsContentWidget extends Disposable implements IC
 		this._register(autorun(reader => {
 			/** @description extra commands */
 			const extraCommands = this._extraCommands.read(reader);
-			if (equals(this.lastCommands, extraCommands)) {
-				// nothing to update
-				return;
-			}
-
-			this.lastCommands = extraCommands;
-
 			const extraActions = extraCommands.map<IAction>(c => ({
 				class: undefined,
 				id: c.id,
@@ -270,6 +276,25 @@ export class InlineSuggestionHintsContentWidget extends Disposable implements IC
 	}
 }
 
+class ActionViewItemWithClassName extends ActionViewItem {
+	private _className: string | undefined = undefined;
+
+	setClass(className: string | undefined): void {
+		this._className = className;
+	}
+
+	override render(container: HTMLElement): void {
+		super.render(container);
+		if (this._className) {
+			container.classList.add(this._className);
+		}
+	}
+
+	protected override updateTooltip(): void {
+		// NOOP, disable tooltip
+	}
+}
+
 class StatusBarViewItem extends MenuEntryActionViewItem {
 	protected override updateLabel() {
 		const kb = this._keybindingService.lookupKeybinding(this._action.id, this._contextKeyService);
@@ -279,18 +304,23 @@ class StatusBarViewItem extends MenuEntryActionViewItem {
 		if (this.label) {
 			const div = h('div.keybinding').root;
 
-			const k = new KeybindingLabel(div, OS, { disableTitle: true, ...unthemedKeybindingLabelOptions });
+			const k = this._register(new KeybindingLabel(div, OS, { disableTitle: true, ...unthemedKeybindingLabelOptions }));
 			k.set(kb);
 			this.label.textContent = this._action.label;
 			this.label.appendChild(div);
 			this.label.classList.add('inlineSuggestionStatusBarItemLabel');
 		}
 	}
+
+	protected override updateTooltip(): void {
+		// NOOP, disable tooltip
+	}
 }
 
 export class CustomizedMenuWorkbenchToolBar extends WorkbenchToolBar {
 	private readonly menu = this._store.add(this.menuService.createMenu(this.menuId, this.contextKeyService, { emitEventsForSubmenuChanges: true }));
 	private additionalActions: IAction[] = [];
+	private prependedPrimaryActions: IAction[] = [];
 
 	constructor(
 		container: HTMLElement,
@@ -300,9 +330,10 @@ export class CustomizedMenuWorkbenchToolBar extends WorkbenchToolBar {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IKeybindingService keybindingService: IKeybindingService,
+		@ICommandService commandService: ICommandService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super(container, { resetMenu: menuId, ...options2 }, menuService, contextKeyService, contextMenuService, keybindingService, telemetryService);
+		super(container, { resetMenu: menuId, ...options2 }, menuService, contextKeyService, contextMenuService, keybindingService, commandService, telemetryService);
 
 		this._store.add(this.menu.onDidChange(() => this.updateToolbar()));
 		this.updateToolbar();
@@ -319,12 +350,21 @@ export class CustomizedMenuWorkbenchToolBar extends WorkbenchToolBar {
 		);
 
 		secondary.push(...this.additionalActions);
+		primary.unshift(...this.prependedPrimaryActions);
 		this.setActions(primary, secondary);
+	}
+
+	setPrependedPrimaryActions(actions: IAction[]): void {
+		if (equals(this.prependedPrimaryActions, actions, (a, b) => a === b)) {
+			return;
+		}
+
+		this.prependedPrimaryActions = actions;
+		this.updateToolbar();
 	}
 
 	setAdditionalSecondaryActions(actions: IAction[]): void {
 		if (equals(this.additionalActions, actions, (a, b) => a === b)) {
-			// don't update if the actions are the same
 			return;
 		}
 

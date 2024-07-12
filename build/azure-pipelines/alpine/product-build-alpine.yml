@@ -1,9 +1,11 @@
 steps:
   - task: NodeTool@0
     inputs:
-      versionSpec: "18.x"
+      versionSource: fromFile
+      versionFilePath: .nvmrc
+      nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
 
-  - template: ../distro/download-distro.yml
+  - template: ../distro/download-distro.yml@self
 
   - task: AzureKeyVault@1
     displayName: "Azure Key Vault: Get Secrets"
@@ -105,7 +107,7 @@ steps:
   - script: node build/azure-pipelines/distro/mixin-quality
     displayName: Mixin distro quality
 
-  - template: ../common/install-builtin-extensions.yml
+  - template: ../common/install-builtin-extensions.yml@self
 
   - script: |
       set -e
@@ -113,8 +115,10 @@ steps:
       yarn gulp vscode-reh-$TARGET-min-ci
       (cd .. && mv vscode-reh-$TARGET vscode-server-$TARGET) # TODO@joaomoreno
       ARCHIVE_PATH=".build/linux/server/vscode-server-$TARGET.tar.gz"
+      DIR_PATH="$(realpath ../vscode-server-$TARGET)"
       mkdir -p $(dirname $ARCHIVE_PATH)
       tar --owner=0 --group=0 -czf $ARCHIVE_PATH -C .. vscode-server-$TARGET
+      echo "##vso[task.setvariable variable=SERVER_DIR_PATH]$DIR_PATH"
       echo "##vso[task.setvariable variable=SERVER_PATH]$ARCHIVE_PATH"
     env:
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
@@ -126,8 +130,10 @@ steps:
       yarn gulp vscode-reh-web-$TARGET-min-ci
       (cd .. && mv vscode-reh-web-$TARGET vscode-server-$TARGET-web) # TODO@joaomoreno
       ARCHIVE_PATH=".build/linux/web/vscode-server-$TARGET-web.tar.gz"
+      DIR_PATH="$(realpath ../vscode-server-$TARGET-web)"
       mkdir -p $(dirname $ARCHIVE_PATH)
       tar --owner=0 --group=0 -czf $ARCHIVE_PATH -C .. vscode-server-$TARGET-web
+      echo "##vso[task.setvariable variable=WEB_DIR_PATH]$DIR_PATH"
       echo "##vso[task.setvariable variable=WEB_PATH]$ARCHIVE_PATH"
     env:
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
@@ -137,23 +143,40 @@ steps:
     condition: and(succeededOrFailed(), notIn(variables['Agent.JobStatus'], 'Succeeded', 'SucceededWithIssues'))
     displayName: Generate artifact prefix
 
-  - publish: $(SERVER_PATH)
-    artifact: $(ARTIFACT_PREFIX)vscode_server_alpine_$(VSCODE_ARCH)_archive-unsigned
+  - task: 1ES.PublishPipelineArtifact@1
+    inputs:
+      targetPath: $(SERVER_PATH)
+      artifactName: $(ARTIFACT_PREFIX)vscode_server_alpine_$(VSCODE_ARCH)_archive-unsigned
+      sbomBuildDropPath: $(SERVER_DIR_PATH)
+      sbomPackageName: "VS Code Alpine $(VSCODE_ARCH) Server"
+      sbomPackageVersion: $(Build.SourceVersion)
     displayName: Publish server archive
     condition: and(succeededOrFailed(), ne(variables['SERVER_PATH'], ''), ne(variables['VSCODE_ARCH'], 'x64'))
 
-  - publish: $(WEB_PATH)
-    artifact: $(ARTIFACT_PREFIX)vscode_web_alpine_$(VSCODE_ARCH)_archive-unsigned
+  - task: 1ES.PublishPipelineArtifact@1
+    inputs:
+      targetPath: $(WEB_PATH)
+      artifactName: $(ARTIFACT_PREFIX)vscode_web_alpine_$(VSCODE_ARCH)_archive-unsigned
+      sbomBuildDropPath: $(WEB_DIR_PATH)
+      sbomPackageName: "VS Code Alpine $(VSCODE_ARCH) Web"
+      sbomPackageVersion: $(Build.SourceVersion)
     displayName: Publish web server archive
     condition: and(succeededOrFailed(), ne(variables['WEB_PATH'], ''), ne(variables['VSCODE_ARCH'], 'x64'))
 
-  # Legacy x64 artifact name
-  - publish: $(SERVER_PATH)
-    artifact: $(ARTIFACT_PREFIX)vscode_server_linux_alpine_archive-unsigned
+  # same as above, keep legacy name
+  - task: 1ES.PublishPipelineArtifact@1
+    inputs:
+      targetPath: $(SERVER_PATH)
+      artifactName: $(ARTIFACT_PREFIX)vscode_server_linux_alpine_archive-unsigned
+      sbomEnabled: false
     displayName: Publish x64 server archive
     condition: and(succeededOrFailed(), ne(variables['SERVER_PATH'], ''), eq(variables['VSCODE_ARCH'], 'x64'))
 
-  - publish: $(WEB_PATH)
-    artifact: $(ARTIFACT_PREFIX)vscode_web_linux_alpine_archive-unsigned
+  # same as above, keep legacy name
+  - task: 1ES.PublishPipelineArtifact@1
+    inputs:
+      targetPath: $(WEB_PATH)
+      artifactName: $(ARTIFACT_PREFIX)vscode_web_linux_alpine_archive-unsigned
+      sbomEnabled: false
     displayName: Publish x64 web server archive
     condition: and(succeededOrFailed(), ne(variables['WEB_PATH'], ''), eq(variables['VSCODE_ARCH'], 'x64'))

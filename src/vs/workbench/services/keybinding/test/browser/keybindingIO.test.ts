@@ -2,15 +2,17 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
+import assert from 'assert';
 import { KeyChord, KeyCode, KeyMod, ScanCode } from 'vs/base/common/keyCodes';
 import { KeyCodeChord, decodeKeybinding, ScanCodeChord, Keybinding } from 'vs/base/common/keybindings';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
 import { createUSLayoutResolvedKeybinding } from 'vs/platform/keybinding/test/common/keybindingsTestUtils';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('keybindingIO', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('serialize/deserialize', () => {
 

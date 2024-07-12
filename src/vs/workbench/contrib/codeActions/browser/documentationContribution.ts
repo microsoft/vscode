@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { HierarchicalKind } from 'vs/base/common/hierarchicalKind';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -69,7 +70,7 @@ export class CodeActionDocumentationContribution extends Disposable implements I
 
 	public _getAdditionalMenuItems(context: languages.CodeActionContext, actions: readonly languages.CodeAction[]): languages.Command[] {
 		if (context.only !== CodeActionKind.Refactor.value) {
-			if (!actions.some(action => action.kind && CodeActionKind.Refactor.contains(new CodeActionKind(action.kind)))) {
+			if (!actions.some(action => action.kind && CodeActionKind.Refactor.contains(new HierarchicalKind(action.kind)))) {
 				return [];
 			}
 		}

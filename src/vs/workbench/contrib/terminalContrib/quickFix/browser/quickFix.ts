@@ -29,7 +29,7 @@ export interface ITerminalQuickFixProviderSelector {
 	provider: ITerminalQuickFixProvider;
 }
 
-export type TerminalQuickFixActionInternal = IAction | ITerminalQuickFixExecuteTerminalCommandAction | ITerminalQuickFixOpenerAction;
+export type TerminalQuickFixActionInternal = IAction | ITerminalQuickFixTerminalCommandAction | ITerminalQuickFixOpenerAction;
 export type TerminalQuickFixCallback = (matchResult: ITerminalCommandMatchResult) => TerminalQuickFixActionInternal[] | TerminalQuickFixActionInternal | undefined;
 export type TerminalQuickFixCallbackExtension = (terminalCommand: ITerminalCommand, lines: string[] | undefined, option: ITerminalQuickFixOptions, token: CancellationToken) => Promise<ITerminalQuickFix[] | ITerminalQuickFix | undefined>;
 
@@ -56,6 +56,7 @@ export interface ITerminalQuickFixOptions {
 	commandLineMatcher: string | RegExp;
 	outputMatcher?: ITerminalOutputMatcher;
 	commandExitResult: 'success' | 'error';
+	kind?: 'fix' | 'explain';
 }
 
 export interface ITerminalQuickFix {
@@ -64,11 +65,11 @@ export interface ITerminalQuickFix {
 	source: string;
 }
 
-export interface ITerminalQuickFixExecuteTerminalCommandAction extends ITerminalQuickFix {
+export interface ITerminalQuickFixTerminalCommandAction extends ITerminalQuickFix {
 	type: TerminalQuickFixType.TerminalCommand;
 	terminalCommand: string;
 	// TODO: Should this depend on whether alt is held?
-	addNewLine?: boolean;
+	shouldExecute?: boolean;
 }
 export interface ITerminalQuickFixOpenerAction extends ITerminalQuickFix {
 	type: TerminalQuickFixType.Opener;

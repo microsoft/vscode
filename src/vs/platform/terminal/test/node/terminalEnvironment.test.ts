@@ -6,6 +6,7 @@
 import { deepStrictEqual, ok, strictEqual } from 'assert';
 import { homedir, userInfo } from 'os';
 import { isWindows } from 'vs/base/common/platform';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ITerminalProcessOptions } from 'vs/platform/terminal/common/terminal';
@@ -21,6 +22,7 @@ const productService = { applicationName: 'vscode' } as IProductService;
 const defaultEnvironment = {};
 
 suite('platform - terminalEnvironment', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
 	suite('getShellIntegrationInjection', () => {
 		suite('should not enable', () => {
 			// This test is only expected to work on Windows 10 build 18309 and above
@@ -184,7 +186,8 @@ suite('platform - terminalEnvironment', () => {
 								`${repoRoot}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration-bash.sh`
 							],
 							envMixin: {
-								VSCODE_INJECTION: '1'
+								VSCODE_INJECTION: '1',
+								VSCODE_STABLE: '0'
 							}
 						});
 						deepStrictEqual(getShellIntegrationInjection({ executable: 'bash', args: [] }, enabledProcessOptions, defaultEnvironment, logService, productService), enabledExpectedResult);
@@ -199,7 +202,8 @@ suite('platform - terminalEnvironment', () => {
 							],
 							envMixin: {
 								VSCODE_INJECTION: '1',
-								VSCODE_SHELL_LOGIN: '1'
+								VSCODE_SHELL_LOGIN: '1',
+								VSCODE_STABLE: '0'
 							}
 						});
 						test('when array', () => {

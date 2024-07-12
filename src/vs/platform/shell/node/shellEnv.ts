@@ -128,7 +128,7 @@ async function doResolveUnixShellEnv(logService: ILogService, token: Cancellatio
 		// handle popular non-POSIX shells
 		const name = basename(systemShellUnix);
 		let command: string, shellArgs: Array<string>;
-		const extraArgs = (process.versions['electron'] && process.versions['microsoft-build']) ? '--ms-enable-electron-run-as-node' : '';
+		const extraArgs = '';
 		if (/^pwsh(-preview)?$/.test(name)) {
 			// Older versions of PowerShell removes double quotes sometimes so we use "double single quotes" which is how
 			// you escape single quotes inside of a single quoted string.
@@ -136,6 +136,9 @@ async function doResolveUnixShellEnv(logService: ILogService, token: Cancellatio
 			shellArgs = ['-Login', '-Command'];
 		} else if (name === 'nu') { // nushell requires ^ before quoted path to treat it as a command
 			command = `^'${process.execPath}' ${extraArgs} -p '"${mark}" + JSON.stringify(process.env) + "${mark}"'`;
+			shellArgs = ['-i', '-l', '-c'];
+		} else if (name === 'xonsh') { // #200374: native implementation is shorter
+			command = `import os, json; print("${mark}", json.dumps(dict(os.environ)), "${mark}")`;
 			shellArgs = ['-i', '-l', '-c'];
 		} else {
 			command = `'${process.execPath}' ${extraArgs} -p '"${mark}" + JSON.stringify(process.env) + "${mark}"'`;

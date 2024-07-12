@@ -2,8 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
+import assert from 'assert';
 import { Event } from 'vs/base/common/event';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { AbstractLogger, DEFAULT_LOG_LEVEL, ILogger, ILoggerService, LogLevel, NullLogService } from 'vs/platform/log/common/log';
@@ -48,8 +49,6 @@ class TestTelemetryLogger extends AbstractLogger implements ILogger {
 			this.logs.push(message);
 		}
 	}
-
-	override dispose(): void { }
 	flush(): void { }
 }
 
@@ -87,12 +86,15 @@ export class TestTelemetryLoggerService implements ILoggerService {
 
 suite('TelemetryLogAdapter', () => {
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('Do not Log Telemetry if log level is not trace', async () => {
 		const testLoggerService = new TestTelemetryLoggerService(DEFAULT_LOG_LEVEL);
 		const testInstantiationService = new TestInstantiationService();
 		const testObject = new TelemetryLogAppender(new NullLogService(), testLoggerService, testInstantiationService.stub(IEnvironmentService, {}), testInstantiationService.stub(IProductService, {}));
 		testObject.log('testEvent', { hello: 'world', isTrue: true, numberBetween1And3: 2 });
 		assert.strictEqual(testLoggerService.createLogger().logs.length, 2);
+		testObject.dispose();
 		testInstantiationService.dispose();
 	});
 
@@ -109,6 +111,7 @@ suite('TelemetryLogAdapter', () => {
 				isTrue: 1, numberBetween1And3: 2
 			}
 		}]));
+		testObject.dispose();
 		testInstantiationService.dispose();
 	});
 });

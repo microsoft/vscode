@@ -20,13 +20,14 @@ import { ExplorerFolderContext } from 'vs/workbench/contrib/files/common/files';
 import { ResourceContextKey } from 'vs/workbench/common/contextkeys';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+import { ILocalizedString } from 'vs/platform/action/common/action';
 
 const timelineViewIcon = registerIcon('timeline-view-icon', Codicon.history, localize('timelineViewIcon', 'View icon of the timeline view.'));
 const timelineOpenIcon = registerIcon('timeline-open', Codicon.history, localize('timelineOpenIcon', 'Icon for the open timeline action.'));
 
 export class TimelinePaneDescriptor implements IViewDescriptor {
 	readonly id = TimelinePaneId;
-	readonly name = TimelinePane.TITLE;
+	readonly name: ILocalizedString = TimelinePane.TITLE;
 	readonly containerIcon = timelineViewIcon;
 	readonly ctorDescriptor = new SyncDescriptor(TimelinePane);
 	readonly order = 2;
@@ -91,12 +92,12 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, ({
 
 const timelineFilter = registerIcon('timeline-filter', Codicon.filter, localize('timelineFilter', 'Icon for the filter timeline action.'));
 
-MenuRegistry.appendMenuItem(MenuId.TimelineTitle, <ISubmenuItem>{
+MenuRegistry.appendMenuItem(MenuId.TimelineTitle, {
 	submenu: MenuId.TimelineFilterSubMenu,
 	title: localize('filterTimeline', "Filter Timeline"),
 	group: 'navigation',
 	order: 100,
 	icon: timelineFilter
-});
+} satisfies ISubmenuItem);
 
 registerSingleton(ITimelineService, TimelineService, InstantiationType.Delayed);

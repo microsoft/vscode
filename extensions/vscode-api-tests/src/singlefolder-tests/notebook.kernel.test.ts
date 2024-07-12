@@ -91,14 +91,14 @@ const apiTestSerializer: vscode.NotebookSerializer = {
 	},
 	deserializeNotebook(_content, _token) {
 		const dto: vscode.NotebookData = {
-			metadata: { custom: { testMetadata: false } },
+			metadata: { testMetadata: false },
 			cells: [
 				{
 					value: 'test',
 					languageId: 'typescript',
 					kind: vscode.NotebookCellKind.Code,
 					outputs: [],
-					metadata: { custom: { testCellMetadata: 123 } },
+					metadata: { testCellMetadata: 123 },
 					executionSummary: { timing: { startTime: 10, endTime: 20 } }
 				},
 				{
@@ -115,7 +115,7 @@ const apiTestSerializer: vscode.NotebookSerializer = {
 							})
 					],
 					executionSummary: { executionOrder: 5, success: true },
-					metadata: { custom: { testCellMetadata: 456 } }
+					metadata: { testCellMetadata: 456 }
 				}
 			]
 		};

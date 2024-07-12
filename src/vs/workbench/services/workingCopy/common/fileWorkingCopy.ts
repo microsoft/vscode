@@ -35,6 +35,11 @@ export interface IFileWorkingCopyModelConfiguration {
 	readonly backupDelay?: number;
 }
 
+export const enum SnapshotContext {
+	Save = 1,
+	Backup = 2
+}
+
 /**
  * A generic file working copy model to be reused by untitled
  * and stored file working copies.
@@ -72,9 +77,10 @@ export interface IFileWorkingCopyModel extends IDisposable {
 	 * Snapshots the model's current content for writing. This must include
 	 * any changes that were made to the model that are in memory.
 	 *
+	 * @param context indicates in what context the snapshot is used
 	 * @param token support for cancellation
 	 */
-	snapshot(token: CancellationToken): Promise<VSBufferReadableStream>;
+	snapshot(context: SnapshotContext, token: CancellationToken): Promise<VSBufferReadableStream>;
 
 	/**
 	 * Updates the model with the provided contents. The implementation should

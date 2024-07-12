@@ -173,7 +173,7 @@ class NonPeekableTextBufferTokenizer {
 		if (this.line === null) {
 			this.lineTokens = this.textModel.tokenization.getLineTokens(this.lineIdx + 1);
 			this.line = this.lineTokens.getLineContent();
-			this.lineTokenOffset = this.lineCharOffset === 0 ? 0 : this.lineTokens!.findTokenIndexAtOffset(this.lineCharOffset);
+			this.lineTokenOffset = this.lineCharOffset === 0 ? 0 : this.lineTokens.findTokenIndexAtOffset(this.lineCharOffset);
 		}
 
 		const startLineIdx = this.lineIdx;
