@@ -177,10 +177,10 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		this._secretState = new ExtHostSecretState(this._extHostContext);
 		this._storagePath = storagePath;
 
-		this._instaService = instaService.createChild(new ServiceCollection(
+		this._instaService = this._store.add(instaService.createChild(new ServiceCollection(
 			[IExtHostStorage, this._storage],
 			[IExtHostSecretState, this._secretState]
-		));
+		)));
 
 		this._activator = this._register(new ExtensionsActivator(
 			this._myRegistry,
