@@ -1240,7 +1240,8 @@ class SeparatorRenderer implements ICompressibleTreeRenderer<SCMViewSeparatorEle
 		return { label, toolBar, elementDisposables: new DisposableStore(), templateDisposables };
 	}
 	renderElement(element: ITreeNode<SCMViewSeparatorElement, void>, index: number, templateData: SeparatorTemplate, height: number | undefined): void {
-		const historyProvider = element.element.repository.provider.historyProvider.get();
+		const provider = element.element.repository.provider;
+		const historyProvider = provider.historyProvider.get();
 		const currentHistoryItemGroup = historyProvider?.currentHistoryItemGroup.get();
 
 		// Label
@@ -1254,6 +1255,7 @@ class SeparatorRenderer implements ICompressibleTreeRenderer<SCMViewSeparatorEle
 		templateData.elementDisposables.add(connectPrimaryMenu(menu, (primary, secondary) => {
 			templateData.toolBar.setActions(primary, secondary, [MenuId.SCMChangesSeparator]);
 		}));
+		templateData.toolBar.context = provider;
 	}
 
 	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<SCMViewSeparatorElement>, void>, index: number, templateData: SeparatorTemplate, height: number | undefined): void {
