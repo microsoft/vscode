@@ -52,6 +52,7 @@ import { getColorForSeverity } from 'vs/workbench/contrib/terminal/browser/termi
 import { TerminalContextActionRunner } from 'vs/workbench/contrib/terminal/browser/terminalContextMenu';
 import type { IHoverAction } from 'vs/base/browser/ui/hover/hover';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 
 const $ = DOM.$;
 
@@ -274,8 +275,15 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 					return this._hoverService.showHover({
 						...options,
 						actions: context.hoverActions,
+						target: element,
 						persistence: {
 							hideOnHover: true
+						},
+						appearance: {
+							showPointer: true
+						},
+						position: {
+							hoverPosition: HoverPosition.LEFT
 						}
 					});
 				}
