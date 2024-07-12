@@ -47,7 +47,7 @@ class DebugAccessibleViewProvider extends Disposable implements IAccessibleViewC
 	};
 
 	private _elementPositionMap: Map<string, Position> = new Map<string, Position>();
-	private _treeFocused = false;
+	private _treeHadFocus = false;
 
 	constructor(
 		private readonly _replView: Repl,
@@ -55,7 +55,7 @@ class DebugAccessibleViewProvider extends Disposable implements IAccessibleViewC
 		@IDebugService private readonly _debugService: IDebugService,
 		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService) {
 		super();
-		this._treeFocused = !!_focusedElement;
+		this._treeHadFocus = !!_focusedElement;
 	}
 	public provideContent(): string {
 		const viewModel = this._debugService.getViewModel();
@@ -77,7 +77,7 @@ class DebugAccessibleViewProvider extends Disposable implements IAccessibleViewC
 	public onClose(): void {
 		this._content = undefined;
 		this._elementPositionMap.clear();
-		if (this._treeFocused) {
+		if (this._treeHadFocus) {
 			return this._replView.focusTree();
 		}
 		this._replView.getReplInput().focus();

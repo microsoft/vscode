@@ -32,14 +32,14 @@ class DebugAccessibilityHelpProvider extends Disposable implements IAccessibleVi
 	public readonly id = AccessibleViewProviderId.DebugConsoleHelp;
 	public readonly verbositySettingKey = AccessibilityVerbositySettingId.DebugConsole;
 	public readonly options = { type: AccessibleViewType.Help };
-	private _treeFocused = false;
+	private _treeHadFocus = false;
 	constructor(private readonly _replView: Repl) {
 		super();
-		this._treeFocused = !!_replView.getFocusedElement();
+		this._treeHadFocus = !!_replView.getFocusedElement();
 	}
 
 	public onClose(): void {
-		if (this._treeFocused) {
+		if (this._treeHadFocus) {
 			return this._replView.focusTree();
 		}
 		this._replView.getReplInput().focus();
