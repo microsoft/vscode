@@ -48,6 +48,7 @@ import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/hover/
 import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { InstanceContext, TerminalContextActionRunner } from 'vs/workbench/contrib/terminal/browser/terminalContextMenu';
+import { MicrotaskDelay } from 'vs/base/common/symbols';
 
 export class TerminalViewPane extends ViewPane {
 	private _parentDomElement: HTMLElement | undefined;
@@ -433,7 +434,7 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 				last.add(e);
 			}
 			return last;
-		})(merged => {
+		}, MicrotaskDelay)(merged => {
 			for (const e of merged) {
 				this.updateLabel(e);
 			}
