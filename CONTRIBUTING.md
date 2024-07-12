@@ -186,7 +186,10 @@ These `gulp` tasks are available:
 - `vscode-[platform]`: Builds a packaged version for `[platform]`.
 - `vscode-[platform]-min`: Builds a packaged and minified version for `[platform]`.
 
-👉 **Tip!** Run `gulp` via `yarn` to avoid potential out-of-memory issues, for example, `yarn gulp vscode-linux-x64`.
+1. If you have not already, run `./scripts/pearai/setup-environment.[sh,ps1]` (Note that .sh or .ps1 depends on your OS)
+2. If have already ran that upon your first install, run `./scripts/pearai/install-dependencies.[sh,ps1]` (Note that .sh or .ps1 depends on your OS)
+3. Run `yarn gulp vscode-[platform]`. For example `yarn gulp vscode-linux-x64`
+
 
 This will generate the new PearAI app and takes around 1 hour.
 
