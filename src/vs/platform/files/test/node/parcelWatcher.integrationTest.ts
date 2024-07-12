@@ -10,7 +10,7 @@ import { timeout } from 'vs/base/common/async';
 import { dirname, join } from 'vs/base/common/path';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { Promises, RimRafMode } from 'vs/base/node/pfs';
-import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
+import { getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { FileChangeFilter, FileChangeType, IFileChange } from 'vs/platform/files/common/files';
 import { ParcelWatcher } from 'vs/platform/files/node/watcher/parcel/parcelWatcher';
 import { IRecursiveWatchRequest } from 'vs/platform/files/common/watcher';
@@ -65,7 +65,7 @@ export class TestParcelWatcher extends ParcelWatcher {
 // mocha but generally). as such they will run only on demand
 // whenever we update the watcher library.
 
-((process.env['BUILD_SOURCEVERSION'] || process.env['CI']) ? suite.skip : flakySuite)('File Watcher (parcel)', () => {
+suite.skip('File Watcher (parcel)', () => {
 
 	let testDir: string;
 	let watcher: TestParcelWatcher;

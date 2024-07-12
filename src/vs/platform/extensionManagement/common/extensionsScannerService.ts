@@ -674,6 +674,7 @@ class ExtensionsScanner extends Disposable {
 					extension = this.validate(extension, input);
 				}
 				if (manifest.enabledApiProposals && (!this.environmentService.isBuilt || this.extensionsEnabledWithApiProposalVersion.includes(id.toLowerCase()))) {
+					manifest.originalEnabledApiProposals = manifest.enabledApiProposals;
 					manifest.enabledApiProposals = parseEnabledApiProposalNames([...manifest.enabledApiProposals]);
 				}
 				return extension;
@@ -725,7 +726,7 @@ class ExtensionsScanner extends Disposable {
 			return null;
 		}
 		if (getNodeType(manifest) !== 'object') {
-			this.logService.error(this.formatMessage(extensionLocation, localize('jsonParseInvalidType', "Invalid manifest file {0}: Not an JSON object.", manifestLocation.path)));
+			this.logService.error(this.formatMessage(extensionLocation, localize('jsonParseInvalidType', "Invalid manifest file {0}: Not a JSON object.", manifestLocation.path)));
 			return null;
 		}
 		return manifest;

@@ -3,16 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { InlineCompletionContextKeys } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionContextKeys';
 import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsController';
-import { AccessibleViewType, AccessibleViewProviderId } from 'vs/platform/accessibility/browser/accessibleView';
+import { AccessibleViewType, AccessibleViewProviderId, AccessibleContentProvider } from 'vs/platform/accessibility/browser/accessibleView';
 import { IAccessibleViewImplentation } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
-export class InlineCompletionsAccessibleView extends Disposable implements IAccessibleViewImplentation {
+export class InlineCompletionsAccessibleView implements IAccessibleViewImplentation {
 	readonly type = AccessibleViewType.View;
 	readonly priority = 95;
 	readonly name = 'inline-completions';
@@ -35,28 +34,28 @@ export class InlineCompletionsAccessibleView extends Disposable implements IAcce
 				return;
 			}
 			const language = editor.getModel()?.getLanguageId() ?? undefined;
-			return {
-				id: AccessibleViewProviderId.InlineCompletions,
-				verbositySettingKey: 'accessibility.verbosity.inlineCompletions',
-				provideContent() { return lineText + ghostText; },
-				onClose() {
+			return new AccessibleContentProvider(
+				AccessibleViewProviderId.InlineCompletions,
+				{ language, type: AccessibleViewType.View },
+				() => lineText + ghostText,
+
+				() => {
 					model.stop();
 					editor.focus();
 				},
-				next() {
+				'accessibility.verbosity.inlineCompletions',
+				undefined,
+				undefined,
+				() => {
 					model.next();
 					setTimeout(() => resolveProvider(), 50);
 				},
-				previous() {
+				() => {
 					model.previous();
 					setTimeout(() => resolveProvider(), 50);
 				},
-				options: { language, type: AccessibleViewType.View }
-			};
+			);
 		}
 		return resolveProvider();
-	}
-	constructor() {
-		super();
 	}
 }

@@ -70,7 +70,7 @@ export interface IUntitledTextEditorModel extends ITextEditorModel, ILanguageSup
 export class UntitledTextEditorModel extends BaseTextEditorModel implements IUntitledTextEditorModel {
 
 	private static readonly FIRST_LINE_NAME_MAX_LENGTH = 40;
-	private static readonly FIRST_LINE_NAME_CANDIDATE_MAX_LENGTH = UntitledTextEditorModel.FIRST_LINE_NAME_MAX_LENGTH * 10;
+	private static readonly FIRST_LINE_NAME_CANDIDATE_MAX_LENGTH = this.FIRST_LINE_NAME_MAX_LENGTH * 10;
 
 	// Support the special '${activeEditorLanguage}' language by
 	// looking up the language id from the editor that is active

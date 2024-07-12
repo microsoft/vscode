@@ -17,8 +17,8 @@ suite('myers', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('1', () => {
-		const s1 = new LinesSliceCharSequence(['hello world'], new OffsetRange(0, 1), true);
-		const s2 = new LinesSliceCharSequence(['hallo welt'], new OffsetRange(0, 1), true);
+		const s1 = new LinesSliceCharSequence(['hello world'], new Range(1, 1, 1, Number.MAX_SAFE_INTEGER), true);
+		const s2 = new LinesSliceCharSequence(['hallo welt'], new Range(1, 1, 1, Number.MAX_SAFE_INTEGER), true);
 
 		const a = true ? new MyersDiffAlgorithm() : new DynamicProgrammingDiffing();
 		a.compute(s1, s2);
@@ -83,7 +83,7 @@ suite('LinesSliceCharSequence', () => {
 			'line4: hello world',
 			'line5: bazz',
 		],
-		new OffsetRange(1, 4), true
+		new Range(2, 1, 5, 1), true
 	);
 
 	test('translateOffset', () => {

@@ -73,8 +73,16 @@
 }
 
 .monaco-workbench .xterm {
-	/* All terminals have at least 10px left/right edge padding and 2 padding on the bottom (so underscores on last line are visible */
-	padding: 0 10px 2px;
+	/* All terminals have at least 20px left padding for the gutter */
+	padding-left: 20px;
+}
+
+.monaco-workbench .xterm .xterm-scrollable-element {
+	/* Offset the scrollable element such that:
+	 * - The terminal grid will be positioned to the right of the gutter
+	 * - Elements are not hidden in the gutter */
+	margin-left: -20px;
+	padding-left: 20px;
 }
 
 .monaco-workbench .terminal-editor .xterm,
@@ -130,20 +138,6 @@
 .xterm.xterm-cursor-pointer .xterm-screen { cursor: pointer; }
 .xterm.column-select.focus .xterm-screen  { cursor: crosshair; }
 
-.monaco-workbench .terminal-editor .xterm {
-	padding-left: 20px !important;
-}
-
-.monaco-workbench .pane-body.integrated-terminal .terminal-group .monaco-split-view2.horizontal .split-view-view:first-child .xterm,
-.integrated-terminal.shell-integration .xterm {
-	padding-left: 20px !important;
-}
-
-.monaco-workbench .terminal-editor .terminal-group .monaco-split-view2.horizontal .split-view-view:last-child .xterm,
-.monaco-workbench .pane-body.integrated-terminal .terminal-group .monaco-split-view2.horizontal .split-view-view:last-child .xterm {
-	padding-right: 20px;
-}
-
 .monaco-workbench .terminal-editor .xterm a:not(.xterm-invalid-link),
 .monaco-workbench .pane-body.integrated-terminal .xterm a:not(.xterm-invalid-link) {
 	/* To support message box sizing */
@@ -168,8 +162,8 @@
 
 .monaco-workbench .terminal-editor .terminal-wrapper:not(.fixed-dims) .xterm-viewport,
 .monaco-workbench .pane-body.integrated-terminal .terminal-wrapper:not(.fixed-dims) .xterm-viewport {
-	/* Override xterm.js' width as we want to size the viewport to fill the panel so the scrollbar is on the right edge */
-	width: auto !important;
+	/* Override xterm.js' position so the area that accepts mouse events extends to the edge of the scroll bar */
+	right: 14px;
 }
 
 .monaco-workbench .pane-body.integrated-terminal {
@@ -527,29 +521,6 @@
 
 .monaco-workbench .integrated-terminal .hoverHighlight {
 	background-color: var(--vscode-terminal-hoverHighlightBackground);
-}
-
-.force-scrollbar .xterm .xterm-viewport,
-.monaco-workbench .xterm.focus .xterm-viewport,
-.monaco-workbench .xterm:focus .xterm-viewport,
-.monaco-workbench .xterm:hover .xterm-viewport {
-	background-color: var(--vscode-scrollbarSlider-background) !important;
-}
-
-.monaco-workbench .xterm-viewport {
-	scrollbar-color: var(--vscode-scrollbarSlider-background) transparent;
-}
-
-.monaco-workbench .xterm .xterm-viewport::-webkit-scrollbar-thumb:hover {
-	background-color: var(--vscode-scrollbarSlider-hoverBackground);
-}
-
-.monaco-workbench .xterm-viewport:hover {
-	scrollbar-color: var(--vscode-scrollbarSlider-hoverBackground) transparent;
-}
-
-.monaco-workbench .xterm .xterm-viewport::-webkit-scrollbar-thumb:active {
-	background-color: var(--vscode-scrollbarSlider-activeBackground);
 }
 
 .monaco-workbench .xterm.terminal.hide {

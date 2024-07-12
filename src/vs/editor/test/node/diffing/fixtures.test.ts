@@ -8,11 +8,13 @@ import { existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'fs
 import { join, resolve } from 'path';
 import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { FileAccess } from 'vs/base/common/network';
-import { DetailedLineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
+import { DetailedLineRangeMapping, RangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { LegacyLinesDiffComputer } from 'vs/editor/common/diff/legacyLinesDiffComputer';
 import { DefaultLinesDiffComputer } from 'vs/editor/common/diff/defaultLinesDiffComputer/defaultLinesDiffComputer';
 import { Range } from 'vs/editor/common/core/range';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { AbstractText, ArrayText, SingleTextEdit, TextEdit } from 'vs/editor/common/core/textEdit';
+import { LinesDiff } from 'vs/editor/common/diff/linesDiffComputer';
 
 suite('diffing fixtures', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -47,7 +49,15 @@ suite('diffing fixtures', () => {
 		const ignoreTrimWhitespace = folder.indexOf('trimws') >= 0;
 		const diff = diffingAlgo.computeDiff(firstContentLines, secondContentLines, { ignoreTrimWhitespace, maxComputationTimeMs: Number.MAX_SAFE_INTEGER, computeMoves: true });
 
+		if (diffingAlgoName === 'advanced' && !ignoreTrimWhitespace) {
+			assertDiffCorrectness(diff, firstContentLines, secondContentLines);
+		}
+
 		function getDiffs(changes: readonly DetailedLineRangeMapping[]): IDetailedDiff[] {
+			for (const c of changes) {
+				RangeMapping.assertSorted(c.innerChanges ?? []);
+			}
+
 			return changes.map<IDetailedDiff>(c => ({
 				originalRange: c.original.toString(),
 				modifiedRange: c.modified.toString(),
@@ -123,7 +133,7 @@ suite('diffing fixtures', () => {
 	}
 
 	test(`test`, () => {
-		runTest('issue-214049', 'advanced');
+		runTest('invalid-diff-trimws', 'advanced');
 	});
 
 	for (const folder of folders) {
@@ -159,4 +169,21 @@ interface IMoveInfo {
 	modifiedRange: string; // [startLineNumber, endLineNumberExclusive)
 
 	changes: IDetailedDiff[];
+}
+
+function assertDiffCorrectness(diff: LinesDiff, original: string[], modified: string[]) {
+	const allInnerChanges = diff.changes.flatMap(c => c.innerChanges!);
+	const edit = rangeMappingsToTextEdit(allInnerChanges, new ArrayText(modified));
+	const result = edit.normalize().apply(new ArrayText(original));
+
+	assert.deepStrictEqual(result, modified.join('\n'));
+}
+
+function rangeMappingsToTextEdit(rangeMappings: readonly RangeMapping[], modified: AbstractText): TextEdit {
+	return new TextEdit(rangeMappings.map(m => {
+		return new SingleTextEdit(
+			m.originalRange,
+			modified.getValueOfRange(m.modifiedRange)
+		);
+	}));
 }

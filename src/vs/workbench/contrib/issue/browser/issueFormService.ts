@@ -40,11 +40,10 @@ export class IssueFormService implements IIssueMainService {
 		// listen for messages from the main window
 		mainWindow.addEventListener('message', async (event) => {
 			if (event.data && event.data.sendChannel === 'vscode:triggerReporterMenu') {
-				// creates menu from contributed
-				const menu = this.menuService.createMenu(MenuId.IssueReporter, this.contextKeyService);
+				// gets menu actions from contributed
+				const actions = this.menuService.getMenuActions(MenuId.IssueReporter, this.contextKeyService, { renderShortTitle: true }).flatMap(entry => entry[1]);
 
-				// render menu and dispose
-				const actions = menu.getActions({ renderShortTitle: true }).flatMap(entry => entry[1]);
+				// render menu
 				for (const action of actions) {
 					try {
 						if (action.item && 'source' in action.item && action.item.source?.id === event.data.extensionId) {
@@ -61,8 +60,6 @@ export class IssueFormService implements IIssueMainService {
 					const replyChannel = `vscode:triggerReporterMenuResponse`;
 					mainWindow.postMessage({ replyChannel }, '*');
 				}
-
-				menu.dispose();
 			}
 		});
 
