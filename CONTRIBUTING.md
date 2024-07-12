@@ -219,7 +219,7 @@ This will install the extension as a compatible dist for your system:
 1. Copy the contents of the generated `extensions` folder into the `extensions/` folder of the packaged PearAI App. For example, on macOS, it is:
    - `cp -r ~/.vscode/extensions/pearai.pearai-0.9.156 {path_to_PearAI.app}/Contents/Resources/app/extensions`
 2. Take a quick look into the `extensions/` folder of the packaged PearAI app for any other pearai folders. For example, there will be a pearai-submodule folder. Delete it. For example, on macOS, it is:
-   - `rm -rf ~/.vscode/extensions/pearai.pearai-0.9.156 {path_to_PearAI.app}/Contents/Resources/app/extensions/pearai-submodule`
+   - rm -rf {path_to_PearAI.app}/Contents/Resources/app/extensions/pearai-submodule
 3. Double-click your overall PearAI app, and the extension should be built-in.
 4. Distribute the application.
 
