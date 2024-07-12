@@ -5,7 +5,7 @@
 
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { getDocumentDir } from '../../document';
+import { getDocumentDir } from '../document';
 import { Mimes, QuoteTypes, Schemes, getQuoteTypeSetting } from './shared';
 import { UriList } from './uriList';
 
@@ -144,7 +144,7 @@ function getRelativePath(file: vscode.Uri): string | undefined {
 		return path.posix.relative(dir.path, file.path);
 	}
 
-	return;
+	return undefined;
 }
 
 function escapeForUrlFunction(value: string, quoteType: QuoteTypes): string {
