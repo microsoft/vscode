@@ -357,7 +357,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return this.inputPart.hasFocus();
 	}
 
-	moveFocus(item: ChatTreeItem, type: 'next' | 'previous'): void {
+	getSibling(item: ChatTreeItem, type: 'next' | 'previous'): ChatTreeItem | undefined {
 		if (!isResponseVM(item)) {
 			return;
 		}
@@ -374,7 +374,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (indexToFocus < 0 || indexToFocus > responseItems.length - 1) {
 			return;
 		}
-		this.focus(responseItems[indexToFocus]);
+		return responseItems[indexToFocus];
 	}
 
 	clear(): void {
