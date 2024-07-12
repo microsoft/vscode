@@ -1296,19 +1296,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._wrapperElement.classList.toggle('active', visible);
 		if (visible && this.xterm) {
 			this._open();
+			// Flush any pending resizes
+			this._resizeDebouncer?.flush();
 			// Resize to re-evaluate dimensions, this will ensure when switching to a terminal it is
 			// using the most up to date dimensions (eg. when terminal is created in the background
 			// using cached dimensions of a split terminal).
-			this._resizeDebouncer?.flush();
 			this._resize();
-			// HACK: Trigger a forced refresh of the viewport to sync the viewport and scroll bar.
-			// This is necessary if the number of rows in the terminal has decreased while it was in
-			// the background since scrollTop changes take no effect but the terminal's position
-			// does change since the number of visible rows decreases.
-			// This can likely be removed after https://github.com/xtermjs/xterm.js/issues/291 is
-			// fixed upstream.
-			// TODO: Can probably remove this now with new viewport
-			setTimeout(() => this.xterm!.forceRefresh(), 0);
 		}
 	}
 
