@@ -56,6 +56,16 @@
           "meta.embedded.math.markdown": "latex",
           "punctuation.definition.math.end.markdown": "latex"
         }
+      },
+      {
+        "scopeName": "markdown.math.codeblock",
+        "path": "./syntaxes/md-math-fence.tmLanguage.json",
+        "injectTo": [
+          "text.html.markdown"
+        ],
+        "embeddedLanguages": {
+          "meta.embedded.math.markdown": "latex"
+        }
       }
     ],
     "notebookRenderer": [
