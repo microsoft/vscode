@@ -257,6 +257,9 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			if (e.affectsConfiguration(TerminalSettingId.UnicodeVersion)) {
 				this._updateUnicodeVersion();
 			}
+			if (e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationsEnabled)) {
+				this._updateTheme();
+			}
 		}));
 
 		this._register(this._themeService.onDidColorThemeChange(theme => this._updateTheme(theme)));
@@ -784,6 +787,9 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			theme = this._themeService.getColorTheme();
 		}
 
+		const config = this._terminalConfigurationService.config;
+		const hideOverviewRuler = ['never', 'gutter'].includes(config.shellIntegration?.decorationsEnabled ?? '');
+
 		const foregroundColor = theme.getColor(TERMINAL_FOREGROUND_COLOR);
 		const backgroundColor = this._xtermColorProvider.getBackgroundColor(theme);
 		const cursorColor = theme.getColor(TERMINAL_CURSOR_FOREGROUND_COLOR) || foregroundColor;
@@ -800,7 +806,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			selectionBackground: selectionBackgroundColor?.toString(),
 			selectionInactiveBackground: selectionInactiveBackgroundColor?.toString(),
 			selectionForeground: selectionForegroundColor?.toString(),
-			overviewRulerBorder: theme.getColor(TERMINAL_OVERVIEW_RULER_BORDER_COLOR)?.toString(),
+			overviewRulerBorder: hideOverviewRuler ? '#0000' : theme.getColor(TERMINAL_OVERVIEW_RULER_BORDER_COLOR)?.toString(),
 			scrollbarSliderActiveBackground: theme.getColor(scrollbarSliderActiveBackground)?.toString(),
 			scrollbarSliderBackground: theme.getColor(scrollbarSliderBackground)?.toString(),
 			scrollbarSliderHoverBackground: theme.getColor(scrollbarSliderHoverBackground)?.toString(),
