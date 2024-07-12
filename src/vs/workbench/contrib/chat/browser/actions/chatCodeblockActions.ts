@@ -14,6 +14,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { DocumentContextItem, WorkspaceEdit } from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
+import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { CopyAction } from 'vs/editor/contrib/clipboard/browser/clipboard';
 import { localize, localize2 } from 'vs/nls';
@@ -39,6 +40,8 @@ import { CellKind, NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebook/comm
 import { ITerminalEditorService, ITerminalGroupService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import * as strings from 'vs/base/common/strings';
+import { CharCode } from 'vs/base/common/charCode';
 
 export interface IChatCodeBlockActionContext extends ICodeBlockActionContext {
 	element: IChatResponseViewModel;
@@ -145,13 +148,9 @@ abstract class InsertCodeBlockAction extends ChatCodeBlockAction {
 
 	protected async computeEdits(accessor: ServicesAccessor, codeEditor: IActiveCodeEditor, codeBlockActionContext: ICodeBlockActionContext): Promise<ResourceEdit[] | WorkspaceEdit> {
 		const activeModel = codeEditor.getModel();
-		const activeSelection = codeEditor.getSelection() ?? new Range(activeModel.getLineCount(), 1, activeModel.getLineCount(), 1);
-		return [
-			new ResourceTextEdit(activeModel.uri, {
-				range: activeSelection,
-				text: codeBlockActionContext.code,
-			}),
-		];
+		const range = codeEditor.getSelection() ?? new Range(activeModel.getLineCount(), 1, activeModel.getLineCount(), 1);
+		const text = reindent(codeBlockActionContext.code, activeModel, range.startLineNumber);
+		return [new ResourceTextEdit(activeModel.uri, { range, text })];
 	}
 
 	private async handleTextEditor(accessor: ServicesAccessor, codeEditor: IActiveCodeEditor, codeBlockActionContext: ICodeBlockActionContext) {
@@ -185,6 +184,67 @@ abstract class InsertCodeBlockAction extends ChatCodeBlockAction {
 		}
 	}
 
+}
+
+function reindent(codeBlockContent: string, model: ITextModel, seletionStartLine: number) {
+	const newContent = strings.splitLines(codeBlockContent);
+	if (newContent.length === 0) {
+		return codeBlockContent;
+	}
+
+	const formattingOptions = model.getFormattingOptions();
+	const codeIndentLevel = computeIndentation(model.getLineContent(seletionStartLine), formattingOptions.tabSize).level;
+
+	const indents = newContent.map(line => computeIndentation(line, formattingOptions.tabSize));
+
+	// find the smallest indent level in the code block
+	const newContentIndentLevel = indents.reduce<number>((min, indent) => {
+		if (indent.length !== indent.length) { // ignore empty lines
+			return Math.min(indent.level, min);
+		}
+		return min;
+	}, Number.MAX_VALUE);
+
+	if (newContentIndentLevel === Number.MAX_VALUE || newContentIndentLevel === codeIndentLevel) {
+		// all lines are empty or the indent is already correct
+		return codeBlockContent;
+	}
+	const newLines = [];
+	for (let i = 0; i < newContent.length; i++) {
+		const { level, length } = indents[i];
+		const newLevel = Math.max(0, codeIndentLevel + level - newContentIndentLevel);
+		const newIndentation = formattingOptions.insertSpaces ? ' '.repeat(formattingOptions.tabSize * newLevel) : '\t'.repeat(newLevel);
+		newLines.push(newIndentation + newContent[i].substring(length));
+	}
+	return newLines.join('\n');
+}
+
+// TODO: Merge with `computeIndentLevel` from `vs/editor/common/model/utils.ts`
+function computeIndentation(line: string, tabSize: number): { level: number; length: number } {
+	let nSpaces = 0;
+	let level = 0;
+	let i = 0;
+	let length = 0;
+	const len = line.length;
+	while (i < len) {
+		const chCode = line.charCodeAt(i);
+		if (chCode === CharCode.Space) {
+			nSpaces++;
+			if (nSpaces === tabSize) {
+				level++;
+				nSpaces = 0;
+				length = i + 1;
+			}
+		} else if (chCode === CharCode.Tab) {
+			level++;
+			nSpaces = 0;
+			length = i + 1;
+		} else {
+			break;
+		}
+		i++;
+	}
+	return { level, length };
 }
 
 export function registerChatCodeBlockActions() {
@@ -346,7 +406,7 @@ export function registerChatCodeBlockActions() {
 						{ location: ProgressLocation.Notification, delay: 500, sticky: true, cancellable: true },
 						async progress => {
 							for (const provider of mappedEditsProviders) {
-								progress.report({ message: localize('applyCodeBlock.progress', "Applying code block using {0}...", provider.id) });
+								progress.report({ message: localize('applyCodeBlock.progress', "Applying code block using {0}...", provider.displayName) });
 								const mappedEdits = await provider.provideMappedEdits(
 									activeModel,
 									[codeBlockActionContext.code],
@@ -371,6 +431,7 @@ export function registerChatCodeBlockActions() {
 					cancellationTokenSource.dispose();
 				}
 			}
+			// fall back to inserting the code block as is
 			return super.computeEdits(accessor, codeEditor, codeBlockActionContext);
 		}
 	});
