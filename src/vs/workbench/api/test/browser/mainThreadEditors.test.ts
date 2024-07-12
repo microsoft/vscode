@@ -16,12 +16,10 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextSnapshot } from 'vs/editor/common/model';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import { LanguageService } from 'vs/editor/common/services/languageService';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ModelService } from 'vs/editor/common/services/modelService';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { TestCodeEditorService } from 'vs/editor/test/browser/editorTestServices';
-import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -91,8 +89,6 @@ suite('MainThreadEditors', () => {
 			configService,
 			new TestTextResourcePropertiesService(configService),
 			undoRedoService,
-			disposables.add(new LanguageService()),
-			new TestLanguageConfigurationService(),
 			new TestInstantiationService()
 		);
 

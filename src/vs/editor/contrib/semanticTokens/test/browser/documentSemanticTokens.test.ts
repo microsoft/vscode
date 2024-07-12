@@ -24,7 +24,6 @@ import { ModelService } from 'vs/editor/common/services/modelService';
 import { SemanticTokensStylingService } from 'vs/editor/common/services/semanticTokensStylingService';
 import { DocumentSemanticTokensFeature } from 'vs/editor/contrib/semanticTokens/browser/documentSemanticTokens';
 import { getDocumentSemanticTokens, isSemanticTokens } from 'vs/editor/contrib/semanticTokens/common/getSemanticTokens';
-import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 import { TestTextResourcePropertiesService } from 'vs/editor/test/common/services/testTextResourcePropertiesService';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
@@ -55,8 +54,6 @@ suite('ModelSemanticColoring', () => {
 			configService,
 			new TestTextResourcePropertiesService(configService),
 			new UndoRedoService(new TestDialogService(), new TestNotificationService()),
-			languageService,
-			new TestLanguageConfigurationService(),
 			new TestInstantiationService()
 		));
 		const envService = new class extends mock<IEnvironmentService>() {

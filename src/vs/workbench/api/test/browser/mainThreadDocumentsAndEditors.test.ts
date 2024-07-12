@@ -27,9 +27,7 @@ import { TestTextResourcePropertiesService, TestWorkingCopyFileService } from 'v
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { LanguageService } from 'vs/editor/common/services/languageService';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
@@ -66,8 +64,6 @@ suite('MainThreadDocumentsAndEditors', () => {
 			configService,
 			new TestTextResourcePropertiesService(configService),
 			undoRedoService,
-			disposables.add(new LanguageService()),
-			new TestLanguageConfigurationService(),
 			new TestInstantiationService()
 		);
 		codeEditorService = new TestCodeEditorService(themeService);

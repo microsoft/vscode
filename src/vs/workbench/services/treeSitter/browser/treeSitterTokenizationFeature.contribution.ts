@@ -5,7 +5,7 @@
 
 import { registerSingleton, InstantiationType } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
-import { TreeSitterParserService } from 'vs/editor/browser/services/treeSitter/treeSitterParserService';
+import { TreeSitterTextModelService } from 'vs/editor/browser/services/treeSitter/treeSitterParserService';
 import { ITreeSitterParserService } from 'vs/editor/common/services/treeSitterParserService';
 
 /**
@@ -20,6 +20,6 @@ class TreeSitterTokenizationInstantiator implements IWorkbenchContribution {
 	) { }
 }
 
-registerSingleton(ITreeSitterParserService, TreeSitterParserService, InstantiationType.Eager);
+registerSingleton(ITreeSitterParserService, TreeSitterTextModelService, InstantiationType.Eager);
 
 registerWorkbenchContribution2(TreeSitterTokenizationInstantiator.ID, TreeSitterTokenizationInstantiator, WorkbenchPhase.BlockRestore);

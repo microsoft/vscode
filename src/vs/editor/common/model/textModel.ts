@@ -330,8 +330,6 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		this._guidesTextModelPart = this._register(new GuidesTextModelPart(this, this._languageConfigurationService));
 		this._decorationProvider = this._register(new ColorizedBracketPairsDecorationProvider(this));
 		this._tokenizationTextModelPart = this.instantiationService.createInstance(TokenizationTextModelPart,
-			this._languageService,
-			this._languageConfigurationService,
 			this,
 			this._bracketPairs,
 			languageId,
