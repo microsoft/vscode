@@ -169,7 +169,7 @@ export async function nodeRequest(options: NodeRequestOptions, token: Cancellati
 					stream = res.pipe(createGunzip());
 				}
 
-				resolve({ res, stream: streamToBufferReadableStream(stream) } as IRequestContext);
+				resolve({ res, stream: streamToBufferReadableStream(stream) } satisfies IRequestContext);
 			}
 		});
 
