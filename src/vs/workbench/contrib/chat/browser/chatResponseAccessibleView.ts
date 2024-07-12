@@ -99,7 +99,7 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 		}
 	}
 
-	next(): string | undefined {
+	provideNextContent(): string | undefined {
 		const next = this._widget.getSibling(this._focusedItem, 'next');
 		if (next) {
 			this._focusedItem = next;
@@ -108,7 +108,7 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 		return;
 	}
 
-	previous(): string | undefined {
+	providePreviousContent(): string | undefined {
 		const previous = this._widget.getSibling(this._focusedItem, 'previous');
 		if (previous) {
 			this._focusedItem = previous;

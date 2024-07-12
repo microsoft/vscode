@@ -146,8 +146,8 @@ export class AccessibleContentProvider extends Disposable implements IAccessible
 		public verbositySettingKey: string,
 		public onOpen?: () => void,
 		public actions?: IAction[],
-		public next?: () => string | undefined,
-		public previous?: () => string | undefined,
+		public provideNextContent?: () => string | undefined,
+		public providePreviousContent?: () => string | undefined,
 		public onDidChangeContent?: Event<void>,
 		public onKeyDown?: (e: IKeyboardEvent) => void,
 		public getSymbols?: () => IAccessibleViewSymbol[],
@@ -165,8 +165,8 @@ export class ExtensionContentProvider extends Disposable implements IBasicConten
 		public provideContent: () => string,
 		public onClose: () => void,
 		public onOpen?: () => void,
-		public next?: () => string | undefined,
-		public previous?: () => string | undefined,
+		public provideNextContent?: () => string | undefined,
+		public providePreviousContent?: () => string | undefined,
 		public actions?: IAction[],
 		public onDidChangeContent?: Event<void>,
 	) {
@@ -181,7 +181,7 @@ export interface IBasicContentProvider extends IDisposable {
 	provideContent(): string;
 	onOpen?(): void;
 	actions?: IAction[];
-	previous?(): void;
-	next?(): void;
+	providePreviousContent?(): void;
+	provideNextContent?(): void;
 	onDidChangeContent?: Event<void>;
 }

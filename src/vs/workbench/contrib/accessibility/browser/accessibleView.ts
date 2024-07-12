@@ -305,7 +305,7 @@ export class AccessibleView extends Disposable {
 	}
 
 	previous(): void {
-		const newContent = this._currentProvider?.previous?.();
+		const newContent = this._currentProvider?.providePreviousContent?.();
 		if (!this._currentProvider || !this._viewContainer || !newContent) {
 			return;
 		}
@@ -313,7 +313,7 @@ export class AccessibleView extends Disposable {
 	}
 
 	next(): void {
-		const newContent = this._currentProvider?.next?.();
+		const newContent = this._currentProvider?.provideNextContent?.();
 		if (!this._currentProvider || !this._viewContainer || !newContent) {
 			return;
 		}
@@ -491,7 +491,7 @@ export class AccessibleView extends Disposable {
 			this._accessibleViewIsShown.set(shown);
 			this._accessiblityHelpIsShown.reset();
 		}
-		this._accessibleViewSupportsNavigation.set(provider.next !== undefined || provider.previous !== undefined);
+		this._accessibleViewSupportsNavigation.set(provider.provideNextContent !== undefined || provider.providePreviousContent !== undefined);
 		this._accessibleViewVerbosityEnabled.set(this._verbosityEnabled());
 		this._accessibleViewGoToSymbolSupported.set(this._goToSymbolsSupported() ? this.getSymbols()?.length! > 0 : false);
 	}
@@ -679,8 +679,8 @@ export class AccessibleView extends Disposable {
 			provider.verbositySettingKey,
 			provider.onOpen?.bind(provider),
 			provider.actions,
-			provider.next?.bind(provider),
-			provider.previous?.bind(provider),
+			provider.provideNextContent?.bind(provider),
+			provider.providePreviousContent?.bind(provider),
 			provider.onDidChangeContent?.bind(provider),
 			provider.onKeyDown?.bind(provider),
 			provider.getSymbols?.bind(provider),
@@ -690,8 +690,8 @@ export class AccessibleView extends Disposable {
 			provider.provideContent.bind(provider),
 			provider.onClose.bind(provider),
 			provider.onOpen?.bind(provider),
-			provider.next?.bind(provider),
-			provider.previous?.bind(provider),
+			provider.provideNextContent?.bind(provider),
+			provider.providePreviousContent?.bind(provider),
 			provider.actions,
 			provider.onDidChangeContent?.bind(provider),
 		);

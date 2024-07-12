@@ -75,11 +75,11 @@ class CommentsAccessibleContentProvider extends Disposable implements IAccessibl
 	onClose(): void {
 		this._commentsView.focus();
 	}
-	next(): string | undefined {
+	provideNextContent(): string | undefined {
 		this._commentsView.focusNextNode();
 		return this.provideContent();
 	}
-	previous(): string | undefined {
+	providePreviousContent(): string | undefined {
 		this._commentsView.focusPreviousNode();
 		return this.provideContent();
 	}
