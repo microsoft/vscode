@@ -575,6 +575,7 @@ export class QuickInputController extends Disposable {
 		ui.description2.textContent = '';
 		dom.reset(ui.widget);
 		ui.rightActionBar.clear();
+		ui.inlineActionBar.clear();
 		ui.checkAll.checked = false;
 		// ui.inputBox.value = ''; Avoid triggering an event.
 		ui.inputBox.placeholder = '';
