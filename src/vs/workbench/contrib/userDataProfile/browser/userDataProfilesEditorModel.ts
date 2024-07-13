@@ -305,7 +305,6 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 	}
 
 	abstract readonly titleButtons: [Action[], Action[]];
-	abstract readonly titleActions: [IAction[], IAction[]];
 	abstract readonly actions: [IAction[], IAction[]];
 
 	protected abstract doSave(): Promise<void>;
@@ -318,7 +317,6 @@ export class UserDataProfileElement extends AbstractUserDataProfileElement {
 	constructor(
 		private _profile: IUserDataProfile,
 		readonly titleButtons: [Action[], Action[]],
-		readonly titleActions: [IAction[], IAction[]],
 		readonly actions: [IAction[], IAction[]],
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -401,7 +399,6 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 		name: string,
 		copyFrom: URI | IUserDataProfile | undefined,
 		readonly titleButtons: [Action[], Action[]],
-		readonly titleActions: [IAction[], IAction[]],
 		readonly actions: [IAction[], IAction[]],
 		@IFileService private readonly fileService: IFileService,
 		@IUserDataProfileImportExportService private readonly userDataProfileImportExportService: IUserDataProfileImportExportService,
@@ -774,33 +771,21 @@ export class UserDataProfilesEditorModel extends EditorModel {
 			() => profileElement.toggleNewWindowProfile()
 		));
 
-		const titlePrimaryActions: IAction[] = [];
-		titlePrimaryActions.push(newWindowAction);
-		const titleSecondaryActions: IAction[] = [];
-		titleSecondaryActions.push(copyFromProfileAction);
-		titleSecondaryActions.push(exportAction);
-		if (!profile.isDefault) {
-			titleSecondaryActions.push(new Separator());
-			titleSecondaryActions.push(deleteAction);
-		}
-
 		const primaryActions: IAction[] = [];
 		primaryActions.push(newWindowAction);
+		if (!profile.isDefault) {
+			primaryActions.push(deleteAction);
+		}
 		const secondaryActions: IAction[] = [];
 		secondaryActions.push(activateAction);
 		secondaryActions.push(useAsNewWindowProfileAction);
 		secondaryActions.push(new Separator());
 		secondaryActions.push(copyFromProfileAction);
 		secondaryActions.push(exportAction);
-		if (!profile.isDefault) {
-			secondaryActions.push(new Separator());
-			secondaryActions.push(deleteAction);
-		}
 
 		const profileElement = disposables.add(this.instantiationService.createInstance(UserDataProfileElement,
 			profile,
 			[[], []],
-			[titlePrimaryActions, titleSecondaryActions],
 			[primaryActions, secondaryActions]
 		));
 
@@ -860,7 +845,6 @@ export class UserDataProfilesEditorModel extends EditorModel {
 				copyFrom ? '' : localize('untitled', "Untitled"),
 				copyFrom,
 				[[createAction], [cancelAction, previewProfileAction]],
-				[[], []],
 				[[cancelAction], []],
 			));
 			disposables.add(this.newProfileElement.onDidChange(e => {
