@@ -32,7 +32,6 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 // TODO
 
-// Make enter add correctly the new line
 // Make copy paste add correctly the text
 // Add settings
 // Investigate how to make the screen reader read the correct part of the div, we would want it to read letter by letter like in the text area
