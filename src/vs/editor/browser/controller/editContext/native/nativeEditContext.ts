@@ -25,6 +25,8 @@ import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import * as nls from 'vs/nls';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import * as dom from 'vs/base/browser/dom';
+import { KeyCode } from 'vs/base/common/keyCodes';
 
 // TODO
 // 1. Need to rerender the dom element on selection change, so that contains correct elements
@@ -107,7 +109,7 @@ export class NativeEditContext extends AbstractEditContext {
 		const layoutInfo = options.get(EditorOption.layoutInfo);
 		this._contentLeft = layoutInfo.contentLeft;
 
-		this._register(editContextAddDisposableListener(this._ctx, 'textupdate', e => this._handleTextUpdate(e)));
+		this._register(editContextAddDisposableListener(this._ctx, 'textupdate', e => this._handleStandardTextUpdate(e)));
 		this._register(editContextAddDisposableListener(this._ctx, 'textformatupdate', e => this._handleTextFormatUpdate(e)));
 		this._ctx.addEventListener('textformatupdate', e => {
 			console.log('text format update');
@@ -133,6 +135,30 @@ export class NativeEditContext extends AbstractEditContext {
 			console.log('e : ', e);
 			if (e.inputType === 'insertParagraph' || e.inputType === 'insertLineBreak') {
 				this._handleEnter(e);
+			}
+		});
+
+		let copyText: string | undefined;
+		this._domElement.domNode.addEventListener('copy', e => {
+			console.log('copy');
+			console.log('e : ', e);
+			// need to set the selection correctly so that the correct text is copied, currently the top most text is copied
+			const target = e.target;
+			if (target && dom.isHTMLElement(target)) {
+				copyText = target.innerText;
+			} else {
+				copyText = undefined;
+			}
+		});
+		this._domElement.domNode.addEventListener('keydown', e => {
+			console.log('onkeydown');
+			console.log('e : ', e);
+			const x = new StandardKeyboardEvent(e);
+			if ((x.metaKey || x.ctrlKey) && x.keyCode === KeyCode.KeyV) {
+				if (copyText !== undefined && this._editContextState) {
+					this._handleTextUpdate(this._editContextState.positionOffset, this._editContextState.positionOffset, copyText);
+					copyText = undefined;
+				}
 			}
 		});
 		console.log('this._domElement : ', this._domElement);
@@ -176,15 +202,16 @@ export class NativeEditContext extends AbstractEditContext {
 		if (!this._editContextState) {
 			return;
 		}
-		this._handleTextUpdateOrEnter(this._editContextState.positionOffset, this._editContextState.positionOffset, '\n');
+		this._handleTextUpdate(this._editContextState.positionOffset, this._editContextState.positionOffset, '\n');
 
 	}
 
-	private _handleTextUpdate(e: TextUpdateEvent): void {
-		this._handleTextUpdateOrEnter(e.updateRangeStart, e.updateRangeEnd, e.text);
+	private _handleStandardTextUpdate(e: TextUpdateEvent): void {
+		this._handleTextUpdate(e.updateRangeStart, e.updateRangeEnd, e.text);
 	}
 
-	private _handleTextUpdateOrEnter(updateRangeStart: number, updateRangeEnd: number, text: string): void {
+	private _handleTextUpdate(updateRangeStart: number, updateRangeEnd: number, text: string): void {
+		console.log('_handleTextUpdate');
 		if (!this._editContextState) {
 			return;
 		}
