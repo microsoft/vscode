@@ -141,10 +141,14 @@ export class NativeEditContext extends AbstractEditContext {
 			// need to set the selection correctly so that the correct text is copied, currently the top most text is copied
 			const target = e.target;
 			if (target && dom.isHTMLElement(target)) {
-				copyText = target.innerText;
+				// copyText = target.innerText;
+				// doesn't copy directly so we need to the use selection stard and selection end? copies the whole div instead?
+				console.log('target.textContent : ', target.textContent);
+				copyText = target.textContent?.substring(this._ctx.selectionStart, this._ctx.selectionEnd) ?? '';
 			} else {
 				copyText = undefined;
 			}
+			console.log('copyText : ', copyText);
 		});
 		this._domElement.domNode.addEventListener('keydown', e => {
 			console.log('onkeydown');
@@ -263,17 +267,36 @@ export class NativeEditContext extends AbstractEditContext {
 		this._ctx.updateText(0, Number.MAX_SAFE_INTEGER, value);
 		this._ctx.updateSelection(selection.start, selection.endExclusive);
 
-		const splitText = value.split('\n');
-		this._domElement.domNode.replaceChildren();
-		for (const line of splitText) {
-			const lineDomNode = document.createElement('span');
-			lineDomNode.tabIndex = 0;
-			lineDomNode.textContent = line;
-			lineDomNode.role = 'contenteditable';
-			this._domElement.domNode.appendChild(lineDomNode);
+		// const splitText = value.split('\n');
+		// this._domElement.domNode.replaceChildren();
+		// for (const line of splitText) {
+		// 	const lineDomNode = document.createElement('span');
+		// 	lineDomNode.tabIndex = 0;
+		// 	lineDomNode.textContent = line;
+		// 	lineDomNode.role = 'contenteditable';
+		// 	this._domElement.domNode.appendChild(lineDomNode);
+		// }
+		// console.log('splitText : ', splitText);
+
+		const domElementNode = this._domElement.domNode;
+		domElementNode.replaceChildren();
+		domElementNode.textContent = value;
+
+		const activeDocument = dom.getActiveWindow().document;
+		const activeDocumentSelection = activeDocument.getSelection();
+		console.log('activeDocumentSelection : ', activeDocumentSelection);
+
+		if (activeDocumentSelection && domElementNode.firstChild) {
+			const range = new globalThis.Range();
+			range.setStart(domElementNode.firstChild, selection.start);
+			range.setEnd(domElementNode.firstChild, selection.endExclusive);
+			activeDocumentSelection.removeAllRanges();
+			activeDocumentSelection.addRange(range);
 		}
-		console.log('splitText : ', splitText);
 		console.log('this._domElement : ', this._domElement);
+		console.log('activeDocumentSelection : ', activeDocumentSelection);
+
+		// actually need to update the dom selection?
 
 		// this._domTextAreaElement.domNode.value = value;
 		// this._domTextAreaElement.domNode.setSelectionRange(selection.start, selection.endExclusive);
