@@ -31,7 +31,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 
 // TODO
 
-// Make copy paste add correctly the text
+// make the actual hidden dom node be visible so I can more easily debug and understand what is happening
 // Investigate how to make the screen reader read the correct part of the div, we would want it to read letter by letter like in the text area
 // Investigate other ways of using the text area, is all hope lost?
 
@@ -56,9 +56,11 @@ export class NativeEditContext extends AbstractEditContext {
 		super(context);
 
 		this._domElement.domNode.tabIndex = 0;
-		this._domElement.domNode.style.width = '100px';
-		this._domElement.domNode.style.height = '100px';
 		this._domElement.domNode.role = 'contenteditable';
+		this._domElement.domNode.style.position = 'absolute';
+		this._domElement.domNode.style.zIndex = '100';
+		this._domElement.domNode.style.background = 'white';
+		this._domElement.domNode.style.color = 'black';
 
 		this._domElement.domNode.onfocus = () => {
 			this._isFocused = true;
