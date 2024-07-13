@@ -12,7 +12,7 @@ import { DebugEditContext } from 'vs/editor/browser/controller/editContext/nativ
 import { IEditorAriaOptions } from 'vs/editor/browser/editorBrowser';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
 import { ViewController } from 'vs/editor/browser/view/viewController';
-import { EditorOption, IComputedEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { Position } from 'vs/editor/common/core/position';
@@ -22,9 +22,6 @@ import { SingleTextEdit, TextEdit, LineBasedText } from 'vs/editor/common/core/t
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { ViewConfigurationChangedEvent, ViewCursorStateChangedEvent, ViewScrollChangedEvent } from 'vs/editor/common/viewEvents';
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
-import * as nls from 'vs/nls';
-import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import * as dom from 'vs/base/browser/dom';
 import { KeyCode } from 'vs/base/common/keyCodes';
 
@@ -55,8 +52,7 @@ export class NativeEditContext extends AbstractEditContext {
 
 	constructor(
 		context: ViewContext,
-		private readonly _viewController: ViewController,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		private readonly _viewController: ViewController
 	) {
 		super(context);
 
@@ -355,6 +351,7 @@ export class NativeEditContext extends AbstractEditContext {
 		this._domElement.domNode.focus();
 	}
 
+	/*
 	private _getAriaLabel(options: IComputedEditorOptions): string {
 		const accessibilitySupport = options.get(EditorOption.accessibilitySupport);
 		if (accessibilitySupport === AccessibilitySupport.Disabled) {
@@ -374,6 +371,7 @@ export class NativeEditContext extends AbstractEditContext {
 		}
 		return options.get(EditorOption.ariaLabel);
 	}
+	*/
 
 	public override refreshFocusState(): void { }
 
