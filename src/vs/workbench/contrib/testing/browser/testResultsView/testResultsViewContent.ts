@@ -5,10 +5,12 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { Button } from 'vs/base/browser/ui/button/button';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { Orientation, Sizing, SplitView } from 'vs/base/browser/ui/splitview/splitview';
 import { Limiter } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event, Relay } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -29,7 +31,6 @@ import { OutputPeekTree } from 'vs/workbench/contrib/testing/browser/testResults
 import { IObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
 import { LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestFollowup, ITestService } from 'vs/workbench/contrib/testing/common/testService';
-import { ITestMessageStackFrame } from 'vs/workbench/contrib/testing/common/testTypes';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
 
@@ -50,12 +51,12 @@ export class TestResultsViewContent extends Disposable {
 	private readonly didReveal = this._register(new Emitter<{ subject: InspectSubject; preserveFocus: boolean }>());
 	private readonly currentSubjectStore = this._register(new DisposableStore());
 	private readonly onCloseEmitter = this._register(new Relay<void>());
-	private readonly onDidChangeStackFrameEmitter = this._register(new Relay<ITestMessageStackFrame>());
 	private followupWidget!: FollowupActionWidget;
 	private messageContextKeyService!: IContextKeyService;
 	private contextKeyTestMessage!: IContextKey<string>;
 	private contextKeyResultOutdated!: IContextKey<boolean>;
 	private callStackEl!: HTMLElement;
+	private stackToggle!: HTMLElement;
 	private readonly callStackWidget = this._register(new MutableDisposable<TestResultStackWidget>());
 
 	private dimension?: dom.Dimension;
@@ -70,7 +71,6 @@ export class TestResultsViewContent extends Disposable {
 	public onDidRequestReveal!: Event<InspectSubject>;
 
 	public readonly onClose = this.onCloseEmitter.event;
-	public readonly onDidChangeStackFrame = this.onDidChangeStackFrameEmitter.event;
 
 	public get uiState(): ITestResultsViewContentUiState {
 		return {
@@ -103,7 +103,22 @@ export class TestResultsViewContent extends Disposable {
 
 		const { historyVisible, showRevealLocationOnMessages } = this.options;
 		const isInPeekView = this.editor !== undefined;
-		const messageContainer = this.messageContainer = dom.append(containerElement, dom.$('.test-output-peek-message-container'));
+
+		const messageEls = dom.h('div.test-output-peek-view', [
+			dom.h('div.test-output-stack-toggle@toggle'),
+			dom.h('div.test-output-peek-message-container@messageContainer'),
+		]);
+
+		const stackToggle = this.stackToggle = messageEls.toggle;
+		const stackToggleBtn = this._register(new Button(stackToggle, {
+			ariaLabel: localize('test.stack.toggle', "Toggle Call Stack"),
+		}));
+		stackToggleBtn.icon = Codicon.debugLineByLine;
+		this._register(stackToggleBtn.onDidClick(() => {
+			this.splitView.setViewVisible(SubView.CallStack, !this.splitView.isViewVisible(SubView.CallStack));
+		}));
+
+		const messageContainer = this.messageContainer = messageEls.messageContainer;
 		this.followupWidget = this._register(this.instantiationService.createInstance(FollowupActionWidget, messageContainer, this.editor));
 		this.onCloseEmitter.input = this.followupWidget.onClose;
 
@@ -136,7 +151,19 @@ export class TestResultsViewContent extends Disposable {
 
 		this.splitView.addView({
 			onDidChange: Event.None,
-			element: messageContainer,
+			element: this.callStackEl,
+			minimumSize: 100,
+			maximumSize: Number.MAX_VALUE,
+			snap: true,
+			setVisible: visible => {
+				stackToggle.classList.toggle('visible', visible);
+			},
+			layout: width => this.callStackWidget.value?.layout(undefined, width),
+		}, 300);
+
+		this.splitView.addView({
+			onDidChange: Event.None,
+			element: messageEls.root,
 			minimumSize: 200,
 			maximumSize: Number.MAX_VALUE,
 			layout: width => {
@@ -162,9 +189,10 @@ export class TestResultsViewContent extends Disposable {
 		}, Sizing.Distribute);
 
 
-		this.splitView.setViewVisible(this.viewIndex(SubView.History), historyVisible.value);
+		this.splitView.setViewVisible(SubView.CallStack, false);
+		this.splitView.setViewVisible(SubView.History, historyVisible.value);
 		this._register(historyVisible.onDidChange(visible => {
-			this.splitView.setViewVisible(this.viewIndex(SubView.History), visible);
+			this.splitView.setViewVisible(SubView.History, visible);
 		}));
 
 		if (initialSpitWidth) {
@@ -179,8 +207,6 @@ export class TestResultsViewContent extends Disposable {
 	public reveal(opts: {
 		subject: InspectSubject;
 		preserveFocus: boolean;
-		frame?: ITestMessageStackFrame;
-		uiState?: ITestResultsViewContentUiState;
 	}) {
 		this.didReveal.fire(opts);
 
@@ -193,46 +219,26 @@ export class TestResultsViewContent extends Disposable {
 			await Promise.all(this.contentProviders.map(p => p.update(opts.subject)));
 			this.followupWidget.show(opts.subject);
 			this.currentSubjectStore.clear();
-			this.updateVisiblityOfStackView(opts.subject, opts.frame);
+			this.updateVisiblityOfStackView(opts.subject);
 			this.populateFloatingClick(opts.subject);
-
-			if (opts.uiState) {
-				opts.uiState.splitViewWidths.forEach((width, i) => this.splitView.resizeView(i, width));
-			}
 		});
 	}
 
-	private updateVisiblityOfStackView(subject: InspectSubject, frame?: ITestMessageStackFrame) {
+	private updateVisiblityOfStackView(subject: InspectSubject) {
 		const stack = this.peekOpener.callStackVisible.value && subject instanceof MessageSubject && subject.stack;
 
 		if (stack) {
 			if (!this.callStackWidget.value) {
-				const widget = this.callStackWidget.value = this.instantiationService.createInstance(TestResultStackWidget, this.callStackEl);
-				this.splitView.addView({
-					onDidChange: Event.None,
-					element: this.callStackEl,
-					minimumSize: 100,
-					maximumSize: Number.MAX_VALUE,
-					layout: width => widget.layout(undefined, width),
-				}, 150, 0);
-				this.onDidChangeStackFrameEmitter.input = widget.onDidChangeStackFrame;
+				this.stackToggle.style.display = '';
+				this.callStackWidget.value = this.instantiationService.createInstance(TestResultStackWidget, this.callStackEl, this.editor);
 			}
 
-			this.callStackWidget.value.update(stack, frame);
+			this.callStackWidget.value.update(stack);
 		} else if (this.callStackWidget.value) {
-			this.splitView.removeView(0);
-			this.onDidChangeStackFrameEmitter.input = Event.None;
+			this.splitView.setViewVisible(SubView.CallStack, false);
+			this.stackToggle.style.display = 'none';
 			this.callStackWidget.clear();
 		}
-	}
-
-	private viewIndex(subView: SubView) {
-		// the call stack view is index 0, if it's not visible then all indicies are shifted by one
-		if (!this.callStackWidget.value) {
-			return subView - 1;
-		}
-
-		return subView;
 	}
 
 	private populateFloatingClick(subject: InspectSubject) {
