@@ -32,7 +32,6 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 // TODO
 
 // Make copy paste add correctly the text
-// Add settings
 // Investigate how to make the screen reader read the correct part of the div, we would want it to read letter by letter like in the text area
 // Investigate other ways of using the text area, is all hope lost?
 
@@ -133,11 +132,12 @@ export class NativeEditContext extends AbstractEditContext {
 				this._handleEnter(e);
 			}
 		});
-
 		let copyText: string | undefined;
 		this._domElement.domNode.addEventListener('copy', e => {
 			console.log('copy');
 			console.log('e : ', e);
+			console.log('this._ctx.selectionStart : ', this._ctx.selectionStart);
+			console.log('this._ctx.selectionEnd : ', this._ctx.selectionEnd);
 			// need to set the selection correctly so that the correct text is copied, currently the top most text is copied
 			const target = e.target;
 			if (target && dom.isHTMLElement(target)) {
