@@ -16,7 +16,7 @@ import { IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
 import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
 import { localize } from 'vs/nls';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
-import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
+// import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { ExtensionIdentifier, ExtensionIdentifierSet } from 'vs/platform/extensions/common/extensions';
 import { IIssueMainService, IssueReporterData, IssueReporterWindowConfiguration } from 'vs/platform/issue/common/issue';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -33,7 +33,6 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IssueReporter2 } from 'vs/workbench/contrib/issue/electron-sandbox/issueReporterService2';
 import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { INativeHostService } from 'vs/platform/native/common/native';
-import { BrowserWindow, Display } from 'electron';
 
 interface IBrowserWindowOptions {
 	backgroundColor: string | undefined;
@@ -55,7 +54,7 @@ export class IssueFormService2 implements IIssueMainService {
 	private static readonly DEFAULT_BACKGROUND_COLOR = '#1E1E1E';
 
 	private issueReporterWindow: Window | null = null;
-	private issueReporterParentWindow: BrowserWindow | null = null;
+	// private issueReporterParentWindow: BrowserWindow | null = null;
 
 	constructor(
 		// private userEnv: IProcessEnvironment,
@@ -65,6 +64,7 @@ export class IssueFormService2 implements IIssueMainService {
 		@IDialogService private readonly dialogService: IDialogService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@IAuxiliaryWindowService private readonly auxiliaryWindowService: IAuxiliaryWindowService,
+		// @IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 	) { }
 
 	//#region Used by renderer
@@ -177,6 +177,9 @@ export class IssueFormService2 implements IIssueMainService {
 			auxiliaryWindow.window.document.body.appendChild(div);
 			safeInnerHtml(div, BaseHtml());
 
+			const temp = this.environmentService.disableExtensions;
+			const test = !!this.environmentService.disableExtensions;
+
 			// Store into config object URL
 			this.configuration = {
 				appRoot: this.environmentService.appRoot,
@@ -240,13 +243,13 @@ export class IssueFormService2 implements IIssueMainService {
 	}
 
 	async $reloadWithExtensionsDisabled(): Promise<void> {
-		if (this.issueReporterParentWindow) {
-			try {
-				await this.nativeHostService.reload({ disableExtensions: true });
-			} catch (error) {
-				this.logService.error(error);
-			}
-		}
+		// if (this.issueReporterParentWindow) {
+		// 	try {
+		// 		await this.nativeHostService.reload({ disableExtensions: true });
+		// 	} catch (error) {
+		// 		this.logService.error(error);
+		// 	}
+		// }
 	}
 
 	async $showConfirmCloseDialog(): Promise<void> {
@@ -315,13 +318,13 @@ export class IssueFormService2 implements IIssueMainService {
 
 	//#endregion
 
-	private focusWindow(window: BrowserWindow): void {
-		if (window.isMinimized()) {
-			window.restore();
-		}
+	// private focusWindow(window: BrowserWindow): void {
+	// 	if (window.isMinimized()) {
+	// 		window.restore();
+	// 	}
 
-		window.focus();
-	}
+	// 	window.focus();
+	// }
 
 	// private createBrowserWindow<T>(position: IWindowState, ipcObjectUrl: IIPCObjectUrl<T>, options: IBrowserWindowOptions, windowKind: string): BrowserWindow {
 	// 	const window = new BrowserWindow({
