@@ -196,11 +196,6 @@
 	margin: 0px 0px 10px 20px;
 }
 
-.profiles-editor .contents-container .profile-content-tree-header,
-.profiles-editor .contents-container .profile-content-tree {
-	margin-left: 6px;
-}
-
 .profiles-editor .contents-container .profile-content-tree-header {
 	display: grid;
 	grid-template-columns: 30px repeat(1, 1fr) 150px 100px;
