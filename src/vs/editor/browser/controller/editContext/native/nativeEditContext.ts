@@ -5,7 +5,6 @@
 
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { isDefined } from 'vs/base/common/types';
 import { AbstractEditContext } from 'vs/editor/browser/controller/editContext/editContext';
@@ -31,9 +30,17 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 // 1. Need to rerender the dom element on selection change, so that contains correct elements
 // 2. Make screen reader read only part of the text area, why is it currently reading the full text area?
 
+// TODO
+
+// Make enter add correctly the new line
+// Make copy paste add correctly the text
+// Add settings
+// Investigate how to make the screen reader read the correct part of the div, we would want it to read letter by letter like in the text area
+// Investigate other ways of using the text area, is all hope lost?
+
 export class NativeEditContext extends AbstractEditContext {
 	private readonly _domElement = new FastDomNode(document.createElement('div'));
-	private readonly _domTextAreaElement = new FastDomNode(document.createElement('textarea'));
+	// private readonly _domTextAreaElement = new FastDomNode(document.createElement('textarea'));
 	private readonly _ctx: EditContext = this._domElement.domNode.editContext = new DebugEditContext();
 
 
@@ -55,6 +62,7 @@ export class NativeEditContext extends AbstractEditContext {
 		this._domElement.domNode.tabIndex = 0;
 		this._domElement.domNode.style.width = '100px';
 		this._domElement.domNode.style.height = '100px';
+		this._domElement.domNode.role = 'contenteditable';
 
 		this._domElement.domNode.onfocus = () => {
 			this._isFocused = true;
@@ -77,25 +85,25 @@ export class NativeEditContext extends AbstractEditContext {
 		};
 
 		const options = context.configuration.options;
-		const domTextAreaElement = this._domTextAreaElement;
-		domTextAreaElement.setClassName(`inputarea ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`);
-		domTextAreaElement.setAttribute('wrap', false ? 'on' : 'off'); // TODO
-		const { tabSize } = this._context.viewModel.model.getOptions();
-		domTextAreaElement.domNode.style.tabSize = `${tabSize * 18}px`; // TODO
-		domTextAreaElement.setAttribute('autocorrect', 'off');
-		domTextAreaElement.setAttribute('autocapitalize', 'off');
-		domTextAreaElement.setAttribute('autocomplete', 'off');
-		domTextAreaElement.setAttribute('spellcheck', 'false');
-		domTextAreaElement.setAttribute('aria-label', this._getAriaLabel(options));
-		domTextAreaElement.setAttribute('aria-required', false ? 'true' : 'false'); // TODO
-		domTextAreaElement.setAttribute('tabindex', '0'); // TODO
-		domTextAreaElement.setAttribute('role', 'textbox');
-		domTextAreaElement.setAttribute('aria-roledescription', nls.localize('editor', "editor"));
-		domTextAreaElement.setAttribute('aria-multiline', 'true');
-		domTextAreaElement.setAttribute('aria-autocomplete', false ? 'none' : 'both'); // TODO
-		domTextAreaElement.setAttribute('height', '18px');
-		domTextAreaElement.setAttribute('width', '1px');
-		this._domElement.domNode.appendChild(domTextAreaElement.domNode);
+		// const domTextAreaElement = this._domTextAreaElement;
+		// domTextAreaElement.setClassName(`inputarea ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`);
+		// domTextAreaElement.setAttribute('wrap', false ? 'on' : 'off'); // TODO
+		// const { tabSize } = this._context.viewModel.model.getOptions();
+		// domTextAreaElement.domNode.style.tabSize = `${tabSize * 18}px`; // TODO
+		// domTextAreaElement.setAttribute('autocorrect', 'off');
+		// domTextAreaElement.setAttribute('autocapitalize', 'off');
+		// domTextAreaElement.setAttribute('autocomplete', 'off');
+		// domTextAreaElement.setAttribute('spellcheck', 'false');
+		// domTextAreaElement.setAttribute('aria-label', this._getAriaLabel(options));
+		// domTextAreaElement.setAttribute('aria-required', false ? 'true' : 'false'); // TODO
+		// domTextAreaElement.setAttribute('tabindex', '0'); // TODO
+		// domTextAreaElement.setAttribute('role', 'textbox');
+		// domTextAreaElement.setAttribute('aria-roledescription', nls.localize('editor', "editor"));
+		// domTextAreaElement.setAttribute('aria-multiline', 'true');
+		// domTextAreaElement.setAttribute('aria-autocomplete', false ? 'none' : 'both'); // TODO
+		// domTextAreaElement.setAttribute('height', '18px');
+		// domTextAreaElement.setAttribute('width', '1px');
+		// this._domElement.domNode.appendChild(domTextAreaElement.domNode);
 
 		const layoutInfo = options.get(EditorOption.layoutInfo);
 		this._contentLeft = layoutInfo.contentLeft;
@@ -110,6 +118,10 @@ export class NativeEditContext extends AbstractEditContext {
 			console.log('text update');
 			console.log('e : ', e);
 		});
+		this._ctx.addEventListener('characterboundsupdate', e => {
+			console.log('characterboundsupdate update');
+			console.log('e : ', e);
+		});
 		this._ctx.addEventListener('oncompositionstart', e => {
 			console.log('composition start');
 			console.log('e : ', e);
@@ -117,6 +129,12 @@ export class NativeEditContext extends AbstractEditContext {
 		this._ctx.addEventListener('oncompositionend', e => {
 			console.log('composition end');
 			console.log('e : ', e);
+		});
+		this._domElement.domNode.addEventListener('beforeinput', e => {
+			console.log('e : ', e);
+			if (e.inputType === 'insertParagraph' || e.inputType === 'insertLineBreak') {
+				this._handleEnter(e);
+			}
 		});
 		console.log('this._domElement : ', this._domElement);
 	}
@@ -154,18 +172,31 @@ export class NativeEditContext extends AbstractEditContext {
 		this._decorations = this._context.viewModel.model.deltaDecorations(this._decorations, decorations);
 	}
 
-	private _handleTextUpdate(e: TextUpdateEvent): void {
+	private _handleEnter(e: InputEvent): void {
+		e.preventDefault();
 		if (!this._editContextState) {
 			return;
 		}
-		const updateRange = new OffsetRange(e.updateRangeStart, e.updateRangeEnd);
+		this._handleTextUpdateOrEnter(this._editContextState.positionOffset, this._editContextState.positionOffset, '\n');
+
+	}
+
+	private _handleTextUpdate(e: TextUpdateEvent): void {
+		this._handleTextUpdateOrEnter(e.updateRangeStart, e.updateRangeEnd, e.text);
+	}
+
+	private _handleTextUpdateOrEnter(updateRangeStart: number, updateRangeEnd: number, text: string): void {
+		if (!this._editContextState) {
+			return;
+		}
+		const updateRange = new OffsetRange(updateRangeStart, updateRangeEnd);
 
 		if (!updateRange.equals(this._editContextState.selection)) {
-			const deleteBefore = this._editContextState.positionOffset - e.updateRangeStart;
-			const deleteAfter = e.updateRangeEnd - this._editContextState.positionOffset;
-			this._viewController.compositionType(e.text, deleteBefore, deleteAfter, 0);
+			const deleteBefore = this._editContextState.positionOffset - updateRangeStart;
+			const deleteAfter = updateRangeEnd - this._editContextState.positionOffset;
+			this._viewController.compositionType(text, deleteBefore, deleteAfter, 0);
 		} else {
-			this._viewController.type(e.text);
+			this._viewController.type(text);
 		}
 
 		this.updateText();
@@ -204,14 +235,26 @@ export class NativeEditContext extends AbstractEditContext {
 
 		this._editContextState = new EditContextState(textEdit, t, positionOffset, selection);
 
-		console.log('before update text value : ', value);
-		console.log('before update text selection start : ', selection.start, ', and end : ', selection.endExclusive);
+		console.log('value : ', value);
+		console.log('selection start : ', selection.start, ', and end : ', selection.endExclusive);
 
 		this._ctx.updateText(0, Number.MAX_SAFE_INTEGER, value);
 		this._ctx.updateSelection(selection.start, selection.endExclusive);
 
-		this._domTextAreaElement.domNode.value = value;
-		this._domTextAreaElement.domNode.setSelectionRange(selection.start, selection.endExclusive);
+		const splitText = value.split('\n');
+		this._domElement.domNode.replaceChildren();
+		for (const line of splitText) {
+			const lineDomNode = document.createElement('span');
+			lineDomNode.tabIndex = 0;
+			lineDomNode.textContent = line;
+			lineDomNode.role = 'contenteditable';
+			this._domElement.domNode.appendChild(lineDomNode);
+		}
+		console.log('splitText : ', splitText);
+		console.log('this._domElement : ', this._domElement);
+
+		// this._domTextAreaElement.domNode.value = value;
+		// this._domTextAreaElement.domNode.setSelectionRange(selection.start, selection.endExclusive);
 	}
 
 	public override prepareRender(ctx: RenderingContext): void {
@@ -274,11 +317,16 @@ export class NativeEditContext extends AbstractEditContext {
 	public override focusTextArea(): void {
 		console.log('focusTextArea');
 		console.log('this._domNode.domNode : ', this._domElement.domNode);
-		console.log('this._domTextAreaElement.domNode : ', this._domTextAreaElement.domNode);
-		console.log('this._domTextAreaElement.domNode.value : ', this._domTextAreaElement.domNode.value);
-		console.log('this._domTextAreaElement.domNode.selectionStart : ', this._domTextAreaElement.domNode.selectionStart);
-		console.log('this._domTextAreaElement.domNode.selectionEnd : ', this._domTextAreaElement.domNode.selectionEnd);
-		this._domTextAreaElement.domNode.focus();
+		// console.log('this._domTextAreaElement.domNode : ', this._domTextAreaElement.domNode);
+		// console.log('this._domTextAreaElement.domNode.value : ', this._domTextAreaElement.domNode.value);
+		// console.log('this._domTextAreaElement.domNode.selectionStart : ', this._domTextAreaElement.domNode.selectionStart);
+		// console.log('this._domTextAreaElement.domNode.selectionEnd : ', this._domTextAreaElement.domNode.selectionEnd);
+		// this._domTextAreaElement.domNode.focus();
+
+		// const child = this._domElement.domNode.children[0];
+		// (child as HTMLElement).focus();
+
+		this._domElement.domNode.focus();
 	}
 
 	private _getAriaLabel(options: IComputedEditorOptions): string {
