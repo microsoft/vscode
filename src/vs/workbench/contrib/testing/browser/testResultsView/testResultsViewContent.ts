@@ -207,7 +207,7 @@ export class TestResultsViewContent extends Disposable {
 
 		if (stack) {
 			if (!this.callStackWidget.value) {
-				const widget = this.callStackWidget.value = this.instantiationService.createInstance(TestResultStackWidget, this.callStackEl);
+				const widget = this.callStackWidget.value = this.instantiationService.createInstance(TestResultStackWidget, this.callStackEl, this.editor);
 				this.splitView.addView({
 					onDidChange: Event.None,
 					element: this.callStackEl,
