@@ -31,6 +31,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 
 // TODO
 
+// Need to increase context size to more than 2 lines above and below, to 5, for some reason gives currently an error
 // make the actual hidden dom node be visible so I can more easily debug and understand what is happening
 // Investigate how to make the screen reader read the correct part of the div, we would want it to read letter by letter like in the text area
 // Investigate other ways of using the text area, is all hope lost?
@@ -39,6 +40,8 @@ export class NativeEditContext extends AbstractEditContext {
 	private readonly _domElement = new FastDomNode(document.createElement('div'));
 	// private readonly _domTextAreaElement = new FastDomNode(document.createElement('textarea'));
 	private readonly _ctx: EditContext = this._domElement.domNode.editContext = new DebugEditContext();
+	private _positionSelectionStart: Position | undefined;
+	private _positionSelectionEnd: Position | undefined;
 
 
 	private _parent!: HTMLElement;
@@ -62,6 +65,7 @@ export class NativeEditContext extends AbstractEditContext {
 		this._domElement.domNode.style.background = 'white';
 		this._domElement.domNode.style.color = 'black';
 		this._domElement.domNode.style.whiteSpace = 'pre-wrap';
+		this._domElement.domNode.style.display = 'table';
 
 		this._domElement.domNode.onfocus = () => {
 			this._isFocused = true;
@@ -138,16 +142,25 @@ export class NativeEditContext extends AbstractEditContext {
 		let copyText: string | undefined;
 		this._domElement.domNode.addEventListener('copy', e => {
 			console.log('copy');
-			console.log('e : ', e);
-			console.log('this._ctx.selectionStart : ', this._ctx.selectionStart);
-			console.log('this._ctx.selectionEnd : ', this._ctx.selectionEnd);
-			// need to set the selection correctly so that the correct text is copied, currently the top most text is copied
-			const target = e.target;
-			if (target && dom.isHTMLElement(target)) {
-				// copyText = target.innerText;
-				// doesn't copy directly so we need to the use selection stard and selection end? copies the whole div instead?
-				console.log('target.textContent : ', target.textContent);
-				copyText = target.textContent?.substring(this._ctx.selectionStart, this._ctx.selectionEnd) ?? '';
+			console.log('this._positionSelectionStart : ', this._positionSelectionStart);
+			console.log('this._positionSelectionEnd : ', this._positionSelectionEnd);
+
+			copyText = '';
+			if (this._positionSelectionStart && this._positionSelectionEnd) {
+				const startLine = this._positionSelectionStart.lineNumber;
+				const endLine = this._positionSelectionEnd.lineNumber;
+				const childNodes = this._domElement.domNode.childNodes;
+				for (let i = startLine - 1; i <= endLine - 1; i++) {
+					const textContent = childNodes.item(i).textContent;
+					console.log('textContent : ', textContent);
+					if (i === startLine - 1) {
+						copyText += '\n' + (textContent ? textContent.substring(this._positionSelectionStart.column - 1) : '');
+					} else if (i === endLine - 1) {
+						copyText += '\n' + (textContent ? textContent.substring(0, this._positionSelectionEnd.column - 1) : '');
+					} else {
+						copyText += '\n' + (textContent ?? '');
+					}
+				}
 			} else {
 				copyText = undefined;
 			}
@@ -254,12 +267,12 @@ export class NativeEditContext extends AbstractEditContext {
 
 		const value = textEdit.apply(doc);
 
-		const selectionStart = textEdit.mapPosition(primaryViewState.selection.getStartPosition()) as Position;
-		const selectionEnd = textEdit.mapPosition(primaryViewState.selection.getEndPosition()) as Position;
+		this._positionSelectionStart = textEdit.mapPosition(primaryViewState.selection.getStartPosition()) as Position;
+		this._positionSelectionEnd = textEdit.mapPosition(primaryViewState.selection.getEndPosition()) as Position;
 		const position = textEdit.mapPosition(primaryViewState.selection.getPosition()) as Position;
 
 		const t = new PositionOffsetTransformer(value);
-		const selection = new OffsetRange((t.getOffset(selectionStart)), (t.getOffset(selectionEnd)));
+		const selection = new OffsetRange((t.getOffset(this._positionSelectionStart)), (t.getOffset(this._positionSelectionEnd)));
 		const positionOffset = t.getOffset(position);
 
 		this._editContextState = new EditContextState(textEdit, t, positionOffset, selection);
@@ -270,29 +283,51 @@ export class NativeEditContext extends AbstractEditContext {
 		this._ctx.updateText(0, Number.MAX_SAFE_INTEGER, value);
 		this._ctx.updateSelection(selection.start, selection.endExclusive);
 
-		// const splitText = value.split('\n');
-		// this._domElement.domNode.replaceChildren();
-		// for (const line of splitText) {
-		// 	const lineDomNode = document.createElement('span');
-		// 	lineDomNode.tabIndex = 0;
-		// 	lineDomNode.textContent = line;
-		// 	lineDomNode.role = 'contenteditable';
-		// 	this._domElement.domNode.appendChild(lineDomNode);
-		// }
-		// console.log('splitText : ', splitText);
-
 		const domElementNode = this._domElement.domNode;
 		domElementNode.replaceChildren();
-		domElementNode.textContent = value;
+		const splitText = value.split('\n');
+
+		for (const splitLine of splitText) {
+			console.log('splitLine : ', splitLine);
+			const lineDomNode = document.createElement('span');
+			lineDomNode.tabIndex = 0;
+			lineDomNode.textContent = splitLine;
+			lineDomNode.role = 'contenteditable';
+			lineDomNode.style.whiteSpace = 'pre-wrap';
+			lineDomNode.style.float = 'left';
+			lineDomNode.style.clear = 'left';
+			domElementNode.appendChild(lineDomNode);
+		}
+		console.log('splitText : ', splitText);
+
+		// domElementNode.textContent = value;
 
 		const activeDocument = dom.getActiveWindow().document;
 		const activeDocumentSelection = activeDocument.getSelection();
 		console.log('activeDocumentSelection : ', activeDocumentSelection);
 
-		if (activeDocumentSelection && domElementNode.firstChild) {
+		// if (activeDocumentSelection && domElementNode.firstChild) {
+		// 	const range = new globalThis.Range();
+		// 	range.setStart(domElementNode.firstChild, selection.start);
+		// 	range.setEnd(domElementNode.firstChild, selection.endExclusive);
+		// 	activeDocumentSelection.removeAllRanges();
+		// 	activeDocumentSelection.addRange(range);
+		// }
+
+		// use instead the position, instead of using the selection
+		if (activeDocumentSelection) {
+			console.log('selectionStart : ', this._positionSelectionStart);
+			console.log('selectionEnd : ', this._positionSelectionEnd);
 			const range = new globalThis.Range();
-			range.setStart(domElementNode.firstChild, selection.start);
-			range.setEnd(domElementNode.firstChild, selection.endExclusive);
+			const startLine = this._positionSelectionStart.lineNumber;
+			const endLine = this._positionSelectionEnd.lineNumber;
+			const childNodes = domElementNode.childNodes;
+			const startNode = childNodes.item(startLine - 1);
+			const endNode = childNodes.item(endLine - 1);
+			console.log('startNode : ', startNode);
+			console.log('endNode : ', endNode);
+			range.setStart(startNode.firstChild ? startNode.firstChild : startNode, this._positionSelectionStart.column - 1);
+			range.setEnd(endNode.firstChild ? endNode.firstChild : endNode, this._positionSelectionEnd.column - 1);
 			activeDocumentSelection.removeAllRanges();
 			activeDocumentSelection.addRange(range);
 		}
