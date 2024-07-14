@@ -47,7 +47,7 @@ export class ToggleAuxiliaryBarAction extends Action2 {
 					primary: KeyMod.CtrlCmd | KeyCode.Semicolon
 				},
 				win: {
-					primary: KeyMod.Alt | KeyCode.Semicolon
+					primary: KeyMod.CtrlCmd | KeyCode.Semicolon
 				},
 				mac: {
 					primary: KeyMod.CtrlCmd | KeyCode.Semicolon
