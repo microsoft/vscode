@@ -61,6 +61,7 @@ export class NativeEditContext extends AbstractEditContext {
 		this._domElement.domNode.style.zIndex = '100';
 		this._domElement.domNode.style.background = 'white';
 		this._domElement.domNode.style.color = 'black';
+		this._domElement.domNode.style.whiteSpace = 'pre-wrap';
 
 		this._domElement.domNode.onfocus = () => {
 			this._isFocused = true;
