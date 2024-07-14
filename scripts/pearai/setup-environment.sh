@@ -44,6 +44,12 @@ app_dir=$(pwd)
 target_path="$app_dir/extensions/pearai-submodule/extensions/vscode"
 link_path="$app_dir/extensions/pearai-ref"
 
+# Run the base functionality
+echo -e "\nInitializing sub-modules..."
+# Clone the submodule extension folder
+execute "git submodule update --init --recursive" "Failed to initialize git submodules"
+
+
 # Check if the symbolic link exists
 if [ ! -L "$link_path" ]; then
 	# Print message about creating a symbolic link from link_path to target_path
@@ -54,11 +60,6 @@ else
 	echo -e "\n\e[93mSymbolic link already exists...\e[0m"
 fi
 
-# Run the base functionality
-echo -e "\nInitializing sub-modules..."
-
-# Clone the submodule extension folder
-execute "git submodule update --init --recursive" "Failed to initialize git submodules"
 
 execute "cd ./extensions/pearai-submodule" "Failed to change directory to extensions/pearai-submodule"
 
