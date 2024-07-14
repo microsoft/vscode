@@ -7,7 +7,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyEqualsExpr, ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Event, Emitter } from 'vs/base/common/event';
 import { CommentsViewFilterFocusContextKey, ICommentsView } from 'vs/workbench/contrib/comments/browser/comments';
 import { registerAction2 } from 'vs/platform/actions/common/actions';
@@ -17,17 +17,23 @@ import { COMMENTS_VIEW_ID } from 'vs/workbench/contrib/comments/browser/comments
 import { FocusedViewContext } from 'vs/workbench/common/contextkeys';
 import { viewFilterSubmenu } from 'vs/workbench/browser/parts/views/viewFilter';
 
+export type CommentsSortOrder = 'resource' | 'updatedAt';
+
 const CONTEXT_KEY_SHOW_RESOLVED = new RawContextKey<boolean>('commentsView.showResolvedFilter', true);
 const CONTEXT_KEY_SHOW_UNRESOLVED = new RawContextKey<boolean>('commentsView.showUnResolvedFilter', true);
+const CONTEXT_KEY_SORT_BY = new RawContextKey<CommentsSortOrder>('commentsView.sortBy', 'resource');
+const CONTEXT_KEY_SORT_BY_UPDATED_AT = ContextKeyEqualsExpr.create('commentsView.sortBy', 'updatedAt');
 
 export interface CommentsFiltersChangeEvent {
 	showResolved?: boolean;
 	showUnresolved?: boolean;
+	sortBy?: CommentsSortOrder;
 }
 
 interface CommentsFiltersOptions {
 	showResolved: boolean;
 	showUnresolved: boolean;
+	sortBy: CommentsSortOrder;
 }
 
 export class CommentsFilters extends Disposable {
@@ -39,6 +45,7 @@ export class CommentsFilters extends Disposable {
 		super();
 		this._showResolved.set(options.showResolved);
 		this._showUnresolved.set(options.showUnresolved);
+		this._sortBy.set(options.sortBy);
 	}
 
 	private readonly _showUnresolved = CONTEXT_KEY_SHOW_UNRESOLVED.bindTo(this.contextKeyService);
@@ -63,6 +70,16 @@ export class CommentsFilters extends Disposable {
 		}
 	}
 
+	private _sortBy = CONTEXT_KEY_SORT_BY.bindTo(this.contextKeyService);
+	get sortBy(): CommentsSortOrder {
+		return this._sortBy.get()!;
+	}
+	set sortBy(sortBy: CommentsSortOrder) {
+		if (this._sortBy.get() !== sortBy) {
+			this._sortBy.set(sortBy);
+			this._onDidChange.fire({ sortBy });
+		}
+	}
 }
 
 registerAction2(class extends ViewAction<ICommentsView> {
@@ -166,5 +183,30 @@ registerAction2(class extends ViewAction<ICommentsView> {
 
 	async runInView(serviceAccessor: ServicesAccessor, view: ICommentsView): Promise<void> {
 		view.filters.showResolved = !view.filters.showResolved;
+	}
+});
+
+registerAction2(class extends ViewAction<ICommentsView> {
+	constructor() {
+		super({
+			id: `workbench.actions.${COMMENTS_VIEW_ID}.toggleSortByUpdatedAt`,
+			title: localize('toggle sorting by updated at', "Sort by Updated At"),
+			category: localize('comments', "Comments"),
+			toggled: {
+				condition: CONTEXT_KEY_SORT_BY_UPDATED_AT,
+				title: localize('sorting by updated at', "Sort by Updated At"),
+			},
+			menu: {
+				id: viewFilterSubmenu,
+				group: '2_sort',
+				when: ContextKeyExpr.equals('view', COMMENTS_VIEW_ID),
+				order: 1
+			},
+			viewId: COMMENTS_VIEW_ID
+		});
+	}
+
+	async runInView(serviceAccessor: ServicesAccessor, view: ICommentsView): Promise<void> {
+		view.filters.sortBy = view.filters.sortBy === 'resource' ? 'updatedAt' : 'resource';
 	}
 });
