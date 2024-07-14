@@ -617,7 +617,10 @@ export namespace Event {
 
 	/**
 	 * A convenience function for forwarding an event to another emitter which
-	 * improves readability.allows Event.forward(event, emitter) instead of `event(e => emitter.fire(e))`.
+	 * improves readability.
+	 *
+	 * This is similar to {@link Relay} but allows instantiating and forwarding
+	 * on a single line and also allows for multiple source events.
 	 * @param from The event to forward.
 	 * @param to The emitter to forward the event to.
 	 * @example
