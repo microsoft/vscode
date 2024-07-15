@@ -336,7 +336,7 @@ steps:
         name: generateArtifactPrefix
 
       - powershell: |
-          echo $(ARTIFACT_PREFIX)
+          # echo $(ARTIFACT_PREFIX)
           echo $(generateArtifactPrefix.ARTIFACT_PREFIX)
         displayName: Debug output variable
 

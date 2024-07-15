@@ -46,7 +46,7 @@ steps:
     #     softwareFolder: $(Agent.BuildDirectory)\scanbin
     #     softwareName: 'vscode-client'
     #     softwareVersionNum: '1'
-    #     symbolsFolder: 'SRV*http://symweb;$(Agent.BuildDirectory)\symbols'
+    #     symbolsFolder: 'SRV*https://symweb.azurefd.net;$(Agent.BuildDirectory)\symbols'
     #     isLargeApp: false
     #     toolVersion: 'Latest'
     #   displayName: Run ApiScan
