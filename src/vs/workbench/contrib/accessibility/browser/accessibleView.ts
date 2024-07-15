@@ -499,46 +499,46 @@ export class AccessibleView extends Disposable {
 		this._accessibleViewGoToSymbolSupported.set(this._goToSymbolsSupported() ? this.getSymbols()?.length! > 0 : false);
 	}
 
-	private _resolveAndEnrichContent(provider: AccesibleViewContentProvider, updatedContent?: string): void {
-		const readMoreLink = provider.options.readMoreUrl ? localize("openDoc", "\n\nOpen a browser window with more information related to accessibility<keybinding:{0}>.", AccessibilityCommandId.AccessibilityHelpOpenHelpLink) : '';
+	private _updateContent(provider: AccesibleViewContentProvider, updatedContent?: string): void {
+		let content = updatedContent ?? provider.provideContent();
+		if (provider.options.type === AccessibleViewType.View) {
+			this._currentContent = content;
+			return;
+		}
+		const readMoreLinkHint = provider.options.readMoreUrl ? localize("openDoc", "\n\nOpen a browser window with more information related to accessibility<keybinding:{0}>.", AccessibilityCommandId.AccessibilityHelpOpenHelpLink) : '';
 		const disableHelpHint = this._getDisableVerbosityHint(provider);
 		const accessibilitySupport = this._accessibilityService.isScreenReaderOptimized();
-		let message = '';
-		if (provider.options.type === AccessibleViewType.Help) {
-			const turnOnMessage = (
-				isMacintosh
-					? AccessibilityHelpNLS.changeConfigToOnMac
-					: AccessibilityHelpNLS.changeConfigToOnWinLinux
-			);
-			if (accessibilitySupport && provider instanceof AccessibleContentProvider && provider.verbositySettingKey === AccessibilityVerbositySettingId.Editor) {
-				message = AccessibilityHelpNLS.auto_on;
-				message += '\n';
-			} else if (!accessibilitySupport) {
-				message = AccessibilityHelpNLS.auto_off + '\n' + turnOnMessage;
-				message += '\n';
-			}
+		let screenReaderModeHint = '';
+		const turnOnMessage = (
+			isMacintosh
+				? AccessibilityHelpNLS.changeConfigToOnMac
+				: AccessibilityHelpNLS.changeConfigToOnWinLinux
+		);
+		if (accessibilitySupport && provider instanceof AccessibleContentProvider && provider.verbositySettingKey === AccessibilityVerbositySettingId.Editor) {
+			screenReaderModeHint = AccessibilityHelpNLS.auto_on;
+			screenReaderModeHint += '\n';
+		} else if (!accessibilitySupport) {
+			screenReaderModeHint = AccessibilityHelpNLS.auto_off + '\n' + turnOnMessage;
+			screenReaderModeHint += '\n';
 		}
 		const exitThisDialogHint = this._verbosityEnabled() && !provider.options.position ? localize('exit', '\n\nExit this dialog (Escape).') : '';
-		let content = updatedContent ?? provider.provideContent();
 		let configureKbHint = '';
-		if (provider.options.type === AccessibleViewType.Help) {
-			const resolvedContent = resolveContentAndKeybindingItems(this._keybindingService, content + readMoreLink + disableHelpHint + exitThisDialogHint);
-			if (resolvedContent) {
-				content = resolvedContent.content.value;
-				if (resolvedContent.configureKeybindingItems) {
-					provider.options.configureKeybindingItems = resolvedContent.configureKeybindingItems;
-					configureKbHint = this._getConfigureUnassignedKbHint();
-				}
+		const resolvedContent = resolveContentAndKeybindingItems(this._keybindingService, screenReaderModeHint + content + readMoreLinkHint + disableHelpHint + exitThisDialogHint);
+		if (resolvedContent) {
+			content = resolvedContent.content.value;
+			if (resolvedContent.configureKeybindingItems) {
+				provider.options.configureKeybindingItems = resolvedContent.configureKeybindingItems;
+				configureKbHint = this._getConfigureUnassignedKbHint();
 			}
 		}
-		this._currentContent = message + configureKbHint + content;
+		this._currentContent = content + configureKbHint;
 	}
 
 	private _render(provider: AccesibleViewContentProvider, container: HTMLElement, showAccessibleViewHelp?: boolean, updatedContent?: string): IDisposable {
 		this._currentProvider = provider;
 		this._accessibleViewCurrentProviderId.set(provider.id);
 		const verbose = this._verbosityEnabled();
-		this._resolveAndEnrichContent(provider, updatedContent);
+		this._updateContent(provider, updatedContent);
 		this.calculateCodeBlocks(this._currentContent);
 		this._updateContextKeys(provider, true);
 		const widgetIsFocused = this._editorWidget.hasTextFocus() || this._editorWidget.hasWidgetFocus();
@@ -792,7 +792,7 @@ export class AccessibleView extends Disposable {
 	private _getConfigureUnassignedKbHint(): string {
 		const configureKb = this._keybindingService.lookupKeybinding(AccessibilityCommandId.AccessibilityHelpConfigureKeybindings)?.getAriaLabel();
 		const keybindingToConfigureQuickPick = configureKb ? '(' + configureKb + ')' : 'by assigning a keybinding to the command Accessibility Help Configure Keybindings.';
-		return localize('configureKb', 'Configure keybindings for commands that lack them {0}.\n\n', keybindingToConfigureQuickPick);
+		return localize('configureKb', '\n\nConfigure keybindings for commands that lack them {0}.', keybindingToConfigureQuickPick);
 	}
 }
 
