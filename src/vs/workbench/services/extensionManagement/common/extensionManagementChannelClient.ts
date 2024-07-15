@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILocalExtension, IGalleryExtension, InstallOptions, UninstallOptions, Metadata, InstallExtensionResult, InstallExtensionInfo, IProductVersion } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ILocalExtension, IGalleryExtension, InstallOptions, UninstallOptions, Metadata, InstallExtensionResult, InstallExtensionInfo, IProductVersion, UninstallExtensionInfo } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { URI } from 'vs/base/common/uri';
 import { ExtensionIdentifier, ExtensionType, IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ExtensionManagementChannelClient as BaseExtensionManagementChannelClient, ExtensionEventResult } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
@@ -83,6 +83,14 @@ export abstract class ProfileAwareExtensionManagementChannelClient extends BaseE
 	override async uninstall(extension: ILocalExtension, options?: UninstallOptions): Promise<void> {
 		options = { ...options, profileLocation: await this.getProfileLocation(options?.profileLocation) };
 		return super.uninstall(extension, options);
+	}
+
+	override async uninstallExtensions(extensions: UninstallExtensionInfo[]): Promise<void> {
+		const infos: UninstallExtensionInfo[] = [];
+		for (const { extension, options } of extensions) {
+			infos.push({ extension, options: { ...options, profileLocation: await this.getProfileLocation(options?.profileLocation) } });
+		}
+		return super.uninstallExtensions(infos);
 	}
 
 	override async getInstalled(type: ExtensionType | null = null, extensionsProfileResource?: URI, productVersion?: IProductVersion): Promise<ILocalExtension[]> {

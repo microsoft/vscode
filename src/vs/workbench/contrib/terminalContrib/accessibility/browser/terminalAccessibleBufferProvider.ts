@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { IModelService } from 'vs/editor/common/services/model';
 import { IAccessibleViewContentProvider, AccessibleViewProviderId, IAccessibleViewOptions, AccessibleViewType, IAccessibleViewSymbol } from 'vs/platform/accessibility/browser/accessibleView';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -16,7 +16,7 @@ import { ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/termin
 import { BufferContentTracker } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/bufferContentTracker';
 import { TerminalAccessibilitySettingId } from 'vs/workbench/contrib/terminalContrib/accessibility/common/terminalAccessibilityConfiguration';
 
-export class TerminalAccessibleBufferProvider extends DisposableStore implements IAccessibleViewContentProvider {
+export class TerminalAccessibleBufferProvider extends Disposable implements IAccessibleViewContentProvider {
 	id = AccessibleViewProviderId.Terminal;
 	options: IAccessibleViewOptions = { type: AccessibleViewType.View, language: 'terminal', id: AccessibleViewProviderId.Terminal };
 	verbositySettingKey = AccessibilityVerbositySettingId.Terminal;
@@ -35,14 +35,14 @@ export class TerminalAccessibleBufferProvider extends DisposableStore implements
 		super();
 		this.options.customHelp = customHelp;
 		this.options.position = configurationService.getValue(TerminalAccessibilitySettingId.AccessibleViewPreserveCursorPosition) ? 'initial-bottom' : 'bottom';
-		this.add(this._instance.onDisposed(() => this._onDidRequestClearProvider.fire(AccessibleViewProviderId.Terminal)));
-		this.add(configurationService.onDidChangeConfiguration(e => {
+		this._register(this._instance.onDisposed(() => this._onDidRequestClearProvider.fire(AccessibleViewProviderId.Terminal)));
+		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(TerminalAccessibilitySettingId.AccessibleViewPreserveCursorPosition)) {
 				this.options.position = configurationService.getValue(TerminalAccessibilitySettingId.AccessibleViewPreserveCursorPosition) ? 'initial-bottom' : 'bottom';
 			}
 		}));
 		this._focusedInstance = _terminalService.activeInstance;
-		this.add(_terminalService.onDidChangeActiveInstance(() => {
+		this._register(_terminalService.onDidChangeActiveInstance(() => {
 			if (_terminalService.activeInstance && this._focusedInstance?.instanceId !== _terminalService.activeInstance?.instanceId) {
 				this._onDidRequestClearProvider.fire(AccessibleViewProviderId.Terminal);
 				this._focusedInstance = _terminalService.activeInstance;

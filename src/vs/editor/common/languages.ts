@@ -2268,6 +2268,10 @@ export interface MappedEditsContext {
 }
 
 export interface MappedEditsProvider {
+	/**
+	 * @internal
+	 */
+	readonly displayName: string; // internal
 
 	/**
 	 * Provider maps code blocks from the chat into a workspace edit.

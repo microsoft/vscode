@@ -35,6 +35,7 @@ export class RequestChannel implements IServerChannel {
 				});
 			case 'resolveProxy': return this.service.resolveProxy(args[0]);
 			case 'lookupAuthorization': return this.service.lookupAuthorization(args[0]);
+			case 'lookupKerberosAuthorization': return this.service.lookupKerberosAuthorization(args[0]);
 			case 'loadCertificates': return this.service.loadCertificates();
 		}
 		throw new Error('Invalid call');
@@ -58,6 +59,10 @@ export class RequestChannelClient implements IRequestService {
 
 	async lookupAuthorization(authInfo: AuthInfo): Promise<Credentials | undefined> {
 		return this.channel.call<{ username: string; password: string } | undefined>('lookupAuthorization', [authInfo]);
+	}
+
+	async lookupKerberosAuthorization(url: string): Promise<string | undefined> {
+		return this.channel.call<string | undefined>('lookupKerberosAuthorization', [url]);
 	}
 
 	async loadCertificates(): Promise<string[]> {
