@@ -81,9 +81,21 @@ declare module 'vscode' {
 
 			/**
 			 * Which file locations we should look for ignore (.gitignore or .ignore) files to respect.
-			 * Any time that `parent` or `global` is set to `true`, `local` will also be `true`.
 			 */
-			useIgnoreFiles: IgnoreFileOptions;
+			useIgnoreFiles: {
+				/**
+				 * Use ignore files at the current workspace root.
+				 */
+				local: boolean;
+				/**
+				 * Use ignore files at the parent directory. If set, {@link TextSearchProviderOptions.useIgnoreFiles.local} should also be `true`.
+				 */
+				parent: boolean;
+				/**
+				 * Use global ignore files. If set, {@link TextSearchProviderOptions.useIgnoreFiles.local} should also be `true`.
+				 */
+				global: boolean;
+			};
 		}[];
 
 		/**
@@ -138,7 +150,25 @@ declare module 'vscode' {
 		limitHit?: boolean;
 	}
 
-	interface TextSearchResult {
+	/**
+	 * The main match information for a {@link TextSearchResult}.
+	 */
+	interface TextSearchMatch {
+		ranges: {
+			/**
+			 * The range of the match within the document, or multiple ranges for multiple matches.
+			 */
+			sourceRange: Range;
+			/**
+			 * The Range within `previewText` corresponding to the text of the match.
+			 */
+			previewRange: Range;
+		}[];
+
+		previewText: string;
+	}
+
+	export interface TextSearchResult {
 		/**
 		 * The uri for the matching document.
 		 */
@@ -146,20 +176,7 @@ declare module 'vscode' {
 		/**
 		 * The match corresponding to this result
 		 */
-		match: {
-			ranges: {
-				/**
-				 * The range of the match within the document, or multiple ranges for multiple matches.
-				 */
-				sourceRange: Range;
-				/**
-				 * The Range within `previewText` corresponding to the text of the match.
-				 */
-				previewRange: Range;
-			}[];
-
-			previewText: string;
-		};
+		match: TextSearchMatch;
 		/**
 		 * Any applicable context lines
 		 */

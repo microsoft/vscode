@@ -27,13 +27,34 @@ declare module 'vscode' {
 		 */
 		maxResults?: number;
 
+
 		/**
 		 * Which file locations we should look for ignore (.gitignore or .ignore) files to respect.
-		 * When `undefined`, we will follow settings (or assume the value if only one is valid) using the value for the corresponding `search.use*IgnoreFiles` settting.
-		 * Any time that `parent` or `global` is set to `true`, `local` must also be `true`.
+		 *
+		 * When any of these fields are `undefined`, we will:
+		 * - assume the value if possible (e.g. if only one is valid)
+		 * or
+		 * - follow settings using the value for the corresponding `search.use*IgnoreFiles` settting.
+		 *
 		 * Will log an error if an invalid combination is set.
 		 */
-		useIgnoreFiles?: Partial<IgnoreFileOptions>;
+		useIgnoreFiles?: {
+			/**
+			 * Use ignore files at the current workspace root.
+			 * May default to `search.useIgnoreFiles` setting if not set.
+			 */
+			local?: boolean;
+			/**
+			 * Use ignore files at the parent directory. When set to `true`, {@link FindTextInFilesOptions.useIgnoreFiles.local} must be `true`.
+			 * May default to `search.useParentIgnoreFiles` setting if not set.
+			 */
+			parent?: boolean;
+			/**
+			 * Use global ignore files. When set to `true`, {@link FindTextInFilesOptions.useIgnoreFiles.local} must also be `true`.
+			 * May default to `search.useGlobalIgnoreFiles` setting if not set.
+			 */
+			global?: boolean;
+		};
 
 		/**
 		 * Whether symlinks should be followed while searching.
@@ -79,11 +100,11 @@ declare module 'vscode' {
 
 	export interface FindTextInFilesResponse {
 		/**
-		 * The results of the text search, in batches.
+		 * The results of the text search, in batches. To get completion information, wait on the `complete` property.
 		 */
 		results: AsyncIterable<TextSearchResult>;
 		/**
-		 * The text search completion information that gets returned on completion.
+		 * The text search completion information. This resolves on completion.
 		 */
 		complete: Thenable<TextSearchComplete>;
 	}

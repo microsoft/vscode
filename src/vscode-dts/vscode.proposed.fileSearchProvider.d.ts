@@ -35,21 +35,33 @@ declare module 'vscode' {
 
 			/**
 			 * Which file locations we should look for ignore (.gitignore or .ignore) files to respect.
-			 * Any time that `parent` or `global` is set to `true`, `local` will also be `true`.
 			 */
-			useIgnoreFiles: IgnoreFileOptions;
-		}[];
+			useIgnoreFiles: {
+				/**
+				 * Use ignore files at the current workspace root.
+				 */
+				local: boolean;
+				/**
+				 * Use ignore files at the parent directory. If set, {@link FileSearchOptions.useIgnoreFiles.local} should also be `true`.
+				 */
+				parent: boolean;
+				/**
+				 * Use global ignore files. If set, {@link FileSearchOptions.useIgnoreFiles.local} should also be `true`.
+				 */
+				global: boolean;
+			}[];
 
-		/**
-		 * An object with a lifespan that matches the session's lifespan. If the provider chooses to, this object can be used as the key for a cache,
-		 * and searches with the same session object can search the same cache. When the token is cancelled, the session is complete and the cache can be cleared.
-		 */
-		session: object;
+			/**
+			 * An object with a lifespan that matches the session's lifespan. If the provider chooses to, this object can be used as the key for a cache,
+			 * and searches with the same session object can search the same cache. When the token is cancelled, the session is complete and the cache can be cleared.
+			 */
+			session: unknown;
 
-		/**
-		 * The maximum number of results to be returned.
-		 */
-		maxResults: number;
+			/**
+			 * The maximum number of results to be returned.
+			 */
+			maxResults: number;
+		};
 	}
 
 	/**
