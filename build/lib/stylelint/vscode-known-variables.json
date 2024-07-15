@@ -835,6 +835,8 @@
 		"--vscode-editorStickyScroll-scrollableWidth",
 		"--vscode-editorStickyScroll-foldingOpacityTransition",
 		"--window-border-color",
+		"--vscode-parameterHintsWidget-editorFontFamily",
+		"--vscode-parameterHintsWidget-editorFontFamilyDefault",
 		"--workspace-trust-check-color",
 		"--workspace-trust-selected-color",
 		"--workspace-trust-unselected-color",
