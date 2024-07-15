@@ -4,7 +4,7 @@ parameters:
     default: x64
 
 steps:
-  - task: DownloadPipelineArtifacts@2
+  - task: DownloadPipelineArtifact@2
     inputs:
       artifactName: $(Windows.ARTIFACT_PREFIX)vscode_client_win32_${{ parameters.VSCODE_ARCH }}_archive
       targetPath: $(Agent.TempDirectory)\vscode_client_archive
