@@ -28,6 +28,7 @@ import { IExtHostApiDeprecationService } from 'vs/workbench/api/common/extHostAp
 import { IExtHostAuthentication } from 'vs/workbench/api/common/extHostAuthentication';
 import { ExtHostBulkEdits } from 'vs/workbench/api/common/extHostBulkEdits';
 import { ExtHostChatAgents2 } from 'vs/workbench/api/common/extHostChatAgents2';
+import { ExtHostChatCustomInstructions } from 'vs/workbench/api/common/extHostChatCustomInstructions';
 import { ExtHostChatVariables } from 'vs/workbench/api/common/extHostChatVariables';
 import { ExtHostClipboard } from 'vs/workbench/api/common/extHostClipboard';
 import { ExtHostEditorInsets } from 'vs/workbench/api/common/extHostCodeInsets';
@@ -1436,7 +1437,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'chatParticipantPrivate');
 				return extHostChatAgents2.createDynamicChatAgent(extension, id, dynamicProps, handler);
 			},
-			registerCustomInstructionProvider(provider: ChatCustomInstructionProvider) {
+			registerCustomInstructionProvider(provider: vscode.ChatCustomInstructionProvider) {
 				checkProposedApiEnabled(extension, 'chatCustomInstructions');
 				return extHostChatCustomInstructions.registerCustomInstructionProvider(extension, provider);
 			}
