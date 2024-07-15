@@ -394,10 +394,10 @@ export class AccessibleView extends Disposable {
 		this._openerService.open(URI.parse(this._currentProvider.options.readMoreUrl));
 	}
 
-	configureKeybindings(): void {
+	configureKeybindings(unassigned: boolean): void {
 		this._inQuickPick = true;
 		const provider = this._updateLastProvider();
-		const items = provider?.options?.configureKeybindingItems;
+		const items = unassigned ? provider?.options?.configureKeybindingItems : provider?.options?.configuredKeybindingItems;
 		if (!items) {
 			return;
 		}
@@ -510,6 +510,7 @@ export class AccessibleView extends Disposable {
 		const screenReaderModeHint = this._screenReaderModeHint(provider);
 		const exitThisDialogHint = this._exitDialogHint(provider);
 		let configureKbHint = '';
+		let configureAssignedKbHint = '';
 		const resolvedContent = resolveContentAndKeybindingItems(this._keybindingService, screenReaderModeHint + content + readMoreLinkHint + disableHelpHint + exitThisDialogHint);
 		if (resolvedContent) {
 			content = resolvedContent.content.value;
@@ -517,8 +518,12 @@ export class AccessibleView extends Disposable {
 				provider.options.configureKeybindingItems = resolvedContent.configureKeybindingItems;
 				configureKbHint = this._configureUnassignedKbHint();
 			}
+			if (resolvedContent.configuredKeybindingItems) {
+				provider.options.configuredKeybindingItems = resolvedContent.configuredKeybindingItems;
+				configureAssignedKbHint = this._configureAssignedKbHint();
+			}
 		}
-		this._currentContent = content + configureKbHint;
+		this._currentContent = content + configureKbHint + configureAssignedKbHint;
 	}
 
 	private _render(provider: AccesibleViewContentProvider, container: HTMLElement, showAccessibleViewHelp?: boolean, updatedContent?: string): IDisposable {
@@ -782,6 +787,12 @@ export class AccessibleView extends Disposable {
 		return localize('configureKb', '\n\nConfigure keybindings for commands that lack them {0}.', keybindingToConfigureQuickPick);
 	}
 
+	private _configureAssignedKbHint(): string {
+		const configureKb = this._keybindingService.lookupKeybinding(AccessibilityCommandId.AccessibilityHelpConfigureAssignedKeybindings)?.getAriaLabel();
+		const keybindingToConfigureQuickPick = configureKb ? '(' + configureKb + ')' : 'by assigning a keybinding to the command Accessibility Help Configure Assigned Keybindings.';
+		return localize('configureKbAssigned', '\n\nConfigure keybindings for commands that already have assignments {0}.', keybindingToConfigureQuickPick);
+	}
+
 	private _screenReaderModeHint(provider: AccesibleViewContentProvider): string {
 		const accessibilitySupport = this._accessibilityService.isScreenReaderOptimized();
 		let screenReaderModeHint = '';
@@ -827,8 +838,8 @@ export class AccessibleViewService extends Disposable implements IAccessibleView
 		}
 		this._accessibleView.show(provider, undefined, undefined, position);
 	}
-	configureKeybindings(): void {
-		this._accessibleView?.configureKeybindings();
+	configureKeybindings(unassigned: boolean): void {
+		this._accessibleView?.configureKeybindings(unassigned);
 	}
 	openHelpLink(): void {
 		this._accessibleView?.openHelpLink();

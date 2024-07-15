@@ -7,11 +7,12 @@ import { MarkdownString } from 'vs/base/common/htmlContent';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IPickerQuickAccessItem } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 
-export function resolveContentAndKeybindingItems(keybindingService: IKeybindingService, value?: string): { content: MarkdownString; configureKeybindingItems: IPickerQuickAccessItem[] | undefined } | undefined {
+export function resolveContentAndKeybindingItems(keybindingService: IKeybindingService, value?: string): { content: MarkdownString; configureKeybindingItems: IPickerQuickAccessItem[] | undefined; configuredKeybindingItems: IPickerQuickAccessItem[] | undefined } | undefined {
 	if (!value) {
 		return;
 	}
 	const configureKeybindingItems: IPickerQuickAccessItem[] = [];
+	const configuredKeybindingItems: IPickerQuickAccessItem[] = [];
 	const matches = value.matchAll(/\<keybinding:(?<commandId>.*)\>/gm);
 	for (const match of [...matches]) {
 		const commandId = match?.groups?.commandId;
@@ -26,12 +27,16 @@ export function resolveContentAndKeybindingItems(keybindingService: IKeybindingS
 				});
 			} else {
 				kbLabel = ' (' + keybinding + ')';
+				configuredKeybindingItems.push({
+					label: commandId,
+					id: commandId
+				});
 			}
 			value = value.replace(match[0], kbLabel);
 		}
 	}
 	const content = new MarkdownString(value);
 	content.isTrusted = true;
-	return { content, configureKeybindingItems: configureKeybindingItems.length ? configureKeybindingItems : undefined };
+	return { content, configureKeybindingItems: configureKeybindingItems.length ? configureKeybindingItems : undefined, configuredKeybindingItems: configuredKeybindingItems.length ? configuredKeybindingItems : undefined };
 }
 
