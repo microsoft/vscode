@@ -79,7 +79,7 @@ declare module 'vscode' {
 		 * @param options A set of options to consider while searching files.
 		 * @param token A cancellation token.
 		 */
-		provideFileSearchResults(pattern: string, options: FileSearchOptions[], token: CancellationToken): ProviderResult<Uri[]>;
+		provideFileSearchResults(pattern: string, options: FileSearchOptions, token: CancellationToken): ProviderResult<Uri[]>;
 	}
 
 	export namespace workspace {
