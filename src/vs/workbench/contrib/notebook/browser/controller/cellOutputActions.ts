@@ -9,7 +9,7 @@ import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/act
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { INotebookOutputActionContext, NOTEBOOK_ACTIONS_CATEGORY } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { NOTEBOOK_CELL_HAS_OUTPUTS } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
+import { NOTEBOOK_CELL_HAS_HIDDEN_OUTPUTS, NOTEBOOK_CELL_HAS_OUTPUTS } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { ILogService } from 'vs/platform/log/common/log';
 import { copyCellOutput } from 'vs/workbench/contrib/notebook/browser/contrib/clipboard/cellOutputClipboard';
@@ -17,8 +17,37 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { ICellOutputViewModel, ICellViewModel, INotebookEditor, getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellKind, CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 export const COPY_OUTPUT_COMMAND_ID = 'notebook.cellOutput.copy';
+
+registerAction2(class ShowAllOutputsAction extends Action2 {
+	constructor() {
+		super({
+			id: 'notebook.cellOuput.showEmptyOutputs',
+			title: localize('notebookActions.showAllOutput', "Show empty outputs"),
+			menu: {
+				id: MenuId.NotebookOutputToolbar,
+				when: ContextKeyExpr.and(NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_HAS_HIDDEN_OUTPUTS)
+			},
+			f1: false,
+			category: NOTEBOOK_ACTIONS_CATEGORY
+		});
+	}
+
+	run(accessor: ServicesAccessor, context: INotebookOutputActionContext): void {
+		const cell = context.cell;
+		if (cell && cell.cellKind === CellKind.Code) {
+
+			for (let i = 1; i < cell.outputsViewModels.length; i++) {
+				if (!cell.outputsViewModels[i].visible.get()) {
+					cell.outputsViewModels[i].setVisible(true, true);
+					(cell as CodeCellViewModel).updateOutputHeight(i, 1, 'command');
+				}
+			}
+		}
+	}
+});
 
 registerAction2(class CopyCellOutputAction extends Action2 {
 	constructor() {

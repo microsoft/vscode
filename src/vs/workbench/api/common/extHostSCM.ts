@@ -654,9 +654,7 @@ class ExtHostSourceControl implements vscode.SourceControl {
 	}
 
 	set statusBarCommands(statusBarCommands: vscode.Command[] | undefined) {
-		this.logService.trace('ExtHostSourceControl#statusBarCommands', (statusBarCommands ?? []).map(c => c.command).join(', '));
 		if (this._statusBarCommands && statusBarCommands && commandListEquals(this._statusBarCommands, statusBarCommands)) {
-			this.logService.trace('ExtHostSourceControl#statusBarCommands are equal');
 			return;
 		}
 
@@ -684,7 +682,6 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		_extHostDocuments: ExtHostDocuments,
 		proxy: MainThreadSCMShape,
 		private _commands: ExtHostCommands,
-		private readonly logService: ILogService,
 		private _id: string,
 		private _label: string,
 		private _rootUri?: vscode.Uri
@@ -864,7 +861,7 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		});
 
 		const handle = ExtHostSCM._handlePool++;
-		const sourceControl = new ExtHostSourceControl(extension, this._extHostDocuments, this._proxy, this._commands, this.logService, id, label, rootUri);
+		const sourceControl = new ExtHostSourceControl(extension, this._extHostDocuments, this._proxy, this._commands, id, label, rootUri);
 		this._sourceControls.set(handle, sourceControl);
 
 		const sourceControls = this._sourceControlsByExtension.get(extension.identifier) || [];
@@ -973,6 +970,11 @@ export class ExtHostSCM implements ExtHostSCMShape {
 	async $resolveHistoryItemGroupCommonAncestor(sourceControlHandle: number, historyItemGroupId1: string, historyItemGroupId2: string | undefined, token: CancellationToken): Promise<{ id: string; ahead: number; behind: number } | undefined> {
 		const historyProvider = this._sourceControls.get(sourceControlHandle)?.historyProvider;
 		return await historyProvider?.resolveHistoryItemGroupCommonAncestor(historyItemGroupId1, historyItemGroupId2, token) ?? undefined;
+	}
+
+	async $resolveHistoryItemGroupCommonAncestor2(sourceControlHandle: number, historyItemGroupIds: string[], token: CancellationToken): Promise<string | undefined> {
+		const historyProvider = this._sourceControls.get(sourceControlHandle)?.historyProvider;
+		return await historyProvider?.resolveHistoryItemGroupCommonAncestor2(historyItemGroupIds, token) ?? undefined;
 	}
 
 	async $provideHistoryItems(sourceControlHandle: number, historyItemGroupId: string, options: any, token: CancellationToken): Promise<SCMHistoryItemDto[] | undefined> {

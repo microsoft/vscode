@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
 import { exec } from 'child_process';
 import { app, BrowserWindow, clipboard, Display, Menu, MessageBoxOptions, MessageBoxReturnValue, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, powerMonitor, SaveDialogOptions, SaveDialogReturnValue, screen, shell, webContents } from 'electron';
 import { arch, cpus, freemem, loadavg, platform, release, totalmem, type } from 'os';
@@ -10,8 +11,8 @@ import { promisify } from 'util';
 import { memoize } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { dirname, join, resolve } from 'vs/base/common/path';
+import { matchesSomeScheme, Schemas } from 'vs/base/common/network';
+import { dirname, join, posix, resolve, win32 } from 'vs/base/common/path';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { AddFirstParameterToFunctions } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
@@ -43,6 +44,9 @@ import { IV8Profile } from 'vs/platform/profiling/common/profiling';
 import { IAuxiliaryWindowsMainService } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindows';
 import { IAuxiliaryWindow } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindow';
 import { CancellationError } from 'vs/base/common/errors';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IProxyAuthService } from 'vs/platform/native/electron-main/auth';
+import { AuthInfo, Credentials, IRequestService } from 'vs/platform/request/common/request';
 
 export interface INativeHostMainService extends AddFirstParameterToFunctions<ICommonNativeHostService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
 
@@ -61,7 +65,10 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		@ILogService private readonly logService: ILogService,
 		@IProductService private readonly productService: IProductService,
 		@IThemeMainService private readonly themeMainService: IThemeMainService,
-		@IWorkspacesManagementMainService private readonly workspacesManagementMainService: IWorkspacesManagementMainService
+		@IWorkspacesManagementMainService private readonly workspacesManagementMainService: IWorkspacesManagementMainService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IRequestService private readonly requestService: IRequestService,
+		@IProxyAuthService private readonly proxyAuthService: IProxyAuthService
 	) {
 		super();
 	}
@@ -322,7 +329,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 			}
 
 			// Different source, delete it first
-			await Promises.unlink(source);
+			await fs.promises.unlink(source);
 		} catch (error) {
 			if (error.code !== 'ENOENT') {
 				throw error; // throw on any error but file not found
@@ -330,7 +337,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}
 
 		try {
-			await Promises.symlink(target, source);
+			await fs.promises.symlink(target, source);
 		} catch (error) {
 			if (error.code !== 'EACCES' && error.code !== 'ENOENT') {
 				throw error;
@@ -362,7 +369,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		const { source } = await this.getShellCommandLink();
 
 		try {
-			await Promises.unlink(source);
+			await fs.promises.unlink(source);
 		} catch (error) {
 			switch (error.code) {
 				case 'EACCES': {
@@ -485,12 +492,49 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		window?.setDocumentEdited(edited);
 	}
 
-	async openExternal(windowId: number | undefined, url: string): Promise<boolean> {
+	async openExternal(windowId: number | undefined, url: string, defaultApplication?: string): Promise<boolean> {
 		this.environmentMainService.unsetSnapExportedVariables();
-		shell.openExternal(url);
-		this.environmentMainService.restoreSnapExportedVariables();
+		try {
+			if (matchesSomeScheme(url, Schemas.http, Schemas.https)) {
+				this.openExternalBrowser(url, defaultApplication);
+			} else {
+				shell.openExternal(url);
+			}
+		} finally {
+			this.environmentMainService.restoreSnapExportedVariables();
+		}
 
 		return true;
+	}
+
+	private async openExternalBrowser(url: string, defaultApplication?: string) {
+		const configuredBrowser = defaultApplication ?? this.configurationService.getValue<string>('workbench.externalBrowser');
+		if (!configuredBrowser) {
+			return shell.openExternal(url);
+		}
+
+		if (configuredBrowser.includes(posix.sep) || configuredBrowser.includes(win32.sep)) {
+			const browserPathExists = await Promises.exists(configuredBrowser);
+			if (!browserPathExists) {
+				this.logService.error(`Configured external browser path does not exist: ${configuredBrowser}`);
+				return shell.openExternal(url);
+			}
+		}
+
+		try {
+			const { default: open } = await import('open');
+			await open(url, {
+				app: {
+					// Use `open.apps` helper to allow cross-platform browser
+					// aliases to be looked up properly. Fallback to the
+					// configured value if not found.
+					name: Object.hasOwn(open.apps, configuredBrowser) ? open.apps[(configuredBrowser as keyof typeof open['apps'])] : configuredBrowser
+				}
+			});
+		} catch (error) {
+			this.logService.error(`Unable to open external URL '${url}' using browser '${configuredBrowser}' due to ${error}.`);
+			return shell.openExternal(url);
+		}
 	}
 
 	moveItemToTrash(windowId: number | undefined, fullPath: string): Promise<void> {
@@ -765,15 +809,28 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	//#region Connectivity
 
 	async resolveProxy(windowId: number | undefined, url: string): Promise<string | undefined> {
+		if (this.environmentMainService.extensionTestsLocationURI) {
+			const testProxy = this.configurationService.getValue<string>('integration-test.http.proxy');
+			if (testProxy) {
+				return testProxy;
+			}
+		}
 		const window = this.codeWindowById(windowId);
 		const session = window?.win?.webContents?.session;
 
 		return session?.resolveProxy(url);
 	}
 
+	async lookupAuthorization(_windowId: number | undefined, authInfo: AuthInfo): Promise<Credentials | undefined> {
+		return this.proxyAuthService.lookupAuthorization(authInfo);
+	}
+
+	async lookupKerberosAuthorization(_windowId: number | undefined, url: string): Promise<string | undefined> {
+		return this.requestService.lookupKerberosAuthorization(url);
+	}
+
 	async loadCertificates(_windowId: number | undefined): Promise<string[]> {
-		const proxyAgent = await import('@vscode/proxy-agent');
-		return proxyAgent.loadSystemCertificates({ log: this.logService });
+		return this.requestService.loadCertificates();
 	}
 
 	findFreePort(windowId: number | undefined, startPort: number, giveUpAfter: number, timeout: number, stride = 1): Promise<number> {

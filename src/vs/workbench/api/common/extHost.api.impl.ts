@@ -210,7 +210,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostUriOpeners = rpcProtocol.set(ExtHostContext.ExtHostUriOpeners, new ExtHostUriOpeners(rpcProtocol));
 	const extHostProfileContentHandlers = rpcProtocol.set(ExtHostContext.ExtHostProfileContentHandlers, new ExtHostProfileContentHandlers(rpcProtocol));
 	rpcProtocol.set(ExtHostContext.ExtHostInteractive, new ExtHostInteractive(rpcProtocol, extHostNotebook, extHostDocumentsAndEditors, extHostCommands, extHostLogService));
-	const extHostChatAgents2 = rpcProtocol.set(ExtHostContext.ExtHostChatAgents2, new ExtHostChatAgents2(rpcProtocol, extHostLogService, extHostCommands));
+	const extHostChatAgents2 = rpcProtocol.set(ExtHostContext.ExtHostChatAgents2, new ExtHostChatAgents2(rpcProtocol, extHostLogService, extHostCommands, extHostDocuments));
 	const extHostChatVariables = rpcProtocol.set(ExtHostContext.ExtHostChatVariables, new ExtHostChatVariables(rpcProtocol));
 	const extHostLanguageModelTools = rpcProtocol.set(ExtHostContext.ExtHostLanguageModelTools, new ExtHostLanguageModelTools(rpcProtocol));
 	const extHostAiRelatedInformation = rpcProtocol.set(ExtHostContext.ExtHostAiRelatedInformation, new ExtHostRelatedInformation(rpcProtocol));
@@ -1539,6 +1539,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			CommentThreadCollapsibleState: extHostTypes.CommentThreadCollapsibleState,
 			CommentThreadState: extHostTypes.CommentThreadState,
 			CommentThreadApplicability: extHostTypes.CommentThreadApplicability,
+			CommentThreadFocus: extHostTypes.CommentThreadFocus,
 			CompletionItem: extHostTypes.CompletionItem,
 			CompletionItemKind: extHostTypes.CompletionItemKind,
 			CompletionItemTag: extHostTypes.CompletionItemTag,
@@ -1598,6 +1599,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			Position: extHostTypes.Position,
 			ProcessExecution: extHostTypes.ProcessExecution,
 			ProgressLocation: extHostTypes.ProgressLocation,
+			QuickInputButtonLocation: extHostTypes.QuickInputButtonLocation,
 			QuickInputButtons: extHostTypes.QuickInputButtons,
 			Range: extHostTypes.Range,
 			RelativePattern: extHostTypes.RelativePattern,
@@ -1686,6 +1688,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			TestResultState: extHostTypes.TestResultState,
 			TestRunRequest: extHostTypes.TestRunRequest,
 			TestMessage: extHostTypes.TestMessage,
+			TestMessage2: extHostTypes.TestMessage,
+			TestMessageStackFrame: extHostTypes.TestMessageStackFrame,
 			TestTag: extHostTypes.TestTag,
 			TestRunProfileKind: extHostTypes.TestRunProfileKind,
 			TextSearchCompleteMessageType: TextSearchCompleteMessageType,
@@ -1740,15 +1744,13 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ChatRequestTurn: extHostTypes.ChatRequestTurn,
 			ChatResponseTurn: extHostTypes.ChatResponseTurn,
 			ChatLocation: extHostTypes.ChatLocation,
+			ChatRequestEditorData: extHostTypes.ChatRequestEditorData,
+			ChatRequestNotebookData: extHostTypes.ChatRequestNotebookData,
 			LanguageModelChatMessageRole: extHostTypes.LanguageModelChatMessageRole,
 			LanguageModelChatMessage: extHostTypes.LanguageModelChatMessage,
 			LanguageModelChatMessageFunctionResultPart: extHostTypes.LanguageModelFunctionResultPart,
 			LanguageModelChatResponseTextPart: extHostTypes.LanguageModelTextPart,
 			LanguageModelChatResponseFunctionUsePart: extHostTypes.LanguageModelFunctionUsePart,
-			LanguageModelChatMessage2: extHostTypes.LanguageModelChatMessage, // TODO@jrieken REMOVE
-			LanguageModelChatSystemMessage: extHostTypes.LanguageModelChatSystemMessage,// TODO@jrieken REMOVE
-			LanguageModelChatUserMessage: extHostTypes.LanguageModelChatUserMessage,// TODO@jrieken REMOVE
-			LanguageModelChatAssistantMessage: extHostTypes.LanguageModelChatAssistantMessage,// TODO@jrieken REMOVE
 			LanguageModelError: extHostTypes.LanguageModelError,
 			NewSymbolName: extHostTypes.NewSymbolName,
 			NewSymbolNameTag: extHostTypes.NewSymbolNameTag,

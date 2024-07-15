@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { AccessibleViewProviderId, AccessibleViewType } from 'vs/platform/accessibility/browser/accessibleView';
+import { AccessibleViewProviderId, AccessibleViewType, AccessibleContentProvider } from 'vs/platform/accessibility/browser/accessibleView';
 import { IAccessibleViewImplentation } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -27,15 +27,14 @@ export class TerminalChatAccessibilityHelp implements IAccessibleViewImplentatio
 		}
 
 		const helpText = getAccessibilityHelpText(accessor);
-		return {
-			id: AccessibleViewProviderId.TerminalChat,
-			verbositySettingKey: AccessibilityVerbositySettingId.TerminalChat,
-			provideContent: () => helpText,
-			onClose: () => TerminalChatController.get(instance)?.focus(),
-			options: { type: AccessibleViewType.Help }
-		};
+		return new AccessibleContentProvider(
+			AccessibleViewProviderId.TerminalChat,
+			{ type: AccessibleViewType.Help },
+			() => helpText,
+			() => TerminalChatController.get(instance)?.focus(),
+			AccessibilityVerbositySettingId.TerminalChat,
+		);
 	}
-	dispose() { }
 }
 
 export function getAccessibilityHelpText(accessor: ServicesAccessor): string {

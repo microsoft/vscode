@@ -51,7 +51,7 @@ import { ExtensionMessageCollector, ExtensionPoint, ExtensionsRegistry, IExtensi
 import { LazyCreateExtensionHostManager } from 'vs/workbench/services/extensions/common/lazyCreateExtensionHostManager';
 import { ResponsiveState } from 'vs/workbench/services/extensions/common/rpcProtocol';
 import { IExtensionActivationHost as IWorkspaceContainsActivationHost, checkActivateWorkspaceContainsExtension, checkGlobFileExists } from 'vs/workbench/services/extensions/common/workspaceContains';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { ILifecycleService, WillShutdownJoinerOrder } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IExtensionHostExitInfo, IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 const hasOwnProperty = Object.hasOwnProperty;
@@ -192,6 +192,16 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 					this._logService.info(`AbstractExtensionService.onDidUninstallExtension fired for ${event.identifier.id}`);
 				}
 				this._handleDeltaExtensions(new DeltaExtensionsQueueItem([], [event.identifier.id]));
+			}
+		}));
+
+		this._register(this._lifecycleService.onWillShutdown(event => {
+			if (this._remoteAgentService.getConnection()) {
+				event.join(() => this._remoteAgentService.endConnection(), {
+					id: 'join.disconnectRemote',
+					label: nls.localize('disconnectRemote', "Disconnect Remote Agent"),
+					order: WillShutdownJoinerOrder.Last // after others have joined that might depend on a remote connection
+				});
 			}
 		}));
 

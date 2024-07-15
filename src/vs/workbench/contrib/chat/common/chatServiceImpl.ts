@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce } from 'vs/base/common/arrays';
 import { DeferredPromise } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -16,7 +15,6 @@ import { revive } from 'vs/base/common/marshalling';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Progress } from 'vs/platform/progress/common/progress';
@@ -24,10 +22,11 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ChatAgentLocation, IChatAgent, IChatAgentRequest, IChatAgentResult, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, ChatWelcomeMessageModel, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatRequestVariableEntry, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatsData, getHistoryEntriesFromModel, updateRanges } from 'vs/workbench/contrib/chat/common/chatModel';
+import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, ChatWelcomeMessageModel, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatsData, getHistoryEntriesFromModel, updateRanges } from 'vs/workbench/contrib/chat/common/chatModel';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, IParsedChatRequest, chatAgentLeader, chatSubcommandLeader, getPromptText } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { ChatRequestParser } from 'vs/workbench/contrib/chat/common/chatRequestParser';
-import { ChatCopyKind, IChatCompleteResponse, IChatDetail, IChatFollowup, IChatProgress, IChatSendRequestData, IChatSendRequestOptions, IChatSendRequestResponseState, IChatService, IChatTransferredSessionData, IChatUserActionEvent, ChatAgentVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatCompleteResponse, IChatDetail, IChatFollowup, IChatProgress, IChatSendRequestData, IChatSendRequestOptions, IChatSendRequestResponseState, IChatService, IChatTransferredSessionData, IChatUserActionEvent } from 'vs/workbench/contrib/chat/common/chatService';
+import { ChatServiceTelemetry } from 'vs/workbench/contrib/chat/common/chatServiceTelemetry';
 import { IChatSlashCommandService } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { ChatMessageRole, IChatMessage } from 'vs/workbench/contrib/chat/common/languageModels';
@@ -68,64 +67,6 @@ type ChatProviderInvokedClassification = {
 	comment: 'Provides insight into the performance of Chat agents.';
 };
 
-type ChatVoteEvent = {
-	direction: 'up' | 'down';
-	agentId: string;
-};
-
-type ChatVoteClassification = {
-	direction: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user voted up or down.' };
-	agentId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the chat agent that this vote is for.' };
-	owner: 'roblourens';
-	comment: 'Provides insight into the performance of Chat agents.';
-};
-
-type ChatCopyEvent = {
-	copyKind: 'action' | 'toolbar';
-	agentId: string;
-};
-
-type ChatCopyClassification = {
-	copyKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How the copy was initiated.' };
-	agentId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the chat agent that the copy acted on.' };
-	owner: 'roblourens';
-	comment: 'Provides insight into the usage of Chat features.';
-};
-
-type ChatInsertEvent = {
-	newFile: boolean;
-	agentId: string;
-};
-
-type ChatInsertClassification = {
-	newFile: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the code was inserted into a new untitled file.' };
-	agentId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the chat agent that this insertion is for.' };
-	owner: 'roblourens';
-	comment: 'Provides insight into the usage of Chat features.';
-};
-
-type ChatCommandEvent = {
-	commandId: string;
-	agentId: string;
-};
-
-type ChatCommandClassification = {
-	commandId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The id of the command that was executed.' };
-	agentId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the related chat agent.' };
-	owner: 'roblourens';
-	comment: 'Provides insight into the usage of Chat features.';
-};
-
-type ChatTerminalEvent = {
-	languageId: string;
-};
-
-type ChatTerminalClassification = {
-	languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language of the code that was run in the terminal.' };
-	owner: 'roblourens';
-	comment: 'Provides insight into the usage of Chat features.';
-};
-
 const maxPersistedSessions = 25;
 
 export class ChatService extends Disposable implements IChatService {
@@ -148,6 +89,7 @@ export class ChatService extends Disposable implements IChatService {
 	public readonly onDidDisposeSession = this._onDidDisposeSession.event;
 
 	private readonly _sessionFollowupCancelTokens = this._register(new DisposableMap<string, CancellationTokenSource>());
+	private readonly _chatServiceTelemetry: ChatServiceTelemetry;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -162,6 +104,7 @@ export class ChatService extends Disposable implements IChatService {
 	) {
 		super();
 
+		this._chatServiceTelemetry = this.instantiationService.createInstance(ChatServiceTelemetry);
 		const sessionData = storageService.get(serializedChatKey, StorageScope.WORKSPACE, '');
 		if (sessionData) {
 			this._persistedSessions = this.deserializeChats(sessionData);
@@ -212,35 +155,7 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	notifyUserAction(action: IChatUserActionEvent): void {
-		if (action.action.kind === 'vote') {
-			this.telemetryService.publicLog2<ChatVoteEvent, ChatVoteClassification>('interactiveSessionVote', {
-				direction: action.action.direction === ChatAgentVoteDirection.Up ? 'up' : 'down',
-				agentId: action.agentId ?? ''
-			});
-		} else if (action.action.kind === 'copy') {
-			this.telemetryService.publicLog2<ChatCopyEvent, ChatCopyClassification>('interactiveSessionCopy', {
-				copyKind: action.action.copyKind === ChatCopyKind.Action ? 'action' : 'toolbar',
-				agentId: action.agentId ?? ''
-			});
-		} else if (action.action.kind === 'insert') {
-			this.telemetryService.publicLog2<ChatInsertEvent, ChatInsertClassification>('interactiveSessionInsert', {
-				newFile: !!action.action.newFile,
-				agentId: action.agentId ?? ''
-			});
-		} else if (action.action.kind === 'command') {
-			// TODO not currently called
-			const command = CommandsRegistry.getCommand(action.action.commandButton.command.id);
-			const commandId = command ? action.action.commandButton.command.id : 'INVALID';
-			this.telemetryService.publicLog2<ChatCommandEvent, ChatCommandClassification>('interactiveSessionCommand', {
-				commandId,
-				agentId: action.agentId ?? ''
-			});
-		} else if (action.action.kind === 'runInTerminal') {
-			this.telemetryService.publicLog2<ChatTerminalEvent, ChatTerminalClassification>('interactiveSessionRunInTerminal', {
-				languageId: action.action.languageId ?? ''
-			});
-		}
-
+		this._chatServiceTelemetry.notifyUserAction(action);
 		this._onDidPerformUserAction.fire(action);
 	}
 
@@ -564,25 +479,10 @@ export class ChatService extends Disposable implements IChatService {
 					request = model.addRequest(parsedRequest, initVariableData, attempt, agent, agentSlashCommandPart?.command);
 					completeResponseCreated();
 					const variableData = await this.chatVariablesService.resolveVariables(parsedRequest, options?.attachedContext, model, progressCallback, token);
-					request.variableData = variableData;
+					model.updateRequest(request, variableData);
 
 					const promptTextResult = getPromptText(request.message);
 					const updatedVariableData = updateRanges(variableData, promptTextResult.diff); // TODO bit of a hack
-
-					// TODO- should figure out how to get rid of implicit variables for inline chat
-					const implicitVariablesEnabled = (location === ChatAgentLocation.Editor || location === ChatAgentLocation.Notebook);
-					if (implicitVariablesEnabled) {
-						const implicitVariables = agent.defaultImplicitVariables;
-						if (implicitVariables) {
-							const resolvedImplicitVariables = await Promise.all(implicitVariables.map(async v => {
-								const id = this.chatVariablesService.getVariable(v)?.id ?? '';
-								const value = await this.chatVariablesService.resolveVariable(v, parsedRequest.text, model, progressCallback, token);
-								return value ? { id, name: v, value } satisfies IChatRequestVariableEntry :
-									undefined;
-							}));
-							updatedVariableData.variables.push(...coalesce(resolvedImplicitVariables));
-						}
-					}
 
 					const requestProps: IChatAgentRequest = {
 						sessionId,
@@ -594,6 +494,7 @@ export class ChatService extends Disposable implements IChatService {
 						enableCommandDetection,
 						attempt,
 						location,
+						locationData: options?.locationData,
 						acceptedConfirmationData: options?.acceptedConfirmationData,
 						rejectedConfirmationData: options?.rejectedConfirmationData,
 					};
@@ -612,12 +513,12 @@ export class ChatService extends Disposable implements IChatService {
 							continue;
 						}
 						history.push({ role: ChatMessageRole.User, content: { type: 'text', value: request.message.text } });
-						history.push({ role: ChatMessageRole.Assistant, content: { type: 'text', value: request.response.response.asString() } });
+						history.push({ role: ChatMessageRole.Assistant, content: { type: 'text', value: request.response.response.toString() } });
 					}
 					const message = parsedRequest.text;
 					const commandResult = await this.chatSlashCommandService.executeCommand(commandPart.slashCommand.command, message.substring(commandPart.slashCommand.command.length + 1).trimStart(), new Progress<IChatProgress>(p => {
 						progressCallback(p);
-					}), history, token);
+					}), history, location, token);
 					agentOrCommandFollowups = Promise.resolve(commandResult?.followUp);
 					rawResult = {};
 

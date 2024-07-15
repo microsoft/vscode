@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -54,7 +55,7 @@ export class CodeCacheCleaner extends Disposable {
 
 				// Delete cache folder if old enough
 				const codeCacheEntryPath = join(codeCacheRootPath, codeCache);
-				const codeCacheEntryStat = await Promises.stat(codeCacheEntryPath);
+				const codeCacheEntryStat = await fs.promises.stat(codeCacheEntryPath);
 				if (codeCacheEntryStat.isDirectory() && (now - codeCacheEntryStat.mtime.getTime()) > this._DataMaxAge) {
 					this.logService.trace(`[code cache cleanup]: Removing code cache folder ${codeCache}.`);
 

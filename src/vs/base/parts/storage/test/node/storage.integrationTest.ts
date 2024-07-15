@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
 import { deepStrictEqual, ok, strictEqual } from 'assert';
 import { tmpdir } from 'os';
 import { timeout } from 'vs/base/common/async';
@@ -24,7 +25,7 @@ flakySuite('Storage Library', function () {
 	setup(function () {
 		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'storagelibrary');
 
-		return Promises.mkdir(testDir, { recursive: true });
+		return fs.promises.mkdir(testDir, { recursive: true });
 	});
 
 	teardown(function () {
@@ -353,7 +354,7 @@ flakySuite('SQLite Storage Library', function () {
 	setup(function () {
 		testdir = getRandomTestPath(tmpdir(), 'vsctests', 'storagelibrary');
 
-		return Promises.mkdir(testdir, { recursive: true });
+		return fs.promises.mkdir(testdir, { recursive: true });
 	});
 
 	teardown(function () {
@@ -534,7 +535,7 @@ flakySuite('SQLite Storage Library', function () {
 		// on shutdown.
 		await storage.checkIntegrity(true).then(null, error => { } /* error is expected here but we do not want to fail */);
 
-		await Promises.unlink(backupPath); // also test that the recovery DB is backed up properly
+		await fs.promises.unlink(backupPath); // also test that the recovery DB is backed up properly
 
 		let recoveryCalled = false;
 		await storage.close(() => {
@@ -798,7 +799,7 @@ flakySuite('SQLite Storage Library', function () {
 		await storage.optimize();
 		await storage.close();
 
-		const sizeBeforeDeleteAndOptimize = (await Promises.stat(dbPath)).size;
+		const sizeBeforeDeleteAndOptimize = (await fs.promises.stat(dbPath)).size;
 
 		storage = new SQLiteStorageDatabase(dbPath);
 
@@ -820,7 +821,7 @@ flakySuite('SQLite Storage Library', function () {
 
 		await storage.close();
 
-		const sizeAfterDeleteAndOptimize = (await Promises.stat(dbPath)).size;
+		const sizeAfterDeleteAndOptimize = (await fs.promises.stat(dbPath)).size;
 
 		strictEqual(sizeAfterDeleteAndOptimize < sizeBeforeDeleteAndOptimize, true);
 	});

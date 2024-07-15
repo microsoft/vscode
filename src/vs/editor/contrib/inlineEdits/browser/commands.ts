@@ -18,7 +18,7 @@ import { MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 
-function labelAndAlias(str: nls.ILocalizedString): { label: string, alias: string } {
+function labelAndAlias(str: nls.ILocalizedString): { label: string; alias: string } {
 	return {
 		label: str.value,
 		alias: str.original,

@@ -13,7 +13,7 @@ import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
 import { Event } from 'vs/base/common/event';
 import { IExtension, ExtensionContainers, ExtensionState, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
-import { ManageExtensionAction, ExtensionRuntimeStateAction, ExtensionStatusLabelAction, RemoteInstallAction, ExtensionStatusAction, LocalInstallAction, ButtonWithDropDownExtensionAction, InstallDropdownAction, InstallingLabelAction, ButtonWithDropdownExtensionActionViewItem, DropDownExtensionAction, WebInstallAction, MigrateDeprecatedExtensionAction, SetLanguageAction, ClearLanguageAction, UpdateAction, ToggleAutoUpdateForExtensionAction, ExtensionAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
+import { ManageExtensionAction, ExtensionRuntimeStateAction, ExtensionStatusLabelAction, RemoteInstallAction, ExtensionStatusAction, LocalInstallAction, ButtonWithDropDownExtensionAction, InstallDropdownAction, InstallingLabelAction, ButtonWithDropdownExtensionActionViewItem, DropDownExtensionAction, WebInstallAction, MigrateDeprecatedExtensionAction, SetLanguageAction, ClearLanguageAction, UpdateAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { RatingsWidget, InstallCountWidget, RecommendationWidget, RemoteBadgeWidget, ExtensionPackCountWidget as ExtensionPackBadgeWidget, SyncIgnoredWidget, ExtensionHoverWidget, ExtensionActivationStatusWidget, PreReleaseBookmarkWidget, extensionVerifiedPublisherIconColor, VerifiedPublisherWidget } from 'vs/workbench/contrib/extensions/browser/extensionsWidgets';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -126,8 +126,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 			this.instantiationService.createInstance(ExtensionStatusLabelAction),
 			this.instantiationService.createInstance(MigrateDeprecatedExtensionAction, true),
 			this.instantiationService.createInstance(ExtensionRuntimeStateAction),
-			this.instantiationService.createInstance(ButtonWithDropDownExtensionAction, 'extensions.updateActions', ExtensionAction.PROMINENT_LABEL_ACTION_CLASS,
-				[[this.instantiationService.createInstance(UpdateAction, false)], [this.instantiationService.createInstance(ToggleAutoUpdateForExtensionAction, true, [true, 'onlyEnabledExtensions'])]]),
+			this.instantiationService.createInstance(UpdateAction, false),
 			this.instantiationService.createInstance(InstallDropdownAction),
 			this.instantiationService.createInstance(InstallingLabelAction),
 			this.instantiationService.createInstance(SetLanguageAction),
@@ -256,6 +255,6 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	const verifiedPublisherIconColor = theme.getColor(extensionVerifiedPublisherIconColor);
 	if (verifiedPublisherIconColor) {
 		const disabledVerifiedPublisherIconColor = verifiedPublisherIconColor.transparent(.5).makeOpaque(WORKBENCH_BACKGROUND(theme));
-		collector.addRule(`.extensions-list .monaco-list .monaco-list-row.disabled .author .verified-publisher ${ThemeIcon.asCSSSelector(verifiedPublisherThemeIcon)} { color: ${disabledVerifiedPublisherIconColor}; }`);
+		collector.addRule(`.extensions-list .monaco-list .monaco-list-row.disabled:not(.selected) .author .verified-publisher ${ThemeIcon.asCSSSelector(verifiedPublisherThemeIcon)} { color: ${disabledVerifiedPublisherIconColor}; }`);
 	}
 });

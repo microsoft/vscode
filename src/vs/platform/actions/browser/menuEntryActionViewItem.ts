@@ -33,8 +33,23 @@ import { defaultSelectBoxStyles } from 'vs/platform/theme/browser/defaultStyles'
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 
-export function createAndFillInContextMenuActions(menu: IMenu, options: IMenuActionOptions | undefined, target: IAction[] | { primary: IAction[]; secondary: IAction[] }, primaryGroup?: string): void {
-	const groups = menu.getActions(options);
+export function createAndFillInContextMenuActions(menu: IMenu, options: IMenuActionOptions | undefined, target: IAction[] | { primary: IAction[]; secondary: IAction[] }, primaryGroup?: string): void;
+export function createAndFillInContextMenuActions(menu: [string, Array<MenuItemAction | SubmenuItemAction>][], target: IAction[] | { primary: IAction[]; secondary: IAction[] }, primaryGroup?: string): void;
+export function createAndFillInContextMenuActions(menu: IMenu | [string, Array<MenuItemAction | SubmenuItemAction>][], optionsOrTarget: IMenuActionOptions | undefined | IAction[] | { primary: IAction[]; secondary: IAction[] }, targetOrPrimaryGroup?: IAction[] | { primary: IAction[]; secondary: IAction[] } | string, primaryGroupOrUndefined?: string): void {
+	let target: IAction[] | { primary: IAction[]; secondary: IAction[] };
+	let primaryGroup: string | ((actionGroup: string) => boolean) | undefined;
+	let groups: [string, Array<MenuItemAction | SubmenuItemAction>][];
+	if (Array.isArray(menu)) {
+		groups = menu;
+		target = optionsOrTarget as IAction[] | { primary: IAction[]; secondary: IAction[] };
+		primaryGroup = targetOrPrimaryGroup as string | undefined;
+	} else {
+		const options: IMenuActionOptions | undefined = optionsOrTarget as IMenuActionOptions | undefined;
+		groups = menu.getActions(options);
+		target = targetOrPrimaryGroup as IAction[] | { primary: IAction[]; secondary: IAction[] };
+		primaryGroup = primaryGroupOrUndefined;
+	}
+
 	const modifierKeyEmitter = ModifierKeyEmitter.getInstance();
 	const useAlternativeActions = modifierKeyEmitter.keyStatus.altKey || ((isWindows || isLinux) && modifierKeyEmitter.keyStatus.shiftKey);
 	fillInActions(groups, target, useAlternativeActions, primaryGroup ? actionGroup => actionGroup === primaryGroup : actionGroup => actionGroup === 'navigation');
@@ -47,8 +62,42 @@ export function createAndFillInActionBarActions(
 	primaryGroup?: string | ((actionGroup: string) => boolean),
 	shouldInlineSubmenu?: (action: SubmenuAction, group: string, groupSize: number) => boolean,
 	useSeparatorsInPrimaryActions?: boolean
+): void;
+export function createAndFillInActionBarActions(
+	menu: [string, Array<MenuItemAction | SubmenuItemAction>][],
+	target: IAction[] | { primary: IAction[]; secondary: IAction[] },
+	primaryGroup?: string | ((actionGroup: string) => boolean),
+	shouldInlineSubmenu?: (action: SubmenuAction, group: string, groupSize: number) => boolean,
+	useSeparatorsInPrimaryActions?: boolean
+): void;
+export function createAndFillInActionBarActions(
+	menu: IMenu | [string, Array<MenuItemAction | SubmenuItemAction>][],
+	optionsOrTarget: IMenuActionOptions | undefined | IAction[] | { primary: IAction[]; secondary: IAction[] },
+	targetOrPrimaryGroup?: IAction[] | { primary: IAction[]; secondary: IAction[] } | string | ((actionGroup: string) => boolean),
+	primaryGroupOrShouldInlineSubmenu?: string | ((actionGroup: string) => boolean) | ((action: SubmenuAction, group: string, groupSize: number) => boolean),
+	shouldInlineSubmenuOrUseSeparatorsInPrimaryActions?: ((action: SubmenuAction, group: string, groupSize: number) => boolean) | boolean,
+	useSeparatorsInPrimaryActionsOrUndefined?: boolean
 ): void {
-	const groups = menu.getActions(options);
+	let target: IAction[] | { primary: IAction[]; secondary: IAction[] };
+	let primaryGroup: string | ((actionGroup: string) => boolean) | undefined;
+	let shouldInlineSubmenu: ((action: SubmenuAction, group: string, groupSize: number) => boolean) | undefined;
+	let useSeparatorsInPrimaryActions: boolean | undefined;
+	let groups: [string, Array<MenuItemAction | SubmenuItemAction>][];
+	if (Array.isArray(menu)) {
+		groups = menu;
+		target = optionsOrTarget as IAction[] | { primary: IAction[]; secondary: IAction[] };
+		primaryGroup = targetOrPrimaryGroup as string | ((actionGroup: string) => boolean) | undefined;
+		shouldInlineSubmenu = primaryGroupOrShouldInlineSubmenu as (action: SubmenuAction, group: string, groupSize: number) => boolean;
+		useSeparatorsInPrimaryActions = shouldInlineSubmenuOrUseSeparatorsInPrimaryActions as boolean | undefined;
+	} else {
+		const options: IMenuActionOptions | undefined = optionsOrTarget as IMenuActionOptions | undefined;
+		groups = menu.getActions(options);
+		target = targetOrPrimaryGroup as IAction[] | { primary: IAction[]; secondary: IAction[] };
+		primaryGroup = primaryGroupOrShouldInlineSubmenu as string | ((actionGroup: string) => boolean) | undefined;
+		shouldInlineSubmenu = shouldInlineSubmenuOrUseSeparatorsInPrimaryActions as (action: SubmenuAction, group: string, groupSize: number) => boolean;
+		useSeparatorsInPrimaryActions = useSeparatorsInPrimaryActionsOrUndefined;
+	}
+
 	const isPrimaryAction = typeof primaryGroup === 'string' ? (actionGroup: string) => actionGroup === primaryGroup : primaryGroup;
 
 	// Action bars handle alternative actions on their own so the alternative actions should be ignored

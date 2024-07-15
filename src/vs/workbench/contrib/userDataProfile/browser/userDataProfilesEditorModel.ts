@@ -305,7 +305,6 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 	}
 
 	abstract readonly titleButtons: [Action[], Action[]];
-	abstract readonly titleActions: [IAction[], IAction[]];
 	abstract readonly actions: [IAction[], IAction[]];
 
 	protected abstract doSave(): Promise<void>;
@@ -318,7 +317,6 @@ export class UserDataProfileElement extends AbstractUserDataProfileElement {
 	constructor(
 		private _profile: IUserDataProfile,
 		readonly titleButtons: [Action[], Action[]],
-		readonly titleActions: [IAction[], IAction[]],
 		readonly actions: [IAction[], IAction[]],
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -394,11 +392,13 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 	private templatePromise: CancelablePromise<void> | undefined;
 	private template: IUserDataProfileTemplate | null = null;
 
+	private defaultName: string;
+	private defaultIcon: string | undefined;
+
 	constructor(
 		name: string,
 		copyFrom: URI | IUserDataProfile | undefined,
 		readonly titleButtons: [Action[], Action[]],
-		readonly titleActions: [IAction[], IAction[]],
 		readonly actions: [IAction[], IAction[]],
 		@IFileService private readonly fileService: IFileService,
 		@IUserDataProfileImportExportService private readonly userDataProfileImportExportService: IUserDataProfileImportExportService,
@@ -417,6 +417,7 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 			commandService,
 			instantiationService,
 		);
+		this.defaultName = name;
 		this._copyFrom = copyFrom;
 		this._copyFlags = this.getCopyFlagsFrom(copyFrom);
 		this.initialize();
@@ -473,8 +474,12 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 			if (this.copyFrom instanceof URI) {
 				await this.resolveTemplate(this.copyFrom);
 				if (this.template) {
-					this.name = this.template.name ?? '';
-					this.icon = this.template.icon;
+					if (this.defaultName === this.name) {
+						this.name = this.defaultName = this.template.name ?? '';
+					}
+					if (this.defaultIcon === this.icon) {
+						this.icon = this.defaultIcon = this.template.icon;
+					}
 					this.setCopyFlag(ProfileResourceType.Settings, !!this.template.settings);
 					this.setCopyFlag(ProfileResourceType.Keybindings, !!this.template.keybindings);
 					this.setCopyFlag(ProfileResourceType.Tasks, !!this.template.tasks);
@@ -485,8 +490,12 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 			}
 
 			if (isUserDataProfile(this.copyFrom)) {
-				this.name = `${this.copyFrom.name} (Copy)`;
-				this.icon = this.copyFrom.icon;
+				if (this.defaultName === this.name) {
+					this.name = this.defaultName = localize('copy from', "{0} (Copy)", this.copyFrom.name);
+				}
+				if (this.defaultIcon === this.icon) {
+					this.icon = this.defaultIcon = this.copyFrom.icon;
+				}
 				this.setCopyFlag(ProfileResourceType.Settings, true);
 				this.setCopyFlag(ProfileResourceType.Keybindings, true);
 				this.setCopyFlag(ProfileResourceType.Tasks, true);
@@ -495,8 +504,12 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 				return;
 			}
 
-			this.name = localize('untitled', "Untitled");
-			this.icon = undefined;
+			if (this.defaultName === this.name) {
+				this.name = this.defaultName = localize('untitled', "Untitled");
+			}
+			if (this.defaultIcon === this.icon) {
+				this.icon = this.defaultIcon = undefined;
+			}
 			this.setCopyFlag(ProfileResourceType.Settings, false);
 			this.setCopyFlag(ProfileResourceType.Keybindings, false);
 			this.setCopyFlag(ProfileResourceType.Tasks, false);
@@ -758,33 +771,21 @@ export class UserDataProfilesEditorModel extends EditorModel {
 			() => profileElement.toggleNewWindowProfile()
 		));
 
-		const titlePrimaryActions: IAction[] = [];
-		titlePrimaryActions.push(newWindowAction);
-		const titleSecondaryActions: IAction[] = [];
-		titleSecondaryActions.push(copyFromProfileAction);
-		titleSecondaryActions.push(exportAction);
-		if (!profile.isDefault) {
-			titleSecondaryActions.push(new Separator());
-			titleSecondaryActions.push(deleteAction);
-		}
-
 		const primaryActions: IAction[] = [];
 		primaryActions.push(newWindowAction);
+		if (!profile.isDefault) {
+			primaryActions.push(deleteAction);
+		}
 		const secondaryActions: IAction[] = [];
 		secondaryActions.push(activateAction);
 		secondaryActions.push(useAsNewWindowProfileAction);
 		secondaryActions.push(new Separator());
 		secondaryActions.push(copyFromProfileAction);
 		secondaryActions.push(exportAction);
-		if (!profile.isDefault) {
-			secondaryActions.push(new Separator());
-			secondaryActions.push(deleteAction);
-		}
 
 		const profileElement = disposables.add(this.instantiationService.createInstance(UserDataProfileElement,
 			profile,
 			[[], []],
-			[titlePrimaryActions, titleSecondaryActions],
 			[primaryActions, secondaryActions]
 		));
 
@@ -844,7 +845,6 @@ export class UserDataProfilesEditorModel extends EditorModel {
 				copyFrom ? '' : localize('untitled', "Untitled"),
 				copyFrom,
 				[[createAction], [cancelAction, previewProfileAction]],
-				[[], []],
 				[[cancelAction], []],
 			));
 			disposables.add(this.newProfileElement.onDidChange(e => {

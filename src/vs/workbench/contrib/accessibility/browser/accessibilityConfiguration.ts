@@ -58,7 +58,8 @@ export const enum AccessibilityVerbositySettingId {
 	EmptyEditorHint = 'accessibility.verbosity.emptyEditorHint',
 	ReplInputHint = 'accessibility.verbosity.replInputHint',
 	Comments = 'accessibility.verbosity.comments',
-	DiffEditorActive = 'accessibility.verbosity.diffEditorActive'
+	DiffEditorActive = 'accessibility.verbosity.diffEditorActive',
+	DebugConsole = 'accessibility.verbosity.debugConsole',
 }
 
 const baseVerbosityProperty: IConfigurationPropertySchema = {
@@ -169,6 +170,10 @@ const configuration: IConfigurationNode = {
 		},
 		[AccessibilityVerbositySettingId.DiffEditorActive]: {
 			description: localize('verbosity.diffEditorActive', 'Indicate when a diff editor becomes the active editor.'),
+			...baseVerbosityProperty
+		},
+		[AccessibilityVerbositySettingId.DebugConsole]: {
+			description: localize('verbosity.debugConsole', 'Provide information about how to access the debug console accessibility help dialog when the debug console is focused.'),
 			...baseVerbosityProperty
 		},
 		[AccessibilityWorkbenchSettingId.AccessibleViewCloseOnKeyPress]: {

@@ -52,9 +52,9 @@ import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { AbstractUserDataProfileElement, isProfileResourceChildElement, isProfileResourceTypeElement, IProfileChildElement, IProfileResourceTypeChildElement, IProfileResourceTypeElement, NewProfileElement, UserDataProfileElement, UserDataProfilesEditorModel } from 'vs/workbench/contrib/userDataProfile/browser/userDataProfilesEditorModel';
-import { Codicon } from 'vs/base/common/codicons';
 import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { createInstantHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { Codicon } from 'vs/base/common/codicons';
 
 export const profilesSashBorder = registerColor('profiles.sashBorder', PANEL_BORDER, localize('profilesSashBorder', "The color of the Profiles editor splitview sash border."));
 
@@ -353,6 +353,7 @@ export class UserDataProfilesEditor extends EditorPane implements IUserDataProfi
 interface IProfileElementTemplateData {
 	readonly icon: HTMLElement;
 	readonly label: HTMLElement;
+	readonly dirty: HTMLElement;
 	readonly description: HTMLElement;
 	readonly actionBar: WorkbenchToolBar;
 	readonly disposables: DisposableStore;
@@ -382,8 +383,8 @@ class ProfileElementRenderer implements IListRenderer<AbstractUserDataProfileEle
 		container.classList.add('profile-list-item');
 		const icon = append(container, $('.profile-list-item-icon'));
 		const label = append(container, $('.profile-list-item-label'));
+		const dirty = append(container, $(`span${ThemeIcon.asCSSSelector(Codicon.circleFilled)}`));
 		const description = append(container, $('.profile-list-item-description'));
-		append(description, $(`span${ThemeIcon.asCSSSelector(Codicon.check)}`));
 		append(description, $('span', undefined, localize('activeProfile', "In use")));
 
 		const actionsContainer = append(container, $('.profile-tree-item-actions-container'));
@@ -395,7 +396,7 @@ class ProfileElementRenderer implements IListRenderer<AbstractUserDataProfileEle
 			}
 		));
 
-		return { label, icon, description, actionBar, disposables, elementDisposables };
+		return { label, icon, dirty, description, actionBar, disposables, elementDisposables };
 	}
 
 	renderElement(element: AbstractUserDataProfileElement, index: number, templateData: IProfileElementTemplateData, height: number | undefined) {
@@ -403,6 +404,7 @@ class ProfileElementRenderer implements IListRenderer<AbstractUserDataProfileEle
 		templateData.label.textContent = element.name;
 		templateData.label.classList.toggle('new-profile', element instanceof NewProfileElement);
 		templateData.icon.className = ThemeIcon.asClassName(element.icon ? ThemeIcon.fromId(element.icon) : DEFAULT_ICON);
+		templateData.dirty.classList.toggle('hide', !(element instanceof NewProfileElement));
 		templateData.description.classList.toggle('hide', !element.active);
 		if (element.onDidChange) {
 			templateData.elementDisposables.add(element.onDidChange(e => {
@@ -421,7 +423,7 @@ class ProfileElementRenderer implements IListRenderer<AbstractUserDataProfileEle
 				}
 			}));
 		}
-		templateData.actionBar.setActions(element.actions[0] ?? []);
+		templateData.actionBar.setActions([...element.actions[0]], [...element.actions[1]]);
 	}
 
 	disposeElement(element: AbstractUserDataProfileElement, index: number, templateData: IProfileElementTemplateData, height: number | undefined): void {
@@ -437,11 +439,12 @@ class ProfileElementRenderer implements IListRenderer<AbstractUserDataProfileEle
 class ProfileWidget extends Disposable {
 
 	private readonly profileTitle: HTMLElement;
-	private readonly toolbar: WorkbenchToolBar;
 	private readonly buttonContainer: HTMLElement;
+	private readonly iconContainer: HTMLElement;
 	private readonly iconElement: HTMLElement;
 	private readonly useAsDefaultProfileContainer: HTMLElement;
 	private readonly useAsDefaultProfileCheckbox: Checkbox;
+	private readonly nameContainer: HTMLElement;
 	private readonly nameInput: InputBox;
 	private readonly copyFromContainer: HTMLElement;
 	private readonly copyFromSelectBox: SelectBox;
@@ -471,12 +474,14 @@ class ProfileWidget extends Disposable {
 
 		const header = append(parent, $('.profile-header'));
 		const title = append(header, $('.profile-title-container'));
-		this.iconElement = append(title, $(`${ThemeIcon.asCSSSelector(DEFAULT_ICON)}`, { 'tabindex': '0', 'role': 'button', 'aria-label': localize('icon', "Profile Icon") }));
-		this.renderIconSelectBox(this.iconElement);
 		this.profileTitle = append(title, $(''));
 
+		const body = append(parent, $('.profile-body'));
+
+		this.nameContainer = append(body, $('.profile-row-container'));
+		append(this.nameContainer, $('.profile-label-element', undefined, localize('name', "Name")));
 		this.nameInput = this._register(new InputBox(
-			title,
+			this.nameContainer,
 			undefined,
 			{
 				inputBoxStyles: defaultInputBoxStyles,
@@ -518,20 +523,16 @@ class ProfileWidget extends Disposable {
 			}
 		}));
 
-		const actionsContainer = append(header, $('.profile-actions-container'));
-		this.buttonContainer = append(actionsContainer, $('.profile-button-container'));
-		this.toolbar = this._register(instantiationService.createInstance(WorkbenchToolBar,
-			actionsContainer,
-			{
-				hoverDelegate: this._register(createInstantHoverDelegate()),
-				highlightToggledItems: true
-			}
-		));
+		this.iconContainer = append(body, $('.profile-row-container'));
+		append(this.iconContainer, $('.profile-label-element', undefined, localize('icon-label', "Icon")));
+		const iconValueContainer = append(this.iconContainer, $('.profile-icon-container'));
+		this.iconElement = append(iconValueContainer, $(`${ThemeIcon.asCSSSelector(DEFAULT_ICON)}`, { 'tabindex': '0', 'role': 'button', 'aria-label': localize('icon', "Profile Icon") }));
+		this.renderIconSelectBox(this.iconElement);
+		append(iconValueContainer, $('.profile-description-element', undefined, localize('icon-description', "Icon to replace the default settings icon in profile windows")));
 
-		const body = append(parent, $('.profile-body'));
-
-		this.copyFromContainer = append(body, $('.profile-copy-from-container'));
-		append(this.copyFromContainer, $('.profile-copy-from-label', undefined, localize('create from', "Copy from")));
+		this.copyFromContainer = append(body, $('.profile-row-container.profile-copy-from-container'));
+		append(this.copyFromContainer, $('.profile-label-element', undefined, localize('create from', "Copy from")));
+		append(this.copyFromContainer, $('.profile-description-element', undefined, localize('copy from description', "Select the profile from which you want to create the profile:")));
 		this.copyFromSelectBox = this._register(this.instantiationService.createInstance(SelectBox,
 			[],
 			0,
@@ -544,11 +545,13 @@ class ProfileWidget extends Disposable {
 		));
 		this.copyFromSelectBox.render(append(this.copyFromContainer, $('.profile-select-container')));
 
-		this.useAsDefaultProfileContainer = append(body, $('.profile-use-as-default-container'));
-		const useAsDefaultProfileTitle = localize('enable for new windows', "Use this profile as default for new windows");
+		this.useAsDefaultProfileContainer = append(body, $('.profile-row-container'));
+		append(this.useAsDefaultProfileContainer, $('.profile-label-element', undefined, localize('use as default', "Use as Default")));
+		const useAsDefaultProfileValueContainer = append(this.useAsDefaultProfileContainer, $('.profile-use-as-default-container'));
+		const useAsDefaultProfileTitle = localize('enable for new windows', "Use this profile as the default for new windows");
 		this.useAsDefaultProfileCheckbox = this._register(new Checkbox(useAsDefaultProfileTitle, false, defaultCheckboxStyles));
-		append(this.useAsDefaultProfileContainer, this.useAsDefaultProfileCheckbox.domNode);
-		const useAsDefaultProfileLabel = append(this.useAsDefaultProfileContainer, $('.profile-use-as-default-label', undefined, useAsDefaultProfileTitle));
+		append(useAsDefaultProfileValueContainer, this.useAsDefaultProfileCheckbox.domNode);
+		const useAsDefaultProfileLabel = append(useAsDefaultProfileValueContainer, $('.profile-description-element', undefined, useAsDefaultProfileTitle));
 		this._register(this.useAsDefaultProfileCheckbox.onChange(() => {
 			if (this._profileElement.value?.element instanceof UserDataProfileElement) {
 				this._profileElement.value.element.toggleNewWindowProfile();
@@ -560,18 +563,21 @@ class ProfileWidget extends Disposable {
 			}
 		}));
 
-		this.contentsTreeHeader = append(body, $('.profile-content-tree-header'));
-		this.inheritLabelElement = $('.inherit-label', undefined, localize('default profile', "Use Default Profile"));
+		const configureRowContainer = append(body, $('.profile-row-container'));
+		append(configureRowContainer, $('.profile-label-element', undefined, localize('configure', "Configure")));
+		append(configureRowContainer, $('.profile-description-element', undefined, localize('configure-description', "Choose what to configure in this profile:")));
+		this.contentsTreeHeader = append(configureRowContainer, $('.profile-content-tree-header'));
+		this.inheritLabelElement = $('.inherit-label', undefined, localize('use default profile', "Use Default Profile"));
 		append(this.contentsTreeHeader,
 			$(''),
-			$(''),
+			$('', undefined, localize('configuraiton', "Configuration")),
 			this.inheritLabelElement,
 			$('.actions-label', undefined, localize('actions', "Actions")),
 		);
 		const delegate = new ProfileResourceTreeElementDelegate();
 		this.resourcesTree = this._register(this.instantiationService.createInstance(WorkbenchAsyncDataTree<AbstractUserDataProfileElement, ProfileResourceTreeElement>,
 			'ProfileEditor-ResourcesTree',
-			append(body, $('.profile-content-tree.file-icon-themable-tree.show-file-icons')),
+			append(configureRowContainer, $('.profile-content-tree.file-icon-themable-tree.show-file-icons')),
 			delegate,
 			[
 				this.instantiationService.createInstance(ExistingProfileResourceTreeRenderer),
@@ -620,6 +626,9 @@ class ProfileWidget extends Disposable {
 				await e.element.element.action.run();
 			}
 		}));
+
+		const actionsContainer = append(body, $('.profile-row-container'));
+		this.buttonContainer = append(actionsContainer, $('.profile-button-container'));
 	}
 
 	private renderIconSelectBox(iconContainer: HTMLElement): void {
@@ -703,10 +712,8 @@ class ProfileWidget extends Disposable {
 		disposables.add(profileElement.onDidChange(e => this.renderProfileElement(profileElement)));
 
 		const profile = profileElement instanceof UserDataProfileElement ? profileElement.profile : undefined;
-		this.profileTitle.classList.toggle('hide', !profile?.isDefault);
-		this.nameInput.element.classList.toggle('hide', !!profile?.isDefault);
-		this.iconElement.classList.toggle('disabled', !!profile?.isDefault);
-		this.iconElement.setAttribute('tabindex', profile?.isDefault ? '' : '0');
+		this.nameContainer.classList.toggle('hide', !!profile?.isDefault);
+		this.iconContainer.classList.toggle('hide', !!profile?.isDefault);
 
 		disposables.add(profileElement.onDidChange(e => {
 			if (e.flags || e.copyFrom || e.copyFlags || e.disabled) {
@@ -764,8 +771,6 @@ class ProfileWidget extends Disposable {
 		} else {
 			this.buttonContainer.classList.add('hide');
 		}
-
-		this.toolbar.setActions(profileElement.titleActions[0].slice(0), profileElement.titleActions[1].slice(0));
 
 		if (profileElement instanceof NewProfileElement) {
 			this.nameInput.focus();
@@ -937,9 +942,9 @@ class AbstractProfileResourceTreeRenderer extends Disposable {
 			case ProfileResourceType.Keybindings:
 				return localize('keybindings', "Keyboard Shortcuts");
 			case ProfileResourceType.Snippets:
-				return localize('snippets', "User Snippets");
+				return localize('snippets', "Snippets");
 			case ProfileResourceType.Tasks:
-				return localize('tasks', "User Tasks");
+				return localize('tasks', "Tasks");
 			case ProfileResourceType.Extensions:
 				return localize('extensions', "Extensions");
 		}
@@ -1001,9 +1006,11 @@ class ExistingProfileResourceTreeRenderer extends AbstractProfileResourceTreeRen
 
 		templateData.label.textContent = this.getResourceTypeTitle(element.resourceType);
 		if (root instanceof UserDataProfileElement && root.profile.isDefault) {
+			templateData.checkbox.domNode.removeAttribute('tabindex');
 			templateData.checkbox.domNode.classList.add('hide');
 		} else {
 			templateData.checkbox.domNode.classList.remove('hide');
+			templateData.checkbox.domNode.setAttribute('tabindex', '0');
 			templateData.checkbox.checked = root.getFlag(element.resourceType);
 			templateData.elementDisposables.add(templateData.checkbox.onChange(() => root.setFlag(element.resourceType, templateData.checkbox.checked)));
 		}
@@ -1136,6 +1143,7 @@ class ProfileResourceChildTreeItemRenderer extends AbstractProfileResourceTreeRe
 		}
 
 		if (element.checkbox) {
+			templateData.checkbox.domNode.setAttribute('tabindex', '0');
 			templateData.checkbox.domNode.classList.remove('hide');
 			templateData.checkbox.checked = element.checkbox.isChecked;
 			templateData.checkbox.domNode.ariaLabel = element.checkbox.accessibilityInformation?.label ?? '';
@@ -1143,6 +1151,7 @@ class ProfileResourceChildTreeItemRenderer extends AbstractProfileResourceTreeRe
 				templateData.checkbox.domNode.role = element.checkbox.accessibilityInformation.role;
 			}
 		} else {
+			templateData.checkbox.domNode.removeAttribute('tabindex');
 			templateData.checkbox.domNode.classList.add('hide');
 		}
 
