@@ -46,7 +46,7 @@ import { IAuxiliaryWindow } from 'vs/platform/auxiliaryWindow/electron-main/auxi
 import { CancellationError } from 'vs/base/common/errors';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IProxyAuthService } from 'vs/platform/native/electron-main/auth';
-import { AuthInfo, Credentials } from 'vs/platform/request/common/request';
+import { AuthInfo, Credentials, IRequestService } from 'vs/platform/request/common/request';
 
 export interface INativeHostMainService extends AddFirstParameterToFunctions<ICommonNativeHostService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
 
@@ -67,6 +67,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		@IThemeMainService private readonly themeMainService: IThemeMainService,
 		@IWorkspacesManagementMainService private readonly workspacesManagementMainService: IWorkspacesManagementMainService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IRequestService private readonly requestService: IRequestService,
 		@IProxyAuthService private readonly proxyAuthService: IProxyAuthService
 	) {
 		super();
@@ -824,9 +825,12 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		return this.proxyAuthService.lookupAuthorization(authInfo);
 	}
 
+	async lookupKerberosAuthorization(_windowId: number | undefined, url: string): Promise<string | undefined> {
+		return this.requestService.lookupKerberosAuthorization(url);
+	}
+
 	async loadCertificates(_windowId: number | undefined): Promise<string[]> {
-		const proxyAgent = await import('@vscode/proxy-agent');
-		return proxyAgent.loadSystemCertificates({ log: this.logService });
+		return this.requestService.loadCertificates();
 	}
 
 	findFreePort(windowId: number | undefined, startPort: number, giveUpAfter: number, timeout: number, stride = 1): Promise<number> {

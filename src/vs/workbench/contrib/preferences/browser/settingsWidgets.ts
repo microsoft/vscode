@@ -248,6 +248,7 @@ export abstract class AbstractListSettingWidget<TDataItem extends object> extend
 
 		this.rowElements = this.model.items.map((item, i) => this.renderDataOrEditItem(item, i, focused));
 		this.rowElements.forEach(rowElement => this.listElement.appendChild(rowElement));
+
 	}
 
 	protected createBasicSelectBox(value: IObjectEnumData): SelectBox {
@@ -685,7 +686,7 @@ export class ListSettingWidget<TListDataItem extends IListDataItem> extends Abst
 			valueInput.element.classList.add('no-sibling');
 		}
 
-		const okButton = this._register(new Button(rowElement, defaultButtonStyles));
+		const okButton = this.listDisposables.add(new Button(rowElement, defaultButtonStyles));
 		okButton.label = localize('okButton', "OK");
 		okButton.element.classList.add('setting-list-ok-button');
 
@@ -697,7 +698,7 @@ export class ListSettingWidget<TListDataItem extends IListDataItem> extends Abst
 			}
 		}));
 
-		const cancelButton = this._register(new Button(rowElement, { secondary: true, ...defaultButtonStyles }));
+		const cancelButton = this.listDisposables.add(new Button(rowElement, { secondary: true, ...defaultButtonStyles }));
 		cancelButton.label = localize('cancelButton', "Cancel");
 		cancelButton.element.classList.add('setting-list-cancel-button');
 
@@ -1087,14 +1088,14 @@ export class ObjectSettingDropdownWidget extends AbstractListSettingWidget<IObje
 
 		rowElement.append(keyElement, valueContainer);
 
-		const okButton = this._register(new Button(rowElement, defaultButtonStyles));
+		const okButton = this.listDisposables.add(new Button(rowElement, defaultButtonStyles));
 		okButton.enabled = changedItem.key.data !== '';
 		okButton.label = localize('okButton', "OK");
 		okButton.element.classList.add('setting-list-ok-button');
 
 		this.listDisposables.add(okButton.onDidClick(() => this.handleItemChange(item, changedItem, idx)));
 
-		const cancelButton = this._register(new Button(rowElement, { secondary: true, ...defaultButtonStyles }));
+		const cancelButton = this.listDisposables.add(new Button(rowElement, { secondary: true, ...defaultButtonStyles }));
 		cancelButton.label = localize('cancelButton', "Cancel");
 		cancelButton.element.classList.add('setting-list-cancel-button');
 

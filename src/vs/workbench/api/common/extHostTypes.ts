@@ -1236,18 +1236,18 @@ export class Hover {
 @es5ClassCompat
 export class VerboseHover extends Hover {
 
-	public canIncreaseHover: boolean | undefined;
-	public canDecreaseHover: boolean | undefined;
+	public canIncreaseVerbosity: boolean | undefined;
+	public canDecreaseVerbosity: boolean | undefined;
 
 	constructor(
 		contents: vscode.MarkdownString | vscode.MarkedString | (vscode.MarkdownString | vscode.MarkedString)[],
 		range?: Range,
-		canIncreaseHover?: boolean,
-		canDecreaseHover?: boolean,
+		canIncreaseVerbosity?: boolean,
+		canDecreaseVerbosity?: boolean,
 	) {
 		super(contents, range);
-		this.canIncreaseHover = canIncreaseHover;
-		this.canDecreaseHover = canDecreaseHover;
+		this.canIncreaseVerbosity = canIncreaseVerbosity;
+		this.canDecreaseVerbosity = canDecreaseVerbosity;
 	}
 }
 
@@ -3341,6 +3341,11 @@ export enum CommentThreadApplicability {
 	Outdated = 1
 }
 
+export enum CommentThreadFocus {
+	Reply = 1,
+	Comment = 2
+}
+
 //#endregion
 
 //#region Semantic Coloring
@@ -3591,6 +3596,11 @@ export class DebugVisualization {
 }
 
 //#endregion
+
+export enum QuickInputButtonLocation {
+	Title = 1,
+	Inline = 2
+}
 
 @es5ClassCompat
 export class QuickInputButtons {

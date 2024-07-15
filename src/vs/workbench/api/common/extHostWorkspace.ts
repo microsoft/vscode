@@ -41,6 +41,7 @@ export interface IExtHostWorkspaceProvider {
 	getWorkspaceFolders2(): Promise<vscode.WorkspaceFolder[] | undefined>;
 	resolveProxy(url: string): Promise<string | undefined>;
 	lookupAuthorization(authInfo: AuthInfo): Promise<Credentials | undefined>;
+	lookupKerberosAuthorization(url: string): Promise<string | undefined>;
 	loadCertificates(): Promise<string[]>;
 }
 
@@ -630,6 +631,10 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 
 	lookupAuthorization(authInfo: AuthInfo): Promise<Credentials | undefined> {
 		return this._proxy.$lookupAuthorization(authInfo);
+	}
+
+	lookupKerberosAuthorization(url: string): Promise<string | undefined> {
+		return this._proxy.$lookupKerberosAuthorization(url);
 	}
 
 	loadCertificates(): Promise<string[]> {

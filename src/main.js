@@ -30,13 +30,11 @@ const { app, protocol, crashReporter, Menu, contentTracing } = require('electron
 // import * as path from 'path';
 // import * as fs from 'original-fs';
 // import * as os from 'os';
-// import { fileURLToPath } from 'url';
-// import module from 'module';
-// const require = module.createRequire(import.meta.url); // ONLY for minimist
-// import { app, protocol, crashReporter, Menu, contentTracing } from 'electron';
 // import * as bootstrap from './bootstrap.js';
 // import * as bootstrapNode from './bootstrap-node.js';
 // import * as bootstrapAmd from './bootstrap-amd.js';
+// import { fileURLToPath } from 'url';
+// import { app, protocol, crashReporter, Menu, contentTracing } from 'electron';
 // import { product } from './bootstrap-meta.js';
 // import { parse } from './vs/base/common/jsonc.js';
 // import { getUserDataPath } from './vs/platform/environment/node/userDataPath.js';
@@ -54,6 +52,13 @@ const portable = bootstrapNode.configurePortable(product);
 
 // Enable ASAR support
 bootstrap.enableASARSupport();
+
+// ESM-comment-begin
+const minimist = require('minimist'); // !!! IMPORTANT: MUST come after bootstrap#enableASARSupport
+// ESM-comment-end
+// ESM-uncomment-begin
+// import minimist from 'minimist'; // !!! IMPORTANT: MUST come after bootstrap#enableASARSupport
+// ESM-uncomment-end
 
 const args = parseCLIArgs();
 // Configure static command line arguments
@@ -516,11 +521,6 @@ function getJSFlags(cliArgs) {
  * @returns {NativeParsedArgs}
  */
 function parseCLIArgs() {
-	// NOTE: this must stay lazy because minimist is loaded from the asar-bundle
-	// and the time of loading this filename asar isn't ready yet, tho when running
-	// this code it is.
-	const minimist = require('minimist');
-
 	return minimist(process.argv, {
 		string: [
 			'user-data-dir',

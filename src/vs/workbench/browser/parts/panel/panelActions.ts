@@ -353,10 +353,6 @@ registerAction2(class extends Action2 {
 				group: 'navigation',
 				order: 2,
 				when: ContextKeyExpr.notEquals(`config.${LayoutSettings.ACTIVITY_BAR_LOCATION}`, ActivityBarPosition.TOP)
-			}, {
-				id: MenuId.AuxiliaryBarHeader,
-				group: 'navigation',
-				when: ContextKeyExpr.equals(`config.${LayoutSettings.ACTIVITY_BAR_LOCATION}`, ActivityBarPosition.TOP)
 			}]
 		});
 	}

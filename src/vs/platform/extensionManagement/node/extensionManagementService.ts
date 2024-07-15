@@ -288,7 +288,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 	}
 
 	protected createUninstallExtensionTask(extension: ILocalExtension, options: UninstallExtensionTaskOptions): IUninstallExtensionTask {
-		return new UninstallExtensionInProfileTask(extension, options.profileLocation, this.extensionsProfileScannerService);
+		return new UninstallExtensionInProfileTask(extension, options, this.extensionsProfileScannerService);
 	}
 
 	private async downloadAndExtractGalleryExtension(extensionKey: ExtensionKey, gallery: IGalleryExtension, operation: InstallOperation, options: InstallExtensionTaskOptions, token: CancellationToken): Promise<ExtractExtensionResult> {
@@ -300,7 +300,10 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 			}
 
 			// validate manifest
-			await getManifest(location.fsPath);
+			const manifest = await getManifest(location.fsPath);
+			if (!new ExtensionKey(gallery.identifier, gallery.version).equals(new ExtensionKey({ id: getGalleryExtensionId(manifest.publisher, manifest.name) }, manifest.version))) {
+				throw new ExtensionManagementError(nls.localize('invalidManifest', "Cannot install '{0}' extension because of manifest mismatch with Marketplace", gallery.identifier.id), ExtensionManagementErrorCode.Invalid);
+			}
 
 			const local = await this.extensionsScanner.extractUserExtension(
 				extensionKey,
@@ -375,7 +378,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		};
 
 		const files = await collectFilesFromDirectory(extension.location.fsPath);
-		return files.map(f => (<IFile>{ path: `extension/${path.relative(extension.location.fsPath, f)}`, localPath: f }));
+		return files.map(f => ({ path: `extension/${path.relative(extension.location.fsPath, f)}`, localPath: f }));
 	}
 
 	private async onDidChangeExtensionsFromAnotherSource({ added, removed }: DidChangeProfileExtensionsEvent): Promise<void> {
@@ -1081,14 +1084,14 @@ class UninstallExtensionInProfileTask extends AbstractExtensionTask<void> implem
 
 	constructor(
 		readonly extension: ILocalExtension,
-		private readonly profileLocation: URI,
+		readonly options: UninstallExtensionTaskOptions,
 		private readonly extensionsProfileScannerService: IExtensionsProfileScannerService,
 	) {
 		super();
 	}
 
 	protected async doRun(token: CancellationToken): Promise<void> {
-		await this.extensionsProfileScannerService.removeExtensionFromProfile(this.extension, this.profileLocation);
+		await this.extensionsProfileScannerService.removeExtensionFromProfile(this.extension, this.options.profileLocation);
 	}
 
 }

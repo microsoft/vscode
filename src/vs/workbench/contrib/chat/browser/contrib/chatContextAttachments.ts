@@ -25,8 +25,10 @@ export class ChatContextAttachments extends Disposable implements IChatWidgetCon
 	constructor(readonly widget: IChatWidget) {
 		super();
 
-		this._register(this.widget.onDidDeleteContext((e) => {
-			this._removeContext(e);
+		this._register(this.widget.onDidChangeContext((e) => {
+			if (e.removed) {
+				this._removeContext(e.removed);
+			}
 		}));
 
 		this._register(this.widget.onDidSubmitAgent(() => {
@@ -67,8 +69,8 @@ export class ChatContextAttachments extends Disposable implements IChatWidgetCon
 		this._onDidChangeInputState.fire();
 	}
 
-	private _removeContext(attachment: IChatRequestVariableEntry) {
-		this._attachedContext.delete(attachment);
+	private _removeContext(attachments: IChatRequestVariableEntry[]) {
+		attachments.forEach(this._attachedContext.delete, this._attachedContext);
 		this._onDidChangeInputState.fire();
 	}
 

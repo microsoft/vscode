@@ -227,6 +227,10 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		return this._requestService.lookupAuthorization(authInfo);
 	}
 
+	$lookupKerberosAuthorization(url: string): Promise<string | undefined> {
+		return this._requestService.lookupKerberosAuthorization(url);
+	}
+
 	$loadCertificates(): Promise<string[]> {
 		return this._requestService.loadCertificates();
 	}

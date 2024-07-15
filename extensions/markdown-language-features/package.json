@@ -756,8 +756,8 @@
     ]
   },
   "scripts": {
-    "compile": "gulp compile-extension:markdown-language-features-languageService && gulp compile-extension:markdown-language-features-server && gulp compile-extension:markdown-language-features && npm run build-preview && npm run build-notebook",
-    "watch": "npm run build-preview && gulp watch-extension:markdown-language-features watch-extension:markdown-language-features-languageService watch-extension:markdown-language-features-server",
+    "compile": "gulp compile-extension:markdown-language-features-languageService && gulp compile-extension:markdown-language-features && npm run build-preview && npm run build-notebook",
+    "watch": "npm run build-preview && gulp watch-extension:markdown-language-features watch-extension:markdown-language-features-languageService",
     "vscode:prepublish": "npm run build-ext && npm run build-preview",
     "build-ext": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:markdown-language-features ./tsconfig.json",
     "build-notebook": "node ./esbuild-notebook",
@@ -775,6 +775,7 @@
     "picomatch": "^2.3.1",
     "vscode-languageclient": "^8.0.2",
     "vscode-languageserver-textdocument": "^1.0.11",
+    "vscode-markdown-languageserver": "^0.5.0-alpha.7",
     "vscode-uri": "^3.0.3"
   },
   "devDependencies": {
