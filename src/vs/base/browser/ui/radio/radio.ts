@@ -18,6 +18,8 @@ export interface IRadioStyles {
 	readonly activeBackground?: string;
 	readonly inactiveForeground?: string;
 	readonly inactiveBackground?: string;
+	readonly hoverBackground?: string;
+	readonly border?: string;
 }
 
 export interface IRadioOptionItem {
@@ -31,7 +33,6 @@ export interface IRadioOptions {
 	readonly items: ReadonlyArray<IRadioOptionItem>;
 	readonly activeIcon?: ThemeIcon;
 	readonly hoverDelegate?: IHoverDelegate;
-	readonly styles?: IRadioStyles;
 }
 
 export class Radio extends Widget {
@@ -41,7 +42,6 @@ export class Radio extends Widget {
 
 	readonly domNode: HTMLElement;
 
-	private readonly styles: Required<IRadioStyles>;
 	private readonly hoverDelegate: IHoverDelegate;
 
 	private items: ReadonlyArray<IRadioOptionItem> = [];
@@ -51,13 +51,6 @@ export class Radio extends Widget {
 
 	constructor(opts: IRadioOptions) {
 		super();
-
-		this.styles = {
-			activeBackground: opts.styles?.activeBackground ?? '#e5e5e5',
-			activeForeground: opts.styles?.activeForeground ?? '#3b3b3b',
-			inactiveBackground: opts.styles?.inactiveBackground ?? '',
-			inactiveForeground: opts.styles?.inactiveBackground ?? '',
-		};
 
 		this.hoverDelegate = opts.hoverDelegate ?? getDefaultHoverDelegate('element');
 
@@ -92,12 +85,6 @@ export class Radio extends Widget {
 		this.updateButtons();
 	}
 
-	updateStyles(): void {
-		for (const [button, { item }] of this.buttons) {
-			this.updateButtonStyles(button, item === this.activeItem);
-		}
-	}
-
 	setActiveItem(index: number): void {
 		if (index < 0 || index >= this.items.length) {
 			throw new Error('Invalid Index');
@@ -116,13 +103,8 @@ export class Radio extends Widget {
 		for (const [button, { item }] of this.buttons) {
 			const isActive = item === this.activeItem;
 			button.element.classList.toggle('active', isActive);
-			button.label = isActive ? `$(check) ${item.text}` : `$(blank) ${item.text}`;
-			this.updateButtonStyles(button, isActive);
+			button.label = item.text;
 		}
 	}
 
-	private updateButtonStyles(button: Button, active: boolean): void {
-		button.element.style.color = active ? this.styles.activeForeground : this.styles.inactiveForeground;
-		button.element.style.backgroundColor = active ? this.styles.activeBackground : this.styles.inactiveBackground;
-	}
 }
