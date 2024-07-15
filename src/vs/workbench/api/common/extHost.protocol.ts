@@ -83,7 +83,7 @@ import * as search from 'vs/workbench/services/search/common/search';
 import { ISaveProfileResult } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import type { TerminalShellExecutionCommandLineConfidence } from 'vscode';
 import { AuthInfo, Credentials } from 'vs/platform/request/common/request';
-import { ChatCustomInstruction } from 'vs/workbench/contrib/chat/common/chatCustomInstructions';
+import { IChatCustomInstruction } from 'vs/workbench/contrib/chat/common/chatCustomInstructionsService';
 
 export interface IWorkspaceData extends IStaticWorkspaceData {
 	folders: { uri: UriComponents; name: string; index: number }[];
@@ -1304,7 +1304,8 @@ export interface MainThreadLanguageModelToolsShape extends IDisposable {
 }
 
 export interface MainThreadChatCustomInstructionsShape extends IDisposable {
-
+	$registerProvider(handle: number): void;
+	$unregisterProvider(handle: number): void;
 }
 
 export type IChatRequestVariableValueDto = Dto<IChatRequestVariableValue>;
@@ -1314,10 +1315,10 @@ export interface ExtHostChatVariablesShape {
 }
 
 export interface ExtHostChatCustomInstructionsShape {
-	$provideCustomInstructions(handle: number, token: CancellationToken): Promise<IChatCustomInstructionDto[]>;
+	$provideCustomInstructions(handle: number, token: CancellationToken): Promise<IChatCustomInstructionDto[] | undefined>;
 }
 
-export type IChatCustomInstructionDto = Dto<ChatCustomInstruction>;
+export type IChatCustomInstructionDto = Dto<IChatCustomInstruction>;
 
 export interface ExtHostLanguageModelToolsShape {
 	$acceptToolDelta(delta: IToolDelta): Promise<void>;

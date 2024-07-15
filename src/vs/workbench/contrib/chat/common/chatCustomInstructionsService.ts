@@ -17,14 +17,14 @@ export interface IChatCustomInstruction {
 }
 
 export interface IChatCustomInstructionProvider {
-	provideCustomInstructions(token: CancellationToken): ProviderResult<IChatCustomInstruction[]>;
+	provideCustomInstructions(token: CancellationToken): ProviderResult<IChatCustomInstruction[] | undefined>;
 }
 
 export interface IChatCustomInstructionsService {
 
 	readonly _serviceBrand: undefined;
 
-	registerProvider(id: string, provider: IChatCustomInstructionProvider): IDisposable;
+	registerProvider(provider: IChatCustomInstructionProvider): IDisposable;
 
 	getProviders(): IChatCustomInstructionProvider[];
 }
@@ -35,24 +35,24 @@ export class ChatCustomInstructionsService extends Disposable implements IChatCu
 
 	readonly _serviceBrand: undefined;
 
-	private readonly providers = new Map<string, IChatCustomInstructionProvider>();
+	private readonly providers: IChatCustomInstructionProvider[] = [];
 
-	registerProvider(id: string, provider: IChatCustomInstructionProvider): IDisposable {
-		if (this.providers.has(id)) {
-			throw new Error(`Provider with id ${id} already registered`);
-		}
-		this.providers.set(id, provider);
+	registerProvider(provider: IChatCustomInstructionProvider): IDisposable {
+		this.providers.push(provider);
 		return toDisposable(() => {
-			this.providers.delete(id);
+			const index = this.providers.indexOf(provider);
+			if (index !== -1) {
+				this.providers.splice(index, 1);
+			}
 		});
 	}
 
 	public getProviders(): IChatCustomInstructionProvider[] {
-		return [...this.providers.values()];
+		return [...this.providers];
 	}
 
 	public override dispose(): void {
-		this.providers.clear();
+		this.providers.length = 0;
 		super.dispose();
 	}
 }

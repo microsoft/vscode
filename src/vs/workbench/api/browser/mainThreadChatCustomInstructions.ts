@@ -3,16 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { raceCancellation } from 'vs/base/common/async';
-import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ExtHostChatCustomInstructionsShape, ExtHostContext, ExtHostSpeechShape, MainContext, MainThreadSpeechShape } from 'vs/workbench/api/common/extHost.protocol';
-import { IChatCustomInstructionProvider, IChatCustomInstructionsService } from 'vs/workbench/contrib/chat/common/chatCustomInstructionsService';
-import { IKeywordRecognitionEvent, ISpeechProviderMetadata, ISpeechService, ISpeechToTextEvent, ITextToSpeechEvent, TextToSpeechStatus } from 'vs/workbench/contrib/speech/common/speechService';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { URI } from 'vs/base/common/uri';
+import { ExtHostChatCustomInstructionsShape, ExtHostContext, MainContext, MainThreadChatCustomInstructionsShape } from 'vs/workbench/api/common/extHost.protocol';
+import { IChatCustomInstruction, IChatCustomInstructionsService } from 'vs/workbench/contrib/chat/common/chatCustomInstructionsService';
 import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
 
-@extHostNamedCustomer(MainContext.MainThreadSpeech)
+@extHostNamedCustomer(MainContext.MainThreadChatCustomInstructions)
 export class MainThreadChatCustomInstructions implements MainThreadChatCustomInstructionsShape {
 
 	private readonly proxy: ExtHostChatCustomInstructionsShape;
@@ -21,21 +19,17 @@ export class MainThreadChatCustomInstructions implements MainThreadChatCustomIns
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@IChatCustomInstructionsService private readonly chatCustomInstructionsService: IChatCustomInstructionsService,
-		@ILogService private readonly logService: ILogService
+		@IChatCustomInstructionsService private readonly chatCustomInstructionsService: IChatCustomInstructionsService
 	) {
 		this.proxy = extHostContext.getProxy(ExtHostContext.ExtHostChatCustomInstructions);
 	}
 
-	$registerProvider(handle: number, identifier: string, provider: IChatCustomInstructionProvider): void {
-		this.logService.trace('[Speech] extension registered provider', metadata.extension.value);
-
-		const registration = this.chatCustomInstructionsService.registerProvider(identifier, provider);
-		this.providerRegistrations.set(handle, {
-			dispose: () => {
-				registration.dispose();
+	$registerProvider(handle: number): void {
+		this.providerRegistrations.set(handle, this.chatCustomInstructionsService.registerProvider({
+			provideCustomInstructions: (token: CancellationToken): Promise<IChatCustomInstruction[] | undefined> => {
+				return this.proxy.$provideCustomInstructions(handle, token).then(dtos => dtos?.map(dto => ({ name: dto.name, resource: URI.revive(dto.resource) })));
 			}
-		});
+		}));
 	}
 
 	$unregisterProvider(handle: number): void {
