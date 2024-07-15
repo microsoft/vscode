@@ -24,6 +24,7 @@ import { MouseWheelClassifier } from 'vs/base/browser/ui/scrollbar/scrollableEle
 
 export interface IPointerHandlerHelper {
 	viewDomNode: HTMLElement;
+	overflowWidgetsDomNode: HTMLElement | null;
 	linesContentDomNode: HTMLElement;
 	viewLinesDomNode: HTMLElement;
 
@@ -135,7 +136,7 @@ export class MouseHandler extends ViewEventHandler {
 			}, 100);
 		}));
 
-		const overflowWidgetsDomNode = context.overflowWidgetsDomNode;
+		const overflowWidgetsDomNode = this.viewHelper.overflowWidgetsDomNode;
 		if (overflowWidgetsDomNode) {
 			this._register(mouseEvents.onMouseMove(overflowWidgetsDomNode, (e) => {
 				this._mouseOnOverflowWidgetsDomNode = true;

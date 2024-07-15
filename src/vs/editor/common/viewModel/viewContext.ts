@@ -15,19 +15,16 @@ export class ViewContext {
 	public readonly viewModel: IViewModel;
 	public readonly viewLayout: IViewLayout;
 	public readonly theme: EditorTheme;
-	public readonly overflowWidgetsDomNode: HTMLElement | undefined;
 
 	constructor(
 		configuration: IEditorConfiguration,
 		theme: IColorTheme,
-		model: IViewModel,
-		overflowWidgetsDomNode?: HTMLElement
+		model: IViewModel
 	) {
 		this.configuration = configuration;
 		this.theme = new EditorTheme(theme);
 		this.viewModel = model;
 		this.viewLayout = model.viewLayout;
-		this.overflowWidgetsDomNode = overflowWidgetsDomNode;
 	}
 
 	public addEventHandler(eventHandler: ViewEventHandler): void {

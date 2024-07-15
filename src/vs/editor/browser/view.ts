@@ -97,6 +97,7 @@ export class View extends ViewEventHandler {
 	private readonly _linesContent: FastDomNode<HTMLElement>;
 	public readonly domNode: FastDomNode<HTMLElement>;
 	private readonly _overflowGuardContainer: FastDomNode<HTMLElement>;
+	private readonly _overflowWidgetsDomNode: HTMLElement | null;
 
 	// Actual mutable state
 	private _shouldRecomputeGlyphMarginLanes: boolean = false;
@@ -114,11 +115,12 @@ export class View extends ViewEventHandler {
 		super();
 		this._selections = [new Selection(1, 1, 1, 1)];
 		this._renderAnimationFrame = null;
+		this._overflowWidgetsDomNode = overflowWidgetsDomNode ?? null;
 
 		const viewController = new ViewController(configuration, model, userInputEvents, commandDelegate);
 
 		// The view context is passed on to most classes (basically to reduce param. counts in ctors)
-		this._context = new ViewContext(configuration, colorTheme, model, overflowWidgetsDomNode);
+		this._context = new ViewContext(configuration, colorTheme, model);
 
 		// Ensure the view is the first event handler in order to update the layout
 		this._context.addEventHandler(this);
@@ -278,6 +280,7 @@ export class View extends ViewEventHandler {
 	private _createPointerHandlerHelper(): IPointerHandlerHelper {
 		return {
 			viewDomNode: this.domNode.domNode,
+			overflowWidgetsDomNode: this._overflowWidgetsDomNode,
 			linesContentDomNode: this._linesContent.domNode,
 			viewLinesDomNode: this._viewLines.getDomNode().domNode,
 
