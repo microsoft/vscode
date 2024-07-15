@@ -1,6 +1,7 @@
 parameters:
   - name: ARTIFACT_PREFIX
     type: string
+    default: ''
   - name: VSCODE_ARCH
     type: string
     default: x64
