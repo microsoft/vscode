@@ -75,7 +75,7 @@ declare module 'vscode' {
 
 			/**
 			 * Whether symlinks should be followed while searching.
-			 * See the vscode setting `"search.followSymlinks"` for more information.
+			 * For more info, see the setting description for `search.followSymlinks`.
 			 */
 			followSymlinks: boolean;
 
@@ -168,6 +168,9 @@ declare module 'vscode' {
 		previewText: string;
 	}
 
+	/**
+	 * A result payload for a text search, pertaining to matches within a single file.
+	 */
 	export interface TextSearchResult {
 		/**
 		 * The uri for the matching document.

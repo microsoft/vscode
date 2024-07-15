@@ -29,7 +29,7 @@ declare module 'vscode' {
 
 			/**
 			 * Whether symlinks should be followed while searching.
-			 * See the vscode setting `"search.followSymlinks"` for more information.
+			 * For more info, see the setting description for `search.followSymlinks`.
 			 */
 			followSymlinks: boolean;
 
@@ -49,7 +49,7 @@ declare module 'vscode' {
 				 * Use global ignore files. If set, {@link FileSearchOptions.useIgnoreFiles.local} should also be `true`.
 				 */
 				global: boolean;
-			}[];
+			};
 
 			/**
 			 * An object with a lifespan that matches the session's lifespan. If the provider chooses to, this object can be used as the key for a cache,
@@ -70,8 +70,7 @@ declare module 'vscode' {
 	 * A FileSearchProvider is the more powerful of two ways to implement file search in the editor. Use a FileSearchProvider if you wish to search within a folder for
 	 * all files that match the user's query.
 	 *
-	 * The FileSearchProvider will be invoked on every keypress in quickopen. When `workspace.findFiles` is called, it will be invoked with an empty query string,
-	 * and in that case, every file in the folder should be returned.
+	 * The FileSearchProvider will be invoked on every keypress in quickopen.
 	 */
 	export interface FileSearchProvider {
 		/**

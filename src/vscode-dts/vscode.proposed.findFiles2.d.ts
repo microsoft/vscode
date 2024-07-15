@@ -53,7 +53,7 @@ declare module 'vscode' {
 		/**
 		 * Whether symlinks should be followed while searching.
 		 * Defaults to the value for `search.followSymlinks` in settings.
-		 * For more info, see the setting listed above.
+		 * For more info, see the setting description for `search.followSymlinks`.
 		 */
 		followSymlinks?: boolean;
 	}
