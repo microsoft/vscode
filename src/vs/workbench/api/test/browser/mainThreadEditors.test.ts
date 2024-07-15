@@ -55,7 +55,10 @@ import { ICopyOperation, ICreateFileOperation, ICreateOperation, IDeleteOperatio
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { TestEditorGroupsService, TestEditorService, TestEnvironmentService, TestFileService, TestLifecycleService, TestWorkingCopyService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestContextService, TestTextResourcePropertiesService } from 'vs/workbench/test/common/workbenchTestServices';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { ILanguageService } from 'vs/editor/common/languages/language';
+import { LanguageService } from 'vs/editor/common/services/languageService';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 
 suite('MainThreadEditors', () => {
 
@@ -79,18 +82,11 @@ suite('MainThreadEditors', () => {
 		createdResources.clear();
 		deletedResources.clear();
 
-
 		const configService = new TestConfigurationService();
 		const dialogService = new TestDialogService();
 		const notificationService = new TestNotificationService();
 		const undoRedoService = new UndoRedoService(dialogService, notificationService);
 		const themeService = new TestThemeService();
-		modelService = new ModelService(
-			configService,
-			new TestTextResourcePropertiesService(configService),
-			undoRedoService,
-			new TestInstantiationService()
-		);
 
 		const services = new ServiceCollection();
 		services.set(IBulkEditService, new SyncDescriptor(BulkEditService));
@@ -176,7 +172,17 @@ suite('MainThreadEditors', () => {
 			}
 		});
 
+		services.set(ILanguageService, disposables.add(new LanguageService()));
+		services.set(ILanguageConfigurationService, new TestLanguageConfigurationService());
+
 		const instaService = new InstantiationService(services);
+
+		modelService = new ModelService(
+			configService,
+			new TestTextResourcePropertiesService(configService),
+			undoRedoService,
+			instaService
+		);
 
 		bulkEdits = instaService.createInstance(MainThreadBulkEdits, SingleProxyRPCProtocol(null));
 	});
