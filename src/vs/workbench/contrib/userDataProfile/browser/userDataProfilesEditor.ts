@@ -55,6 +55,7 @@ import { AbstractUserDataProfileElement, isProfileResourceChildElement, isProfil
 import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { createInstantHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { Codicon } from 'vs/base/common/codicons';
+import { Radio } from 'vs/base/browser/ui/radio/radio';
 
 export const profilesSashBorder = registerColor('profiles.sashBorder', PANEL_BORDER, localize('profilesSashBorder', "The color of the Profiles editor splitview sash border."));
 
@@ -567,7 +568,7 @@ class ProfileWidget extends Disposable {
 		append(configureRowContainer, $('.profile-label-element', undefined, localize('configure', "Configure")));
 		append(configureRowContainer, $('.profile-description-element', undefined, localize('configure-description', "Choose what to configure in this profile:")));
 		this.contentsTreeHeader = append(configureRowContainer, $('.profile-content-tree-header'));
-		this.inheritLabelElement = $('.inherit-label', undefined, localize('use default profile', "Use Default Profile"));
+		this.inheritLabelElement = $('.inherit-label', undefined, localize('default', "Use Default Profile"));
 		append(this.contentsTreeHeader,
 			$(''),
 			$('', undefined, localize('configuraiton', "Configuration")),
@@ -794,6 +795,7 @@ class ProfileWidget extends Disposable {
 		}
 		if (profileElement instanceof NewProfileElement) {
 			this.contentsTreeHeader.classList.add('new-profile');
+			this.resourcesTree.getHTMLElement().classList.add('new-profile');
 			this.inheritLabelElement.textContent = localize('options', "Options");
 			this.useAsDefaultProfileContainer.classList.add('hide');
 			this.copyFromContainer.classList.remove('hide');
@@ -812,7 +814,8 @@ class ProfileWidget extends Disposable {
 			}
 		} else if (profileElement instanceof UserDataProfileElement) {
 			this.contentsTreeHeader.classList.remove('new-profile');
-			this.inheritLabelElement.textContent = profileElement.profile.isDefault ? '' : localize('default profile', "Use Default Profile");
+			this.resourcesTree.getHTMLElement().classList.remove('new-profile');
+			this.inheritLabelElement.textContent = profileElement.profile.isDefault ? '' : localize('default', "Use Default Profile");
 			this.useAsDefaultProfileContainer.classList.remove('hide');
 			this.useAsDefaultProfileCheckbox.checked = profileElement.isNewWindowProfile;
 			this.copyFromContainer.classList.add('hide');
@@ -854,7 +857,7 @@ class ProfileResourceTreeElementDelegate implements IListVirtualDelegate<Profile
 		return ExistingProfileResourceTreeRenderer.TEMPLATE_ID;
 	}
 	getHeight(element: ProfileResourceTreeElement) {
-		return 22;
+		return 24;
 	}
 }
 
@@ -924,8 +927,7 @@ interface IExistingProfileResourceTemplateData extends IProfileResourceTemplateD
 
 interface INewProfileResourceTemplateData extends IProfileResourceTemplateData {
 	readonly label: HTMLElement;
-	readonly selectContainer: HTMLElement;
-	readonly selectBox: SelectBox;
+	readonly radio: Radio;
 }
 
 interface IProfileResourceChildTreeItemTemplateData extends IProfileResourceTemplateData {
@@ -1027,7 +1029,6 @@ class NewProfileResourceTreeRenderer extends AbstractProfileResourceTreeRenderer
 	readonly templateId = NewProfileResourceTreeRenderer.TEMPLATE_ID;
 
 	constructor(
-		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
@@ -1038,19 +1039,11 @@ class NewProfileResourceTreeRenderer extends AbstractProfileResourceTreeRenderer
 		const container = append(parent, $('.profile-tree-item-container.new-profile-resource-type-container'));
 		const labelContainer = append(container, $('.profile-resource-type-label-container'));
 		const label = append(labelContainer, $('span.profile-resource-type-label'));
-		const selectBox = this._register(this.instantiationService.createInstance(SelectBox,
-			[],
-			0,
-			this.contextViewService,
-			defaultSelectBoxStyles,
-			{
-				useCustomDrawn: true,
-			}
-		));
-		const selectContainer = append(container, $('.profile-select-container'));
-		selectBox.render(selectContainer);
 
-		const actionsContainer = append(container, $('.profile-tree-item-actions-container'));
+		const radio = disposables.add(new Radio({ items: [] }));
+		append(container, radio.domNode);
+
+		const actionsContainer = append(append(container, $('')), $('.profile-tree-item-actions-container'));
 		const actionBar = disposables.add(this.instantiationService.createInstance(WorkbenchToolBar,
 			actionsContainer,
 			{
@@ -1059,7 +1052,7 @@ class NewProfileResourceTreeRenderer extends AbstractProfileResourceTreeRenderer
 			}
 		));
 
-		return { label, selectContainer, selectBox, actionBar, disposables, elementDisposables: disposables.add(new DisposableStore()) };
+		return { label, radio, actionBar, disposables, elementDisposables: disposables.add(new DisposableStore()) };
 	}
 
 	renderElement({ element: profileResourceTreeElement }: ITreeNode<ProfileResourceTreeElement, void>, index: number, templateData: INewProfileResourceTemplateData, height: number | undefined): void {
@@ -1071,30 +1064,38 @@ class NewProfileResourceTreeRenderer extends AbstractProfileResourceTreeRenderer
 		if (!isProfileResourceTypeElement(element)) {
 			throw new Error('Invalid profile resource element');
 		}
-		templateData.label.textContent = this.getResourceTypeTitle(element.resourceType);
-		if (root.copyFrom && root.hasResource(element.resourceType)) {
+		const resourceTypeTitle = this.getResourceTypeTitle(element.resourceType);
+		templateData.label.textContent = resourceTypeTitle;
+		const options = [{
+			text: localize('default', "Use Default Profile"),
+			tooltip: localize('default description', "Use {0} from the default profile", resourceTypeTitle)
+		},
+		{
+			text: localize('empty', "Empty"),
+			tooltip: localize('empty description', "Create an empty {0}", resourceTypeTitle)
+		}];
+		if (root.copyFrom) {
 			const copyFromName = root.getCopyFromName();
-			templateData.selectBox.setOptions([
-				{ text: localize('empty', "Empty") },
-				{ text: copyFromName ? localize('copy from', "Copy ({0})", copyFromName) : localize('copy', "Copy") },
-				{ text: localize('default', "Use Default Profile") }
+			templateData.radio.setItems([
+				{
+					text: copyFromName ? localize('copy from profile', "Copy from {0}", copyFromName) : localize('copy', "Copy"),
+					tooltip: copyFromName ? localize('copy from profile description', "Copy {0} from {1} profile", resourceTypeTitle, copyFromName) : localize('copy description', "Copy"),
+				},
+				...options
 			]);
-			templateData.selectBox.select(root.getCopyFlag(element.resourceType) ? 1 : root.getFlag(element.resourceType) ? 2 : 0);
-			templateData.elementDisposables.add(templateData.selectBox.onDidSelect(option => {
-				root.setFlag(element.resourceType, option.index === 2);
-				root.setCopyFlag(element.resourceType, option.index === 1);
+			templateData.radio.setActiveItem(root.getCopyFlag(element.resourceType) ? 0 : root.getFlag(element.resourceType) ? 1 : 2);
+			templateData.elementDisposables.add(templateData.radio.onDidSelect(index => {
+				root.setFlag(element.resourceType, index === 1);
+				root.setCopyFlag(element.resourceType, index === 0);
 			}));
 		} else {
-			templateData.selectBox.setOptions([
-				{ text: localize('empty', "Empty") },
-				{ text: localize('default', "Use Default Profile") }
-			]);
-			templateData.selectBox.select(root.getFlag(element.resourceType) ? 1 : 0);
-			templateData.elementDisposables.add(templateData.selectBox.onDidSelect(option => {
-				root.setFlag(element.resourceType, option.index === 1);
+			templateData.radio.setItems(options);
+			templateData.radio.setActiveItem(root.getFlag(element.resourceType) ? 0 : 1);
+			templateData.elementDisposables.add(templateData.radio.onDidSelect(index => {
+				root.setFlag(element.resourceType, index === 0);
 			}));
 		}
-		templateData.selectBox.setEnabled(!root.disabled);
+		templateData.radio.setEnabled(!root.disabled);
 		templateData.actionBar.setActions(element.action ? [element.action] : []);
 	}
 }

@@ -1,0 +1,24 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-custom-radio {
+	display: flex;
+}
+
+.monaco-custom-radio .monaco-button:not(:last-child) {
+	border-right: none;
+}
+
+.monaco-custom-radio .monaco-button {
+	padding-right: 16px;
+}
+
+.monaco-custom-radio .monaco-button.active .codicon {
+	margin: 0px 1px 0px 0px;
+}
+
+.monaco-custom-radio .monaco-button:not(.active) .codicon {
+	margin: 0;
+}

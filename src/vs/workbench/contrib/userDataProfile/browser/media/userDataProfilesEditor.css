@@ -6,7 +6,7 @@
 .profiles-editor {
 	height: 100%;
 	overflow: hidden;
-	max-width: 1000px;
+	max-width: 1100px;
 	margin: 20px auto 0px auto;
 }
 
@@ -198,12 +198,17 @@
 
 .profiles-editor .contents-container .profile-content-tree-header {
 	display: grid;
-	grid-template-columns: 30px repeat(1, 1fr) 150px 100px;
+	grid-template-columns: 30px 200px repeat(1, 1fr) 80px;
 	line-height: 22px;
 	align-items: center;
 	margin: 5px 0px 2px 0px;
 	background-color: var(--vscode-keybindingTable-headerBackground);
 	font-weight: bold;
+}
+
+.profiles-editor .contents-container .profile-content-tree .monaco-list:not(.new-profile),
+.profiles-editor .contents-container .profile-content-tree-header:not(.new-profile) {
+	max-width: 500px;
 }
 
 .profiles-editor .contents-container .profile-tree-item-container {
@@ -212,17 +217,14 @@
 }
 
 .profiles-editor .contents-container .profile-tree-item-container.existing-profile-resource-type-container {
-	grid-template-columns: repeat(1, 1fr) 150px 100px;
+	grid-template-columns: 200px repeat(1, 1fr) 80px;
 }
 
 .profiles-editor .contents-container .profile-content-tree-header > .inherit-label,
 .profiles-editor .contents-container .profile-tree-item-container > .inherit-container {
+	display: flex;
 	justify-content: center;
 	align-items: center;
-}
-
-.profiles-editor .contents-container .profile-tree-item-container > .inherit-container {
-	padding-left: 50px;
 }
 
 .profiles-editor .contents-container .profile-content-tree-header > .actions-label {
@@ -232,11 +234,11 @@
 }
 
 .profiles-editor .contents-container .profile-content-tree-header.new-profile {
-	grid-template-columns: 30px repeat(2, 1fr) 100px;
+	grid-template-columns: 30px 150px repeat(1, 1fr) 80px;
 }
 
 .profiles-editor .contents-container .profile-tree-item-container.new-profile-resource-type-container {
-	grid-template-columns: repeat(2, 1fr) 100px;
+	grid-template-columns: 150px repeat(1, 1fr) 80px;
 }
 
 .profiles-editor .contents-container .profile-tree-item-container.new-profile-resource-type-container .profile-select-container {
@@ -251,6 +253,25 @@
 	margin-left: 10px;
 	font-size: 0.9em;
 	opacity: 0.7;
+}
+
+.profiles-editor .contents-container .profile-tree-item-container .monaco-custom-radio {
+	height: 22px;
+	overflow: hidden;
+}
+
+.profiles-editor .contents-container .profile-tree-item-container .monaco-custom-radio .monaco-button {
+	overflow: hidden;
+	outline-offset: -1px !important;
+}
+
+.profiles-editor .contents-container .profile-tree-item-container .monaco-custom-radio .monaco-button > span:not(.codicon) {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.profiles-editor .contents-container .profile-tree-item-container .monaco-custom-radio .monaco-button:last-child {
+	width: 50%;
 }
 
 .profiles-editor .contents-container .profile-tree-item-container .profile-tree-item-actions-container {
