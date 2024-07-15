@@ -64,7 +64,7 @@ export class MouseHandler extends ViewEventHandler {
 	private _height: number;
 	private _mouseLeaveMonitor: IDisposable | null = null;
 	private _mouseOnOverflowWidgetsDomNode: boolean = false;
-	private _mouseOnOverviewDomNode: boolean = false;
+	private _mouseOnViewDomNode: boolean = false;
 
 	constructor(context: ViewContext, viewController: ViewController, viewHelper: IPointerHandlerHelper) {
 		super();
@@ -91,7 +91,7 @@ export class MouseHandler extends ViewEventHandler {
 		this._register(mouseEvents.onContextMenu(this.viewHelper.viewDomNode, (e) => this._onContextMenu(e, true)));
 
 		this._register(mouseEvents.onMouseMove(this.viewHelper.viewDomNode, (e) => {
-			this._mouseOnOverviewDomNode = true;
+			this._mouseOnViewDomNode = true;
 			this._onMouseMoveOverView(e);
 
 			// See https://github.com/microsoft/vscode/issues/138789
@@ -105,7 +105,7 @@ export class MouseHandler extends ViewEventHandler {
 				this._mouseLeaveMonitor = dom.addDisposableListener(this.viewHelper.viewDomNode.ownerDocument, 'mousemove', (e) => {
 					if (!this.viewHelper.viewDomNode.contains(e.target as Node | null)) {
 						// went outside the editor!
-						this._mouseOnOverviewDomNode = false;
+						this._mouseOnViewDomNode = false;
 						setTimeout(() => {
 							if (!this._mouseOnOverflowWidgetsDomNode) {
 								this._onMouseLeave(new EditorMouseEvent(e, false, this.viewHelper.viewDomNode));
@@ -119,7 +119,7 @@ export class MouseHandler extends ViewEventHandler {
 		this._register(mouseEvents.onMouseUp(this.viewHelper.viewDomNode, (e) => this._onMouseUp(e)));
 
 		this._register(mouseEvents.onMouseLeave(this.viewHelper.viewDomNode, (e) => {
-			this._mouseOnOverviewDomNode = false;
+			this._mouseOnViewDomNode = false;
 			setTimeout(() => {
 				if (!this._mouseOnOverflowWidgetsDomNode) {
 					this._onMouseLeave(e);
@@ -138,7 +138,7 @@ export class MouseHandler extends ViewEventHandler {
 			this._register(mouseEvents.onMouseLeave(overflowWidgetsDomNode, (e) => {
 				this._mouseOnOverflowWidgetsDomNode = false;
 				setTimeout(() => {
-					if (!this._mouseOnOverviewDomNode) {
+					if (!this._mouseOnViewDomNode) {
 						this._onMouseLeave(e);
 					}
 				}, 100);
@@ -300,24 +300,21 @@ export class MouseHandler extends ViewEventHandler {
 	}
 
 	protected _onMouseMoveOverView(e: EditorMouseEvent): void {
-		const shouldIgnoreMouseMoveEvent = this._shouldIgnoreMouseMoveEvent(e);
-		if (shouldIgnoreMouseMoveEvent) {
-			return undefined;
-		}
-		this.viewController.emitMouseMove({
-			event: e,
-			target: this._createMouseTargetForView(e, true)
-		});
+		this._onMouseMove(e, this._createMouseTargetForView(e, true));
 	}
 
 	private _onMouseMoveOverOverflowWidgetsDomNode(e: EditorMouseEvent): void {
+		this._onMouseMove(e, this._createMouseTargetForOverflowWidgetsDomNode(e));
+	}
+
+	private _onMouseMove(e: EditorMouseEvent, target: IMouseTarget): void {
 		const shouldIgnoreMouseMoveEvent = this._shouldIgnoreMouseMoveEvent(e);
 		if (shouldIgnoreMouseMoveEvent) {
 			return undefined;
 		}
 		this.viewController.emitMouseMove({
 			event: e,
-			target: this._createMouseTargetForOverflowWidgetsDomNode(e)
+			target
 		});
 	}
 
