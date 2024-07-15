@@ -98,8 +98,8 @@ class DropOrPasteResourceProvider implements vscode.DocumentDropEditProvider, vs
 		return {
 			snippet,
 			label: uriList.entries.length > 1
-				? vscode.l10n.t('Insert url() functions')
-				: vscode.l10n.t('Insert url() function')
+				? vscode.l10n.t('Insert url() Functions')
+				: vscode.l10n.t('Insert url() Function')
 		};
 	}
 
