@@ -1046,7 +1046,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			this._viewsService.openView(Markers.MARKERS_VIEW_ID);
 		} else if (task.command.presentation && (task.command.presentation.focus || task.command.presentation.reveal === RevealKind.Always)) {
 			this._terminalService.setActiveInstance(terminal);
-			await this._terminalService.revealActiveTerminal();
+			await this._terminalService.revealTerminal(terminal);
 			if (task.command.presentation.focus) {
 				this._terminalService.focusActiveInstance();
 			}

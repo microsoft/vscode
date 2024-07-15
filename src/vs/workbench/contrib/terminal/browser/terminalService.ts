@@ -558,16 +558,24 @@ export class TerminalService extends Disposable implements ITerminalService {
 		return instance;
 	}
 
+	async revealTerminal(source: ITerminalInstance, preserveFocus?: boolean): Promise<void> {
+		if (!source) {
+			return;
+		}
+
+		if (source.target === TerminalLocation.Editor) {
+			await this._terminalEditorService.revealActiveEditor(preserveFocus);
+		} else {
+			await this._terminalGroupService.showPanel();
+		}
+	}
+
 	async revealActiveTerminal(preserveFocus?: boolean): Promise<void> {
 		const instance = this.activeInstance;
 		if (!instance) {
 			return;
 		}
-		if (instance.target === TerminalLocation.Editor) {
-			await this._terminalEditorService.revealActiveEditor(preserveFocus);
-		} else {
-			await this._terminalGroupService.showPanel();
-		}
+		await this.revealTerminal(instance, preserveFocus);
 	}
 
 	setEditable(instance: ITerminalInstance, data?: IEditableData | null): void {
