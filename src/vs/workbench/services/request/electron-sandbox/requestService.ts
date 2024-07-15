@@ -28,6 +28,10 @@ export class NativeRequestService extends RequestService {
 		return this.nativeHostService.lookupAuthorization(authInfo);
 	}
 
+	override async lookupKerberosAuthorization(url: string): Promise<string | undefined> {
+		return this.nativeHostService.lookupKerberosAuthorization(url);
+	}
+
 	override async loadCertificates(): Promise<string[]> {
 		return this.nativeHostService.loadCertificates();
 	}

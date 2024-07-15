@@ -61,7 +61,14 @@ function setRequestHeaders(xhr: XMLHttpRequest, options: IRequestOptions): void 
 					// unsafe headers
 					continue outer;
 			}
-			xhr.setRequestHeader(k, options.headers[k]);
+			const header = options.headers[k];
+			if (typeof header === 'string') {
+				xhr.setRequestHeader(k, header);
+			} else if (Array.isArray(header)) {
+				for (const h of header) {
+					xhr.setRequestHeader(k, h);
+				}
+			}
 		}
 	}
 }

@@ -56,8 +56,9 @@ export class WindowsExternalTerminalService extends ExternalTerminalService impl
 		const cmdArgs = ['/c', 'start', '/wait'];
 		if (exec.indexOf(' ') >= 0) {
 			// The "" argument is the window title. Without this, exec doesn't work when the path
-			// contains spaces
-			cmdArgs.push('""');
+			// contains spaces. #6590
+			// Title is Execution Path. #220129
+			cmdArgs.push(exec);
 		}
 		cmdArgs.push(exec);
 		// Add starting directory parameter for Windows Terminal (see #90734)

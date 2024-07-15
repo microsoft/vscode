@@ -293,7 +293,7 @@ export class ConfigurationEditing {
 					label: nls.localize('saveAndRetry', "Save and Retry"),
 					run: () => {
 						const key = operation.key ? `${operation.workspaceStandAloneConfigurationKey}.${operation.key}` : operation.workspaceStandAloneConfigurationKey!;
-						this.writeConfiguration(operation.target, { key, value: operation.value }, <IConfigurationEditingOptions>{ handleDirtyFile: 'save', scopes });
+						this.writeConfiguration(operation.target, { key, value: operation.value }, { handleDirtyFile: 'save', scopes });
 					}
 				},
 				{
@@ -305,7 +305,7 @@ export class ConfigurationEditing {
 			this.notificationService.prompt(Severity.Error, error.message,
 				[{
 					label: nls.localize('saveAndRetry', "Save and Retry"),
-					run: () => this.writeConfiguration(operation.target, { key: operation.key, value: operation.value }, <IConfigurationEditingOptions>{ handleDirtyFile: 'save', scopes })
+					run: () => this.writeConfiguration(operation.target, { key: operation.key, value: operation.value }, { handleDirtyFile: 'save', scopes })
 				},
 				{
 					label: nls.localize('open', "Open Settings"),
