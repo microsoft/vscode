@@ -505,30 +505,17 @@ export class AccessibleView extends Disposable {
 			this._currentContent = content;
 			return;
 		}
-		const readMoreLinkHint = provider.options.readMoreUrl ? localize("openDoc", "\n\nOpen a browser window with more information related to accessibility<keybinding:{0}>.", AccessibilityCommandId.AccessibilityHelpOpenHelpLink) : '';
-		const disableHelpHint = this._getDisableVerbosityHint(provider);
-		const accessibilitySupport = this._accessibilityService.isScreenReaderOptimized();
-		let screenReaderModeHint = '';
-		const turnOnMessage = (
-			isMacintosh
-				? AccessibilityHelpNLS.changeConfigToOnMac
-				: AccessibilityHelpNLS.changeConfigToOnWinLinux
-		);
-		if (accessibilitySupport && provider instanceof AccessibleContentProvider && provider.verbositySettingKey === AccessibilityVerbositySettingId.Editor) {
-			screenReaderModeHint = AccessibilityHelpNLS.auto_on;
-			screenReaderModeHint += '\n';
-		} else if (!accessibilitySupport) {
-			screenReaderModeHint = AccessibilityHelpNLS.auto_off + '\n' + turnOnMessage;
-			screenReaderModeHint += '\n';
-		}
-		const exitThisDialogHint = this._verbosityEnabled() && !provider.options.position ? localize('exit', '\n\nExit this dialog (Escape).') : '';
+		const readMoreLinkHint = this._readMoreHint(provider);
+		const disableHelpHint = this._disableVerbosityHint(provider);
+		const screenReaderModeHint = this._screenReaderModeHint(provider);
+		const exitThisDialogHint = this._exitDialogHint(provider);
 		let configureKbHint = '';
 		const resolvedContent = resolveContentAndKeybindingItems(this._keybindingService, screenReaderModeHint + content + readMoreLinkHint + disableHelpHint + exitThisDialogHint);
 		if (resolvedContent) {
 			content = resolvedContent.content.value;
 			if (resolvedContent.configureKeybindingItems) {
 				provider.options.configureKeybindingItems = resolvedContent.configureKeybindingItems;
-				configureKbHint = this._getConfigureUnassignedKbHint();
+				configureKbHint = this._configureUnassignedKbHint();
 			}
 		}
 		this._currentContent = content + configureKbHint;
@@ -713,7 +700,7 @@ export class AccessibleView extends Disposable {
 			accessibleViewHelpProvider = new AccessibleContentProvider(
 				lastProvider.id as AccessibleViewProviderId,
 				{ type: AccessibleViewType.Help },
-				() => lastProvider.options.customHelp ? lastProvider?.options.customHelp() : this._getAccessibleViewHelpDialogContent(this._goToSymbolsSupported()),
+				() => lastProvider.options.customHelp ? lastProvider?.options.customHelp() : this._accessibleViewHelpDialogContent(this._goToSymbolsSupported()),
 				() => {
 					this._contextViewService.hideContextView();
 					// HACK: Delay to allow the context view to hide #207638
@@ -725,7 +712,7 @@ export class AccessibleView extends Disposable {
 			accessibleViewHelpProvider = new ExtensionContentProvider(
 				lastProvider.id as AccessibleViewProviderId,
 				{ type: AccessibleViewType.Help },
-				() => lastProvider.options.customHelp ? lastProvider?.options.customHelp() : this._getAccessibleViewHelpDialogContent(this._goToSymbolsSupported()),
+				() => lastProvider.options.customHelp ? lastProvider?.options.customHelp() : this._accessibleViewHelpDialogContent(this._goToSymbolsSupported()),
 				() => {
 					this._contextViewService.hideContextView();
 					// HACK: Delay to allow the context view to hide #207638
@@ -740,9 +727,9 @@ export class AccessibleView extends Disposable {
 		}
 	}
 
-	private _getAccessibleViewHelpDialogContent(providerHasSymbols?: boolean): string {
-		const navigationHint = this._getNavigationHint();
-		const goToSymbolHint = this._getGoToSymbolHint(providerHasSymbols);
+	private _accessibleViewHelpDialogContent(providerHasSymbols?: boolean): string {
+		const navigationHint = this._navigationHint();
+		const goToSymbolHint = this._goToSymbolHint(providerHasSymbols);
 		const toolbarHint = localize('toolbar', "Navigate to the toolbar (Shift+Tab).");
 		const chatHints = this._getChatHints();
 
@@ -771,28 +758,54 @@ export class AccessibleView extends Disposable {
 		localize('runInTerminal', " - Run the code block in the terminal<keybinding:'workbench.action.chat.runInTerminal>.\n")].join('\n');
 	}
 
-	private _getNavigationHint(): string {
+	private _navigationHint(): string {
 		return localize('accessibleViewNextPreviousHint', "Show the next item<keybinding:{0}> or previous item<keybinding:{1}>.", AccessibilityCommandId.ShowNext, AccessibilityCommandId.ShowPrevious);
 	}
 
-	private _getDisableVerbosityHint(provider: AccesibleViewContentProvider): string {
+	private _disableVerbosityHint(provider: AccesibleViewContentProvider): string {
 		if (provider.options.type === AccessibleViewType.Help && this._verbosityEnabled()) {
 			return localize('acessibleViewDisableHint', "\n\nDisable accessibility verbosity for this feature<keybinding:{0}>.", AccessibilityCommandId.DisableVerbosityHint);
 		}
 		return '';
 	}
 
-	private _getGoToSymbolHint(providerHasSymbols?: boolean): string | undefined {
+	private _goToSymbolHint(providerHasSymbols?: boolean): string | undefined {
 		if (!providerHasSymbols) {
 			return;
 		}
 		return localize('goToSymbolHint', 'Go to a symbol<keybinding:{0}>.', AccessibilityCommandId.GoToSymbol);
 	}
 
-	private _getConfigureUnassignedKbHint(): string {
+	private _configureUnassignedKbHint(): string {
 		const configureKb = this._keybindingService.lookupKeybinding(AccessibilityCommandId.AccessibilityHelpConfigureKeybindings)?.getAriaLabel();
 		const keybindingToConfigureQuickPick = configureKb ? '(' + configureKb + ')' : 'by assigning a keybinding to the command Accessibility Help Configure Keybindings.';
 		return localize('configureKb', '\n\nConfigure keybindings for commands that lack them {0}.', keybindingToConfigureQuickPick);
+	}
+
+	private _screenReaderModeHint(provider: AccesibleViewContentProvider): string {
+		const accessibilitySupport = this._accessibilityService.isScreenReaderOptimized();
+		let screenReaderModeHint = '';
+		const turnOnMessage = (
+			isMacintosh
+				? AccessibilityHelpNLS.changeConfigToOnMac
+				: AccessibilityHelpNLS.changeConfigToOnWinLinux
+		);
+		if (accessibilitySupport && provider.id === AccessibleViewProviderId.Editor) {
+			screenReaderModeHint = AccessibilityHelpNLS.auto_on;
+			screenReaderModeHint += '\n';
+		} else if (!accessibilitySupport) {
+			screenReaderModeHint = AccessibilityHelpNLS.auto_off + '\n' + turnOnMessage;
+			screenReaderModeHint += '\n';
+		}
+		return screenReaderModeHint;
+	}
+
+	private _exitDialogHint(provider: AccesibleViewContentProvider): string {
+		return this._verbosityEnabled() && !provider.options.position ? localize('exit', '\n\nExit this dialog (Escape).') : '';
+	}
+
+	private _readMoreHint(provider: AccesibleViewContentProvider): string {
+		return provider.options.readMoreUrl ? localize("openDoc", "\n\nOpen a browser window with more information related to accessibility<keybinding:{0}>.", AccessibilityCommandId.AccessibilityHelpOpenHelpLink) : '';
 	}
 }
 
