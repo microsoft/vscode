@@ -24,8 +24,7 @@
     }
   },
   "enabledApiProposals": [
-    "documentPaste",
-    "dropMetadata"
+    "documentPaste"
   ],
   "scripts": {
     "compile": "npx gulp compile-extension:css-language-features-client compile-extension:css-language-features-server",
