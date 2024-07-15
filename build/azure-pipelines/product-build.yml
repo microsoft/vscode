@@ -390,6 +390,8 @@ extends:
                 dependsOn: Windows
                 variables:
                   - group: 'API Scan'
+                  - name: 'ARTIFACT_PREFIX'
+                    value: $[ dependencies.Windows.outputs['GenerateArtifactPrefix.ARTIFACT_PREFIX'] ]
                 steps:
                   - template: build/azure-pipelines/win32/sdl-scan-win32.yml@self
                     parameters:
