@@ -172,8 +172,10 @@ export class HoverController extends Disposable implements IEditorContribution {
 		const target = mouseEvent.target;
 		console.log('target : ', target);
 		if (!target) {
+			console.log('return false');
 			return false;
 		}
+		console.log('return target.type === MouseTargetType.CONTENT_WIDGET && target.detail === ContentHoverWidget.ID : ', target.type === MouseTargetType.CONTENT_WIDGET && target.detail === ContentHoverWidget.ID);
 		return target.type === MouseTargetType.CONTENT_WIDGET && target.detail === ContentHoverWidget.ID;
 	}
 

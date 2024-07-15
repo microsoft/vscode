@@ -577,7 +577,6 @@ export class MouseTargetFactory {
 	}
 
 	private static _createMouseTarget(ctx: HitTestContext, request: HitTestRequest): IMouseTarget {
-		console.log('_createMouseTarget');
 
 		// console.log(`${domHitTestExecuted ? '=>' : ''}CAME IN REQUEST: ${request}`);
 
@@ -588,14 +587,13 @@ export class MouseTargetFactory {
 
 		// we know for a fact that request.target is not null
 		const resolvedRequest = <ResolvedHitTestRequest>request;
-		console.log('resolvedRequest : ', resolvedRequest);
 
 		let result: IMouseTarget | null = null;
 
-		// if (!ElementPath.isChildOfOverflowGuard(request.targetPath) && !ElementPath.isChildOfOverflowingContentWidgets(request.targetPath) && !ElementPath.isChildOfOverflowingOverlayWidgets(request.targetPath)) {
-		// 	// We only render dom nodes inside the overflow guard or in the overflowing content widgets
-		// 	result = result || request.fulfillUnknown();
-		// }
+		if (!ElementPath.isChildOfOverflowGuard(request.targetPath) && !ElementPath.isChildOfOverflowingContentWidgets(request.targetPath) && !ElementPath.isChildOfOverflowingOverlayWidgets(request.targetPath)) {
+			// We only render dom nodes inside the overflow guard or in the overflowing content widgets
+			result = result || request.fulfillUnknown();
+		}
 
 		result = result || MouseTargetFactory._hitTestContentWidget(ctx, resolvedRequest);
 		result = result || MouseTargetFactory._hitTestOverlayWidget(ctx, resolvedRequest);

@@ -63,6 +63,7 @@ export class MouseHandler extends ViewEventHandler {
 	private _height: number;
 	private _mouseLeaveMonitor: IDisposable | null = null;
 	private _mouseOnOverflowWidgetsDomNode: boolean = false;
+	private _mouseOnOverviewDomNode: boolean = false;
 
 	constructor(context: ViewContext, viewController: ViewController, viewHelper: IPointerHandlerHelper) {
 		super();
@@ -91,6 +92,7 @@ export class MouseHandler extends ViewEventHandler {
 
 		this._register(mouseEvents.onMouseMove(this.viewHelper.viewDomNode, (e) => {
 			console.log('onMouseMove of this.viewHelper.viewDomNode');
+			this._mouseOnOverviewDomNode = true;
 			this._onMouseMoveOverView(e);
 
 			// See https://github.com/microsoft/vscode/issues/138789
@@ -105,8 +107,10 @@ export class MouseHandler extends ViewEventHandler {
 					if (!this.viewHelper.viewDomNode.contains(e.target as Node | null)) {
 						// went outside the editor!
 						console.log('before onMouseLeave of onMouseMove of this.viewHelper.viewDomNode');
+						this._mouseOnOverviewDomNode = false;
 						setTimeout(() => {
 							console.log('this._mousOnOverflowWidgetsDomNode after timeout : ', this._mouseOnOverflowWidgetsDomNode);
+							console.log('this._mouseOnOverflowWidgetsDomNode : ', this._mouseOnOverflowWidgetsDomNode);
 							if (!this._mouseOnOverflowWidgetsDomNode) {
 								this._onMouseLeave(new EditorMouseEvent(e, false, this.viewHelper.viewDomNode));
 							}
@@ -116,27 +120,12 @@ export class MouseHandler extends ViewEventHandler {
 			}
 		}));
 
-		const overflowWidgetsDomNode = context.overflowWidgetsDomNode;
-		if (overflowWidgetsDomNode) {
-			this._register(mouseEvents.onMouseMove(overflowWidgetsDomNode, (e) => {
-				this._mouseOnOverflowWidgetsDomNode = true;
-				console.log('onMouseMove of overflowWidgetsDomNode');
-				console.log('this._mousOnOverflowWidgetsDomNode : ', this._mouseOnOverflowWidgetsDomNode);
-				console.log('e : ', e);
-				this._onMouseMoveOverOverflowWidgetsDomNode(e);
-			}));
-			this._register(mouseEvents.onMouseLeave(overflowWidgetsDomNode, (e) => {
-				this._mouseOnOverflowWidgetsDomNode = false;
-				console.log('onMouseLeave of overflowWidgetsDomNode');
-				console.log('this._mousOnOverflowWidgetsDomNode : ', this._mouseOnOverflowWidgetsDomNode);
-			}));
-		}
-
 		this._register(mouseEvents.onMouseUp(this.viewHelper.viewDomNode, (e) => this._onMouseUp(e)));
 
 		this._register(mouseEvents.onMouseLeave(this.viewHelper.viewDomNode, (e) => {
 			console.log('onMouseLeave of this.viewHelper.viewDomNode');
 			console.log('this._mousOnOverflowWidgetsDomNode before timeout : ', this._mouseOnOverflowWidgetsDomNode);
+			this._mouseOnOverviewDomNode = false;
 			setTimeout(() => {
 				console.log('this._mousOnOverflowWidgetsDomNode after timeout : ', this._mouseOnOverflowWidgetsDomNode);
 				if (!this._mouseOnOverflowWidgetsDomNode) {
@@ -145,6 +134,35 @@ export class MouseHandler extends ViewEventHandler {
 				}
 			}, 100);
 		}));
+
+		const overflowWidgetsDomNode = context.overflowWidgetsDomNode;
+		if (overflowWidgetsDomNode) {
+			this._register(mouseEvents.onMouseMove(overflowWidgetsDomNode, (e) => {
+				this._mouseOnOverflowWidgetsDomNode = true;
+				console.log('onMouseMove of overflowWidgetsDomNode');
+				console.log('this._mousOnOverflowWidgetsDomNode : ', this._mouseOnOverflowWidgetsDomNode);
+				console.log('e : ', e);
+
+				this._mouseLeaveMonitor?.dispose();
+				this._mouseLeaveMonitor = null;
+				this._onMouseMoveOverOverflowWidgetsDomNode(e);
+			}));
+			this._register(mouseEvents.onMouseLeave(overflowWidgetsDomNode, (e) => {
+
+				this._mouseOnOverflowWidgetsDomNode = false;
+				console.log('onMouseLeave of overflowWidgetsDomNode');
+				console.log('this._mouseOnOverviewDomNode : ', this._mouseOnOverviewDomNode);
+
+				setTimeout(() => {
+					console.log('this._mouseOnOverviewDomNode after timeout : ', this._mouseOnOverviewDomNode);
+					if (!this._mouseOnOverviewDomNode) {
+						console.log('before onMouseLeave of onMouseLeave of overflowWidgetsDomNode');
+						this._onMouseLeave(e);
+					}
+				}, 100);
+
+			}));
+		}
 
 		// `pointerdown` events can't be used to determine if there's a double click, or triple click
 		// because their `e.detail` is always 0.
