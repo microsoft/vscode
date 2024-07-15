@@ -110,10 +110,6 @@ export class CellComments extends CellContentPart {
 				this.currentElement.commentHeight = 0;
 				return;
 			}
-			if (this._commentThreadWidget.value.commentThread === info.thread) {
-				this.currentElement.commentHeight = this._calculateCommentThreadHeight(this._commentThreadWidget.value.getDimensions().height);
-				return;
-			}
 
 			await this._commentThreadWidget.value.updateCommentThread(info.thread);
 			this.currentElement.commentHeight = this._calculateCommentThreadHeight(this._commentThreadWidget.value.getDimensions().height);
