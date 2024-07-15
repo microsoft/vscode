@@ -6,7 +6,6 @@
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IPickerQuickAccessItem } from 'vs/platform/quickinput/browser/pickerQuickAccess';
-import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
 
 export function resolveContentAndKeybindingItems(keybindingService: IKeybindingService, value?: string): { content: MarkdownString; configureKeybindingItems: IPickerQuickAccessItem[] | undefined } | undefined {
 	if (!value) {
@@ -20,9 +19,7 @@ export function resolveContentAndKeybindingItems(keybindingService: IKeybindingS
 		if (match?.length && commandId) {
 			const keybinding = keybindingService.lookupKeybinding(commandId)?.getAriaLabel();
 			if (!keybinding) {
-				const configureKb = keybindingService.lookupKeybinding(AccessibilityCommandId.AccessibilityHelpConfigureKeybindings)?.getAriaLabel();
-				const keybindingToConfigureQuickPick = configureKb ? '(' + configureKb + ')' : 'by assigning a keybinding to the command Accessibility Help Configure Keybindings.';
-				kbLabel = `, configure a keybinding ` + keybindingToConfigureQuickPick;
+				kbLabel = ` (unassigned keybinding)`;
 				configureKeybindingItems.push({
 					label: commandId,
 					id: commandId

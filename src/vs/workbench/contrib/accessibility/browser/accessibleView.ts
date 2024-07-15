@@ -502,8 +502,13 @@ export class AccessibleView extends Disposable {
 		const verbose = this._verbosityEnabled();
 		const readMoreLink = provider.options.readMoreUrl ? localize("openDoc", "\n\nOpen a browser window with more information related to accessibility<keybinding:{0}>.", AccessibilityCommandId.AccessibilityHelpOpenHelpLink) : '';
 		let disableHelpHint = '';
-		if (provider instanceof AccessibleContentProvider && provider.options.type === AccessibleViewType.Help && verbose) {
-			disableHelpHint = this._getDisableVerbosityHint();
+		let configureKbHint = '';
+		if (provider instanceof AccessibleContentProvider && provider.options.type === AccessibleViewType.Help) {
+			if (verbose) {
+				disableHelpHint = this._getDisableVerbosityHint();
+			}
+
+			configureKbHint = this._getConfigureUnassignedKbHint();
 		}
 		const accessibilitySupport = this._accessibilityService.isScreenReaderOptimized();
 		let message = '';
@@ -524,7 +529,7 @@ export class AccessibleView extends Disposable {
 		const exitThisDialogHint = verbose && !provider.options.position ? localize('exit', '\n\nExit this dialog (Escape).') : '';
 		let content = updatedContent ?? provider.provideContent();
 		if (provider.options.type === AccessibleViewType.Help) {
-			const resolvedContent = resolveContentAndKeybindingItems(this._keybindingService, content + readMoreLink + disableHelpHint + exitThisDialogHint);
+			const resolvedContent = resolveContentAndKeybindingItems(this._keybindingService, content + configureKbHint + readMoreLink + disableHelpHint + exitThisDialogHint);
 			if (resolvedContent) {
 				content = resolvedContent.content.value;
 				if (resolvedContent.configureKeybindingItems) {
@@ -779,6 +784,12 @@ export class AccessibleView extends Disposable {
 			return;
 		}
 		return localize('goToSymbolHint', 'Go to a symbol<keybinding:{0}>.', AccessibilityCommandId.GoToSymbol);
+	}
+
+	private _getConfigureUnassignedKbHint(): string {
+		const configureKb = this._keybindingService.lookupKeybinding(AccessibilityCommandId.AccessibilityHelpConfigureKeybindings)?.getAriaLabel();
+		const keybindingToConfigureQuickPick = configureKb ? '(' + configureKb + ')' : 'by assigning a keybinding to the command Accessibility Help Configure Keybindings.';
+		return localize('configureKb', 'Configure keybinings for commands that lack them {0}', keybindingToConfigureQuickPick);
 	}
 }
 
