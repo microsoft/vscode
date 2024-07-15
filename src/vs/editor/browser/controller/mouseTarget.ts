@@ -616,12 +616,9 @@ export class MouseTargetFactory {
 	}
 
 	private static _hitTestOverlayWidget(ctx: HitTestContext, request: ResolvedHitTestRequest): IMouseTarget | null {
-		console.log('_hitTestOverlayWidget');
-		console.log('request : ', request);
 		// Is it an overlay widget?
 		if (ElementPath.isChildOfOverlayWidgets(request.targetPath) || ElementPath.isChildOfOverflowingOverlayWidgets(request.targetPath)) {
 			const widgetId = ctx.findAttribute(request.target, 'widgetId');
-			console.log('widgetId : ', widgetId);
 			if (widgetId) {
 				return request.fulfillOverlayWidget(widgetId);
 			} else {
