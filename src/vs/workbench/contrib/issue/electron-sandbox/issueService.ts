@@ -8,7 +8,6 @@ import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionIdentifier, ExtensionType, ExtensionIdentifierSet } from 'vs/platform/extensions/common/extensions';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IIssueMainService, IssueReporterData, IssueReporterExtensionData, IssueReporterStyles } from 'vs/platform/issue/common/issue';
 import { buttonBackground, buttonForeground, buttonHoverBackground, foreground, inputActiveOptionBorder, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
@@ -17,7 +16,7 @@ import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/co
 import { IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
 import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
-import { IWorkbenchIssueService } from 'vs/workbench/contrib/issue/common/issue';
+import { IWorkbenchIssueService, IIssueMainService, IssueReporterData, IssueReporterExtensionData, IssueReporterStyles } from 'vs/workbench/contrib/issue/common/issue';
 import { mainWindow } from 'vs/base/browser/window';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';

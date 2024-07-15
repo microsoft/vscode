@@ -51,8 +51,8 @@ import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemPro
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IIssueMainService, IProcessMainService } from 'vs/platform/issue/common/issue';
-import { IssueMainService } from 'vs/platform/issue/electron-main/issueMainService';
+import { IProcessMainService } from 'vs/platform/issue/common/issue';
+// import { IssueMainService } from 'vs/platform/issue/electron-main/issueMainService';
 import { ProcessMainService } from 'vs/platform/issue/electron-main/processMainService';
 import { IKeyboardLayoutMainService, KeyboardLayoutMainService } from 'vs/platform/keyboardLayout/electron-main/keyboardLayoutMainService';
 import { ILaunchMainService, LaunchMainService } from 'vs/platform/launch/electron-main/launchMainService';

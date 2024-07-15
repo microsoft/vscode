@@ -11,11 +11,10 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { BrowserIssueService } from 'vs/workbench/contrib/issue/browser/issueService';
-import { IWorkbenchIssueService } from 'vs/workbench/contrib/issue/common/issue';
+import { IIssueMainService, IWorkbenchIssueService } from 'vs/workbench/contrib/issue/common/issue';
 import { BaseIssueContribution } from 'vs/workbench/contrib/issue/common/issue.contribution';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { IIssueMainService } from 'vs/platform/issue/common/issue';
 import { IssueFormService } from 'vs/workbench/contrib/issue/browser/issueFormService';
 import 'vs/workbench/contrib/issue/browser/issueTroubleshoot';
 

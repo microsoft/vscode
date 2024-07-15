@@ -2,13 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-// import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-// import { IssueReporterData } from 'vs/platform/issue/common/issue';
-
 
 import { UriComponents } from 'vs/base/common/uri';
 import { ISandboxConfiguration } from 'vs/base/parts/sandbox/common/sandboxTypes';
-// import { PerformanceInfo, SystemInfo } from 'vs/platform/diagnostics/common/diagnostics';
+import { PerformanceInfo, SystemInfo } from 'vs/platform/diagnostics/common/diagnostics';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 // Since data sent through the service is serialized to JSON, functions will be lost, so Color objects
@@ -140,17 +137,15 @@ export interface IIssueMainService {
 	$closeReporter(): Promise<void>;
 }
 
-export const IWorkbenchIssueService = createDecorator<IWorkbenchIssueService>('workbenchIssueService');
+export const IProcessMainService = createDecorator<IProcessMainService>('processService');
 
-export interface IWorkbenchIssueService {
+export interface IProcessMainService {
 	readonly _serviceBrand: undefined;
-	openReporter(dataOverrides?: Partial<IssueReporterData>): Promise<void>;
+	getSystemStatus(): Promise<string>;
+	stopTracing(): Promise<void>;
+	openProcessExplorer(data: ProcessExplorerData): Promise<void>;
+
+	// Used by the process explorer
+	$getSystemInfo(): Promise<SystemInfo>;
+	$getPerformanceInfo(): Promise<PerformanceInfo>;
 }
-
-export const IWorkbenchProcessService = createDecorator<IWorkbenchProcessService>('workbenchProcessService');
-
-export interface IWorkbenchProcessService {
-	readonly _serviceBrand: undefined;
-	openProcessExplorer(): Promise<void>;
-}
-

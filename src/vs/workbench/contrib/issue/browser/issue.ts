@@ -15,7 +15,7 @@ import { isLinuxSnap } from 'vs/base/common/platform';
 import { escape } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { IIssueMainService, IssueReporterData, IssueReporterExtensionData, IssueReporterStyles, IssueType } from 'vs/platform/issue/common/issue';
+import { IIssueMainService, IssueReporterData, IssueReporterExtensionData, IssueReporterStyles, IssueType } from 'vs/workbench/contrib/issue/common/issue';
 import { normalizeGitHubUrl } from 'vs/platform/issue/common/issueReporterUtil';
 import { getIconsStyleSheet } from 'vs/platform/theme/browser/iconsStyleSheet';
 import { IssueReporterModel, IssueReporterData as IssueReporterModelData } from 'vs/workbench/contrib/issue/browser/issueReporterModel';
@@ -158,6 +158,10 @@ export class BaseIssueReporterService extends Disposable {
 
 		if (styles.inputBackground) {
 			content.push(`input[type="text"], textarea, select, .issues-container > .issue > .issue-state, .block-info { background-color: ${styles.inputBackground} !important; }`);
+		}
+
+		if (styles.backgroundColor) {
+			content.push(`.monaco-workbench { background-color: ${styles.backgroundColor} !important; }`);
 		}
 
 		if (styles.inputBorder) {

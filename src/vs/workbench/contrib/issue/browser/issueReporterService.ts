@@ -9,7 +9,7 @@ import { isMacintosh } from 'vs/base/common/platform';
 import { IProductConfiguration } from 'vs/base/common/product';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { localize } from 'vs/nls';
-import { IIssueMainService, IssueReporterData, IssueReporterExtensionData } from 'vs/platform/issue/common/issue';
+import { IIssueMainService, IssueReporterData, IssueReporterExtensionData } from 'vs/workbench/contrib/issue/common/issue';
 import { BaseIssueReporterService } from 'vs/workbench/contrib/issue/browser/issue';
 
 // GitHub has let us know that we could up our limit here to 8k. We chose 7500 to play it safe.

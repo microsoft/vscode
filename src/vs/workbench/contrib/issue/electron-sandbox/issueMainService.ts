@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { registerMainProcessRemoteService } from 'vs/platform/ipc/electron-sandbox/services';
-import { IIssueMainService, IProcessMainService } from 'vs/platform/issue/common/issue';
+import { IProcessMainService } from 'vs/platform/issue/common/issue';
+// import { IIssueMainService } from 'vs/workbench/contrib/issue/common/issue';
 
-registerMainProcessRemoteService(IIssueMainService, 'issue');
+// registerMainProcessRemoteService(IIssueMainService, 'issue');
 registerMainProcessRemoteService(IProcessMainService, 'process');
 

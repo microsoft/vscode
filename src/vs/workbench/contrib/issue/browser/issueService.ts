@@ -12,7 +12,7 @@ import { mainWindow } from 'vs/base/browser/window';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IIssueMainService, IssueReporterData, IssueReporterExtensionData, IssueReporterStyles } from 'vs/platform/issue/common/issue';
+import { IIssueMainService, IssueReporterData, IssueReporterExtensionData, IssueReporterStyles, IWorkbenchIssueService } from 'vs/workbench/contrib/issue/common/issue';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { buttonBackground, buttonForeground, buttonHoverBackground, foreground, inputActiveOptionBorder, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
@@ -22,7 +22,6 @@ import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/co
 import { IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
 import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
-import { IWorkbenchIssueService } from 'vs/workbench/contrib/issue/common/issue';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 

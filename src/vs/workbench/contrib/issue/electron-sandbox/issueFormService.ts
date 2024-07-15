@@ -18,7 +18,7 @@ import { localize } from 'vs/nls';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
 // import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { ExtensionIdentifier, ExtensionIdentifierSet } from 'vs/platform/extensions/common/extensions';
-import { IIssueMainService, IssueReporterData, IssueReporterWindowConfiguration } from 'vs/platform/issue/common/issue';
+import { IIssueMainService, IssueReporterData, IssueReporterWindowConfiguration } from 'vs/workbench/contrib/issue/common/issue';
 import { ILogService } from 'vs/platform/log/common/log';
 import product from 'vs/platform/product/common/product';
 import { IIPCObjectUrl, IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
@@ -33,6 +33,9 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IssueReporter2 } from 'vs/workbench/contrib/issue/electron-sandbox/issueReporterService2';
 import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { INativeHostService } from 'vs/platform/native/common/native';
+import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { BrowserWindow } from 'vs/workbench/browser/window';
 
 interface IBrowserWindowOptions {
 	backgroundColor: string | undefined;
@@ -54,7 +57,7 @@ export class IssueFormService2 implements IIssueMainService {
 	private static readonly DEFAULT_BACKGROUND_COLOR = '#1E1E1E';
 
 	private issueReporterWindow: Window | null = null;
-	// private issueReporterParentWindow: BrowserWindow | null = null;
+	private issueReporterParentWindow: BrowserWindow | null = null;
 
 	constructor(
 		// private userEnv: IProcessEnvironment,
@@ -64,8 +67,39 @@ export class IssueFormService2 implements IIssueMainService {
 		@IDialogService private readonly dialogService: IDialogService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@IAuxiliaryWindowService private readonly auxiliaryWindowService: IAuxiliaryWindowService,
+		@IMenuService private readonly menuService: IMenuService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		// @IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
-	) { }
+	) {
+		// listen for messages from the main window
+		mainWindow.addEventListener('message', async (event) => {
+			if (event.data && event.data.sendChannel === 'vscode:triggerReporterMenu') {
+				// creates menu from contributed
+				const menu = this.menuService.createMenu(MenuId.IssueReporter, this.contextKeyService);
+
+				// render menu and dispose
+				const actions = menu.getActions({ renderShortTitle: true }).flatMap(entry => entry[1]);
+				for (const action of actions) {
+					try {
+						if (action.item && 'source' in action.item && action.item.source?.id === event.data.extensionId) {
+							this.extensionIdentifierSet.add(event.data.extensionId);
+							await action.run();
+						}
+					} catch (error) {
+						console.error(error);
+					}
+				}
+
+				if (!this.extensionIdentifierSet.has(event.data.extensionId)) {
+					// send undefined to indicate no action was taken
+					const replyChannel = `vscode:triggerReporterMenuResponse`;
+					mainWindow.postMessage({ replyChannel }, '*');
+				}
+
+				menu.dispose();
+			}
+		});
+	}
 
 	//#region Used by renderer
 
@@ -158,8 +192,15 @@ export class IssueFormService2 implements IIssueMainService {
 	async openAuxIssueReporter(data: IssueReporterData): Promise<void> {
 		const disposables = new DisposableStore();
 
+
+		// const centerX = display.bounds.x + (display.bounds.width / 2);
+		// const centerY = display.bounds.y + (display.bounds.height / 2);
+		// const windowSize = window.win.getSize(); // Get the current window size
+		// const x = Math.round(centerX - (windowSize[0] / 2));
+		// const y = Math.round(centerY - (windowSize[1] / 2));
+
 		// Auxiliary Window
-		const auxiliaryWindow = disposables.add(await this.auxiliaryWindowService.open({ mode: AuxiliaryWindowMode.Normal }));
+		const auxiliaryWindow = disposables.add(await this.auxiliaryWindowService.open({ mode: AuxiliaryWindowMode.Normal, bounds: { width: 700, height: 800 } }));
 
 		this.issueReporterWindow = auxiliaryWindow.window;
 
@@ -301,15 +342,27 @@ export class IssueFormService2 implements IIssueMainService {
 	// }
 
 	async $sendReporterMenu(extensionId: string, extensionName: string): Promise<IssueReporterData | undefined> {
-		// const window = this.issueReporterWindowCheck();
-		// const replyChannel = `vscode:triggerReporterMenu`;
-		// const cts = new CancellationTokenSource();
-		// window.sendWhenReady(replyChannel, cts.token, { replyChannel, extensionId, extensionName });
-		// const result = await raceTimeout(new Promise(resolve => validatedIpcMain.once(`vscode:triggerReporterMenuResponse:${extensionId}`, (_: unknown, data: IssueReporterData | undefined) => resolve(data))), 5000, () => {
-		// 	this.logService.error(`Error: Extension ${extensionId} timed out waiting for menu response`);
-		// 	cts.cancel();
-		// });
-		return undefined;
+		const sendChannel = `vscode:triggerReporterMenu`;
+		mainWindow.postMessage({ sendChannel, extensionId, extensionName }, '*');
+
+		const result = await new Promise((resolve, reject) => {
+			const timeout = setTimeout(() => {
+				mainWindow.removeEventListener('message', listener);
+				reject(new Error('Timeout exceeded'));
+			}, 5000); // Set the timeout value in milliseconds (e.g., 5000 for 5 seconds)
+
+			const listener = (event: MessageEvent) => {
+				const replyChannel = `vscode:triggerReporterMenuResponse`;
+				if (event.data && event.data.replyChannel === replyChannel) {
+					clearTimeout(timeout);
+					mainWindow.removeEventListener('message', listener);
+					resolve(event.data.data);
+				}
+			};
+			mainWindow.addEventListener('message', listener);
+		});
+
+		return result as IssueReporterData | undefined;
 	}
 
 	async $closeReporter(): Promise<void> {

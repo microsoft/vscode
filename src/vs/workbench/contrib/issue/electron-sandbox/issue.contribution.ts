@@ -13,7 +13,7 @@ import { Extensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IIssueMainService, IssueType } from 'vs/platform/issue/common/issue';
+import { IssueType, IIssueMainService } from 'vs/workbench/contrib/issue/common/issue';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from 'vs/platform/quickinput/common/quickAccess';
@@ -91,7 +91,7 @@ class ReportPerformanceIssueUsingReporterAction extends Action2 {
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const issueService = accessor.get(IWorkbenchIssueService); // later can just get IIssueFormService
 
-		return issueService.openReporter({ issueType: IssueType.PerformanceIssue });
+		return issueService.openReporter({ issueType: IssueType.PerformanceIssue as IssueType | undefined });
 	}
 }
 

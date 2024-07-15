@@ -14,7 +14,7 @@ import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
 import { localize } from 'vs/nls';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { IIssueMainService, IssueReporterData, IssueReporterWindowConfiguration } from 'vs/platform/issue/common/issue';
+import { IIssueMainService, IssueReporterData, IssueReporterWindowConfiguration } from 'vs/workbench/contrib/issue/common/issue';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
 import product from 'vs/platform/product/common/product';

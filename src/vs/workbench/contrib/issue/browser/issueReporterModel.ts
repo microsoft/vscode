@@ -5,7 +5,7 @@
 
 import { mainWindow } from 'vs/base/browser/window';
 import { isRemoteDiagnosticError, SystemInfo } from 'vs/platform/diagnostics/common/diagnostics';
-import { ISettingSearchResult, IssueReporterExtensionData, IssueType } from 'vs/platform/issue/common/issue';
+import { ISettingSearchResult, IssueReporterExtensionData, IssueType } from 'vs/workbench/contrib/issue/common/issue';
 
 export interface IssueReporterData {
 	issueType: IssueType;
