@@ -1004,18 +1004,6 @@ configurationRegistry.registerConfiguration({
 			tags: ['notebookLayout'],
 			default: false
 		},
-		[NotebookSetting.codeActionsOnSave]: {
-			markdownDescription: nls.localize('notebook.codeActionsOnSave', 'Run a series of Code Actions for a notebook on save. Code Actions must be specified, the file must not be saved after delay, and the editor must not be shutting down. Example: `"notebook.source.organizeImports": "explicit"`'),
-			type: 'object',
-			additionalProperties: {
-				type: ['string', 'boolean'],
-				enum: ['explicit', 'never', true, false],
-				// enum: ['explicit', 'always', 'never'], -- autosave support needs to be built first
-				// nls.localize('always', 'Always triggers Code Actions on save, including autosave, focus, and window change events.'),
-				enumDescriptions: [nls.localize('explicit', 'Triggers Code Actions only when explicitly saved.'), nls.localize('never', 'Never triggers Code Actions on save.'), nls.localize('explicitBoolean', 'Triggers Code Actions only when explicitly saved. This value will be deprecated in favor of "explicit".'), nls.localize('neverBoolean', 'Triggers Code Actions only when explicitly saved. This value will be deprecated in favor of "never".')],
-			},
-			default: {}
-		},
 		[NotebookSetting.formatOnCellExecution]: {
 			markdownDescription: nls.localize('notebook.formatOnCellExecution', "Format a notebook cell upon execution. A formatter must be available."),
 			type: 'boolean',
