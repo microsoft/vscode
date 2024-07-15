@@ -329,15 +329,21 @@ steps:
           echo "##vso[task.setvariable variable=USER_SETUP_PATH]$SetupPath"
         displayName: Build user setup
 
-      - powershell: echo "##vso[task.setvariable variable=ARTIFACT_PREFIX;isoutput=true;isreadonly=true]attempt$(System.JobAttempt)_"
+      - powershell: |
+          echo "##vso[task.setvariable variable=ARTIFACT_PREFIX;isoutput=true]attempt$(System.JobAttempt)_"
         condition: and(succeededOrFailed(), notIn(variables['Agent.JobStatus'], 'Succeeded', 'SucceededWithIssues'))
         displayName: Generate artifact prefix
-        name: GenerateArtifactPrefix
+        name: generateArtifactPrefix
+
+      - powershell: |
+          echo $(ARTIFACT_PREFIX)
+          echo $(generateArtifactPrefix.ARTIFACT_PREFIX)
+        displayName: Debug output variable
 
       - task: 1ES.PublishPipelineArtifact@1
         inputs:
           targetPath: $(CLIENT_PATH)
-          artifactName: $(GenerateArtifactPrefix.ARTIFACT_PREFIX)vscode_client_win32_$(VSCODE_ARCH)_archive
+          artifactName: $(generateArtifactPrefix.ARTIFACT_PREFIX)vscode_client_win32_$(VSCODE_ARCH)_archive
           sbomBuildDropPath: $(Agent.BuildDirectory)/VSCode-win32-$(VSCODE_ARCH)
           sbomPackageName: "VS Code Windows $(VSCODE_ARCH)"
           sbomPackageVersion: $(Build.SourceVersion)
@@ -347,7 +353,7 @@ steps:
       - task: 1ES.PublishPipelineArtifact@1
         inputs:
           targetPath: $(SERVER_PATH)
-          artifactName: $(GenerateArtifactPrefix.ARTIFACT_PREFIX)vscode_server_win32_$(VSCODE_ARCH)_archive
+          artifactName: $(generateArtifactPrefix.ARTIFACT_PREFIX)vscode_server_win32_$(VSCODE_ARCH)_archive
           sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-win32-$(VSCODE_ARCH)
           sbomPackageName: "VS Code Windows $(VSCODE_ARCH) Server"
           sbomPackageVersion: $(Build.SourceVersion)
@@ -357,7 +363,7 @@ steps:
       - task: 1ES.PublishPipelineArtifact@1
         inputs:
           targetPath: $(WEB_PATH)
-          artifactName: $(GenerateArtifactPrefix.ARTIFACT_PREFIX)vscode_web_win32_$(VSCODE_ARCH)_archive
+          artifactName: $(generateArtifactPrefix.ARTIFACT_PREFIX)vscode_web_win32_$(VSCODE_ARCH)_archive
           sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-win32-$(VSCODE_ARCH)-web
           sbomPackageName: "VS Code Windows $(VSCODE_ARCH) Web"
           sbomPackageVersion: $(Build.SourceVersion)
@@ -367,7 +373,7 @@ steps:
       - task: 1ES.PublishPipelineArtifact@1
         inputs:
           targetPath: $(SYSTEM_SETUP_PATH)
-          artifactName: $(GenerateArtifactPrefix.ARTIFACT_PREFIX)vscode_client_win32_$(VSCODE_ARCH)_setup
+          artifactName: $(generateArtifactPrefix.ARTIFACT_PREFIX)vscode_client_win32_$(VSCODE_ARCH)_setup
           sbomBuildDropPath: $(Agent.BuildDirectory)/VSCode-win32-$(VSCODE_ARCH)
           sbomPackageName: "VS Code Windows $(VSCODE_ARCH) System Setup"
           sbomPackageVersion: $(Build.SourceVersion)
@@ -377,7 +383,7 @@ steps:
       - task: 1ES.PublishPipelineArtifact@1
         inputs:
           targetPath: $(USER_SETUP_PATH)
-          artifactName: $(GenerateArtifactPrefix.ARTIFACT_PREFIX)vscode_client_win32_$(VSCODE_ARCH)_user-setup
+          artifactName: $(generateArtifactPrefix.ARTIFACT_PREFIX)vscode_client_win32_$(VSCODE_ARCH)_user-setup
           sbomBuildDropPath: $(Agent.BuildDirectory)/VSCode-win32-$(VSCODE_ARCH)
           sbomPackageName: "VS Code Windows $(VSCODE_ARCH) User Setup"
           sbomPackageVersion: $(Build.SourceVersion)
