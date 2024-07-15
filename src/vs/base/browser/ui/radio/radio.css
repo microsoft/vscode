@@ -42,6 +42,11 @@
 	background-color: var(--vscode-radio-activeBackground);
 }
 
+.hc-black .monaco-custom-radio > .monaco-button.active,
+.hc-light .monaco-custom-radio > .monaco-button.active {
+	border-color:  var(--vscode-radio-activeForeground);
+}
+
 .monaco-custom-radio > .monaco-button:hover {
 	background-color: var(--vscode-radio-hoverBackground);
 }
