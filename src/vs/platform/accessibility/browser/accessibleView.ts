@@ -69,6 +69,11 @@ export interface IAccessibleViewOptions {
 	 * Keybinding items to configure
 	 */
 	configureKeybindingItems?: IQuickPickItem[];
+
+	/**
+	 * Keybinding items that are already configured
+	 */
+	configuredKeybindingItems?: IQuickPickItem[];
 }
 
 
@@ -123,7 +128,7 @@ export interface IAccessibleViewService {
 	 */
 	getOpenAriaHint(verbositySettingKey: string): string | null;
 	getCodeBlockContext(): ICodeBlockActionContext | undefined;
-	configureKeybindings(): void;
+	configureKeybindings(unassigned: boolean): void;
 	openHelpLink(): void;
 }
 
