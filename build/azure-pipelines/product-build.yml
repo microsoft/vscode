@@ -374,7 +374,6 @@ extends:
               - job: Windows
                 timeoutInMinutes: 150
                 variables:
-                  - group: 'API Scan'
                   - name: 'VSCODE_ARCH'
                     value: x64
                 steps:
@@ -386,6 +385,15 @@ extends:
                       VSCODE_RUN_UNIT_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
                       VSCODE_RUN_INTEGRATION_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
                       VSCODE_RUN_SMOKE_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
+
+              - job: WindowsSDL
+                dependsOn: Windows
+                variables:
+                  - group: 'API Scan'
+                steps:
+                  - template: build/azure-pipelines/win32/sdl-scan-win32.yml@self
+                    parameters:
+                      VSCODE_ARCH: x64
 
               - job: WindowsCLISign
                 timeoutInMinutes: 90

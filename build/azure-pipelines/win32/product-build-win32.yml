@@ -161,10 +161,6 @@ steps:
 
   - template: ../common/install-builtin-extensions.yml@self
 
-  - template: sdl-scan-win32.yml@self
-    parameters:
-      VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
-
   - ${{ if and(ne(parameters.VSCODE_CIBUILD, true), ne(parameters.VSCODE_QUALITY, 'oss')) }}:
     - powershell: node build\lib\policies
       displayName: Generate Group Policy definitions
@@ -333,7 +329,7 @@ steps:
           echo "##vso[task.setvariable variable=USER_SETUP_PATH]$SetupPath"
         displayName: Build user setup
 
-      - powershell: echo "##vso[task.setvariable variable=ARTIFACT_PREFIX]attempt$(System.JobAttempt)_"
+      - powershell: echo "##vso[task.setvariable variable=ARTIFACT_PREFIX;isoutput=true;isreadonly=true]attempt$(System.JobAttempt)_"
         condition: and(succeededOrFailed(), notIn(variables['Agent.JobStatus'], 'Succeeded', 'SucceededWithIssues'))
         displayName: Generate artifact prefix
 

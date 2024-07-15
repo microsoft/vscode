@@ -4,9 +4,19 @@ parameters:
     default: x64
 
 steps:
-  - powershell: yarn gulp "vscode-symbols-win32-${{ parameters.VSCODE_ARCH }}"
+  - task: DownloadPipelineArtifacts@2
+    inputs:
+      artifactName: $(Windows.ARTIFACT_PREFIX)vscode_client_win32_${{ parameters.VSCODE_ARCH }}_archive
+      targetPath: $(Agent.TempDirectory)\vscode_client_archive
+
+  - task: ExtractFiles@1
+    inputs:
+      archiveFilePatterns: '$(Agent.TempDirectory)\vscode_client_archive\*.zip'
+      destinationFolder: $(Agent.BuildDirectory)\scanbin
+
+  - powershell: yarn gulp 'vscode-symbols-win32-${{ parameters.VSCODE_ARCH }}'
     env:
-      GITHUB_TOKEN: "$(github-distro-mixin-password)"
+      GITHUB_TOKEN: $(github-distro-mixin-password)
     displayName: Download Symbols
 
   - task: BinSkim@4
@@ -15,25 +25,25 @@ steps:
       Function: "analyze"
       TargetPattern: "guardianGlob"
       AnalyzeIgnorePdbLoadError: true
-      AnalyzeTargetGlob: '$(agent.builddirectory)\scanbin\**.dll;$(agent.builddirectory)\scanbin\**.exe;$(agent.builddirectory)\scanbin\**.node'
-      AnalyzeLocalSymbolDirectories: '$(agent.builddirectory)\scanbin\VSCode-win32-${{ parameters.VSCODE_ARCH }}\pdb'
+      AnalyzeTargetGlob: '$(Agent.BuildDirectory)\scanbin\**.dll;$(Agent.BuildDirectory)\scanbin\**.exe;$(Agent.BuildDirectory)\scanbin\**.node'
+      AnalyzeLocalSymbolDirectories: '$(Agent.BuildDirectory)\scanbin\VSCode-win32-${{ parameters.VSCODE_ARCH }}\pdb'
 
   - ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
     - task: CopyFiles@2
       displayName: 'Collect Symbols for API Scan'
       inputs:
-        SourceFolder: $(agent.builddirectory)
+        SourceFolder: $(Agent.BuildDirectory)
         Contents: 'scanbin\**\*.pdb'
-        TargetFolder: '$(agent.builddirectory)\symbols'
+        TargetFolder: '$(Agent.BuildDirectory)\symbols'
         flattenFolders: true
       condition: succeeded()
 
     # - task: APIScan@2
     #   inputs:
-    #     softwareFolder: $(agent.builddirectory)\scanbin
+    #     softwareFolder: $(Agent.BuildDirectory)\scanbin
     #     softwareName: 'vscode-client'
     #     softwareVersionNum: '1'
-    #     symbolsFolder: 'SRV*http://symweb;$(agent.builddirectory)\symbols'
+    #     symbolsFolder: 'SRV*http://symweb;$(Agent.BuildDirectory)\symbols'
     #     isLargeApp: false
     #     toolVersion: 'Latest'
     #   displayName: Run ApiScan
@@ -47,11 +57,3 @@ steps:
         ArtifactType: Container
         PublishProcessedResults: false
         AllTools: true
-
-  - task: DeleteFiles@1
-    displayName: 'Delete symbols'
-    inputs:
-      SourceFolder: $(agent.builddirectory)
-      Contents: |
-        'scanbin\**\*.pdb'
-        'symbols'
