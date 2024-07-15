@@ -89,6 +89,7 @@ import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalSt
 import { shouldPasteTerminalText } from 'vs/workbench/contrib/terminal/common/terminalClipboard';
 import { TerminalIconPicker } from 'vs/workbench/contrib/terminal/browser/terminalIconPicker';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { TerminalResizeDebouncer } from 'vs/workbench/contrib/terminal/browser/terminalResizeDebouncer';
 
 // HACK: This file should not depend on terminalContrib
 // eslint-disable-next-line local/code-import-patterns
@@ -193,6 +194,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	get usedShellIntegrationInjection(): boolean { return this._usedShellIntegrationInjection; }
 	private _lineDataEventAddon: LineDataEventAddon | undefined;
 	private readonly _scopedContextKeyService: IContextKeyService;
+	private _resizeDebouncer?: TerminalResizeDebouncer;
 
 	readonly capabilities = this._register(new TerminalCapabilityStoreMultiplexer());
 	readonly statusList: ITerminalStatusList;
@@ -746,6 +748,22 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			disableShellIntegrationReporting
 		);
 		this.xterm = xterm;
+		this._resizeDebouncer = this._register(new TerminalResizeDebouncer(
+			() => this._isVisible,
+			() => xterm,
+			async (cols, rows) => {
+				xterm.raw.resize(cols, rows);
+				await this._updatePtyDimensions(xterm.raw);
+			},
+			async (cols) => {
+				xterm.raw.resize(cols, xterm.raw.rows);
+				await this._updatePtyDimensions(xterm.raw);
+			},
+			async (rows) => {
+				xterm.raw.resize(xterm.raw.cols, rows);
+				await this._updatePtyDimensions(xterm.raw);
+			}
+		));
 		this.updateAccessibilitySupport();
 		this._register(this.xterm.onDidRequestRunCommand(e => {
 			if (e.copyAsHtml) {
@@ -885,7 +903,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return;
 		}
 
-		this._attachBarrier.open();
+		if (!this._attachBarrier.isOpen()) {
+			this._attachBarrier.open();
+		}
 
 		// The container changed, reattach
 		this._container = container;
@@ -1276,17 +1296,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._wrapperElement.classList.toggle('active', visible);
 		if (visible && this.xterm) {
 			this._open();
+			// Flush any pending resizes
+			this._resizeDebouncer?.flush();
 			// Resize to re-evaluate dimensions, this will ensure when switching to a terminal it is
 			// using the most up to date dimensions (eg. when terminal is created in the background
 			// using cached dimensions of a split terminal).
 			this._resize();
-			// HACK: Trigger a forced refresh of the viewport to sync the viewport and scroll bar.
-			// This is necessary if the number of rows in the terminal has decreased while it was in
-			// the background since scrollTop changes take no effect but the terminal's position
-			// does change since the number of visible rows decreases.
-			// This can likely be removed after https://github.com/xtermjs/xterm.js/issues/291 is
-			// fixed upstream.
-			setTimeout(() => this.xterm!.forceRefresh(), 0);
 		}
 	}
 
@@ -1832,7 +1847,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._resize();
 
 		// Signal the container is ready
-		this._containerReadyBarrier.open();
+		if (!this._containerReadyBarrier.isOpen()) {
+			this._containerReadyBarrier.open();
+		}
 
 		// Layout all contributions
 		for (const contribution of this._contributions.values()) {
@@ -1885,27 +1902,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		TerminalInstance._lastKnownGridDimensions = { cols, rows };
-
-		if (immediate) {
-			this.xterm.raw.resize(cols, rows);
-			await this._updatePtyDimensions(this.xterm.raw);
-		} else {
-			// Update dimensions independently as vertical resize is cheap but horizontal resize is
-			// expensive due to reflow.
-			this._resizeVertically(this.xterm.raw, rows);
-			this._resizeHorizontally(this.xterm.raw, cols);
-		}
-	}
-
-	private async _resizeVertically(rawXterm: XTermTerminal, rows: number): Promise<void> {
-		rawXterm.resize(rawXterm.cols, rows);
-		await this._updatePtyDimensions(rawXterm);
-	}
-
-	@debounce(50)
-	private async _resizeHorizontally(rawXterm: XTermTerminal, cols: number): Promise<void> {
-		rawXterm.resize(cols, rawXterm.rows);
-		await this._updatePtyDimensions(rawXterm);
+		this._resizeDebouncer!.resize(cols, rows, immediate ?? false);
 	}
 
 	private async _updatePtyDimensions(rawXterm: XTermTerminal): Promise<void> {

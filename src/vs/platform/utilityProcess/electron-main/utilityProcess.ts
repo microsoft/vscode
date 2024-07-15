@@ -76,6 +76,13 @@ export interface IUtilityProcessConfiguration {
 	 * the V8 sandbox.
 	 */
 	readonly forceAllocationsToV8Sandbox?: boolean;
+
+	/**
+	 * HTTP 401 and 407 requests created via electron:net module
+	 * will be redirected to the main process and can be handled
+	 * via the app#login event.
+	 */
+	readonly respondToAuthRequestsFromMainProcess?: boolean;
 }
 
 export interface IWindowUtilityProcessConfiguration extends IUtilityProcessConfiguration {
@@ -235,6 +242,7 @@ export class UtilityProcess extends Disposable {
 		const execArgv = this.configuration.execArgv ?? [];
 		const allowLoadingUnsignedLibraries = this.configuration.allowLoadingUnsignedLibraries;
 		const forceAllocationsToV8Sandbox = this.configuration.forceAllocationsToV8Sandbox;
+		const respondToAuthRequestsFromMainProcess = this.configuration.respondToAuthRequestsFromMainProcess;
 		const stdio = 'pipe';
 		const env = this.createEnv(configuration);
 
@@ -247,8 +255,12 @@ export class UtilityProcess extends Disposable {
 			execArgv,
 			allowLoadingUnsignedLibraries,
 			forceAllocationsToV8Sandbox,
+			respondToAuthRequestsFromMainProcess,
 			stdio
-		} as ForkOptions & { forceAllocationsToV8Sandbox?: Boolean });
+		} as ForkOptions & {
+			forceAllocationsToV8Sandbox?: Boolean;
+			respondToAuthRequestsFromMainProcess?: boolean;
+		});
 
 		// Register to events
 		this.registerListeners(this.process, this.configuration, serviceName);
