@@ -23,7 +23,7 @@ import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsSe
 import { defaultUserDataProfileIcon, IProfileTemplateInfo, IUserDataProfileManagementService, PROFILE_FILTER } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { Orientation, Sizing, SplitView } from 'vs/base/browser/ui/splitview/splitview';
 import { Button, ButtonWithDropdown } from 'vs/base/browser/ui/button/button';
-import { defaultButtonStyles, defaultCheckboxStyles, defaultInputBoxStyles, defaultSelectBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { defaultButtonStyles, defaultCheckboxStyles, defaultInputBoxStyles, defaultSelectBoxStyles, getInputBoxStyle } from 'vs/platform/theme/browser/defaultStyles';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { PANEL_BORDER } from 'vs/workbench/common/theme';
 import { WorkbenchAsyncDataTree, WorkbenchList } from 'vs/platform/list/browser/listService';
@@ -58,6 +58,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { Radio } from 'vs/base/browser/ui/radio/radio';
 import { getBaseLayerHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate2';
 import { MarkdownString } from 'vs/base/common/htmlContent';
+import { settingsTextInputBorder } from 'vs/workbench/contrib/preferences/common/settingsEditorColorRegistry';
 
 export const profilesSashBorder = registerColor('profiles.sashBorder', PANEL_BORDER, localize('profilesSashBorder', "The color of the Profiles editor splitview sash border."));
 
@@ -487,7 +488,9 @@ class ProfileWidget extends Disposable {
 			this.nameContainer,
 			undefined,
 			{
-				inputBoxStyles: defaultInputBoxStyles,
+				inputBoxStyles: getInputBoxStyle({
+					inputBorder: settingsTextInputBorder
+				}),
 				ariaLabel: localize('profileName', "Profile Name"),
 				placeholder: localize('profileName', "Profile Name"),
 				validationOptions: {
