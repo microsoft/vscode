@@ -346,6 +346,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	readonly onDidSendText = this._onDidSendText.event;
 	private readonly _onDidChangeShellType = this._register(new Emitter<TerminalShellType>());
 	readonly onDidChangeShellType = this._onDidChangeShellType.event;
+	private readonly _onDidChangeVisibility = this._register(new Emitter<boolean>());
+	readonly onDidChangeVisibility = this._onDidChangeVisibility.event;
 
 	constructor(
 		private readonly _terminalShellTypeContextKey: IContextKey<string>,
@@ -1292,6 +1294,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	setVisible(visible: boolean): void {
+		const didChange = this._isVisible !== visible;
 		this._isVisible = visible;
 		this._wrapperElement.classList.toggle('active', visible);
 		if (visible && this.xterm) {
@@ -1302,6 +1305,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			// using the most up to date dimensions (eg. when terminal is created in the background
 			// using cached dimensions of a split terminal).
 			this._resize();
+		}
+		if (didChange) {
+			this._onDidChangeVisibility.fire(visible);
 		}
 	}
 

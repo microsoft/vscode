@@ -242,12 +242,22 @@ class InputEditorSlashCommandMode extends Disposable {
 		private readonly widget: IChatWidget
 	) {
 		super();
+		this._register(this.widget.onDidChangeAgent(e => {
+			if (e.slashCommand && e.slashCommand.isSticky || !e.slashCommand && e.agent.metadata.isSticky) {
+				this.repopulateAgentCommand(e.agent, e.slashCommand);
+			}
+		}));
 		this._register(this.widget.onDidSubmitAgent(e => {
 			this.repopulateAgentCommand(e.agent, e.slashCommand);
 		}));
 	}
 
 	private async repopulateAgentCommand(agent: IChatAgentData, slashCommand: IChatAgentCommand | undefined) {
+		// Make sure we don't repopulate if the user already has something in the input
+		if (this.widget.inputEditor.getValue().trim()) {
+			return;
+		}
+
 		let value: string | undefined;
 		if (slashCommand && slashCommand.isSticky) {
 			value = `${chatAgentLeader}${agent.name} ${chatSubcommandLeader}${slashCommand.name} `;

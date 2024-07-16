@@ -72,11 +72,11 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 		switch (this._countBadgeConfig.read(reader)) {
 			case 'all': {
 				const repositories = this._repositories.read(reader);
-				return [...Iterable.map(repositories, r => ({ ...r.provider, resourceCount: this._getRepositoryResourceCount(r) }))];
+				return [...Iterable.map(repositories, r => ({ provider: r.provider, resourceCount: this._getRepositoryResourceCount(r) }))];
 			}
 			case 'focused': {
 				const repository = this._activeRepository.read(reader);
-				return repository ? [{ ...repository.provider, resourceCount: this._getRepositoryResourceCount(repository) }] : [];
+				return repository ? [{ provider: repository.provider, resourceCount: this._getRepositoryResourceCount(repository) }] : [];
 			}
 			case 'off':
 				return [];
@@ -89,7 +89,7 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 		let total = 0;
 
 		for (const repository of this._countBadgeRepositories.read(reader)) {
-			const count = repository.count?.read(reader);
+			const count = repository.provider.count?.read(reader);
 			const resourceCount = repository.resourceCount.read(reader);
 
 			total = total + (count ?? resourceCount);
