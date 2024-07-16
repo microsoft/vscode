@@ -563,6 +563,9 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 
 	getCopyFromName(): string | undefined {
 		if (isUserDataProfile(this.copyFrom)) {
+			if (this.copyFrom.isDefault) {
+				return localize('copy from default', "{0} (Copy)", this.copyFrom.name);
+			}
 			return this.copyFrom.name;
 		}
 		if (this.template) {
