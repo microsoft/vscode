@@ -743,7 +743,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 
 	private getAriaLabel(): string {
 		let ariaLabel = localize('debugConsole', "Debug Console");
-		if (!this.configurationService.getValue(AccessibilityVerbositySettingId.DebugConsole)) {
+		if (!this.configurationService.getValue(AccessibilityVerbositySettingId.Debug)) {
 			return ariaLabel;
 		}
 		const keybinding = this.keybindingService.lookupKeybinding(AccessibilityCommandId.OpenAccessibleView)?.getAriaLabel();

@@ -15,7 +15,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
 
-export class DebugAccessibleView implements IAccessibleViewImplentation {
+export class ReplAccessibleView implements IAccessibleViewImplentation {
 	priority = 70;
 	name = 'debugConsole';
 	when = ContextKeyExpr.equals('focusedView', 'workbench.panel.repl.view');
@@ -29,19 +29,19 @@ export class DebugAccessibleView implements IAccessibleViewImplentation {
 			return undefined;
 		}
 		const focusedElement = replView.getFocusedElement();
-		return new DebugAccessibleViewProvider(replView, focusedElement, debugService, accessibleViewService);
+		return new ReplOutputAccessibleViewProvider(replView, focusedElement, debugService, accessibleViewService);
 	}
 }
 
-class DebugAccessibleViewProvider extends Disposable implements IAccessibleViewContentProvider {
-	public readonly id = AccessibleViewProviderId.DebugConsole;
+class ReplOutputAccessibleViewProvider extends Disposable implements IAccessibleViewContentProvider {
+	public readonly id = AccessibleViewProviderId.Repl;
 	private _content: string | undefined;
 	private readonly _onDidChangeContent: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
 	private readonly _onDidResolveChildren: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onDidResolveChildren: Event<void> = this._onDidResolveChildren.event;
 
-	public readonly verbositySettingKey = AccessibilityVerbositySettingId.DebugConsole;
+	public readonly verbositySettingKey = AccessibilityVerbositySettingId.Debug;
 	public readonly options = {
 		type: AccessibleViewType.View
 	};

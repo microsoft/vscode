@@ -15,7 +15,7 @@ import { localize } from 'vs/nls';
 
 export class ReplAccessibilityHelp implements IAccessibleViewImplentation {
 	priority = 120;
-	name = 'debugConsoleHelp';
+	name = 'replHelp';
 	when = ContextKeyExpr.equals('focusedView', 'workbench.panel.repl.view');
 	type: AccessibleViewType = AccessibleViewType.Help;
 	getProvider(accessor: ServicesAccessor) {
@@ -29,8 +29,8 @@ export class ReplAccessibilityHelp implements IAccessibleViewImplentation {
 }
 
 class ReplAccessibilityHelpProvider extends Disposable implements IAccessibleViewContentProvider {
-	public readonly id = AccessibleViewProviderId.DebugConsoleHelp;
-	public readonly verbositySettingKey = AccessibilityVerbositySettingId.DebugConsole;
+	public readonly id = AccessibleViewProviderId.ReplHelp;
+	public readonly verbositySettingKey = AccessibilityVerbositySettingId.Debug;
 	public readonly options = { type: AccessibleViewType.Help };
 	private _treeHadFocus = false;
 	constructor(private readonly _replView: Repl) {
