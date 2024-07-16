@@ -1048,7 +1048,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			this._terminalService.setActiveInstance(terminal);
 			await this._terminalService.revealTerminal(terminal);
 			if (task.command.presentation.focus) {
-				this._terminalService.focusActiveInstance();
+				this._terminalService.focusInstance(terminal);
 			}
 		}
 		this._activeTasks[task.getMapKey()].terminal = terminal;

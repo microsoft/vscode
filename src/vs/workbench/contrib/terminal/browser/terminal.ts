@@ -525,6 +525,10 @@ export interface ITerminalInstanceHost {
 
 	setActiveInstance(instance: ITerminalInstance): void;
 	/**
+	 * Reveal and focus the instance, regardless of its location.
+	 */
+	focusInstance(instance: ITerminalInstance): void;
+	/**
 	 * Reveal and focus the active instance, regardless of its location.
 	 */
 	focusActiveInstance(): Promise<void>;
