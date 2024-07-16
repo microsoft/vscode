@@ -18,12 +18,12 @@ export class DebugAccessibilityAnnouncer extends Disposable implements IWorkbenc
 	) {
 		super();
 		this._register(_debugService.getModel().onDidChangeWatchExpressionValue((e) => {
-			if (!e) {
+			if (!e || e.value === 'not available') {
 				return;
 			}
-			// TODO: settings to configure verbosity, whether value, name, neither, or both are announced
-			_accessibilityService.alert(`${e.name} changed to ${e.value}`);
-			console.log(e.name + e.value);
+
+			// TODO: get user feedback, perhaps setting to configure verbosity + whether value, name, neither, or both are announced
+			_accessibilityService.alert(`${e.name} = ${e.value}`);
 			_logService.trace(`debugAccessibilityAnnouncerValueChanged ${e.name} ${e.value}`);
 		}));
 	}
