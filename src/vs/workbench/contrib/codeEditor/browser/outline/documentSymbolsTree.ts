@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./documentSymbolsTree';
-import 'vs/editor/contrib/symbolIcons/browser/symbolIcons'; // The codicon symbol colors are defined here and must be loaded to get colors
 import * as dom from 'vs/base/browser/dom';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
-import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { ITreeNode, ITreeRenderer, ITreeFilter } from 'vs/base/browser/ui/tree/tree';
-import { createMatches, FuzzyScore } from 'vs/base/common/filters';
-import { Range } from 'vs/editor/common/core/range';
-import { SymbolKind, SymbolKinds, SymbolTag, getAriaLabelForSymbol, symbolKindNames } from 'vs/editor/common/languages';
-import { OutlineElement, OutlineGroup, OutlineModel } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
-import { localize } from 'vs/nls';
 import { IconLabel, IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
+import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { ITreeFilter, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
+import { mainWindow } from 'vs/base/browser/window';
+import { createMatches, FuzzyScore } from 'vs/base/common/filters';
+import { ThemeIcon } from 'vs/base/common/themables';
+import 'vs/css!./documentSymbolsTree';
+import { Range } from 'vs/editor/common/core/range';
+import { getAriaLabelForSymbol, SymbolKind, symbolKindNames, SymbolKinds, SymbolTag } from 'vs/editor/common/languages';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
+import { OutlineElement, OutlineGroup, OutlineModel } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
+import 'vs/editor/contrib/symbolIcons/browser/symbolIcons'; // The codicon symbol colors are defined here and must be loaded to get colors
+import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { listErrorForeground, listWarningForeground } from 'vs/platform/theme/common/colorRegistry';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
-import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IOutlineComparator, OutlineConfigKeys, OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { mainWindow } from 'vs/base/browser/window';
 
 export type DocumentSymbolItem = OutlineGroup | OutlineElement;
 

@@ -22,6 +22,7 @@ import { CodeActionKind, CodeActionTriggerSource } from 'vs/editor/contrib/codeA
 import { FormattingMode, formatDocumentRangesWithSelectedProvider, formatDocumentWithSelectedProvider } from 'vs/editor/contrib/format/browser/format';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { localize } from 'vs/nls';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -30,6 +31,8 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchContributionsExtensions } from 'vs/workbench/common/contributions';
 import { SaveReason } from 'vs/workbench/common/editor';
 import { getModifiedRanges } from 'vs/workbench/contrib/format/browser/formatModified';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ITextFileEditorModel, ITextFileSaveParticipant, ITextFileSaveParticipantContext, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
@@ -273,7 +276,44 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
-	) { }
+		@IHostService private readonly hostService: IHostService,
+		@IEditorService private readonly editorService: IEditorService,
+		@ICommandService private readonly commandService: ICommandService
+	) {
+		this.hostService.onDidChangeFocus(async () => {
+			this.triggerCodeActionsCommand();
+		});
+
+		this.editorService.onDidActiveEditorChange(async () => {
+			this.triggerCodeActionsCommand();
+		});
+	}
+
+	private async triggerCodeActionsCommand() {
+		if (this.configurationService.getValue<boolean>('editor.codeActions.triggerOnFocusChange') && this.configurationService.getValue<string>('files.autoSave') === 'afterDelay') {
+			const setting = this.configurationService.getValue<{ [kind: string]: string | boolean } | string[]>('editor.codeActionsOnSave');
+			if (!setting) {
+				return undefined;
+			}
+
+			if (Array.isArray(setting)) {
+				return undefined;
+			}
+
+			const settingItems: string[] = Object.keys(setting).filter(x => setting[x] && setting[x] === 'always' && CodeActionKind.SourceOrganizeImports.contains(new HierarchicalKind(x)));
+
+			for (const item of settingItems) {
+				try {
+					await this.commandService.executeCommand('editor.action.codeAction', {
+						kind: item.toString(),
+					});
+				} catch (error) {
+					console.error('Error executing command for item:', item, error);
+				}
+			}
+		}
+	}
+
 
 	async participate(model: ITextFileEditorModel, context: ITextFileSaveParticipantContext, progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
 		if (!model.textEditorModel) {
