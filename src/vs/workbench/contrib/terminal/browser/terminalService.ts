@@ -559,10 +559,6 @@ export class TerminalService extends Disposable implements ITerminalService {
 	}
 
 	async revealTerminal(source: ITerminalInstance, preserveFocus?: boolean): Promise<void> {
-		if (!source) {
-			return;
-		}
-
 		if (source.target === TerminalLocation.Editor) {
 			await this._terminalEditorService.revealActiveEditor(preserveFocus);
 		} else {
