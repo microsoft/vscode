@@ -60,7 +60,7 @@ import { launchSchemaId } from 'vs/workbench/services/configuration/common/confi
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import './debugSettingMigration';
 import { DebugAccessibilityHelp } from 'vs/workbench/contrib/debug/browser/debugAccessibilityHelp';
-import { DebugAccessibilityAnnouncer } from 'vs/workbench/contrib/debug/common/debugAccessibilityAnnouncer';
+import { DebugWatchAccessibilityAnnouncer } from 'vs/workbench/contrib/debug/common/debugAccessibilityAnnouncer';
 
 const debugCategory = nls.localize('debugCategory', "Debug");
 registerColors();
@@ -646,4 +646,4 @@ configurationRegistry.registerConfiguration({
 
 AccessibleViewRegistry.register(new DebugAccessibleView());
 AccessibleViewRegistry.register(new DebugAccessibilityHelp());
-registerWorkbenchContribution2(DebugAccessibilityAnnouncer.ID, DebugAccessibilityAnnouncer, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(DebugWatchAccessibilityAnnouncer.ID, DebugWatchAccessibilityAnnouncer, WorkbenchPhase.AfterRestored);

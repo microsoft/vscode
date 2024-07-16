@@ -9,8 +9,8 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
-export class DebugAccessibilityAnnouncer extends Disposable implements IWorkbenchContribution {
-	static ID = 'workbench.contrib.debugAccessibilityAnnouncer';
+export class DebugWatchAccessibilityAnnouncer extends Disposable implements IWorkbenchContribution {
+	static ID = 'workbench.contrib.debugWatchAccessibilityAnnouncer';
 	constructor(
 		@IDebugService _debugService: IDebugService,
 		@ILogService _logService: ILogService,
