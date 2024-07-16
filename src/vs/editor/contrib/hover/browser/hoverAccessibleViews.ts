@@ -23,8 +23,6 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { labelForHoverVerbosityAction } from 'vs/editor/contrib/hover/browser/markdownHoverParticipant';
 
 namespace HoverAccessibilityHelpNLS {
-	export const introHoverPart = localize('introHoverPart', 'The focused hover part content is the following:');
-	export const introHoverFull = localize('introHoverFull', 'The full focused hover content is the following:');
 	export const increaseVerbosity = localize('increaseVerbosity', '- The focused hover part verbosity level can be increased with the Increase Hover Verbosity command<keybinding:{0}>.', INCREASE_HOVER_VERBOSITY_ACTION_ID);
 	export const decreaseVerbosity = localize('decreaseVerbosity', '- The focused hover part verbosity level can be decreased with the Decrease Hover Verbosity command<keybinding:{0}>.', DECREASE_HOVER_VERBOSITY_ACTION_ID);
 }
@@ -123,7 +121,6 @@ abstract class BaseHoverAccessibleViewProvider extends Disposable implements IAc
 			if (includeVerbosityActions) {
 				contents.push(...this._descriptionsOfVerbosityActionsForIndex(focusedHoverIndex));
 			}
-			contents.push(HoverAccessibilityHelpNLS.introHoverPart);
 			contents.push(accessibleContent);
 			return contents.join('\n\n');
 		} else {
@@ -132,7 +129,6 @@ abstract class BaseHoverAccessibleViewProvider extends Disposable implements IAc
 				return '';
 			}
 			const contents: string[] = [];
-			contents.push(HoverAccessibilityHelpNLS.introHoverFull);
 			contents.push(accessibleContent);
 			return contents.join('\n\n');
 		}
