@@ -315,6 +315,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 CommandsRegistry.registerCommand({
 	id: REVEAL_IN_EXPLORER_COMMAND_ID,
 	handler: async (accessor, resource: URI | object) => {
+		const explorerService = accessor.get(IExplorerService);
 		const viewService = accessor.get(IViewsService);
 		const contextService = accessor.get(IWorkspaceContextService);
 		const uri = getResourceForCommand(accessor, resource);
@@ -327,7 +328,6 @@ CommandsRegistry.registerCommand({
 				// Fixes #197268
 				explorerView.autoReveal = false;
 				explorerView.setExpanded(true);
-				const explorerService = accessor.get(IExplorerService);
 				await explorerService.select(uri, 'force');
 				explorerView.focus();
 				explorerView.autoReveal = oldAutoReveal;
