@@ -628,7 +628,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize('debug.autoExpandLazyVariables.on', "Always automatically expand lazy variables."),
 				nls.localize('debug.autoExpandLazyVariables.off', "Never automatically expand lazy variables.")
 			],
-			description: nls.localize('debug.autoExpandLazyVariables', "Controls if variables, such as getters, are automatically resolved and expanded by the debugger.")
+			description: nls.localize('debug.autoExpandLazyVariables', "Controls whether variables that are lazily resolved, such as getters, are automatically resolved and expanded by the debugger.")
 		},
 		'debug.enableStatusBarColor': {
 			type: 'boolean',
