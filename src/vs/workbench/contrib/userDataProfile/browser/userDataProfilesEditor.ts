@@ -800,7 +800,7 @@ class ProfileWidget extends Disposable {
 		} else {
 			this.iconElement.className = ThemeIcon.asClassName(ThemeIcon.fromId(DEFAULT_ICON.id));
 		}
-		const defaultHelpInfo = localize('default info', "- **Default:** Inherits contents from the Default profile\n");
+		const defaultHelpInfo = localize('default info', "- **Default:** Use contents from the Default profile\n");
 
 		if (profileElement instanceof NewProfileElement) {
 			this.contentsTreeHeader.classList.remove('default-profile');
@@ -841,7 +841,7 @@ class ProfileWidget extends Disposable {
 			this.optionsLabelHover.update({
 				markdown: new MarkdownString()
 					.appendMarkdown(defaultHelpInfo)
-					.appendMarkdown(localize('current info', "- **Current:** Use contents from the {0} profile\n", profileElement.profile.name)),
+					.appendMarkdown(localize('current info', "- **{1}:** Use contents from the {0} profile\n", profileElement.profile.name, profileElement.profile.name)),
 				markdownNotSupportedFallback: undefined
 			});
 			this.contentsTreeHeader.classList.toggle('default-profile', profileElement.profile.isDefault);
@@ -1042,11 +1042,11 @@ class ExistingProfileResourceTreeRenderer extends AbstractProfileResourceTreeRen
 			templateData.radio.domNode.classList.remove('hide');
 			templateData.radio.setItems([{
 				text: localize('default', "Default"),
-				tooltip: localize('default description', "Inherits {0} from the Default profile", resourceTypeTitle),
+				tooltip: localize('default description', "Use {0} from the Default profile", resourceTypeTitle),
 				isActive: root.getFlag(element.resourceType)
 			},
 			{
-				text: localize('current', "Current"),
+				text: root.name,
 				tooltip: localize('current description', "Use {0} from the {1} profile", resourceTypeTitle, root.name),
 				isActive: !root.getFlag(element.resourceType)
 			}]);
@@ -1104,11 +1104,11 @@ class NewProfileResourceTreeRenderer extends AbstractProfileResourceTreeRenderer
 		templateData.label.textContent = resourceTypeTitle;
 		const options = [{
 			text: localize('default', "Default"),
-			tooltip: localize('default description', "Inherits {0} from the Default profile", resourceTypeTitle),
+			tooltip: localize('default description', "Use {0} from the Default profile", resourceTypeTitle),
 		},
 		{
 			text: localize('empty', "Empty"),
-			tooltip: localize('empty description', "Create an empty {0}", resourceTypeTitle)
+			tooltip: localize('empty description', "Create empty {0}", resourceTypeTitle)
 		}];
 		if (root.copyFrom) {
 			const copyFromName = root.getCopyFromName();

@@ -198,7 +198,7 @@
 
 .profiles-editor .contents-container .profile-content-tree-header {
 	display: grid;
-	grid-template-columns: 30px repeat(1, 1fr) 150px 80px;
+	grid-template-columns: 30px repeat(1, 1fr) 200px 80px;
 	line-height: 22px;
 	align-items: center;
 	margin: 5px 0px 2px 0px;
@@ -229,7 +229,7 @@
 .profiles-editor .contents-container .profile-tree-item-container {
 	display: grid;
 	align-items: center;
-	grid-template-columns: repeat(1, 1fr) 150px 80px;
+	grid-template-columns: repeat(1, 1fr) 200px 80px;
 }
 
 .profiles-editor .contents-container .profile-tree-item-container.default-profile,
