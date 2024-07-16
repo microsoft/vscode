@@ -294,6 +294,7 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	getReconnectedTerminals(reconnectionOwner: string): ITerminalInstance[] | undefined;
 
 	getActiveOrCreateInstance(options?: { acceptsInput?: boolean }): Promise<ITerminalInstance>;
+	revealTerminal(source: ITerminalInstance, preserveFocus?: boolean): Promise<void>;
 	revealActiveTerminal(preserveFocus?: boolean): Promise<void>;
 	moveToEditor(source: ITerminalInstance, group?: GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE | AUX_WINDOW_GROUP_TYPE): void;
 	moveIntoNewEditor(source: ITerminalInstance): void;
@@ -523,6 +524,10 @@ export interface ITerminalInstanceHost {
 	readonly onDidChangeInstanceCapability: Event<ITerminalInstance>;
 
 	setActiveInstance(instance: ITerminalInstance): void;
+	/**
+	 * Reveal and focus the instance, regardless of its location.
+	 */
+	focusInstance(instance: ITerminalInstance): void;
 	/**
 	 * Reveal and focus the active instance, regardless of its location.
 	 */

@@ -85,7 +85,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 	private readonly _onDidProgressEnd = new Emitter<DebugProtocol.ProgressEndEvent>();
 	private readonly _onDidInvalidMemory = new Emitter<DebugProtocol.MemoryEvent>();
 
-	private readonly _onDidChangeREPLElements = new Emitter<void>();
+	private readonly _onDidChangeREPLElements = new Emitter<IReplElement | undefined>();
 
 	private _name: string | undefined;
 	private readonly _onDidChangeName = new Emitter<string>();
@@ -130,7 +130,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 
 		const toDispose = this.globalDisposables;
 		const replListener = toDispose.add(new MutableDisposable());
-		replListener.value = this.repl.onDidChangeElements(() => this._onDidChangeREPLElements.fire());
+		replListener.value = this.repl.onDidChangeElements((e) => this._onDidChangeREPLElements.fire(e));
 		if (lifecycleService) {
 			toDispose.add(lifecycleService.onWillShutdown(() => {
 				this.shutdown();
@@ -178,7 +178,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 				// remove its parent, if it's still running
 				if (!this.hasSeparateRepl() && this.raw?.isInShutdown === false) {
 					this.repl = this.repl.clone();
-					replListener.value = this.repl.onDidChangeElements(() => this._onDidChangeREPLElements.fire());
+					replListener.value = this.repl.onDidChangeElements((e) => this._onDidChangeREPLElements.fire(e));
 					this.parentSession = undefined;
 				}
 			}));
@@ -295,7 +295,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 		return this._onDidEndAdapter.event;
 	}
 
-	get onDidChangeReplElements(): Event<void> {
+	get onDidChangeReplElements(): Event<IReplElement | undefined> {
 		return this._onDidChangeREPLElements.event;
 	}
 

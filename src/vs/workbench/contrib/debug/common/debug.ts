@@ -401,7 +401,7 @@ export interface IDebugSession extends ITreeElement {
 	// session events
 	readonly onDidEndAdapter: Event<AdapterEndEvent | undefined>;
 	readonly onDidChangeState: Event<void>;
-	readonly onDidChangeReplElements: Event<void>;
+	readonly onDidChangeReplElements: Event<IReplElement | undefined>;
 
 	// DA capabilities
 	readonly capabilities: DebugProtocol.Capabilities;
