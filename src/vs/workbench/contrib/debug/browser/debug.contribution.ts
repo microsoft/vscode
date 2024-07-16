@@ -59,7 +59,7 @@ import { COPY_NOTEBOOK_VARIABLE_VALUE_ID, COPY_NOTEBOOK_VARIABLE_VALUE_LABEL } f
 import { launchSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import './debugSettingMigration';
-import { DebugAccessibilityHelp } from 'vs/workbench/contrib/debug/browser/debugAccessibilityHelp';
+import { ReplAccessibilityHelp } from 'vs/workbench/contrib/debug/browser/replAccessibilityHelp';
 import { ReplAccessibilityAnnouncer } from 'vs/workbench/contrib/debug/common/replAccessibilityAnnouncer';
 
 const debugCategory = nls.localize('debugCategory', "Debug");
@@ -645,5 +645,5 @@ configurationRegistry.registerConfiguration({
 });
 
 AccessibleViewRegistry.register(new DebugAccessibleView());
-AccessibleViewRegistry.register(new DebugAccessibilityHelp());
+AccessibleViewRegistry.register(new ReplAccessibilityHelp());
 registerWorkbenchContribution2(ReplAccessibilityAnnouncer.ID, ReplAccessibilityAnnouncer, WorkbenchPhase.AfterRestored);
