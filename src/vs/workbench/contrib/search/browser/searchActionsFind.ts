@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { WorkbenchCompressibleObjectTree } from 'vs/platform/list/browser/listService';
+import { IListService, WorkbenchCompressibleObjectTree } from 'vs/platform/list/browser/listService';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import * as Constants from 'vs/workbench/contrib/search/common/constants';
@@ -32,6 +32,8 @@ import { category, getElementsToOperateOn, getSearchView, openSearchView } from 
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { Schemas } from 'vs/base/common/network';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 
 //#region Interfaces
@@ -317,7 +319,7 @@ async function searchWithFolderCommand(accessor: ServicesAccessor, isFromExplore
 	let resources: URI[];
 
 	if (isFromExplorer) {
-		resources = getMultiSelectedResources(accessor, resource);
+		resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService), accessor.get(IEditorGroupsService), accessor.get(IExplorerService));
 	} else {
 		const searchView = getSearchView(viewsService);
 		if (!searchView) {
