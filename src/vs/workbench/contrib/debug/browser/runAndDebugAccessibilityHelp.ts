@@ -13,6 +13,7 @@ import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibil
 import { localize } from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
+import { AccessibilityHelpNLS } from 'vs/editor/common/standaloneStrings';
 
 export class RunAndDebugAccessibilityHelp implements IAccessibleViewImplentation {
 	priority = 120;
@@ -60,6 +61,7 @@ class RunAndDebugAccessibilityHelpProvider extends Disposable implements IAccess
 		return [
 			localize('debug.showRunAndDebug', "The Show Run and Debug view command{0} will open the current view.", '<keybinding:workbench.view.debug>'),
 			localize('debug.startDebugging', "The Debug: Start Debugging command{0} will start a debug session.", '<keybinding:workbench.action.debug.start>'),
+			AccessibilityHelpNLS.setBreakpoint,
 			localize('onceDebugging', "Once debugging, the following commands will be available:"),
 			localize('debug.continue', "- Debug: Continue command{0} will continue execution until the next breakpoint.", '<keybinding:workbench.action.debug.continue>'),
 			localize('debug.stepInto', "- Debug: Step Into command{0} will step into the next function call.", '<keybinding:workbench.action.debug.stepInto>'),
