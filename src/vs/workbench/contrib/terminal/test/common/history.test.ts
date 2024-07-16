@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { deepStrictEqual, fail, strictEqual, ok } from 'assert';
+import { deepStrictEqual, strictEqual, ok } from 'assert';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Schemas } from 'vs/base/common/network';
 import { join } from 'vs/base/common/path';
