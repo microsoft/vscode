@@ -21,7 +21,7 @@ import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/brow
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
 import { ITerminalProcessManager, TERMINAL_CONFIG_SECTION, type ITerminalConfiguration } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { pwshTypeToIconMap, SuggestAddon, VSCodeSuggestOscPt, type PwshCompletion } from 'vs/workbench/contrib/terminalContrib/suggest/browser/terminalSuggestAddon';
+import { parseCompletionsFromShell, SuggestAddon, VSCodeSuggestOscPt, type CompressedPwshCompletion, type PwshCompletion } from 'vs/workbench/contrib/terminalContrib/suggest/browser/terminalSuggestAddon';
 import { TerminalSuggestCommandId } from 'vs/workbench/contrib/terminalContrib/suggest/common/terminal.suggest';
 import { terminalSuggestConfigSection, type ITerminalSuggestConfiguration } from 'vs/workbench/contrib/terminalContrib/suggest/common/terminalSuggestConfiguration';
 import { SimpleCompletionItem } from 'vs/workbench/services/suggest/browser/simpleCompletionItem';
@@ -87,19 +87,11 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 	private _cachedPwshCommands: Set<SimpleCompletionItem> = new Set();
 	private async _handleCompletionsPwshCommandsSequence(terminal: RawXtermTerminal, data: string, command: string, args: string[]): Promise<boolean> {
 		const type = args[0];
-		const completionList: PwshCompletion[] = JSON.parse(data.slice(command.length + type.length + 2/*semi-colons*/));
+		const rawCompletions: PwshCompletion | PwshCompletion[] | CompressedPwshCompletion[] | CompressedPwshCompletion = JSON.parse(data.slice(command.length + type.length + 2/*semi-colons*/));
+		const completions = parseCompletionsFromShell(rawCompletions);
+
 		const set = this._cachedPwshCommands;
 		set.clear();
-
-		const completions = completionList.map(e => {
-			return new SimpleCompletionItem({
-				completionText: e[0],
-				label: e[1],
-				icon: pwshTypeToIconMap[e[2]],
-				detail: e[3]
-			});
-		});
-
 		for (const c of completions) {
 			set.add(c);
 		}

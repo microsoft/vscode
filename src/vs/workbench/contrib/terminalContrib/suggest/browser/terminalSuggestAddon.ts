@@ -34,12 +34,19 @@ export const enum VSCodeSuggestOscPt {
 	CompletionsBashFirstWord = 'CompletionsBashFirstWord'
 }
 
-export type PwshCompletion = [
+export type CompressedPwshCompletion = [
 	completionText: string,
 	listItemText: string,
 	resultType: number,
 	toolTip: string
 ];
+
+export type PwshCompletion = {
+	CompletionText: string;
+	ListItemText: string;
+	ResultType: number;
+	ToolTip: string;
+};
 
 
 /**
@@ -64,7 +71,7 @@ export type PwshCompletion = [
  *
  * @see https://docs.microsoft.com/en-us/dotnet/api/system.management.automation.completionresulttype?view=powershellsdk-7.0.0
  */
-export const pwshTypeToIconMap: { [type: string]: ThemeIcon | undefined } = {
+const pwshTypeToIconMap: { [type: string]: ThemeIcon | undefined } = {
 	0: Codicon.symbolText,
 	1: Codicon.history,
 	2: Codicon.symbolMethod,
@@ -265,19 +272,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		let replacementLength = this._promptInputModel.cursorIndex;
 
 		const payload = data.slice(command.length + args[0].length + args[1].length + args[2].length + 4/*semi-colons*/);
-		let completionList: PwshCompletion[] | PwshCompletion = args.length === 0 || payload.length === 0 ? [] : JSON.parse(payload);
-		if (completionList.length > 0 && !Array.isArray(completionList[0])) {
-			completionList = [completionList as PwshCompletion];
-		}
-
-		const completions = (completionList as PwshCompletion[]).map(e => {
-			return new SimpleCompletionItem({
-				completionText: e[0],
-				label: e[1],
-				icon: pwshTypeToIconMap[e[2]],
-				detail: e[3]
-			});
-		});
+		const rawCompletions: PwshCompletion | PwshCompletion[] | CompressedPwshCompletion[] | CompressedPwshCompletion = args.length === 0 || payload.length === 0 ? undefined : JSON.parse(payload);
+		const completions = parseCompletionsFromShell(rawCompletions);
 
 		this._leadingLineContent = this._promptInputModel.value.substring(0, this._promptInputModel.cursorIndex);
 
@@ -546,4 +542,43 @@ class PersistedWidgetSize {
 	reset(): void {
 		this._storageService.remove(this._key, StorageScope.PROFILE);
 	}
+}
+
+export function parseCompletionsFromShell(rawCompletions: PwshCompletion | PwshCompletion[] | CompressedPwshCompletion[] | CompressedPwshCompletion) {
+	if (!rawCompletions) {
+		return [];
+	}
+	if (!Array.isArray(rawCompletions)) {
+		return [rawCompletions].map(e => (new SimpleCompletionItem({
+			completionText: e.CompletionText,
+			label: e.ListItemText,
+			icon: pwshTypeToIconMap[e.ResultType],
+			detail: e.ToolTip
+		})));
+	}
+	if (rawCompletions.length === 0) {
+		return [];
+	}
+	if (typeof rawCompletions[0] === 'string') {
+		return [rawCompletions as CompressedPwshCompletion].map(e => (new SimpleCompletionItem({
+			completionText: e[0],
+			label: e[1],
+			icon: pwshTypeToIconMap[e[2]],
+			detail: e[3]
+		})));
+	}
+	if (Array.isArray(rawCompletions[0])) {
+		return (rawCompletions as CompressedPwshCompletion[]).map(e => (new SimpleCompletionItem({
+			completionText: e[0],
+			label: e[1],
+			icon: pwshTypeToIconMap[e[2]],
+			detail: e[3]
+		})));
+	}
+	return (rawCompletions as PwshCompletion[]).map(e => (new SimpleCompletionItem({
+		completionText: e.CompletionText,
+		label: e.ListItemText,
+		icon: pwshTypeToIconMap[e.ResultType],
+		detail: e.ToolTip
+	})));
 }
