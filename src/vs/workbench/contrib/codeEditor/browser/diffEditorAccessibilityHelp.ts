@@ -54,7 +54,7 @@ export class DiffEditorAccessibilityHelp implements IAccessibleViewImplentation 
 		return new AccessibleContentProvider(
 			AccessibleViewProviderId.DiffEditor,
 			{ type: AccessibleViewType.Help },
-			() => content.join('\n\n'),
+			() => content.join('\n'),
 			() => codeEditor.focus(),
 			AccessibilityVerbositySettingId.DiffEditor,
 		);

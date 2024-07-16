@@ -57,7 +57,7 @@ class DebugAccessibilityHelpProvider extends Disposable implements IAccessibleVi
 			localize('debugConsole.stepInto', "The Debug: Step Into command{0} will step into the next function call.", '<keybinding:workbench.action.debug.stepInto>'),
 			localize('debugConsole.stepOver', "The Debug: Step Over command{0} will step over the current function call.", '<keybinding:workbench.action.debug.stepOver>'),
 			localize('debugConsole.stepOut', "The Debug: Step Out command{0} will step out of the current function call.", '<keybinding:workbench.action.debug.stepOut>'),
-		].join('\n\n');
+		].join('\n');
 	}
 }
 
