@@ -48,15 +48,15 @@ class DebugAccessibilityHelpProvider extends Disposable implements IAccessibleVi
 	public provideContent(): string {
 		return [
 			localize('debugConsole.help', "The debug console is a REPL (Read-Eval-Print-Loop) that allows you to evaluate expressions and run commands."),
-			localize('debugConsole.output', "The debug console output can be navigated to from the input field with the Focus Previous Widget command<keybinding:widgetNavigation.focusPrevious>."),
-			localize('debugConsole.input', "The debug console input can be navigated to from the output with the Focus Next Widget command<keybinding:widgetNavigation.focusNext>."),
+			localize('debugConsole.output', "The debug console output can be navigated to from the input field with the Focus Previous Widget command{0}.", '<keybinding:widgetNavigation.focusPrevious>'),
+			localize('debugConsole.input', "The debug console input can be navigated to from the output with the Focus Next Widget command{0}.", '<keybinding:widgetNavigation.focusNext>'),
 			localize('debugConsole.history', "The debug console output history can be navigated with the up and down arrow keys."),
-			localize('debugConsole.accessibleView', "The Open Accessible View command<keybinding:editor.action.accessibleView> will allow character by character navigation of the console output."),
+			localize('debugConsole.accessibleView', "The Open Accessible View command{0} will allow character by character navigation of the console output.", '<keybinding:editor.action.accessibleView>'),
 			localize('debugConsole.lazyVariables', "The setting `debug.expandLazyVariables` controls whether variables are evaluated automatically. This is enabled by default when using a screen reader."),
-			localize('debugConsole.continue', "The Debug: Continue command<keybinding:workbench.action.debug.continue> will continue execution until the next breakpoint."),
-			localize('debugConsole.stepInto', "The Debug: Step Into command<keybinding:workbench.action.debug.stepInto> will step into the next function call."),
-			localize('debugConsole.stepOver', "The Debug: Step Over command<keybinding:workbench.action.debug.stepOver> will step over the current function call."),
-			localize('debugConsole.stepOut', "The Debug: Step Out command<keybinding:workbench.action.debug.stepOut> will step out of the current function call."),
+			localize('debugConsole.continue', "The Debug: Continue command{0} will continue execution until the next breakpoint.", '<keybinding:workbench.action.debug.continue>'),
+			localize('debugConsole.stepInto', "The Debug: Step Into command{0} will step into the next function call.", '<keybinding:workbench.action.debug.stepInto>'),
+			localize('debugConsole.stepOver', "The Debug: Step Over command{0} will step over the current function call.", '<keybinding:workbench.action.debug.stepOver>'),
+			localize('debugConsole.stepOut', "The Debug: Step Out command{0} will step out of the current function call.", '<keybinding:workbench.action.debug.stepOut>'),
 		].join('\n');
 	}
 }

@@ -758,18 +758,18 @@ export class AccessibleView extends Disposable {
 		if (this._currentProvider?.id !== AccessibleViewProviderId.Chat) {
 			return;
 		}
-		return [localize('insertAtCursor', " - Insert the code block at the cursor<keybinding:workbench.action.chat.insertCodeBlock>."),
-		localize('insertIntoNewFile', " - Insert the code block into a new file<keybinding:workbench.action.chat.insertIntoNewFile>."),
-		localize('runInTerminal', " - Run the code block in the terminal<keybinding:'workbench.action.chat.runInTerminal>.\n")].join('\n');
+		return [localize('insertAtCursor', " - Insert the code block at the cursor{0}.", '<keybinding:workbench.action.chat.insertCodeBlock>'),
+		localize('insertIntoNewFile', " - Insert the code block into a new file{0}.", '<keybinding:workbench.action.chat.insertIntoNewFile>'),
+		localize('runInTerminal', " - Run the code block in the terminal{0}.\n", '<keybinding:workbench.action.chat.runInTerminal>')].join('\n');
 	}
 
 	private _navigationHint(): string {
-		return localize('accessibleViewNextPreviousHint', "Show the next item<keybinding:{0}> or previous item<keybinding:{1}>.", AccessibilityCommandId.ShowNext, AccessibilityCommandId.ShowPrevious);
+		return localize('accessibleViewNextPreviousHint', "Show the next item{0} or previous item{1}.", `<keybinding:${AccessibilityCommandId.ShowNext}`, `<keybinding:${AccessibilityCommandId.ShowPrevious}>`);
 	}
 
 	private _disableVerbosityHint(provider: AccesibleViewContentProvider): string {
 		if (provider.options.type === AccessibleViewType.Help && this._verbosityEnabled()) {
-			return localize('acessibleViewDisableHint', "\n\nDisable accessibility verbosity for this feature<keybinding:{0}>.", AccessibilityCommandId.DisableVerbosityHint);
+			return localize('acessibleViewDisableHint', "\nDisable accessibility verbosity for this feature{0}.", `<keybinding:${AccessibilityCommandId.DisableVerbosityHint}>`);
 		}
 		return '';
 	}
@@ -778,19 +778,19 @@ export class AccessibleView extends Disposable {
 		if (!providerHasSymbols) {
 			return;
 		}
-		return localize('goToSymbolHint', 'Go to a symbol<keybinding:{0}>.', AccessibilityCommandId.GoToSymbol);
+		return localize('goToSymbolHint', 'Go to a symbol{0}.', `<keybinding:${AccessibilityCommandId.GoToSymbol}>`);
 	}
 
 	private _configureUnassignedKbHint(): string {
 		const configureKb = this._keybindingService.lookupKeybinding(AccessibilityCommandId.AccessibilityHelpConfigureKeybindings)?.getAriaLabel();
 		const keybindingToConfigureQuickPick = configureKb ? '(' + configureKb + ')' : 'by assigning a keybinding to the command Accessibility Help Configure Keybindings.';
-		return localize('configureKb', '\n\nConfigure keybindings for commands that lack them {0}.', keybindingToConfigureQuickPick);
+		return localize('configureKb', '\nConfigure keybindings for commands that lack them {0}.', keybindingToConfigureQuickPick);
 	}
 
 	private _configureAssignedKbHint(): string {
 		const configureKb = this._keybindingService.lookupKeybinding(AccessibilityCommandId.AccessibilityHelpConfigureAssignedKeybindings)?.getAriaLabel();
 		const keybindingToConfigureQuickPick = configureKb ? '(' + configureKb + ')' : 'by assigning a keybinding to the command Accessibility Help Configure Assigned Keybindings.';
-		return localize('configureKbAssigned', '\n\nConfigure keybindings for commands that already have assignments {0}.', keybindingToConfigureQuickPick);
+		return localize('configureKbAssigned', '\nConfigure keybindings for commands that already have assignments {0}.', keybindingToConfigureQuickPick);
 	}
 
 	private _screenReaderModeHint(provider: AccesibleViewContentProvider): string {
@@ -812,11 +812,11 @@ export class AccessibleView extends Disposable {
 	}
 
 	private _exitDialogHint(provider: AccesibleViewContentProvider): string {
-		return this._verbosityEnabled() && !provider.options.position ? localize('exit', '\n\nExit this dialog (Escape).') : '';
+		return this._verbosityEnabled() && !provider.options.position ? localize('exit', '\nExit this dialog (Escape).') : '';
 	}
 
 	private _readMoreHint(provider: AccesibleViewContentProvider): string {
-		return provider.options.readMoreUrl ? localize("openDoc", "\n\nOpen a browser window with more information related to accessibility<keybinding:{0}>.", AccessibilityCommandId.AccessibilityHelpOpenHelpLink) : '';
+		return provider.options.readMoreUrl ? localize("openDoc", "\nOpen a browser window with more information related to accessibility{0}.", `<keybinding:${AccessibilityCommandId.AccessibilityHelpOpenHelpLink}>`) : '';
 	}
 }
 
