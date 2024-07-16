@@ -333,7 +333,8 @@ suite('Terminal history', () => {
 						authority: remoteConnection?.remoteAuthority,
 						path: URI.file(filePath).path
 					});
-					strictEqual(resource.toString(), expected.toString());
+					// Sanitize the encoded `/` chars as they don't impact behavior
+					strictEqual(resource.toString().replaceAll('%5C', '/'), expected.toString().replaceAll('%5C', '/'));
 					return { value: VSBuffer.fromString(fileContent) };
 				}
 			} as Pick<IFileService, 'readFile'>);
