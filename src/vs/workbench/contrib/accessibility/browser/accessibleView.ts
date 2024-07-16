@@ -769,7 +769,7 @@ export class AccessibleView extends Disposable {
 
 	private _disableVerbosityHint(provider: AccesibleViewContentProvider): string {
 		if (provider.options.type === AccessibleViewType.Help && this._verbosityEnabled()) {
-			return localize('acessibleViewDisableHint', "\n\nDisable accessibility verbosity for this feature{0}.", `<keybinding:${AccessibilityCommandId.DisableVerbosityHint}>`);
+			return localize('acessibleViewDisableHint', "\nDisable accessibility verbosity for this feature{0}.", `<keybinding:${AccessibilityCommandId.DisableVerbosityHint}>`);
 		}
 		return '';
 	}
@@ -784,13 +784,13 @@ export class AccessibleView extends Disposable {
 	private _configureUnassignedKbHint(): string {
 		const configureKb = this._keybindingService.lookupKeybinding(AccessibilityCommandId.AccessibilityHelpConfigureKeybindings)?.getAriaLabel();
 		const keybindingToConfigureQuickPick = configureKb ? '(' + configureKb + ')' : 'by assigning a keybinding to the command Accessibility Help Configure Keybindings.';
-		return localize('configureKb', '\n\nConfigure keybindings for commands that lack them {0}.', keybindingToConfigureQuickPick);
+		return localize('configureKb', '\nConfigure keybindings for commands that lack them {0}.', keybindingToConfigureQuickPick);
 	}
 
 	private _configureAssignedKbHint(): string {
 		const configureKb = this._keybindingService.lookupKeybinding(AccessibilityCommandId.AccessibilityHelpConfigureAssignedKeybindings)?.getAriaLabel();
 		const keybindingToConfigureQuickPick = configureKb ? '(' + configureKb + ')' : 'by assigning a keybinding to the command Accessibility Help Configure Assigned Keybindings.';
-		return localize('configureKbAssigned', '\n\nConfigure keybindings for commands that already have assignments {0}.', keybindingToConfigureQuickPick);
+		return localize('configureKbAssigned', '\nConfigure keybindings for commands that already have assignments {0}.', keybindingToConfigureQuickPick);
 	}
 
 	private _screenReaderModeHint(provider: AccesibleViewContentProvider): string {
@@ -812,11 +812,11 @@ export class AccessibleView extends Disposable {
 	}
 
 	private _exitDialogHint(provider: AccesibleViewContentProvider): string {
-		return this._verbosityEnabled() && !provider.options.position ? localize('exit', '\n\nExit this dialog (Escape).') : '';
+		return this._verbosityEnabled() && !provider.options.position ? localize('exit', '\nExit this dialog (Escape).') : '';
 	}
 
 	private _readMoreHint(provider: AccesibleViewContentProvider): string {
-		return provider.options.readMoreUrl ? localize("openDoc", "\n\nOpen a browser window with more information related to accessibility{0}.", `<keybinding:${AccessibilityCommandId.AccessibilityHelpOpenHelpLink}>`) : '';
+		return provider.options.readMoreUrl ? localize("openDoc", "\nOpen a browser window with more information related to accessibility{0}.", `<keybinding:${AccessibilityCommandId.AccessibilityHelpOpenHelpLink}>`) : '';
 	}
 }
 
