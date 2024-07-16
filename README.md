@@ -1,4 +1,4 @@
-# Pear: The Best AI-Powered Code Editor
+# Pear: The Open Source AI-Powered Code Editor
 
 Supercharge your development with an editor designed for less coding, using AI. PearAI is forked from VSCode and Continue, and aims to reduce the time from ideation to conception for your product development by achieving the most seamless integration with AI.
 
