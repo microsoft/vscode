@@ -3,10 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { ITerminalAddon, Terminal } from '@xterm/xterm';
 import * as dom from 'vs/base/browser/dom';
-import { SimpleCompletionItem } from 'vs/workbench/services/suggest/browser/simpleCompletionItem';
-import { LineContext, SimpleCompletionModel } from 'vs/workbench/services/suggest/browser/simpleCompletionModel';
-import { ISimpleSelectedSuggestion, SimpleSuggestWidget } from 'vs/workbench/services/suggest/browser/simpleSuggestWidget';
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { combinedDisposable, Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
@@ -17,22 +15,32 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
-import type { ITerminalAddon, Terminal } from '@xterm/xterm';
+import { SimpleCompletionItem } from 'vs/workbench/services/suggest/browser/simpleCompletionItem';
+import { LineContext, SimpleCompletionModel } from 'vs/workbench/services/suggest/browser/simpleCompletionModel';
+import { ISimpleSelectedSuggestion, SimpleSuggestWidget } from 'vs/workbench/services/suggest/browser/simpleSuggestWidget';
 
-import { getListStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TerminalCapability, type ITerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/capabilities';
 import type { IPromptInputModel, IPromptInputModelState } from 'vs/platform/terminal/common/capabilities/commandDetection/promptInputModel';
 import { ShellIntegrationOscPs } from 'vs/platform/terminal/common/xterm/shellIntegrationAddon';
+import { getListStyles } from 'vs/platform/theme/browser/defaultStyles';
 import type { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { terminalSuggestConfigSection, type ITerminalSuggestConfiguration } from 'vs/workbench/contrib/terminalContrib/suggest/common/terminalSuggestConfiguration';
 
-const enum VSCodeOscPt {
+export const enum VSCodeSuggestOscPt {
 	Completions = 'Completions',
 	CompletionsPwshCommands = 'CompletionsPwshCommands',
 	CompletionsBash = 'CompletionsBash',
 	CompletionsBashFirstWord = 'CompletionsBashFirstWord'
 }
+
+export type PwshCompletion = [
+	completionText: string,
+	listItemText: string,
+	resultType: number,
+	toolTip: string
+];
+
 
 /**
  * A map of the pwsh result type enum's value to the corresponding icon to use in completions.
@@ -56,7 +64,7 @@ const enum VSCodeOscPt {
  *
  * @see https://docs.microsoft.com/en-us/dotnet/api/system.management.automation.completionresulttype?view=powershellsdk-7.0.0
  */
-const pwshTypeToIconMap: { [type: string]: ThemeIcon | undefined } = {
+export const pwshTypeToIconMap: { [type: string]: ThemeIcon | undefined } = {
 	0: Codicon.symbolText,
 	1: Codicon.history,
 	2: Codicon.symbolMethod,
@@ -109,6 +117,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	readonly onAcceptedCompletion = this._onAcceptedCompletion.event;
 
 	constructor(
+		private readonly _cachedPwshCommands: Set<SimpleCompletionItem>,
 		private readonly _capabilities: ITerminalCapabilityStore,
 		private readonly _terminalSuggestWidgetVisibleContextKey: IContextKey<boolean>,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -157,10 +166,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 	private _sync(promptInputState: IPromptInputModelState): void {
 		const config = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection);
-		const enabled = config.enabled;
-		if (!enabled) {
-			return;
-		}
 
 		if (!this._terminalSuggestWidgetVisibleContextKey.get()) {
 			// If input has been added
@@ -228,7 +233,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		});
 	}
 
-	private _handleVSCodeSequence(data: string): boolean {
+	private _handleVSCodeSequence(data: string): boolean | Promise<boolean> {
 		if (!this._terminal) {
 			return false;
 		}
@@ -236,15 +241,13 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		// Pass the sequence along to the capability
 		const [command, ...args] = data.split(';');
 		switch (command) {
-			case VSCodeOscPt.Completions:
+			case VSCodeSuggestOscPt.Completions:
 				this._handleCompletionsSequence(this._terminal, data, command, args);
 				return true;
-			case VSCodeOscPt.CompletionsPwshCommands:
-				this._handleCompletionsPwshCommandsSequence(this._terminal, data, command, args);
-			case VSCodeOscPt.CompletionsBash:
+			case VSCodeSuggestOscPt.CompletionsBash:
 				this._handleCompletionsBashSequence(this._terminal, data, command, args);
 				return true;
-			case VSCodeOscPt.CompletionsBashFirstWord:
+			case VSCodeSuggestOscPt.CompletionsBashFirstWord:
 				return this._handleCompletionsBashFirstWordSequence(this._terminal, data, command, args);
 		}
 
@@ -262,17 +265,17 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		let replacementLength = this._promptInputModel.cursorIndex;
 
 		const payload = data.slice(command.length + args[0].length + args[1].length + args[2].length + 4/*semi-colons*/);
-		let completionList: IPwshCompletion[] | IPwshCompletion = args.length === 0 || payload.length === 0 ? [] : JSON.parse(payload);
-		if (!Array.isArray(completionList)) {
-			completionList = [completionList];
+		let completionList: PwshCompletion[] | PwshCompletion = args.length === 0 || payload.length === 0 ? [] : JSON.parse(payload);
+		if (completionList.length > 0 && !Array.isArray(completionList[0])) {
+			completionList = [completionList as PwshCompletion];
 		}
 
-		const completions = completionList.map((e: any) => {
+		const completions = (completionList as PwshCompletion[]).map(e => {
 			return new SimpleCompletionItem({
-				label: e.ListItemText,
-				completionText: e.CompletionText,
-				icon: pwshTypeToIconMap[e.ResultType],
-				detail: e.ToolTip
+				completionText: e[0],
+				label: e[1],
+				icon: pwshTypeToIconMap[e[2]],
+				detail: e[3]
 			});
 		});
 
@@ -292,30 +295,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 		const model = new SimpleCompletionModel(completions, new LineContext(this._leadingLineContent, replacementIndex), replacementIndex, replacementLength);
 		this._handleCompletionModel(model);
-	}
-
-	// TODO: These aren't persisted across reloads
-	private _cachedPwshCommands: Set<SimpleCompletionItem> = new Set();
-	private _handleCompletionsPwshCommandsSequence(terminal: Terminal, data: string, command: string, args: string[]): void {
-		const type = args[0];
-		let completionList: IPwshCompletion[] | IPwshCompletion = JSON.parse(data.slice(command.length + type.length + 2/*semi-colons*/));
-		if (!Array.isArray(completionList)) {
-			completionList = [completionList];
-		}
-		const set = this._cachedPwshCommands;
-		set.clear();
-
-		const completions = completionList.map((e: any) => {
-			return new SimpleCompletionItem({
-				label: e.ListItemText,
-				completionText: e.CompletionText,
-				icon: pwshTypeToIconMap[e.ResultType],
-				detail: e.ToolTip
-			});
-		});
-		for (const c of completions) {
-			set.add(c);
-		}
 	}
 
 	// TODO: These aren't persisted across reloads
@@ -536,13 +515,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._currentPromptInputState = undefined;
 		this._suggestWidget?.hide();
 	}
-}
-
-interface IPwshCompletion {
-	CompletionText: string;
-	ListItemText: string;
-	ResultType: number;
-	ToolTip: string;
 }
 
 class PersistedWidgetSize {
