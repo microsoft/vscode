@@ -2,13 +2,11 @@
 
 Supercharge your development with an editor designed for less coding, using AI. PearAI is forked from VSCode and Continue, and aims to reduce the time from ideation to conception for your product development by achieving the most seamless integration with AI.
 
-This repository serves as the primary application for PearAI, with most functionalities housed within the extension/pearai folder. We recommend focusing your work within this submodule by cloning it from https://github.com/trypear/pearai-app/.
-
 To download the full product visit our homepage at https://trypear.ai.
 
 # Prerequisites
 
-PearAI currently only supports OpenAI at this time. To obtain an OpenAI API key go to [platform.openai.com/account/api-keys](https://platform.openai.com/account/api-keys).
+Get an API key from your favourite LLM provider. To obtain an OpenAI API key go to [platform.openai.com/account/api-keys](https://platform.openai.com/account/api-keys).
 
 ## Features
 * **Knows your code** - Pear has context on your database so you can ask questions about your code.
@@ -18,9 +16,9 @@ PearAI currently only supports OpenAI at this time. To obtain an OpenAI API key 
 * **Batteries included** - Pear comes fully setup with shortcuts and terminal plugins used to supercharge development productivity.
 * **Familiar feel** - Pear is a fork of VSCode, so you can pick up exactly where you left off.
 
-## Roadmap
+## Master Doc
 
-Our [Master Document Roadmap](https://docs.google.com/document/d/14jusGNbGRPT8X6GgEDbP1iab5q4X7_y-eFXK7Ky57IQ/edit) contains the Pear AI roadmap, focusing on the teams development journey, and the community that surrounds Pear AI.
+Our [Master Document](https://docs.google.com/document/d/14jusGNbGRPT8X6GgEDbP1iab5q4X7_y-eFXK7Ky57IQ/edit) contains all links relevant to PearAI.
 
 ## Contributing
 
