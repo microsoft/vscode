@@ -82,6 +82,6 @@ export class TerminalAccessibilityHelpProvider extends Disposable implements IAc
 			content.push(localize('noShellIntegration', 'Shell integration is not enabled. Some accessibility features may not be available.'));
 		}
 
-		return content.join('\n\n');
+		return content.join('\n');
 	}
 }
