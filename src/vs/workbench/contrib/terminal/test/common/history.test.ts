@@ -328,10 +328,12 @@ suite('Terminal history', () => {
 			instantiationService = new TestInstantiationService();
 			instantiationService.stub(IFileService, {
 				async readFile(resource: URI) {
-					const expected = URI.from({ scheme: fileScheme, path: filePath });
-					if (resource.scheme !== expected.scheme || resource.fsPath !== expected.fsPath) {
-						fail(`Unexpected file scheme/path ${resource.scheme} ${resource.fsPath}`);
-					}
+					const expected = URI.from({
+						scheme: fileScheme,
+						authority: remoteConnection?.remoteAuthority,
+						path: URI.file(filePath).path
+					});
+					strictEqual(resource.toString(), expected.toString());
 					return { value: VSBuffer.fromString(fileContent) };
 				}
 			} as Pick<IFileService, 'readFile'>);
