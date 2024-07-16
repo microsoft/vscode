@@ -62,7 +62,7 @@ export class NativeEditContext extends AbstractEditContext {
 		this._domElement.domNode.role = 'contenteditable';
 		this._domElement.domNode.contentEditable = 'true';
 		this._domElement.domNode.style.position = 'absolute';
-		this._domElement.domNode.style.zIndex = '100';
+		this._domElement.domNode.style.zIndex = '-10';
 		this._domElement.domNode.style.background = 'transparent';
 		this._domElement.domNode.style.fontFamily = 'Menlo, Monaco, "Courier New", monospace';
 		this._domElement.domNode.style.fontSize = '12px';
@@ -299,8 +299,8 @@ export class NativeEditContext extends AbstractEditContext {
 			for (const splitLine of splitText) {
 				console.log('splitLine : ', splitLine);
 				const lineDomNode = document.createElement('div');
-				const changedSplitLine = splitLine.replaceAll('\t', '    ');
-				lineDomNode.textContent = changedSplitLine;
+				lineDomNode.textContent = splitLine;
+				lineDomNode.style.tabSize = '4';
 				lineDomNode.role = 'contenteditable';
 				lineDomNode.contentEditable = 'true';
 				lineDomNode.style.whiteSpace = 'pre-wrap';
@@ -342,10 +342,11 @@ export class NativeEditContext extends AbstractEditContext {
 			activeDocumentSelection.addRange(range);
 		}
 		console.log('this._domElement : ', this._domElement);
-		console.log('activeDocumentSelection : ', activeDocumentSelection);
 		console.log('primaryViewState : ', primaryViewState);
 		console.log('dom.getActiveWindow().document.activeElement : ', dom.getActiveWindow().document.activeElement);
 		console.log('primaryViewState : ', primaryViewState);
+		console.log('activeDocumentSelection : ', activeDocumentSelection);
+		console.log('selection : ', selection);
 
 		// if (this._previousValue !== value) {
 		// 	console.log('updating the value');
