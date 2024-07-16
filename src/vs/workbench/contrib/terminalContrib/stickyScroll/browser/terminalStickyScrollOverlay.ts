@@ -117,7 +117,11 @@ export class TerminalStickyScrollOverlay extends Disposable {
 				this._syncOptions();
 				this._refresh();
 			}));
-			this._register(this._instance.onDidChangeVisibility(() => this._refresh()));
+			this._register(this._instance.onDidChangeVisibility(isVisible => {
+				if (isVisible) {
+					this._refresh();
+				}
+			}));
 
 			this._getSerializeAddonConstructor().then(SerializeAddon => {
 				if (this._store.isDisposed) {
