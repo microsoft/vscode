@@ -42,6 +42,8 @@ export const CONTEXT_KEY_SOME_COMMENTS_EXPANDED = new RawContextKey<boolean>('co
 export const CONTEXT_KEY_COMMENT_FOCUSED = new RawContextKey<boolean>('commentsView.commentFocused', false);
 const VIEW_STORAGE_ID = 'commentsViewState';
 
+type CommentsTreeNode = CommentsModel | ResourceWithCommentThreads | CommentNode;
+
 export class CommentsPanel extends FilterViewPane implements ICommentsView {
 	private treeLabels!: ResourceLabels;
 	private tree: CommentsList | undefined;
@@ -269,21 +271,9 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		this.treeContainer.classList.toggle('hidden', !this.commentService.commentsModel.hasCommentThreads());
 		this.renderMessage();
 		if (this.tree) {
-			let model = this.commentService.commentsModel.resourceCommentThreads;
-			const sortByUpdatedAt = this.filters.sortBy === 'updatedAt';
-			if (sortByUpdatedAt) {
-				model = [...model].sort((a, b) => {
-					return a.lastUpdatedAt > b.lastUpdatedAt ? -1 : 1;
-				});
-			}
+			const model = this.commentService.commentsModel.resourceCommentThreads;
 			const iterator = Iterable.map(model, m => {
-				let threads = m.commentThreads;
-				if (sortByUpdatedAt) {
-					threads = [...threads].sort((a, b) => {
-						return a.lastUpdatedAt > b.lastUpdatedAt ? -1 : 1;
-					});
-				}
-				const CommentNodeIt = Iterable.from(threads);
+				const CommentNodeIt = Iterable.from(m.commentThreads);
 				const children = Iterable.map(CommentNodeIt, r => ({ element: r }));
 				return { element: m, children };
 			});
@@ -406,8 +396,16 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 			selectionNavigation: true,
 			filter: this.filter,
+			sorter: {
+				compare: (a: CommentsTreeNode, b: CommentsTreeNode) => {
+					if (this.filters.sortBy === 'updatedAt' && 'lastUpdatedAt' in a && 'lastUpdatedAt' in b) {
+						return a.lastUpdatedAt > b.lastUpdatedAt ? -1 : 1;
+					}
+					return 0;
+				},
+			},
 			keyboardNavigationLabelProvider: {
-				getKeyboardNavigationLabel: (item: CommentsModel | ResourceWithCommentThreads | CommentNode) => {
+				getKeyboardNavigationLabel: (item: CommentsTreeNode) => {
 					return undefined;
 				}
 			},
