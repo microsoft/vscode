@@ -1,7 +1,4 @@
 parameters:
-  - name: ARTIFACT_PREFIX
-    type: string
-    default: ''
   - name: VSCODE_ARCH
     type: string
     default: x64
@@ -9,7 +6,7 @@ parameters:
 steps:
   - task: DownloadPipelineArtifact@2
     inputs:
-      artifactName: ${{ parameters.ARTIFACT_PREFIX }}vscode_client_win32_${{ parameters.VSCODE_ARCH }}_archive
+      artifactName: $(ARTIFACT_PREFIX)vscode_client_win32_${{ parameters.VSCODE_ARCH }}_archive
       targetPath: $(Agent.TempDirectory)\vscode_client_archive
 
   - task: ExtractFiles@1
