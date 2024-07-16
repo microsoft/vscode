@@ -22,7 +22,7 @@ import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from 'vs/pl
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
+import { IWorkbenchContributionsRegistry, registerWorkbenchContribution2, Extensions as WorkbenchExtensions, WorkbenchPhase } from 'vs/workbench/common/contributions';
 import { EditorExtensions } from 'vs/workbench/common/editor';
 import { IViewContainersRegistry, IViewsRegistry, ViewContainer, ViewContainerLocation, Extensions as ViewExtensions } from 'vs/workbench/common/views';
 import { BreakpointEditorContribution } from 'vs/workbench/contrib/debug/browser/breakpointEditorContribution';
@@ -60,6 +60,7 @@ import { launchSchemaId } from 'vs/workbench/services/configuration/common/confi
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import './debugSettingMigration';
 import { DebugAccessibilityHelp } from 'vs/workbench/contrib/debug/browser/debugAccessibilityHelp';
+import { ReplAccessibilityAnnouncer } from 'vs/workbench/contrib/debug/common/replAccessibilityAnnouncer';
 
 const debugCategory = nls.localize('debugCategory', "Debug");
 registerColors();
@@ -645,3 +646,4 @@ configurationRegistry.registerConfiguration({
 
 AccessibleViewRegistry.register(new DebugAccessibleView());
 AccessibleViewRegistry.register(new DebugAccessibilityHelp());
+registerWorkbenchContribution2(ReplAccessibilityAnnouncer.ID, ReplAccessibilityAnnouncer, WorkbenchPhase.AfterRestored);
