@@ -331,15 +331,23 @@ steps:
 
       - powershell: |
           if (@('Succeeded', 'SucceededWithIssues') -notcontains $env:Agent_JobStatus) {
-            echo "##vso[task.setvariable variable=ARTIFACT_PREFIX;isoutput=true]attempt$(System.JobAttempt)_"
+            echo "##vso[task.setvariable variable=ARTIFACT_PREFIX;isOutput=true]attempt$(System.JobAttempt)_"
           } else {
-            echo "##vso[task.setvariable variable=ARTIFACT_PREFIX;isoutput=true]"
+            echo "##vso[task.setvariable variable=ARTIFACT_PREFIX;isOutput=true]"
           }
         displayName: Generate artifact prefix
         name: generateArtifactPrefix
 
       - powershell: |
           gci env:
+          Write-Host $env:ARTIFACT_PREFIX
+          Write-Host $(ARTIFACT_PREFIX)
+          Write-Host $(generateArtifactPrefix.ARTIFACT_PREFIX)
+        displayName: Debug output variable
+
+      - script: |
+          env
+          echo $ARTIFACT_PREFIX
           echo $(ARTIFACT_PREFIX)
           echo $(generateArtifactPrefix.ARTIFACT_PREFIX)
         displayName: Debug output variable
