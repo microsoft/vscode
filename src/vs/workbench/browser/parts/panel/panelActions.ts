@@ -284,14 +284,14 @@ registerAction2(class extends Action2 {
 			f1: true,
 			icon: maximizeIcon, // This is being rotated in CSS depending on the panel position
 			// the workbench grid currently prevents us from supporting panel maximization with non-center panel alignment
-			precondition: ContextKeyExpr.or(PanelAlignmentContext.isEqualTo('center'), PanelPositionContext.notEqualsTo('bottom')),
+			precondition: ContextKeyExpr.or(PanelAlignmentContext.isEqualTo('center'), ContextKeyExpr.and(PanelPositionContext.notEqualsTo('bottom'), PanelPositionContext.notEqualsTo('top'))),
 			toggled: { condition: PanelMaximizedContext, icon: restoreIcon, tooltip: localize('minimizePanel', "Restore Panel Size") },
 			menu: [{
 				id: MenuId.PanelTitle,
 				group: 'navigation',
 				order: 1,
 				// the workbench grid currently prevents us from supporting panel maximization with non-center panel alignment
-				when: ContextKeyExpr.or(PanelAlignmentContext.isEqualTo('center'), PanelPositionContext.notEqualsTo('bottom'))
+				when: ContextKeyExpr.or(PanelAlignmentContext.isEqualTo('center'), ContextKeyExpr.and(PanelPositionContext.notEqualsTo('bottom'), PanelPositionContext.notEqualsTo('top')))
 			}]
 		});
 	}

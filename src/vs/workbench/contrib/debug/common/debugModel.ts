@@ -298,6 +298,9 @@ export class Expression extends ExpressionContainer implements IExpression {
 
 	public available: boolean;
 
+	private readonly _onDidChangeValue = new Emitter<IExpression>();
+	public readonly onDidChangeValue: Event<IExpression> = this._onDidChangeValue.event;
+
 	constructor(public name: string, id = generateUuid()) {
 		super(undefined, undefined, 0, id);
 		this.available = false;
@@ -310,6 +313,9 @@ export class Expression extends ExpressionContainer implements IExpression {
 
 	async evaluate(session: IDebugSession | undefined, stackFrame: IStackFrame | undefined, context: string, keepLazyVars?: boolean, location?: IDebugEvaluatePosition): Promise<void> {
 		this.available = await this.evaluateExpression(this.name, session, stackFrame, context, keepLazyVars, location);
+		if (this.valueChanged) {
+			this._onDidChangeValue.fire(this);
+		}
 	}
 
 	override toString(): string {
@@ -1403,6 +1409,7 @@ export class DebugModel extends Disposable implements IDebugModel {
 	private readonly _onDidChangeBreakpoints = this._register(new Emitter<IBreakpointsChangeEvent | undefined>());
 	private readonly _onDidChangeCallStack = this._register(new Emitter<void>());
 	private readonly _onDidChangeWatchExpressions = this._register(new Emitter<IExpression | undefined>());
+	private readonly _onDidChangeWatchExpressionValue = this._register(new Emitter<IExpression | undefined>());
 	private readonly _breakpointModes = new Map<string, IBreakpointModeInternal>();
 	private breakpoints!: Breakpoint[];
 	private functionBreakpoints!: FunctionBreakpoint[];
@@ -1495,6 +1502,10 @@ export class DebugModel extends Disposable implements IDebugModel {
 
 	get onDidChangeWatchExpressions(): Event<IExpression | undefined> {
 		return this._onDidChangeWatchExpressions.event;
+	}
+
+	get onDidChangeWatchExpressionValue(): Event<IExpression | undefined> {
+		return this._onDidChangeWatchExpressionValue.event;
 	}
 
 	rawUpdate(data: IRawModelUpdate): void {
@@ -2003,6 +2014,7 @@ export class DebugModel extends Disposable implements IDebugModel {
 
 	addWatchExpression(name?: string): IExpression {
 		const we = new Expression(name || '');
+		this._register(we.onDidChangeValue((e) => this._onDidChangeWatchExpressionValue.fire(e)));
 		this.watchExpressions.push(we);
 		this._onDidChangeWatchExpressions.fire(we);
 

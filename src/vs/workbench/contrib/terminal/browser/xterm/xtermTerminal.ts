@@ -237,7 +237,10 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			fastScrollSensitivity: config.fastScrollSensitivity,
 			scrollSensitivity: config.mouseWheelScrollSensitivity,
 			wordSeparator: config.wordSeparators,
-			overviewRulerWidth: 14,
+			overviewRuler: {
+				width: 14,
+				showTopBorder: true,
+			},
 			ignoreBracketedPasteMode: config.ignoreBracketedPasteMode,
 			rescaleOverlappingGlyphs: config.rescaleOverlappingGlyphs,
 			windowOptions: {
@@ -417,6 +420,10 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		this.raw.options.customGlyphs = config.customGlyphs;
 		this.raw.options.ignoreBracketedPasteMode = config.ignoreBracketedPasteMode;
 		this.raw.options.rescaleOverlappingGlyphs = config.rescaleOverlappingGlyphs;
+		this.raw.options.overviewRuler = {
+			width: 14,
+			showTopBorder: true,
+		};
 		this._updateSmoothScrolling();
 		if (this._attached?.options.enableGpu) {
 			if (this._shouldLoadWebgl()) {

@@ -62,7 +62,6 @@ class AccessibleViewNextCodeBlockAction extends Action2 {
 				mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.PageDown, },
 				weight: KeybindingWeight.WorkbenchContrib,
 			},
-			// to 
 			icon: Codicon.arrowRight,
 			menu:
 			{
@@ -242,10 +241,28 @@ class AccessibilityHelpConfigureKeybindingsAction extends Action2 {
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
-		await accessor.get(IAccessibleViewService).configureKeybindings();
+		await accessor.get(IAccessibleViewService).configureKeybindings(true);
 	}
 }
 registerAction2(AccessibilityHelpConfigureKeybindingsAction);
+
+class AccessibilityHelpConfigureAssignedKeybindingsAction extends Action2 {
+	constructor() {
+		super({
+			id: AccessibilityCommandId.AccessibilityHelpConfigureAssignedKeybindings,
+			precondition: ContextKeyExpr.and(accessibilityHelpIsShown),
+			keybinding: {
+				primary: KeyMod.Alt | KeyCode.KeyA,
+				weight: KeybindingWeight.WorkbenchContrib
+			},
+			title: localize('editor.action.accessibilityHelpConfigureAssignedKeybindings', "Accessibility Help Configure Assigned Keybindings")
+		});
+	}
+	async run(accessor: ServicesAccessor): Promise<void> {
+		await accessor.get(IAccessibleViewService).configureKeybindings(false);
+	}
+}
+registerAction2(AccessibilityHelpConfigureAssignedKeybindingsAction);
 
 
 class AccessibilityHelpOpenHelpLinkAction extends Action2 {

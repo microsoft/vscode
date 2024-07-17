@@ -338,6 +338,11 @@ function createServerHost(
 	// For module resolution only. `node_modules` is also automatically mapped
 	// as if all node_modules-like paths are symlinked.
 	function realpath(path: string): string {
+		if (path.startsWith('/^/')) {
+			// In memory file. No mapping needed
+			return path;
+		}
+
 		const isNm = looksLikeNodeModules(path) && !path.startsWith('/vscode-global-typings/');
 		// skip paths without .. or ./ or /. And things that look like node_modules
 		if (!isNm && !path.match(/\.\.|\/\.|\.\//)) {

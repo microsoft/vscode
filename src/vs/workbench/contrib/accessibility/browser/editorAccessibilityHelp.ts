@@ -97,7 +97,7 @@ class EditorAccessibilityHelpProvider extends Disposable implements IAccessibleV
 
 		content.push(AccessibilityHelpNLS.setBreakpoint);
 		content.push(AccessibilityHelpNLS.debugExecuteSelection);
-		return content.join('\n\n');
+		return content.join('\n');
 	}
 }
 

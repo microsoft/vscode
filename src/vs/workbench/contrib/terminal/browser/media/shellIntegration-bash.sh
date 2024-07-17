@@ -112,15 +112,15 @@ __vsc_escape_value() {
 	fi
 
 	# Process text byte by byte, not by codepoint.
-	local -r LC_ALL=C
-	local -r str="${1}"
-	local -ir len="${#str}"
+	builtin local -r LC_ALL=C
+	builtin local -r str="${1}"
+	builtin local -ir len="${#str}"
 
-	local -i i
-	local -i val
-	local byte
-	local token
-	local out=''
+	builtin local -i i
+	builtin local -i val
+	builtin local byte
+	builtin local token
+	builtin local out=''
 
 	for (( i=0; i < "${#str}"; ++i )); do
 		# Escape backslashes, semi-colons specially, then special ASCII chars below space (0x20).
@@ -326,7 +326,7 @@ __vsc_prompt_cmd_original() {
 	__vsc_restore_exit_code "${__vsc_status}"
 	# Evaluate the original PROMPT_COMMAND similarly to how bash would normally
 	# See https://unix.stackexchange.com/a/672843 for technique
-	local cmd
+	builtin local cmd
 	for cmd in "${__vsc_original_prompt_command[@]}"; do
 		eval "${cmd:-}"
 	done
