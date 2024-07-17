@@ -16,10 +16,11 @@ import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateF
 export interface IRadioStyles {
 	readonly activeForeground?: string;
 	readonly activeBackground?: string;
+	readonly activeBorder?: string;
 	readonly inactiveForeground?: string;
 	readonly inactiveBackground?: string;
-	readonly hoverBackground?: string;
-	readonly border?: string;
+	readonly inactiveHoverBackground?: string;
+	readonly inactiveBorder?: string;
 }
 
 export interface IRadioOptionItem {
@@ -100,9 +101,12 @@ export class Radio extends Widget {
 	}
 
 	private updateButtons(): void {
+		let isActive = false;
 		for (const [button, { item }] of this.buttons) {
-			const isActive = item === this.activeItem;
+			const isPreviousActive = isActive;
+			isActive = item === this.activeItem;
 			button.element.classList.toggle('active', isActive);
+			button.element.classList.toggle('previous-active', isPreviousActive);
 			button.label = item.text;
 		}
 	}

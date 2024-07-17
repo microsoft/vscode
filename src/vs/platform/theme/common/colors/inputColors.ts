@@ -144,32 +144,32 @@ export const buttonSecondaryHoverBackground = registerColor('button.secondaryHov
 // ------ radio
 
 export const radioActiveForeground = registerColor('radio.activeForeground',
-	{ dark: '#CCCCCC', light: '#3B3B3B', hcDark: null, hcLight: null },
-	nls.localize('radioActiveForeground', "Radio option foreground color when active."));
+	inputActiveOptionForeground,
+	nls.localize('radioActiveForeground', "Foreground color of activate radio option."));
 
 export const radioActiveBackground = registerColor('radio.activeBackground',
-	{ dark: '#313131', light: '#E5E5E5', hcDark: null, hcLight: null },
-	nls.localize('radioBackground', "Radio option background color when active."));
+	inputActiveOptionBackground,
+	nls.localize('radioBackground', "Background color of activat radio option."));
+
+export const radioActiveBorder = registerColor('radio.activeBorder',
+	inputActiveOptionBorder,
+	nls.localize('radioActiveBorder', "Border color of the active radio option."));
 
 export const radioInactiveForeground = registerColor('radio.inactiveForeground',
 	null,
-	nls.localize('radioInactiveForeground', "Radio option foreground color when inactive."));
+	nls.localize('radioInactiveForeground', "Foreground color of inactive radio option."));
 
 export const radioInactiveBackground = registerColor('radio.inactiveBackground',
 	null,
-	nls.localize('radioInactiveBackground', "Radio option background color when inactive."));
+	nls.localize('radioInactiveBackground', "Background color of inactive radio option."));
 
-export const radioHoverBackground = registerColor('radio.hoverBackground',
-	{ dark: lighten(radioActiveBackground, 0.2), light: darken(radioActiveBackground, 0.2), hcDark: null, hcLight: null },
-	nls.localize('radioHoverBackground', "Radio option background color when hovering."));
+export const radioInactiveBorder = registerColor('radio.inactiveBorder',
+	{ light: transparent(radioActiveForeground, .2), dark: transparent(radioActiveForeground, .2), hcDark: transparent(radioActiveForeground, .4), hcLight: transparent(radioActiveForeground, .2) },
+	nls.localize('radioInactiveBorder', "Border color of the inactive radio option."));
 
-export const radioHoverInactiveBackground = registerColor('radio.hoverInactiveForeground',
-	radioActiveForeground,
-	nls.localize('hoverInactiveBackground', "Radio option foreground color when hovering on inactive option."));
-
-export const radioBorder = registerColor('radio.border',
-	{ light: transparent(radioActiveForeground, .2), dark: transparent(radioActiveForeground, .2), hcDark: '#6FC3DF', hcLight: '#0F4A85' },
-	nls.localize('radioBorder', "Radio border color."));
+export const radioInactiveHoverBackground = registerColor('radio.inactiveHoverBackground',
+	inputActiveOptionHoverBackground,
+	nls.localize('radioHoverBackground', "Background color of inactive active radio option when hovering."));
 
 // ------ checkbox
 
