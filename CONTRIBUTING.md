@@ -70,6 +70,13 @@ To rebuild the app after initial setup:
 
 ### 3️⃣ Run the App
 
+#### PearAI is split into two parts. pearai-app and pearai-submodule.
+
+- [pearai-app](https://github.com/trypear/pearai-app/): VSCode fork and parent repository for PearAI. Most contributions will NOT end up here.
+
+- [./extensions/pearai-submodule](https://github.com/trypear/pearai-submodule): Nearly all of PearAI's functionality, packaged as a built-in VSCode/PearAI extension. It is a fork of Continue, and is a git submodule of pearai-app. Most contributions will end up here!
+
+
 #### A) PearAI Submodule / Extension
 
 1. Open the directory `extensions/pearai-submodule` in PearAI or VSCode.
