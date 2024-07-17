@@ -657,7 +657,7 @@ registerAction2(class CommentSelectedCellsAction extends NotebookMultiCellAction
 			}
 		});
 
-		await Promise.all(selectedCellEditors.map(editor => {
+		selectedCellEditors.map(editor => {
 			if (!editor.hasModel()) {
 				return;
 			}
@@ -680,7 +680,7 @@ registerAction2(class CommentSelectedCellsAction extends NotebookMultiCellAction
 			editor.pushUndoStop();
 			editor.executeCommands(COMMENT_SELECTED_CELLS_ID, commands);
 			editor.pushUndoStop();
-		}));
+		});
 	}
 
 });
