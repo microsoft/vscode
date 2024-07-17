@@ -654,7 +654,6 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 				new ReplEvaluationResultsRenderer(linkDetector, this.hoverService),
 				new ReplRawObjectsRenderer(linkDetector, this.hoverService),
 			],
-			// https://github.com/microsoft/TypeScript/issues/32526
 			this.replDataSource,
 			{
 				filter: this.filter,
