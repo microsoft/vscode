@@ -90,29 +90,28 @@ function getFocus(listService: IListService): unknown | undefined {
 
 // Commands can get executed from a command palette, from a context menu or from some list using a keybinding
 // To cover all these cases we need to properly compute the resource on which the command is being executed
-export function getResourceForCommand(accessor: ServicesAccessor, commandArg: unknown): URI | undefined {
+export function getResourceForCommand(commandArg: unknown, editorService: IEditorService, listService: IListService): URI | undefined {
 	if (URI.isUri(commandArg)) {
 		return commandArg;
 	}
 
-	const focus = getFocus(accessor.get(IListService));
+	const focus = getFocus(listService);
 	if (focus instanceof ExplorerItem) {
 		return focus.resource;
 	} else if (focus instanceof OpenEditor) {
 		return focus.getResource();
 	}
 
-	return EditorResourceAccessor.getOriginalUri(accessor.get(IEditorService).activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
+	return EditorResourceAccessor.getOriginalUri(editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 }
 
-export function getMultiSelectedResources(accessor: ServicesAccessor, commandArg: unknown): Array<URI> {
-	const list = accessor.get(IListService).lastFocusedList;
+export function getMultiSelectedResources(commandArg: unknown, listService: IListService, editorSerice: IEditorService, editorGroupService: IEditorGroupsService, explorerService: IExplorerService): Array<URI> {
+	const list = listService.lastFocusedList;
 	const element = list?.getHTMLElement();
 	if (element && isActiveElement(element)) {
 		// Explorer
 		if (list instanceof AsyncDataTree && list.getFocus().every(item => item instanceof ExplorerItem)) {
 			// Explorer
-			const explorerService = accessor.get(IExplorerService);
 			const context = explorerService.getContext(true, true);
 			if (context.length) {
 				return context.map(c => c.resource);
@@ -143,8 +142,7 @@ export function getMultiSelectedResources(accessor: ServicesAccessor, commandArg
 		}
 	}
 
-	// Check for tabs multiselect.
-	const editorGroupService = accessor.get(IEditorGroupsService);
+	// Check for tabs multiselect
 	const activeGroup = editorGroupService.activeGroup;
 	const selection = activeGroup.selectedEditors;
 	if (selection.length > 1 && URI.isUri(commandArg)) {
@@ -159,7 +157,7 @@ export function getMultiSelectedResources(accessor: ServicesAccessor, commandArg
 		}
 	}
 
-	const result = getResourceForCommand(accessor, commandArg);
+	const result = getResourceForCommand(commandArg, editorSerice, listService);
 	return !!result ? [result] : [];
 }
 
