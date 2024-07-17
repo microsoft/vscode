@@ -58,11 +58,12 @@ export class NativeEditContext extends AbstractEditContext {
 	) {
 		super(context);
 
+		this._domElement.domNode.id = 'main-hidden-area';
 		this._domElement.domNode.tabIndex = 0;
 		// TODO: what role to use?
 		this._domElement.domNode.role = 'textbox';
 		this._domElement.domNode.ariaMultiLine = 'true';
-		// this._domElement.domNode.contentEditable = 'true';
+		this._domElement.domNode.contentEditable = 'true';
 		this._domElement.domNode.style.position = 'absolute';
 		this._domElement.domNode.style.zIndex = '100';
 		this._domElement.domNode.style.background = 'white'; // transparent
@@ -314,7 +315,7 @@ export class NativeEditContext extends AbstractEditContext {
 				lineDomNode.textContent = splitLine;
 				lineDomNode.style.tabSize = '4';
 				// lineDomNode.role = 'contenteditable';
-				// lineDomNode.contentEditable = 'true';
+				lineDomNode.contentEditable = 'true';
 				lineDomNode.style.whiteSpace = 'pre-wrap';
 				lineDomNode.style.float = 'left';
 				lineDomNode.style.clear = 'left';
@@ -360,6 +361,7 @@ export class NativeEditContext extends AbstractEditContext {
 				console.log('entered into if statement');
 				// this._domElement.domNode.setAttribute('aria-describedby', 'l0');
 				this._domElement.domNode.setAttribute('aria-activedescendant', `l${startLine - 1}`);
+				this._domElement.domNode.setAttribute('aria-controls', 'main-hidden-area');
 			}
 		}
 		console.log('this._domElement : ', this._domElement);
