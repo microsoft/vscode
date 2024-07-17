@@ -35,6 +35,21 @@ const createCodeActionsAutoSave = (description: string): IJSONSchema => {
 	};
 };
 
+const createNotebookCodeActionsAutoSave = (description: string): IJSONSchema => {
+	return {
+		type: ['string', 'boolean'],
+		enum: ['explicit', 'never', true, false],
+		enumDescriptions: [
+			nls.localize('explicit', 'Triggers Code Actions only when explicitly saved.'),
+			nls.localize('never', 'Never triggers Code Actions on save.'),
+			nls.localize('explicitBoolean', 'Triggers Code Actions only when explicitly saved. This value will be deprecated in favor of "explicit".'),
+			nls.localize('neverBoolean', 'Triggers Code Actions only when explicitly saved. This value will be deprecated in favor of "never".')
+		],
+		default: 'explicit',
+		description: description
+	};
+};
+
 
 const codeActionsOnSaveSchema: IConfigurationPropertySchema = {
 	oneOf: [
@@ -66,6 +81,37 @@ export const editorConfiguration = Object.freeze<IConfigurationNode>({
 	}
 });
 
+const notebookCodeActionsOnSaveSchema: IConfigurationPropertySchema = {
+	oneOf: [
+		{
+			type: 'object',
+			additionalProperties: {
+				type: 'string'
+			},
+		},
+		{
+			type: 'array',
+			items: { type: 'string' }
+		}
+	],
+	markdownDescription: nls.localize('notebook.codeActionsOnSave', 'Run a series of Code Actions for a notebook on save. Code Actions must be specified, the file must not be saved after delay, and the editor must not be shutting down. Example: `"notebook.source.organizeImports": "explicit"`'),
+	type: 'object',
+	additionalProperties: {
+		type: ['string', 'boolean'],
+		enum: ['explicit', 'never', true, false],
+		// enum: ['explicit', 'always', 'never'], -- autosave support needs to be built first
+		// nls.localize('always', 'Always triggers Code Actions on save, including autosave, focus, and window change events.'),
+	},
+	default: {}
+};
+
+export const notebookEditorConfiguration = Object.freeze<IConfigurationNode>({
+	...editorConfigurationBaseNode,
+	properties: {
+		'notebook.codeActionsOnSave': notebookCodeActionsOnSaveSchema
+	}
+});
+
 export class CodeActionsContribution extends Disposable implements IWorkbenchContribution {
 
 	private _contributedCodeActions: CodeActionsExtensionPoint[] = [];
@@ -81,7 +127,6 @@ export class CodeActionsContribution extends Disposable implements IWorkbenchCon
 		super();
 
 		// TODO: @justschen caching of code actions based on extensions loaded: https://github.com/microsoft/vscode/issues/216019
-
 		languageFeatures.codeActionProvider.onDidChange(() => {
 			this.updateSettingsFromCodeActionProviders();
 			this.updateConfigurationSchemaFromContribs();
@@ -114,23 +159,29 @@ export class CodeActionsContribution extends Disposable implements IWorkbenchCon
 
 	private updateConfigurationSchema(codeActionContributions: readonly CodeActionsExtensionPoint[]) {
 		const newProperties: IJSONSchemaMap = {};
+		const newNotebookProperties: IJSONSchemaMap = {};
 		for (const [sourceAction, props] of this.getSourceActions(codeActionContributions)) {
 			this.settings.add(sourceAction);
 			newProperties[sourceAction] = createCodeActionsAutoSave(nls.localize('codeActionsOnSave.generic', "Controls whether '{0}' actions should be run on file save.", props.title));
+			newNotebookProperties[sourceAction] = createNotebookCodeActionsAutoSave(nls.localize('codeActionsOnSave.generic', "Controls whether '{0}' actions should be run on file save.", props.title));
 		}
 		codeActionsOnSaveSchema.properties = newProperties;
+		notebookCodeActionsOnSaveSchema.properties = newNotebookProperties;
 		Registry.as<IConfigurationRegistry>(Extensions.Configuration)
 			.notifyConfigurationSchemaUpdated(editorConfiguration);
 	}
 
 	private updateConfigurationSchemaFromContribs() {
 		const properties: IJSONSchemaMap = { ...codeActionsOnSaveSchema.properties };
+		const notebookProperties: IJSONSchemaMap = { ...notebookCodeActionsOnSaveSchema.properties };
 		for (const codeActionKind of this.settings) {
 			if (!properties[codeActionKind]) {
 				properties[codeActionKind] = createCodeActionsAutoSave(nls.localize('codeActionsOnSave.generic', "Controls whether '{0}' actions should be run on file save.", codeActionKind));
+				notebookProperties[codeActionKind] = createNotebookCodeActionsAutoSave(nls.localize('codeActionsOnSave.generic', "Controls whether '{0}' actions should be run on file save.", codeActionKind));
 			}
 		}
 		codeActionsOnSaveSchema.properties = properties;
+		notebookCodeActionsOnSaveSchema.properties = notebookProperties;
 		Registry.as<IConfigurationRegistry>(Extensions.Configuration)
 			.notifyConfigurationSchemaUpdated(editorConfiguration);
 	}

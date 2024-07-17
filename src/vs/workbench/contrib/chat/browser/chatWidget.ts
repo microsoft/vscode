@@ -88,6 +88,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private readonly _onDidSubmitAgent = this._register(new Emitter<{ agent: IChatAgentData; slashCommand?: IChatAgentCommand }>());
 	public readonly onDidSubmitAgent = this._onDidSubmitAgent.event;
 
+	private _onDidChangeAgent = this._register(new Emitter<{ agent: IChatAgentData; slashCommand?: IChatAgentCommand }>());
+	readonly onDidChangeAgent = this._onDidChangeAgent.event;
+
 	private _onDidFocus = this._register(new Emitter<void>());
 	readonly onDidFocus = this._onDidFocus.event;
 
@@ -688,6 +691,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				c.setInputState(viewState.inputState?.[c.id]);
 			}
 		});
+		this.viewModelDisposables.add(model.onDidChange((e) => {
+			if (e.kind === 'setAgent') {
+				this._onDidChangeAgent.fire({ agent: e.agent, slashCommand: e.command });
+			}
+		}));
 
 		if (this.tree) {
 			this.onDidChangeItems();

@@ -117,6 +117,11 @@ export class TerminalStickyScrollOverlay extends Disposable {
 				this._syncOptions();
 				this._refresh();
 			}));
+			this._register(this._instance.onDidChangeVisibility(isVisible => {
+				if (isVisible) {
+					this._refresh();
+				}
+			}));
 
 			this._getSerializeAddonConstructor().then(SerializeAddon => {
 				if (this._store.isDisposed) {
@@ -316,20 +321,24 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			// initialized.
 			if (this._element) {
 				const termBox = xterm.element.getBoundingClientRect();
-				const rowHeight = termBox.height / xterm.rows;
-				const overlayHeight = stickyScrollLineCount * rowHeight;
+				// Only try reposition if the element is visible, if not a refresh will occur when
+				// it becomes visible
+				if (termBox.height > 0) {
+					const rowHeight = termBox.height / xterm.rows;
+					const overlayHeight = stickyScrollLineCount * rowHeight;
 
-				// Adjust sticky scroll content if it would below the end of the command, obscuring the
-				// following command.
-				let endMarkerOffset = 0;
-				if (!isPartialCommand && command.endMarker && command.endMarker.line !== -1) {
-					if (buffer.viewportY + stickyScrollLineCount > command.endMarker.line) {
-						const diff = buffer.viewportY + stickyScrollLineCount - command.endMarker.line;
-						endMarkerOffset = diff * rowHeight;
+					// Adjust sticky scroll content if it would below the end of the command, obscuring the
+					// following command.
+					let endMarkerOffset = 0;
+					if (!isPartialCommand && command.endMarker && command.endMarker.line !== -1) {
+						if (buffer.viewportY + stickyScrollLineCount > command.endMarker.line) {
+							const diff = buffer.viewportY + stickyScrollLineCount - command.endMarker.line;
+							endMarkerOffset = diff * rowHeight;
+						}
 					}
-				}
 
-				this._element.style.bottom = `${termBox.height - overlayHeight + 1 + endMarkerOffset}px`;
+					this._element.style.bottom = `${termBox.height - overlayHeight + 1 + endMarkerOffset}px`;
+				}
 			}
 		} else {
 			this._setVisible(false);
