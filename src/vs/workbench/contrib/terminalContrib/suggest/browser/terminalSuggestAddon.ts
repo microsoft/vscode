@@ -200,7 +200,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 
 		this._mostRecentPromptInputState = promptInputState;
-		if (!this._promptInputModel || !this._terminal || !this._suggestWidget || !this._initialPromptInputState) {
+		if (!this._promptInputModel || !this._terminal || !this._suggestWidget || !this._initialPromptInputState || this._leadingLineContent === undefined) {
 			return;
 		}
 
@@ -215,9 +215,9 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 
 		if (this._terminalSuggestWidgetVisibleContextKey.get()) {
-			const inputBeforeCursor = this._currentPromptInputState.value.substring(0, this._currentPromptInputState.cursorIndex);
 			this._cursorIndexDelta = this._currentPromptInputState.cursorIndex - this._initialPromptInputState.cursorIndex;
-			this._suggestWidget.setLineContext(new LineContext(inputBeforeCursor, this._cursorIndexDelta));
+			const lineContext = new LineContext(this._leadingLineContent + this._currentPromptInputState.value.substring(this._leadingLineContent.length, this._leadingLineContent.length + this._cursorIndexDelta), this._cursorIndexDelta);
+			this._suggestWidget.setLineContext(lineContext);
 		}
 
 		// Hide and clear model if there are no more items
@@ -277,19 +277,21 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 		this._leadingLineContent = this._promptInputModel.value.substring(0, this._promptInputModel.cursorIndex);
 
-		// If there's no space it means this is a command, add cached commands list to completions
 		const firstChar = this._leadingLineContent.length === 0 ? '' : this._leadingLineContent[0];
+		// This is a TabExpansion2 result
 		if (this._leadingLineContent.trim().includes(' ') || firstChar === '[') {
 			replacementIndex = parseInt(args[0]);
 			replacementLength = parseInt(args[1]);
-			const firstCompletion = completions[0]?.completion;
-			this._leadingLineContent = (firstCompletion?.completionText ?? firstCompletion?.label)?.slice(0, replacementLength) ?? '';
-		} else {
+			this._leadingLineContent = this._promptInputModel.value.substring(0, this._promptInputModel.cursorIndex);
+		}
+		// This is a global command, add cached commands list to completions
+		else {
 			completions.push(...this._cachedPwshCommands);
 		}
 		this._cursorIndexDelta = replacementIndex;
 
-		const model = new SimpleCompletionModel(completions, new LineContext(this._leadingLineContent, replacementIndex), replacementIndex, replacementLength);
+		const lineContext = new LineContext(this._leadingLineContent, replacementLength);
+		const model = new SimpleCompletionModel(completions, lineContext, replacementIndex, replacementLength);
 		this._handleCompletionModel(model);
 	}
 
