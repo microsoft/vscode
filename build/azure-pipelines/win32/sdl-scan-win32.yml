@@ -14,6 +14,27 @@ steps:
       archiveFilePatterns: '$(Agent.TempDirectory)\vscode_client_archive\*.zip'
       destinationFolder: $(Agent.BuildDirectory)\scanbin
 
+  - pwsh: |
+      mkdir .build -ea 0
+      node build/azure-pipelines/common/computeNodeModulesCacheKey.js win32 $(VSCODE_ARCH) > .build/yarnlockhash
+    displayName: Prepare node_modules cache key
+
+  - task: Cache@2
+    inputs:
+      key: '"node_modules" | .build/yarnlockhash'
+      path: .build/node_modules_cache
+      cacheHitVar: NODE_MODULES_RESTORED
+    displayName: Restore node_modules cache
+
+  - powershell: |
+      if ($env:NODE_MODULES_RESTORED -eq 'true') {
+        7z.exe x .build/node_modules_cache/cache.7z -aoa
+      } else {
+        echo 'Failed to restore node modules cache'
+        exit 1
+      }
+    displayName: Extract node_modules cache
+
   - powershell: yarn gulp 'vscode-symbols-win32-${{ parameters.VSCODE_ARCH }}'
     env:
       GITHUB_TOKEN: $(github-distro-mixin-password)

@@ -335,6 +335,7 @@ steps:
           } else {
             echo "##vso[task.setvariable variable=ARTIFACT_PREFIX;isOutput=true]"
           }
+          echo "Generated artifact prefix is '$env:GENPREFIX_ARTIFACT_PREFIX'"
         displayName: Generate artifact prefix
         name: genPrefix
 
