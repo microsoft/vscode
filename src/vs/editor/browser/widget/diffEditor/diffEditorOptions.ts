@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IObservable, ISettableObservable, derived, observableFromEvent, observableValue } from 'vs/base/common/observable';
-import { getIfDefined } from 'vs/base/common/observableInternal/utils';
+import { derivedConstOnceDefined } from 'vs/base/common/observableInternal/utils';
 import { Constants } from 'vs/base/common/uint';
 import { DiffEditorViewModel, DiffState } from 'vs/editor/browser/widget/diffEditor/diffEditorViewModel';
 import { diffEditorDefaultOptions } from 'vs/editor/common/config/diffEditor';
@@ -93,12 +93,12 @@ export class DiffEditorOptions {
 	}
 
 	private readonly shouldRenderInlineViewInSmartMode = this._model
-		.map(this, model => getIfDefined(this, reader => {
-			const diffs = model?.diff.read(reader);
-			return diffs ? isSimpleDiff(diffs) : undefined;
-		}))
-		.flatten()
-		.map(this, v => !!v);
+		.map(this, model =>
+			derivedConstOnceDefined(this, reader => {
+				const diffs = model?.diff.read(reader);
+				return diffs ? isSimpleDiff(diffs) : undefined;
+			}).map(this, v => !!v)
+		).flatten();
 }
 
 function isSimpleDiff(diff: DiffState): boolean {
