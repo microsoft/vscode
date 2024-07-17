@@ -25,6 +25,7 @@
     "diffCommand",
     "editSessionIdentityProvider",
     "quickDiffProvider",
+    "quickInputButtonLocation",
     "quickPickSortByLabel",
     "scmActionButton",
     "scmHistoryProvider",
@@ -34,8 +35,8 @@
     "scmValidation",
     "tabInputMultiDiff",
     "tabInputTextMerge",
-    "timeline",
-    "quickInputButtonLocation"
+    "terminalShellIntegration",
+    "timeline"
   ],
   "categories": [
     "Other"
