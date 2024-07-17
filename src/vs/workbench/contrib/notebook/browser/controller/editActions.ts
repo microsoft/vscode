@@ -657,7 +657,7 @@ registerAction2(class CommentSelectedCellsAction extends NotebookMultiCellAction
 			}
 		});
 
-		selectedCellEditors.map(editor => {
+		selectedCellEditors.forEach(editor => {
 			if (!editor.hasModel()) {
 				return;
 			}
