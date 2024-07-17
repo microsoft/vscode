@@ -17,17 +17,15 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { CodeActionProvider, CodeActionTriggerType } from 'vs/editor/common/languages';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { IModelService } from 'vs/editor/common/services/model';
 import { ApplyCodeActionReason, applyCodeAction, getCodeActions } from 'vs/editor/contrib/codeAction/browser/codeAction';
 import { CodeActionKind, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/common/types';
 import { FormattingMode, formatDocumentRangesWithSelectedProvider, formatDocumentWithSelectedProvider } from 'vs/editor/contrib/format/browser/format';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { localize } from 'vs/nls';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IProgress, IProgressService, IProgressStep, Progress } from 'vs/platform/progress/common/progress';
+import { IProgress, IProgressStep, Progress } from 'vs/platform/progress/common/progress';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchContributionsExtensions } from 'vs/workbench/common/contributions';
 import { SaveReason } from 'vs/workbench/common/editor';
@@ -279,11 +277,7 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@IHostService private readonly hostService: IHostService,
 		@IEditorService private readonly editorService: IEditorService,
-		@ICommandService private readonly commandService: ICommandService,
-		@IModelService private readonly modelService: IModelService,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
-		@IProgressService private readonly progressService: IProgressService,
-
 	) {
 		this.hostService.onDidChangeFocus(async () => {
 			this.triggerCodeActionsCommand();
