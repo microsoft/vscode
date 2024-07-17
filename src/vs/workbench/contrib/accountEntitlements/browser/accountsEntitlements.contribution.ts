@@ -26,10 +26,8 @@ import { IRequestService, asText } from 'vs/platform/request/common/request';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { isWeb } from 'vs/base/common/platform';
-import { isInternalTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
 
 const accountsBadgeConfigKey = 'workbench.accounts.experimental.showEntitlements';
-const chatWelcomeViewConfigKey = 'workbench.chat.experimental.showWelcomeView';
 
 type EntitlementEnablementClassification = {
 	enabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Flag indicating if the entitlement is enabled' };
@@ -47,7 +45,6 @@ class EntitlementsContribution extends Disposable implements IWorkbenchContribut
 
 	private isInitialized = false;
 	private showAccountsBadgeContextKey = new RawContextKey<boolean>(accountsBadgeConfigKey, false).bindTo(this.contextService);
-	private showChatWelcomeViewContextKey = new RawContextKey<boolean>(chatWelcomeViewConfigKey, false).bindTo(this.contextService);
 	private readonly accountsMenuBadgeDisposable = this._register(new MutableDisposable());
 
 	constructor(
@@ -98,7 +95,6 @@ class EntitlementsContribution extends Disposable implements IWorkbenchContribut
 				await this.enableEntitlements(e.event.added[0]);
 			} else if (e.providerId === this.productService.gitHubEntitlement!.providerId && e.event.removed?.length) {
 				this.showAccountsBadgeContextKey.set(false);
-				this.showChatWelcomeViewContextKey.set(false);
 				this.accountsMenuBadgeDisposable.clear();
 			}
 		}));
@@ -156,29 +152,19 @@ class EntitlementsContribution extends Disposable implements IWorkbenchContribut
 			return;
 		}
 
-		const isInternal = isInternalTelemetry(this.productService, this.configurationService);
 		const showAccountsBadge = this.configurationService.inspect<boolean>(accountsBadgeConfigKey).value ?? false;
-		const showWelcomeView = this.configurationService.inspect<boolean>(chatWelcomeViewConfigKey).value ?? false;
 
 		const [enabled, org] = await this.getEntitlementsInfo(session);
-		if (enabled) {
-			if (isInternal && showWelcomeView) {
-				this.showChatWelcomeViewContextKey.set(true);
-				this.telemetryService.publicLog2<{ enabled: boolean }, EntitlementEnablementClassification>(chatWelcomeViewConfigKey, { enabled: true });
-			}
-			if (showAccountsBadge) {
-				this.createAccountsBadge(org);
-				this.showAccountsBadgeContextKey.set(showAccountsBadge);
-				this.telemetryService.publicLog2<{ enabled: boolean }, EntitlementEnablementClassification>(accountsBadgeConfigKey, { enabled: true });
-			}
+		if (enabled && showAccountsBadge) {
+			this.createAccountsBadge(org);
+			this.showAccountsBadgeContextKey.set(showAccountsBadge);
+			this.telemetryService.publicLog2<{ enabled: boolean }, EntitlementEnablementClassification>(accountsBadgeConfigKey, { enabled: true });
 		}
 	}
 
 	private disableEntitlements() {
 		this.storageService.store(accountsBadgeConfigKey, false, StorageScope.APPLICATION, StorageTarget.MACHINE);
-		this.storageService.store(chatWelcomeViewConfigKey, false, StorageScope.APPLICATION, StorageTarget.MACHINE);
 		this.showAccountsBadgeContextKey.set(false);
-		this.showChatWelcomeViewContextKey.set(false);
 		this.accountsMenuBadgeDisposable.clear();
 	}
 
@@ -256,19 +242,6 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			tags: ['experimental'],
 			description: localize('workbench.accounts.showEntitlements', "When enabled, available entitlements for the account will be show in the accounts menu.")
-		}
-	}
-});
-
-configurationRegistry.registerConfiguration({
-	...applicationConfigurationNodeBase,
-	properties: {
-		'workbench.chat.experimental.showWelcomeView': {
-			scope: ConfigurationScope.MACHINE,
-			type: 'boolean',
-			default: false,
-			tags: ['experimental'],
-			description: localize('workbench.chat.showWelcomeView', "When enabled, the chat panel welcome view will be shown.")
 		}
 	}
 });
