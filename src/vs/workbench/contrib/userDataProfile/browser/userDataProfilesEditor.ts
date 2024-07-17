@@ -1379,13 +1379,7 @@ class ExistingProfileResourceTreeRenderer extends AbstractProfileResourceTreeRen
 			throw new Error('Invalid profile resource element');
 		}
 
-		const resourceTypeTitle = this.getResourceTypeTitle(element.resourceType);
-		templateData.label.textContent = resourceTypeTitle;
-
-		if (root instanceof UserDataProfileElement && root.profile.isDefault) {
-			templateData.radio.domNode.classList.add('hide');
-		} else {
-			templateData.radio.domNode.classList.remove('hide');
+		const updateRadioItems = () => {
 			templateData.radio.setItems([{
 				text: localize('default', "Default"),
 				tooltip: localize('default description', "Use {0} from the Default profile", resourceTypeTitle),
@@ -1396,6 +1390,21 @@ class ExistingProfileResourceTreeRenderer extends AbstractProfileResourceTreeRen
 				tooltip: localize('current description', "Use {0} from the {1} profile", resourceTypeTitle, root.name),
 				isActive: !root.getFlag(element.resourceType)
 			}]);
+		};
+
+		const resourceTypeTitle = this.getResourceTypeTitle(element.resourceType);
+		templateData.label.textContent = resourceTypeTitle;
+
+		if (root instanceof UserDataProfileElement && root.profile.isDefault) {
+			templateData.radio.domNode.classList.add('hide');
+		} else {
+			templateData.radio.domNode.classList.remove('hide');
+			updateRadioItems();
+			templateData.elementDisposables.add(root.onDidChange(e => {
+				if (e.name) {
+					updateRadioItems();
+				}
+			}));
 			templateData.elementDisposables.add(templateData.radio.onDidSelect((index) => root.setFlag(element.resourceType, index === 0)));
 		}
 
