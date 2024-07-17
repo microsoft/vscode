@@ -4,38 +4,32 @@
  *--------------------------------------------------------------------------------------------*/
 
 // import { BrowserWindow, BrowserWindowConstructorOptions, Display, screen } from 'electron';
-import BaseHtml from 'vs/workbench/contrib/issue/browser/issueReporterPage';
-import 'vs/css!./media/issueReporter';
 import { safeInnerHtml } from 'vs/base/browser/dom';
 import { mainWindow } from 'vs/base/browser/window';
-import { raceTimeout } from 'vs/base/common/async';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { FileAccess } from 'vs/base/common/network';
-import { IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
-import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
-import { localize } from 'vs/nls';
-import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
+import 'vs/css!./media/issueReporter';
+import BaseHtml from 'vs/workbench/contrib/issue/browser/issueReporterPage';
+
 // import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { ExtensionIdentifier, ExtensionIdentifierSet } from 'vs/platform/extensions/common/extensions';
-import { IIssueMainService, IssueReporterData, IssueReporterWindowConfiguration } from 'vs/workbench/contrib/issue/common/issue';
-import { ILogService } from 'vs/platform/log/common/log';
-import product from 'vs/platform/product/common/product';
-import { IIPCObjectUrl, IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
-import { zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
-import { ICodeWindow, IWindowState } from 'vs/platform/window/electron-main/window';
-import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
-import { IssuePassData } from 'vs/workbench/contrib/issue/browser/issueFormService';
-import { IssueWebReporter } from 'vs/workbench/contrib/issue/browser/issueReporterService';
-import { AuxiliaryWindowMode, IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IssueReporter2 } from 'vs/workbench/contrib/issue/electron-sandbox/issueReporterService2';
-import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { INativeHostService } from 'vs/platform/native/common/native';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ExtensionIdentifier, ExtensionIdentifierSet } from 'vs/platform/extensions/common/extensions';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ILogService } from 'vs/platform/log/common/log';
+import { INativeHostService } from 'vs/platform/native/common/native';
+import product from 'vs/platform/product/common/product';
+import { IWindowState } from 'vs/platform/window/electron-main/window';
 import { BrowserWindow } from 'vs/workbench/browser/window';
+import { IssuePassData } from 'vs/workbench/contrib/issue/browser/issueFormService';
+import { IIssueMainService, IssueReporterData, IssueReporterWindowConfiguration } from 'vs/workbench/contrib/issue/common/issue';
+import { IssueReporter2 } from 'vs/workbench/contrib/issue/electron-sandbox/issueReporterService2';
+import { AuxiliaryWindowMode, IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
+import { ITitleService } from 'vs/workbench/services/title/browser/titleService';
 
 interface IBrowserWindowOptions {
 	backgroundColor: string | undefined;
@@ -69,6 +63,10 @@ export class IssueFormService2 implements IIssueMainService {
 		@IAuxiliaryWindowService private readonly auxiliaryWindowService: IAuxiliaryWindowService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
+		@ITitleService private readonly titleService: ITitleService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
 		// @IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 	) {
 		// listen for messages from the main window
@@ -201,7 +199,6 @@ export class IssueFormService2 implements IIssueMainService {
 
 		// Auxiliary Window
 		const auxiliaryWindow = disposables.add(await this.auxiliaryWindowService.open({ mode: AuxiliaryWindowMode.Normal, bounds: { width: 700, height: 800 } }));
-
 		this.issueReporterWindow = auxiliaryWindow.window;
 
 		if (auxiliaryWindow) {
