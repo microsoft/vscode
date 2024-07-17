@@ -743,7 +743,14 @@ export interface IDebugModel extends ITreeElement {
 	getBreakpointModes(forBreakpointType: 'source' | 'exception' | 'data' | 'instruction'): DebugProtocol.BreakpointMode[];
 	onDidChangeBreakpoints: Event<IBreakpointsChangeEvent | undefined>;
 	onDidChangeCallStack: Event<void>;
+	/**
+	 * The expression has been added, removed, or repositioned.
+	 */
 	onDidChangeWatchExpressions: Event<IExpression | undefined>;
+	/**
+	 * The expression's value has changed.
+	 */
+	onDidChangeWatchExpressionValue: Event<IExpression | undefined>;
 
 	fetchCallstack(thread: IThread, levels?: number): Promise<void>;
 }
