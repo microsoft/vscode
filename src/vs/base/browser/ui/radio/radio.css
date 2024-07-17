@@ -58,6 +58,12 @@
 	border-color: var(--vscode-radio-inactiveBorder, transparent);
 }
 
+.hc-black .monaco-custom-radio > .monaco-button:not(.active):hover,
+.hc-light .monaco-custom-radio > .monaco-button:not(.active):hover {
+	outline: 1px dashed var(--vscode-toolbar-hoverOutline);
+	outline-offset: -1px
+}
+
 .monaco-custom-radio > .monaco-button:hover:not(.active) {
 	background-color: var(--vscode-radio-inactiveHoverBackground);
 }
