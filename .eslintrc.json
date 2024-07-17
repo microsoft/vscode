@@ -642,7 +642,6 @@
 							"@vscode/policy-watcher",
 							"@vscode/proxy-agent",
 							"@vscode/spdlog",
-							"@vscode/tree-sitter-wasm",
 							"@vscode/windows-process-tree",
 							"assert",
 							"child_process",
