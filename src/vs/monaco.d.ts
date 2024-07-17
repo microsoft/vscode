@@ -3822,6 +3822,11 @@ declare namespace monaco.editor {
 		 */
 		useInlineViewWhenSpaceIsLimited?: boolean;
 		/**
+		 * If set, the diff editor is optimized for small views.
+		 * Defaults to `false`.
+		*/
+		compactMode?: boolean;
+		/**
 		 * Timeout in milliseconds after which diff computation is cancelled.
 		 * Defaults to 5000.
 		 */
