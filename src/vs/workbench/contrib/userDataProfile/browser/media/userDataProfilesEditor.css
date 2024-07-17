@@ -245,6 +245,10 @@
 	grid-template-columns: repeat(1, 1fr) 200px 80px;
 }
 
+.profiles-editor .contents-container .profile-body .profile-tree .monaco-list-row .profile-content-tree {
+	margin-right: 1px;
+}
+
 .profiles-editor .contents-container .profile-tree-item-container.default-profile,
 .profiles-editor .contents-container .profile-tree-item-container.profile-resource-child-container {
 	grid-template-columns: repeat(1, 1fr) 80px;
@@ -306,14 +310,20 @@
 
 .profiles-editor .contents-container .profile-body .profile-tree .monaco-list-row .profile-content-tree .monaco-list-row.focused,
 .profiles-editor .contents-container .profile-body .profile-tree .monaco-list-row .profile-content-tree .monaco-list-row.selected:not(:focus),
-.profiles-editor .contents-container .profile-body .profile-tree .monaco-list-row .profile-content-tree .monaco-list-row:hover,
 .profiles-editor .contents-container .profile-body .profile-tree .monaco-list-row .profile-content-tree .monaco-list-row.selected:focus {
 	background-color: inherit !important;
 	color: inherit !important;
 }
 
+.profiles-editor .contents-container .profile-body .profile-tree .monaco-list-row .profile-content-tree .monaco-list-row.selected.focused:hover,
 .profiles-editor .contents-container .profile-body .profile-tree .monaco-list-row .profile-content-tree .monaco-list-row:hover {
-	outline: none;
+	background-color: var(--vscode-list-hoverBackground) !important;
+}
+
+.profiles-editor .contents-container .profile-body .profile-tree .monaco-list-row .profile-content-tree .monaco-list::before,
+.profiles-editor .contents-container .profile-body .profile-tree .monaco-list-row .profile-content-tree .monaco-list-row.selected,
+.profiles-editor .contents-container .profile-body .profile-tree .monaco-list-row .profile-content-tree .monaco-list-row:hover {
+	outline: none !important;
 }
 
 .profiles-editor .contents-container .profile-body .profile-tree .monaco-list-row .profile-content-tree .monaco-list-row .monaco-tl-twistie {
