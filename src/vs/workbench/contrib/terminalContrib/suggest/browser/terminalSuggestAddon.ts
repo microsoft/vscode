@@ -383,7 +383,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._leadingLineContent = completions[0].completion.label.slice(0, replacementLength);
 		const model = new SimpleCompletionModel(completions, new LineContext(this._leadingLineContent, replacementIndex), replacementIndex, replacementLength);
 		if (completions.length === 1) {
-			const insertText = (completions[0].completion.completionText ?? completions[0].completion.label).substring(replacementLength);
+			const insertText = completions[0].completion.label.substring(replacementLength);
 			if (insertText.length === 0) {
 				this._onBell.fire();
 				return;
@@ -477,8 +477,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		const initialInput = initialPromptInputState.value.substring(0, (this._leadingLineContent?.length ?? 0));
 		const lastSpaceIndex = initialInput.lastIndexOf(' ');
 		const completion = suggestion.item.completion;
-		const completionText = completion.completionText ?? completion.label;
-		const finalCompletionRightSide = completionText.substring((this._leadingLineContent?.length ?? 0) - (lastSpaceIndex === -1 ? 0 : lastSpaceIndex + 1));
+		const finalCompletionRightSide = completion.label.substring((this._leadingLineContent?.length ?? 0) - (lastSpaceIndex === -1 ? 0 : lastSpaceIndex + 1));
 
 		// Hide the widget if there is no change
 		if (finalCompletionRightSide === additionalInput) {
@@ -488,7 +487,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 		// Get the final completion on the right side of the cursor if it differs from the initial
 		// propmt input state
-		let finalCompletionLeftSide = completionText.substring(0, (this._leadingLineContent?.length ?? 0) - (lastSpaceIndex === -1 ? 0 : lastSpaceIndex + 1));
+		let finalCompletionLeftSide = completion.label.substring(0, (this._leadingLineContent?.length ?? 0) - (lastSpaceIndex === -1 ? 0 : lastSpaceIndex + 1));
 		if (initialInput.endsWith(finalCompletionLeftSide)) {
 			finalCompletionLeftSide = '';
 		}
@@ -552,8 +551,7 @@ export function parseCompletionsFromShell(rawCompletions: PwshCompletion | PwshC
 	}
 	if (!Array.isArray(rawCompletions)) {
 		return [rawCompletions].map(e => (new SimpleCompletionItem({
-			completionText: e.CompletionText,
-			label: e.ListItemText,
+			label: e.CompletionText, // e.ListItemText,
 			icon: pwshTypeToIconMap[e.ResultType],
 			detail: e.ToolTip
 		})));
@@ -563,23 +561,20 @@ export function parseCompletionsFromShell(rawCompletions: PwshCompletion | PwshC
 	}
 	if (typeof rawCompletions[0] === 'string') {
 		return [rawCompletions as CompressedPwshCompletion].map(e => (new SimpleCompletionItem({
-			completionText: e[0],
-			label: e[1],
+			label: e[0], // e[1],
 			icon: pwshTypeToIconMap[e[2]],
 			detail: e[3]
 		})));
 	}
 	if (Array.isArray(rawCompletions[0])) {
 		return (rawCompletions as CompressedPwshCompletion[]).map(e => (new SimpleCompletionItem({
-			completionText: e[0],
-			label: e[1],
+			label: e[0], // e[1],
 			icon: pwshTypeToIconMap[e[2]],
 			detail: e[3]
 		})));
 	}
 	return (rawCompletions as PwshCompletion[]).map(e => (new SimpleCompletionItem({
-		completionText: e.CompletionText,
-		label: e.ListItemText,
+		label: e.CompletionText, // e.ListItemText,
 		icon: pwshTypeToIconMap[e.ResultType],
 		detail: e.ToolTip
 	})));
