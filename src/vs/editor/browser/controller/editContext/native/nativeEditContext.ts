@@ -59,7 +59,9 @@ export class NativeEditContext extends AbstractEditContext {
 		super(context);
 
 		this._domElement.domNode.tabIndex = 0;
-		this._domElement.domNode.role = 'contenteditable';
+		// TODO: what role to use?
+		this._domElement.domNode.role = 'textbox';
+		this._domElement.domNode.ariaMultiLine = 'true';
 		// this._domElement.domNode.contentEditable = 'true';
 		this._domElement.domNode.style.position = 'absolute';
 		this._domElement.domNode.style.zIndex = '100';
@@ -297,22 +299,27 @@ export class NativeEditContext extends AbstractEditContext {
 		this._ctx.updateSelection(selection.start, selection.endExclusive);
 		const domElementNode = this._domElement.domNode;
 
+		// ----
+
+		// 1. A div with several span element children
+
 		if (value !== this._previousValue) {
 			// replace children only when the value has changed
 			domElementNode.replaceChildren();
 			const splitText = value.split('\n');
 
-			for (const splitLine of splitText) {
+			for (const [index, splitLine] of splitText.entries()) {
 				console.log('splitLine : ', splitLine);
 				const lineDomNode = document.createElement('div');
 				lineDomNode.textContent = splitLine;
 				lineDomNode.style.tabSize = '4';
-				lineDomNode.role = 'contenteditable';
+				// lineDomNode.role = 'contenteditable';
 				// lineDomNode.contentEditable = 'true';
 				lineDomNode.style.whiteSpace = 'pre-wrap';
 				lineDomNode.style.float = 'left';
 				lineDomNode.style.clear = 'left';
 				lineDomNode.style.height = '18px';
+				lineDomNode.id = `l${index}`;
 				lineDomNode.style.width = `${this._context.viewLayout.getScrollWidth()}px`;
 				domElementNode.appendChild(lineDomNode);
 			}
@@ -342,10 +349,18 @@ export class NativeEditContext extends AbstractEditContext {
 			const endNode = childNodes.item(endLine - 1);
 			console.log('startNode : ', startNode);
 			console.log('endNode : ', endNode);
-			range.setStart(startNode.firstChild ? startNode.firstChild : startNode, this._positionSelectionStart.column - 1);
-			range.setEnd(endNode.firstChild ? endNode.firstChild : endNode, this._positionSelectionEnd.column - 1);
+			const startColumn = this._positionSelectionStart.column - 1;
+			const endColumn = this._positionSelectionEnd.column - 1;
+			range.setStart(startNode.firstChild ? startNode.firstChild : startNode, startColumn);
+			range.setEnd(endNode.firstChild ? endNode.firstChild : endNode, endColumn);
 			activeDocumentSelection.removeAllRanges();
 			activeDocumentSelection.addRange(range);
+
+			if (startNode === endNode && startLine === endLine && startColumn === endColumn) {
+				console.log('entered into if statement');
+				// this._domElement.domNode.setAttribute('aria-describedby', 'l0');
+				this._domElement.domNode.setAttribute('aria-activedescendant', `l${startLine - 1}`);
+			}
 		}
 		console.log('this._domElement : ', this._domElement);
 		console.log('primaryViewState : ', primaryViewState);
@@ -354,19 +369,26 @@ export class NativeEditContext extends AbstractEditContext {
 		console.log('activeDocumentSelection : ', activeDocumentSelection);
 		console.log('selection : ', selection);
 
-		// if (this._previousValue !== value) {
-		// 	console.log('updating the value');
-		// 	domElementNode.textContent = value;
-		// 	this._previousValue = value;
-		// }
+		/*
+		if (this._previousValue !== value) {
+			console.log('updating the value');
+			domElementNode.textContent = value;
+			this._previousValue = value;
+		}
 
-		// if (activeDocumentSelection && domElementNode.firstChild) {
-		// 	const range = new globalThis.Range();
-		// 	range.setStart(domElementNode.firstChild, selection.start);
-		// 	range.setEnd(domElementNode.firstChild, selection.endExclusive);
-		// 	activeDocumentSelection.removeAllRanges();
-		// 	activeDocumentSelection.addRange(range);
-		// }
+		const activeDocument = dom.getActiveWindow().document;
+		const activeDocumentSelection = activeDocument.getSelection();
+		console.log('activeDocumentSelection : ', activeDocumentSelection);
+
+		if (activeDocumentSelection && domElementNode.firstChild) {
+			const range = new globalThis.Range();
+			range.setStart(domElementNode.firstChild, selection.start);
+			range.setEnd(domElementNode.firstChild, selection.endExclusive);
+			activeDocumentSelection.removeAllRanges();
+			activeDocumentSelection.addRange(range);
+		}
+		// this._domElement.domNode.ariaLabel = 'some text';
+		*/
 	}
 
 	public override prepareRender(ctx: RenderingContext): void {
