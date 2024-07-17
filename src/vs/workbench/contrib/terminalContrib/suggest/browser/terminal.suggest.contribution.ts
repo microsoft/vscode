@@ -14,14 +14,17 @@ import { ContextKeyExpr, IContextKey, IContextKeyService, IReadableSet } from 'v
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { ShellIntegrationOscPs } from 'vs/platform/terminal/common/xterm/shellIntegrationAddon';
 import { ITerminalContribution, ITerminalInstance, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { registerActiveInstanceAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
-import { ITerminalConfiguration, ITerminalProcessManager, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalProcessManager, TERMINAL_CONFIG_SECTION, type ITerminalConfiguration } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { SuggestAddon } from 'vs/workbench/contrib/terminalContrib/suggest/browser/terminalSuggestAddon';
+import { parseCompletionsFromShell, SuggestAddon, VSCodeSuggestOscPt, type CompressedPwshCompletion, type PwshCompletion } from 'vs/workbench/contrib/terminalContrib/suggest/browser/terminalSuggestAddon';
 import { TerminalSuggestCommandId } from 'vs/workbench/contrib/terminalContrib/suggest/common/terminal.suggest';
+import { terminalSuggestConfigSection, type ITerminalSuggestConfiguration } from 'vs/workbench/contrib/terminalContrib/suggest/common/terminalSuggestConfiguration';
+import { SimpleCompletionItem } from 'vs/workbench/services/suggest/browser/simpleCompletionItem';
 
 // #region Terminal Contributions
 
@@ -32,6 +35,7 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		return instance.getContribution<TerminalSuggestContribution>(TerminalSuggestContribution.ID);
 	}
 
+	private _xterm?: RawXtermTerminal;
 	private readonly _addon: MutableDisposable<SuggestAddon> = new MutableDisposable();
 	private _terminalSuggestWidgetContextKeys: IReadableSet<string> = new Set(TerminalContextKeys.suggestWidgetVisible.key);
 	private _terminalSuggestWidgetVisibleContextKey: IContextKey<boolean>;
@@ -51,7 +55,56 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		this._terminalSuggestWidgetVisibleContextKey = TerminalContextKeys.suggestWidgetVisible.bindTo(this._contextKeyService);
 	}
 
+	xtermReady(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
+		this._xterm = xterm.raw;
+		const config = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection);
+		const enabled = config.enabled;
+		if (!enabled) {
+			return;
+		}
+		this.add(xterm.raw.parser.registerOscHandler(ShellIntegrationOscPs.VSCode, data => {
+			return this._handleVSCodeSequence(data);
+		}));
+	}
+
+	private _handleVSCodeSequence(data: string): boolean | Promise<boolean> {
+		if (!this._xterm) {
+			return false;
+		}
+
+		// Pass the sequence along to the capability
+		const [command, ...args] = data.split(';');
+		switch (command) {
+			case VSCodeSuggestOscPt.CompletionsPwshCommands:
+				return this._handleCompletionsPwshCommandsSequence(this._xterm, data, command, args);
+		}
+
+		// Unrecognized sequence
+		return false;
+	}
+
+	// TODO: These aren't persisted across reloads
+	private _cachedPwshCommands: Set<SimpleCompletionItem> = new Set();
+	private async _handleCompletionsPwshCommandsSequence(terminal: RawXtermTerminal, data: string, command: string, args: string[]): Promise<boolean> {
+		const type = args[0];
+		const rawCompletions: PwshCompletion | PwshCompletion[] | CompressedPwshCompletion[] | CompressedPwshCompletion = JSON.parse(data.slice(command.length + type.length + 2/*semi-colons*/));
+		const completions = parseCompletionsFromShell(rawCompletions);
+
+		const set = this._cachedPwshCommands;
+		set.clear();
+		for (const c of completions) {
+			set.add(c);
+		}
+
+		return true;
+	}
+
 	xtermOpen(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
+		const config = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection);
+		const enabled = config.enabled;
+		if (!enabled) {
+			return;
+		}
 		this.add(Event.runAndSubscribe(this._instance.onDidChangeShellType, async () => {
 			this._loadSuggestAddon(xterm.raw);
 		}));
@@ -74,7 +127,7 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 			return;
 		}
 		if (this._terminalSuggestWidgetVisibleContextKey) {
-			this._addon.value = this._instantiationService.createInstance(SuggestAddon, this._instance.capabilities, this._terminalSuggestWidgetVisibleContextKey);
+			this._addon.value = this._instantiationService.createInstance(SuggestAddon, this._cachedPwshCommands, this._instance.capabilities, this._terminalSuggestWidgetVisibleContextKey);
 			xterm.loadAddon(this._addon.value);
 			this._addon.value.setPanel(dom.findParentWithClass(xterm.element!, 'panel')!);
 			this._addon.value.setScreen(xterm.element!.querySelector('.xterm-screen')!);
