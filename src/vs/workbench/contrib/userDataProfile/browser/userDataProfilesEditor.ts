@@ -314,7 +314,7 @@ export class UserDataProfilesEditor extends EditorPane implements IUserDataProfi
 		quickPick.show();
 	}
 
-	private async createNewProfile(copyFrom?: URI | IUserDataProfile): Promise<void> {
+	async createNewProfile(copyFrom?: URI | IUserDataProfile): Promise<void> {
 		await this.model?.createNewProfile(copyFrom);
 	}
 
