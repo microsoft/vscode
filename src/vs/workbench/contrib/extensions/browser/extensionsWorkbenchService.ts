@@ -2478,30 +2478,29 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 	}
 
-	private checkAndSetEnablement(extensions: IExtension[], otherExtensions: IExtension[], enablementState: EnablementState): Promise<any> {
+	private async checkAndSetEnablement(extensions: IExtension[], otherExtensions: IExtension[], enablementState: EnablementState): Promise<any> {
 		const allExtensions = [...extensions, ...otherExtensions];
 		const enable = enablementState === EnablementState.EnabledGlobally || enablementState === EnablementState.EnabledWorkspace;
 		if (!enable) {
 			for (const extension of extensions) {
 				const dependents = this.getDependentsAfterDisablement(extension, allExtensions, this.local);
 				if (dependents.length) {
-					return new Promise<void>((resolve, reject) => {
-						this.notificationService.prompt(Severity.Error, this.getDependentsErrorMessageForDisablement(extension, allExtensions, dependents), [
-							{
-								label: nls.localize('disable all', 'Disable All'),
-								run: async () => {
-									try {
-										await this.checkAndSetEnablement(dependents, [extension], enablementState);
-										resolve();
-									} catch (error) {
-										reject(error);
-									}
-								}
-							}
-						], {
-							onCancel: () => reject(new CancellationError())
-						});
+					const { result } = await this.dialogService.prompt({
+						title: nls.localize('disableDependents', "Disable Extension with Dependents"),
+						type: Severity.Warning,
+						message: this.getDependentsErrorMessageForDisablement(extension, allExtensions, dependents),
+						buttons: [{
+							label: nls.localize('disable all', 'Disable All'),
+							run: () => true
+						}],
+						cancelButton: {
+							run: () => false
+						}
 					});
+					if (!result) {
+						throw new CancellationError();
+					}
+					await this.checkAndSetEnablement(dependents, [extension], enablementState);
 				}
 			}
 		}
