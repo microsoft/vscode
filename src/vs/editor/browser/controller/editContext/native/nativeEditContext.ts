@@ -60,10 +60,16 @@ export class NativeEditContext extends AbstractEditContext {
 
 		this._domElement.domNode.tabIndex = 0;
 		this._domElement.domNode.role = 'contenteditable';
-		this._domElement.domNode.contentEditable = 'true';
+		// this._domElement.domNode.contentEditable = 'true';
 		this._domElement.domNode.style.position = 'absolute';
-		this._domElement.domNode.style.zIndex = '-10';
-		this._domElement.domNode.style.background = 'transparent';
+		this._domElement.domNode.style.zIndex = '100';
+		this._domElement.domNode.style.background = 'white'; // transparent
+		dom.addDisposableListener(this._domElement.domNode, 'focus', () => {
+			this._domElement.domNode.style.background = 'yellow';
+		});
+		dom.addDisposableListener(this._domElement.domNode, 'blur', () => {
+			this._domElement.domNode.style.background = 'white';
+		});
 		this._domElement.domNode.style.fontFamily = 'Menlo, Monaco, "Courier New", monospace';
 		this._domElement.domNode.style.fontSize = '12px';
 		this._domElement.domNode.style.lineHeight = '18px';
@@ -302,7 +308,7 @@ export class NativeEditContext extends AbstractEditContext {
 				lineDomNode.textContent = splitLine;
 				lineDomNode.style.tabSize = '4';
 				lineDomNode.role = 'contenteditable';
-				lineDomNode.contentEditable = 'true';
+				// lineDomNode.contentEditable = 'true';
 				lineDomNode.style.whiteSpace = 'pre-wrap';
 				lineDomNode.style.float = 'left';
 				lineDomNode.style.clear = 'left';
@@ -317,7 +323,7 @@ export class NativeEditContext extends AbstractEditContext {
 		console.log('this._context.viewLayout.getCurrentScrollTop() : ', this._context.viewLayout.getCurrentScrollTop());
 		console.log('this._context.viewLayout.getVerticalOffsetForLineNumber() : ', this._context.viewLayout.getVerticalOffsetForLineNumber(primaryViewState.selection.startLineNumber - 2));
 
-		const topPosition = this._context.viewLayout.getVerticalOffsetForLineNumber(primaryViewState.selection.startLineNumber - 2) - this._context.viewLayout.getCurrentScrollTop();
+		const topPosition = this._context.viewLayout.getVerticalOffsetForLineNumber(primaryViewState.selection.startLineNumber - 10) - this._context.viewLayout.getCurrentScrollTop(); // -2
 		this._domElement.domNode.style.top = `${topPosition}px`;
 		this._domElement.domNode.style.left = `${this._contentLeft}px`;
 
