@@ -95,8 +95,9 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		this.reportWorkspaceProfileInfo();
 	}
 
-	private openProfilesEditor(): Promise<IUserDataProfilesEditor | undefined> {
-		return this.editorGroupsService.activeGroup.openEditor(new UserDataProfilesEditorInput(this.instantiationService));
+	private async openProfilesEditor(): Promise<IUserDataProfilesEditor | undefined> {
+		const editor = await this.editorGroupsService.activeGroup.openEditor(new UserDataProfilesEditorInput(this.instantiationService));
+		return editor as IUserDataProfilesEditor;
 	}
 
 	private isNewProfilesUIEnabled(): boolean {
@@ -145,7 +146,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		this._register(this.userDataProfileService.onDidChangeCurrentProfile(() => this.registerCurrentProfilesActions()));
 
 		this.registerCreateFromCurrentProfileAction();
-		this.registerCreateProfileAction();
+		this.registerNewProfileAction();
 		this.registerDeleteProfileAction();
 
 		this.registerHelpAction();
@@ -182,7 +183,6 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 			submenu: OpenProfileMenu,
 			group: '1_new',
 			order: 4,
-			when: HAS_PROFILES_CONTEXT,
 		});
 	}
 
@@ -248,6 +248,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 					title: localize2('openShort', "{0}", profile.name),
 					menu: {
 						id: OpenProfileMenu,
+						group: '0_profiles',
 						when: HAS_PROFILES_CONTEXT
 					}
 				});
@@ -572,13 +573,13 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		}));
 	}
 
-	private registerCreateProfileAction(): void {
+	private registerNewProfileAction(): void {
 		const that = this;
 		this._register(registerAction2(class CreateProfileAction extends Action2 {
 			constructor() {
 				super({
 					id: 'workbench.profiles.actions.createProfile',
-					title: localize2('create profile', "Create Profile..."),
+					title: localize2('create profile', "New Profile..."),
 					category: PROFILES_CATEGORY,
 					precondition: PROFILES_ENABLEMENT_CONTEXT,
 					f1: true,
@@ -588,6 +589,11 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 							group: '3_manage_profiles',
 							when: ContextKeyExpr.and(PROFILES_ENABLEMENT_CONTEXT, CONTEXT_ENABLE_NEW_PROFILES_UI.negate()),
 							order: 1
+						},
+						{
+							id: OpenProfileMenu,
+							group: '1_manage_profiles',
+							order: 1
 						}
 					]
 				});
@@ -595,7 +601,8 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 
 			async run(accessor: ServicesAccessor) {
 				if (that.isNewProfilesUIEnabled()) {
-					return that.openProfilesEditor();
+					const editor = await that.openProfilesEditor();
+					return editor?.createNewProfile();
 				} else {
 					return that.userDataProfileImportExportService.createProfile();
 				}

@@ -23,8 +23,8 @@ import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsSe
 import { defaultUserDataProfileIcon, IProfileTemplateInfo, IUserDataProfileManagementService, PROFILE_FILTER } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { Orientation, Sizing, SplitView } from 'vs/base/browser/ui/splitview/splitview';
 import { Button, ButtonWithDropdown } from 'vs/base/browser/ui/button/button';
-import { defaultButtonStyles, defaultCheckboxStyles, defaultInputBoxStyles, defaultSelectBoxStyles, getInputBoxStyle } from 'vs/platform/theme/browser/defaultStyles';
-import { registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { defaultButtonStyles, defaultCheckboxStyles, defaultInputBoxStyles, defaultSelectBoxStyles, getInputBoxStyle, getListStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { editorBackground, foreground, registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { PANEL_BORDER } from 'vs/workbench/common/theme';
 import { WorkbenchAsyncDataTree, WorkbenchList } from 'vs/platform/list/browser/listService';
 import { CachedListVirtualDelegate, IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
@@ -61,6 +61,25 @@ import { settingsTextInputBorder } from 'vs/workbench/contrib/preferences/common
 import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 
 export const profilesSashBorder = registerColor('profiles.sashBorder', PANEL_BORDER, localize('profilesSashBorder', "The color of the Profiles editor splitview sash border."));
+
+const listStyles = getListStyles({
+	listActiveSelectionBackground: editorBackground,
+	listActiveSelectionForeground: foreground,
+	listFocusAndSelectionBackground: editorBackground,
+	listFocusAndSelectionForeground: foreground,
+	listFocusBackground: editorBackground,
+	listFocusForeground: foreground,
+	listHoverForeground: foreground,
+	listHoverBackground: editorBackground,
+	listHoverOutline: editorBackground,
+	listFocusOutline: editorBackground,
+	listInactiveSelectionBackground: editorBackground,
+	listInactiveSelectionForeground: foreground,
+	listInactiveFocusBackground: editorBackground,
+	listInactiveFocusOutline: editorBackground,
+	treeIndentGuidesStroke: undefined,
+	treeInactiveIndentGuidesStroke: undefined,
+});
 
 export class UserDataProfilesEditor extends EditorPane implements IUserDataProfilesEditor {
 
@@ -295,7 +314,7 @@ export class UserDataProfilesEditor extends EditorPane implements IUserDataProfi
 		quickPick.show();
 	}
 
-	private async createNewProfile(copyFrom?: URI | IUserDataProfile): Promise<void> {
+	async createNewProfile(copyFrom?: URI | IUserDataProfile): Promise<void> {
 		await this.model?.createNewProfile(copyFrom);
 	}
 
@@ -507,6 +526,9 @@ class ProfileWidget extends Disposable {
 				setRowLineHeight: false,
 				supportDynamicHeights: true,
 			}));
+
+		this.profileTree.style(listStyles);
+
 		this._register(contentsRenderer.onDidChangeContentHeight((e) => this.profileTree.rerender(e)));
 		this._register(contentsRenderer.onDidChangeSelection((e) => {
 			if (e.selected) {
@@ -814,6 +836,7 @@ abstract class ProfilePropertyRenderer extends AbstractProfileResourceTreeRender
 	abstract renderTemplate(parent: HTMLElement): IProfilePropertyRendererTemplate;
 
 	renderElement({ element }: ITreeNode<ProfileTreeElement, void>, index: number, templateData: IProfilePropertyRendererTemplate, height: number | undefined): void {
+		templateData.elementDisposables.clear();
 		templateData.element = element;
 	}
 
@@ -831,6 +854,7 @@ class ProfileNameRenderer extends ProfilePropertyRenderer {
 
 	renderTemplate(parent: HTMLElement): IProfilePropertyRendererTemplate {
 		const disposables = new DisposableStore();
+		const elementDisposables = disposables.add(new DisposableStore());
 		let profileElement: ProfileTreeElement | undefined;
 
 		const nameContainer = append(parent, $('.profile-row-container'));
@@ -880,19 +904,28 @@ class ProfileNameRenderer extends ProfilePropertyRenderer {
 			}
 		}));
 
+		const renderName = (profileElement: ProfileTreeElement) => {
+			nameInput.value = profileElement.root.name;
+			nameInput.validate();
+			if (profileElement.root.disabled) {
+				nameInput.disable();
+			} else {
+				nameInput.enable();
+			}
+		};
+
 		return {
 			set element(element: ProfileTreeElement) {
 				profileElement = element;
-				nameInput.value = profileElement.root.name;
-				nameInput.validate();
-				if (profileElement.root.disabled) {
-					nameInput.disable();
-				} else {
-					nameInput.enable();
-				}
+				renderName(profileElement);
+				elementDisposables.add(profileElement.root.onDidChange(e => {
+					if (e.name) {
+						renderName(element);
+					}
+				}));
 			},
 			disposables,
-			elementDisposables: new DisposableStore()
+			elementDisposables
 		};
 	}
 
@@ -911,6 +944,7 @@ class ProfileIconRenderer extends ProfilePropertyRenderer {
 
 	renderTemplate(parent: HTMLElement): IProfilePropertyRendererTemplate {
 		const disposables = new DisposableStore();
+		const elementDisposables = disposables.add(new DisposableStore());
 		let profileElement: ProfileTreeElement | undefined;
 
 		const iconContainer = append(parent, $('.profile-row-container'));
@@ -974,19 +1008,28 @@ class ProfileIconRenderer extends ProfilePropertyRenderer {
 			}
 		}));
 
-		append(iconValueContainer, $('.profile-description-element', undefined, localize('icon-description', "Icon to replace the default settings icon in profile windows")));
+		append(iconValueContainer, $('.profile-description-element', undefined, localize('icon-description', "Profile icon to be shown in the activity bar")));
+
+		const renderIcon = (profileElement: ProfileTreeElement) => {
+			if (profileElement.root.icon) {
+				iconElement.className = ThemeIcon.asClassName(ThemeIcon.fromId(profileElement.root.icon));
+			} else {
+				iconElement.className = ThemeIcon.asClassName(ThemeIcon.fromId(DEFAULT_ICON.id));
+			}
+		};
 
 		return {
 			set element(element: ProfileTreeElement) {
 				profileElement = element;
-				if (profileElement.root.icon) {
-					iconElement.className = ThemeIcon.asClassName(ThemeIcon.fromId(profileElement.root.icon));
-				} else {
-					iconElement.className = ThemeIcon.asClassName(ThemeIcon.fromId(DEFAULT_ICON.id));
-				}
+				renderIcon(profileElement);
+				elementDisposables.add(profileElement.root.onDidChange(e => {
+					if (e.icon) {
+						renderIcon(element);
+					}
+				}));
 			},
 			disposables,
-			elementDisposables: new DisposableStore()
+			elementDisposables
 		};
 	}
 }
@@ -997,6 +1040,7 @@ class UseAsDefaultProfileRenderer extends ProfilePropertyRenderer {
 
 	renderTemplate(parent: HTMLElement): IProfilePropertyRendererTemplate {
 		const disposables = new DisposableStore();
+		const elementDisposables = disposables.add(new DisposableStore());
 		let profileElement: ProfileTreeElement | undefined;
 
 		const useAsDefaultProfileContainer = append(parent, $('.profile-row-container'));
@@ -1017,13 +1061,22 @@ class UseAsDefaultProfileRenderer extends ProfilePropertyRenderer {
 			}
 		}));
 
+		const renderUseAsDefault = (profileElement: ProfileTreeElement) => {
+			useAsDefaultProfileCheckbox.checked = profileElement.root instanceof UserDataProfileElement && profileElement.root.isNewWindowProfile;
+		};
+
 		return {
 			set element(element: ProfileTreeElement) {
 				profileElement = element;
-				useAsDefaultProfileCheckbox.checked = profileElement.root instanceof UserDataProfileElement && profileElement.root.isNewWindowProfile;
+				renderUseAsDefault(profileElement);
+				elementDisposables.add(profileElement.root.onDidChange(e => {
+					if (e.newWindowProfile) {
+						renderUseAsDefault(element);
+					}
+				}));
 			},
 			disposables,
-			elementDisposables: new DisposableStore()
+			elementDisposables
 		};
 	}
 }
@@ -1044,11 +1097,12 @@ class CopyFromProfileRenderer extends ProfilePropertyRenderer {
 
 	renderTemplate(parent: HTMLElement): IProfilePropertyRendererTemplate {
 		const disposables = new DisposableStore();
+		const elementDisposables = disposables.add(new DisposableStore());
 		let profileElement: ProfileTreeElement | undefined;
 
 		const copyFromContainer = append(parent, $('.profile-row-container.profile-copy-from-container'));
 		append(copyFromContainer, $('.profile-label-element', undefined, localize('create from', "Copy from")));
-		append(copyFromContainer, $('.profile-description-element', undefined, localize('copy from description', "Select the profile from which you want to create the profile:")));
+		append(copyFromContainer, $('.profile-description-element', undefined, localize('copy from description', "Select the profile source from which you want to copy contents")));
 		const copyFromSelectBox = disposables.add(this.instantiationService.createInstance(SelectBox,
 			[],
 			0,
@@ -1088,7 +1142,7 @@ class CopyFromProfileRenderer extends ProfilePropertyRenderer {
 				}
 			},
 			disposables,
-			elementDisposables: new DisposableStore()
+			elementDisposables
 		};
 	}
 
@@ -1191,6 +1245,8 @@ class ContentsProfileRenderer extends ProfilePropertyRenderer {
 				openOnSingleClick: false,
 			}));
 
+		this.profilesContentTree.style(listStyles);
+
 		disposables.add(toDisposable(() => this.profilesContentTree = undefined));
 
 		disposables.add(this.profilesContentTree.onDidChangeContentHeight(height => {
@@ -1221,7 +1277,7 @@ class ContentsProfileRenderer extends ProfilePropertyRenderer {
 		const updateDescription = (element: ProfileTreeElement) => {
 			const defaultHelpInfo = localize('default info', "- *Default:* Use contents from the Default profile\n");
 			const markdown = new MarkdownString()
-				.appendMarkdown(localize('contents source description', "Configure contents of this profile\n"));
+				.appendMarkdown(localize('contents source description', "Configure source of contents for this profile\n"));
 			clearNode(contentsDescriptionElement);
 
 			if (element.root instanceof UserDataProfileElement && element.root.profile.isDefault) {
@@ -1323,13 +1379,7 @@ class ExistingProfileResourceTreeRenderer extends AbstractProfileResourceTreeRen
 			throw new Error('Invalid profile resource element');
 		}
 
-		const resourceTypeTitle = this.getResourceTypeTitle(element.resourceType);
-		templateData.label.textContent = resourceTypeTitle;
-
-		if (root instanceof UserDataProfileElement && root.profile.isDefault) {
-			templateData.radio.domNode.classList.add('hide');
-		} else {
-			templateData.radio.domNode.classList.remove('hide');
+		const updateRadioItems = () => {
 			templateData.radio.setItems([{
 				text: localize('default', "Default"),
 				tooltip: localize('default description', "Use {0} from the Default profile", resourceTypeTitle),
@@ -1340,6 +1390,21 @@ class ExistingProfileResourceTreeRenderer extends AbstractProfileResourceTreeRen
 				tooltip: localize('current description', "Use {0} from the {1} profile", resourceTypeTitle, root.name),
 				isActive: !root.getFlag(element.resourceType)
 			}]);
+		};
+
+		const resourceTypeTitle = this.getResourceTypeTitle(element.resourceType);
+		templateData.label.textContent = resourceTypeTitle;
+
+		if (root instanceof UserDataProfileElement && root.profile.isDefault) {
+			templateData.radio.domNode.classList.add('hide');
+		} else {
+			templateData.radio.domNode.classList.remove('hide');
+			updateRadioItems();
+			templateData.elementDisposables.add(root.onDidChange(e => {
+				if (e.name) {
+					updateRadioItems();
+				}
+			}));
 			templateData.elementDisposables.add(templateData.radio.onDidSelect((index) => root.setFlag(element.resourceType, index === 0)));
 		}
 
@@ -1400,11 +1465,11 @@ class NewProfileResourceTreeRenderer extends AbstractProfileResourceTreeRenderer
 			text: localize('none', "None"),
 			tooltip: localize('none description', "Create empty {0}", resourceTypeTitle)
 		}];
-		if (root.copyFrom) {
-			const copyFromName = root.getCopyFromName();
+		const copyFromName = root.getCopyFromName();
+		if (root.copyFrom && copyFromName) {
 			templateData.radio.setItems([
 				{
-					text: copyFromName ?? '',
+					text: copyFromName,
 					tooltip: copyFromName ? localize('copy from profile description', "Copy {0} from the {1} profile", resourceTypeTitle, copyFromName) : localize('copy description', "Copy"),
 				},
 				...options
