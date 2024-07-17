@@ -4473,6 +4473,15 @@ export class ChatResponseReferencePart {
 	}
 }
 
+export class ChatResponseCodeCitationPart {
+	value: vscode.Uri;
+	license: string;
+	constructor(value: vscode.Uri, license: string) {
+		this.value = value;
+		this.license = license;
+	}
+}
+
 export class ChatResponseTextEditPart {
 	uri: vscode.Uri;
 	edits: vscode.TextEdit[];
