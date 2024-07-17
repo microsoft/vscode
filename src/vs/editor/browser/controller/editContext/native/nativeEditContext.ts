@@ -65,8 +65,8 @@ export class NativeEditContext extends AbstractEditContext {
 		this._domElement.domNode.ariaMultiLine = 'true';
 		this._domElement.domNode.contentEditable = 'true';
 		this._domElement.domNode.style.position = 'absolute';
-		this._domElement.domNode.style.zIndex = '100';
-		this._domElement.domNode.style.background = 'white'; // transparent
+		this._domElement.domNode.style.zIndex = '-10';
+		this._domElement.domNode.style.background = 'transparent';
 		dom.addDisposableListener(this._domElement.domNode, 'focus', () => {
 			this._domElement.domNode.style.background = 'yellow';
 		});
@@ -80,6 +80,14 @@ export class NativeEditContext extends AbstractEditContext {
 		this._domElement.domNode.style.color = 'black';
 		this._domElement.domNode.style.whiteSpace = 'pre-wrap';
 		this._domElement.domNode.style.display = 'table';
+		this._domElement.domNode.setAttribute('autocorrect', 'off');
+		this._domElement.domNode.setAttribute('autocapitalize', 'off');
+		this._domElement.domNode.setAttribute('autocomplete', 'off');
+		this._domElement.domNode.setAttribute('spellcheck', 'false');
+		this._domElement.domNode.ariaRequired = 'false';
+		this._domElement.domNode.ariaLabel = 'use Option+F1 to open the accessibility help.';
+		this._domElement.domNode.ariaAutoComplete = 'both';
+		this._domElement.domNode.ariaRoleDescription = 'editor';
 
 		this._domElement.domNode.onfocus = () => {
 			this._isFocused = true;
@@ -331,7 +339,7 @@ export class NativeEditContext extends AbstractEditContext {
 		console.log('this._context.viewLayout.getCurrentScrollTop() : ', this._context.viewLayout.getCurrentScrollTop());
 		console.log('this._context.viewLayout.getVerticalOffsetForLineNumber() : ', this._context.viewLayout.getVerticalOffsetForLineNumber(primaryViewState.selection.startLineNumber - 2));
 
-		const topPosition = this._context.viewLayout.getVerticalOffsetForLineNumber(primaryViewState.selection.startLineNumber - 10) - this._context.viewLayout.getCurrentScrollTop(); // -2
+		const topPosition = this._context.viewLayout.getVerticalOffsetForLineNumber(primaryViewState.selection.startLineNumber - 2) - this._context.viewLayout.getCurrentScrollTop();
 		this._domElement.domNode.style.top = `${topPosition}px`;
 		this._domElement.domNode.style.left = `${this._contentLeft}px`;
 
