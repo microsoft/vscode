@@ -221,7 +221,7 @@ export class WebClientServer {
 			return serveError(req, res, status, text || `Request failed with status ${status}`);
 		}
 
-		const responseHeaders: Record<string, string> = Object.create(null);
+		const responseHeaders: Record<string, string | string[]> = Object.create(null);
 		const setResponseHeader = (header: string) => {
 			const value = context.res.headers[header];
 			if (value) {

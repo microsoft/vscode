@@ -542,10 +542,19 @@ export function isSerializableSessionData(obj: unknown): obj is ISerializableCha
 		);
 }
 
-export type IChatChangeEvent = IChatAddRequestEvent | IChatAddResponseEvent | IChatInitEvent | IChatRemoveRequestEvent;
+export type IChatChangeEvent =
+	| IChatInitEvent
+	| IChatAddRequestEvent | IChatChangedRequestEvent | IChatRemoveRequestEvent
+	| IChatAddResponseEvent
+	| IChatSetAgentEvent;
 
 export interface IChatAddRequestEvent {
 	kind: 'addRequest';
+	request: IChatRequestModel;
+}
+
+export interface IChatChangedRequestEvent {
+	kind: 'changedRequest';
 	request: IChatRequestModel;
 }
 
@@ -576,6 +585,12 @@ export interface IChatRemoveRequestEvent {
 	requestId: string;
 	responseId?: string;
 	reason: ChatRequestRemovalReason;
+}
+
+export interface IChatSetAgentEvent {
+	kind: 'setAgent';
+	agent: IChatAgentData;
+	command?: IChatAgentCommand;
 }
 
 export interface IChatInitEvent {
@@ -832,6 +847,11 @@ export class ChatModel extends Disposable implements IChatModel {
 		return request;
 	}
 
+	updateRequest(request: ChatRequestModel, variableData: IChatRequestVariableData) {
+		request.variableData = variableData;
+		this._onDidChange.fire({ kind: 'changedRequest', request });
+	}
+
 	adoptRequest(request: ChatRequestModel): void {
 
 		// this doesn't use `removeRequest` because it must not dispose the request object
@@ -879,6 +899,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			const agent = this.chatAgentService.getAgent(progress.agentId);
 			if (agent) {
 				request.response.setAgent(agent, progress.command);
+				this._onDidChange.fire({ kind: 'setAgent', agent, command: progress.command });
 			}
 		} else {
 			this.logService.error(`Couldn't handle progress: ${JSON.stringify(progress)}`);

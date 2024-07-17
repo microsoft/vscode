@@ -104,7 +104,7 @@ configurationRegistry.registerConfiguration({
 		'chat.experimental.variables.editor': {
 			type: 'boolean',
 			description: nls.localize('chat.experimental.variables.editor', "Enables variables for editor chat."),
-			default: false
+			default: true
 		},
 		'chat.experimental.variables.notebook': {
 			type: 'boolean',
@@ -228,7 +228,7 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 				}
 
 				const variables = [
-					...chatVariablesService.getVariables(),
+					...chatVariablesService.getVariables(ChatAgentLocation.Panel),
 					{ name: 'file', description: nls.localize('file', "Choose a file in the workspace") }
 				];
 				const variableText = variables

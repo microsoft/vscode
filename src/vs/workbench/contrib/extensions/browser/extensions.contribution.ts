@@ -641,7 +641,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				id: MenuId.ViewContainerTitle,
 				order: 5,
 				group: '1_updates',
-				when: enableAutoUpdateWhenCondition
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('viewContainer', VIEWLET_ID), enableAutoUpdateWhenCondition)
 			}, {
 				id: MenuId.CommandPalette,
 			}],
@@ -658,7 +658,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				id: MenuId.ViewContainerTitle,
 				order: 5,
 				group: '1_updates',
-				when: disableAutoUpdateWhenCondition
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('viewContainer', VIEWLET_ID), disableAutoUpdateWhenCondition)
 			}, {
 				id: MenuId.CommandPalette,
 			}],

@@ -14,7 +14,7 @@ import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/b
 import { observableCodeEditor } from 'vs/editor/browser/observableCodeEditor';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/embeddedCodeEditorWidget';
 import { IDiffProviderFactoryService } from 'vs/editor/browser/widget/diffEditor/diffProviderFactoryService';
-import { diffAddDecoration, diffAddDecorationEmpty, diffDeleteDecoration, diffDeleteDecorationEmpty, diffLineDeleteDecorationBackgroundWithIndicator, diffWholeLineAddDecoration, diffWholeLineDeleteDecoration } from 'vs/editor/browser/widget/diffEditor/registrations.contribution';
+import { diffAddDecoration, diffAddDecorationEmpty, diffDeleteDecoration, diffDeleteDecorationEmpty, diffLineAddDecorationBackgroundWithIndicator, diffLineDeleteDecorationBackgroundWithIndicator, diffWholeLineAddDecoration, diffWholeLineDeleteDecoration } from 'vs/editor/browser/widget/diffEditor/registrations.contribution';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
@@ -31,9 +31,14 @@ function* range(start: number, end: number, step = 1) {
 	for (let n = start; n < end; n += step) { yield n; }
 }
 
-function removeIndentation(lines: string[]): string[] {
+function removeIndentation(lines: string[]) {
 	const indentation = lines[0].match(/^\s*/)?.[0] ?? '';
-	return lines.map(l => l.replace(new RegExp('^' + indentation), ''));
+	const length = indentation.length;
+
+	return {
+		text: lines.map(l => l.replace(new RegExp('^' + indentation), '')),
+		shift: length
+	};
 }
 
 type Pos = {
@@ -53,7 +58,7 @@ export class InlineEditSideBySideWidget extends Disposable {
 		if (!ghostText || ghostText.text.length === 0) {
 			return null;
 		}
-		if (ghostText.range.startLineNumber === ghostText.range.endLineNumber) {
+		if (ghostText.range.startLineNumber === ghostText.range.endLineNumber && !(ghostText.range.startColumn === ghostText.range.endColumn && ghostText.range.startColumn === 1)) {
 			//for inner-line suggestions we still want to use minimal ghost text
 			return null;
 		}
@@ -78,9 +83,13 @@ export class InlineEditSideBySideWidget extends Disposable {
 	private readonly _text = derived(this, reader => {
 		const ghostText = this._model.read(reader);
 		if (!ghostText) {
-			return '';
+			return { text: '', shift: 0 };
 		}
-		return removeIndentation(ghostText.text.split('\n')).join('\n');
+		const t = removeIndentation(ghostText.text.split('\n'));
+		return {
+			text: t.text.join('\n'),
+			shift: t.shift
+		};
 	});
 
 
@@ -100,8 +109,8 @@ export class InlineEditSideBySideWidget extends Disposable {
 		if (!editorModel) {
 			return;
 		}
-		const originalText = removeIndentation(editorModel.getValueInRange(ghostText.range).split('\n')).join('\n');
-		const modifiedText = removeIndentation(ghostText.text.split('\n')).join('\n');
+		const originalText = removeIndentation(editorModel.getValueInRange(ghostText.range).split('\n')).text.join('\n');
+		const modifiedText = removeIndentation(ghostText.text.split('\n')).text.join('\n');
 		this._originalModel.get().setValue(originalText);
 		this._modifiedModel.get().setValue(modifiedText);
 		const d = this._diffProviderFactoryService.createDiffProvider({ diffAlgorithm: 'advanced' });
@@ -135,12 +144,15 @@ export class InlineEditSideBySideWidget extends Disposable {
 			if (!model) {
 				return;
 			}
-
+			if (this._position.get() === null) {
+				return;
+			}
 			const contentWidget = store.add(this._instantiationService.createInstance(
 				InlineEditSideBySideContentWidget,
 				this._editor,
 				this._position,
-				this._text,
+				this._text.map(t => t.text),
+				this._text.map(t => t.shift),
 				this._diff
 			));
 			_editor.addOverlayWidget(contentWidget);
@@ -156,10 +168,9 @@ class InlineEditSideBySideContentWidget extends Disposable implements IOverlayWi
 	private static id = 0;
 
 	private readonly id = `InlineEditSideBySideContentWidget${InlineEditSideBySideContentWidget.id++}`;
-	public readonly allowEditorOverflow = true;
-	public readonly suppressMouseDown = false;
+	public readonly allowEditorOverflow = false;
 
-	private readonly _nodes = $('div.inlineEditSideBySide', undefined,);
+	private readonly _nodes = $('div.inlineEditSideBySide', undefined);
 
 	private readonly _scrollChanged = observableSignalFromEvent('editor.onDidScrollChange', this._editor.onDidScrollChange);
 
@@ -185,6 +196,8 @@ class InlineEditSideBySideContentWidget extends Disposable implements IOverlayWi
 			lineDecorationsWidth: 0,
 			lineNumbersMinChars: 0,
 			scrollbar: { vertical: 'hidden', horizontal: 'hidden' },
+			readOnly: true,
+
 		},
 		{ contributions: [], },
 		this._editor
@@ -221,9 +234,10 @@ class InlineEditSideBySideContentWidget extends Disposable implements IOverlayWi
 		if (diff.length === 1 && diff[0].innerChanges![0].modifiedRange.equalsRange(this._previewTextModel.getFullModelRange())) {
 			return { org: [], mod: [] };
 		}
+		const shift = this._shift.get();
 
 		const moveRange = (range: IRange) => {
-			return new Range(range.startLineNumber + position.top - 1, range.startColumn, range.endLineNumber + position.top - 1, range.endColumn);
+			return new Range(range.startLineNumber + position.top - 1, range.startColumn + shift, range.endLineNumber + position.top - 1, range.endColumn + shift);
 		};
 
 		for (const m of diff) {
@@ -231,7 +245,7 @@ class InlineEditSideBySideContentWidget extends Disposable implements IOverlayWi
 				originalDecorations.push({ range: moveRange(m.original.toInclusiveRange()!), options: diffLineDeleteDecorationBackgroundWithIndicator });
 			}
 			if (!m.modified.isEmpty) {
-				// modifiedDecorations.push({ range: m.modified.toInclusiveRange()!, options: diffLineAddDecorationBackgroundWithIndicator });
+				modifiedDecorations.push({ range: m.modified.toInclusiveRange()!, options: diffLineAddDecorationBackgroundWithIndicator });
 			}
 
 			if (m.modified.isEmpty || m.original.isEmpty) {
@@ -269,6 +283,7 @@ class InlineEditSideBySideContentWidget extends Disposable implements IOverlayWi
 		private readonly _editor: ICodeEditor,
 		private readonly _position: IObservable<Pos | null>,
 		private readonly _text: IObservable<string>,
+		private readonly _shift: IObservable<number>,
 		private readonly _diff: IObservable<readonly DetailedLineRangeMapping[] | undefined>,
 
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -282,12 +297,11 @@ class InlineEditSideBySideContentWidget extends Disposable implements IOverlayWi
 
 		this._register(autorun(reader => {
 			const width = this._previewEditorObs.contentWidth.read(reader);
-			const lines = this._text.get().split('\n').length - 1;
+			const lines = this._text.read(reader).split('\n').length - 1;
 			const height = this._editor.getOption(EditorOption.lineHeight) * lines;
 			if (width <= 0) {
 				return;
 			}
-			console.log('width', width);
 			this._previewEditor.layout({ height: height, width: width });
 		}));
 
@@ -303,16 +317,6 @@ class InlineEditSideBySideContentWidget extends Disposable implements IOverlayWi
 			const position = this._position.read(reader);
 			if (!position) {
 				return;
-			}
-			const visibleRanges = this._editor.getVisibleRanges();
-			const isVisble = visibleRanges.some(range => {
-				return position.top >= range.startLineNumber && position.top <= range.endLineNumber;
-			});
-			if (!isVisble) {
-				this._nodes.style.display = 'none';
-			}
-			else {
-				this._nodes.style.display = 'block';
 			}
 			this._editor.layoutOverlayWidget(this);
 		}));
@@ -334,8 +338,9 @@ class InlineEditSideBySideContentWidget extends Disposable implements IOverlayWi
 		if (!visibPos) {
 			return null;
 		}
-		const top = visibPos.top;
-		const left = layoutInfo.contentLeft + this._editor.getOffsetForColumn(position.left.lineNumber, position.left.column) + 10;
+		const top = visibPos.top - 1; //-1 to offset the border width
+		const offset = this._editor.getOffsetForColumn(position.left.lineNumber, position.left.column);
+		const left = layoutInfo.contentLeft + offset + 10;
 		return {
 			preference: {
 				left,

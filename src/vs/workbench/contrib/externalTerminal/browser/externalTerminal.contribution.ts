@@ -10,12 +10,10 @@ import { MenuId, MenuRegistry, IMenuItem } from 'vs/platform/actions/common/acti
 import { ITerminalGroupService, ITerminalService as IIntegratedTerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ResourceContextKey } from 'vs/workbench/common/contextkeys';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IListService } from 'vs/platform/list/browser/listService';
 import { getMultiSelectedResources, IExplorerService } from 'vs/workbench/contrib/files/browser/files';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { Schemas } from 'vs/base/common/network';
 import { distinct } from 'vs/base/common/arrays';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
@@ -26,6 +24,8 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IExternalTerminalConfiguration, IExternalTerminalService } from 'vs/platform/externalTerminal/common/externalTerminal';
 import { TerminalLocation } from 'vs/platform/terminal/common/terminal';
+import { IListService } from 'vs/platform/list/browser/listService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 const OPEN_IN_TERMINAL_COMMAND_ID = 'openInTerminal';
@@ -37,7 +37,6 @@ function registerOpenTerminalCommand(id: string, explorerKind: 'integrated' | 'e
 		handler: async (accessor, resource: URI) => {
 
 			const configurationService = accessor.get(IConfigurationService);
-			const editorService = accessor.get(IEditorService);
 			const fileService = accessor.get(IFileService);
 			const integratedTerminalService = accessor.get(IIntegratedTerminalService);
 			const remoteAgentService = accessor.get(IRemoteAgentService);
@@ -45,10 +44,9 @@ function registerOpenTerminalCommand(id: string, explorerKind: 'integrated' | 'e
 			let externalTerminalService: IExternalTerminalService | undefined = undefined;
 			try {
 				externalTerminalService = accessor.get(IExternalTerminalService);
-			} catch {
-			}
+			} catch { }
 
-			const resources = getMultiSelectedResources(resource, accessor.get(IListService), editorService, accessor.get(IEditorGroupsService), accessor.get(IExplorerService));
+			const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService), accessor.get(IEditorGroupsService), accessor.get(IExplorerService));
 			return fileService.resolveAll(resources.map(r => ({ resource: r }))).then(async stats => {
 				// Always use integrated terminal when using a remote
 				const config = configurationService.getValue<IExternalTerminalConfiguration>();

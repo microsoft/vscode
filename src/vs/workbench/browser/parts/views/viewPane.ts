@@ -376,7 +376,7 @@ export abstract class ViewPane extends Pane implements IView {
 		@IThemeService protected themeService: IThemeService,
 		@ITelemetryService protected telemetryService: ITelemetryService,
 		@IHoverService protected readonly hoverService: IHoverService,
-		protected readonly accessibleViewService?: IAccessibleViewInformationService
+		protected readonly accessibleViewInformationService?: IAccessibleViewInformationService
 	) {
 		super({ ...options, ...{ orientation: viewDescriptorService.getViewLocationById(options.id) === ViewContainerLocation.Panel ? Orientation.HORIZONTAL : Orientation.VERTICAL } });
 
@@ -553,7 +553,7 @@ export abstract class ViewPane extends Pane implements IView {
 
 	private _getAriaLabel(title: string): string {
 		const viewHasAccessibilityHelpContent = this.viewDescriptorService.getViewDescriptorById(this.id)?.accessibilityHelpContent;
-		const accessibleViewHasShownForView = this.accessibleViewService?.hasShownAccessibleView(this.id);
+		const accessibleViewHasShownForView = this.accessibleViewInformationService?.hasShownAccessibleView(this.id);
 		if (!viewHasAccessibilityHelpContent || accessibleViewHasShownForView) {
 			return title;
 		}

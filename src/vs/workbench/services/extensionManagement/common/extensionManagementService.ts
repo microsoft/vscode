@@ -8,7 +8,8 @@ import {
 	ILocalExtension, IGalleryExtension, IExtensionIdentifier, IExtensionsControlManifest, IExtensionGalleryService, InstallOptions, UninstallOptions, InstallExtensionResult, ExtensionManagementError, ExtensionManagementErrorCode, Metadata, InstallOperation, EXTENSION_INSTALL_SOURCE_CONTEXT, InstallExtensionInfo,
 	IProductVersion,
 	ExtensionInstallSource,
-	DidUpdateExtensionMetadata
+	DidUpdateExtensionMetadata,
+	UninstallExtensionInfo
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { DidChangeProfileForServerEvent, DidUninstallExtensionOnServerEvent, IExtensionManagementServer, IExtensionManagementServerService, InstallExtensionOnServerEvent, IResourceExtension, IWorkbenchExtensionManagementService, UninstallExtensionOnServerEvent } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ExtensionType, isLanguagePackExtension, IExtensionManifest, getWorkspaceSupportTypeMessage, TargetPlatform } from 'vs/platform/extensions/common/extensions';
@@ -147,52 +148,68 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		return result;
 	}
 
-	async uninstall(extension: ILocalExtension, options?: UninstallOptions): Promise<void> {
-		if (extension.isWorkspaceScoped) {
-			return this.uninstallExtensionFromWorkspace(extension);
-		}
-		const server = this.getServer(extension);
-		if (!server) {
-			return Promise.reject(`Invalid location ${extension.location.toString()}`);
-		}
-		if (this.servers.length > 1) {
-			if (isLanguagePackExtension(extension.manifest)) {
-				return this.uninstallEverywhere(extension, options);
-			}
-			return this.uninstallInServer(extension, server, options);
-		}
-		return server.extensionManagementService.uninstall(extension, options);
+	uninstall(extension: ILocalExtension, options: UninstallOptions): Promise<void> {
+		return this.uninstallExtensions([{ extension, options }]);
 	}
 
-	private async uninstallEverywhere(extension: ILocalExtension, options?: UninstallOptions): Promise<void> {
-		const server = this.getServer(extension);
-		if (!server) {
-			return Promise.reject(`Invalid location ${extension.location.toString()}`);
-		}
-		const promise = server.extensionManagementService.uninstall(extension, options);
-		const otherServers: IExtensionManagementServer[] = this.servers.filter(s => s !== server);
-		if (otherServers.length) {
-			for (const otherServer of otherServers) {
-				const installed = await otherServer.extensionManagementService.getInstalled();
-				extension = installed.filter(i => !i.isBuiltin && areSameExtensions(i.identifier, extension.identifier))[0];
-				if (extension) {
-					await otherServer.extensionManagementService.uninstall(extension, options);
+	async uninstallExtensions(extensions: UninstallExtensionInfo[]): Promise<void> {
+		const workspaceExtensions: ILocalExtension[] = [];
+		const groupedExtensions = new Map<IExtensionManagementServer, UninstallExtensionInfo[]>();
+
+		const addExtensionToServer = (server: IExtensionManagementServer, extension: ILocalExtension, options?: UninstallOptions) => {
+			let extensions = groupedExtensions.get(server);
+			if (!extensions) {
+				groupedExtensions.set(server, extensions = []);
+			}
+			extensions.push({ extension, options });
+		};
+
+		for (const { extension, options } of extensions) {
+			if (extension.isWorkspaceScoped) {
+				workspaceExtensions.push(extension);
+				continue;
+			}
+
+			const server = this.getServer(extension);
+			if (!server) {
+				throw new Error(`Invalid location ${extension.location.toString()}`);
+			}
+			addExtensionToServer(server, extension, options);
+			if (this.servers.length > 1 && isLanguagePackExtension(extension.manifest)) {
+				const otherServers: IExtensionManagementServer[] = this.servers.filter(s => s !== server);
+				for (const otherServer of otherServers) {
+					const installed = await otherServer.extensionManagementService.getInstalled();
+					const extensionInOtherServer = installed.find(i => !i.isBuiltin && areSameExtensions(i.identifier, extension.identifier));
+					if (extensionInOtherServer) {
+						addExtensionToServer(otherServer, extensionInOtherServer, options);
+					}
 				}
 			}
 		}
-		return promise;
+
+		const promises: Promise<void>[] = [];
+		for (const workspaceExtension of workspaceExtensions) {
+			promises.push(this.uninstallExtensionFromWorkspace(workspaceExtension));
+		}
+		for (const [server, extensions] of groupedExtensions.entries()) {
+			promises.push(this.uninstallInServer(server, extensions));
+		}
+
+		await Promise.allSettled(promises);
 	}
 
-	private async uninstallInServer(extension: ILocalExtension, server: IExtensionManagementServer, options?: UninstallOptions): Promise<void> {
-		if (server === this.extensionManagementServerService.localExtensionManagementServer) {
-			const installedExtensions = await this.extensionManagementServerService.remoteExtensionManagementServer!.extensionManagementService.getInstalled(ExtensionType.User);
-			const dependentNonUIExtensions = installedExtensions.filter(i => !this.extensionManifestPropertiesService.prefersExecuteOnUI(i.manifest)
-				&& i.manifest.extensionDependencies && i.manifest.extensionDependencies.some(id => areSameExtensions({ id }, extension.identifier)));
-			if (dependentNonUIExtensions.length) {
-				return Promise.reject(new Error(this.getDependentsErrorMessage(extension, dependentNonUIExtensions)));
+	private async uninstallInServer(server: IExtensionManagementServer, extensions: UninstallExtensionInfo[]): Promise<void> {
+		if (server === this.extensionManagementServerService.localExtensionManagementServer && this.extensionManagementServerService.remoteExtensionManagementServer) {
+			for (const { extension } of extensions) {
+				const installedExtensions = await this.extensionManagementServerService.remoteExtensionManagementServer.extensionManagementService.getInstalled(ExtensionType.User);
+				const dependentNonUIExtensions = installedExtensions.filter(i => !this.extensionManifestPropertiesService.prefersExecuteOnUI(i.manifest)
+					&& i.manifest.extensionDependencies && i.manifest.extensionDependencies.some(id => areSameExtensions({ id }, extension.identifier)));
+				if (dependentNonUIExtensions.length) {
+					throw (new Error(this.getDependentsErrorMessage(extension, dependentNonUIExtensions)));
+				}
 			}
 		}
-		return server.extensionManagementService.uninstall(extension, options);
+		return server.extensionManagementService.uninstallExtensions(extensions);
 	}
 
 	private getDependentsErrorMessage(extension: ILocalExtension, dependents: ILocalExtension[]): string {
