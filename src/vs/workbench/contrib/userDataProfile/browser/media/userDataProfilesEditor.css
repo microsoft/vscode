@@ -245,6 +245,7 @@
 	grid-template-columns: repeat(1, 1fr) 200px 80px;
 }
 
+.profiles-editor .contents-container .profile-body .profile-tree .monaco-list-row .profile-content-tree-header,
 .profiles-editor .contents-container .profile-body .profile-tree .monaco-list-row .profile-content-tree {
 	margin-right: 1px;
 }
