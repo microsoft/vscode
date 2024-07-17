@@ -36,14 +36,12 @@ export const enum VSCodeSuggestOscPt {
 
 export type CompressedPwshCompletion = [
 	completionText: string,
-	listItemText: string,
 	resultType: number,
 	toolTip: string
 ];
 
 export type PwshCompletion = {
 	CompletionText: string;
-	ListItemText: string;
 	ResultType: number;
 	ToolTip: string;
 };
@@ -551,7 +549,7 @@ export function parseCompletionsFromShell(rawCompletions: PwshCompletion | PwshC
 	}
 	if (!Array.isArray(rawCompletions)) {
 		return [rawCompletions].map(e => (new SimpleCompletionItem({
-			label: e.CompletionText, // e.ListItemText,
+			label: e.CompletionText,
 			icon: pwshTypeToIconMap[e.ResultType],
 			detail: e.ToolTip
 		})));
@@ -561,16 +559,16 @@ export function parseCompletionsFromShell(rawCompletions: PwshCompletion | PwshC
 	}
 	if (typeof rawCompletions[0] === 'string') {
 		return [rawCompletions as CompressedPwshCompletion].map(e => (new SimpleCompletionItem({
-			label: e[0], // e[1],
-			icon: pwshTypeToIconMap[e[2]],
-			detail: e[3]
+			label: e[0],
+			icon: pwshTypeToIconMap[e[1]],
+			detail: e[2]
 		})));
 	}
 	if (Array.isArray(rawCompletions[0])) {
 		return (rawCompletions as CompressedPwshCompletion[]).map(e => (new SimpleCompletionItem({
-			label: e[0], // e[1],
-			icon: pwshTypeToIconMap[e[2]],
-			detail: e[3]
+			label: e[0],
+			icon: pwshTypeToIconMap[e[1]],
+			detail: e[2]
 		})));
 	}
 	return (rawCompletions as PwshCompletion[]).map(e => (new SimpleCompletionItem({
