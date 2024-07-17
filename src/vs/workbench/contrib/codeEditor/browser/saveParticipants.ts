@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { HierarchicalKind } from 'vs/base/common/hierarchicalKind';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
@@ -17,6 +17,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { CodeActionProvider, CodeActionTriggerType } from 'vs/editor/common/languages';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { IModelService } from 'vs/editor/common/services/model';
 import { ApplyCodeActionReason, applyCodeAction, getCodeActions } from 'vs/editor/contrib/codeAction/browser/codeAction';
 import { CodeActionKind, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/common/types';
 import { FormattingMode, formatDocumentRangesWithSelectedProvider, formatDocumentWithSelectedProvider } from 'vs/editor/contrib/format/browser/format';
@@ -26,7 +27,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IProgress, IProgressStep, Progress } from 'vs/platform/progress/common/progress';
+import { IProgress, IProgressService, IProgressStep, Progress } from 'vs/platform/progress/common/progress';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchContributionsExtensions } from 'vs/workbench/common/contributions';
 import { SaveReason } from 'vs/workbench/common/editor';
@@ -278,7 +279,11 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@IHostService private readonly hostService: IHostService,
 		@IEditorService private readonly editorService: IEditorService,
-		@ICommandService private readonly commandService: ICommandService
+		@ICommandService private readonly commandService: ICommandService,
+		@IModelService private readonly modelService: IModelService,
+		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
+		@IProgressService private readonly progressService: IProgressService,
+
 	) {
 		this.hostService.onDidChangeFocus(async () => {
 			this.triggerCodeActionsCommand();
@@ -291,7 +296,16 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 
 	private async triggerCodeActionsCommand() {
 		if (this.configurationService.getValue<boolean>('editor.codeActions.triggerOnFocusChange') && this.configurationService.getValue<string>('files.autoSave') === 'afterDelay') {
-			const setting = this.configurationService.getValue<{ [kind: string]: string | boolean } | string[]>('editor.codeActionsOnSave');
+			const model = this.codeEditorService.getActiveCodeEditor()?.getModel();
+
+			if (!model) {
+				return;
+			}
+
+			const settingsOverrides = { overrideIdentifier: model.getLanguageId(), resource: model.uri };
+
+			const setting = this.configurationService.getValue<{ [kind: string]: string | boolean } | string[]>('editor.codeActionsOnSave', settingsOverrides);
+
 			if (!setting) {
 				return undefined;
 			}
@@ -300,20 +314,19 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 				return undefined;
 			}
 
-			const settingItems: string[] = Object.keys(setting).filter(x => setting[x] && setting[x] === 'always' && CodeActionKind.SourceOrganizeImports.contains(new HierarchicalKind(x)));
+			const settingItems: string[] = Object.keys(setting).filter(x => setting[x] && setting[x] === 'always' && CodeActionKind.Source.contains(new HierarchicalKind(x)));
 
+			const cancellationTokenSource = new CancellationTokenSource();
+			const token = cancellationTokenSource.token;
+
+			const codeActionKindList = [];
 			for (const item of settingItems) {
-				try {
-					await this.commandService.executeCommand('editor.action.codeAction', {
-						kind: item.toString(),
-					});
-				} catch (error) {
-					console.error('Error executing command for item:', item, error);
-				}
+				codeActionKindList.push(new HierarchicalKind(item));
 			}
+
+			await this.applyOnSaveActions(model, codeActionKindList, [], Progress.None, token);
 		}
 	}
-
 
 	async participate(model: ITextFileEditorModel, context: ITextFileSaveParticipantContext, progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
 		if (!model.textEditorModel) {
