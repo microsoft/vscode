@@ -95,7 +95,7 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { stripIcons } from 'vs/base/common/iconLabels';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
-import { buttonForeground, chartsBlue, chartsOrange, chartsPurple, editorSelectionBackground, foreground, inputBackground, inputForeground, listActiveSelectionForeground, registerColor, selectionBackground, transparent } from 'vs/platform/theme/common/colorRegistry';
+import { ColorIdentifier, editorSelectionBackground, foreground, inputBackground, inputForeground, listActiveSelectionForeground, registerColor, selectionBackground, transparent } from 'vs/platform/theme/common/colorRegistry';
 import { IMenuWorkbenchToolBarOptions, WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
@@ -108,7 +108,7 @@ import { HoverController } from 'vs/editor/contrib/hover/browser/hoverController
 import { ITextModel } from 'vs/editor/common/model';
 import { autorun } from 'vs/base/common/observable';
 import { createInstantHoverDelegate, getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { renderSCMHistoryItemGraph, toISCMHistoryItemViewModelArray } from 'vs/workbench/contrib/scm/browser/scmHistory';
+import { historyItemGroupBase, historyItemGroupHoverLabelForeground, historyItemGroupLocal, historyItemGroupRemote, renderSCMHistoryItemGraph, toISCMHistoryItemViewModelArray } from 'vs/workbench/contrib/scm/browser/scmHistory';
 import { PlaceholderTextContribution } from 'vs/editor/contrib/placeholderText/browser/placeholderTextContribution';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
@@ -140,12 +140,6 @@ const historyItemDeletionsForeground = registerColor('scm.historyItemDeletionsFo
 registerColor('scm.historyItemStatisticsBorder', transparent(foreground, 0.2), localize('scm.historyItemStatisticsBorder', "History item statistics border color."));
 
 registerColor('scm.historyItemSelectedStatisticsBorder', transparent(listActiveSelectionForeground, 0.2), localize('scm.historyItemSelectedStatisticsBorder', "History item selected statistics border color."));
-
-const historyItemGroupLocal = registerColor('scm.historyGraph.historyItemGroupLocal', chartsBlue, localize('scm.historyGraph.historyItemGroupLocal', "Local history item group color."));
-const historyItemGroupRemote = registerColor('scm.historyGraph.historyItemGroupRemote', chartsOrange, localize('scm.historyItemGroupRemote', "Remote history item group color."));
-const historyItemGroupBase = registerColor('scm.historyGraph.historyItemGroupBase', chartsPurple, localize('scm.historyItemGroupBase', "Base history item group color."));
-
-const historyItemGroupHoverLabelForeground = registerColor('scm.historyGraph.historyItemGroupHoverLabelForeground', buttonForeground, localize('scm.historyItemGroupHoverLabelForeground', "History item group hover label foreground color."));
 
 function processResourceFilterData(uri: URI, filterData: FuzzyScore | LabelFuzzyScore | undefined): [IMatch[] | undefined, IMatch[] | undefined] {
 	if (!filterData) {
@@ -4025,15 +4019,14 @@ class SCMTreeHistoryProviderDataSource extends Disposable {
 		}
 
 		// Create the color map
-		// TODO@lszomoru - use theme colors
-		const colorMap = new Map<string, number>([
-			[currentHistoryItemGroup.name, 0]
+		const colorMap = new Map<string, ColorIdentifier>([
+			[currentHistoryItemGroup.name, historyItemGroupLocal]
 		]);
 		if (currentHistoryItemGroup.remote) {
-			colorMap.set(currentHistoryItemGroup.remote.name, 1);
+			colorMap.set(currentHistoryItemGroup.remote.name, historyItemGroupRemote);
 		}
 		if (currentHistoryItemGroup.base) {
-			colorMap.set(currentHistoryItemGroup.base.name, 2);
+			colorMap.set(currentHistoryItemGroup.base.name, historyItemGroupBase);
 		}
 
 		return toISCMHistoryItemViewModelArray(historyItemsElement, colorMap)
