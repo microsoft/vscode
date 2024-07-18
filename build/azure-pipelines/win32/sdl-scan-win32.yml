@@ -1,8 +1,4 @@
 parameters:
-  - name: NPM_REGISTRY
-    displayName: "Custom NPM Registry"
-    type: string
-    default: "https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/npm/registry/"
   - name: NPM_ARCH
     type: string
     default: x64
@@ -19,6 +15,11 @@ steps:
       versionSource: fromFile
       versionFilePath: .nvmrc
       nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
+
+  - task: UsePythonVersion@0
+    inputs:
+      versionSpec: "3.x"
+      addToPath: true
 
   - template: ../distro/download-distro.yml@self
 
