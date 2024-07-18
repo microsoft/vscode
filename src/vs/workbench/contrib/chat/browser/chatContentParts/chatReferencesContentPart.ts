@@ -32,17 +32,23 @@ import { createFileIconThemableTreeContainerScope } from 'vs/workbench/contrib/f
 
 const $ = dom.$;
 
-export class ChatReferencesContentPart extends Disposable implements IChatContentPart {
+export interface IChatReferenceListItem extends IChatContentReference {
+	title?: string;
+}
+
+export type IChatCollapsibleListItem = IChatReferenceListItem | IChatWarningMessage;
+
+export class ChatCollapsibleListContentPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
 
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
 	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
 	constructor(
-		private readonly data: ReadonlyArray<IChatContentReference | IChatWarningMessage>,
+		private readonly data: ReadonlyArray<IChatCollapsibleListItem>,
 		labelOverride: string | undefined,
 		element: IChatResponseViewModel,
-		contentReferencesListPool: ContentReferencesListPool,
+		contentReferencesListPool: CollapsibleListPool,
 		@IOpenerService openerService: IOpenerService,
 	) {
 		super();
@@ -117,7 +123,8 @@ export class ChatReferencesContentPart extends Disposable implements IChatConten
 	}
 
 	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
-		return other.kind === 'references' && other.references.length === this.data.length;
+		return other.kind === 'references' && other.references.length === this.data.length ||
+			other.kind === 'codeCitations' && other.citations.length === this.data.length;
 	}
 
 	private updateAriaLabel(element: HTMLElement, label: string, expanded?: boolean): void {
@@ -129,10 +136,10 @@ export class ChatReferencesContentPart extends Disposable implements IChatConten
 	}
 }
 
-export class ContentReferencesListPool extends Disposable {
-	private _pool: ResourcePool<WorkbenchList<IChatContentReference | IChatWarningMessage>>;
+export class CollapsibleListPool extends Disposable {
+	private _pool: ResourcePool<WorkbenchList<IChatCollapsibleListItem>>;
 
-	public get inUse(): ReadonlySet<WorkbenchList<IChatContentReference | IChatWarningMessage>> {
+	public get inUse(): ReadonlySet<WorkbenchList<IChatCollapsibleListItem>> {
 		return this._pool.inUse;
 	}
 
@@ -145,22 +152,22 @@ export class ContentReferencesListPool extends Disposable {
 		this._pool = this._register(new ResourcePool(() => this.listFactory()));
 	}
 
-	private listFactory(): WorkbenchList<IChatContentReference | IChatWarningMessage> {
+	private listFactory(): WorkbenchList<IChatCollapsibleListItem> {
 		const resourceLabels = this._register(this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this._onDidChangeVisibility }));
 
 		const container = $('.chat-used-context-list');
 		this._register(createFileIconThemableTreeContainerScope(container, this.themeService));
 
 		const list = this.instantiationService.createInstance(
-			WorkbenchList<IChatContentReference | IChatWarningMessage>,
+			WorkbenchList<IChatCollapsibleListItem>,
 			'ChatListRenderer',
 			container,
-			new ContentReferencesListDelegate(),
-			[this.instantiationService.createInstance(ContentReferencesListRenderer, resourceLabels)],
+			new CollapsibleListDelegate(),
+			[this.instantiationService.createInstance(CollapsibleListRenderer, resourceLabels)],
 			{
 				alwaysConsumeMouseWheel: false,
 				accessibilityProvider: {
-					getAriaLabel: (element: IChatContentReference | IChatWarningMessage) => {
+					getAriaLabel: (element: IChatCollapsibleListItem) => {
 						if (element.kind === 'warning') {
 							return element.content.value;
 						}
@@ -174,10 +181,10 @@ export class ContentReferencesListPool extends Disposable {
 						}
 					},
 
-					getWidgetAriaLabel: () => localize('usedReferences', "Used References")
+					getWidgetAriaLabel: () => localize('chatCollapsibleList', "Collapsible Chat List")
 				},
 				dnd: {
-					getDragURI: (element: IChatContentReference | IChatWarningMessage) => {
+					getDragURI: (element: IChatCollapsibleListItem) => {
 						if (element.kind === 'warning') {
 							return null;
 						}
@@ -199,7 +206,7 @@ export class ContentReferencesListPool extends Disposable {
 		return list;
 	}
 
-	get(): IDisposableReference<WorkbenchList<IChatContentReference | IChatWarningMessage>> {
+	get(): IDisposableReference<WorkbenchList<IChatCollapsibleListItem>> {
 		const object = this._pool.get();
 		let stale = false;
 		return {
@@ -213,24 +220,24 @@ export class ContentReferencesListPool extends Disposable {
 	}
 }
 
-class ContentReferencesListDelegate implements IListVirtualDelegate<IChatContentReference | IChatWarningMessage> {
-	getHeight(element: IChatContentReference): number {
+class CollapsibleListDelegate implements IListVirtualDelegate<IChatCollapsibleListItem> {
+	getHeight(element: IChatCollapsibleListItem): number {
 		return 22;
 	}
 
-	getTemplateId(element: IChatContentReference): string {
-		return ContentReferencesListRenderer.TEMPLATE_ID;
+	getTemplateId(element: IChatCollapsibleListItem): string {
+		return CollapsibleListRenderer.TEMPLATE_ID;
 	}
 }
 
-interface IChatContentReferenceListTemplate {
+interface ICollapsibleListTemplate {
 	label: IResourceLabel;
 	templateDisposables: IDisposable;
 }
 
-class ContentReferencesListRenderer implements IListRenderer<IChatContentReference | IChatWarningMessage, IChatContentReferenceListTemplate> {
-	static TEMPLATE_ID = 'contentReferencesListRenderer';
-	readonly templateId: string = ContentReferencesListRenderer.TEMPLATE_ID;
+class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem, ICollapsibleListTemplate> {
+	static TEMPLATE_ID = 'chatCollapsibleListRenderer';
+	readonly templateId: string = CollapsibleListRenderer.TEMPLATE_ID;
 
 	constructor(
 		private labels: ResourceLabels,
@@ -238,7 +245,7 @@ class ContentReferencesListRenderer implements IListRenderer<IChatContentReferen
 		@IChatVariablesService private readonly chatVariablesService: IChatVariablesService,
 	) { }
 
-	renderTemplate(container: HTMLElement): IChatContentReferenceListTemplate {
+	renderTemplate(container: HTMLElement): ICollapsibleListTemplate {
 		const templateDisposables = new DisposableStore();
 		const label = templateDisposables.add(this.labels.create(container, { supportHighlights: true }));
 		return { templateDisposables, label };
@@ -255,7 +262,7 @@ class ContentReferencesListRenderer implements IListRenderer<IChatContentReferen
 		}
 	}
 
-	renderElement(data: IChatContentReference | IChatWarningMessage, index: number, templateData: IChatContentReferenceListTemplate, height: number | undefined): void {
+	renderElement(data: IChatCollapsibleListItem, index: number, templateData: ICollapsibleListTemplate, height: number | undefined): void {
 		if (data.kind === 'warning') {
 			templateData.label.setResource({ name: data.content.value }, { icon: Codicon.warning });
 			return;
@@ -273,27 +280,33 @@ class ContentReferencesListRenderer implements IListRenderer<IChatContentReferen
 						name: basenameOrAuthority(uri),
 						description: `#${reference.variableName}`,
 						range: 'range' in reference.value ? reference.value.range : undefined,
-					}, { icon });
+					}, { icon, title: data.title });
 			} else {
 				const variable = this.chatVariablesService.getVariable(reference.variableName);
 				templateData.label.setLabel(`#${reference.variableName}`, undefined, { title: variable?.description });
 			}
 		} else {
 			const uri = 'uri' in reference ? reference.uri : reference;
-			if (matchesSomeScheme(uri, Schemas.mailto, Schemas.http, Schemas.https)) {
-				templateData.label.setResource({ resource: uri, name: uri.toString() }, { icon: icon ?? Codicon.globe });
+			if (uri.scheme === 'https' && uri.authority === 'github.com' && uri.path.includes('/tree/')) {
+				// Parse a nicer label for GitHub URIs that point at a particular commit + file
+				const label = uri.path.split('/').slice(1, 3).join('/');
+				const description = uri.path.split('/').slice(5).join('/');
+				templateData.label.setResource({ resource: uri, name: label, description }, { icon: Codicon.github, title: data.title });
+			} else if (matchesSomeScheme(uri, Schemas.mailto, Schemas.http, Schemas.https)) {
+				templateData.label.setResource({ resource: uri, name: uri.toString() }, { icon: icon ?? Codicon.globe, title: data.title });
 			} else {
 				templateData.label.setFile(uri, {
 					fileKind: FileKind.FILE,
 					// Should not have this live-updating data on a historical reference
 					fileDecorations: { badges: false, colors: false },
-					range: 'range' in reference ? reference.range : undefined
+					range: 'range' in reference ? reference.range : undefined,
+					title: data.title
 				});
 			}
 		}
 	}
 
-	disposeTemplate(templateData: IChatContentReferenceListTemplate): void {
+	disposeTemplate(templateData: ICollapsibleListTemplate): void {
 		templateData.templateDisposables.dispose();
 	}
 }
