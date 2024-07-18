@@ -3,6 +3,8 @@
 #   Licensed under the MIT License. See License.txt in the project root for license information.
 # ---------------------------------------------------------------------------------------------
 
+using module ".\GitTabExpansion.psm1"
+
 # Prevent installing more than once per session
 if (Test-Path variable:global:__VSCodeOriginalPrompt) {
 	return;

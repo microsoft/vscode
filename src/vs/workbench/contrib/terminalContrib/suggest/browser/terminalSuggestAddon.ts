@@ -289,12 +289,11 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 		let replacementIndex = 0;
 		let replacementLength = this._promptInputModel.cursorIndex;
+		this._leadingLineContent = this._promptInputModel.value.substring(0, this._promptInputModel.cursorIndex);
 
 		const payload = data.slice(command.length + args[0].length + args[1].length + args[2].length + 4/*semi-colons*/);
 		const rawCompletions: PwshCompletion | PwshCompletion[] | CompressedPwshCompletion[] | CompressedPwshCompletion = args.length === 0 || payload.length === 0 ? undefined : JSON.parse(payload);
-		const completions = parseCompletionsFromShell(rawCompletions);
-
-		this._leadingLineContent = this._promptInputModel.value.substring(0, this._promptInputModel.cursorIndex);
+		const completions = parseCompletionsFromShell(this._leadingLineContent, rawCompletions);
 
 		const firstChar = this._leadingLineContent.length === 0 ? '' : this._leadingLineContent[0];
 		// This is a TabExpansion2 result
@@ -595,14 +594,14 @@ class PersistedWidgetSize {
 	}
 }
 
-export function parseCompletionsFromShell(rawCompletions: PwshCompletion | PwshCompletion[] | CompressedPwshCompletion[] | CompressedPwshCompletion) {
+export function parseCompletionsFromShell(leadingLineContent: string, rawCompletions: PwshCompletion | PwshCompletion[] | CompressedPwshCompletion[] | CompressedPwshCompletion) {
 	if (!rawCompletions) {
 		return [];
 	}
 	if (!Array.isArray(rawCompletions)) {
 		return [rawCompletions].map(e => (new SimpleCompletionItem({
 			label: e.CompletionText,
-			icon: pwshTypeToIconMap[e.ResultType],
+			icon: getIcon(e.ResultType, e.ToolTip),
 			detail: e.ToolTip
 		})));
 	}
@@ -612,20 +611,39 @@ export function parseCompletionsFromShell(rawCompletions: PwshCompletion | PwshC
 	if (typeof rawCompletions[0] === 'string') {
 		return [rawCompletions as CompressedPwshCompletion].map(e => (new SimpleCompletionItem({
 			label: e[0],
-			icon: pwshTypeToIconMap[e[1]],
+			icon: getIcon(e[1], e[2]),
 			detail: e[2]
 		})));
 	}
 	if (Array.isArray(rawCompletions[0])) {
 		return (rawCompletions as CompressedPwshCompletion[]).map(e => (new SimpleCompletionItem({
 			label: e[0],
-			icon: pwshTypeToIconMap[e[1]],
+			icon: getIcon(e[1], e[2]),
 			detail: e[2]
 		})));
 	}
 	return (rawCompletions as PwshCompletion[]).map(e => (new SimpleCompletionItem({
-		label: e.CompletionText, // e.ListItemText,
-		icon: pwshTypeToIconMap[e.ResultType],
+		label: e.CompletionText,
+		icon: getIcon(e.ResultType, e.ToolTip),
 		detail: e.ToolTip
 	})));
+}
+
+function getIcon(resultType: number, tooltip: string): ThemeIcon {
+	// Assume anything with type DynamicKeyword is a git branch
+	if (resultType === 13) {
+		if (tooltip.startsWith('branch ')) {
+			return Codicon.gitBranch;
+		}
+		if (tooltip.startsWith('tag ')) {
+			return Codicon.tag;
+		}
+		if (tooltip.startsWith('remote ')) {
+			return Codicon.remote;
+		}
+		if (tooltip.startsWith('stash ')) {
+			return Codicon.gitStash;
+		}
+	}
+	return pwshTypeToIconMap[resultType] ?? Codicon.symbolText;
 }
