@@ -5,9 +5,7 @@
 
 declare module 'vscode' {
 
-	export interface FindFiles2Options {
-		// note: this is just FindTextInFilesOptions without select properties (include, previewOptions, beforeContext, afterContext)
-
+	export interface FindFiles2OptionsNew {
 		/**
 		 * A {@link GlobPattern glob pattern} that defines files and folders to exclude. The glob pattern
 		 * will be matched against the file paths of resulting matches relative to their workspace.
@@ -15,14 +13,9 @@ declare module 'vscode' {
 		exclude?: GlobPattern;
 
 		/**
-		 * Whether to use the values for files.exclude. Defaults to true.
+		 * Which settings to follow when searching for files. Defaults to {@link ExcludeSettingOptions.searchAndFilesExclude}.
 		 */
-		useDefaultExcludes?: boolean;
-
-		/**
-		 * Whether to use the values for search.exclude. Defaults to true. Will not be followed if `useDefaultExcludes` is set to `false`.
-		 */
-		useDefaultSearchExcludes?: boolean;
+		useExcludeSettings?: ExcludeSettingOptions;
 
 		/**
 		 * The maximum number of results to search for
@@ -30,40 +23,39 @@ declare module 'vscode' {
 		maxResults?: number;
 
 		/**
-		 * Whether external files that exclude files, like .gitignore, should be respected.
-		 * Defaults to the value for `search.useIgnoreFiles` in settings.
-		 * For more info, see the setting listed above.
+		 * Which file locations we should look for ignore (.gitignore or .ignore) files to respect.
+		 *
+		 * When any of these fields are `undefined`, we will:
+		 * - assume the value if possible (e.g. if only one is valid)
+		 * or
+		 * - follow settings using the value for the corresponding `search.use*IgnoreFiles` settting.
+		 *
+		 * Will log an error if an invalid combination is set.
 		 */
-		useIgnoreFiles?: boolean;
-
-		/**
-		 * Whether global files that exclude files, like .gitignore, should be respected.
-		 * Must set `useIgnoreFiles` to `true` to use this.
-		 * Defaults to the value for `search.useGlobalIgnoreFiles` in settings.
-		 * For more info, see the setting listed above.
-		 */
-		useGlobalIgnoreFiles?: boolean;
-
-		/**
-		 * Whether files in parent directories that exclude files, like .gitignore, should be respected.
-		 * Must set `useIgnoreFiles` to `true` to use this.
-		 * Defaults to the value for `search.useParentIgnoreFiles` in settings.
-		 * For more info, see the setting listed above.
-		 */
-		useParentIgnoreFiles?: boolean;
+		useIgnoreFiles?: {
+			/**
+			 * Use ignore files at the current workspace root.
+			 * May default to `search.useIgnoreFiles` setting if not set.
+			 */
+			local?: boolean;
+			/**
+			 * Use ignore files at the parent directory. When set to `true`, {@link FindFiles2OptionsNew.useIgnoreFiles.local} must also be `true`.
+			 * May default to `search.useParentIgnoreFiles` setting if not set.
+			 */
+			parent?: boolean;
+			/**
+			 * Use global ignore files. When set to `true`, {@link FindFiles2OptionsNew.useIgnoreFiles.local} must also be `true`.
+			 * May default to `search.useGlobalIgnoreFiles` setting if not set.
+			 */
+			global?: boolean;
+		};
 
 		/**
 		 * Whether symlinks should be followed while searching.
 		 * Defaults to the value for `search.followSymlinks` in settings.
-		 * For more info, see the setting listed above.
+		 * For more info, see the setting description for `search.followSymlinks`.
 		 */
 		followSymlinks?: boolean;
-
-		/**
-		 * If set to true, the `filePattern` arg will be fuzzy-searched instead of glob-searched.
-		 * If `filePattern` is a {@link RelativePattern relative pattern}, then the fuzzy search will act on the `pattern` of the {@link RelativePattern RelativePattern}
-		 */
-		fuzzy?: boolean;
 	}
 
 	/**
@@ -84,6 +76,6 @@ declare module 'vscode' {
 		 * @returns A thenable that resolves to an array of resource identifiers. Will return no results if no
 		 * {@link workspace.workspaceFolders workspace folders} are opened.
 		 */
-		export function findFiles2(filePattern: GlobPattern, options?: FindFiles2Options, token?: CancellationToken): Thenable<Uri[]>;
+		export function findFiles2(filePattern: GlobPattern[], options?: FindFiles2OptionsNew, token?: CancellationToken): Thenable<Uri[]>;
 	}
 }

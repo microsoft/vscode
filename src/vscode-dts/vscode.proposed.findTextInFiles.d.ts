@@ -12,63 +12,52 @@ declare module 'vscode' {
 	 */
 	export interface FindTextInFilesOptions {
 		/**
+		 * A {@link GlobPattern glob pattern} that defines the files to search for. The glob pattern
+		 * will be matched against the file paths of files relative to their workspace. Use a {@link RelativePattern relative pattern}
+		 * to restrict the search results to a {@link WorkspaceFolder workspace folder}.
+		 */
+		include?: GlobPattern;
+
+		/**
 		 * A {@link GlobPattern glob pattern} that defines files and folders to exclude. The glob pattern
-		 * will be matched against the file paths of resulting matches relative to their workspace.
+		 * will be matched against the file paths of resulting matches relative to their workspace. When `undefined`, default excludes will
+		 * apply.
 		 */
 		exclude?: GlobPattern;
 
 		/**
-		 * Which settings to follow when searching for files. Defaults to {@link ExcludeSettingOptions.searchAndFilesExclude}.
+		 * Whether to use the default and user-configured excludes. Defaults to true.
 		 */
-		useExcludeSettings?: ExcludeSettingOptions;
+		useDefaultExcludes?: boolean;
 
 		/**
 		 * The maximum number of results to search for
 		 */
 		maxResults?: number;
 
+		/**
+		 * Whether external files that exclude files, like .gitignore, should be respected.
+		 * See the vscode setting `"search.useIgnoreFiles"`.
+		 */
+		useIgnoreFiles?: boolean;
 
 		/**
-		 * Which file locations we should look for ignore (.gitignore or .ignore) files to respect.
-		 *
-		 * When any of these fields are `undefined`, we will:
-		 * - assume the value if possible (e.g. if only one is valid)
-		 * or
-		 * - follow settings using the value for the corresponding `search.use*IgnoreFiles` settting.
-		 *
-		 * Will log an error if an invalid combination is set.
+		 * Whether global files that exclude files, like .gitignore, should be respected.
+		 * See the vscode setting `"search.useGlobalIgnoreFiles"`.
 		 */
-		useIgnoreFiles?: {
-			/**
-			 * Use ignore files at the current workspace root.
-			 * May default to `search.useIgnoreFiles` setting if not set.
-			 */
-			local?: boolean;
-			/**
-			 * Use ignore files at the parent directory. When set to `true`, {@link FindTextInFilesOptions.useIgnoreFiles.local} must be `true`.
-			 * May default to `search.useParentIgnoreFiles` setting if not set.
-			 */
-			parent?: boolean;
-			/**
-			 * Use global ignore files. When set to `true`, {@link FindTextInFilesOptions.useIgnoreFiles.local} must also be `true`.
-			 * May default to `search.useGlobalIgnoreFiles` setting if not set.
-			 */
-			global?: boolean;
-		};
+		useGlobalIgnoreFiles?: boolean;
+
+		/**
+		 * Whether files in parent directories that exclude files, like .gitignore, should be respected.
+		 * See the vscode setting `"search.useParentIgnoreFiles"`.
+		 */
+		useParentIgnoreFiles?: boolean;
 
 		/**
 		 * Whether symlinks should be followed while searching.
-		 * Defaults to the value for `search.followSymlinks` in settings.
-		 * For more info, see the setting description for `search.followSymlinks`.
+		 * See the vscode setting `"search.followSymlinks"`.
 		 */
 		followSymlinks?: boolean;
-
-		/**
-		 * A {@link GlobPattern glob pattern} that defines the files to search for. The glob pattern
-		 * will be matched against the file paths of files relative to their workspace. Use a {@link RelativePattern relative pattern}
-		 * to restrict the search results to a {@link WorkspaceFolder workspace folder}.
-		 */
-		include?: GlobPattern;
 
 		/**
 		 * Interpret files using this encoding.
@@ -79,58 +68,29 @@ declare module 'vscode' {
 		/**
 		 * Options to specify the size of the result text preview.
 		 */
-		previewOptions?: {
-			/**
-			 * The maximum number of lines in the preview.
-			 * Only search providers that support multiline search will ever return more than one line in the match.
-			 */
-			matchLines?: number;
-
-			/**
-			 * The maximum number of characters included per line.
-			 */
-			charsPerLine?: number;
-		};
+		previewOptions?: TextSearchPreviewOptions;
 
 		/**
-		 * Number of lines of context to include before and after each match.
+		 * Number of lines of context to include before each match.
 		 */
-		surroundingContext?: number;
-	}
+		beforeContext?: number;
 
-	export interface FindTextInFilesResponse {
 		/**
-		 * The results of the text search, in batches. To get completion information, wait on the `complete` property.
+		 * Number of lines of context to include after each match.
 		 */
-		results: AsyncIterable<TextSearchResult>;
-		/**
-		 * The text search completion information. This resolves on completion.
-		 */
-		complete: Thenable<TextSearchComplete>;
-	}
-
-	/*
-	* Options for following search.exclude and files.exclude settings.
-	*/
-	export enum ExcludeSettingOptions {
-		/*
-		 * Don't use any exclude settings.
-		 */
-		none = 1,
-		/*
-		 * Use:
-		 * - files.exclude setting
-		 */
-		filesExclude = 2,
-		/*
-		 * Use:
-		 * - files.exclude setting
-		 * - search.exclude setting
-		 */
-		searchAndFilesExclude = 3
+		afterContext?: number;
 	}
 
 	export namespace workspace {
+		/**
+		 * Search text in files across all {@link workspace.workspaceFolders workspace folders} in the workspace.
+		 * @param query The query parameters for the search - the search string, whether it's case-sensitive, or a regex, or matches whole words.
+		 * @param callback A callback, called for each result
+		 * @param token A token that can be used to signal cancellation to the underlying search engine.
+		 * @return A thenable that resolves when the search is complete.
+		 */
+		export function findTextInFiles(query: TextSearchQuery, callback: (result: TextSearchResult) => void, token?: CancellationToken): Thenable<TextSearchComplete>;
+
 		/**
 		 * Search text in files across all {@link workspace.workspaceFolders workspace folders} in the workspace.
 		 * @param query The query parameters for the search - the search string, whether it's case-sensitive, or a regex, or matches whole words.
@@ -139,6 +99,6 @@ declare module 'vscode' {
 		 * @param token A token that can be used to signal cancellation to the underlying search engine.
 		 * @return A thenable that resolves when the search is complete.
 		 */
-		export function findTextInFiles(query: TextSearchQuery, options?: FindTextInFilesOptions, token?: CancellationToken): FindTextInFilesResponse;
+		export function findTextInFiles(query: TextSearchQuery, options: FindTextInFilesOptions, callback: (result: TextSearchResult) => void, token?: CancellationToken): Thenable<TextSearchComplete>;
 	}
 }

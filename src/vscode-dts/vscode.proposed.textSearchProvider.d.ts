@@ -38,51 +38,77 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * A file glob pattern to match file paths against.
+	 * TODO@roblourens merge this with the GlobPattern docs/definition in vscode.d.ts.
+	 * @see {@link GlobPattern}
+	 */
+	export type GlobString = string;
+
+	/**
+	 * Options common to file and text search
+	 */
+	export interface SearchOptions {
+		/**
+		 * The root folder to search within.
+		 */
+		folder: Uri;
+
+		/**
+		 * Files that match an `includes` glob pattern should be included in the search.
+		 */
+		includes: GlobString[];
+
+		/**
+		 * Files that match an `excludes` glob pattern should be excluded from the search.
+		 */
+		excludes: GlobString[];
+
+		/**
+		 * Whether external files that exclude files, like .gitignore, should be respected.
+		 * See the vscode setting `"search.useIgnoreFiles"`.
+		 */
+		useIgnoreFiles: boolean;
+
+		/**
+		 * Whether symlinks should be followed while searching.
+		 * See the vscode setting `"search.followSymlinks"`.
+		 */
+		followSymlinks: boolean;
+
+		/**
+		 * Whether global files that exclude files, like .gitignore, should be respected.
+		 * See the vscode setting `"search.useGlobalIgnoreFiles"`.
+		 */
+		useGlobalIgnoreFiles: boolean;
+
+		/**
+		 * Whether files in parent directories that exclude files, like .gitignore, should be respected.
+		 * See the vscode setting `"search.useParentIgnoreFiles"`.
+		 */
+		useParentIgnoreFiles: boolean;
+	}
+
+	/**
+	 * Options to specify the size of the result text preview.
+	 * These options don't affect the size of the match itself, just the amount of preview text.
+	 */
+	export interface TextSearchPreviewOptions {
+		/**
+		 * The maximum number of lines in the preview.
+		 * Only search providers that support multiline search will ever return more than one line in the match.
+		 */
+		matchLines: number;
+
+		/**
+		 * The maximum number of characters included per line.
+		 */
+		charsPerLine: number;
+	}
+
+	/**
 	 * Options that apply to text search.
 	 */
-	export interface TextSearchProviderOptions {
-
-		folderOptions: {
-			/**
-			 * The root folder to search within.
-			 */
-			folder: Uri;
-
-			/**
-			 * Files that match an `includes` glob pattern should be included in the search.
-			 */
-			includes: string[];
-
-			/**
-			 * Files that match an `excludes` glob pattern should be excluded from the search.
-			 */
-			excludes: GlobPattern[];
-
-			/**
-			 * Whether symlinks should be followed while searching.
-			 * For more info, see the setting description for `search.followSymlinks`.
-			 */
-			followSymlinks: boolean;
-
-			/**
-			 * Which file locations we should look for ignore (.gitignore or .ignore) files to respect.
-			 */
-			useIgnoreFiles: {
-				/**
-				 * Use ignore files at the current workspace root.
-				 */
-				local: boolean;
-				/**
-				 * Use ignore files at the parent directory. If set, {@link TextSearchProviderOptions.useIgnoreFiles.local} should also be `true`.
-				 */
-				parent: boolean;
-				/**
-				 * Use global ignore files. If set, {@link TextSearchProviderOptions.useIgnoreFiles.local} should also be `true`.
-				 */
-				global: boolean;
-			};
-		}[];
-
+	export interface TextSearchOptions extends SearchOptions {
 		/**
 		 * The maximum number of results to be returned.
 		 */
@@ -91,34 +117,55 @@ declare module 'vscode' {
 		/**
 		 * Options to specify the size of the result text preview.
 		 */
-		previewOptions: {
-			/**
-			 * The maximum number of lines in the preview.
-			 * Only search providers that support multiline search will ever return more than one line in the match.
-			 */
-			matchLines: number;
-
-			/**
-			 * The maximum number of characters included per line.
-			 */
-			charsPerLine: number;
-		};
+		previewOptions?: TextSearchPreviewOptions;
 
 		/**
 		 * Exclude files larger than `maxFileSize` in bytes.
 		 */
-		maxFileSize: number;
+		maxFileSize?: number;
 
 		/**
 		 * Interpret files using this encoding.
 		 * See the vscode setting `"files.encoding"`
 		 */
-		encoding: string;
+		encoding?: string;
 
 		/**
-		 * Number of lines of context to include before and after each match.
+		 * Number of lines of context to include before each match.
 		 */
-		surroundingContext: number;
+		beforeContext?: number;
+
+		/**
+		 * Number of lines of context to include after each match.
+		 */
+		afterContext?: number;
+	}
+
+	/**
+	 * Represents the severity of a TextSearchComplete message.
+	 */
+	export enum TextSearchCompleteMessageType {
+		Information = 1,
+		Warning = 2,
+	}
+
+	/**
+	 * A message regarding a completed search.
+	 */
+	export interface TextSearchCompleteMessage {
+		/**
+		 * Markdown text of the message.
+		 */
+		text: string;
+		/**
+		 * Whether the source of the message is trusted, command links are disabled for untrusted message sources.
+		 * Messaged are untrusted by default.
+		 */
+		trusted?: boolean;
+		/**
+		 * The message type, this affects how the message will be rendered.
+		 */
+		type: TextSearchCompleteMessageType;
 	}
 
 	/**
@@ -127,61 +174,83 @@ declare module 'vscode' {
 	export interface TextSearchComplete {
 		/**
 		 * Whether the search hit the limit on the maximum number of search results.
-		 * `maxResults` on {@linkcode TextSearchProviderOptions} specifies the max number of results.
+		 * `maxResults` on {@linkcode TextSearchOptions} specifies the max number of results.
 		 * - If exactly that number of matches exist, this should be false.
 		 * - If `maxResults` matches are returned and more exist, this should be true.
 		 * - If search hits an internal limit which is less than `maxResults`, this should be true.
 		 */
 		limitHit?: boolean;
+
+		/**
+		 * Additional information regarding the state of the completed search.
+		 *
+		 * Messages with "Information" style support links in markdown syntax:
+		 * - Click to [run a command](command:workbench.action.OpenQuickPick)
+		 * - Click to [open a website](https://aka.ms)
+		 *
+		 * Commands may optionally return { triggerSearch: true } to signal to the editor that the original search should run be again.
+		 */
+		message?: TextSearchCompleteMessage | TextSearchCompleteMessage[];
 	}
 
 	/**
-	 * The main match information for a {@link TextSearchResult}.
+	 * A preview of the text result.
 	 */
-	interface TextSearchMatch {
-		ranges: {
-			/**
-			 * The range of the match within the document, or multiple ranges for multiple matches.
-			 */
-			sourceRange: Range;
-			/**
-			 * The Range within `previewText` corresponding to the text of the match.
-			 */
-			previewRange: Range;
-		}[];
+	export interface TextSearchMatchPreview {
+		/**
+		 * The matching lines of text, or a portion of the matching line that contains the match.
+		 */
+		text: string;
 
-		previewText: string;
+		/**
+		 * The Range within `text` corresponding to the text of the match.
+		 * The number of matches must match the TextSearchMatch's range property.
+		 */
+		matches: Range | Range[];
 	}
 
 	/**
-	 * A result payload for a text search, pertaining to matches within a single file.
+	 * A match from a text search
 	 */
-	export interface TextSearchResult {
+	export interface TextSearchMatch {
 		/**
 		 * The uri for the matching document.
 		 */
 		uri: Uri;
-		/**
-		 * The match corresponding to this result
-		 */
-		match: TextSearchMatch;
-		/**
-		 * Any applicable context lines
-		 */
-		surroundingContext: {
 
-			/**
-			 * One line of text.
-			 * previewOptions.charsPerLine applies to this
-			 */
-			text: string;
+		/**
+		 * The range of the match within the document, or multiple ranges for multiple matches.
+		 */
+		ranges: Range | Range[];
 
-			/**
-			 * The line number of this line of context.
-			 */
-			lineNumber: number;
-		}[];
+		/**
+		 * A preview of the text match.
+		 */
+		preview: TextSearchMatchPreview;
 	}
+
+	/**
+	 * A line of context surrounding a TextSearchMatch.
+	 */
+	export interface TextSearchContext {
+		/**
+		 * The uri for the matching document.
+		 */
+		uri: Uri;
+
+		/**
+		 * One line of text.
+		 * previewOptions.charsPerLine applies to this
+		 */
+		text: string;
+
+		/**
+		 * The line number of this line of context.
+		 */
+		lineNumber: number;
+	}
+
+	export type TextSearchResult = TextSearchMatch | TextSearchContext;
 
 	/**
 	 * A TextSearchProvider provides search results for text results inside files in the workspace.
@@ -194,7 +263,7 @@ declare module 'vscode' {
 		 * @param progress A progress callback that must be invoked for all results.
 		 * @param token A cancellation token.
 		 */
-		provideTextSearchResults(query: TextSearchQuery, options: TextSearchProviderOptions, progress: Progress<TextSearchResult>, token: CancellationToken): ProviderResult<TextSearchComplete>;
+		provideTextSearchResults(query: TextSearchQuery, options: TextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): ProviderResult<TextSearchComplete>;
 	}
 
 	export namespace workspace {

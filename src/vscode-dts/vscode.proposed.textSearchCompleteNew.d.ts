@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 declare module 'vscode' {
-	export interface TextSearchComplete {
+	export interface TextSearchCompleteNew {
 		/**
 		 * Additional information regarding the state of the completed search.
 		 *
@@ -14,13 +14,13 @@ declare module 'vscode' {
 		 *
 		 * Commands may optionally return { triggerSearch: true } to signal to the editor that the original search should run be again.
 		 */
-		message?: TextSearchCompleteMessage[];
+		message?: TextSearchCompleteMessageNew[];
 	}
 
 	/**
 	 * A message regarding a completed search.
 	 */
-	export interface TextSearchCompleteMessage {
+	export interface TextSearchCompleteMessageNew {
 		/**
 		 * Markdown text of the message.
 		 */
@@ -33,13 +33,13 @@ declare module 'vscode' {
 		/**
 		 * The message type, this affects how the message will be rendered.
 		 */
-		type: TextSearchCompleteMessageType;
+		type: TextSearchCompleteMessageTypeNew;
 	}
 
 	/**
 	 * Represents the severity of a TextSearchComplete message.
 	 */
-	export enum TextSearchCompleteMessageType {
+	export enum TextSearchCompleteMessageTypeNew {
 		Information = 1,
 		Warning = 2,
 	}

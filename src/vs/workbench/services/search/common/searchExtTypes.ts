@@ -120,22 +120,6 @@ export interface TextSearchQuery {
 	isWordMatch?: boolean;
 }
 
-/**
- * Options to specify the size of the result text preview.
- * These options don't affect the size of the match itself, just the amount of preview text.
- */
-export interface TextSearchPreviewOptions {
-	/**
-	 * The maximum number of lines in the preview.
-	 * Only search providers that support multiline search will ever return more than one line in the match.
-	 */
-	matchLines: number;
-
-	/**
-	 * The maximum number of characters included per line.
-	 */
-	charsPerLine: number;
-}
 
 /**
  * Options that apply to text search.
@@ -223,32 +207,6 @@ export interface TextSearchProviderOptions {
 
 
 /**
- * Represents the severity of a TextSearchComplete message.
- */
-export enum TextSearchCompleteMessageType {
-	Information = 1,
-	Warning = 2,
-}
-
-/**
- * A message regarding a completed search.
- */
-export interface TextSearchCompleteMessage {
-	/**
-	 * Markdown text of the message.
-	 */
-	text: string;
-	/**
-	 * Whether the source of the message is trusted, command links are disabled for untrusted message sources.
-	 */
-	trusted?: boolean;
-	/**
-	 * The message type, this affects how the message will be rendered.
-	 */
-	type: TextSearchCompleteMessageType;
-}
-
-/**
  * Information collected when text search is complete.
  */
 export interface TextSearchComplete {
@@ -319,21 +277,6 @@ export interface FileSearchOptions {
 	};
 }
 
-/**
- * A preview of the text result.
- */
-export interface TextSearchMatchPreview {
-	/**
-	 * The matching lines of text, or a portion of the matching line that contains the match.
-	 */
-	text: string;
-
-	/**
-	 * The Range within `text` corresponding to the text of the match.
-	 * The number of matches must match the TextSearchMatch's range property.
-	 */
-	matches: Range | Range[];
-}
 
 /**
  * The main match information for a {@link TextSearchResult}.
