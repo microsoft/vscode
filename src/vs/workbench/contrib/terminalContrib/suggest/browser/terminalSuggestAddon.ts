@@ -475,7 +475,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._suggestWidget?.selectNextPage();
 	}
 
-	acceptSelectedSuggestion(suggestion?: Pick<ISimpleSelectedSuggestion, 'item' | 'model'>): void {
+	acceptSelectedSuggestion(suggestion?: Pick<ISimpleSelectedSuggestion, 'item' | 'model'>, respectRunOnEnter?: boolean): void {
 		if (!suggestion) {
 			suggestion = this._suggestWidget?.getFocusedItem();
 		}
@@ -506,6 +506,31 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			rightSideReplacementText = currentPromptInputState.value.substring(currentPromptInputState.cursorIndex, spaceIndex === -1 ? undefined : currentPromptInputState.cursorIndex + spaceIndex);
 		}
 
+		const completion = suggestion.item.completion;
+		const completionText = completion.completionText ?? completion.label;
+
+		let runOnEnter = false;
+		if (respectRunOnEnter) {
+			const runOnEnterConfig = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection).runOnEnter;
+			switch (runOnEnterConfig) {
+				case 'always': {
+					runOnEnter = true;
+					break;
+				}
+				case 'exactMatch': {
+					runOnEnter = replacementText.toLowerCase() === completionText.toLowerCase();
+					break;
+				}
+				case 'exactMatchIgnoreExtension': {
+					runOnEnter = replacementText.toLowerCase() === completionText.toLowerCase();
+					if (completion.icon === Codicon.symbolFile || completion.icon === Codicon.symbolMethod) {
+						runOnEnter ||= replacementText.toLowerCase() === completionText.toLowerCase().replace(/\.[^\.]+$/, '');
+					}
+					break;
+				}
+			}
+		}
+
 		// Send the completion
 		this._onAcceptedCompletion.fire([
 			// Backspace (left) to remove all additional input
@@ -513,7 +538,9 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			// Delete (right) to remove any additional text in the same word
 			'\x1b[3~'.repeat(rightSideReplacementText.length),
 			// Write the completion
-			suggestion.item.completion.completionText ?? suggestion.item.completion.label,
+			completion.completionText ?? completion.label,
+			// Run on enter if needed
+			runOnEnter ? '\r' : ''
 		].join(''));
 
 		this.hideSuggestWidget();

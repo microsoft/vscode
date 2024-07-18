@@ -205,12 +205,24 @@ registerActiveInstanceAction({
 	f1: false,
 	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
 	keybinding: {
-		primary: KeyCode.Enter,
-		secondary: [KeyCode.Tab],
-		// Enter is bound to other workbench keybindings that this needs to beat
+		primary: KeyCode.Tab,
+		// Tab is bound to other workbench keybindings that this needs to beat
 		weight: KeybindingWeight.WorkbenchContrib + 1
 	},
 	run: (activeInstance) => TerminalSuggestContribution.get(activeInstance)?.addon?.acceptSelectedSuggestion()
+});
+
+registerActiveInstanceAction({
+	id: TerminalSuggestCommandId.AcceptSelectedSuggestionEnter,
+	title: localize2('workbench.action.terminal.acceptSelectedSuggestionEnter', 'Accept Selected Suggestion (Enter)'),
+	f1: false,
+	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
+	keybinding: {
+		primary: KeyCode.Enter,
+		// Enter is bound to other workbench keybindings that this needs to beat
+		weight: KeybindingWeight.WorkbenchContrib + 1
+	},
+	run: (activeInstance) => TerminalSuggestContribution.get(activeInstance)?.addon?.acceptSelectedSuggestion(undefined, true)
 });
 
 registerActiveInstanceAction({
