@@ -58,13 +58,20 @@ export class TextModelTreeSitter extends Disposable {
 		}
 
 		const treeSitterTree = this._languageSessionDisposables.add(new TreeSitterTree(new Parser(), language));
-		this._languageSessionDisposables.add(this.model.onDidChangeContent(e => this._onDidChangeContent(treeSitterTree, e)));
-		await this._onDidChangeContent(treeSitterTree);
+		this._languageSessionDisposables.add(this.model.onDidChangeContent(e => this._queueOnDidChangeContent(treeSitterTree, e)));
+		await this._queueOnDidChangeContent(treeSitterTree);
 		if (token.isCancellationRequested) {
 			return;
 		}
 
 		this._treeSitterTree = treeSitterTree;
+	}
+
+	private _onDidChangeContentQueue: Promise<void> = Promise.resolve();
+	private async _queueOnDidChangeContent(treeSitterTree: TreeSitterTree, e?: IModelContentChangedEvent) {
+		await this._onDidChangeContentQueue;
+		this._onDidChangeContentQueue = this._onDidChangeContentQueue.then(() => this._onDidChangeContent(treeSitterTree, e)).catch(() => { });
+		return this._onDidChangeContentQueue;
 	}
 
 	private async _onDidChangeContent(treeSitterTree: TreeSitterTree, e?: IModelContentChangedEvent) {
@@ -89,7 +96,6 @@ export class TextModelTreeSitter extends Disposable {
 
 	override dispose() {
 		super.dispose();
-		this._languageSessionDisposables.dispose();
 	}
 }
 

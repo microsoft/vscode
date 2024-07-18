@@ -40,6 +40,7 @@ class MockTreeSitterImporter extends TreeSitterImporter {
 
 class MockTree implements Parser.Tree {
 	editorLanguage: string = '';
+	editorContents: string = '';
 	rootNode: Parser.SyntaxNode = {} as any;
 	rootNodeWithOffset(offsetBytes: number, offsetExtent: Parser.Point): Parser.SyntaxNode {
 		throw new Error('Method not implemented.');
@@ -49,7 +50,7 @@ class MockTree implements Parser.Tree {
 	}
 	delete(): void { }
 	edit(edit: Parser.Edit): Parser.Tree {
-		throw new Error('Method not implemented.');
+		return this;
 	}
 	walk(): Parser.TreeCursor {
 		throw new Error('Method not implemented.');
@@ -103,19 +104,7 @@ class MockLanguage implements Parser.Language {
 	languageId: string = '';
 }
 
-class MockTreeSitterParser extends TreeSitterParser {
-	public override async parse(model: ITextModel, treeSitterTree: TreeSitterTree): Promise<Parser.Tree | undefined> {
-		return new MockTree();
-	}
-	public override async getLanguage(languageId: string): Promise<Parser.Language | undefined> {
-		if (languageId === 'javascript') {
-			await timeout(200);
-		}
-		const language = new MockLanguage();
-		language.languageId = languageId;
-		return language;
-	}
-}
+
 
 suite('TreeSitterParserService', function () {
 	const treeSitterImporter: TreeSitterImporter = new MockTreeSitterImporter();
@@ -125,11 +114,52 @@ suite('TreeSitterParserService', function () {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('TextModelTreeSitter race condition: first language is slow to load', async function () {
+		class MockTreeSitterParser extends TreeSitterParser {
+			public override async parse(model: ITextModel, treeSitterTree: TreeSitterTree): Promise<Parser.Tree | undefined> {
+				return new MockTree();
+			}
+			public override async getLanguage(languageId: string): Promise<Parser.Language | undefined> {
+				if (languageId === 'javascript') {
+					await timeout(200);
+				}
+				const language = new MockLanguage();
+				language.languageId = languageId;
+				return language;
+			}
+		}
+
 		const treeSitterParser: TreeSitterParser = store.add(new MockTreeSitterParser(treeSitterImporter, {} as any, {} as any, {} as any));
 		const textModel = store.add(createTextModel('console.log("Hello, world!");', 'javascript'));
 		const textModelTreeSitter = store.add(new TextModelTreeSitter(textModel, treeSitterParser, treeSitterImporter));
 		textModel.setLanguage('typescript');
 		await timeout(300);
 		assert.strictEqual((textModelTreeSitter.tree?.language as MockLanguage).languageId, 'typescript');
+	});
+
+	test('TextModelTreeSitter race condition: earlier parse is much slower than later parse', async function () {
+		class MockTreeSitterParser extends TreeSitterParser {
+			private _parseCount = 0;
+			public override async parse(model: ITextModel, treeSitterTree: TreeSitterTree): Promise<Parser.Tree | undefined> {
+				const tree = new MockTree();
+				tree.editorContents = model.getValue();
+				this._parseCount++;
+				if (this._parseCount === 1) {
+					await timeout(200);
+				}
+				return tree;
+			}
+			public override async getLanguage(languageId: string): Promise<Parser.Language | undefined> {
+				return new MockLanguage();
+			}
+		}
+
+		const treeSitterParser: TreeSitterParser = store.add(new MockTreeSitterParser(treeSitterImporter, {} as any, {} as any, {} as any));
+		const textModel = store.add(createTextModel('console.log("Hello, world!");', 'typescript'));
+		const textModelTreeSitter = store.add(new TextModelTreeSitter(textModel, treeSitterParser, treeSitterImporter));
+		const secondEditorValue = 'console.log("Hi, world!");';
+		await timeout(100);
+		textModel.setValue(secondEditorValue);
+		await timeout(400);
+		assert.strictEqual((textModelTreeSitter.tree?.tree as MockTree).editorContents, secondEditorValue);
 	});
 });
