@@ -285,6 +285,8 @@ a {
 
 #issue-type {
 	cursor: pointer;
+	appearance: auto;
+	border: none;
 }
 
 #similar-issues {

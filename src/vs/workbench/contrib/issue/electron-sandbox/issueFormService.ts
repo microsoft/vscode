@@ -176,9 +176,9 @@ export class IssueFormService2 implements IIssueMainService {
 					data.issueBody = data.issueBody ?? issueBody;
 
 					// close issue reporter and re-open with new data
-					this.issueReporterWindow.close();
-					this.openAuxIssueReporter(data);
-					return;
+					// this.issueReporterWindow.close();
+					// this.openAuxIssueReporter(data);
+					// return;
 				}
 			}
 			this.issueReporterWindow.focus();
