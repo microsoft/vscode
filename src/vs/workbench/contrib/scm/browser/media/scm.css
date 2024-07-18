@@ -524,3 +524,26 @@
 .scm-repositories-view .scm-provider > .label > .name {
 	font-weight: normal;
 }
+
+/* History item hover */
+
+.monaco-hover.history-item-hover p:first-child {
+	margin-top: 4px;
+}
+
+.monaco-hover.history-item-hover p:last-child {
+	margin-bottom: 4px;
+}
+
+.monaco-hover.history-item-hover hr {
+	margin-top: 4px;
+	margin-bottom: 4px;
+}
+
+.monaco-hover.history-item-hover hr + p {
+	margin: 4px 0;
+}
+
+.monaco-hover.history-item-hover .markdown-hover .hover-contents:not(.code-hover-contents):not(.html-hover-contents) span:not(.codicon) {
+	margin-bottom: 0 !important;
+}

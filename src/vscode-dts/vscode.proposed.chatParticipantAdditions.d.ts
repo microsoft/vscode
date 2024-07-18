@@ -63,7 +63,13 @@ declare module 'vscode' {
 		constructor(title: string, message: string, data: any, buttons?: string[]);
 	}
 
-	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseDetectedParticipantPart | ChatResponseConfirmationPart;
+	export class ChatResponseCodeCitationPart {
+		value: Uri;
+		license: string;
+		constructor(value: Uri, license: string);
+	}
+
+	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseDetectedParticipantPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart;
 
 	export class ChatResponseWarningPart {
 		value: MarkdownString;
@@ -115,6 +121,8 @@ declare module 'vscode' {
 		warning(message: string | MarkdownString): void;
 
 		reference(value: Uri | Location | { variableName: string; value?: Uri | Location }, iconPath?: Uri | ThemeIcon | { light: Uri; dark: Uri }): void;
+
+		codeCitation(value: Uri, license: string): void;
 
 		push(part: ExtendedChatResponsePart): void;
 	}

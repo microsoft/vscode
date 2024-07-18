@@ -81,6 +81,12 @@ export interface IChatContentReference {
 	kind: 'reference';
 }
 
+export interface IChatCodeCitation {
+	value: URI;
+	license: string;
+	kind: 'codeCitation';
+}
+
 export interface IChatContentInlineReference {
 	inlineReference: URI | Location;
 	name?: string;
@@ -172,6 +178,7 @@ export type IChatProgress =
 	| IChatUsedContext
 	| IChatContentReference
 	| IChatContentInlineReference
+	| IChatCodeCitation
 	| IChatAgentDetection
 	| IChatProgressMessage
 	| IChatTask

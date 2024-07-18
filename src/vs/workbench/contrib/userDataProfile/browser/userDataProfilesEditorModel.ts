@@ -176,7 +176,7 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 			this.message = localize('profileNameRequired', "Profile name is required.");
 			return;
 		}
-		if (this.name !== this.getInitialName() && this.userDataProfilesService.profiles.some(p => p.name === this.name)) {
+		if (this.shouldValidateName() && this.name !== this.getInitialName() && this.userDataProfilesService.profiles.some(p => p.name === this.name)) {
 			this.message = localize('profileExists', "Profile with name {0} already exists.", this.name);
 			return;
 		}
@@ -266,6 +266,10 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 
 	getInitialName(): string {
 		return '';
+	}
+
+	shouldValidateName(): boolean {
+		return true;
 	}
 
 	save(): void {
@@ -562,16 +566,13 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 	}
 
 	getCopyFromName(): string | undefined {
-		if (isUserDataProfile(this.copyFrom)) {
-			if (this.copyFrom.isDefault) {
-				return localize('copy from default', "{0} (Copy)", this.copyFrom.name);
-			}
-			return this.copyFrom.name;
-		}
-		if (this.template) {
-			return this.template.name;
-		}
-		return undefined;
+		const name = isUserDataProfile(this.copyFrom)
+			? this.copyFrom.name
+			: this.template
+				? this.template.name : undefined;
+		return name === this.userDataProfilesService.defaultProfile.name
+			? localize('copy from default', "{0} (Copy)", name)
+			: name;
 	}
 
 	protected override async getChildrenForResourceType(resourceType: ProfileResourceType): Promise<IProfileChildElement[]> {
@@ -629,6 +630,10 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 				return [];
 		}
 		return [];
+	}
+
+	override shouldValidateName(): boolean {
+		return !this.copyFrom;
 	}
 
 	override getInitialName(): string {
@@ -857,6 +862,13 @@ export class UserDataProfilesEditorModel extends EditorModel {
 				if (e.disabled || e.message) {
 					previewProfileAction.enabled = createAction.enabled = !this.newProfileElement?.disabled && !this.newProfileElement?.message;
 				}
+				if (e.name) {
+					if (this.newProfileElement?.copyFrom && this.userDataProfilesService.profiles.some(p => p.name === this.newProfileElement?.name)) {
+						createAction.label = localize('replace', "Replace");
+					} else {
+						createAction.label = localize('create', "Create");
+					}
+				}
 			}));
 			this._profiles.push([this.newProfileElement, disposables]);
 			this._onDidChange.fire(this.newProfileElement);
@@ -981,7 +993,12 @@ export class UserDataProfilesEditorModel extends EditorModel {
 
 		if (profile && !profile.isTransient && this.newProfileElement) {
 			this.removeNewProfile();
-			this.onDidChangeProfiles({ added: [profile], removed: [], updated: [], all: this.userDataProfilesService.profiles });
+			const existing = this._profiles.find(([p]) => p.name === profile.name);
+			if (existing) {
+				this._onDidChange.fire(existing[0]);
+			} else {
+				this.onDidChangeProfiles({ added: [profile], removed: [], updated: [], all: this.userDataProfilesService.profiles });
+			}
 		}
 
 		return profile;

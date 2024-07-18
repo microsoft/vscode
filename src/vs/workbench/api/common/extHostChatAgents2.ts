@@ -194,6 +194,14 @@ class ChatAgentResponseStream {
 
 					return this;
 				},
+				codeCitation(value: vscode.Uri, license: string): void {
+					throwIfDone(this.codeCitation);
+					checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
+
+					const part = new extHostTypes.ChatResponseCodeCitationPart(value, license);
+					const dto = typeConvert.ChatResponseCodeCitationPart.from(part);
+					_report(dto);
+				},
 				textEdit(target, edits) {
 					throwIfDone(this.textEdit);
 					checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
@@ -229,7 +237,8 @@ class ChatAgentResponseStream {
 						part instanceof extHostTypes.ChatResponseMarkdownWithVulnerabilitiesPart ||
 						part instanceof extHostTypes.ChatResponseDetectedParticipantPart ||
 						part instanceof extHostTypes.ChatResponseWarningPart ||
-						part instanceof extHostTypes.ChatResponseConfirmationPart
+						part instanceof extHostTypes.ChatResponseConfirmationPart ||
+						part instanceof extHostTypes.ChatResponseCodeCitationPart
 					) {
 						checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
 					}

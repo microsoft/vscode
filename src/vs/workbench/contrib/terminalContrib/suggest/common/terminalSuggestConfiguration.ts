@@ -12,6 +12,7 @@ export const enum TerminalSuggestSettingId {
 	Enabled = 'terminal.integrated.suggest.enabled',
 	QuickSuggestions = 'terminal.integrated.suggest.quickSuggestions',
 	SuggestOnTriggerCharacters = 'terminal.integrated.suggest.suggestOnTriggerCharacters',
+	RunOnEnter = 'terminal.integrated.suggest.runOnEnter',
 }
 
 export const terminalSuggestConfigSection = 'terminal.integrated.suggest';
@@ -20,6 +21,7 @@ export interface ITerminalSuggestConfiguration {
 	enabled: boolean;
 	quickSuggestions: boolean;
 	suggestOnTriggerCharacters: boolean;
+	runOnEnter: 'never' | 'exactMatch' | 'exactMatchIgnoreExtension' | 'always';
 }
 
 export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
@@ -40,5 +42,17 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 		markdownDescription: localize('suggest.suggestOnTriggerCharacters', "Controls whether suggestions should automatically show up when typing trigger characters."),
 		type: 'boolean',
 		default: true,
+	},
+	[TerminalSuggestSettingId.RunOnEnter]: {
+		restricted: true,
+		markdownDescription: localize('suggest.runOnEnter', "Controls whether suggestions should run immediately when enter (not tab) is used to accept the result."),
+		enum: ['never', 'exactMatch', 'exactMatchIgnoreExtension', 'always'],
+		markdownEnumDescriptions: [
+			localize('runOnEnter.never', "Never run on enter."),
+			localize('runOnEnter.exactMatch', "Run on enter when the suggestion is typed in its entirety."),
+			localize('runOnEnter.exactMatchIgnoreExtension', "Run on enter when the suggestion is typed in its entirety or when a file is typed without its extension included."),
+			localize('runOnEnter.always', "Always run on enter.")
+		],
+		default: 'exactMatchIgnoreExtension',
 	},
 };

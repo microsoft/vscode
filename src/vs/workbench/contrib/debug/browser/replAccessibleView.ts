@@ -118,7 +118,7 @@ class ReplOutputAccessibleViewProvider extends Disposable implements IAccessible
 						// don't overwrite parent position
 						this._elementPositionMap.set(id, new Position(line, 1));
 					}
-					childContent.push(child.toString());
+					childContent.push('  ' + child.toString());
 					line++;
 				}
 				content.push(childContent.join('\n'));
