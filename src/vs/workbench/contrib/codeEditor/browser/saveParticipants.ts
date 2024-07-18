@@ -291,13 +291,11 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 	private async triggerCodeActionsCommand() {
 		if (this.configurationService.getValue<boolean>('editor.codeActions.triggerOnFocusChange') && this.configurationService.getValue<string>('files.autoSave') === 'afterDelay') {
 			const model = this.codeEditorService.getActiveCodeEditor()?.getModel();
-
 			if (!model) {
-				return;
+				return undefined;
 			}
 
 			const settingsOverrides = { overrideIdentifier: model.getLanguageId(), resource: model.uri };
-
 			const setting = this.configurationService.getValue<{ [kind: string]: string | boolean } | string[]>('editor.codeActionsOnSave', settingsOverrides);
 
 			if (!setting) {
@@ -311,14 +309,14 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 			const settingItems: string[] = Object.keys(setting).filter(x => setting[x] && setting[x] === 'always' && CodeActionKind.Source.contains(new HierarchicalKind(x)));
 
 			const cancellationTokenSource = new CancellationTokenSource();
-			const token = cancellationTokenSource.token;
 
 			const codeActionKindList = [];
 			for (const item of settingItems) {
 				codeActionKindList.push(new HierarchicalKind(item));
 			}
 
-			await this.applyOnSaveActions(model, codeActionKindList, [], Progress.None, token);
+			// run code actions based on what is found from setting === 'always', no exclusions.
+			await this.applyOnSaveActions(model, codeActionKindList, [], Progress.None, cancellationTokenSource.token);
 		}
 	}
 
