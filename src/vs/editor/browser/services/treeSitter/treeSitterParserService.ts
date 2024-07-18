@@ -28,7 +28,7 @@ export class TextModelTreeSitter extends Disposable {
 	private _treeSitterTree: TreeSitterTree | undefined;
 
 	// Not currently used since we just get telemetry, but later this will be needed.
-	get tree() { return this._treeSitterTree?.tree; }
+	get tree() { return this._treeSitterTree; }
 
 	constructor(readonly model: ITextModel,
 		private readonly _treeSitterParser: TreeSitterParser,
@@ -96,7 +96,7 @@ export class TextModelTreeSitter extends Disposable {
 export class TreeSitterTree implements IDisposable {
 	private _tree: Parser.Tree | undefined;
 	private _isDisposed: boolean = false;
-	constructor(public readonly parser: Parser, language: Parser.Language) {
+	constructor(public readonly parser: Parser, public /** exposed for tests **/ readonly language: Parser.Language) {
 		this.parser.setTimeoutMicros(50 * 1000); // 50 ms
 		this.parser.setLanguage(language);
 	}
@@ -113,7 +113,7 @@ export class TreeSitterTree implements IDisposable {
 	get isDisposed() { return this._isDisposed; }
 }
 
-class TreeSitterParser extends Disposable {
+export class TreeSitterParser extends Disposable {
 	private _languages: Map<string, Parser.Language> = new Map();
 
 	constructor(private readonly _treeSitterImporter: TreeSitterImporter,
@@ -210,7 +210,7 @@ class TreeSitterParser extends Disposable {
 	}
 }
 
-class TreeSitterImporter {
+export class TreeSitterImporter {
 	private _treeSitterImport: typeof import('@vscode/tree-sitter-wasm') | undefined;
 	private async _getTreeSitterImport() {
 		if (!this._treeSitterImport) {
@@ -312,7 +312,7 @@ export class TreeSitterTextModelService extends Disposable implements ITreeSitte
 		this._modelService.getModels().forEach(model => this._createTextModelTreeSitter(model));
 	}
 
-	private async _createTextModelTreeSitter(model: ITextModel) {
+	private _createTextModelTreeSitter(model: ITextModel) {
 		const textModelTreeSitter = new TextModelTreeSitter(model, this._treeSitterParser, this._treeSitterImporter);
 		this._textModelTreeSitters.set(model, textModelTreeSitter);
 	}
