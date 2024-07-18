@@ -109,7 +109,7 @@ class MockTreeSitterParser extends TreeSitterParser {
 	}
 	public override async getLanguage(languageId: string): Promise<Parser.Language | undefined> {
 		if (languageId === 'javascript') {
-			await new Promise(resolve => setTimeout(resolve, 200));
+			await timeout(200);
 		}
 		const language = new MockLanguage();
 		language.languageId = languageId;
