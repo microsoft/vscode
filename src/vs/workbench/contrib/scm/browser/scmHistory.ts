@@ -33,7 +33,7 @@ export const historyItemGroupHoverLabelForeground = registerColor('scm.historyGr
 /**
  * History graph color registry
  */
-const colorRegistry: ColorIdentifier[] = [
+export const colorRegistry: ColorIdentifier[] = [
 	registerColor('scm.historyGraph.green', chartsGreen, localize('scm.historyGraph.green', "The green color used in history graph.")),
 	registerColor('scm.historyGraph.red', chartsRed, localize('scm.historyGraph.red', "The red color used in history graph.")),
 	registerColor('scm.historyGraph.yellow', chartsYellow, localize('scm.historyGraph.yellow', "The yellow color used in history graph.")),
