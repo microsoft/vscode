@@ -65,8 +65,8 @@ export class NativeEditContext extends AbstractEditContext {
 		this._domElement.domNode.ariaMultiLine = 'true';
 		this._domElement.domNode.contentEditable = 'true';
 		this._domElement.domNode.style.position = 'absolute';
-		this._domElement.domNode.style.zIndex = '-10';
-		this._domElement.domNode.style.background = 'transparent';
+		this._domElement.domNode.style.zIndex = '-100';
+		this._domElement.domNode.style.background = 'white';
 		dom.addDisposableListener(this._domElement.domNode, 'focus', () => {
 			this._domElement.domNode.style.background = 'yellow';
 		});
@@ -156,6 +156,7 @@ export class NativeEditContext extends AbstractEditContext {
 			console.log('e : ', e);
 		});
 		this._domElement.domNode.addEventListener('beforeinput', e => {
+			console.log('beforeinput');
 			console.log('e : ', e);
 			if (e.inputType === 'insertParagraph' || e.inputType === 'insertLineBreak') {
 				this._handleEnter(e);
@@ -172,16 +173,20 @@ export class NativeEditContext extends AbstractEditContext {
 				const startLine = this._positionSelectionStart.lineNumber;
 				const endLine = this._positionSelectionEnd.lineNumber;
 				const childNodes = this._domElement.domNode.childNodes;
-				for (let i = startLine - 1; i <= endLine - 1; i++) {
-					const textContent = childNodes.item(i).textContent;
-					console.log('textContent : ', textContent);
-					if (i === startLine - 1) {
-						copyText += '\n' + (textContent ? textContent.substring(this._positionSelectionStart.column - 1) : '');
-					} else if (i === endLine - 1) {
-						copyText += '\n' + (textContent ? textContent.substring(0, this._positionSelectionEnd.column - 1) : '');
-					} else {
-						copyText += '\n' + (textContent ?? '');
+				if (startLine !== endLine) {
+					for (let i = startLine - 1; i <= endLine - 1; i++) {
+						const textContent = childNodes.item(i).textContent;
+						if (i === startLine - 1) {
+							copyText += '\n' + (textContent ? textContent.substring(this._positionSelectionStart.column - 1) : '');
+						} else if (i === endLine - 1) {
+							copyText += '\n' + (textContent ? textContent.substring(0, this._positionSelectionEnd.column - 1) : '');
+						} else {
+							copyText += '\n' + (textContent ?? '');
+						}
 					}
+				} else {
+					const textContent = childNodes.item(startLine - 1).textContent;
+					copyText = (textContent ? textContent.substring(this._positionSelectionStart.column - 1, this._positionSelectionEnd.column - 1) : '');
 				}
 			} else {
 				copyText = undefined;
@@ -319,6 +324,9 @@ export class NativeEditContext extends AbstractEditContext {
 
 			for (const [index, splitLine] of splitText.entries()) {
 				console.log('splitLine : ', splitLine);
+				// const lineDomNode = document.createElement('p');
+				// lineDomNode.style.margin = '0px';
+				// lineDomNode.style.margin = '0px';
 				const lineDomNode = document.createElement('div');
 				lineDomNode.textContent = splitLine;
 				lineDomNode.style.tabSize = '4';
