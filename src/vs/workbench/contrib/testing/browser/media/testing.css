@@ -235,6 +235,15 @@
 	background-color: var(--vscode-peekViewEditorGutter-background);
 }
 
+.test-output-primary-scrollable,
+.test-output-primary-container {
+	height: 100%;
+}
+
+.test-output-primary-container {
+	margin: 0 20px;
+}
+
 .test-output-peek-message-container {
 	overflow: hidden;
 }
@@ -268,15 +277,9 @@
 }
 
 .testing-followup-action {
-	position: absolute;
-	top: 100%;
-	left: 22px;
-	right: 22px;
-	margin-top: -25px;
 	line-height: 25px;
 	overflow: hidden;
 	pointer-events: none;
-	background: linear-gradient(transparent, var(--vscode-peekViewEditor-background) 50%);
 	display: flex;
 	align-items: center;
 	gap: 14px;

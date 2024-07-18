@@ -22,7 +22,31 @@
 		white-space: nowrap;
 	}
 
-	&.collapsed .header {
-		border-bottom: 1px solid var(--vscode-multiDiffEditor-border);
+	&.collapsed {
+		.header {
+			border-bottom: 1px solid var(--vscode-multiDiffEditor-border);
+		}
+
+		.editorParent {
+			display: none;
+		}
+	}
+
+	.collapse-button {
+		cursor: pointer;
+	}
+
+	.actions {
+		margin-right: 12px;
+	}
+}
+
+.multiCallStackWidget {
+	.monaco-list-row[data-index="0"] .multiCallStackFrame .header {
+		margin-top: 0;
+	}
+
+	.multiCallStackFrameContainer {
+		background: none !important;
 	}
 }

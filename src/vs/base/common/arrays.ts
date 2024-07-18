@@ -885,3 +885,18 @@ export class Permutation {
 		return new Permutation(inverseIndexMap);
 	}
 }
+
+/**
+ * Asynchronous variant of `Array.find()`, returning the first element in
+ * the array for which the predicate returns true.
+ *
+ * This implementation does not bail early and waits for all promises to
+ * resolve before returning.
+ */
+export async function findAsync<T>(array: readonly T[], predicate: (element: T, index: number) => Promise<boolean>): Promise<T | undefined> {
+	const results = await Promise.all(array.map(
+		async (element, index) => ({ element, ok: await predicate(element, index) })
+	));
+
+	return results.find(r => r.ok)?.element;
+}
