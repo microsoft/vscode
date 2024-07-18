@@ -1,13 +1,8 @@
 parameters:
-  - name: NPM_ARCH
-    type: string
-    default: x64
   - name: VSCODE_ARCH
     type: string
-    default: x64
   - name: VSCODE_QUALITY
     type: string
-    default: stable
 
 steps:
   - task: NodeTool@0
