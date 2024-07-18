@@ -4,6 +4,7 @@
 # ---------------------------------------------------------------------------------------------
 
 using module ".\GitTabExpansion.psm1"
+using module ".\CodeTabExpansion.psm1"
 
 # Prevent installing more than once per session
 if (Test-Path variable:global:__VSCodeOriginalPrompt) {
