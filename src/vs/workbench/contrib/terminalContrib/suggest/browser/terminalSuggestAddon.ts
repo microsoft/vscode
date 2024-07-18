@@ -114,6 +114,9 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	// TODO: Remove these in favor of prompt input state
 	private _leadingLineContent?: string;
 	private _cursorIndexDelta: number = 0;
+
+	private _lastKeyTimestamp: number = 0;
+	private _lastAcceptedCompletionTimestamp: number = 0;
 	private _lastKeySequence?: string;
 
 	static requestCompletionsSequence = '\x1b[24~e'; // F12,e
@@ -156,7 +159,10 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.VSCode, data => {
 			return this._handleVSCodeSequence(data);
 		}));
-		this._register(xterm.onKey(e => this._lastKeySequence = e.key));
+		this._register(xterm.onKey(e => {
+			this._lastKeySequence = e.key;
+			this._lastKeyTimestamp = Date.now();
+		}));
 	}
 
 	setPanel(panel: HTMLElement): void {
@@ -168,8 +174,11 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	}
 
 	private _requestCompletions(): void {
-		// TODO: Debounce? Prevent this flooding the channel
-		this._onAcceptedCompletion.fire(SuggestAddon.requestCompletionsSequence);
+		// Ensure that a key has been pressed since the last accepted completion in order to prevent
+		// completions being requested again right after accepting a completion
+		if (this._lastKeyTimestamp > this._lastAcceptedCompletionTimestamp) {
+			this._onAcceptedCompletion.fire(SuggestAddon.requestCompletionsSequence);
+		}
 	}
 
 	private _sync(promptInputState: IPromptInputModelState): void {
@@ -484,6 +493,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		if (!suggestion || !initialPromptInputState || !this._leadingLineContent || !this._model) {
 			return;
 		}
+		this._lastAcceptedCompletionTimestamp = Date.now();
 		this._suggestWidget?.hide();
 
 		const currentPromptInputState = this._currentPromptInputState ?? initialPromptInputState;
