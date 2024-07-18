@@ -36,14 +36,12 @@ export const enum VSCodeSuggestOscPt {
 
 export type CompressedPwshCompletion = [
 	completionText: string,
-	listItemText: string,
 	resultType: number,
 	toolTip: string
 ];
 
 export type PwshCompletion = {
 	CompletionText: string;
-	ListItemText: string;
 	ResultType: number;
 	ToolTip: string;
 };
@@ -294,9 +292,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		else {
 			completions.push(...this._cachedPwshCommands);
 		}
-		// this._cursorIndexDelta = replacementLength;
-
-		// const lineContext = new LineContext(this._leadingLineContent, this._cursorIndexDelta);
 
 		this._currentPromptInputState = {
 			value: this._promptInputModel.value,
@@ -397,7 +392,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._leadingLineContent = completions[0].completion.label.slice(0, replacementLength);
 		const model = new SimpleCompletionModel(completions, new LineContext(this._leadingLineContent, replacementIndex), replacementIndex, replacementLength);
 		if (completions.length === 1) {
-			const insertText = (completions[0].completion.completionText ?? completions[0].completion.label).substring(replacementLength);
+			const insertText = completions[0].completion.label.substring(replacementLength);
 			if (insertText.length === 0) {
 				this._onBell.fire();
 				return;
@@ -507,7 +502,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 
 		const completion = suggestion.item.completion;
-		const completionText = completion.completionText ?? completion.label;
+		const completionText = completion.label;
 
 		let runOnEnter = false;
 		if (respectRunOnEnter) {
@@ -538,7 +533,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			// Delete (right) to remove any additional text in the same word
 			'\x1b[3~'.repeat(rightSideReplacementText.length),
 			// Write the completion
-			completion.completionText ?? completion.label,
+			completion.label,
 			// Run on enter if needed
 			runOnEnter ? '\r' : ''
 		].join(''));
@@ -590,8 +585,7 @@ export function parseCompletionsFromShell(rawCompletions: PwshCompletion | PwshC
 	}
 	if (!Array.isArray(rawCompletions)) {
 		return [rawCompletions].map(e => (new SimpleCompletionItem({
-			completionText: e.CompletionText,
-			label: e.ListItemText,
+			label: e.CompletionText,
 			icon: pwshTypeToIconMap[e.ResultType],
 			detail: e.ToolTip
 		})));
@@ -601,23 +595,20 @@ export function parseCompletionsFromShell(rawCompletions: PwshCompletion | PwshC
 	}
 	if (typeof rawCompletions[0] === 'string') {
 		return [rawCompletions as CompressedPwshCompletion].map(e => (new SimpleCompletionItem({
-			completionText: e[0],
-			label: e[1],
-			icon: pwshTypeToIconMap[e[2]],
-			detail: e[3]
+			label: e[0],
+			icon: pwshTypeToIconMap[e[1]],
+			detail: e[2]
 		})));
 	}
 	if (Array.isArray(rawCompletions[0])) {
 		return (rawCompletions as CompressedPwshCompletion[]).map(e => (new SimpleCompletionItem({
-			completionText: e[0],
-			label: e[1],
-			icon: pwshTypeToIconMap[e[2]],
-			detail: e[3]
+			label: e[0],
+			icon: pwshTypeToIconMap[e[1]],
+			detail: e[2]
 		})));
 	}
 	return (rawCompletions as PwshCompletion[]).map(e => (new SimpleCompletionItem({
-		completionText: e.CompletionText,
-		label: e.ListItemText,
+		label: e.CompletionText, // e.ListItemText,
 		icon: pwshTypeToIconMap[e.ResultType],
 		detail: e.ToolTip
 	})));
