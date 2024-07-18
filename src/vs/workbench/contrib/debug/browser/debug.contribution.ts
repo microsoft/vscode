@@ -62,6 +62,7 @@ import './debugSettingMigration';
 import { ReplAccessibilityHelp } from 'vs/workbench/contrib/debug/browser/replAccessibilityHelp';
 import { ReplAccessibilityAnnouncer } from 'vs/workbench/contrib/debug/common/replAccessibilityAnnouncer';
 import { RunAndDebugAccessibilityHelp } from 'vs/workbench/contrib/debug/browser/runAndDebugAccessibilityHelp';
+import { DebugWatchAccessibilityAnnouncer } from 'vs/workbench/contrib/debug/common/debugAccessibilityAnnouncer';
 
 const debugCategory = nls.localize('debugCategory', "Debug");
 registerColors();
@@ -649,3 +650,4 @@ AccessibleViewRegistry.register(new ReplAccessibleView());
 AccessibleViewRegistry.register(new ReplAccessibilityHelp());
 AccessibleViewRegistry.register(new RunAndDebugAccessibilityHelp());
 registerWorkbenchContribution2(ReplAccessibilityAnnouncer.ID, ReplAccessibilityAnnouncer, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(DebugWatchAccessibilityAnnouncer.ID, DebugWatchAccessibilityAnnouncer, WorkbenchPhase.AfterRestored);
