@@ -19,6 +19,10 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+
+		&[role="link"] {
+			cursor: pointer;
+		}
 	}
 
 	&.collapsed {
@@ -36,6 +40,9 @@
 	}
 
 	.actions {
+		display: flex;
+		align-items: center;
+		gap: 8px;
 		margin-right: 12px;
 	}
 }

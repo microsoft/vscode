@@ -1537,7 +1537,7 @@ const getActionableElementActions = (
 	element: TestItemTreeElement,
 ) => {
 	const test = element instanceof TestItemTreeElement ? element.test : undefined;
-	const contextKeys: [string, unknown][] = getTestItemContextOverlay(test, test ? profiles.capabilitiesForTest(test) : 0);
+	const contextKeys: [string, unknown][] = getTestItemContextOverlay(test, test ? profiles.capabilitiesForTest(test.item) : 0);
 	contextKeys.push(['view', Testing.ExplorerViewId]);
 	if (test) {
 		const ctrl = testService.getTestController(test.controllerId);

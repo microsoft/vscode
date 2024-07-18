@@ -19,21 +19,26 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { localize } from 'vs/nls';
 import { FloatingClickMenu } from 'vs/platform/actions/browser/floatingMenu';
-import { MenuId } from 'vs/platform/actions/common/actions';
+import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
+import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { CustomStackFrame } from 'vs/workbench/contrib/debug/browser/callStackWidget';
 import * as icons from 'vs/workbench/contrib/testing/browser/icons';
 import { TestResultStackWidget } from 'vs/workbench/contrib/testing/browser/testResultsView/testMessageStack';
 import { DiffContentProvider, IPeekOutputRenderer, MarkdownTestMessagePeek, PlainTextMessagePeek, TerminalMessagePeek } from 'vs/workbench/contrib/testing/browser/testResultsView/testResultsOutput';
-import { InspectSubject, MessageSubject, TestOutputSubject, equalsSubject } from 'vs/workbench/contrib/testing/browser/testResultsView/testResultsSubject';
+import { equalsSubject, getSubjectTestItem, InspectSubject, MessageSubject, TaskSubject, TestOutputSubject } from 'vs/workbench/contrib/testing/browser/testResultsView/testResultsSubject';
 import { OutputPeekTree } from 'vs/workbench/contrib/testing/browser/testResultsView/testResultsTree';
+import { TestCommandId } from 'vs/workbench/contrib/testing/common/constants';
 import { IObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
+import { capabilityContextKeys, ITestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
 import { LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestFollowup, ITestService } from 'vs/workbench/contrib/testing/common/testService';
-import { ITestMessageStackFrame } from 'vs/workbench/contrib/testing/common/testTypes';
+import { ITestMessageStackFrame, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 
 const enum SubView {
@@ -54,7 +59,10 @@ class MessageStackFrame extends CustomStackFrame {
 	constructor(
 		private readonly message: HTMLElement,
 		private readonly followup: FollowupActionWidget,
-		subject: InspectSubject,
+		private readonly subject: InspectSubject,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@ITestProfileService private readonly profileService: ITestProfileService,
 	) {
 		super();
 
@@ -71,10 +79,96 @@ class MessageStackFrame extends CustomStackFrame {
 	}
 
 	public override renderActions(container: HTMLElement): IDisposable {
+		const store = new DisposableStore();
+
 		container.appendChild(this.followup.domNode);
-		return toDisposable(() => this.followup.domNode.remove());
+		store.add(toDisposable(() => this.followup.domNode.remove()));
+
+		const test = getSubjectTestItem(this.subject);
+		const capabilities = test && this.profileService.capabilitiesForTest(test);
+		let contextKeyService: IContextKeyService;
+		if (capabilities) {
+			contextKeyService = this.contextKeyService.createOverlay(capabilityContextKeys(capabilities));
+		} else {
+			const profiles = this.profileService.getControllerProfiles(this.subject.controllerId);
+			contextKeyService = this.contextKeyService.createOverlay([
+				[TestingContextKeys.hasRunnableTests.key, profiles.some(p => p.group & TestRunProfileBitset.Run)],
+				[TestingContextKeys.hasDebuggableTests.key, profiles.some(p => p.group & TestRunProfileBitset.Debug)],
+			]);
+		}
+
+		const instaService = store.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
+
+		const toolbar = store.add(instaService.createInstance(MenuWorkbenchToolBar, container, MenuId.TestCallStack, {
+			menuOptions: { shouldForwardArgs: true },
+			actionViewItemProvider: (action, options) => createActionViewItem(this.instantiationService, action, options),
+		}));
+		toolbar.context = this.subject;
+		store.add(toolbar);
+
+		return store;
 	}
 }
+
+function runInLast(accessor: ServicesAccessor, bitset: TestRunProfileBitset, subject: InspectSubject) {
+	// Let the full command do its thing if we want to run the whole set of tests
+	if (subject instanceof TaskSubject) {
+		return accessor.get(ICommandService).executeCommand(
+			bitset === TestRunProfileBitset.Debug ? TestCommandId.DebugLastRun : TestCommandId.ReRunLastRun,
+			subject.result.id,
+		);
+	}
+
+	const testService = accessor.get(ITestService);
+	const plainTest = subject instanceof MessageSubject ? subject.test : subject.test.item;
+	const currentTest = testService.collection.getNodeById(plainTest.extId);
+	if (!currentTest) {
+		return;
+	}
+
+	return testService.runTests({
+		group: bitset,
+		tests: [currentTest],
+	});
+}
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'testing.callStack.run',
+			title: localize('testing.callStack.run', "Rerun Test"),
+			icon: icons.testingRunIcon,
+			menu: {
+				id: MenuId.TestCallStack,
+				when: TestingContextKeys.hasRunnableTests,
+				group: 'navigation',
+			},
+		});
+	}
+
+	override run(accessor: ServicesAccessor, subject: InspectSubject): void {
+		runInLast(accessor, TestRunProfileBitset.Run, subject);
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'testing.callStack.debug',
+			title: localize('testing.callStack.debug', "Debug Test"),
+			icon: icons.testingDebugIcon,
+			menu: {
+				id: MenuId.TestCallStack,
+				when: TestingContextKeys.hasDebuggableTests,
+				group: 'navigation',
+			},
+		});
+	}
+
+	override run(accessor: ServicesAccessor, subject: InspectSubject): void {
+		runInLast(accessor, TestRunProfileBitset.Debug, subject);
+	}
+});
 
 export class TestResultsViewContent extends Disposable {
 	private static lastSplitWidth?: number;
@@ -226,7 +320,7 @@ export class TestResultsViewContent extends Disposable {
 	}
 
 	private async prepareTopFrame(subject: InspectSubject, callFrames: ITestMessageStackFrame[]) {
-		const topFrame = this.currentTopFrame = new MessageStackFrame(this.messageContainer, this.followupWidget, subject);
+		const topFrame = this.currentTopFrame = this.instantiationService.createInstance(MessageStackFrame, this.messageContainer, this.followupWidget, subject);
 		topFrame.showHeader.set(callFrames.length > 0, undefined);
 
 		const provider = await findAsync(this.contentProviders, p => p.update(subject));

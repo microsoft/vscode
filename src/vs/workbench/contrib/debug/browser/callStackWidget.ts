@@ -19,11 +19,11 @@ import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import 'vs/css!./media/callStackWidget';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/embeddedCodeEditorWidget';
-import { EditorOption, IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
-import { ScrollType } from 'vs/editor/common/editorCommon';
 import { Location } from 'vs/editor/common/languages';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { localize, localize2 } from 'vs/nls';
@@ -370,6 +370,8 @@ abstract class AbstractFrameRenderer<T extends IAbstractFrameRendererTemplateDat
 	}
 }
 
+const CONTEXT_LINES = 2;
+
 /** Renderer for a normal stack frame where code is available. */
 class FrameCodeRenderer extends AbstractFrameRenderer<IStackTemplateData> {
 	public static readonly templateId = 'f';
@@ -380,6 +382,7 @@ class FrameCodeRenderer extends AbstractFrameRenderer<IStackTemplateData> {
 		private readonly containingEditor: ICodeEditor | undefined,
 		private readonly onLayout: Event<void>,
 		@ITextModelService private readonly modelService: ITextModelService,
+		@ICodeEditorService private readonly editorService: ICodeEditorService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super(instantiationService);
@@ -403,7 +406,6 @@ class FrameCodeRenderer extends AbstractFrameRenderer<IStackTemplateData> {
 
 		data.templateStore.add(editor);
 
-
 		const toolbar = data.templateStore.add(this.instantiationService.createInstance(MenuWorkbenchToolBar, data.elements.actions, MenuId.DebugCallStackToolbar, {
 			menuOptions: { shouldForwardArgs: true },
 			actionViewItemProvider: (action, options) => createActionViewItem(this.instantiationService, action, options),
@@ -420,8 +422,20 @@ class FrameCodeRenderer extends AbstractFrameRenderer<IStackTemplateData> {
 		const item = element as WrappedCallStackFrame;
 		const uri = item.source!;
 
-		this.setupEditorLayout(item, template);
 		template.label.element.setFile(uri);
+		template.elements.title.role = 'link';
+		elementStore.add(dom.addDisposableListener(template.elements.title, 'click', e => {
+			this.editorService.openCodeEditor({
+				resource: uri,
+				options: {
+					selection: Range.fromPositions({
+						column: item.column ?? 1,
+						lineNumber: item.line ?? 1,
+					}),
+					selectionRevealType: TextEditorSelectionRevealType.CenterIfOutsideViewport,
+				},
+			}, this.containingEditor || null, e.ctrlKey || e.metaKey);
+		}));
 
 		const cts = new CancellationTokenSource();
 		elementStore.add(toDisposable(() => cts.dispose(true)));
@@ -433,14 +447,20 @@ class FrameCodeRenderer extends AbstractFrameRenderer<IStackTemplateData> {
 			elementStore.add(reference);
 			editor.setModel(reference.object.textEditorModel);
 			this.setupEditorAfterModel(item, template);
+			this.setupEditorLayout(item, template);
 		});
 	}
 
 	private setupEditorLayout(item: WrappedCallStackFrame, { elementStore, container, editor }: IStackTemplateData) {
 		const layout = () => {
-			const height = item.editorHeight.get();
-			editor.layout({ width: container.clientWidth, height });
-			this.revealEditor(item, editor, height);
+			const prev = editor.getContentHeight();
+			editor.layout({ width: container.clientWidth, height: prev });
+
+			const next = editor.getContentHeight();
+			if (next !== prev) {
+				editor.layout({ width: container.clientWidth, height: next });
+				item.editorHeight.set(next, undefined);
+			}
 		};
 		elementStore.add(this.onLayout(layout));
 		layout();
@@ -454,7 +474,16 @@ class FrameCodeRenderer extends AbstractFrameRenderer<IStackTemplateData> {
 
 		template.toolbar.context = { uri: item.source, range };
 
-		this.revealEditor(item, template.editor);
+		template.editor.setHiddenAreas([
+			Range.fromPositions(
+				{ column: 1, lineNumber: 1 },
+				{ column: 1, lineNumber: Math.max(1, item.line - CONTEXT_LINES - 1) },
+			),
+			Range.fromPositions(
+				{ column: 1, lineNumber: item.line + CONTEXT_LINES + 1 },
+				{ column: 1, lineNumber: Constants.MAX_SAFE_SMALL_INTEGER },
+			),
+		]);
 
 		template.editor.changeDecorations(accessor => {
 			for (const d of template.decorations) {
@@ -475,11 +504,8 @@ class FrameCodeRenderer extends AbstractFrameRenderer<IStackTemplateData> {
 				TOP_STACK_FRAME_DECORATION,
 			));
 		});
-	}
 
-	private revealEditor(item: WrappedCallStackFrame, editor: CodeEditorWidget, height = item.editorHeight.get()) {
-		const top = editor.getTopForPosition(item.line ?? 1, item.column ?? 1);
-		editor.setScrollTop(top - (height - editor.getOption(EditorOption.lineHeight)) / 2, ScrollType.Immediate);
+		item.editorHeight.set(template.editor.getContentHeight(), undefined);
 	}
 }
 
