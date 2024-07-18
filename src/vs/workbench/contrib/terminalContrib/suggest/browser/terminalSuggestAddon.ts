@@ -292,9 +292,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		else {
 			completions.push(...this._cachedPwshCommands);
 		}
-		// this._cursorIndexDelta = replacementLength;
-
-		// const lineContext = new LineContext(this._leadingLineContent, this._cursorIndexDelta);
 
 		this._currentPromptInputState = {
 			value: this._promptInputModel.value,
