@@ -143,7 +143,7 @@ __vsc_escape_value() {
 }
 
 # Send the IsWindows property if the environment looks like Windows
-__vsc_regex_environment = "^CYGWIN*|MINGW*|MSYS*"
+__vsc_regex_environment="^CYGWIN*|MINGW*|MSYS*"
 if [[ "$(uname -s)" =~ $__vsc_regex_environment ]]; then
 	builtin printf '\e]633;P;IsWindows=True\a'
 	__vsc_is_windows=1
@@ -153,7 +153,7 @@ fi
 
 # Allow verifying $BASH_COMMAND doesn't have aliases resolved via history when the right HISTCONTROL
 # configuration is used
-__vsc_regex_histcontrol = ".*(erasedups|ignoreboth|ignoredups).*"
+__vsc_regex_histcontrol=".*(erasedups|ignoreboth|ignoredups).*"
 if [[ "$HISTCONTROL" =~ $__vsc_regex_histcontrol ]]; then
 	__vsc_history_verify=0
 else
