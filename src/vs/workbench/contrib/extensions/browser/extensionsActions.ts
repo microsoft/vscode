@@ -913,9 +913,9 @@ export class UpdateAction extends ExtensionAction {
 		const consent = await this.extensionsWorkbenchService.shouldRequireConsentToUpdate(this.extension);
 		if (consent) {
 			const result = await this.dialogService.confirm({
-				type: 'info',
+				type: 'warning',
 				title: localize('updateExtensionConsentTitle', "Update {0} Extension", this.extension.displayName),
-				message: localize('updateExtensionConsent', "{0}\n\nWould you like to proceed with the update to enable these new capabilities?", consent),
+				message: localize('updateExtensionConsent', "{0}\n\nWould you like to proceed with the update?", consent),
 				primaryButton: localize('update', "Update"),
 			});
 			if (!result.confirmed) {
@@ -2416,8 +2416,8 @@ export class ExtensionStatusAction extends ExtensionAction {
 
 	updateWhenCounterExtensionChanges: boolean = true;
 
-	private _status: ExtensionStatus | undefined;
-	get status(): ExtensionStatus | undefined { return this._status; }
+	private _status: ExtensionStatus[] = [];
+	get status(): ExtensionStatus[] { return this._status; }
 
 	private readonly _onDidChangeStatus = this._register(new Emitter<void>());
 	readonly onDidChangeStatus = this._onDidChangeStatus.event;
@@ -2481,6 +2481,13 @@ export class ExtensionStatusAction extends ExtensionAction {
 
 		if (this.extensionsWorkbenchService.canSetLanguage(this.extension)) {
 			return;
+		}
+
+		if (this.extension.outdated && this.extensionsWorkbenchService.isAutoUpdateEnabledFor(this.extension)) {
+			const message = await this.extensionsWorkbenchService.shouldRequireConsentToUpdate(this.extension);
+			if (message) {
+				this.updateStatus({ icon: warningIcon, message: new MarkdownString(message) }, true);
+			}
 		}
 
 		if (this.extension.gallery && this.extension.state === ExtensionState.Uninstalled && !await this.extensionsWorkbenchService.canInstall(this.extension)) {
@@ -2684,24 +2691,43 @@ export class ExtensionStatusAction extends ExtensionAction {
 	}
 
 	private updateStatus(status: ExtensionStatus | undefined, updateClass: boolean): void {
-		if (this._status === status) {
-			return;
+		if (status) {
+			if (this._status.some(s => s.message.value === status.message.value && s.icon?.id === status.icon?.id)) {
+				return;
+			}
+		} else {
+			if (this._status.length === 0) {
+				return;
+			}
+			this._status = [];
 		}
-		if (this._status && status && this._status.message === status.message && this._status.icon?.id === status.icon?.id) {
-			return;
+
+		if (status) {
+			this._status.push(status);
+			this._status.sort((a, b) =>
+				b.icon === trustIcon ? -1 :
+					a.icon === trustIcon ? 1 :
+						b.icon === errorIcon ? -1 :
+							a.icon === errorIcon ? 1 :
+								b.icon === warningIcon ? -1 :
+									a.icon === warningIcon ? 1 :
+										b.icon === infoIcon ? -1 :
+											a.icon === infoIcon ? 1 :
+												0
+			);
 		}
-		this._status = status;
+
 		if (updateClass) {
-			if (this._status?.icon === errorIcon) {
+			if (status?.icon === errorIcon) {
 				this.class = `${ExtensionStatusAction.CLASS} extension-status-error ${ThemeIcon.asClassName(errorIcon)}`;
 			}
-			else if (this._status?.icon === warningIcon) {
+			else if (status?.icon === warningIcon) {
 				this.class = `${ExtensionStatusAction.CLASS} extension-status-warning ${ThemeIcon.asClassName(warningIcon)}`;
 			}
-			else if (this._status?.icon === infoIcon) {
+			else if (status?.icon === infoIcon) {
 				this.class = `${ExtensionStatusAction.CLASS} extension-status-info ${ThemeIcon.asClassName(infoIcon)}`;
 			}
-			else if (this._status?.icon === trustIcon) {
+			else if (status?.icon === trustIcon) {
 				this.class = `${ExtensionStatusAction.CLASS} ${ThemeIcon.asClassName(trustIcon)}`;
 			}
 			else {
@@ -2712,7 +2738,7 @@ export class ExtensionStatusAction extends ExtensionAction {
 	}
 
 	override async run(): Promise<any> {
-		if (this._status?.icon === trustIcon) {
+		if (this._status[0]?.icon === trustIcon) {
 			return this.commandService.executeCommand('workbench.trust.manage');
 		}
 	}
