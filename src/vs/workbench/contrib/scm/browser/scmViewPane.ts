@@ -95,7 +95,7 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { stripIcons } from 'vs/base/common/iconLabels';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
-import { editorSelectionBackground, foreground, inputBackground, inputForeground, listActiveSelectionForeground, registerColor, selectionBackground, transparent } from 'vs/platform/theme/common/colorRegistry';
+import { ColorIdentifier, editorSelectionBackground, foreground, inputBackground, inputForeground, listActiveSelectionForeground, registerColor, selectionBackground, transparent } from 'vs/platform/theme/common/colorRegistry';
 import { IMenuWorkbenchToolBarOptions, WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
@@ -108,7 +108,7 @@ import { HoverController } from 'vs/editor/contrib/hover/browser/hoverController
 import { ITextModel } from 'vs/editor/common/model';
 import { autorun } from 'vs/base/common/observable';
 import { createInstantHoverDelegate, getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { renderSCMHistoryItemGraph, toISCMHistoryItemViewModelArray } from 'vs/workbench/contrib/scm/browser/scmHistory';
+import { historyItemGroupBase, historyItemGroupHoverLabelForeground, historyItemGroupLocal, historyItemGroupRemote, renderSCMHistoryItemGraph, toISCMHistoryItemViewModelArray } from 'vs/workbench/contrib/scm/browser/scmHistory';
 import { PlaceholderTextContribution } from 'vs/editor/contrib/placeholderText/browser/placeholderTextContribution';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
@@ -1051,7 +1051,7 @@ class HistoryItem2Renderer implements ICompressibleTreeRenderer<SCMHistoryItemVi
 		const historyItemViewModel = node.element.historyItemViewModel;
 		const historyItem = historyItemViewModel.historyItem;
 
-		const historyItemHover = this.hoverService.setupManagedHover(this.hoverDelegate, templateData.element, this.getTooltip(historyItemViewModel));
+		const historyItemHover = this.hoverService.setupManagedHover(this.hoverDelegate, templateData.element, this.getTooltip(node.element));
 		templateData.elementDisposables.add(historyItemHover);
 
 		templateData.graphContainer.textContent = '';
@@ -1081,8 +1081,11 @@ class HistoryItem2Renderer implements ICompressibleTreeRenderer<SCMHistoryItemVi
 		throw new Error('Should never happen since node is incompressible');
 	}
 
-	private getTooltip(historyItemViewModel: ISCMHistoryItemViewModel): IManagedHoverTooltipMarkdownString {
-		const historyItem = historyItemViewModel.historyItem;
+	private getTooltip(element: SCMHistoryItemViewModelTreeElement): IManagedHoverTooltipMarkdownString {
+		const colorTheme = this.themeService.getColorTheme();
+		const historyItem = element.historyItemViewModel.historyItem;
+		const currentHistoryItemGroup = element.repository.provider.historyProvider.get()?.currentHistoryItemGroup?.get();
+
 		const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
 
 		if (historyItem.author) {
@@ -1099,7 +1102,6 @@ class HistoryItem2Renderer implements ICompressibleTreeRenderer<SCMHistoryItemVi
 		markdown.appendMarkdown(`${historyItem.message}\n\n`);
 
 		if (historyItem.statistics?.files) {
-			const colorTheme = this.themeService.getColorTheme();
 			const historyItemAdditionsForegroundColor = colorTheme.getColor(historyItemAdditionsForeground);
 			const historyItemDeletionsForegroundColor = colorTheme.getColor(historyItemDeletionsForeground);
 
@@ -1120,6 +1122,27 @@ class HistoryItem2Renderer implements ICompressibleTreeRenderer<SCMHistoryItemVi
 					localize('deletion', "{0} deletion{1}", historyItem.statistics.deletions, '(-)') :
 					localize('deletions', "{0} deletions{1}", historyItem.statistics.deletions, '(-)')}</span>`);
 			}
+		}
+
+		if (historyItem.labels) {
+			const historyItemGroupLocalColor = colorTheme.getColor(historyItemGroupLocal);
+			const historyItemGroupRemoteColor = colorTheme.getColor(historyItemGroupRemote);
+			const historyItemGroupBaseColor = colorTheme.getColor(historyItemGroupBase);
+
+			const historyItemGroupHoverLabelForegroundColor = colorTheme.getColor(historyItemGroupHoverLabelForeground);
+
+			markdown.appendMarkdown(`\n\n---\n\n`);
+			markdown.appendMarkdown(historyItem.labels.map(label => {
+				const historyItemGroupHoverLabelBackgroundColor =
+					label.title === currentHistoryItemGroup?.name ? historyItemGroupLocalColor :
+						label.title === currentHistoryItemGroup?.remote?.name ? historyItemGroupRemoteColor :
+							label.title === currentHistoryItemGroup?.base?.name ? historyItemGroupBaseColor :
+								undefined;
+
+				const historyItemGroupHoverLabelIconId = ThemeIcon.isThemeIcon(label.icon) ? label.icon.id : '';
+
+				return `<span style="color:${historyItemGroupHoverLabelForegroundColor};background-color:${historyItemGroupHoverLabelBackgroundColor};">&nbsp;$(${historyItemGroupHoverLabelIconId})&nbsp;${label.title}&nbsp;</span>`;
+			}).join('&nbsp;&nbsp;'));
 		}
 
 		return { markdown, markdownNotSupportedFallback: historyItem.message };
@@ -3996,15 +4019,14 @@ class SCMTreeHistoryProviderDataSource extends Disposable {
 		}
 
 		// Create the color map
-		// TODO@lszomoru - use theme colors
-		const colorMap = new Map<string, number>([
-			[currentHistoryItemGroup.name, 0]
+		const colorMap = new Map<string, ColorIdentifier>([
+			[currentHistoryItemGroup.name, historyItemGroupLocal]
 		]);
 		if (currentHistoryItemGroup.remote) {
-			colorMap.set(currentHistoryItemGroup.remote.name, 1);
+			colorMap.set(currentHistoryItemGroup.remote.name, historyItemGroupRemote);
 		}
 		if (currentHistoryItemGroup.base) {
-			colorMap.set(currentHistoryItemGroup.base.name, 2);
+			colorMap.set(currentHistoryItemGroup.base.name, historyItemGroupBase);
 		}
 
 		return toISCMHistoryItemViewModelArray(historyItemsElement, colorMap)
