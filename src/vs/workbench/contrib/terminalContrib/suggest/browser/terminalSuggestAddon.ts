@@ -114,6 +114,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	// TODO: Remove these in favor of prompt input state
 	private _leadingLineContent?: string;
 	private _cursorIndexDelta: number = 0;
+	private _lastKeySequence?: string;
 
 	static requestCompletionsSequence = '\x1b[24~e'; // F12,e
 
@@ -155,6 +156,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.VSCode, data => {
 			return this._handleVSCodeSequence(data);
 		}));
+		this._register(xterm.onKey(e => this._lastKeySequence = e.key));
 	}
 
 	setPanel(panel: HTMLElement): void {
@@ -182,8 +184,12 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				if (config.quickSuggestions) {
 					const completionPrefix = promptInputState.value.substring(0, promptInputState.cursorIndex);
 					if (promptInputState.cursorIndex === 1 || completionPrefix.match(/([\s\[])[^\s]$/)) {
-						this._requestCompletions();
-						sent = true;
+						// Never request completions if the last key sequence was up or down as the user was likely
+						// navigating history
+						if (this._lastKeySequence !== /*up*/'\x1b[A' && this._lastKeySequence !== /*down*/'\x1b[B') {
+							this._requestCompletions();
+							sent = true;
+						}
 					}
 				}
 
