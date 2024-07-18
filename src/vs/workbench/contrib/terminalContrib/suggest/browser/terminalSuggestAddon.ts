@@ -115,9 +115,9 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	private _leadingLineContent?: string;
 	private _cursorIndexDelta: number = 0;
 
-	private _lastKeyTimestamp: number = 0;
+	private _lastUserDataTimestamp: number = 0;
 	private _lastAcceptedCompletionTimestamp: number = 0;
-	private _lastKeySequence?: string;
+	private _lastUserData?: string;
 
 	static requestCompletionsSequence = '\x1b[24~e'; // F12,e
 
@@ -159,9 +159,9 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.VSCode, data => {
 			return this._handleVSCodeSequence(data);
 		}));
-		this._register(xterm.onKey(e => {
-			this._lastKeySequence = e.key;
-			this._lastKeyTimestamp = Date.now();
+		this._register(xterm.onData(e => {
+			this._lastUserData = e;
+			this._lastUserDataTimestamp = Date.now();
 		}));
 	}
 
@@ -176,7 +176,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	private _requestCompletions(): void {
 		// Ensure that a key has been pressed since the last accepted completion in order to prevent
 		// completions being requested again right after accepting a completion
-		if (this._lastKeyTimestamp > this._lastAcceptedCompletionTimestamp) {
+		if (this._lastUserDataTimestamp > this._lastAcceptedCompletionTimestamp) {
 			this._onAcceptedCompletion.fire(SuggestAddon.requestCompletionsSequence);
 		}
 	}
@@ -195,7 +195,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 					if (promptInputState.cursorIndex === 1 || completionPrefix.match(/([\s\[])[^\s]$/)) {
 						// Never request completions if the last key sequence was up or down as the user was likely
 						// navigating history
-						if (this._lastKeySequence !== /*up*/'\x1b[A' && this._lastKeySequence !== /*down*/'\x1b[B') {
+						if (this._lastUserData !== /*up*/'\x1b[A' && this._lastUserData !== /*down*/'\x1b[B') {
 							this._requestCompletions();
 							sent = true;
 						}
