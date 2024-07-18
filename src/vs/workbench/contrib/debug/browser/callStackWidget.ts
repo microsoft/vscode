@@ -21,7 +21,7 @@ import 'vs/css!./media/callStackWidget';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/embeddedCodeEditorWidget';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { EditorOption, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { Location } from 'vs/editor/common/languages';
@@ -287,7 +287,7 @@ const makeFrameElements = () => dom.h('div.multiCallStackFrame', [
 	])
 ]);
 
-const HEADER_HEIGHT = 40;
+const HEADER_HEIGHT = 32;
 
 interface IAbstractFrameRendererTemplateData {
 	container: HTMLElement;
@@ -391,14 +391,14 @@ class FrameCodeRenderer extends AbstractFrameRenderer<IStackTemplateData> {
 				EmbeddedCodeEditorWidget,
 				data.elements.editor,
 				editorOptions,
-				{},
+				{ isSimpleWidget: true },
 				this.containingEditor,
 			)
 			: this.instantiationService.createInstance(
 				CodeEditorWidget,
 				data.elements.editor,
 				editorOptions,
-				{},
+				{ isSimpleWidget: true },
 			);
 
 		data.templateStore.add(editor);
@@ -479,7 +479,7 @@ class FrameCodeRenderer extends AbstractFrameRenderer<IStackTemplateData> {
 
 	private revealEditor(item: WrappedCallStackFrame, editor: CodeEditorWidget, height = item.editorHeight.get()) {
 		const top = editor.getTopForPosition(item.line ?? 1, item.column ?? 1);
-		editor.setScrollTop(top - height / 2, ScrollType.Immediate);
+		editor.setScrollTop(top - (height - editor.getOption(EditorOption.lineHeight)) / 2, ScrollType.Immediate);
 	}
 }
 

@@ -8,7 +8,6 @@
 		display: flex;
 		align-items: center;
 		height: 32px;
-		margin-top: 8px;
 		background: var(--vscode-multiDiffEditor-headerBackground);
 		border-top: 1px solid var(--vscode-multiDiffEditor-border);
 		color: var(--vscode-foreground);
@@ -42,10 +41,6 @@
 }
 
 .multiCallStackWidget {
-	.monaco-list-row[data-index="0"] .multiCallStackFrame .header {
-		margin-top: 0;
-	}
-
 	.multiCallStackFrameContainer {
 		background: none !important;
 	}
