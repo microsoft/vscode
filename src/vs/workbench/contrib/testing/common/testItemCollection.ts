@@ -533,6 +533,7 @@ export class TestItemCollection<T extends ITestItemLike> extends Disposable {
 		if (levels < 0) {
 			return;
 		}
+		throw new Error('test');
 
 		const expandRequests: Promise<void>[] = [];
 		for (const [_, child] of this.options.getChildren(internal.actual)) {
