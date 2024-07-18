@@ -862,7 +862,7 @@ export class UninstallAction extends ExtensionAction {
 	}
 }
 
-abstract class AbstractUpdateAction extends ExtensionAction {
+export class UpdateAction extends ExtensionAction {
 
 	private static readonly EnabledClass = `${this.LABEL_ACTION_CLASS} prominent update`;
 	private static readonly DisabledClass = `${this.EnabledClass} disabled`;
@@ -870,15 +870,20 @@ abstract class AbstractUpdateAction extends ExtensionAction {
 	private readonly updateThrottler = new Throttler();
 
 	constructor(
-		id: string, label: string | undefined,
-		protected readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		private readonly verbose: boolean,
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IDialogService private readonly dialogService: IDialogService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
-		super(id, label, AbstractUpdateAction.DisabledClass, false);
+		super(`extensions.update`, localize('update', "Update"), UpdateAction.DisabledClass, false);
 		this.update();
 	}
 
 	update(): void {
 		this.updateThrottler.queue(() => this.computeAndUpdateEnablement());
+		if (this.extension) {
+			this.label = this.verbose ? localize('update to', "Update to v{0}", this.extension.latestVersion) : localize('update', "Update");
+		}
 	}
 
 	private async computeAndUpdateEnablement(): Promise<void> {
@@ -897,31 +902,27 @@ abstract class AbstractUpdateAction extends ExtensionAction {
 		const isInstalled = this.extension.state === ExtensionState.Installed;
 
 		this.enabled = canInstall && isInstalled && this.extension.outdated;
-		this.class = this.enabled ? AbstractUpdateAction.EnabledClass : AbstractUpdateAction.DisabledClass;
-	}
-}
-
-export class UpdateAction extends AbstractUpdateAction {
-
-	constructor(
-		private readonly verbose: boolean,
-		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IInstantiationService protected readonly instantiationService: IInstantiationService,
-	) {
-		super(`extensions.update`, localize('update', "Update"), extensionsWorkbenchService);
-	}
-
-	override update(): void {
-		super.update();
-		if (this.extension) {
-			this.label = this.verbose ? localize('update to', "Update to v{0}", this.extension.latestVersion) : localize('update', "Update");
-		}
+		this.class = this.enabled ? UpdateAction.EnabledClass : UpdateAction.DisabledClass;
 	}
 
 	override async run(): Promise<any> {
 		if (!this.extension) {
 			return;
 		}
+
+		const consent = await this.extensionsWorkbenchService.shouldRequireConsentToUpdate(this.extension);
+		if (consent) {
+			const result = await this.dialogService.confirm({
+				type: 'info',
+				title: localize('updateExtensionConsentTitle', "Update {0} Extension", this.extension.displayName),
+				message: localize('updateExtensionConsent', "{0}\n\nWould you like to proceed with the update to enable these new capabilities?", consent),
+				primaryButton: localize('update', "Update"),
+			});
+			if (!result.confirmed) {
+				return;
+			}
+		}
+
 		alert(localize('updateExtensionStart', "Updating extension {0} to version {1} started.", this.extension.displayName, this.extension.latestVersion));
 		return this.install(this.extension);
 	}
