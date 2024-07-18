@@ -7,7 +7,7 @@ import type { ITerminalAddon, Terminal } from '@xterm/xterm';
 import * as dom from 'vs/base/browser/dom';
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
-import { combinedDisposable, Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { combinedDisposable, Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { editorSuggestWidgetSelectedBackground } from 'vs/editor/contrib/suggest/browser/suggestWidget';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -15,10 +15,9 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
-import { SimpleCompletionItem } from 'vs/workbench/services/suggest/browser/simpleCompletionItem';
+import { SimpleCompletionItem, type ITerminalSnippet } from 'vs/workbench/services/suggest/browser/simpleCompletionItem';
 import { LineContext, SimpleCompletionModel } from 'vs/workbench/services/suggest/browser/simpleCompletionModel';
 import { ISimpleSelectedSuggestion, SimpleSuggestWidget } from 'vs/workbench/services/suggest/browser/simpleSuggestWidget';
-
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TerminalCapability, type ITerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/capabilities';
 import type { IPromptInputModel, IPromptInputModelState } from 'vs/platform/terminal/common/capabilities/commandDetection/promptInputModel';
@@ -26,6 +25,8 @@ import { ShellIntegrationOscPs } from 'vs/platform/terminal/common/xterm/shellIn
 import { getListStyles } from 'vs/platform/theme/browser/defaultStyles';
 import type { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { terminalSuggestConfigSection, type ITerminalSuggestConfiguration } from 'vs/workbench/contrib/terminalContrib/suggest/common/terminalSuggestConfiguration';
+import { asArray } from 'vs/base/common/arrays';
+import { timeout } from 'vs/base/common/async';
 
 export const enum VSCodeSuggestOscPt {
 	Completions = 'Completions',
@@ -297,6 +298,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		// This is a global command, add cached commands list to completions
 		else {
 			completions.push(...this._cachedPwshCommands);
+			completions.push(...this._getSnippets());
 		}
 
 		this._currentPromptInputState = {
@@ -308,6 +310,34 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		const lineContext = new LineContext(this._leadingLineContent + this._currentPromptInputState.value.substring(this._leadingLineContent.length, this._leadingLineContent.length + this._cursorIndexDelta), this._cursorIndexDelta);
 		const model = new SimpleCompletionModel(completions, lineContext, replacementIndex, replacementLength);
 		this._handleCompletionModel(model);
+	}
+
+	private _getSnippets(): SimpleCompletionItem[] {
+		const snippets: Map<string, ITerminalSnippet> = new Map();
+		snippets.set('Create symlink', {
+			prefix: [
+				'create symlink'
+			],
+			body: [
+				'ln -s ${1:/real/path} ${2:/link/path}'
+			],
+			description: 'Create a symlink to from /real/path to /link/path'
+		});
+		// "description": "Constructor Injection Pattern",
+		// "prefix": "@inject",
+		const result: SimpleCompletionItem[] = [];
+		for (const [name, snippet] of snippets) {
+			for (const prefix of [...asArray(snippet.prefix), formatBodyAsPrefix(snippet.body)]) {
+				result.push(new SimpleCompletionItem({
+					label: prefix,
+					icon: Codicon.symbolSnippet,
+					detail: snippet.description ?? name,
+					completionText: asArray(snippet.body).join('\n'),
+					snippet
+				}));
+			}
+		}
+		return result;
 	}
 
 	// TODO: These aren't persisted across reloads
@@ -476,12 +506,12 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._suggestWidget?.selectNextPage();
 	}
 
-	acceptSelectedSuggestion(suggestion?: Pick<ISimpleSelectedSuggestion, 'item' | 'model'>, respectRunOnEnter?: boolean): void {
+	async acceptSelectedSuggestion(suggestion?: Pick<ISimpleSelectedSuggestion, 'item' | 'model'>, respectRunOnEnter?: boolean): Promise<void> {
 		if (!suggestion) {
 			suggestion = this._suggestWidget?.getFocusedItem();
 		}
 		const initialPromptInputState = this._initialPromptInputState ?? this._mostRecentPromptInputState;
-		if (!suggestion || !initialPromptInputState || !this._leadingLineContent || !this._model) {
+		if (!this._terminal || !suggestion || !initialPromptInputState || !this._leadingLineContent || !this._model) {
 			return;
 		}
 		this._suggestWidget?.hide();
@@ -532,17 +562,126 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			}
 		}
 
-		// Send the completion
-		this._onAcceptedCompletion.fire([
-			// Backspace (left) to remove all additional input
-			'\x7F'.repeat(replacementText.length),
-			// Delete (right) to remove any additional text in the same word
-			'\x1b[3~'.repeat(rightSideReplacementText.length),
-			// Write the completion
-			completion.label,
-			// Run on enter if needed
-			runOnEnter ? '\r' : ''
-		].join(''));
+		const snippet = suggestion.item.completion.snippet;
+		if (snippet) {
+			const xterm = this._terminal;
+			const originalCursorStyle = xterm.options.cursorStyle;
+			const originalCursorWidth = xterm.options.cursorWidth;
+			xterm.options.cursorStyle = 'bar';
+			xterm.options.cursorWidth = 2;
+
+			const startX = this._terminal.buffer.active.cursorX - replacementText.length;
+
+			this._onAcceptedCompletion.fire([
+				// Backspace (left) to remove all additional input
+				'\x7F'.repeat(replacementText.length),
+				// Delete (right) to remove any additional text in the same word
+				'\x1b[3~'.repeat(rightSideReplacementText.length),
+			].join(''));
+
+			const lines = asArray(snippet.body);
+			for (const line of lines) {
+				// TODO: Get command's command start instead
+				const formattedLine = parseBody(line);
+				this._onAcceptedCompletion.fire(formattedLine.text);
+				const match = line.match(/\$\{\d+:(?<name>[^}]+)\}/g);
+				if (match) {
+					// TODO: This is slow and unreliable
+					// const index = line.indexOf(match[0]);
+					// Go to end of first match
+					await timeout(200);
+					this._onAcceptedCompletion.fire('\x1bOD'.repeat(formattedLine.text.length - formattedLine.tabStops[0].index));
+					// ETB: Delete word left
+					// await timeout(50);
+					// this._onAcceptedCompletion.fire('\x17');
+					// Request completions
+					await timeout(50);
+					this._onAcceptedCompletion.fire('\x1b[24~e');
+
+					// Register tab stop
+					const markerStore = new DisposableStore();
+					const decoration0 = markerStore.add(xterm.registerDecoration({
+						marker: markerStore.add(xterm.registerMarker(1)),
+						x: startX + formattedLine.tabStops[0].index,
+					})!);
+
+					const tabStop0Name = formattedLine.tabStops[0].name;
+					if (tabStop0Name) {
+						markerStore.add(decoration0.onRender(e => {
+							e.style.backgroundColor = '#7c7c7c4d'; // vscode-editor-snippetTabstopHighlightBackground
+							e.textContent = tabStop0Name;
+							e.style.width = 'auto';
+						}));
+					}
+
+					const decoration = markerStore.add(xterm.registerDecoration({
+						marker: markerStore.add(xterm.registerMarker()),
+						x: startX + formattedLine.tabStops[1].index,
+					})!);
+					markerStore.add(decoration.onRender(e => {
+						e.style.width = '2px';
+						e.style.backgroundColor = '#7c7c7c4d'; // vscode-editor-snippetTabstopHighlightBackground
+					}));
+
+					// TODO: Track the active snippet
+					await new Promise<void>(r => {
+						Event.once(this.onAcceptedCompletion)(async () => {
+							markerStore.dispose();
+							await timeout(200);
+							this._onAcceptedCompletion.fire('\x1bOC'.repeat(formattedLine.tabStops[1].index - formattedLine.tabStops[0].index));
+							// ENQ: Go to end of line
+							// await timeout(200);
+							// this._onAcceptedCompletion.fire('\x05');
+							// ETB: Delete word left
+							// await timeout(50);
+							// this._onAcceptedCompletion.fire('\x17');
+							// TODO: How to configure snippet to request completions?
+							// Request completions
+							// await timeout(50);
+							// this._onAcceptedCompletion.fire('\x1b[24~e');
+							r();
+						});
+					});
+
+					const markerStore2 = new DisposableStore();
+
+					const decoration2 = markerStore2.add(xterm.registerDecoration({
+						marker: markerStore2.add(xterm.registerMarker(1)),
+						// TODO: Unreliable, cursor may not be correct?
+						x: xterm.buffer.active.cursorX,
+					})!);
+					const tabStop1Name = formattedLine.tabStops[1].name;
+					if (tabStop1Name) {
+						markerStore2.add(decoration2.onRender(e => {
+							e.style.backgroundColor = '#7c7c7c4d'; // vscode-editor-snippetTabstopHighlightBackground
+							e.textContent = tabStop1Name;
+							e.style.width = 'auto';
+						}));
+					}
+
+					await new Promise<void>(r => {
+						Event.once(this.onAcceptedCompletion)(async () => {
+							markerStore2.dispose();
+							xterm.options.cursorStyle = originalCursorStyle;
+							xterm.options.cursorWidth = originalCursorWidth;
+						});
+					});
+					break;
+				}
+			}
+		} else {
+			// Send the completion
+			this._onAcceptedCompletion.fire([
+				// Backspace (left) to remove all additional input
+				'\x7F'.repeat(replacementText.length),
+				// Delete (right) to remove any additional text in the same word
+				'\x1b[3~'.repeat(rightSideReplacementText.length),
+				// Write the completion
+				suggestion.item.completion.completionText ?? suggestion.item.completion.label,
+				// Run on enter if needed
+				runOnEnter ? '\r' : ''
+			].join(''));
+		}
 
 		this.hideSuggestWidget();
 	}
@@ -618,4 +757,46 @@ export function parseCompletionsFromShell(rawCompletions: PwshCompletion | PwshC
 		icon: pwshTypeToIconMap[e.ResultType],
 		detail: e.ToolTip
 	})));
+}
+
+function formatBodyAsPrefix(body: string | string[]) {
+	let text: string;
+	if (typeof body === 'string') {
+		text = body;
+	} else if (body.length <= 1) {
+		text = body?.[0] ?? '';
+	} else {
+		text = body.join('\u23CE');
+	}
+	return text.replaceAll(/\$\{\d+:(?<name>[^}]+)\}/g, '$1');
+}
+
+interface IParsedBody {
+	text: string;
+	tabStops: {
+		index: number;
+		name: string | undefined;
+	}[];
+}
+
+function parseBody(body: string | string[]): IParsedBody {
+	const tabStops: {
+		index: number;
+		name: string | undefined;
+	}[] = [];
+	let text = asArray(body).join('\n');
+	let match;
+	while (match = text.match(/\$\{\d+:(?<name>[^}]+)\}/)) {
+		// TODO: When does this happen?
+		if (match.index === undefined) {
+			break;
+		}
+		const name = match.groups?.name;
+		text = text.substring(0, match.index) + text.substring(match.index + match[0].length);
+		tabStops.push({
+			index: match.index,
+			name
+		});
+	}
+	return { text, tabStops };
 }

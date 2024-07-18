@@ -19,6 +19,17 @@ export interface ISimpleCompletion {
 	 * The completion's detail which appears on the right of the list.
 	 */
 	detail?: string;
+	/**
+	 * The completion's completion text which is used to actually insert the completion.
+	 */
+	completionText?: string;
+	snippet?: ITerminalSnippet;
+}
+
+export interface ITerminalSnippet {
+	prefix: string[] | string;
+	body: string[] | string;
+	description?: string;
 }
 
 export class SimpleCompletionItem {
