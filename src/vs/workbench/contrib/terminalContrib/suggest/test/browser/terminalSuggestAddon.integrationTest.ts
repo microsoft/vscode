@@ -79,6 +79,7 @@ suite('Terminal Contrib Suggest Recordings', () => {
 							enabled: true,
 							quickSuggestions: true,
 							suggestOnTriggerCharacters: true,
+							runOnEnter: 'never'
 						} satisfies ITerminalSuggestConfiguration
 					}
 				}
