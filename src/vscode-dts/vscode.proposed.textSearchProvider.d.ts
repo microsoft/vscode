@@ -37,21 +37,6 @@ declare module 'vscode' {
 		isWordMatch?: boolean;
 	}
 
-	export interface IgnoreFileOptions {
-		/**
-		 * Use ignore files at the current workspace root.
-		 */
-		local: boolean;
-		/**
-		 * Use ignore files at the parent directory.
-		 */
-		parent: boolean;
-		/**
-		 * Use global ignore files.
-		 */
-		global: boolean;
-	}
-
 	/**
 	 * Options that apply to text search.
 	 */

@@ -121,50 +121,6 @@ export interface TextSearchQuery {
 }
 
 /**
- * Options common to file and text search
- */
-export interface SearchOptions {
-	/**
-	 * The root folder to search within.
-	 */
-	folder: URI;
-
-	/**
-	 * Files that match an `includes` glob pattern should be included in the search.
-	 */
-	includes: string[];
-
-	/**
-	 * Files that match an `excludes` glob pattern should be excluded from the search.
-	 */
-	excludes: string[];
-
-	/**
-	 * Whether external files that exclude files, like .gitignore, should be respected.
-	 * See the vscode setting `"search.useIgnoreFiles"`.
-	 */
-	useIgnoreFiles: boolean;
-
-	/**
-	 * Whether symlinks should be followed while searching.
-	 * See the vscode setting `"search.followSymlinks"`.
-	 */
-	followSymlinks: boolean;
-
-	/**
-	 * Whether global files that exclude files, like .gitignore, should be respected.
-	 * See the vscode setting `"search.useGlobalIgnoreFiles"`.
-	 */
-	useGlobalIgnoreFiles: boolean;
-
-	/**
-	 * Whether files in parent directories that exclude files, like .gitignore, should be respected.
-	 * See the vscode setting `"search.useParentIgnoreFiles"`.
-	 */
-	useParentIgnoreFiles: boolean;
-}
-
-/**
  * Options to specify the size of the result text preview.
  * These options don't affect the size of the match itself, just the amount of preview text.
  */
@@ -184,7 +140,49 @@ export interface TextSearchPreviewOptions {
 /**
  * Options that apply to text search.
  */
-export interface TextSearchOptions extends SearchOptions {
+export interface TextSearchProviderOptions {
+
+	folderOptions: {
+		/**
+		 * The root folder to search within.
+		 */
+		folder: URI;
+
+		/**
+		 * Files that match an `includes` glob pattern should be included in the search.
+		 */
+		includes: string[];
+
+		/**
+		 * Files that match an `excludes` glob pattern should be excluded from the search.
+		 */
+		excludes: GlobPattern[];
+
+		/**
+		 * Whether symlinks should be followed while searching.
+		 * For more info, see the setting description for `search.followSymlinks`.
+		 */
+		followSymlinks: boolean;
+
+		/**
+		 * Which file locations we should look for ignore (.gitignore or .ignore) files to respect.
+		 */
+		useIgnoreFiles: {
+			/**
+			 * Use ignore files at the current workspace root.
+			 */
+			local: boolean;
+			/**
+			 * Use ignore files at the parent directory. If set, {@link TextSearchProviderOptions.useIgnoreFiles.local} should also be `true`.
+			 */
+			parent: boolean;
+			/**
+			 * Use global ignore files. If set, {@link TextSearchProviderOptions.useIgnoreFiles.local} should also be `true`.
+			 */
+			global: boolean;
+		};
+	}[];
+
 	/**
 	 * The maximum number of results to be returned.
 	 */
@@ -193,58 +191,36 @@ export interface TextSearchOptions extends SearchOptions {
 	/**
 	 * Options to specify the size of the result text preview.
 	 */
-	previewOptions?: TextSearchPreviewOptions;
+	previewOptions: {
+		/**
+		 * The maximum number of lines in the preview.
+		 * Only search providers that support multiline search will ever return more than one line in the match.
+		 */
+		matchLines: number;
+
+		/**
+		 * The maximum number of characters included per line.
+		 */
+		charsPerLine: number;
+	};
 
 	/**
 	 * Exclude files larger than `maxFileSize` in bytes.
 	 */
-	maxFileSize?: number;
+	maxFileSize: number;
 
 	/**
 	 * Interpret files using this encoding.
 	 * See the vscode setting `"files.encoding"`
 	 */
-	encoding?: string;
+	encoding: string;
 
 	/**
-	 * Number of lines of context to include before each match.
+	 * Number of lines of context to include before and after each match.
 	 */
-	beforeContext?: number;
-
-	/**
-	 * Number of lines of context to include after each match.
-	 */
-	afterContext?: number;
+	surroundingContext: number;
 }
-/**
- * Options that apply to AI text search.
- */
-export interface AITextSearchOptions extends SearchOptions {
-	/**
-	 * The maximum number of results to be returned.
-	 */
-	maxResults: number;
 
-	/**
-	 * Options to specify the size of the result text preview.
-	 */
-	previewOptions?: TextSearchPreviewOptions;
-
-	/**
-	 * Exclude files larger than `maxFileSize` in bytes.
-	 */
-	maxFileSize?: number;
-
-	/**
-	 * Number of lines of context to include before each match.
-	 */
-	beforeContext?: number;
-
-	/**
-	 * Number of lines of context to include after each match.
-	 */
-	afterContext?: number;
-}
 
 /**
  * Represents the severity of a TextSearchComplete message.
@@ -284,41 +260,63 @@ export interface TextSearchComplete {
 	 * - If search hits an internal limit which is less than `maxResults`, this should be true.
 	 */
 	limitHit?: boolean;
-
-	/**
-	 * Additional information regarding the state of the completed search.
-	 *
-	 * Supports links in markdown syntax:
-	 * - Click to [run a command](command:workbench.action.OpenQuickPick)
-	 * - Click to [open a website](https://aka.ms)
-	 */
-	message?: TextSearchCompleteMessage | TextSearchCompleteMessage[];
-}
-
-/**
- * The parameters of a query for file search.
- */
-export interface FileSearchQuery {
-	/**
-	 * The search pattern to match against file paths.
-	 */
-	pattern: string;
 }
 
 /**
  * Options that apply to file search.
  */
-export interface FileSearchOptions extends SearchOptions {
-	/**
-	 * The maximum number of results to be returned.
-	 */
-	maxResults?: number;
+export interface FileSearchOptions {
+	folderOptions: {
+		/**
+		 * The root folder to search within.
+		 */
+		folder: URI;
 
-	/**
-	 * A CancellationToken that represents the session for this search query. If the provider chooses to, this object can be used as the key for a cache,
-	 * and searches with the same session object can search the same cache. When the token is cancelled, the session is complete and the cache can be cleared.
-	 */
-	session?: CancellationToken;
+		/**
+		 * Files that match an `includes` glob pattern should be included in the search.
+		 */
+		includes: string[];
+
+		/**
+		 * Files that match an `excludes` glob pattern should be excluded from the search.
+		 */
+		excludes: GlobPattern[];
+
+		/**
+		 * Whether symlinks should be followed while searching.
+		 * For more info, see the setting description for `search.followSymlinks`.
+		 */
+		followSymlinks: boolean;
+
+		/**
+		 * Which file locations we should look for ignore (.gitignore or .ignore) files to respect.
+		 */
+		useIgnoreFiles: {
+			/**
+			 * Use ignore files at the current workspace root.
+			 */
+			local: boolean;
+			/**
+			 * Use ignore files at the parent directory. If set, {@link FileSearchOptions.useIgnoreFiles.local} should also be `true`.
+			 */
+			parent: boolean;
+			/**
+			 * Use global ignore files. If set, {@link FileSearchOptions.useIgnoreFiles.local} should also be `true`.
+			 */
+			global: boolean;
+		};
+
+		/**
+		 * An object with a lifespan that matches the session's lifespan. If the provider chooses to, this object can be used as the key for a cache,
+		 * and searches with the same session object can search the same cache. When the token is cancelled, the session is complete and the cache can be cleared.
+		 */
+		session: unknown;
+
+		/**
+		 * The maximum number of results to be returned.
+		 */
+		maxResults: number;
+	};
 }
 
 /**
@@ -338,47 +336,52 @@ export interface TextSearchMatchPreview {
 }
 
 /**
- * A match from a text search
+ * The main match information for a {@link TextSearchResult}.
  */
-export interface TextSearchMatch {
-	/**
-	 * The uri for the matching document.
-	 */
-	uri: URI;
+interface TextSearchMatch {
+	ranges: {
+		/**
+		 * The range of the match within the document, or multiple ranges for multiple matches.
+		 */
+		sourceRange: Range;
+		/**
+		 * The Range within `previewText` corresponding to the text of the match.
+		 */
+		previewRange: Range;
+	}[];
 
-	/**
-	 * The range of the match within the document, or multiple ranges for multiple matches.
-	 */
-	ranges: Range | Range[];
-
-	/**
-	 * A preview of the text match.
-	 */
-	preview: TextSearchMatchPreview;
+	previewText: string;
 }
 
 /**
- * A line of context surrounding a TextSearchMatch.
+ * A result payload for a text search, pertaining to matches within a single file.
  */
-export interface TextSearchContext {
+export interface TextSearchResult {
 	/**
 	 * The uri for the matching document.
 	 */
 	uri: URI;
-
 	/**
-	 * One line of text.
-	 * previewOptions.charsPerLine applies to this
+	 * The match corresponding to this result
 	 */
-	text: string;
-
+	match: TextSearchMatch;
 	/**
-	 * The line number of this line of context.
+	 * Any applicable context lines
 	 */
-	lineNumber: number;
+	surroundingContext: {
+
+		/**
+		 * One line of text.
+		 * previewOptions.charsPerLine applies to this
+		 */
+		text: string;
+
+		/**
+		 * The line number of this line of context.
+		 */
+		lineNumber: number;
+	}[];
 }
-
-export type TextSearchResult = TextSearchMatch | TextSearchContext;
 
 /**
  * A FileSearchProvider provides search results for files in the given folder that match a query string. It can be invoked by quickaccess or other extensions.
@@ -397,7 +400,7 @@ export interface FileSearchProvider {
 	 * @param progress A progress callback that must be invoked for all results.
 	 * @param token A cancellation token.
 	 */
-	provideFileSearchResults(query: FileSearchQuery, options: FileSearchOptions, token: CancellationToken): ProviderResult<URI[]>;
+	provideFileSearchResults(pattern: string, options: FileSearchOptions, token: CancellationToken): ProviderResult<URI[]>;
 }
 
 /**
@@ -411,85 +414,5 @@ export interface TextSearchProvider {
 	 * @param progress A progress callback that must be invoked for all results.
 	 * @param token A cancellation token.
 	 */
-	provideTextSearchResults(query: TextSearchQuery, options: TextSearchOptions, progress: IProgress<TextSearchResult>, token: CancellationToken): ProviderResult<TextSearchComplete>;
-}
-
-export interface AITextSearchProvider {
-	/**
-	 * Provide results that match the given text pattern.
-	 * @param query The parameter for this query.
-	 * @param options A set of options to consider while searching.
-	 * @param progress A progress callback that must be invoked for all results.
-	 * @param token A cancellation token.
-	 */
-	provideAITextSearchResults(query: string, options: AITextSearchOptions, progress: IProgress<TextSearchResult>, token: CancellationToken): ProviderResult<TextSearchComplete>;
-}
-
-/**
- * Options that can be set on a findTextInFiles search.
- */
-export interface FindTextInFilesOptions {
-	/**
-	 * A [glob pattern](#GlobPattern) that defines the files to search for. The glob pattern
-	 * will be matched against the file paths of files relative to their workspace. Use a [relative pattern](#RelativePattern)
-	 * to restrict the search results to a [workspace folder](#WorkspaceFolder).
-	 */
-	include?: GlobPattern;
-
-	/**
-	 * A [glob pattern](#GlobPattern) that defines files and folders to exclude. The glob pattern
-	 * will be matched against the file paths of resulting matches relative to their workspace. When `undefined` only default excludes will
-	 * apply, when `null` no excludes will apply.
-	 */
-	exclude?: GlobPattern | null;
-
-	/**
-	 * The maximum number of results to search for
-	 */
-	maxResults?: number;
-
-	/**
-	 * Whether external files that exclude files, like .gitignore, should be respected.
-	 * See the vscode setting `"search.useIgnoreFiles"`.
-	 */
-	useIgnoreFiles?: boolean;
-
-	/**
-	 * Whether global files that exclude files, like .gitignore, should be respected.
-	 * See the vscode setting `"search.useGlobalIgnoreFiles"`.
-	 */
-	useGlobalIgnoreFiles?: boolean;
-
-	/**
-	 * Whether files in parent directories that exclude files, like .gitignore, should be respected.
-	 * See the vscode setting `"search.useParentIgnoreFiles"`.
-	 */
-	useParentIgnoreFiles: boolean;
-
-	/**
-	 * Whether symlinks should be followed while searching.
-	 * See the vscode setting `"search.followSymlinks"`.
-	 */
-	followSymlinks?: boolean;
-
-	/**
-	 * Interpret files using this encoding.
-	 * See the vscode setting `"files.encoding"`
-	 */
-	encoding?: string;
-
-	/**
-	 * Options to specify the size of the result text preview.
-	 */
-	previewOptions?: TextSearchPreviewOptions;
-
-	/**
-	 * Number of lines of context to include before each match.
-	 */
-	beforeContext?: number;
-
-	/**
-	 * Number of lines of context to include after each match.
-	 */
-	afterContext?: number;
+	provideTextSearchResults(query: TextSearchQuery, options: TextSearchProviderOptions, progress: IProgress<TextSearchResult>, token: CancellationToken): ProviderResult<TextSearchComplete>;
 }
