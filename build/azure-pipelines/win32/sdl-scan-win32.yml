@@ -91,6 +91,7 @@ steps:
     env:
       npm_config_arch: $(VSCODE_ARCH)
       CHILD_CONCURRENCY: 1
+      ELECTRON_SKIP_BINARY_DOWNLOAD: 1
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Install dependencies
