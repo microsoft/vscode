@@ -597,6 +597,9 @@ class ProfileWidget extends Disposable {
 						if (!isUndefined(e.enabled)) {
 							button.enabled = action.enabled;
 						}
+						if (!isUndefined(e.label)) {
+							button.label = action.label;
+						}
 					}));
 				}
 			}
@@ -612,6 +615,9 @@ class ProfileWidget extends Disposable {
 					disposables.add(action.onDidChange((e) => {
 						if (!isUndefined(e.enabled)) {
 							button.enabled = action.enabled;
+						}
+						if (!isUndefined(e.label)) {
+							button.label = action.label;
 						}
 					}));
 					disposables.add(profileElement.onDidChange(e => {
@@ -884,7 +890,7 @@ class ProfileNameRenderer extends ProfilePropertyRenderer {
 						if (initialName !== value && this.userDataProfilesService.profiles.some(p => p.name === value)) {
 							return {
 								content: localize('profileExists', "Profile with name {0} already exists.", value),
-								type: MessageType.ERROR
+								type: MessageType.WARNING
 							};
 						}
 						return null;
