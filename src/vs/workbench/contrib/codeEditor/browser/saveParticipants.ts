@@ -269,7 +269,7 @@ class FormatOnSaveParticipant implements ITextFileSaveParticipant {
 	}
 }
 
-class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
+class CodeActionOnSaveParticipant extends Disposable implements ITextFileSaveParticipant {
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -279,13 +279,10 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 		@IEditorService private readonly editorService: IEditorService,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 	) {
-		this.hostService.onDidChangeFocus(async () => {
-			this.triggerCodeActionsCommand();
-		});
+		super();
 
-		this.editorService.onDidActiveEditorChange(async () => {
-			this.triggerCodeActionsCommand();
-		});
+		this._register(this.hostService.onDidChangeFocus(() => { this.triggerCodeActionsCommand(); }));
+		this._register(this.editorService.onDidActiveEditorChange(() => { this.triggerCodeActionsCommand(); }));
 	}
 
 	private async triggerCodeActionsCommand() {
