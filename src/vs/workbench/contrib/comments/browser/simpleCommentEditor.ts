@@ -137,6 +137,7 @@ export class SimpleCommentEditor extends CodeEditorWidget {
 			autoClosingBrackets: configurationService.getValue('editor.autoClosingBrackets'),
 			quickSuggestions: false,
 			accessibilitySupport: configurationService.getValue<'auto' | 'off' | 'on'>('editor.accessibilitySupport'),
+			fontFamily: configurationService.getValue('editor.fontFamily'),
 		};
 	}
 }

@@ -247,7 +247,12 @@ const editorConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: diffEditorDefaultOptions.experimental.showEmptyDecorations,
 			description: nls.localize('showEmptyDecorations', "Controls whether the diff editor shows empty decorations to see where characters got inserted or deleted."),
-		}
+		},
+		'diffEditor.experimental.useTrueInlineView': {
+			type: 'boolean',
+			default: diffEditorDefaultOptions.experimental.useTrueInlineView,
+			description: nls.localize('useTrueInlineView', "If enabled and the editor uses the inline view, word changes are rendered inline."),
+		},
 	}
 };
 

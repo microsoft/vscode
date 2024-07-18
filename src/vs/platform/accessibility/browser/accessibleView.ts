@@ -28,7 +28,9 @@ export const enum AccessibleViewProviderId {
 	Notification = 'notification',
 	EmptyEditorHint = 'emptyEditorHint',
 	Comments = 'comments',
-	DebugConsole = 'debugConsole',
+	Repl = 'repl',
+	ReplHelp = 'replHelp',
+	RunAndDebug = 'runAndDebug',
 }
 
 export const enum AccessibleViewType {
@@ -68,6 +70,11 @@ export interface IAccessibleViewOptions {
 	 * Keybinding items to configure
 	 */
 	configureKeybindingItems?: IQuickPickItem[];
+
+	/**
+	 * Keybinding items that are already configured
+	 */
+	configuredKeybindingItems?: IQuickPickItem[];
 }
 
 
@@ -122,7 +129,7 @@ export interface IAccessibleViewService {
 	 */
 	getOpenAriaHint(verbositySettingKey: string): string | null;
 	getCodeBlockContext(): ICodeBlockActionContext | undefined;
-	configureKeybindings(): void;
+	configureKeybindings(unassigned: boolean): void;
 	openHelpLink(): void;
 }
 
