@@ -89,7 +89,7 @@ steps:
       $ErrorActionPreference = "Stop"
       retry { exec { yarn --frozen-lockfile --check-files } }
     env:
-      npm_config_arch: $(VSCODE_ARCH)
+      npm_config_arch: ${{ parameters.VSCODE_ARCH }}
       CHILD_CONCURRENCY: 1
       ELECTRON_SKIP_BINARY_DOWNLOAD: 1
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
