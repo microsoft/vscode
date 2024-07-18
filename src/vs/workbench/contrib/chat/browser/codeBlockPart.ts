@@ -619,6 +619,9 @@ export class CodeCompareBlockPart extends Disposable {
 			readOnly: false,
 			isInEmbeddedEditor: true,
 			useInlineViewWhenSpaceIsLimited: true,
+			experimental: {
+				useTrueInlineView: true,
+			},
 			renderSideBySideInlineBreakpoint: 300,
 			compactMode: true,
 			hideUnchangedRegions: { enabled: true, contextLineCount: 1 },

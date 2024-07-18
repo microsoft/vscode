@@ -24,6 +24,7 @@ export const diffEditorDefaultOptions = {
 	experimental: {
 		showMoves: false,
 		showEmptyDecorations: true,
+		useTrueInlineView: false,
 	},
 	hideUnchangedRegions: {
 		enabled: false,
