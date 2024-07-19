@@ -21,7 +21,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ILogService } from 'vs/platform/log/common/log';
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService, reviveSerializedAgent } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatRequestTextPart, IParsedChatRequest, getPromptText, reviveParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatAgentMarkdownContentWithVulnerability, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatProgressMessage, IChatResponseProgressFileTreeData, IChatTask, IChatTextEdit, IChatTreeData, IChatUsedContext, IChatWarningMessage, ChatAgentVoteDirection, isIUsedContext, IChatProgress } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatAgentMarkdownContentWithVulnerability, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatProgressMessage, IChatResponseProgressFileTreeData, IChatTask, IChatTextEdit, IChatTreeData, IChatUsedContext, IChatWarningMessage, ChatAgentVoteDirection, isIUsedContext, IChatProgress, IChatCodeCitation } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
 
 export interface IChatRequestVariableEntry {
@@ -94,6 +94,7 @@ export interface IChatResponseModel {
 	readonly agent?: IChatAgentData;
 	readonly usedContext: IChatUsedContext | undefined;
 	readonly contentReferences: ReadonlyArray<IChatContentReference>;
+	readonly codeCitations: ReadonlyArray<IChatCodeCitation>;
 	readonly progressMessages: ReadonlyArray<IChatProgressMessage>;
 	readonly slashCommand?: IChatAgentCommand;
 	readonly agentOrSlashCommandDetected: boolean;
@@ -365,6 +366,11 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		return this._contentReferences;
 	}
 
+	private readonly _codeCitations: IChatCodeCitation[] = [];
+	public get codeCitations(): ReadonlyArray<IChatCodeCitation> {
+		return this._codeCitations;
+	}
+
 	private readonly _progressMessages: IChatProgressMessage[] = [];
 	public get progressMessages(): ReadonlyArray<IChatProgressMessage> {
 		return this._progressMessages;
@@ -415,6 +421,11 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 			this._contentReferences.push(progress);
 			this._onDidChange.fire();
 		}
+	}
+
+	applyCodeCitation(progress: IChatCodeCitation) {
+		this._codeCitations.push(progress);
+		this._onDidChange.fire();
 	}
 
 	setAgent(agent: IChatAgentData, slashCommand?: IChatAgentCommand) {
@@ -508,6 +519,7 @@ export interface ISerializableChatRequestData {
 	/** For backward compat: should be optional */
 	usedContext?: IChatUsedContext;
 	contentReferences?: ReadonlyArray<IChatContentReference>;
+	codeCitations?: ReadonlyArray<IChatCodeCitation>;
 }
 
 export interface IExportableChatData {
@@ -542,10 +554,19 @@ export function isSerializableSessionData(obj: unknown): obj is ISerializableCha
 		);
 }
 
-export type IChatChangeEvent = IChatAddRequestEvent | IChatAddResponseEvent | IChatInitEvent | IChatRemoveRequestEvent;
+export type IChatChangeEvent =
+	| IChatInitEvent
+	| IChatAddRequestEvent | IChatChangedRequestEvent | IChatRemoveRequestEvent
+	| IChatAddResponseEvent
+	| IChatSetAgentEvent;
 
 export interface IChatAddRequestEvent {
 	kind: 'addRequest';
+	request: IChatRequestModel;
+}
+
+export interface IChatChangedRequestEvent {
+	kind: 'changedRequest';
 	request: IChatRequestModel;
 }
 
@@ -576,6 +597,12 @@ export interface IChatRemoveRequestEvent {
 	requestId: string;
 	responseId?: string;
 	reason: ChatRequestRemovalReason;
+}
+
+export interface IChatSetAgentEvent {
+	kind: 'setAgent';
+	agent: IChatAgentData;
+	command?: IChatAgentCommand;
 }
 
 export interface IChatInitEvent {
@@ -732,9 +759,8 @@ export class ChatModel extends Disposable implements IChatModel {
 						request.response.applyReference(revive(raw.usedContext));
 					}
 
-					if (raw.contentReferences) {
-						raw.contentReferences.forEach(r => request.response!.applyReference(revive(r)));
-					}
+					raw.contentReferences?.forEach(r => request.response!.applyReference(revive(r)));
+					raw.codeCitations?.forEach(c => request.response!.applyCodeCitation(revive(c)));
 				}
 				return request;
 			});
@@ -832,6 +858,11 @@ export class ChatModel extends Disposable implements IChatModel {
 		return request;
 	}
 
+	updateRequest(request: ChatRequestModel, variableData: IChatRequestVariableData) {
+		request.variableData = variableData;
+		this._onDidChange.fire({ kind: 'changedRequest', request });
+	}
+
 	adoptRequest(request: ChatRequestModel): void {
 
 		// this doesn't use `removeRequest` because it must not dispose the request object
@@ -879,7 +910,10 @@ export class ChatModel extends Disposable implements IChatModel {
 			const agent = this.chatAgentService.getAgent(progress.agentId);
 			if (agent) {
 				request.response.setAgent(agent, progress.command);
+				this._onDidChange.fire({ kind: 'setAgent', agent, command: progress.command });
 			}
+		} else if (progress.kind === 'codeCitation') {
+			request.response.applyCodeCitation(progress);
 		} else {
 			this.logService.error(`Couldn't handle progress: ${JSON.stringify(progress)}`);
 		}
@@ -973,7 +1007,8 @@ export class ChatModel extends Disposable implements IChatModel {
 					agent: r.response?.agent ? { ...r.response.agent } : undefined,
 					slashCommand: r.response?.slashCommand,
 					usedContext: r.response?.usedContext,
-					contentReferences: r.response?.contentReferences
+					contentReferences: r.response?.contentReferences,
+					codeCitations: r.response?.codeCitations
 				};
 			}),
 		};

@@ -132,6 +132,8 @@ declare module 'vscode' {
 
 	export namespace workspace {
 		/**
+		 * WARNING: VERY EXPERIMENTAL.
+		 *
 		 * Search text in files across all {@link workspace.workspaceFolders workspace folders} in the workspace.
 		 * @param query The query parameters for the search - the search string, whether it's case-sensitive, or a regex, or matches whole words.
 		 * @param options An optional set of query options. Include and exclude patterns, maxResults, etc.
@@ -139,6 +141,6 @@ declare module 'vscode' {
 		 * @param token A token that can be used to signal cancellation to the underlying search engine.
 		 * @return A thenable that resolves when the search is complete.
 		 */
-		export function findTextInFiles(query: TextSearchQueryNew, options?: FindTextInFilesOptionsNew, token?: CancellationToken): FindTextInFilesResponse;
+		export function findTextInFilesNew(query: TextSearchQueryNew, options?: FindTextInFilesOptionsNew, token?: CancellationToken): FindTextInFilesResponse;
 	}
 }

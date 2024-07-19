@@ -84,16 +84,6 @@ steps:
         imageName: vscode-linux-build-agent:centos7-devtoolset8-$(VSCODE_ARCH)
         containerCommand: uname
 
-  - ${{ if eq(parameters.VSCODE_ARCH, 'armhf') }}:
-    - task: Docker@1
-      displayName: "Pull Docker image"
-      inputs:
-        azureSubscriptionEndpoint: "vscode-builds-subscription"
-        azureContainerRegistry: vscodehub.azurecr.io
-        command: "Run an image"
-        imageName: vscode-linux-build-agent:bionic-arm32v7
-        containerCommand: uname
-
   - script: |
       set -e
       # To workaround the issue of yarn not respecting the registry value from .npmrc
@@ -129,8 +119,6 @@ steps:
       VSCODE_HOST_MOUNT: "/mnt/vss/_work/1/s"
       ${{ if or(eq(parameters.VSCODE_ARCH, 'x64'), eq(parameters.VSCODE_ARCH, 'arm64')) }}:
         VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME: vscodehub.azurecr.io/vscode-linux-build-agent:centos7-devtoolset8-$(VSCODE_ARCH)
-      ${{ if eq(parameters.VSCODE_ARCH, 'armhf') }}:
-        VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME: vscodehub.azurecr.io/vscode-linux-build-agent:bionic-arm32v7
     displayName: Install dependencies
 
   - script: node build/azure-pipelines/distro/mixin-npm
@@ -199,7 +187,7 @@ steps:
   - ${{ else }}:
     - script: |
         set -e
-        EXPECTED_GLIBC_VERSION="2.28" \
+        EXPECTED_GLIBC_VERSION="2.17" \
         EXPECTED_GLIBCXX_VERSION="3.4.22" \
         ./build/azure-pipelines/linux/verify-glibc-requirements.sh
       env:

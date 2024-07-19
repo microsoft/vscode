@@ -392,9 +392,24 @@ export interface TextSearchCompleteMessageNew {
 	type: TextSearchCompleteMessageTypeNew;
 }
 
-/**
- * Represents the severity of a TextSearchComplete message.
- */
+export enum ExcludeSettingOptions {
+	/*
+	 * Don't use any exclude settings.
+	 */
+	none = 1,
+	/*
+	 * Use:
+	 * - files.exclude setting
+	 */
+	filesExclude = 2,
+	/*
+	 * Use:
+	 * - files.exclude setting
+	 * - search.exclude setting
+	 */
+	searchAndFilesExclude = 3
+}
+
 export enum TextSearchCompleteMessageTypeNew {
 	Information = 1,
 	Warning = 2,

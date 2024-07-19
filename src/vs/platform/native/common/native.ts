@@ -127,7 +127,7 @@ export interface ICommonNativeHostService {
 	showItemInFolder(path: string): Promise<void>;
 	setRepresentedFilename(path: string, options?: INativeHostOptions): Promise<void>;
 	setDocumentEdited(edited: boolean, options?: INativeHostOptions): Promise<void>;
-	openExternal(url: string): Promise<boolean>;
+	openExternal(url: string, defaultApplication?: string): Promise<boolean>;
 	moveItemToTrash(fullPath: string): Promise<void>;
 
 	isAdmin(): Promise<boolean>;
@@ -186,6 +186,7 @@ export interface ICommonNativeHostService {
 	// Connectivity
 	resolveProxy(url: string): Promise<string | undefined>;
 	lookupAuthorization(authInfo: AuthInfo): Promise<Credentials | undefined>;
+	lookupKerberosAuthorization(url: string): Promise<string | undefined>;
 	loadCertificates(): Promise<string[]>;
 	findFreePort(startPort: number, giveUpAfter: number, timeout: number, stride?: number): Promise<number>;
 

@@ -206,6 +206,8 @@ declare module 'vscode' {
 	 */
 	export interface TextSearchProviderNew {
 		/**
+		 * WARNING: VERY EXPERIMENTAL.
+		 *
 		 * Provide results that match the given text pattern.
 		 * @param query The parameters for this query.
 		 * @param options A set of options to consider while searching.
@@ -225,6 +227,6 @@ declare module 'vscode' {
 		 * @param provider The provider.
 		 * @return A {@link Disposable} that unregisters this provider when being disposed.
 		 */
-		export function registerTextSearchProvider(scheme: string, provider: TextSearchProviderNew): Disposable;
+		export function registerTextSearchProviderNew(scheme: string, provider: TextSearchProviderNew): Disposable;
 	}
 }

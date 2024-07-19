@@ -63,6 +63,8 @@ declare module 'vscode' {
 	 */
 	export namespace workspace {
 		/**
+		 * WARNING: VERY EXPERIMENTAL.
+		 *
 		 * Find files across all {@link workspace.workspaceFolders workspace folders} in the workspace.
 		 *
 		 * @example
@@ -76,6 +78,6 @@ declare module 'vscode' {
 		 * @returns A thenable that resolves to an array of resource identifiers. Will return no results if no
 		 * {@link workspace.workspaceFolders workspace folders} are opened.
 		 */
-		export function findFiles2(filePattern: GlobPattern[], options?: FindFiles2OptionsNew, token?: CancellationToken): Thenable<Uri[]>;
+		export function findFiles2New(filePattern: GlobPattern[], options?: FindFiles2OptionsNew, token?: CancellationToken): Thenable<Uri[]>;
 	}
 }

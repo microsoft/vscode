@@ -74,6 +74,8 @@ declare module 'vscode' {
 	 */
 	export interface FileSearchProviderNew {
 		/**
+		 * WARNING: VERY EXPERIMENTAL.
+		 *
 		 * Provide the set of files that match a certain file path pattern.
 		 * @param pattern The search pattern to match against file paths.
 		 * @param options A set of options to consider while searching files.
@@ -84,6 +86,7 @@ declare module 'vscode' {
 
 	export namespace workspace {
 		/**
+		 *
 		 * Register a search provider.
 		 *
 		 * Only one provider can be registered per scheme.
@@ -92,6 +95,6 @@ declare module 'vscode' {
 		 * @param provider The provider.
 		 * @return A {@link Disposable} that unregisters this provider when being disposed.
 		 */
-		export function registerFileSearchProvider(scheme: string, provider: FileSearchProviderNew): Disposable;
+		export function registerFileSearchProviderNew(scheme: string, provider: FileSearchProviderNew): Disposable;
 	}
 }

@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/RedCMD/YAML-Syntax-Highlighter/commit/287c71aeb0773759497822b5e5ce4bdc4d5ef2aa",
+	"version": "https://github.com/RedCMD/YAML-Syntax-Highlighter/commit/60e2e6e24c63d5a703cb04577678a2e416edd956",
 	"name": "YAML 1.2",
 	"scopeName": "source.yaml.1.2",
 	"comment": "https://yaml.org/spec/1.2.2",
@@ -170,7 +170,7 @@
 											"name": "invalid.illegal.character.uri.yaml"
 										},
 										{
-											"include": "#non-printable"
+											"include": "source.yaml#non-printable"
 										},
 										{
 											"match": "[^\r\n\t a-zA-Z0-9-#;/?:@&=+$,_.!~*'()\\[\\]]++",
@@ -369,26 +369,26 @@
 					]
 				},
 				{
-					"begin": "(?=\\[|{)",
-					"while": "\\G",
+					"begin": "(?={)",
+					"end": "$",
 					"patterns": [
-						{
-							"include": "#block-mapping"
-						},
-						{
-							"begin": "(?!\\G)(?![\r\n\t ])",
-							"while": "\\G",
-							"patterns": [
-								{
-									"include": "#presentation-detail"
-								}
-							]
-						},
 						{
 							"include": "#flow-mapping"
 						},
 						{
+							"include": "#presentation-detail"
+						}
+					]
+				},
+				{
+					"begin": "(?=\\[)",
+					"end": "$",
+					"patterns": [
+						{
 							"include": "#flow-sequence"
+						},
+						{
+							"include": "#presentation-detail"
 						}
 					]
 				},
@@ -402,7 +402,7 @@
 		},
 		"block-mapping": {
 			"//": "The check for plain keys is expensive",
-			"begin": "(?=((?<=[-?:]) )?+)(?<![^\t ][\t ]*+:|---)\\G( *+)([\t ]*+)(?>((?>[!&*][^\r\n\t ]*+[\t ]++)*+)(?=(?>(?#Double Quote)\"(?>[^\\\\\"]++|\\\\.)*+\"|(?#Single Quote)'(?>[^']++|'')*+'|(?#Plain)(?>[\\x{85}[^-?:,\\[\\]{}#&*!|>'\"%@` \\p{Cntrl}\\p{Surrogate}\\x{FEFF FFFE FFFF}]]|[?:-](?![\r\n\t ]))(?>[^:#]++|:(?![\r\n\t ])|(?<! |\t)#++)*+)?+(?#Map Value)[\t ]*+:[\r\n\t ])|(?#Explicit)(?=\\?[\r\n\t ]))|(?#Flow-Map/Seq)(?<=]|})([\t ]*+)(?=:)",
+			"begin": "(?=((?<=[-?:]) )?+)(?<![^\t ][\t ]*+:|---)\\G( *+)([\t ]*+)(?>((?>[!&*][^\r\n\t ]*+[\t ]++)*+)(?=(?>(?#Double Quote)\"(?>[^\\\\\"]++|\\\\.)*+\"|(?#Single Quote)'(?>[^']++|'')*+'|(?#Flow-Map){(?>[^}]++|}[ \t]*+(?!:[\r\n\t ]))++}|(?#Flow-Seq)\\[(?>[^]]++|][ \t]*+(?!:[\r\n\t ]))++]|(?#Plain)(?>[\\x{85}[^-?:,\\[\\]{}#&*!|>'\"%@` \\p{Cntrl}\\p{Surrogate}\\x{FEFF FFFE FFFF}]]|[?:-](?![\r\n\t ]))(?>[^:#]++|:(?![\r\n\t ])|(?<! |\t)#++)*+)?+(?#Map Value)[\t ]*+:[\r\n\t ])|(?#Explicit)(?=\\?[\r\n\t ]))",
 			"while": "\\G(?>(\\1\\2)((?>[!&*][^\r\n\t ]*+[\t ]++)*+)((?>\t[\t ]*+)?+[^\r\n\t ?:\\-#!&*\"'\\[\\]{}0-9A-Za-z$()+./;<=\\\\^_~\\x{85}\\x{A0}-\\x{D7FF}\\x{E000}-\\x{FFFD}\\x{010000}-\\x{10FFFF}])?+|( *+)([\t ]*+[^\r\n#])?+)",
 			"beginCaptures": {
 				"2": {
@@ -427,9 +427,6 @@
 							"include": "#presentation-detail"
 						}
 					]
-				},
-				"5": {
-					"name": "punctuation.whitespace.separator.yaml"
 				}
 			},
 			"whileCaptures": {
@@ -469,7 +466,7 @@
 					"include": "#block-map-key-double"
 				},
 				{
-					"include": "#block-map-key-single"
+					"include": "source.yaml#block-map-key-single"
 				},
 				{
 					"include": "#block-map-key-plain"
@@ -559,7 +556,7 @@
 					"include": "#key-double"
 				},
 				{
-					"include": "#key-single"
+					"include": "source.yaml#key-single"
 				},
 				{
 					"include": "#flow-key-plain-out"
@@ -601,36 +598,6 @@
 				}
 			]
 		},
-		"block-map-key-single": {
-			"comment": "https://yaml.org/spec/1.2.2/#rule-c-single-quoted (BLOCK-KEY)",
-			"begin": "\\G'",
-			"end": "'(?!')",
-			"beginCaptures": {
-				"0": {
-					"name": "punctuation.definition.string.begin.yaml"
-				}
-			},
-			"endCaptures": {
-				"0": {
-					"name": "punctuation.definition.string.end.yaml"
-				}
-			},
-			"name": "meta.map.key.yaml string.quoted.single.yaml entity.name.tag.yaml",
-			"patterns": [
-				{
-					"match": ".[\t ]*+$",
-					"name": "invalid.illegal.multiline-key.yaml"
-				},
-				{
-					"match": "[^\t -\\x{10FFFF}]++",
-					"name": "invalid.illegal.character.yaml"
-				},
-				{
-					"match": "''",
-					"name": "constant.character.escape.single-quote.yaml"
-				}
-			]
-		},
 		"block-map-key-plain": {
 			"comment": "https://yaml.org/spec/1.2.2/#rule-ns-plain-one-line (BLOCK-KEY)",
 			"begin": "\\G(?=[\\x{85}[^-?:,\\[\\]{}#&*!|>'\"%@` \\p{Cntrl}\\p{Surrogate}\\x{FEFF FFFE FFFF}]]|[?:-](?![\r\n\t ]))",
@@ -660,7 +627,7 @@
 					"name": "invalid.illegal.bom.yaml"
 				},
 				{
-					"include": "#non-printable"
+					"include": "source.yaml#non-printable"
 				}
 			]
 		},
@@ -723,7 +690,7 @@
 							"contentName": "string.unquoted.block.yaml",
 							"patterns": [
 								{
-									"include": "#non-printable"
+									"include": "source.yaml#non-printable"
 								}
 							]
 						},
@@ -783,7 +750,7 @@
 									"contentName": "string.unquoted.block.yaml",
 									"patterns": [
 										{
-											"include": "#non-printable"
+											"include": "source.yaml#non-printable"
 										}
 									]
 								},
@@ -816,7 +783,7 @@
 											"contentName": "string.unquoted.block.yaml",
 											"patterns": [
 												{
-													"include": "#non-printable"
+													"include": "source.yaml#non-printable"
 												}
 											]
 										}
@@ -878,7 +845,7 @@
 							"name": "invalid.illegal.bom.yaml"
 						},
 						{
-							"include": "#non-printable"
+							"include": "source.yaml#non-printable"
 						}
 					]
 				},
@@ -1111,7 +1078,7 @@
 							"include": "#key-double"
 						},
 						{
-							"include": "#key-single"
+							"include": "source.yaml#key-single"
 						},
 						{
 							"include": "#flow-map-value-json"
@@ -1181,7 +1148,7 @@
 							"include": "#key-double"
 						},
 						{
-							"include": "#key-single"
+							"include": "source.yaml#key-single"
 						},
 						{
 							"include": "#flow-map-value-json"
@@ -1251,7 +1218,7 @@
 					"name": "invalid.illegal.bom.yaml"
 				},
 				{
-					"include": "#non-printable"
+					"include": "source.yaml#non-printable"
 				}
 			]
 		},
@@ -1277,7 +1244,7 @@
 					"name": "invalid.illegal.bom.yaml"
 				},
 				{
-					"include": "#non-printable"
+					"include": "source.yaml#non-printable"
 				}
 			]
 		},
@@ -1295,13 +1262,13 @@
 					"name": "invalid.illegal.bom.yaml"
 				},
 				{
-					"include": "#non-printable"
+					"include": "source.yaml#non-printable"
 				}
 			]
 		},
 		"key-double": {
-			"comment": "https://yaml.org/spec/1.2.2/#double-quoted-style",
-			"begin": "\\G\"",
+			"comment": "https://yaml.org/spec/1.2.2/#double-quoted-style (FLOW-OUT)",
+			"begin": "\"",
 			"end": "\"",
 			"beginCaptures": {
 				"0": {
@@ -1321,32 +1288,6 @@
 				},
 				{
 					"include": "#double-escape"
-				}
-			]
-		},
-		"key-single": {
-			"comment": "https://yaml.org/spec/1.2.2/#rule-c-single-quoted (BLOCK-KEY)",
-			"begin": "\\G'",
-			"end": "'(?!')",
-			"beginCaptures": {
-				"0": {
-					"name": "punctuation.definition.string.begin.yaml"
-				}
-			},
-			"endCaptures": {
-				"0": {
-					"name": "punctuation.definition.string.end.yaml"
-				}
-			},
-			"name": "meta.map.key.yaml string.quoted.single.yaml entity.name.tag.yaml",
-			"patterns": [
-				{
-					"match": "[^\t -\\x{10FFFF}]++",
-					"name": "invalid.illegal.character.yaml"
-				},
-				{
-					"match": "''",
-					"name": "constant.character.escape.single-quote.yaml"
 				}
 			]
 		},
@@ -1557,7 +1498,7 @@
 							"name": "invalid.illegal.constant.character.escape.unicode.8-bit.yaml"
 						},
 						{
-							"include": "#non-printable"
+							"include": "source.yaml#non-printable"
 						},
 						{
 							"match": "[^\r\n\t a-zA-Z0-9-#;/?:@&=+$,_.!~*'()\\[\\]%>]++",
@@ -1602,7 +1543,7 @@
 							"name": "invalid.illegal.constant.character.escape.unicode.8-bit.yaml"
 						},
 						{
-							"include": "#non-printable"
+							"include": "source.yaml#non-printable"
 						},
 						{
 							"match": "[^\r\n\t a-zA-Z0-9-#;/?:@&=+$_.~*'()%]++",
@@ -1664,7 +1605,7 @@
 					"name": "punctuation.whitespace.separator.yaml"
 				},
 				{
-					"include": "#non-printable"
+					"include": "source.yaml#non-printable"
 				},
 				{
 					"include": "#comment"
@@ -1673,22 +1614,6 @@
 					"include": "#unknown"
 				}
 			]
-		},
-		"non-printable": {
-			"//": {
-				"85": "",
-				"10000": "𐀀",
-				"A0": " ",
-				"D7FF": "퟿",
-				"E000": "",
-				"FFFD": "�",
-				"FEFF": "﻿",
-				"FFFF": "￿",
-				"10FFFF": "􏿿"
-			},
-			"//match": "[\\p{Cntrl}\\p{Surrogate}\\x{FFFE FFFF}&&[^\t\n\r\\x{85}]]++",
-			"match": "[^\t\n\r -~\\x{85}\\x{A0}-\\x{D7FF}\\x{E000}-\\x{FFFD}\\x{010000}-\\x{10FFFF}]++",
-			"name": "invalid.illegal.non-printable.yaml"
 		},
 		"comment": {
 			"comment": "Comments must be separated from other tokens by white space characters. `space`, `tab`, `newline` or `carriage-return`. `#(.*)` causes performance issues",
@@ -1702,13 +1627,13 @@
 			"name": "comment.line.number-sign.yaml",
 			"patterns": [
 				{
-					"include": "#non-printable"
+					"include": "source.yaml#non-printable"
 				}
 			]
 		},
 		"unknown": {
 			"match": ".[[^\"':,\\[\\]{}]&&!-~\\x{85}\\x{A0}-\\x{D7FF}\\x{E000}-\\x{FFFD}\\x{010000}-\\x{10FFFF}]*+",
-			"name": "invalid.illegal.unrecognized.yaml markup.strikethrough"
+			"name": "invalid.illegal.unrecognized.yaml"
 		}
 	}
 }

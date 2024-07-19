@@ -194,6 +194,14 @@ class ChatAgentResponseStream {
 
 					return this;
 				},
+				codeCitation(value: vscode.Uri, license: string, snippet: string): void {
+					throwIfDone(this.codeCitation);
+					checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
+
+					const part = new extHostTypes.ChatResponseCodeCitationPart(value, license, snippet);
+					const dto = typeConvert.ChatResponseCodeCitationPart.from(part);
+					_report(dto);
+				},
 				textEdit(target, edits) {
 					throwIfDone(this.textEdit);
 					checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
@@ -212,11 +220,11 @@ class ChatAgentResponseStream {
 					_report(dto);
 					return this;
 				},
-				confirmation(title, message, data) {
+				confirmation(title, message, data, buttons) {
 					throwIfDone(this.confirmation);
 					checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
 
-					const part = new extHostTypes.ChatResponseConfirmationPart(title, message, data);
+					const part = new extHostTypes.ChatResponseConfirmationPart(title, message, data, buttons);
 					const dto = typeConvert.ChatResponseConfirmationPart.from(part);
 					_report(dto);
 					return this;
@@ -229,7 +237,8 @@ class ChatAgentResponseStream {
 						part instanceof extHostTypes.ChatResponseMarkdownWithVulnerabilitiesPart ||
 						part instanceof extHostTypes.ChatResponseDetectedParticipantPart ||
 						part instanceof extHostTypes.ChatResponseWarningPart ||
-						part instanceof extHostTypes.ChatResponseConfirmationPart
+						part instanceof extHostTypes.ChatResponseConfirmationPart ||
+						part instanceof extHostTypes.ChatResponseCodeCitationPart
 					) {
 						checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
 					}

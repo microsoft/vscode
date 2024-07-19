@@ -174,21 +174,21 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 			throw new Error('Invalid combination of options. Please remove one of the following: createIfNone, silent');
 		}
 
+		if (options.clearSessionPreference) {
+			// Clearing the session preference is usually paired with createIfNone, so just remove the preference and
+			// defer to the rest of the logic in this function to choose the session.
+			this.authenticationExtensionsService.removeSessionPreference(providerId, extensionId, scopes);
+		}
+
 		// Check if the sessions we have are valid
 		if (!options.forceNewSession && sessions.length) {
 			if (provider.supportsMultipleAccounts) {
-				if (options.clearSessionPreference) {
-					// Clearing the session preference is usually paired with createIfNone, so just remove the preference and
-					// defer to the rest of the logic in this function to choose the session.
-					this.authenticationExtensionsService.removeSessionPreference(providerId, extensionId, scopes);
-				} else {
-					// If we have an existing session preference, use that. If not, we'll return any valid session at the end of this function.
-					const existingSessionPreference = this.authenticationExtensionsService.getSessionPreference(providerId, extensionId, scopes);
-					if (existingSessionPreference) {
-						const matchingSession = sessions.find(session => session.id === existingSessionPreference);
-						if (matchingSession && this.authenticationAccessService.isAccessAllowed(providerId, matchingSession.account.label, extensionId)) {
-							return matchingSession;
-						}
+				// If we have an existing session preference, use that. If not, we'll return any valid session at the end of this function.
+				const existingSessionPreference = this.authenticationExtensionsService.getSessionPreference(providerId, extensionId, scopes);
+				if (existingSessionPreference) {
+					const matchingSession = sessions.find(session => session.id === existingSessionPreference);
+					if (matchingSession && this.authenticationAccessService.isAccessAllowed(providerId, matchingSession.account.label, extensionId)) {
+						return matchingSession;
 					}
 				}
 			} else if (this.authenticationAccessService.isAccessAllowed(providerId, sessions[0].account.label, extensionId)) {

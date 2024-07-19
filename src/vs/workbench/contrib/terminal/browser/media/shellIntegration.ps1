@@ -187,11 +187,11 @@ function Set-MappedKeyHandlers {
 		}
 
 		# TODO: When does this invalidate? Installing a new module could add new commands. We could expose a command to update? Track `(Get-Module).Count`?
-		# Commands are expensive to complete and send over, do this once for the empty string so we
-		# don't need to do it each time the user requests. Additionally we also want to do filtering
-		# and ranking on the client side with the full list of results.
+		# Get commands, convert to string array to reduce the payload size and send as JSON
+		$commands = [System.Management.Automation.CompletionCompleters]::CompleteCommand('')
+		$mappedCommands = Compress-Completions($commands)
 		$result = "$([char]0x1b)]633;CompletionsPwshCommands;commands;"
-		$result += [System.Management.Automation.CompletionCompleters]::CompleteCommand('') | ConvertTo-Json -Compress
+		$result += $mappedCommands | ConvertTo-Json -Compress
 		$result += "`a"
 		Write-Host -NoNewLine $result
 	}
@@ -224,9 +224,11 @@ function Send-Completions {
 				$json.Add([System.Management.Automation.CompletionResult]::new(
 					'..', '..', [System.Management.Automation.CompletionResultType]::ProviderContainer, (Split-Path (Get-Location) -Parent))
 				)
-				$result += $json | ConvertTo-Json -Compress
+				$mappedCommands = Compress-Completions($json)
+				$result += $mappedCommands | ConvertTo-Json -Compress
 			} else {
-				$result += $completions.CompletionMatches | ConvertTo-Json -Compress
+				$mappedCommands = Compress-Completions($completions.CompletionMatches)
+				$result += $mappedCommands | ConvertTo-Json -Compress
 			}
 		}
 	}
@@ -235,12 +237,19 @@ function Send-Completions {
 	else {
 		# Note that CompleteCommand isn't included here as it's expensive
 		$completions = $(
-			([System.Management.Automation.CompletionCompleters]::CompleteFilename($completionPrefix));
+			# Add trailing \ for directories so behavior aligns with TabExpansion2
+			[System.Management.Automation.CompletionCompleters]::CompleteFilename($completionPrefix) | ForEach-Object {
+				if ($_.ResultType -eq [System.Management.Automation.CompletionResultType]::ProviderContainer) {
+					[System.Management.Automation.CompletionResult]::new($_.CompletionText + [System.IO.Path]::DirectorySeparatorChar, $_.ListItemText + [System.IO.Path]::DirectorySeparatorChar, $_.ResultType, $_.ToolTip)
+				}
+				$_
+			}
 			([System.Management.Automation.CompletionCompleters]::CompleteVariable($completionPrefix));
 		)
 		if ($null -ne $completions) {
 			$result += ";$($completions.ReplacementIndex);$($completions.ReplacementLength);$($cursorIndex);"
-			$result += $completions | ConvertTo-Json -Compress
+			$mappedCommands = Compress-Completions($completions)
+			$result += $mappedCommands | ConvertTo-Json -Compress
 		} else {
 			$result += ";0;$($completionPrefix.Length);$($completionPrefix.Length);[]"
 		}
@@ -250,6 +259,10 @@ function Send-Completions {
 	$result += "`a"
 
 	Write-Host -NoNewLine $result
+}
+
+function Compress-Completions($completions) {
+	$completions | ForEach-Object { ,@($_.CompletionText, $_.ResultType, $_.tooltip) }
 }
 
 # Register key handlers if PSReadLine is available
