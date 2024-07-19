@@ -3775,7 +3775,7 @@ export class SCMViewPane extends ViewPane {
 			actions.push(toHistoryItemGroupFilterAction(currentHistoryItemGroup.remote.id, currentHistoryItemGroup.remote.name));
 		}
 
-		if (currentHistoryItemGroup.base && currentHistoryItemGroup.base.id !== currentHistoryItemGroup.remote?.id) {
+		if (currentHistoryItemGroup.base) {
 			actions.push(toHistoryItemGroupFilterAction(currentHistoryItemGroup.base.id, currentHistoryItemGroup.base.name));
 		}
 
