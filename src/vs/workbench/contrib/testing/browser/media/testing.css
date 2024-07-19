@@ -235,15 +235,6 @@
 	background-color: var(--vscode-peekViewEditorGutter-background);
 }
 
-.test-output-primary-scrollable,
-.test-output-primary-container {
-	height: 100%;
-}
-
-.test-output-primary-container {
-	margin: 0 20px;
-}
-
 .test-output-peek-message-container {
 	overflow: hidden;
 }
