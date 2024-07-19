@@ -8,7 +8,6 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { isDefined } from 'vs/base/common/types';
 import { AbstractEditContext } from 'vs/editor/browser/controller/editContext/editContext';
-import { IEditorAriaOptions } from 'vs/editor/browser/editorBrowser';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
 import { ViewController } from 'vs/editor/browser/view/viewController';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -23,6 +22,7 @@ import { ViewConfigurationChangedEvent, ViewCursorStateChangedEvent, ViewScrollC
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import * as dom from 'vs/base/browser/dom';
 import { KeyCode } from 'vs/base/common/keyCodes';
+import { IEditorAriaOptions } from 'vs/editor/browser/editorBrowser';
 
 // TODO
 // 1. Need to rerender the dom element on selection change, so that contains correct elements
@@ -63,9 +63,9 @@ export class NativeEditContext extends AbstractEditContext {
 		// TODO: what role to use?
 		this._domElement.domNode.role = 'textbox';
 		this._domElement.domNode.ariaMultiLine = 'true';
-		this._domElement.domNode.contentEditable = 'true';
+		// this._domElement.domNode.contentEditable = 'true';
 		this._domElement.domNode.style.position = 'absolute';
-		this._domElement.domNode.style.zIndex = '-100';
+		this._domElement.domNode.style.zIndex = '100';
 		this._domElement.domNode.style.background = 'white';
 		dom.addDisposableListener(this._domElement.domNode, 'focus', () => {
 			this._domElement.domNode.style.background = 'yellow';
@@ -279,6 +279,79 @@ export class NativeEditContext extends AbstractEditContext {
 	}
 
 	private updateText() {
+		console.log('updateText');
+		const primaryViewState = this._context.viewModel.getCursorStates()[0].viewState;
+
+		const doc = new LineBasedText(lineNumber => this._context.viewModel.getLineContent(lineNumber), this._context.viewModel.getLineCount());
+		const docStart = new Position(1, 1);
+		const textStart = new Position(primaryViewState.selection.startLineNumber, 1);
+		const textEnd = new Position(primaryViewState.selection.endLineNumber, Number.MAX_SAFE_INTEGER);
+		const textEdit = new TextEdit([
+			docStart.isBefore(textStart) ? new SingleTextEdit(Range.fromPositions(docStart, textStart), '') : undefined,
+			(primaryViewState.selection.endLineNumber - primaryViewState.selection.startLineNumber > 6) ?
+				new SingleTextEdit(Range.fromPositions(new Position(primaryViewState.selection.startLineNumber, 1), new Position(primaryViewState.selection.endLineNumber, 1)), '') :
+				undefined,
+			textEnd.isBefore(doc.endPositionExclusive) ? new SingleTextEdit(Range.fromPositions(textEnd, doc.endPositionExclusive), '') : undefined
+		].filter(isDefined));
+
+		const value = textEdit.apply(doc);
+
+		this._positionSelectionStart = textEdit.mapPosition(primaryViewState.selection.getStartPosition()) as Position;
+		this._positionSelectionEnd = textEdit.mapPosition(primaryViewState.selection.getEndPosition()) as Position;
+		const position = textEdit.mapPosition(primaryViewState.selection.getPosition()) as Position;
+
+		const t = new PositionOffsetTransformer(value);
+		const selection = new OffsetRange((t.getOffset(this._positionSelectionStart)), (t.getOffset(this._positionSelectionEnd)));
+		const positionOffset = t.getOffset(position);
+
+		this._editContextState = new EditContextState(textEdit, t, positionOffset, selection);
+
+		console.log('value : ', value);
+		console.log('selection start : ', selection.start, ', and end : ', selection.endExclusive);
+
+		this._ctx.updateText(0, Number.MAX_SAFE_INTEGER, value);
+		this._ctx.updateSelection(selection.start, selection.endExclusive);
+
+		const domElementNode = this._domElement.domNode;
+		domElementNode.style.tabSize = '4';
+
+		console.log('this._context.viewLayout.getCurrentScrollTop() : ', this._context.viewLayout.getCurrentScrollTop());
+		console.log('this._context.viewLayout.getVerticalOffsetForLineNumber() : ', this._context.viewLayout.getVerticalOffsetForLineNumber(primaryViewState.selection.startLineNumber - 2));
+
+		const topPosition = this._context.viewLayout.getVerticalOffsetForLineNumber(primaryViewState.selection.startLineNumber - 5) - this._context.viewLayout.getCurrentScrollTop();
+		domElementNode.style.top = `${topPosition}px`;
+		domElementNode.style.left = `${this._contentLeft}px`;
+		if (this._previousValue !== value) {
+			domElementNode.replaceChildren();
+			const span = document.createElement('div');
+			span.textContent = value ?? ' '; // so value is not completely empty
+			// span.contentEditable = 'true';
+			span.id = `l0`;
+			span.role = 'textbox';
+			domElementNode.appendChild(span);
+			this._previousValue = value;
+		}
+
+		const activeDocument = dom.getActiveWindow().document;
+		const activeDocumentSelection = activeDocument.getSelection();
+		console.log('activeDocumentSelection : ', activeDocumentSelection);
+
+		if (activeDocumentSelection && domElementNode.firstChild) {
+			const range = new globalThis.Range();
+			const startFirstChild = domElementNode.firstChild?.firstChild;
+			const endFirstChild = domElementNode.firstChild?.firstChild;
+			if (startFirstChild && endFirstChild) {
+				range.setStart(startFirstChild, selection.start);
+				range.setEnd(endFirstChild, selection.endExclusive);
+				activeDocumentSelection.removeAllRanges();
+				activeDocumentSelection.addRange(range);
+				domElementNode.setAttribute('aria-activedescendant', `l0`);
+				domElementNode.setAttribute('aria-controls', 'main-hidden-area');
+			}
+		}
+	}
+
+	private updateTextMultiLine() {
 		console.log('updateText');
 		const primaryViewState = this._context.viewModel.getCursorStates()[0].viewState;
 
