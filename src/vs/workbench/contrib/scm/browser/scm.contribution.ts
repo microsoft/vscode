@@ -353,7 +353,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		'scm.experimental.showHistoryGraph': {
 			type: 'boolean',
 			description: localize('scm.experimental.showHistoryGraph', "Controls whether to show the history graph instead of incoming/outgoing changes in the Source Control view."),
-			default: false
+			default: true
 		}
 	}
 });
