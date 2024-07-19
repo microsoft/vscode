@@ -222,7 +222,7 @@ const fileExtScores = new Map<string, number>(isWindows ? [
 	['sh', -0.09]
 ] : [
 	['ps1', 0.09],
-	['bat', 0.08],
+	['bat', -0.08],
 	['sh', 0.08],
 ]);
 
