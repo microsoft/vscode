@@ -825,3 +825,19 @@
 	margin-left: 0;
 	margin-top: 1px;
 }
+
+.chat-code-citation-label {
+	opacity: 0.7;
+	white-space: pre-wrap;
+}
+
+.chat-code-citation-button-container {
+	display: inline;
+}
+
+.chat-code-citation-button-container .monaco-button {
+	display: inline;
+	border: none;
+	padding: 0;
+	color: var(--vscode-textLink-foreground);
+}

@@ -84,6 +84,7 @@ export interface IChatContentReference {
 export interface IChatCodeCitation {
 	value: URI;
 	license: string;
+	snippet: string;
 	kind: 'codeCitation';
 }
 

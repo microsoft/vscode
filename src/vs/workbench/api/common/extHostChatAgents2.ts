@@ -194,11 +194,11 @@ class ChatAgentResponseStream {
 
 					return this;
 				},
-				codeCitation(value: vscode.Uri, license: string): void {
+				codeCitation(value: vscode.Uri, license: string, snippet: string): void {
 					throwIfDone(this.codeCitation);
 					checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
 
-					const part = new extHostTypes.ChatResponseCodeCitationPart(value, license);
+					const part = new extHostTypes.ChatResponseCodeCitationPart(value, license, snippet);
 					const dto = typeConvert.ChatResponseCodeCitationPart.from(part);
 					_report(dto);
 				},

@@ -4476,9 +4476,11 @@ export class ChatResponseReferencePart {
 export class ChatResponseCodeCitationPart {
 	value: vscode.Uri;
 	license: string;
-	constructor(value: vscode.Uri, license: string) {
+	snippet: string;
+	constructor(value: vscode.Uri, license: string, snippet: string) {
 		this.value = value;
 		this.license = license;
+		this.snippet = snippet;
 	}
 }
 

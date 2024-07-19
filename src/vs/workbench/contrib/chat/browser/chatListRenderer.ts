@@ -41,12 +41,13 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ChatTreeItem, GeneratingPhrase, IChatCodeBlockInfo, IChatFileTreeInfo } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatAgentHover, getChatAgentHoverOptions } from 'vs/workbench/contrib/chat/browser/chatAgentHover';
 import { ChatAttachmentsContentPart } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatAttachmentsContentPart';
+import { ChatCodeCitationContentPart } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatCodeCitationContentPart';
 import { ChatCommandButtonContentPart } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatCommandContentPart';
 import { ChatConfirmationContentPart } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatConfirmationContentPart';
 import { IChatContentPart, IChatContentPartRenderContext } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatContentParts';
 import { ChatMarkdownContentPart, EditorPool } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatMarkdownContentPart';
 import { ChatProgressContentPart } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatProgressContentPart';
-import { ChatCollapsibleListContentPart, CollapsibleListPool, IChatCollapsibleListItem } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatReferencesContentPart';
+import { ChatCollapsibleListContentPart, CollapsibleListPool } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatReferencesContentPart';
 import { ChatTaskContentPart } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatTaskContentPart';
 import { ChatTextEditContentPart, DiffEditorPool } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatTextEditContentPart';
 import { ChatTreeContentPart, TreePool } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatTreeContentPart';
@@ -461,10 +462,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			if (element.contentReferences.length) {
 				value.push({ kind: 'references', references: element.contentReferences });
 			}
+			value.push(...annotateSpecialMarkdownContent(element.response.value));
 			if (element.codeCitations.length) {
 				value.push({ kind: 'codeCitations', citations: element.codeCitations });
 			}
-			value.push(...annotateSpecialMarkdownContent(element.response.value));
 		}
 
 		dom.clearNode(templateData.value);
@@ -673,9 +674,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (element.contentReferences.length) {
 			partsToRender.push({ kind: 'references', references: element.contentReferences });
 		}
-		if (element.codeCitations.length) {
-			partsToRender.push({ kind: 'codeCitations', citations: element.codeCitations });
-		}
 
 		for (let i = 0; i < renderableResponse.length; i++) {
 			const part = renderableResponse[i];
@@ -810,24 +808,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		return referencesPart;
 	}
 
-	private renderCodeCitationsListData(citations: IChatCodeCitations, context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): ChatCollapsibleListContentPart {
-		const citationsAsReferences: IChatCollapsibleListItem[] = citations.citations.map(citation => {
-			return {
-				kind: 'reference',
-				reference: citation.value,
-				title: `License: ${citation.license}\n${citation.value}`
-			} satisfies IChatCollapsibleListItem;
-		});
-
-		const label = citationsAsReferences.length > 1 ?
-			localize('codeCitationsPlural', "This code matches {0} references in public repositories", citationsAsReferences.length) :
-			localize('codeCitation', "This code matches 1 reference in public repositories", citationsAsReferences.length);
-		const referencesPart = this.instantiationService.createInstance(ChatCollapsibleListContentPart, citationsAsReferences, label, context.element as IChatResponseViewModel, this._contentReferencesListPool);
-		referencesPart.addDisposable(referencesPart.onDidChangeHeight(() => {
-			this.updateItemHeight(templateData);
-		}));
-
-		return referencesPart;
+	private renderCodeCitationsListData(citations: IChatCodeCitations, context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): ChatCodeCitationContentPart {
+		const citationsPart = this.instantiationService.createInstance(ChatCodeCitationContentPart, citations, context);
+		return citationsPart;
 	}
 
 	private renderProgressTask(task: IChatTask, templateData: IChatListItemTemplate, context: IChatContentPartRenderContext): IChatContentPart | undefined {
