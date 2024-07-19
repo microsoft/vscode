@@ -145,11 +145,11 @@ export const buttonSecondaryHoverBackground = registerColor('button.secondaryHov
 
 export const radioActiveForeground = registerColor('radio.activeForeground',
 	inputActiveOptionForeground,
-	nls.localize('radioActiveForeground', "Foreground color of activate radio option."));
+	nls.localize('radioActiveForeground', "Foreground color of active radio option."));
 
 export const radioActiveBackground = registerColor('radio.activeBackground',
 	inputActiveOptionBackground,
-	nls.localize('radioBackground', "Background color of activat radio option."));
+	nls.localize('radioBackground', "Background color of active radio option."));
 
 export const radioActiveBorder = registerColor('radio.activeBorder',
 	inputActiveOptionBorder,
