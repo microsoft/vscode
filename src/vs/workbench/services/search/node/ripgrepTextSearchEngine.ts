@@ -330,16 +330,15 @@ export class RipgrepParser extends EventEmitter {
 		const searchRange = mapArrayOrNot(<Range[]>ranges, rangeToSearchRange);
 
 		const internalResult = new TextSearchMatch(fullText, searchRange, this.previewOptions);
-		return {
+		return new TextSearchMatchNew(
 			uri,
-			ranges: internalResult.rangeLocations.map(e => (
+			internalResult.rangeLocations.map(e => (
 				{
 					sourceRange: searchRangeToRange(e.sourceRange),
 					previewRange: searchRangeToRange(e.sourceRange),
 				}
 			)),
-			previewText: internalResult.text,
-		};
+			internalResult.text);
 	}
 
 	private createTextSearchContexts(data: IRgMatch, uri: URI): TextSearchContextNew[] {
@@ -348,13 +347,7 @@ export class RipgrepParser extends EventEmitter {
 		return text
 			.replace(/\r?\n$/, '')
 			.split('\n')
-			.map((line, i) => {
-				return {
-					text: line,
-					uri,
-					lineNumber: startLine + i
-				};
-			});
+			.map((line, i) => new TextSearchContextNew(uri, line, startLine + i));
 	}
 
 	private onResult(match: TextSearchResultNew): void {

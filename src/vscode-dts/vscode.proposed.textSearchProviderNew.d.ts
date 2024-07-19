@@ -138,7 +138,14 @@ declare module 'vscode' {
 	/**
 	 * The main match information for a {@link TextSearchResultNew}.
 	 */
-	export interface TextSearchMatchNew {
+	export class TextSearchMatchNew {
+		/**
+		 * @param uri The uri for the matching document.
+		 * @param ranges The ranges associated with this match.
+		 * @param previewText The text that is used to preview the match. The highlighted range in `previewText` is specified in `ranges`.
+		 */
+		constructor(uri: Uri, ranges: { sourceRange: Range; previewRange: Range }[], previewText: string);
+
 		/**
 		 * The uri for the matching document.
 		 */
@@ -164,7 +171,14 @@ declare module 'vscode' {
 	/**
 	 * The potential context information for a {@link TextSearchResultNew}.
 	 */
-	export interface TextSearchContextNew {
+	export class TextSearchContextNew {
+		/**
+		 * @param uri The uri for the matching document.
+		 * @param text The line of context text.
+		 * @param lineNumber The line number of this line of context.
+		 */
+		constructor(uri: Uri, text: string, lineNumber: number);
+
 		/**
 		 * The uri for the matching document.
 		 */

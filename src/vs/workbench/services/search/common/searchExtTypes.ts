@@ -280,48 +280,32 @@ export interface FileSearchProviderOptionsNew {
 /**
  * The main match information for a {@link TextSearchResultNew}.
  */
-export interface TextSearchMatchNew {
+export class TextSearchMatchNew {
 	/**
-	 * The uri for the matching document.
+	 * @param uri The uri for the matching document.
+	 * @param ranges The ranges associated with this match.
+	 * @param previewText The text that is used to preview the match. The highlighted range in `previewText` is specified in `ranges`.
 	 */
-	uri: URI;
+	constructor(
+		public uri: URI,
+		public ranges: { sourceRange: Range; previewRange: Range }[],
+		public previewText: string) { }
 
-	/**
-	 * The ranges associated with this match.
-	 */
-	ranges: {
-		/**
-		 * The range of the match within the document, or multiple ranges for multiple matches.
-		 */
-		sourceRange: Range;
-		/**
-		 * The Range within `previewText` corresponding to the text of the match.
-		 */
-		previewRange: Range;
-	}[];
-
-	previewText: string;
 }
 
 /**
  * The potential context information for a {@link TextSearchResultNew}.
  */
-export interface TextSearchContextNew {
+export class TextSearchContextNew {
 	/**
-	 * The uri for the matching document.
+	 * @param uri The uri for the matching document.
+	 * @param text The line of context text.
+	 * @param lineNumber The line number of this line of context.
 	 */
-	uri: URI;
-
-	/**
-	 * One line of text.
-	 * previewOptions.charsPerLine applies to this
-	 */
-	text: string;
-
-	/**
-	 * The line number of this line of context.
-	 */
-	lineNumber: number;
+	constructor(
+		public uri: URI,
+		public text: string,
+		public lineNumber: number) { }
 }
 
 /**
