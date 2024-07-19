@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { FuzzyScore } from 'vs/base/common/filters';
+import { isWindows } from 'vs/base/common/platform';
 import { ThemeIcon } from 'vs/base/common/themables';
 
 export interface ISimpleCompletion {
@@ -44,6 +45,9 @@ export class SimpleCompletionItem {
 		this.labelLow = this.completion.label.toLowerCase();
 		this.labelLowExcludeFileExt = this.labelLow;
 		if (completion.isFile) {
+			if (isWindows) {
+				this.labelLow = this.labelLow.replaceAll('/', '\\');
+			}
 			const extIndex = this.labelLow.lastIndexOf('.');
 			if (extIndex !== -1) {
 				this.labelLowExcludeFileExt = this.labelLow.substring(0, extIndex);
