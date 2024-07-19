@@ -1228,6 +1228,13 @@ $script:someCommands = @(
 	'shortlog','show','stash','status','submodule','svn','switch','tag','whatchanged', 'worktree'
 )
 
+$script:someCommandsDescriptions =  @{
+	bisect = 'Use binary search to find the commit that introduced a bug'
+	blame = 'Show what revision and author last modified each line of a file'
+	branch = 'List, create, or delete branches'
+	bundle = 'Move objects and refs by archive'
+}
+
 if ((($PSVersionTable.PSVersion.Major -eq 5) -or $IsWindows) -and ($script:GitVersion -ge [System.Version]'2.16.2')) {
 	$script:someCommands += 'update-git-for-windows'
 }
@@ -1289,7 +1296,14 @@ function script:gitCommands($filter, $includeAliases) {
 		$cmdList += gitAliases $filter
 	}
 
-	$cmdList | Sort-Object
+	$cmdList | Sort-Object | ForEach-Object {
+		$command = $_
+		if ($script:someCommandsDescriptions.ContainsKey($command)) {
+			[System.Management.Automation.CompletionResult]::new($command, $command, 'Method', $script:someCommandsDescriptions[$command])
+		} else {
+			[System.Management.Automation.CompletionResult]::new($command, $command, 'Method', $command)
+		}
+	}
 }
 
 function script:gitRemotes($filter) {
