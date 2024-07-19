@@ -95,6 +95,6 @@ declare module 'vscode' {
 		 * @param provider The provider.
 		 * @return A {@link Disposable} that unregisters this provider when being disposed.
 		 */
-		export function registerFileSearchProvider(scheme: string, provider: FileSearchProviderNew): Disposable;
+		export function registerFileSearchProviderNew(scheme: string, provider: FileSearchProviderNew): Disposable;
 	}
 }
