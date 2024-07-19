@@ -11,7 +11,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { BrowserIssueService } from 'vs/workbench/contrib/issue/browser/issueService';
-import { IIssueMainService, IWorkbenchIssueService } from 'vs/workbench/contrib/issue/common/issue';
+import { IIssueFormService, IWorkbenchIssueService } from 'vs/workbench/contrib/issue/common/issue';
 import { BaseIssueContribution } from 'vs/workbench/contrib/issue/common/issue.contribution';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
@@ -37,7 +37,7 @@ class WebIssueContribution extends BaseIssueContribution {
 Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(WebIssueContribution, LifecyclePhase.Restored);
 
 registerSingleton(IWorkbenchIssueService, BrowserIssueService, InstantiationType.Delayed);
-registerSingleton(IIssueMainService, IssueFormService, InstantiationType.Delayed);
+registerSingleton(IIssueFormService, IssueFormService, InstantiationType.Delayed);
 
 CommandsRegistry.registerCommand('_issues.getSystemStatus', (accessor) => {
 	return nls.localize('statusUnsupported', "The --status argument is not yet supported in browsers.");

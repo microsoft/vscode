@@ -13,7 +13,7 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
 import { IProcessMainService } from 'vs/platform/issue/common/issue';
-import { IIssueMainService, IssueReporterData, IssueReporterExtensionData, IssueReporterWindowConfiguration, IssueType } from 'vs/workbench/contrib/issue/common/issue';
+import { IIssueFormService, IssueReporterData, IssueReporterExtensionData, IssueReporterWindowConfiguration, IssueType } from 'vs/workbench/contrib/issue/common/issue';
 import { INativeHostService } from 'vs/platform/native/common/native';
 import { applyZoom, zoomIn, zoomOut } from 'vs/platform/window/electron-sandbox/window';
 import { BaseIssueReporterService, hide, show } from 'vs/workbench/contrib/issue/browser/issue';
@@ -30,10 +30,10 @@ export class IssueReporter2 extends BaseIssueReporterService {
 		private readonly configuration: IssueReporterWindowConfiguration,
 		public override readonly window: Window,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
-		@IIssueMainService issueMainService: IIssueMainService,
+		@IIssueFormService issueFormService: IIssueFormService,
 		@IProcessMainService processMainService: IProcessMainService
 	) {
-		super(configuration.disableExtensions, configuration.data, configuration.os, configuration.product, window, false, issueMainService);
+		super(configuration.disableExtensions, configuration.data, configuration.os, configuration.product, window, false, issueFormService);
 
 		this.processMainService = processMainService;
 		this.processMainService.$getSystemInfo().then(info => {
@@ -75,7 +75,7 @@ export class IssueReporter2 extends BaseIssueReporterService {
 
 	private async sendReporterMenu(extension: IssueReporterExtensionData): Promise<IssueReporterData | undefined> {
 		try {
-			const data = await this.issueMainService.$sendReporterMenu(extension.id, extension.name);
+			const data = await this.issueFormService.$sendReporterMenu(extension.id, extension.name);
 			return data;
 		} catch (e) {
 			console.error(e);
@@ -114,7 +114,7 @@ export class IssueReporter2 extends BaseIssueReporterService {
 		});
 
 		this.addEventListener('disableExtensions', 'click', () => {
-			this.issueMainService.$reloadWithExtensionsDisabled();
+			this.issueFormService.$reloadWithExtensionsDisabled();
 		});
 
 		this.addEventListener('extensionBugsLink', 'click', (e: Event) => {
@@ -125,7 +125,7 @@ export class IssueReporter2 extends BaseIssueReporterService {
 		this.addEventListener('disableExtensions', 'keydown', (e: Event) => {
 			e.stopPropagation();
 			if ((e as KeyboardEvent).keyCode === 13 || (e as KeyboardEvent).keyCode === 32) {
-				this.issueMainService.$reloadWithExtensionsDisabled();
+				this.issueFormService.$reloadWithExtensionsDisabled();
 			}
 		});
 
@@ -151,7 +151,7 @@ export class IssueReporter2 extends BaseIssueReporterService {
 				const { issueDescription } = this.issueReporterModel.getData();
 				if (!this.hasBeenSubmitted && (issueTitle || issueDescription)) {
 					// fire and forget
-					this.issueMainService.$showConfirmCloseDialog();
+					this.issueFormService.$showConfirmCloseDialog();
 				} else {
 					this.close();
 				}
@@ -285,7 +285,7 @@ export class IssueReporter2 extends BaseIssueReporterService {
 	}
 
 	public override async writeToClipboard(baseUrl: string, issueBody: string): Promise<string> {
-		const shouldWrite = await this.issueMainService.$showClipboardDialog();
+		const shouldWrite = await this.issueFormService.$showClipboardDialog();
 		if (!shouldWrite) {
 			throw new CancellationError();
 		}

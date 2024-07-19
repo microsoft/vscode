@@ -14,7 +14,7 @@ import { PerformanceInfo, SystemInfo } from 'vs/platform/diagnostics/common/diag
 import { ExtensionIdentifier, ExtensionIdentifierSet } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ProcessExplorerData } from 'vs/platform/issue/common/issue';
-import { IIssueMainService, IssueReporterData } from 'vs/workbench/contrib/issue/common/issue';
+import { IIssueFormService, IssueReporterData } from 'vs/workbench/contrib/issue/common/issue';
 import product from 'vs/platform/product/common/product';
 import { IssueWebReporter } from 'vs/workbench/contrib/issue/browser/issueReporterService';
 import { AuxiliaryWindowMode, IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
@@ -24,7 +24,7 @@ export interface IssuePassData {
 	issueBody: string;
 }
 
-export class IssueFormService implements IIssueMainService {
+export class IssueFormService implements IIssueFormService {
 
 	readonly _serviceBrand: undefined;
 

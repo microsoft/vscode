@@ -9,7 +9,7 @@ import { PerformanceInfo, SystemInfo } from 'vs/platform/diagnostics/common/diag
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 // Since data sent through the service is serialized to JSON, functions will be lost, so Color objects
-// // should not be sent as their 'toString' method will be stripped. Instead convert to strings before sending.
+// should not be sent as their 'toString' method will be stripped. Instead convert to strings before sending.
 export interface WindowStyles {
 	backgroundColor?: string;
 	color?: string;
@@ -19,73 +19,73 @@ export interface WindowData {
 	zoomLevel: number;
 }
 
-// export const enum IssueType {
-// 	Bug,
-// 	PerformanceIssue,
-// 	FeatureRequest
-// }
+export const enum OldIssueType {
+	Bug,
+	PerformanceIssue,
+	FeatureRequest
+}
 
-// export enum IssueSource {
-// 	VSCode = 'vscode',
-// 	Extension = 'extension',
-// 	Marketplace = 'marketplace'
-// }
+export enum IssueSource {
+	VSCode = 'vscode',
+	Extension = 'extension',
+	Marketplace = 'marketplace'
+}
 
-// export interface IssueReporterStyles extends WindowStyles {
-// 	textLinkColor?: string;
-// 	textLinkActiveForeground?: string;
-// 	inputBackground?: string;
-// 	inputForeground?: string;
-// 	inputBorder?: string;
-// 	inputErrorBorder?: string;
-// 	inputErrorBackground?: string;
-// 	inputErrorForeground?: string;
-// 	inputActiveBorder?: string;
-// 	buttonBackground?: string;
-// 	buttonForeground?: string;
-// 	buttonHoverBackground?: string;
-// 	sliderBackgroundColor?: string;
-// 	sliderHoverColor?: string;
-// 	sliderActiveColor?: string;
-// }
+export interface OldIssueReporterStyles extends WindowStyles {
+	textLinkColor?: string;
+	textLinkActiveForeground?: string;
+	inputBackground?: string;
+	inputForeground?: string;
+	inputBorder?: string;
+	inputErrorBorder?: string;
+	inputErrorBackground?: string;
+	inputErrorForeground?: string;
+	inputActiveBorder?: string;
+	buttonBackground?: string;
+	buttonForeground?: string;
+	buttonHoverBackground?: string;
+	sliderBackgroundColor?: string;
+	sliderHoverColor?: string;
+	sliderActiveColor?: string;
+}
 
-// export interface IssueReporterExtensionData {
-// 	name: string;
-// 	publisher: string | undefined;
-// 	version: string;
-// 	id: string;
-// 	isTheme: boolean;
-// 	isBuiltin: boolean;
-// 	displayName: string | undefined;
-// 	repositoryUrl: string | undefined;
-// 	bugsUrl: string | undefined;
-// 	extensionData?: string;
-// 	extensionTemplate?: string;
-// 	data?: string;
-// 	uri?: UriComponents;
-// }
+export interface OldIssueReporterExtensionData {
+	name: string;
+	publisher: string | undefined;
+	version: string;
+	id: string;
+	isTheme: boolean;
+	isBuiltin: boolean;
+	displayName: string | undefined;
+	repositoryUrl: string | undefined;
+	bugsUrl: string | undefined;
+	extensionData?: string;
+	extensionTemplate?: string;
+	data?: string;
+	uri?: UriComponents;
+}
 
-// export interface IssueReporterData extends WindowData {
-// 	styles: IssueReporterStyles;
-// 	enabledExtensions: IssueReporterExtensionData[];
-// 	issueType?: IssueType;
-// 	issueSource?: IssueSource;
-// 	extensionId?: string;
-// 	experiments?: string;
-// 	restrictedMode: boolean;
-// 	isUnsupported: boolean;
-// 	githubAccessToken: string;
-// 	issueTitle?: string;
-// 	issueBody?: string;
-// 	data?: string;
-// 	uri?: UriComponents;
-// }
+export interface OldIssueReporterData extends WindowData {
+	styles: OldIssueReporterStyles;
+	enabledExtensions: OldIssueReporterExtensionData[];
+	issueType?: OldIssueType;
+	issueSource?: IssueSource;
+	extensionId?: string;
+	experiments?: string;
+	restrictedMode: boolean;
+	isUnsupported: boolean;
+	githubAccessToken: string;
+	issueTitle?: string;
+	issueBody?: string;
+	data?: string;
+	uri?: UriComponents;
+}
 
-// export interface ISettingSearchResult {
-// 	extensionId: string;
-// 	key: string;
-// 	score: number;
-// }
+export interface ISettingSearchResult {
+	extensionId: string;
+	key: string;
+	score: number;
+}
 
 export interface ProcessExplorerStyles extends WindowStyles {
 	listHoverBackground?: string;
@@ -109,33 +109,32 @@ export interface ProcessExplorerData extends WindowData {
 	applicationName: string;
 }
 
-// export interface IssueReporterWindowConfiguration extends ISandboxConfiguration {
-// 	disableExtensions: boolean;
-// 	data: IssueReporterData;
-// 	os: {
-// 		type: string;
-// 		arch: string;
-// 		release: string;
-// 	};
-// }
+export interface OldIssueReporterWindowConfiguration extends ISandboxConfiguration {
+	disableExtensions: boolean;
+	data: OldIssueReporterData;
+	os: {
+		type: string;
+		arch: string;
+		release: string;
+	};
+}
 
 export interface ProcessExplorerWindowConfiguration extends ISandboxConfiguration {
 	data: ProcessExplorerData;
 }
 
-// export const IIssueMainService = createDecorator<IIssueMainService>('issueService');
+export const IIssueMainService = createDecorator<IIssueMainService>('issueService');
 
-// export interface IIssueMainService {
-// 	readonly _serviceBrand: undefined;
-
-// 	// Used by the issue reporter
-// 	openReporter(data: IssueReporterData): Promise<void>;
-// 	$reloadWithExtensionsDisabled(): Promise<void>;
-// 	$showConfirmCloseDialog(): Promise<void>;
-// 	$showClipboardDialog(): Promise<boolean>;
-// 	$sendReporterMenu(extensionId: string, extensionName: string): Promise<IssueReporterData | undefined>;
-// 	$closeReporter(): Promise<void>;
-// }
+export interface IIssueMainService {
+	readonly _serviceBrand: undefined;
+	// Used by the issue reporter
+	openReporter(data: OldIssueReporterData): Promise<void>;
+	$reloadWithExtensionsDisabled(): Promise<void>;
+	$showConfirmCloseDialog(): Promise<void>;
+	$showClipboardDialog(): Promise<boolean>;
+	$sendReporterMenu(extensionId: string, extensionName: string): Promise<OldIssueReporterData | undefined>;
+	$closeReporter(): Promise<void>;
+}
 
 export const IProcessMainService = createDecorator<IProcessMainService>('processService');
 

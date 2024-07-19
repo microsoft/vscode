@@ -216,7 +216,7 @@ export class AuxiliaryEditorPart {
 	}
 }
 
-export class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart {
+class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart {
 
 	private static COUNTER = 1;
 

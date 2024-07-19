@@ -202,7 +202,7 @@ textarea {
 	margin-top: 1em;
 }
 
-select, input, textarea {
+.issue-reporter select, .issue-reporter input, .issue-reporter textarea {
 	border: 1px solid transparent;
 	margin-top: 10px;
 }
@@ -283,7 +283,7 @@ a {
 	width: calc(100% - 100px);
 }
 
-#issue-type {
+#issue-type, #issue-source, #extension-selector {
 	cursor: pointer;
 	appearance: auto;
 	border: none;

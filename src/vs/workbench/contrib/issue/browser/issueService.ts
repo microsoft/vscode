@@ -12,7 +12,7 @@ import { mainWindow } from 'vs/base/browser/window';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IIssueMainService, IssueReporterData, IssueReporterExtensionData, IssueReporterStyles, IWorkbenchIssueService } from 'vs/workbench/contrib/issue/common/issue';
+import { IIssueFormService, IssueReporterData, IssueReporterExtensionData, IssueReporterStyles, IWorkbenchIssueService } from 'vs/workbench/contrib/issue/common/issue';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { buttonBackground, buttonForeground, buttonHoverBackground, foreground, inputActiveOptionBorder, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
@@ -31,7 +31,7 @@ export class BrowserIssueService implements IWorkbenchIssueService {
 	constructor(
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IProductService private readonly productService: IProductService,
-		@IIssueMainService private readonly issueMainService: IIssueMainService,
+		@IIssueFormService private readonly issueFormService: IIssueFormService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IWorkbenchAssignmentService private readonly experimentService: IWorkbenchAssignmentService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
@@ -140,7 +140,7 @@ export class BrowserIssueService implements IWorkbenchIssueService {
 				githubAccessToken
 			}, options);
 
-			return this.issueMainService.openReporter(issueReporterData);
+			return this.issueFormService.openReporter(issueReporterData);
 		}
 		throw new Error(`No issue reporting URL configured for ${this.productService.nameLong}.`);
 

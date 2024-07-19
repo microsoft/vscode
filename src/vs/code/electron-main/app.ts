@@ -51,8 +51,8 @@ import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemPro
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IProcessMainService } from 'vs/platform/issue/common/issue';
-// import { IssueMainService } from 'vs/platform/issue/electron-main/issueMainService';
+import { IProcessMainService, IIssueMainService } from 'vs/platform/issue/common/issue';
+import { IssueMainService } from 'vs/platform/issue/electron-main/issueMainService';
 import { ProcessMainService } from 'vs/platform/issue/electron-main/processMainService';
 import { IKeyboardLayoutMainService, KeyboardLayoutMainService } from 'vs/platform/keyboardLayout/electron-main/keyboardLayoutMainService';
 import { ILaunchMainService, LaunchMainService } from 'vs/platform/launch/electron-main/launchMainService';
@@ -1010,7 +1010,7 @@ export class CodeApplication extends Disposable {
 		services.set(IDiagnosticsService, ProxyChannel.toService(getDelayedChannel(sharedProcessReady.then(client => client.getChannel('diagnostics')))));
 
 		// Issues
-		// services.set(IIssueMainService, new SyncDescriptor(IssueMainService, [this.userEnv]));
+		services.set(IIssueMainService, new SyncDescriptor(IssueMainService, [this.userEnv]));
 
 		// Process
 		services.set(IProcessMainService, new SyncDescriptor(ProcessMainService, [this.userEnv]));
@@ -1144,8 +1144,8 @@ export class CodeApplication extends Disposable {
 		mainProcessElectronServer.registerChannel('update', updateChannel);
 
 		// Issues
-		// const issueChannel = ProxyChannel.fromService(accessor.get(IIssueMainService), disposables);
-		// mainProcessElectronServer.registerChannel('issue', issueChannel);
+		const issueChannel = ProxyChannel.fromService(accessor.get(IIssueMainService), disposables);
+		mainProcessElectronServer.registerChannel('issue', issueChannel);
 
 		// Process
 		const processChannel = ProxyChannel.fromService(accessor.get(IProcessMainService), disposables);

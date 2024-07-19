@@ -9,7 +9,6 @@ import { mainWindow } from 'vs/base/browser/window';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import 'vs/css!./media/issueReporter';
 import BaseHtml from 'vs/workbench/contrib/issue/browser/issueReporterPage';
-
 // import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -21,32 +20,23 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ILogService } from 'vs/platform/log/common/log';
 import { INativeHostService } from 'vs/platform/native/common/native';
 import product from 'vs/platform/product/common/product';
-import { IWindowState } from 'vs/platform/window/electron-main/window';
 import { BrowserWindow } from 'vs/workbench/browser/window';
-import { IssuePassData } from 'vs/workbench/contrib/issue/browser/issueFormService';
-import { IIssueMainService, IssueReporterData, IssueReporterWindowConfiguration } from 'vs/workbench/contrib/issue/common/issue';
+import { IIssueFormService, IssueReporterData, IssueReporterWindowConfiguration } from 'vs/workbench/contrib/issue/common/issue';
 import { IssueReporter2 } from 'vs/workbench/contrib/issue/electron-sandbox/issueReporterService2';
 import { AuxiliaryWindowMode, IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { ITitleService } from 'vs/workbench/services/title/browser/titleService';
 
-interface IBrowserWindowOptions {
-	backgroundColor: string | undefined;
-	title: string;
-	zoomLevel: number;
-	alwaysOnTop: boolean;
-}
-
-type IStrictWindowState = Required<Pick<IWindowState, 'x' | 'y' | 'width' | 'height'>>;
-
-export class IssueFormService2 implements IIssueMainService {
+export class IssueFormService2 implements IIssueFormService {
 
 	private configuration: IssueReporterWindowConfiguration | undefined;
 
 	private extensionIdentifierSet: ExtensionIdentifierSet = new ExtensionIdentifierSet();
 
 	declare readonly _serviceBrand: undefined;
+
+	private currentData: IssueReporterData | undefined;
 
 	private static readonly DEFAULT_BACKGROUND_COLOR = '#1E1E1E';
 
@@ -68,119 +58,17 @@ export class IssueFormService2 implements IIssueMainService {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
 		// @IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
-	) {
-		// listen for messages from the main window
-		mainWindow.addEventListener('message', async (event) => {
-			if (event.data && event.data.sendChannel === 'vscode:triggerReporterMenu') {
-				// creates menu from contributed
-				const menu = this.menuService.createMenu(MenuId.IssueReporter, this.contextKeyService);
-
-				// render menu and dispose
-				const actions = menu.getActions({ renderShortTitle: true }).flatMap(entry => entry[1]);
-				for (const action of actions) {
-					try {
-						if (action.item && 'source' in action.item && action.item.source?.id === event.data.extensionId) {
-							this.extensionIdentifierSet.add(event.data.extensionId);
-							await action.run();
-						}
-					} catch (error) {
-						console.error(error);
-					}
-				}
-
-				if (!this.extensionIdentifierSet.has(event.data.extensionId)) {
-					// send undefined to indicate no action was taken
-					const replyChannel = `vscode:triggerReporterMenuResponse`;
-					mainWindow.postMessage({ replyChannel }, '*');
-				}
-
-				menu.dispose();
-			}
-		});
-	}
+	) { }
 
 	//#region Used by renderer
-
-	// async openReporter(data: IssueReporterData): Promise<void> {
-	// 	if (!this.issueReporterWindow) {
-	// 		this.issueReporterParentWindow = BrowserWindow.getFocusedWindow();
-	// 		if (this.issueReporterParentWindow) {
-	// 			const issueReporterDisposables = new DisposableStore();
-
-	// 			const issueReporterWindowConfigUrl = issueReporterDisposables.add(this.protocolMainService.createIPCObjectUrl<IssueReporterWindowConfiguration>());
-	// 			const position = this.getWindowPosition(this.issueReporterParentWindow, 700, 800);
-
-	// 			this.issueReporterWindow = this.createBrowserWindow(position, issueReporterWindowConfigUrl, {
-	// 				backgroundColor: data.styles.backgroundColor,
-	// 				title: localize('issueReporter', "Issue Reporter"),
-	// 				zoomLevel: data.zoomLevel,
-	// 				alwaysOnTop: false
-	// 			}, 'issue-reporter');
-
-	// 			// Store into config object URL
-	// 			issueReporterWindowConfigUrl.update({
-	// 				appRoot: this.environmentMainService.appRoot,
-	// 				windowId: this.issueReporterWindow.id,
-	// 				userEnv: this.userEnv,
-	// 				data,
-	// 				disableExtensions: !!this.environmentMainService.disableExtensions,
-	// 				os: {
-	// 					type: type(),
-	// 					arch: arch(),
-	// 					release: release(),
-	// 				},
-	// 				product,
-	// 				nls: {
-	// 					// VSCODE_GLOBALS: NLS
-	// 					messages: globalThis._VSCODE_NLS_MESSAGES,
-	// 					language: globalThis._VSCODE_NLS_LANGUAGE
-	// 				}
-	// 			});
-
-	// 			this.issueReporterWindow.loadURL(
-	// 				FileAccess.asBrowserUri(`vs/workbench/contrib/issue/electron-sandbox/issueReporter${this.environmentMainService.isBuilt ? '' : '-dev'}.html`).toString(true)
-	// 			);
-
-	// 			this.issueReporterWindow.on('close', () => {
-	// 				this.issueReporterWindow = null;
-	// 				issueReporterDisposables.dispose();
-	// 			});
-
-	// 			this.issueReporterParentWindow.on('closed', () => {
-	// 				if (this.issueReporterWindow) {
-	// 					this.issueReporterWindow.close();
-	// 					this.issueReporterWindow = null;
-	// 					issueReporterDisposables.dispose();
-	// 				}
-	// 			});
-	// 		}
-	// 	}
-
-	// 	else if (this.issueReporterWindow) {
-	// 		this.focusWindow(this.issueReporterWindow);
-	// 	}
-	// }
 	async openReporter(data: IssueReporterData): Promise<void> {
 		if (data.extensionId && this.extensionIdentifierSet.has(data.extensionId)) {
-			const replyChannel = `vscode:triggerReporterMenuResponse`;
-			mainWindow.postMessage({ data, replyChannel }, '*');
-			this.extensionIdentifierSet.delete(new ExtensionIdentifier(data.extensionId));
+			this.currentData = data;
+			this.issueReporterWindow?.focus();
+			return;
 		}
 
 		if (this.issueReporterWindow) {
-			const getModelData = await this.getIssueData();
-			if (getModelData) {
-				const { issueTitle, issueBody } = getModelData;
-				if (issueTitle || issueBody) {
-					data.issueTitle = data.issueTitle ?? issueTitle;
-					data.issueBody = data.issueBody ?? issueBody;
-
-					// close issue reporter and re-open with new data
-					// this.issueReporterWindow.close();
-					// this.openAuxIssueReporter(data);
-					// return;
-				}
-			}
 			this.issueReporterWindow.focus();
 			return;
 		}
@@ -189,7 +77,6 @@ export class IssueFormService2 implements IIssueMainService {
 
 	async openAuxIssueReporter(data: IssueReporterData): Promise<void> {
 		const disposables = new DisposableStore();
-
 
 		// const centerX = display.bounds.x + (display.bounds.width / 2);
 		// const centerY = display.bounds.y + (display.bounds.height / 2);
@@ -255,44 +142,19 @@ export class IssueFormService2 implements IIssueMainService {
 	//#endregion
 
 	//#region used by issue reporter window
-
-	async getIssueData(): Promise<IssuePassData | undefined> {
-		const sendChannel = `vscode:triggerIssueData`;
-		mainWindow.postMessage({ sendChannel }, '*');
-
-		const result = await new Promise((resolve, reject) => {
-			const timeout = setTimeout(() => {
-				mainWindow.removeEventListener('message', listener);
-				reject(new Error('Timeout exceeded'));
-			}, 5000); // Set the timeout value in milliseconds (e.g., 5000 for 5 seconds)
-
-			const listener = (event: MessageEvent) => {
-				const replyChannel = `vscode:triggerIssueDataResponse`;
-				if (event.data && event.data.replyChannel === replyChannel) {
-					clearTimeout(timeout);
-					mainWindow.removeEventListener('message', listener);
-					resolve(event.data.data);
-				}
-			};
-			mainWindow.addEventListener('message', listener);
-		});
-
-		return result as IssuePassData | undefined;
-	}
-
 	async $reloadWithExtensionsDisabled(): Promise<void> {
-		// if (this.issueReporterParentWindow) {
-		// 	try {
-		// 		await this.nativeHostService.reload({ disableExtensions: true });
-		// 	} catch (error) {
-		// 		this.logService.error(error);
-		// 	}
-		// }
+		if (this.issueReporterParentWindow) {
+			try {
+				await this.nativeHostService.reload({ disableExtensions: true });
+			} catch (error) {
+				this.logService.error(error);
+			}
+		}
 	}
 
 	async $showConfirmCloseDialog(): Promise<void> {
 		// if (this.issueReporterWindow) {
-		// 	const { response } = await this.dialogService.showMessageBox({
+		// 	const { response } = await this.dialogService.warn({
 		// 		type: 'warning',
 		// 		message: localize('confirmCloseIssueReporter', "Your input will not be saved. Are you sure you want to close this window?"),
 		// 		buttons: [
@@ -301,6 +163,9 @@ export class IssueFormService2 implements IIssueMainService {
 		// 		]
 		// 	}, this.issueReporterWindow);
 
+
+		// 	dialogService.warn(localize('fileTooLarge', "File is too large to open as untitled editor. Please upload it first into the file explorer and then try again."));
+		// 	continue;
 		// 	if (response === 0) {
 		// 		if (this.issueReporterWindow) {
 		// 			// this.issueReporterWindow.destroy();
@@ -339,27 +204,36 @@ export class IssueFormService2 implements IIssueMainService {
 	// }
 
 	async $sendReporterMenu(extensionId: string, extensionName: string): Promise<IssueReporterData | undefined> {
-		const sendChannel = `vscode:triggerReporterMenu`;
-		mainWindow.postMessage({ sendChannel, extensionId, extensionName }, '*');
+		const menu = this.menuService.createMenu(MenuId.IssueReporter, this.contextKeyService);
 
-		const result = await new Promise((resolve, reject) => {
-			const timeout = setTimeout(() => {
-				mainWindow.removeEventListener('message', listener);
-				reject(new Error('Timeout exceeded'));
-			}, 5000); // Set the timeout value in milliseconds (e.g., 5000 for 5 seconds)
-
-			const listener = (event: MessageEvent) => {
-				const replyChannel = `vscode:triggerReporterMenuResponse`;
-				if (event.data && event.data.replyChannel === replyChannel) {
-					clearTimeout(timeout);
-					mainWindow.removeEventListener('message', listener);
-					resolve(event.data.data);
+		// render menu and dispose
+		const actions = menu.getActions({ renderShortTitle: true }).flatMap(entry => entry[1]);
+		for (const action of actions) {
+			try {
+				if (action.item && 'source' in action.item && action.item.source?.id === extensionId) {
+					this.extensionIdentifierSet.add(extensionId);
+					await action.run();
 				}
-			};
-			mainWindow.addEventListener('message', listener);
-		});
+			} catch (error) {
+				console.error(error);
+			}
+		}
 
-		return result as IssueReporterData | undefined;
+		if (!this.extensionIdentifierSet.has(extensionId)) {
+			// send undefined to indicate no action was taken
+			return undefined;
+		}
+
+		// we found the extension, now we clean up the menu and remove it from the set. This is to ensure that we do duplicate extension identifiers
+		this.extensionIdentifierSet.delete(new ExtensionIdentifier(extensionId));
+		menu.dispose();
+
+		const result = this.currentData;
+
+		// reset current data.
+		this.currentData = undefined;
+
+		return result ?? undefined;
 	}
 
 	async $closeReporter(): Promise<void> {

@@ -10,6 +10,7 @@ import { UriComponents } from 'vs/base/common/uri';
 import { ISandboxConfiguration } from 'vs/base/parts/sandbox/common/sandboxTypes';
 // import { PerformanceInfo, SystemInfo } from 'vs/platform/diagnostics/common/diagnostics';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { OldIssueReporterData } from 'vs/platform/issue/common/issue';
 
 // Since data sent through the service is serialized to JSON, functions will be lost, so Color objects
 // should not be sent as their 'toString' method will be stripped. Instead convert to strings before sending.
@@ -114,7 +115,7 @@ export interface ProcessExplorerData extends WindowData {
 
 export interface IssueReporterWindowConfiguration extends ISandboxConfiguration {
 	disableExtensions: boolean;
-	data: IssueReporterData;
+	data: IssueReporterData | OldIssueReporterData;
 	os: {
 		type: string;
 		arch: string;
@@ -126,9 +127,9 @@ export interface ProcessExplorerWindowConfiguration extends ISandboxConfiguratio
 	data: ProcessExplorerData;
 }
 
-export const IIssueMainService = createDecorator<IIssueMainService>('issueService');
+export const IIssueFormService = createDecorator<IIssueFormService>('issueFormService');
 
-export interface IIssueMainService {
+export interface IIssueFormService {
 	readonly _serviceBrand: undefined;
 
 	// Used by the issue reporter
