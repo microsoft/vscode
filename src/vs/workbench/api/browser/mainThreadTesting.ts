@@ -7,19 +7,18 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ISettableObservable, transaction } from 'vs/base/common/observable';
+import { ISettableObservable, observableValue, transaction } from 'vs/base/common/observable';
 import { WellDefinedPrefixTree } from 'vs/base/common/prefixTree';
 import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { MutableObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
 import { TestCoverage } from 'vs/workbench/contrib/testing/common/testCoverage';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { ITestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
 import { LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { IMainThreadTestController, ITestService } from 'vs/workbench/contrib/testing/common/testService';
-import { CoverageDetails, ExtensionRunTestsRequest, IFileCoverage, ITestItem, ITestMessage, ITestRunProfile, ITestRunTask, ResolvedTestRunRequest, TestResultState, TestRunProfileBitset, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testTypes';
+import { CoverageDetails, ExtensionRunTestsRequest, IFileCoverage, ITestItem, ITestMessage, ITestRunProfile, ITestRunTask, ResolvedTestRunRequest, TestControllerCapability, TestResultState, TestRunProfileBitset, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testTypes';
 import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { ExtHostContext, ExtHostTestingShape, ILocationDto, ITestControllerPatch, MainContext, MainThreadTestingShape } from '../common/extHost.protocol';
 
@@ -29,8 +28,8 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 	private readonly diffListener = this._register(new MutableDisposable());
 	private readonly testProviderRegistrations = new Map<string, {
 		instance: IMainThreadTestController;
-		label: MutableObservableValue<string>;
-		canRefresh: MutableObservableValue<boolean>;
+		label: ISettableObservable<string>;
+		capabilities: ISettableObservable<TestControllerCapability>;
 		disposable: IDisposable;
 	}>();
 
@@ -225,14 +224,14 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 	/**
 	 * @inheritdoc
 	 */
-	public $registerTestController(controllerId: string, labelStr: string, canRefreshValue: boolean) {
+	public $registerTestController(controllerId: string, _label: string, _capabilities: TestControllerCapability) {
 		const disposable = new DisposableStore();
-		const label = disposable.add(new MutableObservableValue(labelStr));
-		const canRefresh = disposable.add(new MutableObservableValue(canRefreshValue));
+		const label = observableValue(`${controllerId}.label`, _label);
+		const capabilities = observableValue(`${controllerId}.cap`, _capabilities);
 		const controller: IMainThreadTestController = {
 			id: controllerId,
 			label,
-			canRefresh,
+			capabilities,
 			syncTests: () => this.proxy.$syncTests(),
 			refreshTests: token => this.proxy.$refreshTests(controllerId, token),
 			configureRunProfile: id => this.proxy.$configureRunProfile(controllerId, id),
@@ -247,7 +246,7 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 		this.testProviderRegistrations.set(controllerId, {
 			instance: controller,
 			label,
-			canRefresh,
+			capabilities,
 			disposable
 		});
 	}
@@ -261,13 +260,16 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 			return;
 		}
 
-		if (patch.label !== undefined) {
-			controller.label.value = patch.label;
-		}
+		transaction(tx => {
+			if (patch.label !== undefined) {
+				controller.label.set(patch.label, tx);
+			}
 
-		if (patch.canRefresh !== undefined) {
-			controller.canRefresh.value = patch.canRefresh;
-		}
+			if (patch.capabilities !== undefined) {
+				controller.capabilities.set(patch.capabilities, tx);
+			}
+		});
+
 	}
 
 	/**
