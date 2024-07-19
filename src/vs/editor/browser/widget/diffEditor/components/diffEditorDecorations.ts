@@ -6,6 +6,7 @@
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IObservable, derived } from 'vs/base/common/observable';
 import { DiffEditorEditors } from 'vs/editor/browser/widget/diffEditor/components/diffEditorEditors';
+import { allowsTrueInlineDiffRendering } from 'vs/editor/browser/widget/diffEditor/components/diffEditorViewZones/diffEditorViewZones';
 import { DiffEditorOptions } from 'vs/editor/browser/widget/diffEditor/diffEditorOptions';
 import { DiffEditorViewModel } from 'vs/editor/browser/widget/diffEditor/diffEditorViewModel';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
@@ -28,7 +29,8 @@ export class DiffEditorDecorations extends Disposable {
 	}
 
 	private readonly _decorations = derived(this, (reader) => {
-		const diff = this._diffModel.read(reader)?.diff.read(reader);
+		const diffModel = this._diffModel.read(reader);
+		const diff = diffModel?.diff.read(reader);
 		if (!diff) {
 			return null;
 		}
@@ -56,13 +58,29 @@ export class DiffEditorDecorations extends Disposable {
 						modifiedDecorations.push({ range: m.lineRangeMapping.modified.toInclusiveRange()!, options: diffWholeLineAddDecoration });
 					}
 				} else {
+					const useInlineDiff = this._options.useTrueInlineDiffRendering.read(reader) && allowsTrueInlineDiffRendering(m.lineRangeMapping);
 					for (const i of m.lineRangeMapping.innerChanges || []) {
 						// Don't show empty markers outside the line range
 						if (m.lineRangeMapping.original.contains(i.originalRange.startLineNumber)) {
 							originalDecorations.push({ range: i.originalRange, options: (i.originalRange.isEmpty() && showEmptyDecorations) ? diffDeleteDecorationEmpty : diffDeleteDecoration });
 						}
 						if (m.lineRangeMapping.modified.contains(i.modifiedRange.startLineNumber)) {
-							modifiedDecorations.push({ range: i.modifiedRange, options: (i.modifiedRange.isEmpty() && showEmptyDecorations) ? diffAddDecorationEmpty : diffAddDecoration });
+							modifiedDecorations.push({ range: i.modifiedRange, options: (i.modifiedRange.isEmpty() && showEmptyDecorations && !useInlineDiff) ? diffAddDecorationEmpty : diffAddDecoration });
+						}
+						if (useInlineDiff) {
+							const deletedText = diffModel!.model.original.getValueInRange(i.originalRange);
+							modifiedDecorations.push({
+								range: i.modifiedRange,
+								options: {
+									description: 'deleted-text',
+									before: {
+										content: deletedText,
+										inlineClassName: 'inline-deleted-text',
+									},
+									zIndex: 100000,
+									showIfCollapsed: true,
+								}
+							});
 						}
 					}
 				}

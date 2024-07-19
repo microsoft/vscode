@@ -338,6 +338,10 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 				}));
 			}
 		}));
+
+		this._register(autorun(reader => {
+			this._options.setModel(this._diffModel.read(reader));
+		}));
 	}
 
 	public getViewWidth(): number {

@@ -189,7 +189,7 @@ function Set-MappedKeyHandlers {
 		# TODO: When does this invalidate? Installing a new module could add new commands. We could expose a command to update? Track `(Get-Module).Count`?
 		# Get commands, convert to string array to reduce the payload size and send as JSON
 		$commands = [System.Management.Automation.CompletionCompleters]::CompleteCommand('')
-		$mappedCommands = $commands | ForEach-Object { ,@($_.CompletionText, $_.listItemText, $_.ResultType, $_.tooltip) }
+		$mappedCommands = Compress-Completions($commands)
 		$result = "$([char]0x1b)]633;CompletionsPwshCommands;commands;"
 		$result += $mappedCommands | ConvertTo-Json -Compress
 		$result += "`a"
@@ -224,10 +224,10 @@ function Send-Completions {
 				$json.Add([System.Management.Automation.CompletionResult]::new(
 					'..', '..', [System.Management.Automation.CompletionResultType]::ProviderContainer, (Split-Path (Get-Location) -Parent))
 				)
-				$mappedCommands = $json | ForEach-Object { ,@($_.CompletionText, $_.listItemText, $_.ResultType, $_.tooltip) }
+				$mappedCommands = Compress-Completions($json)
 				$result += $mappedCommands | ConvertTo-Json -Compress
 			} else {
-				$mappedCommands = $completions.CompletionMatches | ForEach-Object { ,@($_.CompletionText, $_.listItemText, $_.ResultType, $_.tooltip) }
+				$mappedCommands = Compress-Completions($completions.CompletionMatches)
 				$result += $mappedCommands | ConvertTo-Json -Compress
 			}
 		}
@@ -242,7 +242,7 @@ function Send-Completions {
 		)
 		if ($null -ne $completions) {
 			$result += ";$($completions.ReplacementIndex);$($completions.ReplacementLength);$($cursorIndex);"
-			$mappedCommands = $completions | ForEach-Object { ,@($_.CompletionText, $_.listItemText, $_.ResultType, $_.tooltip) }
+			$mappedCommands = Compress-Completions($completions)
 			$result += $mappedCommands | ConvertTo-Json -Compress
 		} else {
 			$result += ";0;$($completionPrefix.Length);$($completionPrefix.Length);[]"
@@ -253,6 +253,10 @@ function Send-Completions {
 	$result += "`a"
 
 	Write-Host -NoNewLine $result
+}
+
+function Compress-Completions($completions) {
+	$completions | ForEach-Object { ,@($_.CompletionText, $_.ResultType, $_.tooltip) }
 }
 
 # Register key handlers if PSReadLine is available
