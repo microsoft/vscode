@@ -1475,11 +1475,7 @@ function script:gitCommands($filter, $includeAliases) {
 			Where-Object { $_ -like "$filter*" }
 	}
 
-	if ($includeAliases) {
-		$cmdList += gitAliases $filter
-	}
-
-	$cmdList | Sort-Object | ForEach-Object {
+	$completions = $cmdList | Sort-Object | ForEach-Object {
 		$command = $_
 		if ($script:someCommandsDescriptions.ContainsKey($command)) {
 			[System.Management.Automation.CompletionResult]::new($command, $command, 'Method', $script:someCommandsDescriptions[$command])
@@ -1487,6 +1483,12 @@ function script:gitCommands($filter, $includeAliases) {
 			[System.Management.Automation.CompletionResult]::new($command, $command, 'Method', $command)
 		}
 	}
+
+	if ($includeAliases) {
+		$completions += gitAliases $filter
+	}
+
+	$completions
 }
 
 function script:gitRemotes($filter) {
@@ -1613,11 +1615,12 @@ function script:gitRestoreFiles($GitStatus, $filter, $staged) {
 }
 
 function script:gitAliases($filter) {
-	git config --get-regexp ^alias\. | ForEach-Object{
-		if ($_ -match "^alias\.(?<alias>\S+) .*") {
+	git config --get-regexp ^alias\. | ForEach-Object {
+		if ($_ -match "^alias\.(?<alias>\S+) (?<expanded>.*)") {
 			$alias = $Matches['alias']
+			$expanded = $Matches['expanded']
 			if ($alias -like "$filter*") {
-				$alias
+				[System.Management.Automation.CompletionResult]::new($alias, $alias, 'Variable', $expanded)
 			}
 		}
 	} | Sort-Object -Unique
