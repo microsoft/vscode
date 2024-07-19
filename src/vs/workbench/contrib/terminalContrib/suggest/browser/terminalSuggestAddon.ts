@@ -545,6 +545,11 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			}
 		}
 
+		// For folders, allow the next completion request to get completions for that folder
+		if (completion.icon === Codicon.folder) {
+			this._lastAcceptedCompletionTimestamp = 0;
+		}
+
 		const commonPrefixLen = commonPrefixLength(replacementText, completion.label);
 
 		// Send the completion
@@ -608,7 +613,8 @@ export function parseCompletionsFromShell(rawCompletions: PwshCompletion | PwshC
 		return [rawCompletions].map(e => (new SimpleCompletionItem({
 			label: e.CompletionText,
 			icon: pwshTypeToIconMap[e.ResultType],
-			detail: e.ToolTip
+			detail: e.ToolTip,
+			isFile: e.ResultType === 3,
 		})));
 	}
 	if (rawCompletions.length === 0) {
@@ -618,19 +624,22 @@ export function parseCompletionsFromShell(rawCompletions: PwshCompletion | PwshC
 		return [rawCompletions as CompressedPwshCompletion].map(e => (new SimpleCompletionItem({
 			label: e[0],
 			icon: pwshTypeToIconMap[e[1]],
-			detail: e[2]
+			detail: e[2],
+			isFile: e[1] === 3,
 		})));
 	}
 	if (Array.isArray(rawCompletions[0])) {
 		return (rawCompletions as CompressedPwshCompletion[]).map(e => (new SimpleCompletionItem({
 			label: e[0],
 			icon: pwshTypeToIconMap[e[1]],
-			detail: e[2]
+			detail: e[2],
+			isFile: e[1] === 3,
 		})));
 	}
 	return (rawCompletions as PwshCompletion[]).map(e => (new SimpleCompletionItem({
-		label: e.CompletionText, // e.ListItemText,
+		label: e.CompletionText,
 		icon: pwshTypeToIconMap[e.ResultType],
-		detail: e.ToolTip
+		detail: e.ToolTip,
+		isFile: e.ResultType === 3,
 	})));
 }
