@@ -1536,7 +1536,8 @@ function GitTabExpansionInternal($lastBlock, $GitStatus = $null) {
 		# Handles git branch -d|-D|-m|-M <branch name>
 		# Handles git branch <branch name> <start-point>
 		"^branch.* (?<branch>\S*)$" {
-			gitBranches $matches['branch']
+			gitBranches $matches['branch'] |
+			ForEach-Object { [System.Management.Automation.CompletionResult]::new($_, $_, 'DynamicKeyword', "branch $_") }
 		}
 
 		# Handles git <cmd> (commands & aliases)
