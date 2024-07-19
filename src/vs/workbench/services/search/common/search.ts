@@ -17,11 +17,11 @@ import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { Event } from 'vs/base/common/event';
 import * as paths from 'vs/base/common/path';
 import { isCancellationError } from 'vs/base/common/errors';
-import { GlobPattern, TextSearchCompleteMessageType } from 'vs/workbench/services/search/common/searchExtTypes';
+import { GlobPattern, TextSearchCompleteMessageTypeNew } from 'vs/workbench/services/search/common/searchExtTypes';
 import { isThenable } from 'vs/base/common/async';
 import { ResourceSet } from 'vs/base/common/map';
 
-export { TextSearchCompleteMessageType };
+export { TextSearchCompleteMessageTypeNew };
 
 export const VIEWLET_ID = 'workbench.view.search';
 export const PANEL_ID = 'workbench.panel.search';
@@ -251,7 +251,7 @@ export function isProgressMessage(p: ISearchProgressItem | ISerializedSearchProg
 
 export interface ITextSearchCompleteMessage {
 	text: string;
-	type: TextSearchCompleteMessageType;
+	type: TextSearchCompleteMessageTypeNew;
 	trusted?: boolean;
 }
 
@@ -311,19 +311,36 @@ export class FileMatch implements IFileMatch {
 	}
 }
 
+interface SearchRangeSetPairing {
+	sourceRange: ISearchRange;
+	previewRange: ISearchRange;
+}
 export class TextSearchMatch implements ITextSearchMatch {
-	ranges: ISearchRange | ISearchRange[];
-	preview: ITextSearchResultPreview;
+	rangeLocations: SearchRangeSetPairing[] = [];
+	text: string;
+	cellFragment?: string;
+
 	webviewIndex?: number;
 
+	get ranges(): ISearchRange | ISearchRange[] {
+		return mapArrayOrNot(this.rangeLocations, e => e.sourceRange);
+	}
+
+	get preview(): ITextSearchResultPreview {
+		return { text: this.text, matches: mapArrayOrNot(this.rangeLocations, e => e.previewRange), cellFragment: this.cellFragment };
+	}
+
+	// get preview
 	constructor(text: string, range: ISearchRange | ISearchRange[], previewOptions?: ITextSearchPreviewOptions, webviewIndex?: number) {
-		this.ranges = range;
+		// this.ranges = range;
 		this.webviewIndex = webviewIndex;
 
 		// Trim preview if this is one match and a single-line match with a preview requested.
 		// Otherwise send the full text, like for replace or for showing multiple previews.
 		// TODO this is fishy.
 		const ranges = Array.isArray(range) ? range : [range];
+
+		// const rangePairs:SearchRangeSetPairing[] = [];
 		if (previewOptions && previewOptions.matchLines === 1 && isSingleLineRangeList(ranges)) {
 			// 1 line preview requested
 			text = getNLines(text, previewOptions.matchLines);
@@ -332,7 +349,7 @@ export class TextSearchMatch implements ITextSearchMatch {
 			let shift = 0;
 			let lastEnd = 0;
 			const leadingChars = Math.floor(previewOptions.charsPerLine / 5);
-			const matches: ISearchRange[] = [];
+			// const matches: ISearchRange[] = [];
 			for (const range of ranges) {
 				const previewStart = Math.max(range.startColumn - leadingChars, 0);
 				const previewEnd = range.startColumn + previewOptions.charsPerLine;
@@ -344,21 +361,30 @@ export class TextSearchMatch implements ITextSearchMatch {
 					result += text.slice(lastEnd, previewEnd);
 				}
 
-				matches.push(new OneLineRange(0, range.startColumn - shift, range.endColumn - shift));
+				// matches.push(new OneLineRange(0, range.startColumn - shift, range.endColumn - shift));
 				lastEnd = previewEnd;
+				this.rangeLocations.push({
+					sourceRange: range,
+					previewRange: new SearchRange(0, range.startColumn - shift, 0, range.endColumn - shift)
+				});
+
 			}
 
-			this.preview = { text: result, matches: Array.isArray(this.ranges) ? matches : matches[0] };
+			this.text = result;
 		} else {
 			const firstMatchLine = Array.isArray(range) ? range[0].startLineNumber : range.startLineNumber;
 
-			this.preview = {
-				text,
-				matches: mapArrayOrNot(range, r => new SearchRange(r.startLineNumber - firstMatchLine, r.startColumn, r.endLineNumber - firstMatchLine, r.endColumn))
-			};
+			const rangeLocations = mapArrayOrNot(range, r => ({
+				previewRange: new SearchRange(r.startLineNumber - firstMatchLine, r.startColumn, r.endLineNumber - firstMatchLine, r.endColumn),
+				sourceRange: r
+			}));
+
+			this.rangeLocations = Array.isArray(rangeLocations) ? rangeLocations : [rangeLocations];
+			this.text = text;
 		}
 	}
 }
+
 
 function isSingleLineRangeList(ranges: ISearchRange[]): boolean {
 	const line = ranges[0].startLineNumber;

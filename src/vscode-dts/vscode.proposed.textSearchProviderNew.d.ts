@@ -136,9 +136,17 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * The main match information for a {@link TextSearchResult}.
+	 * The main match information for a {@link TextSearchResultNew}.
 	 */
-	interface TextSearchMatchNew {
+	export interface TextSearchMatchNew {
+		/**
+		 * The uri for the matching document.
+		 */
+		uri: Uri;
+
+		/**
+		 * The ranges associated with this match.
+		 */
 		ranges: {
 			/**
 			 * The range of the match within the document, or multiple ranges for multiple matches.
@@ -154,34 +162,30 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * A result payload for a text search, pertaining to matches within a single file.
+	 * The potential context information for a {@link TextSearchResultNew}.
 	 */
-	export interface TextSearchResultNew {
+	export interface TextSearchContextNew {
 		/**
 		 * The uri for the matching document.
 		 */
 		uri: Uri;
-		/**
-		 * The match corresponding to this result
-		 */
-		match: TextSearchMatchNew;
-		/**
-		 * Any applicable context lines
-		 */
-		surroundingContext: {
 
-			/**
-			 * One line of text.
-			 * previewOptions.charsPerLine applies to this
-			 */
-			text: string;
+		/**
+		 * One line of text.
+		 * previewOptions.charsPerLine applies to this
+		 */
+		text: string;
 
-			/**
-			 * The line number of this line of context.
-			 */
-			lineNumber: number;
-		}[];
+		/**
+		 * The line number of this line of context.
+		 */
+		lineNumber: number;
 	}
+
+	/**
+	 * A result payload for a text search, pertaining to matches within a single file.
+	 */
+	export type TextSearchResultNew = TextSearchMatchNew | TextSearchContextNew;
 
 	/**
 	 * A TextSearchProvider provides search results for text results inside files in the workspace.
@@ -207,6 +211,6 @@ declare module 'vscode' {
 		 * @param provider The provider.
 		 * @return A {@link Disposable} that unregisters this provider when being disposed.
 		 */
-		export function registerTextSearchProviderNew(scheme: string, provider: TextSearchProviderNew): Disposable;
+		export function registerTextSearchProvider(scheme: string, provider: TextSearchProviderNew): Disposable;
 	}
 }

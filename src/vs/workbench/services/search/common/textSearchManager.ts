@@ -12,7 +12,7 @@ import * as path from 'vs/base/common/path';
 import * as resources from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { DEFAULT_MAX_SEARCH_RESULTS, hasSiblingPromiseFn, IAITextQuery, IExtendedExtensionSearchOptions, IFileMatch, IFolderQuery, excludeToGlobPattern, IPatternInfo, ISearchCompleteStats, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchResult, ITextSearchStats, QueryGlobTester, QueryType, resolvePatternsForProvider } from 'vs/workbench/services/search/common/search';
-import { AITextSearchProvider, Range, TextSearchComplete, TextSearchMatch, TextSearchOptions, TextSearchProvider, TextSearchQuery, TextSearchResult } from 'vs/workbench/services/search/common/searchExtTypes';
+import { AITextSearchProvider, Range, TextSearchCompleteNew, TextSearchMatch, TextSearchOptions, TextSearchProviderNew, TextSearchQueryNew, TextSearchResultNew } from 'vs/workbench/services/search/common/searchExtTypes';
 
 export interface IFileUtils {
 	readdir: (resource: URI) => Promise<string[]>;
@@ -23,7 +23,7 @@ interface IAITextQueryProviderPair {
 }
 
 interface ITextQueryProviderPair {
-	query: ITextQuery; provider: TextSearchProvider;
+	query: ITextQuery; provider: TextSearchProviderNew;
 }
 export class TextSearchManager {
 
@@ -48,7 +48,7 @@ export class TextSearchManager {
 			this.collector = new TextSearchResultsCollector(onProgress);
 
 			let isCanceled = false;
-			const onResult = (result: TextSearchResult, folderIdx: number) => {
+			const onResult = (result: TextSearchResultNew, folderIdx: number) => {
 				if (isCanceled) {
 					return;
 				}
@@ -98,7 +98,7 @@ export class TextSearchManager {
 		});
 	}
 
-	private resultSize(result: TextSearchResult): number {
+	private resultSize(result: TextSearchResultNew): number {
 		if (extensionResultIsMatch(result)) {
 			return Array.isArray(result.ranges) ?
 				result.ranges.length :
@@ -124,11 +124,11 @@ export class TextSearchManager {
 		};
 	}
 
-	private async searchInFolder(folderQuery: IFolderQuery<URI>, onResult: (result: TextSearchResult) => void, token: CancellationToken): Promise<TextSearchComplete | null | undefined> {
+	private async searchInFolder(folderQuery: IFolderQuery<URI>, onResult: (result: TextSearchResultNew) => void, token: CancellationToken): Promise<TextSearchCompleteNew | null | undefined> {
 		const queryTester = new QueryGlobTester(this.query, folderQuery);
 		const testingPs: Promise<void>[] = [];
 		const progress = {
-			report: (result: TextSearchResult) => {
+			report: (result: TextSearchResultNew) => {
 				if (!this.validateProviderResult(result)) {
 					return;
 				}
@@ -173,7 +173,7 @@ export class TextSearchManager {
 		return result;
 	}
 
-	private validateProviderResult(result: TextSearchResult): boolean {
+	private validateProviderResult(result: TextSearchResultNew): boolean {
 		if (extensionResultIsMatch(result)) {
 			if (Array.isArray(result.ranges)) {
 				if (!Array.isArray(result.preview.matches)) {
@@ -222,7 +222,7 @@ export class TextSearchManager {
 	}
 }
 
-function patternInfoToQuery(patternInfo: IPatternInfo): TextSearchQuery {
+function patternInfoToQuery(patternInfo: IPatternInfo): TextSearchQueryNew {
 	return {
 		isCaseSensitive: patternInfo.isCaseSensitive || false,
 		isRegExp: patternInfo.isRegExp || false,
@@ -243,7 +243,7 @@ export class TextSearchResultsCollector {
 		this._batchedCollector = new BatchedCollector<IFileMatch>(512, items => this.sendItems(items));
 	}
 
-	add(data: TextSearchResult, folderIdx: number): void {
+	add(data: TextSearchResultNew, folderIdx: number): void {
 		// Collects TextSearchResults into IInternalFileMatches and collates using BatchedCollector.
 		// This is efficient for ripgrep which sends results back one file at a time. It wouldn't be efficient for other search
 		// providers that send results in random order. We could do this step afterwards instead.
@@ -280,7 +280,7 @@ export class TextSearchResultsCollector {
 	}
 }
 
-function extensionResultToFrontendResult(data: TextSearchResult): ITextSearchResult {
+function extensionResultToFrontendResult(data: TextSearchResultNew): ITextSearchResult {
 	// Warning: result from RipgrepTextSearchEH has fake Range. Don't depend on any other props beyond these...
 	if (extensionResultIsMatch(data)) {
 		return {
@@ -308,7 +308,7 @@ function extensionResultToFrontendResult(data: TextSearchResult): ITextSearchRes
 	}
 }
 
-export function extensionResultIsMatch(data: TextSearchResult): data is TextSearchMatch {
+export function extensionResultIsMatch(data: TextSearchResultNew): data is TextSearchMatch {
 	return !!(<TextSearchMatch>data).preview;
 }
 

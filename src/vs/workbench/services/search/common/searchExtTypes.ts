@@ -93,7 +93,7 @@ export type GlobPattern = string | RelativePattern;
 /**
  * The parameters of a query for text search.
  */
-export interface TextSearchQuery {
+export interface TextSearchQueryNew {
 	/**
 	 * The text pattern to search for.
 	 */
@@ -124,7 +124,7 @@ export interface TextSearchQuery {
 /**
  * Options that apply to text search.
  */
-export interface TextSearchProviderOptions {
+export interface TextSearchProviderOptionsNew {
 
 	folderOptions: {
 		/**
@@ -157,11 +157,11 @@ export interface TextSearchProviderOptions {
 			 */
 			local: boolean;
 			/**
-			 * Use ignore files at the parent directory. If set, {@link TextSearchProviderOptions.useIgnoreFiles.local} should also be `true`.
+			 * Use ignore files at the parent directory. If set, {@link TextSearchProviderOptionsNew.useIgnoreFiles.local} should also be `true`.
 			 */
 			parent: boolean;
 			/**
-			 * Use global ignore files. If set, {@link TextSearchProviderOptions.useIgnoreFiles.local} should also be `true`.
+			 * Use global ignore files. If set, {@link TextSearchProviderOptionsNew.useIgnoreFiles.local} should also be `true`.
 			 */
 			global: boolean;
 		};
@@ -209,7 +209,7 @@ export interface TextSearchProviderOptions {
 /**
  * Information collected when text search is complete.
  */
-export interface TextSearchComplete {
+export interface TextSearchCompleteNew {
 	/**
 	 * Whether the search hit the limit on the maximum number of search results.
 	 * `maxResults` on [`TextSearchOptions`](#TextSearchOptions) specifies the max number of results.
@@ -223,7 +223,7 @@ export interface TextSearchComplete {
 /**
  * Options that apply to file search.
  */
-export interface FileSearchOptions {
+export interface FileSearchProviderOptionsNew {
 	folderOptions: {
 		/**
 		 * The root folder to search within.
@@ -255,33 +255,40 @@ export interface FileSearchOptions {
 			 */
 			local: boolean;
 			/**
-			 * Use ignore files at the parent directory. If set, {@link FileSearchOptions.useIgnoreFiles.local} should also be `true`.
+			 * Use ignore files at the parent directory. If set, {@link FileSearchProviderOptionsNew.useIgnoreFiles.local} should also be `true`.
 			 */
 			parent: boolean;
 			/**
-			 * Use global ignore files. If set, {@link FileSearchOptions.useIgnoreFiles.local} should also be `true`.
+			 * Use global ignore files. If set, {@link FileSearchProviderOptionsNew.useIgnoreFiles.local} should also be `true`.
 			 */
 			global: boolean;
 		};
+	}[];
 
-		/**
-		 * An object with a lifespan that matches the session's lifespan. If the provider chooses to, this object can be used as the key for a cache,
-		 * and searches with the same session object can search the same cache. When the token is cancelled, the session is complete and the cache can be cleared.
-		 */
-		session: unknown;
+	/**
+	 * An object with a lifespan that matches the session's lifespan. If the provider chooses to, this object can be used as the key for a cache,
+	 * and searches with the same session object can search the same cache. When the token is cancelled, the session is complete and the cache can be cleared.
+	 */
+	session: unknown;
 
-		/**
-		 * The maximum number of results to be returned.
-		 */
-		maxResults: number;
-	};
+	/**
+	 * The maximum number of results to be returned.
+	 */
+	maxResults: number;
 }
 
-
 /**
- * The main match information for a {@link TextSearchResult}.
+ * The main match information for a {@link TextSearchResultNew}.
  */
-interface TextSearchMatch {
+export interface TextSearchMatchNew {
+	/**
+	 * The uri for the matching document.
+	 */
+	uri: URI;
+
+	/**
+	 * The ranges associated with this match.
+	 */
 	ranges: {
 		/**
 		 * The range of the match within the document, or multiple ranges for multiple matches.
@@ -297,34 +304,31 @@ interface TextSearchMatch {
 }
 
 /**
- * A result payload for a text search, pertaining to matches within a single file.
+ * The potential context information for a {@link TextSearchResultNew}.
  */
-export interface TextSearchResult {
+export interface TextSearchContextNew {
 	/**
 	 * The uri for the matching document.
 	 */
 	uri: URI;
-	/**
-	 * The match corresponding to this result
-	 */
-	match: TextSearchMatch;
-	/**
-	 * Any applicable context lines
-	 */
-	surroundingContext: {
 
-		/**
-		 * One line of text.
-		 * previewOptions.charsPerLine applies to this
-		 */
-		text: string;
+	/**
+	 * One line of text.
+	 * previewOptions.charsPerLine applies to this
+	 */
+	text: string;
 
-		/**
-		 * The line number of this line of context.
-		 */
-		lineNumber: number;
-	}[];
+	/**
+	 * The line number of this line of context.
+	 */
+	lineNumber: number;
 }
+
+/**
+ * A result payload for a text search, pertaining to matches within a single file.
+ */
+export type TextSearchResultNew = TextSearchMatchNew | TextSearchContextNew;
+
 
 /**
  * A FileSearchProvider provides search results for files in the given folder that match a query string. It can be invoked by quickaccess or other extensions.
@@ -335,7 +339,7 @@ export interface TextSearchResult {
  * The FileSearchProvider will be invoked on every keypress in quickaccess. When `workspace.findFiles` is called, it will be invoked with an empty query string,
  * and in that case, every file in the folder should be returned.
  */
-export interface FileSearchProvider {
+export interface FileSearchProviderNew {
 	/**
 	 * Provide the set of files that match a certain file path pattern.
 	 * @param query The parameters for this query.
@@ -343,13 +347,13 @@ export interface FileSearchProvider {
 	 * @param progress A progress callback that must be invoked for all results.
 	 * @param token A cancellation token.
 	 */
-	provideFileSearchResults(pattern: string, options: FileSearchOptions, token: CancellationToken): ProviderResult<URI[]>;
+	provideFileSearchResults(pattern: string, options: FileSearchProviderOptionsNew, token: CancellationToken): ProviderResult<URI[]>;
 }
 
 /**
  * A TextSearchProvider provides search results for text results inside files in the workspace.
  */
-export interface TextSearchProvider {
+export interface TextSearchProviderNew {
 	/**
 	 * Provide results that match the given text pattern.
 	 * @param query The parameters for this query.
@@ -357,5 +361,57 @@ export interface TextSearchProvider {
 	 * @param progress A progress callback that must be invoked for all results.
 	 * @param token A cancellation token.
 	 */
-	provideTextSearchResults(query: TextSearchQuery, options: TextSearchProviderOptions, progress: IProgress<TextSearchResult>, token: CancellationToken): ProviderResult<TextSearchComplete>;
+	provideTextSearchResults(query: TextSearchQueryNew, options: TextSearchProviderOptionsNew, progress: IProgress<TextSearchResultNew>, token: CancellationToken): ProviderResult<TextSearchCompleteNew>;
+}
+
+/**
+ * Information collected when text search is complete.
+ */
+export interface TextSearchCompleteNew {
+	/**
+	 * Whether the search hit the limit on the maximum number of search results.
+	 * `maxResults` on {@linkcode TextSearchOptions} specifies the max number of results.
+	 * - If exactly that number of matches exist, this should be false.
+	 * - If `maxResults` matches are returned and more exist, this should be true.
+	 * - If search hits an internal limit which is less than `maxResults`, this should be true.
+	 */
+	limitHit?: boolean;
+
+	/**
+	 * Additional information regarding the state of the completed search.
+	 *
+	 * Messages with "Information" style support links in markdown syntax:
+	 * - Click to [run a command](command:workbench.action.OpenQuickPick)
+	 * - Click to [open a website](https://aka.ms)
+	 *
+	 * Commands may optionally return { triggerSearch: true } to signal to the editor that the original search should run be again.
+	 */
+	message?: TextSearchCompleteMessageNew[];
+}
+
+/**
+ * A message regarding a completed search.
+ */
+export interface TextSearchCompleteMessageNew {
+	/**
+	 * Markdown text of the message.
+	 */
+	text: string;
+	/**
+	 * Whether the source of the message is trusted, command links are disabled for untrusted message sources.
+	 * Messaged are untrusted by default.
+	 */
+	trusted?: boolean;
+	/**
+	 * The message type, this affects how the message will be rendered.
+	 */
+	type: TextSearchCompleteMessageTypeNew;
+}
+
+/**
+ * Represents the severity of a TextSearchComplete message.
+ */
+export enum TextSearchCompleteMessageTypeNew {
+	Information = 1,
+	Warning = 2,
 }

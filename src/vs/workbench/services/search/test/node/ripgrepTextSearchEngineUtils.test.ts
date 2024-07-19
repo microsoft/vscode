@@ -7,7 +7,7 @@ import assert from 'assert';
 import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { fixRegexNewline, IRgMatch, IRgMessage, RipgrepParser, unicodeEscapesToPCRE2, fixNewline, getRgArgs, performBraceExpansionForRipgrep } from 'vs/workbench/services/search/node/ripgrepTextSearchEngine';
-import { Range, TextSearchOptions, TextSearchQuery, TextSearchResult } from 'vs/workbench/services/search/common/searchExtTypes';
+import { Range, TextSearchOptions, TextSearchQueryNew, TextSearchResultNew } from 'vs/workbench/services/search/common/searchExtTypes';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('RipgrepTextSearchEngine', () => {
@@ -104,10 +104,10 @@ suite('RipgrepTextSearchEngine', () => {
 	suite('RipgrepParser', () => {
 		const TEST_FOLDER = URI.file('/foo/bar');
 
-		function testParser(inputData: string[], expectedResults: TextSearchResult[]): void {
+		function testParser(inputData: string[], expectedResults: TextSearchResultNew[]): void {
 			const testParser = new RipgrepParser(1000, TEST_FOLDER);
 
-			const actualResults: TextSearchResult[] = [];
+			const actualResults: TextSearchResultNew[] = [];
 			testParser.on('result', r => {
 				actualResults.push(r);
 			});
@@ -303,7 +303,7 @@ suite('RipgrepTextSearchEngine', () => {
 		test('simple includes', () => {
 			// Only testing the args that come from includes.
 			function testGetRgArgs(includes: string[], expectedFromIncludes: string[]): void {
-				const query: TextSearchQuery = {
+				const query: TextSearchQueryNew = {
 					pattern: 'test'
 				};
 

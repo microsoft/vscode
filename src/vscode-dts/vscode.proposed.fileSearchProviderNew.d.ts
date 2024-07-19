@@ -10,7 +10,7 @@ declare module 'vscode' {
 	/**
 	 * Options that apply to file search.
 	 */
-	export interface FileSearchOptionsNew {
+	export interface FileSearchProviderOptionsNew {
 		folderOptions: {
 			/**
 			 * The root folder to search within.
@@ -42,26 +42,26 @@ declare module 'vscode' {
 				 */
 				local: boolean;
 				/**
-				 * Use ignore files at the parent directory. If set, {@link FileSearchOptionsNew.useIgnoreFiles.local} should also be `true`.
+				 * Use ignore files at the parent directory. If set, {@link FileSearchProviderOptionsNew.useIgnoreFiles.local} should also be `true`.
 				 */
 				parent: boolean;
 				/**
-				 * Use global ignore files. If set, {@link FileSearchOptionsNew.useIgnoreFiles.local} should also be `true`.
+				 * Use global ignore files. If set, {@link FileSearchProviderOptionsNew.useIgnoreFiles.local} should also be `true`.
 				 */
 				global: boolean;
 			};
+		}[];
 
-			/**
-			 * An object with a lifespan that matches the session's lifespan. If the provider chooses to, this object can be used as the key for a cache,
-			 * and searches with the same session object can search the same cache. When the token is cancelled, the session is complete and the cache can be cleared.
-			 */
-			session: unknown;
+		/**
+		 * An object with a lifespan that matches the session's lifespan. If the provider chooses to, this object can be used as the key for a cache,
+		 * and searches with the same session object can search the same cache. When the token is cancelled, the session is complete and the cache can be cleared.
+		 */
+		session: unknown;
 
-			/**
-			 * The maximum number of results to be returned.
-			 */
-			maxResults: number;
-		};
+		/**
+		 * The maximum number of results to be returned.
+		 */
+		maxResults: number;
 	}
 
 	/**
@@ -79,7 +79,7 @@ declare module 'vscode' {
 		 * @param options A set of options to consider while searching files.
 		 * @param token A cancellation token.
 		 */
-		provideFileSearchResults(pattern: string, options: FileSearchOptionsNew, token: CancellationToken): ProviderResult<Uri[]>;
+		provideFileSearchResults(pattern: string, options: FileSearchProviderOptionsNew, token: CancellationToken): ProviderResult<Uri[]>;
 	}
 
 	export namespace workspace {
