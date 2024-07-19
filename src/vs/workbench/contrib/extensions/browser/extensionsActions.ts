@@ -873,6 +873,7 @@ export class UpdateAction extends ExtensionAction {
 		private readonly verbose: boolean,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IDialogService private readonly dialogService: IDialogService,
+		@IOpenerService private readonly openerService: IOpenerService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super(`extensions.update`, localize('update', "Update"), UpdateAction.DisabledClass, false);
@@ -912,14 +913,32 @@ export class UpdateAction extends ExtensionAction {
 
 		const consent = await this.extensionsWorkbenchService.shouldRequireConsentToUpdate(this.extension);
 		if (consent) {
-			const result = await this.dialogService.confirm({
+			const { result } = await this.dialogService.prompt<'update' | 'review' | 'cancel'>({
 				type: 'warning',
 				title: localize('updateExtensionConsentTitle', "Update {0} Extension", this.extension.displayName),
 				message: localize('updateExtensionConsent', "{0}\n\nWould you like to proceed with the update?", consent),
-				primaryButton: localize('update', "Update"),
+				buttons: [{
+					label: localize('update', "Update"),
+					run: () => 'update'
+				}, {
+					label: localize('review', "Review"),
+					run: () => 'review'
+				}, {
+					label: localize('cancel', "Cancel"),
+					run: () => 'cancel'
+				}]
 			});
-			if (!result.confirmed) {
+			if (result === 'cancel') {
 				return;
+			}
+			if (result === 'review') {
+				if (this.extension.hasChangelog()) {
+					return this.extensionsWorkbenchService.open(this.extension, { tab: ExtensionEditorTab.Changelog });
+				}
+				if (this.extension.repository) {
+					return this.openerService.open(this.extension.repository);
+				}
+				return this.extensionsWorkbenchService.open(this.extension);
 			}
 		}
 
@@ -2486,7 +2505,17 @@ export class ExtensionStatusAction extends ExtensionAction {
 		if (this.extension.outdated && this.extensionsWorkbenchService.isAutoUpdateEnabledFor(this.extension)) {
 			const message = await this.extensionsWorkbenchService.shouldRequireConsentToUpdate(this.extension);
 			if (message) {
-				this.updateStatus({ icon: warningIcon, message: new MarkdownString(message) }, true);
+				const markdown = new MarkdownString();
+				markdown.appendMarkdown(`${message} `);
+				markdown.appendMarkdown(
+					localize('auto update message', "Please [review the extension]({0}) and update it manually.",
+						this.extension.hasChangelog()
+							? URI.parse(`command:extension.open?${encodeURIComponent(JSON.stringify([this.extension.identifier.id, ExtensionEditorTab.Changelog]))}`).toString()
+							: this.extension.repository
+								? this.extension.repository
+								: URI.parse(`command:extension.open?${encodeURIComponent(JSON.stringify([this.extension.identifier.id]))}`).toString()
+					));
+				this.updateStatus({ icon: warningIcon, message: markdown }, true);
 			}
 		}
 
