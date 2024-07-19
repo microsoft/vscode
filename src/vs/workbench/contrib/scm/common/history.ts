@@ -15,6 +15,7 @@ export interface ISCMHistoryProviderMenus {
 	getHistoryItemGroupContextMenu(historyItemGroup: SCMHistoryItemGroupTreeElement): IMenu;
 
 	getHistoryItemMenu(historyItem: SCMHistoryItemTreeElement): IMenu;
+	getHistoryItemMenu2(historyItem: SCMHistoryItemViewModelTreeElement): IMenu;
 }
 
 export interface ISCMHistoryProvider {
