@@ -2034,6 +2034,7 @@ export class DebugModel extends Disposable implements IDebugModel {
 		this.watchExpressions = id ? this.watchExpressions.filter(we => we.getId() !== id) : [];
 		this._onDidChangeWatchExpressions.fire(undefined);
 		if (!id) {
+			this.watchExpressionChangeListeners.clearAndDisposeAll();
 			return;
 		}
 		this.watchExpressionChangeListeners.deleteAndDispose(id);
