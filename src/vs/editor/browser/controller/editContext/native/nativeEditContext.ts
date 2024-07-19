@@ -282,6 +282,34 @@ export class NativeEditContext extends AbstractEditContext {
 		console.log('updateText');
 		const primaryViewState = this._context.viewModel.getCursorStates()[0].viewState;
 
+		if (true) {
+			// Different text for the EditContext
+			const doc = new LineBasedText(lineNumber => this._context.viewModel.getLineContent(lineNumber), this._context.viewModel.getLineCount());
+			const docStart = new Position(1, 1);
+			const textStart = new Position(primaryViewState.selection.startLineNumber - 2, 1);
+			const textEnd = new Position(primaryViewState.selection.endLineNumber + 1, Number.MAX_SAFE_INTEGER);
+			const textEdit = new TextEdit([
+				docStart.isBefore(textStart) ? new SingleTextEdit(Range.fromPositions(docStart, textStart), '') : undefined,
+				(primaryViewState.selection.endLineNumber - primaryViewState.selection.startLineNumber > 6) ?
+					new SingleTextEdit(Range.fromPositions(new Position(primaryViewState.selection.startLineNumber + 2, 1), new Position(primaryViewState.selection.endLineNumber - 2, 1)), '') :
+					undefined,
+				textEnd.isBefore(doc.endPositionExclusive) ? new SingleTextEdit(Range.fromPositions(textEnd, doc.endPositionExclusive), '') : undefined
+			].filter(isDefined));
+
+			const value = textEdit.apply(doc);
+			const positionSelectionStart = textEdit.mapPosition(primaryViewState.selection.getStartPosition()) as Position;
+			const positionSelectionEnd = textEdit.mapPosition(primaryViewState.selection.getEndPosition()) as Position;
+
+			const t = new PositionOffsetTransformer(value);
+			const selection = new OffsetRange((t.getOffset(positionSelectionStart)), (t.getOffset(positionSelectionEnd)));
+
+			console.log('value for EditContext : ', value);
+			console.log('selection for EditContext start : ', selection.start, ', and end : ', selection.endExclusive);
+
+			this._ctx.updateText(0, Number.MAX_SAFE_INTEGER, value);
+			this._ctx.updateSelection(selection.start, selection.endExclusive);
+		}
+
 		const doc = new LineBasedText(lineNumber => this._context.viewModel.getLineContent(lineNumber), this._context.viewModel.getLineCount());
 		const docStart = new Position(1, 1);
 		const textStart = new Position(primaryViewState.selection.startLineNumber, 1);
@@ -306,11 +334,8 @@ export class NativeEditContext extends AbstractEditContext {
 
 		this._editContextState = new EditContextState(textEdit, t, positionOffset, selection);
 
-		console.log('value : ', value);
-		console.log('selection start : ', selection.start, ', and end : ', selection.endExclusive);
-
-		this._ctx.updateText(0, Number.MAX_SAFE_INTEGER, value);
-		this._ctx.updateSelection(selection.start, selection.endExclusive);
+		console.log('value for rest : ', value);
+		console.log('selection for rest, start : ', selection.start, ', and end : ', selection.endExclusive);
 
 		const domElementNode = this._domElement.domNode;
 		domElementNode.style.tabSize = '4';
@@ -325,7 +350,6 @@ export class NativeEditContext extends AbstractEditContext {
 			domElementNode.replaceChildren();
 			const span = document.createElement('div');
 			span.textContent = value ?? ' '; // so value is not completely empty
-			// span.contentEditable = 'true';
 			span.id = `l0`;
 			span.role = 'textbox';
 			domElementNode.appendChild(span);
@@ -403,8 +427,8 @@ export class NativeEditContext extends AbstractEditContext {
 				const lineDomNode = document.createElement('div');
 				lineDomNode.textContent = splitLine;
 				lineDomNode.style.tabSize = '4';
-				// lineDomNode.role = 'contenteditable';
-				lineDomNode.contentEditable = 'true';
+				// lineDomNode.contentEditable = 'true';
+				lineDomNode.role = 'textbox';
 				lineDomNode.style.whiteSpace = 'pre-wrap';
 				lineDomNode.style.float = 'left';
 				lineDomNode.style.clear = 'left';
