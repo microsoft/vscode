@@ -160,8 +160,10 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			return this._handleVSCodeSequence(data);
 		}));
 		this._register(xterm.onData(e => {
-			this._lastUserData = e;
-			this._lastUserDataTimestamp = Date.now();
+			if (!e.startsWith('\x1b[')) {
+				this._lastUserData = e;
+				this._lastUserDataTimestamp = Date.now();
+			}
 		}));
 	}
 
