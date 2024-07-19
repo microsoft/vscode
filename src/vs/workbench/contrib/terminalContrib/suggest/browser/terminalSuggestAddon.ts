@@ -544,6 +544,11 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			}
 		}
 
+		// For folders, allow the next completion request to get completions for that folder
+		if (completion.icon === Codicon.folder) {
+			this._lastAcceptedCompletionTimestamp = 0;
+		}
+
 		// Send the completion
 		this._onAcceptedCompletion.fire([
 			// Backspace (left) to remove all additional input
