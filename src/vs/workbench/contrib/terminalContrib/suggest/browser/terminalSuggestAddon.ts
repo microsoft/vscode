@@ -26,6 +26,7 @@ import { ShellIntegrationOscPs } from 'vs/platform/terminal/common/xterm/shellIn
 import { getListStyles } from 'vs/platform/theme/browser/defaultStyles';
 import type { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { terminalSuggestConfigSection, type ITerminalSuggestConfiguration } from 'vs/workbench/contrib/terminalContrib/suggest/common/terminalSuggestConfiguration';
+import { commonPrefixLength } from 'vs/base/common/strings';
 
 export const enum VSCodeSuggestOscPt {
 	Completions = 'Completions',
@@ -544,14 +545,16 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			}
 		}
 
+		const commonPrefixLen = commonPrefixLength(replacementText, completion.label);
+
 		// Send the completion
 		this._onAcceptedCompletion.fire([
 			// Backspace (left) to remove all additional input
-			'\x7F'.repeat(replacementText.length),
+			'\x7F'.repeat(replacementText.length - commonPrefixLen),
 			// Delete (right) to remove any additional text in the same word
 			'\x1b[3~'.repeat(rightSideReplacementText.length),
 			// Write the completion
-			completion.label,
+			completion.label.substring(commonPrefixLen),
 			// Run on enter if needed
 			runOnEnter ? '\r' : ''
 		].join(''));
