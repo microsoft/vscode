@@ -69,16 +69,17 @@ export class TerminalShellExecutionManager {
 	private onDidEndTerminalShellExecution(e: TerminalShellExecutionEndEvent): void {
 		const { execution, exitCode, shellIntegration } = e;
 		const [executable, subcommand] = execution.commandLine.value.split(/\s+/);
+		const cwd = execution.cwd ?? shellIntegration.cwd;
 
-		if (executable.toLowerCase() !== 'git' || !this.subcommands.has(subcommand.toLowerCase()) || !shellIntegration.cwd || exitCode !== 0) {
+		if (executable.toLowerCase() !== 'git' || !this.subcommands.has(subcommand.toLowerCase()) || !cwd || exitCode !== 0) {
 			return;
 		}
 
 		this.logger.trace(`[TerminalShellExecutionManager][onDidEndTerminalShellExecution] Matched git subcommand: ${subcommand}`);
 
-		const repository = this.model.getRepository(shellIntegration.cwd);
+		const repository = this.model.getRepository(cwd);
 		if (!repository) {
-			this.logger.trace(`[TerminalShellExecutionManager][onDidEndTerminalShellExecution] Unable to find repository for current working directory: ${shellIntegration.cwd}`);
+			this.logger.trace(`[TerminalShellExecutionManager][onDidEndTerminalShellExecution] Unable to find repository for current working directory: ${cwd.toString()}`);
 			return;
 		}
 
