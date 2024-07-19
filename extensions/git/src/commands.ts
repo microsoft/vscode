@@ -4238,11 +4238,6 @@ export class CommandCenter {
 
 	async _viewChanges(repository: Repository, historyItemId: string, historyItemParentId: string, multiDiffSourceUri: Uri, title: string): Promise<void> {
 		const changes = await repository.diffBetween(historyItemParentId, historyItemId);
-
-		if (changes.length === 0) {
-			return;
-		}
-
 		const resources = changes.map(c => toMultiFileDiffEditorUris(c, historyItemParentId, historyItemId));
 
 		await commands.executeCommand('_workbench.openMultiDiffEditor', { multiDiffSourceUri, title, resources });
