@@ -500,6 +500,7 @@ export interface FindTextInFilesOptions {
 }
 
 // NEW TYPES
+// added temporarily for testing new API shape
 
 /**
  * The main match information for a {@link TextSearchResultNew}.
@@ -553,31 +554,4 @@ export enum ExcludeSettingOptions {
 export enum TextSearchCompleteMessageTypeNew {
 	Information = 1,
 	Warning = 2,
-}
-
-export interface TextSearchQueryNew {
-	/**
-	 * The text pattern to search for.
-	 */
-	pattern: string;
-
-	/**
-	 * Whether or not `pattern` should match multiple lines of text.
-	 */
-	isMultiline?: boolean;
-
-	/**
-	 * Whether or not `pattern` should be interpreted as a regular expression.
-	 */
-	isRegExp?: boolean;
-
-	/**
-	 * Whether or not the search should be case-sensitive.
-	 */
-	isCaseSensitive?: boolean;
-
-	/**
-	 * Whether or not to search for whole word matches only.
-	 */
-	isWordMatch?: boolean;
 }
