@@ -822,21 +822,27 @@ class HistoryItemGroupRenderer implements ICompressibleTreeRenderer<SCMHistoryIt
 
 class HistoryItemActionRunner extends ActionRunner {
 
-	protected override async runAction(action: IAction, context: SCMHistoryItemTreeElement): Promise<any> {
+	protected override async runAction(action: IAction, context: SCMHistoryItemTreeElement | SCMHistoryItemViewModelTreeElement): Promise<any> {
 		if (!(action instanceof MenuItemAction)) {
 			return super.runAction(action, context);
 		}
 
 		const args: (ISCMProvider | ISCMHistoryItem)[] = [];
-		args.push(context.historyItemGroup.repository.provider);
+		if (isSCMHistoryItemTreeElement(context)) {
+			args.push(context.historyItemGroup.repository.provider);
+		} else {
+			args.push(context.repository.provider);
+		}
+
+		const historyItem = isSCMHistoryItemTreeElement(context) ? context : context.historyItemViewModel.historyItem;
 		args.push({
-			id: context.id,
-			parentIds: context.parentIds,
-			message: context.message,
-			author: context.author,
-			icon: context.icon,
-			timestamp: context.timestamp,
-			statistics: context.statistics,
+			id: historyItem.id,
+			parentIds: historyItem.parentIds,
+			message: historyItem.message,
+			author: historyItem.author,
+			icon: historyItem.icon,
+			timestamp: historyItem.timestamp,
+			statistics: historyItem.statistics,
 		} satisfies ISCMHistoryItem);
 
 		await action.run(...args);
@@ -3503,6 +3509,13 @@ export class SCMViewPane extends ViewPane {
 		} else if (isSCMHistoryItemTreeElement(element)) {
 			const menus = this.scmViewService.menus.getRepositoryMenus(element.historyItemGroup.repository.provider);
 			const menu = menus.historyProviderMenu?.getHistoryItemMenu(element);
+			if (menu) {
+				actionRunner = new HistoryItemActionRunner();
+				actions = collectContextMenuActions(menu);
+			}
+		} else if (isSCMHistoryItemViewModelTreeElement(element)) {
+			const menus = this.scmViewService.menus.getRepositoryMenus(element.repository.provider);
+			const menu = menus.historyProviderMenu?.getHistoryItemMenu2(element);
 			if (menu) {
 				actionRunner = new HistoryItemActionRunner();
 				actions = collectContextMenuActions(menu);
