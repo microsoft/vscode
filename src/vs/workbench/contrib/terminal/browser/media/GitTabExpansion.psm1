@@ -1616,14 +1616,14 @@ function script:gitRestoreFiles($GitStatus, $filter, $staged) {
 
 function script:gitAliases($filter) {
 	git config --get-regexp ^alias\. | ForEach-Object {
-		if ($_ -match "^alias\.(?<alias>\S+) (?<expanded>.*)") {
+		if ($_ -match "^alias\.(?<alias>\S+) (?<expanded>.+)") {
 			$alias = $Matches['alias']
 			$expanded = $Matches['expanded']
 			if ($alias -like "$filter*") {
 				[System.Management.Automation.CompletionResult]::new($alias, $alias, 'Variable', $expanded)
 			}
 		}
-	} | Sort-Object -Unique
+	}
 }
 
 function script:expandGitAlias($cmd, $rest) {
