@@ -1145,10 +1145,7 @@ class HistoryItem2Renderer implements ICompressibleTreeRenderer<SCMHistoryItemVi
 
 		markdown.appendMarkdown(`${historyItem.message}\n\n`);
 
-		if (historyItem.statistics?.files) {
-			const historyItemAdditionsForegroundColor = colorTheme.getColor(historyItemAdditionsForeground);
-			const historyItemDeletionsForegroundColor = colorTheme.getColor(historyItemDeletionsForeground);
-
+		if (historyItem.statistics) {
 			markdown.appendMarkdown(`---\n\n`);
 
 			markdown.appendMarkdown(`<span>${historyItem.statistics.files === 1 ?
@@ -1156,12 +1153,14 @@ class HistoryItem2Renderer implements ICompressibleTreeRenderer<SCMHistoryItemVi
 				localize('filesChanged', "{0} files changed", historyItem.statistics.files)}</span>`);
 
 			if (historyItem.statistics.insertions) {
+				const historyItemAdditionsForegroundColor = colorTheme.getColor(historyItemAdditionsForeground);
 				markdown.appendMarkdown(`,&nbsp;<span style="color:${historyItemAdditionsForegroundColor};">${historyItem.statistics.insertions === 1 ?
 					localize('insertion', "{0} insertion{1}", historyItem.statistics.insertions, '(+)') :
 					localize('insertions', "{0} insertions{1}", historyItem.statistics.insertions, '(+)')}</span>`);
 			}
 
 			if (historyItem.statistics.deletions) {
+				const historyItemDeletionsForegroundColor = colorTheme.getColor(historyItemDeletionsForeground);
 				markdown.appendMarkdown(`,&nbsp;<span style="color:${historyItemDeletionsForegroundColor};">${historyItem.statistics.deletions === 1 ?
 					localize('deletion', "{0} deletion{1}", historyItem.statistics.deletions, '(-)') :
 					localize('deletions', "{0} deletions{1}", historyItem.statistics.deletions, '(-)')}</span>`);

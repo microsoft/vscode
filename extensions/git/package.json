@@ -1961,7 +1961,7 @@
       "scm/historyItem/context": [
         {
           "command": "git.viewCommit",
-          "when": "scmProvider == git && scmHistoryItemFileCount != 0 && !listMultiSelection && config.multiDiffEditor.experimental.enabled",
+          "when": "scmProvider == git && config.multiDiffEditor.experimental.enabled",
           "group": "1_view@1"
         },
         {
