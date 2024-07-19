@@ -4,6 +4,7 @@
   "description": "Test provider for the VS Code project",
   "enabledApiProposals": [
     "testObserver",
+    "testRelatedCode",
     "attributableCoverage"
   ],
   "engines": {
@@ -83,6 +84,7 @@
   "dependencies": {
     "@jridgewell/trace-mapping": "^0.3.25",
     "ansi-styles": "^5.2.0",
+    "cockatiel": "^3.1.3",
     "istanbul-to-vscode": "^2.0.1"
   }
 }

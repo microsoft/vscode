@@ -220,10 +220,10 @@ export class ExtHostTesting extends Disposable implements ExtHostTestingShape {
 			},
 		};
 
+		const info: ControllerInfo = { controller, collection, profiles, extension, activeProfiles };
 		proxy.$registerTestController(controllerId, label, getCapability());
 		disposable.add(toDisposable(() => proxy.$unregisterTestController(controllerId)));
 
-		const info: ControllerInfo = { controller, collection, profiles, extension, activeProfiles };
 		this.controllers.set(controllerId, info);
 		disposable.add(toDisposable(() => this.controllers.delete(controllerId)));
 
@@ -277,6 +277,9 @@ export class ExtHostTesting extends Disposable implements ExtHostTestingShape {
 	//#endregion
 
 	//#region RPC methods
+	/**
+	 * @inheritdoc
+	 */
 	async $getTestsRelatedToCode(uri: UriComponents, _position: IPosition, token: CancellationToken): Promise<string[]> {
 		const doc = this.editors.getDocument(URI.revive(uri));
 		if (!doc) {
@@ -304,6 +307,24 @@ export class ExtHostTesting extends Disposable implements ExtHostTestingShape {
 		}));
 
 		return related;
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	async $getCodeRelatedToTest(testId: string, token: CancellationToken): Promise<ILocationDto[]> {
+		const controller = this.controllers.get(TestId.root(testId));
+		if (!controller) {
+			return [];
+		}
+
+		const test = controller.collection.tree.get(testId);
+		if (!test) {
+			return [];
+		}
+
+		const locations = await controller.relatedCodeProvider?.provideRelatedCode?.(test.actual, token);
+		return locations?.map(Convert.location.from) ?? [];
 	}
 
 	/**

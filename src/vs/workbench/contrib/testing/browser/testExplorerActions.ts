@@ -16,10 +16,8 @@ import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/em
 import { EditorOption, GoToLocationValues } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ITextModel } from 'vs/editor/common/model';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { SymbolNavigationAction } from 'vs/editor/contrib/gotoSymbol/browser/goToCommands';
 import { ReferencesModel } from 'vs/editor/contrib/gotoSymbol/browser/referencesModel';
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
@@ -1741,7 +1739,7 @@ abstract class GoToRelatedTestAction extends TestNavigationAction {
 	protected override async _getLocationModel(_languageFeaturesService: unknown, model: ITextModel, position: Position, token: CancellationToken): Promise<ReferencesModel | undefined> {
 		const tests = await this.testService.getTestsRelatedToCode(model.uri, position, token);
 		return new ReferencesModel(
-			tests.map(t => t.item.uri && t.item.range && ({ uri: t.item.uri, range: t.item.range })).filter(isDefined),
+			tests.map(t => t.item.uri && ({ uri: t.item.uri, range: t.item.range || new Range(1, 1, 1, 1) })).filter(isDefined),
 			localize('relatedTests', 'Related Tests'),
 		);
 	}
@@ -1759,8 +1757,12 @@ class GoToRelatedTest extends GoToRelatedTestAction {
 			muteMessage: false
 		}, {
 			id: TestCommandId.GoToRelatedTest,
-			title: localize2('testing.goToRelatedTest', 'Go to Test Related Test'),
-			precondition: TestingContextKeys.canGoToRelatedTest,
+			title: localize2('testing.goToRelatedTest', 'Go to Related Test'),
+			category,
+			precondition: ContextKeyExpr.and(
+				// todo@connor4312: make this more explicit based on cursor position
+				ContextKeyExpr.not(TestingContextKeys.activeEditorHasTests.key), TestingContextKeys.canGoToRelatedTest,
+			),
 			menu: [{
 				id: MenuId.EditorContext,
 				group: 'navigation',
@@ -1778,9 +1780,12 @@ class PeekRelatedTest extends GoToRelatedTestAction {
 			muteMessage: false
 		}, {
 			id: TestCommandId.PeekRelatedTest,
-			title: localize2('testing.peekToRelatedTest', 'Peek Test Related Test'),
+			title: localize2('testing.peekToRelatedTest', 'Peek Related Test'),
+			category,
 			precondition: ContextKeyExpr.and(
 				TestingContextKeys.canGoToRelatedTest,
+				// todo@connor4312: make this more explicit based on cursor position
+				ContextKeyExpr.not(TestingContextKeys.activeEditorHasTests.key),
 				PeekContext.notInPeekEditor,
 				EditorContextKeys.isInEmbeddedEditor.toNegated()
 			),
@@ -1813,7 +1818,8 @@ class GoToRelatedCode extends GoToRelatedCodeAction {
 			muteMessage: false
 		}, {
 			id: TestCommandId.GoToRelatedCode,
-			title: localize2('testing.goToRelatedCode', 'Go to Test Related Code'),
+			title: localize2('testing.goToRelatedCode', 'Go to Related Code'),
+			category,
 			precondition: ContextKeyExpr.and(
 				TestingContextKeys.activeEditorHasTests,
 				TestingContextKeys.canGoToRelatedCode,
@@ -1835,7 +1841,8 @@ class PeekRelatedCode extends GoToRelatedCodeAction {
 			muteMessage: false
 		}, {
 			id: TestCommandId.PeekRelatedCode,
-			title: localize2('testing.peekToRelatedCode', 'Peek Test Related Code'),
+			title: localize2('testing.peekToRelatedCode', 'Peek Related Code'),
+			category,
 			precondition: ContextKeyExpr.and(
 				TestingContextKeys.activeEditorHasTests,
 				TestingContextKeys.canGoToRelatedCode,

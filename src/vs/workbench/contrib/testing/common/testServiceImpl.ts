@@ -12,6 +12,7 @@ import { observableValue } from 'vs/base/common/observable';
 import { isDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { Position } from 'vs/editor/common/core/position';
+import { Location } from 'vs/editor/common/languages';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -415,6 +416,13 @@ export class TestService extends Disposable implements ITestService {
 			next.delete(id);
 			this.testControllers.set(next, undefined);
 		});
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	public async getCodeRelatedToTest(test: InternalTestItem, token: CancellationToken = CancellationToken.None): Promise<Location[]> {
+		return (await this.testControllers.get().get(test.controllerId)?.getRelatedCode(test.item.extId, token)) || [];
 	}
 
 	private updateEditorContextKeys() {
