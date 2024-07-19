@@ -184,9 +184,10 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	private _sync(promptInputState: IPromptInputModelState): void {
 		const config = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection);
 
-		// If input has been added
-		let sent = false;
 		if (!this._mostRecentPromptInputState || promptInputState.cursorIndex > this._mostRecentPromptInputState.cursorIndex) {
+			// If input has been added
+			let sent = false;
+
 			// Quick suggestions
 			if (!this._terminalSuggestWidgetVisibleContextKey.get()) {
 				if (config.quickSuggestions) {
