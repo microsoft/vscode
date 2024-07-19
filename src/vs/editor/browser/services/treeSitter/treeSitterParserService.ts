@@ -93,10 +93,6 @@ export class TextModelTreeSitter extends Disposable {
 
 		treeSitterTree.tree = await this._treeSitterParser.parse(this.model, treeSitterTree);
 	}
-
-	override dispose() {
-		super.dispose();
-	}
 }
 
 export class TreeSitterTree implements IDisposable {
@@ -333,10 +329,5 @@ export class TreeSitterTextModelService extends Disposable implements ITreeSitte
 		if (this._registeredLanguages.has(languageId)) {
 			this._registeredLanguages.deleteAndDispose('typescript');
 		}
-	}
-
-	public override dispose(): void {
-		super.dispose();
-		this._textModelTreeSitters.dispose();
 	}
 }
