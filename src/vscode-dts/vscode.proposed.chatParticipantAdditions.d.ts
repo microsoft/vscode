@@ -66,7 +66,8 @@ declare module 'vscode' {
 	export class ChatResponseCodeCitationPart {
 		value: Uri;
 		license: string;
-		constructor(value: Uri, license: string);
+		snippet: string;
+		constructor(value: Uri, license: string, snippet: string);
 	}
 
 	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseDetectedParticipantPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart;
@@ -122,7 +123,7 @@ declare module 'vscode' {
 
 		reference(value: Uri | Location | { variableName: string; value?: Uri | Location }, iconPath?: Uri | ThemeIcon | { light: Uri; dark: Uri }): void;
 
-		codeCitation(value: Uri, license: string): void;
+		codeCitation(value: Uri, license: string, snippet: string): void;
 
 		push(part: ExtendedChatResponsePart): void;
 	}

@@ -2546,6 +2546,7 @@ export namespace ChatResponseCodeCitationPart {
 			kind: 'codeCitation',
 			value: part.value,
 			license: part.license,
+			snippet: part.snippet
 		};
 	}
 }
