@@ -240,7 +240,7 @@ function Send-Completions {
 			# Add trailing \ for directories so behavior aligns with TabExpansion2
 			[System.Management.Automation.CompletionCompleters]::CompleteFilename($completionPrefix) | ForEach-Object {
 				if ($_.ResultType -eq [System.Management.Automation.CompletionResultType]::ProviderContainer) {
-					[System.Management.Automation.CompletionResult]::new("$($_.CompletionText)\", "$($_.ListItemText)\", $_.ResultType, $_.ToolTip)
+					[System.Management.Automation.CompletionResult]::new($_.CompletionText + [System.IO.Path]::DirectorySeparatorChar, $_.ListItemText + [System.IO.Path]::DirectorySeparatorChar, $_.ResultType, $_.ToolTip)
 				}
 				$_
 			}
