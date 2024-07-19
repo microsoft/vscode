@@ -19,6 +19,7 @@ import { terminalAccessibilityConfiguration } from 'vs/workbench/contrib/termina
 import { terminalStickyScrollConfiguration } from 'vs/workbench/contrib/terminalContrib/stickyScroll/common/terminalStickyScrollConfiguration'; // eslint-disable-line local/code-import-patterns
 import { terminalTypeAheadConfiguration } from 'vs/workbench/contrib/terminalContrib/typeAhead/common/terminalTypeAheadConfiguration'; // eslint-disable-line local/code-import-patterns
 import { terminalZoomConfiguration } from 'vs/workbench/contrib/terminalContrib/zoom/common/terminal.zoom'; // eslint-disable-line local/code-import-patterns
+import { terminalSnippetsConfiguration } from 'vs/workbench/contrib/terminalContrib/snippets/common/terminalSnippetsConfiguration'; // eslint-disable-line local/code-import-patterns
 import { terminalSuggestConfiguration } from 'vs/workbench/contrib/terminalContrib/suggest/common/terminalSuggestConfiguration'; // eslint-disable-line local/code-import-patterns
 import { terminalInitialHintConfiguration } from 'vs/workbench/contrib/terminalContrib/chat/common/terminalInitialHintConfiguration';  // eslint-disable-line local/code-import-patterns
 
@@ -625,6 +626,7 @@ const terminalConfiguration: IConfigurationNode = {
 		},
 		...terminalAccessibilityConfiguration,
 		...terminalInitialHintConfiguration,
+		...terminalSnippetsConfiguration,
 		...terminalStickyScrollConfiguration,
 		...terminalSuggestConfiguration,
 		...terminalTypeAheadConfiguration,

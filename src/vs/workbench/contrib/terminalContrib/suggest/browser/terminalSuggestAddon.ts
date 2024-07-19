@@ -15,7 +15,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
-import { SimpleCompletionItem, type ITerminalSnippet } from 'vs/workbench/services/suggest/browser/simpleCompletionItem';
+import { SimpleCompletionItem } from 'vs/workbench/services/suggest/browser/simpleCompletionItem';
 import { LineContext, SimpleCompletionModel } from 'vs/workbench/services/suggest/browser/simpleCompletionModel';
 import { ISimpleSelectedSuggestion, SimpleSuggestWidget } from 'vs/workbench/services/suggest/browser/simpleSuggestWidget';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -27,6 +27,7 @@ import type { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-pri
 import { terminalSuggestConfigSection, type ITerminalSuggestConfiguration } from 'vs/workbench/contrib/terminalContrib/suggest/common/terminalSuggestConfiguration';
 import { asArray } from 'vs/base/common/arrays';
 import { timeout } from 'vs/base/common/async';
+import { ITerminalSnippetsService } from 'vs/workbench/contrib/terminalContrib/snippets/common/terminal.snippets';
 
 export const enum VSCodeSuggestOscPt {
 	Completions = 'Completions',
@@ -130,6 +131,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		private readonly _terminalSuggestWidgetVisibleContextKey: IContextKey<boolean>,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ITerminalSnippetsService private readonly _terminalSnippetsService: ITerminalSnippetsService,
 	) {
 		super();
 
@@ -313,18 +315,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	}
 
 	private _getSnippets(): SimpleCompletionItem[] {
-		const snippets: Map<string, ITerminalSnippet> = new Map();
-		snippets.set('Create symlink', {
-			prefix: [
-				'create symlink'
-			],
-			body: [
-				'ln -s ${1:/real/path} ${2:/link/path}'
-			],
-			description: 'Create a symlink to from /real/path to /link/path'
-		});
-		// "description": "Constructor Injection Pattern",
-		// "prefix": "@inject",
+		const snippets = this._terminalSnippetsService.getSnippets(null!);
 		const result: SimpleCompletionItem[] = [];
 		for (const [name, snippet] of snippets) {
 			for (const prefix of [...asArray(snippet.prefix), formatBodyAsPrefix(snippet.body)]) {

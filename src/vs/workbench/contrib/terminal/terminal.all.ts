@@ -21,6 +21,7 @@ import 'vs/workbench/contrib/terminalContrib/chat/browser/terminal.chat.contribu
 import 'vs/workbench/contrib/terminalContrib/highlight/browser/terminal.highlight.contribution';
 import 'vs/workbench/contrib/terminalContrib/links/browser/terminal.links.contribution';
 import 'vs/workbench/contrib/terminalContrib/zoom/browser/terminal.zoom.contribution';
+import 'vs/workbench/contrib/terminalContrib/snippets/common/terminal.snippets.contribution';
 import 'vs/workbench/contrib/terminalContrib/stickyScroll/browser/terminal.stickyScroll.contribution';
 import 'vs/workbench/contrib/terminalContrib/quickFix/browser/terminal.quickFix.contribution';
 import 'vs/workbench/contrib/terminalContrib/typeAhead/browser/terminal.typeAhead.contribution';

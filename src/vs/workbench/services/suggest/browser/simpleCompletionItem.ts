@@ -5,6 +5,7 @@
 
 import { FuzzyScore } from 'vs/base/common/filters';
 import { ThemeIcon } from 'vs/base/common/themables';
+import type { ITerminalSnippet } from 'vs/workbench/contrib/terminalContrib/snippets/common/terminal.snippets';
 
 export interface ISimpleCompletion {
 	/**
@@ -24,12 +25,6 @@ export interface ISimpleCompletion {
 	 */
 	completionText?: string;
 	snippet?: ITerminalSnippet;
-}
-
-export interface ITerminalSnippet {
-	prefix: string[] | string;
-	body: string[] | string;
-	description?: string;
 }
 
 export class SimpleCompletionItem {
