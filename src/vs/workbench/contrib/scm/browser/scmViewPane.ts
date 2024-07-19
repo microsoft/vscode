@@ -822,28 +822,66 @@ class HistoryItemGroupRenderer implements ICompressibleTreeRenderer<SCMHistoryIt
 
 class HistoryItemActionRunner extends ActionRunner {
 
-	protected override async runAction(action: IAction, context: SCMHistoryItemTreeElement | SCMHistoryItemViewModelTreeElement): Promise<any> {
+	protected override async runAction(action: IAction, context: SCMHistoryItemTreeElement): Promise<any> {
 		if (!(action instanceof MenuItemAction)) {
 			return super.runAction(action, context);
 		}
 
 		const args: (ISCMProvider | ISCMHistoryItem)[] = [];
-		if (isSCMHistoryItemTreeElement(context)) {
-			args.push(context.historyItemGroup.repository.provider);
-		} else {
-			args.push(context.repository.provider);
+		args.push(context.historyItemGroup.repository.provider);
+
+		args.push({
+			id: context.id,
+			parentIds: context.parentIds,
+			message: context.message,
+			author: context.author,
+			icon: context.icon,
+			timestamp: context.timestamp,
+			statistics: context.statistics,
+		} satisfies ISCMHistoryItem);
+
+		await action.run(...args);
+	}
+}
+
+class HistoryItemActionRunner2 extends ActionRunner {
+	constructor(private readonly getSelectedHistoryItems: () => SCMHistoryItemViewModelTreeElement[]) {
+		super();
+	}
+
+	protected override async runAction(action: IAction, context: SCMHistoryItemViewModelTreeElement): Promise<any> {
+		if (!(action instanceof MenuItemAction)) {
+			return super.runAction(action, context);
 		}
 
-		const historyItem = isSCMHistoryItemTreeElement(context) ? context : context.historyItemViewModel.historyItem;
-		args.push({
-			id: historyItem.id,
-			parentIds: historyItem.parentIds,
-			message: historyItem.message,
-			author: historyItem.author,
-			icon: historyItem.icon,
-			timestamp: historyItem.timestamp,
-			statistics: historyItem.statistics,
-		} satisfies ISCMHistoryItem);
+		const args: (ISCMProvider | ISCMHistoryItem)[] = [];
+		args.push(context.repository.provider);
+
+		const selection = this.getSelectedHistoryItems();
+		const contextIsSelected = selection.some(s => s === context);
+		if (contextIsSelected && selection.length > 1) {
+			args.push(...[selection[0], selection[selection.length - 1]]
+				.map(h => (
+					{
+						id: h.historyItemViewModel.historyItem.id,
+						parentIds: h.historyItemViewModel.historyItem.parentIds,
+						message: h.historyItemViewModel.historyItem.message,
+						author: h.historyItemViewModel.historyItem.author,
+						icon: h.historyItemViewModel.historyItem.icon,
+						timestamp: h.historyItemViewModel.historyItem.timestamp,
+						statistics: h.historyItemViewModel.historyItem.statistics,
+					} satisfies ISCMHistoryItem)));
+		} else {
+			args.push({
+				id: context.historyItemViewModel.historyItem.id,
+				parentIds: context.historyItemViewModel.historyItem.parentIds,
+				message: context.historyItemViewModel.historyItem.message,
+				author: context.historyItemViewModel.historyItem.author,
+				icon: context.historyItemViewModel.historyItem.icon,
+				timestamp: context.historyItemViewModel.historyItem.timestamp,
+				statistics: context.historyItemViewModel.historyItem.statistics,
+			} satisfies ISCMHistoryItem);
+		}
 
 		await action.run(...args);
 	}
@@ -3517,7 +3555,7 @@ export class SCMViewPane extends ViewPane {
 			const menus = this.scmViewService.menus.getRepositoryMenus(element.repository.provider);
 			const menu = menus.historyProviderMenu?.getHistoryItemMenu2(element);
 			if (menu) {
-				actionRunner = new HistoryItemActionRunner();
+				actionRunner = new HistoryItemActionRunner2(() => this.getSelectedHistoryItems());
 				actions = collectContextMenuActions(menu);
 			}
 		}
@@ -3542,6 +3580,11 @@ export class SCMViewPane extends ViewPane {
 	private getSelectedResources(): (ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>)[] {
 		return this.tree.getSelection()
 			.filter(r => !!r && !isSCMResourceGroup(r))! as any;
+	}
+
+	private getSelectedHistoryItems(): SCMHistoryItemViewModelTreeElement[] {
+		return this.tree.getSelection()
+			.filter(r => !!r && isSCMHistoryItemViewModelTreeElement(r))!;
 	}
 
 	private getViewMode(): ViewMode {
