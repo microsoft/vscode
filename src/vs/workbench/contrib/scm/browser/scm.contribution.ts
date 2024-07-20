@@ -352,7 +352,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 		'scm.showHistoryGraph': {
 			type: 'boolean',
-			description: localize('scm.showHistoryGraph', "Controls whether to show the render incoming/outgoing changes using a graph in the Source Control view."),
+			description: localize('scm.showHistoryGraph', "Controls whether to render incoming/outgoing changes using a graph in the Source Control view."),
 			default: true
 		}
 	}
