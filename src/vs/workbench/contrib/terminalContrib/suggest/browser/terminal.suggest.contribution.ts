@@ -13,6 +13,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ContextKeyExpr, IContextKey, IContextKeyService, IReadableSet } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { ShellIntegrationOscPs } from 'vs/platform/terminal/common/xterm/shellIntegrationAddon';
 import { ITerminalContribution, ITerminalInstance, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -23,8 +24,12 @@ import { ITerminalProcessManager, TERMINAL_CONFIG_SECTION, type ITerminalConfigu
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { parseCompletionsFromShell, SuggestAddon, VSCodeSuggestOscPt, type CompressedPwshCompletion, type PwshCompletion } from 'vs/workbench/contrib/terminalContrib/suggest/browser/terminalSuggestAddon';
 import { TerminalSuggestCommandId } from 'vs/workbench/contrib/terminalContrib/suggest/common/terminal.suggest';
-import { terminalSuggestConfigSection, type ITerminalSuggestConfiguration } from 'vs/workbench/contrib/terminalContrib/suggest/common/terminalSuggestConfiguration';
+import { terminalSuggestConfigSection, TerminalSuggestSettingId, type ITerminalSuggestConfiguration } from 'vs/workbench/contrib/terminalContrib/suggest/common/terminalSuggestConfiguration';
 import { SimpleCompletionItem } from 'vs/workbench/services/suggest/browser/simpleCompletionItem';
+
+const enum Constants {
+	CachedPwshCommandsStorageKey = 'terminal.suggest.pwshCommands'
+}
 
 // #region Terminal Contributions
 
@@ -42,17 +47,37 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 
 	get addon(): SuggestAddon | undefined { return this._addon.value; }
 
+	private static readonly _cachedPwshCommands: Set<SimpleCompletionItem> = new Set();
+
 	constructor(
 		private readonly _instance: ITerminalInstance,
 		processManager: ITerminalProcessManager,
 		widgetManager: TerminalWidgetManager,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IStorageService private readonly _storageService: IStorageService,
 	) {
 		super();
 		this.add(toDisposable(() => this._addon?.dispose()));
 		this._terminalSuggestWidgetVisibleContextKey = TerminalContextKeys.suggestWidgetVisible.bindTo(this._contextKeyService);
+
+		// Attempt to load cached pwsh commands if not already loaded
+		if (TerminalSuggestContribution._cachedPwshCommands.size === 0) {
+			const config = this._storageService.get(Constants.CachedPwshCommandsStorageKey, StorageScope.APPLICATION, undefined);
+			if (config !== undefined) {
+				const completions = JSON.parse(config);
+				for (const c of completions) {
+					TerminalSuggestContribution._cachedPwshCommands.add(c);
+				}
+			}
+		}
+
+		this.add(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(TerminalSuggestSettingId.Enabled)) {
+				this.clearSuggestCache();
+			}
+		}));
 	}
 
 	xtermReady(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
@@ -83,20 +108,25 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		return false;
 	}
 
-	// TODO: These aren't persisted across reloads
-	private _cachedPwshCommands: Set<SimpleCompletionItem> = new Set();
 	private async _handleCompletionsPwshCommandsSequence(terminal: RawXtermTerminal, data: string, command: string, args: string[]): Promise<boolean> {
 		const type = args[0];
 		const rawCompletions: PwshCompletion | PwshCompletion[] | CompressedPwshCompletion[] | CompressedPwshCompletion = JSON.parse(data.slice(command.length + type.length + 2/*semi-colons*/));
 		const completions = parseCompletionsFromShell(rawCompletions);
 
-		const set = this._cachedPwshCommands;
+		const set = TerminalSuggestContribution._cachedPwshCommands;
 		set.clear();
 		for (const c of completions) {
 			set.add(c);
 		}
 
+		this._storageService.store(Constants.CachedPwshCommandsStorageKey, JSON.stringify(Array.from(set.values())), StorageScope.APPLICATION, StorageTarget.MACHINE);
+
 		return true;
+	}
+
+	clearSuggestCache(): void {
+		TerminalSuggestContribution._cachedPwshCommands.clear();
+		this._storageService.remove(Constants.CachedPwshCommandsStorageKey, StorageScope.APPLICATION);
 	}
 
 	xtermOpen(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
@@ -127,7 +157,7 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 			return;
 		}
 		if (this._terminalSuggestWidgetVisibleContextKey) {
-			this._addon.value = this._instantiationService.createInstance(SuggestAddon, this._cachedPwshCommands, this._instance.capabilities, this._terminalSuggestWidgetVisibleContextKey);
+			this._addon.value = this._instantiationService.createInstance(SuggestAddon, TerminalSuggestContribution._cachedPwshCommands, this._instance.capabilities, this._terminalSuggestWidgetVisibleContextKey);
 			xterm.loadAddon(this._addon.value);
 			this._addon.value.setPanel(dom.findParentWithClass(xterm.element!, 'panel')!);
 			this._addon.value.setScreen(xterm.element!.querySelector('.xterm-screen')!);
@@ -236,6 +266,13 @@ registerActiveInstanceAction({
 		weight: KeybindingWeight.WorkbenchContrib + 1
 	},
 	run: (activeInstance) => TerminalSuggestContribution.get(activeInstance)?.addon?.hideSuggestWidget()
+});
+
+registerActiveInstanceAction({
+	id: TerminalSuggestCommandId.ClearSuggestCache,
+	title: localize2('workbench.action.terminal.clearSuggestCache', 'Clear Suggest Cache'),
+	f1: true,
+	run: (activeInstance) => TerminalSuggestContribution.get(activeInstance)?.clearSuggestCache()
 });
 
 // #endregion

@@ -122,6 +122,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	private _lastUserData?: string;
 
 	static requestCompletionsSequence = '\x1b[24~e'; // F12,e
+	static requestGlobalCompletionsSequence = '\x1b[24~f'; // F12,f
 
 	private readonly _onBell = this._register(new Emitter<void>());
 	readonly onBell = this._onBell.event;
@@ -178,11 +179,20 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	}
 
 	private _requestCompletions(): void {
+		// Request global completions if there are none cached
+		if (this._cachedPwshCommands.size === 0) {
+			this._requestGlobalCompletions();
+		}
+
 		// Ensure that a key has been pressed since the last accepted completion in order to prevent
 		// completions being requested again right after accepting a completion
 		if (this._lastUserDataTimestamp > this._lastAcceptedCompletionTimestamp) {
 			this._onAcceptedCompletion.fire(SuggestAddon.requestCompletionsSequence);
 		}
+	}
+
+	private _requestGlobalCompletions(): void {
+		this._onAcceptedCompletion.fire(SuggestAddon.requestGlobalCompletionsSequence);
 	}
 
 	private _sync(promptInputState: IPromptInputModelState): void {

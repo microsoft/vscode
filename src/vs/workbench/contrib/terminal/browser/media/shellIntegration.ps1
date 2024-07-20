@@ -186,14 +186,16 @@ function Set-MappedKeyHandlers {
 			Send-Completions
 		}
 
-		# TODO: When does this invalidate? Installing a new module could add new commands. We could expose a command to update? Track `(Get-Module).Count`?
-		# Get commands, convert to string array to reduce the payload size and send as JSON
-		$commands = [System.Management.Automation.CompletionCompleters]::CompleteCommand('')
-		$mappedCommands = Compress-Completions($commands)
-		$result = "$([char]0x1b)]633;CompletionsPwshCommands;commands;"
-		$result += $mappedCommands | ConvertTo-Json -Compress
-		$result += "`a"
-		Write-Host -NoNewLine $result
+		# VS Code send global completions request
+		Set-PSReadLineKeyHandler -Chord 'F12,f' -ScriptBlock {
+			# Get commands, convert to string array to reduce the payload size and send as JSON
+			$commands = [System.Management.Automation.CompletionCompleters]::CompleteCommand('')
+			$mappedCommands = Compress-Completions($commands)
+			$result = "$([char]0x1b)]633;CompletionsPwshCommands;commands;"
+			$result += $mappedCommands | ConvertTo-Json -Compress
+			$result += "`a"
+			Write-Host -NoNewLine $result
+		}
 	}
 }
 
