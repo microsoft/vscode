@@ -88,7 +88,7 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 	private async _handleCompletionsPwshCommandsSequence(terminal: RawXtermTerminal, data: string, command: string, args: string[]): Promise<boolean> {
 		const type = args[0];
 		const rawCompletions: PwshCompletion | PwshCompletion[] | CompressedPwshCompletion[] | CompressedPwshCompletion = JSON.parse(data.slice(command.length + type.length + 2/*semi-colons*/));
-		const completions = parseCompletionsFromShell(rawCompletions);
+		const completions = parseCompletionsFromShell('', rawCompletions);
 
 		const set = this._cachedPwshCommands;
 		set.clear();
