@@ -1,5 +1,5 @@
 # TODO: Dynamically enable depending on quality?
-Microsoft.PowerShell.Core\Register-ArgumentCompleter -CommandName "code" -Native -ScriptBlock {
+Microsoft.PowerShell.Core\Register-ArgumentCompleter -CommandName "code","code-insiders" -Native -ScriptBlock {
 	param($wordToComplete, $commandAst, $cursorPosition)
 
 	# TODO: These tooltips could be localized?
