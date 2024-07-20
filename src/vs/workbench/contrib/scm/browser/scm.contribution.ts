@@ -350,9 +350,9 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			description: localize('scm.workingSets.default', "Controls the default working set to use when switching to a source control history item group that does not have a working set."),
 			default: 'current'
 		},
-		'scm.experimental.showHistoryGraph': {
+		'scm.showHistoryGraph': {
 			type: 'boolean',
-			description: localize('scm.experimental.showHistoryGraph', "Controls whether to show the history graph instead of incoming/outgoing changes in the Source Control view."),
+			description: localize('scm.showHistoryGraph', "Controls whether to render incoming/outgoing changes using a graph in the Source Control view."),
 			default: true
 		}
 	}
