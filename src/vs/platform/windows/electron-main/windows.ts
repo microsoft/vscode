@@ -124,7 +124,6 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 	const windowSettings = configurationService.getValue<IWindowSettings | undefined>('window');
 
 	const options: BrowserWindowConstructorOptions & { experimentalDarkMode: boolean } = {
-		titleBarStyle: windowState.mode === WindowMode.Custom ? 'default' : 'hidden',
 		backgroundColor: themeMainService.getBackgroundColor(),
 		minWidth: WindowMinimumSize.WIDTH,
 		minHeight: WindowMinimumSize.HEIGHT,

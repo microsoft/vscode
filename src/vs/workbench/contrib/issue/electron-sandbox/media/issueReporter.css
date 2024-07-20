@@ -3,54 +3,56 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/*
+* TODO: @justschen - remove this file once the new issue reporter is enabled by default.
+* Split between this and a `newIssueReporter` because of specificy from new issue reporter monaco-workbench stylesheets.
+*/
+
 /**
  * Table
  */
 
-.issue-reporter-body table {
+table {
 	width: 100%;
 	max-width: 100%;
 	background-color: transparent;
 	border-collapse: collapse;
 }
-
-.issue-reporter-body th {
+th {
 	vertical-align: bottom;
 	border-bottom: 1px solid;
 	padding: 5px;
 	text-align: inherit;
 }
-
-.issue-reporter-body td {
+td {
 	padding: 5px;
 	vertical-align: top;
 }
 
-.issue-reporter-body tr td:first-child {
+tr td:first-child {
 	width: 30%;
 }
 
-.issue-reporter-body label {
+label {
 	user-select: none;
 }
 
-.issue-reporter-body .block-settingsSearchResults-details {
+.block-settingsSearchResults-details {
 	padding-bottom: .5rem;
 }
 
-.issue-reporter-body .block-settingsSearchResults-details > div {
+.block-settingsSearchResults-details > div {
 	padding: .5rem .75rem;
 }
 
-.issue-reporter-body .section {
+.section {
 	margin-bottom: .5em;
 }
 
 /**
  * Forms
  */
-.issue-reporter-body input[type="text"],
-.issue-reporter-body textarea {
+input[type="text"], textarea {
 	display: block;
 	width: 100%;
 	padding: .375rem .75rem;
@@ -61,7 +63,7 @@
 	border: 1px solid #ced4da;
 }
 
-.issue-reporter-body textarea {
+textarea {
 	overflow: auto;
 	resize: vertical;
 }
@@ -70,7 +72,7 @@
  * Button
  */
 
-.issue-reporter-body .monaco-text-button {
+.monaco-text-button {
 	display: block;
 	width: auto;
 	padding: 4px 10px;
@@ -79,7 +81,7 @@
 	font-size: 13px;
 }
 
-.issue-reporter-body select {
+select {
 	height: calc(2.25rem + 2px);
 	display: inline-block;
 	padding: 3px 3px;
@@ -90,104 +92,60 @@
 	border: none;
 }
 
-.issue-reporter-body * {
+* {
 	box-sizing: border-box;
 }
 
-.issue-reporter-body textarea,
-.issue-reporter-body input,
-.issue-reporter-body select {
+textarea, input, select {
 	font-family: inherit;
 }
 
-.issue-reporter-body html {
+html {
 	color: #CCCCCC;
 	height: 100%;
 }
 
-.issue-reporter-body .extension-caption .codicon-modifier-spin {
+.extension-caption .codicon-modifier-spin {
 	padding-bottom: 3px;
 	margin-left: 2px;
 }
 
 /* Font Families (with CJK support) */
 
-.issue-reporter-body .mac {
-	font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-}
+.mac { font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
+.mac:lang(zh-Hans) { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", sans-serif; }
+.mac:lang(zh-Hant) { font-family: -apple-system, BlinkMacSystemFont, "PingFang TC", sans-serif; }
+.mac:lang(ja) { font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic Pro", sans-serif; }
+.mac:lang(ko) { font-family: -apple-system, BlinkMacSystemFont, "Nanum Gothic", "Apple SD Gothic Neo", "AppleGothic", sans-serif; }
 
-.issue-reporter-body .mac:lang(zh-Hans) {
-	font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", sans-serif;
-}
-
-.issue-reporter-body .mac:lang(zh-Hant) {
-	font-family: -apple-system, BlinkMacSystemFont, "PingFang TC", sans-serif;
-}
-
-.issue-reporter-body .mac:lang(ja) {
-	font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic Pro", sans-serif;
-}
-
-.issue-reporter-body .mac:lang(ko) {
-	font-family: -apple-system, BlinkMacSystemFont, "Nanum Gothic", "Apple SD Gothic Neo", "AppleGothic", sans-serif;
-}
-
-.issue-reporter-body .windows {
-	font-family: "Segoe WPC", "Segoe UI", sans-serif;
-}
-
-.issue-reporter-body .windows:lang(zh-Hans) {
-	font-family: "Segoe WPC", "Segoe UI", "Microsoft YaHei", sans-serif;
-}
-
-.issue-reporter-body .windows:lang(zh-Hant) {
-	font-family: "Segoe WPC", "Segoe UI", "Microsoft Jhenghei", sans-serif;
-}
-
-.issue-reporter-body .windows:lang(ja) {
-	font-family: "Segoe WPC", "Segoe UI", "Yu Gothic UI", "Meiryo UI", sans-serif;
-}
-
-.issue-reporter-body .windows:lang(ko) {
-	font-family: "Segoe WPC", "Segoe UI", "Malgun Gothic", "Dotom", sans-serif;
-}
+.windows { font-family: "Segoe WPC", "Segoe UI", sans-serif; }
+.windows:lang(zh-Hans) { font-family: "Segoe WPC", "Segoe UI", "Microsoft YaHei", sans-serif; }
+.windows:lang(zh-Hant) { font-family: "Segoe WPC", "Segoe UI", "Microsoft Jhenghei", sans-serif; }
+.windows:lang(ja) { font-family: "Segoe WPC", "Segoe UI", "Yu Gothic UI", "Meiryo UI", sans-serif; }
+.windows:lang(ko) { font-family: "Segoe WPC", "Segoe UI", "Malgun Gothic", "Dotom", sans-serif; }
 
 /* Linux: add `system-ui` as first font and not `Ubuntu` to allow other distribution pick their standard OS font */
-.issue-reporter-body .linux {
-	font-family: system-ui, "Ubuntu", "Droid Sans", sans-serif;
+.linux { font-family: system-ui, "Ubuntu", "Droid Sans", sans-serif; }
+.linux:lang(zh-Hans) { font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans SC", "Source Han Sans CN", "Source Han Sans", sans-serif; }
+.linux:lang(zh-Hant) { font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans TC", "Source Han Sans TW", "Source Han Sans", sans-serif; }
+.linux:lang(ja) { font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans J", "Source Han Sans JP", "Source Han Sans", sans-serif; }
+.linux:lang(ko) { font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans K", "Source Han Sans JR", "Source Han Sans", "UnDotum", "FBaekmuk Gulim", sans-serif; }
+
+body {
+	margin: 0;
+	overflow-y: scroll;
+	height: 100%;
 }
 
-.issue-reporter-body .linux:lang(zh-Hans) {
-	font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans SC", "Source Han Sans CN", "Source Han Sans", sans-serif;
-}
-
-.issue-reporter-body .linux:lang(zh-Hant) {
-	font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans TC", "Source Han Sans TW", "Source Han Sans", sans-serif;
-}
-
-.issue-reporter-body .linux:lang(ja) {
-	font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans J", "Source Han Sans JP", "Source Han Sans", sans-serif;
-}
-
-.issue-reporter-body .linux:lang(ko) {
-	font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans K", "Source Han Sans JR", "Source Han Sans", "UnDotum", "FBaekmuk Gulim", sans-serif;
-}
-
-body.issue-reporter-body {
-	margin: 0 !important;
-	overflow-y: scroll !important;
-	height: 100% !important;
-}
-
-.issue-reporter-body .hidden {
+.hidden {
 	display: none;
 }
 
-.issue-reporter-body .block {
+.block {
 	font-size: 12px;
 }
 
-.issue-reporter-body .block .block-info {
+.block .block-info {
 	width: 100%;
 	font-size: 12px;
 	overflow: auto;
@@ -196,7 +154,7 @@ body.issue-reporter-body {
 	padding: 10px;
 }
 
-.issue-reporter-body #issue-reporter {
+#issue-reporter {
 	max-width: 85vw;
 	margin-left: auto;
 	margin-right: auto;
@@ -208,67 +166,65 @@ body.issue-reporter-body {
 	overflow: visible;
 }
 
-.issue-reporter-body .description-section {
+.description-section {
 	flex-grow: 1;
 	display: flex;
 	flex-direction: column;
 	flex-shrink: 0;
 }
 
-.issue-reporter-body textarea {
+textarea {
 	flex-grow: 1;
 	min-height: 150px;
 }
 
-.issue-reporter-body .block-info-text {
+.block-info-text {
 	display: flex;
 	flex-grow: 1;
 }
 
-.issue-reporter-body #github-submit-btn {
+#github-submit-btn {
 	flex-shrink: 0;
 	margin-left: auto;
 	margin-top: 10px;
 	margin-bottom: 10px;
 }
 
-.issue-reporter-body .two-col {
+.two-col {
 	display: inline-block;
 	width: 49%;
 }
 
-.issue-reporter-body #vscode-version {
+#vscode-version {
 	width: 90%;
 }
 
-.issue-reporter-body .input-group {
+.input-group {
 	margin-bottom: 1em;
 }
 
-.issue-reporter-body #extension-selection {
+#extension-selection {
 	margin-top: 1em;
 }
 
-.issue-reporter-body .issue-reporter select,
-.issue-reporter-body .issue-reporter input,
-.issue-reporter-body .issue-reporter textarea {
+select, input, textarea {
 	border: 1px solid transparent;
 	margin-top: 10px;
 }
 
 
-.issue-reporter-body #issue-reporter .validation-error {
+#issue-reporter .validation-error {
 	font-size: 12px;
 	padding: 10px;
 	border-top: 0px !important;
 }
 
-.issue-reporter-body #issue-reporter .system-info {
+#issue-reporter .system-info {
 	margin-bottom: 10px;
 }
 
 
-.issue-reporter-body input[type="checkbox"] {
+input[type="checkbox"] {
 	width: auto;
 	display: inline-block;
 	margin-top: 0;
@@ -276,164 +232,136 @@ body.issue-reporter-body {
 	cursor: pointer;
 }
 
-.issue-reporter-body input:disabled {
+input:disabled {
 	opacity: 0.6;
 }
 
-.issue-reporter-body .list-title {
+.list-title {
 	margin-top: 1em;
 	margin-left: 1em;
 }
 
-.issue-reporter-body .instructions {
+.instructions {
 	font-size: 12px;
 	margin-top: .5em;
 }
 
-.issue-reporter-body a,
-.issue-reporter-body .workbenchCommand {
+a, .workbenchCommand {
 	cursor: pointer;
 	border: 1px solid transparent;
 }
 
-.issue-reporter-body .workbenchCommand:disabled {
+.workbenchCommand:disabled {
 	color: #868e96;
 	cursor: default
 }
 
-.issue-reporter-body .block-extensions .block-info {
+.block-extensions .block-info {
 	margin-bottom: 1.5em;
 }
 
 /* Default styles, overwritten if a theme is provided */
-.issue-reporter-body input,
-.issue-reporter-body select,
-.issue-reporter-body textarea {
+input, select, textarea {
 	background-color: #3c3c3c;
 	border: none;
 	color: #cccccc;
 }
 
-.issue-reporter-body a {
+a {
 	color: #CCCCCC;
 	text-decoration: none;
 }
 
-.issue-reporter-body .showInfo,
-.issue-reporter-body .input-group a {
-	color: var(--vscode-textLink-foreground);
-}
-
-.issue-reporter-body .section .input-group .validation-error {
+.section .input-group .validation-error {
 	margin-left: 100px;
 }
 
-.issue-reporter-body .section .inline-form-control,
-.issue-reporter-body .section .inline-label {
+.section .inline-form-control, .section .inline-label {
 	display: inline-block;
-	font-size: initial;
 }
 
-.issue-reporter-body .section .inline-label {
+.section .inline-label {
 	width: 95px;
 }
 
-.issue-reporter-body .issue-reporter .inline-label,
-.issue-reporter-body .issue-reporter #issue-description-label {
-	font-size: initial;
-	cursor: default;
-}
-
-.issue-reporter-body .monaco-workbench .issue-reporter label {
-	cursor: default;
-}
-
-.issue-reporter-body .section .inline-form-control,
-.issue-reporter-body .section .input-group .validation-error {
+.section .inline-form-control, .section .input-group .validation-error  {
 	width: calc(100% - 100px);
 }
 
-.issue-reporter-body #issue-type,
-.issue-reporter-body #issue-source,
-.issue-reporter-body #extension-selector {
+#issue-type {
 	cursor: pointer;
-	appearance: auto;
-	border: none;
 }
 
-.issue-reporter-body #similar-issues {
+#similar-issues {
 	margin-left: 15%;
 	display: block;
 }
 
-.issue-reporter-body #problem-source-help-text {
+#problem-source-help-text {
 	margin-left: calc(15% + 1em);
 }
 
 @media (max-width: 950px) {
-	.issue-reporter-body .section .inline-label {
+	.section .inline-label {
 		width: 15%;
 	}
 
-	.issue-reporter-body #problem-source-help-text {
+	#problem-source-help-text {
 		margin-left: calc(15% + 1em);
 	}
 
-	.issue-reporter-body .section .inline-form-control,
-	.issue-reporter-body .section .input-group .validation-error {
+	.section .inline-form-control, .section .input-group .validation-error  {
 		width: calc(85% - 5px);
 	}
 
-	.issue-reporter-body .section .input-group .validation-error {
+	.section .input-group .validation-error {
 		margin-left: calc(15% + 4px);
 	}
 }
 
 @media (max-width: 620px) {
-	.issue-reporter-body .section .inline-label {
+	.section .inline-label {
 		display: none !important;
 	}
 
-	.issue-reporter-body #problem-source-help-text {
+	#problem-source-help-text {
 		margin-left: 1em;
 	}
 
-	.issue-reporter-body .section .inline-form-control,
-	.issue-reporter-body .section .input-group .validation-error {
+	.section .inline-form-control, .section .input-group .validation-error  {
 		width: 100%;
 	}
 
-	.issue-reporter-body #similar-issues,
-	.issue-reporter-body .section .input-group .validation-error {
+	#similar-issues, .section .input-group .validation-error {
 		margin-left: 0;
 	}
 }
 
-.issue-reporter-body::-webkit-scrollbar {
+::-webkit-scrollbar {
 	width: 14px;
 }
 
-.issue-reporter-body::-webkit-scrollbar-thumb {
+::-webkit-scrollbar-thumb {
 	min-height: 20px;
 }
 
-.issue-reporter-body::-webkit-scrollbar-corner {
+::-webkit-scrollbar-corner {
 	display: none;
 }
 
-.issue-reporter-body .issues-container {
+.issues-container {
 	margin-left: 1.5em;
 	margin-top: .5em;
 	max-height: 92px;
 	overflow-y: auto;
 }
 
-.issue-reporter-body .issues-container > .issue {
+.issues-container > .issue {
 	padding: 4px 0;
 	display: flex;
 }
 
-.issue-reporter-body .issues-container > .issue > .issue-link {
+.issues-container > .issue > .issue-link {
 	width: calc(100% - 82px);
 	overflow: hidden;
 	padding-top: 3px;
@@ -441,11 +369,11 @@ body.issue-reporter-body {
 	text-overflow: ellipsis;
 }
 
-.issue-reporter-body .issues-container > .issue > .issue-state .codicon {
+.issues-container > .issue > .issue-state .codicon {
 	width: 16px;
 }
 
-.issue-reporter-body .issues-container > .issue > .issue-state {
+.issues-container > .issue > .issue-state {
 	display: flex;
 	width: 77px;
 	padding: 3px 6px;
@@ -455,7 +383,7 @@ body.issue-reporter-body {
 	border-radius: .25rem;
 }
 
-.issue-reporter-body .issues-container > .issue .label {
+.issues-container > .issue .label {
 	padding-top: 2px;
 	margin-left: 5px;
 	width: 44px;
@@ -463,6 +391,6 @@ body.issue-reporter-body {
 	overflow: hidden;
 }
 
-.issue-reporter-body .issues-container > .issue .issue-icon {
+.issues-container > .issue .issue-icon{
 	padding-top: 2px;
 }

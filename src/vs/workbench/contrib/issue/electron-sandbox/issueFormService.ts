@@ -6,7 +6,7 @@
 import { safeInnerHtml } from 'vs/base/browser/dom';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
-import 'vs/css!./media/issueReporter';
+import 'vs/css!./media/newIssueReporter';
 import { localize } from 'vs/nls';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
