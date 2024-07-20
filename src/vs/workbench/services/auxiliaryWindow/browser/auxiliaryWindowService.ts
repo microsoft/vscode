@@ -36,7 +36,8 @@ export interface IAuxiliaryWindowOpenEvent {
 export enum AuxiliaryWindowMode {
 	Maximized,
 	Normal,
-	Fullscreen
+	Fullscreen,
+	Custom
 }
 
 export interface IAuxiliaryWindowOpenOptions {
@@ -328,8 +329,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 			`top=${newWindowBounds.y}`,
 			`width=${newWindowBounds.width}`,
 			`height=${newWindowBounds.height}`,
-			options?.mode === AuxiliaryWindowMode.Normal ? 'titlebar=yes' : undefined, 	// non-standard property
-			// options?.mode === AuxiliaryWindowMode.Normal ? 'window-maximized=no' : undefined, 	// non-standard property
+			options?.mode === AuxiliaryWindowMode.Custom ? 'titlebar=yes' : undefined, 	// non-standard property
 			options?.mode === AuxiliaryWindowMode.Maximized ? 'window-maximized=yes' : undefined, 	// non-standard property
 			options?.mode === AuxiliaryWindowMode.Fullscreen ? 'window-fullscreen=yes' : undefined 	// non-standard property
 		]);

@@ -220,7 +220,7 @@ export function getIssueReporterStyles(theme: IColorTheme): IssueReporterStyles 
 		buttonForeground: getColor(theme, buttonForeground),
 		buttonHoverBackground: getColor(theme, buttonHoverBackground),
 		sliderActiveColor: getColor(theme, scrollbarSliderActiveBackground),
-		sliderBackgroundColor: getColor(theme, scrollbarSliderBackground),
+		sliderBackgroundColor: getColor(theme, SIDE_BAR_BACKGROUND),
 		sliderHoverColor: getColor(theme, scrollbarSliderHoverBackground),
 	};
 }

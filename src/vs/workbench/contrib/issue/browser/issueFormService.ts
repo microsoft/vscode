@@ -106,7 +106,7 @@ export class IssueFormService implements IIssueFormService {
 		const disposables = new DisposableStore();
 
 		// Auxiliary Window
-		const auxiliaryWindow = disposables.add(await this.auxiliaryWindowService.open({ mode: AuxiliaryWindowMode.Normal }));
+		const auxiliaryWindow = disposables.add(await this.auxiliaryWindowService.open({ mode: AuxiliaryWindowMode.Normal, bounds: { width: 700, height: 800 } }));
 
 		this.issueReporterWindow = auxiliaryWindow.window;
 

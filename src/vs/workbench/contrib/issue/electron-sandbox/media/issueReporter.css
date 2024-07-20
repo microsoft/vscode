@@ -126,10 +126,10 @@ html {
 .linux:lang(ja) { font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans J", "Source Han Sans JP", "Source Han Sans", sans-serif; }
 .linux:lang(ko) { font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans K", "Source Han Sans JR", "Source Han Sans", "UnDotum", "FBaekmuk Gulim", sans-serif; }
 
-body {
-	margin: 0;
-	overflow-y: scroll;
-	height: 100%;
+body.issue-reporter-body{
+	margin: 0 !important;
+	overflow-y: scroll !important;
+	height: 100% !important;
 }
 
 .hidden {
@@ -273,10 +273,20 @@ a {
 
 .section .inline-form-control, .section .inline-label {
 	display: inline-block;
+	font-size: initial;
 }
 
 .section .inline-label {
 	width: 95px;
+}
+
+.issue-reporter .inline-label, .issue-reporter #issue-description-label {
+	font-size: initial;
+	cursor: default;
+}
+
+.monaco-workbench .issue-reporter label {
+	cursor: default;
 }
 
 .section .inline-form-control, .section .input-group .validation-error  {
@@ -334,15 +344,15 @@ a {
 	}
 }
 
-::-webkit-scrollbar {
+.issue-reporter-body::-webkit-scrollbar {
 	width: 14px;
 }
 
-::-webkit-scrollbar-thumb {
+.issue-reporter-body::-webkit-scrollbar-thumb {
 	min-height: 20px;
 }
 
-::-webkit-scrollbar-corner {
+.issue-reporter-body::-webkit-scrollbar-corner {
 	display: none;
 }
 
