@@ -771,75 +771,96 @@ export interface IDiffEditorBaseOptions {
 	 * Defaults to true.
 	 */
 	enableSplitViewResizing?: boolean;
+
 	/**
 	 * The default ratio when rendering side-by-side editors.
 	 * Must be a number between 0 and 1, min sizes apply.
 	 * Defaults to 0.5
 	 */
 	splitViewDefaultRatio?: number;
+
 	/**
 	 * Render the differences in two side-by-side editors.
 	 * Defaults to true.
 	 */
 	renderSideBySide?: boolean;
+
 	/**
 	 * When `renderSideBySide` is enabled, `useInlineViewWhenSpaceIsLimited` is set,
 	 * and the diff editor has a width less than `renderSideBySideInlineBreakpoint`, the inline view is used.
 	 */
 	renderSideBySideInlineBreakpoint?: number | undefined;
+
 	/**
 	 * When `renderSideBySide` is enabled, `useInlineViewWhenSpaceIsLimited` is set,
 	 * and the diff editor has a width less than `renderSideBySideInlineBreakpoint`, the inline view is used.
 	 */
 	useInlineViewWhenSpaceIsLimited?: boolean;
+
+	/**
+	 * If set, the diff editor is optimized for small views.
+	 * Defaults to `false`.
+	*/
+	compactMode?: boolean;
+
 	/**
 	 * Timeout in milliseconds after which diff computation is cancelled.
 	 * Defaults to 5000.
 	 */
 	maxComputationTime?: number;
+
 	/**
 	 * Maximum supported file size in MB.
 	 * Defaults to 50.
 	 */
 	maxFileSize?: number;
+
 	/**
 	 * Compute the diff by ignoring leading/trailing whitespace
 	 * Defaults to true.
 	 */
 	ignoreTrimWhitespace?: boolean;
+
 	/**
 	 * Render +/- indicators for added/deleted changes.
 	 * Defaults to true.
 	 */
 	renderIndicators?: boolean;
+
 	/**
 	 * Shows icons in the glyph margin to revert changes.
 	 * Default to true.
 	 */
 	renderMarginRevertIcon?: boolean;
+
 	/**
 	 * Indicates if the gutter menu should be rendered.
 	*/
 	renderGutterMenu?: boolean;
+
 	/**
 	 * Original model should be editable?
 	 * Defaults to false.
 	 */
 	originalEditable?: boolean;
+
 	/**
 	 * Should the diff editor enable code lens?
 	 * Defaults to false.
 	 */
 	diffCodeLens?: boolean;
+
 	/**
 	 * Is the diff editor should render overview ruler
 	 * Defaults to true
 	 */
 	renderOverviewRuler?: boolean;
+
 	/**
 	 * Control the wrapping of the diff editor.
 	 */
 	diffWordWrap?: 'off' | 'on' | 'inherit';
+
 	/**
 	 * Diff Algorithm
 	*/
@@ -857,6 +878,11 @@ export interface IDiffEditorBaseOptions {
 		showMoves?: boolean;
 
 		showEmptyDecorations?: boolean;
+
+		/**
+		 * Only applies when `renderSideBySide` is set to false.
+		*/
+		useTrueInlineView?: boolean;
 	};
 
 	/**
@@ -4171,8 +4197,6 @@ export interface IInlineEditOptions {
 	 * Does not clear active inline suggestions when the editor loses focus.
 	 */
 	keepOnBlur?: boolean;
-
-	backgroundColoring?: boolean;
 }
 
 /**
@@ -4187,7 +4211,6 @@ class InlineEditorEdit extends BaseEditorOption<EditorOption.inlineEdit, IInline
 			showToolbar: 'onHover',
 			fontFamily: 'default',
 			keepOnBlur: false,
-			backgroundColoring: false,
 		};
 
 		super(
@@ -4214,11 +4237,6 @@ class InlineEditorEdit extends BaseEditorOption<EditorOption.inlineEdit, IInline
 					default: defaults.fontFamily,
 					description: nls.localize('inlineEdit.fontFamily', "Controls the font family of the inline edit.")
 				},
-				'editor.experimentalInlineEdit.backgroundColoring': {
-					type: 'boolean',
-					default: defaults.backgroundColoring,
-					description: nls.localize('inlineEdit.backgroundColoring', "Controls whether to color the background of inline edits.")
-				},
 			}
 		);
 	}
@@ -4233,7 +4251,6 @@ class InlineEditorEdit extends BaseEditorOption<EditorOption.inlineEdit, IInline
 			showToolbar: stringSet(input.showToolbar, this.defaultValue.showToolbar, ['always', 'onHover', 'never']),
 			fontFamily: EditorStringOption.string(input.fontFamily, this.defaultValue.fontFamily),
 			keepOnBlur: boolean(input.keepOnBlur, this.defaultValue.keepOnBlur),
-			backgroundColoring: boolean(input.backgroundColoring, this.defaultValue.backgroundColoring)
 		};
 	}
 }

@@ -15,7 +15,6 @@ import { RequestStore } from 'vs/platform/terminal/common/requestStore';
 import { IProcessDataEvent, IProcessReadyEvent, IPtyService, IRawTerminalInstanceLayoutInfo, IReconnectConstants, IShellLaunchConfig, ITerminalInstanceLayoutInfoById, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalTabLayoutInfoById, TerminalIcon, IProcessProperty, TitleEventSource, ProcessPropertyType, IProcessPropertyMap, IFixedTerminalDimensions, IPersistentTerminalProcessLaunchConfig, ICrossVersionSerializedTerminalState, ISerializedTerminalState, ITerminalProcessOptions, IPtyHostLatencyMeasurement } from 'vs/platform/terminal/common/terminal';
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
 import { escapeNonWindowsPath } from 'vs/platform/terminal/common/terminalEnvironment';
-import { Terminal as XtermTerminal } from '@xterm/headless';
 import type { ISerializeOptions, SerializeAddon as XtermSerializeAddon } from '@xterm/addon-serialize';
 import type { Unicode11Addon as XtermUnicode11Addon } from '@xterm/addon-unicode11';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs, ITerminalTabLayoutInfoDto } from 'vs/platform/terminal/common/terminalProcess';
@@ -32,6 +31,14 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { join } from 'path';
 import { memoize } from 'vs/base/common/decorators';
 import * as performance from 'vs/base/common/performance';
+// ESM-comment-begin
+import { Terminal as XtermTerminal } from '@xterm/headless';
+// ESM-comment-end
+// ESM-uncomment-begin
+// import pkg from '@xterm/headless';
+// type XtermTerminal = pkg.Terminal;
+// const { Terminal: XtermTerminal } = pkg;
+// ESM-uncomment-end
 
 export function traceRpc(_target: any, key: string, descriptor: any) {
 	if (typeof descriptor.value !== 'function') {

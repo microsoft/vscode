@@ -148,7 +148,7 @@ export class UserDataSyncStoreClient extends Disposable {
 	private userDataSyncStoreUrl: URI | undefined;
 
 	private authToken: { token: string; type: string } | undefined;
-	private readonly commonHeadersPromise: Promise<{ [key: string]: string }>;
+	private readonly commonHeadersPromise: Promise<IHeaders>;
 	private readonly session: RequestsSession;
 
 	private _onTokenFailed = this._register(new Emitter<UserDataSyncErrorCode>());

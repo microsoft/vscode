@@ -235,13 +235,15 @@ function handleGetFileChangesRequest(watcher: DirWatcher, fileServer: FileServer
 function makeLoaderJsHotReloadable(loaderJsCode: string, fileChangesUrl: URL): string {
 	loaderJsCode = loaderJsCode.replace(
 		/constructor\(env, scriptLoader, defineFunc, requireFunc, loaderAvailableTimestamp = 0\) {/,
-		'$&globalThis.___globalModuleManager = this;'
+		'$&globalThis.___globalModuleManager = this; globalThis.vscode = { process: { env: { VSCODE_DEV: true } } }'
 	);
 
 	const ___globalModuleManager: any = undefined;
 
 	// This code will be appended to loader.js
 	function $watchChanges(fileChangesUrl: string) {
+		interface HotReloadConfig { }
+
 		let reloadFn;
 		if (globalThis.$sendMessageToParent) {
 			reloadFn = () => globalThis.$sendMessageToParent({ kind: 'reload' });
@@ -345,7 +347,7 @@ function makeLoaderJsHotReloadable(loaderJsCode: string, fileChangesUrl: URL): s
 				}
 
 				// Check if we can reload
-				const g: GlobalThisAddition = globalThis as any;
+				const g = globalThis as any;
 
 				// A frozen copy of the previous exports
 				const oldExports = Object.freeze({ ...oldModule.exports });

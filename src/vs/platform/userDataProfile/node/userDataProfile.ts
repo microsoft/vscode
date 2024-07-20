@@ -93,7 +93,7 @@ export class UserDataProfilesService extends UserDataProfilesReadonlyService imp
 				result[URI.revive(workspace).toString()] = URI.revive(profile).toString();
 				return result;
 			}, {});
-			this.stateService.setItem(UserDataProfilesService.PROFILE_ASSOCIATIONS_KEY, <StoredProfileAssociations>{ workspaces });
+			this.stateService.setItem(UserDataProfilesService.PROFILE_ASSOCIATIONS_KEY, { workspaces } satisfies StoredProfileAssociations);
 		}
 		const associations = super.getStoredProfileAssociations();
 		if (!this.stateService.getItem<boolean>(UserDataProfilesService.PROFILE_ASSOCIATIONS_MIGRATION_KEY, false)) {

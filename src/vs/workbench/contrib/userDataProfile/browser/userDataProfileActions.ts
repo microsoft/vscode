@@ -120,10 +120,9 @@ registerAction2(class ManageProfilesAction extends Action2 {
 		const contextKeyService = accessor.get(IContextKeyService);
 		const commandService = accessor.get(ICommandService);
 
-		const menu = menuService.createMenu(ProfilesMenu, contextKeyService);
+		const menu = menuService.getMenuActions(ProfilesMenu, contextKeyService);
 		const actions: IAction[] = [];
-		createAndFillInActionBarActions(menu, undefined, actions);
-		menu.dispose();
+		createAndFillInActionBarActions(menu, actions);
 
 		if (actions.length) {
 			const picks: QuickPickItem[] = actions.map(action => {

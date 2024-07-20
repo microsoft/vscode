@@ -7,7 +7,6 @@ import * as strings from 'vs/base/common/strings';
 import * as stringBuilder from 'vs/editor/common/core/stringBuilder';
 import { Range } from 'vs/editor/common/core/range';
 import { CharacterPair } from 'vs/editor/common/languages/languageConfiguration';
-import { RegExpOptions } from 'vs/base/common/strings';
 
 interface InternalBracket {
 	open: string[];
@@ -409,7 +408,7 @@ function prepareBracketForRegExp(str: string): string {
 	return (insertWordBoundaries ? `\\b${str}\\b` : str);
 }
 
-export function createBracketOrRegExp(pieces: string[], options?: RegExpOptions): RegExp {
+export function createBracketOrRegExp(pieces: string[], options?: strings.RegExpOptions): RegExp {
 	const regexStr = `(${pieces.map(prepareBracketForRegExp).join(')|(')})`;
 	return strings.createRegExp(regexStr, true, options);
 }
