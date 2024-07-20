@@ -1735,20 +1735,17 @@ function GitTabExpansionInternal($lastBlock, $GitStatus = $null) {
 
 		# Handles git remote (rename|rm|remove|set-head|set-branches|set-url|show|prune) <stash>
 		"^remote.* (?:rename|rm|remove|set-head|set-branches|set-url|show|prune).* (?<remote>\S*)$" {
-			gitRemotes $matches['remote'] |
-				ForEach-Object { [System.Management.Automation.CompletionResult]::new($_, $_, 'DynamicKeyword', "remote $_") }
+			gitRemotes $matches['remote'] | ConvertTo-VscodeCompletion -Type 'remote'
 		}
 
 		# Handles git stash (show|apply|drop|pop|branch) <stash>
 		"^stash (?:show|apply|drop|pop|branch).* (?<stash>\S*)$" {
-			gitStashes $matches['stash'] |
-				ForEach-Object { [System.Management.Automation.CompletionResult]::new($_, $_, 'DynamicKeyword', "stash $_") }
+			gitStashes $matches['stash'] | ConvertTo-VscodeCompletion -Type 'stash'
 		}
 
 		# Handles git bisect (bad|good|reset|skip) <ref>
 		"^bisect (?:bad|good|reset|skip).* (?<ref>\S*)$" {
-			gitBranches $matches['ref'] $true |
-				ForEach-Object { [System.Management.Automation.CompletionResult]::new($_, $_, 'DynamicKeyword', "branch $_") }
+			gitBranches $matches['ref'] $true | ConvertTo-VscodeCompletion -Type 'branch'
 		}
 
 		# Handles git tfs unshelve <shelveset>
@@ -1759,8 +1756,7 @@ function GitTabExpansionInternal($lastBlock, $GitStatus = $null) {
 		# Handles git branch -d|-D|-m|-M <branch name>
 		# Handles git branch <branch name> <start-point>
 		"^branch.* (?<branch>\S*)$" {
-			gitBranches $matches['branch'] |
-			ForEach-Object { [System.Management.Automation.CompletionResult]::new($_, $_, 'DynamicKeyword', "branch $_") }
+			gitBranches $matches['branch'] | ConvertTo-VscodeCompletion -Type 'branch'
 		}
 
 		# Handles git <cmd> (commands & aliases)
@@ -1776,26 +1772,22 @@ function GitTabExpansionInternal($lastBlock, $GitStatus = $null) {
 		# Handles git push remote <ref>:<branch>
 		# Handles git push remote +<ref>:<branch>
 		"^push${ignoreGitParams}\s+(?<remote>[^\s-]\S*).*\s+(?<force>\+?)(?<ref>[^\s\:]*\:)(?<branch>\S*)$" {
-			gitRemoteBranches $matches['remote'] $matches['ref'] $matches['branch'] -prefix $matches['force'] |
-				ForEach-Object { [System.Management.Automation.CompletionResult]::new($_, $_, 'DynamicKeyword', "branch $_") }
+			gitRemoteBranches $matches['remote'] $matches['ref'] $matches['branch'] -prefix $matches['force'] | ConvertTo-VscodeCompletion -Type 'branch'
 		}
 
 		# Handles git push remote <ref>
 		# Handles git push remote +<ref>
 		# Handles git pull remote <ref>
 		"^(?:push|pull)${ignoreGitParams}\s+(?<remote>[^\s-]\S*).*\s+(?<force>\+?)(?<ref>[^\s\:]*)$" {
-			gitBranches $matches['ref'] -prefix $matches['force'] |
-				ForEach-Object { [System.Management.Automation.CompletionResult]::new($_, $_, 'DynamicKeyword', "branch $_") }
-			gitTags $matches['ref'] -prefix $matches['force'] |
-				ForEach-Object { [System.Management.Automation.CompletionResult]::new($_, $_, 'DynamicKeyword', "tag $_") }
+			gitBranches $matches['ref'] -prefix $matches['force'] | ConvertTo-VscodeCompletion -Type 'branch'
+			gitTags $matches['ref'] -prefix $matches['force'] | ConvertTo-VscodeCompletion -Type 'tag'
 		}
 
 		# Handles git pull <remote>
 		# Handles git push <remote>
 		# Handles git fetch <remote>
 		"^(?:push|pull|fetch)${ignoreGitParams}\s+(?<remote>\S*)$" {
-			gitRemotes $matches['remote'] |
-				ForEach-Object { [System.Management.Automation.CompletionResult]::new($_, $_, 'DynamicKeyword', "remote $_") }
+			gitRemotes $matches['remote'] | ConvertTo-VscodeCompletion -Type 'remote'
 		}
 
 		# Handles git reset HEAD <path>
@@ -1806,8 +1798,7 @@ function GitTabExpansionInternal($lastBlock, $GitStatus = $null) {
 
 		# Handles git <cmd> <ref>
 		"^commit.*-C\s+(?<ref>\S*)$" {
-			gitBranches $matches['ref'] $true |
-				ForEach-Object { [System.Management.Automation.CompletionResult]::new($_, $_, 'DynamicKeyword', "branch $_") }
+			gitBranches $matches['ref'] $true | ConvertTo-VscodeCompletion -Type 'branch'
 		}
 
 		# Handles git add <path>
@@ -1854,26 +1845,21 @@ function GitTabExpansionInternal($lastBlock, $GitStatus = $null) {
 					gitBranches $matches['ref'] $true
 					gitRemoteUniqueBranches $matches['ref']
 					# Return only unique branches (to eliminate duplicates where the branch exists locally and on the remote)
-				} | Select-Object -Unique |
-				ForEach-Object { [System.Management.Automation.CompletionResult]::new($_, $_, 'DynamicKeyword', "branch $_") }
+				} | Select-Object -Unique | ConvertTo-VscodeCompletion -Type 'branch'
 
-				gitTags $matches['ref'] | Select-Object -Unique |
-				ForEach-Object { [System.Management.Automation.CompletionResult]::new($_, $_, 'DynamicKeyword', "tag $_") }
+				gitTags $matches['ref'] | Select-Object -Unique | ConvertTo-VscodeCompletion -Type 'tag'
 			}
 		}
 
 		# Handles git worktree add <path> <ref>
 		"^worktree add.* (?<files>\S+) (?<ref>\S*)$" {
-			gitBranches $matches['ref'] |
-				ForEach-Object { [System.Management.Automation.CompletionResult]::new($_, $_, 'DynamicKeyword', "branch $_") }
+			gitBranches $matches['ref'] | ConvertTo-VscodeCompletion -Type 'branch'
 		}
 
 		# Handles git <cmd> <ref>
 		"^(?:cherry|cherry-pick|diff|difftool|log|merge|rebase|reflog\s+show|reset|revert|show).* (?<ref>\S*)$" {
-			gitBranches $matches['ref'] $true |
-				ForEach-Object { [System.Management.Automation.CompletionResult]::new($_, $_, 'DynamicKeyword', "branch $_") }
-			gitTags $matches['ref'] |
-				ForEach-Object { [System.Management.Automation.CompletionResult]::new($_, $_, 'DynamicKeyword', "tag $_") }
+			gitBranches $matches['ref'] $true | ConvertTo-VscodeCompletion -Type 'branch'
+			gitTags $matches['ref'] | ConvertTo-VscodeCompletion -Type 'tag'
 		}
 
 		# Handles git <cmd> --<param>=<value>
@@ -1907,6 +1893,19 @@ function GitTabExpansionInternal($lastBlock, $GitStatus = $null) {
 		{
 			expandShortParams $shortVstsParams $matches['cmd'] $matches['shortparam']
 		}
+	}
+}
+
+function ConvertTo-VscodeCompletion {
+	Param(
+		[Parameter(ValueFromPipeline=$true)]
+		$CompletionText,
+		[string]
+		$Type
+	)
+
+	Process {
+		$CompletionText | ForEach-Object { [System.Management.Automation.CompletionResult]::new($_, $_, 'DynamicKeyword', "$type $_") }
 	}
 }
 
