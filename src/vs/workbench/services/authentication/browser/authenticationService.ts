@@ -164,6 +164,20 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		throw new Error(`No authentication provider '${id}' is currently registered.`);
 	}
 
+	async getAccounts(id: string): Promise<ReadonlyArray<AuthenticationSessionAccount>> {
+		// TODO: Cache this
+		const sessions = await this.getSessions(id);
+		const accounts = new Array<AuthenticationSessionAccount>();
+		const seenAccounts = new Set<string>();
+		for (const session of sessions) {
+			if (!seenAccounts.has(session.account.label)) {
+				seenAccounts.add(session.account.label);
+				accounts.push(session.account);
+			}
+		}
+		return accounts;
+	}
+
 	async getSessions(id: string, scopes?: string[], account?: AuthenticationSessionAccount, activateImmediate: boolean = false): Promise<ReadonlyArray<AuthenticationSession>> {
 		const authProvider = this._authenticationProviders.get(id) || await this.tryActivateProvider(id, activateImmediate);
 		if (authProvider) {

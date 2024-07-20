@@ -329,6 +329,7 @@ export interface ITestRunTask {
 	id: string;
 	name: string | undefined;
 	running: boolean;
+	ctrlId: string;
 }
 
 export interface ITestTag {
@@ -579,7 +580,7 @@ export interface ISerializedTestResults {
 	/** Subset of test result items */
 	items: TestResultItem.Serialized[];
 	/** Tasks involved in the run. */
-	tasks: { id: string; name: string | undefined }[];
+	tasks: { id: string; name: string | undefined; ctrlId: string }[];
 	/** Human-readable name of the test run. */
 	name: string;
 	/** Test trigger informaton */
