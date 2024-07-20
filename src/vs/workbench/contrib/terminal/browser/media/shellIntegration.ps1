@@ -3,9 +3,6 @@
 #   Licensed under the MIT License. See License.txt in the project root for license information.
 # ---------------------------------------------------------------------------------------------
 
-using module ".\GitTabExpansion.psm1"
-using module ".\CodeTabExpansion.psm1"
-
 # Prevent installing more than once per session
 if (Test-Path variable:global:__VSCodeOriginalPrompt) {
 	return;
@@ -197,6 +194,10 @@ function Set-MappedKeyHandlers {
 		$result += $mappedCommands | ConvertTo-Json -Compress
 		$result += "`a"
 		Write-Host -NoNewLine $result
+
+		# TODO: Only load if configured to do so
+		Import-Module "$PSScriptRoot\GitTabExpansion.psm1"
+		Import-Module "$PSScriptRoot\CodeTabExpansion.psm1"
 	}
 }
 
