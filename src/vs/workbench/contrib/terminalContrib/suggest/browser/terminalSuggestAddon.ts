@@ -27,6 +27,7 @@ import { getListStyles } from 'vs/platform/theme/browser/defaultStyles';
 import type { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { terminalSuggestConfigSection, type ITerminalSuggestConfiguration } from 'vs/workbench/contrib/terminalContrib/suggest/common/terminalSuggestConfiguration';
 import { commonPrefixLength } from 'vs/base/common/strings';
+import { sep } from 'vs/base/common/path';
 
 export const enum VSCodeSuggestOscPt {
 	Completions = 'Completions',
@@ -611,7 +612,7 @@ export function parseCompletionsFromShell(rawCompletions: PwshCompletion | PwshC
 	}
 	if (!Array.isArray(rawCompletions)) {
 		return [rawCompletions].map(e => (new SimpleCompletionItem({
-			label: e.CompletionText,
+			label: parseCompletionText(e.CompletionText, e.ResultType),
 			icon: pwshTypeToIconMap[e.ResultType],
 			detail: e.ToolTip,
 			isFile: e.ResultType === 3,
@@ -622,7 +623,7 @@ export function parseCompletionsFromShell(rawCompletions: PwshCompletion | PwshC
 	}
 	if (typeof rawCompletions[0] === 'string') {
 		return [rawCompletions as CompressedPwshCompletion].map(e => (new SimpleCompletionItem({
-			label: e[0],
+			label: parseCompletionText(e[0], e[1]),
 			icon: pwshTypeToIconMap[e[1]],
 			detail: e[2],
 			isFile: e[1] === 3,
@@ -630,16 +631,29 @@ export function parseCompletionsFromShell(rawCompletions: PwshCompletion | PwshC
 	}
 	if (Array.isArray(rawCompletions[0])) {
 		return (rawCompletions as CompressedPwshCompletion[]).map(e => (new SimpleCompletionItem({
-			label: e[0],
+			label: parseCompletionText(e[0], e[1]),
 			icon: pwshTypeToIconMap[e[1]],
 			detail: e[2],
 			isFile: e[1] === 3,
 		})));
 	}
 	return (rawCompletions as PwshCompletion[]).map(e => (new SimpleCompletionItem({
-		label: e.CompletionText,
+		label: parseCompletionText(e.CompletionText, e.ResultType),
 		icon: pwshTypeToIconMap[e.ResultType],
 		detail: e.ToolTip,
 		isFile: e.ResultType === 3,
 	})));
+}
+
+function parseCompletionText(completionText: string, resultType: number): string {
+	// HACK: Somewhere along the way from the powershell script to here, the path separator at the
+	// end of directories may go missing, likely because `\"` -> `"`. As a result, make sure there
+	// is a trailing separator at the end of all directory completions. This should not be done for
+	// `.` and `..` entries because they are optimized not for navigating to different directories
+	// but for passing as args.
+	if (resultType === 4 && !completionText.match(/^\.\.?$/) && !completionText.match(/[\\\/]$/)) {
+		const separator = completionText.match(/(?<sep>[\\\/])/)?.groups?.sep ?? sep;
+		return completionText + separator;
+	}
+	return completionText;
 }
