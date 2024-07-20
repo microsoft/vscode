@@ -11,7 +11,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { matchesSomeScheme, Schemas } from 'vs/base/common/network';
 import { basename } from 'vs/base/common/path';
-import { basenameOrAuthority } from 'vs/base/common/resources';
+import { basenameOrAuthority, isEqualAuthority } from 'vs/base/common/resources';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
@@ -19,6 +19,7 @@ import { FileKind } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { ColorScheme } from 'vs/workbench/browser/web.api';
@@ -29,6 +30,7 @@ import { IChatContentReference, IChatWarningMessage } from 'vs/workbench/contrib
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { IChatRendererContent, IChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { createFileIconThemableTreeContainerScope } from 'vs/workbench/contrib/files/browser/views/explorerView';
+import { SETTINGS_AUTHORITY } from 'vs/workbench/services/preferences/common/preferences';
 
 const $ = dom.$;
 
@@ -243,6 +245,7 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 		private labels: ResourceLabels,
 		@IThemeService private readonly themeService: IThemeService,
 		@IChatVariablesService private readonly chatVariablesService: IChatVariablesService,
+		@IProductService private readonly productService: IProductService,
 	) { }
 
 	renderTemplate(container: HTMLElement): ICollapsibleListTemplate {
@@ -287,11 +290,15 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 			}
 		} else {
 			const uri = 'uri' in reference ? reference.uri : reference;
-			if (uri.scheme === 'https' && uri.authority === 'github.com' && uri.path.includes('/tree/')) {
+			if (uri.scheme === 'https' && isEqualAuthority(uri.authority, 'github.com') && uri.path.includes('/tree/')) {
 				// Parse a nicer label for GitHub URIs that point at a particular commit + file
 				const label = uri.path.split('/').slice(1, 3).join('/');
 				const description = uri.path.split('/').slice(5).join('/');
 				templateData.label.setResource({ resource: uri, name: label, description }, { icon: Codicon.github, title: data.title });
+			} else if (uri.scheme === this.productService.urlProtocol && isEqualAuthority(uri.authority, SETTINGS_AUTHORITY)) {
+				// a nicer label for settings URIs
+				const settingId = uri.path.substring(1);
+				templateData.label.setResource({ resource: uri, name: settingId }, { icon: Codicon.settingsGear, title: localize('setting.hover', "Open setting '{0}'", settingId) });
 			} else if (matchesSomeScheme(uri, Schemas.mailto, Schemas.http, Schemas.https)) {
 				templateData.label.setResource({ resource: uri, name: uri.toString() }, { icon: icon ?? Codicon.globe, title: data.title });
 			} else {
