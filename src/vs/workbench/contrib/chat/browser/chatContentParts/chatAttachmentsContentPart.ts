@@ -15,6 +15,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { basename, dirname } from 'vs/base/common/path';
 import { localize } from 'vs/nls';
 import { ChatResponseReferencePartStatusKind, IChatContentReference } from 'vs/workbench/contrib/chat/common/chatService';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 export class ChatAttachmentsContentPart extends Disposable {
 	private readonly attachedContextDisposables = this._register(new DisposableStore());
@@ -27,6 +28,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 		private readonly contentReferences: ReadonlyArray<IChatContentReference> = [],
 		public readonly domNode: HTMLElement = dom.$('.chat-attached-context'),
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IOpenerService private readonly openerService: IOpenerService,
 	) {
 		super();
 
@@ -60,6 +62,21 @@ export class ChatAttachmentsContentPart extends Disposable {
 				});
 				widget.ariaLabel = ariaLabel;
 				widget.tabIndex = 0;
+				widget.style.cursor = 'pointer';
+
+				this.attachedContextDisposables.add(dom.addDisposableListener(widget, dom.EventType.CLICK, async (e: MouseEvent) => {
+					dom.EventHelper.stop(e, true);
+					if (file) {
+						this.openerService.open(
+							file,
+							{
+								fromUserGesture: true,
+								editorOptions: {
+									selection: range
+								} as any
+							});
+					}
+				}));
 			} else {
 				const attachmentLabel = attachment.fullName ?? attachment.name;
 				label.setLabel(attachmentLabel, correspondingContentReference?.options?.status?.description);
