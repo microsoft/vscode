@@ -280,10 +280,10 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 						name: basenameOrAuthority(uri),
 						description: `#${reference.variableName}`,
 						range: 'range' in reference.value ? reference.value.range : undefined,
-					}, { icon, title: data.title });
+					}, { icon, title: data.options?.status?.description ?? data.title });
 			} else {
 				const variable = this.chatVariablesService.getVariable(reference.variableName);
-				templateData.label.setLabel(`#${reference.variableName}`, undefined, { title: variable?.description });
+				templateData.label.setLabel(`#${reference.variableName}`, undefined, { title: data.options?.status?.description ?? variable?.description });
 			}
 		} else {
 			const uri = 'uri' in reference ? reference.uri : reference;
@@ -293,14 +293,14 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 				const description = uri.path.split('/').slice(5).join('/');
 				templateData.label.setResource({ resource: uri, name: label, description }, { icon: Codicon.github, title: data.title });
 			} else if (matchesSomeScheme(uri, Schemas.mailto, Schemas.http, Schemas.https)) {
-				templateData.label.setResource({ resource: uri, name: uri.toString() }, { icon: icon ?? Codicon.globe, title: data.title });
+				templateData.label.setResource({ resource: uri, name: uri.toString() }, { icon: icon ?? Codicon.globe, title: data.options?.status?.description ?? data.title });
 			} else {
 				templateData.label.setFile(uri, {
 					fileKind: FileKind.FILE,
 					// Should not have this live-updating data on a historical reference
 					fileDecorations: { badges: false, colors: false },
 					range: 'range' in reference ? reference.range : undefined,
-					title: data.title
+					title: data.options?.status?.description ?? data.title
 				});
 			}
 		}
