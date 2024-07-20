@@ -75,9 +75,16 @@ export interface IChatContentVariableReference {
 	value?: URI | Location;
 }
 
+export enum ChatResponseReferencePartStatusKind {
+	Complete = 1,
+	Partial = 2,
+	Omitted = 3
+}
+
 export interface IChatContentReference {
 	reference: URI | Location | IChatContentVariableReference;
 	iconPath?: ThemeIcon | { light: URI; dark?: URI };
+	options?: { status?: { description: string; kind: ChatResponseReferencePartStatusKind } };
 	kind: 'reference';
 }
 

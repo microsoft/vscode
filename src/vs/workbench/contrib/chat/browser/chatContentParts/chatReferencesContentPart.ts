@@ -26,7 +26,7 @@ import { ColorScheme } from 'vs/workbench/browser/web.api';
 import { ChatTreeItem } from 'vs/workbench/contrib/chat/browser/chat';
 import { IDisposableReference, ResourcePool } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatCollections';
 import { IChatContentPart } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatContentParts';
-import { IChatContentReference, IChatWarningMessage } from 'vs/workbench/contrib/chat/common/chatService';
+import { ChatResponseReferencePartStatusKind, IChatContentReference, IChatWarningMessage } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { IChatRendererContent, IChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { createFileIconThemableTreeContainerScope } from 'vs/workbench/contrib/files/browser/views/explorerView';
@@ -283,10 +283,10 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 						name: basenameOrAuthority(uri),
 						description: `#${reference.variableName}`,
 						range: 'range' in reference.value ? reference.value.range : undefined,
-					}, { icon, title: data.title });
+					}, { icon, title: data.options?.status?.description ?? data.title });
 			} else {
 				const variable = this.chatVariablesService.getVariable(reference.variableName);
-				templateData.label.setLabel(`#${reference.variableName}`, undefined, { title: variable?.description });
+				templateData.label.setLabel(`#${reference.variableName}`, undefined, { title: data.options?.status?.description ?? variable?.description });
 			}
 		} else {
 			const uri = 'uri' in reference ? reference.uri : reference;
@@ -300,15 +300,24 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 				const settingId = uri.path.substring(1);
 				templateData.label.setResource({ resource: uri, name: settingId }, { icon: Codicon.settingsGear, title: localize('setting.hover', "Open setting '{0}'", settingId) });
 			} else if (matchesSomeScheme(uri, Schemas.mailto, Schemas.http, Schemas.https)) {
-				templateData.label.setResource({ resource: uri, name: uri.toString() }, { icon: icon ?? Codicon.globe, title: data.title });
+				templateData.label.setResource({ resource: uri, name: uri.toString() }, { icon: icon ?? Codicon.globe, title: data.options?.status?.description ?? data.title });
 			} else {
 				templateData.label.setFile(uri, {
 					fileKind: FileKind.FILE,
 					// Should not have this live-updating data on a historical reference
 					fileDecorations: { badges: false, colors: false },
 					range: 'range' in reference ? reference.range : undefined,
-					title: data.title
+					title: data.options?.status?.description ?? data.title
 				});
+			}
+		}
+
+		if (data.options?.status?.kind === ChatResponseReferencePartStatusKind.Omitted || data.options?.status?.kind === ChatResponseReferencePartStatusKind.Partial) {
+			for (const selector of ['.monaco-icon-suffix-container', '.monaco-icon-name-container']) {
+				const element = templateData.label.element.querySelector(selector);
+				if (element) {
+					element.classList.add('warning');
+				}
 			}
 		}
 	}
