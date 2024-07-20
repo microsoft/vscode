@@ -9,8 +9,8 @@ import { isMacintosh } from 'vs/base/common/platform';
 import { IProductConfiguration } from 'vs/base/common/product';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { localize } from 'vs/nls';
-import { IIssueFormService, IssueReporterData, IssueReporterExtensionData } from 'vs/workbench/contrib/issue/common/issue';
 import { BaseIssueReporterService } from 'vs/workbench/contrib/issue/browser/issue';
+import { IIssueFormService, IssueReporterData, IssueReporterExtensionData } from 'vs/workbench/contrib/issue/common/issue';
 
 // GitHub has let us know that we could up our limit here to 8k. We chose 7500 to play it safe.
 // ref https://github.com/microsoft/vscode/issues/159191
@@ -62,7 +62,7 @@ export class IssueWebReporter extends BaseIssueReporterService {
 
 	private async sendReporterMenu(extension: IssueReporterExtensionData): Promise<IssueReporterData | undefined> {
 		try {
-			const data = await this.issueFormService.$sendReporterMenu(extension.id, extension.name);
+			const data = await this.issueFormService.sendReporterMenu(extension.id, extension.name);
 			return data;
 		} catch (e) {
 			console.error(e);
@@ -93,7 +93,7 @@ export class IssueWebReporter extends BaseIssueReporterService {
 		});
 
 		this.addEventListener('disableExtensions', 'click', () => {
-			this.issueFormService.$reloadWithExtensionsDisabled();
+			this.issueFormService.reloadWithExtensionsDisabled();
 		});
 
 		this.addEventListener('extensionBugsLink', 'click', (e: Event) => {
@@ -104,7 +104,7 @@ export class IssueWebReporter extends BaseIssueReporterService {
 		this.addEventListener('disableExtensions', 'keydown', (e: Event) => {
 			e.stopPropagation();
 			if ((e as KeyboardEvent).key === 'Enter' || (e as KeyboardEvent).key === ' ') {
-				this.issueFormService.$reloadWithExtensionsDisabled();
+				this.issueFormService.reloadWithExtensionsDisabled();
 			}
 		});
 
@@ -128,7 +128,7 @@ export class IssueWebReporter extends BaseIssueReporterService {
 				const { issueDescription } = this.issueReporterModel.getData();
 				if (!this.hasBeenSubmitted && (issueTitle || issueDescription)) {
 					// fire and forget
-					this.issueFormService.$showConfirmCloseDialog();
+					this.issueFormService.showConfirmCloseDialog();
 				} else {
 					this.close();
 				}

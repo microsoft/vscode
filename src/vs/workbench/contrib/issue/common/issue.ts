@@ -2,13 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-// import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-// import { IssueReporterData } from 'vs/platform/issue/common/issue';
-
 
 import { UriComponents } from 'vs/base/common/uri';
 import { ISandboxConfiguration } from 'vs/base/parts/sandbox/common/sandboxTypes';
-// import { PerformanceInfo, SystemInfo } from 'vs/platform/diagnostics/common/diagnostics';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { OldIssueReporterData } from 'vs/platform/issue/common/issue';
 
@@ -134,11 +130,11 @@ export interface IIssueFormService {
 
 	// Used by the issue reporter
 	openReporter(data: IssueReporterData): Promise<void>;
-	$reloadWithExtensionsDisabled(): Promise<void>;
-	$showConfirmCloseDialog(): Promise<void>;
-	$showClipboardDialog(): Promise<boolean>;
-	$sendReporterMenu(extensionId: string, extensionName: string): Promise<IssueReporterData | undefined>;
-	$closeReporter(): Promise<void>;
+	reloadWithExtensionsDisabled(): Promise<void>;
+	showConfirmCloseDialog(): Promise<void>;
+	showClipboardDialog(): Promise<boolean>;
+	sendReporterMenu(extensionId: string, extensionName: string): Promise<IssueReporterData | undefined>;
+	closeReporter(): Promise<void>;
 }
 
 export const IWorkbenchIssueService = createDecorator<IWorkbenchIssueService>('workbenchIssueService');

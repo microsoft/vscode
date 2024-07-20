@@ -16,7 +16,7 @@ import { IProductConfiguration } from 'vs/base/common/product';
 import { escape } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { IIssueMainService, OldIssueReporterData } from 'vs/platform/issue/common/issue';
+import { OldIssueReporterData } from 'vs/platform/issue/common/issue';
 import { getIconsStyleSheet } from 'vs/platform/theme/browser/iconsStyleSheet';
 import { IssueReporterModel, IssueReporterData as IssueReporterModelData } from 'vs/workbench/contrib/issue/browser/issueReporterModel';
 import { IIssueFormService, IssueReporterData, IssueReporterExtensionData, IssueReporterStyles, IssueType } from 'vs/workbench/contrib/issue/common/issue';
@@ -485,7 +485,7 @@ export class BaseIssueReporterService extends Disposable {
 	}
 
 	public async close(): Promise<void> {
-		await this.issueFormService.$closeReporter();
+		await this.issueFormService.closeReporter();
 	}
 
 	public clearSearchResults(): void {
@@ -916,7 +916,7 @@ export class BaseIssueReporterService extends Disposable {
 	}
 
 	public async writeToClipboard(baseUrl: string, issueBody: string): Promise<string> {
-		const shouldWrite = await this.issueFormService.$showClipboardDialog();
+		const shouldWrite = await this.issueFormService.showClipboardDialog();
 		if (!shouldWrite) {
 			throw new CancellationError();
 		}

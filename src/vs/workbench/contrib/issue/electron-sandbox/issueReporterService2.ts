@@ -13,11 +13,11 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
 import { IProcessMainService } from 'vs/platform/issue/common/issue';
-import { IIssueFormService, IssueReporterData, IssueReporterExtensionData, IssueReporterWindowConfiguration, IssueType } from 'vs/workbench/contrib/issue/common/issue';
 import { INativeHostService } from 'vs/platform/native/common/native';
 import { applyZoom, zoomIn, zoomOut } from 'vs/platform/window/electron-sandbox/window';
 import { BaseIssueReporterService, hide, show } from 'vs/workbench/contrib/issue/browser/issue';
 import { IssueReporterData as IssueReporterModelData } from 'vs/workbench/contrib/issue/browser/issueReporterModel';
+import { IIssueFormService, IssueReporterData, IssueReporterExtensionData, IssueReporterWindowConfiguration, IssueType } from 'vs/workbench/contrib/issue/common/issue';
 
 // GitHub has let us know that we could up our limit here to 8k. We chose 7500 to play it safe.
 // ref https://github.com/microsoft/vscode/issues/159191
@@ -75,7 +75,7 @@ export class IssueReporter2 extends BaseIssueReporterService {
 
 	private async sendReporterMenu(extension: IssueReporterExtensionData): Promise<IssueReporterData | undefined> {
 		try {
-			const data = await this.issueFormService.$sendReporterMenu(extension.id, extension.name);
+			const data = await this.issueFormService.sendReporterMenu(extension.id, extension.name);
 			return data;
 		} catch (e) {
 			console.error(e);
@@ -114,7 +114,7 @@ export class IssueReporter2 extends BaseIssueReporterService {
 		});
 
 		this.addEventListener('disableExtensions', 'click', () => {
-			this.issueFormService.$reloadWithExtensionsDisabled();
+			this.issueFormService.reloadWithExtensionsDisabled();
 		});
 
 		this.addEventListener('extensionBugsLink', 'click', (e: Event) => {
@@ -125,7 +125,7 @@ export class IssueReporter2 extends BaseIssueReporterService {
 		this.addEventListener('disableExtensions', 'keydown', (e: Event) => {
 			e.stopPropagation();
 			if ((e as KeyboardEvent).keyCode === 13 || (e as KeyboardEvent).keyCode === 32) {
-				this.issueFormService.$reloadWithExtensionsDisabled();
+				this.issueFormService.reloadWithExtensionsDisabled();
 			}
 		});
 
@@ -151,7 +151,7 @@ export class IssueReporter2 extends BaseIssueReporterService {
 				const { issueDescription } = this.issueReporterModel.getData();
 				if (!this.hasBeenSubmitted && (issueTitle || issueDescription)) {
 					// fire and forget
-					this.issueFormService.$showConfirmCloseDialog();
+					this.issueFormService.showConfirmCloseDialog();
 				} else {
 					this.close();
 				}
@@ -285,7 +285,7 @@ export class IssueReporter2 extends BaseIssueReporterService {
 	}
 
 	public override async writeToClipboard(baseUrl: string, issueBody: string): Promise<string> {
-		const shouldWrite = await this.issueFormService.$showClipboardDialog();
+		const shouldWrite = await this.issueFormService.showClipboardDialog();
 		if (!shouldWrite) {
 			throw new CancellationError();
 		}

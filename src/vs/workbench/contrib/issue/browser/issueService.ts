@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { userAgent } from 'vs/base/common/platform';
-import { IExtensionDescription, ExtensionType } from 'vs/platform/extensions/common/extensions';
-import { normalizeGitHubUrl } from 'vs/platform/issue/common/issueReporterUtil';
 import { getZoomLevel } from 'vs/base/browser/browser';
+import * as dom from 'vs/base/browser/dom';
 import { mainWindow } from 'vs/base/browser/window';
+import { userAgent } from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ExtensionType, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IIssueFormService, IssueReporterData, IssueReporterExtensionData, IssueReporterStyles, IWorkbenchIssueService } from 'vs/workbench/contrib/issue/common/issue';
+import { normalizeGitHubUrl } from 'vs/platform/issue/common/issueReporterUtil';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { buttonBackground, buttonForeground, buttonHoverBackground, foreground, inputActiveOptionBorder, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
+import { IIssueFormService, IssueReporterData, IssueReporterExtensionData, IssueReporterStyles, IWorkbenchIssueService } from 'vs/workbench/contrib/issue/common/issue';
 import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
 import { IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
 import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
 
 
 export class BrowserIssueService implements IWorkbenchIssueService {
