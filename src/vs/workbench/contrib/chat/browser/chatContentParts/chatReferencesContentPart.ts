@@ -25,7 +25,7 @@ import { ColorScheme } from 'vs/workbench/browser/web.api';
 import { ChatTreeItem } from 'vs/workbench/contrib/chat/browser/chat';
 import { IDisposableReference, ResourcePool } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatCollections';
 import { IChatContentPart } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatContentParts';
-import { IChatContentReference, IChatWarningMessage } from 'vs/workbench/contrib/chat/common/chatService';
+import { ChatResponseReferencePartStatusKind, IChatContentReference, IChatWarningMessage } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { IChatRendererContent, IChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { createFileIconThemableTreeContainerScope } from 'vs/workbench/contrib/files/browser/views/explorerView';
@@ -302,6 +302,16 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 					range: 'range' in reference ? reference.range : undefined,
 					title: data.options?.status?.description ?? data.title
 				});
+			}
+		}
+
+		if (data.options?.status?.kind === ChatResponseReferencePartStatusKind.Omitted || data.options?.status?.kind === ChatResponseReferencePartStatusKind.Partial) {
+			for (const selector of ['.monaco-icon-suffix-container', '.monaco-icon-name-container']) {
+				const element = templateData.label.element.querySelector(selector);
+				if (element) {
+					element.classList.add('warning');
+					break;
+				}
 			}
 		}
 	}
