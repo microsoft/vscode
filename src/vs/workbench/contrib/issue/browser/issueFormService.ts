@@ -5,17 +5,15 @@
 import { safeInnerHtml } from 'vs/base/browser/dom';
 import { mainWindow } from 'vs/base/browser/window';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import BaseHtml from 'vs/workbench/contrib/issue/browser/issueReporterPage';
 import 'vs/css!./media/issueReporter';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { PerformanceInfo, SystemInfo } from 'vs/platform/diagnostics/common/diagnostics';
 import { ExtensionIdentifier, ExtensionIdentifierSet } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IIssueMainService, IssueReporterData, ProcessExplorerData } from 'vs/platform/issue/common/issue';
 import product from 'vs/platform/product/common/product';
+import BaseHtml from 'vs/workbench/contrib/issue/browser/issueReporterPage';
 import { IssueWebReporter } from 'vs/workbench/contrib/issue/browser/issueReporterService';
+import { IIssueFormService, IssueReporterData } from 'vs/workbench/contrib/issue/common/issue';
 import { AuxiliaryWindowMode, IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
 
 export interface IssuePassData {
@@ -23,7 +21,7 @@ export interface IssuePassData {
 	issueBody: string;
 }
 
-export class IssueFormService implements IIssueMainService {
+export class IssueFormService implements IIssueFormService {
 
 	readonly _serviceBrand: undefined;
 
@@ -64,6 +62,15 @@ export class IssueFormService implements IIssueMainService {
 		});
 
 	}
+	reloadWithExtensionsDisabled(): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+	showConfirmCloseDialog(): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+	showClipboardDialog(): Promise<boolean> {
+		throw new Error('Method not implemented.');
+	}
 
 	async openReporter(data: IssueReporterData): Promise<void> {
 		if (data.extensionId && this.extensionIdentifierSet.has(data.extensionId)) {
@@ -96,7 +103,7 @@ export class IssueFormService implements IIssueMainService {
 		const disposables = new DisposableStore();
 
 		// Auxiliary Window
-		const auxiliaryWindow = disposables.add(await this.auxiliaryWindowService.open({ mode: AuxiliaryWindowMode.Normal }));
+		const auxiliaryWindow = disposables.add(await this.auxiliaryWindowService.open({ mode: AuxiliaryWindowMode.Normal, bounds: { width: 700, height: 800 } }));
 
 		this.issueReporterWindow = auxiliaryWindow.window;
 
@@ -128,45 +135,7 @@ export class IssueFormService implements IIssueMainService {
 		});
 	}
 
-	async openProcessExplorer(data: ProcessExplorerData): Promise<void> {
-		throw new Error('Method not implemented.');
-	}
-
-	stopTracing(): Promise<void> {
-		throw new Error('Method not implemented.');
-	}
-	getSystemStatus(): Promise<string> {
-		throw new Error('Method not implemented.');
-	}
-	$getSystemInfo(): Promise<SystemInfo> {
-		throw new Error('Method not implemented.');
-	}
-	$getPerformanceInfo(): Promise<PerformanceInfo> {
-		throw new Error('Method not implemented.');
-	}
-	$reloadWithExtensionsDisabled(): Promise<void> {
-		throw new Error('Method not implemented.');
-	}
-	$showConfirmCloseDialog(): Promise<void> {
-		throw new Error('Method not implemented.');
-	}
-	$showClipboardDialog(): Promise<boolean> {
-		throw new Error('Method not implemented.');
-	}
-	$getIssueReporterUri(extensionId: string): Promise<URI> {
-		throw new Error('Method not implemented.');
-	}
-	$getIssueReporterData(extensionId: string): Promise<string> {
-		throw new Error('Method not implemented.');
-	}
-	$getIssueReporterTemplate(extensionId: string): Promise<string> {
-		throw new Error('Method not implemented.');
-	}
-	$getReporterStatus(extensionId: string, extensionName: string): Promise<boolean[]> {
-		throw new Error('Method not implemented.');
-	}
-
-	async $sendReporterMenu(extensionId: string, extensionName: string): Promise<IssueReporterData | undefined> {
+	async sendReporterMenu(extensionId: string, extensionName: string): Promise<IssueReporterData | undefined> {
 		const sendChannel = `vscode:triggerReporterMenu`;
 		mainWindow.postMessage({ sendChannel, extensionId, extensionName }, '*');
 
@@ -215,7 +184,7 @@ export class IssueFormService implements IIssueMainService {
 		return result as IssuePassData | undefined;
 	}
 
-	async $closeReporter(): Promise<void> {
+	async closeReporter(): Promise<void> {
 		this.issueReporterWindow?.close();
 	}
 }

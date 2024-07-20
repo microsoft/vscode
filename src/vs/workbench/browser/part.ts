@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/part';
-import { Component } from 'vs/workbench/common/component';
-import { IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
-import { Dimension, size, IDimension, getActiveDocument, prepend, IDomPosition } from 'vs/base/browser/dom';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { Dimension, IDimension, IDomPosition, getActiveDocument, prepend, size } from 'vs/base/browser/dom';
 import { ISerializableView, IViewSize } from 'vs/base/browser/ui/grid/grid';
-import { Event, Emitter } from 'vs/base/common/event';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { assertIsDefined } from 'vs/base/common/types';
+import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { assertIsDefined } from 'vs/base/common/types';
+import 'vs/css!./media/part';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
+import { Component } from 'vs/workbench/common/component';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 
 export interface IPartOptions {
 	readonly hasTitle?: boolean;
