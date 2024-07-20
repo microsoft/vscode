@@ -310,7 +310,6 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 				const element = templateData.label.element.querySelector(selector);
 				if (element) {
 					element.classList.add('warning');
-					break;
 				}
 			}
 		}
