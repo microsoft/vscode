@@ -672,7 +672,7 @@ export function parseCompletionsFromShell(leadingLineContent: string, rawComplet
 	}
 	if (Array.isArray(rawCompletions[0])) {
 		return (rawCompletions as CompressedPwshCompletion[]).map(e => (new SimpleCompletionItem({
-			label: e[0],
+			label: parseCompletionText(e[0], e[1]),
 			icon: getIcon(e[1], e[2]),
 			detail: e[2],
 			isFile: e[1] === 3,
@@ -680,7 +680,7 @@ export function parseCompletionsFromShell(leadingLineContent: string, rawComplet
 		})));
 	}
 	return (rawCompletions as PwshCompletion[]).map(e => (new SimpleCompletionItem({
-		label: e.CompletionText,
+		label: parseCompletionText(e.CompletionText, e.ResultType),
 		icon: getIcon(e.ResultType, e.ToolTip),
 		detail: e.ToolTip,
 		isFile: e.ResultType === 3,
