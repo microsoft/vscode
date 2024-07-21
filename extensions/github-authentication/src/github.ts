@@ -97,6 +97,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 	private readonly _keychain: Keychain;
 	private readonly _accountsSeen = new Set<string>();
 	private readonly _disposable: vscode.Disposable | undefined;
+	private _supportsMultipleAccounts = false;
 
 	private _sessionsPromise: Promise<vscode.AuthenticationSession[]>;
 
@@ -133,10 +134,20 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			return sessions;
 		});
 
+		this._supportsMultipleAccounts = vscode.workspace.getConfiguration('github.experimental').get<boolean>('multipleAccounts', false);
+
 		this._disposable = vscode.Disposable.from(
 			this._telemetryReporter,
-			vscode.authentication.registerAuthenticationProvider(type, this._githubServer.friendlyName, this, { supportsMultipleAccounts: false }),
-			this.context.secrets.onDidChange(() => this.checkForUpdates())
+			vscode.authentication.registerAuthenticationProvider(type, this._githubServer.friendlyName, this, { supportsMultipleAccounts: this._supportsMultipleAccounts }),
+			this.context.secrets.onDidChange(() => this.checkForUpdates()),
+			vscode.workspace.onDidChangeConfiguration(async e => {
+				if (e.affectsConfiguration('github.experimental.multipleAccounts')) {
+					const result = await vscode.window.showInformationMessage(vscode.l10n.t('Please reload the window to apply the new setting.'), { modal: true }, vscode.l10n.t('Reload Window'));
+					if (result) {
+						vscode.commands.executeCommand('workbench.action.reloadWindow');
+					}
+				}
+			})
 		);
 	}
 
@@ -229,7 +240,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 		const sessionPromises = sessionData.map(async (session: SessionData) => {
 			// For GitHub scope list, order doesn't matter so we immediately sort the scopes
 			const scopesStr = [...session.scopes].sort().join(' ');
-			if (scopesSeen.has(scopesStr)) {
+			if (!this._supportsMultipleAccounts && scopesSeen.has(scopesStr)) {
 				return undefined;
 			}
 			let userInfo: { id: string; accountName: string } | undefined;
@@ -301,28 +312,8 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 
 			const sessions = await this._sessionsPromise;
 
-			let forcedLogin = options?.account?.label;
-			let backupLogin: string | undefined;
-			if (!forcedLogin) {
-				const accounts = new Set(sessions.map(session => session.account.label));
-				this._logger.info(`Found ${accounts.size} accounts.`);
-				// This helps us tell GitHub that we're already logged in to an account/accounts
-				// and should probably use it. The user _can_ sign in to a different account
-				// if they want to, in the browser, but this is a good default for the happy path.
-				if (accounts.size > 1) {
-					// If there are multiple accounts, we should prompt the user to choose one.
-					const newAccount = vscode.l10n.t('New account...');
-					const accountChoiceResult = await vscode.window.showQuickPick(
-						[...accounts, newAccount],
-						{ placeHolder: vscode.l10n.t('Choose an account that you would like to log in to') }
-					);
-					forcedLogin = accountChoiceResult === newAccount ? undefined : accountChoiceResult;
-				} else {
-					// If there is only one account, we can use that to seed the login, but
-					// we don't want to force the user to use it.
-					backupLogin = sessions[0]?.account.label;
-				}
-			}
+			const forcedLogin = options?.account?.label;
+			const backupLogin = sessions[0]?.account.label;
 			this._logger.info(`Logging in with '${forcedLogin ? forcedLogin : 'any'}' account...`);
 
 			const scopeString = sortedScopes.join(' ');
@@ -356,7 +347,11 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			}
 			this.afterSessionLoad(session);
 
-			const sessionIndex = sessions.findIndex(s => s.id === session.id || arrayEquals([...s.scopes].sort(), sortedScopes));
+			const sessionIndex = sessions.findIndex(
+				this._supportsMultipleAccounts
+					? s => s.account.id === session.account.id && arrayEquals([...s.scopes].sort(), sortedScopes)
+					: s => s.id === session.id || arrayEquals([...s.scopes].sort(), sortedScopes)
+			);
 			const removed = new Array<vscode.AuthenticationSession>();
 			if (sessionIndex > -1) {
 				removed.push(...sessions.splice(sessionIndex, 1, session));

@@ -894,6 +894,16 @@
         "icon": "$(diff-multiple)",
         "category": "Git",
         "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.copyCommitId",
+        "title": "%command.timelineCopyCommitId%",
+        "category": "Git"
+      },
+      {
+        "command": "git.copyCommitMessage",
+        "title": "%command.timelineCopyCommitMessage%",
+        "category": "Git"
       }
     ],
     "continueEditSession": [
@@ -1429,6 +1439,14 @@
         {
           "command": "git.pushRef",
           "when": "false"
+        },
+        {
+          "command": "git.copyCommitId",
+          "when": "false"
+        },
+        {
+          "command": "git.copyCommitMessage",
+          "when": "false"
         }
       ],
       "scm/title": [
@@ -1938,6 +1956,23 @@
           "command": "git.publish",
           "when": "scmProvider == git && !scmHistoryItemGroupHasRemote",
           "group": "navigation@3"
+        }
+      ],
+      "scm/historyItem/context": [
+        {
+          "command": "git.viewCommit",
+          "when": "scmProvider == git && config.multiDiffEditor.experimental.enabled",
+          "group": "1_view@1"
+        },
+        {
+          "command": "git.copyCommitId",
+          "when": "scmProvider == git && !listMultiSelection",
+          "group": "3_copy@1"
+        },
+        {
+          "command": "git.copyCommitMessage",
+          "when": "scmProvider == git && !listMultiSelection",
+          "group": "3_copy@2"
         }
       ],
       "scm/incomingChanges": [

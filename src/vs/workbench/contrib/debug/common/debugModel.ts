@@ -10,7 +10,7 @@ import { VSBuffer, decodeBase64, encodeBase64 } from 'vs/base/common/buffer';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { stringHash } from 'vs/base/common/hash';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableMap, IDisposable } from 'vs/base/common/lifecycle';
 import { mixin } from 'vs/base/common/objects';
 import { autorun } from 'vs/base/common/observable';
 import * as resources from 'vs/base/common/resources';
@@ -1416,6 +1416,7 @@ export class DebugModel extends Disposable implements IDebugModel {
 	private exceptionBreakpoints!: ExceptionBreakpoint[];
 	private dataBreakpoints!: DataBreakpoint[];
 	private watchExpressions!: Expression[];
+	private watchExpressionChangeListeners: DisposableMap<string, IDisposable> = this._register(new DisposableMap());
 	private instructionBreakpoints: InstructionBreakpoint[];
 
 	constructor(
@@ -2014,7 +2015,7 @@ export class DebugModel extends Disposable implements IDebugModel {
 
 	addWatchExpression(name?: string): IExpression {
 		const we = new Expression(name || '');
-		this._register(we.onDidChangeValue((e) => this._onDidChangeWatchExpressionValue.fire(e)));
+		this.watchExpressionChangeListeners.set(we.getId(), we.onDidChangeValue((e) => this._onDidChangeWatchExpressionValue.fire(e)));
 		this.watchExpressions.push(we);
 		this._onDidChangeWatchExpressions.fire(we);
 
@@ -2032,6 +2033,11 @@ export class DebugModel extends Disposable implements IDebugModel {
 	removeWatchExpressions(id: string | null = null): void {
 		this.watchExpressions = id ? this.watchExpressions.filter(we => we.getId() !== id) : [];
 		this._onDidChangeWatchExpressions.fire(undefined);
+		if (!id) {
+			this.watchExpressionChangeListeners.clearAndDisposeAll();
+			return;
+		}
+		this.watchExpressionChangeListeners.deleteAndDispose(id);
 	}
 
 	moveWatchExpression(id: string, position: number): void {

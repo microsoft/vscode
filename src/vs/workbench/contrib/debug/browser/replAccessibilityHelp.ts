@@ -48,7 +48,7 @@ class ReplAccessibilityHelpProvider extends Disposable implements IAccessibleVie
 
 	public provideContent(): string {
 		return [
-			localize('repl.help', "The debug console is a REPL (Read-Eval-Print-Loop) that allows you to evaluate expressions and run commands and can be focused with{0}.", '<keybinding:workbench.panel.repl.view.focus'),
+			localize('repl.help', "The debug console is a REPL (Read-Eval-Print-Loop) that allows you to evaluate expressions and run commands and can be focused with{0}.", '<keybinding:workbench.panel.repl.view.focus>'),
 			localize('repl.output', "The debug console output can be navigated to from the input field with the Focus Previous Widget command{0}.", '<keybinding:widgetNavigation.focusPrevious>'),
 			localize('repl.input', "The debug console input can be navigated to from the output with the Focus Next Widget command{0}.", '<keybinding:widgetNavigation.focusNext>'),
 			localize('repl.history', "The debug console output history can be navigated with the up and down arrow keys."),

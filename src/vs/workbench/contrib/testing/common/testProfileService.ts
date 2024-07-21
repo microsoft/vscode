@@ -13,7 +13,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { IMainThreadTestController } from 'vs/workbench/contrib/testing/common/testService';
-import { ITestRunProfile, InternalTestItem, TestRunProfileBitset, testRunProfileBitsetList } from 'vs/workbench/contrib/testing/common/testTypes';
+import { ITestItem, ITestRunProfile, InternalTestItem, TestRunProfileBitset, testRunProfileBitsetList } from 'vs/workbench/contrib/testing/common/testTypes';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 
 export const ITestProfileService = createDecorator<ITestProfileService>('testProfileService');
@@ -47,7 +47,7 @@ export interface ITestProfileService {
 	 * there's any usable profiles available for those groups.
 	 * @returns a bitset to use with {@link TestRunProfileBitset}
 	 */
-	capabilitiesForTest(test: InternalTestItem): number;
+	capabilitiesForTest(test: ITestItem): number;
 
 	/**
 	 * Configures a test profile.
@@ -226,15 +226,15 @@ export class TestProfileService extends Disposable implements ITestProfileServic
 	}
 
 	/** @inheritdoc */
-	public capabilitiesForTest(test: InternalTestItem) {
-		const ctrl = this.controllerProfiles.get(test.controllerId);
+	public capabilitiesForTest(test: ITestItem) {
+		const ctrl = this.controllerProfiles.get(TestId.root(test.extId));
 		if (!ctrl) {
 			return 0;
 		}
 
 		let capabilities = 0;
 		for (const profile of ctrl.profiles) {
-			if (!profile.tag || test.item.tags.includes(profile.tag)) {
+			if (!profile.tag || test.tags.includes(profile.tag)) {
 				capabilities |= capabilities & profile.group ? TestRunProfileBitset.HasNonDefaultProfile : profile.group;
 			}
 		}

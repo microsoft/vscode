@@ -60,6 +60,7 @@ export class MenuId {
 	static readonly DebugWatchContext = new MenuId('DebugWatchContext');
 	static readonly DebugToolBar = new MenuId('DebugToolBar');
 	static readonly DebugToolBarStop = new MenuId('DebugToolBarStop');
+	static readonly DebugCallStackToolbar = new MenuId('DebugCallStackToolbar');
 	static readonly EditorContext = new MenuId('EditorContext');
 	static readonly SimpleEditorContext = new MenuId('SimpleEditorContext');
 	static readonly EditorContent = new MenuId('EditorContent');
@@ -112,6 +113,7 @@ export class MenuId {
 	static readonly ProblemsPanelContext = new MenuId('ProblemsPanelContext');
 	static readonly SCMInputBox = new MenuId('SCMInputBox');
 	static readonly SCMChangesSeparator = new MenuId('SCMChangesSeparator');
+	static readonly SCMChangesContext = new MenuId('SCMChangesContext');
 	static readonly SCMIncomingChanges = new MenuId('SCMIncomingChanges');
 	static readonly SCMIncomingChangesContext = new MenuId('SCMIncomingChangesContext');
 	static readonly SCMIncomingChangesSetting = new MenuId('SCMIncomingChangesSetting');
@@ -143,7 +145,7 @@ export class MenuId {
 	static readonly TestMessageContent = new MenuId('TestMessageContent');
 	static readonly TestPeekElement = new MenuId('TestPeekElement');
 	static readonly TestPeekTitle = new MenuId('TestPeekTitle');
-	static readonly TestCallStackContext = new MenuId('TestCallStackContext');
+	static readonly TestCallStack = new MenuId('TestCallStack');
 	static readonly TouchBarContext = new MenuId('TouchBarContext');
 	static readonly TitleBarContext = new MenuId('TitleBarContext');
 	static readonly TitleBarTitleContext = new MenuId('TitleBarTitleContext');

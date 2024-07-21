@@ -7,6 +7,7 @@ import { SimpleCompletionItem } from 'vs/workbench/services/suggest/browser/simp
 import { quickSelect } from 'vs/base/common/arrays';
 import { CharCode } from 'vs/base/common/charCode';
 import { FuzzyScore, fuzzyScore, fuzzyScoreGracefulAggressive, FuzzyScoreOptions, FuzzyScorer } from 'vs/base/common/filters';
+import { isWindows } from 'vs/base/common/platform';
 
 export interface ISimpleCompletionStats {
 	pLabelLen: number;
@@ -80,6 +81,7 @@ export class SimpleCompletionModel {
 		const labelLengths: number[] = [];
 
 		const { leadingLineContent, characterCountDelta } = this._lineContext;
+		const formattedLeadingLineContent = isWindows ? leadingLineContent.replaceAll('/', '\\') : leadingLineContent;
 		let word = '';
 		let wordLow = '';
 
@@ -110,7 +112,7 @@ export class SimpleCompletionModel {
 			const overwriteBefore = this.replacementLength; // item.position.column - item.editStart.column;
 			const wordLen = overwriteBefore + characterCountDelta; // - (item.position.column - this._column);
 			if (word.length !== wordLen) {
-				word = wordLen === 0 ? '' : leadingLineContent.slice(-wordLen);
+				word = wordLen === 0 ? '' : formattedLeadingLineContent.slice(-wordLen);
 				wordLow = word.toLowerCase();
 			}
 
@@ -180,7 +182,29 @@ export class SimpleCompletionModel {
 			labelLengths.push(item.completion.label.length);
 		}
 
-		this._filteredItems = target.sort((a, b) => b.score[0] - a.score[0]);
+		this._filteredItems = target.sort((a, b) => {
+			// Sort first by the score
+			let score = b.score[0] - a.score[0];
+			if (score !== 0) {
+				return score;
+			}
+			// Sort files with the same score against each other specially
+			if (a.fileExtLow.length > 0 && b.fileExtLow.length > 0) {
+				// Then by label length ascending (excluding file extension if it's a file)
+				score = a.labelLowExcludeFileExt.length - b.labelLowExcludeFileExt.length;
+				if (score !== 0) {
+					return score;
+				}
+				// If they're files, boost extensions depending on the operating system
+				score = fileExtScore(b.fileExtLow) - fileExtScore(a.fileExtLow);
+				if (score !== 0) {
+					return score;
+				}
+				// Then by file extension length ascending
+				score = b.fileExtLow.length - a.fileExtLow.length;
+			}
+			return score;
+		});
 		this._refilterKind = Refilter.Nothing;
 
 		this._stats = {
@@ -189,4 +213,19 @@ export class SimpleCompletionModel {
 				: 0
 		};
 	}
+}
+
+// TODO: This should be based on the process OS, not the local OS
+const fileExtScores = new Map<string, number>(isWindows ? [
+	['ps1', 0.09],
+	['bat', 0.08],
+	['sh', -0.09]
+] : [
+	['ps1', 0.09],
+	['bat', -0.08],
+	['sh', 0.08],
+]);
+
+function fileExtScore(ext: string): number {
+	return fileExtScores.get(ext) || 0;
 }
