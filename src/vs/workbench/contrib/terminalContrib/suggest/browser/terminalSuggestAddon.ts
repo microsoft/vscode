@@ -113,6 +113,9 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	private _enableWidget: boolean = true;
 	private _isFilteringDirectories: boolean = false;
 
+	private _codeCompletionsRequested: boolean = false;
+	private _gitCompletionsRequested: boolean = false;
+
 	// TODO: Remove these in favor of prompt input state
 	private _leadingLineContent?: string;
 	private _cursorIndexDelta: number = 0;
@@ -123,6 +126,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 	static requestCompletionsSequence = '\x1b[24~e'; // F12,e
 	static requestGlobalCompletionsSequence = '\x1b[24~f'; // F12,f
+	static requestEnableGitCompletionsSequence = '\x1b[24~g'; // F12,g
+	static requestEnableCodeCompletionsSequence = '\x1b[24~h'; // F12,h
 
 	private readonly _onBell = this._register(new Emitter<void>());
 	readonly onBell = this._onBell.event;
@@ -179,6 +184,16 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	}
 
 	private _requestCompletions(): void {
+		const builtinCompletionsConfig = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection).builtinCompletions;
+		if (!this._codeCompletionsRequested && builtinCompletionsConfig.pwshCode) {
+			this._onAcceptedCompletion.fire(SuggestAddon.requestEnableCodeCompletionsSequence);
+			this._codeCompletionsRequested = true;
+		}
+		if (!this._gitCompletionsRequested && builtinCompletionsConfig.pwshGit) {
+			this._onAcceptedCompletion.fire(SuggestAddon.requestEnableGitCompletionsSequence);
+			this._gitCompletionsRequested = true;
+		}
+
 		// Request global completions if there are none cached
 		if (this._cachedPwshCommands.size === 0) {
 			this._requestGlobalCompletions();

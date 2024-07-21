@@ -197,9 +197,12 @@ function Set-MappedKeyHandlers {
 			Write-Host -NoNewLine $result
 		}
 
-		# TODO: Only load if configured to do so
-		Import-Module "$PSScriptRoot\GitTabExpansion.psm1"
-		Import-Module "$PSScriptRoot\CodeTabExpansion.psm1"
+		Set-PSReadLineKeyHandler -Chord 'F12,g' -ScriptBlock {
+			Import-Module "$PSScriptRoot\GitTabExpansion.psm1"
+		}
+		Set-PSReadLineKeyHandler -Chord 'F12,h' -ScriptBlock {
+			Import-Module "$PSScriptRoot\CodeTabExpansion.psm1"
+		}
 	}
 }
 
