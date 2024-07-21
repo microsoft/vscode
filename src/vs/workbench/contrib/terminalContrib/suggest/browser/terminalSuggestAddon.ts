@@ -112,6 +112,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	private _screen?: HTMLElement;
 	private _suggestWidget?: SimpleSuggestWidget;
 	private _enableWidget: boolean = true;
+	private _isFilteringDirectories: boolean = false;
 
 	// TODO: Remove these in favor of prompt input state
 	private _leadingLineContent?: string;
@@ -220,7 +221,12 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			// Trigger characters - this happens even if the widget is showing
 			if (config.suggestOnTriggerCharacters && !sent) {
 				const lastChar = promptInputState.value.at(promptInputState.cursorIndex - 1);
-				if (lastChar?.match(/[\\\/\-]/)) {
+				if (
+					lastChar?.match(/[\-]/) ||
+					// Only trigger on \ and / if it's a directory. Not doing so causes problems
+					// with git branches in particular
+					this._isFilteringDirectories && lastChar?.match(/[\\\/]/)
+				) {
 					this._requestCompletions();
 					sent = true;
 				}
@@ -250,7 +256,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		if (this._terminalSuggestWidgetVisibleContextKey.get()) {
 			this._cursorIndexDelta = this._currentPromptInputState.cursorIndex - this._initialPromptInputState.cursorIndex;
 			let leadingLineContent = this._leadingLineContent + this._currentPromptInputState.value.substring(this._leadingLineContent.length, this._leadingLineContent.length + this._cursorIndexDelta);
-			if (this._model?.items.every(e => e.completion.isDirectory)) {
+			if (this._isFilteringDirectories) {
 				leadingLineContent = leadingLineContent.replaceAll('/', '\\');
 			}
 			const lineContext = new LineContext(leadingLineContent, this._cursorIndexDelta);
@@ -333,7 +339,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._cursorIndexDelta = 0;
 
 		let leadingLineContent = this._leadingLineContent + this._currentPromptInputState.value.substring(this._leadingLineContent.length, this._leadingLineContent.length + this._cursorIndexDelta);
-		if (this._model?.items.every(e => e.completion.isDirectory)) {
+		this._isFilteringDirectories = completions.every(e => e.completion.isDirectory);
+		if (this._isFilteringDirectories) {
 			leadingLineContent = leadingLineContent.replaceAll('/', '\\');
 		}
 		const lineContext = new LineContext(leadingLineContent, this._cursorIndexDelta);
