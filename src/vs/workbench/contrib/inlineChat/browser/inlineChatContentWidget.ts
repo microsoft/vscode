@@ -13,7 +13,7 @@ import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { inlineChatBackground, InlineChatConfigKeys, MENU_INLINE_CHAT_CONTENT_STATUS, MENU_INLINE_CHAT_EXECUTE } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
-import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
+import { ChatWidget, IChatWidgetLocationOptions } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { editorBackground, editorForeground, inputBackground } from 'vs/platform/theme/common/colorRegistry';
 import { ChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
@@ -26,6 +26,7 @@ import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { MenuItemAction } from 'vs/platform/actions/common/actions';
 import { TextOnlyMenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 
 export class InlineChatContentWidget implements IContentWidget {
 
@@ -49,11 +50,12 @@ export class InlineChatContentWidget implements IContentWidget {
 	private readonly _widget: ChatWidget;
 
 	constructor(
-		location: ChatAgentLocation,
+		location: IChatWidgetLocationOptions,
 		private readonly _editor: ICodeEditor,
 		@IInstantiationService instaService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService,
+		@IQuickInputService quickInputService: IQuickInputService
 	) {
 
 		this._defaultChatModel = this._store.add(instaService.createInstance(ChatModel, undefined, ChatAgentLocation.Editor));
@@ -76,7 +78,7 @@ export class InlineChatContentWidget implements IContentWidget {
 				renderStyle: 'minimal',
 				renderInputOnTop: true,
 				renderFollowups: true,
-				supportsFileReferences: false,
+				supportsFileReferences: configurationService.getValue(`chat.experimental.variables.${location.location}`) === true,
 				menus: {
 					telemetrySource: 'inlineChat-content',
 					executeToolbar: MENU_INLINE_CHAT_EXECUTE,
@@ -118,9 +120,19 @@ export class InlineChatContentWidget implements IContentWidget {
 			this._domNode.classList.toggle('contents', toolbar.getItemsLength() > 1);
 		}));
 
+		// note when the widget has been interaced with and disable "close on blur" if so
+		let widgetHasBeenInteractedWith = false;
+		this._store.add(this._widget.inputEditor.onDidChangeModelContent(() => {
+			widgetHasBeenInteractedWith ||= this._widget.inputEditor.getModel()?.getValueLength() !== 0;
+		}));
+		this._store.add(this._widget.onDidChangeContext(() => {
+			widgetHasBeenInteractedWith ||= true;
+			_editor.layoutContentWidget(this);// https://github.com/microsoft/vscode/issues/221385
+		}));
+
 		const tracker = dom.trackFocus(this._domNode);
 		this._store.add(tracker.onDidBlur(() => {
-			if (this._visible && this._widget.inputEditor.getModel()?.getValueLength() === 0) {
+			if (this._visible && !widgetHasBeenInteractedWith && !quickInputService.currentQuickInput) {
 				this._onDidBlur.fire();
 			}
 		}));
@@ -154,10 +166,11 @@ export class InlineChatContentWidget implements IContentWidget {
 		const maxHeight = this._widget.input.inputEditor.getOption(EditorOption.lineHeight) * 5;
 		const inputEditorHeight = this._widget.contentHeight;
 
-		this._widget.layout(Math.min(maxHeight, inputEditorHeight), 390);
+		const height = Math.min(maxHeight, inputEditorHeight);
+		const width = 390;
+		this._widget.layout(height, width);
 
-		// const actualHeight = this._widget.inputPartHeight;
-		// return new dom.Dimension(width, actualHeight);
+		dom.size(this._domNode, width, null);
 		return null;
 	}
 
@@ -193,6 +206,7 @@ export class InlineChatContentWidget implements IContentWidget {
 
 			this._position = wordInfo ? new Position(position.lineNumber, wordInfo.startColumn) : position;
 			this._editor.addContentWidget(this);
+			this._widget.setContext(true);
 			this._widget.setVisible(true);
 		}
 	}

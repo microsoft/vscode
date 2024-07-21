@@ -81,7 +81,7 @@ export function registerNewChatActions() {
 			if (isChatViewTitleActionContext(context)) {
 				// Is running in the Chat view title
 				announceChatCleared(accessibilitySignalService);
-				context.chatView.clear();
+				context.chatView.widget.clear();
 				context.chatView.widget.focusInput();
 			} else {
 				// Is running from f1 or keybinding

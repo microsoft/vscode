@@ -127,7 +127,7 @@ suite('ChatService', () => {
 		await testService.addCompleteRequest(model.sessionId, 'test request', undefined, 0, { message: 'test response' });
 		assert.strictEqual(model.getRequests().length, 1);
 		assert.ok(model.getRequests()[0].response);
-		assert.strictEqual(model.getRequests()[0].response?.response.asString(), 'test response');
+		assert.strictEqual(model.getRequests()[0].response?.response.toString(), 'test response');
 	});
 
 	test('sendRequest fails', async () => {

@@ -27,7 +27,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { CONTEXT_CHAT_ENABLED } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatProgressResponseContent, IChatRequestVariableData, ISerializableChatAgentData } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IRawChatCommandContribution, RawChatParticipantLocation } from 'vs/workbench/contrib/chat/common/chatParticipantContribTypes';
-import { IChatFollowup, IChatProgress, IChatResponseErrorDetails, IChatTaskDto } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatFollowup, IChatLocationData, IChatProgress, IChatResponseErrorDetails, IChatTaskDto } from 'vs/workbench/contrib/chat/common/chatService';
 
 //#region agent service, commands etc
 
@@ -73,7 +73,6 @@ export interface IChatAgentData {
 	isDynamic?: boolean;
 	metadata: IChatAgentMetadata;
 	slashCommands: IChatAgentCommand[];
-	defaultImplicitVariables?: string[];
 	locations: ChatAgentLocation[];
 }
 
@@ -126,6 +125,7 @@ export interface IChatAgentRequest {
 	enableCommandDetection?: boolean;
 	variables: IChatRequestVariableData;
 	location: ChatAgentLocation;
+	locationData?: IChatLocationData;
 	acceptedConfirmationData?: any[];
 	rejectedConfirmationData?: any[];
 }
@@ -396,7 +396,6 @@ export class MergedChatAgent implements IChatAgent {
 	get isDefault(): boolean | undefined { return this.data.isDefault; }
 	get metadata(): IChatAgentMetadata { return this.data.metadata; }
 	get slashCommands(): IChatAgentCommand[] { return this.data.slashCommands; }
-	get defaultImplicitVariables(): string[] | undefined { return this.data.defaultImplicitVariables; }
 	get locations(): ChatAgentLocation[] { return this.data.locations; }
 
 	async invoke(request: IChatAgentRequest, progress: (part: IChatProgress) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult> {

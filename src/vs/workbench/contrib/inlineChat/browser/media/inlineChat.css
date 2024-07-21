@@ -62,16 +62,6 @@
 	right: 10px;
 }
 
-/* progress bit */
-
-.monaco-workbench .inline-chat .progress {
-	position: relative;
-}
-
-/* UGLY - fighting against workbench styles */
-.monaco-workbench .part.editor > .content .inline-chat .progress .monaco-progress-container {
-	top: 0;
-}
 
 /* status */
 
@@ -121,37 +111,6 @@
 	line-height: 18px;
 }
 
-.monaco-workbench .inline-chat .chatMessage .chatMessageContent .value {
-	overflow: hidden;
-	-webkit-user-select: text;
-	user-select: text;
-}
-
-.monaco-workbench .inline-chat .followUps {
-	padding: 5px 5px;
-}
-
-.monaco-workbench .inline-chat .followUps .interactive-session-followups .monaco-button {
-	display: block;
-	color: var(--vscode-textLink-foreground);
-	font-size: 12px;
-}
-
-.monaco-workbench .inline-chat .followUps.hidden {
-	display: none;
-}
-
-.monaco-workbench .inline-chat .chatMessage {
-	padding: 0 3px;
-}
-
-.monaco-workbench .inline-chat .chatMessage .chatMessageContent {
-	padding: 2px 2px;
-}
-
-.monaco-workbench .inline-chat .chatMessage.hidden {
-	display: none;
-}
 
 .monaco-workbench .inline-chat .status .actions,
 .monaco-workbench .inline-chat-content-widget .toolbar  {
@@ -241,43 +200,15 @@
 	background-color: var(--vscode-button-hoverBackground);
 }
 
-/* preview */
+/* accessible diff viewer */
 
-.monaco-workbench .inline-chat .preview {
+.monaco-workbench .inline-chat .diff-review {
+	padding: 4px 6px;
+	background-color: unset;
+}
+
+.monaco-workbench .inline-chat .diff-review.hidden {
 	display: none;
-}
-
-.monaco-workbench .inline-chat .previewDiff,
-.monaco-workbench .inline-chat .previewCreate {
-	display: inherit;
-	border: 1px solid var(--vscode-inlineChat-border);
-	border-radius: 2px;
-	margin: 6px 0px;
-}
-
-.monaco-workbench .inline-chat .previewCreateTitle {
-	padding-top: 6px;
-}
-
-.monaco-workbench .inline-chat .diff-review.hidden,
-.monaco-workbench .inline-chat .previewDiff.hidden,
-.monaco-workbench .inline-chat .previewCreate.hidden,
-.monaco-workbench .inline-chat .previewCreateTitle.hidden {
-	display: none;
-}
-
-.monaco-workbench .inline-chat-toolbar {
-	display: flex;
-}
-
-.monaco-workbench .inline-chat-toolbar > .monaco-button {
-	margin-right: 6px;
-}
-
-.monaco-workbench .inline-chat-toolbar .action-label.checked {
-	color: var(--vscode-inputOption-activeForeground);
-	background-color: var(--vscode-inputOption-activeBackground);
-	outline: 1px solid var(--vscode-inputOption-activeBorder);
 }
 
 /* decoration styles */
@@ -303,51 +234,6 @@
 	background-color: var(--vscode-inlineChat-regionHighlight);
 }
 
-.monaco-workbench .interactive-session .interactive-input-and-execute-toolbar .monaco-editor .inline-chat-slash-command {
-	background-color: var(--vscode-chat-slashCommandBackground);
-	color: var(--vscode-chat-slashCommandForeground); /* Overrides the foreground color rule in chat.css */
-	border-radius: 2px;
-	padding: 1px;
-}
-
-.monaco-workbench .inline-chat-slash-command-detail {
-	opacity: 0.5;
-}
-
-/* diff zone */
-
-.monaco-workbench .inline-chat-diff-widget .monaco-diff-editor .monaco-editor-background,
-.monaco-workbench .inline-chat-diff-widget .monaco-diff-editor .monaco-workbench .margin-view-overlays {
-	background-color: var(--vscode-inlineChat-regionHighlight);
-}
-
-/* create zone */
-
-.monaco-workbench .inline-chat-newfile-widget {
-	background-color: var(--vscode-inlineChat-regionHighlight);
-}
-
-.monaco-workbench .inline-chat-newfile-widget .title {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-}
-
-.monaco-workbench .inline-chat-newfile-widget .title .detail {
-	margin-left: 4px;
-}
-
-.monaco-workbench .inline-chat-newfile-widget .buttonbar-widget {
-	display: flex;
-	margin-left: auto;
-	margin-right: 8px;
-}
-
-.monaco-workbench .inline-chat-newfile-widget .buttonbar-widget > .monaco-button {
-	display: inline-flex;
-	white-space: nowrap;
-	margin-left: 4px;
-}
 
 /* gutter decoration */
 

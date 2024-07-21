@@ -24,6 +24,7 @@ import { IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common
 import { IWorkingCopyEditorHandler, IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
 import { extname, isEqual } from 'vs/base/common/resources';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
+// eslint-disable-next-line local/code-translation-remind
 import { localize2 } from 'vs/nls';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';

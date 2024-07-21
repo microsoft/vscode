@@ -112,15 +112,15 @@ __vsc_escape_value() {
 	fi
 
 	# Process text byte by byte, not by codepoint.
-	local -r LC_ALL=C
-	local -r str="${1}"
-	local -ir len="${#str}"
+	builtin local -r LC_ALL=C
+	builtin local -r str="${1}"
+	builtin local -ir len="${#str}"
 
-	local -i i
-	local -i val
-	local byte
-	local token
-	local out=''
+	builtin local -i i
+	builtin local -i val
+	builtin local byte
+	builtin local token
+	builtin local out=''
 
 	for (( i=0; i < "${#str}"; ++i )); do
 		# Escape backslashes, semi-colons specially, then special ASCII chars below space (0x20).
@@ -143,7 +143,8 @@ __vsc_escape_value() {
 }
 
 # Send the IsWindows property if the environment looks like Windows
-if [[ "$(uname -s)" =~ ^CYGWIN*|MINGW*|MSYS* ]]; then
+__vsc_regex_environment="^CYGWIN*|MINGW*|MSYS*"
+if [[ "$(uname -s)" =~ $__vsc_regex_environment ]]; then
 	builtin printf '\e]633;P;IsWindows=True\a'
 	__vsc_is_windows=1
 else
@@ -152,11 +153,15 @@ fi
 
 # Allow verifying $BASH_COMMAND doesn't have aliases resolved via history when the right HISTCONTROL
 # configuration is used
-if [[ "$HISTCONTROL" =~ .*(erasedups|ignoreboth|ignoredups).* ]]; then
+__vsc_regex_histcontrol=".*(erasedups|ignoreboth|ignoredups).*"
+if [[ "$HISTCONTROL" =~ $__vsc_regex_histcontrol ]]; then
 	__vsc_history_verify=0
 else
 	__vsc_history_verify=1
 fi
+
+builtin unset __vsc_regex_environment
+builtin unset __vsc_regex_histcontrol
 
 __vsc_initialized=0
 __vsc_original_PS1="$PS1"
@@ -210,7 +215,7 @@ __vsc_update_cwd() {
 }
 
 __vsc_command_output_start() {
-	if [[ -z "$__vsc_first_prompt" ]]; then
+	if [[ -z "${__vsc_first_prompt-}" ]]; then
 		builtin return
 	fi
 	builtin printf '\e]633;E;%s;%s\a' "$(__vsc_escape_value "${__vsc_current_command}")" $__vsc_nonce
@@ -226,7 +231,7 @@ __vsc_continuation_end() {
 }
 
 __vsc_command_complete() {
-	if [[ -z "$__vsc_first_prompt" ]]; then
+	if [[ -z "${__vsc_first_prompt-}" ]]; then
 		builtin return
 	fi
 	if [ "$__vsc_current_command" = "" ]; then
@@ -326,7 +331,7 @@ __vsc_prompt_cmd_original() {
 	__vsc_restore_exit_code "${__vsc_status}"
 	# Evaluate the original PROMPT_COMMAND similarly to how bash would normally
 	# See https://unix.stackexchange.com/a/672843 for technique
-	local cmd
+	builtin local cmd
 	for cmd in "${__vsc_original_prompt_command[@]}"; do
 		eval "${cmd:-}"
 	done

@@ -21,19 +21,6 @@ export interface ICommand {
 	category?: string | ILocalizedString;
 }
 
-export interface IConfigurationProperty {
-	description: string;
-	type: string | string[];
-	default?: any;
-}
-
-export interface IConfiguration {
-	id?: string;
-	order?: number;
-	title?: string;
-	properties: { [key: string]: IConfigurationProperty };
-}
-
 export interface IDebugger {
 	label?: string;
 	type: string;
@@ -182,7 +169,7 @@ export interface ILocalizationContribution {
 
 export interface IExtensionContributions {
 	commands?: ICommand[];
-	configuration?: IConfiguration | IConfiguration[];
+	configuration?: any;
 	debuggers?: IDebugger[];
 	grammars?: IGrammar[];
 	jsonValidation?: IJSONValidation[];
@@ -284,6 +271,7 @@ export interface IRelaxedExtensionManifest {
 	contributes?: IExtensionContributions;
 	repository?: { url: string };
 	bugs?: { url: string };
+	originalEnabledApiProposals?: readonly string[];
 	enabledApiProposals?: readonly string[];
 	api?: string;
 	scripts?: { [key: string]: string };

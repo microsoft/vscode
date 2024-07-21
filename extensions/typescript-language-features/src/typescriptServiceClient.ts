@@ -141,7 +141,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 	constructor(
 		private readonly context: vscode.ExtensionContext,
-		onCaseInsenitiveFileSystem: boolean,
+		onCaseInsensitiveFileSystem: boolean,
 		services: {
 			pluginManager: PluginManager;
 			logDirectoryProvider: ILogDirectoryProvider;
@@ -191,7 +191,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			this.restartTsServer();
 		}));
 
-		this.bufferSyncSupport = new BufferSyncSupport(this, allModeIds, onCaseInsenitiveFileSystem);
+		this.bufferSyncSupport = new BufferSyncSupport(this, allModeIds, onCaseInsensitiveFileSystem);
 		this.onReady(() => { this.bufferSyncSupport.listen(); });
 
 		this.bufferSyncSupport.onDelete(resource => {
@@ -232,7 +232,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			return this.apiVersion.fullVersionString;
 		});
 
-		this.diagnosticsManager = new DiagnosticsManager('typescript', this._configuration, this.telemetryReporter, onCaseInsenitiveFileSystem);
+		this.diagnosticsManager = new DiagnosticsManager('typescript', this._configuration, this.telemetryReporter, onCaseInsensitiveFileSystem);
 		this.typescriptServerSpawner = new TypeScriptServerSpawner(this.versionProvider, this._versionManager, this._nodeVersionManager, this.logDirectoryProvider, this.pluginPathsProvider, this.logger, this.telemetryReporter, this.tracer, this.processFactory);
 
 		this._register(this.pluginManager.onDidUpdateConfig(update => {
@@ -673,7 +673,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				if (!this._isPromptingAfterCrash) {
 					if (this.pluginManager.plugins.length) {
 						prompt = vscode.window.showWarningMessage<vscode.MessageItem>(
-							vscode.l10n.t("The JS/TS language service crashed.\nThis may be caused by a plugin contributed by one of these extensions: {0}.\nPlease try disabling these extensions before filing an issue against VS Code.", pluginExtensionList), reportIssueItem);
+							vscode.l10n.t("The JS/TS language service crashed.\nThis may be caused by a plugin contributed by one of these extensions: {0}.\nPlease try disabling these extensions before filing an issue against VS Code.", pluginExtensionList));
 					} else {
 						prompt = vscode.window.showWarningMessage(
 							vscode.l10n.t("The JS/TS language service crashed."),
@@ -1038,6 +1038,24 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			case EventName.closeFileWatcher:
 				this.closeFileSystemWatcher(event.body.id);
 				break;
+
+			case EventName.requestCompleted: {
+				// @ts-expect-error until ts 5.6
+				const diagnosticsDuration = (event.body as Proto.RequestCompletedEventBody).performanceData?.diagnosticsDuration;
+				if (diagnosticsDuration) {
+					this.diagnosticsManager.logDiagnosticsPerformanceTelemetry(
+						// @ts-expect-error until ts 5.6
+						diagnosticsDuration.map(fileData => {
+							const resource = this.toResource(fileData.file);
+							return {
+								...fileData,
+								lineCount: this.bufferSyncSupport.lineCount(resource),
+							};
+						})
+					);
+				}
+				break;
+			}
 		}
 	}
 

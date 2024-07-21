@@ -26,12 +26,14 @@ export class LineDataEventAddon extends Disposable implements ITerminalAddon {
 	async activate(xterm: XTermTerminal) {
 		this._xterm = xterm;
 
+		// IMPORTANT: Instantiate the buffer namespace object here before it's disposed.
+		const buffer = xterm.buffer;
+
 		// If there is an initialization promise, wait for it before registering the event
 		await this._initializationPromise;
 
 		// Fire onLineData when a line feed occurs, taking into account wrapped lines
 		this._register(xterm.onLineFeed(() => {
-			const buffer = xterm.buffer;
 			const newLine = buffer.active.getLine(buffer.active.baseY + buffer.active.cursorY);
 			if (newLine && !newLine.isWrapped) {
 				this._sendLineData(buffer.active, buffer.active.baseY + buffer.active.cursorY - 1);
@@ -40,7 +42,6 @@ export class LineDataEventAddon extends Disposable implements ITerminalAddon {
 
 		// Fire onLineData when disposing object to flush last line
 		this._register(toDisposable(() => {
-			const buffer = xterm.buffer;
 			this._sendLineData(buffer.active, buffer.active.baseY + buffer.active.cursorY);
 		}));
 	}

@@ -271,6 +271,10 @@ export class Position {
 	toJSON(): any {
 		return { line: this.line, character: this.character };
 	}
+
+	[Symbol.for('debug.description')]() {
+		return `(${this.line}:${this.character})`;
+	}
 }
 
 @es5ClassCompat
@@ -417,6 +421,10 @@ export class Range {
 	toJSON(): any {
 		return [this.start, this.end];
 	}
+
+	[Symbol.for('debug.description')]() {
+		return getDebugDescriptionOfRange(this);
+	}
 }
 
 @es5ClassCompat
@@ -483,6 +491,29 @@ export class Selection extends Range {
 			anchor: this.anchor
 		};
 	}
+
+
+	[Symbol.for('debug.description')]() {
+		return getDebugDescriptionOfSelection(this);
+	}
+}
+
+export function getDebugDescriptionOfRange(range: vscode.Range): string {
+	return range.isEmpty
+		? `[${range.start.line}:${range.start.character})`
+		: `[${range.start.line}:${range.start.character} -> ${range.end.line}:${range.end.character})`;
+}
+
+export function getDebugDescriptionOfSelection(selection: vscode.Selection): string {
+	let rangeStr = getDebugDescriptionOfRange(selection);
+	if (!selection.isEmpty) {
+		if (selection.active.isEqual(selection.start)) {
+			rangeStr = `|${rangeStr}`;
+		} else {
+			rangeStr = `${rangeStr}|`;
+		}
+	}
+	return rangeStr;
 }
 
 const validateConnectionToken = (connectionToken: string) => {
@@ -1205,18 +1236,18 @@ export class Hover {
 @es5ClassCompat
 export class VerboseHover extends Hover {
 
-	public canIncreaseHover: boolean | undefined;
-	public canDecreaseHover: boolean | undefined;
+	public canIncreaseVerbosity: boolean | undefined;
+	public canDecreaseVerbosity: boolean | undefined;
 
 	constructor(
 		contents: vscode.MarkdownString | vscode.MarkedString | (vscode.MarkdownString | vscode.MarkedString)[],
 		range?: Range,
-		canIncreaseHover?: boolean,
-		canDecreaseHover?: boolean,
+		canIncreaseVerbosity?: boolean,
+		canDecreaseVerbosity?: boolean,
 	) {
 		super(contents, range);
-		this.canIncreaseHover = canIncreaseHover;
-		this.canDecreaseHover = canDecreaseHover;
+		this.canIncreaseVerbosity = canIncreaseVerbosity;
+		this.canDecreaseVerbosity = canDecreaseVerbosity;
 	}
 }
 
@@ -3310,6 +3341,11 @@ export enum CommentThreadApplicability {
 	Outdated = 1
 }
 
+export enum CommentThreadFocus {
+	Reply = 1,
+	Comment = 2
+}
+
 //#endregion
 
 //#region Semantic Coloring
@@ -3560,6 +3596,11 @@ export class DebugVisualization {
 }
 
 //#endregion
+
+export enum QuickInputButtonLocation {
+	Title = 1,
+	Inline = 2
+}
 
 @es5ClassCompat
 export class QuickInputButtons {
@@ -4038,8 +4079,10 @@ export class TestMessage implements vscode.TestMessage {
 	public expectedOutput?: string;
 	public actualOutput?: string;
 	public location?: vscode.Location;
-	/** proposed: */
 	public contextValue?: string;
+
+	/** proposed: */
+	public stackTrace?: TestMessageStackFrame[];
 
 	public static diff(message: string | vscode.MarkdownString, expected: string, actual: string) {
 		const msg = new TestMessage(message);
@@ -4054,6 +4097,19 @@ export class TestMessage implements vscode.TestMessage {
 @es5ClassCompat
 export class TestTag implements vscode.TestTag {
 	constructor(public readonly id: string) { }
+}
+
+export class TestMessageStackFrame {
+	/**
+	 * @param label The name of the stack frame
+	 * @param file The file URI of the stack frame
+	 * @param position The position of the stack frame within the file
+	 */
+	constructor(
+		public label: string,
+		public file?: vscode.Uri,
+		public position?: Position,
+	) { }
 }
 
 //#endregion
@@ -4346,10 +4402,13 @@ export class ChatResponseConfirmationPart {
 	title: string;
 	message: string;
 	data: any;
-	constructor(title: string, message: string, data: any) {
+	buttons?: string[];
+
+	constructor(title: string, message: string, data: any, buttons?: string[]) {
 		this.title = title;
 		this.message = message;
 		this.data = data;
+		this.buttons = buttons;
 	}
 }
 
@@ -4408,9 +4467,22 @@ export class ChatResponseCommandButtonPart {
 export class ChatResponseReferencePart {
 	value: vscode.Uri | vscode.Location | { variableName: string; value?: vscode.Uri | vscode.Location };
 	iconPath?: vscode.Uri | vscode.ThemeIcon | { light: vscode.Uri; dark: vscode.Uri };
-	constructor(value: vscode.Uri | vscode.Location | { variableName: string; value?: vscode.Uri | vscode.Location }, iconPath?: vscode.Uri | vscode.ThemeIcon | { light: vscode.Uri; dark: vscode.Uri }) {
+	options?: { status?: { description: string; kind: vscode.ChatResponseReferencePartStatusKind } };
+	constructor(value: vscode.Uri | vscode.Location | { variableName: string; value?: vscode.Uri | vscode.Location }, iconPath?: vscode.Uri | vscode.ThemeIcon | { light: vscode.Uri; dark: vscode.Uri }, options?: { status?: { description: string; kind: vscode.ChatResponseReferencePartStatusKind } }) {
 		this.value = value;
 		this.iconPath = iconPath;
+		this.options = options;
+	}
+}
+
+export class ChatResponseCodeCitationPart {
+	value: vscode.Uri;
+	license: string;
+	snippet: string;
+	constructor(value: vscode.Uri, license: string, snippet: string) {
+		this.value = value;
+		this.license = license;
+		this.snippet = snippet;
 	}
 }
 
@@ -4447,6 +4519,26 @@ export enum ChatLocation {
 	Terminal = 2,
 	Notebook = 3,
 	Editor = 4,
+}
+
+export enum ChatResponseReferencePartStatusKind {
+	Complete = 1,
+	Partial = 2,
+	Omitted = 3
+}
+
+export class ChatRequestEditorData implements vscode.ChatRequestEditorData {
+	constructor(
+		readonly document: vscode.TextDocument,
+		readonly selection: vscode.Selection,
+		readonly wholeRange: vscode.Range,
+	) { }
+}
+
+export class ChatRequestNotebookData implements vscode.ChatRequestNotebookData {
+	constructor(
+		readonly cell: vscode.TextDocument
+	) { }
 }
 
 export enum LanguageModelChatMessageRole {

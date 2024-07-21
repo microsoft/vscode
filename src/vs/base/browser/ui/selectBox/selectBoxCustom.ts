@@ -730,7 +730,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 
 		this.listRenderer = new SelectListRenderer();
 
-		this.selectList = new List('SelectBoxCustom', this.selectDropDownListContainer, this, [this.listRenderer], {
+		this.selectList = this._register(new List('SelectBoxCustom', this.selectDropDownListContainer, this, [this.listRenderer], {
 			useShadows: false,
 			verticalScrollMode: ScrollbarVisibility.Visible,
 			keyboardSupport: false,
@@ -756,7 +756,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 				getRole: () => isMacintosh ? '' : 'option',
 				getWidgetRole: () => 'listbox'
 			}
-		});
+		}));
 		if (this.selectBoxOptions.ariaLabel) {
 			this.selectList.ariaLabel = this.selectBoxOptions.ariaLabel;
 		}

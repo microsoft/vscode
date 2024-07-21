@@ -4,15 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isNonEmptyArray } from 'vs/base/common/arrays';
-import * as strings from 'vs/base/common/strings';
 import { Codicon } from 'vs/base/common/codicons';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import * as strings from 'vs/base/common/strings';
 import { localize, localize2 } from 'vs/nls';
-import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IProductService } from 'vs/platform/product/common/productService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -23,9 +21,6 @@ import { ChatAgentLocation, IChatAgentData, IChatAgentService } from 'vs/workben
 import { IRawChatParticipantContribution } from 'vs/workbench/contrib/chat/common/chatParticipantContribTypes';
 import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import * as extensionsRegistry from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { Action } from 'vs/base/common/actions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 
 const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawChatParticipantContribution[]>({
 	extensionPoint: 'chatParticipants',
@@ -113,78 +108,20 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.chatExtensionPointHandler';
 
-	private readonly disposables = new DisposableStore();
-	private _welcomeViewDescriptor?: IViewDescriptor;
 	private _viewContainer: ViewContainer;
 	private _participantRegistrationDisposables = new DisposableMap<string>();
 
 	constructor(
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
-		@IProductService private readonly productService: IProductService,
-		@IContextKeyService private readonly contextService: IContextKeyService,
 		@ILogService private readonly logService: ILogService,
-		@INotificationService private readonly notificationService: INotificationService,
-		@ICommandService private readonly commandService: ICommandService,
 	) {
 		this._viewContainer = this.registerViewContainer();
-		this.registerListeners();
 		this.handleAndRegisterChatExtensions();
-	}
-
-	private registerListeners() {
-		this.contextService.onDidChangeContext(e => {
-
-			if (!this.productService.chatWelcomeView) {
-				return;
-			}
-
-			const showWelcomeViewConfigKey = 'workbench.chat.experimental.showWelcomeView';
-			const keys = new Set([showWelcomeViewConfigKey]);
-			if (e.affectsSome(keys)) {
-				const contextKeyExpr = ContextKeyExpr.equals(showWelcomeViewConfigKey, true);
-				const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
-				if (this.contextService.contextMatchesRules(contextKeyExpr)) {
-					this._welcomeViewDescriptor = {
-						id: CHAT_VIEW_ID,
-						name: { original: this.productService.chatWelcomeView.welcomeViewTitle, value: this.productService.chatWelcomeView.welcomeViewTitle },
-						containerIcon: this._viewContainer.icon,
-						ctorDescriptor: new SyncDescriptor(ChatViewPane),
-						canToggleVisibility: false,
-						canMoveView: true,
-						order: 100
-					};
-					viewsRegistry.registerViews([this._welcomeViewDescriptor], this._viewContainer);
-
-					viewsRegistry.registerViewWelcomeContent(CHAT_VIEW_ID, {
-						content: this.productService.chatWelcomeView.welcomeViewContent,
-					});
-				} else if (this._welcomeViewDescriptor) {
-					viewsRegistry.deregisterViews([this._welcomeViewDescriptor], this._viewContainer);
-				}
-			}
-		}, null, this.disposables);
 	}
 
 	private handleAndRegisterChatExtensions(): void {
 		chatParticipantExtensionPoint.setHandler((extensions, delta) => {
 			for (const extension of delta.added) {
-				// Detect old version of Copilot Chat extension.
-				// TODO@roblourens remove after one release, after this we will rely on things like the API version
-				if (extension.value.some(participant => participant.id === 'github.copilot.default' && !participant.fullName)) {
-					this.notificationService.notify({
-						severity: Severity.Error,
-						message: localize('chatFailErrorMessage', "Chat failed to load. Please ensure that the GitHub Copilot Chat extension is up to date."),
-						actions: {
-							primary: [
-								new Action('showExtension', localize('action.showExtension', "Show Extension"), undefined, true, () => {
-									return this.commandService.executeCommand('workbench.extensions.action.showExtensionsWithIds', ['GitHub.copilot-chat']);
-								})
-							]
-						}
-					});
-					continue;
-				}
-
 				for (const providerDescriptor of extension.value) {
 					if (!providerDescriptor.name.match(/^[\w0-9_-]+$/)) {
 						this.logService.error(`Extension '${extension.description.identifier.value}' CANNOT register participant with invalid name: ${providerDescriptor.name}. Name must match /^[\\w0-9_-]+$/.`);
@@ -239,7 +176,6 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 							name: providerDescriptor.name,
 							fullName: providerDescriptor.fullName,
 							isDefault: providerDescriptor.isDefault,
-							defaultImplicitVariables: providerDescriptor.defaultImplicitVariables,
 							locations: isNonEmptyArray(providerDescriptor.locations) ?
 								providerDescriptor.locations.map(ChatAgentLocation.fromRaw) :
 								[ChatAgentLocation.Panel],

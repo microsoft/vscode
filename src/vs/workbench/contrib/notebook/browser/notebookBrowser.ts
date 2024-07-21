@@ -31,6 +31,7 @@ import { IWebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IObservable } from 'vs/base/common/observable';
 
 //#region Shared commands
 export const EXPAND_CELL_INPUT_COMMAND_ID = 'notebook.cell.expandCellInput';
@@ -108,6 +109,8 @@ export interface ICellOutputViewModel extends IDisposable {
 	pickedMimeType: IOrderedMimeType | undefined;
 	hasMultiMimeType(): boolean;
 	readonly onDidResetRenderer: Event<void>;
+	readonly visible: IObservable<boolean>;
+	setVisible(visible: boolean, force?: boolean): void;
 	resetRenderer(): void;
 	toRawJSON(): any;
 }
@@ -172,47 +175,47 @@ export enum CellLayoutState {
 	Measured
 }
 
-export interface CodeCellLayoutInfo {
+/** LayoutInfo of the parts that are shared between all cell types. */
+export interface CellLayoutInfo {
+	readonly layoutState: CellLayoutState;
 	readonly fontInfo: FontInfo | null;
 	readonly chatHeight: number;
-	readonly editorHeight: number;
 	readonly editorWidth: number;
-	readonly estimatedHasHorizontalScrolling: boolean;
+	readonly editorHeight: number;
 	readonly statusBarHeight: number;
+	readonly commentOffset: number;
 	readonly commentHeight: number;
+	readonly bottomToolbarOffset: number;
 	readonly totalHeight: number;
+}
+
+export interface CellLayoutChangeEvent {
+	readonly font?: FontInfo;
+	readonly outerWidth?: number;
+	readonly commentHeight?: boolean;
+}
+
+export interface CodeCellLayoutInfo extends CellLayoutInfo {
+	readonly estimatedHasHorizontalScrolling: boolean;
 	readonly outputContainerOffset: number;
 	readonly outputTotalHeight: number;
 	readonly outputShowMoreContainerHeight: number;
 	readonly outputShowMoreContainerOffset: number;
-	readonly bottomToolbarOffset: number;
-	readonly layoutState: CellLayoutState;
 	readonly codeIndicatorHeight: number;
 	readonly outputIndicatorHeight: number;
 }
 
-export interface CodeCellLayoutChangeEvent {
+export interface CodeCellLayoutChangeEvent extends CellLayoutChangeEvent {
 	readonly source?: string;
 	readonly chatHeight?: boolean;
 	readonly editorHeight?: boolean;
-	readonly commentHeight?: boolean;
 	readonly outputHeight?: boolean;
 	readonly outputShowMoreContainerHeight?: number;
 	readonly totalHeight?: boolean;
-	readonly outerWidth?: number;
-	readonly font?: FontInfo;
 }
 
-export interface MarkupCellLayoutInfo {
-	readonly fontInfo: FontInfo | null;
-	readonly chatHeight: number;
-	readonly editorWidth: number;
-	readonly editorHeight: number;
-	readonly statusBarHeight: number;
+export interface MarkupCellLayoutInfo extends CellLayoutInfo {
 	readonly previewHeight: number;
-	readonly bottomToolbarOffset: number;
-	readonly totalHeight: number;
-	readonly layoutState: CellLayoutState;
 	readonly foldHintHeight: number;
 }
 
@@ -220,9 +223,7 @@ export enum CellLayoutContext {
 	Fold
 }
 
-export interface MarkupCellLayoutChangeEvent {
-	readonly font?: FontInfo;
-	readonly outerWidth?: number;
+export interface MarkupCellLayoutChangeEvent extends CellLayoutChangeEvent {
 	readonly editorHeight?: number;
 	readonly previewHeight?: number;
 	totalHeight?: number;
@@ -238,7 +239,7 @@ export interface ICellViewModel extends IGenericCellViewModel {
 	readonly model: NotebookCellTextModel;
 	readonly id: string;
 	readonly textBuffer: IReadonlyTextBuffer;
-	readonly layoutInfo: { totalHeight: number; bottomToolbarOffset: number; editorWidth: number; editorHeight: number; statusBarHeight: number; chatHeight: number };
+	readonly layoutInfo: CellLayoutInfo;
 	readonly onDidChangeLayout: Event<ICommonCellViewModelLayoutChangeInfo>;
 	readonly onDidChangeCellStatusBarItems: Event<void>;
 	readonly onCellDecorationsChanged: Event<{ added: INotebookCellDecorationOptions[]; removed: INotebookCellDecorationOptions[] }>;
@@ -256,6 +257,7 @@ export interface ICellViewModel extends IGenericCellViewModel {
 	cellKind: CellKind;
 	lineNumbers: 'on' | 'off' | 'inherit';
 	chatHeight: number;
+	commentHeight: number;
 	focusMode: CellFocusMode;
 	focusedOutputId?: string | undefined;
 	outputIsHovered: boolean;

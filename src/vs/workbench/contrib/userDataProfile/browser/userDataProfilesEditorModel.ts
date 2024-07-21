@@ -176,7 +176,7 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 			this.message = localize('profileNameRequired', "Profile name is required.");
 			return;
 		}
-		if (this.name !== this.getInitialName() && this.userDataProfilesService.profiles.some(p => p.name === this.name)) {
+		if (this.shouldValidateName() && this.name !== this.getInitialName() && this.userDataProfilesService.profiles.some(p => p.name === this.name)) {
 			this.message = localize('profileExists', "Profile with name {0} already exists.", this.name);
 			return;
 		}
@@ -268,6 +268,10 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 		return '';
 	}
 
+	shouldValidateName(): boolean {
+		return true;
+	}
+
 	save(): void {
 		this.saveScheduler.schedule();
 	}
@@ -305,7 +309,6 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 	}
 
 	abstract readonly titleButtons: [Action[], Action[]];
-	abstract readonly titleActions: [IAction[], IAction[]];
 	abstract readonly actions: [IAction[], IAction[]];
 
 	protected abstract doSave(): Promise<void>;
@@ -318,7 +321,6 @@ export class UserDataProfileElement extends AbstractUserDataProfileElement {
 	constructor(
 		private _profile: IUserDataProfile,
 		readonly titleButtons: [Action[], Action[]],
-		readonly titleActions: [IAction[], IAction[]],
 		readonly actions: [IAction[], IAction[]],
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -394,11 +396,13 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 	private templatePromise: CancelablePromise<void> | undefined;
 	private template: IUserDataProfileTemplate | null = null;
 
+	private defaultName: string;
+	private defaultIcon: string | undefined;
+
 	constructor(
 		name: string,
 		copyFrom: URI | IUserDataProfile | undefined,
 		readonly titleButtons: [Action[], Action[]],
-		readonly titleActions: [IAction[], IAction[]],
 		readonly actions: [IAction[], IAction[]],
 		@IFileService private readonly fileService: IFileService,
 		@IUserDataProfileImportExportService private readonly userDataProfileImportExportService: IUserDataProfileImportExportService,
@@ -417,6 +421,7 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 			commandService,
 			instantiationService,
 		);
+		this.defaultName = name;
 		this._copyFrom = copyFrom;
 		this._copyFlags = this.getCopyFlagsFrom(copyFrom);
 		this.initialize();
@@ -473,8 +478,12 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 			if (this.copyFrom instanceof URI) {
 				await this.resolveTemplate(this.copyFrom);
 				if (this.template) {
-					this.name = this.template.name ?? '';
-					this.icon = this.template.icon;
+					if (this.defaultName === this.name) {
+						this.name = this.defaultName = this.template.name ?? '';
+					}
+					if (this.defaultIcon === this.icon) {
+						this.icon = this.defaultIcon = this.template.icon;
+					}
 					this.setCopyFlag(ProfileResourceType.Settings, !!this.template.settings);
 					this.setCopyFlag(ProfileResourceType.Keybindings, !!this.template.keybindings);
 					this.setCopyFlag(ProfileResourceType.Tasks, !!this.template.tasks);
@@ -485,8 +494,12 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 			}
 
 			if (isUserDataProfile(this.copyFrom)) {
-				this.name = `${this.copyFrom.name} (Copy)`;
-				this.icon = this.copyFrom.icon;
+				if (this.defaultName === this.name) {
+					this.name = this.defaultName = localize('copy from', "{0} (Copy)", this.copyFrom.name);
+				}
+				if (this.defaultIcon === this.icon) {
+					this.icon = this.defaultIcon = this.copyFrom.icon;
+				}
 				this.setCopyFlag(ProfileResourceType.Settings, true);
 				this.setCopyFlag(ProfileResourceType.Keybindings, true);
 				this.setCopyFlag(ProfileResourceType.Tasks, true);
@@ -495,8 +508,12 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 				return;
 			}
 
-			this.name = localize('untitled', "Untitled");
-			this.icon = undefined;
+			if (this.defaultName === this.name) {
+				this.name = this.defaultName = localize('untitled', "Untitled");
+			}
+			if (this.defaultIcon === this.icon) {
+				this.icon = this.defaultIcon = undefined;
+			}
 			this.setCopyFlag(ProfileResourceType.Settings, false);
 			this.setCopyFlag(ProfileResourceType.Keybindings, false);
 			this.setCopyFlag(ProfileResourceType.Tasks, false);
@@ -549,13 +566,13 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 	}
 
 	getCopyFromName(): string | undefined {
-		if (isUserDataProfile(this.copyFrom)) {
-			return this.copyFrom.name;
-		}
-		if (this.template) {
-			return this.template.name;
-		}
-		return undefined;
+		const name = isUserDataProfile(this.copyFrom)
+			? this.copyFrom.name
+			: this.template
+				? this.template.name : undefined;
+		return name === this.userDataProfilesService.defaultProfile.name
+			? localize('copy from default', "{0} (Copy)", name)
+			: name;
 	}
 
 	protected override async getChildrenForResourceType(resourceType: ProfileResourceType): Promise<IProfileChildElement[]> {
@@ -613,6 +630,10 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 				return [];
 		}
 		return [];
+	}
+
+	override shouldValidateName(): boolean {
+		return !this.copyFrom;
 	}
 
 	override getInitialName(): string {
@@ -716,14 +737,14 @@ export class UserDataProfilesEditorModel extends EditorModel {
 			localize('active', "Use for Current Window"),
 			ThemeIcon.asClassName(Codicon.check),
 			true,
-			() => this.userDataProfileManagementService.switchProfile(profile)
+			() => this.userDataProfileManagementService.switchProfile(profileElement.profile)
 		));
 
 		const copyFromProfileAction = disposables.add(new Action(
 			'userDataProfile.copyFromProfile',
 			localize('copyFromProfile', "Duplicate..."),
 			ThemeIcon.asClassName(Codicon.copy),
-			true, () => this.createNewProfile(profile)
+			true, () => this.createNewProfile(profileElement.profile)
 		));
 
 		const exportAction = disposables.add(new Action(
@@ -731,7 +752,7 @@ export class UserDataProfilesEditorModel extends EditorModel {
 			localize('export', "Export..."),
 			ThemeIcon.asClassName(Codicon.export),
 			true,
-			() => this.exportProfile(profile)
+			() => this.exportProfile(profileElement.profile)
 		));
 
 		const deleteAction = disposables.add(new Action(
@@ -739,58 +760,46 @@ export class UserDataProfilesEditorModel extends EditorModel {
 			localize('delete', "Delete"),
 			ThemeIcon.asClassName(Codicon.trash),
 			true,
-			() => this.removeProfile(profile)
+			() => this.removeProfile(profileElement.profile)
 		));
 
 		const newWindowAction = disposables.add(new Action(
 			'userDataProfile.newWindow',
-			localize('open new window', "New Window"),
+			localize('open new window', "Open New Window with this Profile"),
 			ThemeIcon.asClassName(Codicon.emptyWindow),
 			true,
-			() => this.openWindow(profile)
+			() => this.openWindow(profileElement.profile)
 		));
 
 		const useAsNewWindowProfileAction = disposables.add(new Action(
 			'userDataProfile.useAsNewWindowProfile',
-			localize('use as new window', "Use for New Windows", profile.name),
+			localize('use as new window', "Use for New Windows"),
 			undefined,
 			true,
 			() => profileElement.toggleNewWindowProfile()
 		));
 
-		const titlePrimaryActions: IAction[] = [];
-		titlePrimaryActions.push(newWindowAction);
-		const titleSecondaryActions: IAction[] = [];
-		titleSecondaryActions.push(copyFromProfileAction);
-		titleSecondaryActions.push(exportAction);
-		if (!profile.isDefault) {
-			titleSecondaryActions.push(new Separator());
-			titleSecondaryActions.push(deleteAction);
-		}
-
 		const primaryActions: IAction[] = [];
 		primaryActions.push(newWindowAction);
+		if (!profile.isDefault) {
+			primaryActions.push(deleteAction);
+		}
 		const secondaryActions: IAction[] = [];
 		secondaryActions.push(activateAction);
 		secondaryActions.push(useAsNewWindowProfileAction);
 		secondaryActions.push(new Separator());
 		secondaryActions.push(copyFromProfileAction);
 		secondaryActions.push(exportAction);
-		if (!profile.isDefault) {
-			secondaryActions.push(new Separator());
-			secondaryActions.push(deleteAction);
-		}
 
 		const profileElement = disposables.add(this.instantiationService.createInstance(UserDataProfileElement,
 			profile,
 			[[], []],
-			[titlePrimaryActions, titleSecondaryActions],
 			[primaryActions, secondaryActions]
 		));
 
-		activateAction.checked = this.userDataProfileService.currentProfile.id === profile.id;
+		activateAction.checked = this.userDataProfileService.currentProfile.id === profileElement.profile.id;
 		disposables.add(this.userDataProfileService.onDidChangeCurrentProfile(() =>
-			activateAction.checked = this.userDataProfileService.currentProfile.id === profile.id));
+			activateAction.checked = this.userDataProfileService.currentProfile.id === profileElement.profile.id));
 
 		useAsNewWindowProfileAction.checked = profileElement.isNewWindowProfile;
 		disposables.add(profileElement.onDidChange(e => {
@@ -844,7 +853,6 @@ export class UserDataProfilesEditorModel extends EditorModel {
 				copyFrom ? '' : localize('untitled', "Untitled"),
 				copyFrom,
 				[[createAction], [cancelAction, previewProfileAction]],
-				[[], []],
 				[[cancelAction], []],
 			));
 			disposables.add(this.newProfileElement.onDidChange(e => {
@@ -853,6 +861,13 @@ export class UserDataProfilesEditorModel extends EditorModel {
 				}
 				if (e.disabled || e.message) {
 					previewProfileAction.enabled = createAction.enabled = !this.newProfileElement?.disabled && !this.newProfileElement?.message;
+				}
+				if (e.name) {
+					if (this.newProfileElement?.copyFrom && this.userDataProfilesService.profiles.some(p => p.name === this.newProfileElement?.name)) {
+						createAction.label = localize('replace', "Replace");
+					} else {
+						createAction.label = localize('create', "Create");
+					}
 				}
 			}));
 			this._profiles.push([this.newProfileElement, disposables]);
@@ -978,7 +993,12 @@ export class UserDataProfilesEditorModel extends EditorModel {
 
 		if (profile && !profile.isTransient && this.newProfileElement) {
 			this.removeNewProfile();
-			this.onDidChangeProfiles({ added: [profile], removed: [], updated: [], all: this.userDataProfilesService.profiles });
+			const existing = this._profiles.find(([p]) => p.name === profile.name);
+			if (existing) {
+				this._onDidChange.fire(existing[0]);
+			} else {
+				this.onDidChangeProfiles({ added: [profile], removed: [], updated: [], all: this.userDataProfilesService.profiles });
+			}
 		}
 
 		return profile;

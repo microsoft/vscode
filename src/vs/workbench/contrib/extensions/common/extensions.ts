@@ -62,6 +62,7 @@ export interface IExtension {
 	readonly publisherUrl?: URI;
 	readonly publisherDomain?: { link: string; verified: boolean };
 	readonly publisherSponsorLink?: URI;
+	readonly pinned: boolean;
 	readonly version: string;
 	readonly latestVersion: string;
 	readonly preRelease: boolean;
@@ -137,8 +138,9 @@ export interface IExtensionsWorkbenchService {
 	setEnablement(extensions: IExtension | IExtension[], enablementState: EnablementState): Promise<void>;
 	isAutoUpdateEnabledFor(extensionOrPublisher: IExtension | string): boolean;
 	updateAutoUpdateEnablementFor(extensionOrPublisher: IExtension | string, enable: boolean): Promise<void>;
+	shouldRequireConsentToUpdate(extension: IExtension): Promise<string | undefined>;
 	open(extension: IExtension | string, options?: IExtensionEditorOptions): Promise<void>;
-	isAutoUpdateEnabled(): boolean;
+	updateAutoUpdateValue(value: AutoUpdateConfigurationValue): Promise<void>;
 	getAutoUpdateValue(): AutoUpdateConfigurationValue;
 	checkForUpdates(): Promise<void>;
 	getExtensionStatus(extension: IExtension): IExtensionsStatus | undefined;

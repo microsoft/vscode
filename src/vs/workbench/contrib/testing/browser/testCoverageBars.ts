@@ -18,7 +18,6 @@ import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ExplorerExtensions, IExplorerFileContribution, IExplorerFileContributionRegistry } from 'vs/workbench/contrib/files/browser/explorerFileContrib';
 import * as coverUtils from 'vs/workbench/contrib/testing/browser/codeCoverageDisplayUtils';
-import { calculateDisplayedStat } from 'vs/workbench/contrib/testing/browser/codeCoverageDisplayUtils';
 import { ITestingCoverageBarThresholds, TestingConfigKeys, getTestingConfiguration, observeTestingConfiguration } from 'vs/workbench/contrib/testing/common/configuration';
 import { AbstractFileCoverage } from 'vs/workbench/contrib/testing/common/testCoverage';
 import { ITestCoverageService } from 'vs/workbench/contrib/testing/common/testCoverageService';
@@ -121,7 +120,7 @@ export class ManagedTestCoverageBars extends Disposable {
 
 		const precision = this.options.compact ? 0 : 2;
 		const thresholds = getTestingConfiguration(this.configurationService, TestingConfigKeys.CoverageBarThresholds);
-		const overallStat = calculateDisplayedStat(coverage, getTestingConfiguration(this.configurationService, TestingConfigKeys.CoveragePercent));
+		const overallStat = coverUtils.calculateDisplayedStat(coverage, getTestingConfiguration(this.configurationService, TestingConfigKeys.CoveragePercent));
 		if (this.options.overall !== false) {
 			el.overall.textContent = coverUtils.displayPercent(overallStat, precision);
 		} else {

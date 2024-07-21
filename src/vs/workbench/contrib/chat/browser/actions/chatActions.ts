@@ -15,6 +15,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IsLinuxContext, IsWindowsContext } from 'vs/platform/contextkey/common/contextkeys';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { clearChatEditor } from 'vs/workbench/contrib/chat/browser/actions/chatClear';
 import { CHAT_VIEW_ID, IChatWidgetService, showChatView } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatEditor';
 import { ChatEditorInput } from 'vs/workbench/contrib/chat/browser/chatEditorInput';
@@ -24,6 +25,7 @@ import { CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_INPUT_CURSOR_AT_TOP, CONTEXT_CHAT_LO
 import { IChatDetail, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { IChatWidgetHistoryService } from 'vs/workbench/contrib/chat/common/chatWidgetHistoryService';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ACTIVE_GROUP, IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 
@@ -228,8 +230,26 @@ export function registerChatActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor, ...args: any[]) {
+			const editorGroupsService = accessor.get(IEditorGroupsService);
+			const viewsService = accessor.get(IViewsService);
+
 			const chatService = accessor.get(IChatService);
 			chatService.clearAllHistoryEntries();
+
+			const chatView = viewsService.getViewWithId(CHAT_VIEW_ID) as ChatViewPane | undefined;
+			if (chatView) {
+				chatView.widget.clear();
+			}
+
+			// Clear all chat editors. Have to go this route because the chat editor may be in the background and
+			// not have a ChatEditorInput.
+			editorGroupsService.groups.forEach(group => {
+				group.editors.forEach(editor => {
+					if (editor instanceof ChatEditorInput) {
+						clearChatEditor(accessor, editor);
+					}
+				});
+			});
 		}
 	});
 
@@ -290,6 +310,6 @@ export function stringifyItem(item: IChatRequestViewModel | IChatResponseViewMod
 	if (isRequestVM(item)) {
 		return (includeName ? `${item.username}: ` : '') + item.messageText;
 	} else {
-		return (includeName ? `${item.username}: ` : '') + item.response.asString();
+		return (includeName ? `${item.username}: ` : '') + item.response.toString();
 	}
 }

@@ -7,7 +7,7 @@ import { TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal'
 import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable, Disposable, DisposableStore, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { SplitView, Orientation, IView, Sizing } from 'vs/base/browser/ui/splitview/splitview';
-import { IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/browser/layoutService';
+import { isHorizontal, IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITerminalInstance, Direction, ITerminalGroup, ITerminalInstanceService, ITerminalConfigurationService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ViewContainerLocation, IViewDescriptorService } from 'vs/workbench/common/views';
@@ -285,7 +285,7 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 		if (this._container) {
 			this.attachToElement(this._container);
 		}
-		this._onPanelOrientationChanged.fire(this._terminalLocation === ViewContainerLocation.Panel && this._panelPosition === Position.BOTTOM ? Orientation.HORIZONTAL : Orientation.VERTICAL);
+		this._onPanelOrientationChanged.fire(this._terminalLocation === ViewContainerLocation.Panel && isHorizontal(this._panelPosition) ? Orientation.HORIZONTAL : Orientation.VERTICAL);
 		this._register(toDisposable(() => {
 			if (this._container && this._groupElement) {
 				this._groupElement.remove();
@@ -466,7 +466,7 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 		if (!this._splitPaneContainer) {
 			this._panelPosition = this._layoutService.getPanelPosition();
 			this._terminalLocation = this._viewDescriptorService.getViewLocationById(TERMINAL_VIEW_ID)!;
-			const orientation = this._terminalLocation === ViewContainerLocation.Panel && this._panelPosition === Position.BOTTOM ? Orientation.HORIZONTAL : Orientation.VERTICAL;
+			const orientation = this._terminalLocation === ViewContainerLocation.Panel && isHorizontal(this._panelPosition) ? Orientation.HORIZONTAL : Orientation.VERTICAL;
 			this._splitPaneContainer = this._instantiationService.createInstance(SplitPaneContainer, this._groupElement, orientation);
 			this.terminalInstances.forEach(instance => this._splitPaneContainer!.split(instance, this._activeInstanceIndex + 1));
 		}
@@ -527,7 +527,7 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 			const newTerminalLocation = this._viewDescriptorService.getViewLocationById(TERMINAL_VIEW_ID)!;
 			const terminalPositionChanged = newPanelPosition !== this._panelPosition || newTerminalLocation !== this._terminalLocation;
 			if (terminalPositionChanged) {
-				const newOrientation = newTerminalLocation === ViewContainerLocation.Panel && newPanelPosition === Position.BOTTOM ? Orientation.HORIZONTAL : Orientation.VERTICAL;
+				const newOrientation = newTerminalLocation === ViewContainerLocation.Panel && isHorizontal(newPanelPosition) ? Orientation.HORIZONTAL : Orientation.VERTICAL;
 				this._splitPaneContainer.setOrientation(newOrientation);
 				this._panelPosition = newPanelPosition;
 				this._terminalLocation = newTerminalLocation;
@@ -563,7 +563,7 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 	}
 
 	private _getOrientation(): Orientation {
-		return this._getPosition() === Position.BOTTOM ? Orientation.HORIZONTAL : Orientation.VERTICAL;
+		return isHorizontal(this._getPosition()) ? Orientation.HORIZONTAL : Orientation.VERTICAL;
 	}
 
 	resizePane(direction: Direction): void {
@@ -588,10 +588,12 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 
 			if (shouldResizePart) {
 
+				const position = this._getPosition();
 				const shouldShrink =
-					(this._getPosition() === Position.LEFT && direction === Direction.Left) ||
-					(this._getPosition() === Position.RIGHT && direction === Direction.Right) ||
-					(this._getPosition() === Position.BOTTOM && direction === Direction.Down);
+					(position === Position.LEFT && direction === Direction.Left) ||
+					(position === Position.RIGHT && direction === Direction.Right) ||
+					(position === Position.BOTTOM && direction === Direction.Down) ||
+					(position === Position.TOP && direction === Direction.Up);
 
 				if (shouldShrink) {
 					resizeAmount *= -1;

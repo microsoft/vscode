@@ -170,6 +170,18 @@ const apiMenus: IAPIMenu[] = [
 		proposed: 'contribSourceControlInputBoxMenu'
 	},
 	{
+		key: 'scm/historyItemChanges/title',
+		id: MenuId.SCMChangesSeparator,
+		description: localize('menus.historyItemChanges', "The Source Control incoming/outgoing changes title menu"),
+		proposed: 'contribSourceControlHistoryItemChangesMenu'
+	},
+	{
+		key: 'scm/historyItem/context',
+		id: MenuId.SCMChangesContext,
+		description: localize('menus.historyItemContext', "The Source Control history item context menu"),
+		proposed: 'contribSourceControlHistoryItemChangesMenu'
+	},
+	{
 		key: 'scm/incomingChanges',
 		id: MenuId.SCMIncomingChanges,
 		description: localize('menus.incomingChanges', "The Source Control incoming changes menu"),
@@ -342,6 +354,11 @@ const apiMenus: IAPIMenu[] = [
 		key: 'testing/item/gutter',
 		id: MenuId.TestItemGutter,
 		description: localize('testing.item.gutter.title', "The menu for a gutter decoration for a test item"),
+	},
+	{
+		key: 'testing/profiles/context',
+		id: MenuId.TestProfilesContext,
+		description: localize('testing.profiles.context.title', "The menu for configuring testing profiles."),
 	},
 	{
 		key: 'testing/item/result',
