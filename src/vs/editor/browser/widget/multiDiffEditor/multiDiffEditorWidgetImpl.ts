@@ -406,7 +406,7 @@ class VirtualizedViewItem extends Disposable {
 	}
 
 	public override toString(): string {
-		return `VirtualViewItem(${this.viewModel.entry.value!.modified?.uri.toString()})`;
+		return `VirtualViewItem(${this.viewModel.documentDiffItem.modified?.uri.toString()})`;
 	}
 
 	public getKey(): string {

@@ -38,6 +38,7 @@ import { getActiveDocument } from 'vs/base/browser/dom';
 import { ICommandActionTitle } from 'vs/platform/action/common/action';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { resolveCommandsContext } from 'vs/workbench/browser/parts/editor/editorCommandsContext';
+import { IListService } from 'vs/platform/list/browser/listService';
 
 class ExecuteCommandAction extends Action2 {
 
@@ -63,13 +64,13 @@ abstract class AbstractSplitEditorAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
-		const editorGroupService = accessor.get(IEditorGroupsService);
+		const editorGroupsService = accessor.get(IEditorGroupsService);
 		const configurationService = accessor.get(IConfigurationService);
 
 		const direction = this.getDirection(configurationService);
-		const commandContext = resolveCommandsContext(accessor, args);
+		const commandContext = resolveCommandsContext(args, accessor.get(IEditorService), editorGroupsService, accessor.get(IListService));
 
-		splitEditor(editorGroupService, direction, commandContext);
+		splitEditor(editorGroupsService, direction, commandContext);
 	}
 }
 
@@ -1174,7 +1175,7 @@ export class ToggleMaximizeEditorGroupAction extends Action2 {
 	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 		const editorGroupsService = accessor.get(IEditorGroupsService);
 
-		const resolvedContext = resolveCommandsContext(accessor, args);
+		const resolvedContext = resolveCommandsContext(args, accessor.get(IEditorService), editorGroupsService, accessor.get(IListService));
 		if (resolvedContext.groupedEditors.length) {
 			editorGroupsService.toggleMaximizeGroup(resolvedContext.groupedEditors[0].group);
 		}
@@ -2544,7 +2545,7 @@ abstract class BaseMoveCopyEditorToNewWindowAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor, ...args: unknown[]) {
 		const editorGroupService = accessor.get(IEditorGroupsService);
-		const resolvedContext = resolveCommandsContext(accessor, args);
+		const resolvedContext = resolveCommandsContext(args, accessor.get(IEditorService), editorGroupService, accessor.get(IListService));
 		if (!resolvedContext.groupedEditors.length) {
 			return;
 		}

@@ -198,8 +198,8 @@ function reindent(codeBlockContent: string, model: ITextModel, seletionStartLine
 	const indents = newContent.map(line => computeIndentation(line, formattingOptions.tabSize));
 
 	// find the smallest indent level in the code block
-	const newContentIndentLevel = indents.reduce<number>((min, indent) => {
-		if (indent.length !== indent.length) { // ignore empty lines
+	const newContentIndentLevel = indents.reduce<number>((min, indent, index) => {
+		if (indent.length !== newContent[index].length) { // ignore empty lines
 			return Math.min(indent.level, min);
 		}
 		return min;
@@ -258,7 +258,8 @@ export function registerChatCodeBlockActions() {
 				icon: Codicon.copy,
 				menu: {
 					id: MenuId.ChatCodeBlock,
-					group: 'navigation'
+					group: 'navigation',
+					order: 30
 				}
 			});
 		}
@@ -358,7 +359,8 @@ export function registerChatCodeBlockActions() {
 				menu: {
 					id: MenuId.ChatCodeBlock,
 					group: 'navigation',
-					when: CONTEXT_IN_CHAT_SESSION
+					when: CONTEXT_IN_CHAT_SESSION,
+					order: 10
 				},
 				keybinding: {
 					when: ContextKeyExpr.or(ContextKeyExpr.and(CONTEXT_IN_CHAT_SESSION, CONTEXT_IN_CHAT_INPUT.negate()), accessibleViewInCodeBlock),
@@ -448,7 +450,8 @@ export function registerChatCodeBlockActions() {
 				menu: {
 					id: MenuId.ChatCodeBlock,
 					group: 'navigation',
-					when: CONTEXT_IN_CHAT_SESSION
+					when: CONTEXT_IN_CHAT_SESSION,
+					order: 20
 				},
 				keybinding: {
 					when: ContextKeyExpr.or(ContextKeyExpr.and(CONTEXT_IN_CHAT_SESSION, CONTEXT_IN_CHAT_INPUT.negate()), accessibleViewInCodeBlock),
@@ -472,7 +475,8 @@ export function registerChatCodeBlockActions() {
 				menu: {
 					id: MenuId.ChatCodeBlock,
 					group: 'navigation',
-					isHiddenByDefault: true
+					isHiddenByDefault: true,
+					order: 40,
 				}
 			});
 		}

@@ -14,7 +14,7 @@ import { IMenu, IMenuService, MenuId, MenuRegistry } from 'vs/platform/actions/c
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ISCMHistoryProviderMenus, SCMHistoryItemGroupTreeElement, SCMHistoryItemTreeElement } from 'vs/workbench/contrib/scm/common/history';
+import { ISCMHistoryProviderMenus, SCMHistoryItemGroupTreeElement, SCMHistoryItemTreeElement, SCMHistoryItemViewModelTreeElement } from 'vs/workbench/contrib/scm/common/history';
 import { ISCMMenus, ISCMProvider, ISCMRepository, ISCMRepositoryMenus, ISCMResource, ISCMResourceGroup, ISCMService } from 'vs/workbench/contrib/scm/common/scm';
 
 function actionEquals(a: IAction, b: IAction): boolean {
@@ -256,6 +256,7 @@ export class SCMRepositoryMenus implements ISCMRepositoryMenus, IDisposable {
 export class SCMHistoryProviderMenus implements ISCMHistoryProviderMenus, IDisposable {
 
 	private readonly historyItemMenus = new Map<SCMHistoryItemTreeElement, IMenu>();
+	private readonly historyItemMenus2 = new Map<SCMHistoryItemViewModelTreeElement, IMenu>();
 	private readonly disposables = new DisposableStore();
 
 	constructor(
@@ -264,6 +265,10 @@ export class SCMHistoryProviderMenus implements ISCMHistoryProviderMenus, IDispo
 
 	getHistoryItemMenu(historyItem: SCMHistoryItemTreeElement): IMenu {
 		return this.getOrCreateHistoryItemMenu(historyItem);
+	}
+
+	getHistoryItemMenu2(historyItem: SCMHistoryItemViewModelTreeElement): IMenu {
+		return this.getOrCreateHistoryItemMenu2(historyItem);
 	}
 
 	getHistoryItemGroupMenu(historyItemGroup: SCMHistoryItemGroupTreeElement): IMenu {
@@ -299,6 +304,17 @@ export class SCMHistoryProviderMenus implements ISCMHistoryProviderMenus, IDispo
 
 			result = this.menuService.createMenu(menuId, contextKeyService);
 			this.historyItemMenus.set(historyItem, result);
+		}
+
+		return result;
+	}
+
+	private getOrCreateHistoryItemMenu2(historyItem: SCMHistoryItemViewModelTreeElement): IMenu {
+		let result = this.historyItemMenus2.get(historyItem);
+
+		if (!result) {
+			result = this.menuService.createMenu(MenuId.SCMChangesContext, this.contextKeyService);
+			this.historyItemMenus2.set(historyItem, result);
 		}
 
 		return result;

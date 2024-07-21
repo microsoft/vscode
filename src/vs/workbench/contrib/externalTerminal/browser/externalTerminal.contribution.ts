@@ -10,7 +10,7 @@ import { MenuId, MenuRegistry, IMenuItem } from 'vs/platform/actions/common/acti
 import { ITerminalGroupService, ITerminalService as IIntegratedTerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ResourceContextKey } from 'vs/workbench/common/contextkeys';
 import { IFileService } from 'vs/platform/files/common/files';
-import { getMultiSelectedResources } from 'vs/workbench/contrib/files/browser/files';
+import { getMultiSelectedResources, IExplorerService } from 'vs/workbench/contrib/files/browser/files';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { Schemas } from 'vs/base/common/network';
 import { distinct } from 'vs/base/common/arrays';
@@ -24,6 +24,9 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IExternalTerminalConfiguration, IExternalTerminalService } from 'vs/platform/externalTerminal/common/externalTerminal';
 import { TerminalLocation } from 'vs/platform/terminal/common/terminal';
+import { IListService } from 'vs/platform/list/browser/listService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 const OPEN_IN_TERMINAL_COMMAND_ID = 'openInTerminal';
 const OPEN_IN_INTEGRATED_TERMINAL_COMMAND_ID = 'openInIntegratedTerminal';
@@ -41,10 +44,9 @@ function registerOpenTerminalCommand(id: string, explorerKind: 'integrated' | 'e
 			let externalTerminalService: IExternalTerminalService | undefined = undefined;
 			try {
 				externalTerminalService = accessor.get(IExternalTerminalService);
-			} catch {
-			}
+			} catch { }
 
-			const resources = getMultiSelectedResources(accessor, resource);
+			const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService), accessor.get(IEditorGroupsService), accessor.get(IExplorerService));
 			return fileService.resolveAll(resources.map(r => ({ resource: r }))).then(async stats => {
 				// Always use integrated terminal when using a remote
 				const config = configurationService.getValue<IExternalTerminalConfiguration>();

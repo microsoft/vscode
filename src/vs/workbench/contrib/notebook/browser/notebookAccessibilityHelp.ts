@@ -42,7 +42,7 @@ export function getAccessibilityHelpText(): string {
 		localize('notebook.cell.executeAndFocusContainer', 'The Execute Cell command<keybinding:notebook.cell.executeAndFocusContainer> executes the cell that currently has focus.',),
 		localize('notebook.cell.insertCodeCellBelowAndFocusContainer', 'The Insert Cell Above/Below commands will create new empty code cells'),
 		localize('notebook.changeCellType', 'The Change Cell to Code/Markdown commands are used to switch between cell types.')
-	].join('\n\n');
+	].join('\n');
 }
 
 export function getAccessibilityHelpProvider(accessor: ServicesAccessor, editor: ICodeEditor | IVisibleEditorPane) {

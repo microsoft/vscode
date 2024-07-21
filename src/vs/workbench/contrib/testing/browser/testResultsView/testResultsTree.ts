@@ -689,7 +689,7 @@ class TreeActionsProvider {
 
 	public provideActionBar(element: ITreeElement) {
 		const test = element instanceof TestCaseElement ? element.test : undefined;
-		const capabilities = test ? this.testProfileService.capabilitiesForTest(test) : 0;
+		const capabilities = test ? this.testProfileService.capabilitiesForTest(test.item) : 0;
 
 		const contextKeys: [string, unknown][] = [
 			['peek', Testing.OutputPeekContributionId],

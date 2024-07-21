@@ -77,9 +77,9 @@ workbenchRegistry.registerWorkbenchContribution(ExtensionsAutoProfiler, Lifecycl
 workbenchRegistry.registerWorkbenchContribution(RemoteExtensionsInitializerContribution, LifecyclePhase.Restored);
 // Register Commands
 
-CommandsRegistry.registerCommand(DebugExtensionHostAction.ID, (accessor: ServicesAccessor) => {
+CommandsRegistry.registerCommand(DebugExtensionHostAction.ID, (accessor: ServicesAccessor, ...args) => {
 	const instantiationService = accessor.get(IInstantiationService);
-	instantiationService.createInstance(DebugExtensionHostAction).run();
+	return instantiationService.createInstance(DebugExtensionHostAction).run(args);
 });
 
 CommandsRegistry.registerCommand(StartExtensionHostProfileAction.ID, (accessor: ServicesAccessor) => {
