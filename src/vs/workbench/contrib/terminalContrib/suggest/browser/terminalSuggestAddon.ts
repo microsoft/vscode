@@ -616,54 +616,62 @@ class PersistedWidgetSize {
 	}
 }
 
-export function parseCompletionsFromShell(rawCompletions: PwshCompletion | PwshCompletion[] | CompressedPwshCompletion[] | CompressedPwshCompletion) {
+export function parseCompletionsFromShell(rawCompletions: PwshCompletion | PwshCompletion[] | CompressedPwshCompletion[] | CompressedPwshCompletion): SimpleCompletionItem[] {
 	if (!rawCompletions) {
 		return [];
 	}
+	let typedRawCompletions: PwshCompletion[];
 	if (!Array.isArray(rawCompletions)) {
-		return [rawCompletions].map(e => (new SimpleCompletionItem({
-			label: parseCompletionText(e.CompletionText, e.ResultType),
-			icon: pwshTypeToIconMap[e.ResultType],
-			detail: e.ToolTip,
-			isFile: e.ResultType === 3,
-		})));
+		typedRawCompletions = [rawCompletions];
+	} else {
+		if (rawCompletions.length === 0) {
+			return [];
+		}
+		if (typeof rawCompletions[0] === 'string') {
+			typedRawCompletions = [rawCompletions as CompressedPwshCompletion].map(e => ({
+				CompletionText: e[0],
+				ResultType: e[1],
+				ToolTip: e[2],
+			}));
+		} else if (Array.isArray(rawCompletions[0])) {
+			typedRawCompletions = (rawCompletions as CompressedPwshCompletion[]).map(e => ({
+				CompletionText: e[0],
+				ResultType: e[1],
+				ToolTip: e[2],
+			}));
+		} else {
+			typedRawCompletions = rawCompletions as PwshCompletion[];
+		}
 	}
-	if (rawCompletions.length === 0) {
-		return [];
-	}
-	if (typeof rawCompletions[0] === 'string') {
-		return [rawCompletions as CompressedPwshCompletion].map(e => (new SimpleCompletionItem({
-			label: parseCompletionText(e[0], e[1]),
-			icon: pwshTypeToIconMap[e[1]],
-			detail: e[2],
-			isFile: e[1] === 3,
-		})));
-	}
-	if (Array.isArray(rawCompletions[0])) {
-		return (rawCompletions as CompressedPwshCompletion[]).map(e => (new SimpleCompletionItem({
-			label: parseCompletionText(e[0], e[1]),
-			icon: pwshTypeToIconMap[e[1]],
-			detail: e[2],
-			isFile: e[1] === 3,
-		})));
-	}
-	return (rawCompletions as PwshCompletion[]).map(e => (new SimpleCompletionItem({
-		label: parseCompletionText(e.CompletionText, e.ResultType),
-		icon: pwshTypeToIconMap[e.ResultType],
-		detail: e.ToolTip,
-		isFile: e.ResultType === 3,
-	})));
+	return typedRawCompletions.map(e => rawCompletionToSimpleCompletionItem(e));
 }
 
-function parseCompletionText(completionText: string, resultType: number): string {
+function rawCompletionToSimpleCompletionItem(rawCompletion: PwshCompletion): SimpleCompletionItem {
 	// HACK: Somewhere along the way from the powershell script to here, the path separator at the
 	// end of directories may go missing, likely because `\"` -> `"`. As a result, make sure there
 	// is a trailing separator at the end of all directory completions. This should not be done for
 	// `.` and `..` entries because they are optimized not for navigating to different directories
 	// but for passing as args.
-	if (resultType === 4 && !completionText.match(/^\.\.?$/) && !completionText.match(/[\\\/]$/)) {
-		const separator = completionText.match(/(?<sep>[\\\/])/)?.groups?.sep ?? sep;
-		return completionText + separator;
+	let label = rawCompletion.CompletionText;
+	if (rawCompletion.ResultType === 4 && !label.match(/^\.\.?$/) && !label.match(/[\\\/]$/)) {
+		const separator = label.match(/(?<sep>[\\\/])/)?.groups?.sep ?? sep;
+		label = label + separator;
 	}
-	return completionText;
+
+	// Pwsh gives executables a result type of 2, but we want to treat them as files wrt the sorting
+	// and file extension score boost. An example of where this improves the experience is typing
+	// `git`, `git.exe` should appear at the top and beat `git-lfs.exe`. Keep the same icon though.
+	const icon = pwshTypeToIconMap[rawCompletion.ResultType];
+	const isExecutable = rawCompletion.ResultType === 2 && rawCompletion.CompletionText.endsWith('.exe');
+	if (isExecutable) {
+		// icon = Codicon.play;
+		rawCompletion.ResultType = 3;
+	}
+
+	return new SimpleCompletionItem({
+		label,
+		icon,
+		detail: rawCompletion.ToolTip,
+		isFile: rawCompletion.ResultType === 3,
+	});
 }
