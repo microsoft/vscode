@@ -81,7 +81,6 @@ export class SimpleCompletionModel {
 		const labelLengths: number[] = [];
 
 		const { leadingLineContent, characterCountDelta } = this._lineContext;
-		const formattedLeadingLineContent = isWindows ? leadingLineContent.replaceAll('/', '\\') : leadingLineContent;
 		let word = '';
 		let wordLow = '';
 
@@ -112,7 +111,7 @@ export class SimpleCompletionModel {
 			const overwriteBefore = this.replacementLength; // item.position.column - item.editStart.column;
 			const wordLen = overwriteBefore + characterCountDelta; // - (item.position.column - this._column);
 			if (word.length !== wordLen) {
-				word = wordLen === 0 ? '' : formattedLeadingLineContent.slice(-wordLen);
+				word = wordLen === 0 ? '' : leadingLineContent.slice(-wordLen);
 				wordLow = word.toLowerCase();
 			}
 

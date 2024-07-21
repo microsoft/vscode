@@ -249,7 +249,11 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 		if (this._terminalSuggestWidgetVisibleContextKey.get()) {
 			this._cursorIndexDelta = this._currentPromptInputState.cursorIndex - this._initialPromptInputState.cursorIndex;
-			const lineContext = new LineContext(this._leadingLineContent + this._currentPromptInputState.value.substring(this._leadingLineContent.length, this._leadingLineContent.length + this._cursorIndexDelta), this._cursorIndexDelta);
+			let leadingLineContent = this._leadingLineContent + this._currentPromptInputState.value.substring(this._leadingLineContent.length, this._leadingLineContent.length + this._cursorIndexDelta);
+			if (this._model?.items.every(e => e.completion.isDirectory)) {
+				leadingLineContent = leadingLineContent.replaceAll('/', '\\');
+			}
+			const lineContext = new LineContext(leadingLineContent, this._cursorIndexDelta);
 			this._suggestWidget.setLineContext(lineContext);
 		}
 
@@ -327,7 +331,12 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			ghostTextIndex: this._promptInputModel.ghostTextIndex
 		};
 		this._cursorIndexDelta = 0;
-		const lineContext = new LineContext(this._leadingLineContent + this._currentPromptInputState.value.substring(this._leadingLineContent.length, this._leadingLineContent.length + this._cursorIndexDelta), this._cursorIndexDelta);
+
+		let leadingLineContent = this._leadingLineContent + this._currentPromptInputState.value.substring(this._leadingLineContent.length, this._leadingLineContent.length + this._cursorIndexDelta);
+		if (this._model?.items.every(e => e.completion.isDirectory)) {
+			leadingLineContent = leadingLineContent.replaceAll('/', '\\');
+		}
+		const lineContext = new LineContext(leadingLineContent, this._cursorIndexDelta);
 		const model = new SimpleCompletionModel(completions, lineContext, replacementIndex, replacementLength);
 		this._handleCompletionModel(model);
 	}
@@ -625,6 +634,7 @@ export function parseCompletionsFromShell(leadingLineContent: string, rawComplet
 			icon: getIcon(e.ResultType, e.ToolTip),
 			detail: e.ToolTip,
 			isFile: e.ResultType === 3,
+			isDirectory: e.ResultType === 4,
 		})));
 	}
 	if (rawCompletions.length === 0) {
@@ -636,19 +646,24 @@ export function parseCompletionsFromShell(leadingLineContent: string, rawComplet
 			icon: getIcon(e[1], e[2]),
 			detail: e[2],
 			isFile: e[1] === 3,
+			isDirectory: e[1] === 4,
 		})));
 	}
 	if (Array.isArray(rawCompletions[0])) {
 		return (rawCompletions as CompressedPwshCompletion[]).map(e => (new SimpleCompletionItem({
 			label: e[0],
 			icon: getIcon(e[1], e[2]),
-			detail: e[2]
+			detail: e[2],
+			isFile: e[1] === 3,
+			isDirectory: e[1] === 4,
 		})));
 	}
 	return (rawCompletions as PwshCompletion[]).map(e => (new SimpleCompletionItem({
 		label: e.CompletionText,
 		icon: getIcon(e.ResultType, e.ToolTip),
-		detail: e.ToolTip
+		detail: e.ToolTip,
+		isFile: e.ResultType === 3,
+		isDirectory: e.ResultType === 4,
 	})));
 }
 
