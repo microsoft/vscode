@@ -316,6 +316,11 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		this._sessionCtor = undefined;
 		this._activeRequestCts?.cancel();
 		this._requestActiveContextKey.set(false);
+		const model = this._chatWidget?.value.inlineChatWidget.getChatModel();
+		if (!model?.sessionId) {
+			return;
+		}
+		this._chatService.cancelCurrentRequestForSession(model?.sessionId);
 	}
 
 	async acceptCommand(shouldExecute: boolean): Promise<void> {

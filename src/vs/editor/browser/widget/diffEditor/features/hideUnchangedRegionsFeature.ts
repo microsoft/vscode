@@ -97,9 +97,16 @@ export class HideUnchangedRegionsFeature extends Disposable {
 			const modViewZones: IObservableViewZone[] = [];
 			const sideBySide = this._options.renderSideBySide.read(reader);
 
+			const compactMode = this._options.compactMode.read(reader);
+
 			const curUnchangedRegions = unchangedRegions.read(reader);
-			for (const r of curUnchangedRegions) {
+			for (let i = 0; i < curUnchangedRegions.length; i++) {
+				const r = curUnchangedRegions[i];
 				if (r.shouldHideControls(reader)) {
+					continue;
+				}
+
+				if (compactMode && (i === 0 || i === curUnchangedRegions.length - 1)) {
 					continue;
 				}
 

@@ -122,7 +122,7 @@ abstract class BaseHoverAccessibleViewProvider extends Disposable implements IAc
 				contents.push(...this._descriptionsOfVerbosityActionsForIndex(focusedHoverIndex));
 			}
 			contents.push(accessibleContent);
-			return contents.join('\n\n');
+			return contents.join('\n');
 		} else {
 			const accessibleContent = this._hoverController.getAccessibleWidgetContent();
 			if (accessibleContent === undefined) {
@@ -130,7 +130,7 @@ abstract class BaseHoverAccessibleViewProvider extends Disposable implements IAc
 			}
 			const contents: string[] = [];
 			contents.push(accessibleContent);
-			return contents.join('\n\n');
+			return contents.join('\n');
 		}
 	}
 

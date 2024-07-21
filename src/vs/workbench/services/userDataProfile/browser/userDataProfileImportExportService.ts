@@ -1077,54 +1077,15 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 			if (temp) {
 				return this.userDataProfilesService.createNamedProfile(`${profileName} ${this.getProfileNameIndex(profileName)}`, { ...options, transient: temp });
 			}
-
-			enum ImportProfileChoice {
-				Overwrite = 0,
-				CreateNew = 1,
-				Cancel = 2
-			}
-			const { result } = await this.dialogService.prompt<ImportProfileChoice>({
+			const { confirmed } = await this.dialogService.confirm({
 				type: Severity.Info,
-				message: localize('profile already exists', "Profile with name '{0}' already exists. Do you want to overwrite it?", profileName),
-				buttons: [
-					{
-						label: localize({ key: 'overwrite', comment: ['&& denotes a mnemonic'] }, "&&Overwrite"),
-						run: () => ImportProfileChoice.Overwrite
-					},
-					{
-						label: localize({ key: 'create new', comment: ['&& denotes a mnemonic'] }, "&&Create New Profile"),
-						run: () => ImportProfileChoice.CreateNew
-					},
-				],
-				cancelButton: {
-					run: () => ImportProfileChoice.Cancel
-				}
+				message: localize('profile already exists', "Profile with name '{0}' already exists. Do you want to replace its contents?", profileName),
+				primaryButton: localize({ key: 'overwrite', comment: ['&& denotes a mnemonic'] }, "&&Replace")
 			});
-
-			if (result === ImportProfileChoice.Overwrite) {
-				return profile;
-			}
-
-			if (result === ImportProfileChoice.Cancel) {
+			if (!confirmed) {
 				return undefined;
 			}
-
-			// Create new profile
-			const name = await this.quickInputService.input({
-				placeHolder: localize('name', "Profile name"),
-				title: localize('create new title', "Create New Profile"),
-				value: `${profileName} ${this.getProfileNameIndex(profileName)}`,
-				validateInput: async (value: string) => {
-					if (this.userDataProfilesService.profiles.some(p => p.name === value)) {
-						return localize('profileExists', "Profile with name {0} already exists.", value);
-					}
-					return undefined;
-				}
-			});
-			if (!name) {
-				return undefined;
-			}
-			return this.userDataProfilesService.createNamedProfile(name);
+			return profile.isDefault ? profile : this.userDataProfilesService.updateProfile(profile, options);
 		} else {
 			return this.userDataProfilesService.createNamedProfile(profileName, { ...options, transient: temp });
 		}

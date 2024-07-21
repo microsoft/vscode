@@ -11,7 +11,7 @@ import { MainContext, type ExtHostTerminalShellIntegrationShape, type MainThread
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { IExtHostTerminalService } from 'vs/workbench/api/common/extHostTerminalService';
 import { Emitter, type Event } from 'vs/base/common/event';
-import { isUriComponents, URI } from 'vs/base/common/uri';
+import { URI, type UriComponents } from 'vs/base/common/uri';
 import { AsyncIterableObject, Barrier, type AsyncIterableEmitter } from 'vs/base/common/async';
 
 export interface IExtHostTerminalShellIntegration extends ExtHostTerminalShellIntegrationShape {
@@ -104,7 +104,7 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 		});
 	}
 
-	public $shellExecutionStart(instanceId: number, commandLineValue: string, commandLineConfidence: TerminalShellExecutionCommandLineConfidence, isTrusted: boolean, cwd: URI | undefined): void {
+	public $shellExecutionStart(instanceId: number, commandLineValue: string, commandLineConfidence: TerminalShellExecutionCommandLineConfidence, isTrusted: boolean, cwd: UriComponents | undefined): void {
 		// Force shellIntegration creation if it hasn't been created yet, this could when events
 		// don't come through on startup
 		if (!this._activeShellIntegrations.has(instanceId)) {
@@ -115,7 +115,7 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 			confidence: commandLineConfidence,
 			isTrusted
 		};
-		this._activeShellIntegrations.get(instanceId)?.startShellExecution(commandLine, cwd);
+		this._activeShellIntegrations.get(instanceId)?.startShellExecution(commandLine, URI.revive(cwd));
 	}
 
 	public $shellExecutionEnd(instanceId: number, commandLineValue: string, commandLineConfidence: TerminalShellExecutionCommandLineConfidence, isTrusted: boolean, exitCode: number | undefined): void {
@@ -131,8 +131,8 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 		this._activeShellIntegrations.get(instanceId)?.emitData(data);
 	}
 
-	public $cwdChange(instanceId: number, cwd: URI | undefined): void {
-		this._activeShellIntegrations.get(instanceId)?.setCwd(isUriComponents(cwd) ? URI.revive(cwd) : cwd);
+	public $cwdChange(instanceId: number, cwd: UriComponents | undefined): void {
+		this._activeShellIntegrations.get(instanceId)?.setCwd(URI.revive(cwd));
 	}
 
 	public $closeTerminal(instanceId: number): void {
@@ -202,7 +202,8 @@ class InternalTerminalShellIntegration extends Disposable {
 				this._currentExecution.endExecution(undefined);
 				this._onDidRequestEndExecution.fire({ terminal: this._terminal, shellIntegration: this.value, execution: this._currentExecution.value, exitCode: undefined });
 			}
-			const currentExecution = this._currentExecution = new InternalTerminalShellExecution(commandLine, cwd);
+			// Fallback to the shell integration's cwd as the cwd may not have been restored after a reload
+			const currentExecution = this._currentExecution = new InternalTerminalShellExecution(commandLine, cwd ?? this._cwd);
 			if (fireEventInMicrotask) {
 				queueMicrotask(() => this._onDidStartTerminalShellExecution.fire({ terminal: this._terminal, shellIntegration: this.value, execution: currentExecution.value }));
 			} else {

@@ -2080,8 +2080,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._wrapperElement.classList.add('fixed-dims');
 		this._hasScrollBar = true;
 		this._initDimensions();
-		// Always remove a row to make room for the scroll bar
-		this._fixedRows = this._rows - 1;
 		await this._resize();
 		this._terminalHasFixedWidth.set(true);
 		if (!this._horizontalScrollbar) {

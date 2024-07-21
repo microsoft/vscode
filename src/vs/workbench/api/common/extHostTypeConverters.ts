@@ -40,7 +40,7 @@ import { DEFAULT_EDITOR_ASSOCIATION, SaveReason } from 'vs/workbench/common/edit
 import { IViewBadge } from 'vs/workbench/common/views';
 import { ChatAgentLocation, IChatAgentRequest, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatRequestVariableEntry } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IChatAgentDetection, IChatAgentMarkdownContentWithVulnerability, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatProgressMessage, IChatTaskDto, IChatTaskResult, IChatTextEdit, IChatTreeData, IChatUserActionEvent, IChatWarningMessage } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatAgentDetection, IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatProgressMessage, IChatTaskDto, IChatTaskResult, IChatTextEdit, IChatTreeData, IChatUserActionEvent, IChatWarningMessage } from 'vs/workbench/contrib/chat/common/chatService';
 import * as chatProvider from 'vs/workbench/contrib/chat/common/languageModels';
 import { DebugTreeItemCollapsibleState, IDebugVisualizationTreeItem } from 'vs/workbench/contrib/debug/common/debug';
 import * as notebooks from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -2511,7 +2511,8 @@ export namespace ChatResponseReferencePart {
 						part.value.value :
 						Location.from(part.value.value as vscode.Location)
 				},
-				iconPath
+				iconPath,
+				options: part.options
 			};
 		}
 
@@ -2520,7 +2521,8 @@ export namespace ChatResponseReferencePart {
 			reference: URI.isUri(part.value) ?
 				part.value :
 				Location.from(<vscode.Location>part.value),
-			iconPath
+			iconPath,
+			options: part.options
 		};
 	}
 	export function to(part: Dto<IChatContentReference>): vscode.ChatResponseReferencePart {
@@ -2540,9 +2542,20 @@ export namespace ChatResponseReferencePart {
 	}
 }
 
+export namespace ChatResponseCodeCitationPart {
+	export function from(part: vscode.ChatResponseCodeCitationPart): Dto<IChatCodeCitation> {
+		return {
+			kind: 'codeCitation',
+			value: part.value,
+			license: part.license,
+			snippet: part.snippet
+		};
+	}
+}
+
 export namespace ChatResponsePart {
 
-	export function from(part: vscode.ChatResponsePart | vscode.ChatResponseTextEditPart | vscode.ChatResponseMarkdownWithVulnerabilitiesPart | vscode.ChatResponseDetectedParticipantPart | vscode.ChatResponseWarningPart | vscode.ChatResponseConfirmationPart | vscode.ChatResponseWarningPart, commandsConverter: CommandsConverter, commandDisposables: DisposableStore): extHostProtocol.IChatProgressDto {
+	export function from(part: vscode.ChatResponsePart | vscode.ChatResponseTextEditPart | vscode.ChatResponseMarkdownWithVulnerabilitiesPart | vscode.ChatResponseDetectedParticipantPart | vscode.ChatResponseWarningPart | vscode.ChatResponseConfirmationPart | vscode.ChatResponseReferencePart2, commandsConverter: CommandsConverter, commandDisposables: DisposableStore): extHostProtocol.IChatProgressDto {
 		if (part instanceof types.ChatResponseMarkdownPart) {
 			return ChatResponseMarkdownPart.from(part);
 		} else if (part instanceof types.ChatResponseAnchorPart) {
@@ -2565,6 +2578,8 @@ export namespace ChatResponsePart {
 			return ChatResponseWarningPart.from(part);
 		} else if (part instanceof types.ChatResponseConfirmationPart) {
 			return ChatResponseConfirmationPart.from(part);
+		} else if (part instanceof types.ChatResponseCodeCitationPart) {
+			return ChatResponseCodeCitationPart.from(part);
 		}
 
 		return {

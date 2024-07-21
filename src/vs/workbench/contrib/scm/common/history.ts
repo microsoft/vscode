@@ -7,6 +7,7 @@ import { IObservable } from 'vs/base/common/observable';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
 import { IMenu } from 'vs/platform/actions/common/actions';
+import { ColorIdentifier } from 'vs/platform/theme/common/colorUtils';
 import { ISCMRepository } from 'vs/workbench/contrib/scm/common/scm';
 
 export interface ISCMHistoryProviderMenus {
@@ -14,6 +15,7 @@ export interface ISCMHistoryProviderMenus {
 	getHistoryItemGroupContextMenu(historyItemGroup: SCMHistoryItemGroupTreeElement): IMenu;
 
 	getHistoryItemMenu(historyItem: SCMHistoryItemTreeElement): IMenu;
+	getHistoryItemMenu2(historyItem: SCMHistoryItemViewModelTreeElement): IMenu;
 }
 
 export interface ISCMHistoryProvider {
@@ -88,7 +90,7 @@ export interface ISCMHistoryItem {
 
 export interface ISCMHistoryItemGraphNode {
 	readonly id: string;
-	readonly color: number;
+	readonly color: ColorIdentifier;
 }
 
 export interface ISCMHistoryItemViewModel {
