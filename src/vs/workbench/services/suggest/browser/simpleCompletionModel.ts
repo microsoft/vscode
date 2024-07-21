@@ -189,19 +189,17 @@ export class SimpleCompletionModel {
 				return score;
 			}
 			// Sort files with the same score against each other specially
-			if (a.fileExtLow.length > 0 && b.fileExtLow.length > 0) {
+			const isArg = formattedLeadingLineContent.includes(' ');
+			if (!isArg && a.fileExtLow.length > 0 && b.fileExtLow.length > 0) {
 				// Then by label length ascending (excluding file extension if it's a file)
 				score = a.labelLowExcludeFileExt.length - b.labelLowExcludeFileExt.length;
 				if (score !== 0) {
 					return score;
 				}
 				// If they're files at the start of the command line, boost extensions depending on the operating system
-				const isFileCommand = !formattedLeadingLineContent.includes(' ');
-				if (isFileCommand) {
-					score = fileExtScore(b.fileExtLow) - fileExtScore(a.fileExtLow);
-					if (score !== 0) {
-						return score;
-					}
+				score = fileExtScore(b.fileExtLow) - fileExtScore(a.fileExtLow);
+				if (score !== 0) {
+					return score;
 				}
 				// Then by file extension length ascending
 				score = a.fileExtLow.length - b.fileExtLow.length;
