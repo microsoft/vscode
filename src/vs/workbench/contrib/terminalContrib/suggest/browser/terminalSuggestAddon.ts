@@ -662,9 +662,8 @@ function rawCompletionToSimpleCompletionItem(rawCompletion: PwshCompletion): Sim
 	// and file extension score boost. An example of where this improves the experience is typing
 	// `git`, `git.exe` should appear at the top and beat `git-lfs.exe`. Keep the same icon though.
 	const icon = pwshTypeToIconMap[rawCompletion.ResultType];
-	const isExecutable = rawCompletion.ResultType === 2 && rawCompletion.CompletionText.endsWith('.exe');
+	const isExecutable = rawCompletion.ResultType === 2 && rawCompletion.CompletionText.match(/\.[a-z]{2,4}$/i);
 	if (isExecutable) {
-		// icon = Codicon.play;
 		rawCompletion.ResultType = 3;
 	}
 
