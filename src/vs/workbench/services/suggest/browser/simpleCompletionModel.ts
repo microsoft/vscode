@@ -189,19 +189,20 @@ export class SimpleCompletionModel {
 				return score;
 			}
 			// Sort files with the same score against each other specially
-			if (a.fileExtLow.length > 0 && b.fileExtLow.length > 0) {
+			const isArg = formattedLeadingLineContent.includes(' ');
+			if (!isArg && a.fileExtLow.length > 0 && b.fileExtLow.length > 0) {
 				// Then by label length ascending (excluding file extension if it's a file)
 				score = a.labelLowExcludeFileExt.length - b.labelLowExcludeFileExt.length;
 				if (score !== 0) {
 					return score;
 				}
-				// If they're files, boost extensions depending on the operating system
+				// If they're files at the start of the command line, boost extensions depending on the operating system
 				score = fileExtScore(b.fileExtLow) - fileExtScore(a.fileExtLow);
 				if (score !== 0) {
 					return score;
 				}
 				// Then by file extension length ascending
-				score = b.fileExtLow.length - a.fileExtLow.length;
+				score = a.fileExtLow.length - b.fileExtLow.length;
 			}
 			return score;
 		});
@@ -216,14 +217,39 @@ export class SimpleCompletionModel {
 }
 
 // TODO: This should be based on the process OS, not the local OS
+// File score boosts for specific file extensions on Windows. This only applies when the file is the
+// _first_ part of the command line.
 const fileExtScores = new Map<string, number>(isWindows ? [
+	// Pwsh
 	['ps1', 0.09],
-	['bat', 0.08],
-	['sh', -0.09]
+	// Windows
+	['bat', 0.05],
+	['cmd', 0.05],
+	// Non-Windows
+	['sh', -0.05],
+	['bash', -0.05],
+	['zsh', -0.05],
+	['fish', -0.05],
+	['csh', -0.06], // C shell
+	['ksh', -0.06], // Korn shell
+	// Scripting language files are excluded here as the standard behavior on Windows will just open
+	// the file in a text editor, not run the file
 ] : [
-	['ps1', 0.09],
-	['bat', -0.08],
-	['sh', 0.08],
+	// Pwsh
+	['ps1', 0.05],
+	// Windows
+	['bat', -0.05],
+	['cmd', -0.05],
+	// Non-Windows
+	['sh', 0.05],
+	['bash', 0.05],
+	['zsh', 0.05],
+	['fish', 0.05],
+	['csh', 0.04], // C shell
+	['ksh', 0.04], // Korn shell
+	// Scripting languages
+	['py', 0.05], // Python
+	['pl', 0.05], // Perl
 ]);
 
 function fileExtScore(ext: string): number {
