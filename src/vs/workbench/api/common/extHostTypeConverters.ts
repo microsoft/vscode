@@ -2511,7 +2511,8 @@ export namespace ChatResponseReferencePart {
 						part.value.value :
 						Location.from(part.value.value as vscode.Location)
 				},
-				iconPath
+				iconPath,
+				options: part.options
 			};
 		}
 
@@ -2520,7 +2521,8 @@ export namespace ChatResponseReferencePart {
 			reference: URI.isUri(part.value) ?
 				part.value :
 				Location.from(<vscode.Location>part.value),
-			iconPath
+			iconPath,
+			options: part.options
 		};
 	}
 	export function to(part: Dto<IChatContentReference>): vscode.ChatResponseReferencePart {
@@ -2546,13 +2548,14 @@ export namespace ChatResponseCodeCitationPart {
 			kind: 'codeCitation',
 			value: part.value,
 			license: part.license,
+			snippet: part.snippet
 		};
 	}
 }
 
 export namespace ChatResponsePart {
 
-	export function from(part: vscode.ChatResponsePart | vscode.ChatResponseTextEditPart | vscode.ChatResponseMarkdownWithVulnerabilitiesPart | vscode.ChatResponseDetectedParticipantPart | vscode.ChatResponseWarningPart | vscode.ChatResponseConfirmationPart | vscode.ChatResponseWarningPart, commandsConverter: CommandsConverter, commandDisposables: DisposableStore): extHostProtocol.IChatProgressDto {
+	export function from(part: vscode.ChatResponsePart | vscode.ChatResponseTextEditPart | vscode.ChatResponseMarkdownWithVulnerabilitiesPart | vscode.ChatResponseDetectedParticipantPart | vscode.ChatResponseWarningPart | vscode.ChatResponseConfirmationPart | vscode.ChatResponseReferencePart2, commandsConverter: CommandsConverter, commandDisposables: DisposableStore): extHostProtocol.IChatProgressDto {
 		if (part instanceof types.ChatResponseMarkdownPart) {
 			return ChatResponseMarkdownPart.from(part);
 		} else if (part instanceof types.ChatResponseAnchorPart) {

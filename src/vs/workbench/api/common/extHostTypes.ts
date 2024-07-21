@@ -4467,18 +4467,22 @@ export class ChatResponseCommandButtonPart {
 export class ChatResponseReferencePart {
 	value: vscode.Uri | vscode.Location | { variableName: string; value?: vscode.Uri | vscode.Location };
 	iconPath?: vscode.Uri | vscode.ThemeIcon | { light: vscode.Uri; dark: vscode.Uri };
-	constructor(value: vscode.Uri | vscode.Location | { variableName: string; value?: vscode.Uri | vscode.Location }, iconPath?: vscode.Uri | vscode.ThemeIcon | { light: vscode.Uri; dark: vscode.Uri }) {
+	options?: { status?: { description: string; kind: vscode.ChatResponseReferencePartStatusKind } };
+	constructor(value: vscode.Uri | vscode.Location | { variableName: string; value?: vscode.Uri | vscode.Location }, iconPath?: vscode.Uri | vscode.ThemeIcon | { light: vscode.Uri; dark: vscode.Uri }, options?: { status?: { description: string; kind: vscode.ChatResponseReferencePartStatusKind } }) {
 		this.value = value;
 		this.iconPath = iconPath;
+		this.options = options;
 	}
 }
 
 export class ChatResponseCodeCitationPart {
 	value: vscode.Uri;
 	license: string;
-	constructor(value: vscode.Uri, license: string) {
+	snippet: string;
+	constructor(value: vscode.Uri, license: string, snippet: string) {
 		this.value = value;
 		this.license = license;
+		this.snippet = snippet;
 	}
 }
 
@@ -4515,6 +4519,12 @@ export enum ChatLocation {
 	Terminal = 2,
 	Notebook = 3,
 	Editor = 4,
+}
+
+export enum ChatResponseReferencePartStatusKind {
+	Complete = 1,
+	Partial = 2,
+	Omitted = 3
 }
 
 export class ChatRequestEditorData implements vscode.ChatRequestEditorData {
