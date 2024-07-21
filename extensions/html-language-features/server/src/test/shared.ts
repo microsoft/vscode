@@ -16,8 +16,8 @@ import { getLanguageServicePlugins } from '../modes/languageServicePlugins';
 
 let currentDocument: [URI, string, TextDocument, ts.IScriptSnapshot];
 let languageService: LanguageService;
+let uriConverter: ReturnType<typeof createUriConverter>;
 
-const { asFileName, asUri } = createUriConverter();
 const serviceEnv: LanguageServiceEnvironment = { workspaceFolders: [], fs };
 const libSnapshots = new Map<string, ts.IScriptSnapshot | undefined>();
 const projectHost: TypeScriptProjectHost = {
@@ -66,15 +66,16 @@ export async function getTestService({
 	workspaceFolders?: string[];
 	clientCapabilities?: ClientCapabilities;
 }) {
+	serviceEnv.workspaceFolders = workspaceFolders.map(folder => URI.parse(folder));
+	serviceEnv.clientCapabilities = clientCapabilities;
+	uriConverter = createUriConverter(serviceEnv.workspaceFolders);
 	const parsedUri = URI.parse(uri);
 	currentDocument = [
 		parsedUri,
-		asFileName(parsedUri),
+		uriConverter.asFileName(parsedUri),
 		TextDocument.create(uri, languageId, (currentDocument?.[2].version ?? 0) + 1, content),
 		ts.ScriptSnapshot.fromString(content),
 	];
-	serviceEnv.workspaceFolders = workspaceFolders.map(folder => URI.parse(folder));
-	serviceEnv.clientCapabilities = clientCapabilities;
 	if (!languageService) {
 		const language = createLanguage(
 			[
@@ -94,7 +95,7 @@ export async function getTestService({
 			],
 			createUriMap(),
 			uri => {
-				const snapshot = projectHost.getScriptSnapshot(asFileName(uri));
+				const snapshot = projectHost.getScriptSnapshot(uriConverter.asFileName(uri));
 				if (snapshot) {
 					language.scripts.set(uri, snapshot);
 				}
@@ -107,9 +108,14 @@ export async function getTestService({
 			typescript: {
 				configFileName: undefined,
 				sys: ts.sys,
-				asFileName,
-				asUri,
-				...createLanguageServiceHost(ts, ts.sys, language, asUri, projectHost),
+				uriConverter,
+				...createLanguageServiceHost(
+					ts,
+					ts.sys,
+					language,
+					fileName => uriConverter.asUri(fileName),
+					projectHost
+				),
 			},
 		};
 		languageService = createLanguageService(language, languageServicePlugins, serviceEnv, project);

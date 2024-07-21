@@ -15,17 +15,14 @@ export function createLanguageService(
 	server: LanguageServer,
 	languagePlugins: LanguagePlugin<URI>[],
 	projectHost: TypeScriptProjectHost,
-	{ asUri, asFileName }: {
+	uriConverter: {
 		asUri(fileName: string): URI;
 		asFileName(uri: URI): string;
 	},
 ): LanguageService {
 	const fsFileSnapshots = createUriMap<[number | undefined, ts.IScriptSnapshot | undefined]>();
 	const serviceEnv = createLanguageServiceEnvironment(server, [...server.workspaceFolders.keys()])
-	const sys = createSys(ts.sys, serviceEnv, projectHost.getCurrentDirectory, {
-		asFileName,
-		asUri,
-	});
+	const sys = createSys(ts.sys, serviceEnv, projectHost.getCurrentDirectory, uriConverter);
 	const docOpenWatcher = server.documents.onDidOpen(({ document }) => updateFsCacheFromSyncedDocument(document));
 	const docSaveWatcher = server.documents.onDidSave(({ document }) => updateFsCacheFromSyncedDocument(document));
 	const language = createLanguage<URI>(
@@ -47,7 +44,7 @@ export function createLanguageService(
 			else {
 				// fs files
 				const cache = fsFileSnapshots.get(uri);
-				const fileName = asFileName(uri);
+				const fileName = uriConverter.asFileName(uri);
 				const modifiedTime = sys.getModifiedTime?.(fileName)?.valueOf();
 				if (!cache || cache[0] !== modifiedTime) {
 					if (sys.fileExists(fileName)) {
@@ -74,13 +71,12 @@ export function createLanguageService(
 		typescript: {
 			configFileName: undefined,
 			sys,
-			asUri,
-			asFileName,
+			uriConverter,
 			...createLanguageServiceHost(
 				ts,
 				sys,
 				language,
-				asUri,
+				fileName => uriConverter.asUri(fileName),
 				projectHost
 			),
 		},
@@ -99,7 +95,7 @@ export function createLanguageService(
 
 	function updateFsCacheFromSyncedDocument(document: SnapshotDocument) {
 		const uri = URI.parse(document.uri);
-		const fileName = asFileName(uri);
+		const fileName = uriConverter.asFileName(uri);
 		if (fsFileSnapshots.has(uri) || sys.fileExists(fileName)) {
 			const modifiedTime = sys.getModifiedTime?.(fileName);
 			fsFileSnapshots.set(uri, [modifiedTime?.valueOf(), document.getSnapshot()]);

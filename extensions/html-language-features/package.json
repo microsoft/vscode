@@ -258,13 +258,13 @@
     ]
   },
   "dependencies": {
-    "@volar/language-server": "~2.4.0-alpha.2",
-    "@volar/vscode": "~2.4.0-alpha.2",
+    "@volar/language-server": "~2.4.0-alpha.17",
+    "@volar/vscode": "~2.4.0-alpha.17",
     "@vscode/extension-telemetry": "^0.9.0"
   },
   "devDependencies": {
     "@types/node": "20.x",
-    "@volar/test-utils": "~2.4.0-alpha.2"
+    "@volar/test-utils": "~2.4.0-alpha.17"
   },
   "repository": {
     "type": "git",

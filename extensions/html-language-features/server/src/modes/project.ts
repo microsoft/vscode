@@ -27,13 +27,14 @@ export function createHtmlProject(languagePlugins: LanguagePlugin<URI>[]): Langu
 	let projectVersion = '';
 	let currentDirectory = '';
 	let tsLocalized: any;
+	let uriConverter: ReturnType<typeof createUriConverter>;
 
-	const { asFileName, asUri } = createUriConverter();
 	const currentRootFiles: string[] = [];
 
 	return {
 		setup(_server) {
 			server = _server;
+			uriConverter = createUriConverter([...server.workspaceFolders.keys()]);
 			if (server.initializeParams.locale) {
 				try {
 					tsLocalized = require(`typescript/lib/${server.initializeParams.locale}/diagnosticMessages.generated.json`);
@@ -56,7 +57,7 @@ export function createHtmlProject(languagePlugins: LanguagePlugin<URI>[]): Langu
 							return currentRootFiles;
 						},
 						getScriptSnapshot(fileName) {
-							const uri = asUri(fileName);
+							const uri = uriConverter.asUri(fileName);
 							const documentKey = server.getSyncedDocumentKey(uri) ?? uri.toString();
 							const document = server.documents.get(documentKey);
 							if (document) {
@@ -69,7 +70,7 @@ export function createHtmlProject(languagePlugins: LanguagePlugin<URI>[]): Langu
 						},
 						getLocalizedDiagnosticMessages: tsLocalized ? () => tsLocalized : undefined,
 					},
-					{ asUri, asFileName }
+					uriConverter
 				);
 			}
 			updateRootFiles(uri, languageService);
@@ -98,7 +99,7 @@ export function createHtmlProject(languagePlugins: LanguagePlugin<URI>[]): Langu
 
 		currentRootFiles.length = 0;
 		currentRootFiles.push(JQUERY_PATH);
-		currentRootFiles.push(asFileName(uri));
+		currentRootFiles.push(uriConverter.asFileName(uri));
 
 		const sourceScript = languageService.context.language.scripts.get(uri);
 		if (sourceScript?.generated?.root instanceof HTMLVirtualCode) {
@@ -109,11 +110,11 @@ export function createHtmlProject(languagePlugins: LanguagePlugin<URI>[]): Langu
 				}
 				else if (script.startsWith('file://')) {
 					const scriptUri = URI.parse(script);
-					currentRootFiles.push(asFileName(scriptUri));
+					currentRootFiles.push(uriConverter.asFileName(scriptUri));
 				}
 				else {
 					const scriptUri = Utils.resolvePath(Utils.dirname(uri), script);
-					currentRootFiles.push(asFileName(scriptUri));
+					currentRootFiles.push(uriConverter.asFileName(scriptUri));
 				}
 			}
 		}
