@@ -738,7 +738,7 @@ class TestRunTracker extends Disposable {
 
 		this.running++;
 		this.tasks.set(taskId, { run });
-		this.proxy.$startedTestRunTask(runId, { id: taskId, name, running: true });
+		this.proxy.$startedTestRunTask(runId, { id: taskId, ctrlId: this.dto.controllerId, name, running: true });
 
 		return run;
 	}

@@ -163,6 +163,7 @@ export interface IGalleryExtensionProperties {
 	localizedLanguages?: string[];
 	targetPlatform: TargetPlatform;
 	isPreReleaseVersion: boolean;
+	executesCode?: boolean;
 }
 
 export interface IGalleryExtensionAsset {

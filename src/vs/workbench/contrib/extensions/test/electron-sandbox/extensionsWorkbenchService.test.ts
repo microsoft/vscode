@@ -725,10 +725,9 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		const extensionB = aLocalExtension('b');
 		const extensionC = aLocalExtension('c');
 
-		instantiationService.stub(INotificationService, {
-			prompt(severity, message, choices, options) {
-				choices[0].run();
-				return null!;
+		instantiationService.stub(IDialogService, {
+			prompt() {
+				return Promise.resolve({ result: true });
 			}
 		});
 		return instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionA], EnablementState.EnabledGlobally)

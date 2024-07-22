@@ -73,7 +73,7 @@ import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetN
 import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { IAccessibleViewService } from 'vs/platform/accessibility/browser/accessibleView';
+import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
 
 const $ = dom.$;
 
@@ -131,17 +131,16 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IConfigurationService protected override readonly configurationService: IConfigurationService,
 		@ITextResourcePropertiesService private readonly textResourcePropertiesService: ITextResourcePropertiesService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IKeybindingService keybindingService: IKeybindingService,
+		@IKeybindingService protected override readonly keybindingService: IKeybindingService,
 		@IOpenerService openerService: IOpenerService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService,
 		@IMenuService menuService: IMenuService,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@ILogService private readonly logService: ILogService,
-		@IAccessibleViewService private readonly accessibleViewService: IAccessibleViewService
 	) {
 		const filterText = storageService.get(FILTER_VALUE_STORAGE_KEY, StorageScope.WORKSPACE, '');
 		super({
@@ -655,7 +654,6 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 				new ReplEvaluationResultsRenderer(linkDetector, this.hoverService),
 				new ReplRawObjectsRenderer(linkDetector, this.hoverService),
 			],
-			// https://github.com/microsoft/TypeScript/issues/32526
 			this.replDataSource,
 			{
 				filter: this.filter,
@@ -719,8 +717,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		options.suggest = { showStatusBar: true };
 		const config = this.configurationService.getValue<IDebugConfiguration>('debug');
 		options.acceptSuggestionOnEnter = config.console.acceptSuggestionOnEnter === 'on' ? 'on' : 'off';
-		const accessibleViewHint = this.accessibleViewService.getOpenAriaHint(AccessibilityVerbositySettingId.DebugConsole);
-		options.ariaLabel = accessibleViewHint ? localize('debugConsoleHint', "Debug Console, {0}", accessibleViewHint) : localize('debugConsole', "Debug Console");
+		options.ariaLabel = this.getAriaLabel();
 
 		this.replInput = this.scopedInstantiationService.createInstance(CodeEditorWidget, this.replInputContainer, options, getSimpleCodeEditorWidgetOptions());
 
@@ -741,6 +738,21 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 
 		this._register(dom.addStandardDisposableListener(this.replInputContainer, dom.EventType.FOCUS, () => this.replInputContainer.classList.add('synthetic-focus')));
 		this._register(dom.addStandardDisposableListener(this.replInputContainer, dom.EventType.BLUR, () => this.replInputContainer.classList.remove('synthetic-focus')));
+	}
+
+	private getAriaLabel(): string {
+		let ariaLabel = localize('debugConsole', "Debug Console");
+		if (!this.configurationService.getValue(AccessibilityVerbositySettingId.Debug)) {
+			return ariaLabel;
+		}
+		const keybinding = this.keybindingService.lookupKeybinding(AccessibilityCommandId.OpenAccessibleView)?.getAriaLabel();
+		if (keybinding) {
+			ariaLabel = localize('commentLabelWithKeybinding', "{0}, use ({1}) for accessibility help", ariaLabel, keybinding);
+		} else {
+			ariaLabel = localize('commentLabelWithKeybindingNoKeybinding', "{0}, run the command Open Accessibility Help which is currently not triggerable via keybinding.", ariaLabel);
+		}
+
+		return ariaLabel;
 	}
 
 	private onContextMenu(e: ITreeContextMenuEvent<IReplElement>): void {
@@ -879,8 +891,8 @@ class AcceptReplInputAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'repl.action.acceptInput',
-			label: localize({ key: 'actions.repl.acceptInput', comment: ['Apply input from the debug console input box'] }, "REPL Accept Input"),
-			alias: 'REPL Accept Input',
+			label: localize({ key: 'actions.repl.acceptInput', comment: ['Apply input from the debug console input box'] }, "Debug Console: Accept Input"),
+			alias: 'Debug Console: Accept Input',
 			precondition: CONTEXT_IN_DEBUG_REPL,
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
@@ -902,8 +914,8 @@ class FilterReplAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'repl.action.filter',
-			label: localize('repl.action.filter', "REPL Focus Content to Filter"),
-			alias: 'REPL Filter',
+			label: localize('repl.action.filter', "Debug Console: Focus Filter"),
+			alias: 'Debug Console: Focus Filter',
 			precondition: CONTEXT_IN_DEBUG_REPL,
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,

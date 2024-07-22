@@ -67,6 +67,7 @@ import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetN
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { CodeWindow } from 'vs/base/browser/window';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 
 export const enum SettingsFocusContext {
@@ -221,6 +222,7 @@ export class SettingsEditor2 extends EditorPane {
 	private dismissedExtensionSettings: string[] = [];
 
 	private readonly DISMISSED_EXTENSION_SETTINGS_STORAGE_KEY = 'settingsEditor2.dismissedExtensionSettings';
+	private readonly DISMISSED_EXTENSION_SETTINGS_DELIMITER = '\t';
 
 	private readonly inputChangeListener: MutableDisposable<IDisposable>;
 
@@ -246,6 +248,7 @@ export class SettingsEditor2 extends EditorPane {
 		@IProductService private readonly productService: IProductService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
 		@IEditorProgressService private readonly editorProgressService: IEditorProgressService,
+		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
 	) {
 		super(SettingsEditor2.ID, group, telemetryService, themeService, storageService);
 		this.delayedFilterLogging = new Delayer<void>(1000);
@@ -268,12 +271,18 @@ export class SettingsEditor2 extends EditorPane {
 
 		this.editorMemento = this.getEditorMemento<ISettingsEditor2State>(editorGroupService, textResourceConfigurationService, SETTINGS_EDITOR_STATE_KEY);
 
-		this.dismissedExtensionSettings = this.storageService.get(this.DISMISSED_EXTENSION_SETTINGS_STORAGE_KEY, StorageScope.PROFILE, '').split('\t');
+		this.dismissedExtensionSettings = this.storageService
+			.get(this.DISMISSED_EXTENSION_SETTINGS_STORAGE_KEY, StorageScope.PROFILE, '')
+			.split(this.DISMISSED_EXTENSION_SETTINGS_DELIMITER);
 
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.source !== ConfigurationTarget.DEFAULT) {
 				this.onConfigUpdate(e.affectedKeys);
 			}
+		}));
+
+		this._register(userDataProfileService.onDidChangeCurrentProfile(e => {
+			e.join(this.whenCurrentProfileChanged());
 		}));
 
 		this._register(workspaceTrustManagementService.onDidChangeTrust(() => {
@@ -304,6 +313,15 @@ export class SettingsEditor2 extends EditorPane {
 			SettingsEditor2.SUGGESTIONS.push(`@${LANGUAGE_SETTING_TAG}`);
 		}
 		this.inputChangeListener = this._register(new MutableDisposable());
+	}
+
+	private async whenCurrentProfileChanged(): Promise<void> {
+		this.updatedConfigSchemaDelayer.trigger(() => {
+			this.dismissedExtensionSettings = this.storageService
+				.get(this.DISMISSED_EXTENSION_SETTINGS_STORAGE_KEY, StorageScope.PROFILE, '')
+				.split(this.DISMISSED_EXTENSION_SETTINGS_DELIMITER);
+			this.onConfigUpdate(undefined, true);
+		});
 	}
 
 	override get minimumWidth(): number { return SettingsEditor2.EDITOR_MIN_WIDTH; }
@@ -697,7 +715,12 @@ export class SettingsEditor2 extends EditorPane {
 		}
 
 		this.dismissedExtensionSettings.push(extensionId);
-		this.storageService.store(this.DISMISSED_EXTENSION_SETTINGS_STORAGE_KEY, this.dismissedExtensionSettings.join('\t'), StorageScope.PROFILE, StorageTarget.USER);
+		this.storageService.store(
+			this.DISMISSED_EXTENSION_SETTINGS_STORAGE_KEY,
+			this.dismissedExtensionSettings.join(this.DISMISSED_EXTENSION_SETTINGS_DELIMITER),
+			StorageScope.PROFILE,
+			StorageTarget.USER
+		);
 		this.onConfigUpdate(undefined, true);
 	}
 

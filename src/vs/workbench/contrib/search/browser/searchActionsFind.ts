@@ -14,7 +14,6 @@ import * as Constants from 'vs/workbench/contrib/search/common/constants';
 import * as SearchEditorConstants from 'vs/workbench/contrib/searchEditor/browser/constants';
 import { FileMatch, FolderMatchWithResource, Match, RenderableMatch } from 'vs/workbench/contrib/search/browser/searchModel';
 import { OpenSearchEditorArgs } from 'vs/workbench/contrib/searchEditor/browser/searchEditor.contribution';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ISearchConfiguration, ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
 import { URI } from 'vs/base/common/uri';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -34,6 +33,7 @@ import { IConfigurationResolverService } from 'vs/workbench/services/configurati
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { Schemas } from 'vs/base/common/network';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 
 //#region Interfaces
@@ -309,7 +309,6 @@ function expandSelectSubtree(accessor: ServicesAccessor) {
 }
 
 async function searchWithFolderCommand(accessor: ServicesAccessor, isFromExplorer: boolean, isIncludes: boolean, resource?: URI, folderMatch?: FolderMatchWithResource) {
-	const listService = accessor.get(IListService);
 	const fileService = accessor.get(IFileService);
 	const viewsService = accessor.get(IViewsService);
 	const contextService = accessor.get(IWorkspaceContextService);
@@ -320,9 +319,9 @@ async function searchWithFolderCommand(accessor: ServicesAccessor, isFromExplore
 	let resources: URI[];
 
 	if (isFromExplorer) {
-		resources = getMultiSelectedResources(resource, listService, accessor.get(IEditorService), accessor.get(IEditorGroupsService), accessor.get(IExplorerService));
+		resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService), accessor.get(IEditorGroupsService), accessor.get(IExplorerService));
 	} else {
-		const searchView = getSearchView(accessor.get(IViewsService));
+		const searchView = getSearchView(viewsService);
 		if (!searchView) {
 			return;
 		}

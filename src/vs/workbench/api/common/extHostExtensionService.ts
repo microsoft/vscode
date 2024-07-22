@@ -10,7 +10,7 @@ import * as path from 'vs/base/common/path';
 import * as performance from 'vs/base/common/performance';
 import { originalFSPath, joinPath, extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 import { asPromise, Barrier, IntervalTimer, timeout } from 'vs/base/common/async';
-import { dispose, toDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { dispose, toDisposable, Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -177,10 +177,10 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		this._secretState = new ExtHostSecretState(this._extHostContext);
 		this._storagePath = storagePath;
 
-		this._instaService = instaService.createChild(new ServiceCollection(
+		this._instaService = this._store.add(instaService.createChild(new ServiceCollection(
 			[IExtHostStorage, this._storage],
 			[IExtHostSecretState, this._secretState]
-		));
+		)));
 
 		this._activator = this._register(new ExtensionsActivator(
 			this._myRegistry,
@@ -409,9 +409,9 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 
 		// clean up subscriptions
 		try {
-			dispose(extension.subscriptions);
+			extension.disposable.dispose();
 		} catch (err) {
-			this._logService.error(`An error occurred when deactivating the subscriptions for extension '${extensionId.value}':`);
+			this._logService.error(`An error occurred when disposing the subscriptions for extension '${extensionId.value}':`);
 			this._logService.error(err);
 		}
 
@@ -482,26 +482,26 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		this._logService.info(`ExtensionService#_doActivateExtension ${extensionDescription.identifier.value}, startup: ${reason.startup}, activationEvent: '${reason.activationEvent}'${extensionDescription.identifier.value !== reason.extensionId.value ? `, root cause: ${reason.extensionId.value}` : ``}`);
 		this._logService.flush();
 
+		const extensionInternalStore = new DisposableStore(); // disposables that follow the extension lifecycle
 		const activationTimesBuilder = new ExtensionActivationTimesBuilder(reason.startup);
 		return Promise.all([
 			this._loadCommonJSModule<IExtensionModule>(extensionDescription, joinPath(extensionDescription.extensionLocation, entryPoint), activationTimesBuilder),
-			this._loadExtensionContext(extensionDescription)
+			this._loadExtensionContext(extensionDescription, extensionInternalStore)
 		]).then(values => {
 			performance.mark(`code/extHost/willActivateExtension/${extensionDescription.identifier.value}`);
-			return AbstractExtHostExtensionService._callActivate(this._logService, extensionDescription.identifier, values[0], values[1], activationTimesBuilder);
+			return AbstractExtHostExtensionService._callActivate(this._logService, extensionDescription.identifier, values[0], values[1], extensionInternalStore, activationTimesBuilder);
 		}).then((activatedExtension) => {
 			performance.mark(`code/extHost/didActivateExtension/${extensionDescription.identifier.value}`);
 			return activatedExtension;
 		});
 	}
 
-	private _loadExtensionContext(extensionDescription: IExtensionDescription): Promise<vscode.ExtensionContext> {
+	private _loadExtensionContext(extensionDescription: IExtensionDescription, extensionInternalStore: DisposableStore): Promise<vscode.ExtensionContext> {
 
 		const lanuageModelAccessInformation = this._extHostLanguageModels.createLanguageModelAccessInformation(extensionDescription);
-		// TODO: These should probably be disposed when the extension deactivates
-		const globalState = this._register(new ExtensionGlobalMemento(extensionDescription, this._storage));
-		const workspaceState = this._register(new ExtensionMemento(extensionDescription.identifier.value, false, this._storage));
-		const secrets = this._register(new ExtensionSecrets(extensionDescription, this._secretState));
+		const globalState = extensionInternalStore.add(new ExtensionGlobalMemento(extensionDescription, this._storage));
+		const workspaceState = extensionInternalStore.add(new ExtensionMemento(extensionDescription.identifier.value, false, this._storage));
+		const secrets = extensionInternalStore.add(new ExtensionSecrets(extensionDescription, this._secretState));
 		const extensionMode = extensionDescription.isUnderDevelopment
 			? (this._initData.environment.extensionTestsLocationURI ? ExtensionMode.Test : ExtensionMode.Development)
 			: ExtensionMode.Production;
@@ -569,7 +569,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		});
 	}
 
-	private static _callActivate(logService: ILogService, extensionId: ExtensionIdentifier, extensionModule: IExtensionModule, context: vscode.ExtensionContext, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<ActivatedExtension> {
+	private static _callActivate(logService: ILogService, extensionId: ExtensionIdentifier, extensionModule: IExtensionModule, context: vscode.ExtensionContext, extensionInternalStore: IDisposable, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<ActivatedExtension> {
 		// Make sure the extension's surface is not undefined
 		extensionModule = extensionModule || {
 			activate: undefined,
@@ -577,7 +577,10 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		};
 
 		return this._callActivateOptional(logService, extensionId, extensionModule, context, activationTimesBuilder).then((extensionExports) => {
-			return new ActivatedExtension(false, null, activationTimesBuilder.build(), extensionModule, extensionExports, context.subscriptions);
+			return new ActivatedExtension(false, null, activationTimesBuilder.build(), extensionModule, extensionExports, toDisposable(() => {
+				extensionInternalStore.dispose();
+				dispose(context.subscriptions);
+			}));
 		});
 	}
 

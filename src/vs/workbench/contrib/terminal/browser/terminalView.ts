@@ -33,7 +33,7 @@ import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { getColorForSeverity } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import { createAndFillInContextMenuActions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
-import { DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, dispose, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { getColorClass, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
@@ -48,13 +48,14 @@ import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/hover/
 import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { InstanceContext, TerminalContextActionRunner } from 'vs/workbench/contrib/terminal/browser/terminalContextMenu';
+import { MicrotaskDelay } from 'vs/base/common/symbols';
 
 export class TerminalViewPane extends ViewPane {
 	private _parentDomElement: HTMLElement | undefined;
 	private _terminalTabbedView?: TerminalTabbedView;
 	get terminalTabbedView(): TerminalTabbedView | undefined { return this._terminalTabbedView; }
 	private _isInitialized: boolean = false;
-	private _newDropdown: DropdownWithPrimaryActionViewItem | undefined;
+	private readonly _newDropdown: MutableDisposable<DropdownWithPrimaryActionViewItem> = this._register(new MutableDisposable());
 	private readonly _dropdownMenu: IMenu;
 	private readonly _singleTabMenu: IMenu;
 	private _viewShowing: IContextKey<boolean>;
@@ -275,10 +276,9 @@ export class TerminalViewPane extends ViewPane {
 				if (action instanceof MenuItemAction) {
 					const actions = getTerminalActionBarArgs(TerminalLocation.Panel, this._terminalProfileService.availableProfiles, this._getDefaultProfileName(), this._terminalProfileService.contributedProfiles, this._terminalService, this._dropdownMenu);
 					this._registerDisposableActions(actions.dropdownAction, actions.dropdownMenuActions);
-					this._newDropdown?.dispose();
-					this._newDropdown = new DropdownWithPrimaryActionViewItem(action, actions.dropdownAction, actions.dropdownMenuActions, actions.className, this._contextMenuService, { hoverDelegate: options.hoverDelegate }, this._keybindingService, this._notificationService, this._contextKeyService, this._themeService, this._accessibilityService);
-					this._updateTabActionBar(this._terminalProfileService.availableProfiles);
-					return this._newDropdown;
+					this._newDropdown.value = new DropdownWithPrimaryActionViewItem(action, actions.dropdownAction, actions.dropdownMenuActions, actions.className, this._contextMenuService, { hoverDelegate: options.hoverDelegate }, this._keybindingService, this._notificationService, this._contextKeyService, this._themeService, this._accessibilityService);
+					this._newDropdown.value?.update(actions.dropdownAction, actions.dropdownMenuActions);
+					return this._newDropdown.value;
 				}
 			}
 		}
@@ -313,7 +313,7 @@ export class TerminalViewPane extends ViewPane {
 	private _updateTabActionBar(profiles: ITerminalProfile[]): void {
 		const actions = getTerminalActionBarArgs(TerminalLocation.Panel, profiles, this._getDefaultProfileName(), this._terminalProfileService.contributedProfiles, this._terminalService, this._dropdownMenu);
 		this._registerDisposableActions(actions.dropdownAction, actions.dropdownMenuActions);
-		this._newDropdown?.update(actions.dropdownAction, actions.dropdownMenuActions);
+		this._newDropdown.value?.update(actions.dropdownAction, actions.dropdownMenuActions);
 	}
 
 	override focus() {
@@ -433,7 +433,7 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 				last.add(e);
 			}
 			return last;
-		})(merged => {
+		}, MicrotaskDelay)(merged => {
 			for (const e of merged) {
 				this.updateLabel(e);
 			}

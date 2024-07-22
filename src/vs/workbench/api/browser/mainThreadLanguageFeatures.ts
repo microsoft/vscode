@@ -1001,8 +1001,8 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 
 	// --- mapped edits
 
-	$registerMappedEditsProvider(handle: number, selector: IDocumentFilterDto[]): void {
-		const provider = new MainThreadMappedEditsProvider(handle, this._proxy, this._uriIdentService);
+	$registerMappedEditsProvider(handle: number, selector: IDocumentFilterDto[], displayName: string): void {
+		const provider = new MainThreadMappedEditsProvider(displayName, handle, this._proxy, this._uriIdentService);
 		this._registrations.set(handle, this._languageFeaturesService.mappedEditsProvider.register(selector, provider));
 	}
 }
@@ -1241,6 +1241,7 @@ export class MainThreadDocumentRangeSemanticTokensProvider implements languages.
 export class MainThreadMappedEditsProvider implements languages.MappedEditsProvider {
 
 	constructor(
+		public readonly displayName: string,
 		private readonly _handle: number,
 		private readonly _proxy: ExtHostLanguageFeaturesShape,
 		private readonly _uriService: IUriIdentityService,

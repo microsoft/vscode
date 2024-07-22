@@ -75,7 +75,8 @@
       },
       slashCommand: undefined,
       usedContext: undefined,
-      contentReferences: [  ]
+      contentReferences: [  ],
+      codeCitations: [  ]
     }
   ]
 }
