@@ -15,6 +15,7 @@ export interface IToolData {
 	displayName?: string;
 	description: string;
 	parametersSchema?: Object;
+	canBeInvokedManually?: boolean;
 }
 
 interface IToolEntry {

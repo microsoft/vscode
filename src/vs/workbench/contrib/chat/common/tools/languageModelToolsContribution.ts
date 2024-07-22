@@ -18,6 +18,7 @@ interface IRawToolContribution {
 	displayName?: string;
 	description: string;
 	parametersSchema?: IJSONSchema;
+	canBeInvokedManually?: boolean;
 }
 
 const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawToolContribution[]>({
@@ -52,7 +53,15 @@ const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 					description: localize('parametersSchema', "A JSON schema for the parameters this tool accepts."),
 					type: 'object',
 					$ref: 'http://json-schema.org/draft-07/schema#'
-				}
+				},
+				canBeInvokedManually: {
+					description: localize('canBeInvokedManually', "Whether this tool can be invoked manually by the user through the chat UX."),
+					type: 'boolean'
+				},
+				// icon: {
+				// 	description: localize('icon', "An icon that represents this tool."),
+				// 	type: 'string'
+				// }
 			}
 		}
 	}

@@ -83,8 +83,8 @@ export class ChatVariablesService implements IChatVariablesService {
 							resolvedAttachedContext[i] = { id: data.data.id, modelDescription: data.data.modelDescription, name: attachment.name, range: attachment.range, value, references };
 						}
 					}).catch(onUnexpectedExternalError));
-				} else if (attachment.isDynamic) {
-					resolvedAttachedContext[i] = { id: attachment.id, name: attachment.name, value: attachment.value };
+				} else if (attachment.isDynamic || attachment.isTool) {
+					resolvedAttachedContext[i] = { ...attachment };
 				}
 			});
 

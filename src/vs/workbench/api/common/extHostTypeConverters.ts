@@ -2616,16 +2616,19 @@ export namespace ChatResponsePart {
 
 export namespace ChatAgentRequest {
 	export function to(request: IChatAgentRequest, location2: vscode.ChatRequestEditorData | vscode.ChatRequestNotebookData | undefined): vscode.ChatRequest {
+		const requestedTools = request.variables.variables.filter(v => v.isTool).map(tool => tool.id);
+		const variablesWithoutTools = request.variables.variables.filter(v => !v.isTool);
 		return {
 			prompt: request.message,
 			command: request.command,
 			attempt: request.attempt ?? 0,
 			enableCommandDetection: request.enableCommandDetection ?? true,
-			references: request.variables.variables.map(ChatAgentValueReference.to),
+			references: variablesWithoutTools.map(ChatAgentValueReference.to),
 			location: ChatLocation.to(request.location),
 			acceptedConfirmationData: request.acceptedConfirmationData,
 			rejectedConfirmationData: request.rejectedConfirmationData,
-			location2
+			location2,
+			requestedTools
 		};
 	}
 }
