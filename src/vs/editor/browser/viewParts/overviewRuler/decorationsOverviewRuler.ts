@@ -66,6 +66,14 @@ class Settings {
 
 		this.themeType = theme.type;
 
+		const overviewRulerEnabled = options.get(EditorOption.overviewRulerEnabled);
+		if (!overviewRulerEnabled) {
+			this.renderBorder = false;
+			this.borderColor = null;
+			this.hideCursor = true;
+
+		}
+
 		const minimapOpts = options.get(EditorOption.minimap);
 		const minimapEnabled = minimapOpts.enabled;
 		const minimapSide = minimapOpts.side;
@@ -416,6 +424,7 @@ export class DecorationsOverviewRuler extends ViewPart {
 		for (const decorationGroup of decorations) {
 			const color = decorationGroup.color;
 			const decorationGroupData = decorationGroup.data;
+			decorationGroup.data
 
 			canvasCtx.fillStyle = color;
 

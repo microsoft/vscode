@@ -769,7 +769,16 @@ export class ViewModel extends Disposable implements IViewModel {
 	public getAllOverviewRulerDecorations(theme: EditorTheme): OverviewRulerDecorationsGroup[] {
 		const decorations = this.model.getOverviewRulerDecorations(this._editorId, filterValidationDecorations(this._configuration.options));
 		const result = new OverviewRulerDecorations();
-		for (const decoration of decorations) {
+		const overviewRulerDecorationsEnabled = this._configuration.options.get(EditorOption.fontInfo);
+		const minimalAllowed: string[] = [];
+		const filteredDecorations = decorations.filter(d => {
+			if (overviewRulerDecorationsEnabled) {
+				return true;
+			}
+			return minimalAllowed.includes(d.id);
+		});
+
+		for (const decoration of filteredDecorations) {
 			const decorationOptions = <ModelDecorationOptions>decoration.options;
 			const opts = decorationOptions.overviewRuler;
 			if (!opts) {
