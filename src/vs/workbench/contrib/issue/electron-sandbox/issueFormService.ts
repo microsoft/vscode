@@ -37,7 +37,6 @@ export class IssueFormService2 implements IIssueFormService {
 	private issueReporterParentWindow: BrowserWindow | null = null;
 
 	constructor(
-		// private userEnv: IProcessEnvironment,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
 		@ILogService private readonly logService: ILogService,
