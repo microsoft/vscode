@@ -274,7 +274,6 @@ function Send-Completions {
 }
 
 function Compress-Completions($completions) {
-	$completions | ForEach-Object { ,@($_.CompletionText, $_.ResultType, $_.tooltip) }
 	$completions | ForEach-Object {
 		if ($_.CompletionText -eq $_.ToolTip) {
 			,@($_.CompletionText, $_.ResultType)
