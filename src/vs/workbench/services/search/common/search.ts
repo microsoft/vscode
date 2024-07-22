@@ -17,11 +17,9 @@ import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { Event } from 'vs/base/common/event';
 import * as paths from 'vs/base/common/path';
 import { isCancellationError } from 'vs/base/common/errors';
-import { GlobPattern, TextSearchCompleteMessageTypeNew } from 'vs/workbench/services/search/common/searchExtTypes';
+import { GlobPattern, TextSearchCompleteMessageType } from 'vs/workbench/services/search/common/searchExtTypes';
 import { isThenable } from 'vs/base/common/async';
 import { ResourceSet } from 'vs/base/common/map';
-
-export { TextSearchCompleteMessageTypeNew };
 
 export const VIEWLET_ID = 'workbench.view.search';
 export const PANEL_ID = 'workbench.panel.search';
@@ -125,8 +123,7 @@ export interface ITextQueryProps<U extends UriComponents> extends ICommonQueryPr
 	previewOptions?: ITextSearchPreviewOptions;
 	maxFileSize?: number;
 	usePCRE2?: boolean;
-	afterContext?: number;
-	beforeContext?: number;
+	surroundingContext?: number;
 
 	userDisabledExcludesAndIgnoreFiles?: boolean;
 }
@@ -137,8 +134,7 @@ export interface IAITextQueryProps<U extends UriComponents> extends ICommonQuery
 
 	previewOptions?: ITextSearchPreviewOptions;
 	maxFileSize?: number;
-	afterContext?: number;
-	beforeContext?: number;
+	surroundingContext?: number;
 
 	userDisabledExcludesAndIgnoreFiles?: boolean;
 }
@@ -251,7 +247,7 @@ export function isProgressMessage(p: ISearchProgressItem | ISerializedSearchProg
 
 export interface ITextSearchCompleteMessage {
 	text: string;
-	type: TextSearchCompleteMessageTypeNew;
+	type: TextSearchCompleteMessageType;
 	trusted?: boolean;
 }
 

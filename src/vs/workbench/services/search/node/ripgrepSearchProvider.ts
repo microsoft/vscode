@@ -6,7 +6,7 @@
 import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
 import { OutputChannel } from 'vs/workbench/services/search/node/ripgrepSearchUtils';
 import { RipgrepTextSearchEngine } from 'vs/workbench/services/search/node/ripgrepTextSearchEngine';
-import { TextSearchProviderNew, TextSearchCompleteNew, TextSearchResultNew, TextSearchQueryNew, TextSearchProviderOptionsNew, } from 'vs/workbench/services/search/common/searchExtTypes';
+import { TextSearchProviderNew, TextSearchCompleteNew, TextSearchResultNew, TextSearchQueryNew, TextSearchProviderOptions, } from 'vs/workbench/services/search/common/searchExtTypes';
 import { Progress } from 'vs/platform/progress/common/progress';
 import { Schemas } from 'vs/base/common/network';
 import type { RipgrepTextSearchOptions } from 'vs/workbench/services/search/common/searchExtTypesInternal';
@@ -18,20 +18,25 @@ export class RipgrepSearchProvider implements TextSearchProviderNew {
 		process.once('exit', () => this.dispose());
 	}
 
-	async provideTextSearchResults(query: TextSearchQueryNew, options: TextSearchProviderOptionsNew, progress: Progress<TextSearchResultNew>, token: CancellationToken): Promise<TextSearchCompleteNew> {
+	async provideTextSearchResults(query: TextSearchQueryNew, options: TextSearchProviderOptions, progress: Progress<TextSearchResultNew>, token: CancellationToken): Promise<TextSearchCompleteNew> {
 		const numThreads = await this.getNumThreads();
 		const engine = new RipgrepTextSearchEngine(this.outputChannel, numThreads);
-		const extendedOptions: RipgrepTextSearchOptions = {
-			...options,
-			numThreads,
-		};
 
-		return Promise.all(options.folderOptions.map(folderOptions => {
-			if (folderOptions.folder.scheme === Schemas.vscodeUserData) {
+		return Promise.all(options.folderOptions.map(folderOption => {
+
+			const extendedOptions: RipgrepTextSearchOptions = {
+				folderOptions: folderOption,
+				numThreads,
+				maxResults: options.maxResults,
+				previewOptions: options.previewOptions,
+				maxFileSize: options.maxFileSize,
+				surroundingContext: options.surroundingContext
+			};
+			if (folderOption.folder.scheme === Schemas.vscodeUserData) {
 				// Ripgrep search engine can only provide file-scheme results, but we want to use it to search some schemes that are backed by the filesystem, but with some other provider as the frontend,
 				// case in point vscode-userdata. In these cases we translate the query to a file, and translate the results back to the frontend scheme.
-				const translatedOptions = { ...extendedOptions, folder: folderOptions.folder.with({ scheme: Schemas.file }) };
-				const progressTranslator = new Progress<TextSearchResultNew>(data => progress.report({ ...data, uri: data.uri.with({ scheme: folderOptions.folder.scheme }) }));
+				const translatedOptions = { ...extendedOptions, folder: folderOption.folder.with({ scheme: Schemas.file }) };
+				const progressTranslator = new Progress<TextSearchResultNew>(data => progress.report({ ...data, uri: data.uri.with({ scheme: folderOption.folder.scheme }) }));
 				return this.withToken(token, token => engine.provideTextSearchResults(query, translatedOptions, progressTranslator, token));
 			} else {
 				return this.withToken(token, token => engine.provideTextSearchResults(query, extendedOptions, progress, token));

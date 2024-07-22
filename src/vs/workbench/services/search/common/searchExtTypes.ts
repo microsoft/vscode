@@ -121,51 +121,59 @@ export interface TextSearchQueryNew {
 }
 
 
+export interface TextSearchProviderFolderOptions {
+	/**
+	 * The root folder to search within.
+	 */
+	folder: URI;
+
+	/**
+	 * Files that match an `includes` glob pattern should be included in the search.
+	 */
+	includes: string[];
+
+	/**
+	 * Files that match an `excludes` glob pattern should be excluded from the search.
+	 */
+	excludes: GlobPattern[];
+
+	/**
+	 * Whether symlinks should be followed while searching.
+	 * For more info, see the setting description for `search.followSymlinks`.
+	 */
+	followSymlinks: boolean;
+
+	/**
+	 * Which file locations we should look for ignore (.gitignore or .ignore) files to respect.
+	 */
+	useIgnoreFiles: {
+		/**
+		 * Use ignore files at the current workspace root.
+		 */
+		local: boolean;
+		/**
+		 * Use ignore files at the parent directory. If set, {@link TextSearchProviderOptions.useIgnoreFiles.local} should also be `true`.
+		 */
+		parent: boolean;
+		/**
+		 * Use global ignore files. If set, {@link TextSearchProviderOptions.useIgnoreFiles.local} should also be `true`.
+		 */
+		global: boolean;
+	};
+
+	/**
+	 * Interpret files using this encoding.
+	 * See the vscode setting `"files.encoding"`
+	 */
+	encoding: string;
+}
+
 /**
  * Options that apply to text search.
  */
-export interface TextSearchProviderOptionsNew {
+export interface TextSearchProviderOptions {
 
-	folderOptions: {
-		/**
-		 * The root folder to search within.
-		 */
-		folder: URI;
-
-		/**
-		 * Files that match an `includes` glob pattern should be included in the search.
-		 */
-		includes: string[];
-
-		/**
-		 * Files that match an `excludes` glob pattern should be excluded from the search.
-		 */
-		excludes: GlobPattern[];
-
-		/**
-		 * Whether symlinks should be followed while searching.
-		 * For more info, see the setting description for `search.followSymlinks`.
-		 */
-		followSymlinks: boolean;
-
-		/**
-		 * Which file locations we should look for ignore (.gitignore or .ignore) files to respect.
-		 */
-		useIgnoreFiles: {
-			/**
-			 * Use ignore files at the current workspace root.
-			 */
-			local: boolean;
-			/**
-			 * Use ignore files at the parent directory. If set, {@link TextSearchProviderOptionsNew.useIgnoreFiles.local} should also be `true`.
-			 */
-			parent: boolean;
-			/**
-			 * Use global ignore files. If set, {@link TextSearchProviderOptionsNew.useIgnoreFiles.local} should also be `true`.
-			 */
-			global: boolean;
-		};
-	}[];
+	folderOptions: TextSearchProviderFolderOptions[];
 
 	/**
 	 * The maximum number of results to be returned.
@@ -193,11 +201,6 @@ export interface TextSearchProviderOptionsNew {
 	 */
 	maxFileSize: number;
 
-	/**
-	 * Interpret files using this encoding.
-	 * See the vscode setting `"files.encoding"`
-	 */
-	encoding: string;
 
 	/**
 	 * Number of lines of context to include before and after each match.
@@ -220,50 +223,52 @@ export interface TextSearchCompleteNew {
 	limitHit?: boolean;
 }
 
+export interface FileSearchProviderFolderOptions {
+	/**
+	 * The root folder to search within.
+	 */
+	folder: URI;
+
+	/**
+	 * Files that match an `includes` glob pattern should be included in the search.
+	 */
+	includes: string[];
+
+	/**
+	 * Files that match an `excludes` glob pattern should be excluded from the search.
+	 */
+	excludes: GlobPattern[];
+
+	/**
+	 * Whether symlinks should be followed while searching.
+	 * For more info, see the setting description for `search.followSymlinks`.
+	 */
+	followSymlinks: boolean;
+
+	/**
+	 * Which file locations we should look for ignore (.gitignore or .ignore) files to respect.
+	 */
+	useIgnoreFiles: {
+		/**
+		 * Use ignore files at the current workspace root.
+		 */
+		local: boolean;
+		/**
+		 * Use ignore files at the parent directory. If set, {@link FileSearchProviderOptions.useIgnoreFiles.local} should also be `true`.
+		 */
+		parent: boolean;
+		/**
+		 * Use global ignore files. If set, {@link FileSearchProviderOptions.useIgnoreFiles.local} should also be `true`.
+		 */
+		global: boolean;
+	};
+}
+
 /**
  * Options that apply to file search.
  */
-export interface FileSearchProviderOptionsNew {
-	folderOptions: {
-		/**
-		 * The root folder to search within.
-		 */
-		folder: URI;
-
-		/**
-		 * Files that match an `includes` glob pattern should be included in the search.
-		 */
-		includes: string[];
-
-		/**
-		 * Files that match an `excludes` glob pattern should be excluded from the search.
-		 */
-		excludes: GlobPattern[];
-
-		/**
-		 * Whether symlinks should be followed while searching.
-		 * For more info, see the setting description for `search.followSymlinks`.
-		 */
-		followSymlinks: boolean;
-
-		/**
-		 * Which file locations we should look for ignore (.gitignore or .ignore) files to respect.
-		 */
-		useIgnoreFiles: {
-			/**
-			 * Use ignore files at the current workspace root.
-			 */
-			local: boolean;
-			/**
-			 * Use ignore files at the parent directory. If set, {@link FileSearchProviderOptionsNew.useIgnoreFiles.local} should also be `true`.
-			 */
-			parent: boolean;
-			/**
-			 * Use global ignore files. If set, {@link FileSearchProviderOptionsNew.useIgnoreFiles.local} should also be `true`.
-			 */
-			global: boolean;
-		};
-	}[];
+export interface FileSearchProviderOptions {
+	folderOptions: FileSearchProviderFolderOptions[];
 
 	/**
 	 * An object with a lifespan that matches the session's lifespan. If the provider chooses to, this object can be used as the key for a cache,
@@ -331,7 +336,7 @@ export interface FileSearchProviderNew {
 	 * @param progress A progress callback that must be invoked for all results.
 	 * @param token A cancellation token.
 	 */
-	provideFileSearchResults(pattern: string, options: FileSearchProviderOptionsNew, token: CancellationToken): ProviderResult<URI[]>;
+	provideFileSearchResults(pattern: string, options: FileSearchProviderOptions, token: CancellationToken): ProviderResult<URI[]>;
 }
 
 /**
@@ -345,7 +350,7 @@ export interface TextSearchProviderNew {
 	 * @param progress A progress callback that must be invoked for all results.
 	 * @param token A cancellation token.
 	 */
-	provideTextSearchResults(query: TextSearchQueryNew, options: TextSearchProviderOptionsNew, progress: IProgress<TextSearchResultNew>, token: CancellationToken): ProviderResult<TextSearchCompleteNew>;
+	provideTextSearchResults(query: TextSearchQueryNew, options: TextSearchProviderOptions, progress: IProgress<TextSearchResultNew>, token: CancellationToken): ProviderResult<TextSearchCompleteNew>;
 }
 
 /**
@@ -389,7 +394,7 @@ export interface TextSearchCompleteMessageNew {
 	/**
 	 * The message type, this affects how the message will be rendered.
 	 */
-	type: TextSearchCompleteMessageTypeNew;
+	type: TextSearchCompleteMessageType;
 }
 
 export enum ExcludeSettingOptions {
@@ -410,7 +415,23 @@ export enum ExcludeSettingOptions {
 	searchAndFilesExclude = 3
 }
 
-export enum TextSearchCompleteMessageTypeNew {
+export enum TextSearchCompleteMessageType {
 	Information = 1,
 	Warning = 2,
+}
+
+/**
+ * An AITextSearchProvider provides additional AI text search results in the workspace.
+ */
+export interface AITextSearchProviderNew {
+	/**
+	 * WARNING: VERY EXPERIMENTAL.
+	 *
+	 * Provide results that match the given text pattern.
+	 * @param query The parameter for this query.
+	 * @param options A set of options to consider while searching.
+	 * @param progress A progress callback that must be invoked for all results.
+	 * @param token A cancellation token.
+	 */
+	provideAITextSearchResults(query: string, options: TextSearchProviderOptions, progress: IProgress<TextSearchResultNew>, token: CancellationToken): ProviderResult<TextSearchCompleteNew>;
 }

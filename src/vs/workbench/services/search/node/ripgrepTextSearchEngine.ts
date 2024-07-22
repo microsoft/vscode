@@ -429,8 +429,8 @@ export function getRgArgs(query: TextSearchQueryNew, options: RipgrepTextSearchO
 		args.push('--follow');
 	}
 
-	if (options.encoding && options.encoding !== 'utf8') {
-		args.push('--encoding', options.encoding);
+	if (options.folderOptions.encoding && options.folderOptions.encoding !== 'utf8') {
+		args.push('--encoding', options.folderOptions.encoding);
 	}
 
 	if (options.numThreads) {
