@@ -32,7 +32,8 @@ export class NativeEditContext extends AbstractEditContext {
 	private _parent!: HTMLElement;
 	private _scrollTop = 0;
 	private _contentLeft = 0;
-	private _previousLine = -1;
+	private _previousStartLine = -1;
+	private _previousEndLine = -1;
 
 	private _isFocused = false;
 
@@ -151,6 +152,7 @@ export class NativeEditContext extends AbstractEditContext {
 	}
 
 	private updateText() {
+		console.log('update text');
 		const primaryViewState = this._context.viewModel.getCursorStates()[0].viewState;
 		const doc = new LineBasedText(lineNumber => this._context.viewModel.getLineContent(lineNumber), this._context.viewModel.getLineCount());
 		const docStart = new Position(1, 1);
@@ -158,9 +160,6 @@ export class NativeEditContext extends AbstractEditContext {
 		const textEndForEditContext = new Position(primaryViewState.selection.endLineNumber + 1, Number.MAX_SAFE_INTEGER);
 		const textEditForEditContext = new TextEdit([
 			docStart.isBefore(textStartForEditContext) ? new SingleTextEdit(Range.fromPositions(docStart, textStartForEditContext), '') : undefined,
-			(primaryViewState.selection.endLineNumber - primaryViewState.selection.startLineNumber > 6) ?
-				new SingleTextEdit(Range.fromPositions(new Position(primaryViewState.selection.startLineNumber + 2, 1), new Position(primaryViewState.selection.endLineNumber - 2, 1)), '') :
-				undefined,
 			textEndForEditContext.isBefore(doc.endPositionExclusive) ? new SingleTextEdit(Range.fromPositions(textEndForEditContext, doc.endPositionExclusive), '') : undefined
 		].filter(isDefined));
 		const { value: valueForEditContext, selection: selectionForEditContext } = this._findEditData(doc, textEditForEditContext, primaryViewState);
@@ -171,12 +170,11 @@ export class NativeEditContext extends AbstractEditContext {
 		const textEndForHiddenArea = new Position(primaryViewState.selection.endLineNumber, Number.MAX_SAFE_INTEGER);
 		const textEditForHiddenArea = new TextEdit([
 			docStart.isBefore(textStartForHiddenArea) ? new SingleTextEdit(Range.fromPositions(docStart, textStartForHiddenArea), '') : undefined,
-			(primaryViewState.selection.endLineNumber - primaryViewState.selection.startLineNumber > 6) ?
-				new SingleTextEdit(Range.fromPositions(new Position(primaryViewState.selection.startLineNumber, 1), new Position(primaryViewState.selection.endLineNumber, 1)), '') :
-				undefined,
 			textEndForHiddenArea.isBefore(doc.endPositionExclusive) ? new SingleTextEdit(Range.fromPositions(textEndForHiddenArea, doc.endPositionExclusive), '') : undefined
 		].filter(isDefined));
 		const { value: valueForHiddenArea, selection: selectionForHiddenArea, editContextState } = this._findEditData(doc, textEditForHiddenArea, primaryViewState);
+		console.log('valueForHiddenArea : ', valueForHiddenArea);
+		console.log('selectionForHiddenArea : ', selectionForHiddenArea);
 		this._editContextState = editContextState;
 
 		// Update posiiton of the hidden area
@@ -185,15 +183,19 @@ export class NativeEditContext extends AbstractEditContext {
 		domNode.style.left = `${this._contentLeft}px`;
 
 		// Update the hidden area line
-		const line = primaryViewState.selection.startLineNumber;
-		if (this._previousLine !== line) {
+		const startLineNumber = primaryViewState.selection.startLineNumber;
+		const endLineNumber = primaryViewState.selection.endLineNumber;
+		if (this._previousStartLine !== startLineNumber || this._previousEndLine !== endLineNumber) {
 			const childElement = document.createElement('div');
 			childElement.textContent = valueForHiddenArea ?? ' ';
 			childElement.id = `edit-context-content`;
 			childElement.role = 'textbox';
 			domNode.replaceChildren(childElement);
-			this._previousLine = line;
+			this._previousStartLine = startLineNumber;
+			this._previousEndLine = endLineNumber;
 		}
+
+		console.log('domNode : ', domNode);
 
 		// Update the active selection in the dom node
 		const activeDocument = dom.getActiveWindow().document;

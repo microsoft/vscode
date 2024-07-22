@@ -299,7 +299,6 @@ export class View extends ViewEventHandler {
 			},
 
 			getLastRenderData: (): PointerHandlerLastRenderData => {
-				console.log('getLastRenderData');
 				const lastViewCursorsRenderData = this._viewCursors.getLastRenderData() || [];
 				// TODO
 				const lastTextareaPosition = null; // this._textAreaHandler.getLastRenderData();
