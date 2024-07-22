@@ -25,6 +25,7 @@ import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import * as dom from 'vs/base/browser/dom';
 import { SingleCursorState } from 'vs/editor/common/cursorCommon';
 
+
 /**
  * TODO (things that currently do not work and should be made to work, spend time finding these cases in order to have an overview of what works and what doesn't so can focus on most important things):
  * 1. Currently always reading 'insertion at end of text between ..., edit text' in the screen reader
@@ -36,8 +37,14 @@ import { SingleCursorState } from 'vs/editor/common/cursorCommon';
  * 5. When the window is increased and decreased using the touch pad (using the two fingers), the window is increased in size, but the hidden area font size is not changed
  * 6. Need to implement copy/paste again, but this time it should be implemented in a cleaner way, ideally reusing part of the code that has already been developed.
  * 7. The current implementation is such that when you select some text, the full text is read out from the selection. At the end of reading the selection text, the screen reader reads the word 'selected'.
- *   7.a. On my implementation, the screen reader reads the full text even if a specific selection is done.
- *   7.b. Do we need to use the child div inside of the bigger div? Maybe it would be suficient to set the textContent, now that we set the role 'textbox'?
+ *   7.a. On my implementation, the screen reader reads the full text of the first line even if a specific selection is done, and the partial text of the last line?
+ *   7.b. For some reason when selecting text on a specific line, the text selected is not read, just the last letter that was selected
+ *   7.c. Do we need to use the child div inside of the bigger div? Maybe it would be suficient to set the textContent, now that we set the role 'textbox'?
+ *   7.d. Additionally on the current implementation, the screen reader reads 'selected' and on my implementation it reads 'selected edit text' so two more words
+ * 8. Not able to Enter on an empty line for some reason in some cases?
+ * 9. When some text is selected in the current implementation, and when you type, the text does not update as it should. Works when there is an empty selection.
+ * 10. When the selection is empty, and you type some text, for some reason the text is not added into the editor at the correct position. It is added in the wrong position. For some reason the text is added at the end of the line. Related to this, when a letter is removed with the backspace, the text in the hidden area is not synchronized correctly.
+ *   10.a. Look at exploration implementation. Used to work there, so maybe I am missing something in this implementation.
  */
 
 export class NativeEditContext extends AbstractEditContext {
