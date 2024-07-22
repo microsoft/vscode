@@ -109,7 +109,6 @@
 	text-decoration-color: var(--vscode-editor-foreground, inherit);
 }
 
-
 .underline {
 	text-decoration: underline;
 	text-decoration-color: var(--vscode-editor-foreground, inherit);

@@ -294,10 +294,12 @@ export class View extends ViewEventHandler {
 
 			dispatchTextAreaEvent: (event: CustomEvent) => {
 				// TODO
+				console.log('dispatchTextAreaEvent event : ', event);
 				// this._textAreaHandler.textArea.domNode.dispatchEvent(event);
 			},
 
 			getLastRenderData: (): PointerHandlerLastRenderData => {
+				console.log('getLastRenderData');
 				const lastViewCursorsRenderData = this._viewCursors.getLastRenderData() || [];
 				// TODO
 				const lastTextareaPosition = null; // this._textAreaHandler.getLastRenderData();

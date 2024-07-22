@@ -22,6 +22,7 @@ import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { ViewConfigurationChangedEvent, ViewCursorStateChangedEvent, ViewScrollChangedEvent } from 'vs/editor/common/viewEvents';
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import * as dom from 'vs/base/browser/dom';
+import { SingleCursorState } from 'vs/editor/common/cursorCommon';
 
 export class NativeEditContext extends AbstractEditContext {
 	private readonly _domElement = new FastDomNode(document.createElement('div'));
@@ -30,6 +31,7 @@ export class NativeEditContext extends AbstractEditContext {
 	private _parent!: HTMLElement;
 	private _scrollTop = 0;
 	private _contentLeft = 0;
+	private _previousLine = -1;
 
 	private _isFocused = false;
 
@@ -79,6 +81,7 @@ export class NativeEditContext extends AbstractEditContext {
 				this._handleEnter(e);
 			}
 		}));
+		// Need to handle copy/paste event, could use the handle text update method for that
 		this._register(editContextAddDisposableListener(this._ctx, 'textupdate', e => this._handleTextUpdate(e.updateRangeStart, e.updateRangeEnd, e.text)));
 		this._register(editContextAddDisposableListener(this._ctx, 'textformatupdate', e => this._handleTextFormatUpdate(e)));
 	}
@@ -148,21 +151,69 @@ export class NativeEditContext extends AbstractEditContext {
 
 	private updateText() {
 		const primaryViewState = this._context.viewModel.getCursorStates()[0].viewState;
-
 		const doc = new LineBasedText(lineNumber => this._context.viewModel.getLineContent(lineNumber), this._context.viewModel.getLineCount());
 		const docStart = new Position(1, 1);
-		const textStart = new Position(primaryViewState.selection.startLineNumber - 2, 1);
-		const textEnd = new Position(primaryViewState.selection.endLineNumber + 1, Number.MAX_SAFE_INTEGER);
-		const textEdit = new TextEdit([
-			docStart.isBefore(textStart) ? new SingleTextEdit(Range.fromPositions(docStart, textStart), '...\n') : undefined,
+		const textStartForEditContext = new Position(primaryViewState.selection.startLineNumber - 2, 1);
+		const textEndForEditContext = new Position(primaryViewState.selection.endLineNumber + 1, Number.MAX_SAFE_INTEGER);
+		const textEditForEditContext = new TextEdit([
+			docStart.isBefore(textStartForEditContext) ? new SingleTextEdit(Range.fromPositions(docStart, textStartForEditContext), '') : undefined,
 			(primaryViewState.selection.endLineNumber - primaryViewState.selection.startLineNumber > 6) ?
-				new SingleTextEdit(Range.fromPositions(new Position(primaryViewState.selection.startLineNumber + 2, 1), new Position(primaryViewState.selection.endLineNumber - 2, 1)), '...\n') :
+				new SingleTextEdit(Range.fromPositions(new Position(primaryViewState.selection.startLineNumber + 2, 1), new Position(primaryViewState.selection.endLineNumber - 2, 1)), '') :
 				undefined,
-			textEnd.isBefore(doc.endPositionExclusive) ? new SingleTextEdit(Range.fromPositions(textEnd, doc.endPositionExclusive), '\n...') : undefined
+			textEndForEditContext.isBefore(doc.endPositionExclusive) ? new SingleTextEdit(Range.fromPositions(textEndForEditContext, doc.endPositionExclusive), '') : undefined
 		].filter(isDefined));
+		const { value: valueForEditContext, selection: selectionForEditContext } = this._findEditData(doc, textEditForEditContext, primaryViewState);
+		this._ctx.updateText(0, Number.MAX_SAFE_INTEGER, valueForEditContext);
+		this._ctx.updateSelection(selectionForEditContext.start, selectionForEditContext.endExclusive);
 
+		const textStartForHiddenArea = new Position(primaryViewState.selection.startLineNumber, 1);
+		const textEndForHiddenArea = new Position(primaryViewState.selection.endLineNumber, Number.MAX_SAFE_INTEGER);
+		const textEditForHiddenArea = new TextEdit([
+			docStart.isBefore(textStartForHiddenArea) ? new SingleTextEdit(Range.fromPositions(docStart, textStartForHiddenArea), '') : undefined,
+			(primaryViewState.selection.endLineNumber - primaryViewState.selection.startLineNumber > 6) ?
+				new SingleTextEdit(Range.fromPositions(new Position(primaryViewState.selection.startLineNumber, 1), new Position(primaryViewState.selection.endLineNumber, 1)), '') :
+				undefined,
+			textEndForHiddenArea.isBefore(doc.endPositionExclusive) ? new SingleTextEdit(Range.fromPositions(textEndForHiddenArea, doc.endPositionExclusive), '') : undefined
+		].filter(isDefined));
+		const { value: valueForHiddenArea, selection: selectionForHiddenArea, editContextState } = this._findEditData(doc, textEditForHiddenArea, primaryViewState);
+		this._editContextState = editContextState;
+
+		// Update posiiton of the hidden area
+		const domNode = this._domElement.domNode;
+		domNode.style.top = `${this._context.viewLayout.getVerticalOffsetForLineNumber(primaryViewState.selection.startLineNumber - 5) - this._context.viewLayout.getCurrentScrollTop()}px`;
+		domNode.style.left = `${this._contentLeft}px`;
+
+		// Update the hidden area line
+		const line = primaryViewState.selection.startLineNumber;
+		if (this._previousLine !== line) {
+			const childElement = document.createElement('div');
+			childElement.textContent = valueForHiddenArea ?? ' ';
+			childElement.id = `edit-context-content`;
+			childElement.role = 'textbox';
+			domNode.replaceChildren(childElement);
+			this._previousLine = line;
+		}
+
+		// Update the active selection in the dom node
+		const activeDocument = dom.getActiveWindow().document;
+		const activeDocumentSelection = activeDocument.getSelection();
+		if (activeDocumentSelection && domNode.firstChild?.firstChild) {
+			const range = new globalThis.Range();
+			const domNodeElement = domNode.firstChild?.firstChild;
+			if (domNodeElement) {
+				range.setStart(domNodeElement, selectionForHiddenArea.start);
+				range.setEnd(domNodeElement, selectionForHiddenArea.endExclusive);
+				activeDocumentSelection.removeAllRanges();
+				activeDocumentSelection.addRange(range);
+				// TODO: Do we need this?
+				domNode.setAttribute('aria-activedescendant', `edit-context-content`);
+				domNode.setAttribute('aria-controls', 'native-edit-context');
+			}
+		}
+	}
+
+	private _findEditData(doc: LineBasedText, textEdit: TextEdit, primaryViewState: SingleCursorState): { value: string; selection: OffsetRange; editContextState: EditContextState } {
 		const value = textEdit.apply(doc);
-
 		const selectionStart = textEdit.mapPosition(primaryViewState.selection.getStartPosition()) as Position;
 		const selectionEnd = textEdit.mapPosition(primaryViewState.selection.getEndPosition()) as Position;
 		const position = textEdit.mapPosition(primaryViewState.selection.getPosition()) as Position;
@@ -170,11 +221,8 @@ export class NativeEditContext extends AbstractEditContext {
 		const t = new PositionOffsetTransformer(value);
 		const selection = new OffsetRange((t.getOffset(selectionStart)), (t.getOffset(selectionEnd)));
 		const positionOffset = t.getOffset(position);
-
-		this._editContextState = new EditContextState(textEdit, t, positionOffset, selection);
-
-		this._ctx.updateText(0, Number.MAX_SAFE_INTEGER, value);
-		this._ctx.updateSelection(selection.start, selection.endExclusive);
+		const editContextState = new EditContextState(textEdit, t, positionOffset, selection);
+		return { value, selection, editContextState };
 	}
 
 	public override prepareRender(ctx: RenderingContext): void {
@@ -206,7 +254,7 @@ export class NativeEditContext extends AbstractEditContext {
 	}
 
 	public override render(ctx: RestrictedRenderingContext): void {
-
+		// TODO
 	}
 
 	public override onConfigurationChanged(e: ViewConfigurationChangedEvent): boolean {
