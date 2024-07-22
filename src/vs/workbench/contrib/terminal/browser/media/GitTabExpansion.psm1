@@ -602,7 +602,6 @@ function GitTabExpansionInternal($lastBlock, $GitStatus = $null) {
 	}
 }
 
-get-
 function ConvertTo-VscodeCompletion {
 	Param(
 		[Parameter(ValueFromPipeline=$true)]

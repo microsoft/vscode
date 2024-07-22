@@ -44,7 +44,7 @@ export type CompressedPwshCompletion = [
 export type PwshCompletion = {
 	CompletionText: string;
 	ResultType: number;
-	ToolTip: string;
+	ToolTip?: string;
 };
 
 
@@ -687,10 +687,13 @@ function rawCompletionToSimpleCompletionItem(rawCompletion: PwshCompletion): Sim
 		label = label + separator;
 	}
 
+	// If tooltip is not present it means it's the same as label
+	const detail = rawCompletion.ToolTip ?? label;
+
 	// Pwsh gives executables a result type of 2, but we want to treat them as files wrt the sorting
 	// and file extension score boost. An example of where this improves the experience is typing
 	// `git`, `git.exe` should appear at the top and beat `git-lfs.exe`. Keep the same icon though.
-	const icon = getIcon(rawCompletion.ResultType, rawCompletion.ToolTip);
+	const icon = getIcon(rawCompletion.ResultType, detail);
 	const isExecutable = rawCompletion.ResultType === 2 && rawCompletion.CompletionText.match(/\.[a-z]{2,4}$/i);
 	if (isExecutable) {
 		rawCompletion.ResultType = 3;
@@ -699,7 +702,7 @@ function rawCompletionToSimpleCompletionItem(rawCompletion: PwshCompletion): Sim
 	return new SimpleCompletionItem({
 		label,
 		icon,
-		detail: rawCompletion.ToolTip,
+		detail,
 		isFile: rawCompletion.ResultType === 3,
 		isDirectory: rawCompletion.ResultType === 4,
 	});
