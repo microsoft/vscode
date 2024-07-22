@@ -180,7 +180,7 @@
 		],
 		"action": "close",
 		"reason": "not_planned",
-		"addLabel": "spam"
+		"addLabel": "invalid"
 	},
 	{
 		"type": "comment",
