@@ -101,6 +101,8 @@ export class DiffEditorOptions {
 		}))
 		.flatten()
 		.map(this, v => !!v);
+
+	public readonly inlineViewHideOriginalLineNumbers = this.compactMode;
 }
 
 function isSimpleDiff(diff: DiffState, supportsTrueDiffRendering: boolean): boolean {

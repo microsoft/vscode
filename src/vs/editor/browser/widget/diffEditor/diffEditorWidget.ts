@@ -385,8 +385,13 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 		} else {
 			gutterLeft = 0;
 
+			const shouldHideOriginalLineNumbers = this._options.inlineViewHideOriginalLineNumbers.read(reader);
 			originalLeft = gutterWidth;
-			originalWidth = Math.max(5, this._editors.original.getLayoutInfo().decorationsLeft);
+			if (shouldHideOriginalLineNumbers) {
+				originalWidth = 0;
+			} else {
+				originalWidth = Math.max(5, this._editors.original.getLayoutInfo().decorationsLeft);
+			}
 
 			modifiedLeft = gutterWidth + originalWidth;
 			modifiedWidth = fullWidth - modifiedLeft - overviewRulerPartWidth;
