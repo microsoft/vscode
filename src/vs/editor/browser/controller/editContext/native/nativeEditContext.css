@@ -15,4 +15,5 @@
 	white-space : pre-wrap;
 	display : table;
 	tab-size: 4;
+	text-wrap: nowrap;
 }
