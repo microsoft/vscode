@@ -2,24 +2,25 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IProductConfiguration } from 'vs/base/common/product';
 import { $, createStyleSheet, reset, windowOpenNoOpener } from 'vs/base/browser/dom';
 import { Button, unthemedButtonStyles } from 'vs/base/browser/ui/button/button';
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
+import { mainWindow } from 'vs/base/browser/window';
 import { Delayer, RunOnceScheduler } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
 import { debounce } from 'vs/base/common/decorators';
 import { CancellationError } from 'vs/base/common/errors';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { isLinuxSnap } from 'vs/base/common/platform';
+import { IProductConfiguration } from 'vs/base/common/product';
 import { escape } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { IIssueMainService, IssueReporterData, IssueReporterExtensionData, IssueReporterStyles, IssueType } from 'vs/platform/issue/common/issue';
-import { normalizeGitHubUrl } from 'vs/platform/issue/common/issueReporterUtil';
+import { OldIssueReporterData } from 'vs/platform/issue/common/issue';
 import { getIconsStyleSheet } from 'vs/platform/theme/browser/iconsStyleSheet';
 import { IssueReporterModel, IssueReporterData as IssueReporterModelData } from 'vs/workbench/contrib/issue/browser/issueReporterModel';
-import { mainWindow } from 'vs/base/browser/window';
+import { IIssueFormService, IssueReporterData, IssueReporterExtensionData, IssueReporterStyles, IssueType } from 'vs/workbench/contrib/issue/common/issue';
+import { normalizeGitHubUrl } from 'vs/workbench/contrib/issue/common/issueReporterUtil';
 
 const MAX_URL_LENGTH = 7500;
 
@@ -53,7 +54,7 @@ export class BaseIssueReporterService extends Disposable {
 
 	constructor(
 		public disableExtensions: boolean,
-		public data: IssueReporterData,
+		public data: IssueReporterData | OldIssueReporterData,
 		public os: {
 			type: string;
 			arch: string;
@@ -62,7 +63,7 @@ export class BaseIssueReporterService extends Disposable {
 		public product: IProductConfiguration,
 		public readonly window: Window,
 		public readonly isWeb: boolean,
-		@IIssueMainService public readonly issueMainService: IIssueMainService
+		@IIssueFormService public readonly issueFormService: IIssueFormService
 	) {
 		super();
 		const targetExtension = data.extensionId ? data.enabledExtensions.find(extension => extension.id.toLocaleLowerCase() === data.extensionId?.toLocaleLowerCase()) : undefined;
@@ -158,6 +159,10 @@ export class BaseIssueReporterService extends Disposable {
 
 		if (styles.inputBackground) {
 			content.push(`input[type="text"], textarea, select, .issues-container > .issue > .issue-state, .block-info { background-color: ${styles.inputBackground} !important; }`);
+		}
+
+		if (styles.backgroundColor) {
+			content.push(`.monaco-workbench { background-color: ${styles.backgroundColor} !important; }`);
 		}
 
 		if (styles.inputBorder) {
@@ -480,7 +485,7 @@ export class BaseIssueReporterService extends Disposable {
 	}
 
 	public async close(): Promise<void> {
-		await this.issueMainService.$closeReporter();
+		await this.issueFormService.closeReporter();
 	}
 
 	public clearSearchResults(): void {
@@ -911,7 +916,7 @@ export class BaseIssueReporterService extends Disposable {
 	}
 
 	public async writeToClipboard(baseUrl: string, issueBody: string): Promise<string> {
-		const shouldWrite = await this.issueMainService.$showClipboardDialog();
+		const shouldWrite = await this.issueFormService.showClipboardDialog();
 		if (!shouldWrite) {
 			throw new CancellationError();
 		}

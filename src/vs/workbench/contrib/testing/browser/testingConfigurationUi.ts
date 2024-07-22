@@ -78,7 +78,7 @@ function buildPicker(accessor: ServicesAccessor, {
 		pushItems(profileService.getControllerProfiles(onlyForTest.controllerId).filter(p => canUseProfileWithTest(p, onlyForTest)));
 	} else {
 		for (const { profiles, controller } of profileService.all()) {
-			pushItems(profiles, controller.label.value);
+			pushItems(profiles, controller.label.get());
 		}
 	}
 
