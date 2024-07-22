@@ -197,9 +197,13 @@ class InlineEditSideBySideContentWidget extends Disposable implements IOverlayWi
 			lineNumbersMinChars: 0,
 			scrollbar: { vertical: 'hidden', horizontal: 'hidden' },
 			readOnly: true,
-
+			wordWrap: 'off',
+			wordWrapOverride1: 'off',
+			wordWrapOverride2: 'off',
+			wrappingIndent: 'none',
+			wrappingStrategy: undefined,
 		},
-		{ contributions: [], },
+		{ contributions: [], isSimpleWidget: true },
 		this._editor
 	));
 
