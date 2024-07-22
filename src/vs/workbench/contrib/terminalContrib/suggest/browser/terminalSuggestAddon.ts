@@ -335,7 +335,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 		const firstChar = this._leadingLineContent.length === 0 ? '' : this._leadingLineContent[0];
 		// This is a TabExpansion2 result
-		if (this._leadingLineContent.trim().includes(' ') || firstChar === '[') {
+		if (this._leadingLineContent.includes(' ') || firstChar === '[') {
 			replacementIndex = parseInt(args[0]);
 			replacementLength = parseInt(args[1]);
 			this._leadingLineContent = this._promptInputModel.value.substring(0, this._promptInputModel.cursorIndex);
