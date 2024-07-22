@@ -26,7 +26,8 @@ import * as dom from 'vs/base/browser/dom';
 import { SingleCursorState } from 'vs/editor/common/cursorCommon';
 
 /**
- * TODO:
+ * TODO (things that currently do not work and should be made to work, spend time finding these cases in order to have an overview of what works and what doesn't so can focus on most important things):
+ * 1. Currently always reading 'insertion at end of text between ..., edit text' in the screen reader
  */
 
 export class NativeEditContext extends AbstractEditContext {
