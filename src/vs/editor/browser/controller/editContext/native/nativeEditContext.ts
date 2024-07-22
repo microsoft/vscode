@@ -25,6 +25,10 @@ import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import * as dom from 'vs/base/browser/dom';
 import { SingleCursorState } from 'vs/editor/common/cursorCommon';
 
+/**
+ * TODO:
+ */
+
 export class NativeEditContext extends AbstractEditContext {
 	private readonly _domElement = new FastDomNode(document.createElement('div'));
 	private readonly _ctx: EditContext = this._domElement.domNode.editContext = new EditContext();
@@ -152,7 +156,6 @@ export class NativeEditContext extends AbstractEditContext {
 	}
 
 	private updateText() {
-		console.log('update text');
 		const primaryViewState = this._context.viewModel.getCursorStates()[0].viewState;
 		const doc = new LineBasedText(lineNumber => this._context.viewModel.getLineContent(lineNumber), this._context.viewModel.getLineCount());
 		const docStart = new Position(1, 1);
@@ -173,14 +176,12 @@ export class NativeEditContext extends AbstractEditContext {
 			textEndForHiddenArea.isBefore(doc.endPositionExclusive) ? new SingleTextEdit(Range.fromPositions(textEndForHiddenArea, doc.endPositionExclusive), '') : undefined
 		].filter(isDefined));
 		const { value: valueForHiddenArea, selection: selectionForHiddenArea, editContextState } = this._findEditData(doc, textEditForHiddenArea, primaryViewState);
-		console.log('valueForHiddenArea : ', valueForHiddenArea);
-		console.log('selectionForHiddenArea : ', selectionForHiddenArea);
 		this._editContextState = editContextState;
 
 		// Update posiiton of the hidden area
 		const domNode = this._domElement.domNode;
 		domNode.style.top = `${this._context.viewLayout.getVerticalOffsetForLineNumber(primaryViewState.selection.startLineNumber - 5) - this._context.viewLayout.getCurrentScrollTop()}px`;
-		domNode.style.left = `${this._contentLeft}px`;
+		domNode.style.left = `${this._contentLeft - this._context.viewLayout.getCurrentScrollLeft()}px`;
 
 		// Update the hidden area line
 		const startLineNumber = primaryViewState.selection.startLineNumber;
@@ -195,7 +196,6 @@ export class NativeEditContext extends AbstractEditContext {
 			this._previousEndLine = endLineNumber;
 		}
 
-		console.log('domNode : ', domNode);
 
 		// Update the active selection in the dom node
 		const activeDocument = dom.getActiveWindow().document;
@@ -213,6 +213,9 @@ export class NativeEditContext extends AbstractEditContext {
 				domNode.setAttribute('aria-controls', 'native-edit-context');
 			}
 		}
+
+		console.log('update text');
+		console.log('domNode : ', domNode);
 	}
 
 	private _findEditData(doc: LineBasedText, textEdit: TextEdit, primaryViewState: SingleCursorState): { value: string; selection: OffsetRange; editContextState: EditContextState } {
