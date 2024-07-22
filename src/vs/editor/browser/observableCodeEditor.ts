@@ -190,6 +190,7 @@ export class ObservableCodeEditor extends Disposable {
 	public readonly scrollLeft = observableFromEvent(this.editor.onDidScrollChange, () => this.editor.getScrollLeft());
 
 	public readonly layoutInfo = observableFromEvent(this.editor.onDidLayoutChange, () => this.editor.getLayoutInfo());
+	public readonly layoutInfoContentLeft = this.layoutInfo.map(l => l.contentLeft);
 
 	public readonly contentWidth = observableFromEvent(this.editor.onDidContentSizeChange, () => this.editor.getContentWidth());
 

@@ -498,3 +498,60 @@ export interface FindTextInFilesOptions {
 	 */
 	afterContext?: number;
 }
+
+// NEW TYPES
+// added temporarily for testing new API shape
+
+/**
+ * The main match information for a {@link TextSearchResultNew}.
+ */
+export class TextSearchMatchNew {
+	/**
+	 * @param uri The uri for the matching document.
+	 * @param ranges The ranges associated with this match.
+	 * @param previewText The text that is used to preview the match. The highlighted range in `previewText` is specified in `ranges`.
+	 */
+	constructor(
+		public uri: URI,
+		public ranges: { sourceRange: Range; previewRange: Range }[],
+		public previewText: string) { }
+
+}
+
+/**
+ * The potential context information for a {@link TextSearchResultNew}.
+ */
+export class TextSearchContextNew {
+	/**
+	 * @param uri The uri for the matching document.
+	 * @param text The line of context text.
+	 * @param lineNumber The line number of this line of context.
+	 */
+	constructor(
+		public uri: URI,
+		public text: string,
+		public lineNumber: number) { }
+}
+
+export enum ExcludeSettingOptions {
+	/*
+	 * Don't use any exclude settings.
+	 */
+	none = 1,
+	/*
+	 * Use:
+	 * - files.exclude setting
+	 */
+	filesExclude = 2,
+	/*
+	 * Use:
+	 * - files.exclude setting
+	 * - search.exclude setting
+	 */
+	searchAndFilesExclude = 3
+}
+
+export enum TextSearchCompleteMessageTypeNew {
+	Information = 1,
+	Warning = 2,
+}

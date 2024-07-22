@@ -29,7 +29,7 @@ import { BreakpointEditorContribution } from 'vs/workbench/contrib/debug/browser
 import { BreakpointsView } from 'vs/workbench/contrib/debug/browser/breakpointsView';
 import { CallStackEditorContribution } from 'vs/workbench/contrib/debug/browser/callStackEditorContribution';
 import { CallStackView } from 'vs/workbench/contrib/debug/browser/callStackView';
-import { DebugAccessibleView } from 'vs/workbench/contrib/debug/browser/debugAccessibleView';
+import { ReplAccessibleView } from 'vs/workbench/contrib/debug/browser/replAccessibleView';
 import { registerColors } from 'vs/workbench/contrib/debug/browser/debugColors';
 import { ADD_CONFIGURATION_ID, ADD_TO_WATCH_ID, ADD_TO_WATCH_LABEL, CALLSTACK_BOTTOM_ID, CALLSTACK_BOTTOM_LABEL, CALLSTACK_DOWN_ID, CALLSTACK_DOWN_LABEL, CALLSTACK_TOP_ID, CALLSTACK_TOP_LABEL, CALLSTACK_UP_ID, CALLSTACK_UP_LABEL, CONTINUE_ID, CONTINUE_LABEL, COPY_EVALUATE_PATH_ID, COPY_EVALUATE_PATH_LABEL, COPY_STACK_TRACE_ID, COPY_VALUE_ID, COPY_VALUE_LABEL, DEBUG_COMMAND_CATEGORY, DEBUG_CONSOLE_QUICK_ACCESS_PREFIX, DEBUG_QUICK_ACCESS_PREFIX, DEBUG_RUN_COMMAND_ID, DEBUG_RUN_LABEL, DEBUG_START_COMMAND_ID, DEBUG_START_LABEL, DISCONNECT_AND_SUSPEND_ID, DISCONNECT_AND_SUSPEND_LABEL, DISCONNECT_ID, DISCONNECT_LABEL, EDIT_EXPRESSION_COMMAND_ID, FOCUS_REPL_ID, JUMP_TO_CURSOR_ID, NEXT_DEBUG_CONSOLE_ID, NEXT_DEBUG_CONSOLE_LABEL, OPEN_LOADED_SCRIPTS_LABEL, PAUSE_ID, PAUSE_LABEL, PREV_DEBUG_CONSOLE_ID, PREV_DEBUG_CONSOLE_LABEL, REMOVE_EXPRESSION_COMMAND_ID, RESTART_FRAME_ID, RESTART_LABEL, RESTART_SESSION_ID, SELECT_AND_START_ID, SELECT_AND_START_LABEL, SELECT_DEBUG_CONSOLE_ID, SELECT_DEBUG_CONSOLE_LABEL, SELECT_DEBUG_SESSION_ID, SELECT_DEBUG_SESSION_LABEL, SET_EXPRESSION_COMMAND_ID, SHOW_LOADED_SCRIPTS_ID, STEP_INTO_ID, STEP_INTO_LABEL, STEP_INTO_TARGET_ID, STEP_INTO_TARGET_LABEL, STEP_OUT_ID, STEP_OUT_LABEL, STEP_OVER_ID, STEP_OVER_LABEL, STOP_ID, STOP_LABEL, TERMINATE_THREAD_ID, TOGGLE_INLINE_BREAKPOINT_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
 import { DebugConsoleQuickAccess } from 'vs/workbench/contrib/debug/browser/debugConsoleQuickAccess';
@@ -59,8 +59,10 @@ import { COPY_NOTEBOOK_VARIABLE_VALUE_ID, COPY_NOTEBOOK_VARIABLE_VALUE_LABEL } f
 import { launchSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import './debugSettingMigration';
-import { DebugAccessibilityHelp } from 'vs/workbench/contrib/debug/browser/debugAccessibilityHelp';
+import { ReplAccessibilityHelp } from 'vs/workbench/contrib/debug/browser/replAccessibilityHelp';
 import { ReplAccessibilityAnnouncer } from 'vs/workbench/contrib/debug/common/replAccessibilityAnnouncer';
+import { RunAndDebugAccessibilityHelp } from 'vs/workbench/contrib/debug/browser/runAndDebugAccessibilityHelp';
+import { DebugWatchAccessibilityAnnouncer } from 'vs/workbench/contrib/debug/common/debugAccessibilityAnnouncer';
 
 const debugCategory = nls.localize('debugCategory', "Debug");
 registerColors();
@@ -644,6 +646,8 @@ configurationRegistry.registerConfiguration({
 	}
 });
 
-AccessibleViewRegistry.register(new DebugAccessibleView());
-AccessibleViewRegistry.register(new DebugAccessibilityHelp());
+AccessibleViewRegistry.register(new ReplAccessibleView());
+AccessibleViewRegistry.register(new ReplAccessibilityHelp());
+AccessibleViewRegistry.register(new RunAndDebugAccessibilityHelp());
 registerWorkbenchContribution2(ReplAccessibilityAnnouncer.ID, ReplAccessibilityAnnouncer, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(DebugWatchAccessibilityAnnouncer.ID, DebugWatchAccessibilityAnnouncer, WorkbenchPhase.AfterRestored);
