@@ -110,7 +110,7 @@ export class MouseHandler extends ViewEventHandler {
 							if (!this._mouseOnOverflowWidgetsDomNode) {
 								this._onMouseLeave(new EditorMouseEvent(e, false, this.viewHelper.viewDomNode));
 							}
-						}, 100);
+						}, 0);
 					}
 				});
 			}
@@ -124,7 +124,7 @@ export class MouseHandler extends ViewEventHandler {
 				if (!this._mouseOnOverflowWidgetsDomNode) {
 					this._onMouseLeave(e);
 				}
-			}, 100);
+			}, 0);
 		}));
 
 		const overflowWidgetsDomNode = this.viewHelper.overflowWidgetsDomNode;
@@ -141,7 +141,7 @@ export class MouseHandler extends ViewEventHandler {
 					if (!this._mouseOnViewDomNode) {
 						this._onMouseLeave(e);
 					}
-				}, 100);
+				}, 0);
 			}));
 		}
 
