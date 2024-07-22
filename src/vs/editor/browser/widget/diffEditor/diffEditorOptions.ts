@@ -71,7 +71,9 @@ export class DiffEditorOptions {
 	public readonly showEmptyDecorations = derived(this, reader => this._options.read(reader).experimental.showEmptyDecorations!);
 	public readonly onlyShowAccessibleDiffViewer = derived(this, reader => this._options.read(reader).onlyShowAccessibleDiffViewer);
 	public readonly compactMode = derived(this, reader => this._options.read(reader).compactMode);
-	public readonly useTrueInlineDiffRendering = derived(this, reader => this._options.read(reader).experimental.useTrueInlineView!);
+	public readonly useTrueInlineDiffRendering: IObservable<boolean> = derived(this, reader =>
+		!this.renderSideBySide.read(reader) && this._options.read(reader).experimental.useTrueInlineView!
+	);
 
 	public readonly hideUnchangedRegions = derived(this, reader => this._options.read(reader).hideUnchangedRegions.enabled!);
 	public readonly hideUnchangedRegionsRevealLineCount = derived(this, reader => this._options.read(reader).hideUnchangedRegions.revealLineCount!);
