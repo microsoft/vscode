@@ -43,6 +43,9 @@ import { GlyphMarginLanesModel } from 'vs/editor/common/viewModel/glyphLanesMode
 
 const USE_IDENTITY_LINES_COLLECTION = true;
 
+const minimalAllowedDecorations: string[] = ['marker-decoration'];
+
+
 export class ViewModel extends Disposable implements IViewModel {
 
 	private readonly _editorId: number;
@@ -769,13 +772,10 @@ export class ViewModel extends Disposable implements IViewModel {
 	public getAllOverviewRulerDecorations(theme: EditorTheme): OverviewRulerDecorationsGroup[] {
 		const decorations = this.model.getOverviewRulerDecorations(this._editorId, filterValidationDecorations(this._configuration.options));
 		const result = new OverviewRulerDecorations();
-		const overviewRulerDecorationsEnabled = this._configuration.options.get(EditorOption.fontInfo);
-		const minimalAllowed: string[] = [];
-		const filteredDecorations = decorations.filter(d => {
-			if (overviewRulerDecorationsEnabled) {
-				return true;
-			}
-			return minimalAllowed.includes(d.id);
+		const overviewRulerDecorationsEnabled = this._configuration.options.get(EditorOption.overviewRulerEnabled);
+		const filteredDecorations = overviewRulerDecorationsEnabled ? decorations : decorations.filter(d => {
+			console.log({ id: d.id, desc: d.options.description });
+			return minimalAllowedDecorations.includes(d.id);
 		});
 
 		for (const decoration of filteredDecorations) {
