@@ -183,7 +183,7 @@
 						},
 						"disableAutomaticConfiguration": {
 							"type": "boolean",
-							"description": "Disables setup which is automatically run in a codespace no `postCreateCommand` is specified.",
+							"description": "Disables the setup that is automatically run in a codespace if no `postCreateCommand` is specified.",
 							"default": false
 						}
 					}
