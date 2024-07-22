@@ -199,9 +199,11 @@ function Set-MappedKeyHandlers {
 
 		Set-PSReadLineKeyHandler -Chord 'F12,g' -ScriptBlock {
 			Import-Module "$PSScriptRoot\GitTabExpansion.psm1"
+			Remove-PSReadLineKeyHandler -Chord 'F12,g'
 		}
 		Set-PSReadLineKeyHandler -Chord 'F12,h' -ScriptBlock {
 			Import-Module "$PSScriptRoot\CodeTabExpansion.psm1"
+			Remove-PSReadLineKeyHandler -Chord 'F12,h'
 		}
 	}
 }

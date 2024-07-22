@@ -38,7 +38,7 @@ function Get-AliasPattern($cmd) {
 }
 
 $Global:GitTabSettings = New-Object PSObject -Property @{
-	AllCommands = $true
+	AllCommands = $false
 	KnownAliases = @{
 		'!f() { exec vsts code pr "$@"; }; f' = 'vsts.pr'
 	}
@@ -602,6 +602,7 @@ function GitTabExpansionInternal($lastBlock, $GitStatus = $null) {
 	}
 }
 
+get-
 function ConvertTo-VscodeCompletion {
 	Param(
 		[Parameter(ValueFromPipeline=$true)]
