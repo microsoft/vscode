@@ -10,7 +10,7 @@ declare module 'vscode' {
 		 * A {@link GlobPattern glob pattern} that defines files and folders to exclude. The glob pattern
 		 * will be matched against the file paths of resulting matches relative to their workspace.
 		 */
-		exclude?: GlobPattern;
+		exclude?: GlobPattern[];
 
 		/**
 		 * Which settings to follow when searching for files. Defaults to {@link ExcludeSettingOptions.searchAndFilesExclude}.
