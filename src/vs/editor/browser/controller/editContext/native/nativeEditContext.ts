@@ -8,7 +8,6 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { isDefined } from 'vs/base/common/types';
 import { AbstractEditContext } from 'vs/editor/browser/controller/editContext/editContext';
-import { DebugEditContext } from 'vs/editor/browser/controller/editContext/native/debugEditContext';
 import { IEditorAriaOptions } from 'vs/editor/browser/editorBrowser';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
 import { ViewController } from 'vs/editor/browser/view/viewController';
@@ -25,7 +24,7 @@ import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 
 export class NativeEditContext extends AbstractEditContext {
 	private readonly _domElement = new FastDomNode(document.createElement('div'));
-	private readonly _ctx: EditContext = this._domElement.domNode.editContext = new DebugEditContext();
+	private readonly _ctx: EditContext = this._domElement.domNode.editContext = new EditContext();
 
 
 	private _parent!: HTMLElement;

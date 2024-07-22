@@ -228,4 +228,3 @@ class EventListenerWrapper {
 	}
 }
 
-
