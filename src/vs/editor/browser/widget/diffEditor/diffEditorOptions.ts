@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IObservable, ISettableObservable, derived, observableFromEvent, observableValue } from 'vs/base/common/observable';
-import { getIfDefined } from 'vs/base/common/observableInternal/utils';
+import { derivedConstOnceDefined } from 'vs/base/common/observableInternal/utils';
 import { Constants } from 'vs/base/common/uint';
 import { allowsTrueInlineDiffRendering } from 'vs/editor/browser/widget/diffEditor/components/diffEditorViewZones/diffEditorViewZones';
 import { DiffEditorViewModel, DiffState } from 'vs/editor/browser/widget/diffEditor/diffEditorViewModel';
@@ -95,12 +95,14 @@ export class DiffEditorOptions {
 	}
 
 	private readonly shouldRenderInlineViewInSmartMode = this._model
-		.map(this, model => getIfDefined(this, reader => {
+		.map(this, model => derivedConstOnceDefined(this, reader => {
 			const diffs = model?.diff.read(reader);
 			return diffs ? isSimpleDiff(diffs, this.useTrueInlineDiffRendering.read(reader)) : undefined;
 		}))
 		.flatten()
 		.map(this, v => !!v);
+
+	public readonly inlineViewHideOriginalLineNumbers = this.compactMode;
 }
 
 function isSimpleDiff(diff: DiffState, supportsTrueDiffRendering: boolean): boolean {

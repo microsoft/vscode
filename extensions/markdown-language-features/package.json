@@ -708,14 +708,11 @@
             "%configuration.markdown.preferredMdPathExtensionStyle.removeExtension%"
           ]
         },
-        "markdown.experimental.updateLinksOnPaste": {
+        "markdown.editor.updateLinksOnPaste.enabled": {
           "type": "boolean",
-          "default": false,
-          "markdownDescription": "%configuration.markdown.experimental.updateLinksOnPaste%",
+          "markdownDescription": "%configuration.markdown.editor.updateLinksOnPaste.enabled%",
           "scope": "resource",
-          "tags": [
-            "experimental"
-          ]
+          "default": true
         }
       }
     },

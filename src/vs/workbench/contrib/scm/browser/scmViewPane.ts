@@ -1295,7 +1295,6 @@ class SeparatorRenderer implements ICompressibleTreeRenderer<SCMViewSeparatorEle
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IMenuService private readonly menuService: IMenuService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService
@@ -1314,8 +1313,7 @@ class SeparatorRenderer implements ICompressibleTreeRenderer<SCMViewSeparatorEle
 		append(element, $('.separator'));
 		templateDisposables.add(label);
 
-		const options = { moreIcon: this.configurationService.getValue<boolean>('scm.experimental.showHistoryGraph') === true ? Codicon.more : Codicon.gear } satisfies IMenuWorkbenchToolBarOptions;
-		const toolBar = new WorkbenchToolBar(append(element, $('.actions')), options, this.menuService, this.contextKeyService, this.contextMenuService, this.keybindingService, this.commandService, this.telemetryService);
+		const toolBar = new WorkbenchToolBar(append(element, $('.actions')), undefined, this.menuService, this.contextKeyService, this.contextMenuService, this.keybindingService, this.commandService, this.telemetryService);
 		templateDisposables.add(toolBar);
 
 		return { label, toolBar, elementDisposables: new DisposableStore(), templateDisposables };
@@ -1739,7 +1737,7 @@ MenuRegistry.appendMenuItem(MenuId.SCMTitle, {
 MenuRegistry.appendMenuItem(MenuId.SCMTitle, {
 	title: localize('scmChanges', "Incoming & Outgoing"),
 	submenu: Menus.ChangesSettings,
-	when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_PANE_ID), ContextKeys.RepositoryCount.notEqualsTo(0), ContextKeyExpr.equals('config.scm.experimental.showHistoryGraph', true).negate()),
+	when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_PANE_ID), ContextKeys.RepositoryCount.notEqualsTo(0), ContextKeyExpr.equals('config.scm.showHistoryGraph', true).negate()),
 	group: '0_view&sort',
 	order: 2
 });
@@ -1774,7 +1772,7 @@ MenuRegistry.appendMenuItem(MenuId.SCMChangesSeparator, {
 	submenu: MenuId.SCMIncomingChangesSetting,
 	group: '1_incoming&outgoing',
 	order: 1,
-	when: ContextKeyExpr.equals('config.scm.experimental.showHistoryGraph', false)
+	when: ContextKeyExpr.equals('config.scm.showHistoryGraph', false)
 });
 
 MenuRegistry.appendMenuItem(Menus.ChangesSettings, {
@@ -1782,7 +1780,7 @@ MenuRegistry.appendMenuItem(Menus.ChangesSettings, {
 	submenu: MenuId.SCMIncomingChangesSetting,
 	group: '1_incoming&outgoing',
 	order: 1,
-	when: ContextKeyExpr.equals('config.scm.experimental.showHistoryGraph', false)
+	when: ContextKeyExpr.equals('config.scm.showHistoryGraph', false)
 });
 
 registerAction2(class extends SCMChangesSettingAction {
@@ -1827,7 +1825,7 @@ MenuRegistry.appendMenuItem(MenuId.SCMChangesSeparator, {
 	submenu: MenuId.SCMOutgoingChangesSetting,
 	group: '1_incoming&outgoing',
 	order: 2,
-	when: ContextKeyExpr.equals('config.scm.experimental.showHistoryGraph', false)
+	when: ContextKeyExpr.equals('config.scm.showHistoryGraph', false)
 });
 
 MenuRegistry.appendMenuItem(Menus.ChangesSettings, {
@@ -1835,7 +1833,7 @@ MenuRegistry.appendMenuItem(Menus.ChangesSettings, {
 	submenu: MenuId.SCMOutgoingChangesSetting,
 	group: '1_incoming&outgoing',
 	order: 2,
-	when: ContextKeyExpr.equals('config.scm.experimental.showHistoryGraph', false)
+	when: ContextKeyExpr.equals('config.scm.showHistoryGraph', false)
 });
 
 registerAction2(class extends SCMChangesSettingAction {
@@ -1889,12 +1887,12 @@ registerAction2(class extends Action2 {
 				{
 					id: MenuId.SCMChangesSeparator,
 					order: 3,
-					when: ContextKeyExpr.equals('config.scm.experimental.showHistoryGraph', false)
+					when: ContextKeyExpr.equals('config.scm.showHistoryGraph', false)
 				},
 				{
 					id: Menus.ChangesSettings,
 					order: 3,
-					when: ContextKeyExpr.equals('config.scm.experimental.showHistoryGraph', false)
+					when: ContextKeyExpr.equals('config.scm.showHistoryGraph', false)
 				},
 			]
 		});
@@ -3143,7 +3141,7 @@ export class SCMViewPane extends ViewPane {
 							e.affectsConfiguration('scm.showActionButton') ||
 							e.affectsConfiguration('scm.showIncomingChanges') ||
 							e.affectsConfiguration('scm.showOutgoingChanges') ||
-							e.affectsConfiguration('scm.experimental.showHistoryGraph'),
+							e.affectsConfiguration('scm.showHistoryGraph'),
 						this.visibilityDisposables)
 						(() => this.updateChildren(), this, this.visibilityDisposables);
 
@@ -4176,7 +4174,7 @@ class SCMTreeHistoryProviderDataSource extends Disposable {
 			showChangesSummary: this.configurationService.getValue<boolean>('scm.showChangesSummary'),
 			showIncomingChanges: this.configurationService.getValue<ShowChangesSetting>('scm.showIncomingChanges'),
 			showOutgoingChanges: this.configurationService.getValue<ShowChangesSetting>('scm.showOutgoingChanges'),
-			showHistoryGraph: this.configurationService.getValue<boolean>('scm.experimental.showHistoryGraph')
+			showHistoryGraph: this.configurationService.getValue<boolean>('scm.showHistoryGraph')
 		};
 	}
 }

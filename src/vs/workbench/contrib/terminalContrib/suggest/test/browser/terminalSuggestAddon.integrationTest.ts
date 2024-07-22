@@ -79,7 +79,11 @@ suite('Terminal Contrib Suggest Recordings', () => {
 							enabled: true,
 							quickSuggestions: true,
 							suggestOnTriggerCharacters: true,
-							runOnEnter: 'never'
+							runOnEnter: 'never',
+							builtinCompletions: {
+								pwshCode: true,
+								pwshGit: true
+							}
 						} satisfies ITerminalSuggestConfiguration
 					}
 				}

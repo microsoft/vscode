@@ -482,6 +482,17 @@
 	color: var(--vscode-interactive-session-foreground);
 }
 
+.chat-attached-context .chat-attached-context-attachment .monaco-icon-name-container.warning,
+.chat-attached-context .chat-attached-context-attachment .monaco-icon-suffix-container.warning,
+.chat-used-context-list .monaco-icon-name-container.warning,
+.chat-used-context-list .monaco-icon-suffix-container.warning {
+	color: var(--vscode-notificationsWarningIcon-foreground);
+}
+
+.chat-attached-context .chat-attached-context-attachment.show-file-icons.warning {
+	border-color: var(--vscode-notificationsWarningIcon-foreground);
+}
+
 .chat-notification-widget .chat-warning-codicon .codicon-warning {
 	color: var(--vscode-notificationsWarningIcon-foreground) !important; /* Have to override default styles which apply to all lists */
 }

@@ -70,7 +70,7 @@ declare module 'vscode' {
 		constructor(value: Uri, license: string, snippet: string);
 	}
 
-	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseDetectedParticipantPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart;
+	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseDetectedParticipantPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2;
 
 	export class ChatResponseWarningPart {
 		value: MarkdownString;
@@ -81,6 +81,44 @@ declare module 'vscode' {
 		value: string;
 		task?: (progress: Progress<ChatResponseWarningPart | ChatResponseReferencePart>) => Thenable<string | void>;
 		constructor(value: string, task?: (progress: Progress<ChatResponseWarningPart | ChatResponseReferencePart>) => Thenable<string | void>);
+	}
+
+	export class ChatResponseReferencePart2 {
+		/**
+		 * The reference target.
+		 */
+		value: Uri | Location | { variableName: string; value?: Uri | Location };
+
+		/**
+		 * The icon for the reference.
+		 */
+		iconPath?: Uri | ThemeIcon | {
+			/**
+			 * The icon path for the light theme.
+			 */
+			light: Uri;
+			/**
+			 * The icon path for the dark theme.
+			 */
+			dark: Uri;
+		};
+		options?: { status?: { description: string; kind: ChatResponseReferencePartStatusKind } };
+
+		/**
+		 * Create a new ChatResponseReferencePart.
+		 * @param value A uri or location
+		 * @param iconPath Icon for the reference shown in UI
+		 */
+		constructor(value: Uri | Location | { variableName: string; value?: Uri | Location }, iconPath?: Uri | ThemeIcon | {
+			/**
+			 * The icon path for the light theme.
+			 */
+			light: Uri;
+			/**
+			 * The icon path for the dark theme.
+			 */
+			dark: Uri;
+		}, options?: { status?: { description: string; kind: ChatResponseReferencePartStatusKind } });
 	}
 
 	export interface ChatResponseStream {
@@ -123,9 +161,17 @@ declare module 'vscode' {
 
 		reference(value: Uri | Location | { variableName: string; value?: Uri | Location }, iconPath?: Uri | ThemeIcon | { light: Uri; dark: Uri }): void;
 
+		reference2(value: Uri | Location | { variableName: string; value?: Uri | Location }, iconPath?: Uri | ThemeIcon | { light: Uri; dark: Uri }, options?: { status?: { description: string; kind: ChatResponseReferencePartStatusKind } }): void;
+
 		codeCitation(value: Uri, license: string, snippet: string): void;
 
 		push(part: ExtendedChatResponsePart): void;
+	}
+
+	export enum ChatResponseReferencePartStatusKind {
+		Complete = 1,
+		Partial = 2,
+		Omitted = 3
 	}
 
 	/**
