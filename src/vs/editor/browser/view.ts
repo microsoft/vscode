@@ -13,7 +13,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { IPointerHandlerHelper } from 'vs/editor/browser/controller/mouseHandler';
 import { PointerHandlerLastRenderData } from 'vs/editor/browser/controller/mouseTarget';
 import { PointerHandler } from 'vs/editor/browser/controller/pointerHandler';
-import { IVisibleRangeProvider } from 'vs/editor/browser/controller/editContext/textArea/textAreaHandler';
+import { IVisibleRangeProvider, TextAreaHandler } from 'vs/editor/browser/controller/editContext/textArea/textAreaHandler';
 import { IContentWidget, IContentWidgetPosition, IEditorAriaOptions, IGlyphMarginWidget, IGlyphMarginWidgetPosition, IMouseTarget, IOverlayWidget, IOverlayWidgetPosition, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBrowser';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
 import { ICommandDelegate, ViewController } from 'vs/editor/browser/view/viewController';
@@ -57,7 +57,7 @@ import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IColorTheme, getThemeTypeSelector } from 'vs/platform/theme/common/themeService';
 import { AbstractEditContext } from 'vs/editor/browser/controller/editContext/editContext';
-import { EditContextImpl } from 'vs/editor/browser/controller/editContext/impl';
+import { NativeEditContext } from 'vs/editor/browser/controller/editContext/native/nativeEditContext';
 
 
 export interface IContentWidgetData {
@@ -128,7 +128,13 @@ export class View extends ViewEventHandler {
 		this._viewParts = [];
 
 		// Keyboard handler
-		this._textAreaHandler = this._instantiationService.createInstance(EditContextImpl, this._context, viewController, this._createTextAreaHandlerHelper());
+		const options = this._context.configuration.options;
+		const editContext = options.get(EditorOption.editContext);
+		if (editContext.type === 'native') {
+			this._textAreaHandler = this._instantiationService.createInstance(NativeEditContext, this._context, viewController);
+		} else {
+			this._textAreaHandler = this._instantiationService.createInstance(TextAreaHandler, this._context, viewController, this._createTextAreaHandlerHelper());
+		}
 		this._viewParts.push(this._textAreaHandler);
 
 		// These two dom nodes must be constructed up front, since references are needed in the layout provider (scrolling & co.)
