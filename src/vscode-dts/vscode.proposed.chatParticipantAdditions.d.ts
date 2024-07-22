@@ -188,6 +188,8 @@ declare module 'vscode' {
 		 * The `data` for any confirmations that were rejected
 		 */
 		rejectedConfirmationData?: any[];
+
+		requestedTools?: string[];
 	}
 
 	// TODO@API fit this into the stream

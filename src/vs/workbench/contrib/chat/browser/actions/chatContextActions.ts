@@ -33,6 +33,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorType } from 'vs/editor/common/editorCommon';
 import { compare } from 'vs/base/common/strings';
+import { ILanguageModelToolsService } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
 
 export function registerChatContextActions() {
 	registerAction2(AttachContextAction);
@@ -40,7 +41,7 @@ export function registerChatContextActions() {
 	registerAction2(AttachSelectionAction);
 }
 
-export type IChatContextQuickPickItem = IFileQuickPickItem | IDynamicVariableQuickPickItem | IStaticVariableQuickPickItem | IGotoSymbolQuickPickItem | ISymbolQuickPickItem | IQuickAccessQuickPickItem;
+export type IChatContextQuickPickItem = IFileQuickPickItem | IDynamicVariableQuickPickItem | IStaticVariableQuickPickItem | IGotoSymbolQuickPickItem | ISymbolQuickPickItem | IQuickAccessQuickPickItem | IToolQuickPickItem;
 
 export interface IFileQuickPickItem extends IQuickPickItem {
 	kind: 'file';
@@ -61,6 +62,12 @@ export interface IDynamicVariableQuickPickItem extends IQuickPickItem {
 
 	icon?: ThemeIcon;
 	command?: Command;
+}
+
+export interface IToolQuickPickItem extends IQuickPickItem {
+	kind: 'tool';
+	id: string;
+	name?: string;
 }
 
 export interface IStaticVariableQuickPickItem extends IQuickPickItem {
@@ -227,6 +234,14 @@ class AttachContextAction extends Action2 {
 					name: pick.symbolName!,
 					isDynamic: true
 				});
+			} else if ('kind' in pick && pick.kind === 'tool') {
+				toAttach.push({
+					id: pick.id,
+					name: pick.label,
+					fullName: pick.label,
+					value: undefined,
+					isTool: true
+				});
 			} else {
 				// All other dynamic variables and static variables
 				toAttach.push({
@@ -250,6 +265,7 @@ class AttachContextAction extends Action2 {
 		const chatVariablesService = accessor.get(IChatVariablesService);
 		const commandService = accessor.get(ICommandService);
 		const widgetService = accessor.get(IChatWidgetService);
+		const languageModelToolsService = accessor.get(ILanguageModelToolsService);
 		const context: { widget?: IChatWidget } | undefined = args[0];
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
 		if (!widget) {
@@ -288,7 +304,23 @@ class AttachContextAction extends Action2 {
 					}
 				}
 			}
+		}
 
+		for (const tool of languageModelToolsService.getTools()) {
+			if (tool.canBeInvokedManually) {
+				const item: IToolQuickPickItem = {
+					kind: 'tool',
+					label: tool.displayName ?? tool.name,
+					id: tool.name,
+				};
+				if (ThemeIcon.isThemeIcon(tool.icon)) {
+					item.iconClass = ThemeIcon.asClassName(tool.icon);
+				} else if (tool.icon) {
+					item.iconPath = tool.icon;
+				}
+
+				quickPickItems.push(item);
+			}
 		}
 
 		quickPickItems.push({
