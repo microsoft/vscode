@@ -67,7 +67,7 @@ class Settings {
 		this.themeType = theme.type;
 
 		const overviewRulerEnabled = options.get(EditorOption.overviewRulerEnabled);
-		if (!overviewRulerEnabled) {
+		if (overviewRulerEnabled === 'off' || overviewRulerEnabled === 'minimal') {
 			this.renderBorder = false;
 			this.borderColor = null;
 			this.hideCursor = true;
@@ -423,7 +423,6 @@ export class DecorationsOverviewRuler extends ViewPart {
 		for (const decorationGroup of decorations) {
 			const color = decorationGroup.color;
 			const decorationGroupData = decorationGroup.data;
-			decorationGroup.data;
 
 			canvasCtx.fillStyle = color;
 
