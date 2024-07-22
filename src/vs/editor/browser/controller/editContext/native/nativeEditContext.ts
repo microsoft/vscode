@@ -74,7 +74,12 @@ export class NativeEditContext extends AbstractEditContext {
 			const x = new StandardKeyboardEvent(e);
 			this._viewController.emitKeyUp(x);
 		}));
-		this._register(editContextAddDisposableListener(this._ctx, 'textupdate', e => this._handleTextUpdate(e)));
+		this._register(dom.addDisposableListener(domNode, 'beforeinput', (e) => {
+			if (e.inputType === 'insertParagraph' || e.inputType === 'insertLineBreak') {
+				this._handleEnter(e);
+			}
+		}));
+		this._register(editContextAddDisposableListener(this._ctx, 'textupdate', e => this._handleTextUpdate(e.updateRangeStart, e.updateRangeEnd, e.text)));
 		this._register(editContextAddDisposableListener(this._ctx, 'textformatupdate', e => this._handleTextFormatUpdate(e)));
 	}
 
@@ -111,18 +116,26 @@ export class NativeEditContext extends AbstractEditContext {
 		this._decorations = this._context.viewModel.model.deltaDecorations(this._decorations, decorations);
 	}
 
-	private _handleTextUpdate(e: TextUpdateEvent): void {
+	private _handleEnter(e: InputEvent): void {
 		if (!this._editContextState) {
 			return;
 		}
-		const updateRange = new OffsetRange(e.updateRangeStart, e.updateRangeEnd);
+		e.preventDefault();
+		this._handleTextUpdate(this._editContextState.positionOffset, this._editContextState.positionOffset, '\n');
+	}
+
+	private _handleTextUpdate(updateRangeStart: number, updateRangeEnd: number, text: string): void {
+		if (!this._editContextState) {
+			return;
+		}
+		const updateRange = new OffsetRange(updateRangeStart, updateRangeEnd);
 
 		if (!updateRange.equals(this._editContextState.selection)) {
-			const deleteBefore = this._editContextState.positionOffset - e.updateRangeStart;
-			const deleteAfter = e.updateRangeEnd - this._editContextState.positionOffset;
-			this._viewController.compositionType(e.text, deleteBefore, deleteAfter, 0);
+			const deleteBefore = this._editContextState.positionOffset - updateRangeStart;
+			const deleteAfter = updateRangeEnd - this._editContextState.positionOffset;
+			this._viewController.compositionType(text, deleteBefore, deleteAfter, 0);
 		} else {
-			this._viewController.type(e.text);
+			this._viewController.type(text);
 		}
 
 		this.updateText();
