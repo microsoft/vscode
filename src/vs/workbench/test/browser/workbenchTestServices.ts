@@ -211,7 +211,12 @@ export class TestTextFileEditor extends TextFileEditor {
 	}
 
 	setSelection(selection: Selection | undefined, reason: EditorPaneSelectionChangeReason): void {
-		this._options = selection ? { selection } as IEditorOptions : undefined;
+		if (selection) {
+			const options: ITextEditorOptions = { selection };
+			this._options = options;
+		} else {
+			this._options = undefined;
+		}
 
 		this._onDidChangeSelection.fire({ reason });
 	}
