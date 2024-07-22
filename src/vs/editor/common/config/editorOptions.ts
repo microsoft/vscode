@@ -221,7 +221,7 @@ export interface IEditorOptions {
 	 * Whether or not overviewRuler is enabled.
 	 * Defaults to `true`.
 	 */
-	overviewRulerEnabled?: boolean;
+	overviewRulerEnabled?: 'on' | 'off' | 'minimal';
 	/**
 	 * Control the cursor animation style, possible values are 'blink', 'smooth', 'phase', 'expand' and 'solid'.
 	 * Defaults to 'blink'.
@@ -5921,9 +5921,22 @@ export const EditorOptions = {
 		EditorOption.overviewRulerBorder, 'overviewRulerBorder', true,
 		{ description: nls.localize('overviewRulerBorder', "Controls whether a border should be drawn around the overview ruler.") }
 	)),
-	overviewRulerEnabled: register(new EditorBooleanOption(
-		EditorOption.overviewRulerEnabled, 'overviewRulerEnabled', true,
-		{ description: nls.localize('overviewRulerEnabled', "Controls whether the overview ruler is enabled.") }
+	overviewRulerEnabled: register(new EditorEnumOption(
+		EditorOption.overviewRulerEnabled, 'overviewRulerEnabled',
+		'on', 'on',
+		['on', 'off', 'minimal'],
+		rawValue => {
+			if (rawValue === 'off') {
+				return 'off';
+			}
+			if (rawValue === 'minimal') {
+				return 'minimal';
+			}
+			return 'on';
+		},
+		{
+			description: nls.localize('overviewRulerEnabled', "Controls whether the overview ruler is enabled."),
+		}
 	)),
 	overviewRulerLanes: register(new EditorIntOption(
 		EditorOption.overviewRulerLanes, 'overviewRulerLanes',

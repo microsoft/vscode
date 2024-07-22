@@ -71,7 +71,6 @@ class Settings {
 			this.renderBorder = false;
 			this.borderColor = null;
 			this.hideCursor = true;
-
 		}
 
 		const minimapOpts = options.get(EditorOption.minimap);
@@ -424,7 +423,7 @@ export class DecorationsOverviewRuler extends ViewPart {
 		for (const decorationGroup of decorations) {
 			const color = decorationGroup.color;
 			const decorationGroupData = decorationGroup.data;
-			decorationGroup.data
+			decorationGroup.data;
 
 			canvasCtx.fillStyle = color;
 

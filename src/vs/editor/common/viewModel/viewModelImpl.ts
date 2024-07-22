@@ -19,7 +19,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { ICommand, ICursorState, IViewState, ScrollType } from 'vs/editor/common/editorCommon';
 import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
-import { EndOfLinePreference, IAttachedView, ICursorStateComputer, IGlyphMarginLanesModel, IIdentifiedSingleEditOperation, ITextModel, PositionAffinity, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { EndOfLinePreference, IAttachedView, ICursorStateComputer, IGlyphMarginLanesModel, IIdentifiedSingleEditOperation, IModelDecoration, ITextModel, PositionAffinity, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { IActiveIndentGuideInfo, BracketGuideOptions, IndentGuide } from 'vs/editor/common/textModelGuides';
 import { ModelDecorationMinimapOptions, ModelDecorationOptions, ModelDecorationOverviewRulerOptions } from 'vs/editor/common/model/textModel';
 import * as textModelEvents from 'vs/editor/common/textModelEvents';
@@ -772,14 +772,23 @@ export class ViewModel extends Disposable implements IViewModel {
 		);
 	}
 
+	private filterDecorations(decorations: IModelDecoration[]): IModelDecoration[] {
+		const option = this._configuration.options.get(EditorOption.overviewRulerEnabled);
+		if (option === 'on') {
+			return decorations;
+		}
+		if (option === 'off') {
+			return [];
+		}
+		return decorations.filter(d => {
+			return minimalAllowedDecorations.includes(d.options.description);
+		});
+	}
+
 	public getAllOverviewRulerDecorations(theme: EditorTheme): OverviewRulerDecorationsGroup[] {
 		const decorations = this.model.getOverviewRulerDecorations(this._editorId, filterValidationDecorations(this._configuration.options));
 		const result = new OverviewRulerDecorations();
-		const overviewRulerDecorationsEnabled = this._configuration.options.get(EditorOption.overviewRulerEnabled);
-		const filteredDecorations = overviewRulerDecorationsEnabled ? decorations : decorations.filter(d => {
-			return minimalAllowedDecorations.includes(d.options.description);
-		});
-
+		const filteredDecorations = this.filterDecorations(decorations);
 		for (const decoration of filteredDecorations) {
 			const decorationOptions = <ModelDecorationOptions>decoration.options;
 			const opts = decorationOptions.overviewRuler;
