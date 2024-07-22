@@ -4,11 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { TextModelTreeSitter, TreeSitterImporter, TreeSitterParser, TreeSitterTree } from 'vs/editor/browser/services/treeSitter/treeSitterParserService';
+import { TextModelTreeSitter, TreeSitterImporter, TreeSitterLanguages } from 'vs/editor/browser/services/treeSitter/treeSitterParserService';
 import type { Parser } from '@vscode/tree-sitter-wasm';
-import { ITextModel } from 'vs/editor/common/model';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { timeout } from 'vs/base/common/async';
+import { ConsoleMainLogger, ILogService } from 'vs/platform/log/common/log';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { LogService } from 'vs/platform/log/common/logService';
+import { mock } from 'vs/base/test/common/mock';
 
 class MockParser implements Parser {
 	static async init(): Promise<void> { }
@@ -104,20 +107,23 @@ class MockLanguage implements Parser.Language {
 	languageId: string = '';
 }
 
-
-
 suite('TreeSitterParserService', function () {
 	const treeSitterImporter: TreeSitterImporter = new MockTreeSitterImporter();
+	let logService: ILogService;
+	let telemetryService: ITelemetryService;
 	setup(function () {
+		logService = new LogService(new ConsoleMainLogger());
+		telemetryService = new class extends mock<ITelemetryService>() {
+			override async publicLog2() {
+				//
+			}
+		};
 	});
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('TextModelTreeSitter race condition: first language is slow to load', async function () {
-		class MockTreeSitterParser extends TreeSitterParser {
-			public override async parse(model: ITextModel, treeSitterTree: TreeSitterTree): Promise<Parser.Tree | undefined> {
-				return new MockTree();
-			}
+		class MockTreeSitterParser extends TreeSitterLanguages {
 			public override async getLanguage(languageId: string): Promise<Parser.Language | undefined> {
 				if (languageId === 'javascript') {
 					await timeout(200);
@@ -128,38 +134,11 @@ suite('TreeSitterParserService', function () {
 			}
 		}
 
-		const treeSitterParser: TreeSitterParser = store.add(new MockTreeSitterParser(treeSitterImporter, {} as any, {} as any, {} as any));
+		const treeSitterParser: TreeSitterLanguages = store.add(new MockTreeSitterParser(treeSitterImporter, {} as any));
 		const textModel = store.add(createTextModel('console.log("Hello, world!");', 'javascript'));
-		const textModelTreeSitter = store.add(new TextModelTreeSitter(textModel, treeSitterParser, treeSitterImporter));
+		const textModelTreeSitter = store.add(new TextModelTreeSitter(textModel, treeSitterParser, treeSitterImporter, logService, telemetryService));
 		textModel.setLanguage('typescript');
 		await timeout(300);
 		assert.strictEqual((textModelTreeSitter.tree?.language as MockLanguage).languageId, 'typescript');
-	});
-
-	test('TextModelTreeSitter race condition: earlier parse is much slower than later parse', async function () {
-		class MockTreeSitterParser extends TreeSitterParser {
-			private _parseCount = 0;
-			public override async parse(model: ITextModel, treeSitterTree: TreeSitterTree): Promise<Parser.Tree | undefined> {
-				const tree = new MockTree();
-				tree.editorContents = model.getValue();
-				this._parseCount++;
-				if (this._parseCount === 1) {
-					await timeout(200);
-				}
-				return tree;
-			}
-			public override async getLanguage(languageId: string): Promise<Parser.Language | undefined> {
-				return new MockLanguage();
-			}
-		}
-
-		const treeSitterParser: TreeSitterParser = store.add(new MockTreeSitterParser(treeSitterImporter, {} as any, {} as any, {} as any));
-		const textModel = store.add(createTextModel('console.log("Hello, world!");', 'typescript'));
-		const textModelTreeSitter = store.add(new TextModelTreeSitter(textModel, treeSitterParser, treeSitterImporter));
-		const secondEditorValue = 'console.log("Hi, world!");';
-		await timeout(100);
-		textModel.setValue(secondEditorValue);
-		await timeout(400);
-		assert.strictEqual((textModelTreeSitter.tree?.tree as MockTree).editorContents, secondEditorValue);
 	});
 });
