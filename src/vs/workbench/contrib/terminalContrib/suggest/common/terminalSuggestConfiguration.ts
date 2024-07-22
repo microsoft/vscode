@@ -13,6 +13,7 @@ export const enum TerminalSuggestSettingId {
 	QuickSuggestions = 'terminal.integrated.suggest.quickSuggestions',
 	SuggestOnTriggerCharacters = 'terminal.integrated.suggest.suggestOnTriggerCharacters',
 	RunOnEnter = 'terminal.integrated.suggest.runOnEnter',
+	BuiltinCompletions = 'terminal.integrated.suggest.builtinCompletions',
 }
 
 export const terminalSuggestConfigSection = 'terminal.integrated.suggest';
@@ -22,6 +23,10 @@ export interface ITerminalSuggestConfiguration {
 	quickSuggestions: boolean;
 	suggestOnTriggerCharacters: boolean;
 	runOnEnter: 'never' | 'exactMatch' | 'exactMatchIgnoreExtension' | 'always';
+	builtinCompletions: {
+		'pwshCode': boolean;
+		'pwshGit': boolean;
+	};
 }
 
 export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
@@ -54,5 +59,24 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 			localize('runOnEnter.always', "Always run on enter.")
 		],
 		default: 'exactMatchIgnoreExtension',
+	},
+	[TerminalSuggestSettingId.BuiltinCompletions]: {
+		restricted: true,
+		markdownDescription: localize('suggest.builtinCompletions', "Controls which built-in completions are activated. This setting can cause conflicts if custom shell completions are configured in the shell profile."),
+		type: 'object',
+		properties: {
+			'pwshCode': {
+				description: localize('suggest.builtinCompletions.pwshCode', 'Custom PowerShell argument completers will be registered for VS Code\'s `code` and `code-insiders` CLIs. This is currently very basic and always suggests flags and subcommands without checking context.'),
+				type: 'boolean'
+			},
+			'pwshGit': {
+				description: localize('suggest.builtinCompletions.pwshGit', 'Custom PowerShell argument completers will be registered for the `git` CLI.'),
+				type: 'boolean'
+			},
+		},
+		default: {
+			pwshCode: true,
+			pwshGit: true,
+		}
 	},
 };
