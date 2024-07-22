@@ -934,7 +934,7 @@ export const StartFindReplaceAction = registerMultiEditorAction(new MultiEditorA
 	id: FIND_IDS.StartFindReplaceAction,
 	label: nls.localize('startReplace', "Replace"),
 	alias: 'Replace',
-	precondition: ContextKeyExpr.or(EditorContextKeys.focus, ContextKeyExpr.has('editorIsOpen')),
+	precondition: ContextKeyExpr.or(EditorContextKeys.focus, ContextKeyExpr.has('editorIsOpen'), EditorContextKeys.readOnly.negate()),
 	kbOpts: {
 		kbExpr: null,
 		primary: KeyMod.CtrlCmd | KeyCode.KeyH,
@@ -950,7 +950,7 @@ export const StartFindReplaceAction = registerMultiEditorAction(new MultiEditorA
 }));
 
 StartFindReplaceAction.addImplementation(0, (accessor: ServicesAccessor, editor: ICodeEditor, args: any): boolean | Promise<void> => {
-	if (!editor.hasModel() || editor.getOption(EditorOption.readOnly)) {
+	if (!editor.hasModel()) {
 		return false;
 	}
 	const controller = CommonFindController.get(editor);
