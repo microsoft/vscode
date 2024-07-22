@@ -57,6 +57,6 @@ Microsoft.PowerShell.Core\Register-ArgumentCompleter -CommandName "code","code-i
 		[System.Management.Automation.CompletionResult]::new("-v", "-v", 'ParameterName', 'Print version.'),
 		[System.Management.Automation.CompletionResult]::new("-w", "-w", 'ParameterName', 'Wait for the files to be closed before returning.'),
 		[System.Management.Automation.CompletionResult]::new("serve-web", "serve-web", 'Command', 'Run a server that displays the editor UI in browsers.')
-		[System.Management.Automation.CompletionResult]::new("tunnel", "tunnel", 'Command', 'Make the current machine accessible from vscode.dev or other machines through a secure tunnel'),
+		[System.Management.Automation.CompletionResult]::new("tunnel", "tunnel", 'Command', 'Make the current machine accessible from vscode.dev or other machines through a secure tunnel')
 	)
 }
