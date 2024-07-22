@@ -132,8 +132,11 @@ export class CellComments extends CellContentPart {
 	private async _getCommentThreadForCell(element: ICellViewModel): Promise<{ thread: languages.CommentThread<ICellRange>; owner: string } | null> {
 		if (this.notebookEditor.hasModel()) {
 			const commentInfos = coalesce(await this.commentService.getNotebookComments(element.uri));
-			if (commentInfos.length && commentInfos[0].threads.length) {
-				return { owner: commentInfos[0].uniqueOwner, thread: commentInfos[0].threads[0] };
+			for (const commentInfo of commentInfos) {
+				for (const thread of commentInfo.threads) {
+					// For now, only one thread per cell is supported.
+					return { owner: commentInfo.uniqueOwner, thread };
+				}
 			}
 		}
 

@@ -324,13 +324,18 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 							id: MenuId.GlobalActivity,
 							group: '2_configuration',
 							order: 1,
-							when: CONTEXT_ENABLE_NEW_PROFILES_UI,
+							when: ContextKeyExpr.and(CONTEXT_ENABLE_NEW_PROFILES_UI, HAS_PROFILES_CONTEXT.negate()),
 						},
 						{
 							id: MenuId.MenubarPreferencesMenu,
 							group: '2_configuration',
 							order: 1,
-							when: CONTEXT_ENABLE_NEW_PROFILES_UI,
+							when: ContextKeyExpr.and(CONTEXT_ENABLE_NEW_PROFILES_UI, HAS_PROFILES_CONTEXT.negate()),
+						},
+						{
+							id: ProfilesMenu,
+							group: '1_manage',
+							when: ContextKeyExpr.and(CONTEXT_ENABLE_NEW_PROFILES_UI, HAS_PROFILES_CONTEXT),
 						},
 					]
 				});
