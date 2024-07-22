@@ -7,9 +7,6 @@ declare module 'vscode' {
 
 	// https://github.com/microsoft/vscode/issues/59924
 
-	/**
-	 * Options that can be set on a findTextInFiles search.
-	 */
 	export interface FindTextInFilesOptionsNew {
 		/**
 		 * A {@link GlobPattern glob pattern} that defines the files to search for. The glob pattern

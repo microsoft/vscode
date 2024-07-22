@@ -554,7 +554,6 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 			excludePattern: excludePattern
 		};
 
-		console.log(queryOptions);
 		const isCanceled = false;
 
 		this._activeSearchCallbacks[requestId] = p => {
