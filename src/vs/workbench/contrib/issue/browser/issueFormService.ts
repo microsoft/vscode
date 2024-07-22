@@ -5,16 +5,21 @@
 import { safeInnerHtml } from 'vs/base/browser/dom';
 import { mainWindow } from 'vs/base/browser/window';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import Severity from 'vs/base/common/severity';
 import 'vs/css!./media/issueReporter';
+import { localize } from 'vs/nls';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { ExtensionIdentifier, ExtensionIdentifierSet } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ILogService } from 'vs/platform/log/common/log';
 import product from 'vs/platform/product/common/product';
 import BaseHtml from 'vs/workbench/contrib/issue/browser/issueReporterPage';
 import { IssueWebReporter } from 'vs/workbench/contrib/issue/browser/issueReporterService';
 import { IIssueFormService, IssueReporterData } from 'vs/workbench/contrib/issue/common/issue';
 import { AuxiliaryWindowMode, IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 export interface IssuePassData {
 	issueTitle: string;
@@ -33,6 +38,9 @@ export class IssueFormService implements IIssueFormService {
 		@IAuxiliaryWindowService private readonly auxiliaryWindowService: IAuxiliaryWindowService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@ILogService private readonly logService: ILogService,
+		@IDialogService private readonly dialogService: IDialogService,
+		@IHostService private readonly hostService: IHostService,
 	) {
 
 		// listen for messages from the main window
@@ -62,14 +70,53 @@ export class IssueFormService implements IIssueFormService {
 		});
 
 	}
-	reloadWithExtensionsDisabled(): Promise<void> {
-		throw new Error('Method not implemented.');
+	async reloadWithExtensionsDisabled(): Promise<void> {
+		if (this.issueReporterWindow) {
+			try {
+				await this.hostService.reload({ disableExtensions: true });
+			} catch (error) {
+				this.logService.error(error);
+			}
+		}
 	}
-	showConfirmCloseDialog(): Promise<void> {
-		throw new Error('Method not implemented.');
+	async showConfirmCloseDialog(): Promise<void> {
+		await this.dialogService.prompt({
+			type: Severity.Warning,
+			message: localize('confirmCloseIssueReporter', "Your input will not be saved. Are you sure you want to close this window?"),
+			buttons: [
+				{
+					label: localize({ key: 'yes', comment: ['&& denotes a mnemonic'] }, "&&Yes"),
+					run: () => {
+						this.closeReporter();
+						this.issueReporterWindow = null;
+					}
+				},
+				{
+					label: localize('cancel', "Cancel"),
+					run: () => { }
+				}
+			]
+		});
 	}
-	showClipboardDialog(): Promise<boolean> {
-		throw new Error('Method not implemented.');
+	async showClipboardDialog(): Promise<boolean> {
+		let result = false;
+
+		await this.dialogService.prompt({
+			type: Severity.Warning,
+			message: localize('issueReporterWriteToClipboard', "There is too much data to send to GitHub directly. The data will be copied to the clipboard, please paste it into the GitHub issue page that is opened."),
+			buttons: [
+				{
+					label: localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK"),
+					run: () => { result = true; }
+				},
+				{
+					label: localize('cancel', "Cancel"),
+					run: () => { result = false; }
+				}
+			]
+		});
+
+		return result;
 	}
 
 	async openReporter(data: IssueReporterData): Promise<void> {
