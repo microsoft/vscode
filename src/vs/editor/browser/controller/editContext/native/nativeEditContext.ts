@@ -21,6 +21,7 @@ import { SingleTextEdit, TextEdit, LineBasedText } from 'vs/editor/common/core/t
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { ViewConfigurationChangedEvent, ViewCursorStateChangedEvent, ViewScrollChangedEvent } from 'vs/editor/common/viewEvents';
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
+import * as dom from 'vs/base/browser/dom';
 
 export class NativeEditContext extends AbstractEditContext {
 	private readonly _domElement = new FastDomNode(document.createElement('div'));
@@ -39,44 +40,40 @@ export class NativeEditContext extends AbstractEditContext {
 		private readonly _viewController: ViewController,
 	) {
 		super(context);
-
-		this._domElement.domNode.id = 'native-edit-context';
-		this._domElement.domNode.tabIndex = 0;
-		this._domElement.domNode.role = 'textbox';
-		this._domElement.domNode.ariaMultiLine = 'true';
-		this._domElement.domNode.ariaRequired = 'false';
-		this._domElement.domNode.ariaLabel = 'use Option+F1 to open the accessibility help.';
-		this._domElement.domNode.ariaAutoComplete = 'both';
-		this._domElement.domNode.ariaRoleDescription = 'editor';
-		this._domElement.domNode.setAttribute('autocorrect', 'off');
-		this._domElement.domNode.setAttribute('autocapitalize', 'off');
-		this._domElement.domNode.setAttribute('autocomplete', 'off');
-		this._domElement.domNode.setAttribute('spellcheck', 'false');
-
-		this._domElement.domNode.onfocus = () => {
-			this._isFocused = true;
-			this._context.viewModel.setHasFocus(true);
-		};
-
-		this._domElement.domNode.onblur = () => {
-			this._isFocused = false;
-			this._context.viewModel.setHasFocus(false);
-		};
-
-		this._domElement.domNode.onkeydown = e => {
-			const x = new StandardKeyboardEvent(e);
-			this._viewController.emitKeyDown(x);
-		};
-
-		this._domElement.domNode.onkeyup = e => {
-			const x = new StandardKeyboardEvent(e);
-			this._viewController.emitKeyUp(x);
-		};
+		const domNode = this._domElement.domNode;
+		domNode.id = 'native-edit-context';
+		domNode.tabIndex = 0;
+		domNode.role = 'textbox';
+		domNode.ariaMultiLine = 'true';
+		domNode.ariaRequired = 'false';
+		domNode.ariaLabel = 'use Option+F1 to open the accessibility help.';
+		domNode.ariaAutoComplete = 'both';
+		domNode.ariaRoleDescription = 'editor';
+		domNode.setAttribute('autocorrect', 'off');
+		domNode.setAttribute('autocapitalize', 'off');
+		domNode.setAttribute('autocomplete', 'off');
+		domNode.setAttribute('spellcheck', 'false');
 
 		const options = this._context.configuration.options;
 		const layoutInfo = options.get(EditorOption.layoutInfo);
 		this._contentLeft = layoutInfo.contentLeft;
 
+		this._register(dom.addDisposableListener(domNode, 'focus', () => {
+			this._isFocused = true;
+			this._context.viewModel.setHasFocus(true);
+		}));
+		this._register(dom.addDisposableListener(domNode, 'blur', () => {
+			this._isFocused = false;
+			this._context.viewModel.setHasFocus(false);
+		}));
+		this._register(dom.addDisposableListener(domNode, 'keydown', (e) => {
+			const x = new StandardKeyboardEvent(e);
+			this._viewController.emitKeyDown(x);
+		}));
+		this._register(dom.addDisposableListener(domNode, 'keyup', (e) => {
+			const x = new StandardKeyboardEvent(e);
+			this._viewController.emitKeyUp(x);
+		}));
 		this._register(editContextAddDisposableListener(this._ctx, 'textupdate', e => this._handleTextUpdate(e)));
 		this._register(editContextAddDisposableListener(this._ctx, 'textformatupdate', e => this._handleTextFormatUpdate(e)));
 	}
