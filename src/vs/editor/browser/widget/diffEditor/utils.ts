@@ -6,7 +6,7 @@
 import { IDimension } from 'vs/base/browser/dom';
 import { findLast } from 'vs/base/common/arraysFind';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, IReference, toDisposable } from 'vs/base/common/lifecycle';
 import { IObservable, ISettableObservable, autorun, autorunHandleChanges, autorunOpts, autorunWithStore, observableValue, transaction } from 'vs/base/common/observable';
 import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
 import { ICodeEditor, IOverlayWidget, IViewZone } from 'vs/editor/browser/editorBrowser';
@@ -414,4 +414,105 @@ export function filterWithPrevious<T>(arr: T[], filter: (cur: T, prev: T | undef
 		prev = cur;
 		return result;
 	});
+}
+
+export interface IRefCounted extends IDisposable {
+	createNewRef(): this;
+}
+
+export abstract class RefCounted<T> implements IDisposable, IReference<T> {
+	public static create<T extends IDisposable>(value: T, debugOwner: object | undefined = undefined): RefCounted<T> {
+		return new BaseRefCounted(value, value, debugOwner);
+	}
+
+	public static createWithDisposable<T extends IDisposable>(value: T, disposable: IDisposable, debugOwner: object | undefined = undefined): RefCounted<T> {
+		const store = new DisposableStore();
+		store.add(disposable);
+		store.add(value);
+		return new BaseRefCounted(value, store, debugOwner);
+	}
+
+	public static createOfNonDisposable<T>(value: T, disposable: IDisposable, debugOwner: object | undefined = undefined): RefCounted<T> {
+		return new BaseRefCounted(value, disposable, debugOwner);
+	}
+
+	public abstract createNewRef(debugOwner?: object | undefined): RefCounted<T>;
+
+	public abstract dispose(): void;
+
+	public abstract get object(): T;
+}
+
+class BaseRefCounted<T> extends RefCounted<T> {
+	private _refCount = 1;
+	private _isDisposed = false;
+	private readonly _owners: object[] = [];
+
+	constructor(
+		public override readonly object: T,
+		private readonly _disposable: IDisposable,
+		private readonly _debugOwner: object | undefined,
+	) {
+		super();
+
+		if (_debugOwner) {
+			this._addOwner(_debugOwner);
+		}
+	}
+
+	private _addOwner(debugOwner: object | undefined) {
+		if (debugOwner) {
+			this._owners.push(debugOwner);
+		}
+	}
+
+	public createNewRef(debugOwner?: object | undefined): RefCounted<T> {
+		this._refCount++;
+		if (debugOwner) {
+			this._addOwner(debugOwner);
+		}
+		return new ClonedRefCounted(this, debugOwner);
+	}
+
+	public dispose(): void {
+		if (this._isDisposed) { return; }
+		this._isDisposed = true;
+		this._decreaseRefCount(this._debugOwner);
+	}
+
+	public _decreaseRefCount(debugOwner?: object | undefined): void {
+		this._refCount--;
+		if (this._refCount === 0) {
+			this._disposable.dispose();
+		}
+
+		if (debugOwner) {
+			const idx = this._owners.indexOf(debugOwner);
+			if (idx !== -1) {
+				this._owners.splice(idx, 1);
+			}
+		}
+	}
+}
+
+class ClonedRefCounted<T> extends RefCounted<T> {
+	private _isDisposed = false;
+	constructor(
+		private readonly _base: BaseRefCounted<T>,
+		private readonly _debugOwner: object | undefined,
+	) {
+		super();
+	}
+
+	public get object(): T { return this._base.object; }
+
+	public createNewRef(debugOwner?: object | undefined): RefCounted<T> {
+		return this._base.createNewRef(debugOwner);
+	}
+
+	public dispose(): void {
+		if (this._isDisposed) { return; }
+		this._isDisposed = true;
+		this._base._decreaseRefCount(this._debugOwner);
+	}
 }

@@ -95,7 +95,7 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { stripIcons } from 'vs/base/common/iconLabels';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
-import { editorSelectionBackground, foreground, inputBackground, inputForeground, listActiveSelectionForeground, registerColor, selectionBackground, transparent } from 'vs/platform/theme/common/colorRegistry';
+import { ColorIdentifier, editorSelectionBackground, foreground, inputBackground, inputForeground, listActiveSelectionForeground, registerColor, selectionBackground, transparent } from 'vs/platform/theme/common/colorRegistry';
 import { IMenuWorkbenchToolBarOptions, WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
@@ -108,11 +108,12 @@ import { HoverController } from 'vs/editor/contrib/hover/browser/hoverController
 import { ITextModel } from 'vs/editor/common/model';
 import { autorun } from 'vs/base/common/observable';
 import { createInstantHoverDelegate, getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { renderSCMHistoryItemGraph, toISCMHistoryItemViewModelArray } from 'vs/workbench/contrib/scm/browser/scmHistory';
+import { historyItemGroupBase, historyItemGroupHoverLabelForeground, historyItemGroupLocal, historyItemGroupRemote, renderSCMHistoryItemGraph, toISCMHistoryItemViewModelArray } from 'vs/workbench/contrib/scm/browser/scmHistory';
 import { PlaceholderTextContribution } from 'vs/editor/contrib/placeholderText/browser/placeholderTextContribution';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
 import { IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/browser/layoutService';
+import { fromNow } from 'vs/base/common/date';
 
 // type SCMResourceTreeNode = IResourceNode<ISCMResource, ISCMResourceGroup>;
 // type SCMHistoryItemChangeResourceTreeNode = IResourceNode<SCMHistoryItemChangeTreeElement, SCMHistoryItemTreeElement>;
@@ -828,6 +829,7 @@ class HistoryItemActionRunner extends ActionRunner {
 
 		const args: (ISCMProvider | ISCMHistoryItem)[] = [];
 		args.push(context.historyItemGroup.repository.provider);
+
 		args.push({
 			id: context.id,
 			parentIds: context.parentIds,
@@ -837,6 +839,49 @@ class HistoryItemActionRunner extends ActionRunner {
 			timestamp: context.timestamp,
 			statistics: context.statistics,
 		} satisfies ISCMHistoryItem);
+
+		await action.run(...args);
+	}
+}
+
+class HistoryItemActionRunner2 extends ActionRunner {
+	constructor(private readonly getSelectedHistoryItems: () => SCMHistoryItemViewModelTreeElement[]) {
+		super();
+	}
+
+	protected override async runAction(action: IAction, context: SCMHistoryItemViewModelTreeElement): Promise<any> {
+		if (!(action instanceof MenuItemAction)) {
+			return super.runAction(action, context);
+		}
+
+		const args: (ISCMProvider | ISCMHistoryItem)[] = [];
+		args.push(context.repository.provider);
+
+		const selection = this.getSelectedHistoryItems();
+		const contextIsSelected = selection.some(s => s === context);
+		if (contextIsSelected && selection.length > 1) {
+			args.push(...[selection[0], selection[selection.length - 1]]
+				.map(h => (
+					{
+						id: h.historyItemViewModel.historyItem.id,
+						parentIds: h.historyItemViewModel.historyItem.parentIds,
+						message: h.historyItemViewModel.historyItem.message,
+						author: h.historyItemViewModel.historyItem.author,
+						icon: h.historyItemViewModel.historyItem.icon,
+						timestamp: h.historyItemViewModel.historyItem.timestamp,
+						statistics: h.historyItemViewModel.historyItem.statistics,
+					} satisfies ISCMHistoryItem)));
+		} else {
+			args.push({
+				id: context.historyItemViewModel.historyItem.id,
+				parentIds: context.historyItemViewModel.historyItem.parentIds,
+				message: context.historyItemViewModel.historyItem.message,
+				author: context.historyItemViewModel.historyItem.author,
+				icon: context.historyItemViewModel.historyItem.icon,
+				timestamp: context.historyItemViewModel.historyItem.timestamp,
+				statistics: context.historyItemViewModel.historyItem.statistics,
+			} satisfies ISCMHistoryItem);
+		}
 
 		await action.run(...args);
 	}
@@ -863,7 +908,7 @@ class HistoryItemHoverDelegate extends WorkbenchHoverDelegate {
 			hoverPosition = HoverPosition.RIGHT;
 		}
 
-		return { position: { hoverPosition, forcePosition: true } };
+		return { additionalClasses: ['history-item-hover'], position: { hoverPosition, forcePosition: true } };
 	}
 }
 
@@ -1050,7 +1095,7 @@ class HistoryItem2Renderer implements ICompressibleTreeRenderer<SCMHistoryItemVi
 		const historyItemViewModel = node.element.historyItemViewModel;
 		const historyItem = historyItemViewModel.historyItem;
 
-		const historyItemHover = this.hoverService.setupManagedHover(this.hoverDelegate, templateData.element, this.getTooltip(historyItemViewModel));
+		const historyItemHover = this.hoverService.setupManagedHover(this.hoverDelegate, templateData.element, this.getTooltip(node.element));
 		templateData.elementDisposables.add(historyItemHover);
 
 		templateData.graphContainer.textContent = '';
@@ -1080,32 +1125,67 @@ class HistoryItem2Renderer implements ICompressibleTreeRenderer<SCMHistoryItemVi
 		throw new Error('Should never happen since node is incompressible');
 	}
 
-	private getTooltip(historyItemViewModel: ISCMHistoryItemViewModel): IManagedHoverTooltipMarkdownString {
-		const historyItem = historyItemViewModel.historyItem;
+	private getTooltip(element: SCMHistoryItemViewModelTreeElement): IManagedHoverTooltipMarkdownString {
+		const colorTheme = this.themeService.getColorTheme();
+		const historyItem = element.historyItemViewModel.historyItem;
+		const currentHistoryItemGroup = element.repository.provider.historyProvider.get()?.currentHistoryItemGroup?.get();
+
 		const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
 
 		if (historyItem.author) {
-			markdown.appendMarkdown(`$(account) **${historyItem.author}**\n\n`);
+			markdown.appendMarkdown(`$(account) **${historyItem.author}**`);
+
+			if (historyItem.timestamp) {
+				const dateFormatter = new Intl.DateTimeFormat(platform.language, { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric' });
+				markdown.appendMarkdown(`, $(history) ${fromNow(historyItem.timestamp, true, true)} (${dateFormatter.format(historyItem.timestamp)})`);
+			}
+
+			markdown.appendMarkdown('\n\n');
 		}
 
 		markdown.appendMarkdown(`${historyItem.message}\n\n`);
 
-		if (historyItem.timestamp) {
+		if (historyItem.statistics) {
 			markdown.appendMarkdown(`---\n\n`);
 
-			const dateFormatter = new Intl.DateTimeFormat(platform.language, { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric' });
-			markdown.appendMarkdown(`$(history) ${dateFormatter.format(historyItem.timestamp)}`);
+			markdown.appendMarkdown(`<span>${historyItem.statistics.files === 1 ?
+				localize('fileChanged', "{0} file changed", historyItem.statistics.files) :
+				localize('filesChanged', "{0} files changed", historyItem.statistics.files)}</span>`);
+
+			if (historyItem.statistics.insertions) {
+				const historyItemAdditionsForegroundColor = colorTheme.getColor(historyItemAdditionsForeground);
+				markdown.appendMarkdown(`,&nbsp;<span style="color:${historyItemAdditionsForegroundColor};">${historyItem.statistics.insertions === 1 ?
+					localize('insertion', "{0} insertion{1}", historyItem.statistics.insertions, '(+)') :
+					localize('insertions', "{0} insertions{1}", historyItem.statistics.insertions, '(+)')}</span>`);
+			}
+
+			if (historyItem.statistics.deletions) {
+				const historyItemDeletionsForegroundColor = colorTheme.getColor(historyItemDeletionsForeground);
+				markdown.appendMarkdown(`,&nbsp;<span style="color:${historyItemDeletionsForegroundColor};">${historyItem.statistics.deletions === 1 ?
+					localize('deletion', "{0} deletion{1}", historyItem.statistics.deletions, '(-)') :
+					localize('deletions', "{0} deletions{1}", historyItem.statistics.deletions, '(-)')}</span>`);
+			}
 		}
 
-		if (historyItem.statistics?.files) {
-			const colorTheme = this.themeService.getColorTheme();
-			const historyItemAdditionsForegroundColor = colorTheme.getColor(historyItemAdditionsForeground);
-			const historyItemDeletionsForegroundColor = colorTheme.getColor(historyItemDeletionsForeground);
+		if (historyItem.labels) {
+			const historyItemGroupLocalColor = colorTheme.getColor(historyItemGroupLocal);
+			const historyItemGroupRemoteColor = colorTheme.getColor(historyItemGroupRemote);
+			const historyItemGroupBaseColor = colorTheme.getColor(historyItemGroupBase);
 
-			markdown.appendMarkdown(`  |  `);
-			markdown.appendMarkdown(`<span>${historyItem.statistics.files}</span>`);
-			markdown.appendMarkdown(historyItem.statistics.insertions ? `,&nbsp;<span style="color:${historyItemAdditionsForegroundColor};">+${historyItem.statistics.insertions}</span>` : '');
-			markdown.appendMarkdown(historyItem.statistics.deletions ? `,&nbsp;<span style="color:${historyItemDeletionsForegroundColor};">-${historyItem.statistics.deletions}</span>` : '');
+			const historyItemGroupHoverLabelForegroundColor = colorTheme.getColor(historyItemGroupHoverLabelForeground);
+
+			markdown.appendMarkdown(`\n\n---\n\n`);
+			markdown.appendMarkdown(historyItem.labels.map(label => {
+				const historyItemGroupHoverLabelBackgroundColor =
+					label.title === currentHistoryItemGroup?.name ? historyItemGroupLocalColor :
+						label.title === currentHistoryItemGroup?.remote?.name ? historyItemGroupRemoteColor :
+							label.title === currentHistoryItemGroup?.base?.name ? historyItemGroupBaseColor :
+								undefined;
+
+				const historyItemGroupHoverLabelIconId = ThemeIcon.isThemeIcon(label.icon) ? label.icon.id : '';
+
+				return `<span style="color:${historyItemGroupHoverLabelForegroundColor};background-color:${historyItemGroupHoverLabelBackgroundColor};border-radius:2px;">&nbsp;$(${historyItemGroupHoverLabelIconId})&nbsp;${label.title}&nbsp;</span>`;
+			}).join('&nbsp;&nbsp;'));
 		}
 
 		return { markdown, markdownNotSupportedFallback: historyItem.message };
@@ -1215,7 +1295,6 @@ class SeparatorRenderer implements ICompressibleTreeRenderer<SCMViewSeparatorEle
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IMenuService private readonly menuService: IMenuService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService
@@ -1234,8 +1313,7 @@ class SeparatorRenderer implements ICompressibleTreeRenderer<SCMViewSeparatorEle
 		append(element, $('.separator'));
 		templateDisposables.add(label);
 
-		const options = { moreIcon: this.configurationService.getValue<boolean>('scm.experimental.showHistoryGraph') === true ? Codicon.more : Codicon.gear } satisfies IMenuWorkbenchToolBarOptions;
-		const toolBar = new WorkbenchToolBar(append(element, $('.actions')), options, this.menuService, this.contextKeyService, this.contextMenuService, this.keybindingService, this.commandService, this.telemetryService);
+		const toolBar = new WorkbenchToolBar(append(element, $('.actions')), undefined, this.menuService, this.contextKeyService, this.contextMenuService, this.keybindingService, this.commandService, this.telemetryService);
 		templateDisposables.add(toolBar);
 
 		return { label, toolBar, elementDisposables: new DisposableStore(), templateDisposables };
@@ -1659,7 +1737,7 @@ MenuRegistry.appendMenuItem(MenuId.SCMTitle, {
 MenuRegistry.appendMenuItem(MenuId.SCMTitle, {
 	title: localize('scmChanges', "Incoming & Outgoing"),
 	submenu: Menus.ChangesSettings,
-	when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_PANE_ID), ContextKeys.RepositoryCount.notEqualsTo(0), ContextKeyExpr.equals('config.scm.experimental.showHistoryGraph', true).negate()),
+	when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_PANE_ID), ContextKeys.RepositoryCount.notEqualsTo(0), ContextKeyExpr.equals('config.scm.showHistoryGraph', true).negate()),
 	group: '0_view&sort',
 	order: 2
 });
@@ -1694,7 +1772,7 @@ MenuRegistry.appendMenuItem(MenuId.SCMChangesSeparator, {
 	submenu: MenuId.SCMIncomingChangesSetting,
 	group: '1_incoming&outgoing',
 	order: 1,
-	when: ContextKeyExpr.equals('config.scm.experimental.showHistoryGraph', false)
+	when: ContextKeyExpr.equals('config.scm.showHistoryGraph', false)
 });
 
 MenuRegistry.appendMenuItem(Menus.ChangesSettings, {
@@ -1702,7 +1780,7 @@ MenuRegistry.appendMenuItem(Menus.ChangesSettings, {
 	submenu: MenuId.SCMIncomingChangesSetting,
 	group: '1_incoming&outgoing',
 	order: 1,
-	when: ContextKeyExpr.equals('config.scm.experimental.showHistoryGraph', false)
+	when: ContextKeyExpr.equals('config.scm.showHistoryGraph', false)
 });
 
 registerAction2(class extends SCMChangesSettingAction {
@@ -1747,7 +1825,7 @@ MenuRegistry.appendMenuItem(MenuId.SCMChangesSeparator, {
 	submenu: MenuId.SCMOutgoingChangesSetting,
 	group: '1_incoming&outgoing',
 	order: 2,
-	when: ContextKeyExpr.equals('config.scm.experimental.showHistoryGraph', false)
+	when: ContextKeyExpr.equals('config.scm.showHistoryGraph', false)
 });
 
 MenuRegistry.appendMenuItem(Menus.ChangesSettings, {
@@ -1755,7 +1833,7 @@ MenuRegistry.appendMenuItem(Menus.ChangesSettings, {
 	submenu: MenuId.SCMOutgoingChangesSetting,
 	group: '1_incoming&outgoing',
 	order: 2,
-	when: ContextKeyExpr.equals('config.scm.experimental.showHistoryGraph', false)
+	when: ContextKeyExpr.equals('config.scm.showHistoryGraph', false)
 });
 
 registerAction2(class extends SCMChangesSettingAction {
@@ -1809,12 +1887,12 @@ registerAction2(class extends Action2 {
 				{
 					id: MenuId.SCMChangesSeparator,
 					order: 3,
-					when: ContextKeyExpr.equals('config.scm.experimental.showHistoryGraph', false)
+					when: ContextKeyExpr.equals('config.scm.showHistoryGraph', false)
 				},
 				{
 					id: Menus.ChangesSettings,
 					order: 3,
-					when: ContextKeyExpr.equals('config.scm.experimental.showHistoryGraph', false)
+					when: ContextKeyExpr.equals('config.scm.showHistoryGraph', false)
 				},
 			]
 		});
@@ -3063,7 +3141,7 @@ export class SCMViewPane extends ViewPane {
 							e.affectsConfiguration('scm.showActionButton') ||
 							e.affectsConfiguration('scm.showIncomingChanges') ||
 							e.affectsConfiguration('scm.showOutgoingChanges') ||
-							e.affectsConfiguration('scm.experimental.showHistoryGraph'),
+							e.affectsConfiguration('scm.showHistoryGraph'),
 						this.visibilityDisposables)
 						(() => this.updateChildren(), this, this.visibilityDisposables);
 
@@ -3470,6 +3548,13 @@ export class SCMViewPane extends ViewPane {
 				actionRunner = new HistoryItemActionRunner();
 				actions = collectContextMenuActions(menu);
 			}
+		} else if (isSCMHistoryItemViewModelTreeElement(element)) {
+			const menus = this.scmViewService.menus.getRepositoryMenus(element.repository.provider);
+			const menu = menus.historyProviderMenu?.getHistoryItemMenu2(element);
+			if (menu) {
+				actionRunner = new HistoryItemActionRunner2(() => this.getSelectedHistoryItems());
+				actions = collectContextMenuActions(menu);
+			}
 		}
 
 		actionRunner.onWillRun(() => this.tree.domFocus());
@@ -3492,6 +3577,11 @@ export class SCMViewPane extends ViewPane {
 	private getSelectedResources(): (ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>)[] {
 		return this.tree.getSelection()
 			.filter(r => !!r && !isSCMResourceGroup(r))! as any;
+	}
+
+	private getSelectedHistoryItems(): SCMHistoryItemViewModelTreeElement[] {
+		return this.tree.getSelection()
+			.filter(r => !!r && isSCMHistoryItemViewModelTreeElement(r))!;
 	}
 
 	private getViewMode(): ViewMode {
@@ -3738,7 +3828,7 @@ export class SCMViewPane extends ViewPane {
 			actions.push(toHistoryItemGroupFilterAction(currentHistoryItemGroup.remote.id, currentHistoryItemGroup.remote.name));
 		}
 
-		if (currentHistoryItemGroup.base && currentHistoryItemGroup.base.id !== currentHistoryItemGroup.remote?.id) {
+		if (currentHistoryItemGroup.base) {
 			actions.push(toHistoryItemGroupFilterAction(currentHistoryItemGroup.base.id, currentHistoryItemGroup.base.name));
 		}
 
@@ -3982,15 +4072,14 @@ class SCMTreeHistoryProviderDataSource extends Disposable {
 		}
 
 		// Create the color map
-		// TODO@lszomoru - use theme colors
-		const colorMap = new Map<string, number>([
-			[currentHistoryItemGroup.name, 0]
+		const colorMap = new Map<string, ColorIdentifier>([
+			[currentHistoryItemGroup.name, historyItemGroupLocal]
 		]);
 		if (currentHistoryItemGroup.remote) {
-			colorMap.set(currentHistoryItemGroup.remote.name, 1);
+			colorMap.set(currentHistoryItemGroup.remote.name, historyItemGroupRemote);
 		}
 		if (currentHistoryItemGroup.base) {
-			colorMap.set(currentHistoryItemGroup.base.name, 2);
+			colorMap.set(currentHistoryItemGroup.base.name, historyItemGroupBase);
 		}
 
 		return toISCMHistoryItemViewModelArray(historyItemsElement, colorMap)
@@ -4085,7 +4174,7 @@ class SCMTreeHistoryProviderDataSource extends Disposable {
 			showChangesSummary: this.configurationService.getValue<boolean>('scm.showChangesSummary'),
 			showIncomingChanges: this.configurationService.getValue<ShowChangesSetting>('scm.showIncomingChanges'),
 			showOutgoingChanges: this.configurationService.getValue<ShowChangesSetting>('scm.showOutgoingChanges'),
-			showHistoryGraph: this.configurationService.getValue<boolean>('scm.experimental.showHistoryGraph')
+			showHistoryGraph: this.configurationService.getValue<boolean>('scm.showHistoryGraph')
 		};
 	}
 }

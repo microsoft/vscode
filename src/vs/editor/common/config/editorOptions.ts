@@ -878,6 +878,11 @@ export interface IDiffEditorBaseOptions {
 		showMoves?: boolean;
 
 		showEmptyDecorations?: boolean;
+
+		/**
+		 * Only applies when `renderSideBySide` is set to false.
+		*/
+		useTrueInlineView?: boolean;
 	};
 
 	/**
