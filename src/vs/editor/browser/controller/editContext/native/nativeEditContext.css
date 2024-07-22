@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-editor #native-edit-context {
-	position : 'absolute';
-	z-index : '100';
-	background : 'white';
-	font-family : 'Menlo, Monaco, "Courier New", monospace';
-	font-size : '12px';
-	line-height : '18px';
-	letter-spacing : '0px';
-	color : 'black';
-	white-space : 'pre-wrap';
-	display : 'table';
-	tab-size: '4';
+	position : absolute;
+	z-index : 100;
+	background : white;
+	font-family : Menlo, Monaco, "Courier New", monospace;
+	font-size : 12px;
+	line-height : 18px;
+	letter-spacing : 0px;
+	color : black;
+	white-space : pre-wrap;
+	display : table;
+	tab-size: 4;
 }
