@@ -9,9 +9,12 @@ import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Iterable } from 'vs/base/common/iterator';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { URI } from 'vs/base/common/uri';
+import { ThemeIcon } from 'vs/base/common/themables';
 
 export interface IToolData {
 	name: string;
+	icon?: { dark: URI; light?: URI } | ThemeIcon;
 	displayName?: string;
 	description: string;
 	parametersSchema?: Object;
