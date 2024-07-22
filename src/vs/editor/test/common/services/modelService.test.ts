@@ -28,6 +28,7 @@ suite('ModelService', () => {
 	let disposables: DisposableStore;
 	let modelService: IModelService;
 	let instantiationService: TestInstantiationService;
+	const maxMemoryLimit = ModelService.MAX_MEMORY_FOR_CLOSED_FILES_UNDO_STACK;
 
 	setup(() => {
 		disposables = new DisposableStore();
@@ -43,6 +44,7 @@ suite('ModelService', () => {
 	});
 
 	teardown(() => {
+		ModelService.MAX_MEMORY_FOR_CLOSED_FILES_UNDO_STACK = maxMemoryLimit;
 		disposables.dispose();
 	});
 
@@ -377,11 +379,51 @@ suite('ModelService', () => {
 		// dispose it
 		modelService.destroyModel(resource);
 
-		// create a new model with the same content
+		// create a new model with different content
 		const model2 = modelService.createModel('text2', null, resource);
 		// undo
 		model2.undo();
 		assert.strictEqual(model2.getValue(), 'text2');
+		// dispose it
+		modelService.destroyModel(resource);
+	});
+
+	test('version is re-used after re-opening with the same content', () => {
+		// Make sure the document is not preserved in the undo-cache.
+		ModelService.MAX_MEMORY_FOR_CLOSED_FILES_UNDO_STACK = 0;
+		const resource = URI.parse('file://test.txt');
+
+		// create a model
+		const model1 = modelService.createModel('text', null, resource);
+		// make an edit
+		model1.pushEditOperations(null, [{ range: new Range(1, 5, 1, 5), text: '1' }], () => [new Selection(1, 5, 1, 5)]);
+		assert.strictEqual(model1.getValue(), 'text1');
+		const versionId = model1.getVersionId();
+		// dispose it
+		modelService.destroyModel(resource);
+
+		// create a new model with the same content
+		const model2 = modelService.createModel('text1', null, resource);
+		assert.strictEqual(model2.getVersionId(), versionId);
+		// dispose it
+		modelService.destroyModel(resource);
+	});
+
+	test('version is re-used and increased after re-opening with different content', () => {
+		const resource = URI.parse('file://test.txt');
+
+		// create a model
+		const model1 = modelService.createModel('text', null, resource);
+		// make an edit
+		model1.pushEditOperations(null, [{ range: new Range(1, 5, 1, 5), text: '1' }], () => [new Selection(1, 5, 1, 5)]);
+		assert.strictEqual(model1.getValue(), 'text1');
+		const versionId = model1.getVersionId();
+		// dispose it
+		modelService.destroyModel(resource);
+
+		// create a new model with different content
+		const model2 = modelService.createModel('text2', null, resource);
+		assert.strictEqual(model2.getVersionId(), versionId + 1);
 		// dispose it
 		modelService.destroyModel(resource);
 	});
