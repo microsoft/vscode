@@ -43,7 +43,10 @@ import { GlyphMarginLanesModel } from 'vs/editor/common/viewModel/glyphLanesMode
 
 const USE_IDENTITY_LINES_COLLECTION = true;
 
-const minimalAllowedDecorations: string[] = ['marker-decoration'];
+const minimalAllowedDecorations: string[] = [
+	'marker-decoration',
+	'find-match'
+];
 
 
 export class ViewModel extends Disposable implements IViewModel {
