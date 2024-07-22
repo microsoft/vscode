@@ -81,7 +81,6 @@ export class SimpleCompletionModel {
 		const labelLengths: number[] = [];
 
 		const { leadingLineContent, characterCountDelta } = this._lineContext;
-		const formattedLeadingLineContent = isWindows ? leadingLineContent.replaceAll('/', '\\') : leadingLineContent;
 		let word = '';
 		let wordLow = '';
 
@@ -112,7 +111,7 @@ export class SimpleCompletionModel {
 			const overwriteBefore = this.replacementLength; // item.position.column - item.editStart.column;
 			const wordLen = overwriteBefore + characterCountDelta; // - (item.position.column - this._column);
 			if (word.length !== wordLen) {
-				word = wordLen === 0 ? '' : formattedLeadingLineContent.slice(-wordLen);
+				word = wordLen === 0 ? '' : leadingLineContent.slice(-wordLen);
 				wordLow = word.toLowerCase();
 			}
 
@@ -189,7 +188,7 @@ export class SimpleCompletionModel {
 				return score;
 			}
 			// Sort files with the same score against each other specially
-			const isArg = formattedLeadingLineContent.includes(' ');
+			const isArg = leadingLineContent.includes(' ');
 			if (!isArg && a.fileExtLow.length > 0 && b.fileExtLow.length > 0) {
 				// Then by label length ascending (excluding file extension if it's a file)
 				score = a.labelLowExcludeFileExt.length - b.labelLowExcludeFileExt.length;
