@@ -722,7 +722,6 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		const config = this.configurationService.getValue<IDebugConfiguration>('debug');
 		options.acceptSuggestionOnEnter = config.console.acceptSuggestionOnEnter === 'on' ? 'on' : 'off';
 		options.ariaLabel = this.getAriaLabel();
-		options.find = { cursorMoveOnType: false };
 
 		this.replInput = this.scopedInstantiationService.createInstance(CodeEditorWidget, this.replInputContainer, options, getSimpleCodeEditorWidgetOptions());
 
