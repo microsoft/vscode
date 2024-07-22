@@ -316,7 +316,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		this._registerCommands().then(() => TaskCommandsRegistered.bindTo(this._contextKeyService).set(true));
 		ServerlessWebContext.bindTo(this._contextKeyService).set(Platform.isWeb && !remoteAgentService.getConnection()?.remoteAuthority);
 		this._configurationResolverService.contributeVariable('defaultBuildTask', async (): Promise<string | undefined> => {
-			// delay provider activation, we might find a signle default build task in the tasks.json file
+			// delay provider activation, we might find a single default build task in the tasks.json file
 			let tasks = await this._getTasksForGroup(TaskGroup.Build, true);
 			if (tasks.length > 0) {
 				const defaults = this._getDefaultTasks(tasks);
