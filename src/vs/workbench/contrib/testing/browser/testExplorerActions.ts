@@ -1028,7 +1028,7 @@ abstract class ExecuteTestAtCursor extends Action2 {
 		// whose range is equal to the closest one, we run them all.
 		await showDiscoveringWhile(progressService, (async () => {
 			for await (const test of testsInFile(testService, uriIdentityService, model.uri)) {
-				if (!test.item.range || !(profileService.capabilitiesForTest(test) & this.group)) {
+				if (!test.item.range || !(profileService.capabilitiesForTest(test.item) & this.group)) {
 					continue;
 				}
 

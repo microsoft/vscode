@@ -89,7 +89,9 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 				name: `${this.repository.HEAD.upstream.remote}/${this.repository.HEAD.upstream.name}`,
 				revision: this.repository.HEAD.upstream.commit
 			} : undefined,
-			base: mergeBase ? {
+			base: mergeBase &&
+				mergeBase.remote !== this.repository.HEAD.upstream?.remote &&
+				mergeBase.name !== this.repository.HEAD.upstream?.name ? {
 				id: `refs/remotes/${mergeBase.remote}/${mergeBase.name}`,
 				name: `${mergeBase.remote}/${mergeBase.name}`,
 				revision: mergeBase.commit

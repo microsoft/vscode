@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { FuzzyScore } from 'vs/base/common/filters';
+import { isWindows } from 'vs/base/common/platform';
 import { ThemeIcon } from 'vs/base/common/themables';
 
 export interface ISimpleCompletion {
@@ -19,11 +20,18 @@ export interface ISimpleCompletion {
 	 * The completion's detail which appears on the right of the list.
 	 */
 	detail?: string;
+	/**
+	 * Whether the completion is a file. Files with the same score will be sorted against each other
+	 * first by extension length and then certain extensions will get a boost based on the OS.
+	 */
+	isFile?: boolean;
 }
 
 export class SimpleCompletionItem {
 	// perf
 	readonly labelLow: string;
+	readonly labelLowExcludeFileExt: string;
+	readonly fileExtLow: string = '';
 
 	// sorting, filtering
 	score: FuzzyScore = FuzzyScore.Default;
@@ -35,5 +43,16 @@ export class SimpleCompletionItem {
 	) {
 		// ensure lower-variants (perf)
 		this.labelLow = this.completion.label.toLowerCase();
+		this.labelLowExcludeFileExt = this.labelLow;
+		if (completion.isFile) {
+			if (isWindows) {
+				this.labelLow = this.labelLow.replaceAll('/', '\\');
+			}
+			const extIndex = this.labelLow.lastIndexOf('.');
+			if (extIndex !== -1) {
+				this.labelLowExcludeFileExt = this.labelLow.substring(0, extIndex);
+				this.fileExtLow = this.labelLow.substring(extIndex + 1);
+			}
+		}
 	}
 }
