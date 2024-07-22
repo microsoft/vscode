@@ -141,7 +141,7 @@ export const Operation = {
 	CheckoutTracking: (refLabel: string) => ({ kind: OperationKind.CheckoutTracking, blocking: true, readOnly: false, remote: false, retry: false, showProgress: true, refLabel } as CheckoutTrackingOperation),
 	Clean: (showProgress: boolean) => ({ kind: OperationKind.Clean, blocking: false, readOnly: false, remote: false, retry: false, showProgress } as CleanOperation),
 	Commit: { kind: OperationKind.Commit, blocking: true, readOnly: false, remote: false, retry: false, showProgress: true } as CommitOperation,
-	Config: (readOnly: boolean) => ({ kind: OperationKind.Config, blocking: false, readOnly, remote: false, retry: false, showProgress: true } as ConfigOperation),
+	Config: (readOnly: boolean) => ({ kind: OperationKind.Config, blocking: false, readOnly, remote: false, retry: false, showProgress: false } as ConfigOperation),
 	DeleteBranch: { kind: OperationKind.DeleteBranch, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as DeleteBranchOperation,
 	DeleteRef: { kind: OperationKind.DeleteRef, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as DeleteRefOperation,
 	DeleteRemoteTag: { kind: OperationKind.DeleteRemoteTag, blocking: false, readOnly: false, remote: true, retry: false, showProgress: true } as DeleteRemoteTagOperation,
@@ -149,7 +149,7 @@ export const Operation = {
 	Diff: { kind: OperationKind.Diff, blocking: false, readOnly: true, remote: false, retry: false, showProgress: false } as DiffOperation,
 	Fetch: (showProgress: boolean) => ({ kind: OperationKind.Fetch, blocking: false, readOnly: false, remote: true, retry: true, showProgress } as FetchOperation),
 	FindTrackingBranches: { kind: OperationKind.FindTrackingBranches, blocking: false, readOnly: true, remote: false, retry: false, showProgress: true } as FindTrackingBranchesOperation,
-	GetBranch: { kind: OperationKind.GetBranch, blocking: false, readOnly: true, remote: false, retry: false, showProgress: true } as GetBranchOperation,
+	GetBranch: { kind: OperationKind.GetBranch, blocking: false, readOnly: true, remote: false, retry: false, showProgress: false } as GetBranchOperation,
 	GetBranches: { kind: OperationKind.GetBranches, blocking: false, readOnly: true, remote: false, retry: false, showProgress: true } as GetBranchesOperation,
 	GetCommitTemplate: { kind: OperationKind.GetCommitTemplate, blocking: false, readOnly: true, remote: false, retry: false, showProgress: true } as GetCommitTemplateOperation,
 	GetObjectDetails: { kind: OperationKind.GetObjectDetails, blocking: false, readOnly: true, remote: false, retry: false, showProgress: false } as GetObjectDetailsOperation,
@@ -214,7 +214,7 @@ export class OperationManager implements IOperationManager {
 			this.operations.set(operation.kind, new Set([operation]));
 		}
 
-		this.logger.trace(`Operation start: ${operation.kind} (blocking: ${operation.blocking}, readOnly: ${operation.readOnly}; retry: ${operation.retry}; showProgress: ${operation.showProgress})`);
+		this.logger.trace(`[OperationManager][start] ${operation.kind} (blocking: ${operation.blocking}, readOnly: ${operation.readOnly}; retry: ${operation.retry}; showProgress: ${operation.showProgress})`);
 	}
 
 	end(operation: Operation): void {
@@ -226,7 +226,7 @@ export class OperationManager implements IOperationManager {
 			}
 		}
 
-		this.logger.trace(`Operation end: ${operation.kind} (blocking: ${operation.blocking}, readOnly: ${operation.readOnly}; retry: ${operation.retry}; showProgress: ${operation.showProgress})`);
+		this.logger.trace(`[OperationManager][end] ${operation.kind} (blocking: ${operation.blocking}, readOnly: ${operation.readOnly}; retry: ${operation.retry}; showProgress: ${operation.showProgress})`);
 	}
 
 	getOperations(operationKind: OperationKind): Operation[] {

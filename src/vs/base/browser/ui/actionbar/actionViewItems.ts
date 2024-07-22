@@ -19,12 +19,13 @@ import * as platform from 'vs/base/common/platform';
 import * as types from 'vs/base/common/types';
 import 'vs/css!./actionbar';
 import * as nls from 'vs/nls';
-import type { IUpdatableHover } from 'vs/base/browser/ui/hover/hover';
+import type { IManagedHover } from 'vs/base/browser/ui/hover/hover';
 import { getBaseLayerHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate2';
 
 export interface IBaseActionViewItemOptions {
 	draggable?: boolean;
 	isMenu?: boolean;
+	isTabList?: boolean;
 	useEventAsContext?: boolean;
 	hoverDelegate?: IHoverDelegate;
 }
@@ -36,7 +37,7 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 	_context: unknown;
 	readonly _action: IAction;
 
-	private customHover?: IUpdatableHover;
+	private customHover?: IManagedHover;
 
 	get action() {
 		return this._action;
@@ -233,7 +234,7 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 		} else {
 			if (!this.customHover && title !== '') {
 				const hoverDelegate = this.options.hoverDelegate ?? getDefaultHoverDelegate('element');
-				this.customHover = this._store.add(getBaseLayerHoverDelegate().setupUpdatableHover(hoverDelegate, this.element, title));
+				this.customHover = this._store.add(getBaseLayerHoverDelegate().setupManagedHover(hoverDelegate, this.element, title));
 			} else if (this.customHover) {
 				this.customHover.update(title);
 			}
@@ -313,12 +314,14 @@ export class ActionViewItem extends BaseActionViewItem {
 		this.updateChecked();
 	}
 
-	private getDefaultAriaRole(): 'presentation' | 'menuitem' | 'button' {
+	private getDefaultAriaRole(): 'presentation' | 'menuitem' | 'tab' | 'button' {
 		if (this._action.id === Separator.ID) {
 			return 'presentation'; // A separator is a presentation item
 		} else {
 			if (this.options.isMenu) {
 				return 'menuitem';
+			} else if (this.options.isTabList) {
+				return 'tab';
 			} else {
 				return 'button';
 			}
@@ -421,11 +424,15 @@ export class ActionViewItem extends BaseActionViewItem {
 		if (this.label) {
 			if (this.action.checked !== undefined) {
 				this.label.classList.toggle('checked', this.action.checked);
-				this.label.setAttribute('aria-checked', this.action.checked ? 'true' : 'false');
-				this.label.setAttribute('role', 'checkbox');
+				if (this.options.isTabList) {
+					this.label.setAttribute('aria-selected', this.action.checked ? 'true' : 'false');
+				} else {
+					this.label.setAttribute('aria-checked', this.action.checked ? 'true' : 'false');
+					this.label.setAttribute('role', 'checkbox');
+				}
 			} else {
 				this.label.classList.remove('checked');
-				this.label.removeAttribute('aria-checked');
+				this.label.removeAttribute(this.options.isTabList ? 'aria-selected' : 'aria-checked');
 				this.label.setAttribute('role', this.getDefaultAriaRole());
 			}
 		}

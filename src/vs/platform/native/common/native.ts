@@ -11,6 +11,7 @@ import { ISerializableCommandAction } from 'vs/platform/action/common/action';
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IV8Profile } from 'vs/platform/profiling/common/profiling';
+import { AuthInfo, Credentials } from 'vs/platform/request/common/request';
 import { IPartsSplash } from 'vs/platform/theme/common/themeService';
 import { IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowOpenable } from 'vs/platform/window/common/window';
 
@@ -126,7 +127,7 @@ export interface ICommonNativeHostService {
 	showItemInFolder(path: string): Promise<void>;
 	setRepresentedFilename(path: string, options?: INativeHostOptions): Promise<void>;
 	setDocumentEdited(edited: boolean, options?: INativeHostOptions): Promise<void>;
-	openExternal(url: string): Promise<boolean>;
+	openExternal(url: string, defaultApplication?: string): Promise<boolean>;
 	moveItemToTrash(fullPath: string): Promise<void>;
 
 	isAdmin(): Promise<boolean>;
@@ -184,6 +185,8 @@ export interface ICommonNativeHostService {
 
 	// Connectivity
 	resolveProxy(url: string): Promise<string | undefined>;
+	lookupAuthorization(authInfo: AuthInfo): Promise<Credentials | undefined>;
+	lookupKerberosAuthorization(url: string): Promise<string | undefined>;
 	loadCertificates(): Promise<string[]>;
 	findFreePort(startPort: number, giveUpAfter: number, timeout: number, stride?: number): Promise<number>;
 

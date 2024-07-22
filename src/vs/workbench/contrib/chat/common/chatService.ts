@@ -10,6 +10,7 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
 import { IRange, Range } from 'vs/editor/common/core/range';
+import { ISelection } from 'vs/editor/common/core/selection';
 import { Command, Location, TextEdit } from 'vs/editor/common/languages';
 import { FileType } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -74,10 +75,24 @@ export interface IChatContentVariableReference {
 	value?: URI | Location;
 }
 
+export enum ChatResponseReferencePartStatusKind {
+	Complete = 1,
+	Partial = 2,
+	Omitted = 3
+}
+
 export interface IChatContentReference {
 	reference: URI | Location | IChatContentVariableReference;
 	iconPath?: ThemeIcon | { light: URI; dark?: URI };
+	options?: { status?: { description: string; kind: ChatResponseReferencePartStatusKind } };
 	kind: 'reference';
+}
+
+export interface IChatCodeCitation {
+	value: URI;
+	license: string;
+	snippet: string;
+	kind: 'codeCitation';
 }
 
 export interface IChatContentInlineReference {
@@ -159,6 +174,7 @@ export interface IChatConfirmation {
 	title: string;
 	message: string;
 	data: any;
+	buttons?: string[];
 	isUsed?: boolean;
 	kind: 'confirmation';
 }
@@ -170,6 +186,7 @@ export type IChatProgress =
 	| IChatUsedContext
 	| IChatContentReference
 	| IChatContentInlineReference
+	| IChatCodeCitation
 	| IChatAgentDetection
 	| IChatProgressMessage
 	| IChatTask
@@ -251,6 +268,7 @@ export type ChatUserAction = IChatVoteAction | IChatCopyAction | IChatInsertActi
 export interface IChatUserActionEvent {
 	action: ChatUserAction;
 	agentId: string | undefined;
+	command: string | undefined;
 	sessionId: string;
 	requestId: string;
 	result: IChatAgentResult | undefined;
@@ -298,8 +316,28 @@ export interface IChatSendRequestData extends IChatSendRequestResponseState {
 	slashCommand?: IChatAgentCommand;
 }
 
+export interface IChatEditorLocationData {
+	type: ChatAgentLocation.Editor;
+	document: URI;
+	selection: ISelection;
+	wholeRange: IRange;
+}
+
+export interface IChatNotebookLocationData {
+	type: ChatAgentLocation.Notebook;
+	sessionInputUri: URI;
+}
+
+export interface IChatTerminalLocationData {
+	type: ChatAgentLocation.Terminal;
+	// TBD
+}
+
+export type IChatLocationData = IChatEditorLocationData | IChatNotebookLocationData | IChatTerminalLocationData;
+
 export interface IChatSendRequestOptions {
 	location?: ChatAgentLocation;
+	locationData?: IChatLocationData;
 	parserContext?: IChatParserContext;
 	attempt?: number;
 	noCommandDetection?: boolean;

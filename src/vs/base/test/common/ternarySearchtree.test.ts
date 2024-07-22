@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { shuffle } from 'vs/base/common/arrays';
 import { randomPath } from 'vs/base/common/extpath';
 import { StopWatch } from 'vs/base/common/stopwatch';

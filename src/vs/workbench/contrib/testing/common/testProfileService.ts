@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
+import { Iterable } from 'vs/base/common/iterator';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { deepClone } from 'vs/base/common/objects';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -12,7 +13,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { IMainThreadTestController } from 'vs/workbench/contrib/testing/common/testService';
-import { ITestRunProfile, InternalTestItem, TestRunProfileBitset, testRunProfileBitsetList } from 'vs/workbench/contrib/testing/common/testTypes';
+import { ITestItem, ITestRunProfile, InternalTestItem, TestRunProfileBitset, testRunProfileBitsetList } from 'vs/workbench/contrib/testing/common/testTypes';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 
 export const ITestProfileService = createDecorator<ITestProfileService>('testProfileService');
@@ -46,7 +47,7 @@ export interface ITestProfileService {
 	 * there's any usable profiles available for those groups.
 	 * @returns a bitset to use with {@link TestRunProfileBitset}
 	 */
-	capabilitiesForTest(test: InternalTestItem): number;
+	capabilitiesForTest(test: ITestItem): number;
 
 	/**
 	 * Configures a test profile.
@@ -64,7 +65,7 @@ export interface ITestProfileService {
 	/**
 	 * Gets the default profiles to be run for a given run group.
 	 */
-	getGroupDefaultProfiles(group: TestRunProfileBitset): ITestRunProfile[];
+	getGroupDefaultProfiles(group: TestRunProfileBitset, controllerId?: string): ITestRunProfile[];
 
 	/**
 	 * Sets the default profiles to be run for a given run group.
@@ -225,15 +226,15 @@ export class TestProfileService extends Disposable implements ITestProfileServic
 	}
 
 	/** @inheritdoc */
-	public capabilitiesForTest(test: InternalTestItem) {
-		const ctrl = this.controllerProfiles.get(test.controllerId);
+	public capabilitiesForTest(test: ITestItem) {
+		const ctrl = this.controllerProfiles.get(TestId.root(test.extId));
 		if (!ctrl) {
 			return 0;
 		}
 
 		let capabilities = 0;
 		for (const profile of ctrl.profiles) {
-			if (!profile.tag || test.item.tags.includes(profile.tag)) {
+			if (!profile.tag || test.tags.includes(profile.tag)) {
 				capabilities |= capabilities & profile.group ? TestRunProfileBitset.HasNonDefaultProfile : profile.group;
 			}
 		}
@@ -252,20 +253,17 @@ export class TestProfileService extends Disposable implements ITestProfileServic
 	}
 
 	/** @inheritdoc */
-	public getGroupDefaultProfiles(group: TestRunProfileBitset) {
-		let defaults: ITestRunProfile[] = [];
-		for (const { profiles } of this.controllerProfiles.values()) {
-			defaults = defaults.concat(profiles.filter(c => c.group === group && c.isDefault));
-		}
+	public getGroupDefaultProfiles(group: TestRunProfileBitset, controllerId?: string) {
+		const allProfiles = controllerId
+			? (this.controllerProfiles.get(controllerId)?.profiles || [])
+			: [...Iterable.flatMap(this.controllerProfiles.values(), c => c.profiles)];
+		const defaults = allProfiles.filter(c => c.group === group && c.isDefault);
 
 		// have *some* default profile to run if none are set otherwise
 		if (defaults.length === 0) {
-			for (const { profiles } of this.controllerProfiles.values()) {
-				const first = profiles.find(p => p.group === group);
-				if (first) {
-					defaults.push(first);
-					break;
-				}
+			const first = allProfiles.find(p => p.group === group);
+			if (first) {
+				defaults.push(first);
 			}
 		}
 

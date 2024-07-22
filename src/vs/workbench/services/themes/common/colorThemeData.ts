@@ -11,7 +11,7 @@ import { convertSettings } from 'vs/workbench/services/themes/common/themeCompat
 import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
 import * as resources from 'vs/base/common/resources';
-import { Extensions as ColorRegistryExtensions, IColorRegistry, ColorIdentifier, editorBackground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { Extensions as ColorRegistryExtensions, IColorRegistry, ColorIdentifier, editorBackground, editorForeground, DEFAULT_COLOR_CONFIG_VALUE } from 'vs/platform/theme/common/colorRegistry';
 import { ITokenStyle, getThemeTypeSelector } from 'vs/platform/theme/common/themeService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
@@ -45,6 +45,10 @@ export type TokenStyleDefinitions = { [P in keyof TokenStyleData]?: TokenStyleDe
 
 export type TextMateThemingRuleDefinitions = { [P in keyof TokenStyleData]?: ITextMateThemingRule | undefined; } & { scope?: ProbeScope };
 
+interface IColorOrDefaultMap {
+	[id: string]: Color | typeof DEFAULT_COLOR_CONFIG_VALUE;
+}
+
 export class ColorThemeData implements IWorkbenchColorTheme {
 
 	static readonly STORAGE_KEY = 'colorThemeData';
@@ -65,7 +69,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 	private themeTokenColors: ITextMateThemingRule[] = [];
 	private customTokenColors: ITextMateThemingRule[] = [];
 	private colorMap: IColorMap = {};
-	private customColorMap: IColorMap = {};
+	private customColorMap: IColorOrDefaultMap = {};
 
 	private semanticTokenRules: SemanticTokenRule[] = [];
 	private customSemanticTokenRules: SemanticTokenRule[] = [];
@@ -132,15 +136,20 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 	}
 
 	public getColor(colorId: ColorIdentifier, useDefault?: boolean): Color | undefined {
-		let color: Color | undefined = this.customColorMap[colorId];
-		if (color) {
-			return color;
+		const customColor = this.customColorMap[colorId];
+		if (customColor instanceof Color) {
+			return customColor;
 		}
-		color = this.colorMap[colorId];
-		if (useDefault !== false && types.isUndefined(color)) {
-			color = this.getDefault(colorId);
+		if (customColor === undefined) { /* !== DEFAULT_COLOR_CONFIG_VALUE */
+			const color = this.colorMap[colorId];
+			if (color !== undefined) {
+				return color;
+			}
 		}
-		return color;
+		if (useDefault !== false) {
+			return this.getDefault(colorId);
+		}
+		return undefined;
 	}
 
 	private getTokenStyle(type: string, modifiers: string[], language: string, useDefault = true, definitions: TokenStyleDefinitions = {}): TokenStyle | undefined {
@@ -346,7 +355,11 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 	}
 
 	public defines(colorId: ColorIdentifier): boolean {
-		return this.customColorMap.hasOwnProperty(colorId) || this.colorMap.hasOwnProperty(colorId);
+		const customColor = this.customColorMap[colorId];
+		if (customColor instanceof Color) {
+			return true;
+		}
+		return customColor === undefined /* !== DEFAULT_COLOR_CONFIG_VALUE */ && this.colorMap.hasOwnProperty(colorId);
 	}
 
 	public setCustomizations(settings: ThemeConfiguration) {
@@ -372,7 +385,9 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 	private overwriteCustomColors(colors: IColorCustomizations) {
 		for (const id in colors) {
 			const colorVal = colors[id];
-			if (typeof colorVal === 'string') {
+			if (colorVal === DEFAULT_COLOR_CONFIG_VALUE) {
+				this.customColorMap[id] = DEFAULT_COLOR_CONFIG_VALUE;
+			} else if (typeof colorVal === 'string') {
 				this.customColorMap[id] = Color.fromHex(colorVal);
 			}
 		}
@@ -716,8 +731,10 @@ async function _loadColorTheme(extensionResourceLoaderService: IExtensionResourc
 			}
 			// new JSON color themes format
 			for (const colorId in colors) {
-				const colorHex = colors[colorId];
-				if (typeof colorHex === 'string') { // ignore colors tht are null
+				const colorVal = colors[colorId];
+				if (colorVal === DEFAULT_COLOR_CONFIG_VALUE) { // ignore colors that are set to to default
+					delete result.colors[colorId];
+				} else if (typeof colorVal === 'string') {
 					result.colors[colorId] = Color.fromHex(colors[colorId]);
 				}
 			}

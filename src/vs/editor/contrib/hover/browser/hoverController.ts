@@ -23,6 +23,7 @@ import { ContentHoverWidget } from 'vs/editor/contrib/hover/browser/contentHover
 import { ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHoverController';
 import 'vs/css!./hover';
 import { MarginHoverWidget } from 'vs/editor/contrib/hover/browser/marginHoverWidget';
+import { Emitter } from 'vs/base/common/event';
 
 // sticky hover widget which doesn't disappear on focus out and such
 const _sticky = false
@@ -47,7 +48,12 @@ const enum HoverWidgetType {
 
 export class HoverController extends Disposable implements IEditorContribution {
 
+	private readonly _onHoverContentsChanged = this._register(new Emitter<void>());
+	public readonly onHoverContentsChanged = this._onHoverContentsChanged.event;
+
 	public static readonly ID = 'editor.contrib.hover';
+
+	public shouldKeepOpenOnEditorMouseMoveOrLeave: boolean = false;
 
 	private readonly _listenersStore = new DisposableStore();
 
@@ -174,6 +180,9 @@ export class HoverController extends Disposable implements IEditorContribution {
 	}
 
 	private _onEditorMouseLeave(mouseEvent: IPartialEditorMouseEvent): void {
+		if (this.shouldKeepOpenOnEditorMouseMoveOrLeave) {
+			return;
+		}
 
 		this._cancelScheduler();
 
@@ -223,6 +232,9 @@ export class HoverController extends Disposable implements IEditorContribution {
 	}
 
 	private _onEditorMouseMove(mouseEvent: IEditorMouseEvent): void {
+		if (this.shouldKeepOpenOnEditorMouseMoveOrLeave) {
+			return;
+		}
 
 		this._mouseMoveEvent = mouseEvent;
 		if (this._contentWidget?.isFocused || this._contentWidget?.isResizing) {
@@ -374,6 +386,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 	private _getOrCreateContentWidget(): ContentHoverController {
 		if (!this._contentWidget) {
 			this._contentWidget = this._instantiationService.createInstance(ContentHoverController, this._editor);
+			this._listenersStore.add(this._contentWidget.onContentsChanged(() => this._onHoverContentsChanged.fire()));
 		}
 		return this._contentWidget;
 	}
@@ -404,12 +417,24 @@ export class HoverController extends Disposable implements IEditorContribution {
 		return this._contentWidget?.widget.isResizing || false;
 	}
 
-	public updateFocusedMarkdownHoverVerbosityLevel(action: HoverVerbosityAction): void {
-		this._getOrCreateContentWidget().updateFocusedMarkdownHoverVerbosityLevel(action);
+	public focusedHoverPartIndex(): number {
+		return this._getOrCreateContentWidget().focusedHoverPartIndex();
+	}
+
+	public doesHoverAtIndexSupportVerbosityAction(index: number, action: HoverVerbosityAction): boolean {
+		return this._getOrCreateContentWidget().doesHoverAtIndexSupportVerbosityAction(index, action);
+	}
+
+	public updateHoverVerbosityLevel(action: HoverVerbosityAction, index: number, focus?: boolean): void {
+		this._getOrCreateContentWidget().updateHoverVerbosityLevel(action, index, focus);
 	}
 
 	public focus(): void {
 		this._contentWidget?.focus();
+	}
+
+	public focusHoverPartWithIndex(index: number): void {
+		this._contentWidget?.focusHoverPartWithIndex(index);
 	}
 
 	public scrollUp(): void {
@@ -446,6 +471,14 @@ export class HoverController extends Disposable implements IEditorContribution {
 
 	public getWidgetContent(): string | undefined {
 		return this._contentWidget?.getWidgetContent();
+	}
+
+	public getAccessibleWidgetContent(): string | undefined {
+		return this._contentWidget?.getAccessibleWidgetContent();
+	}
+
+	public getAccessibleWidgetContentAtIndex(index: number): string | undefined {
+		return this._contentWidget?.getAccessibleWidgetContentAtIndex(index);
 	}
 
 	public get isColorPickerVisible(): boolean | undefined {

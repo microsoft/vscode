@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
 import { tmpdir } from 'os';
 import { Queue } from 'vs/base/common/async';
 import { randomPath } from 'vs/base/common/extpath';
-import { Promises } from 'vs/base/node/pfs';
 import { resolveTerminalEncoding } from 'vs/base/node/terminalEncoding';
 
 export function hasStdinWithoutTty() {
@@ -43,7 +43,7 @@ export async function readFromStdin(targetPath: string, verbose: boolean, onEnd?
 	let [encoding, iconv] = await Promise.all([
 		resolveTerminalEncoding(verbose),	// respect terminal encoding when piping into file
 		import('@vscode/iconv-lite-umd'),	// lazy load encoding module for usage
-		Promises.appendFile(targetPath, '') // make sure file exists right away (https://github.com/microsoft/vscode/issues/155341)
+		fs.promises.appendFile(targetPath, '') // make sure file exists right away (https://github.com/microsoft/vscode/issues/155341)
 	]);
 
 	if (!iconv.encodingExists(encoding)) {
@@ -63,7 +63,7 @@ export async function readFromStdin(targetPath: string, verbose: boolean, onEnd?
 
 	process.stdin.on('data', chunk => {
 		const chunkStr = decoder.write(chunk);
-		appendFileQueue.queue(() => Promises.appendFile(targetPath, chunkStr));
+		appendFileQueue.queue(() => fs.promises.appendFile(targetPath, chunkStr));
 	});
 
 	process.stdin.on('end', () => {
@@ -72,7 +72,7 @@ export async function readFromStdin(targetPath: string, verbose: boolean, onEnd?
 		appendFileQueue.queue(async () => {
 			try {
 				if (typeof end === 'string') {
-					await Promises.appendFile(targetPath, end);
+					await fs.promises.appendFile(targetPath, end);
 				}
 			} finally {
 				onEnd?.();

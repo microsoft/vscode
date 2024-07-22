@@ -131,16 +131,6 @@ steps:
     displayName: Install dependencies
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
-  - script: |
-      set -e
-
-      EXPECTED_GLIBC_VERSION="2.28" \
-      EXPECTED_GLIBCXX_VERSION="3.4.25" \
-      ./build/azure-pipelines/linux/verify-glibc-requirements.sh
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
-    displayName: Check GLIBC and GLIBCXX dependencies in remote/node_modules
-
-
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - script: node build/azure-pipelines/distro/mixin-npm
       condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
@@ -213,9 +203,11 @@ steps:
         yarn gulp vscode-reh-linux-$(VSCODE_ARCH)-min-ci
         mv ../vscode-reh-linux-$(VSCODE_ARCH) ../vscode-server-linux-$(VSCODE_ARCH) # TODO@joaomoreno
         ARCHIVE_PATH=".build/linux/server/vscode-server-linux-$(VSCODE_ARCH).tar.gz"
+        UNARCHIVE_PATH="`pwd`/../vscode-server-linux-$(VSCODE_ARCH)"
         mkdir -p $(dirname $ARCHIVE_PATH)
         tar --owner=0 --group=0 -czf $ARCHIVE_PATH -C .. vscode-server-linux-$(VSCODE_ARCH)
         echo "##vso[task.setvariable variable=SERVER_PATH]$ARCHIVE_PATH"
+        echo "##vso[task.setvariable variable=SERVER_UNARCHIVE_PATH]$UNARCHIVE_PATH"
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
       displayName: Build server
@@ -231,6 +223,36 @@ steps:
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
       displayName: Build server (web)
+
+    - ${{ if or(eq(parameters.VSCODE_ARCH, 'x64'), eq(parameters.VSCODE_ARCH, 'arm64')) }}:
+      - script: |
+          set -e
+
+          source ./build/azure-pipelines/linux/setup-env.sh
+
+          EXPECTED_GLIBC_VERSION="2.28" \
+          EXPECTED_GLIBCXX_VERSION="3.4.25" \
+          ./build/azure-pipelines/linux/verify-glibc-requirements.sh
+        env:
+          SEARCH_PATH: $(SERVER_UNARCHIVE_PATH)
+          npm_config_arch: $(NPM_ARCH)
+          VSCODE_ARCH: $(VSCODE_ARCH)
+        displayName: Check GLIBC and GLIBCXX dependencies in server archive
+
+    - ${{ else }}:
+      - script: |
+          set -e
+
+          source ./build/azure-pipelines/linux/setup-env.sh
+
+          EXPECTED_GLIBC_VERSION="2.28" \
+          EXPECTED_GLIBCXX_VERSION="3.4.26" \
+          ./build/azure-pipelines/linux/verify-glibc-requirements.sh
+        env:
+          SEARCH_PATH: $(SERVER_UNARCHIVE_PATH)
+          npm_config_arch: $(NPM_ARCH)
+          VSCODE_ARCH: $(VSCODE_ARCH)
+        displayName: Check GLIBC and GLIBCXX dependencies in server archive
 
   - ${{ else }}:
     - script: yarn gulp "transpile-client-swc" "transpile-extensions"

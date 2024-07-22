@@ -56,7 +56,7 @@ function registerAccessibilityHelpAction(keybindingService: IKeybindingService, 
 				() => content,
 				() => viewsService.openView(viewDescriptor.id, true),
 			);
-		}
+		},
 	}));
 
 	disposableStore.add(keybindingService.onDidUpdateKeybindings(() => {

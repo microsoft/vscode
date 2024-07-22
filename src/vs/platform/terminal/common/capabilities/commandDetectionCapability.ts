@@ -56,23 +56,6 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	}
 	get cwd(): string | undefined { return this._cwd; }
 	get promptTerminator(): string | undefined { return this._promptTerminator; }
-	private get _isInputting(): boolean {
-		return !!(this._currentCommand.commandStartMarker && !this._currentCommand.commandExecutedMarker);
-	}
-
-	get hasInput(): boolean | undefined {
-		if (!this._isInputting || !this._currentCommand?.commandStartMarker) {
-			return undefined;
-		}
-		if (this._terminal.buffer.active.baseY + this._terminal.buffer.active.cursorY === this._currentCommand.commandStartMarker?.line) {
-			const line = this._terminal.buffer.active.getLine(this._terminal.buffer.active.cursorY)?.translateToString(true, this._currentCommand.commandStartX);
-			if (line === undefined) {
-				return undefined;
-			}
-			return line.length > 0;
-		}
-		return true;
-	}
 
 	private readonly _onCommandStarted = this._register(new Emitter<ITerminalCommand>());
 	readonly onCommandStarted = this._onCommandStarted.event;
@@ -166,6 +149,9 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 
 	@debounce(500)
 	private _handleCursorMove() {
+		if (this._store.isDisposed) {
+			return;
+		}
 		// Early versions of conpty do not have real support for an alt buffer, in addition certain
 		// commands such as tsc watch will write to the top of the normal buffer. The following
 		// checks when the cursor has moved while the normal buffer is empty and if it is above the
@@ -425,7 +411,8 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		}
 		return {
 			isWindowsPty: this._ptyHeuristics.value instanceof WindowsPtyHeuristics,
-			commands
+			commands,
+			promptInputModel: this._promptInputModel.serialize(),
 		};
 	}
 
@@ -459,6 +446,9 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			this._commands.push(newCommand);
 			this._logService.debug('CommandDetectionCapability#onCommandFinished', newCommand);
 			this._onCommandFinished.fire(newCommand);
+		}
+		if (serialized.promptInputModel) {
+			this._promptInputModel.deserialize(serialized.promptInputModel);
 		}
 	}
 }

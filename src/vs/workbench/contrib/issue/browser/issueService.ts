@@ -49,6 +49,7 @@ export class BrowserIssueService implements IWorkbenchIssueService {
 	}
 
 	async openReporter(options: Partial<IssueReporterData>): Promise<void> {
+		// If web reporter setting is false open the old GitHub issue reporter
 		if (!this.configurationService.getValue<boolean>('issueReporter.experimental.webReporter')) {
 			const extensionId = options.extensionId;
 			// If we don't have a extensionId, treat this as a Core issue

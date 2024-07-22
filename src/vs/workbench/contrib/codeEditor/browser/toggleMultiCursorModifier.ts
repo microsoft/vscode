@@ -3,15 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize, localize2 } from 'vs/nls';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { isMacintosh } from 'vs/base/common/platform';
+import { localize, localize2 } from 'vs/nls';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 export class ToggleMultiCursorModifierAction extends Action2 {
 
@@ -39,7 +40,7 @@ export class ToggleMultiCursorModifierAction extends Action2 {
 
 const multiCursorModifier = new RawContextKey<string>('multiCursorModifier', 'altKey');
 
-class MultiCursorModifierContextKeyController implements IWorkbenchContribution {
+class MultiCursorModifierContextKeyController extends Disposable implements IWorkbenchContribution {
 
 	private readonly _multiCursorModifier: IContextKey<string>;
 
@@ -47,14 +48,15 @@ class MultiCursorModifierContextKeyController implements IWorkbenchContribution 
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
+		super();
 		this._multiCursorModifier = multiCursorModifier.bindTo(contextKeyService);
 
 		this._update();
-		configurationService.onDidChangeConfiguration((e) => {
+		this._register(configurationService.onDidChangeConfiguration((e) => {
 			if (e.affectsConfiguration('editor.multiCursorModifier')) {
 				this._update();
 			}
-		});
+		}));
 	}
 
 	private _update(): void {

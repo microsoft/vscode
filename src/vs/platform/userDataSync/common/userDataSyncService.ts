@@ -702,8 +702,7 @@ class ProfileSynchronizer extends Disposable {
 			const [[synchronizer, , disposable]] = this._enabled.splice(index, 1);
 			disposable.dispose();
 			this.updateStatus();
-			Promise.allSettled([synchronizer.stop(), synchronizer.resetLocal()])
-				.then(null, error => this.logService.error(error));
+			synchronizer.stop().then(null, error => this.logService.error(error));
 		}
 	}
 

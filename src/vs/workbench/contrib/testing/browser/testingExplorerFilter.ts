@@ -28,6 +28,7 @@ const testFilterDescriptions: { [K in TestFilterTerm]: string } = {
 	[TestFilterTerm.Failed]: localize('testing.filters.showOnlyFailed', "Show Only Failed Tests"),
 	[TestFilterTerm.Executed]: localize('testing.filters.showOnlyExecuted', "Show Only Executed Tests"),
 	[TestFilterTerm.CurrentDoc]: localize('testing.filters.currentFile', "Show in Active File Only"),
+	[TestFilterTerm.OpenedFiles]: localize('testing.filters.openedFiles', "Show in Opened Files Only"),
 	[TestFilterTerm.Hidden]: localize('testing.filters.showExcludedTests', "Show Hidden Tests"),
 };
 
@@ -201,7 +202,7 @@ class FiltersDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
 
 	private getActions(): IAction[] {
 		return [
-			...[TestFilterTerm.Failed, TestFilterTerm.Executed, TestFilterTerm.CurrentDoc].map(term => ({
+			...[TestFilterTerm.Failed, TestFilterTerm.Executed, TestFilterTerm.CurrentDoc, TestFilterTerm.OpenedFiles].map(term => ({
 				checked: this.filters.isFilteringFor(term),
 				class: undefined,
 				enabled: true,
