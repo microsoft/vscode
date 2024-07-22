@@ -316,24 +316,21 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		this._registerCommands().then(() => TaskCommandsRegistered.bindTo(this._contextKeyService).set(true));
 		ServerlessWebContext.bindTo(this._contextKeyService).set(Platform.isWeb && !remoteAgentService.getConnection()?.remoteAuthority);
 		this._configurationResolverService.contributeVariable('defaultBuildTask', async (): Promise<string | undefined> => {
-			// delay provider activation, we might find a default task in the tasks.json file
+			// delay provider activation, we might find a signle default build task in the tasks.json file
 			let tasks = await this._getTasksForGroup(TaskGroup.Build, true);
 			if (tasks.length > 0) {
 				const defaults = this._getDefaultTasks(tasks);
 				if (defaults.length === 1) {
 					return defaults[0]._label;
-				} else if (defaults.length) {
-					tasks = defaults;
 				}
-			} else {
-				// activate all providers, we haven't found the default build task in the tasks.json file
-				tasks = await this._getTasksForGroup(TaskGroup.Build);
-				const defaults = this._getDefaultTasks(tasks);
-				if (defaults.length === 1) {
-					return defaults[0]._label;
-				} else if (defaults.length) {
-					tasks = defaults;
-				}
+			}
+			// activate all providers, we haven't found the default build task in the tasks.json file
+			tasks = await this._getTasksForGroup(TaskGroup.Build);
+			const defaults = this._getDefaultTasks(tasks);
+			if (defaults.length === 1) {
+				return defaults[0]._label;
+			} else if (defaults.length) {
+				tasks = defaults;
 			}
 
 			let entry: ITaskQuickPickEntry | null | undefined;
