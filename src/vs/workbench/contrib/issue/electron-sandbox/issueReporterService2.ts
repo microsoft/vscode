@@ -13,7 +13,7 @@ import { localize } from 'vs/nls';
 import { isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
 import { IProcessMainService } from 'vs/platform/issue/common/issue';
 import { INativeHostService } from 'vs/platform/native/common/native';
-import { applyZoom, zoomIn, zoomOut } from 'vs/platform/window/electron-sandbox/window';
+import { applyZoom } from 'vs/platform/window/electron-sandbox/window';
 import { BaseIssueReporterService, hide, show } from 'vs/workbench/contrib/issue/browser/issue';
 import { IssueReporterData as IssueReporterModelData } from 'vs/workbench/contrib/issue/browser/issueReporterModel';
 import { IIssueFormService, IssueReporterData, IssueReporterExtensionData, IssueReporterWindowConfiguration, IssueType } from 'vs/workbench/contrib/issue/common/issue';
@@ -154,16 +154,6 @@ export class IssueReporter2 extends BaseIssueReporterService {
 				} else {
 					this.close();
 				}
-			}
-
-			// Cmd/Ctrl + zooms in
-			if (cmdOrCtrlKey && (e.key === '+' || e.key === '=')) {
-				zoomIn(this.window);
-			}
-
-			// Cmd/Ctrl - zooms out
-			if (cmdOrCtrlKey && e.key === '-') {
-				zoomOut(this.window);
 			}
 
 			// With latest electron upgrade, cmd+a is no longer propagating correctly for inputs in this window on mac

@@ -83,6 +83,17 @@ export class IssueFormService2 implements IIssueFormService {
 			auxiliaryWindow.window.document.body.appendChild(div);
 			safeInnerHtml(div, BaseHtml());
 
+			let type = '';
+			let arch = '';
+			let release = '';
+
+			// Get platform information
+			await this.nativeHostService.getOSProperties().then(os => {
+				arch = os.arch;
+				release = os.release;
+				type = os.type;
+			});
+
 			// Store into config object URL
 			this.configuration = {
 				appRoot: this.environmentService.appRoot,
@@ -91,9 +102,9 @@ export class IssueFormService2 implements IIssueFormService {
 				data,
 				disableExtensions: !!this.environmentService.disableExtensions,
 				os: {
-					type: '',
-					arch: '',
-					release: '',
+					type,
+					arch,
+					release,
 				},
 				product,
 				nls: {
