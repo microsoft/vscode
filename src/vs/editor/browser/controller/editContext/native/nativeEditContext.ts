@@ -26,7 +26,6 @@ export class NativeEditContext extends AbstractEditContext {
 	private readonly _domElement = new FastDomNode(document.createElement('div'));
 	private readonly _ctx: EditContext = this._domElement.domNode.editContext = new EditContext();
 
-
 	private _parent!: HTMLElement;
 	private _scrollTop = 0;
 	private _contentLeft = 0;
@@ -41,9 +40,18 @@ export class NativeEditContext extends AbstractEditContext {
 	) {
 		super(context);
 
+		this._domElement.domNode.id = 'native-edit-context';
 		this._domElement.domNode.tabIndex = 0;
-		this._domElement.domNode.style.width = '100px';
-		this._domElement.domNode.style.height = '100px';
+		this._domElement.domNode.role = 'textbox';
+		this._domElement.domNode.ariaMultiLine = 'true';
+		this._domElement.domNode.ariaRequired = 'false';
+		this._domElement.domNode.ariaLabel = 'use Option+F1 to open the accessibility help.';
+		this._domElement.domNode.ariaAutoComplete = 'both';
+		this._domElement.domNode.ariaRoleDescription = 'editor';
+		this._domElement.domNode.setAttribute('autocorrect', 'off');
+		this._domElement.domNode.setAttribute('autocapitalize', 'off');
+		this._domElement.domNode.setAttribute('autocomplete', 'off');
+		this._domElement.domNode.setAttribute('spellcheck', 'false');
 
 		this._domElement.domNode.onfocus = () => {
 			this._isFocused = true;
