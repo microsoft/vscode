@@ -15,7 +15,7 @@ let rimraf = require('rimraf');
 let minimist = require('minimist');
 
 function update(options) {
-	let idOrPath = options._;
+	let idOrPath = options._[0];
 	if (!idOrPath) {
 		throw new Error('Argument must be the location of the localization extension.');
 	}
@@ -72,7 +72,7 @@ function update(options) {
 		console.log(`Importing translations for ${languageId} form '${location}' to '${translationDataFolder}' ...`);
 		let translationPaths = [];
 		gulp.src([
-			path.join(location, '**', languageId, '*.xlf'),
+			path.join(location, languageId, '**', '*.xlf'),
 			...i18n.EXTERNAL_EXTENSIONS.map(extensionId => path.join(externalExtensionsLocation, extensionId, languageId, '*-new.xlf'))
 		], { silent: false })
 			.pipe(i18n.prepareI18nPackFiles(translationPaths))
