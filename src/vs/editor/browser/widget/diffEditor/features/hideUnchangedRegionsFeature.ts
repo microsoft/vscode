@@ -8,7 +8,7 @@ import { renderIcon, renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/i
 import { Codicon } from 'vs/base/common/codicons';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, IReader, autorun, derived, derivedWithStore, observableFromEvent, observableValue, transaction } from 'vs/base/common/observable';
+import { IObservable, IReader, autorun, derived, derivedWithStore, observableValue, transaction } from 'vs/base/common/observable';
 import { derivedDisposable } from 'vs/base/common/observableInternal/derived';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { isDefined } from 'vs/base/common/types';
@@ -127,7 +127,6 @@ export class HideUnchangedRegionsFeature extends Disposable {
 							this._editors.original,
 							origVz,
 							r,
-							r.originalUnchangedRange,
 							!sideBySide,
 						));
 					}
@@ -139,7 +138,6 @@ export class HideUnchangedRegionsFeature extends Disposable {
 							this._editors.modified,
 							modViewZone,
 							r,
-							r.modifiedUnchangedRange,
 						));
 					}
 				} else {
@@ -280,7 +278,6 @@ class CompactCollapsedCodeOverlayWidget extends ViewZoneOverlayWidget {
 		editor: ICodeEditor,
 		_viewZone: PlaceholderViewZone,
 		private readonly _unchangedRegion: UnchangedRegion,
-		private readonly _unchangedRegionRange: LineRange,
 		private readonly _hide: boolean = false,
 	) {
 		const root = h('div.diff-hidden-lines-widget');
@@ -295,7 +292,7 @@ class CompactCollapsedCodeOverlayWidget extends ViewZoneOverlayWidget {
 			/** @description update labels */
 
 			if (!this._hide) {
-				const lineCount = _unchangedRegion.getHiddenModifiedRange(reader).length;
+				const lineCount = this._unchangedRegion.getHiddenModifiedRange(reader).length;
 				const linesHiddenText = localize('hiddenLines', '{0} hidden lines', lineCount);
 				this._nodes.text.innerText = linesHiddenText;
 			}
