@@ -212,7 +212,7 @@ suite('ExtensionService', () => {
 		protected _scanSingleExtension(extension: IExtension): Promise<IExtensionDescription | null> {
 			throw new Error('Method not implemented.');
 		}
-		protected _onExtensionHostExit(code: number): void {
+		protected _onExtensionHostExit(code: number): Promise<void> {
 			throw new Error('Method not implemented.');
 		}
 		protected _resolveAuthority(remoteAuthority: string): Promise<ResolverResult> {

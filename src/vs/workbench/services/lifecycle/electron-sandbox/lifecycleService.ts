@@ -15,6 +15,7 @@ import { Promises, disposableTimeout, raceCancellation, timeout } from 'vs/base/
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { CancellationError } from 'vs/base/common/errors';
 
 export class NativeLifecycleService extends AbstractLifecycleService {
 
@@ -87,7 +88,11 @@ export class NativeLifecycleService extends AbstractLifecycleService {
 		}, NativeLifecycleService.BEFORE_SHUTDOWN_WARNING_DELAY);
 
 		await Promise.race([
-			this.remoteAgentService.endConnection(),
+			this.remoteAgentService.endConnection().catch(e => {
+				if (!(e instanceof CancellationError)) {
+					this.logService.error(`[lifecycle] error during remote agent shutdown: ${toErrorMessage(e)}`);
+				}
+			}),
 			timeout(NativeLifecycleService.MAX_GRACEFUL_REMOTE_DISCONNECT_TIME),
 		]);
 

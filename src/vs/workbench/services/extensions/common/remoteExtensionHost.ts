@@ -56,6 +56,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 	private _protocol: PersistentProtocol | null;
 	private _hasLostConnection: boolean;
 	private _terminating: boolean;
+	private _hasDisconnected = false;
 	private readonly _isExtensionDevHost: boolean;
 
 	constructor(
@@ -264,22 +265,28 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 		return Promise.resolve(false);
 	}
 
+	async disconnect() {
+		if (this._protocol && !this._hasDisconnected) {
+			this._protocol.send(createMessageOfType(MessageType.Terminate));
+			this._protocol.sendDisconnect();
+			this._hasDisconnected = true;
+			await this._protocol.drain();
+		}
+	}
+
 	override dispose(): void {
 		super.dispose();
 
 		this._terminating = true;
+		this.disconnect();
 
 		if (this._protocol) {
 			// Send the extension host a request to terminate itself
 			// (graceful termination)
 			// setTimeout(() => {
 			// console.log(`SENDING TERMINATE TO REMOTE EXT HOST!`);
-			const socket = this._protocol.getSocket();
-			this._protocol.send(createMessageOfType(MessageType.Terminate));
-			this._protocol.sendDisconnect();
-			this._protocol.dispose();
+			this._protocol.getSocket().end();
 			// this._protocol.drain();
-			socket.end();
 			this._protocol = null;
 			// }, 1000);
 		}
