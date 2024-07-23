@@ -122,6 +122,8 @@ import { IAuxiliaryWindowsMainService } from '../../platform/auxiliaryWindow/ele
 import { AuxiliaryWindowsMainService } from '../../platform/auxiliaryWindow/electron-main/auxiliaryWindowsMainService.js';
 import { normalizeNFC } from '../../base/common/normalization.js';
 import { ICSSDevelopmentService, CSSDevelopmentService } from '../../platform/cssDev/node/cssDevService.js';
+import { IGPUStatusMainService } from 'vs/platform/gpu/common/gpuStatusMain';
+import { GPUStatusMainService } from 'vs/platform/gpu/electron-main/gpuStatusMainService';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -1103,6 +1105,9 @@ export class CodeApplication extends Disposable {
 		// Proxy Auth
 		services.set(IProxyAuthService, new SyncDescriptor(ProxyAuthService));
 
+		// GPU Status
+		services.set(IGPUStatusMainService, new SyncDescriptor(GPUStatusMainService, undefined, true));
+
 		// Dev Only: CSS service (for ESM)
 		services.set(ICSSDevelopmentService, new SyncDescriptor(CSSDevelopmentService, undefined, true));
 
@@ -1230,6 +1235,10 @@ export class CodeApplication extends Disposable {
 		// Utility Process Worker
 		const utilityProcessWorkerChannel = ProxyChannel.fromService(accessor.get(IUtilityProcessWorkerMainService), disposables);
 		mainProcessElectronServer.registerChannel(ipcUtilityProcessWorkerChannelName, utilityProcessWorkerChannel);
+
+		// GPU Status
+		const gpuStatusMainChannel = ProxyChannel.fromService(accessor.get(IGPUStatusMainService), disposables);
+		mainProcessElectronServer.registerChannel('gpuStatus', gpuStatusMainChannel);
 	}
 
 	private async openFirstWindow(accessor: ServicesAccessor, initialProtocolUrls: IInitialProtocolUrls | undefined): Promise<ICodeWindow[]> {
