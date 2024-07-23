@@ -49,3 +49,21 @@ export const quickInputListFocusIconForeground = registerColor('quickInputList.f
 export const quickInputListFocusBackground = registerColor('quickInputList.focusBackground',
 	{ dark: oneOf(_deprecatedQuickInputListFocusBackground, listActiveSelectionBackground), light: oneOf(_deprecatedQuickInputListFocusBackground, listActiveSelectionBackground), hcDark: null, hcLight: null },
 	nls.localize('quickInput.listFocusBackground', "Quick picker background color for the focused item."));
+
+// ------ action list
+
+export const editorActionListBackground = registerColor('editorActionList.background',
+	editorWidgetBackground,
+	nls.localize('editorActionListBackground', "Action List background color."));
+
+export const editorActionListForeground = registerColor('editorActionList.foreground',
+	editorWidgetForeground,
+	nls.localize('editorActionListForeground', "Action List foreground color."));
+
+export const editorActionListFocusForeground = registerColor('editorActionList.focusForeground',
+	quickInputListFocusForeground,
+	nls.localize('editorActionListFocusForeground', "Action List foreground color for the focused item."));
+
+export const editorActionListFocusBackground = registerColor('editorActionList.focusBackground',
+	quickInputListFocusBackground,
+	nls.localize('editorActionListFocusBackground', "Action List background color for the focused item."));
