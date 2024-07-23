@@ -164,8 +164,7 @@ export class ChatVariablesService implements IChatVariablesService {
 			return;
 		}
 
-		await showChatView(this.viewsService);
-		const widget = this.chatWidgetService.lastFocusedWidget;
+		const widget = await showChatView(this.viewsService);
 		if (!widget || !widget.viewModel) {
 			return;
 		}
