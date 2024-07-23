@@ -55,9 +55,6 @@ export interface IModelContentChange {
  * An event describing a change in the text of a model.
  */
 export interface IModelContentChangedEvent {
-	/**
-	 * The changes are ordered from the end of the document to the beginning, so they should be safe to apply in sequence.
-	 */
 	readonly changes: IModelContentChange[];
 	/**
 	 * The (new) end-of-line character.
