@@ -47,6 +47,9 @@ import { SingleCursorState } from 'vs/editor/common/cursorCommon';
  *   10.a. Look at exploration implementation. Used to work there, so maybe I am missing something in this implementation.
  */
 
+// extract the model change and selection change event for the screen reader part into a separate function, not the edit context part, not the copy handler, not the enter handler
+// keep the child div of the parent div, and try to fix the selection issue that is happening by modifying for example the text content of the existing divs, and appending the new divs when new divs are created
+
 export class NativeEditContext extends AbstractEditContext {
 	private readonly _domElement = new FastDomNode(document.createElement('div'));
 	private readonly _ctx: EditContext = this._domElement.domNode.editContext = new EditContext();
