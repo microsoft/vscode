@@ -9,10 +9,16 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ChatTreeItem } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatContentPart, IChatContentPartRenderContext } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatContentParts';
 import { IChatCodeCitations, IChatRendererContent } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+
+type ChatCodeCitationOpenedClassification = {
+	owner: 'roblourens';
+	comment: 'Indicates when a user opens chat code citations';
+};
 
 export class ChatCodeCitationContentPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
@@ -20,13 +26,15 @@ export class ChatCodeCitationContentPart extends Disposable implements IChatCont
 	constructor(
 		citations: IChatCodeCitations,
 		context: IChatContentPartRenderContext,
-		@IEditorService private readonly editorService: IEditorService
+		@IEditorService private readonly editorService: IEditorService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
 		super();
 
-		const label = citations.citations.length > 1 ?
-			localize('codeCitationsPlural', "This code matches {0} references in public repositories", citations.citations.length) :
-			localize('codeCitation', "This code matches 1 reference in a public repository", citations.citations.length);
+		const licenseTypes = citations.citations.reduce((set, c) => set.add(c.license), new Set<string>());
+		const label = licenseTypes.size === 1 ?
+			localize('codeCitation', "Similar code found with 1 license type", licenseTypes.size) :
+			localize('codeCitations', "Similar code found with {0} license types", licenseTypes.size);
 		const elements = dom.h('.chat-code-citation-message@root', [
 			dom.h('span.chat-code-citation-label@label'),
 			dom.h('.chat-code-citation-button-container@button'),
@@ -42,10 +50,11 @@ export class ChatCodeCitationContentPart extends Disposable implements IChatCont
 			buttonSecondaryHoverBackground: undefined,
 			buttonSeparator: undefined
 		}));
-		button.label = localize('viewReferences', "View references");
+		button.label = localize('viewMatches', "View matches");
 		this._register(button.onDidClick(() => {
 			const citationText = citations.citations.map(c => `# [${c.license}]\n${c.value.toString()}\n\n\`\`\`\n${c.snippet}\n\`\`\`\n\n`).join('\n');
-			this.editorService.openEditor({ resource: URI.from({ scheme: Schemas.untitled, path: 'Code references' }), contents: citationText, languageId: 'markdown' });
+			this.editorService.openEditor({ resource: URI.from({ scheme: Schemas.untitled, path: 'Code Matches' }), contents: citationText, languageId: 'markdown' });
+			this.telemetryService.publicLog2<{}, ChatCodeCitationOpenedClassification>('openedChatCodeCitations');
 		}));
 		this.domNode = elements.root;
 	}
