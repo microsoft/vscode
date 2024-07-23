@@ -12,6 +12,7 @@ import { localize } from 'vs/nls';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ChatTreeItem } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatContentPart, IChatContentPartRenderContext } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatContentParts';
+import { getCodeCitationsMessage } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatCodeCitations, IChatRendererContent } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
@@ -31,10 +32,7 @@ export class ChatCodeCitationContentPart extends Disposable implements IChatCont
 	) {
 		super();
 
-		const licenseTypes = citations.citations.reduce((set, c) => set.add(c.license), new Set<string>());
-		const label = licenseTypes.size === 1 ?
-			localize('codeCitation', "Similar code found with 1 license type", licenseTypes.size) :
-			localize('codeCitations', "Similar code found with {0} license types", licenseTypes.size);
+		const label = getCodeCitationsMessage(citations.citations);
 		const elements = dom.h('.chat-code-citation-message@root', [
 			dom.h('span.chat-code-citation-label@label'),
 			dom.h('.chat-code-citation-button-container@button'),

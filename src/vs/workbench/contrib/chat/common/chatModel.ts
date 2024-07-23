@@ -176,6 +176,7 @@ export class Response implements IResponse {
 	 */
 	private _markdownContent = '';
 
+	private _citations: IChatCodeCitation[] = [];
 
 	get value(): IChatProgressResponseContent[] {
 		return this._responseParts;
@@ -260,6 +261,11 @@ export class Response implements IResponse {
 		}
 	}
 
+	public addCitation(citation: IChatCodeCitation) {
+		this._citations.push(citation);
+		this._updateRepr();
+	}
+
 	private _updateRepr(quiet?: boolean) {
 		this._responseRepr = this._responseParts.map(part => {
 			if (part.kind === 'treeData') {
@@ -280,6 +286,8 @@ export class Response implements IResponse {
 		})
 			.filter(s => s.length > 0)
 			.join('\n\n');
+
+		this._responseRepr += this._citations.length ? '\n\n' + getCodeCitationsMessage(this._citations) : '';
 
 		this._markdownContent = this._responseParts.map(part => {
 			if (part.kind === 'inlineReference') {
@@ -428,6 +436,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 
 	applyCodeCitation(progress: IChatCodeCitation) {
 		this._codeCitations.push(progress);
+		this._response.addCitation(progress);
 		this._onDidChange.fire();
 	}
 
@@ -1139,4 +1148,16 @@ export function appendMarkdownString(md1: IMarkdownString, md2: IMarkdownString 
 		supportHtml: md1.supportHtml,
 		baseUri: md1.baseUri
 	};
+}
+
+export function getCodeCitationsMessage(citations: ReadonlyArray<IChatCodeCitation>): string {
+	if (citations.length === 0) {
+		return '';
+	}
+
+	const licenseTypes = citations.reduce((set, c) => set.add(c.license), new Set<string>());
+	const label = licenseTypes.size === 1 ?
+		localize('codeCitation', "Similar code found with 1 license type", licenseTypes.size) :
+		localize('codeCitations', "Similar code found with {0} license types", licenseTypes.size);
+	return label;
 }
