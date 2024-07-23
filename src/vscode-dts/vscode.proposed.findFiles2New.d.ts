@@ -10,7 +10,7 @@ declare module 'vscode' {
 		 * A {@link GlobPattern glob pattern} that defines files and folders to exclude. The glob pattern
 		 * will be matched against the file paths of resulting matches relative to their workspace.
 		 */
-		exclude?: GlobPattern;
+		exclude?: GlobPattern[];
 
 		/**
 		 * Which settings to follow when searching for files. Defaults to {@link ExcludeSettingOptions.searchAndFilesExclude}.
@@ -58,9 +58,6 @@ declare module 'vscode' {
 		followSymlinks?: boolean;
 	}
 
-	/**
-	 * Represents a session of a currently logged in user.
-	 */
 	export namespace workspace {
 		/**
 		 * WARNING: VERY EXPERIMENTAL.
@@ -68,7 +65,7 @@ declare module 'vscode' {
 		 * Find files across all {@link workspace.workspaceFolders workspace folders} in the workspace.
 		 *
 		 * @example
-		 * findFiles('**​/*.js', {exclude: '**​/out/**', useIgnoreFiles: true, maxResults: 10})
+		 * findFiles(['**​/*.js'], {exclude: ['**​/out/**'], useIgnoreFiles: true, maxResults: 10})
 		 *
 		 * @param filePattern A {@link GlobPattern glob pattern} that defines the files to search for. The glob pattern
 		 * will be matched against the file paths of resulting matches relative to their workspace. Use a {@link RelativePattern relative pattern}

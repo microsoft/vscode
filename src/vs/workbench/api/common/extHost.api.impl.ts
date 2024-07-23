@@ -107,7 +107,7 @@ import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/c
 import { UIKind } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { checkProposedApiEnabled, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { ProxyIdentifier } from 'vs/workbench/services/extensions/common/proxyIdentifier';
-import { ExcludeSettingOptions, TextSearchCompleteMessageType, TextSearchCompleteMessageTypeNew, TextSearchContextNew, TextSearchMatchNew } from 'vs/workbench/services/search/common/searchExtTypes';
+import { ExcludeSettingOptions, oldToNewTextSearchResult, TextSearchCompleteMessageType, TextSearchCompleteMessageTypeNew, TextSearchContextNew, TextSearchMatchNew } from 'vs/workbench/services/search/common/searchExtTypes';
 import type * as vscode from 'vscode';
 
 export interface IExtensionRegistries {
@@ -973,7 +973,18 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			findFiles2New: (filePattern: vscode.GlobPattern[], options?: vscode.FindFiles2OptionsNew, token?: vscode.CancellationToken): Thenable<vscode.Uri[]> => {
 				checkProposedApiEnabled(extension, 'findFiles2New');
-				return Promise.resolve([]);
+
+				const oldOptions = {
+					exclude: options?.exclude && options.exclude.length > 0 ? options.exclude[0] : undefined,
+					useDefaultExcludes: !options?.useExcludeSettings || (options?.useExcludeSettings === ExcludeSettingOptions.filesExclude || options?.useExcludeSettings === ExcludeSettingOptions.searchAndFilesExclude),
+					useDefaultSearchExcludes: !options?.useExcludeSettings || (options?.useExcludeSettings === ExcludeSettingOptions.searchAndFilesExclude),
+					maxResults: options?.maxResults,
+					useIgnoreFiles: options?.useIgnoreFiles?.local,
+					useGlobalIgnoreFiles: options?.useIgnoreFiles?.global,
+					useParentIgnoreFiles: options?.useIgnoreFiles?.parent,
+					followSymlinks: options?.followSymlinks,
+				};
+				return extHostWorkspace.findFiles2(filePattern && filePattern.length > 0 ? filePattern[0] : undefined, oldOptions, extension.identifier, token);
 			},
 			findTextInFiles: (query: vscode.TextSearchQuery, optionsOrCallback: vscode.FindTextInFilesOptions | ((result: vscode.TextSearchResult) => void), callbackOrToken?: vscode.CancellationToken | ((result: vscode.TextSearchResult) => void), token?: vscode.CancellationToken) => {
 				checkProposedApiEnabled(extension, 'findTextInFiles');
@@ -993,11 +1004,56 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			findTextInFilesNew: (query: vscode.TextSearchQueryNew, options?: vscode.FindTextInFilesOptionsNew, token?: vscode.CancellationToken): vscode.FindTextInFilesResponse => {
 				checkProposedApiEnabled(extension, 'findTextInFilesNew');
+				checkProposedApiEnabled(extension, 'textSearchProviderNew');
+				let oldOptions = {};
+
+
+				if (options) {
+					oldOptions = {
+						include: options.include && options.include.length > 0 ? options.include[0] : undefined,
+						exclude: options.exclude && options.exclude.length > 0 ? options.exclude[0] : undefined,
+						useDefaultExcludes: options.useExcludeSettings === undefined || (options.useExcludeSettings === ExcludeSettingOptions.filesExclude || options.useExcludeSettings === ExcludeSettingOptions.searchAndFilesExclude),
+						useSearchExclude: options.useExcludeSettings === undefined || (options.useExcludeSettings === ExcludeSettingOptions.searchAndFilesExclude),
+						maxResults: options.maxResults,
+						useIgnoreFiles: options.useIgnoreFiles?.local,
+						useGlobalIgnoreFiles: options.useIgnoreFiles?.global,
+						useParentIgnoreFiles: options.useIgnoreFiles?.parent,
+						followSymlinks: options.followSymlinks,
+						encoding: options.encoding,
+						previewOptions: options.previewOptions ? {
+							matchLines: options.previewOptions?.matchLines ?? 100,
+							charsPerLine: options.previewOptions?.charsPerLine ?? 10000,
+						} : undefined,
+						beforeContext: options.surroundingContext,
+						afterContext: options.surroundingContext,
+					} satisfies vscode.FindTextInFilesOptions & { useSearchExclude?: boolean };
+				}
+
+				const complete: Promise<undefined | vscode.TextSearchComplete> = Promise.resolve(undefined);
+
+				const asyncIterable = new AsyncIterableObject<vscode.TextSearchResultNew>(async emitter => {
+					const callback = async (result: vscode.TextSearchResult) => {
+						emitter.emitOne(oldToNewTextSearchResult(result));
+						return result;
+					};
+					await complete.then(e => {
+						return extHostWorkspace.findTextInFiles(
+							query,
+							oldOptions,
+							callback,
+							extension.identifier,
+							token
+						);
+					});
+				});
+
 				return {
-					results: AsyncIterableObject.fromArray([]),
-					complete: Promise.resolve({
-						limitHit: false
-					})
+					results: asyncIterable,
+					complete: complete.then((e) => {
+						return {
+							limitHit: e?.limitHit ?? false
+						};
+					}),
 				};
 			},
 			save: (uri) => {
