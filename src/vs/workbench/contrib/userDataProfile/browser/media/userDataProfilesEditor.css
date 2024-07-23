@@ -146,6 +146,14 @@
 	margin: 0px;
 }
 
+.profiles-editor .contents-container .profile-body .profile-row-container .profile-description-element ul {
+	padding-inline-start: 28px;
+}
+
+.profiles-editor .contents-container .profile-body .profile-row-container .profile-description-element ul li {
+	padding-left: 2px;
+}
+
 .profiles-editor .contents-container .profile-body .profile-row-container .monaco-inputbox {
 	width: 400px;
 }
