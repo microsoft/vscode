@@ -136,7 +136,7 @@ export class TestingExplorerView extends ViewPane {
 	}
 
 	public override shouldShowWelcome() {
-		return this.viewModel?.welcomeExperience === WelcomeExperience.ForWorkspace ?? true;
+		return this.viewModel ? this.viewModel.welcomeExperience === WelcomeExperience.ForWorkspace : true;
 	}
 
 	public override focus() {

@@ -615,7 +615,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		// We need to first wait for extensions to be registered because we might read
 		// the `TaskDefinitionRegistry` in case `type` is `undefined`
 		await this._extensionService.whenInstalledExtensionsRegistered();
-		this._log('Activating task providers ' + type ?? 'all');
+		this._log('Activating task providers ' + (type ?? 'all'));
 		await raceTimeout(
 			Promise.all(this._getActivationEvents(type).map(activationEvent => this._extensionService.activateByEvent(activationEvent))),
 			5000,
