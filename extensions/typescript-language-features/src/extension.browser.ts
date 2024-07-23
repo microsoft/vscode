@@ -11,8 +11,7 @@ import { registerBaseCommands } from './commands/index';
 import { TypeScriptServiceConfiguration } from './configuration/configuration';
 import { BrowserServiceConfigurationProvider } from './configuration/configuration.browser';
 import { ExperimentationTelemetryReporter, IExperimentationTelemetryReporter } from './experimentTelemetryReporter';
-import { AutoInstallerFs } from './filesystems/autoInstallerFs';
-import { MemFs } from './filesystems/memFs';
+import { registerAtaSupport } from './filesystems/ata';
 import { createLazyClientHost, lazilyActivateClient } from './lazyClientHost';
 import { Logger } from './logging/logger';
 import RemoteRepositories from './remoteRepositories.browser';
@@ -25,7 +24,7 @@ import { ITypeScriptVersionProvider, TypeScriptVersion, TypeScriptVersionSource 
 import { ActiveJsTsEditorTracker } from './ui/activeJsTsEditorTracker';
 import { Disposable } from './utils/dispose';
 import { getPackageInfo } from './utils/packageInfo';
-import { isWebAndHasSharedArrayBuffers, supportsReadableByteStreams } from './utils/platform';
+import { isWebAndHasSharedArrayBuffers } from './utils/platform';
 
 class StaticVersionProvider implements ITypeScriptVersionProvider {
 
@@ -102,16 +101,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Api> {
 		await startPreloadWorkspaceContentsIfNeeded(context, logger);
 	}));
 
-	if (supportsReadableByteStreams()) {
-		context.subscriptions.push(vscode.workspace.registerFileSystemProvider('vscode-global-typings', new MemFs(), {
-			isCaseSensitive: true,
-			isReadonly: false
-		}));
-		context.subscriptions.push(vscode.workspace.registerFileSystemProvider('vscode-node-modules', new AutoInstallerFs(), {
-			isCaseSensitive: true,
-			isReadonly: false
-		}));
-	}
+	context.subscriptions.push(registerAtaSupport());
 
 	return getExtensionApi(onCompletionAccepted.event, pluginManager);
 }
