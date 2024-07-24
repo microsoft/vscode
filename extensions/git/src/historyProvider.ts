@@ -89,7 +89,9 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 				name: `${this.repository.HEAD.upstream.remote}/${this.repository.HEAD.upstream.name}`,
 				revision: this.repository.HEAD.upstream.commit
 			} : undefined,
-			base: mergeBase ? {
+			base: mergeBase &&
+				(mergeBase.remote !== this.repository.HEAD.upstream?.remote ||
+					mergeBase.name !== this.repository.HEAD.upstream?.name) ? {
 				id: `refs/remotes/${mergeBase.remote}/${mergeBase.name}`,
 				name: `${mergeBase.remote}/${mergeBase.name}`,
 				revision: mergeBase.commit
@@ -150,9 +152,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 			]);
 
 			// Add common ancestor commit
-			if (commits.length !== 0) {
-				commits.push(mergeBaseCommit);
-			}
+			commits.push(mergeBaseCommit);
 
 			await ensureEmojis();
 
@@ -272,7 +272,11 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 					return ancestor;
 				}
 
-				// TODO@lszomoru - Return first commit
+				// First commit
+				const commits = await this.repository.log({ maxParents: 0, refNames: ['HEAD'] });
+				if (commits.length > 0) {
+					return commits[0].hash;
+				}
 			} else if (historyItemGroupIds.length > 1) {
 				const ancestor = await this.repository.getMergeBase(historyItemGroupIds[0], historyItemGroupIds[1], ...historyItemGroupIds.slice(2));
 				return ancestor;

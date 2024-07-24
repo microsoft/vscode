@@ -52,6 +52,7 @@ type ChatProviderInvokedEvent = {
 	agent: string;
 	slashCommand: string | undefined;
 	location: ChatAgentLocation;
+	citations: number;
 };
 
 type ChatProviderInvokedClassification = {
@@ -62,7 +63,8 @@ type ChatProviderInvokedClassification = {
 	chatSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A random ID for the session.' };
 	agent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of agent used.' };
 	slashCommand?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of slashCommand used.' };
-	location?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The location at which chat request was made.' };
+	location: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The location at which chat request was made.' };
+	citations: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of public code citations that were returned with the response.' };
 	owner: 'roblourens';
 	comment: 'Provides insight into the performance of Chat agents.';
 };
@@ -461,6 +463,7 @@ export class ChatService extends Disposable implements IChatService {
 					slashCommand: agentSlashCommandPart ? agentSlashCommandPart.command.name : commandPart?.slashCommand.command,
 					chatSessionId: model.sessionId,
 					location,
+					citations: request?.response?.codeCitations.length ?? 0
 				});
 
 				model.cancelRequest(request);
@@ -546,7 +549,8 @@ export class ChatService extends Disposable implements IChatService {
 						agent: agentPart?.agent.id ?? '',
 						slashCommand: agentSlashCommandPart ? agentSlashCommandPart.command.name : commandPart?.slashCommand.command,
 						chatSessionId: model.sessionId,
-						location
+						location,
+						citations: request.response?.codeCitations.length ?? 0
 					});
 					model.setResponse(request, rawResult);
 					completeResponseCreated();
@@ -569,7 +573,8 @@ export class ChatService extends Disposable implements IChatService {
 					agent: agentPart?.agent.id ?? '',
 					slashCommand: agentSlashCommandPart ? agentSlashCommandPart.command.name : commandPart?.slashCommand.command,
 					chatSessionId: model.sessionId,
-					location
+					location,
+					citations: 0
 				});
 				this.logService.error(`Error while handling chat request: ${toErrorMessage(err, true)}`);
 				if (request) {

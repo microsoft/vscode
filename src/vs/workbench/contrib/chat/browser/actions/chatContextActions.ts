@@ -7,15 +7,18 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Schemas } from 'vs/base/common/network';
-import { IRange } from 'vs/editor/common/core/range';
+import { compare } from 'vs/base/common/strings';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { IRange } from 'vs/editor/common/core/range';
+import { EditorType } from 'vs/editor/common/editorCommon';
 import { Command } from 'vs/editor/common/languages';
 import { AbstractGotoSymbolQuickAccessProvider, IGotoSymbolQuickPickItem } from 'vs/editor/contrib/quickAccess/browser/gotoSymbolQuickAccess';
 import { localize, localize2 } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { AnythingQuickAccessProviderRunOptions } from 'vs/platform/quickinput/common/quickAccess';
 import { IQuickInputService, IQuickPickItem, QuickPickItem } from 'vs/platform/quickinput/common/quickInput';
@@ -27,12 +30,10 @@ import { CONTEXT_CHAT_LOCATION, CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_QUICK_CHAT } f
 import { IChatRequestVariableEntry } from 'vs/workbench/contrib/chat/common/chatModel';
 import { ChatRequestAgentPart } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
+import { ILanguageModelToolsService } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
 import { AnythingQuickAccessProvider } from 'vs/workbench/contrib/search/browser/anythingQuickAccess';
 import { ISymbolQuickPickItem, SymbolsQuickAccessProvider } from 'vs/workbench/contrib/search/browser/symbolsQuickAccess';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { EditorType } from 'vs/editor/common/editorCommon';
-import { compare } from 'vs/base/common/strings';
 
 export function registerChatContextActions() {
 	registerAction2(AttachContextAction);
@@ -40,7 +41,7 @@ export function registerChatContextActions() {
 	registerAction2(AttachSelectionAction);
 }
 
-export type IChatContextQuickPickItem = IFileQuickPickItem | IDynamicVariableQuickPickItem | IStaticVariableQuickPickItem | IGotoSymbolQuickPickItem | ISymbolQuickPickItem | IQuickAccessQuickPickItem;
+export type IChatContextQuickPickItem = IFileQuickPickItem | IDynamicVariableQuickPickItem | IStaticVariableQuickPickItem | IGotoSymbolQuickPickItem | ISymbolQuickPickItem | IQuickAccessQuickPickItem | IToolQuickPickItem;
 
 export interface IFileQuickPickItem extends IQuickPickItem {
 	kind: 'file';
@@ -61,6 +62,12 @@ export interface IDynamicVariableQuickPickItem extends IQuickPickItem {
 
 	icon?: ThemeIcon;
 	command?: Command;
+}
+
+export interface IToolQuickPickItem extends IQuickPickItem {
+	kind: 'tool';
+	id: string;
+	name?: string;
 }
 
 export interface IStaticVariableQuickPickItem extends IQuickPickItem {
@@ -100,7 +107,7 @@ class AttachFileAction extends Action2 {
 		const textEditorService = accessor.get(IEditorService);
 
 		const activeUri = textEditorService.activeEditor?.resource;
-		if (textEditorService.activeTextEditorControl?.getEditorType() === EditorType.ICodeEditor && activeUri && [Schemas.file, Schemas.vscodeRemote].includes(activeUri.scheme)) {
+		if (textEditorService.activeTextEditorControl?.getEditorType() === EditorType.ICodeEditor && activeUri && [Schemas.file, Schemas.vscodeRemote, Schemas.untitled].includes(activeUri.scheme)) {
 			variablesService.attachContext('file', activeUri, ChatAgentLocation.Panel);
 		}
 	}
@@ -125,7 +132,7 @@ class AttachSelectionAction extends Action2 {
 
 		const activeEditor = textEditorService.activeTextEditorControl;
 		const activeUri = textEditorService.activeEditor?.resource;
-		if (textEditorService.activeTextEditorControl?.getEditorType() === EditorType.ICodeEditor && activeUri && [Schemas.file, Schemas.vscodeRemote].includes(activeUri.scheme)) {
+		if (textEditorService.activeTextEditorControl?.getEditorType() === EditorType.ICodeEditor && activeUri && [Schemas.file, Schemas.vscodeRemote, Schemas.untitled].includes(activeUri.scheme)) {
 			const selection = activeEditor?.getSelection();
 			if (selection) {
 				variablesService.attachContext('file', { uri: activeUri, range: selection }, ChatAgentLocation.Panel);
@@ -227,6 +234,14 @@ class AttachContextAction extends Action2 {
 					name: pick.symbolName!,
 					isDynamic: true
 				});
+			} else if ('kind' in pick && pick.kind === 'tool') {
+				toAttach.push({
+					id: pick.id,
+					name: pick.label,
+					fullName: pick.label,
+					value: undefined,
+					isTool: true
+				});
 			} else {
 				// All other dynamic variables and static variables
 				toAttach.push({
@@ -250,6 +265,7 @@ class AttachContextAction extends Action2 {
 		const chatVariablesService = accessor.get(IChatVariablesService);
 		const commandService = accessor.get(ICommandService);
 		const widgetService = accessor.get(IChatWidgetService);
+		const languageModelToolsService = accessor.get(ILanguageModelToolsService);
 		const context: { widget?: IChatWidget } | undefined = args[0];
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
 		if (!widget) {
@@ -288,7 +304,23 @@ class AttachContextAction extends Action2 {
 					}
 				}
 			}
+		}
 
+		for (const tool of languageModelToolsService.getTools()) {
+			if (tool.canBeInvokedManually) {
+				const item: IToolQuickPickItem = {
+					kind: 'tool',
+					label: tool.displayName ?? tool.name,
+					id: tool.name,
+				};
+				if (ThemeIcon.isThemeIcon(tool.icon)) {
+					item.iconClass = ThemeIcon.asClassName(tool.icon);
+				} else if (tool.icon) {
+					item.iconPath = tool.icon;
+				}
+
+				quickPickItems.push(item);
+			}
 		}
 
 		quickPickItems.push({

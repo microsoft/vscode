@@ -145,7 +145,7 @@ export class AccessibilitySignalService extends Disposable implements IAccessibi
 	}
 
 	private getVolumeInPercent(): number {
-		const volume = this.configurationService.getValue<number>('accessibilitySignals.volume');
+		const volume = this.configurationService.getValue<number>('accessibility.signalOptions.volume');
 		if (typeof volume !== 'number') {
 			return 50;
 		}
@@ -342,8 +342,7 @@ export class AccessibilitySignal {
 		public readonly legacySoundSettingsKey: string | undefined,
 		public readonly settingsKey: string,
 		public readonly legacyAnnouncementSettingsKey: string | undefined,
-		public readonly announcementMessage: string | undefined,
-		public readonly delaySettingsKey: string | undefined
+		public readonly announcementMessage: string | undefined
 	) { }
 
 	private static _signals = new Set<AccessibilitySignal>();
@@ -370,7 +369,6 @@ export class AccessibilitySignal {
 			options.settingsKey,
 			options.legacyAnnouncementSettingsKey,
 			options.announcementMessage,
-			options.delaySettingsKey
 		);
 		AccessibilitySignal._signals.add(signal);
 		return signal;

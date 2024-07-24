@@ -23,6 +23,11 @@ declare module 'vscode' {
 	export interface LanguageModelChatRequestOptions {
 		// TODO@API this will a heterogeneous array of different types of tools
 		tools?: LanguageModelChatFunction[];
+
+		/**
+		 * Force a specific tool to be used.
+		 */
+		toolChoice?: string;
 	}
 
 	// LM -> USER: function that should be used

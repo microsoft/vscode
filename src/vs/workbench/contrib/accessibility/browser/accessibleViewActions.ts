@@ -233,11 +233,20 @@ class AccessibilityHelpConfigureKeybindingsAction extends Action2 {
 		super({
 			id: AccessibilityCommandId.AccessibilityHelpConfigureKeybindings,
 			precondition: ContextKeyExpr.and(accessibilityHelpIsShown),
+			icon: Codicon.key,
 			keybinding: {
 				primary: KeyMod.Alt | KeyCode.KeyK,
 				weight: KeybindingWeight.WorkbenchContrib
 			},
-			title: localize('editor.action.accessibilityHelpConfigureKeybindings', "Accessibility Help Configure Keybindings")
+			menu: [
+				{
+					id: MenuId.AccessibleView,
+					group: 'navigation',
+					order: 3,
+					when: accessibilityHelpIsShown,
+				}
+			],
+			title: localize('editor.action.accessibilityHelpConfigureUnassignedKeybindings', "Accessibility Help Configure Unassigned Keybindings")
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
@@ -251,10 +260,19 @@ class AccessibilityHelpConfigureAssignedKeybindingsAction extends Action2 {
 		super({
 			id: AccessibilityCommandId.AccessibilityHelpConfigureAssignedKeybindings,
 			precondition: ContextKeyExpr.and(accessibilityHelpIsShown),
+			icon: Codicon.key,
 			keybinding: {
 				primary: KeyMod.Alt | KeyCode.KeyA,
 				weight: KeybindingWeight.WorkbenchContrib
 			},
+			menu: [
+				{
+					id: MenuId.AccessibleView,
+					group: 'navigation',
+					order: 4,
+					when: accessibilityHelpIsShown,
+				}
+			],
 			title: localize('editor.action.accessibilityHelpConfigureAssignedKeybindings', "Accessibility Help Configure Assigned Keybindings")
 		});
 	}

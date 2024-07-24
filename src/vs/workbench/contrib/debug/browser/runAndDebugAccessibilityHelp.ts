@@ -73,6 +73,7 @@ class RunAndDebugAccessibilityHelpProvider extends Disposable implements IAccess
 			localize('debug.focusVariables', "- Debug: Focus Variables View command{0} will focus the variables view.", '<keybinding:workbench.debug.action.focusVariablesView>'),
 			localize('debug.focusWatch', "- Debug: Focus Watch View command{0} will focus the watch view.", '<keybinding:workbench.debug.action.focusWatchView>'),
 			localize('debug.help', "The debug console is a REPL (Read-Eval-Print-Loop) that allows you to evaluate expressions and run commands and can be focused with{0}.", '<keybinding:workbench.panel.repl.view.focus'),
+			localize('debug.watchSetting', "The setting {0} controls whether watch variable changes are announced.", 'accessibility.debugWatchVariableAnnouncements'),
 		].join('\n');
 	}
 }

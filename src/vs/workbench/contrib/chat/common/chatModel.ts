@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
 import { asArray, firstOrDefault } from 'vs/base/common/arrays';
 import { DeferredPromise } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -17,11 +16,12 @@ import { URI, UriComponents, UriDto, isUriComponents } from 'vs/base/common/uri'
 import { generateUuid } from 'vs/base/common/uuid';
 import { IOffsetRange, OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { TextEdit } from 'vs/editor/common/languages';
+import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService, reviveSerializedAgent } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatRequestTextPart, IParsedChatRequest, getPromptText, reviveParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatAgentMarkdownContentWithVulnerability, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatProgressMessage, IChatResponseProgressFileTreeData, IChatTask, IChatTextEdit, IChatTreeData, IChatUsedContext, IChatWarningMessage, ChatAgentVoteDirection, isIUsedContext, IChatProgress } from 'vs/workbench/contrib/chat/common/chatService';
+import { ChatAgentVoteDirection, IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatProgress, IChatProgressMessage, IChatResponseProgressFileTreeData, IChatTask, IChatTextEdit, IChatTreeData, IChatUsedContext, IChatWarningMessage, isIUsedContext } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
 
 export interface IChatRequestVariableEntry {
@@ -33,8 +33,11 @@ export interface IChatRequestVariableEntry {
 	range?: IOffsetRange;
 	value: IChatRequestVariableValue;
 	references?: IChatContentReference[];
+
+	// TODO are these just a 'kind'?
 	isDynamic?: boolean;
 	isFile?: boolean;
+	isTool?: boolean;
 }
 
 export interface IChatRequestVariableData {
@@ -94,6 +97,7 @@ export interface IChatResponseModel {
 	readonly agent?: IChatAgentData;
 	readonly usedContext: IChatUsedContext | undefined;
 	readonly contentReferences: ReadonlyArray<IChatContentReference>;
+	readonly codeCitations: ReadonlyArray<IChatCodeCitation>;
 	readonly progressMessages: ReadonlyArray<IChatProgressMessage>;
 	readonly slashCommand?: IChatAgentCommand;
 	readonly agentOrSlashCommandDetected: boolean;
@@ -172,6 +176,7 @@ export class Response implements IResponse {
 	 */
 	private _markdownContent = '';
 
+	private _citations: IChatCodeCitation[] = [];
 
 	get value(): IChatProgressResponseContent[] {
 		return this._responseParts;
@@ -256,6 +261,11 @@ export class Response implements IResponse {
 		}
 	}
 
+	public addCitation(citation: IChatCodeCitation) {
+		this._citations.push(citation);
+		this._updateRepr();
+	}
+
 	private _updateRepr(quiet?: boolean) {
 		this._responseRepr = this._responseParts.map(part => {
 			if (part.kind === 'treeData') {
@@ -276,6 +286,8 @@ export class Response implements IResponse {
 		})
 			.filter(s => s.length > 0)
 			.join('\n\n');
+
+		this._responseRepr += this._citations.length ? '\n\n' + getCodeCitationsMessage(this._citations) : '';
 
 		this._markdownContent = this._responseParts.map(part => {
 			if (part.kind === 'inlineReference') {
@@ -365,6 +377,11 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		return this._contentReferences;
 	}
 
+	private readonly _codeCitations: IChatCodeCitation[] = [];
+	public get codeCitations(): ReadonlyArray<IChatCodeCitation> {
+		return this._codeCitations;
+	}
+
 	private readonly _progressMessages: IChatProgressMessage[] = [];
 	public get progressMessages(): ReadonlyArray<IChatProgressMessage> {
 		return this._progressMessages;
@@ -415,6 +432,12 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 			this._contentReferences.push(progress);
 			this._onDidChange.fire();
 		}
+	}
+
+	applyCodeCitation(progress: IChatCodeCitation) {
+		this._codeCitations.push(progress);
+		this._response.addCitation(progress);
+		this._onDidChange.fire();
 	}
 
 	setAgent(agent: IChatAgentData, slashCommand?: IChatAgentCommand) {
@@ -508,6 +531,7 @@ export interface ISerializableChatRequestData {
 	/** For backward compat: should be optional */
 	usedContext?: IChatUsedContext;
 	contentReferences?: ReadonlyArray<IChatContentReference>;
+	codeCitations?: ReadonlyArray<IChatCodeCitation>;
 }
 
 export interface IExportableChatData {
@@ -747,9 +771,8 @@ export class ChatModel extends Disposable implements IChatModel {
 						request.response.applyReference(revive(raw.usedContext));
 					}
 
-					if (raw.contentReferences) {
-						raw.contentReferences.forEach(r => request.response!.applyReference(revive(r)));
-					}
+					raw.contentReferences?.forEach(r => request.response!.applyReference(revive(r)));
+					raw.codeCitations?.forEach(c => request.response!.applyCodeCitation(revive(c)));
 				}
 				return request;
 			});
@@ -901,6 +924,8 @@ export class ChatModel extends Disposable implements IChatModel {
 				request.response.setAgent(agent, progress.command);
 				this._onDidChange.fire({ kind: 'setAgent', agent, command: progress.command });
 			}
+		} else if (progress.kind === 'codeCitation') {
+			request.response.applyCodeCitation(progress);
 		} else {
 			this.logService.error(`Couldn't handle progress: ${JSON.stringify(progress)}`);
 		}
@@ -994,7 +1019,8 @@ export class ChatModel extends Disposable implements IChatModel {
 					agent: r.response?.agent ? { ...r.response.agent } : undefined,
 					slashCommand: r.response?.slashCommand,
 					usedContext: r.response?.usedContext,
-					contentReferences: r.response?.contentReferences
+					contentReferences: r.response?.contentReferences,
+					codeCitations: r.response?.codeCitations
 				};
 			}),
 		};
@@ -1122,4 +1148,16 @@ export function appendMarkdownString(md1: IMarkdownString, md2: IMarkdownString 
 		supportHtml: md1.supportHtml,
 		baseUri: md1.baseUri
 	};
+}
+
+export function getCodeCitationsMessage(citations: ReadonlyArray<IChatCodeCitation>): string {
+	if (citations.length === 0) {
+		return '';
+	}
+
+	const licenseTypes = citations.reduce((set, c) => set.add(c.license), new Set<string>());
+	const label = licenseTypes.size === 1 ?
+		localize('codeCitation', "Similar code found with 1 license type", licenseTypes.size) :
+		localize('codeCitations', "Similar code found with {0} license types", licenseTypes.size);
+	return label;
 }
