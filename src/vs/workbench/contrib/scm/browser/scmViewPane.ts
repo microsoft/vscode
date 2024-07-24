@@ -1931,6 +1931,13 @@ registerAction2(class extends Action2 {
 		const historyItemLast = historyItems[historyItems.length - 1];
 		const historyProvider = provider.historyProvider.get();
 
+		if (historyItems.length > 1) {
+			const ancestor = await historyProvider?.resolveHistoryItemGroupCommonAncestor2([historyItem.id, historyItemLast.id]);
+			if (!ancestor || (ancestor !== historyItem.id && ancestor !== historyItemLast.id)) {
+				return;
+			}
+		}
+
 		const historyItemParentId = historyItemLast.parentIds.length > 0 ? historyItemLast.parentIds[0] : undefined;
 		const historyItemChanges = await historyProvider?.provideHistoryItemChanges(historyItem.id, historyItemParentId);
 
