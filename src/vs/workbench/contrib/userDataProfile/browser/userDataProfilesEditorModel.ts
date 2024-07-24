@@ -883,11 +883,14 @@ export class UserDataProfilesEditorModel extends EditorModel {
 				[[createAction], [cancelAction, previewProfileAction]],
 				[[cancelAction], []],
 			));
-			if (this.newProfileElement?.copyFrom && this.userDataProfilesService.profiles.some(p => p.name === this.newProfileElement?.name)) {
-				createAction.label = localize('replace', "Replace");
-			} else {
-				createAction.label = localize('create', "Create");
-			}
+			const updateCreateActionLabel = () => {
+				if (this.newProfileElement?.copyFrom && this.userDataProfilesService.profiles.some(p => p.name === this.newProfileElement?.name)) {
+					createAction.label = localize('replace', "Replace");
+				} else {
+					createAction.label = localize('create', "Create");
+				}
+			};
+			updateCreateActionLabel();
 			disposables.add(this.newProfileElement.onDidChange(e => {
 				if (e.preview) {
 					previewProfileAction.checked = !!this.newProfileElement?.previewProfile;
@@ -896,12 +899,12 @@ export class UserDataProfilesEditorModel extends EditorModel {
 					previewProfileAction.enabled = createAction.enabled = !this.newProfileElement?.disabled && !this.newProfileElement?.message;
 				}
 				if (e.name || e.copyFrom) {
-					if (this.newProfileElement?.copyFrom && this.userDataProfilesService.profiles.some(p => p.name === this.newProfileElement?.name)) {
-						createAction.label = localize('replace', "Replace");
-					} else {
-						createAction.label = localize('create', "Create");
-					}
+					updateCreateActionLabel();
 				}
+			}));
+			disposables.add(this.userDataProfilesService.onDidChangeProfiles((e) => {
+				updateCreateActionLabel();
+				this.newProfileElement?.validate();
 			}));
 			this._profiles.push([this.newProfileElement, disposables]);
 			this._onDidChange.fire(this.newProfileElement);
