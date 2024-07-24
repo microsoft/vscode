@@ -23,8 +23,8 @@ import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { ViewConfigurationChangedEvent, ViewCursorStateChangedEvent, ViewScrollChangedEvent } from 'vs/editor/common/viewEvents';
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import * as dom from 'vs/base/browser/dom';
-import { SingleCursorState } from 'vs/editor/common/cursorCommon';
-
+import { CursorStateChangedEvent, OutgoingViewModelEventKind } from 'vs/editor/common/viewModelEventDispatcher';
+import { Selection } from 'vs/editor/common/core/selection';
 
 /**
  * TODO (things that currently do not work and should be made to work, spend time finding these cases in order to have an overview of what works and what doesn't so can focus on most important things):
@@ -39,7 +39,7 @@ import { SingleCursorState } from 'vs/editor/common/cursorCommon';
  * 7. The current implementation is such that when you select some text, the full text is read out from the selection. At the end of reading the selection text, the screen reader reads the word 'selected'.
  *   7.a. On my implementation, the screen reader reads the full text of the first line even if a specific selection is done, and the partial text of the last line?
  *   7.b. For some reason when selecting text on a specific line, the text selected is not read, just the last letter that was selected
- *   7.c. Do we need to use the child div inside of the bigger div? Maybe it would be suficient to set the textContent, now that we set the role 'textbox'?
+ *   7.c. Do we need to use the child div inside of the bigger div? Maybe it would be sufficient to set the textContent, now that we set the role 'textbox'?
  *   7.d. Additionally on the current implementation, the screen reader reads 'selected' and on my implementation it reads 'selected edit text' so two more words
  * 8. Not able to Enter on an empty line for some reason in some cases?
  * 9. When some text is selected in the current implementation, and when you type, the text does not update as it should. Works when there is an empty selection.
@@ -57,8 +57,7 @@ export class NativeEditContext extends AbstractEditContext {
 	private _parent!: HTMLElement;
 	private _scrollTop = 0;
 	private _contentLeft = 0;
-	private _previousStartLine = -1;
-	private _previousEndLine = -1;
+	private _previousSelection: Selection | undefined;
 
 	private _isFocused = false;
 
@@ -108,12 +107,119 @@ export class NativeEditContext extends AbstractEditContext {
 				this._handleEnter(e);
 			}
 		}));
+		// can track model content change event
+		// there is no selection change event
+		this._onDidChangeContent();
+		this._register(this._context.viewModel.model.onDidChangeContent(() => {
+			this._onDidChangeContent();
+		}));
+		this._register(this._context.viewModel.onEvent((e) => {
+			switch (e.kind) {
+				case OutgoingViewModelEventKind.ContentSizeChanged:
+					console.log('content size changed');
+					console.log('e : ', e);
+					break;
+				case OutgoingViewModelEventKind.CursorStateChanged: {
+					this._onDidChangeSelection(e);
+					break;
+				}
+			}
+		}));
 		// Need to handle copy/paste event, could use the handle text update method for that
 		this._register(editContextAddDisposableListener(this._ctx, 'textupdate', e => this._handleTextUpdate(e.updateRangeStart, e.updateRangeEnd, e.text)));
 		this._register(editContextAddDisposableListener(this._ctx, 'textformatupdate', e => this._handleTextFormatUpdate(e)));
 	}
 
 	private _decorations: string[] = [];
+
+	private _onDidChangeContent() {
+		console.log('onDidChangeContent');
+
+		const primaryViewState = this._context.viewModel.getCursorStates()[0].viewState;
+		const { value: valueForHiddenArea, offsetRange: selectionForHiddenArea } = this._editContextRenderingData(primaryViewState.selection);
+
+		console.log('valueForHiddenArea : ', valueForHiddenArea);
+		console.log('selectionForHiddenArea : ', selectionForHiddenArea);
+
+		// Update position of the hidden area
+		const domNode = this._domElement.domNode;
+		domNode.style.top = `${this._context.viewLayout.getVerticalOffsetForLineNumber(primaryViewState.selection.startLineNumber - 5) - this._context.viewLayout.getCurrentScrollTop()}px`;
+		domNode.style.left = `${this._contentLeft - this._context.viewLayout.getCurrentScrollLeft()}px`;
+
+		// Update the hidden area line
+		const childElement = document.createElement('div');
+		childElement.textContent = valueForHiddenArea ?? ' ';
+		childElement.id = `edit-context-content`;
+		childElement.role = 'textbox';
+		domNode.replaceChildren(childElement);
+
+		// Update the active selection in the dom node
+		const activeDocument = dom.getActiveWindow().document;
+		const activeDocumentSelection = activeDocument.getSelection();
+		if (activeDocumentSelection && domNode.firstChild?.firstChild) {
+			const range = new globalThis.Range();
+			const domNodeElement = domNode.firstChild?.firstChild;
+			if (domNodeElement) {
+				range.setStart(domNodeElement, selectionForHiddenArea.start);
+				range.setEnd(domNodeElement, selectionForHiddenArea.endExclusive);
+				activeDocumentSelection.removeAllRanges();
+				activeDocumentSelection.addRange(range);
+				// TODO: Do we need this?
+				domNode.setAttribute('aria-activedescendant', `edit-context-content`);
+				domNode.setAttribute('aria-controls', 'native-edit-context');
+			}
+		}
+	}
+
+	private _editContextRenderingData(selection: Selection): { value: string; offsetRange: OffsetRange; editContextState: EditContextState } {
+		const doc = new LineBasedText(lineNumber => this._context.viewModel.getLineContent(lineNumber), this._context.viewModel.getLineCount());
+		const docStart = new Position(1, 1);
+		const textStartForHiddenArea = new Position(selection.startLineNumber, 1);
+		const textEndForHiddenArea = new Position(selection.endLineNumber, Number.MAX_SAFE_INTEGER);
+		const textEditForHiddenArea = new TextEdit([
+			docStart.isBefore(textStartForHiddenArea) ? new SingleTextEdit(Range.fromPositions(docStart, textStartForHiddenArea), '') : undefined,
+			textEndForHiddenArea.isBefore(doc.endPositionExclusive) ? new SingleTextEdit(Range.fromPositions(textEndForHiddenArea, doc.endPositionExclusive), '') : undefined
+		].filter(isDefined));
+		return this._findEditData(doc, textEditForHiddenArea, selection);
+	}
+
+	private _onDidChangeSelection(e: CursorStateChangedEvent) {
+		console.log('_onDidChangeSelection');
+		const selection = e.selections[0];
+		const { value: valueForHiddenArea, offsetRange: selectionForHiddenArea } = this._editContextRenderingData(selection);
+		console.log('valueForHiddenArea : ', valueForHiddenArea);
+		console.log('selectionForHiddenArea : ', selectionForHiddenArea);
+
+		const domNode = this._domElement.domNode;
+		domNode.style.top = `${this._context.viewLayout.getVerticalOffsetForLineNumber(selection.startLineNumber - 5) - this._context.viewLayout.getCurrentScrollTop()}px`;
+		domNode.style.left = `${this._contentLeft - this._context.viewLayout.getCurrentScrollLeft()}px`;
+
+		// Update the hidden area line
+		const childElement = document.createElement('div');
+		childElement.textContent = valueForHiddenArea ?? ' ';
+		childElement.id = `edit-context-content`;
+		childElement.role = 'textbox';
+		domNode.replaceChildren(childElement);
+
+		// Update the active selection in the dom node
+		const activeDocument = dom.getActiveWindow().document;
+		const activeDocumentSelection = activeDocument.getSelection();
+		if (activeDocumentSelection && domNode.firstChild?.firstChild) {
+			const range = new globalThis.Range();
+			const domNodeElement = domNode.firstChild?.firstChild;
+			if (domNodeElement) {
+				range.setStart(domNodeElement, selectionForHiddenArea.start);
+				range.setEnd(domNodeElement, selectionForHiddenArea.endExclusive);
+				activeDocumentSelection.removeAllRanges();
+				activeDocumentSelection.addRange(range);
+				// TODO: Do we need this?
+				domNode.setAttribute('aria-activedescendant', `edit-context-content`);
+				domNode.setAttribute('aria-controls', 'native-edit-context');
+			}
+		}
+
+		this._previousSelection = selection;
+	}
 
 	private _handleTextFormatUpdate(e: TextFormatUpdateEvent): void {
 		if (!this._editContextState) {
@@ -155,6 +261,11 @@ export class NativeEditContext extends AbstractEditContext {
 	}
 
 	private _handleTextUpdate(updateRangeStart: number, updateRangeEnd: number, text: string): void {
+		console.log('_handleTextUpdate');
+		console.log('updateRangeStart : ', updateRangeStart);
+		console.log('updateRangeEnd : ', updateRangeEnd);
+		console.log('text : ', text);
+
 		if (!this._editContextState) {
 			return;
 		}
@@ -168,7 +279,7 @@ export class NativeEditContext extends AbstractEditContext {
 			this._viewController.type(text);
 		}
 
-		this.updateText();
+		this.updateEditContext();
 	}
 
 	public override appendTo(overflowGuardContainer: FastDomNode<HTMLElement>): void {
@@ -176,7 +287,8 @@ export class NativeEditContext extends AbstractEditContext {
 		this._parent = overflowGuardContainer.domNode;
 	}
 
-	private updateText() {
+	private updateEditContext() {
+		console.log('update text');
 		const primaryViewState = this._context.viewModel.getCursorStates()[0].viewState;
 		const doc = new LineBasedText(lineNumber => this._context.viewModel.getLineContent(lineNumber), this._context.viewModel.getLineCount());
 		const docStart = new Position(1, 1);
@@ -186,72 +298,28 @@ export class NativeEditContext extends AbstractEditContext {
 			docStart.isBefore(textStartForEditContext) ? new SingleTextEdit(Range.fromPositions(docStart, textStartForEditContext), '') : undefined,
 			textEndForEditContext.isBefore(doc.endPositionExclusive) ? new SingleTextEdit(Range.fromPositions(textEndForEditContext, doc.endPositionExclusive), '') : undefined
 		].filter(isDefined));
-		const { value: valueForEditContext, selection: selectionForEditContext } = this._findEditData(doc, textEditForEditContext, primaryViewState);
+		const { value: valueForEditContext, offsetRange: selectionForEditContext, editContextState } = this._findEditData(doc, textEditForEditContext, primaryViewState.selection);
 		this._ctx.updateText(0, Number.MAX_SAFE_INTEGER, valueForEditContext);
 		this._ctx.updateSelection(selectionForEditContext.start, selectionForEditContext.endExclusive);
-
-		const textStartForHiddenArea = new Position(primaryViewState.selection.startLineNumber, 1);
-		const textEndForHiddenArea = new Position(primaryViewState.selection.endLineNumber, Number.MAX_SAFE_INTEGER);
-		const textEditForHiddenArea = new TextEdit([
-			docStart.isBefore(textStartForHiddenArea) ? new SingleTextEdit(Range.fromPositions(docStart, textStartForHiddenArea), '') : undefined,
-			textEndForHiddenArea.isBefore(doc.endPositionExclusive) ? new SingleTextEdit(Range.fromPositions(textEndForHiddenArea, doc.endPositionExclusive), '') : undefined
-		].filter(isDefined));
-		const { value: valueForHiddenArea, selection: selectionForHiddenArea, editContextState } = this._findEditData(doc, textEditForHiddenArea, primaryViewState);
 		this._editContextState = editContextState;
-
-		// Update posiiton of the hidden area
-		const domNode = this._domElement.domNode;
-		domNode.style.top = `${this._context.viewLayout.getVerticalOffsetForLineNumber(primaryViewState.selection.startLineNumber - 5) - this._context.viewLayout.getCurrentScrollTop()}px`;
-		domNode.style.left = `${this._contentLeft - this._context.viewLayout.getCurrentScrollLeft()}px`;
-
-		// Update the hidden area line
-		const startLineNumber = primaryViewState.selection.startLineNumber;
-		const endLineNumber = primaryViewState.selection.endLineNumber;
-		if (this._previousStartLine !== startLineNumber || this._previousEndLine !== endLineNumber) {
-			const childElement = document.createElement('div');
-			childElement.textContent = valueForHiddenArea ?? ' ';
-			childElement.id = `edit-context-content`;
-			childElement.role = 'textbox';
-			domNode.replaceChildren(childElement);
-			this._previousStartLine = startLineNumber;
-			this._previousEndLine = endLineNumber;
-		}
-
-		// Update the active selection in the dom node
-		const activeDocument = dom.getActiveWindow().document;
-		const activeDocumentSelection = activeDocument.getSelection();
-		if (activeDocumentSelection && domNode.firstChild?.firstChild) {
-			const range = new globalThis.Range();
-			const domNodeElement = domNode.firstChild?.firstChild;
-			if (domNodeElement) {
-				range.setStart(domNodeElement, selectionForHiddenArea.start);
-				range.setEnd(domNodeElement, selectionForHiddenArea.endExclusive);
-				activeDocumentSelection.removeAllRanges();
-				activeDocumentSelection.addRange(range);
-				// TODO: Do we need this?
-				domNode.setAttribute('aria-activedescendant', `edit-context-content`);
-				domNode.setAttribute('aria-controls', 'native-edit-context');
-			}
-		}
-
-		console.log('update text');
-		console.log('domNode : ', domNode);
 	}
 
-	private _findEditData(doc: LineBasedText, textEdit: TextEdit, primaryViewState: SingleCursorState): { value: string; selection: OffsetRange; editContextState: EditContextState } {
+	private _findEditData(doc: LineBasedText, textEdit: TextEdit, selection: Selection): { value: string; offsetRange: OffsetRange; editContextState: EditContextState } {
 		const value = textEdit.apply(doc);
-		const selectionStart = textEdit.mapPosition(primaryViewState.selection.getStartPosition()) as Position;
-		const selectionEnd = textEdit.mapPosition(primaryViewState.selection.getEndPosition()) as Position;
-		const position = textEdit.mapPosition(primaryViewState.selection.getPosition()) as Position;
+		const selectionStart = textEdit.mapPosition(selection.getStartPosition()) as Position;
+		const selectionEnd = textEdit.mapPosition(selection.getEndPosition()) as Position;
+		const position = textEdit.mapPosition(selection.getPosition()) as Position;
 
 		const t = new PositionOffsetTransformer(value);
-		const selection = new OffsetRange((t.getOffset(selectionStart)), (t.getOffset(selectionEnd)));
+		const offsetRange = new OffsetRange((t.getOffset(selectionStart)), (t.getOffset(selectionEnd)));
 		const positionOffset = t.getOffset(position);
-		const editContextState = new EditContextState(textEdit, t, positionOffset, selection);
-		return { value, selection, editContextState };
+		const editContextState = new EditContextState(textEdit, t, positionOffset, offsetRange);
+		return { value, offsetRange, editContextState };
 	}
 
 	public override prepareRender(ctx: RenderingContext): void {
+		// Is it normal that prepare render is called every single time? Why is _handleTextUpdate not called every time?
+		console.log('prepareRender');
 		const primaryViewState = this._context.viewModel.getCursorStates()[0].viewState;
 
 		const linesVisibleRanges = ctx.linesVisibleRangesForRange(primaryViewState.selection, true) ?? [];
@@ -273,10 +341,13 @@ export class NativeEditContext extends AbstractEditContext {
 			verticalOffsetEnd - verticalOffsetStart,
 		);
 
+		console.log('controlBounds : ', controlBounds);
+		console.log('selectionBounds : ', selectionBounds);
+
 		this._ctx.updateControlBounds(controlBounds);
 		this._ctx.updateSelectionBounds(selectionBounds);
 
-		this.updateText();
+		this.updateEditContext();
 	}
 
 	public override render(ctx: RestrictedRenderingContext): void {
