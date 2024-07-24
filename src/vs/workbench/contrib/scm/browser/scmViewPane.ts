@@ -114,6 +114,7 @@ import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
 import { IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { fromNow } from 'vs/base/common/date';
+import { equals } from 'vs/base/common/arrays';
 
 // type SCMResourceTreeNode = IResourceNode<ISCMResource, ISCMResourceGroup>;
 // type SCMHistoryItemChangeResourceTreeNode = IResourceNode<SCMHistoryItemChangeTreeElement, SCMHistoryItemTreeElement>;
@@ -4122,6 +4123,23 @@ class SCMTreeHistoryProviderDataSource extends Disposable {
 			this._updateCacheEntry(element, {
 				historyItems2: historyItemsMap.set(element.id, historyItemsElement)
 			});
+		}
+
+		// If we only have one history item that contains all the
+		// labels (current, remote, base), we don't need to show it
+		if (historyItemsElement.length === 1) {
+			const currentHistoryItemGroupLabels = [
+				currentHistoryItemGroup.name,
+				...currentHistoryItemGroup.remote ? [currentHistoryItemGroup.remote.name] : [],
+				...currentHistoryItemGroup.base ? [currentHistoryItemGroup.base.name] : [],
+			];
+
+			const labels = (historyItemsElement[0].labels ?? [])
+				.map(l => l.title);
+
+			if (equals(currentHistoryItemGroupLabels.sort(), labels.sort())) {
+				return [];
+			}
 		}
 
 		// Create the color map

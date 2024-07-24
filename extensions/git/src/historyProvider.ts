@@ -152,9 +152,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 			]);
 
 			// Add common ancestor commit
-			if (commits.length !== 0) {
-				commits.push(mergeBaseCommit);
-			}
+			commits.push(mergeBaseCommit);
 
 			await ensureEmojis();
 
