@@ -40,7 +40,7 @@ import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService, IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { AccessibilityVerbositySettingId, AccessibilityWorkbenchSettingId, accessibilityHelpIsShown, accessibleViewContainsCodeBlocks, accessibleViewCurrentProviderId, accessibleViewGoToSymbolSupported, accessibleViewInCodeBlock, accessibleViewIsShown, accessibleViewOnLastLine, accessibleViewSupportsNavigation, accessibleViewVerbosityEnabled } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { AccessibilityVerbositySettingId, AccessibilityWorkbenchSettingId, accessibilityHelpIsShown, accessibleViewContainsCodeBlocks, accessibleViewCurrentProviderId, accessibleViewGoToSymbolSupported, accessibleViewHasAssignedKeybindings, accessibleViewHasUnassignedKeybindings, accessibleViewInCodeBlock, accessibleViewIsShown, accessibleViewOnLastLine, accessibleViewSupportsNavigation, accessibleViewVerbosityEnabled } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { resolveContentAndKeybindingItems } from 'vs/workbench/contrib/accessibility/browser/accessibleViewKeybindingResolver';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
 import { IChatCodeBlockContextProviderService } from 'vs/workbench/contrib/chat/browser/chat';
@@ -72,6 +72,9 @@ export class AccessibleView extends Disposable {
 	private _accessibleViewCurrentProviderId: IContextKey<string>;
 	private _accessibleViewInCodeBlock: IContextKey<boolean>;
 	private _accessibleViewContainsCodeBlocks: IContextKey<boolean>;
+	private _hasUnassignedKeybindings: IContextKey<boolean>;
+	private _hasAssignedKeybindings: IContextKey<boolean>;
+
 	private _codeBlocks?: ICodeBlock[];
 	private _inQuickPick: boolean = false;
 
@@ -115,6 +118,8 @@ export class AccessibleView extends Disposable {
 		this._accessibleViewInCodeBlock = accessibleViewInCodeBlock.bindTo(this._contextKeyService);
 		this._accessibleViewContainsCodeBlocks = accessibleViewContainsCodeBlocks.bindTo(this._contextKeyService);
 		this._onLastLine = accessibleViewOnLastLine.bindTo(this._contextKeyService);
+		this._hasUnassignedKeybindings = accessibleViewHasUnassignedKeybindings.bindTo(this._contextKeyService);
+		this._hasAssignedKeybindings = accessibleViewHasAssignedKeybindings.bindTo(this._contextKeyService);
 
 		this._container = document.createElement('div');
 		this._container.classList.add('accessible-view');
@@ -191,6 +196,8 @@ export class AccessibleView extends Disposable {
 		this._accessibleViewVerbosityEnabled.reset();
 		this._accessibleViewGoToSymbolSupported.reset();
 		this._accessibleViewCurrentProviderId.reset();
+		this._hasAssignedKeybindings.reset();
+		this._hasUnassignedKeybindings.reset();
 	}
 
 	getPosition(id?: AccessibleViewProviderId): Position | undefined {
@@ -503,6 +510,8 @@ export class AccessibleView extends Disposable {
 		let content = updatedContent ?? provider.provideContent();
 		if (provider.options.type === AccessibleViewType.View) {
 			this._currentContent = content;
+			this._hasUnassignedKeybindings.reset();
+			this._hasAssignedKeybindings.reset();
 			return;
 		}
 		const readMoreLinkHint = this._readMoreHint(provider);
@@ -516,11 +525,17 @@ export class AccessibleView extends Disposable {
 			content = resolvedContent.content.value;
 			if (resolvedContent.configureKeybindingItems) {
 				provider.options.configureKeybindingItems = resolvedContent.configureKeybindingItems;
+				this._hasUnassignedKeybindings.set(true);
 				configureKbHint = this._configureUnassignedKbHint();
+			} else {
+				this._hasAssignedKeybindings.reset();
 			}
 			if (resolvedContent.configuredKeybindingItems) {
 				provider.options.configuredKeybindingItems = resolvedContent.configuredKeybindingItems;
+				this._hasAssignedKeybindings.set(true);
 				configureAssignedKbHint = this._configureAssignedKbHint();
+			} else {
+				this._hasAssignedKeybindings.reset();
 			}
 		}
 		this._currentContent = content + configureKbHint + configureAssignedKbHint;
