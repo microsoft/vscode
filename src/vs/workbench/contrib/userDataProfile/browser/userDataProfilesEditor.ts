@@ -859,7 +859,7 @@ class ProfileNameRenderer extends ProfilePropertyRenderer {
 
 		const nameContainer = append(parent, $('.profile-row-container'));
 		append(nameContainer, $('.profile-label-element', undefined, localize('name', "Name")));
-		const nameInput = new InputBox(
+		const nameInput = disposables.add(new InputBox(
 			nameContainer,
 			this.contextViewService,
 			{
@@ -894,7 +894,8 @@ class ProfileNameRenderer extends ProfilePropertyRenderer {
 					}
 				}
 			}
-		);
+		));
+		disposables.add(this.userDataProfilesService.onDidChangeProfiles(() => nameInput.validate()));
 		nameInput.onDidChange(value => {
 			if (profileElement && value) {
 				profileElement.root.name = value;
