@@ -872,6 +872,11 @@ export class UserDataProfilesEditorModel extends EditorModel {
 				[[createAction], [cancelAction, previewProfileAction]],
 				[[cancelAction], []],
 			));
+			if (this.newProfileElement?.copyFrom && this.userDataProfilesService.profiles.some(p => p.name === this.newProfileElement?.name)) {
+				createAction.label = localize('replace', "Replace");
+			} else {
+				createAction.label = localize('create', "Create");
+			}
 			disposables.add(this.newProfileElement.onDidChange(e => {
 				if (e.preview) {
 					previewProfileAction.checked = !!this.newProfileElement?.previewProfile;
