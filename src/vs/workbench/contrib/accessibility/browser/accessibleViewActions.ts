@@ -11,7 +11,7 @@ import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/act
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
-import { accessibilityHelpIsShown, accessibleViewContainsCodeBlocks, accessibleViewCurrentProviderId, accessibleViewGoToSymbolSupported, accessibleViewIsShown, accessibleViewSupportsNavigation, accessibleViewVerbosityEnabled } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { accessibilityHelpIsShown, accessibleViewContainsCodeBlocks, accessibleViewCurrentProviderId, accessibleViewGoToSymbolSupported, accessibleViewHasAssignedKeybindings, accessibleViewHasUnassignedKeybindings, accessibleViewIsShown, accessibleViewSupportsNavigation, accessibleViewVerbosityEnabled } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { AccessibleViewProviderId, IAccessibleViewService } from 'vs/platform/accessibility/browser/accessibleView';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsController';
@@ -232,7 +232,7 @@ class AccessibilityHelpConfigureKeybindingsAction extends Action2 {
 	constructor() {
 		super({
 			id: AccessibilityCommandId.AccessibilityHelpConfigureKeybindings,
-			precondition: ContextKeyExpr.and(accessibilityHelpIsShown),
+			precondition: ContextKeyExpr.and(accessibilityHelpIsShown, accessibleViewHasUnassignedKeybindings),
 			icon: Codicon.key,
 			keybinding: {
 				primary: KeyMod.Alt | KeyCode.KeyK,
@@ -243,7 +243,7 @@ class AccessibilityHelpConfigureKeybindingsAction extends Action2 {
 					id: MenuId.AccessibleView,
 					group: 'navigation',
 					order: 3,
-					when: accessibilityHelpIsShown,
+					when: accessibleViewHasUnassignedKeybindings,
 				}
 			],
 			title: localize('editor.action.accessibilityHelpConfigureUnassignedKeybindings', "Accessibility Help Configure Unassigned Keybindings")
@@ -259,7 +259,7 @@ class AccessibilityHelpConfigureAssignedKeybindingsAction extends Action2 {
 	constructor() {
 		super({
 			id: AccessibilityCommandId.AccessibilityHelpConfigureAssignedKeybindings,
-			precondition: ContextKeyExpr.and(accessibilityHelpIsShown),
+			precondition: ContextKeyExpr.and(accessibilityHelpIsShown, accessibleViewHasAssignedKeybindings),
 			icon: Codicon.key,
 			keybinding: {
 				primary: KeyMod.Alt | KeyCode.KeyA,
@@ -270,7 +270,7 @@ class AccessibilityHelpConfigureAssignedKeybindingsAction extends Action2 {
 					id: MenuId.AccessibleView,
 					group: 'navigation',
 					order: 4,
-					when: accessibilityHelpIsShown,
+					when: accessibleViewHasAssignedKeybindings,
 				}
 			],
 			title: localize('editor.action.accessibilityHelpConfigureAssignedKeybindings', "Accessibility Help Configure Assigned Keybindings")
