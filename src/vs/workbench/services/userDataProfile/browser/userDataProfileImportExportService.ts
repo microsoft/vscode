@@ -819,9 +819,16 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 			return null;
 		}
 
-		const profileTemplate: Mutable<IUserDataProfileTemplate> = JSON.parse(profileContent);
+		let profileTemplate: Mutable<IUserDataProfileTemplate>;
+
+		try {
+			profileTemplate = JSON.parse(profileContent);
+		} catch (error) {
+			throw new Error(localize('invalid profile content', "This profile is not valid."));
+		}
+
 		if (!isUserDataProfileTemplate(profileTemplate)) {
-			throw new Error('Invalid profile content.');
+			throw new Error(localize('invalid profile content', "This profile is not valid."));
 		}
 
 		if (options?.name) {
