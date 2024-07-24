@@ -35,6 +35,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { CONFIG_NEW_WINDOW_PROFILE } from 'vs/workbench/common/configuration';
 import { ResourceMap } from 'vs/base/common/map';
+import { getErrorMessage } from 'vs/base/common/errors';
 
 export type ChangeEvent = {
 	readonly name?: boolean;
@@ -841,6 +842,16 @@ export class UserDataProfilesEditorModel extends EditorModel {
 			}
 			this.revert();
 		}
+
+		if (copyFrom instanceof URI) {
+			try {
+				await this.userDataProfileImportExportService.resolveProfileTemplate(copyFrom);
+			} catch (error) {
+				this.dialogService.error(getErrorMessage(error));
+				return;
+			}
+		}
+
 		if (!this.newProfileElement) {
 			const disposables = new DisposableStore();
 			const cancellationTokenSource = new CancellationTokenSource();
