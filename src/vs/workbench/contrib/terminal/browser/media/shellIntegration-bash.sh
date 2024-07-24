@@ -60,7 +60,7 @@ if [ -n "${VSCODE_ENV_PREPEND:-}" ]; then
 	for ITEM in "${ADDR[@]}"; do
 		VARNAME="$(echo $ITEM | cut -d "=" -f 1)"
 		VALUE="$(echo -e "$ITEM" | cut -d "=" -f 2-)"
-		export $VARNAME="$VALUE${!VARNAME}"
+		export $VARNAME="$VALUE:${!VARNAME}"
 	done
 	builtin unset VSCODE_ENV_PREPEND
 fi
@@ -69,7 +69,7 @@ if [ -n "${VSCODE_ENV_APPEND:-}" ]; then
 	for ITEM in "${ADDR[@]}"; do
 		VARNAME="$(echo $ITEM | cut -d "=" -f 1)"
 		VALUE="$(echo -e "$ITEM" | cut -d "=" -f 2-)"
-		export $VARNAME="${!VARNAME}$VALUE"
+		export $VARNAME="${!VARNAME}:$VALUE"
 	done
 	builtin unset VSCODE_ENV_APPEND
 fi
