@@ -197,7 +197,8 @@ export class UserDataProfilesEditor extends EditorPane implements IUserDataProfi
 						}
 						return e.name;
 					}
-				}
+				},
+				alwaysConsumeMouseWheel: false,
 			}));
 	}
 
@@ -527,6 +528,7 @@ class ProfileWidget extends Disposable {
 				openOnSingleClick: false,
 				setRowLineHeight: false,
 				supportDynamicHeights: true,
+				alwaysConsumeMouseWheel: false,
 			}));
 
 		this.profileTree.style(listStyles);
@@ -1262,6 +1264,7 @@ class ContentsProfileRenderer extends ProfilePropertyRenderer {
 				renderIndentGuides: RenderIndentGuides.None,
 				enableStickyScroll: false,
 				openOnSingleClick: false,
+				alwaysConsumeMouseWheel: false,
 			}));
 
 		this.profilesContentTree.style(listStyles);
