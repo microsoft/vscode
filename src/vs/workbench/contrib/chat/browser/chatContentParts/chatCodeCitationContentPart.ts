@@ -6,8 +6,6 @@
 import * as dom from 'vs/base/browser/dom';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ChatTreeItem } from 'vs/workbench/contrib/chat/browser/chat';
@@ -50,8 +48,8 @@ export class ChatCodeCitationContentPart extends Disposable implements IChatCont
 		}));
 		button.label = localize('viewMatches', "View matches");
 		this._register(button.onDidClick(() => {
-			const citationText = citations.citations.map(c => `# [${c.license}]\n${c.value.toString()}\n\n\`\`\`\n${c.snippet}\n\`\`\`\n\n`).join('\n');
-			this.editorService.openEditor({ resource: URI.from({ scheme: Schemas.untitled, path: 'Code Matches' }), contents: citationText, languageId: 'markdown' });
+			const citationText = `# Code Citations\n\n` + citations.citations.map(c => `## [${c.license}]\n${c.value.toString()}\n\n\`\`\`\n${c.snippet}\n\`\`\`\n\n`).join('\n');
+			this.editorService.openEditor({ resource: undefined, contents: citationText, languageId: 'markdown' });
 			this.telemetryService.publicLog2<{}, ChatCodeCitationOpenedClassification>('openedChatCodeCitations');
 		}));
 		this.domNode = elements.root;
