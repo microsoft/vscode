@@ -12,7 +12,7 @@ if [[ $options[norcs] = off && -o "login" ]]; then
 
 	# Apply any explicit path prefix (see #99878)
 	if (( ${+VSCODE_PATH_PREFIX} )); then
-		export PATH="$VSCODE_PATH_PREFIX:$PATH"
+		export PATH="$VSCODE_PATH_PREFIX$PATH"
 	fi
 	builtin unset VSCODE_PATH_PREFIX
 fi
