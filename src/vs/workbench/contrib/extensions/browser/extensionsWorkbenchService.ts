@@ -1921,7 +1921,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			}
 		}
 
-		return nls.localize('consentRequiredToUpdate', "The update for {0} extension introduces executable code, which is not present in the current version.", extension.displayName);
+		return nls.localize('consentRequiredToUpdate', "The update for {0} extension introduces executable code, which is not present in the currently installed version.", extension.displayName);
 	}
 
 	isAutoUpdateEnabledFor(extensionOrPublisher: IExtension | string): boolean {
