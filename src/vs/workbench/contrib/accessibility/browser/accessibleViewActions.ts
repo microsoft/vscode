@@ -246,7 +246,7 @@ class AccessibilityHelpConfigureKeybindingsAction extends Action2 {
 					when: accessibilityHelpIsShown,
 				}
 			],
-			title: localize('editor.action.accessibilityHelpConfigureKeybindings', "Accessibility Help Configure Keybindings")
+			title: localize('editor.action.accessibilityHelpConfigureUnassignedKeybindings', "Accessibility Help Configure Unassigned Keybindings")
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
