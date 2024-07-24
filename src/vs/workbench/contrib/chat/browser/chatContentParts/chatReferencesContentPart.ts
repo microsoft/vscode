@@ -312,11 +312,13 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 			}
 		}
 
-		if (data.options?.status?.kind === ChatResponseReferencePartStatusKind.Omitted || data.options?.status?.kind === ChatResponseReferencePartStatusKind.Partial) {
-			for (const selector of ['.monaco-icon-suffix-container', '.monaco-icon-name-container']) {
-				const element = templateData.label.element.querySelector(selector);
-				if (element) {
+		for (const selector of ['.monaco-icon-suffix-container', '.monaco-icon-name-container']) {
+			const element = templateData.label.element.querySelector(selector);
+			if (element) {
+				if (data.options?.status?.kind === ChatResponseReferencePartStatusKind.Omitted || data.options?.status?.kind === ChatResponseReferencePartStatusKind.Partial) {
 					element.classList.add('warning');
+				} else {
+					element.classList.remove('warning');
 				}
 			}
 		}
