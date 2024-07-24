@@ -250,7 +250,7 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 
 	renderTemplate(container: HTMLElement): ICollapsibleListTemplate {
 		const templateDisposables = new DisposableStore();
-		const label = templateDisposables.add(this.labels.create(container, { supportHighlights: true }));
+		const label = templateDisposables.add(this.labels.create(container, { supportHighlights: true, supportIcons: true }));
 		return { templateDisposables, label };
 	}
 
@@ -286,7 +286,11 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 					}, { icon, title: data.options?.status?.description ?? data.title });
 			} else {
 				const variable = this.chatVariablesService.getVariable(reference.variableName);
-				templateData.label.setLabel(`#${reference.variableName}`, undefined, { title: data.options?.status?.description ?? variable?.description });
+				// This is a hack to get chat attachment ThemeIcons to render for resource labels
+				const asThemeIcon = variable?.icon ? `$(${variable.icon.id}) ` : '';
+				const asVariableName = `#${reference.variableName}`; // Fallback, shouldn't really happen
+				const label = `${asThemeIcon}${variable?.fullName ?? asVariableName}`;
+				templateData.label.setLabel(label, asVariableName, { title: data.options?.status?.description ?? variable?.description });
 			}
 		} else {
 			const uri = 'uri' in reference ? reference.uri : reference;
