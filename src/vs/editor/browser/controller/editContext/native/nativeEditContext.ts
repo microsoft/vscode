@@ -147,11 +147,17 @@ export class NativeEditContext extends AbstractEditContext {
 		domNode.style.left = `${this._contentLeft - this._context.viewLayout.getCurrentScrollLeft()}px`;
 
 		// Update the hidden area line
-		const childElement = document.createElement('div');
-		childElement.textContent = valueForHiddenArea ?? ' ';
-		childElement.id = `edit-context-content`;
-		childElement.role = 'textbox';
-		domNode.replaceChildren(childElement);
+		// can place the below attribute update into the constructor
+		const firstChild = domNode.firstChild;
+		if (firstChild) {
+			firstChild.textContent = valueForHiddenArea ?? ' ';
+		} else {
+			const childElement = document.createElement('div');
+			childElement.id = `edit-context-content`;
+			childElement.role = 'textbox';
+			childElement.textContent = valueForHiddenArea ?? ' ';
+			domNode.replaceChildren(childElement);
+		}
 
 		// Update the active selection in the dom node
 		const activeDocument = dom.getActiveWindow().document;
@@ -195,11 +201,14 @@ export class NativeEditContext extends AbstractEditContext {
 		domNode.style.left = `${this._contentLeft - this._context.viewLayout.getCurrentScrollLeft()}px`;
 
 		// Update the hidden area line
-		const childElement = document.createElement('div');
-		childElement.textContent = valueForHiddenArea ?? ' ';
-		childElement.id = `edit-context-content`;
-		childElement.role = 'textbox';
-		domNode.replaceChildren(childElement);
+		// need to treat the case of multiple selection
+		if (this._previousSelection?.startLineNumber !== selection.startLineNumber) {
+			const childElement = document.createElement('div');
+			childElement.textContent = valueForHiddenArea ?? ' ';
+			childElement.id = `edit-context-content`;
+			childElement.role = 'textbox';
+			domNode.replaceChildren(childElement);
+		}
 
 		// Update the active selection in the dom node
 		const activeDocument = dom.getActiveWindow().document;
@@ -217,7 +226,6 @@ export class NativeEditContext extends AbstractEditContext {
 				domNode.setAttribute('aria-controls', 'native-edit-context');
 			}
 		}
-
 		this._previousSelection = selection;
 	}
 
