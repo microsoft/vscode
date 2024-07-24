@@ -57,7 +57,8 @@ export class NativeEditContext extends AbstractEditContext {
 	private _parent!: HTMLElement;
 	private _scrollTop = 0;
 	private _contentLeft = 0;
-	private _previousSelection: Selection | undefined;
+	private _previousStartLineNumber: number = -1;
+	private _previousEndLineNumber: number = -1;
 
 	private _isFocused = false;
 
@@ -202,7 +203,7 @@ export class NativeEditContext extends AbstractEditContext {
 
 		// Update the hidden area line
 		// need to treat the case of multiple selection
-		if (this._previousSelection?.startLineNumber !== selection.startLineNumber) {
+		if (this._previousStartLineNumber !== selection.startLineNumber || this._previousEndLineNumber !== selection.endLineNumber) {
 			const childElement = document.createElement('div');
 			childElement.textContent = valueForHiddenArea ?? ' ';
 			childElement.id = `edit-context-content`;
@@ -226,7 +227,8 @@ export class NativeEditContext extends AbstractEditContext {
 				domNode.setAttribute('aria-controls', 'native-edit-context');
 			}
 		}
-		this._previousSelection = selection;
+		this._previousStartLineNumber = selection.startLineNumber;
+		this._previousEndLineNumber = selection.endLineNumber;
 	}
 
 	private _handleTextFormatUpdate(e: TextFormatUpdateEvent): void {
