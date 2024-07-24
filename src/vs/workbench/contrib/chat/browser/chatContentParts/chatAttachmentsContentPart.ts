@@ -88,7 +88,8 @@ export class ChatAttachmentsContentPart extends Disposable {
 				}));
 			} else {
 				const attachmentLabel = attachment.fullName ?? attachment.name;
-				label.setLabel(attachmentLabel, correspondingContentReference?.options?.status?.description);
+				const withIcon = attachment.icon?.id ? `$(${attachment.icon.id}) ${attachmentLabel}` : attachmentLabel;
+				label.setLabel(withIcon, correspondingContentReference?.options?.status?.description);
 
 				widget.ariaLabel = localize('chat.attachment3', "Attached context: {0}.", attachment.name);
 				widget.tabIndex = 0;
