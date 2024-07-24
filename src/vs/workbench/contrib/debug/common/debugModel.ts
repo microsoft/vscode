@@ -1437,14 +1437,15 @@ export class DebugModel extends Disposable implements IDebugModel {
 
 		this._register(autorun(reader => {
 			this.watchExpressions = debugStorage.watchExpressions.read(reader);
-			for (const we of this.watchExpressions) {
-				this.watchExpressionChangeListeners.set(we.getId(), we.onDidChangeValue((e) => this._onDidChangeWatchExpressionValue.fire(e)));
-			}
 			this._onDidChangeWatchExpressions.fire(undefined);
 		}));
 
 		this.instructionBreakpoints = [];
 		this.sessions = [];
+
+		for (const we of this.watchExpressions) {
+			this.watchExpressionChangeListeners.set(we.getId(), we.onDidChangeValue((e) => this._onDidChangeWatchExpressionValue.fire(e)));
+		}
 	}
 
 	getId(): string {
