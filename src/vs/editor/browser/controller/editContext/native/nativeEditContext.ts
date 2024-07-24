@@ -31,13 +31,14 @@ import { Selection } from 'vs/editor/common/core/selection';
  * 1. Currently always reading 'insertion at end of text between ..., edit text' in the screen reader
  * 2. For some reason, when the line is empty, the whole VS Code window is selected by the screen reader instead of the specific line of interest.
  * 3. Test the accessibility with NVDA on the current implementation and the PR implementation and check the behavior is also the same
- * 4. On the current implementation in some cases, when you scroll with the editor, the black box will remain in the same position, and when scrolling is finished, the black box sticks back to the correct approximate position.
  *   4.a. In the current implementation, if you select a letter and scroll, the letter or an adjacent letter becomes selected. In my implementation, the whole phrase becomes selected. The behavior should be the same as in the current implementation.
  * 6. Need to implement copy/paste again, but this time it should be implemented in a cleaner way, ideally reusing part of the code that has already been developed.
  * 7. selection problems
  *   7.a. On the current implementation, when selecting words, the new content that is selected is read out
  *   7.b. My implementation reads all of the lines from the beginning of the selection?
  * 8. When scroll is changed horizontally, the black box should sticky to a specific letter and remain there
+ * 9. When removing the last character on a line, error is thrown
+ * 10. When copying text something is wrong
  */
 
 // extract the model change and selection change event for the screen reader part into a separate function, not the edit context part, not the copy handler, not the enter handler
@@ -52,6 +53,7 @@ export class NativeEditContext extends AbstractEditContext {
 	private _contentLeft = 0;
 	private _previousStartLineNumber: number = -1;
 	private _previousEndLineNumber: number = -1;
+	private _selectionOffsetRange: OffsetRange | undefined = undefined;
 
 	private _isFocused = false;
 
@@ -89,7 +91,19 @@ export class NativeEditContext extends AbstractEditContext {
 			this._isFocused = false;
 			this._context.viewModel.setHasFocus(false);
 		}));
+		let copiedText: string | undefined;
+		this._register(dom.addDisposableListener(domNode, 'copy', () => {
+			const child = this._domElement.domNode.firstChild;
+			if (this._selectionOffsetRange && child) {
+				copiedText = child.textContent?.substring(this._selectionOffsetRange.start, this._selectionOffsetRange.endExclusive);
+				console.log('copiedText : ', copiedText);
+			}
+		}));
 		this._register(dom.addDisposableListener(domNode, 'keydown', (e) => {
+			console.log('this._selectionOffsetRange : ', this._selectionOffsetRange);
+			if (this._selectionOffsetRange && copiedText && e.metaKey && e.key === 'v') {
+				this._handleTextUpdate(this._selectionOffsetRange.start, this._selectionOffsetRange.endExclusive, copiedText);
+			}
 			const x = new StandardKeyboardEvent(e);
 			this._viewController.emitKeyDown(x);
 		}));
@@ -102,8 +116,6 @@ export class NativeEditContext extends AbstractEditContext {
 				this._handleEnter(e);
 			}
 		}));
-		// can track model content change event
-		// there is no selection change event
 		this._onDidChangeContent();
 		this._register(this._context.viewModel.model.onDidChangeContent(() => {
 			this._onDidChangeContent();
@@ -196,6 +208,7 @@ export class NativeEditContext extends AbstractEditContext {
 		const { value: valueForHiddenArea, offsetRange: selectionForHiddenArea } = this._editContextRenderingData(selection);
 		console.log('valueForHiddenArea : ', valueForHiddenArea);
 		console.log('selectionForHiddenArea : ', selectionForHiddenArea);
+		this._selectionOffsetRange = selectionForHiddenArea;
 
 		const domNode = this._domElement.domNode;
 		domNode.style.top = `${this._context.viewLayout.getVerticalOffsetForLineNumber(selection.startLineNumber - 5) - this._context.viewLayout.getCurrentScrollTop()}px`;
