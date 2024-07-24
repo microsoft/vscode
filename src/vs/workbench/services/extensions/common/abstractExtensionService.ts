@@ -677,7 +677,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			}
 		}
 
-		await this._extensionHostManagers.disposeAllInReverse();
+		await this._extensionHostManagers.stopAllInReverse();
 		for (const extensionStatus of this._extensionStatus.values()) {
 			extensionStatus.clearRuntimeStatus();
 		}
@@ -805,7 +805,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			if (signal) {
 				this._onRemoteExtensionHostCrashed(extensionHost, signal);
 			}
-			this._extensionHostManagers.disposeOne(extensionHost);
+			this._extensionHostManagers.stopOne(extensionHost);
 		}
 	}
 
@@ -1192,8 +1192,13 @@ class ExtensionHostCollection extends Disposable {
 
 	private _extensionHostManagers: ExtensionHostManagerData[] = [];
 
-	public override async dispose(): Promise<void> {
-		await this.disposeAllInReverse();
+	public override dispose() {
+		for (let i = this._extensionHostManagers.length - 1; i >= 0; i--) {
+			const manager = this._extensionHostManagers[i];
+			manager.extensionHost.disconnect();
+			manager.dispose();
+		}
+		this._extensionHostManagers = [];
 		super.dispose();
 	}
 
@@ -1201,7 +1206,7 @@ class ExtensionHostCollection extends Disposable {
 		this._extensionHostManagers.push(new ExtensionHostManagerData(extensionHostManager, disposableStore));
 	}
 
-	public async disposeAllInReverse(): Promise<void> {
+	public async stopAllInReverse(): Promise<void> {
 		// See https://github.com/microsoft/vscode/issues/152204
 		// Dispose extension hosts in reverse creation order because the local extension host
 		// might be critical in sustaining a connection to the remote extension host
@@ -1213,7 +1218,7 @@ class ExtensionHostCollection extends Disposable {
 		this._extensionHostManagers = [];
 	}
 
-	public async disposeOne(extensionHostManager: IExtensionHostManager): Promise<void> {
+	public async stopOne(extensionHostManager: IExtensionHostManager): Promise<void> {
 		const index = this._extensionHostManagers.findIndex(el => el.extensionHost === extensionHostManager);
 		if (index >= 0) {
 			this._extensionHostManagers.splice(index, 1);

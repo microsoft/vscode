@@ -198,6 +198,9 @@ suite('ExtensionService', () => {
 			return new class extends mock<IExtensionHostManager>() {
 				override onDidExit = Event.None;
 				override onDidChangeResponsiveState = Event.None;
+				override disconnect() {
+					return Promise.resolve();
+				}
 				override dispose(): void {
 					order.push(`dispose ${extensionHostId}`);
 				}
@@ -255,7 +258,7 @@ suite('ExtensionService', () => {
 		extService = <MyTestExtensionService>instantiationService.get(IExtensionService);
 	});
 
-	teardown(() => {
+	teardown(async () => {
 		disposables.dispose();
 	});
 
