@@ -9,7 +9,15 @@ import { COI } from 'vs/base/common/network';
 import { IWorker, IWorkerCallback, IWorkerFactory, logOnceWebWorkerWarning } from 'vs/base/common/worker/simpleWorker';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 
-const ttPolicy = createTrustedTypesPolicy('defaultWorkerFactory', { createScriptURL: value => value });
+// Reuse the trusted types policy defined from worker bootstrap
+// when available.
+// Refs https://github.com/microsoft/vscode/issues/222193
+let ttPolicy: ReturnType<typeof createTrustedTypesPolicy>;
+if (typeof self === 'object' && self.constructor && self.constructor.name === 'DedicatedWorkerGlobalScope' && (globalThis as any).workerttPolicy !== undefined) {
+	ttPolicy = (globalThis as any).workerttPolicy;
+} else {
+	ttPolicy = createTrustedTypesPolicy('defaultWorkerFactory', { createScriptURL: value => value });
+}
 
 export function createBlobWorker(blobUrl: string, options?: WorkerOptions): Worker {
 	if (!blobUrl.startsWith('blob:')) {
@@ -75,6 +83,7 @@ export function getWorkerBootstrapUrl(scriptPath: string, label: string): string
 		`globalThis._VSCODE_NLS_MESSAGES = ${JSON.stringify(globalThis._VSCODE_NLS_MESSAGES)};`,
 		`globalThis._VSCODE_NLS_LANGUAGE = ${JSON.stringify(globalThis._VSCODE_NLS_LANGUAGE)};`,
 		`const ttPolicy = globalThis.trustedTypes?.createPolicy('defaultWorkerFactory', { createScriptURL: value => value });`,
+		`globalThis.workerttPolicy = ttPolicy;`,
 		`importScripts(ttPolicy?.createScriptURL('${scriptPath}') ?? '${scriptPath}');`,
 		`/*${label}*/`
 	].join('')], { type: 'application/javascript' });

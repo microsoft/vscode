@@ -19,7 +19,7 @@ export interface WindowData {
 	zoomLevel: number;
 }
 
-export const enum IssueType {
+export const enum OldIssueType {
 	Bug,
 	PerformanceIssue,
 	FeatureRequest
@@ -31,7 +31,7 @@ export enum IssueSource {
 	Marketplace = 'marketplace'
 }
 
-export interface IssueReporterStyles extends WindowStyles {
+export interface OldIssueReporterStyles extends WindowStyles {
 	textLinkColor?: string;
 	textLinkActiveForeground?: string;
 	inputBackground?: string;
@@ -49,7 +49,7 @@ export interface IssueReporterStyles extends WindowStyles {
 	sliderActiveColor?: string;
 }
 
-export interface IssueReporterExtensionData {
+export interface OldIssueReporterExtensionData {
 	name: string;
 	publisher: string | undefined;
 	version: string;
@@ -65,10 +65,10 @@ export interface IssueReporterExtensionData {
 	uri?: UriComponents;
 }
 
-export interface IssueReporterData extends WindowData {
-	styles: IssueReporterStyles;
-	enabledExtensions: IssueReporterExtensionData[];
-	issueType?: IssueType;
+export interface OldIssueReporterData extends WindowData {
+	styles: OldIssueReporterStyles;
+	enabledExtensions: OldIssueReporterExtensionData[];
+	issueType?: OldIssueType;
 	issueSource?: IssueSource;
 	extensionId?: string;
 	experiments?: string;
@@ -109,9 +109,9 @@ export interface ProcessExplorerData extends WindowData {
 	applicationName: string;
 }
 
-export interface IssueReporterWindowConfiguration extends ISandboxConfiguration {
+export interface OldIssueReporterWindowConfiguration extends ISandboxConfiguration {
 	disableExtensions: boolean;
-	data: IssueReporterData;
+	data: OldIssueReporterData;
 	os: {
 		type: string;
 		arch: string;
@@ -127,13 +127,12 @@ export const IIssueMainService = createDecorator<IIssueMainService>('issueServic
 
 export interface IIssueMainService {
 	readonly _serviceBrand: undefined;
-
 	// Used by the issue reporter
-	openReporter(data: IssueReporterData): Promise<void>;
+	openReporter(data: OldIssueReporterData): Promise<void>;
 	$reloadWithExtensionsDisabled(): Promise<void>;
 	$showConfirmCloseDialog(): Promise<void>;
 	$showClipboardDialog(): Promise<boolean>;
-	$sendReporterMenu(extensionId: string, extensionName: string): Promise<IssueReporterData | undefined>;
+	$sendReporterMenu(extensionId: string, extensionName: string): Promise<OldIssueReporterData | undefined>;
 	$closeReporter(): Promise<void>;
 }
 

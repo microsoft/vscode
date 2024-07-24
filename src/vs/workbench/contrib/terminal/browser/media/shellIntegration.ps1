@@ -196,6 +196,15 @@ function Set-MappedKeyHandlers {
 			$result += "`a"
 			Write-Host -NoNewLine $result
 		}
+
+		Set-PSReadLineKeyHandler -Chord 'F12,g' -ScriptBlock {
+			Import-Module "$PSScriptRoot\GitTabExpansion.psm1"
+			Remove-PSReadLineKeyHandler -Chord 'F12,g'
+		}
+		Set-PSReadLineKeyHandler -Chord 'F12,h' -ScriptBlock {
+			Import-Module "$PSScriptRoot\CodeTabExpansion.psm1"
+			Remove-PSReadLineKeyHandler -Chord 'F12,h'
+		}
 	}
 }
 
@@ -265,7 +274,13 @@ function Send-Completions {
 }
 
 function Compress-Completions($completions) {
-	$completions | ForEach-Object { ,@($_.CompletionText, $_.ResultType, $_.tooltip) }
+	$completions | ForEach-Object {
+		if ($_.CompletionText -eq $_.ToolTip) {
+			,@($_.CompletionText, $_.ResultType)
+		} else {
+			,@($_.CompletionText, $_.ResultType, $_.ToolTip)
+		}
+	}
 }
 
 # Register key handlers if PSReadLine is available

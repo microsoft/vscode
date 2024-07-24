@@ -45,6 +45,7 @@ import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/use
 import { ResourceSet } from 'vs/base/common/map';
 import { isEqual } from 'vs/base/common/resources';
 import { IURLService } from 'vs/platform/url/common/url';
+import { compareIgnoreCase } from 'vs/base/common/strings';
 
 const emptyEditableSettingsContent = '{\n}';
 
@@ -608,7 +609,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		for (const group of this._settingsGroups) {
 			for (const section of group.sections) {
 				for (const setting of section.settings) {
-					if (setting.key === settingId) {
+					if (compareIgnoreCase(setting.key, settingId) === 0) {
 						return setting;
 					}
 				}
@@ -625,7 +626,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	 *
 	 */
 	async handleURL(uri: URI): Promise<boolean> {
-		if (uri.authority !== SETTINGS_AUTHORITY) {
+		if (compareIgnoreCase(uri.authority, SETTINGS_AUTHORITY) !== 0) {
 			return false;
 		}
 

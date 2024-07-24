@@ -10,7 +10,6 @@ import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 
-
 export const enum TestResultState {
 	Unset = 0,
 	Queued = 1,
@@ -36,6 +35,12 @@ export const enum ExtTestRunProfileKind {
 	Run = 1,
 	Debug = 2,
 	Coverage = 3,
+}
+
+export const enum TestControllerCapability {
+	Refresh = 1 << 1,
+	CodeRelatedToTest = 1 << 2,
+	TestRelatedToCode = 1 << 3,
 }
 
 export const enum TestRunProfileBitset {

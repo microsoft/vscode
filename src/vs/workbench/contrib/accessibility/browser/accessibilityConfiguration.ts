@@ -672,6 +672,11 @@ const configuration: IConfigurationNode = {
 			'description': localize('accessibility.underlineLinks', "Controls whether links should be underlined in the workbench."),
 			'default': false,
 		},
+		'accessibility.debugWatchVariableAnnouncements': {
+			'type': 'boolean',
+			'description': localize('accessibility.debugWatchVariableAnnouncements', "Controls whether variable changes should be announced in the debug watch view."),
+			'default': true,
+		},
 	}
 };
 

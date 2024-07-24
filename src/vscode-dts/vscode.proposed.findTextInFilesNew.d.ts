@@ -7,15 +7,19 @@ declare module 'vscode' {
 
 	// https://github.com/microsoft/vscode/issues/59924
 
-	/**
-	 * Options that can be set on a findTextInFiles search.
-	 */
 	export interface FindTextInFilesOptionsNew {
+		/**
+		 * A {@link GlobPattern glob pattern} that defines the files to search for. The glob pattern
+		 * will be matched against the file paths of files relative to their workspace. Use a {@link RelativePattern relative pattern}
+		 * to restrict the search results to a {@link WorkspaceFolder workspace folder}.
+		 */
+		include?: GlobPattern[];
+
 		/**
 		 * A {@link GlobPattern glob pattern} that defines files and folders to exclude. The glob pattern
 		 * will be matched against the file paths of resulting matches relative to their workspace.
 		 */
-		exclude?: GlobPattern;
+		exclude?: GlobPattern[];
 
 		/**
 		 * Which settings to follow when searching for files. Defaults to {@link ExcludeSettingOptions.searchAndFilesExclude}.
@@ -62,13 +66,6 @@ declare module 'vscode' {
 		 * For more info, see the setting description for `search.followSymlinks`.
 		 */
 		followSymlinks?: boolean;
-
-		/**
-		 * A {@link GlobPattern glob pattern} that defines the files to search for. The glob pattern
-		 * will be matched against the file paths of files relative to their workspace. Use a {@link RelativePattern relative pattern}
-		 * to restrict the search results to a {@link WorkspaceFolder workspace folder}.
-		 */
-		include?: GlobPattern;
 
 		/**
 		 * Interpret files using this encoding.

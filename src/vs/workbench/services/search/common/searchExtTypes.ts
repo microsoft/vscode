@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { asArray } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { URI } from 'vs/base/common/uri';
 import { IProgress } from 'vs/platform/progress/common/progress';
@@ -501,6 +502,10 @@ export interface FindTextInFilesOptions {
 
 // NEW TYPES
 // added temporarily for testing new API shape
+/**
+ * A result payload for a text search, pertaining to matches within a single file.
+ */
+export type TextSearchResultNew = TextSearchMatchNew | TextSearchContextNew;
 
 /**
  * The main match information for a {@link TextSearchResultNew}.
@@ -554,4 +559,17 @@ export enum ExcludeSettingOptions {
 export enum TextSearchCompleteMessageTypeNew {
 	Information = 1,
 	Warning = 2,
+}
+
+function isTextSearchMatch(object: any): object is TextSearchMatch {
+	return 'uri' in object && 'ranges' in object && 'preview' in object;
+}
+
+export function oldToNewTextSearchResult(result: TextSearchResult): TextSearchResultNew {
+	if (isTextSearchMatch(result)) {
+		const ranges = asArray(result.ranges).map(r => ({ sourceRange: r, previewRange: r }));
+		return new TextSearchMatchNew(result.uri, ranges, result.preview.text);
+	} else {
+		return new TextSearchContextNew(result.uri, result.text, result.lineNumber);
+	}
 }
