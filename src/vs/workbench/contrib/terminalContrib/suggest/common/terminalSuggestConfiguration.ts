@@ -50,13 +50,13 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 	},
 	[TerminalSuggestSettingId.RunOnEnter]: {
 		restricted: true,
-		markdownDescription: localize('suggest.runOnEnter', "Controls whether suggestions should run immediately when enter (not tab) is used to accept the result."),
+		markdownDescription: localize('suggest.runOnEnter', "Controls whether suggestions should run immediately when `Enter` (not `Tab`) is used to accept the result."),
 		enum: ['never', 'exactMatch', 'exactMatchIgnoreExtension', 'always'],
 		markdownEnumDescriptions: [
-			localize('runOnEnter.never', "Never run on enter."),
-			localize('runOnEnter.exactMatch', "Run on enter when the suggestion is typed in its entirety."),
-			localize('runOnEnter.exactMatchIgnoreExtension', "Run on enter when the suggestion is typed in its entirety or when a file is typed without its extension included."),
-			localize('runOnEnter.always', "Always run on enter.")
+			localize('runOnEnter.never', "Never run on `Enter`."),
+			localize('runOnEnter.exactMatch', "Run on `Enter` when the suggestion is typed in its entirety."),
+			localize('runOnEnter.exactMatchIgnoreExtension', "Run on `Enter` when the suggestion is typed in its entirety or when a file is typed without its extension included."),
+			localize('runOnEnter.always', "Always run on `Enter`.")
 		],
 		default: 'exactMatchIgnoreExtension',
 	},
