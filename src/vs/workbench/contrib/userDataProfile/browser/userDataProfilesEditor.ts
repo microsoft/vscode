@@ -1330,7 +1330,7 @@ class ContentsProfileRenderer extends ProfilePropertyRenderer {
 				}
 				profilesContentTree.setInput(profileElement.root);
 				elementDisposables.add(profileElement.root.onDidChange(e => {
-					if (e.copyFrom) {
+					if (e.copyFrom || e.copyFlags || e.flags) {
 						profilesContentTree.updateChildren(element.root);
 					}
 					if (e.copyFromInfo) {
