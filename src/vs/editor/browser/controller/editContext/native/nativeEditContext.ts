@@ -33,12 +33,11 @@ import { Selection } from 'vs/editor/common/core/selection';
  * 3. Test the accessibility with NVDA on the current implementation and the PR implementation and check the behavior is also the same
  * 4. On the current implementation in some cases, when you scroll with the editor, the black box will remain in the same position, and when scrolling is finished, the black box sticks back to the correct approximate position.
  *   4.a. In the current implementation, if you select a letter and scroll, the letter or an adjacent letter becomes selected. In my implementation, the whole phrase becomes selected. The behavior should be the same as in the current implementation.
- * 5. When the window is increased and decreased using the touch pad (using the two fingers), the window is increased in size, but the hidden area font size is not changed
  * 6. Need to implement copy/paste again, but this time it should be implemented in a cleaner way, ideally reusing part of the code that has already been developed.
  * 7. selection problems
  *   7.a. On the current implementation, when selecting words, the new content that is selected is read out
  *   7.b. My implementation reads all of the lines from the beginning of the selection?
- * 8. When scroll is changed horizontally or vertically, the scroll position should remain
+ * 8. When scroll is changed horizontally, the black box should sticky to a specific letter and remain there
  */
 
 // extract the model change and selection change event for the screen reader part into a separate function, not the edit context part, not the copy handler, not the enter handler
@@ -72,6 +71,7 @@ export class NativeEditContext extends AbstractEditContext {
 		domNode.ariaLabel = 'use Option+F1 to open the accessibility help.';
 		domNode.ariaAutoComplete = 'both';
 		domNode.ariaRoleDescription = 'editor';
+		domNode.style.fontSize = `${this._context.configuration.options.get(EditorOption.fontSize)}px`;
 		domNode.setAttribute('autocorrect', 'off');
 		domNode.setAttribute('autocapitalize', 'off');
 		domNode.setAttribute('autocomplete', 'off');
@@ -110,17 +110,15 @@ export class NativeEditContext extends AbstractEditContext {
 		}));
 		this._register(this._context.viewModel.onEvent((e) => {
 			switch (e.kind) {
-				case OutgoingViewModelEventKind.ContentSizeChanged:
-					console.log('content size changed');
-					console.log('e : ', e);
+				case OutgoingViewModelEventKind.ContentSizeChanged: {
+					domNode.style.fontSize = `${this._context.configuration.options.get(EditorOption.fontSize)}px`;
 					break;
+				}
 				case OutgoingViewModelEventKind.CursorStateChanged: {
 					this._onDidChangeSelection(e);
 					break;
 				}
 				case OutgoingViewModelEventKind.ScrollChanged: {
-					console.log('scroll changed');
-					console.log('e : ', e);
 					if (this._previousStartLineNumber === undefined) {
 						return;
 					}
@@ -331,7 +329,6 @@ export class NativeEditContext extends AbstractEditContext {
 
 	public override prepareRender(ctx: RenderingContext): void {
 		// Is it normal that prepare render is called every single time? Why is _handleTextUpdate not called every time?
-		console.log('prepareRender');
 		const primaryViewState = this._context.viewModel.getCursorStates()[0].viewState;
 
 		const linesVisibleRanges = ctx.linesVisibleRangesForRange(primaryViewState.selection, true) ?? [];
@@ -352,9 +349,6 @@ export class NativeEditContext extends AbstractEditContext {
 			maxLeft - minLeft,
 			verticalOffsetEnd - verticalOffsetStart,
 		);
-
-		console.log('controlBounds : ', controlBounds);
-		console.log('selectionBounds : ', selectionBounds);
 
 		this._ctx.updateControlBounds(controlBounds);
 		this._ctx.updateSelectionBounds(selectionBounds);
