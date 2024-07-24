@@ -274,7 +274,11 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 					return ancestor;
 				}
 
-				// TODO@lszomoru - Return first commit
+				// First commit
+				const commits = await this.repository.log({ maxParents: 0, refNames: ['HEAD'] });
+				if (commits.length > 0) {
+					return commits[0].hash;
+				}
 			} else if (historyItemGroupIds.length > 1) {
 				const ancestor = await this.repository.getMergeBase(historyItemGroupIds[0], historyItemGroupIds[1], ...historyItemGroupIds.slice(2));
 				return ancestor;
