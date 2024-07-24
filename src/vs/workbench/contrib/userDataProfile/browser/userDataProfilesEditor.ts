@@ -847,6 +847,7 @@ class ProfileNameRenderer extends ProfilePropertyRenderer {
 
 	constructor(
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
+		@IContextViewService private readonly contextViewService: IContextViewService,
 	) {
 		super();
 	}
@@ -860,7 +861,7 @@ class ProfileNameRenderer extends ProfilePropertyRenderer {
 		append(nameContainer, $('.profile-label-element', undefined, localize('name', "Name")));
 		const nameInput = new InputBox(
 			nameContainer,
-			undefined,
+			this.contextViewService,
 			{
 				inputBoxStyles: getInputBoxStyle({
 					inputBorder: settingsTextInputBorder
@@ -872,10 +873,13 @@ class ProfileNameRenderer extends ProfilePropertyRenderer {
 						if (!value) {
 							return {
 								content: localize('name required', "Profile name is required and must be a non-empty value."),
-								type: MessageType.ERROR
+								type: MessageType.WARNING
 							};
 						}
 						if (profileElement?.root.disabled) {
+							return null;
+						}
+						if (!profileElement?.root.shouldValidateName()) {
 							return null;
 						}
 						const initialName = profileElement?.root.getInitialName();

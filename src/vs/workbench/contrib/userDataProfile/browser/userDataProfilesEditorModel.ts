@@ -175,7 +175,7 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 
 	validate(): void {
 		if (!this.name) {
-			this.message = localize('profileNameRequired', "Profile name is required.");
+			this.message = localize('name required', "Profile name is required and must be a non-empty value.");
 			return;
 		}
 		if (this.shouldValidateName() && this.name !== this.getInitialName() && this.userDataProfilesService.profiles.some(p => p.name === this.name)) {
@@ -884,7 +884,7 @@ export class UserDataProfilesEditorModel extends EditorModel {
 				if (e.disabled || e.message) {
 					previewProfileAction.enabled = createAction.enabled = !this.newProfileElement?.disabled && !this.newProfileElement?.message;
 				}
-				if (e.name) {
+				if (e.name || e.copyFrom) {
 					if (this.newProfileElement?.copyFrom && this.userDataProfilesService.profiles.some(p => p.name === this.newProfileElement?.name)) {
 						createAction.label = localize('replace', "Replace");
 					} else {
