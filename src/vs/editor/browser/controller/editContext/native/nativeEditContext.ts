@@ -30,21 +30,15 @@ import { Selection } from 'vs/editor/common/core/selection';
  * TODO (things that currently do not work and should be made to work, spend time finding these cases in order to have an overview of what works and what doesn't so can focus on most important things):
  * 1. Currently always reading 'insertion at end of text between ..., edit text' in the screen reader
  * 2. For some reason, when the line is empty, the whole VS Code window is selected by the screen reader instead of the specific line of interest.
- * 3. Blank line in my implementation is read as 'blank, edit text' but on the current implementation the screen reader box shows a new line symbol
  * 3. Test the accessibility with NVDA on the current implementation and the PR implementation and check the behavior is also the same
  * 4. On the current implementation in some cases, when you scroll with the editor, the black box will remain in the same position, and when scrolling is finished, the black box sticks back to the correct approximate position.
  *   4.a. In the current implementation, if you select a letter and scroll, the letter or an adjacent letter becomes selected. In my implementation, the whole phrase becomes selected. The behavior should be the same as in the current implementation.
  * 5. When the window is increased and decreased using the touch pad (using the two fingers), the window is increased in size, but the hidden area font size is not changed
  * 6. Need to implement copy/paste again, but this time it should be implemented in a cleaner way, ideally reusing part of the code that has already been developed.
- * 7. The current implementation is such that when you select some text, the full text is read out from the selection. At the end of reading the selection text, the screen reader reads the word 'selected'.
- *   7.a. On my implementation, the screen reader reads the full text of the first line even if a specific selection is done, and the partial text of the last line?
- *   7.b. For some reason when selecting text on a specific line, the text selected is not read, just the last letter that was selected
- *   7.c. Do we need to use the child div inside of the bigger div? Maybe it would be sufficient to set the textContent, now that we set the role 'textbox'?
- *   7.d. Additionally on the current implementation, the screen reader reads 'selected' and on my implementation it reads 'selected edit text' so two more words
- * 8. Not able to Enter on an empty line for some reason in some cases?
- * 9. When some text is selected in the current implementation, and when you type, the text does not update as it should. Works when there is an empty selection.
- * 10. When the selection is empty, and you type some text, for some reason the text is not added into the editor at the correct position. It is added in the wrong position. For some reason the text is added at the end of the line. Related to this, when a letter is removed with the backspace, the text in the hidden area is not synchronized correctly.
- *   10.a. Look at exploration implementation. Used to work there, so maybe I am missing something in this implementation.
+ * 7. selection problems
+ *   7.a. On the current implementation, when selecting words, the new content that is selected is read out
+ *   7.b. My implementation reads all of the lines from the beginning of the selection?
+ * 8. When scroll is changed horizontally or vertically, the scroll position should remain
  */
 
 // extract the model change and selection change event for the screen reader part into a separate function, not the edit context part, not the copy handler, not the enter handler
@@ -124,6 +118,14 @@ export class NativeEditContext extends AbstractEditContext {
 					this._onDidChangeSelection(e);
 					break;
 				}
+				case OutgoingViewModelEventKind.ScrollChanged: {
+					console.log('scroll changed');
+					console.log('e : ', e);
+					if (this._previousStartLineNumber === undefined) {
+						return;
+					}
+					domNode.style.top = `${this._context.viewLayout.getVerticalOffsetForLineNumber(this._previousStartLineNumber - 5) - e.scrollTop}px`;
+				}
 			}
 		}));
 		// Need to handle copy/paste event, could use the handle text update method for that
@@ -151,12 +153,12 @@ export class NativeEditContext extends AbstractEditContext {
 		// can place the below attribute update into the constructor
 		const firstChild = domNode.firstChild;
 		if (firstChild) {
-			firstChild.textContent = valueForHiddenArea ?? ' ';
+			firstChild.textContent = valueForHiddenArea.length > 0 ? valueForHiddenArea : '\n';
 		} else {
 			const childElement = document.createElement('div');
 			childElement.id = `edit-context-content`;
 			childElement.role = 'textbox';
-			childElement.textContent = valueForHiddenArea ?? ' ';
+			childElement.textContent = valueForHiddenArea.length > 0 ? valueForHiddenArea : '\n';
 			domNode.replaceChildren(childElement);
 		}
 
@@ -205,7 +207,7 @@ export class NativeEditContext extends AbstractEditContext {
 		// need to treat the case of multiple selection
 		if (this._previousStartLineNumber !== selection.startLineNumber || this._previousEndLineNumber !== selection.endLineNumber) {
 			const childElement = document.createElement('div');
-			childElement.textContent = valueForHiddenArea ?? ' ';
+			childElement.textContent = valueForHiddenArea.length > 0 ? valueForHiddenArea : '\n';
 			childElement.id = `edit-context-content`;
 			childElement.role = 'textbox';
 			domNode.replaceChildren(childElement);
