@@ -56,7 +56,7 @@ import { ChatFollowups } from 'vs/workbench/contrib/chat/browser/chatFollowups';
 import { ChatMarkdownDecorationsRenderer } from 'vs/workbench/contrib/chat/browser/chatMarkdownDecorationsRenderer';
 import { ChatMarkdownRenderer } from 'vs/workbench/contrib/chat/browser/chatMarkdownRenderer';
 import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions';
-import { ChatCodeBlockContentProvider } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
+import { ChatCodeBlockContentProvider, CodeBlockPart } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
 import { ChatAgentLocation, IChatAgentMetadata } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING, CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_DETECTED_AGENT_COMMAND, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatRequestVariableEntry, IChatTextEditGroup } from 'vs/workbench/contrib/chat/common/chatModel';
@@ -162,7 +162,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		return ChatListItemRenderer.ID;
 	}
 
-	editorsInUse() {
+	editorsInUse(): Iterable<CodeBlockPart> {
 		return this._editorPool.inUse();
 	}
 
@@ -488,6 +488,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				parts.push(newPart);
 			}
 		});
+		if (templateData.renderedParts) {
+			dispose(templateData.renderedParts);
+		}
 		templateData.renderedParts = parts;
 
 		if (isRequestVM(element) && element.variables.length) {
