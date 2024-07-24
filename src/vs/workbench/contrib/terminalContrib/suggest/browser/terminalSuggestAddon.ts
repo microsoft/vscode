@@ -21,6 +21,7 @@ import type { IPromptInputModel, IPromptInputModelState } from 'vs/platform/term
 import { ShellIntegrationOscPs } from 'vs/platform/terminal/common/xterm/shellIntegrationAddon';
 import { getListStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { ITerminalConfigurationService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import type { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
 import { terminalSuggestConfigSection, type ITerminalSuggestConfiguration } from 'vs/workbench/contrib/terminalContrib/suggest/common/terminalSuggestConfiguration';
@@ -140,6 +141,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		private readonly _terminalSuggestWidgetVisibleContextKey: IContextKey<boolean>,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
 	) {
 		super();
 
@@ -499,6 +501,17 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				SimpleSuggestWidget,
 				this._panel!,
 				this._instantiationService.createInstance(PersistedWidgetSize),
+				() => {
+					const c = this._terminalConfigurationService.config;
+					const font = this._terminalConfigurationService.getFont(dom.getActiveWindow());
+					return {
+						fontFamily: font.fontFamily,
+						fontSize: font.fontSize,
+						lineHeight: Math.ceil(1.5 * font.fontSize),
+						fontWeight: c.fontWeight.toString(),
+						letterSpacing: font.letterSpacing
+					};
+				},
 				{}
 			));
 			this._suggestWidget.list.style(getListStyles({
