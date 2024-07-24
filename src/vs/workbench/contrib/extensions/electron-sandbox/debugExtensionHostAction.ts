@@ -28,8 +28,7 @@ export class DebugExtensionHostAction extends Action {
 		super(DebugExtensionHostAction.ID, DebugExtensionHostAction.LABEL, DebugExtensionHostAction.CSS_CLASS);
 	}
 
-	override async run(): Promise<any> {
-
+	override async run(args: unknown): Promise<any> {
 		const inspectPorts = await this._extensionService.getInspectPorts(ExtensionHostKind.LocalProcess, false);
 		if (inspectPorts.length === 0) {
 			const res = await this._dialogService.confirm({
@@ -49,11 +48,15 @@ export class DebugExtensionHostAction extends Action {
 			console.warn(`There are multiple extension hosts available for debugging. Picking the first one...`);
 		}
 
-		return this._debugService.startDebugging(undefined, {
-			type: 'node',
-			name: nls.localize('debugExtensionHost.launch.name', "Attach Extension Host"),
-			request: 'attach',
-			port: inspectPorts[0].port,
-		});
+		if (args !== undefined && (args as any)[0].dryRun) {
+			return { inspectPorts };
+		} else {
+			return this._debugService.startDebugging(undefined, {
+				type: 'node',
+				name: nls.localize('debugExtensionHost.launch.name', "Attach Extension Host"),
+				request: 'attach',
+				port: inspectPorts[0].port,
+			});
+		}
 	}
 }

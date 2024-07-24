@@ -5,25 +5,28 @@
 import { safeInnerHtml } from 'vs/base/browser/dom';
 import { mainWindow } from 'vs/base/browser/window';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import BaseHtml from 'vs/workbench/contrib/issue/browser/issueReporterPage';
+import Severity from 'vs/base/common/severity';
 import 'vs/css!./media/issueReporter';
+import { localize } from 'vs/nls';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { PerformanceInfo, SystemInfo } from 'vs/platform/diagnostics/common/diagnostics';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { ExtensionIdentifier, ExtensionIdentifierSet } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IIssueMainService, IssueReporterData, ProcessExplorerData } from 'vs/platform/issue/common/issue';
+import { ILogService } from 'vs/platform/log/common/log';
 import product from 'vs/platform/product/common/product';
+import BaseHtml from 'vs/workbench/contrib/issue/browser/issueReporterPage';
 import { IssueWebReporter } from 'vs/workbench/contrib/issue/browser/issueReporterService';
+import { IIssueFormService, IssueReporterData } from 'vs/workbench/contrib/issue/common/issue';
 import { AuxiliaryWindowMode, IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 export interface IssuePassData {
 	issueTitle: string;
 	issueBody: string;
 }
 
-export class IssueFormService implements IIssueMainService {
+export class IssueFormService implements IIssueFormService {
 
 	readonly _serviceBrand: undefined;
 
@@ -35,16 +38,18 @@ export class IssueFormService implements IIssueMainService {
 		@IAuxiliaryWindowService private readonly auxiliaryWindowService: IAuxiliaryWindowService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@ILogService private readonly logService: ILogService,
+		@IDialogService private readonly dialogService: IDialogService,
+		@IHostService private readonly hostService: IHostService,
 	) {
 
 		// listen for messages from the main window
 		mainWindow.addEventListener('message', async (event) => {
 			if (event.data && event.data.sendChannel === 'vscode:triggerReporterMenu') {
-				// creates menu from contributed
-				const menu = this.menuService.createMenu(MenuId.IssueReporter, this.contextKeyService);
+				// gets menu actions from contributed
+				const actions = this.menuService.getMenuActions(MenuId.IssueReporter, this.contextKeyService, { renderShortTitle: true }).flatMap(entry => entry[1]);
 
-				// render menu and dispose
-				const actions = menu.getActions({ renderShortTitle: true }).flatMap(entry => entry[1]);
+				// render menu
 				for (const action of actions) {
 					try {
 						if (action.item && 'source' in action.item && action.item.source?.id === event.data.extensionId) {
@@ -61,11 +66,57 @@ export class IssueFormService implements IIssueMainService {
 					const replyChannel = `vscode:triggerReporterMenuResponse`;
 					mainWindow.postMessage({ replyChannel }, '*');
 				}
-
-				menu.dispose();
 			}
 		});
 
+	}
+	async reloadWithExtensionsDisabled(): Promise<void> {
+		if (this.issueReporterWindow) {
+			try {
+				await this.hostService.reload({ disableExtensions: true });
+			} catch (error) {
+				this.logService.error(error);
+			}
+		}
+	}
+	async showConfirmCloseDialog(): Promise<void> {
+		await this.dialogService.prompt({
+			type: Severity.Warning,
+			message: localize('confirmCloseIssueReporter', "Your input will not be saved. Are you sure you want to close this window?"),
+			buttons: [
+				{
+					label: localize({ key: 'yes', comment: ['&& denotes a mnemonic'] }, "&&Yes"),
+					run: () => {
+						this.closeReporter();
+						this.issueReporterWindow = null;
+					}
+				},
+				{
+					label: localize('cancel', "Cancel"),
+					run: () => { }
+				}
+			]
+		});
+	}
+	async showClipboardDialog(): Promise<boolean> {
+		let result = false;
+
+		await this.dialogService.prompt({
+			type: Severity.Warning,
+			message: localize('issueReporterWriteToClipboard', "There is too much data to send to GitHub directly. The data will be copied to the clipboard, please paste it into the GitHub issue page that is opened."),
+			buttons: [
+				{
+					label: localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK"),
+					run: () => { result = true; }
+				},
+				{
+					label: localize('cancel', "Cancel"),
+					run: () => { result = false; }
+				}
+			]
+		});
+
+		return result;
 	}
 
 	async openReporter(data: IssueReporterData): Promise<void> {
@@ -99,7 +150,7 @@ export class IssueFormService implements IIssueMainService {
 		const disposables = new DisposableStore();
 
 		// Auxiliary Window
-		const auxiliaryWindow = disposables.add(await this.auxiliaryWindowService.open({ mode: AuxiliaryWindowMode.Normal }));
+		const auxiliaryWindow = disposables.add(await this.auxiliaryWindowService.open({ mode: AuxiliaryWindowMode.Normal, bounds: { width: 700, height: 800 } }));
 
 		this.issueReporterWindow = auxiliaryWindow.window;
 
@@ -131,45 +182,7 @@ export class IssueFormService implements IIssueMainService {
 		});
 	}
 
-	async openProcessExplorer(data: ProcessExplorerData): Promise<void> {
-		throw new Error('Method not implemented.');
-	}
-
-	stopTracing(): Promise<void> {
-		throw new Error('Method not implemented.');
-	}
-	getSystemStatus(): Promise<string> {
-		throw new Error('Method not implemented.');
-	}
-	$getSystemInfo(): Promise<SystemInfo> {
-		throw new Error('Method not implemented.');
-	}
-	$getPerformanceInfo(): Promise<PerformanceInfo> {
-		throw new Error('Method not implemented.');
-	}
-	$reloadWithExtensionsDisabled(): Promise<void> {
-		throw new Error('Method not implemented.');
-	}
-	$showConfirmCloseDialog(): Promise<void> {
-		throw new Error('Method not implemented.');
-	}
-	$showClipboardDialog(): Promise<boolean> {
-		throw new Error('Method not implemented.');
-	}
-	$getIssueReporterUri(extensionId: string): Promise<URI> {
-		throw new Error('Method not implemented.');
-	}
-	$getIssueReporterData(extensionId: string): Promise<string> {
-		throw new Error('Method not implemented.');
-	}
-	$getIssueReporterTemplate(extensionId: string): Promise<string> {
-		throw new Error('Method not implemented.');
-	}
-	$getReporterStatus(extensionId: string, extensionName: string): Promise<boolean[]> {
-		throw new Error('Method not implemented.');
-	}
-
-	async $sendReporterMenu(extensionId: string, extensionName: string): Promise<IssueReporterData | undefined> {
+	async sendReporterMenu(extensionId: string, extensionName: string): Promise<IssueReporterData | undefined> {
 		const sendChannel = `vscode:triggerReporterMenu`;
 		mainWindow.postMessage({ sendChannel, extensionId, extensionName }, '*');
 
@@ -218,7 +231,7 @@ export class IssueFormService implements IIssueMainService {
 		return result as IssuePassData | undefined;
 	}
 
-	async $closeReporter(): Promise<void> {
+	async closeReporter(): Promise<void> {
 		this.issueReporterWindow?.close();
 	}
 }

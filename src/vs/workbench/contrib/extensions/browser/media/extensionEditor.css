@@ -485,6 +485,7 @@
 	overflow: hidden;
 	white-space: nowrap;
 	text-overflow: ellipsis;
+	text-decoration: var(--text-link-decoration);
 }
 
 .extension-editor > .body > .content > .details > .additional-details-container .resources-container > .resources > .resource:hover {

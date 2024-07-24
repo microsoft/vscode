@@ -56,8 +56,10 @@ export const enum AccessibilityVerbositySettingId {
 	Hover = 'accessibility.verbosity.hover',
 	Notification = 'accessibility.verbosity.notification',
 	EmptyEditorHint = 'accessibility.verbosity.emptyEditorHint',
+	ReplInputHint = 'accessibility.verbosity.replInputHint',
 	Comments = 'accessibility.verbosity.comments',
-	DiffEditorActive = 'accessibility.verbosity.diffEditorActive'
+	DiffEditorActive = 'accessibility.verbosity.diffEditorActive',
+	Debug = 'accessibility.verbosity.debug',
 }
 
 const baseVerbosityProperty: IConfigurationPropertySchema = {
@@ -158,12 +160,20 @@ const configuration: IConfigurationNode = {
 			description: localize('verbosity.emptyEditorHint', 'Provide information about relevant actions in an empty text editor.'),
 			...baseVerbosityProperty
 		},
+		[AccessibilityVerbositySettingId.ReplInputHint]: {
+			description: localize('verbosity.replInputHint', 'Provide information about relevant actions For the Repl input.'),
+			...baseVerbosityProperty
+		},
 		[AccessibilityVerbositySettingId.Comments]: {
 			description: localize('verbosity.comments', 'Provide information about actions that can be taken in the comment widget or in a file which contains comments.'),
 			...baseVerbosityProperty
 		},
 		[AccessibilityVerbositySettingId.DiffEditorActive]: {
 			description: localize('verbosity.diffEditorActive', 'Indicate when a diff editor becomes the active editor.'),
+			...baseVerbosityProperty
+		},
+		[AccessibilityVerbositySettingId.Debug]: {
+			description: localize('verbosity.debug', 'Provide information about how to access the debug console accessibility help dialog when the debug console or run and debug viewlet is focused. Note that a reload of the window is required for this to take effect.'),
 			...baseVerbosityProperty
 		},
 		[AccessibilityWorkbenchSettingId.AccessibleViewCloseOnKeyPress]: {
@@ -656,6 +666,16 @@ const configuration: IConfigurationNode = {
 				'sound': 'never',
 				'announcement': 'never'
 			}
+		},
+		'accessibility.underlineLinks': {
+			'type': 'boolean',
+			'description': localize('accessibility.underlineLinks', "Controls whether links should be underlined in the workbench."),
+			'default': false,
+		},
+		'accessibility.debugWatchVariableAnnouncements': {
+			'type': 'boolean',
+			'description': localize('accessibility.debugWatchVariableAnnouncements', "Controls whether variable changes should be announced in the debug watch view."),
+			'default': true,
 		},
 	}
 };

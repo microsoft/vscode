@@ -3,36 +3,43 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { assert } from 'vs/base/common/assert';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { MarshalledId } from 'vs/base/common/marshallingIds';
+import { IObservable } from 'vs/base/common/observable';
+import { IPrefixTreeNode, WellDefinedPrefixTree } from 'vs/base/common/prefixTree';
 import { URI } from 'vs/base/common/uri';
+import { Position } from 'vs/editor/common/core/position';
+import { Location } from 'vs/editor/common/languages';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IObservableValue, MutableObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
-import { AbstractIncrementalTestCollection, ICallProfileRunHandler, IncrementalTestCollectionItem, InternalTestItem, ITestItemContext, ResolvedTestRunRequest, IStartControllerTests, IStartControllerTestsResult, TestItemExpandState, TestRunProfileBitset, TestsDiff, TestMessageFollowupResponse, TestMessageFollowupRequest } from 'vs/workbench/contrib/testing/common/testTypes';
+import { MutableObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
 import { TestExclusions } from 'vs/workbench/contrib/testing/common/testExclusions';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { ITestResult } from 'vs/workbench/contrib/testing/common/testResult';
+import { AbstractIncrementalTestCollection, ICallProfileRunHandler, IncrementalTestCollectionItem, InternalTestItem, IStartControllerTests, IStartControllerTestsResult, ITestItemContext, ResolvedTestRunRequest, TestControllerCapability, TestItemExpandState, TestMessageFollowupRequest, TestMessageFollowupResponse, TestRunProfileBitset, TestsDiff } from 'vs/workbench/contrib/testing/common/testTypes';
 
 export const ITestService = createDecorator<ITestService>('testService');
 
 export interface IMainThreadTestController {
 	readonly id: string;
-	readonly label: IObservableValue<string>;
-	readonly canRefresh: IObservableValue<boolean>;
+	readonly label: IObservable<string>;
+	readonly capabilities: IObservable<TestControllerCapability>;
 	syncTests(token: CancellationToken): Promise<void>;
 	refreshTests(token: CancellationToken): Promise<void>;
 	configureRunProfile(profileId: number): void;
 	expandTest(id: string, levels: number): Promise<void>;
+	getRelatedCode(testId: string, token: CancellationToken): Promise<Location[]>;
 	startContinuousRun(request: ICallProfileRunHandler[], token: CancellationToken): Promise<IStartControllerTestsResult[]>;
 	runTests(request: IStartControllerTests[], token: CancellationToken): Promise<IStartControllerTestsResult[]>;
 }
 
 export interface IMainThreadTestHostProxy {
 	provideTestFollowups(req: TestMessageFollowupRequest, token: CancellationToken): Promise<TestMessageFollowupResponse[]>;
+	getTestsRelatedToCode(uri: URI, position: Position, token: CancellationToken): Promise<string[]>;
 	executeTestFollowup(id: number): Promise<void>;
 	disposeTestFollowups(ids: number[]): void;
 }
@@ -217,6 +224,64 @@ export const testsUnderUri = async function* (testService: ITestService, ident: 
 };
 
 /**
+ * Simplifies the array of tests by preferring test item parents if all of
+ * their children are included.
+ */
+export const simplifyTestsToExecute = (collection: IMainThreadTestCollection, tests: IncrementalTestCollectionItem[]): IncrementalTestCollectionItem[] => {
+	if (tests.length < 2) {
+		return tests;
+	}
+
+	const tree = new WellDefinedPrefixTree<IncrementalTestCollectionItem>();
+	for (const test of tests) {
+		tree.insert(TestId.fromString(test.item.extId).path, test);
+	}
+
+	const out: IncrementalTestCollectionItem[] = [];
+
+	// Returns the node if it and any children should be included. Otherwise
+	// pushes into the `out` any individual children that should be included.
+	const process = (currentId: string[], node: IPrefixTreeNode<IncrementalTestCollectionItem>) => {
+		// directly included, don't try to over-specify, and children should be ignored
+		if (node.value) {
+			return node.value;
+		}
+
+		assert(!!node.children, 'expect to have children');
+
+		const thisChildren: IncrementalTestCollectionItem[] = [];
+		for (const [part, child] of node.children) {
+			currentId.push(part);
+			const c = process(currentId, child);
+			if (c) { thisChildren.push(c); }
+			currentId.pop();
+		}
+
+		if (!thisChildren.length) {
+			return;
+		}
+
+		// If there are multiple children and we have all of them, then tell the
+		// parent this node should be included. Otherwise include children individually.
+		const id = new TestId(currentId);
+		const test = collection.getNodeById(id.toString());
+		if (test?.children.size === thisChildren.length) {
+			return test;
+		}
+
+		out.push(...thisChildren);
+		return;
+	};
+
+	for (const [id, node] of tree.entries) {
+		const n = process([id], node);
+		if (n) { out.push(n); }
+	}
+
+	return out;
+};
+
+/**
  * A run request that expresses the intent of the request and allows the
  * test service to resolve the specifics of the group.
  */
@@ -333,4 +398,14 @@ export interface ITestService {
 	 * Publishes a test diff for a controller.
 	 */
 	publishDiff(controllerId: string, diff: TestsDiff): void;
+
+	/**
+	 * Gets all tests related to the given code position.
+	 */
+	getTestsRelatedToCode(uri: URI, position: Position, token?: CancellationToken): Promise<InternalTestItem[]>;
+
+	/**
+	 * Gets code related to the given test item.
+	 */
+	getCodeRelatedToTest(test: InternalTestItem, token?: CancellationToken): Promise<Location[]>;
 }

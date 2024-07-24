@@ -208,7 +208,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 			}
 			if (instance?.shellType) {
 				this._terminalShellTypeContextKey.set(instance.shellType.toString());
-			} else if (!instance) {
+			} else if (!instance || !(instance.shellType)) {
 				this._terminalShellTypeContextKey.reset();
 			}
 		}));
@@ -380,14 +380,18 @@ export class TerminalService extends Disposable implements ITerminalService {
 		}
 	}
 
+	async focusInstance(instance: ITerminalInstance): Promise<void> {
+		if (instance.target === TerminalLocation.Editor) {
+			return this._terminalEditorService.focusInstance(instance);
+		}
+		return this._terminalGroupService.focusInstance(instance);
+	}
+
 	async focusActiveInstance(): Promise<void> {
 		if (!this._activeInstance) {
 			return;
 		}
-		if (this._activeInstance.target === TerminalLocation.Editor) {
-			return this._terminalEditorService.focusActiveInstance();
-		}
-		return this._terminalGroupService.focusActiveInstance();
+		return this.focusInstance(this._activeInstance);
 	}
 
 	async createContributedTerminalProfile(extensionIdentifier: string, id: string, options: ICreateContributedTerminalProfileOptions): Promise<void> {
@@ -558,16 +562,20 @@ export class TerminalService extends Disposable implements ITerminalService {
 		return instance;
 	}
 
+	async revealTerminal(source: ITerminalInstance, preserveFocus?: boolean): Promise<void> {
+		if (source.target === TerminalLocation.Editor) {
+			await this._terminalEditorService.revealActiveEditor(preserveFocus);
+		} else {
+			await this._terminalGroupService.showPanel();
+		}
+	}
+
 	async revealActiveTerminal(preserveFocus?: boolean): Promise<void> {
 		const instance = this.activeInstance;
 		if (!instance) {
 			return;
 		}
-		if (instance.target === TerminalLocation.Editor) {
-			await this._terminalEditorService.revealActiveEditor(preserveFocus);
-		} else {
-			await this._terminalGroupService.showPanel();
-		}
+		await this.revealTerminal(instance, preserveFocus);
 	}
 
 	setEditable(instance: ITerminalInstance, data?: IEditableData | null): void {

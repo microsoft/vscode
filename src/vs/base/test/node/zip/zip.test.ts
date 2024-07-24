@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
 import assert from 'assert';
 import { tmpdir } from 'os';
 import { createCancelablePromise } from 'vs/base/common/async';
@@ -19,7 +20,7 @@ suite('Zip', () => {
 
 	test('extract should handle directories', async () => {
 		const testDir = getRandomTestPath(tmpdir(), 'vsctests', 'zip');
-		await Promises.mkdir(testDir, { recursive: true });
+		await fs.promises.mkdir(testDir, { recursive: true });
 
 		const fixtures = FileAccess.asFileUri('vs/base/test/node/zip/fixtures').fsPath;
 		const fixture = path.join(fixtures, 'extract.zip');

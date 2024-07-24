@@ -7,7 +7,6 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Schemas } from 'vs/base/common/network';
 import { isIOS, isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
-import 'vs/css!./media/scrollbar';
 import 'vs/css!./media/terminal';
 import 'vs/css!./media/terminalVoice';
 import 'vs/css!./media/widgets';

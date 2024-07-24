@@ -47,7 +47,7 @@ import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { ITestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
 import { ITestResult, LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
-import { ITestService, getContextForTestItem, testsInFile } from 'vs/workbench/contrib/testing/common/testService';
+import { ITestService, getContextForTestItem, simplifyTestsToExecute, testsInFile } from 'vs/workbench/contrib/testing/common/testService';
 import { IRichLocation, ITestMessage, ITestRunProfile, IncrementalTestCollectionItem, InternalTestItem, TestDiffOpType, TestMessageType, TestResultItem, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
 import { ITestDecoration as IPublicTestDecoration, ITestingDecorationsService, TestDecorations } from 'vs/workbench/contrib/testing/common/testingDecorations';
 import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
@@ -806,7 +806,7 @@ abstract class RunTestDecoration {
 
 	protected runWith(profile: TestRunProfileBitset) {
 		return this.testService.runTests({
-			tests: this.tests.map(({ test }) => test),
+			tests: simplifyTestsToExecute(this.testService.collection, this.tests.map(({ test }) => test)),
 			group: profile,
 		});
 	}
@@ -835,7 +835,7 @@ abstract class RunTestDecoration {
 	 */
 	protected getTestContextMenuActions(test: InternalTestItem, resultItem?: TestResultItem): IReference<IAction[]> {
 		const testActions: IAction[] = [];
-		const capabilities = this.testProfileService.capabilitiesForTest(test);
+		const capabilities = this.testProfileService.capabilitiesForTest(test.item);
 
 		[
 			{ bitset: TestRunProfileBitset.Run, label: localize('run test', 'Run Test') },
@@ -880,16 +880,12 @@ abstract class RunTestDecoration {
 
 	private getContributedTestActions(test: InternalTestItem, capabilities: number): IAction[] {
 		const contextOverlay = this.contextKeyService.createOverlay(getTestItemContextOverlay(test, capabilities));
-		const menu = this.menuService.createMenu(MenuId.TestItemGutter, contextOverlay);
 
-		try {
-			const target: IAction[] = [];
-			const arg = getContextForTestItem(this.testService.collection, test.item.extId);
-			createAndFillInContextMenuActions(menu, { shouldForwardArgs: true, arg }, target);
-			return target;
-		} finally {
-			menu.dispose();
-		}
+		const target: IAction[] = [];
+		const arg = getContextForTestItem(this.testService.collection, test.item.extId);
+		const menu = this.menuService.getMenuActions(MenuId.TestItemGutter, contextOverlay, { shouldForwardArgs: true, arg });
+		createAndFillInContextMenuActions(menu, target);
+		return target;
 	}
 }
 
@@ -931,7 +927,7 @@ class MultiRunTestDecoration extends RunTestDecoration implements ITestDecoratio
 			{ bitset: TestRunProfileBitset.Coverage, label: localize('run all test with coverage', 'Run All Tests with Coverage') },
 			{ bitset: TestRunProfileBitset.Debug, label: localize('debug all test', 'Debug All Tests') },
 		].forEach(({ bitset, label }, i) => {
-			const canRun = this.tests.some(({ test }) => this.testProfileService.capabilitiesForTest(test) & bitset);
+			const canRun = this.tests.some(({ test }) => this.testProfileService.capabilitiesForTest(test.item) & bitset);
 			if (canRun) {
 				allActions.push(new Action(`testing.gutter.run${i}`, label, undefined, undefined, () => this.runWith(bitset)));
 			}

@@ -12,12 +12,12 @@ const util = require('./lib/util');
 const { getVersion } = require('./lib/getVersion');
 const task = require('./lib/task');
 const optimize = require('./lib/optimize');
+const { readISODate } = require('./lib/date');
 const product = require('../product.json');
 const rename = require('gulp-rename');
 const filter = require('gulp-filter');
 const { getProductionDependencies } = require('./lib/dependencies');
 const vfs = require('vinyl-fs');
-const replace = require('gulp-replace');
 const packageJson = require('../package.json');
 const { compileBuildTask } = require('./gulpfile.compile');
 const extensions = require('./lib/extensions');
@@ -31,11 +31,15 @@ const quality = product.quality;
 const version = (quality && quality !== 'stable') ? `${packageJson.version}-${quality}` : packageJson.version;
 
 const vscodeWebResourceIncludes = [
+
 	// Workbench
 	'out-build/vs/{base,platform,editor,workbench}/**/*.{svg,png,jpg,mp3}',
 	'out-build/vs/code/browser/workbench/*.html',
 	'out-build/vs/base/browser/ui/codicons/codicon/**/*.ttf',
 	'out-build/vs/**/markdown.css',
+
+	// NLS
+	'out-build/nls.messages.js',
 
 	// Webview
 	'out-build/vs/workbench/contrib/webview/browser/pre/*.js',
@@ -70,13 +74,10 @@ const vscodeWebEntryPoints = [
 	buildfile.workerNotebook,
 	buildfile.workerLanguageDetection,
 	buildfile.workerLocalFileSearch,
-	buildfile.workerProfileAnalysis,
 	buildfile.keyboardMaps,
 	buildfile.workbenchWeb
 ].flat();
 exports.vscodeWebEntryPoints = vscodeWebEntryPoints;
-
-const buildDate = new Date().toISOString();
 
 /**
  * @param {object} product The parsed product.json file contents
@@ -93,7 +94,7 @@ const createVSCodeWebProductConfigurationPatcher = (product) => {
 				...product,
 				version,
 				commit,
-				date: buildDate
+				date: readISODate('out-build')
 			});
 			return content.replace('/*BUILD->INSERT_PRODUCT_CONFIGURATION*/', () => productConfiguration.substr(1, productConfiguration.length - 2) /* without { and }*/);
 		}

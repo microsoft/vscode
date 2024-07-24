@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
 import { tmpdir } from 'os';
 import { getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { Promises } from 'vs/base/node/pfs';
@@ -23,7 +24,7 @@ suite('snapshot', () => {
 
 	setup(function () {
 		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'snapshot');
-		return Promises.mkdir(testDir, { recursive: true });
+		return fs.promises.mkdir(testDir, { recursive: true });
 	});
 
 	teardown(function () {
@@ -46,8 +47,8 @@ suite('snapshot', () => {
 			const children = await Promises.readdir(dir);
 			for (const child of children) {
 				const p = path.join(dir, child);
-				if ((await Promises.stat(p)).isFile()) {
-					const content = await Promises.readFile(p, 'utf-8');
+				if ((await fs.promises.stat(p)).isFile()) {
+					const content = await fs.promises.readFile(p, 'utf-8');
 					str += `${' '.repeat(indent)}${child}:\n`;
 					for (const line of content.split('\n')) {
 						str += `${' '.repeat(indent + 2)}${line}\n`;

@@ -9,7 +9,7 @@ import { cloneAndChange } from 'vs/base/common/objects';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { DefaultURITransformer, IURITransformer, transformAndReviveIncomingURIs } from 'vs/base/common/uriIpc';
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IExtensionIdentifier, IExtensionTipsService, IGalleryExtension, ILocalExtension, IExtensionsControlManifest, isTargetPlatformCompatible, InstallOptions, UninstallOptions, Metadata, IExtensionManagementService, DidUninstallExtensionEvent, InstallExtensionEvent, InstallExtensionResult, UninstallExtensionEvent, InstallOperation, InstallExtensionInfo, IProductVersion, DidUpdateExtensionMetadata } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionIdentifier, IExtensionTipsService, IGalleryExtension, ILocalExtension, IExtensionsControlManifest, isTargetPlatformCompatible, InstallOptions, UninstallOptions, Metadata, IExtensionManagementService, DidUninstallExtensionEvent, InstallExtensionEvent, InstallExtensionResult, UninstallExtensionEvent, InstallOperation, InstallExtensionInfo, IProductVersion, DidUpdateExtensionMetadata, UninstallExtensionInfo } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionType, IExtensionManifest, TargetPlatform } from 'vs/platform/extensions/common/extensions';
 
 function transformIncomingURI(uri: UriComponents, transformer: IURITransformer | null): URI;
@@ -109,9 +109,6 @@ export class ExtensionManagementChannel implements IServerChannel {
 				const uri = await this.service.zip(extension);
 				return transformOutgoingURI(uri, uriTransformer);
 			}
-			case 'unzip': {
-				return this.service.unzip(transformIncomingURI(args[0], uriTransformer));
-			}
 			case 'install': {
 				return this.service.install(transformIncomingURI(args[0], uriTransformer), transformIncomingOptions(args[1], uriTransformer));
 			}
@@ -140,6 +137,10 @@ export class ExtensionManagementChannel implements IServerChannel {
 			case 'uninstall': {
 				return this.service.uninstall(transformIncomingExtension(args[0], uriTransformer), transformIncomingOptions(args[1], uriTransformer));
 			}
+			case 'uninstallExtensions': {
+				const arg: UninstallExtensionInfo[] = args[0];
+				return this.service.uninstallExtensions(arg.map(({ extension, options }) => ({ extension: transformIncomingExtension(extension, uriTransformer), options: transformIncomingOptions(options, uriTransformer) })));
+			}
 			case 'reinstallFromGallery': {
 				return this.service.reinstallFromGallery(transformIncomingExtension(args[0], uriTransformer));
 			}
@@ -157,6 +158,9 @@ export class ExtensionManagementChannel implements IServerChannel {
 			case 'updateMetadata': {
 				const e = await this.service.updateMetadata(transformIncomingExtension(args[0], uriTransformer), args[1], transformIncomingURI(args[2], uriTransformer));
 				return transformOutgoingExtension(e, uriTransformer);
+			}
+			case 'resetPinnedStateForAllUserExtensions': {
+				return this.service.resetPinnedStateForAllUserExtensions(args[0]);
 			}
 			case 'getExtensionsControlManifest': {
 				return this.service.getExtensionsControlManifest();
@@ -238,10 +242,6 @@ export class ExtensionManagementChannelClient extends Disposable implements IExt
 		return Promise.resolve(this.channel.call<UriComponents>('zip', [extension]).then(result => URI.revive(result)));
 	}
 
-	unzip(zipLocation: URI): Promise<IExtensionIdentifier> {
-		return Promise.resolve(this.channel.call<IExtensionIdentifier>('unzip', [zipLocation]));
-	}
-
 	install(vsix: URI, options?: InstallOptions): Promise<ILocalExtension> {
 		return Promise.resolve(this.channel.call<ILocalExtension>('install', [vsix, options])).then(local => transformIncomingExtension(local, null));
 	}
@@ -275,6 +275,14 @@ export class ExtensionManagementChannelClient extends Disposable implements IExt
 		return Promise.resolve(this.channel.call<void>('uninstall', [extension, options]));
 	}
 
+	uninstallExtensions(extensions: UninstallExtensionInfo[]): Promise<void> {
+		if (extensions.some(e => e.extension.isWorkspaceScoped)) {
+			throw new Error('Cannot uninstall a workspace extension');
+		}
+		return Promise.resolve(this.channel.call<void>('uninstallExtensions', [extensions]));
+
+	}
+
 	reinstallFromGallery(extension: ILocalExtension): Promise<ILocalExtension> {
 		return Promise.resolve(this.channel.call<ILocalExtension>('reinstallFromGallery', [extension])).then(local => transformIncomingExtension(local, null));
 	}
@@ -287,6 +295,10 @@ export class ExtensionManagementChannelClient extends Disposable implements IExt
 	updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>, extensionsProfileResource?: URI): Promise<ILocalExtension> {
 		return Promise.resolve(this.channel.call<ILocalExtension>('updateMetadata', [local, metadata, extensionsProfileResource]))
 			.then(extension => transformIncomingExtension(extension, null));
+	}
+
+	resetPinnedStateForAllUserExtensions(pinned: boolean): Promise<void> {
+		return this.channel.call<void>('resetPinnedStateForAllUserExtensions', [pinned]);
 	}
 
 	toggleAppliationScope(local: ILocalExtension, fromProfileLocation: URI): Promise<ILocalExtension> {

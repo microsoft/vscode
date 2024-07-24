@@ -31,7 +31,7 @@ import { IView, IViewDescriptorService } from 'vs/workbench/common/views';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { IAccessibleViewService } from 'vs/platform/accessibility/browser/accessibleView';
 import { IChatAccessibilityService, IChatWidget, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
-import { ChatAgentLocation, ChatAgentService, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { ChatAgentLocation, ChatAgentService, IChatAgentData, IChatAgentNameService, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { InlineChatController, InlineChatRunOptions, State } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
 import { Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
@@ -42,7 +42,7 @@ import { IInlineChatSessionService } from '../../browser/inlineChatSessionServic
 import { InlineChatSessionServiceImpl } from '../../browser/inlineChatSessionServiceImpl';
 import { TestWorkerService } from './testWorkerService';
 import { IExtensionService, nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
-import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatProgress, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { ChatService } from 'vs/workbench/contrib/chat/common/chatServiceImpl';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
@@ -156,6 +156,11 @@ suite('InteractiveChatController', function () {
 			[IChatWidgetService, new SyncDescriptor(ChatWidgetService)],
 			[IChatSlashCommandService, new SyncDescriptor(ChatSlashCommandService)],
 			[IChatService, new SyncDescriptor(ChatService)],
+			[IChatAgentNameService, new class extends mock<IChatAgentNameService>() {
+				override getAgentNameRestriction(chatAgentData: IChatAgentData): boolean {
+					return false;
+				}
+			}],
 			[IEditorWorkerService, new SyncDescriptor(TestWorkerService)],
 			[IContextKeyService, contextKeyService],
 			[IChatAgentService, new SyncDescriptor(ChatAgentService)],
@@ -323,6 +328,7 @@ suite('InteractiveChatController', function () {
 		assert.ok(session);
 		assert.deepStrictEqual(session.wholeRange.value, new Range(3, 1, 3, 3)); // initial
 
+		ctrl.chatWidget.setInput('GENGEN');
 		ctrl.acceptInput();
 		assert.strictEqual(await ctrl.awaitStates([State.SHOW_REQUEST, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]), undefined);
 
@@ -540,6 +546,7 @@ suite('InteractiveChatController', function () {
 
 		// REQUEST 2
 		const p2 = ctrl.awaitStates([State.SHOW_REQUEST, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
+		ctrl.chatWidget.setInput('1');
 		await ctrl.acceptInput();
 		assert.strictEqual(await p2, undefined);
 
@@ -623,6 +630,7 @@ suite('InteractiveChatController', function () {
 
 		// REQUEST 2
 		const p2 = ctrl.awaitStates([State.SHOW_REQUEST, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
+		ctrl.chatWidget.setInput('1');
 		await ctrl.acceptInput();
 		assert.strictEqual(await p2, undefined);
 
@@ -768,6 +776,49 @@ suite('InteractiveChatController', function () {
 		assert.deepStrictEqual(attempts, [0, 1]);
 
 		assert.strictEqual(model.getValue(), 'TRY:1\ntwo\none\n');
+
+	});
+
+	test('Stopping/cancelling a request should undo its changes', async function () {
+
+		model.setValue('World');
+
+		const deferred = new DeferredPromise<void>();
+		let progress: ((part: IChatProgress) => void) | undefined;
+
+		store.add(chatAgentService.registerDynamicAgent({
+			id: 'testEditorAgent2',
+			...agentData
+		}, {
+			async invoke(request, _progress, history, token) {
+
+				progress = _progress;
+				await deferred.p;
+				return {};
+			},
+		}));
+
+		ctrl = instaService.createInstance(TestController, editor);
+
+		// REQUEST 1
+		const p = ctrl.awaitStates([...TestController.INIT_SEQUENCE, State.SHOW_REQUEST]);
+		ctrl.run({ message: 'Hello', autoSend: true });
+		assert.strictEqual(await p, undefined);
+
+		assertType(progress);
+
+		const modelChange = new Promise<void>(resolve => model.onDidChangeContent(() => resolve()));
+
+		progress({ kind: 'textEdit', uri: model.uri, edits: [{ range: new Range(1, 1, 1, 1), text: 'Hello-Hello' }] });
+
+		await modelChange;
+		assert.strictEqual(model.getValue(), 'HelloWorld'); // first word has been streamed
+
+		const p2 = ctrl.awaitStates([State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
+		chatService.cancelCurrentRequestForSession(ctrl.chatWidget.viewModel!.model.sessionId);
+		assert.strictEqual(await p2, undefined);
+
+		assert.strictEqual(model.getValue(), 'World');
 
 	});
 });

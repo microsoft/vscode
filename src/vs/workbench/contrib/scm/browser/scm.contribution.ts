@@ -10,7 +10,7 @@ import { DirtyDiffWorkbenchController } from './dirtydiffDecorator';
 import { VIEWLET_ID, ISCMService, VIEW_PANE_ID, ISCMProvider, ISCMViewService, REPOSITORIES_VIEW_PANE_ID } from 'vs/workbench/contrib/scm/common/scm';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
-import { SCMActiveRepositoryContextKeyController, SCMActiveResourceContextKeyController, SCMActivityCountBadgeController, SCMStatusController } from './activity';
+import { SCMActiveResourceContextKeyController, SCMActiveRepositoryController } from './activity';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -113,16 +113,10 @@ viewsRegistry.registerViews([{
 }], viewContainer);
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(SCMActivityCountBadgeController, LifecyclePhase.Restored);
+	.registerWorkbenchContribution(SCMActiveRepositoryController, LifecyclePhase.Restored);
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(SCMActiveResourceContextKeyController, LifecyclePhase.Restored);
-
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(SCMActiveRepositoryContextKeyController, LifecyclePhase.Restored);
-
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(SCMStatusController, LifecyclePhase.Restored);
 
 registerWorkbenchContribution2(
 	SCMWorkingSetController.ID,
@@ -355,6 +349,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			],
 			description: localize('scm.workingSets.default', "Controls the default working set to use when switching to a source control history item group that does not have a working set."),
 			default: 'current'
+		},
+		'scm.showHistoryGraph': {
+			type: 'boolean',
+			description: localize('scm.showHistoryGraph', "Controls whether to render incoming/outgoing changes using a graph in the Source Control view."),
+			default: true
 		}
 	}
 });
@@ -392,7 +391,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'scm.clearInput',
 	weight: KeybindingWeight.WorkbenchContrib,
-	when: ContextKeyExpr.has('scmRepository'),
+	when: ContextKeyExpr.and(ContextKeyExpr.has('scmRepository'), SuggestContext.Visible.toNegated()),
 	primary: KeyCode.Escape,
 	handler: async (accessor) => {
 		const scmService = accessor.get(ISCMService);

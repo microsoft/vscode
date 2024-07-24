@@ -505,9 +505,6 @@ suite('ExtensionsViews Tests', () => {
 			}]
 		});
 
-		testableView.dispose();
-		testableView = disposableStore.add(instantiationService.createInstance(ExtensionsListView, {}, { id: '', title: '' }));
-
 		return testableView.show('search-me').then(result => {
 			const options: IQueryOptions = queryTarget.args[0][0];
 
@@ -531,9 +528,6 @@ suite('ExtensionsViews Tests', () => {
 		];
 
 		const queryTarget = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(...realResults));
-
-		testableView.dispose();
-		disposableStore.add(testableView = instantiationService.createInstance(ExtensionsListView, {}, { id: '', title: '' }));
 
 		return testableView.show('search-me @sort:installs').then(result => {
 			const options: IQueryOptions = queryTarget.args[0][0];

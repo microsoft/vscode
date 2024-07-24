@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jlelong/vscode-latex-basics/commit/3d141a124a16558958e95c54267f7ca37986de6f",
+	"version": "https://github.com/jlelong/vscode-latex-basics/commit/9cd6bc151f4b9df5d9aeb1e39e30071018d3cb2a",
 	"name": "LaTeX",
 	"scopeName": "text.tex.latex",
 	"patterns": [
@@ -2646,7 +2646,7 @@
 			]
 		},
 		{
-			"begin": "((\\\\)(?:\\w*[rR]ef\\*?))(\\{)",
+			"begin": "((\\\\)(?:\\w*[rR]ef\\*?))(?:\\[[^\\]]*\\])?(\\{)",
 			"beginCaptures": {
 				"1": {
 					"name": "keyword.control.ref.latex"
@@ -3048,7 +3048,7 @@
 					"name": "punctuation.definition.variable.latex"
 				}
 			},
-			"match": "(\\\\)[cgl](?:[_\\p{Alphabetic}@]+)+_(?:bitset|clist|dim|fp|int|muskip|str|tl|bool|box|coffin|flag|fparray|intarray|ior|iow|prop|regex|seq)",
+			"match": "(\\\\)[cgl](?:[_\\p{Alphabetic}@]+)+_[a-z]+",
 			"name": "variable.other.latex3.latex"
 		},
 		{
@@ -3148,7 +3148,7 @@
 			"match": "\\s*((\\\\)(?:begin|end))(\\{)([a-zA-Z]*\\*?)(\\})(?:(\\[)([^\\]]*)(\\])){,2}(?:(\\{)([^{}]*)(\\}))?"
 		},
 		"definition-label": {
-			"begin": "((\\\\)label)((?:\\[[^\\[]*?\\])*)(\\{)",
+			"begin": "((\\\\)z?label)((?:\\[[^\\[]*?\\])*)(\\{)",
 			"beginCaptures": {
 				"1": {
 					"name": "keyword.control.label.latex"

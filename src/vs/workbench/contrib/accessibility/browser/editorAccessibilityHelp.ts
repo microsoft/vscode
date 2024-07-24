@@ -39,7 +39,7 @@ export class EditorAccessibilityHelpContribution extends Disposable {
 	}
 }
 
-class EditorAccessibilityHelpProvider implements IAccessibleViewContentProvider {
+class EditorAccessibilityHelpProvider extends Disposable implements IAccessibleViewContentProvider {
 	id = AccessibleViewProviderId.Editor;
 	onClose() {
 		this._editor.focus();
@@ -51,6 +51,7 @@ class EditorAccessibilityHelpProvider implements IAccessibleViewContentProvider 
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
+		super();
 	}
 
 	provideContent(): string {
@@ -93,7 +94,10 @@ class EditorAccessibilityHelpProvider implements IAccessibleViewContentProvider 
 		} else {
 			content.push(AccessibilityHelpNLS.tabFocusModeOffMsg);
 		}
-		return content.join('\n\n');
+
+		content.push(AccessibilityHelpNLS.setBreakpoint);
+		content.push(AccessibilityHelpNLS.debugExecuteSelection);
+		return content.join('\n');
 	}
 }
 
