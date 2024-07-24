@@ -14,7 +14,7 @@ import { TextModel, createTextBuffer } from 'vs/editor/common/model/textModel';
 import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/core/textModelDefaults';
 import { IModelLanguageChangedEvent } from 'vs/editor/common/textModelEvents';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { ILanguageSelection } from 'vs/editor/common/languages/language';
+import { ILanguageSelection, ILanguageService } from 'vs/editor/common/languages/language';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfiguration';
 import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -23,7 +23,7 @@ import { StringSHA1 } from 'vs/base/common/hash';
 import { isEditStackElement } from 'vs/editor/common/model/editStack';
 import { Schemas } from 'vs/base/common/network';
 import { equals } from 'vs/base/common/objects';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
@@ -107,7 +107,8 @@ export class ModelService extends Disposable implements IModelService {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITextResourcePropertiesService private readonly _resourcePropertiesService: ITextResourcePropertiesService,
 		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
+		@ILanguageService private readonly _languageService: ILanguageService,
+		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
 	) {
 		super();
 		this._modelCreationOptionsByLanguageAndResource = Object.create(null);
@@ -313,11 +314,14 @@ export class ModelService extends Disposable implements IModelService {
 	private _createModelData(value: string | ITextBufferFactory, languageIdOrSelection: string | ILanguageSelection, resource: URI | undefined, isForSimpleWidget: boolean): ModelData {
 		// create & save the model
 		const options = this.getCreationOptions(languageIdOrSelection, resource, isForSimpleWidget);
-		const model: TextModel = this._instantiationService.createInstance(TextModel,
+		const model: TextModel = new TextModel(
 			value,
 			languageIdOrSelection,
 			options,
-			resource
+			resource,
+			this._undoRedoService,
+			this._languageService,
+			this._languageConfigurationService,
 		);
 		if (resource && this._disposedModels.has(MODEL_ID(resource))) {
 			const disposedModelData = this._removeDisposedModel(resource)!;
