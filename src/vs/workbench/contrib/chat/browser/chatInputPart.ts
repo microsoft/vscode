@@ -362,7 +362,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		if (removed.length > 0 || contentReferences.length > 0) {
 			this.initAttachedContext(this.attachedContextContainer);
-			this._onDidChangeContext.fire({ removed, added: contentReferences });
+
+			if (!overwrite) {
+				this._onDidChangeContext.fire({ removed, added: contentReferences });
+			}
 		}
 	}
 
