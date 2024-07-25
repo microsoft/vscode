@@ -786,10 +786,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			});
 
 			if (result) {
-				this.inputPart.clearContext();
 				this.inputPart.acceptInput(isUserQuery);
 				this._onDidSubmitAgent.fire({ agent: result.agent, slashCommand: result.slashCommand });
 				this.inputPart.updateState(this.collectInputState());
+				this.inputPart.clearContext();
 				result.responseCompletePromise.then(() => {
 					const responses = this.viewModel?.getItems().filter(isResponseVM);
 					const lastResponse = responses?.[responses.length - 1];

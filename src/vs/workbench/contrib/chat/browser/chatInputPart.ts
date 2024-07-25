@@ -348,8 +348,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	attachContext(overwrite: boolean, ...contentReferences: IChatRequestVariableEntry[]): void {
-		const removed = Array.from(this._attachedContext);
+		const removed = [];
 		if (overwrite) {
+			removed.push(...Array.from(this._attachedContext));
 			this._attachedContext.clear();
 		}
 
@@ -357,9 +358,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			for (const reference of contentReferences) {
 				this._attachedContext.add(reference);
 			}
-			this.initAttachedContext(this.attachedContextContainer);
 		}
+
 		if (removed.length > 0 || contentReferences.length > 0) {
+			this.initAttachedContext(this.attachedContextContainer);
 			this._onDidChangeContext.fire({ removed, added: contentReferences });
 		}
 	}
