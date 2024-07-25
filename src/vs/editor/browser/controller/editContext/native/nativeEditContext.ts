@@ -36,7 +36,6 @@ import { Selection } from 'vs/editor/common/core/selection';
  *   7.a. On the current implementation, when selecting words, the new content that is selected is read out
  *   7.b. My implementation reads all of the lines from the beginning of the selection?
  * 8. When scroll is changed horizontally, the black box should sticky to a specific letter and remain there
- * 10. When pasting text, it is pasted in the wrong location
  */
 
 // extract the model change and selection change event for the screen reader part into a separate function, not the edit context part, not the copy handler, not the enter handler
@@ -51,6 +50,7 @@ export class NativeEditContext extends AbstractEditContext {
 	private _contentLeft = 0;
 	private _previousStartLineNumber: number = -1;
 	private _previousEndLineNumber: number = -1;
+	private _previousValue: string | undefined;
 	private _selectionOffsetRange: OffsetRange | undefined = undefined;
 
 	private _isFocused = false;
@@ -98,7 +98,6 @@ export class NativeEditContext extends AbstractEditContext {
 			}
 		}));
 		this._register(dom.addDisposableListener(domNode, 'keydown', (e) => {
-			console.log('this._selectionOffsetRange : ', this._selectionOffsetRange);
 			if (this._editContextState && copiedText && e.metaKey && e.key === 'v') {
 				this._handlePasteUpdate(this._editContextState.selection.start, this._editContextState.selection.endExclusive, copiedText);
 			}
@@ -144,13 +143,9 @@ export class NativeEditContext extends AbstractEditContext {
 	private _decorations: string[] = [];
 
 	private _onDidChangeContent() {
-		console.log('onDidChangeContent');
 
 		const primaryViewState = this._context.viewModel.getCursorStates()[0].viewState;
-		const { value: valueForHiddenArea, offsetRange: selectionForHiddenArea } = this._editContextRenderingData(primaryViewState.selection);
-
-		console.log('valueForHiddenArea : ', valueForHiddenArea);
-		console.log('selectionForHiddenArea : ', selectionForHiddenArea);
+		const { value: valueForHiddenArea } = this._editContextRenderingData(primaryViewState.selection);
 
 		// Update position of the hidden area
 		const domNode = this._domElement.domNode;
@@ -172,7 +167,6 @@ export class NativeEditContext extends AbstractEditContext {
 	}
 
 	private _editContextRenderingData(selection: Selection): { value: string; offsetRange: OffsetRange; editContextState: EditContextState } {
-		console.log('selection : ', selection);
 		// Need to find the selection after typing has happened
 		const doc = new LineBasedText(lineNumber => this._context.viewModel.getLineContent(lineNumber), this._context.viewModel.getLineCount());
 		const docStart = new Position(1, 1);
@@ -186,11 +180,8 @@ export class NativeEditContext extends AbstractEditContext {
 	}
 
 	private _onDidChangeSelection(e: CursorStateChangedEvent) {
-		console.log('_onDidChangeSelection');
 		const selection = e.selections[0];
 		const { value: valueForHiddenArea, offsetRange: selectionForHiddenArea } = this._editContextRenderingData(selection);
-		console.log('valueForHiddenArea : ', valueForHiddenArea);
-		console.log('selectionForHiddenArea : ', selectionForHiddenArea);
 		this._selectionOffsetRange = selectionForHiddenArea;
 
 		const domNode = this._domElement.domNode;
@@ -199,7 +190,7 @@ export class NativeEditContext extends AbstractEditContext {
 
 		// Update the hidden area line
 		// need to treat the case of multiple selection
-		if (this._previousStartLineNumber !== selection.startLineNumber || this._previousEndLineNumber !== selection.endLineNumber) {
+		if (this._previousValue !== valueForHiddenArea || this._previousStartLineNumber !== selection.startLineNumber || this._previousEndLineNumber !== selection.endLineNumber) {
 			const childElement = document.createElement('div');
 			childElement.textContent = valueForHiddenArea.length > 0 ? valueForHiddenArea : '\n';
 			childElement.id = `edit-context-content`;
@@ -225,6 +216,7 @@ export class NativeEditContext extends AbstractEditContext {
 		}
 		this._previousStartLineNumber = selection.startLineNumber;
 		this._previousEndLineNumber = selection.endLineNumber;
+		this._previousValue = valueForHiddenArea;
 	}
 
 	private _handleTextFormatUpdate(e: TextFormatUpdateEvent): void {
