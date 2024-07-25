@@ -111,6 +111,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	private _screen?: HTMLElement;
 	private _suggestWidget?: SimpleSuggestWidget;
 	private _enableWidget: boolean = true;
+	private _pathSeparator: string = sep;
 	private _isFilteringDirectories: boolean = false;
 
 	private _codeCompletionsRequested: boolean = false;
@@ -271,7 +272,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			this._cursorIndexDelta = this._currentPromptInputState.cursorIndex - this._initialPromptInputState.cursorIndex;
 			let leadingLineContent = this._leadingLineContent + this._currentPromptInputState.value.substring(this._leadingLineContent.length, this._leadingLineContent.length + this._cursorIndexDelta);
 			if (this._isFilteringDirectories) {
-				leadingLineContent = leadingLineContent.replaceAll('/', '\\');
+				leadingLineContent = normalizePathSeparator(leadingLineContent, this._pathSeparator);
 			}
 			const lineContext = new LineContext(leadingLineContent, this._cursorIndexDelta);
 			this._suggestWidget.setLineContext(lineContext);
@@ -353,9 +354,11 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._cursorIndexDelta = 0;
 
 		let leadingLineContent = this._leadingLineContent + this._currentPromptInputState.value.substring(this._leadingLineContent.length, this._leadingLineContent.length + this._cursorIndexDelta);
-		this._isFilteringDirectories = completions.every(e => e.completion.isDirectory || e.completion.isFile);
+		this._isFilteringDirectories = completions.some(e => e.completion.isDirectory) && completions.every(e => e.completion.isDirectory || e.completion.isFile);
 		if (this._isFilteringDirectories) {
-			leadingLineContent = leadingLineContent.replaceAll('/', '\\');
+			const firstDir = completions.find(e => e.completion.isDirectory);
+			this._pathSeparator = firstDir?.completion.label.match(/(?<sep>[\\\/])/)?.groups?.sep ?? sep;
+			leadingLineContent = normalizePathSeparator(leadingLineContent, this._pathSeparator);
 		}
 		const lineContext = new LineContext(leadingLineContent, this._cursorIndexDelta);
 		const model = new SimpleCompletionModel(completions, lineContext, replacementIndex, replacementLength);
@@ -725,4 +728,11 @@ function getIcon(resultType: number, tooltip: string): ThemeIcon {
 		}
 	}
 	return pwshTypeToIconMap[resultType] ?? Codicon.symbolText;
+}
+
+function normalizePathSeparator(path: string, sep: string): string {
+	if (sep === '/') {
+		return path.replaceAll('\\', '/');
+	}
+	return path.replaceAll('/', '\\');
 }
