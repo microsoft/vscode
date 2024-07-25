@@ -23,7 +23,9 @@ function update(options) {
 	if (location !== undefined && !fs.existsSync(location)) {
 		throw new Error(`${location} doesn't exist.`);
 	}
-	let externalExtensionsLocation = options.externalExtensionsLocation;
+
+	console.log(options);
+	let externalExtensionsLocation = options.location;
 	if (externalExtensionsLocation !== undefined && !fs.existsSync(externalExtensionsLocation)) {
 		throw new Error(`${externalExtensionsLocation} doesn't exist.`);
 	}
