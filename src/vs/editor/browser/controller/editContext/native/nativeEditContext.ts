@@ -99,8 +99,8 @@ export class NativeEditContext extends AbstractEditContext {
 		}));
 		this._register(dom.addDisposableListener(domNode, 'keydown', (e) => {
 			console.log('this._selectionOffsetRange : ', this._selectionOffsetRange);
-			if (this._selectionOffsetRange && copiedText && e.metaKey && e.key === 'v') {
-				this._handleTextUpdate(this._selectionOffsetRange.start, this._selectionOffsetRange.endExclusive, copiedText);
+			if (this._editContextState && copiedText && e.metaKey && e.key === 'v') {
+				this._handlePasteUpdate(this._editContextState.selection.start, this._editContextState.selection.endExclusive, copiedText);
 			}
 			const x = new StandardKeyboardEvent(e);
 			this._viewController.emitKeyDown(x);
@@ -263,7 +263,7 @@ export class NativeEditContext extends AbstractEditContext {
 			return;
 		}
 		e.preventDefault();
-		this._handleTextUpdate(this._editContextState.positionOffset, this._editContextState.positionOffset, '\n');
+		this._handleTextUpdate(this._editContextState.selection.start, this._editContextState.selection.endExclusive, '\n');
 	}
 
 	private _handleTextUpdate(updateRangeStart: number, updateRangeEnd: number, text: string): void {
@@ -285,6 +285,19 @@ export class NativeEditContext extends AbstractEditContext {
 			this._viewController.type(text);
 		}
 
+		this.updateEditContext();
+	}
+
+	private _handlePasteUpdate(updateRangeStart: number, updateRangeEnd: number, text: string): void {
+		if (!this._editContextState) {
+			return;
+		}
+		const updateRange = new OffsetRange(updateRangeStart, updateRangeEnd);
+		if (!updateRange.equals(this._editContextState.selection)) {
+			this._viewController.compositionType(text, 0, 0, 0);
+		} else {
+			this._viewController.type(text);
+		}
 		this.updateEditContext();
 	}
 
