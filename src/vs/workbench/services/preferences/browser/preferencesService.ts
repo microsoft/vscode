@@ -6,7 +6,7 @@
 import { getErrorMessage } from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
 import { parse } from 'vs/base/common/json';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import * as network from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { CoreEditingCommands } from 'vs/editor/browser/coreCommands';
@@ -595,10 +595,11 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	getSetting(settingId: string): ISetting | undefined {
 		if (!this._settingsGroups) {
 			const defaultSettings = this.getDefaultSettings(ConfigurationTarget.USER);
-			const defaultsChangedDisposable = this._register(defaultSettings.onDidChange(() => {
+			const defaultsChangedDisposable: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
+			defaultsChangedDisposable.value = defaultSettings.onDidChange(() => {
 				this._settingsGroups = undefined;
-				defaultsChangedDisposable.dispose();
-			}));
+				defaultsChangedDisposable.clear();
+			});
 			this._settingsGroups = defaultSettings.getSettingsGroups();
 		}
 
