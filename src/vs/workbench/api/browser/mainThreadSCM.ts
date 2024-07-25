@@ -164,7 +164,7 @@ class MainThreadSCMHistoryProvider implements ISCMHistoryProvider {
 	readonly currentHistoryItemGroupId = derived<string | undefined>(this, reader => this.currentHistoryItemGroup.read(reader)?.id);
 	readonly currentHistoryItemGroupName = derived<string | undefined>(this, reader => this.currentHistoryItemGroup.read(reader)?.name);
 
-	private readonly _currentHistoryItemGroup = observableValueOpts<ISCMHistoryItemGroup | undefined>({ owner: this, equalsFn: structuralEquals }, undefined);
+	private readonly _currentHistoryItemGroup = observableValueOpts<ISCMHistoryItemGroup | undefined>({ owner: this, equalsFn: () => false }, undefined);
 	get currentHistoryItemGroup() { return this._currentHistoryItemGroup; }
 
 	constructor(private readonly proxy: ExtHostSCMShape, private readonly handle: number) { }
