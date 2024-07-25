@@ -55,6 +55,10 @@ export const JavaLibrariesToLookFor: { predicate: (groupId: string, artifactId: 
 	// event hubs
 	{ 'predicate': (groupId, artifactId) => groupId === 'com.azure' && artifactId.startsWith('azure-messaging-eventhubs'), 'tag': 'azure-eventhubs' },
 	{ 'predicate': (groupId, artifactId) => groupId === 'com.azure.spring' && artifactId.includes('eventhubs'), 'tag': 'azure-eventhubs' },
+	// ai
+	{ 'predicate': (groupId, artifactId) => groupId === 'dev.langchain4j', 'tag': 'ai' },
+	{ 'predicate': (groupId, artifactId) => groupId === 'io.springboot.ai', 'tag': 'ai' },
+	{ 'predicate': (groupId, artifactId) => groupId === 'com.microsoft.semantic-kernel', 'tag': 'ai' },
 	// open ai
 	{ 'predicate': (groupId, artifactId) => groupId === 'com.theokanning.openai-gpt3-java', 'tag': 'openai' },
 	// azure open ai
