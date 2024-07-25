@@ -8,10 +8,9 @@ import { ICommandAction } from 'vs/platform/action/common/action';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry, ICommandMetadata } from 'vs/platform/commands/common/commands';
-import { IssueReporterData } from 'vs/platform/issue/common/issue';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IWorkbenchIssueService } from 'vs/workbench/contrib/issue/common/issue';
+import { IWorkbenchIssueService, IssueReporterData } from 'vs/workbench/contrib/issue/common/issue';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Disposable } from 'vs/base/common/lifecycle';
 

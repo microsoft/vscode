@@ -1121,7 +1121,8 @@ export class QuickInputTree extends Disposable {
 
 	setFocusedElements(items: IQuickPickItem[]) {
 		const elements = items.map(item => this._itemElements.find(e => e.item === item))
-			.filter((e): e is QuickPickItemElement => !!e);
+			.filter((e): e is QuickPickItemElement => !!e)
+			.filter(e => !e.hidden);
 		this._tree.setFocus(elements);
 		if (items.length > 0) {
 			const focused = this._tree.getFocus()[0];

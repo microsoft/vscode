@@ -7,7 +7,7 @@ import { LazyStatefulPromise, raceTimeout } from 'vs/base/common/async';
 import { BugIndicatingError, onUnexpectedError } from 'vs/base/common/errors';
 import { Event, ValueWithChangeEvent } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { Disposable, DisposableStore, IDisposable, IReference, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, IReference } from 'vs/base/common/lifecycle';
 import { parse } from 'vs/base/common/marshalling';
 import { Schemas } from 'vs/base/common/network';
 import { deepClone } from 'vs/base/common/objects';
@@ -16,7 +16,8 @@ import { ValueWithChangeEventFromObservable, constObservable, mapObservableArray
 import { ThemeIcon } from 'vs/base/common/themables';
 import { isDefined, isObject } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { ConstLazyPromise, IDocumentDiffItem, IMultiDiffEditorModel, LazyPromise } from 'vs/editor/browser/widget/multiDiffEditor/model';
+import { RefCounted } from 'vs/editor/browser/widget/diffEditor/utils';
+import { IDocumentDiffItem, IMultiDiffEditorModel } from 'vs/editor/browser/widget/multiDiffEditor/model';
 import { MultiDiffEditorViewModel } from 'vs/editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel';
 import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
@@ -123,7 +124,7 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 
 	public setLanguageId(languageId: string, source?: string | undefined): void {
 		const activeDiffItem = this._viewModel.requireValue().activeDiffItem.get();
-		const value = activeDiffItem?.entry?.value;
+		const value = activeDiffItem?.documentDiffItem;
 		if (!value) { return; }
 		const target = value.modified ?? value.original;
 		if (!target) { return; }
@@ -147,26 +148,20 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 		const source = await this._resolvedSource.getPromise();
 		const textResourceConfigurationService = this._textResourceConfigurationService;
 
-		// Enables delayed disposing
-		const garbage = new DisposableStore();
-
 		const documentsWithPromises = mapObservableArrayCached(this, source.resources, async (r, store) => {
 			/** @description documentsWithPromises */
 			let original: IReference<IResolvedTextEditorModel> | undefined;
 			let modified: IReference<IResolvedTextEditorModel> | undefined;
-			const store2 = new DisposableStore();
-			store.add(toDisposable(() => {
-				// Mark the text model references as garbage when they get stale (don't dispose them yet)
-				garbage.add(store2);
-			}));
+
+			const multiDiffItemStore = new DisposableStore();
 
 			try {
 				[original, modified] = await Promise.all([
 					r.originalUri ? this._textModelService.createModelReference(r.originalUri) : undefined,
 					r.modifiedUri ? this._textModelService.createModelReference(r.modifiedUri) : undefined,
 				]);
-				if (original) { store2.add(original); }
-				if (modified) { store2.add(modified); }
+				if (original) { multiDiffItemStore.add(original); }
+				if (modified) { multiDiffItemStore.add(modified); }
 			} catch (e) {
 				// e.g. "File seems to be binary and cannot be opened as text"
 				console.error(e);
@@ -175,7 +170,7 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 			}
 
 			const uri = (r.modifiedUri ?? r.originalUri)!;
-			return new ConstLazyPromise<IDocumentDiffItemWithMultiDiffEditorItem>({
+			const result: IDocumentDiffItemWithMultiDiffEditorItem = {
 				multiDiffEditorItem: r,
 				original: original?.object.textEditorModel,
 				modified: modified?.object.textEditorModel,
@@ -190,10 +185,11 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 						h();
 					}
 				}),
-			});
+			};
+			return store.add(RefCounted.createOfNonDisposable(result, multiDiffItemStore, this));
 		}, i => JSON.stringify([i.modifiedUri?.toString(), i.originalUri?.toString()]));
 
-		const documents = observableValue<readonly LazyPromise<IDocumentDiffItem>[]>('documents', []);
+		const documents = observableValue<readonly RefCounted<IDocumentDiffItem>[]>('documents', []);
 
 		const updateDocuments = derived(async reader => {
 			/** @description Update documents */
@@ -201,18 +197,13 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 			const docs = await Promise.all(docsPromises);
 			const newDocuments = docs.filter(isDefined);
 			documents.set(newDocuments, undefined);
-
-			garbage.clear(); // Only dispose text models after the documents have been updated
 		});
 
 		const a = recomputeInitiallyAndOnChange(updateDocuments);
 		await updateDocuments.get();
 
 		const result: IMultiDiffEditorModel & IDisposable = {
-			dispose: () => {
-				a.dispose();
-				garbage.dispose();
-			},
+			dispose: () => a.dispose(),
 			documents: new ValueWithChangeEventFromObservable(documents),
 			contextKeys: source.source?.contextKeys,
 		};

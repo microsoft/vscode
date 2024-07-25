@@ -9,6 +9,7 @@ import { IPickerQuickAccessItem } from 'vs/platform/quickinput/browser/pickerQui
 import { Event } from 'vs/base/common/event';
 import { IAction } from 'vs/base/common/actions';
 import { IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 
 export const IAccessibleViewService = createDecorator<IAccessibleViewService>('accessibleViewService');
 
@@ -26,7 +27,10 @@ export const enum AccessibleViewProviderId {
 	Hover = 'hover',
 	Notification = 'notification',
 	EmptyEditorHint = 'emptyEditorHint',
-	Comments = 'comments'
+	Comments = 'comments',
+	Repl = 'repl',
+	ReplHelp = 'replHelp',
+	RunAndDebug = 'runAndDebug',
 }
 
 export const enum AccessibleViewType {
@@ -66,10 +70,15 @@ export interface IAccessibleViewOptions {
 	 * Keybinding items to configure
 	 */
 	configureKeybindingItems?: IQuickPickItem[];
+
+	/**
+	 * Keybinding items that are already configured
+	 */
+	configuredKeybindingItems?: IQuickPickItem[];
 }
 
 
-export interface IAccessibleViewContentProvider extends IBasicContentProvider {
+export interface IAccessibleViewContentProvider extends IBasicContentProvider, IDisposable {
 	id: AccessibleViewProviderId;
 	verbositySettingKey: string;
 	/**
@@ -102,6 +111,7 @@ export interface IPosition {
 
 export interface IAccessibleViewService {
 	readonly _serviceBrand: undefined;
+	// The provider will be disposed when the view is closed
 	show(provider: AccesibleViewContentProvider, position?: IPosition): void;
 	showLastProvider(id: AccessibleViewProviderId): void;
 	showAccessibleViewHelp(): void;
@@ -119,7 +129,7 @@ export interface IAccessibleViewService {
 	 */
 	getOpenAriaHint(verbositySettingKey: string): string | null;
 	getCodeBlockContext(): ICodeBlockActionContext | undefined;
-	configureKeybindings(): void;
+	configureKeybindings(unassigned: boolean): void;
 	openHelpLink(): void;
 }
 
@@ -131,9 +141,9 @@ export interface ICodeBlockActionContext {
 	element: unknown;
 }
 
-export type AccesibleViewContentProvider = AdvancedContentProvider | ExtensionContentProvider;
+export type AccesibleViewContentProvider = AccessibleContentProvider | ExtensionContentProvider;
 
-export class AdvancedContentProvider implements IAccessibleViewContentProvider {
+export class AccessibleContentProvider extends Disposable implements IAccessibleViewContentProvider {
 
 	constructor(
 		public id: AccessibleViewProviderId,
@@ -143,16 +153,18 @@ export class AdvancedContentProvider implements IAccessibleViewContentProvider {
 		public verbositySettingKey: string,
 		public onOpen?: () => void,
 		public actions?: IAction[],
-		public next?: () => void,
-		public previous?: () => void,
+		public provideNextContent?: () => string | undefined,
+		public providePreviousContent?: () => string | undefined,
 		public onDidChangeContent?: Event<void>,
 		public onKeyDown?: (e: IKeyboardEvent) => void,
 		public getSymbols?: () => IAccessibleViewSymbol[],
 		public onDidRequestClearLastProvider?: Event<AccessibleViewProviderId>,
-	) { }
+	) {
+		super();
+	}
 }
 
-export class ExtensionContentProvider implements IBasicContentProvider {
+export class ExtensionContentProvider extends Disposable implements IBasicContentProvider {
 
 	constructor(
 		public readonly id: string,
@@ -160,21 +172,23 @@ export class ExtensionContentProvider implements IBasicContentProvider {
 		public provideContent: () => string,
 		public onClose: () => void,
 		public onOpen?: () => void,
-		public next?: () => void,
-		public previous?: () => void,
+		public provideNextContent?: () => string | undefined,
+		public providePreviousContent?: () => string | undefined,
 		public actions?: IAction[],
 		public onDidChangeContent?: Event<void>,
-	) { }
+	) {
+		super();
+	}
 }
 
-export interface IBasicContentProvider {
+export interface IBasicContentProvider extends IDisposable {
 	id: string;
 	options: IAccessibleViewOptions;
 	onClose(): void;
 	provideContent(): string;
 	onOpen?(): void;
 	actions?: IAction[];
-	previous?(): void;
-	next?(): void;
+	providePreviousContent?(): void;
+	provideNextContent?(): void;
 	onDidChangeContent?: Event<void>;
 }

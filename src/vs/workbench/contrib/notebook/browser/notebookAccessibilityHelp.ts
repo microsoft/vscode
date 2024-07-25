@@ -7,7 +7,7 @@ import { IAccessibleViewImplentation } from 'vs/platform/accessibility/browser/a
 import { NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { localize } from 'vs/nls';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { AccessibleViewProviderId, AccessibleViewType } from 'vs/platform/accessibility/browser/accessibleView';
+import { AccessibleViewProviderId, AccessibleViewType, AccessibleContentProvider } from 'vs/platform/accessibility/browser/accessibleView';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IVisibleEditorPane } from 'vs/workbench/common/editor';
@@ -23,15 +23,12 @@ export class NotebookAccessibilityHelp implements IAccessibleViewImplentation {
 			|| accessor.get(ICodeEditorService).getFocusedCodeEditor()
 			|| accessor.get(IEditorService).activeEditorPane;
 
-		if (activeEditor) {
-			return runAccessibilityHelpAction(accessor, activeEditor);
+		if (!activeEditor) {
+			return;
 		}
-		return;
+		return getAccessibilityHelpProvider(accessor, activeEditor);
 	}
-	dispose() { }
 }
-
-
 
 export function getAccessibilityHelpText(): string {
 	return [
@@ -43,20 +40,18 @@ export function getAccessibilityHelpText(): string {
 		localize('notebook.focusPreviousEditor', 'The Focus Previous Cell Editor command<keybinding:notebook.focusPreviousEditor> will set focus in the previous cell\'s editor.'),
 		localize('notebook.cellNavigation', 'The up and down arrows will also move focus between cells while focused on the outer cell container.'),
 		localize('notebook.cell.executeAndFocusContainer', 'The Execute Cell command<keybinding:notebook.cell.executeAndFocusContainer> executes the cell that currently has focus.',),
-		localize('notebook.cell.insertCodeCellBelowAndFocusContainer', 'The Insert Cell Above/Below commands will create new empty code cells'),
+		localize('notebook.cell.insertCodeCellBelowAndFocusContainer', 'The Insert Cell Above/Below commands will create new empty code cells.'),
 		localize('notebook.changeCellType', 'The Change Cell to Code/Markdown commands are used to switch between cell types.')
-	].join('\n\n');
+	].join('\n');
 }
 
-export function runAccessibilityHelpAction(accessor: ServicesAccessor, editor: ICodeEditor | IVisibleEditorPane) {
+export function getAccessibilityHelpProvider(accessor: ServicesAccessor, editor: ICodeEditor | IVisibleEditorPane) {
 	const helpText = getAccessibilityHelpText();
-	return {
-		id: AccessibleViewProviderId.Notebook,
-		verbositySettingKey: AccessibilityVerbositySettingId.Notebook,
-		provideContent: () => helpText,
-		onClose: () => {
-			editor.focus();
-		},
-		options: { type: AccessibleViewType.Help }
-	};
+	return new AccessibleContentProvider(
+		AccessibleViewProviderId.Notebook,
+		{ type: AccessibleViewType.Help },
+		() => helpText,
+		() => editor.focus(),
+		AccessibilityVerbositySettingId.Notebook,
+	);
 }

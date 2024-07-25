@@ -10,7 +10,7 @@ import { VSBuffer, decodeBase64, encodeBase64 } from 'vs/base/common/buffer';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { stringHash } from 'vs/base/common/hash';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableMap, IDisposable } from 'vs/base/common/lifecycle';
 import { mixin } from 'vs/base/common/objects';
 import { autorun } from 'vs/base/common/observable';
 import * as resources from 'vs/base/common/resources';
@@ -298,6 +298,9 @@ export class Expression extends ExpressionContainer implements IExpression {
 
 	public available: boolean;
 
+	private readonly _onDidChangeValue = new Emitter<IExpression>();
+	public readonly onDidChangeValue: Event<IExpression> = this._onDidChangeValue.event;
+
 	constructor(public name: string, id = generateUuid()) {
 		super(undefined, undefined, 0, id);
 		this.available = false;
@@ -310,6 +313,9 @@ export class Expression extends ExpressionContainer implements IExpression {
 
 	async evaluate(session: IDebugSession | undefined, stackFrame: IStackFrame | undefined, context: string, keepLazyVars?: boolean, location?: IDebugEvaluatePosition): Promise<void> {
 		this.available = await this.evaluateExpression(this.name, session, stackFrame, context, keepLazyVars, location);
+		if (this.valueChanged) {
+			this._onDidChangeValue.fire(this);
+		}
 	}
 
 	override toString(): string {
@@ -1403,12 +1409,14 @@ export class DebugModel extends Disposable implements IDebugModel {
 	private readonly _onDidChangeBreakpoints = this._register(new Emitter<IBreakpointsChangeEvent | undefined>());
 	private readonly _onDidChangeCallStack = this._register(new Emitter<void>());
 	private readonly _onDidChangeWatchExpressions = this._register(new Emitter<IExpression | undefined>());
+	private readonly _onDidChangeWatchExpressionValue = this._register(new Emitter<IExpression | undefined>());
 	private readonly _breakpointModes = new Map<string, IBreakpointModeInternal>();
 	private breakpoints!: Breakpoint[];
 	private functionBreakpoints!: FunctionBreakpoint[];
 	private exceptionBreakpoints!: ExceptionBreakpoint[];
 	private dataBreakpoints!: DataBreakpoint[];
 	private watchExpressions!: Expression[];
+	private watchExpressionChangeListeners: DisposableMap<string, IDisposable> = this._register(new DisposableMap());
 	private instructionBreakpoints: InstructionBreakpoint[];
 
 	constructor(
@@ -1434,6 +1442,10 @@ export class DebugModel extends Disposable implements IDebugModel {
 
 		this.instructionBreakpoints = [];
 		this.sessions = [];
+
+		for (const we of this.watchExpressions) {
+			this.watchExpressionChangeListeners.set(we.getId(), we.onDidChangeValue((e) => this._onDidChangeWatchExpressionValue.fire(e)));
+		}
 	}
 
 	getId(): string {
@@ -1495,6 +1507,10 @@ export class DebugModel extends Disposable implements IDebugModel {
 
 	get onDidChangeWatchExpressions(): Event<IExpression | undefined> {
 		return this._onDidChangeWatchExpressions.event;
+	}
+
+	get onDidChangeWatchExpressionValue(): Event<IExpression | undefined> {
+		return this._onDidChangeWatchExpressionValue.event;
 	}
 
 	rawUpdate(data: IRawModelUpdate): void {
@@ -2003,6 +2019,7 @@ export class DebugModel extends Disposable implements IDebugModel {
 
 	addWatchExpression(name?: string): IExpression {
 		const we = new Expression(name || '');
+		this.watchExpressionChangeListeners.set(we.getId(), we.onDidChangeValue((e) => this._onDidChangeWatchExpressionValue.fire(e)));
 		this.watchExpressions.push(we);
 		this._onDidChangeWatchExpressions.fire(we);
 
@@ -2020,6 +2037,11 @@ export class DebugModel extends Disposable implements IDebugModel {
 	removeWatchExpressions(id: string | null = null): void {
 		this.watchExpressions = id ? this.watchExpressions.filter(we => we.getId() !== id) : [];
 		this._onDidChangeWatchExpressions.fire(undefined);
+		if (!id) {
+			this.watchExpressionChangeListeners.clearAndDisposeAll();
+			return;
+		}
+		this.watchExpressionChangeListeners.deleteAndDispose(id);
 	}
 
 	moveWatchExpression(id: string, position: number): void {

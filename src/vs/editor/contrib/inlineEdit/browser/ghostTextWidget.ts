@@ -16,7 +16,7 @@ import { InlineDecorationType } from 'vs/editor/common/viewModel';
 import { AdditionalLinesWidget, LineData } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextWidget';
 import { GhostText } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
 import { ColumnRange, applyObservableDecorations } from 'vs/editor/contrib/inlineCompletions/browser/utils';
-import { diffDeleteDecoration } from 'vs/editor/browser/widget/diffEditor/registrations.contribution';
+import { diffDeleteDecoration, diffLineDeleteDecorationBackgroundWithIndicator } from 'vs/editor/browser/widget/diffEditor/registrations.contribution';
 
 export const INLINE_EDIT_DESCRIPTION = 'inline-edit';
 export interface IGhostTextWidgetModel {
@@ -163,17 +163,7 @@ export class GhostTextWidget extends Disposable {
 			if (uiState.isSingleLine) {
 				ranges.push(uiState.range);
 			}
-			else if (uiState.isPureRemove) {
-				const lines = uiState.range.endLineNumber - uiState.range.startLineNumber;
-				for (let i = 0; i < lines; i++) {
-					const line = uiState.range.startLineNumber + i;
-					const firstNonWhitespace = uiState.targetTextModel.getLineFirstNonWhitespaceColumn(line);
-					const lastNonWhitespace = uiState.targetTextModel.getLineLastNonWhitespaceColumn(line);
-					const range = new Range(line, firstNonWhitespace, line, lastNonWhitespace);
-					ranges.push(range);
-				}
-			}
-			else {
+			else if (!uiState.isPureRemove) {
 				const lines = uiState.range.endLineNumber - uiState.range.startLineNumber;
 				for (let i = 0; i < lines; i++) {
 					const line = uiState.range.startLineNumber + i;
@@ -189,6 +179,15 @@ export class GhostTextWidget extends Disposable {
 					options: diffDeleteDecoration
 				});
 			}
+		}
+		if (uiState.range && !uiState.isSingleLine && uiState.isPureRemove) {
+			const r = new Range(uiState.range.startLineNumber, 1, uiState.range.endLineNumber - 1, 1);
+
+			decorations.push({
+				range: r,
+				options: diffLineDeleteDecorationBackgroundWithIndicator
+			});
+
 		}
 
 		for (const p of uiState.inlineTexts) {
