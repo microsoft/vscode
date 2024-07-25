@@ -353,7 +353,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._cursorIndexDelta = 0;
 
 		let leadingLineContent = this._leadingLineContent + this._currentPromptInputState.value.substring(this._leadingLineContent.length, this._leadingLineContent.length + this._cursorIndexDelta);
-		this._isFilteringDirectories = completions.every(e => e.completion.isDirectory);
+		this._isFilteringDirectories = completions.every(e => e.completion.isDirectory || e.completion.isFile);
 		if (this._isFilteringDirectories) {
 			leadingLineContent = leadingLineContent.replaceAll('/', '\\');
 		}
