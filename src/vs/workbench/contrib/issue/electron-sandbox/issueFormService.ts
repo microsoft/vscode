@@ -96,6 +96,7 @@ export class IssueFormService2 implements IIssueFormService {
 
 			// Store into config object URL
 			this.configuration = {
+				zoomLevel: data.zoomLevel,
 				appRoot: this.environmentService.appRoot,
 				windowId: 0,
 				userEnv: {},
