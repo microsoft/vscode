@@ -6,7 +6,7 @@
 import { getErrorMessage } from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
 import { parse } from 'vs/base/common/json';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import * as network from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { CoreEditingCommands } from 'vs/editor/browser/coreCommands';
@@ -67,8 +67,6 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	private readonly _requestedDefaultSettings = new ResourceSet();
 
 	private _settingsGroups: ISettingsGroup[] | undefined = undefined;
-	private _defaultSettings: DefaultSettings | undefined = undefined;
-
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
@@ -441,14 +439,14 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 	private getDefaultSettings(target: ConfigurationTarget): DefaultSettings {
 		if (target === ConfigurationTarget.WORKSPACE) {
-			this._defaultWorkspaceSettingsContentModel ??= this._register(new DefaultSettings(this.getMostCommonlyUsedSettings(), target));
+			this._defaultWorkspaceSettingsContentModel ??= this._register(new DefaultSettings(this.getMostCommonlyUsedSettings(), target, this.configurationService));
 			return this._defaultWorkspaceSettingsContentModel;
 		}
 		if (target === ConfigurationTarget.WORKSPACE_FOLDER) {
-			this._defaultFolderSettingsContentModel ??= this._register(new DefaultSettings(this.getMostCommonlyUsedSettings(), target));
+			this._defaultFolderSettingsContentModel ??= this._register(new DefaultSettings(this.getMostCommonlyUsedSettings(), target, this.configurationService));
 			return this._defaultFolderSettingsContentModel;
 		}
-		this._defaultUserSettingsContentModel ??= this._register(new DefaultSettings(this.getMostCommonlyUsedSettings(), target));
+		this._defaultUserSettingsContentModel ??= this._register(new DefaultSettings(this.getMostCommonlyUsedSettings(), target, this.configurationService));
 		return this._defaultUserSettingsContentModel;
 	}
 
@@ -594,16 +592,15 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return position;
 	}
 
-	private get defaultSettings(): DefaultSettings {
-		if (!this._defaultSettings) {
-			this._defaultSettings = new DefaultSettings([], ConfigurationTarget.USER);
-		}
-		return this._defaultSettings;
-	}
-
 	getSetting(settingId: string): ISetting | undefined {
 		if (!this._settingsGroups) {
-			this._settingsGroups = this.defaultSettings.getSettingsGroups();
+			const defaultSettings = this.getDefaultSettings(ConfigurationTarget.USER);
+			const defaultsChangedDisposable: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
+			defaultsChangedDisposable.value = defaultSettings.onDidChange(() => {
+				this._settingsGroups = undefined;
+				defaultsChangedDisposable.clear();
+			});
+			this._settingsGroups = defaultSettings.getSettingsGroups();
 		}
 
 		for (const group of this._settingsGroups) {
@@ -632,11 +629,10 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 		const openSettingsOptions: IOpenSettingsOptions = {};
 		const settingInfo = uri.path.split('/').filter(part => !!part);
-		if ((settingInfo.length === 0) || !this.getSetting(settingInfo[0])) {
-			return false;
+		if ((settingInfo.length > 0) && this.getSetting(settingInfo[0])) {
+			openSettingsOptions.query = settingInfo[0];
 		}
 
-		openSettingsOptions.query = settingInfo[0];
 		this.openSettings(openSettingsOptions);
 		return true;
 	}
