@@ -56,7 +56,7 @@ export class ChatVariablesService implements IChatVariablesService {
 						};
 						jobs.push(data.resolver(prompt.text, part.variableArg, model, variableProgressCallback, token).then(value => {
 							if (value) {
-								resolvedVariables[i] = { id: data.data.id, modelDescription: data.data.modelDescription, name: part.variableName, range: part.range, value, references };
+								resolvedVariables[i] = { id: data.data.id, modelDescription: data.data.modelDescription, name: part.variableName, range: part.range, value, references, fullName: data.data.fullName, icon: data.data.icon };
 							}
 						}).catch(onUnexpectedExternalError));
 					}
