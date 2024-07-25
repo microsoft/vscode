@@ -32,13 +32,11 @@ import { Selection } from 'vs/editor/common/core/selection';
  * 2. For some reason, when the line is empty, the whole VS Code window is selected by the screen reader instead of the specific line of interest.
  * 3. Test the accessibility with NVDA on the current implementation and the PR implementation and check the behavior is also the same
  *   4.a. In the current implementation, if you select a letter and scroll, the letter or an adjacent letter becomes selected. In my implementation, the whole phrase becomes selected. The behavior should be the same as in the current implementation.
- * 6. Need to implement copy/paste again, but this time it should be implemented in a cleaner way, ideally reusing part of the code that has already been developed.
  * 7. selection problems
  *   7.a. On the current implementation, when selecting words, the new content that is selected is read out
  *   7.b. My implementation reads all of the lines from the beginning of the selection?
  * 8. When scroll is changed horizontally, the black box should sticky to a specific letter and remain there
- * 9. When removing the last character on a line, error is thrown
- * 10. When copying text something is wrong
+ * 10. When pasting text, it is pasted in the wrong location
  */
 
 // extract the model change and selection change event for the screen reader part into a separate function, not the edit context part, not the copy handler, not the enter handler
@@ -171,26 +169,11 @@ export class NativeEditContext extends AbstractEditContext {
 			childElement.textContent = valueForHiddenArea.length > 0 ? valueForHiddenArea : '\n';
 			domNode.replaceChildren(childElement);
 		}
-
-		// Update the active selection in the dom node
-		const activeDocument = dom.getActiveWindow().document;
-		const activeDocumentSelection = activeDocument.getSelection();
-		if (activeDocumentSelection && domNode.firstChild?.firstChild) {
-			const range = new globalThis.Range();
-			const domNodeElement = domNode.firstChild?.firstChild;
-			if (domNodeElement) {
-				range.setStart(domNodeElement, selectionForHiddenArea.start);
-				range.setEnd(domNodeElement, selectionForHiddenArea.endExclusive);
-				activeDocumentSelection.removeAllRanges();
-				activeDocumentSelection.addRange(range);
-				// TODO: Do we need this?
-				domNode.setAttribute('aria-activedescendant', `edit-context-content`);
-				domNode.setAttribute('aria-controls', 'native-edit-context');
-			}
-		}
 	}
 
 	private _editContextRenderingData(selection: Selection): { value: string; offsetRange: OffsetRange; editContextState: EditContextState } {
+		console.log('selection : ', selection);
+		// Need to find the selection after typing has happened
 		const doc = new LineBasedText(lineNumber => this._context.viewModel.getLineContent(lineNumber), this._context.viewModel.getLineCount());
 		const docStart = new Position(1, 1);
 		const textStartForHiddenArea = new Position(selection.startLineNumber, 1);
