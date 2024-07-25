@@ -18,7 +18,7 @@ import { IAccessibleViewImplentation } from 'vs/platform/accessibility/browser/a
 import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
 
 export class ChatAccessibilityHelp implements IAccessibleViewImplentation {
-	readonly priority = 105;
+	readonly priority = 107;
 	readonly name = 'panelChat';
 	readonly type = AccessibleViewType.Help;
 	readonly when = ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Panel), ContextKeyExpr.or(CONTEXT_IN_CHAT_SESSION, CONTEXT_RESPONSE, CONTEXT_REQUEST));
