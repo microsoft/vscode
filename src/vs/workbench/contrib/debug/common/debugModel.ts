@@ -8,9 +8,9 @@ import { findLastIdx } from 'vs/base/common/arraysFind';
 import { DeferredPromise, RunOnceScheduler } from 'vs/base/common/async';
 import { VSBuffer, decodeBase64, encodeBase64 } from 'vs/base/common/buffer';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
+import { Emitter, Event, trackSetChanges } from 'vs/base/common/event';
 import { stringHash } from 'vs/base/common/hash';
-import { Disposable, DisposableMap, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { mixin } from 'vs/base/common/objects';
 import { autorun } from 'vs/base/common/observable';
 import * as resources from 'vs/base/common/resources';
@@ -1416,7 +1416,6 @@ export class DebugModel extends Disposable implements IDebugModel {
 	private exceptionBreakpoints!: ExceptionBreakpoint[];
 	private dataBreakpoints!: DataBreakpoint[];
 	private watchExpressions!: Expression[];
-	private watchExpressionChangeListeners: DisposableMap<string, IDisposable> = this._register(new DisposableMap());
 	private instructionBreakpoints: InstructionBreakpoint[];
 
 	constructor(
@@ -1440,12 +1439,14 @@ export class DebugModel extends Disposable implements IDebugModel {
 			this._onDidChangeWatchExpressions.fire(undefined);
 		}));
 
+		this._register(trackSetChanges(
+			() => new Set(this.watchExpressions),
+			this.onDidChangeWatchExpressions,
+			(we) => we.onDidChangeValue((e) => this._onDidChangeWatchExpressionValue.fire(e)))
+		);
+
 		this.instructionBreakpoints = [];
 		this.sessions = [];
-
-		for (const we of this.watchExpressions) {
-			this.watchExpressionChangeListeners.set(we.getId(), we.onDidChangeValue((e) => this._onDidChangeWatchExpressionValue.fire(e)));
-		}
 	}
 
 	getId(): string {
@@ -2019,7 +2020,6 @@ export class DebugModel extends Disposable implements IDebugModel {
 
 	addWatchExpression(name?: string): IExpression {
 		const we = new Expression(name || '');
-		this.watchExpressionChangeListeners.set(we.getId(), we.onDidChangeValue((e) => this._onDidChangeWatchExpressionValue.fire(e)));
 		this.watchExpressions.push(we);
 		this._onDidChangeWatchExpressions.fire(we);
 
@@ -2037,11 +2037,6 @@ export class DebugModel extends Disposable implements IDebugModel {
 	removeWatchExpressions(id: string | null = null): void {
 		this.watchExpressions = id ? this.watchExpressions.filter(we => we.getId() !== id) : [];
 		this._onDidChangeWatchExpressions.fire(undefined);
-		if (!id) {
-			this.watchExpressionChangeListeners.clearAndDisposeAll();
-			return;
-		}
-		this.watchExpressionChangeListeners.deleteAndDispose(id);
 	}
 
 	moveWatchExpression(id: string, position: number): void {
