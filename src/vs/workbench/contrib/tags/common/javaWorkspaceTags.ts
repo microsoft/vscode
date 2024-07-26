@@ -67,8 +67,11 @@ export const JavaLibrariesToLookFor: { predicate: (groupId: string, artifactId: 
 	{ 'predicate': (groupId, artifactId) => groupId === 'com.azure' && artifactId === 'azure-ai-translation-text', 'tag': 'azure-ai-translation-text' },
 	{ 'predicate': (groupId, artifactId) => groupId === 'com.azure' && artifactId === 'azure-ai-contentsafety', 'tag': 'azure-ai-contentsafety' },
 	{ 'predicate': (groupId, artifactId) => groupId === 'com.azure' && artifactId === 'azure-ai-vision-imageanalysis', 'tag': 'azure-ai-vision-imageanalysis' },
-	{ 'predicate': (groupId, artifactId) => groupId === 'com.azure' && artifactId === 'azure-ai-formrecognizer', 'tag': 'azure-ai-formrecognizer' },
 	{ 'predicate': (groupId, artifactId) => groupId === 'com.azure' && artifactId === 'azure-ai-textanalytics', 'tag': 'azure-ai-textanalytics' },
+	{ 'predicate': (groupId, artifactId) => groupId === 'com.azure' && artifactId === 'azure-search-documents', 'tag': 'azure-search-documents' },
+	{ 'predicate': (groupId, artifactId) => groupId === 'com.azure' && artifactId === 'azure-ai-documenttranslator', 'tag': 'azure-ai-documenttranslator' },
+	{ 'predicate': (groupId, artifactId) => groupId === 'com.azure' && artifactId === 'azure-ai-vision-face', 'tag': 'azure-ai-vision-face' },
+	{ 'predicate': (groupId, artifactId) => groupId === 'com.azure' && artifactId === 'azure-ai-openai-assistants', 'tag': 'azure-ai-openai-assistants' },
 	{ 'predicate': (groupId, artifactId) => groupId === 'com.microsoft.azure.cognitiveservices', 'tag': 'azure-cognitiveservices' },
 	{ 'predicate': (groupId, artifactId) => groupId === 'com.microsoft.cognitiveservices.speech', 'tag': 'azure-cognitiveservices-speech' },
 	// open ai
