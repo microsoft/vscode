@@ -116,6 +116,26 @@
         "title": "%cmd.references-view.copyPath%"
       },
       {
+        "command": "references-view.copyCallName",
+        "title": "%cmd.references-view.copyCallName%"
+      },
+      {
+        "command": "references-view.copyCallHierarchy",
+        "title": "%cmd.references-view.copyCallHierarchy%"
+      },
+      {
+        "command": "references-view.copyCallHierarchyShort",
+        "title": "%cmd.references-view.copyCallHierarchyShort%"
+      },
+      {
+        "command": "references-view.copyCallHierarchyReversed",
+        "title": "%cmd.references-view.copyCallHierarchyReversed%"
+      },
+      {
+        "command": "references-view.copyCallHierarchyReversedShort",
+        "title": "%cmd.references-view.copyCallHierarchyReversedShort%"
+      },
+      {
         "command": "references-view.refind",
         "title": "%cmd.references-view.refind%",
         "icon": "$(refresh)"
@@ -292,6 +312,31 @@
           "when": "view == references-view.tree && viewItem == file-item || view == references-view.tree && viewItem == reference-item"
         },
         {
+          "command": "references-view.copyCallName",
+          "group": "1",
+          "when": "view == references-view.tree && viewItem == call-item"
+        },
+        {
+          "command": "references-view.copyCallHierarchy",
+          "group": "1",
+          "when": "view == references-view.tree && viewItem == call-item"
+        },
+        {
+          "command": "references-view.copyCallHierarchyShort",
+          "group": "1",
+          "when": "view == references-view.tree && viewItem == call-item"
+        },
+        {
+          "command": "references-view.copyCallHierarchyReversed",
+          "group": "1",
+          "when": "view == references-view.tree && viewItem == call-item"
+        },
+        {
+          "command": "references-view.copyCallHierarchyReversedShort",
+          "group": "1",
+          "when": "view == references-view.tree && viewItem == call-item"
+        },
+        {
           "command": "references-view.showOutgoingCalls",
           "group": "1",
           "when": "view == references-view.tree && viewItem == call-item"
@@ -335,6 +380,26 @@
         },
         {
           "command": "references-view.copyPath",
+          "when": "never"
+        },
+        {
+          "command": "references-view.copyCallName",
+          "when": "never"
+        },
+        {
+          "command": "references-view.copyCallHierarchy",
+          "when": "never"
+        },
+        {
+          "command": "references-view.copyCallHierarchyShort",
+          "when": "never"
+        },
+        {
+          "command": "references-view.copyCallHierarchyReversed",
+          "when": "never"
+        },
+        {
+          "command": "references-view.copyCallHierarchyReversedShort",
           "when": "never"
         },
         {
