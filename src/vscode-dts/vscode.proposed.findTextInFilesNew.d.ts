@@ -102,10 +102,10 @@ declare module 'vscode' {
 		 */
 		previewOptions?: {
 			/**
-			 * The maximum number of lines in the preview.
+			 * The maximum number of lines in the preview of the match itself (not including surrounding context lines).
 			 * Only search providers that support multiline search will ever return more than one line in the match.
 			 */
-			matchLines?: number;
+			numMatchLines?: number;
 
 			/**
 			 * The maximum number of characters included per line.

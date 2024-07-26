@@ -1021,7 +1021,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 						followSymlinks: options.followSymlinks,
 						encoding: options.encoding,
 						previewOptions: options.previewOptions ? {
-							matchLines: options.previewOptions?.matchLines ?? 100,
+							matchLines: options.previewOptions?.numMatchLines ?? 100,
 							charsPerLine: options.previewOptions?.charsPerLine ?? 10000,
 						} : undefined,
 						beforeContext: options.surroundingContext,
