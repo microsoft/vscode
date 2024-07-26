@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { coalesce } from 'vs/base/common/arrays';
-import { Emitter } from 'vs/base/common/event';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { basename } from 'vs/base/common/resources';
@@ -38,9 +37,6 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 	get id() {
 		return ChatDynamicVariableModel.ID;
 	}
-
-	private _onDidChangeInputState = this._register(new Emitter<void>());
-	readonly onDidChangeInputState = this._onDidChangeInputState.event;
 
 	constructor(
 		private readonly widget: IChatWidget,
@@ -81,10 +77,6 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 
 					return ref;
 				}));
-
-				if (didModifyState) {
-					this._onDidChangeInputState.fire();
-				}
 			});
 
 			this.updateDecorations();
@@ -107,7 +99,6 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 	addReference(ref: IDynamicVariable): void {
 		this._variables.push(ref);
 		this.updateDecorations();
-		this._onDidChangeInputState.fire();
 	}
 
 	private updateDecorations(): void {
