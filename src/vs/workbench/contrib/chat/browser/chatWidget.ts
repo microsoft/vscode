@@ -260,8 +260,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 						inner.setSelection({
 							startLineNumber: input.options.selection.startLineNumber,
 							startColumn: input.options.selection.startColumn,
-							endLineNumber: input.options.selection.startLineNumber ?? input.options.selection.endLineNumber,
-							endColumn: input.options.selection.startColumn ?? input.options.selection.endColumn
+							endLineNumber: input.options.selection.endLineNumber ?? input.options.selection.startLineNumber,
+							endColumn: input.options.selection.endColumn ?? input.options.selection.startColumn
 						});
 					}
 					return inner;
@@ -412,7 +412,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 							// be re-rendered so progressive rendering is restarted, even if the model wasn't updated.
 							`${isResponseVM(element) && element.renderData ? `_${this.visibleChangeCount}` : ''}` +
 							// Re-render once content references are loaded
-							(isResponseVM(element) ? `_${element.contentReferences.length}` : '');
+							(isResponseVM(element) ? `_${element.contentReferences.length}` : '') +
+							// Rerender request if we got new content references in the response
+							// since this may change how we render the corresponding attachments in the request
+							(isRequestVM(element) && element.contentReferences ? `_${element.contentReferences?.length}` : '');
 					},
 				}
 			});
@@ -783,10 +786,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			});
 
 			if (result) {
-				this.inputPart.clearContext();
 				this.inputPart.acceptInput(isUserQuery);
 				this._onDidSubmitAgent.fire({ agent: result.agent, slashCommand: result.slashCommand });
 				this.inputPart.updateState(this.collectInputState());
+				this.inputPart.clearContext();
 				result.responseCompletePromise.then(() => {
 					const responses = this.viewModel?.getItems().filter(isResponseVM);
 					const lastResponse = responses?.[responses.length - 1];

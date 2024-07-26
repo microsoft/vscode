@@ -3,18 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { ThemeIcon } from 'vs/base/common/themables';
+import { URI } from 'vs/base/common/uri';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 export interface IToolData {
 	name: string;
+	icon?: { dark: URI; light?: URI } | ThemeIcon;
 	displayName?: string;
 	description: string;
-	parametersSchema?: Object;
+	parametersSchema?: IJSONSchema;
+	canBeInvokedManually?: boolean;
 }
 
 interface IToolEntry {

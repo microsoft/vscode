@@ -158,6 +158,9 @@ class ChatAgentResponseStream {
 					return this;
 				},
 				reference(value, iconPath) {
+					return this.reference2(value, iconPath);
+				},
+				reference2(value, iconPath, options) {
 					throwIfDone(this.reference);
 
 					if ('variableName' in value) {
@@ -176,7 +179,7 @@ class ChatAgentResponseStream {
 								} satisfies IChatContentReference));
 							} else {
 								// Participant sent a variableName reference but the variable produced no references. Show variable reference with no value
-								const part = new extHostTypes.ChatResponseReferencePart(value, iconPath);
+								const part = new extHostTypes.ChatResponseReferencePart(value, iconPath, options);
 								const dto = typeConvert.ChatResponseReferencePart.from(part);
 								references = [dto];
 							}
@@ -187,7 +190,7 @@ class ChatAgentResponseStream {
 							// Something went wrong- that variable doesn't actually exist
 						}
 					} else {
-						const part = new extHostTypes.ChatResponseReferencePart(value, iconPath);
+						const part = new extHostTypes.ChatResponseReferencePart(value, iconPath, options);
 						const dto = typeConvert.ChatResponseReferencePart.from(part);
 						_report(dto);
 					}
@@ -245,7 +248,7 @@ class ChatAgentResponseStream {
 
 					if (part instanceof extHostTypes.ChatResponseReferencePart) {
 						// Ensure variable reference values get fixed up
-						this.reference(part.value, part.iconPath);
+						this.reference2(part.value, part.iconPath, part.options);
 					} else {
 						const dto = typeConvert.ChatResponsePart.from(part, that._commandsConverter, that._sessionDisposables);
 						_report(dto);
@@ -392,7 +395,10 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 				{ ...ehResult, metadata: undefined };
 
 			// REQUEST turn
-			res.push(new extHostTypes.ChatRequestTurn(h.request.message, h.request.command, h.request.variables.variables.map(typeConvert.ChatAgentValueReference.to), h.request.agentId));
+			const varsWithoutTools = h.request.variables.variables
+				.filter(v => !v.isTool)
+				.map(typeConvert.ChatAgentValueReference.to);
+			res.push(new extHostTypes.ChatRequestTurn(h.request.message, h.request.command, varsWithoutTools, h.request.agentId));
 
 			// RESPONSE turn
 			const parts = coalesce(h.response.map(r => typeConvert.ChatResponsePart.toContent(r, this._commands.converter)));

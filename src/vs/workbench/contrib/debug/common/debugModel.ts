@@ -1442,6 +1442,10 @@ export class DebugModel extends Disposable implements IDebugModel {
 
 		this.instructionBreakpoints = [];
 		this.sessions = [];
+
+		for (const we of this.watchExpressions) {
+			this.watchExpressionChangeListeners.set(we.getId(), we.onDidChangeValue((e) => this._onDidChangeWatchExpressionValue.fire(e)));
+		}
 	}
 
 	getId(): string {

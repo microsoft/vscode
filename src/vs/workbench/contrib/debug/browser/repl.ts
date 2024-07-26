@@ -745,7 +745,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		if (!this.configurationService.getValue(AccessibilityVerbositySettingId.Debug)) {
 			return ariaLabel;
 		}
-		const keybinding = this.keybindingService.lookupKeybinding(AccessibilityCommandId.OpenAccessibleView)?.getAriaLabel();
+		const keybinding = this.keybindingService.lookupKeybinding(AccessibilityCommandId.OpenAccessibilityHelp)?.getAriaLabel();
 		if (keybinding) {
 			ariaLabel = localize('commentLabelWithKeybinding', "{0}, use ({1}) for accessibility help", ariaLabel, keybinding);
 		} else {

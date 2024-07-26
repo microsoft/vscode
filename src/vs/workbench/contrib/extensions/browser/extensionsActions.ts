@@ -916,7 +916,7 @@ export class UpdateAction extends ExtensionAction {
 			const { result } = await this.dialogService.prompt<'update' | 'review' | 'cancel'>({
 				type: 'warning',
 				title: localize('updateExtensionConsentTitle', "Update {0} Extension", this.extension.displayName),
-				message: localize('updateExtensionConsent', "{0}\n\nWould you like to proceed with the update?", consent),
+				message: localize('updateExtensionConsent', "{0}\n\nWould you like to update the extension?", consent),
 				buttons: [{
 					label: localize('update', "Update"),
 					run: () => 'update'

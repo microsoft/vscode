@@ -40,6 +40,12 @@
 	display: flex;
 	align-items: center;
 	gap: 8px;
+
+	/*
+	Rendering the avatar icon as round makes it a little larger than the .user container.
+	Add padding so that the focus outline doesn't run into it, and counteract it with a negative margin so it doesn't actually take up any extra space */
+	padding: 2px;
+	margin: -2px;
 }
 
 .interactive-item-container .header .username {
@@ -480,6 +486,17 @@
 
 .chat-used-context-list .monaco-icon-label-container {
 	color: var(--vscode-interactive-session-foreground);
+}
+
+.chat-attached-context .chat-attached-context-attachment .monaco-icon-name-container.warning,
+.chat-attached-context .chat-attached-context-attachment .monaco-icon-suffix-container.warning,
+.chat-used-context-list .monaco-icon-name-container.warning,
+.chat-used-context-list .monaco-icon-suffix-container.warning {
+	color: var(--vscode-notificationsWarningIcon-foreground);
+}
+
+.chat-attached-context .chat-attached-context-attachment.show-file-icons.warning {
+	border-color: var(--vscode-notificationsWarningIcon-foreground);
 }
 
 .chat-notification-widget .chat-warning-codicon .codicon-warning {

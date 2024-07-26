@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
 import { asArray, firstOrDefault } from 'vs/base/common/arrays';
 import { DeferredPromise } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -17,11 +16,12 @@ import { URI, UriComponents, UriDto, isUriComponents } from 'vs/base/common/uri'
 import { generateUuid } from 'vs/base/common/uuid';
 import { IOffsetRange, OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { TextEdit } from 'vs/editor/common/languages';
+import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService, reviveSerializedAgent } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatRequestTextPart, IParsedChatRequest, getPromptText, reviveParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatAgentMarkdownContentWithVulnerability, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatProgressMessage, IChatResponseProgressFileTreeData, IChatTask, IChatTextEdit, IChatTreeData, IChatUsedContext, IChatWarningMessage, ChatAgentVoteDirection, isIUsedContext, IChatProgress, IChatCodeCitation } from 'vs/workbench/contrib/chat/common/chatService';
+import { ChatAgentVoteDirection, IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatProgress, IChatProgressMessage, IChatResponseProgressFileTreeData, IChatTask, IChatTextEdit, IChatTreeData, IChatUsedContext, IChatWarningMessage, isIUsedContext } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
 
 export interface IChatRequestVariableEntry {
@@ -33,8 +33,11 @@ export interface IChatRequestVariableEntry {
 	range?: IOffsetRange;
 	value: IChatRequestVariableValue;
 	references?: IChatContentReference[];
+
+	// TODO are these just a 'kind'?
 	isDynamic?: boolean;
 	isFile?: boolean;
+	isTool?: boolean;
 }
 
 export interface IChatRequestVariableData {
@@ -173,6 +176,7 @@ export class Response implements IResponse {
 	 */
 	private _markdownContent = '';
 
+	private _citations: IChatCodeCitation[] = [];
 
 	get value(): IChatProgressResponseContent[] {
 		return this._responseParts;
@@ -257,6 +261,11 @@ export class Response implements IResponse {
 		}
 	}
 
+	public addCitation(citation: IChatCodeCitation) {
+		this._citations.push(citation);
+		this._updateRepr();
+	}
+
 	private _updateRepr(quiet?: boolean) {
 		this._responseRepr = this._responseParts.map(part => {
 			if (part.kind === 'treeData') {
@@ -277,6 +286,8 @@ export class Response implements IResponse {
 		})
 			.filter(s => s.length > 0)
 			.join('\n\n');
+
+		this._responseRepr += this._citations.length ? '\n\n' + getCodeCitationsMessage(this._citations) : '';
 
 		this._markdownContent = this._responseParts.map(part => {
 			if (part.kind === 'inlineReference') {
@@ -425,6 +436,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 
 	applyCodeCitation(progress: IChatCodeCitation) {
 		this._codeCitations.push(progress);
+		this._response.addCitation(progress);
 		this._onDidChange.fire();
 	}
 
@@ -1136,4 +1148,16 @@ export function appendMarkdownString(md1: IMarkdownString, md2: IMarkdownString 
 		supportHtml: md1.supportHtml,
 		baseUri: md1.baseUri
 	};
+}
+
+export function getCodeCitationsMessage(citations: ReadonlyArray<IChatCodeCitation>): string {
+	if (citations.length === 0) {
+		return '';
+	}
+
+	const licenseTypes = citations.reduce((set, c) => set.add(c.license), new Set<string>());
+	const label = licenseTypes.size === 1 ?
+		localize('codeCitation', "Similar code found with 1 license type", licenseTypes.size) :
+		localize('codeCitations', "Similar code found with {0} license types", licenseTypes.size);
+	return label;
 }

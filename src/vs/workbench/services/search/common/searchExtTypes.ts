@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { asArray } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { URI } from 'vs/base/common/uri';
 import { IProgress } from 'vs/platform/progress/common/progress';
@@ -397,22 +398,104 @@ export interface TextSearchCompleteMessageNew {
 	type: TextSearchCompleteMessageType;
 }
 
+
+/**
+ * A FileSearchProvider provides search results for files in the given folder that match a query string. It can be invoked by quickaccess or other extensions.
+ *
+ * A FileSearchProvider is the more powerful of two ways to implement file search in VS Code. Use a FileSearchProvider if you wish to search within a folder for
+ * all files that match the user's query.
+ *
+ * The FileSearchProvider will be invoked on every keypress in quickaccess. When `workspace.findFiles` is called, it will be invoked with an empty query string,
+ * and in that case, every file in the folder should be returned.
+ */
+export interface FileSearchProviderNew {
+	/**
+	 * Provide the set of files that match a certain file path pattern.
+	 * @param query The parameters for this query.
+	 * @param options A set of options to consider while searching files.
+	 * @param progress A progress callback that must be invoked for all results.
+	 * @param token A cancellation token.
+	 */
+	provideFileSearchResults(pattern: string, options: FileSearchProviderOptions, token: CancellationToken): ProviderResult<URI[]>;
+}
+
+/**
+ * A TextSearchProvider provides search results for text results inside files in the workspace.
+ */
+export interface TextSearchProviderNew {
+	/**
+	 * Provide results that match the given text pattern.
+	 * @param query The parameters for this query.
+	 * @param options A set of options to consider while searching.
+	 * @param progress A progress callback that must be invoked for all results.
+	 * @param token A cancellation token.
+	 */
+	provideTextSearchResults(query: TextSearchQueryNew, options: TextSearchProviderOptions, progress: IProgress<TextSearchResultNew>, token: CancellationToken): ProviderResult<TextSearchCompleteNew>;
+}
+
+/**
+ * Information collected when text search is complete.
+ */
+export interface TextSearchCompleteNew {
+	/**
+	 * Whether the search hit the limit on the maximum number of search results.
+	 * `maxResults` on {@linkcode TextSearchOptions} specifies the max number of results.
+	 * - If exactly that number of matches exist, this should be false.
+	 * - If `maxResults` matches are returned and more exist, this should be true.
+	 * - If search hits an internal limit which is less than `maxResults`, this should be true.
+	 */
+	limitHit?: boolean;
+
+	/**
+	 * Additional information regarding the state of the completed search.
+	 *
+	 * Messages with "Information" style support links in markdown syntax:
+	 * - Click to [run a command](command:workbench.action.OpenQuickPick)
+	 * - Click to [open a website](https://aka.ms)
+	 *
+	 * Commands may optionally return { triggerSearch: true } to signal to the editor that the original search should run be again.
+	 */
+	message?: TextSearchCompleteMessageNew[];
+}
+
+/**
+ * A message regarding a completed search.
+ */
+export interface TextSearchCompleteMessageNew {
+	/**
+	 * Markdown text of the message.
+	 */
+	text: string;
+	/**
+	 * Whether the source of the message is trusted, command links are disabled for untrusted message sources.
+	 * Messaged are untrusted by default.
+	 */
+	trusted?: boolean;
+	/**
+	 * The message type, this affects how the message will be rendered.
+	 */
+	type: TextSearchCompleteMessageType;
+}
+
+/**
+ * Options for following search.exclude and files.exclude settings.
+ */
 export enum ExcludeSettingOptions {
 	/*
 	 * Don't use any exclude settings.
 	 */
-	none = 1,
+	None = 1,
 	/*
 	 * Use:
 	 * - files.exclude setting
 	 */
-	filesExclude = 2,
+	FilesExclude = 2,
 	/*
 	 * Use:
 	 * - files.exclude setting
 	 * - search.exclude setting
 	 */
-	searchAndFilesExclude = 3
+	SearchAndFilesExclude = 3
 }
 
 export enum TextSearchCompleteMessageType {
