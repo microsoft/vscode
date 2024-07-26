@@ -29,7 +29,7 @@ declare module 'vscode' {
 		useExcludeSettings?: ExcludeSettingOptions;
 
 		/**
-		 * The maximum number of results to search for
+		 * The maximum number of results to search for. Defaults to 20000 results.
 		 */
 		maxResults?: number;
 
