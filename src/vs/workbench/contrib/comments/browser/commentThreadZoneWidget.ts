@@ -319,8 +319,11 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this._commentThread.collapsibleState = languages.CommentThreadCollapsibleState.Collapsed;
 	}
 
-	public expand() {
+	public expand(setActive?: boolean) {
 		this._commentThread.collapsibleState = languages.CommentThreadCollapsibleState.Expanded;
+		if (setActive) {
+			this.commentService.setActiveCommentAndThread(this.uniqueOwner, { thread: this._commentThread });
+		}
 	}
 
 	public getGlyphPosition(): number {

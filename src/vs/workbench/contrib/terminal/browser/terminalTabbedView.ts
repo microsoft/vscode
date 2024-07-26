@@ -332,7 +332,11 @@ export class TerminalTabbedView extends Disposable {
 		}));
 		this._register(dom.addDisposableListener(terminalContainer, 'mousedown', async (event: MouseEvent) => {
 			const terminal = this._terminalGroupService.activeInstance;
-			if (this._terminalGroupService.instances.length === 0 || !terminal) {
+			if (
+				this._terminalGroupService.instances.length === 0 ||
+				!terminal ||
+				dom.isHTMLElement(event.target) && event.target.classList.contains('scrollbar')
+			) {
 				this._cancelContextMenu = true;
 				return;
 			}
