@@ -7,8 +7,19 @@ declare module 'vscode' {
 
 	export interface FindFiles2OptionsNew {
 		/**
-		 * A {@link GlobPattern glob pattern} that defines files and folders to exclude. The glob pattern
-		 * will be matched against the file paths of resulting matches relative to their workspace.
+		 * An array of {@link GlobPattern glob pattern} that defines files to exclude.
+		 * The glob patterns will be matched against the file paths of files relative to their workspace or {@link RelativePattern.baseUri} if applicable.
+		 *
+		 * If more than one value is used, the values are combined with a logical AND.
+		 * For example, consider the following code:
+		 *
+		 * ```ts
+		 * const ab = findFiles(['**​/*.js'], {exclude: ['*.ts', '*.js']});
+		 * const a = findFiles(['**​/*.js'], {exclude: ['*.ts']});
+		 * const b = findFiles(['**​/*.js'], {exclude: ['*.js']});
+		 * ```
+		 *
+		 * In this, `ab` will be the intersection of results from `a` and `b`.
 		 */
 		exclude?: GlobPattern[];
 
@@ -67,9 +78,21 @@ declare module 'vscode' {
 		 * @example
 		 * findFiles(['**​/*.js'], {exclude: ['**​/out/**'], useIgnoreFiles: true, maxResults: 10})
 		 *
-		 * @param filePattern A {@link GlobPattern glob pattern} that defines the files to search for. The glob pattern
-		 * will be matched against the file paths of resulting matches relative to their workspace. Use a {@link RelativePattern relative pattern}
-		 * to restrict the search results to a {@link WorkspaceFolder workspace folder}.
+		 * @param filePattern An array of {@link GlobPattern glob pattern} that defines the files to search for.
+		 * The glob patterns will be matched against the file paths of files relative to their workspace or {@link baseUri GlobPattern.baseUri} if applicable.
+		 * Use a {@link RelativePattern relative pattern} to restrict the search results to a {@link WorkspaceFolder workspace folder}.
+		 *
+		 * If more than one value is used, the values are combined with a logical OR.
+		 *
+		 * For example, consider the following code:
+		 *
+		 * ```ts
+		 * const ab = findFiles(['*.ts', '*.js']);
+		 * const a = findFiles(['**​/*.ts']);
+		 * const b = findFiles(['**​/*.js']);
+		 * ```
+		 *
+		 * In this, `ab` will be the union of results from `a` and `b`.
 		 * @param options A set of {@link FindFiles2Options FindFiles2Options} that defines where and how to search (e.g. exclude settings).
 		 * @param token A token that can be used to signal cancellation to the underlying search engine.
 		 * @returns A thenable that resolves to an array of resource identifiers. Will return no results if no

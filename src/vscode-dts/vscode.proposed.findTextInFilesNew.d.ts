@@ -9,15 +9,38 @@ declare module 'vscode' {
 
 	export interface FindTextInFilesOptionsNew {
 		/**
-		 * A {@link GlobPattern glob pattern} that defines the files to search for. The glob pattern
-		 * will be matched against the file paths of files relative to their workspace. Use a {@link RelativePattern relative pattern}
-		 * to restrict the search results to a {@link WorkspaceFolder workspace folder}.
+		 * An array of {@link GlobPattern glob pattern} that defines the files to search for.
+		 * The glob patterns will be matched against the file paths of files relative to their workspace or {@link baseUri GlobPattern.baseUri} if applicable.
+		 * Use a {@link RelativePattern relative pattern} to restrict the search results to a {@link WorkspaceFolder workspace folder}.
+		 *
+		 * If more than one value is used, the values are combined with a logical OR.
+		 *
+		 * For example, consider the following code:
+		 *
+		 * ```ts
+		 * const ab = findTextInFilesNew('foo', {include: ['*.ts', '*.js']});
+		 * const a = findTextInFilesNew('foo', {include: ['*.ts']});
+		 * const b = findTextInFilesNew('foo', {include: ['*.js']});
+		 * ```
+		 *
+		 * In this, `ab` will be the union of results from `a` and `b`.
 		 */
 		include?: GlobPattern[];
 
 		/**
-		 * A {@link GlobPattern glob pattern} that defines files and folders to exclude. The glob pattern
-		 * will be matched against the file paths of resulting matches relative to their workspace.
+		 * An array of {@link GlobPattern glob pattern} that defines files to exclude.
+		 * The glob patterns will be matched against the file paths of files relative to their workspace or {@link RelativePattern.baseUri} if applicable.
+		 *
+		 * If more than one value is used, the values are combined with a logical AND.
+		 * For example, consider the following code:
+		 *
+		 * ```ts
+		 * const ab = findTextInFilesNew('foo', {exclude: ['*.ts', '*.js']});
+		 * const a = findTextInFilesNew('foo', {exclude: ['*.ts']});
+		 * const b = findTextInFilesNew('foo', {exclude: ['*.js']});
+		 * ```
+		 *
+		 * In this, `ab` will be the intersection of results from `a` and `b`.
 		 */
 		exclude?: GlobPattern[];
 
