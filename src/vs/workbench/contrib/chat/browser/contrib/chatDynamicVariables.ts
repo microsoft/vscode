@@ -46,7 +46,6 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 		this._register(widget.inputEditor.onDidChangeModelContent(e => {
 			e.changes.forEach(c => {
 				// Don't mutate entries in _variables, since they will be returned from the getter
-				let didModifyState = false;
 				this._variables = coalesce(this._variables.map(ref => {
 					const intersection = Range.intersectRanges(ref.range, c.range);
 					if (intersection && !intersection.isEmpty()) {
@@ -59,11 +58,9 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 								text: '',
 							}]);
 						}
-						didModifyState = true;
 						return null;
 					} else if (Range.compareRangesUsingStarts(ref.range, c.range) > 0) {
 						const delta = c.text.length - c.rangeLength;
-						didModifyState = true;
 						return {
 							...ref,
 							range: {
