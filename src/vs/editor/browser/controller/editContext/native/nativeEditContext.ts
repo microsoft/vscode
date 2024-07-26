@@ -47,6 +47,8 @@ import { Selection } from 'vs/editor/common/core/selection';
  * - When the active descendant is removed, need to find how to keep the box around the line
  *
  * - When not using the active descendant, not reading anymore the edit text prompt at the end. So shoud not use it? Should find a way to not use it.
+ *   - Currently when not using it, the black box sometimes completely disappears from the editor even though element is focused? then when doing multi-selection, no changes are read?
+ *   - Then need to press Left and right arrow, presumably enter into inner textbox and then can do multi-line selection and keep black box in the right place
  * - When active descendant is set, there is an issue when moving from a selection to an empty selection state where black box is not correctly positioned
  */
 
@@ -150,6 +152,14 @@ export class NativeEditContext extends AbstractEditContext {
 		// Need to handle copy/paste event, could use the handle text update method for that
 		this._register(editContextAddDisposableListener(this._ctx, 'textupdate', e => this._handleTextUpdate(e.updateRangeStart, e.updateRangeEnd, e.text)));
 		this._register(editContextAddDisposableListener(this._ctx, 'textformatupdate', e => this._handleTextFormatUpdate(e)));
+
+		// --- developer code
+		domNode.addEventListener('focus', () => {
+			domNode.style.background = 'yellow';
+		});
+		domNode.addEventListener('blur', () => {
+			domNode.style.background = 'white';
+		});
 	}
 
 	private _decorations: string[] = [];
@@ -202,7 +212,6 @@ export class NativeEditContext extends AbstractEditContext {
 
 		// TODO: maybe removed
 		// need to set an unset on specific occasions
-		/*
 		if (selection.isEmpty()) {
 			domNode.setAttribute('aria-activedescendant', `edit-context-content`);
 			domNode.setAttribute('aria-controls', 'native-edit-context');
@@ -210,7 +219,6 @@ export class NativeEditContext extends AbstractEditContext {
 			domNode.removeAttribute('aria-activedescendant');
 			domNode.removeAttribute('aria-controls');
 		}
-		*/
 
 		try {
 			// remove node if it needs to be removed then reset the value of nodeToRemove
