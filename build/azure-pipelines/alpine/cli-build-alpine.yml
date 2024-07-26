@@ -16,7 +16,7 @@ steps:
     inputs:
       versionSource: fromFile
       versionFilePath: .nvmrc
-      #nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
+      nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     # Install yarn as the ARM64 build agent is using vanilla Ubuntu

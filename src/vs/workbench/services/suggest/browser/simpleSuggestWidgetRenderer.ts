@@ -49,6 +49,9 @@ export class SimpleSuggestWidgetItemRenderer implements IListRenderer<SimpleComp
 
 	readonly templateId = 'suggestion';
 
+	constructor(private readonly _getFontInfo: () => { fontFamily: string; fontSize: number; lineHeight: number; fontWeight: string; letterSpacing: number }) {
+	}
+
 	dispose(): void {
 		this._onDidToggleDetails.dispose();
 	}
@@ -80,15 +83,8 @@ export class SimpleSuggestWidgetItemRenderer implements IListRenderer<SimpleComp
 		// readMore.title = nls.localize('readMore', "Read More");
 
 		const configureFont = () => {
-			// TODO: Implement
-			// const options = this._editor.getOptions();
-			// const fontInfo = options.get(EditorOption.fontInfo);
-			const fontFamily = 'Hack'; //fontInfo.getMassagedFontFamily();
-			const fontFeatureSettings = ''; //fontInfo.fontFeatureSettings;
-			const fontSize = '12'; // = options.get(EditorOption.suggestFontSize) || fontInfo.fontSize;
-			const lineHeight = '20'; // options.get(EditorOption.suggestLineHeight) || fontInfo.lineHeight;
-			const fontWeight = 'normal'; //fontInfo.fontWeight;
-			const letterSpacing = '0'; // fontInfo.letterSpacing;
+			const fontFeatureSettings = '';
+			const { fontFamily, fontSize, lineHeight, fontWeight, letterSpacing } = this._getFontInfo();
 			const fontSizePx = `${fontSize}px`;
 			const lineHeightPx = `${lineHeight}px`;
 			const letterSpacingPx = `${letterSpacing}px`;

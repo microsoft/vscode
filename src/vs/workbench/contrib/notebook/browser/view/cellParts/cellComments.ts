@@ -110,10 +110,6 @@ export class CellComments extends CellContentPart {
 				this.currentElement.commentHeight = 0;
 				return;
 			}
-			if (this._commentThreadWidget.value.commentThread === info.thread) {
-				this.currentElement.commentHeight = this._calculateCommentThreadHeight(this._commentThreadWidget.value.getDimensions().height);
-				return;
-			}
 
 			await this._commentThreadWidget.value.updateCommentThread(info.thread);
 			this.currentElement.commentHeight = this._calculateCommentThreadHeight(this._commentThreadWidget.value.getDimensions().height);
@@ -136,8 +132,11 @@ export class CellComments extends CellContentPart {
 	private async _getCommentThreadForCell(element: ICellViewModel): Promise<{ thread: languages.CommentThread<ICellRange>; owner: string } | null> {
 		if (this.notebookEditor.hasModel()) {
 			const commentInfos = coalesce(await this.commentService.getNotebookComments(element.uri));
-			if (commentInfos.length && commentInfos[0].threads.length) {
-				return { owner: commentInfos[0].uniqueOwner, thread: commentInfos[0].threads[0] };
+			for (const commentInfo of commentInfos) {
+				for (const thread of commentInfo.threads) {
+					// For now, only one thread per cell is supported.
+					return { owner: commentInfo.uniqueOwner, thread };
+				}
 			}
 		}
 

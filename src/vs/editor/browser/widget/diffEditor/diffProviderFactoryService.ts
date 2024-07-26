@@ -152,7 +152,7 @@ export class WorkerBasedDocumentDiffProvider implements IDocumentDiffProvider, I
 
 		// max 10 items in cache
 		if (WorkerBasedDocumentDiffProvider.diffCache.size > 10) {
-			WorkerBasedDocumentDiffProvider.diffCache.delete(WorkerBasedDocumentDiffProvider.diffCache.keys().next().value);
+			WorkerBasedDocumentDiffProvider.diffCache.delete(WorkerBasedDocumentDiffProvider.diffCache.keys().next().value!);
 		}
 
 		WorkerBasedDocumentDiffProvider.diffCache.set(uriKey, { result, context });

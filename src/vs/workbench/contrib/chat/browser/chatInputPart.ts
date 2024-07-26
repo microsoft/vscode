@@ -89,13 +89,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private _onDidBlur = this._register(new Emitter<void>());
 	readonly onDidBlur = this._onDidBlur.event;
 
-	private _onDidDeleteContext = this._register(new Emitter<IChatRequestVariableEntry>());
-	readonly onDidDeleteContext = this._onDidDeleteContext.event;
+	private _onDidChangeContext = this._register(new Emitter<{ removed?: IChatRequestVariableEntry[]; added?: IChatRequestVariableEntry[] }>());
+	readonly onDidChangeContext = this._onDidChangeContext.event;
 
 	private _onDidAcceptFollowup = this._register(new Emitter<{ followup: IChatFollowup; response: IChatResponseViewModel | undefined }>());
 	readonly onDidAcceptFollowup = this._onDidAcceptFollowup.event;
 
-	public get attachedContext() {
+	public get attachedContext(): ReadonlySet<IChatRequestVariableEntry> {
 		return this._attachedContext;
 	}
 
@@ -339,12 +339,34 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._inputEditor.focus();
 	}
 
-	attachContext(...contentReferences: IChatRequestVariableEntry[]): void {
-		for (const reference of contentReferences) {
-			this.attachedContext.add(reference);
+	clearContext(): void {
+		if (this._attachedContext.size > 0) {
+			const removed = Array.from(this._attachedContext);
+			this._attachedContext.clear();
+			this._onDidChangeContext.fire({ removed });
+		}
+	}
+
+	attachContext(overwrite: boolean, ...contentReferences: IChatRequestVariableEntry[]): void {
+		const removed = [];
+		if (overwrite) {
+			removed.push(...Array.from(this._attachedContext));
+			this._attachedContext.clear();
 		}
 
-		this.initAttachedContext(this.attachedContextContainer);
+		if (contentReferences.length > 0) {
+			for (const reference of contentReferences) {
+				this._attachedContext.add(reference);
+			}
+		}
+
+		if (removed.length > 0 || contentReferences.length > 0) {
+			this.initAttachedContext(this.attachedContextContainer);
+
+			if (!overwrite) {
+				this._onDidChangeContext.fire({ removed, added: contentReferences });
+			}
+		}
 	}
 
 	render(container: HTMLElement, initialValue: string, widget: IChatWidget) {
@@ -384,6 +406,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			insertMode: 'replace',
 		};
 		options.scrollbar = { ...(options.scrollbar ?? {}), vertical: 'hidden' };
+		options.stickyScroll = { enabled: false };
 
 		this._inputEditorElement = dom.append(inputContainer, $('.interactive-input-editor'));
 		const editorOptions = getSimpleCodeEditorWidgetOptions();
@@ -479,6 +502,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	private initAttachedContext(container: HTMLElement) {
+		const oldHeight = container.offsetHeight;
 		dom.clearNode(container);
 		this.attachedContextDisposables.clear();
 		dom.setVisibility(Boolean(this.attachedContext.size), this.attachedContextContainer);
@@ -505,7 +529,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				widget.tabIndex = 0;
 			} else {
 				const attachmentLabel = attachment.fullName ?? attachment.name;
-				label.setLabel(attachmentLabel, undefined);
+				const withIcon = attachment.icon?.id ? `$(${attachment.icon.id}) ${attachmentLabel}` : attachmentLabel;
+				label.setLabel(withIcon, undefined);
 
 				widget.ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
 				widget.tabIndex = 0;
@@ -521,7 +546,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this.attachedContextDisposables.add(clearButton);
 			clearButton.icon = Codicon.close;
 			const disp = clearButton.onDidClick((e) => {
-				this.attachedContext.delete(attachment);
+				this._attachedContext.delete(attachment);
 				disp.dispose();
 
 				// Set focus to the next attached context item if deletion was triggered by a keystroke (vs a mouse click)
@@ -533,10 +558,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				}
 
 				this._onDidChangeHeight.fire();
-				this._onDidDeleteContext.fire(attachment);
+				this._onDidChangeContext.fire({ removed: [attachment] });
 			});
 			this.attachedContextDisposables.add(disp);
 		});
+
+		if (oldHeight !== container.offsetHeight) {
+			this._onDidChangeHeight.fire();
+		}
 	}
 
 	async renderFollowups(items: IChatFollowup[] | undefined, response: IChatResponseViewModel | undefined): Promise<void> {

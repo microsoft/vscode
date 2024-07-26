@@ -14,7 +14,9 @@ import { hash } from 'vs/base/common/hash';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { isDefined } from 'vs/base/common/types';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
+import { IPosition } from 'vs/editor/common/core/position';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -28,7 +30,7 @@ import { FileCoverage, TestRunProfileKind, TestRunRequest } from 'vs/workbench/a
 import { TestCommandId } from 'vs/workbench/contrib/testing/common/constants';
 import { TestId, TestPosition } from 'vs/workbench/contrib/testing/common/testId';
 import { InvalidTestItemError } from 'vs/workbench/contrib/testing/common/testItemCollection';
-import { AbstractIncrementalTestCollection, CoverageDetails, ICallProfileRunHandler, ISerializedTestResults, IStartControllerTests, IStartControllerTestsResult, ITestErrorMessage, ITestItem, ITestItemContext, ITestMessageMenuArgs, ITestRunProfile, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, TestMessageFollowupRequest, TestMessageFollowupResponse, TestResultState, TestRunProfileBitset, TestsDiff, TestsDiffOp, isStartControllerTests } from 'vs/workbench/contrib/testing/common/testTypes';
+import { AbstractIncrementalTestCollection, CoverageDetails, ICallProfileRunHandler, ISerializedTestResults, IStartControllerTests, IStartControllerTestsResult, ITestErrorMessage, ITestItem, ITestItemContext, ITestMessageMenuArgs, ITestRunProfile, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, TestControllerCapability, TestMessageFollowupRequest, TestMessageFollowupResponse, TestResultState, TestRunProfileBitset, TestsDiff, TestsDiffOp, isStartControllerTests } from 'vs/workbench/contrib/testing/common/testTypes';
 import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import type * as vscode from 'vscode';
 
@@ -37,6 +39,7 @@ interface ControllerInfo {
 	profiles: Map<number, vscode.TestRunProfile>;
 	collection: ExtHostTestItemCollection;
 	extension: IExtensionDescription;
+	relatedCodeProvider?: vscode.TestRelatedCodeProvider;
 	activeProfiles: Set<number>;
 }
 
@@ -137,6 +140,23 @@ export class ExtHostTesting extends Disposable implements ExtHostTestingShape {
 		const activeProfiles = new Set<number>();
 		const proxy = this.proxy;
 
+		const getCapability = () => {
+			let cap = 0;
+			if (refreshHandler) {
+				cap |= TestControllerCapability.Refresh;
+			}
+			const rcp = info.relatedCodeProvider;
+			if (rcp) {
+				if (rcp?.provideRelatedTests) {
+					cap |= TestControllerCapability.TestRelatedToCode;
+				}
+				if (rcp?.provideRelatedCode) {
+					cap |= TestControllerCapability.CodeRelatedToTest;
+				}
+			}
+			return cap as TestControllerCapability;
+		};
+
 		const controller: vscode.TestController = {
 			items: collection.root.children,
 			get label() {
@@ -152,10 +172,18 @@ export class ExtHostTesting extends Disposable implements ExtHostTestingShape {
 			},
 			set refreshHandler(value: ((token: CancellationToken) => Thenable<void> | void) | undefined) {
 				refreshHandler = value;
-				proxy.$updateController(controllerId, { canRefresh: !!value });
+				proxy.$updateController(controllerId, { capabilities: getCapability() });
 			},
 			get id() {
 				return controllerId;
+			},
+			get relatedCodeProvider() {
+				return info.relatedCodeProvider;
+			},
+			set relatedCodeProvider(value: vscode.TestRelatedCodeProvider | undefined) {
+				checkProposedApiEnabled(extension, 'testRelatedCode');
+				info.relatedCodeProvider = value;
+				proxy.$updateController(controllerId, { capabilities: getCapability() });
 			},
 			createRunProfile: (label, group, runHandler, isDefault, tag?: vscode.TestTag | undefined, supportsContinuousRun?: boolean) => {
 				// Derive the profile ID from a hash so that the same profile will tend
@@ -192,10 +220,10 @@ export class ExtHostTesting extends Disposable implements ExtHostTestingShape {
 			},
 		};
 
-		proxy.$registerTestController(controllerId, label, !!refreshHandler);
+		const info: ControllerInfo = { controller, collection, profiles, extension, activeProfiles };
+		proxy.$registerTestController(controllerId, label, getCapability());
 		disposable.add(toDisposable(() => proxy.$unregisterTestController(controllerId)));
 
-		const info: ControllerInfo = { controller, collection, profiles, extension, activeProfiles };
 		this.controllers.set(controllerId, info);
 		disposable.add(toDisposable(() => this.controllers.delete(controllerId)));
 
@@ -249,6 +277,56 @@ export class ExtHostTesting extends Disposable implements ExtHostTestingShape {
 	//#endregion
 
 	//#region RPC methods
+	/**
+	 * @inheritdoc
+	 */
+	async $getTestsRelatedToCode(uri: UriComponents, _position: IPosition, token: CancellationToken): Promise<string[]> {
+		const doc = this.editors.getDocument(URI.revive(uri));
+		if (!doc) {
+			return [];
+		}
+
+		const position = Convert.Position.to(_position);
+		const related: string[] = [];
+		await Promise.all([...this.controllers.values()].map(async (c) => {
+			let tests: vscode.TestItem[] | undefined | null;
+			try {
+				tests = await c.relatedCodeProvider?.provideRelatedTests?.(doc.document, position, token);
+			} catch (e) {
+				if (!token.isCancellationRequested) {
+					this.logService.warn(`Error thrown while providing related tests for ${c.controller.label}`, e);
+				}
+			}
+
+			if (tests) {
+				for (const test of tests) {
+					related.push(TestId.fromExtHostTestItem(test, c.controller.id).toString());
+				}
+				c.collection.flushDiff();
+			}
+		}));
+
+		return related;
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	async $getCodeRelatedToTest(testId: string, token: CancellationToken): Promise<ILocationDto[]> {
+		const controller = this.controllers.get(TestId.root(testId));
+		if (!controller) {
+			return [];
+		}
+
+		const test = controller.collection.tree.get(testId);
+		if (!test) {
+			return [];
+		}
+
+		const locations = await controller.relatedCodeProvider?.provideRelatedCode?.(test.actual, token);
+		return locations?.map(Convert.location.from) ?? [];
+	}
+
 	/**
 	 * @inheritdoc
 	 */
@@ -738,7 +816,7 @@ class TestRunTracker extends Disposable {
 
 		this.running++;
 		this.tasks.set(taskId, { run });
-		this.proxy.$startedTestRunTask(runId, { id: taskId, name, running: true });
+		this.proxy.$startedTestRunTask(runId, { id: taskId, ctrlId: this.dto.controllerId, name, running: true });
 
 		return run;
 	}

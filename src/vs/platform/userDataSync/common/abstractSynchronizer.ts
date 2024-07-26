@@ -592,7 +592,7 @@ export abstract class AbstractSynchroniser extends Disposable implements IUserDa
 		return { syncResource: this.resource, profile: this.syncResource.profile, remoteUserData, lastSyncUserData, resourcePreviews, isLastSyncFromCurrentMachine: isRemoteDataFromCurrentMachine };
 	}
 
-	async getLastSyncUserData<T = IRemoteUserData & { [key: string]: any }>(): Promise<T | null> {
+	async getLastSyncUserData(): Promise<IRemoteUserData | null> {
 		let storedLastSyncUserDataStateContent = this.getStoredLastSyncUserDataStateContent();
 		if (!storedLastSyncUserDataStateContent) {
 			storedLastSyncUserDataStateContent = await this.migrateLastSyncUserData();
@@ -664,7 +664,7 @@ export abstract class AbstractSynchroniser extends Disposable implements IUserDa
 		return {
 			...lastSyncUserDataState,
 			syncData,
-		} as T;
+		};
 	}
 
 	protected async updateLastSyncUserData(lastSyncRemoteUserData: IRemoteUserData, additionalProps: IStringDictionary<any> = {}): Promise<void> {
