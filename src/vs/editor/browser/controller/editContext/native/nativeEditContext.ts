@@ -29,16 +29,27 @@ import { Selection } from 'vs/editor/common/core/selection';
 /**
  * TODO (things that currently do not work and should be made to work, spend time finding these cases in order to have an overview of what works and what doesn't so can focus on most important things):
  * 1. Currently always reading 'insertion at end of text between ..., edit text' in the screen reader
+ *   - This happens because each inner div has role textbox. If we do not use the role textbox then there are some navigation issues in the div. I am not sure why.
+ *   - We also need to have the child div because we want to read the full line.
+ *   - disappears when not using the active descendant attribute, but if not used, black box not positioned correctly
  * 2. For some reason, when the line is empty, the whole VS Code window is selected by the screen reader instead of the specific line of interest.
  * 3. Test the accessibility with NVDA on the current implementation and the PR implementation and check the behavior is also the same
  *   4.a. In the current implementation, if you select a letter and scroll, the letter or an adjacent letter becomes selected. In my implementation, the whole phrase becomes selected. The behavior should be the same as in the current implementation.
  * 7. selection problems
  *   7.a. On the current implementation, when selecting words, the new content that is selected is read out
- *   7.b. My implementation reads all of the lines from the beginning of the selection?
+ *   7.b. My implementation reads all of the lines from the beginning of the selection? Then it reads the text corresponding to the selection.
  * 8. When scroll is changed horizontally, the black box should sticky to a specific letter and remain there
  */
 
-// extract the model change and selection change event for the screen reader part into a separate function, not the edit context part, not the copy handler, not the enter handler
+/** TODO: multi-selection work
+ * - When selecting on the same line, then letters are correctly read one by one
+ * - When doing multi-selection, when just selecting next line, reading all the new lines added
+ * - When the active descendant is removed, need to find how to keep the box around the line
+ *
+ * - When not using the active descendant, not reading anymore the edit text prompt at the end. So shoud not use it? Should find a way to not use it.
+ * - When active descendant is set, there is an issue when moving from a selection to an empty selection state where black box is not correctly positioned
+ */
+
 // keep the child div of the parent div, and try to fix the selection issue that is happening by modifying for example the text content of the existing divs, and appending the new divs when new divs are created
 
 export class NativeEditContext extends AbstractEditContext {
@@ -52,6 +63,7 @@ export class NativeEditContext extends AbstractEditContext {
 	private _previousEndLineNumber: number = -1;
 	private _previousValue: string | undefined;
 	private _selectionOffsetRange: OffsetRange | undefined = undefined;
+	private _nodeToRemove: ChildNode | null = null;
 
 	private _isFocused = false;
 
@@ -143,9 +155,10 @@ export class NativeEditContext extends AbstractEditContext {
 	private _decorations: string[] = [];
 
 	private _onDidChangeContent() {
-
+		console.log('onDidChangeContent');
 		const primaryViewState = this._context.viewModel.getCursorStates()[0].viewState;
-		const { value: valueForHiddenArea } = this._editContextRenderingData(primaryViewState.selection);
+		const selection = primaryViewState.selection;
+		const { value: valueForHiddenArea } = this._editContextRenderingData(selection);
 
 		// Update position of the hidden area
 		const domNode = this._domElement.domNode;
@@ -158,11 +171,7 @@ export class NativeEditContext extends AbstractEditContext {
 		if (firstChild) {
 			firstChild.textContent = valueForHiddenArea.length > 0 ? valueForHiddenArea : '\n';
 		} else {
-			const childElement = document.createElement('div');
-			childElement.id = `edit-context-content`;
-			childElement.role = 'textbox';
-			childElement.textContent = valueForHiddenArea.length > 0 ? valueForHiddenArea : '\n';
-			domNode.replaceChildren(childElement);
+			this._renderNode(valueForHiddenArea, selection);
 		}
 	}
 
@@ -187,36 +196,121 @@ export class NativeEditContext extends AbstractEditContext {
 		const domNode = this._domElement.domNode;
 		domNode.style.top = `${this._context.viewLayout.getVerticalOffsetForLineNumber(selection.startLineNumber - 5) - this._context.viewLayout.getCurrentScrollTop()}px`;
 		domNode.style.left = `${this._contentLeft - this._context.viewLayout.getCurrentScrollLeft()}px`;
+		console.log('onDidChangeSelection');
+		console.log('selection ; ', selection);
+		console.log('selectionForHiddenArea : ', selectionForHiddenArea);
+
+		// TODO: maybe removed
+		// need to set an unset on specific occasions
+		/*
+		if (selection.isEmpty()) {
+			domNode.setAttribute('aria-activedescendant', `edit-context-content`);
+			domNode.setAttribute('aria-controls', 'native-edit-context');
+		} else {
+			domNode.removeAttribute('aria-activedescendant');
+			domNode.removeAttribute('aria-controls');
+		}
+		*/
+
+		try {
+			// remove node if it needs to be removed then reset the value of nodeToRemove
+			// this way the screen reader reads 'selected' or 'unselected'
+			if (this._nodeToRemove && domNode.childNodes) {
+				domNode.removeChild(this._nodeToRemove);
+				this._nodeToRemove = null;
+			}
+		} catch (e) { }
+
 
 		// Update the hidden area line
 		// need to treat the case of multiple selection
+		let startIndex = 0;
 		if (this._previousValue !== valueForHiddenArea || this._previousStartLineNumber !== selection.startLineNumber || this._previousEndLineNumber !== selection.endLineNumber) {
-			const childElement = document.createElement('div');
-			childElement.textContent = valueForHiddenArea.length > 0 ? valueForHiddenArea : '\n';
-			childElement.id = `edit-context-content`;
-			childElement.role = 'textbox';
-			domNode.replaceChildren(childElement);
+			startIndex = this._renderNode(valueForHiddenArea, selection);
 		}
 
 		// Update the active selection in the dom node
 		const activeDocument = dom.getActiveWindow().document;
 		const activeDocumentSelection = activeDocument.getSelection();
-		if (activeDocumentSelection && domNode.firstChild?.firstChild) {
+		if (activeDocumentSelection) {
 			const range = new globalThis.Range();
-			const domNodeElement = domNode.firstChild?.firstChild;
-			if (domNodeElement) {
-				range.setStart(domNodeElement, selectionForHiddenArea.start);
-				range.setEnd(domNodeElement, selectionForHiddenArea.endExclusive);
+			const startDomNode = domNode.childNodes.item(startIndex).firstChild;
+			const endDomNode = domNode.childNodes.item(selection.endLineNumber - selection.startLineNumber + startIndex).firstChild;
+			if (startDomNode && endDomNode) {
+				range.setStart(startDomNode, selection.startColumn - 1);
+				range.setEnd(endDomNode, selection.endColumn - 1);
 				activeDocumentSelection.removeAllRanges();
 				activeDocumentSelection.addRange(range);
-				// TODO: Do we need this?
-				domNode.setAttribute('aria-activedescendant', `edit-context-content`);
-				domNode.setAttribute('aria-controls', 'native-edit-context');
 			}
 		}
 		this._previousStartLineNumber = selection.startLineNumber;
 		this._previousEndLineNumber = selection.endLineNumber;
 		this._previousValue = valueForHiddenArea;
+	}
+
+	// Rendering only the new nodes allows us to not reread the content that already existed before, only rendering the nodes that are new in the selection, and the new text specifically
+	private _renderNode(content: string, selection: Selection): number {
+		const rerenderAllContent = (content: string[]) => {
+			domNode.replaceChildren();
+			console.log('rerenderAllContent');
+			for (const line of content) {
+				const childElement = createDivWithContent(line);
+				domNode.appendChild(childElement);
+			}
+		};
+		const createDivWithContent = (line: string): HTMLElement => {
+			const childElement = document.createElement('div');
+			childElement.textContent = line.length > 0 ? line : '\n';
+			childElement.id = `edit-context-content`;
+			childElement.role = 'textbox';
+			return childElement;
+		};
+
+		const domNode = this._domElement.domNode;
+		const splitContent = content.split('\n');
+		const numberOfLinesInPreviousSelection = this._previousEndLineNumber - this._previousStartLineNumber;
+		const numberOfLinesInCurrentSelection = selection.endLineNumber - selection.startLineNumber;
+		if (numberOfLinesInPreviousSelection - numberOfLinesInCurrentSelection === 1) {
+			// Meaning we decreased the selection
+			if (domNode.lastChild && this._previousStartLineNumber === selection.startLineNumber && this._previousEndLineNumber - 1 === selection.endLineNumber) {
+				// We decreased the selection at the bottom
+				console.log('decreased the selection at the bottom');
+				// not directly removing the child, because should read the word 'unselected', should read this on the next selection change when no longer needed
+				// domNode.removeChild(domNode.lastChild);
+				this._nodeToRemove = domNode.lastChild;
+			}
+			else if (domNode.firstChild && this._previousEndLineNumber === selection.endLineNumber && this._previousStartLineNumber + 1 === selection.startLineNumber) {
+				// We decreased the selection at the top
+				console.log('decreased the selection at the top');
+				// not directly removing the child, because should read the word 'unselected', should read this on the next selection change when no longer needed
+				// domNode.removeChild(domNode.firstChild);
+				this._nodeToRemove = domNode.firstChild;
+				return 1;
+			} else {
+				rerenderAllContent(splitContent);
+			}
+		} else if (numberOfLinesInCurrentSelection - numberOfLinesInPreviousSelection === 1) {
+			// Meaning we increased the selection
+			if (this._previousStartLineNumber === selection.startLineNumber && this._previousEndLineNumber + 1 === selection.endLineNumber) {
+				// We increased the selection at the bottom
+				console.log('increased the selection at the bottom');
+				const lastLine = splitContent[splitContent.length - 1];
+				const childElement = createDivWithContent(lastLine);
+				domNode.appendChild(childElement);
+			} else if (this._previousEndLineNumber === selection.endLineNumber && this._previousStartLineNumber - 1 === selection.startLineNumber) {
+				// We increased the selection at the top
+				console.log('increased the selection at the top');
+				const firstLine = splitContent[0];
+				const childElement = createDivWithContent(firstLine);
+				domNode.prepend(childElement);
+			} else {
+				rerenderAllContent(splitContent);
+			}
+		} else {
+			// In this case not doing a multi-selection, so rerender everything
+			rerenderAllContent(splitContent);
+		}
+		return 0;
 	}
 
 	private _handleTextFormatUpdate(e: TextFormatUpdateEvent): void {
