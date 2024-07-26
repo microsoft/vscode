@@ -41,6 +41,7 @@ import { IMouseWheelEvent, StandardWheelEvent } from 'vs/base/browser/mouseEvent
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 import { scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground } from 'vs/platform/theme/common/colorRegistry';
+import { IDiagnosticsMainService } from 'vs/platform/diagnostics/common/diagnosticsMain';
 
 const enum RenderConstants {
 	SmoothScrollDuration = 125
@@ -200,7 +201,8 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
-		@ILayoutService layoutService: ILayoutService
+		@ILayoutService layoutService: ILayoutService,
+		@IDiagnosticsMainService private readonly _diagnosticsMainService: IDiagnosticsMainService
 	) {
 		super();
 		const font = this._terminalConfigurationService.getFont(dom.getActiveWindow(), undefined, true);
@@ -352,9 +354,11 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 
 		// TODO: Move before open so the DOM renderer doesn't initialize
 		if (options.enableGpu) {
-			if (this._shouldLoadWebgl()) {
-				this._enableWebglRenderer();
-			}
+			this._shouldLoadWebgl().then(enabled => () => {
+				if (enabled) {
+					this._enableWebglRenderer();
+				}
+			});
 		}
 
 		if (!this.raw.element || !this.raw.textarea) {
@@ -426,11 +430,13 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		};
 		this._updateSmoothScrolling();
 		if (this._attached?.options.enableGpu) {
-			if (this._shouldLoadWebgl()) {
-				this._enableWebglRenderer();
-			} else {
-				this._disposeOfWebglRenderer();
-			}
+			this._shouldLoadWebgl().then(enabled => {
+				if (enabled) {
+					this._enableWebglRenderer();
+				} else {
+					this._disposeOfWebglRenderer();
+				}
+			});
 		}
 	}
 
@@ -438,9 +444,16 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		this.raw.options.smoothScrollDuration = this._terminalConfigurationService.config.smoothScrolling && this._isPhysicalMouseWheel ? RenderConstants.SmoothScrollDuration : 0;
 	}
 
-	private _shouldLoadWebgl(): boolean {
-		return (this._terminalConfigurationService.config.gpuAcceleration === 'auto' && XtermTerminal._suggestedRendererType === undefined) || this._terminalConfigurationService.config.gpuAcceleration === 'on';
+	private async _shouldLoadWebgl(): Promise<boolean> {
+		if ((this._terminalConfigurationService.config.gpuAcceleration === 'auto' && XtermTerminal._suggestedRendererType === undefined) || this._terminalConfigurationService.config.gpuAcceleration === 'on') {
+			const { gpuFeatureStatus } = await this._diagnosticsMainService.getMainDiagnostics();
+			if (gpuFeatureStatus.webgl2.startsWith('enabled')) {
+				return true;
+			}
+		}
+		return false;
 	}
+
 
 	forceRedraw() {
 		this.raw.clearTextureAtlas();

@@ -148,5 +148,5 @@ export interface IMainProcessDiagnostics {
 	readonly windows: IWindowDiagnostics[];
 	readonly pidToNames: IProcessDiagnostics[];
 	readonly screenReader: boolean;
-	readonly gpuFeatureStatus: any;
+	readonly gpuFeatureStatus: Electron.GPUFeatureStatus;
 }

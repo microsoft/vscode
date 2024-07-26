@@ -32,7 +32,7 @@ import { BackupMainService } from 'vs/platform/backup/electron-main/backupMainSe
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ElectronExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/electron-main/extensionHostDebugIpc';
 import { IDiagnosticsService } from 'vs/platform/diagnostics/common/diagnostics';
-import { DiagnosticsMainService, IDiagnosticsMainService } from 'vs/platform/diagnostics/electron-main/diagnosticsMainService';
+import { DiagnosticsMainService } from 'vs/platform/diagnostics/electron-main/diagnosticsMainService';
 import { DialogMainService, IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
 import { IEncryptionMainService } from 'vs/platform/encryption/common/encryptionService';
 import { EncryptionMainService } from 'vs/platform/encryption/electron-main/encryptionMainService';
@@ -121,6 +121,8 @@ import { Lazy } from 'vs/base/common/lazy';
 import { IAuxiliaryWindowsMainService } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindows';
 import { AuxiliaryWindowsMainService } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindowsMainService';
 import { normalizeNFC } from 'vs/base/common/normalization';
+import { IDiagnosticsMainService } from 'vs/platform/diagnostics/common/diagnosticsMain';
+
 /**
  * The main VS Code application. There will only ever be one instance,
  * even if the user starts many instances (e.g. from the command line).
@@ -1118,8 +1120,9 @@ export class CodeApplication extends Disposable {
 		const launchChannel = ProxyChannel.fromService(accessor.get(ILaunchMainService), disposables, { disableMarshalling: true });
 		this.mainProcessNodeIpcServer.registerChannel('launch', launchChannel);
 
-		const diagnosticsChannel = ProxyChannel.fromService(accessor.get(IDiagnosticsMainService), disposables, { disableMarshalling: true });
-		this.mainProcessNodeIpcServer.registerChannel('diagnostics', diagnosticsChannel);
+		const diagnosticsMainChannel = ProxyChannel.fromService(accessor.get(IDiagnosticsMainService), disposables, { disableMarshalling: true });
+		this.mainProcessNodeIpcServer.registerChannel('diagnostics-main', diagnosticsMainChannel);
+		mainProcessElectronServer.registerChannel('diagnostics-main', diagnosticsMainChannel);
 
 		// Policies (main & shared process)
 		const policyChannel = disposables.add(new PolicyChannel(accessor.get(IPolicyService)));

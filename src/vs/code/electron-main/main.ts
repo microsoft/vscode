@@ -29,7 +29,6 @@ import { CodeApplication } from 'vs/code/electron-main/app';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationService } from 'vs/platform/configuration/common/configurationService';
-import { IDiagnosticsMainService } from 'vs/platform/diagnostics/electron-main/diagnosticsMainService';
 import { DiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsService';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { EnvironmentMainService, IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
@@ -72,6 +71,7 @@ import { massageMessageBoxOptions } from 'vs/platform/dialogs/common/dialogs';
 import { SaveStrategy, StateService } from 'vs/platform/state/node/stateService';
 import { FileUserDataProvider } from 'vs/platform/userData/common/fileUserDataProvider';
 import { addUNCHostToAllowlist, getUNCHost } from 'vs/base/node/unc';
+import { IDiagnosticsMainService } from 'vs/platform/diagnostics/common/diagnosticsMain';
 
 /**
  * The main VS Code entry point.
@@ -362,7 +362,7 @@ class CodeMain {
 			}
 
 			const otherInstanceLaunchMainService = ProxyChannel.toService<ILaunchMainService>(client.getChannel('launch'), { disableMarshalling: true });
-			const otherInstanceDiagnosticsMainService = ProxyChannel.toService<IDiagnosticsMainService>(client.getChannel('diagnostics'), { disableMarshalling: true });
+			const otherInstanceDiagnosticsMainService = ProxyChannel.toService<IDiagnosticsMainService>(client.getChannel('diagnostics-main'), { disableMarshalling: true });
 
 			// Process Info
 			if (environmentMainService.args.status) {

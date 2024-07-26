@@ -8,7 +8,6 @@ import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { URI } from 'vs/base/common/uri';
 import { IDiagnosticInfo, IDiagnosticInfoOptions, IMainProcessDiagnostics, IProcessDiagnostics, IRemoteDiagnosticError, IRemoteDiagnosticInfo, IWindowDiagnostics } from 'vs/platform/diagnostics/common/diagnostics';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ICodeWindow } from 'vs/platform/window/electron-main/window';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
@@ -16,20 +15,7 @@ import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electro
 import { assertIsDefined } from 'vs/base/common/types';
 import { ILogService } from 'vs/platform/log/common/log';
 import { UtilityProcess } from 'vs/platform/utilityProcess/electron-main/utilityProcess';
-
-export const ID = 'diagnosticsMainService';
-export const IDiagnosticsMainService = createDecorator<IDiagnosticsMainService>(ID);
-
-export interface IRemoteDiagnosticOptions {
-	includeProcesses?: boolean;
-	includeWorkspaceMetadata?: boolean;
-}
-
-export interface IDiagnosticsMainService {
-	readonly _serviceBrand: undefined;
-	getRemoteDiagnostics(options: IRemoteDiagnosticOptions): Promise<(IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]>;
-	getMainDiagnostics(): Promise<IMainProcessDiagnostics>;
-}
+import { IDiagnosticsMainService, IRemoteDiagnosticOptions } from 'vs/platform/diagnostics/common/diagnosticsMain';
 
 export class DiagnosticsMainService implements IDiagnosticsMainService {
 
