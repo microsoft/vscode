@@ -124,7 +124,11 @@ export class TerminalEditor extends EditorPane {
 		}
 		this._register(dom.addDisposableListener(this._editorInstanceElement, 'mousedown', async (event: MouseEvent) => {
 			const terminal = this._terminalEditorService.activeInstance;
-			if (this._terminalEditorService.instances.length === 0 || !terminal) {
+			if (
+				this._terminalEditorService.instances.length === 0 ||
+				!terminal ||
+				dom.isHTMLElement(event.target) && event.target.classList.contains('scrollbar')
+			) {
 				return;
 			}
 
