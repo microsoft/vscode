@@ -505,21 +505,20 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	private _ensureSuggestWidget(terminal: Terminal): SimpleSuggestWidget {
 		this._terminalSuggestWidgetVisibleContextKey.set(true);
 		if (!this._suggestWidget) {
+			const c = this._terminalConfigurationService.config;
+			const font = this._terminalConfigurationService.getFont(dom.getActiveWindow());
+			const fontInfo = {
+				fontFamily: font.fontFamily,
+				fontSize: font.fontSize,
+				lineHeight: Math.ceil(1.5 * font.fontSize),
+				fontWeight: c.fontWeight.toString(),
+				letterSpacing: font.letterSpacing
+			};
 			this._suggestWidget = this._register(this._instantiationService.createInstance(
 				SimpleSuggestWidget,
 				this._panel!,
 				this._instantiationService.createInstance(PersistedWidgetSize),
-				() => {
-					const c = this._terminalConfigurationService.config;
-					const font = this._terminalConfigurationService.getFont(dom.getActiveWindow());
-					return {
-						fontFamily: font.fontFamily,
-						fontSize: font.fontSize,
-						lineHeight: Math.ceil(1.5 * font.fontSize),
-						fontWeight: c.fontWeight.toString(),
-						letterSpacing: font.letterSpacing
-					};
-				},
+				() => fontInfo,
 				{}
 			));
 			this._suggestWidget.list.style(getListStyles({
