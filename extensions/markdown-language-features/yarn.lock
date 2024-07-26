@@ -453,16 +453,16 @@ vscode-languageserver@^8.1.0:
   dependencies:
     vscode-languageserver-protocol "3.17.3"
 
-vscode-markdown-languageserver@^0.5.0-alpha.7:
-  version "0.5.0-alpha.7"
-  resolved "https://registry.yarnpkg.com/vscode-markdown-languageserver/-/vscode-markdown-languageserver-0.5.0-alpha.7.tgz#7db060e3e2f5ec5afae7801c9a8e77ed92ff09ae"
-  integrity sha512-PkJMlZ4B7dUGSQIaLabXx00Hg2PFYuoi1lp2kAJu51TUEbt/B7J3u/7MhwbDXx3ZQga3TSfrPJ+V/SOBQiP/Xw==
+vscode-markdown-languageserver@^0.5.0-alpha.8:
+  version "0.5.0-alpha.8"
+  resolved "https://registry.yarnpkg.com/vscode-markdown-languageserver/-/vscode-markdown-languageserver-0.5.0-alpha.8.tgz#87ced4b241636b6aeda7aacc41badced0c2cc992"
+  integrity sha512-Bp6YXHy4EMQ8JpsmXpQHa78byLvv83wVnLmhVfTaJsZTBwF8IOJ56NBUasepg9L6QVffUA9T2H/PfBqEOGpeOQ==
   dependencies:
     "@vscode/l10n" "^0.0.11"
     vscode-languageserver "^8.1.0"
     vscode-languageserver-textdocument "^1.0.8"
     vscode-languageserver-types "^3.17.3"
-    vscode-markdown-languageservice "^0.5.0-alpha.6"
+    vscode-markdown-languageservice "^0.5.0-alpha.7"
     vscode-uri "^3.0.7"
 
 vscode-markdown-languageservice@^0.3.0-alpha.3:
@@ -476,10 +476,10 @@ vscode-markdown-languageservice@^0.3.0-alpha.3:
     vscode-languageserver-types "^3.17.1"
     vscode-uri "^3.0.3"
 
-vscode-markdown-languageservice@^0.5.0-alpha.6:
-  version "0.5.0-alpha.6"
-  resolved "https://registry.yarnpkg.com/vscode-markdown-languageservice/-/vscode-markdown-languageservice-0.5.0-alpha.6.tgz#3aa5fc94fea3d5d7f0cd970e64348e2791643dc0"
-  integrity sha512-mA1JCA7aHHSek5gr8Yv7C3esEPo2hRrgxmoZUDRro+pnwbdsJuRaWOKWtCWxejRUVVVhc/5yTK2X64Jx9OCmFQ==
+vscode-markdown-languageservice@^0.5.0-alpha.7:
+  version "0.5.0-alpha.7"
+  resolved "https://registry.yarnpkg.com/vscode-markdown-languageservice/-/vscode-markdown-languageservice-0.5.0-alpha.7.tgz#0cc0939ea803d2afcb7a6e99b55feec664ec1b37"
+  integrity sha512-Iq9S5YGHm3D/UG9Usm8a/O5tYCo9FwaMF7nJsDQCxKgVZu5OzwOj3ixDkhoM+c8GKXiwt23DxhhWRuvI4odkTg==
   dependencies:
     "@vscode/l10n" "^0.0.10"
     node-html-parser "^6.1.5"

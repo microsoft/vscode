@@ -772,7 +772,7 @@
     "picomatch": "^2.3.1",
     "vscode-languageclient": "^8.0.2",
     "vscode-languageserver-textdocument": "^1.0.11",
-    "vscode-markdown-languageserver": "^0.5.0-alpha.7",
+    "vscode-markdown-languageserver": "^0.5.0-alpha.8",
     "vscode-uri": "^3.0.3"
   },
   "devDependencies": {
