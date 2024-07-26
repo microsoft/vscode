@@ -388,7 +388,7 @@ export class ReleaseNotesManager {
 					});
 
 					window.addEventListener('click', event => {
-						const href = event.target.href ?? event.target.parentElement.href ?? event.target.parentElement.parentElement?.href;
+						const href = event.target.href ?? event.target.parentElement?.href ?? event.target.parentElement?.parentElement?.href;
 						if (href && (href.startsWith('${Schemas.codeSetting}'))) {
 							vscode.postMessage({ type: 'clickSetting', value: { uri: href, x: event.clientX, y: event.clientY }});
 						}
