@@ -43,6 +43,9 @@ export interface IKeybindingRule extends IKeybindings {
 	id: string;
 	weight: number;
 	args?: any;
+	/**
+	 * Keybinding is disabled if expression returns false.
+	 */
 	when?: ContextKeyExpression | null | undefined;
 }
 

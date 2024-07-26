@@ -31,6 +31,7 @@ import { ICommandActionTitle } from 'vs/platform/action/common/action';
 import { mainWindow } from 'vs/base/browser/window';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { TitlebarStyle } from 'vs/platform/window/common/window';
+import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 
 // Register Icons
 const menubarIcon = registerIcon('menuBar', Codicon.layoutMenubar, localize('menuBarIcon', "Represents the menu bar"));
@@ -672,6 +673,48 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	group: '3_workbench_layout_move',
 	order: 11
 });
+
+// --- Configure Tabs Layout
+
+export class ConfigureEditorTabsAction extends Action2 {
+
+	static readonly ID = 'workbench.action.configureEditorTabs';
+
+	constructor() {
+		super({
+			id: ConfigureEditorTabsAction.ID,
+			title: localize2('configureTabs', "Configure Tabs ..."),
+			category: Categories.View,
+		});
+	}
+
+	run(accessor: ServicesAccessor) {
+		const preferencesService = accessor.get(IPreferencesService);
+		preferencesService.openSettings({ jsonEditor: false, query: 'workbench.editor tab' });
+	}
+}
+registerAction2(ConfigureEditorTabsAction);
+
+// --- Configure Editor
+
+export class ConfigureEditorAction extends Action2 {
+
+	static readonly ID = 'workbench.action.configureEditor';
+
+	constructor() {
+		super({
+			id: ConfigureEditorAction.ID,
+			title: localize2('configureEditor', "Configure Editor ..."),
+			category: Categories.View,
+		});
+	}
+
+	run(accessor: ServicesAccessor) {
+		const preferencesService = accessor.get(IPreferencesService);
+		preferencesService.openSettings({ jsonEditor: false, query: 'workbench.editor' });
+	}
+}
+registerAction2(ConfigureEditorAction);
 
 // --- Toggle Pinned Tabs On Separate Row
 

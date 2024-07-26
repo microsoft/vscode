@@ -76,7 +76,7 @@ export function autorunWithStoreHandleChanges<TChangeSummary>(
 		{
 			owner: options.owner,
 			debugName: options.debugName,
-			debugReferenceFn: options.debugReferenceFn,
+			debugReferenceFn: options.debugReferenceFn ?? fn,
 			createEmptyChangeSummary: options.createEmptyChangeSummary,
 			handleChange: options.handleChange,
 		},
@@ -154,7 +154,7 @@ export class AutorunObserver<TChangeSummary = any> implements IObserver, IReader
 	}
 
 	constructor(
-		private readonly _debugNameData: DebugNameData,
+		public readonly _debugNameData: DebugNameData,
 		public readonly _runFn: (reader: IReader, changeSummary: TChangeSummary) => void,
 		private readonly createChangeSummary: (() => TChangeSummary) | undefined,
 		private readonly _handleChange: ((context: IChangeContext, summary: TChangeSummary) => boolean) | undefined,
@@ -253,7 +253,7 @@ export class AutorunObserver<TChangeSummary = any> implements IObserver, IReader
 			const shouldReact = this._handleChange ? this._handleChange({
 				changedObservable: observable,
 				change,
-				didChange: o => o === observable as any,
+				didChange: (o): this is any => o === observable as any,
 			}, this.changeSummary!) : true;
 			if (shouldReact) {
 				this.state = AutorunState.stale;

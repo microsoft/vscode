@@ -6,21 +6,27 @@
 /// <reference path="../../../../typings/require.d.ts" />
 
 //@ts-check
+'use strict';
+
 (function () {
-	'use strict';
+
+	/**
+	 * @import {INativeWindowConfiguration} from '../../../platform/window/common/window'
+	 * @import {NativeParsedArgs} from '../../../platform/environment/common/argv'
+	 * @import {ISandboxConfiguration} from '../../../base/parts/sandbox/common/sandboxTypes'
+	 */
 
 	const bootstrapWindow = bootstrapWindowLib();
 
 	// Add a perf entry right from the top
 	performance.mark('code/didStartRenderer');
 
-	// Load workbench main JS, CSS and NLS all in parallel. This is an
+	// Load workbench main JS and CSS all in parallel. This is an
 	// optimization to prevent a waterfall of loading to happen, because
 	// we know for a fact that workbench.desktop.main will depend on
-	// the related CSS and NLS counterparts.
+	// the related CSS counterpart.
 	bootstrapWindow.load([
 		'vs/workbench/workbench.desktop.main',
-		'vs/nls!vs/workbench/workbench.desktop.main',
 		'vs/css!vs/workbench/workbench.desktop.main'
 	],
 		function (desktopMain, configuration) {
@@ -45,6 +51,7 @@
 				showSplash(windowConfig);
 			},
 			beforeLoaderConfig: function (loaderConfig) {
+				// @ts-ignore
 				loaderConfig.recordStats = true;
 			},
 			beforeRequire: function (windowConfig) {
@@ -74,14 +81,10 @@
 	//#region Helpers
 
 	/**
-	 * @typedef {import('../../../platform/window/common/window').INativeWindowConfiguration} INativeWindowConfiguration
-	 * @typedef {import('../../../platform/environment/common/argv').NativeParsedArgs} NativeParsedArgs
-	 * @typedef {import('../../../base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration} ISandboxConfiguration
-	 *
 	 * @returns {{
 	 *   load: (
 	 *     modules: string[],
-	 *     resultCallback: (result, configuration: INativeWindowConfiguration & NativeParsedArgs) => unknown,
+	 *     resultCallback: (result: any, configuration: INativeWindowConfiguration & NativeParsedArgs) => unknown,
 	 *     options?: {
 	 *       configureDeveloperSettings?: (config: INativeWindowConfiguration & NativeParsedArgs) => {
 	 * 			forceDisableShowDevtoolsOnError?: boolean,
@@ -129,7 +132,9 @@
 		}
 
 		// minimal color configuration (works with or without persisted data)
-		let baseTheme, shellBackground, shellForeground;
+		let baseTheme;
+		let shellBackground;
+		let shellForeground;
 		if (data) {
 			baseTheme = data.baseTheme;
 			shellBackground = data.colorInfo.editorBackground;
@@ -162,7 +167,9 @@
 		style.textContent = `body { background-color: ${shellBackground}; color: ${shellForeground}; margin: 0; padding: 0; }`;
 
 		// set zoom level as soon as possible
+		// @ts-ignore
 		if (typeof data?.zoomLevel === 'number' && typeof globalThis.vscode?.webFrame?.setZoomLevel === 'function') {
+			// @ts-ignore
 			globalThis.vscode.webFrame.setZoomLevel(data.zoomLevel);
 		}
 
@@ -172,9 +179,9 @@
 
 			const splash = document.createElement('div');
 			splash.id = 'monaco-parts-splash';
-			splash.className = baseTheme;
+			splash.className = baseTheme ?? 'vs-dark';
 
-			if (layoutInfo.windowBorder) {
+			if (layoutInfo.windowBorder && colorInfo.windowBorder) {
 				splash.style.position = 'relative';
 				splash.style.height = 'calc(100vh - 2px)';
 				splash.style.width = 'calc(100vw - 2px)';

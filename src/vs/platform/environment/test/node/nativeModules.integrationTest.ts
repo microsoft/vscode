@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { isWindows } from 'vs/base/common/platform';
 import { flakySuite } from 'vs/base/test/common/testUtils';
 
@@ -19,7 +19,7 @@ flakySuite('Native Modules (all platforms)', () => {
 	});
 
 	test('native-is-elevated', async () => {
-		const isElevated = await import('native-is-elevated');
+		const isElevated = (await import('native-is-elevated')).default;
 		assert.ok(typeof isElevated === 'function', testErrorMessage('native-is-elevated '));
 
 		const result = isElevated();
@@ -56,7 +56,12 @@ flakySuite('Native Modules (all platforms)', () => {
 	});
 
 	test('@vscode/sqlite3', async () => {
+		// ESM-comment-begin
 		const sqlite3 = await import('@vscode/sqlite3');
+		// ESM-comment-end
+		// ESM-uncomment-begin
+		// const { default: sqlite3 } = await import('@vscode/sqlite3');
+		// ESM-uncomment-end
 		assert.ok(typeof sqlite3.Database === 'function', testErrorMessage('@vscode/sqlite3'));
 	});
 

@@ -104,11 +104,13 @@ steps:
     - script: yarn npm-run-all -lp core-ci-pr extensions-ci-pr hygiene eslint valid-layers-check vscode-dts-compile-check tsec-compile-check
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
+        DISABLE_V8_COMPILE_CACHE: 1 # Disable v8 cache used by yarn v1.x, refs https://github.com/nodejs/node/issues/51555
       displayName: Compile & Hygiene (OSS)
   - ${{ else }}:
     - script: yarn npm-run-all -lp core-ci extensions-ci hygiene eslint valid-layers-check vscode-dts-compile-check tsec-compile-check
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
+        DISABLE_V8_COMPILE_CACHE: 1 # Disable v8 cache used by yarn v1.x, refs https://github.com/nodejs/node/issues/51555
       displayName: Compile & Hygiene (non-OSS)
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
@@ -133,12 +135,21 @@ steps:
 
     - script: |
         set -e
-        AZURE_STORAGE_ACCOUNT="ticino" \
+        AZURE_STORAGE_ACCOUNT="vscodeweb" \
         AZURE_TENANT_ID="$(AZURE_TENANT_ID)" \
         AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
         AZURE_CLIENT_SECRET="$(AZURE_CLIENT_SECRET)" \
           node build/azure-pipelines/upload-sourcemaps
       displayName: Upload sourcemaps to Azure
+
+    - script: |
+        set -e
+        AZURE_STORAGE_ACCOUNT="ticino" \
+        AZURE_TENANT_ID="$(AZURE_TENANT_ID)" \
+        AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
+        AZURE_CLIENT_SECRET="$(AZURE_CLIENT_SECRET)" \
+          node build/azure-pipelines/upload-sourcemaps
+      displayName: Upload sourcemaps to Azure (Deprecated)
 
     - script: ./build/azure-pipelines/common/extract-telemetry.sh
       displayName: Generate lists of telemetry events

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { mapValues } from 'vs/base/common/objects';
 import { TestResultState } from 'vs/workbench/contrib/testing/common/testTypes';
 
 export type TreeStateNode = { statusNode: true; state: TestResultState; priority: number };
@@ -25,13 +26,10 @@ export const statePriority: { [K in TestResultState]: number } = {
 export const isFailedState = (s: TestResultState) => s === TestResultState.Errored || s === TestResultState.Failed;
 export const isStateWithResult = (s: TestResultState) => s === TestResultState.Errored || s === TestResultState.Failed || s === TestResultState.Passed;
 
-export const stateNodes = Object.entries(statePriority).reduce(
-	(acc, [stateStr, priority]) => {
-		const state = Number(stateStr) as TestResultState;
-		acc[state] = { statusNode: true, state, priority };
-		return acc;
-	}, {} as { [K in TestResultState]: TreeStateNode }
-);
+export const stateNodes: { [K in TestResultState]: TreeStateNode } = mapValues(statePriority, (priority, stateStr): TreeStateNode => {
+	const state = Number(stateStr) as TestResultState;
+	return { statusNode: true, state, priority };
+});
 
 export const cmpPriority = (a: TestResultState, b: TestResultState) => statePriority[b] - statePriority[a];
 

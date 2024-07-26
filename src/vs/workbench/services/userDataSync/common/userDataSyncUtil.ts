@@ -23,8 +23,8 @@ class UserDataSyncUtilService implements IUserDataSyncUtilService {
 		@ITextResourceConfigurationService private readonly textResourceConfigurationService: ITextResourceConfigurationService,
 	) { }
 
-	async resolveDefaultIgnoredSettings(): Promise<string[]> {
-		return getDefaultIgnoredSettings();
+	async resolveDefaultCoreIgnoredSettings(): Promise<string[]> {
+		return getDefaultIgnoredSettings(true);
 	}
 
 	async resolveUserBindings(userBindings: string[]): Promise<IStringDictionary<string>> {

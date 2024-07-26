@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { timeout } from 'vs/base/common/async';
 import { newWriteableBufferStream } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -414,6 +414,8 @@ suite('UserDataSyncRequestsSession', () => {
 		_serviceBrand: undefined,
 		async request() { return { res: { headers: {} }, stream: newWriteableBufferStream() }; },
 		async resolveProxy() { return undefined; },
+		async lookupAuthorization() { return undefined; },
+		async lookupKerberosAuthorization() { return undefined; },
 		async loadCertificates() { return []; }
 	};
 

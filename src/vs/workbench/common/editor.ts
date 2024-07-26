@@ -547,7 +547,7 @@ export interface IResourceMultiDiffEditorInput extends IBaseUntypedEditorInput {
 	 * The list of resources to compare.
 	 * If not set, the resources are dynamically derived from the {@link multiDiffSource}.
 	 */
-	readonly resources?: IResourceDiffEditorInput[];
+	readonly resources?: IMultiDiffEditorResource[];
 
 	/**
 	 * Whether the editor should be serialized and stored for subsequent sessions.
@@ -555,6 +555,9 @@ export interface IResourceMultiDiffEditorInput extends IBaseUntypedEditorInput {
 	readonly isTransient?: boolean;
 }
 
+export interface IMultiDiffEditorResource extends IResourceDiffEditorInput {
+	readonly goToFileResource?: URI;
+}
 export type IResourceMergeEditorInputSide = (IResourceEditorInput | ITextResourceEditorInput) & { detail?: string };
 
 /**
@@ -1079,6 +1082,12 @@ export interface IEditorCommandsContext {
 	preserveFocus?: boolean;
 }
 
+export function isEditorCommandsContext(context: unknown): context is IEditorCommandsContext {
+	const candidate = context as IEditorCommandsContext | undefined;
+
+	return typeof candidate?.groupId === 'number';
+}
+
 /**
  * More information around why an editor was closed in the model.
  */
@@ -1162,6 +1171,9 @@ export const enum GroupModelChangeKind {
 	GROUP_LABEL,
 	GROUP_LOCKED,
 
+	/* Editors Change */
+	EDITORS_SELECTION,
+
 	/* Editor Changes */
 	EDITOR_OPEN,
 	EDITOR_CLOSE,
@@ -1207,6 +1219,7 @@ interface IEditorPartConfiguration {
 	tabActionLocation?: 'left' | 'right';
 	tabActionCloseVisibility?: boolean;
 	tabActionUnpinVisibility?: boolean;
+	alwaysShowEditorActions?: boolean;
 	tabSizing?: 'fit' | 'shrink' | 'fixed';
 	tabSizingFixedMinWidth?: number;
 	tabSizingFixedMaxWidth?: number;

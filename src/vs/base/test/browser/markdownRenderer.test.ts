@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { fillInIncompleteTokens, renderMarkdown, renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { marked } from 'vs/base/common/marked/marked';
@@ -606,6 +606,24 @@ const y = 2;
 				const completeTokens = marked.lexer(text + delimiter);
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
+
+			test(`incomplete ${name} in asterisk list`, () => {
+				const text = `* list item one\n* list item two and ${delimiter}text`;
+				const tokens = marked.lexer(text);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.lexer(text + delimiter);
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test(`incomplete ${name} in numbered list`, () => {
+				const text = `1. list item one\n2. list item two and ${delimiter}text`;
+				const tokens = marked.lexer(text);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.lexer(text + delimiter);
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
 		}
 
 		suite('list', () => {
@@ -646,6 +664,18 @@ const y = 2;
 				assert.deepStrictEqual(newTokens, tokens);
 			});
 
+			test('ordered list with subitems', () => {
+				const list = `1. hello
+	- sub item
+2. text
+	newline for some reason
+`;
+				const tokens = marked.lexer(list);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				assert.deepStrictEqual(newTokens, tokens);
+			});
+
 			test('list with stuff', () => {
 				const list = `- list item one \`codespan\` **bold** [link](http://microsoft.com) more text`;
 				const tokens = marked.lexer(list);
@@ -674,9 +704,49 @@ const y = 2;
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 
+			test('ordered list with incomplete link target', () => {
+				const incomplete = `1. list item one
+2. item two [link](`;
+				const tokens = marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.lexer(incomplete + ')');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('ordered list with extra whitespace', () => {
+				const incomplete = `1. list item one
+2. item two [link](`;
+				const tokens = marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.lexer(incomplete + ')');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('list with extra whitespace', () => {
+				const incomplete = `- list item one
+- item two [link](`;
+				const tokens = marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.lexer(incomplete + ')');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
 			test('list with incomplete link with other stuff', () => {
 				const incomplete = `- list item one
 - item two [\`link`;
+				const tokens = marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.lexer(incomplete + '\`](https://microsoft.com)');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('ordered list with incomplete link with other stuff', () => {
+				const incomplete = `1. list item one
+1. item two [\`link`;
 				const tokens = marked.lexer(incomplete);
 				const newTokens = fillInIncompleteTokens(tokens);
 

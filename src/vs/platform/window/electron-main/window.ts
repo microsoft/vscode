@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserWindow, Rectangle, screen, WebContents } from 'electron';
+import electron from 'electron';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -23,7 +23,7 @@ export interface IBaseWindow extends IDisposable {
 	readonly onDidClose: Event<void>;
 
 	readonly id: number;
-	readonly win: BrowserWindow | null;
+	readonly win: electron.BrowserWindow | null;
 
 	readonly lastFocusTime: number;
 	focus(options?: { force: boolean }): void;
@@ -41,7 +41,7 @@ export interface IBaseWindow extends IDisposable {
 
 	updateWindowControls(options: { height?: number; backgroundColor?: string; foregroundColor?: string }): void;
 
-	matches(webContents: WebContents): boolean;
+	matches(webContents: electron.WebContents): boolean;
 }
 
 export interface ICodeWindow extends IBaseWindow {
@@ -76,7 +76,7 @@ export interface ICodeWindow extends IBaseWindow {
 
 	close(): void;
 
-	getBounds(): Rectangle;
+	getBounds(): electron.Rectangle;
 
 	send(channel: string, ...args: any[]): void;
 	sendWhenReady(channel: string, token: CancellationToken, ...args: any[]): void;
@@ -158,7 +158,7 @@ export const defaultAuxWindowState = function (): IWindowState {
 
 	const width = 800;
 	const height = 600;
-	const workArea = screen.getPrimaryDisplay().workArea;
+	const workArea = electron.screen.getPrimaryDisplay().workArea;
 	const x = Math.max(workArea.x + (workArea.width / 2) - (width / 2), 0);
 	const y = Math.max(workArea.y + (workArea.height / 2) - (height / 2), 0);
 
@@ -175,7 +175,8 @@ export const enum WindowMode {
 	Maximized,
 	Normal,
 	Minimized, // not used anymore, but also cannot remove due to existing stored UI state (needs migration)
-	Fullscreen
+	Fullscreen,
+	Custom
 }
 
 export interface ILoadEvent {

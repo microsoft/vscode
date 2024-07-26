@@ -1094,6 +1094,9 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		if (inspect.userLocalValue !== undefined) {
 			definedTargets.push(ConfigurationTarget.USER_LOCAL);
 		}
+		if (inspect.applicationValue !== undefined) {
+			definedTargets.push(ConfigurationTarget.APPLICATION);
+		}
 
 		if (value === undefined) {
 			// Remove the setting in all defined targets
@@ -1115,6 +1118,9 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 	}
 
 	private toEditableConfigurationTarget(target: ConfigurationTarget, key: string): EditableConfigurationTarget | null {
+		if (target === ConfigurationTarget.APPLICATION) {
+			return EditableConfigurationTarget.USER_LOCAL;
+		}
 		if (target === ConfigurationTarget.USER) {
 			if (this.remoteUserConfiguration) {
 				const scope = this.configurationRegistry.getConfigurationProperties()[key]?.scope;
@@ -1254,9 +1260,9 @@ class RegisterConfigurationSchemasContribution extends Disposable implements IWo
 			type: 'object',
 			description: localize('configurationDefaults.description', 'Contribute defaults for configurations'),
 			properties: Object.assign({},
-				machineOverridableSettings.properties,
-				windowSettings.properties,
-				resourceSettings.properties
+				this.filterDefaultOverridableProperties(machineOverridableSettings.properties),
+				this.filterDefaultOverridableProperties(windowSettings.properties),
+				this.filterDefaultOverridableProperties(resourceSettings.properties)
 			),
 			patternProperties: {
 				[OVERRIDE_PROPERTY_PATTERN]: {
@@ -1305,6 +1311,16 @@ class RegisterConfigurationSchemasContribution extends Disposable implements IWo
 		const result: IStringDictionary<IConfigurationPropertySchema> = {};
 		Object.entries(properties).forEach(([key, value]) => {
 			if (!value.restricted) {
+				result[key] = value;
+			}
+		});
+		return result;
+	}
+
+	private filterDefaultOverridableProperties(properties: IStringDictionary<IConfigurationPropertySchema>): IStringDictionary<IConfigurationPropertySchema> {
+		const result: IStringDictionary<IConfigurationPropertySchema> = {};
+		Object.entries(properties).forEach(([key, value]) => {
+			if (!value.disallowConfigurationDefault) {
 				result[key] = value;
 			}
 		});
@@ -1359,7 +1375,7 @@ class UpdateExperimentalSettingsDefaults extends Disposable implements IWorkbenc
 			} catch (error) {/*ignore */ }
 		}
 		if (Object.keys(overrides).length) {
-			this.configurationRegistry.registerDefaultConfigurations([{ overrides, source: localize('experimental', "Experiments") }]);
+			this.configurationRegistry.registerDefaultConfigurations([{ overrides }]);
 		}
 	}
 }

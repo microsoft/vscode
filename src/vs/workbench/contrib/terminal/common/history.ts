@@ -15,7 +15,7 @@ import { URI } from 'vs/base/common/uri';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { Schemas } from 'vs/base/common/network';
 import { isWindows, OperatingSystem } from 'vs/base/common/platform';
-import { posix, win32 } from 'vs/base/common/path';
+import { join } from 'vs/base/common/path';
 
 /**
  * Tracks a list of generic entries.
@@ -331,7 +331,7 @@ export async function fetchPwshHistory(accessor: ServicesAccessor) {
 	const isFileWindows = remoteEnvironment?.os === OperatingSystem.Windows || !remoteEnvironment && isWindows;
 	if (isFileWindows) {
 		folderPrefix = env['APPDATA'];
-		filePath = '\\Microsoft\\Windows\\PowerShell\\PSReadLine\\ConsoleHost_history.txt';
+		filePath = 'Microsoft\\Windows\\PowerShell\\PSReadLine\\ConsoleHost_history.txt';
 	} else {
 		folderPrefix = env['HOME'];
 		filePath = '.local/share/powershell/PSReadline/ConsoleHost_history.txt';
@@ -484,10 +484,12 @@ async function fetchFileContents(
 	if (!folderPrefix) {
 		return undefined;
 	}
-	const isRemote = !!remoteAgentService.getConnection()?.remoteAuthority;
+	const connection = remoteAgentService.getConnection();
+	const isRemote = !!connection?.remoteAuthority;
 	const historyFileUri = URI.from({
 		scheme: isRemote ? Schemas.vscodeRemote : Schemas.file,
-		path: (isFileWindows ? win32.join : posix.join)(folderPrefix, filePath)
+		authority: isRemote ? connection.remoteAuthority : undefined,
+		path: URI.file(join(folderPrefix, filePath)).path
 	});
 	let content: IFileContent;
 	try {

@@ -5,8 +5,11 @@
 
 import { Emitter, Event, EventMultiplexer } from 'vs/base/common/event';
 import {
-	ILocalExtension, IGalleryExtension, IExtensionIdentifier, IExtensionsControlManifest, IExtensionGalleryService, InstallOptions, UninstallOptions, InstallExtensionResult, ExtensionManagementError, ExtensionManagementErrorCode, Metadata, InstallOperation, EXTENSION_INSTALL_SYNC_CONTEXT, InstallExtensionInfo,
-	IProductVersion
+	ILocalExtension, IGalleryExtension, IExtensionIdentifier, IExtensionsControlManifest, IExtensionGalleryService, InstallOptions, UninstallOptions, InstallExtensionResult, ExtensionManagementError, ExtensionManagementErrorCode, Metadata, InstallOperation, EXTENSION_INSTALL_SOURCE_CONTEXT, InstallExtensionInfo,
+	IProductVersion,
+	ExtensionInstallSource,
+	DidUpdateExtensionMetadata,
+	UninstallExtensionInfo
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { DidChangeProfileForServerEvent, DidUninstallExtensionOnServerEvent, IExtensionManagementServer, IExtensionManagementServerService, InstallExtensionOnServerEvent, IResourceExtension, IWorkbenchExtensionManagementService, UninstallExtensionOnServerEvent } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ExtensionType, isLanguagePackExtension, IExtensionManifest, getWorkspaceSupportTypeMessage, TargetPlatform } from 'vs/platform/extensions/common/extensions';
@@ -59,7 +62,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 	private readonly _onDidUninstallExtension = this._register(new Emitter<DidUninstallExtensionOnServerEvent>());
 	readonly onDidUninstallExtension: Event<DidUninstallExtensionOnServerEvent>;
 
-	readonly onDidUpdateExtensionMetadata: Event<ILocalExtension>;
+	readonly onDidUpdateExtensionMetadata: Event<DidUpdateExtensionMetadata>;
 	readonly onDidChangeProfile: Event<DidChangeProfileForServerEvent>;
 
 	readonly onDidEnableExtensions: Event<ILocalExtension[]>;
@@ -116,7 +119,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		this._register(onDidUninstallExtensionEventMultiplexer.add(this._onDidUninstallExtension.event));
 		this.onDidUninstallExtension = onDidUninstallExtensionEventMultiplexer.event;
 
-		const onDidUpdateExtensionMetadaEventMultiplexer = this._register(new EventMultiplexer<ILocalExtension>());
+		const onDidUpdateExtensionMetadaEventMultiplexer = this._register(new EventMultiplexer<DidUpdateExtensionMetadata>());
 		this.onDidUpdateExtensionMetadata = onDidUpdateExtensionMetadaEventMultiplexer.event;
 
 		const onDidChangeProfileEventMultiplexer = this._register(new EventMultiplexer<DidChangeProfileForServerEvent>());
@@ -145,52 +148,68 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		return result;
 	}
 
-	async uninstall(extension: ILocalExtension, options?: UninstallOptions): Promise<void> {
-		if (extension.isWorkspaceScoped) {
-			return this.uninstallExtensionFromWorkspace(extension);
-		}
-		const server = this.getServer(extension);
-		if (!server) {
-			return Promise.reject(`Invalid location ${extension.location.toString()}`);
-		}
-		if (this.servers.length > 1) {
-			if (isLanguagePackExtension(extension.manifest)) {
-				return this.uninstallEverywhere(extension, options);
-			}
-			return this.uninstallInServer(extension, server, options);
-		}
-		return server.extensionManagementService.uninstall(extension, options);
+	uninstall(extension: ILocalExtension, options: UninstallOptions): Promise<void> {
+		return this.uninstallExtensions([{ extension, options }]);
 	}
 
-	private async uninstallEverywhere(extension: ILocalExtension, options?: UninstallOptions): Promise<void> {
-		const server = this.getServer(extension);
-		if (!server) {
-			return Promise.reject(`Invalid location ${extension.location.toString()}`);
-		}
-		const promise = server.extensionManagementService.uninstall(extension, options);
-		const otherServers: IExtensionManagementServer[] = this.servers.filter(s => s !== server);
-		if (otherServers.length) {
-			for (const otherServer of otherServers) {
-				const installed = await otherServer.extensionManagementService.getInstalled();
-				extension = installed.filter(i => !i.isBuiltin && areSameExtensions(i.identifier, extension.identifier))[0];
-				if (extension) {
-					await otherServer.extensionManagementService.uninstall(extension, options);
+	async uninstallExtensions(extensions: UninstallExtensionInfo[]): Promise<void> {
+		const workspaceExtensions: ILocalExtension[] = [];
+		const groupedExtensions = new Map<IExtensionManagementServer, UninstallExtensionInfo[]>();
+
+		const addExtensionToServer = (server: IExtensionManagementServer, extension: ILocalExtension, options?: UninstallOptions) => {
+			let extensions = groupedExtensions.get(server);
+			if (!extensions) {
+				groupedExtensions.set(server, extensions = []);
+			}
+			extensions.push({ extension, options });
+		};
+
+		for (const { extension, options } of extensions) {
+			if (extension.isWorkspaceScoped) {
+				workspaceExtensions.push(extension);
+				continue;
+			}
+
+			const server = this.getServer(extension);
+			if (!server) {
+				throw new Error(`Invalid location ${extension.location.toString()}`);
+			}
+			addExtensionToServer(server, extension, options);
+			if (this.servers.length > 1 && isLanguagePackExtension(extension.manifest)) {
+				const otherServers: IExtensionManagementServer[] = this.servers.filter(s => s !== server);
+				for (const otherServer of otherServers) {
+					const installed = await otherServer.extensionManagementService.getInstalled();
+					const extensionInOtherServer = installed.find(i => !i.isBuiltin && areSameExtensions(i.identifier, extension.identifier));
+					if (extensionInOtherServer) {
+						addExtensionToServer(otherServer, extensionInOtherServer, options);
+					}
 				}
 			}
 		}
-		return promise;
+
+		const promises: Promise<void>[] = [];
+		for (const workspaceExtension of workspaceExtensions) {
+			promises.push(this.uninstallExtensionFromWorkspace(workspaceExtension));
+		}
+		for (const [server, extensions] of groupedExtensions.entries()) {
+			promises.push(this.uninstallInServer(server, extensions));
+		}
+
+		await Promise.allSettled(promises);
 	}
 
-	private async uninstallInServer(extension: ILocalExtension, server: IExtensionManagementServer, options?: UninstallOptions): Promise<void> {
-		if (server === this.extensionManagementServerService.localExtensionManagementServer) {
-			const installedExtensions = await this.extensionManagementServerService.remoteExtensionManagementServer!.extensionManagementService.getInstalled(ExtensionType.User);
-			const dependentNonUIExtensions = installedExtensions.filter(i => !this.extensionManifestPropertiesService.prefersExecuteOnUI(i.manifest)
-				&& i.manifest.extensionDependencies && i.manifest.extensionDependencies.some(id => areSameExtensions({ id }, extension.identifier)));
-			if (dependentNonUIExtensions.length) {
-				return Promise.reject(new Error(this.getDependentsErrorMessage(extension, dependentNonUIExtensions)));
+	private async uninstallInServer(server: IExtensionManagementServer, extensions: UninstallExtensionInfo[]): Promise<void> {
+		if (server === this.extensionManagementServerService.localExtensionManagementServer && this.extensionManagementServerService.remoteExtensionManagementServer) {
+			for (const { extension } of extensions) {
+				const installedExtensions = await this.extensionManagementServerService.remoteExtensionManagementServer.extensionManagementService.getInstalled(ExtensionType.User);
+				const dependentNonUIExtensions = installedExtensions.filter(i => !this.extensionManifestPropertiesService.prefersExecuteOnUI(i.manifest)
+					&& i.manifest.extensionDependencies && i.manifest.extensionDependencies.some(id => areSameExtensions({ id }, extension.identifier)));
+				if (dependentNonUIExtensions.length) {
+					throw (new Error(this.getDependentsErrorMessage(extension, dependentNonUIExtensions)));
+				}
 			}
 		}
-		return server.extensionManagementService.uninstall(extension, options);
+		return server.extensionManagementService.uninstallExtensions(extensions);
 	}
 
 	private getDependentsErrorMessage(extension: ILocalExtension, dependents: ILocalExtension[]): string {
@@ -216,12 +235,16 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		return Promise.reject(`Invalid location ${extension.location.toString()}`);
 	}
 
-	updateMetadata(extension: ILocalExtension, metadata: Partial<Metadata>, profileLocation?: URI): Promise<ILocalExtension> {
+	updateMetadata(extension: ILocalExtension, metadata: Partial<Metadata>): Promise<ILocalExtension> {
 		const server = this.getServer(extension);
 		if (server) {
-			return server.extensionManagementService.updateMetadata(extension, metadata, profileLocation);
+			return server.extensionManagementService.updateMetadata(extension, metadata, this.userDataProfileService.currentProfile.extensionsResource);
 		}
 		return Promise.reject(`Invalid location ${extension.location.toString()}`);
+	}
+
+	async resetPinnedStateForAllUserExtensions(pinned: boolean): Promise<void> {
+		await Promise.allSettled(this.servers.map(server => server.extensionManagementService.resetPinnedStateForAllUserExtensions(pinned)));
 	}
 
 	zip(extension: ILocalExtension): Promise<URI> {
@@ -230,13 +253,6 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 			return server.extensionManagementService.zip(extension);
 		}
 		return Promise.reject(`Invalid location ${extension.location.toString()}`);
-	}
-
-	unzip(zipLocation: URI): Promise<IExtensionIdentifier> {
-		return Promises.settled(this.servers
-			// Filter out web server
-			.filter(server => server !== this.extensionManagementServerService.webExtensionManagementServer)
-			.map(({ extensionManagementService }) => extensionManagementService.unzip(zipLocation))).then(([extensionIdentifier]) => extensionIdentifier);
 	}
 
 	download(extension: IGalleryExtension, operation: InstallOperation, donotVerifySignature: boolean): Promise<URI> {
@@ -376,6 +392,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 			servers.push(server);
 		}
 
+		installOptions = { ...(installOptions || {}), isApplicationScoped: extension.isApplicationScoped };
 		return Promises.settled(servers.map(server => server.extensionManagementService.installFromGallery(gallery, installOptions))).then(([local]) => local);
 	}
 
@@ -399,7 +416,12 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 					exensions.push({ extension, options });
 				}
 			} catch (error) {
-				results.set(extension.identifier.id.toLowerCase(), { identifier: extension.identifier, source: extension, error, operation: InstallOperation.Install });
+				results.set(extension.identifier.id.toLowerCase(), {
+					identifier: extension.identifier,
+					source: extension, error,
+					operation: InstallOperation.Install,
+					profileLocation: options.profileLocation ?? this.userDataProfileService.currentProfile.extensionsResource
+				});
 			}
 		}));
 
@@ -445,6 +467,10 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 			}
 		}));
 		return result;
+	}
+
+	getInstalledWorkspaceExtensionLocations(): URI[] {
+		return this.workspaceExtensionManagementService.getInstalledWorkspaceExtensionsLocations();
 	}
 
 	async getInstalledWorkspaceExtensions(includeInvalid: boolean): Promise<ILocalExtension[]> {
@@ -512,7 +538,8 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 			identifier: extension.identifier,
 			server,
 			applicationScoped: false,
-			workspaceScoped: true
+			workspaceScoped: true,
+			profileLocation: this.userDataProfileService.currentProfile.extensionsResource
 		});
 
 		try {
@@ -526,7 +553,8 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 				identifier: extension.identifier,
 				server,
 				applicationScoped: false,
-				workspaceScoped: true
+				workspaceScoped: true,
+				profileLocation: this.userDataProfileService.currentProfile.extensionsResource
 			});
 		} catch (error) {
 			this.logService.error(`Failed to uninstall the workspace extension ${extension.identifier.id} from ${extension.location.toString()}`, getErrorMessage(error));
@@ -535,7 +563,8 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 				server,
 				error,
 				applicationScoped: false,
-				workspaceScoped: true
+				workspaceScoped: true,
+				profileLocation: this.userDataProfileService.currentProfile.extensionsResource
 			});
 			throw error;
 		}
@@ -566,7 +595,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 			throw error;
 		}
 
-		if (!installOptions?.context?.[EXTENSION_INSTALL_SYNC_CONTEXT]) {
+		if (installOptions?.context?.[EXTENSION_INSTALL_SOURCE_CONTEXT] !== ExtensionInstallSource.SETTINGS_SYNC) {
 			await this.checkForWorkspaceTrust(manifest, false);
 		}
 
@@ -836,7 +865,7 @@ class WorkspaceExtensionsManagementService extends Disposable {
 	}
 
 	private async initialize(): Promise<void> {
-		const existingLocations = this.getWorkspaceExtensionsLocations();
+		const existingLocations = this.getInstalledWorkspaceExtensionsLocations();
 		if (!existingLocations.length) {
 			return;
 		}
@@ -942,7 +971,7 @@ class WorkspaceExtensionsManagementService extends Disposable {
 		}>('workspaceextension:uninstall');
 	}
 
-	private getWorkspaceExtensionsLocations(): URI[] {
+	getInstalledWorkspaceExtensionsLocations(): URI[] {
 		const locations: URI[] = [];
 		try {
 			const parsed = JSON.parse(this.storageService.get(WorkspaceExtensionsManagementService.WORKSPACE_EXTENSIONS_KEY, StorageScope.WORKSPACE, '[]'));

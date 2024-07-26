@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import type { IUpdatableHover } from 'vs/base/browser/ui/hover/hover';
+import type { IManagedHover } from 'vs/base/browser/ui/hover/hover';
 import { getBaseLayerHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate2';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { UILabelProvider } from 'vs/base/common/keybindingLabels';
@@ -61,7 +61,7 @@ export class KeybindingLabel extends Disposable {
 
 	private readonly keyElements = new Set<HTMLSpanElement>();
 
-	private hover: IUpdatableHover;
+	private hover: IManagedHover;
 	private keybinding: ResolvedKeybinding | undefined;
 	private matches: Matches | undefined;
 	private didEverRender: boolean;
@@ -78,7 +78,7 @@ export class KeybindingLabel extends Disposable {
 			this.domNode.style.color = labelForeground;
 		}
 
-		this.hover = this._register(getBaseLayerHoverDelegate().setupUpdatableHover(getDefaultHoverDelegate('mouse'), this.domNode, ''));
+		this.hover = this._register(getBaseLayerHoverDelegate().setupManagedHover(getDefaultHoverDelegate('mouse'), this.domNode, ''));
 
 		this.didEverRender = false;
 		container.appendChild(this.domNode);

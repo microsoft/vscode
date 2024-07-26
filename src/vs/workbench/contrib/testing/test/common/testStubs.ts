@@ -113,6 +113,26 @@ export const getInitializedMainTestCollection = async (singleUse = testStubs.nes
 	return c;
 };
 
+type StubTreeIds = Readonly<{ [id: string]: StubTreeIds | undefined }>;
+
+export const makeSimpleStubTree = (ids: StubTreeIds): TestTestCollection => {
+	const collection = new TestTestCollection();
+
+	const add = (parent: TestTestItem, children: StubTreeIds, path: readonly string[]) => {
+		for (const id of Object.keys(children)) {
+			const item = new TestTestItem(new TestId([...path, id]), id);
+			parent.children.add(item);
+			if (children[id]) {
+				add(item, children[id]!, [...path, id]);
+			}
+		}
+	};
+
+	add(collection.root, ids, ['ctrlId']);
+
+	return collection;
+};
+
 export const testStubs = {
 	nested: (idPrefix = 'id-') => {
 		const collection = new TestTestCollection();

@@ -33,8 +33,8 @@ export class NativeExtensionManagementService extends ProfileAwareExtensionManag
 		super(channel, userDataProfileService, uriIdentityService);
 	}
 
-	protected filterEvent({ profileLocation, applicationScoped }: { readonly profileLocation?: URI; readonly applicationScoped?: boolean }): boolean {
-		return applicationScoped || this.uriIdentityService.extUri.isEqual(this.userDataProfileService.currentProfile.extensionsResource, profileLocation);
+	protected filterEvent(profileLocation: URI, isApplicationScoped: boolean): boolean {
+		return isApplicationScoped || this.uriIdentityService.extUri.isEqual(this.userDataProfileService.currentProfile.extensionsResource, profileLocation);
 	}
 
 	override async install(vsix: URI, options?: InstallOptions): Promise<ILocalExtension> {

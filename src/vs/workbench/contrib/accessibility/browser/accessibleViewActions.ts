@@ -11,8 +11,8 @@ import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/act
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
-import { AccessibleViewProviderId, accessibilityHelpIsShown, accessibleViewContainsCodeBlocks, accessibleViewCurrentProviderId, accessibleViewGoToSymbolSupported, accessibleViewIsShown, accessibleViewSupportsNavigation, accessibleViewVerbosityEnabled } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { accessibilityHelpIsShown, accessibleViewContainsCodeBlocks, accessibleViewCurrentProviderId, accessibleViewGoToSymbolSupported, accessibleViewHasAssignedKeybindings, accessibleViewHasUnassignedKeybindings, accessibleViewIsShown, accessibleViewSupportsNavigation, accessibleViewVerbosityEnabled } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { AccessibleViewProviderId, IAccessibleViewService } from 'vs/platform/accessibility/browser/accessibleView';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsController';
 
@@ -66,7 +66,7 @@ class AccessibleViewNextCodeBlockAction extends Action2 {
 			menu:
 			{
 				...accessibleViewMenu,
-				when: ContextKeyExpr.and(accessibleViewIsShown, accessibleViewSupportsNavigation),
+				when: ContextKeyExpr.and(accessibleViewIsShown, accessibleViewContainsCodeBlocks),
 			},
 			title: localize('editor.action.accessibleViewNextCodeBlock', "Accessible View: Next Code Block")
 		});
@@ -91,7 +91,7 @@ class AccessibleViewPreviousCodeBlockAction extends Action2 {
 			icon: Codicon.arrowLeft,
 			menu: {
 				...accessibleViewMenu,
-				when: ContextKeyExpr.and(accessibleViewIsShown, accessibleViewSupportsNavigation),
+				when: ContextKeyExpr.and(accessibleViewIsShown, accessibleViewContainsCodeBlocks),
 			},
 			title: localize('editor.action.accessibleViewPreviousCodeBlock', "Accessible View: Previous Code Block")
 		});
@@ -228,6 +228,79 @@ class AccessibleViewDisableHintAction extends Action2 {
 }
 registerAction2(AccessibleViewDisableHintAction);
 
+class AccessibilityHelpConfigureKeybindingsAction extends Action2 {
+	constructor() {
+		super({
+			id: AccessibilityCommandId.AccessibilityHelpConfigureKeybindings,
+			precondition: ContextKeyExpr.and(accessibilityHelpIsShown, accessibleViewHasUnassignedKeybindings),
+			icon: Codicon.key,
+			keybinding: {
+				primary: KeyMod.Alt | KeyCode.KeyK,
+				weight: KeybindingWeight.WorkbenchContrib
+			},
+			menu: [
+				{
+					id: MenuId.AccessibleView,
+					group: 'navigation',
+					order: 3,
+					when: accessibleViewHasUnassignedKeybindings,
+				}
+			],
+			title: localize('editor.action.accessibilityHelpConfigureUnassignedKeybindings', "Accessibility Help Configure Unassigned Keybindings")
+		});
+	}
+	async run(accessor: ServicesAccessor): Promise<void> {
+		await accessor.get(IAccessibleViewService).configureKeybindings(true);
+	}
+}
+registerAction2(AccessibilityHelpConfigureKeybindingsAction);
+
+class AccessibilityHelpConfigureAssignedKeybindingsAction extends Action2 {
+	constructor() {
+		super({
+			id: AccessibilityCommandId.AccessibilityHelpConfigureAssignedKeybindings,
+			precondition: ContextKeyExpr.and(accessibilityHelpIsShown, accessibleViewHasAssignedKeybindings),
+			icon: Codicon.key,
+			keybinding: {
+				primary: KeyMod.Alt | KeyCode.KeyA,
+				weight: KeybindingWeight.WorkbenchContrib
+			},
+			menu: [
+				{
+					id: MenuId.AccessibleView,
+					group: 'navigation',
+					order: 4,
+					when: accessibleViewHasAssignedKeybindings,
+				}
+			],
+			title: localize('editor.action.accessibilityHelpConfigureAssignedKeybindings', "Accessibility Help Configure Assigned Keybindings")
+		});
+	}
+	async run(accessor: ServicesAccessor): Promise<void> {
+		await accessor.get(IAccessibleViewService).configureKeybindings(false);
+	}
+}
+registerAction2(AccessibilityHelpConfigureAssignedKeybindingsAction);
+
+
+class AccessibilityHelpOpenHelpLinkAction extends Action2 {
+	constructor() {
+		super({
+			id: AccessibilityCommandId.AccessibilityHelpOpenHelpLink,
+			precondition: ContextKeyExpr.and(accessibilityHelpIsShown),
+			keybinding: {
+				primary: KeyMod.Alt | KeyCode.KeyH,
+				weight: KeybindingWeight.WorkbenchContrib
+			},
+			title: localize('editor.action.accessibilityHelpOpenHelpLink', "Accessibility Help Open Help Link")
+		});
+	}
+	run(accessor: ServicesAccessor): void {
+		accessor.get(IAccessibleViewService).openHelpLink();
+	}
+}
+registerAction2(AccessibilityHelpOpenHelpLinkAction);
+
 class AccessibleViewAcceptInlineCompletionAction extends Action2 {
 	constructor() {
 		super({
@@ -267,3 +340,4 @@ class AccessibleViewAcceptInlineCompletionAction extends Action2 {
 	}
 }
 registerAction2(AccessibleViewAcceptInlineCompletionAction);
+

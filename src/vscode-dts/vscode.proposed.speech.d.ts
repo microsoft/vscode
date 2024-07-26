@@ -22,8 +22,12 @@ declare module 'vscode' {
 		readonly text?: string;
 	}
 
-	export interface SpeechToTextSession extends Disposable {
+	export interface SpeechToTextSession {
 		readonly onDidChange: Event<SpeechToTextEvent>;
+	}
+
+	export interface TextToSpeechOptions {
+		readonly language?: string;
 	}
 
 	export enum TextToSpeechStatus {
@@ -37,7 +41,7 @@ declare module 'vscode' {
 		readonly text?: string;
 	}
 
-	export interface TextToSpeechSession extends Disposable {
+	export interface TextToSpeechSession {
 		readonly onDidChange: Event<TextToSpeechEvent>;
 
 		synthesize(text: string): void;
@@ -53,14 +57,14 @@ declare module 'vscode' {
 		readonly text?: string;
 	}
 
-	export interface KeywordRecognitionSession extends Disposable {
+	export interface KeywordRecognitionSession {
 		readonly onDidChange: Event<KeywordRecognitionEvent>;
 	}
 
 	export interface SpeechProvider {
-		provideSpeechToTextSession(token: CancellationToken, options?: SpeechToTextOptions): SpeechToTextSession;
-		provideTextToSpeechSession(token: CancellationToken): TextToSpeechSession;
-		provideKeywordRecognitionSession(token: CancellationToken): KeywordRecognitionSession;
+		provideSpeechToTextSession(token: CancellationToken, options?: SpeechToTextOptions): ProviderResult<SpeechToTextSession>;
+		provideTextToSpeechSession(token: CancellationToken, options?: TextToSpeechOptions): ProviderResult<TextToSpeechSession>;
+		provideKeywordRecognitionSession(token: CancellationToken): ProviderResult<KeywordRecognitionSession>;
 	}
 
 	export namespace speech {

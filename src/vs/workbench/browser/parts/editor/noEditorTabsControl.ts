@@ -61,6 +61,8 @@ export class NoEditorTabsControl extends EditorTabsControl {
 
 	setActive(isActive: boolean): void { }
 
+	updateEditorSelections(): void { }
+
 	updateEditorLabel(editor: EditorInput): void { }
 
 	updateEditorDirty(editor: EditorInput): void { }

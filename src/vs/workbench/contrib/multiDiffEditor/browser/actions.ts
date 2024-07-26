@@ -10,10 +10,13 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { localize2 } from 'vs/nls';
 import { Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ITextEditorOptions, TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { TextFileEditor } from 'vs/workbench/contrib/files/browser/editors/textFileEditor';
+import { IListService } from 'vs/platform/list/browser/listService';
+import { resolveCommandsContext } from 'vs/workbench/browser/parts/editor/editorCommandsContext';
 import { MultiDiffEditor } from 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffEditor';
 import { MultiDiffEditorInput } from 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class GoToFileAction extends Action2 {
@@ -37,21 +40,28 @@ export class GoToFileAction extends Action2 {
 		const editorService = accessor.get(IEditorService);
 		const activeEditorPane = editorService.activeEditorPane;
 		let selections: Selection[] | undefined = undefined;
-		if (activeEditorPane instanceof MultiDiffEditor) {
-			const editor = activeEditorPane.tryGetCodeEditor(uri);
-			if (editor) {
-				selections = editor.editor.getSelections() ?? undefined;
-			}
+		if (!(activeEditorPane instanceof MultiDiffEditor)) {
+			return;
 		}
 
-		const editor = await editorService.openEditor({ resource: uri });
-		if (selections && (editor instanceof TextFileEditor)) {
-			const c = editor.getControl();
-			if (c) {
-				c.setSelections(selections);
-				c.revealLineInCenter(selections[0].selectionStartLineNumber);
-			}
+		const editor = activeEditorPane.tryGetCodeEditor(uri);
+		if (editor) {
+			selections = editor.editor.getSelections() ?? undefined;
 		}
+
+		let targetUri = uri;
+		const item = activeEditorPane.findDocumentDiffItem(uri);
+		if (item && item.goToFileUri) {
+			targetUri = item.goToFileUri;
+		}
+
+		await editorService.openEditor({
+			resource: targetUri,
+			options: {
+				selection: selections?.[0],
+				selectionRevealType: TextEditorSelectionRevealType.CenterIfOutsideViewport,
+			} satisfies ITextEditorOptions,
+		});
 	}
 }
 
@@ -72,12 +82,17 @@ export class CollapseAllAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
-		const editorService = accessor.get(IEditorService);
-		const activeEditor = editorService.activeEditor;
+	async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
+		const resolvedContext = resolveCommandsContext(args, accessor.get(IEditorService), accessor.get(IEditorGroupsService), accessor.get(IListService));
 
-		if (activeEditor instanceof MultiDiffEditorInput) {
-			const viewModel = await activeEditor.getViewModel();
+		const groupContext = resolvedContext.groupedEditors[0];
+		if (!groupContext) {
+			return;
+		}
+
+		const editor = groupContext.editors[0];
+		if (editor instanceof MultiDiffEditorInput) {
+			const viewModel = await editor.getViewModel();
 			viewModel.collapseAll();
 		}
 	}
@@ -100,12 +115,17 @@ export class ExpandAllAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
-		const editorService = accessor.get(IEditorService);
-		const activeEditor = editorService.activeEditor;
+	async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
+		const resolvedContext = resolveCommandsContext(args, accessor.get(IEditorService), accessor.get(IEditorGroupsService), accessor.get(IListService));
 
-		if (activeEditor instanceof MultiDiffEditorInput) {
-			const viewModel = await activeEditor.getViewModel();
+		const groupContext = resolvedContext.groupedEditors[0];
+		if (!groupContext) {
+			return;
+		}
+
+		const editor = groupContext.editors[0];
+		if (editor instanceof MultiDiffEditorInput) {
+			const viewModel = await editor.getViewModel();
 			viewModel.expandAll();
 		}
 	}
