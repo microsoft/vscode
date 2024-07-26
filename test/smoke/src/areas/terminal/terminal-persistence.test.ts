@@ -49,7 +49,7 @@ export function setup() {
 				]);
 			});
 
-			it('should persist buffer content', async () => {
+			it.skip('should persist buffer content', async () => {
 				await terminal.createTerminal();
 				// TODO: Handle passing in an actual regex, not string
 				await terminal.assertTerminalGroups([

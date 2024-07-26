@@ -143,7 +143,7 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 	readonly onDidChangeReadonly = this._onDidChangeReadonly.event;
 
 	private currentGlobalAutoSaveConfiguration: IAutoSaveConfiguration;
-	private currentFilesAssociationConfiguration: IStringDictionary<string>;
+	private currentFilesAssociationConfiguration: IStringDictionary<string> | undefined;
 	private currentHotExitConfiguration: string;
 
 	private readonly autoSaveConfigurationCache = new LRUCache<URI, ICachedAutoSaveConfiguration>(1000);
@@ -317,7 +317,7 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 		return this.currentGlobalAutoSaveConfiguration;
 	}
 
-	private computeAutoSaveConfiguration(resource: URI | undefined, filesConfiguration: IFilesConfigurationNode): ICachedAutoSaveConfiguration {
+	private computeAutoSaveConfiguration(resource: URI | undefined, filesConfiguration: IFilesConfigurationNode | undefined): ICachedAutoSaveConfiguration {
 		let autoSave: 'afterDelay' | 'onFocusChange' | 'onWindowChange' | undefined;
 		let autoSaveDelay: number | undefined;
 		let autoSaveWorkspaceFilesOnly: boolean | undefined;
@@ -326,10 +326,10 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 		let isOutOfWorkspace: boolean | undefined;
 		let isShortAutoSaveDelay: boolean | undefined;
 
-		switch (filesConfiguration.autoSave ?? FilesConfigurationService.DEFAULT_AUTO_SAVE_MODE) {
+		switch (filesConfiguration?.autoSave ?? FilesConfigurationService.DEFAULT_AUTO_SAVE_MODE) {
 			case AutoSaveConfiguration.AFTER_DELAY: {
 				autoSave = 'afterDelay';
-				autoSaveDelay = typeof filesConfiguration.autoSaveDelay === 'number' && filesConfiguration.autoSaveDelay >= 0 ? filesConfiguration.autoSaveDelay : FilesConfigurationService.DEFAULT_AUTO_SAVE_DELAY;
+				autoSaveDelay = typeof filesConfiguration?.autoSaveDelay === 'number' && filesConfiguration.autoSaveDelay >= 0 ? filesConfiguration.autoSaveDelay : FilesConfigurationService.DEFAULT_AUTO_SAVE_DELAY;
 				isShortAutoSaveDelay = autoSaveDelay <= FilesConfigurationService.DEFAULT_AUTO_SAVE_DELAY;
 				break;
 			}
@@ -343,7 +343,7 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 				break;
 		}
 
-		if (filesConfiguration.autoSaveWorkspaceFilesOnly === true) {
+		if (filesConfiguration?.autoSaveWorkspaceFilesOnly === true) {
 			autoSaveWorkspaceFilesOnly = true;
 
 			if (resource && !this.contextService.isInsideWorkspace(resource)) {
@@ -352,7 +352,7 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 			}
 		}
 
-		if (filesConfiguration.autoSaveWhenNoErrors === true) {
+		if (filesConfiguration?.autoSaveWhenNoErrors === true) {
 			autoSaveWhenNoErrors = true;
 			isShortAutoSaveDelay = undefined; // this configuration disables short auto save delay
 		}

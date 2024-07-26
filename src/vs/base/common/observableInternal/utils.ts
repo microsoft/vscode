@@ -608,3 +608,12 @@ export function latestChangedValue<T extends IObservable<any>[]>(owner: DebugOwn
 	});
 	return result;
 }
+
+/**
+ * Works like a derived.
+ * However, if the value is not undefined, it is cached and will not be recomputed anymore.
+ * In that case, the derived will unsubscribe from its dependencies.
+*/
+export function derivedConstOnceDefined<T>(owner: DebugOwner, fn: (reader: IReader) => T): IObservable<T | undefined> {
+	return derivedObservableWithCache<T | undefined>(owner, (reader, lastValue) => lastValue ?? fn(reader));
+}

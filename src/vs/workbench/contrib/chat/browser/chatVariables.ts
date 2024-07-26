@@ -56,7 +56,7 @@ export class ChatVariablesService implements IChatVariablesService {
 						};
 						jobs.push(data.resolver(prompt.text, part.variableArg, model, variableProgressCallback, token).then(value => {
 							if (value) {
-								resolvedVariables[i] = { id: data.data.id, modelDescription: data.data.modelDescription, name: part.variableName, range: part.range, value, references };
+								resolvedVariables[i] = { id: data.data.id, modelDescription: data.data.modelDescription, name: part.variableName, range: part.range, value, references, fullName: data.data.fullName, icon: data.data.icon };
 							}
 						}).catch(onUnexpectedExternalError));
 					}
@@ -80,11 +80,11 @@ export class ChatVariablesService implements IChatVariablesService {
 					};
 					jobs.push(data.resolver(prompt.text, '', model, variableProgressCallback, token).then(value => {
 						if (value) {
-							resolvedAttachedContext[i] = { id: data.data.id, modelDescription: data.data.modelDescription, name: attachment.name, range: attachment.range, value, references };
+							resolvedAttachedContext[i] = { id: data.data.id, modelDescription: data.data.modelDescription, name: attachment.name, fullName: attachment.fullName, range: attachment.range, value, references, icon: attachment.icon };
 						}
 					}).catch(onUnexpectedExternalError));
-				} else if (attachment.isDynamic) {
-					resolvedAttachedContext[i] = { id: attachment.id, name: attachment.name, value: attachment.value };
+				} else if (attachment.isDynamic || attachment.isTool) {
+					resolvedAttachedContext[i] = { ...attachment };
 				}
 			});
 
@@ -122,9 +122,12 @@ export class ChatVariablesService implements IChatVariablesService {
 		return this._resolver.get(name.toLowerCase())?.data;
 	}
 
-	getVariables(): Iterable<Readonly<IChatVariableData>> {
+	getVariables(location: ChatAgentLocation): Iterable<Readonly<IChatVariableData>> {
 		const all = Iterable.map(this._resolver.values(), data => data.data);
-		return Iterable.filter(all, data => !data.hidden);
+		return Iterable.filter(all, data => {
+			// TODO@jrieken this is improper and should be know from the variable registeration data
+			return location !== ChatAgentLocation.Editor || !new Set(['selection', 'editor']).has(data.name);
+		});
 	}
 
 	getDynamicVariables(sessionId: string): ReadonlyArray<IDynamicVariable> {
@@ -161,8 +164,7 @@ export class ChatVariablesService implements IChatVariablesService {
 			return;
 		}
 
-		await showChatView(this.viewsService);
-		const widget = this.chatWidgetService.lastFocusedWidget;
+		const widget = await showChatView(this.viewsService);
 		if (!widget || !widget.viewModel) {
 			return;
 		}

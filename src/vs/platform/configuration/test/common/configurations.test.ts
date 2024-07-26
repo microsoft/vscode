@@ -22,8 +22,7 @@ suite('DefaultConfiguration', () => {
 
 	function reset() {
 		configurationRegistry.deregisterConfigurations(configurationRegistry.getConfigurations());
-		const configurationDefaultsOverrides = configurationRegistry.getConfigurationDefaultsOverrides();
-		configurationRegistry.deregisterDefaultConfigurations([...configurationDefaultsOverrides.keys()].map(key => ({ extensionId: configurationDefaultsOverrides.get(key)?.source, overrides: { [key]: configurationDefaultsOverrides.get(key)?.value } })));
+		configurationRegistry.deregisterDefaultConfigurations(configurationRegistry.getRegisteredDefaultConfigurations());
 	}
 
 	test('Test registering a property before initialize', async () => {
@@ -403,11 +402,12 @@ suite('DefaultConfiguration', () => {
 		configurationRegistry.registerDefaultConfigurations([node1]);
 		configurationRegistry.registerDefaultConfigurations([node2]);
 		await testObject.initialize();
+
 		configurationRegistry.deregisterDefaultConfigurations([node1]);
 		assert.ok(equals(testObject.configurationModel.getValue('[a]'), { 'b': { 'bb': '20', 'cc': '30' } }));
 		assert.ok(equals(testObject.configurationModel.contents, { '[a]': { 'b': { 'bb': '20', 'cc': '30' } }, 'b': {} }));
-		//assert.ok(equals(testObject.configurationModel.overrides, [{ '[a]': { 'b': { 'bb': '20', 'cc': '30' } } }])); TODO: Check this later
-		//assert.deepStrictEqual(testObject.configurationModel.keys.sort(), ['[a]', 'b']);
+		assert.ok(equals(testObject.configurationModel.overrides, [{ contents: { 'b': { 'bb': '20', 'cc': '30' } }, identifiers: ['a'], keys: ['b'] }]));
+		assert.deepStrictEqual(testObject.configurationModel.keys.sort(), ['[a]', 'b']);
 		assert.ok(equals(testObject.configurationModel.getOverrideValue('b', 'a'), { 'bb': '20', 'cc': '30' }));
 	});
 });

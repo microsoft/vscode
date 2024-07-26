@@ -10,7 +10,6 @@ import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 
-
 export const enum TestResultState {
 	Unset = 0,
 	Queued = 1,
@@ -36,6 +35,12 @@ export const enum ExtTestRunProfileKind {
 	Run = 1,
 	Debug = 2,
 	Coverage = 3,
+}
+
+export const enum TestControllerCapability {
+	Refresh = 1 << 1,
+	CodeRelatedToTest = 1 << 2,
+	TestRelatedToCode = 1 << 3,
 }
 
 export const enum TestRunProfileBitset {
@@ -169,6 +174,32 @@ export const enum TestMessageType {
 	Output
 }
 
+export interface ITestMessageStackFrame {
+	label: string;
+	uri: URI | undefined;
+	position: Position | undefined;
+}
+
+export namespace ITestMessageStackFrame {
+	export interface Serialized {
+		label: string;
+		uri: UriComponents | undefined;
+		position: IPosition | undefined;
+	}
+
+	export const serialize = (stack: Readonly<ITestMessageStackFrame>): Serialized => ({
+		label: stack.label,
+		uri: stack.uri?.toJSON(),
+		position: stack.position?.toJSON(),
+	});
+
+	export const deserialize = (uriIdentity: ITestUriCanonicalizer, stack: Serialized): ITestMessageStackFrame => ({
+		label: stack.label,
+		uri: stack.uri ? uriIdentity.asCanonicalUri(URI.revive(stack.uri)) : undefined,
+		position: stack.position ? Position.lift(stack.position) : undefined,
+	});
+}
+
 export interface ITestErrorMessage {
 	message: string | IMarkdownString;
 	type: TestMessageType.Error;
@@ -176,6 +207,7 @@ export interface ITestErrorMessage {
 	actual: string | undefined;
 	contextValue: string | undefined;
 	location: IRichLocation | undefined;
+	stackTrace: undefined | ITestMessageStackFrame[];
 }
 
 export namespace ITestErrorMessage {
@@ -186,6 +218,7 @@ export namespace ITestErrorMessage {
 		actual: string | undefined;
 		contextValue: string | undefined;
 		location: IRichLocation.Serialize | undefined;
+		stackTrace: undefined | ITestMessageStackFrame.Serialized[];
 	}
 
 	export const serialize = (message: Readonly<ITestErrorMessage>): Serialized => ({
@@ -195,6 +228,7 @@ export namespace ITestErrorMessage {
 		actual: message.actual,
 		contextValue: message.contextValue,
 		location: message.location && IRichLocation.serialize(message.location),
+		stackTrace: message.stackTrace?.map(ITestMessageStackFrame.serialize),
 	});
 
 	export const deserialize = (uriIdentity: ITestUriCanonicalizer, message: Serialized): ITestErrorMessage => ({
@@ -204,6 +238,7 @@ export namespace ITestErrorMessage {
 		actual: message.actual,
 		contextValue: message.contextValue,
 		location: message.location && IRichLocation.deserialize(uriIdentity, message.location),
+		stackTrace: message.stackTrace && message.stackTrace.map(s => ITestMessageStackFrame.deserialize(uriIdentity, s)),
 	});
 }
 
@@ -258,6 +293,9 @@ export namespace ITestMessage {
 
 	export const deserialize = (uriIdentity: ITestUriCanonicalizer, message: Serialized): ITestMessage =>
 		message.type === TestMessageType.Error ? ITestErrorMessage.deserialize(uriIdentity, message) : ITestOutputMessage.deserialize(uriIdentity, message);
+
+	export const isDiffable = (message: ITestMessage): message is ITestErrorMessage & { actual: string; expected: string } =>
+		message.type === TestMessageType.Error && message.actual !== undefined && message.expected !== undefined;
 }
 
 export interface ITestTaskState {
@@ -296,6 +334,7 @@ export interface ITestRunTask {
 	id: string;
 	name: string | undefined;
 	running: boolean;
+	ctrlId: string;
 }
 
 export interface ITestTag {
@@ -546,7 +585,7 @@ export interface ISerializedTestResults {
 	/** Subset of test result items */
 	items: TestResultItem.Serialized[];
 	/** Tasks involved in the run. */
-	tasks: { id: string; name: string | undefined }[];
+	tasks: { id: string; name: string | undefined; ctrlId: string }[];
 	/** Human-readable name of the test run. */
 	name: string;
 	/** Test trigger informaton */

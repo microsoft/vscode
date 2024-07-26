@@ -662,6 +662,10 @@ export default class BufferSyncSupport extends Disposable {
 		this.synchronizer.beforeCommand(command);
 	}
 
+	public lineCount(resource: vscode.Uri): number | undefined {
+		return this.syncedBuffers.get(resource)?.lineCount;
+	}
+
 	private onDidCloseTextDocument(document: vscode.TextDocument): void {
 		this.closeResource(document.uri);
 	}

@@ -41,7 +41,7 @@
     "commander": "^7.0.0",
     "debug": "^4.3.2",
     "electron-osx-sign": "^0.4.16",
-    "esbuild": "0.20.0",
+    "esbuild": "0.23.0",
     "extract-zip": "^2.0.1",
     "gulp-merge-json": "^2.1.1",
     "jsonc-parser": "^2.3.0",
@@ -51,10 +51,11 @@
     "ternary-stream": "^3.0.0",
     "through2": "^4.0.2",
     "tmp": "^0.2.1",
-    "vscode-universal-bundler": "^0.0.2",
+    "vscode-universal-bundler": "^0.1.0",
     "workerpool": "^6.4.0",
     "yauzl": "^2.10.0"
   },
+  "type": "commonjs",
   "scripts": {
     "compile": "../node_modules/.bin/tsc -p tsconfig.build.json",
     "watch": "../node_modules/.bin/tsc -p tsconfig.build.json --watch",

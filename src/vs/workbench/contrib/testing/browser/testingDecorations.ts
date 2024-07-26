@@ -835,7 +835,7 @@ abstract class RunTestDecoration {
 	 */
 	protected getTestContextMenuActions(test: InternalTestItem, resultItem?: TestResultItem): IReference<IAction[]> {
 		const testActions: IAction[] = [];
-		const capabilities = this.testProfileService.capabilitiesForTest(test);
+		const capabilities = this.testProfileService.capabilitiesForTest(test.item);
 
 		[
 			{ bitset: TestRunProfileBitset.Run, label: localize('run test', 'Run Test') },
@@ -880,16 +880,12 @@ abstract class RunTestDecoration {
 
 	private getContributedTestActions(test: InternalTestItem, capabilities: number): IAction[] {
 		const contextOverlay = this.contextKeyService.createOverlay(getTestItemContextOverlay(test, capabilities));
-		const menu = this.menuService.createMenu(MenuId.TestItemGutter, contextOverlay);
 
-		try {
-			const target: IAction[] = [];
-			const arg = getContextForTestItem(this.testService.collection, test.item.extId);
-			createAndFillInContextMenuActions(menu, { shouldForwardArgs: true, arg }, target);
-			return target;
-		} finally {
-			menu.dispose();
-		}
+		const target: IAction[] = [];
+		const arg = getContextForTestItem(this.testService.collection, test.item.extId);
+		const menu = this.menuService.getMenuActions(MenuId.TestItemGutter, contextOverlay, { shouldForwardArgs: true, arg });
+		createAndFillInContextMenuActions(menu, target);
+		return target;
 	}
 }
 
@@ -931,7 +927,7 @@ class MultiRunTestDecoration extends RunTestDecoration implements ITestDecoratio
 			{ bitset: TestRunProfileBitset.Coverage, label: localize('run all test with coverage', 'Run All Tests with Coverage') },
 			{ bitset: TestRunProfileBitset.Debug, label: localize('debug all test', 'Debug All Tests') },
 		].forEach(({ bitset, label }, i) => {
-			const canRun = this.tests.some(({ test }) => this.testProfileService.capabilitiesForTest(test) & bitset);
+			const canRun = this.tests.some(({ test }) => this.testProfileService.capabilitiesForTest(test.item) & bitset);
 			if (canRun) {
 				allActions.push(new Action(`testing.gutter.run${i}`, label, undefined, undefined, () => this.runWith(bitset)));
 			}

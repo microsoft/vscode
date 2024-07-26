@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, Display, screen } from 'electron';
+import electron from 'electron';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { isMacintosh } from 'vs/base/common/platform';
 import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
@@ -78,7 +78,7 @@ export class WindowsStateHandler extends Disposable {
 		// When a window looses focus, save all windows state. This allows to
 		// prevent loss of window-state data when OS is restarted without properly
 		// shutting down the application (https://github.com/microsoft/vscode/issues/87171)
-		app.on('browser-window-blur', () => {
+		electron.app.on('browser-window-blur', () => {
 			if (!this.shuttingDown) {
 				this.saveWindowsState();
 			}
@@ -339,8 +339,8 @@ export class WindowsStateHandler extends Disposable {
 		//
 
 		// We want the new window to open on the same display that the last active one is in
-		let displayToUse: Display | undefined;
-		const displays = screen.getAllDisplays();
+		let displayToUse: electron.Display | undefined;
+		const displays = electron.screen.getAllDisplays();
 
 		// Single Display
 		if (displays.length === 1) {
@@ -352,18 +352,18 @@ export class WindowsStateHandler extends Disposable {
 
 			// on mac there is 1 menu per window so we need to use the monitor where the cursor currently is
 			if (isMacintosh) {
-				const cursorPoint = screen.getCursorScreenPoint();
-				displayToUse = screen.getDisplayNearestPoint(cursorPoint);
+				const cursorPoint = electron.screen.getCursorScreenPoint();
+				displayToUse = electron.screen.getDisplayNearestPoint(cursorPoint);
 			}
 
 			// if we have a last active window, use that display for the new window
 			if (!displayToUse && lastActive) {
-				displayToUse = screen.getDisplayMatching(lastActive.getBounds());
+				displayToUse = electron.screen.getDisplayMatching(lastActive.getBounds());
 			}
 
 			// fallback to primary display or first display
 			if (!displayToUse) {
-				displayToUse = screen.getPrimaryDisplay() || displays[0];
+				displayToUse = electron.screen.getPrimaryDisplay() || displays[0];
 			}
 		}
 

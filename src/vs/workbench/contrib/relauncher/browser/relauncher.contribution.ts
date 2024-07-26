@@ -29,6 +29,7 @@ interface IConfiguration extends IWindowsConfiguration {
 	window: IWindowSettings;
 	workbench?: { enableExperiments?: boolean };
 	_extensionsGallery?: { enablePPE?: boolean };
+	accessibility?: { verbosity?: { debug?: boolean } };
 }
 
 export class SettingsChangeRelauncher extends Disposable implements IWorkbenchContribution {
@@ -43,7 +44,8 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		'security.workspace.trust.enabled',
 		'workbench.enableExperiments',
 		'_extensionsGallery.enablePPE',
-		'security.restrictUNCAccess'
+		'security.restrictUNCAccess',
+		'accessibility.verbosity.debug'
 	];
 
 	private readonly titleBarStyle = new ChangeObserver<TitlebarStyle>('string');
@@ -56,6 +58,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private readonly experimentsEnabled = new ChangeObserver('boolean');
 	private readonly enablePPEExtensionsGallery = new ChangeObserver('boolean');
 	private readonly restrictUNCAccess = new ChangeObserver('boolean');
+	private readonly accessibilityVerbosityDebug = new ChangeObserver('boolean');
 
 	constructor(
 		@IHostService private readonly hostService: IHostService,
@@ -112,6 +115,9 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 
 			// UNC host access restrictions
 			processChanged(this.restrictUNCAccess.handleChange(config?.security?.restrictUNCAccess));
+
+			// Debug accessibility verbosity
+			processChanged(this.accessibilityVerbosityDebug.handleChange(config?.accessibility?.verbosity?.debug));
 		}
 
 		// Experiments

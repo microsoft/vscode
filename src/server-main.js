@@ -8,25 +8,44 @@
 
 /**
  * @import { INLSConfiguration } from './vs/nls'
- */
-
-/**
  * @import { IServerAPI } from './vs/server/node/remoteExtensionHostAgentServer'
  */
 
-const perf = require('./vs/base/common/performance');
-const performance = require('perf_hooks').performance;
-const product = require('./bootstrap-meta').product;
-const readline = require('readline');
+// ESM-comment-begin
+const path = require('path');
 const http = require('http');
+const os = require('os');
+const readline = require('readline');
+const performance = require('perf_hooks').performance;
+const bootstrapNode = require('./bootstrap-node');
+const bootstrapAmd = require('./bootstrap-amd');
 const { resolveNLSConfiguration } = require('./vs/base/node/nls');
+const product = require('./bootstrap-meta').product;
+const perf = require(`./vs/base/common/performance`);
+const minimist = require('minimist');
+// ESM-comment-end
+// ESM-uncomment-begin
+// import * as path from 'path';
+// import * as http from 'http';
+// import * as os from 'os';
+// import * as readline from 'readline';
+// import { performance }from 'perf_hooks';
+// import { fileURLToPath } from 'url';
+// import * as bootstrapNode from './bootstrap-node.js';
+// import * as bootstrapAmd from './bootstrap-amd.js';
+// import { resolveNLSConfiguration } from './vs/base/node/nls.js';
+// import { product } from './bootstrap-meta.js';
+// import * as perf from './vs/base/common/performance.js';
+// import minimist from 'minimist';
+//
+// const __dirname = path.dirname(fileURLToPath(import.meta.url));
+// ESM-uncomment-end
 
 perf.mark('code/server/start');
 // @ts-ignore
 global.vscodeServerStartTime = performance.now();
 
 async function start() {
-	const minimist = require('minimist');
 
 	// Do a quick parse to determine if a server or the cli needs to be started
 	const parsedArgs = minimist(process.argv.slice(2), {
@@ -72,9 +91,6 @@ async function start() {
 		}
 		return _remoteExtensionHostAgentServerPromise;
 	};
-
-	const http = require('http');
-	const os = require('os');
 
 	if (Array.isArray(product.serverLicense) && product.serverLicense.length) {
 		console.log(product.serverLicense.join('\n'));
@@ -263,8 +279,6 @@ async function findFreePort(host, start, end) {
  */
 function loadCode(nlsConfiguration) {
 	return new Promise((resolve, reject) => {
-		const path = require('path');
-
 		delete process.env['ELECTRON_RUN_AS_NODE']; // Keep bootstrap-amd.js from redefining 'fs'.
 
 		/** @type {INLSConfiguration} */
@@ -280,11 +294,11 @@ function loadCode(nlsConfiguration) {
 			// When running out of sources, we need to load node modules from remote/node_modules,
 			// which are compiled against nodejs, not electron
 			process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH'] = process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH'] || path.join(__dirname, '..', 'remote', 'node_modules');
-			require('./bootstrap-node').injectNodeModuleLookupPath(process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH']);
+			bootstrapNode.injectNodeModuleLookupPath(process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH']);
 		} else {
 			delete process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH'];
 		}
-		require('./bootstrap-amd').load('vs/server/node/server.main', resolve, reject);
+		bootstrapAmd.load('vs/server/node/server.main', resolve, reject);
 	});
 }
 
