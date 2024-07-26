@@ -2452,6 +2452,7 @@ class SCMInputWidgetEditorOptions {
 					e.affectsConfiguration('editor.fontFamily') ||
 					e.affectsConfiguration('editor.rulers') ||
 					e.affectsConfiguration('editor.wordWrap') ||
+					e.affectsConfiguration('editor.wordSegmenterLocales') ||
 					e.affectsConfiguration('scm.inputFontFamily') ||
 					e.affectsConfiguration('scm.inputFontSize');
 			},
@@ -2494,10 +2495,11 @@ class SCMInputWidgetEditorOptions {
 		const fontFamily = this._getEditorFontFamily();
 		const fontSize = this._getEditorFontSize();
 		const lineHeight = this._getEditorLineHeight(fontSize);
+		const wordSegmenterLocales = this.configurationService.getValue<string | string[]>('editor.wordSegmenterLocales');
 		const accessibilitySupport = this.configurationService.getValue<'auto' | 'off' | 'on'>('editor.accessibilitySupport');
 		const cursorBlinking = this.configurationService.getValue<'blink' | 'smooth' | 'phase' | 'expand' | 'solid'>('editor.cursorBlinking');
 
-		return { ...this._getEditorLanguageConfiguration(), accessibilitySupport, cursorBlinking, fontFamily, fontSize, lineHeight };
+		return { ...this._getEditorLanguageConfiguration(), accessibilitySupport, cursorBlinking, fontFamily, fontSize, lineHeight, wordSegmenterLocales };
 	}
 
 	private _getEditorFontFamily(): string {

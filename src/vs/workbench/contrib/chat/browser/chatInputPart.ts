@@ -172,6 +172,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(AccessibilityVerbositySettingId.Chat)) {
 				this.inputEditor.updateOptions({ ariaLabel: this._getAriaLabel() });
+			} else if (e.affectsConfiguration('editor.wordSegmenterLocales')) {
+				const wordSegmenterLocales = this.configurationService.getValue<string | string[]>('editor.wordSegmenterLocales');
+				this.inputEditor.updateOptions({ wordSegmenterLocales });
 			}
 		}));
 	}
