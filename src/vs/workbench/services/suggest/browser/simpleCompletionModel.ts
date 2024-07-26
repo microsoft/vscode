@@ -182,8 +182,16 @@ export class SimpleCompletionModel {
 		}
 
 		this._filteredItems = target.sort((a, b) => {
-			// Sort first by the score
-			let score = b.score[0] - a.score[0];
+			// Keywords should always appear at the bottom when they are not an exact match
+			let score = 0;
+			if (a.completion.isKeyword && a.labelLow !== wordLow || b.completion.isKeyword && b.labelLow !== wordLow) {
+				score = (a.completion.isKeyword ? 1 : 0) - (b.completion.isKeyword ? 1 : 0);
+				if (score !== 0) {
+					return score;
+				}
+			}
+			// Sort by the score
+			score = b.score[0] - a.score[0];
 			if (score !== 0) {
 				return score;
 			}
