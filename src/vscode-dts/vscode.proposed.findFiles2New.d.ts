@@ -7,7 +7,7 @@ declare module 'vscode' {
 
 	export interface FindFiles2OptionsNew {
 		/**
-		 * An array of {@link GlobPattern glob pattern} that defines files to exclude.
+		 * An array of {@link GlobPattern GlobPattern} that defines files to exclude.
 		 * The glob patterns will be matched against the file paths of files relative to their workspace or {@link RelativePattern.baseUri} if applicable.
 		 *
 		 * If more than one value is used, the values are combined with a logical AND.
@@ -34,14 +34,16 @@ declare module 'vscode' {
 		maxResults?: number;
 
 		/**
-		 * Which file locations we should look for ignore (.gitignore or .ignore) files to respect.
+		 * Which file locations have ignore (`.gitignore` or `.ignore`) files to follow.
 		 *
-		 * When any of these fields are `undefined`, we will:
-		 * - assume the value if possible (e.g. if only one is valid)
-		 * or
-		 * - follow settings using the value for the corresponding `search.use*IgnoreFiles` settting.
+		 * When any of these fields are `undefined`, the value will either be assumed (e.g. if only one is valid),
+		 * or it will follow settings based on the corresponding `search.use*IgnoreFiles` setting.
 		 *
 		 * Will log an error if an invalid combination is set.
+		 *
+		 * Although `.ignore` files are uncommon, they can be leveraged if there are patterns
+		 * that should not be known to git, but should be known to the search providers.
+		 * They should be in the same locations where `.gitignore` files are found, and they follow the same format.
 		 */
 		useIgnoreFiles?: {
 			/**
@@ -78,9 +80,9 @@ declare module 'vscode' {
 		 * @example
 		 * findFiles(['**​/*.js'], {exclude: ['**​/out/**'], useIgnoreFiles: true, maxResults: 10})
 		 *
-		 * @param filePattern An array of {@link GlobPattern glob pattern} that defines the files to search for.
+		 * @param filePattern An array of {@link GlobPattern GlobPattern} that defines the files to search for.
 		 * The glob patterns will be matched against the file paths of files relative to their workspace or {@link baseUri GlobPattern.baseUri} if applicable.
-		 * Use a {@link RelativePattern relative pattern} to restrict the search results to a {@link WorkspaceFolder workspace folder}.
+		 * Use a {@link RelativePattern RelativePatten} to restrict the search results to a {@link WorkspaceFolder workspace folder}.
 		 *
 		 * If more than one value is used, the values are combined with a logical OR.
 		 *
