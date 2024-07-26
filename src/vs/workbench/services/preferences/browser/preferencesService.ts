@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getErrorMessage } from 'vs/base/common/errors';
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { parse } from 'vs/base/common/json';
 import { Disposable, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import * as network from 'vs/base/common/network';
@@ -46,6 +46,8 @@ import { ResourceSet } from 'vs/base/common/map';
 import { isEqual } from 'vs/base/common/resources';
 import { IURLService } from 'vs/platform/url/common/url';
 import { compareIgnoreCase } from 'vs/base/common/strings';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 
 const emptyEditableSettingsContent = '{\n}';
 
@@ -85,7 +87,9 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		@ILabelService private readonly labelService: ILabelService,
 		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
 		@ITextEditorService private readonly textEditorService: ITextEditorService,
-		@IURLService urlService: IURLService
+		@IURLService urlService: IURLService,
+		@IExtensionService private readonly extensionService: IExtensionService,
+		@IProgressService private readonly progressService: IProgressService
 	) {
 		super();
 		// The default keybindings.json updates based on keyboard layouts, so here we make sure
@@ -627,10 +631,24 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			return false;
 		}
 
-		const openSettingsOptions: IOpenSettingsOptions = {};
 		const settingInfo = uri.path.split('/').filter(part => !!part);
-		if ((settingInfo.length > 0) && this.getSetting(settingInfo[0])) {
-			openSettingsOptions.query = settingInfo[0];
+		const settingId = ((settingInfo.length > 0) ? settingInfo[0] : undefined);
+		if (!settingId) {
+			this.openSettings();
+			return true;
+		}
+
+		let setting = this.getSetting(settingId);
+
+		if (!setting && this.extensionService.extensions.length === 0) {
+			// wait for extension points to be processed
+			await this.progressService.withProgress({ location: ProgressLocation.Window }, () => Event.toPromise(this.extensionService.onDidRegisterExtensions));
+			setting = this.getSetting(settingId);
+		}
+
+		const openSettingsOptions: IOpenSettingsOptions = {};
+		if (setting) {
+			openSettingsOptions.query = settingId;
 		}
 
 		this.openSettings(openSettingsOptions);
