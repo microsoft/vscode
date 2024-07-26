@@ -129,25 +129,22 @@ declare module 'vscode' {
 		complete: Thenable<TextSearchCompleteNew>;
 	}
 
-	/*
-	* Options for following search.exclude and files.exclude settings.
-	*/
+	/**
+	 * Options for following search.exclude and files.exclude settings.
+	 */
 	export enum ExcludeSettingOptions {
-		/*
+		/**
 		 * Don't use any exclude settings.
 		 */
-		none = 1,
-		/*
-		 * Use:
-		 * - files.exclude setting
+		None = 1,
+		/**
+		 * Use the `files.exclude` setting
 		 */
-		filesExclude = 2,
-		/*
-		 * Use:
-		 * - files.exclude setting
-		 * - search.exclude setting
+		FilesExclude = 2,
+		/**
+		 * Use the `files.exclude` and `search.exclude` settings
 		 */
-		searchAndFilesExclude = 3
+		SearchAndFilesExclude = 3
 	}
 
 	export namespace workspace {
@@ -156,7 +153,7 @@ declare module 'vscode' {
 		 *
 		 * Search text in files across all {@link workspace.workspaceFolders workspace folders} in the workspace.
 		 * @param query The query parameters for the search - the search string, whether it's case-sensitive, or a regex, or matches whole words.
-		 * @param options An optional set of query options. Include and exclude patterns, maxResults, etc.
+		 * @param options An optional set of query options.
 		 * @param callback A callback, called for each result
 		 * @param token A token that can be used to signal cancellation to the underlying search engine.
 		 * @return A thenable that resolves when the search is complete.
