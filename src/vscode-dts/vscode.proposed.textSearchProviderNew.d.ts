@@ -81,6 +81,12 @@ declare module 'vscode' {
 				 */
 				global: boolean;
 			};
+
+			/**
+			 * Interpret files using this encoding.
+			 * See the vscode setting `"files.encoding"`
+			 */
+			encoding: string;
 		}[];
 
 		/**
@@ -110,12 +116,6 @@ declare module 'vscode' {
 		 * Exclude files larger than `maxFileSize` in bytes.
 		 */
 		maxFileSize: number;
-
-		/**
-		 * Interpret files using this encoding.
-		 * See the vscode setting `"files.encoding"`
-		 */
-		encoding: string;
 
 		/**
 		 * Number of lines of context to include before and after each match.
