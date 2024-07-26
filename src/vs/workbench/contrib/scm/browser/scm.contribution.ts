@@ -358,7 +358,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		'scm.compactFolders': {
 			type: 'boolean',
 			description: localize('scm.compactFolders', "Controls whether the Explorer should render folders in a compact form. In such a form, single child folders will be compressed in a combined tree element. Useful for Java package structures, for example."),
-			default: false
+			default: true
 		}
 	}
 });
