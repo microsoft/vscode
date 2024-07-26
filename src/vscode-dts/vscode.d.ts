@@ -157,7 +157,7 @@ declare module 'vscode' {
 		 * that the returned object is *not* live and changes to the
 		 * document are not reflected.
 		 *
-		 * @param line A line number in [0, lineCount).
+		 * @param line A line number in `[0, lineCount)`.
 		 * @returns A {@link TextLine line}.
 		 */
 		lineAt(line: number): TextLine;
@@ -4683,7 +4683,7 @@ declare module 'vscode' {
 		/**
 		 * The currently active {@linkcode SignatureHelp}.
 		 *
-		 * The `activeSignatureHelp` has its [`SignatureHelp.activeSignature`] field updated based on
+		 * The `activeSignatureHelp` has its {@linkcode SignatureHelp.activeSignature activeSignature} field updated based on
 		 * the user arrowing through available signatures.
 		 */
 		readonly activeSignatureHelp: SignatureHelp | undefined;
@@ -5356,22 +5356,22 @@ declare module 'vscode' {
 	export class Color {
 
 		/**
-		 * The red component of this color in the range [0-1].
+		 * The red component of this color in the range `[0-1]`.
 		 */
 		readonly red: number;
 
 		/**
-		 * The green component of this color in the range [0-1].
+		 * The green component of this color in the range `[0-1]`.
 		 */
 		readonly green: number;
 
 		/**
-		 * The blue component of this color in the range [0-1].
+		 * The blue component of this color in the range `[0-1]`.
 		 */
 		readonly blue: number;
 
 		/**
-		 * The alpha component of this color in the range [0-1].
+		 * The alpha component of this color in the range `[0-1]`.
 		 */
 		readonly alpha: number;
 
@@ -6279,7 +6279,9 @@ declare module 'vscode' {
 		 * If the language supports Unicode identifiers (e.g. JavaScript), it is preferable
 		 * to provide a word definition that uses exclusion of known separators.
 		 * e.g.: A regex that matches anything except known separators (and dot is allowed to occur in a floating point number):
-		 *   /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g
+		 * ```
+		 * /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g
+		 * ```
 		 */
 		wordPattern?: RegExp;
 		/**
