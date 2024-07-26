@@ -28,6 +28,7 @@ import { terminalSuggestConfigSection, type ITerminalSuggestConfiguration } from
 import { SimpleCompletionItem } from 'vs/workbench/services/suggest/browser/simpleCompletionItem';
 import { LineContext, SimpleCompletionModel } from 'vs/workbench/services/suggest/browser/simpleCompletionModel';
 import { ISimpleSelectedSuggestion, SimpleSuggestWidget } from 'vs/workbench/services/suggest/browser/simpleSuggestWidget';
+import type { ISimpleSuggestWidgetFontInfo } from 'vs/workbench/services/suggest/browser/simpleSuggestWidgetRenderer';
 
 export const enum VSCodeSuggestOscPt {
 	Completions = 'Completions',
@@ -507,7 +508,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		if (!this._suggestWidget) {
 			const c = this._terminalConfigurationService.config;
 			const font = this._terminalConfigurationService.getFont(dom.getActiveWindow());
-			const fontInfo = {
+			const fontInfo: ISimpleSuggestWidgetFontInfo = {
 				fontFamily: font.fontFamily,
 				fontSize: font.fontSize,
 				lineHeight: Math.ceil(1.5 * font.fontSize),
