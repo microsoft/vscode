@@ -726,6 +726,7 @@ function rawCompletionToSimpleCompletionItem(rawCompletion: PwshCompletion): Sim
 		detail,
 		isFile: rawCompletion.ResultType === 3,
 		isDirectory: rawCompletion.ResultType === 4,
+		isKeyword: rawCompletion.ResultType === 12,
 	});
 }
 
