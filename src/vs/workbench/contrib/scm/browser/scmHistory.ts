@@ -261,7 +261,16 @@ export function toISCMHistoryItemViewModelArray(historyItems: ISCMHistoryItem[],
 			// Add unprocessed parent(s) to the output
 			for (let i = firstParentAdded ? 1 : 0; i < historyItem.parentIds.length; i++) {
 				// Color index (label -> next color)
-				let colorIdentifier = getLabelColorIdentifier(historyItem, colorMap);
+				let colorIdentifier: string | undefined;
+
+				if (!firstParentAdded) {
+					colorIdentifier = getLabelColorIdentifier(historyItem, colorMap);
+				} else {
+					const historyItemParent = historyItems
+						.find(h => h.id === historyItem.parentIds[i]);
+					colorIdentifier = historyItemParent ? getLabelColorIdentifier(historyItemParent, colorMap) : undefined;
+				}
+
 				if (!colorIdentifier) {
 					colorIndex = rot(colorIndex + 1, colorRegistry.length);
 					colorIdentifier = colorRegistry[colorIndex];

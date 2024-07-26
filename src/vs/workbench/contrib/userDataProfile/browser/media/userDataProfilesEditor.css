@@ -120,7 +120,7 @@
 }
 
 .profiles-editor .contents-container .profile-body {
-	margin: 14px 0px 0px 1px
+	margin: 15px 0px 0px 1px
 }
 
 .profiles-editor .contents-container .profile-body .profile-row-container {
@@ -144,6 +144,14 @@
 .profiles-editor .contents-container .profile-body .profile-row-container .profile-description-element ul,
 .profiles-editor .contents-container .profile-body .profile-row-container .profile-description-element p {
 	margin: 0px;
+}
+
+.profiles-editor .contents-container .profile-body .profile-row-container .profile-description-element ul {
+	padding-inline-start: 28px;
+}
+
+.profiles-editor .contents-container .profile-body .profile-row-container .profile-description-element ul li {
+	padding-left: 2px;
 }
 
 .profiles-editor .contents-container .profile-body .profile-row-container .monaco-inputbox {

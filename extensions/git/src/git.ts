@@ -1165,6 +1165,10 @@ export class Repository {
 			args.push(`--author="${options.author}"`);
 		}
 
+		if (typeof options?.maxParents === 'number') {
+			args.push(`--max-parents=${options.maxParents}`);
+		}
+
 		if (options?.refNames) {
 			args.push('--topo-order');
 			args.push('--decorate=full');

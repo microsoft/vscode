@@ -274,6 +274,7 @@ export type IManagedHoverContent = string | IManagedHoverTooltipMarkdownString |
 export type IManagedHoverContentOrFactory = IManagedHoverContent | (() => IManagedHoverContent);
 
 export interface IManagedHoverOptions extends Pick<IHoverOptions, 'actions' | 'linkHandler' | 'trapFocus'> {
+	appearance?: Pick<IHoverAppearanceOptions, 'showHoverHint'>;
 }
 
 export interface IManagedHover extends IDisposable {

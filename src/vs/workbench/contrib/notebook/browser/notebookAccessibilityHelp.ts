@@ -40,7 +40,7 @@ export function getAccessibilityHelpText(): string {
 		localize('notebook.focusPreviousEditor', 'The Focus Previous Cell Editor command<keybinding:notebook.focusPreviousEditor> will set focus in the previous cell\'s editor.'),
 		localize('notebook.cellNavigation', 'The up and down arrows will also move focus between cells while focused on the outer cell container.'),
 		localize('notebook.cell.executeAndFocusContainer', 'The Execute Cell command<keybinding:notebook.cell.executeAndFocusContainer> executes the cell that currently has focus.',),
-		localize('notebook.cell.insertCodeCellBelowAndFocusContainer', 'The Insert Cell Above/Below commands will create new empty code cells'),
+		localize('notebook.cell.insertCodeCellBelowAndFocusContainer', 'The Insert Cell Above/Below commands will create new empty code cells.'),
 		localize('notebook.changeCellType', 'The Change Cell to Code/Markdown commands are used to switch between cell types.')
 	].join('\n');
 }

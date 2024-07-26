@@ -348,8 +348,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	attachContext(overwrite: boolean, ...contentReferences: IChatRequestVariableEntry[]): void {
-		const removed = Array.from(this._attachedContext);
+		const removed = [];
 		if (overwrite) {
+			removed.push(...Array.from(this._attachedContext));
 			this._attachedContext.clear();
 		}
 
@@ -357,10 +358,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			for (const reference of contentReferences) {
 				this._attachedContext.add(reference);
 			}
-			this.initAttachedContext(this.attachedContextContainer);
 		}
+
 		if (removed.length > 0 || contentReferences.length > 0) {
-			this._onDidChangeContext.fire({ removed, added: contentReferences });
+			this.initAttachedContext(this.attachedContextContainer);
+
+			if (!overwrite) {
+				this._onDidChangeContext.fire({ removed, added: contentReferences });
+			}
 		}
 	}
 
@@ -524,7 +529,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				widget.tabIndex = 0;
 			} else {
 				const attachmentLabel = attachment.fullName ?? attachment.name;
-				label.setLabel(attachmentLabel, undefined);
+				const withIcon = attachment.icon?.id ? `$(${attachment.icon.id}) ${attachmentLabel}` : attachmentLabel;
+				label.setLabel(withIcon, undefined);
 
 				widget.ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
 				widget.tabIndex = 0;

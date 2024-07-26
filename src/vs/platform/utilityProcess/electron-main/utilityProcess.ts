@@ -18,6 +18,7 @@ import { removeDangerousEnvVariables } from 'vs/base/common/processes';
 import { deepClone } from 'vs/base/common/objects';
 import { isWindows } from 'vs/base/common/platform';
 import { isUNCAccessRestrictionsDisabled, getUNCHostAllowlist } from 'vs/base/node/unc';
+import { upcast } from 'vs/base/common/types';
 
 export interface IUtilityProcessConfiguration {
 
@@ -249,7 +250,10 @@ export class UtilityProcess extends Disposable {
 		this.log('creating new...', Severity.Info);
 
 		// Fork utility process
-		this.process = utilityProcess.fork(modulePath, args, {
+		this.process = utilityProcess.fork(modulePath, args, upcast<ForkOptions, ForkOptions & {
+			forceAllocationsToV8Sandbox?: boolean;
+			respondToAuthRequestsFromMainProcess?: boolean;
+		}>({
 			serviceName,
 			env,
 			execArgv,
@@ -257,10 +261,7 @@ export class UtilityProcess extends Disposable {
 			forceAllocationsToV8Sandbox,
 			respondToAuthRequestsFromMainProcess,
 			stdio
-		} as ForkOptions & {
-			forceAllocationsToV8Sandbox?: Boolean;
-			respondToAuthRequestsFromMainProcess?: boolean;
-		});
+		}));
 
 		// Register to events
 		this.registerListeners(this.process, this.configuration, serviceName);
