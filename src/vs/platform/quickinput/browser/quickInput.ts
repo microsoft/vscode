@@ -916,7 +916,7 @@ export class QuickPick<T extends IQuickPickItem> extends QuickInput implements I
 				}
 			}));
 			this.visibleDisposables.add(this.ui.list.onChangedCheckedElements(checkedItems => {
-				if (!this.canSelectMany) {
+				if (!this.canSelectMany || !this.visible) {
 					return;
 				}
 				if (this.selectedItemsToConfirm !== this._selectedItems && equals(checkedItems, this._selectedItems, (a, b) => a === b)) {

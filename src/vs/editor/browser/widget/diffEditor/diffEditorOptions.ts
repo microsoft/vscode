@@ -71,8 +71,12 @@ export class DiffEditorOptions {
 	public readonly showEmptyDecorations = derived(this, reader => this._options.read(reader).experimental.showEmptyDecorations!);
 	public readonly onlyShowAccessibleDiffViewer = derived(this, reader => this._options.read(reader).onlyShowAccessibleDiffViewer);
 	public readonly compactMode = derived(this, reader => this._options.read(reader).compactMode);
+	private readonly trueInlineDiffRenderingEnabled: IObservable<boolean> = derived(this, reader =>
+		this._options.read(reader).experimental.useTrueInlineView!
+	);
+
 	public readonly useTrueInlineDiffRendering: IObservable<boolean> = derived(this, reader =>
-		!this.renderSideBySide.read(reader) && this._options.read(reader).experimental.useTrueInlineView!
+		!this.renderSideBySide.read(reader) && this.trueInlineDiffRenderingEnabled.read(reader)
 	);
 
 	public readonly hideUnchangedRegions = derived(this, reader => this._options.read(reader).hideUnchangedRegions.enabled!);
@@ -99,7 +103,7 @@ export class DiffEditorOptions {
 	private readonly shouldRenderInlineViewInSmartMode = this._model
 		.map(this, model => derivedConstOnceDefined(this, reader => {
 			const diffs = model?.diff.read(reader);
-			return diffs ? isSimpleDiff(diffs, this.useTrueInlineDiffRendering.read(reader)) : undefined;
+			return diffs ? isSimpleDiff(diffs, this.trueInlineDiffRenderingEnabled.read(reader)) : undefined;
 		}))
 		.flatten()
 		.map(this, v => !!v);

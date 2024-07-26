@@ -70,8 +70,10 @@ export class ChatContextAttachments extends Disposable implements IChatWidgetCon
 	}
 
 	private _removeContext(attachments: IChatRequestVariableEntry[]) {
-		attachments.forEach(this._attachedContext.delete, this._attachedContext);
-		this._onDidChangeInputState.fire();
+		if (attachments.length) {
+			attachments.forEach(this._attachedContext.delete, this._attachedContext);
+			this._onDidChangeInputState.fire();
+		}
 	}
 
 	private _clearAttachedContext() {

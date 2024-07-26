@@ -390,7 +390,7 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 			if (shouldHideOriginalLineNumbers) {
 				originalWidth = 0;
 			} else {
-				originalWidth = Math.max(5, this._editors.original.getLayoutInfo().decorationsLeft);
+				originalWidth = Math.max(5, this._editors.originalObs.layoutInfoDecorationsLeft.read(reader));
 			}
 
 			modifiedLeft = gutterWidth + originalWidth;

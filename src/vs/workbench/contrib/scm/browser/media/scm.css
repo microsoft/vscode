@@ -223,7 +223,9 @@
 }
 
 .scm-view .monaco-list-row.focused .separator-container .label-name,
-.scm-view .monaco-list-row.selected .separator-container .label-name {
+.scm-view .monaco-list-row.selected .separator-container .label-name,
+.scm-view .monaco-list-row.focused .separator-container .action-label::before,
+.scm-view .monaco-list-row.selected .separator-container .action-label::before {
 	color: var(--vscode-foreground);
 }
 

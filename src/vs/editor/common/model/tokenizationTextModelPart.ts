@@ -47,12 +47,12 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 	private readonly grammarTokens = this._register(new GrammarTokens(this._languageService.languageIdCodec, this._textModel, () => this._languageId, this._attachedViews));
 
 	constructor(
+		private readonly _languageService: ILanguageService,
+		private readonly _languageConfigurationService: ILanguageConfigurationService,
 		private readonly _textModel: TextModel,
 		private readonly _bracketPairsTextModelPart: BracketPairsTextModelPart,
 		private _languageId: string,
 		private readonly _attachedViews: AttachedViews,
-		@ILanguageService private readonly _languageService: ILanguageService,
-		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
 	) {
 		super();
 
