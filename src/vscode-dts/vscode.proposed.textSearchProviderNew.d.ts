@@ -40,7 +40,7 @@ declare module 'vscode' {
 	/**
 	 * Options that apply to text search.
 	 */
-	export interface TextSearchProviderOptionsNew {
+	export interface TextSearchProviderOptions {
 
 		folderOptions: {
 			/**
@@ -73,11 +73,11 @@ declare module 'vscode' {
 				 */
 				local: boolean;
 				/**
-				 * Use ignore files at the parent directory. If set, {@link TextSearchProviderOptionsNew.useIgnoreFiles.local} should also be `true`.
+				 * Use ignore files at the parent directory. If set, {@link TextSearchProviderOptions.useIgnoreFiles.local} should also be `true`.
 				 */
 				parent: boolean;
 				/**
-				 * Use global ignore files. If set, {@link TextSearchProviderOptionsNew.useIgnoreFiles.local} should also be `true`.
+				 * Use global ignore files. If set, {@link TextSearchProviderOptions.useIgnoreFiles.local} should also be `true`.
 				 */
 				global: boolean;
 			};
@@ -129,7 +129,7 @@ declare module 'vscode' {
 	export interface TextSearchCompleteNew {
 		/**
 		 * Whether the search hit the limit on the maximum number of search results.
-		 * `maxResults` on {@linkcode TextSearchProviderOptionsNew} specifies the max number of results.
+		 * `maxResults` on {@linkcode TextSearchProviderOptions} specifies the max number of results.
 		 * - If exactly that number of matches exist, this should be false.
 		 * - If `maxResults` matches are returned and more exist, this should be true.
 		 * - If search hits an internal limit which is less than `maxResults`, this should be true.
@@ -216,7 +216,7 @@ declare module 'vscode' {
 		 * @param progress A progress callback that must be invoked for all results.
 		 * @param token A cancellation token.
 		 */
-		provideTextSearchResults(query: TextSearchQueryNew, options: TextSearchProviderOptionsNew, progress: Progress<TextSearchResultNew>, token: CancellationToken): ProviderResult<TextSearchCompleteNew>;
+		provideTextSearchResults(query: TextSearchQueryNew, options: TextSearchProviderOptions, progress: Progress<TextSearchResultNew>, token: CancellationToken): ProviderResult<TextSearchCompleteNew>;
 	}
 
 	export namespace workspace {
