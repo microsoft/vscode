@@ -128,7 +128,7 @@ export class CodeCell extends Disposable {
 
 		const executionItemElement = DOM.append(this.templateData.cellInputCollapsedContainer, DOM.$('.collapsed-execution-icon'));
 		this._register(toDisposable(() => {
-			executionItemElement.parentElement?.removeChild(executionItemElement);
+			executionItemElement.remove();
 		}));
 		this._collapsedExecutionIcon = this._register(this.instantiationService.createInstance(CollapsedCodeCellExecutionIcon, this.notebookEditor, this.viewCell, executionItemElement));
 		this.updateForCollapseState();
@@ -137,7 +137,6 @@ export class CodeCell extends Disposable {
 		this._register(Event.runAndSubscribe(viewCell.onDidChangeLayout, this.updateForLayout.bind(this)));
 
 		this._cellEditorOptions.setLineNumbers(this.viewCell.lineNumbers);
-		this._register(this._cellEditorOptions.onDidChange(() => this.updateCodeCellOptions(templateData)));
 		templateData.editor.updateOptions(this._cellEditorOptions.getUpdatedValue(this.viewCell.internalMetadata, this.viewCell.uri));
 	}
 
@@ -214,7 +213,14 @@ export class CodeCell extends Disposable {
 
 			if (model && this.templateData.editor) {
 				this._reigsterModelListeners(model);
+
+				// set model can trigger view update, which can lead to dispose of this cell
 				this.templateData.editor.setModel(model);
+
+				if (this._isDisposed) {
+					return;
+				}
+
 				model.updateOptions({
 					indentSize: this._cellEditorOptions.indentSize,
 					tabSize: this._cellEditorOptions.tabSize,
@@ -237,8 +243,14 @@ export class CodeCell extends Disposable {
 					this.onCellEditorHeightChange(realContentHeight);
 				}
 
+				if (this._isDisposed) {
+					return;
+				}
+
 				focusEditorIfNeeded();
 			}
+
+			this._register(this._cellEditorOptions.onDidChange(() => this.updateCodeCellOptions(this.templateData)));
 		});
 	}
 
@@ -294,6 +306,10 @@ export class CodeCell extends Disposable {
 
 				if (contentHeight !== layoutContentHeight) {
 					this.onCellEditorHeightChange(contentHeight);
+
+					if (this._isDisposed) {
+						return;
+					}
 				}
 				const lastSelection = selections[selections.length - 1];
 				this.notebookEditor.revealRangeInViewAsync(this.viewCell, lastSelection);
@@ -488,7 +504,7 @@ export class CodeCell extends Disposable {
 		}
 
 		elements.forEach(element => {
-			element.parentElement?.removeChild(element);
+			element.remove();
 		});
 	}
 

@@ -5,6 +5,7 @@
 
 import { $, Dimension, addDisposableListener, append, clearNode } from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
@@ -23,6 +24,7 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ExtensionIdentifier, ExtensionIdentifierMap, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
@@ -36,6 +38,7 @@ import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { errorIcon, warningIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 import { IExtension, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 import { RuntimeExtensionsInput } from 'vs/workbench/contrib/extensions/common/runtimeExtensionsInput';
+import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { Extensions, IExtensionFeaturesManagementService, IExtensionFeaturesRegistry } from 'vs/workbench/services/extensionManagement/common/extensionFeatures';
@@ -75,6 +78,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 	private _updateSoon: RunOnceScheduler;
 
 	constructor(
+		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -88,8 +92,9 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@IExtensionFeaturesManagementService private readonly _extensionFeaturesManagementService: IExtensionFeaturesManagementService,
+		@IHoverService private readonly _hoverService: IHoverService,
 	) {
-		super(AbstractRuntimeExtensionsEditor.ID, telemetryService, themeService, storageService);
+		super(AbstractRuntimeExtensionsEditor.ID, group, telemetryService, themeService, storageService);
 
 		this._list = null;
 		this._elements = null;
@@ -241,9 +246,8 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 
 				const msgContainer = append(desc, $('div.msg'));
 
-				const actionbar = new ActionBar(desc, { animated: false });
+				const actionbar = new ActionBar(desc);
 				actionbar.onDidRun(({ error }) => error && this._notificationService.error(error));
-
 
 				const timeContainer = append(element, $('.time'));
 				const activationTime = append(timeContainer, $('div.activation-time'));
@@ -365,13 +369,15 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 				} else {
 					title = nls.localize('extensionActivating', "Extension is activating...");
 				}
-				data.activationTime.title = title;
+				data.elementDisposables.push(this._hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), data.activationTime, title));
 
 				clearNode(data.msgContainer);
 
 				if (this._getUnresponsiveProfile(element.description.identifier)) {
 					const el = $('span', undefined, ...renderLabelWithIcons(` $(alert) Unresponsive`));
-					el.title = nls.localize('unresponsive.title', "Extension has caused the extension host to freeze.");
+					const extensionHostFreezTitle = nls.localize('unresponsive.title', "Extension has caused the extension host to freeze.");
+					data.elementDisposables.push(this._hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), el, extensionHostFreezTitle));
+
 					data.msgContainer.appendChild(el);
 				}
 
@@ -415,9 +421,13 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 							data.msgContainer.appendChild($('span', undefined, `${feature.label}: `));
 							data.msgContainer.appendChild($('span', undefined, ...renderLabelWithIcons(`$(${status.severity === Severity.Error ? errorIcon.id : warningIcon.id}) ${status.message}`)));
 						}
-						if (accessData?.current) {
-							const element = $('span', undefined, nls.localize('requests count', "{0} Requests: {1} (Session)", feature.label, accessData.current.count));
-							element.title = nls.localize('requests count title', "Last request was {0}. Overall Requests: {1}", fromNow(accessData.current.lastAccessed, true, true), accessData.totalCount);
+						if (accessData?.totalCount > 0) {
+							const element = $('span', undefined, `${nls.localize('requests count', "{0} Requests: {1} (Overall)", feature.label, accessData.totalCount)}${accessData.current ? nls.localize('session requests count', ", {0} (Session)", accessData.current.count) : ''}`);
+							if (accessData.current) {
+								const title = nls.localize('requests count title', "Last request was {0}.", fromNow(accessData.current.lastAccessed, true, true));
+								data.elementDisposables.push(this._hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), element, title));
+							}
+
 							data.msgContainer.appendChild(element);
 						}
 					}

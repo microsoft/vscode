@@ -58,12 +58,15 @@ export class RunToolbar extends CellContentPart {
 	override didRenderCell(element: ICellViewModel): void {
 		this.cellDisposables.add(registerCellToolbarStickyScroll(this.notebookEditor, element, this.runButtonContainer));
 
-		this.toolbar.context = <INotebookCellActionContext>{
-			ui: true,
-			cell: element,
-			notebookEditor: this.notebookEditor,
-			$mid: MarshalledId.NotebookCellActionContext
-		};
+		if (this.notebookEditor.hasModel()) {
+			const context: INotebookCellActionContext & { $mid: number } = {
+				ui: true,
+				cell: element,
+				notebookEditor: this.notebookEditor,
+				$mid: MarshalledId.NotebookCellActionContext
+			};
+			this.toolbar.context = context;
+		}
 	}
 
 	getCellToolbarActions(menu: IMenu): { primary: IAction[]; secondary: IAction[] } {
@@ -84,7 +87,7 @@ export class RunToolbar extends CellContentPart {
 		const executionContextKeyService = this._register(getCodeCellExecutionContextKeyService(contextKeyService));
 		this.toolbar = this._register(new ToolBar(container, this.contextMenuService, {
 			getKeyBinding: keybindingProvider,
-			actionViewItemProvider: _action => {
+			actionViewItemProvider: (_action, _options) => {
 				actionViewItemDisposables.clear();
 
 				const primary = this.getCellToolbarActions(this.primaryMenu).primary[0];
@@ -104,6 +107,7 @@ export class RunToolbar extends CellContentPart {
 					'notebook-cell-run-toolbar',
 					this.contextMenuService,
 					{
+						..._options,
 						getKeyBinding: keybindingProvider
 					});
 				actionViewItemDisposables.add(item.onDidChangeDropdownVisibility(visible => {

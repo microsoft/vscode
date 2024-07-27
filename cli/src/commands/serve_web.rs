@@ -5,12 +5,13 @@
 
 use std::collections::HashMap;
 use std::convert::Infallible;
+use std::fs;
+use std::io::{Read, Write};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use const_format::concatcp;
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{Body, Request, Response, Server};
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -54,16 +55,9 @@ const RELEASE_CACHE_SECS: u64 = 60 * 60;
 /// Number of bytes for the secret keys. See workbench.ts for their usage.
 const SECRET_KEY_BYTES: usize = 32;
 /// Path to mint the key combining server and client parts.
-const SECRET_KEY_MINT_PATH: &str = "/_vscode-cli/mint-key";
+const SECRET_KEY_MINT_PATH: &str = "_vscode-cli/mint-key";
 /// Cookie set to the `SECRET_KEY_MINT_PATH`
 const PATH_COOKIE_NAME: &str = "vscode-secret-key-path";
-/// Cookie set to the `SECRET_KEY_MINT_PATH`
-const PATH_COOKIE_VALUE: &str = concatcp!(
-	PATH_COOKIE_NAME,
-	"=",
-	SECRET_KEY_MINT_PATH,
-	"; SameSite=Strict; Path=/"
-);
 /// HTTP-only cookie where the client's secret half is stored.
 const SECRET_KEY_COOKIE_NAME: &str = "vscode-cli-secret-half";
 
@@ -76,15 +70,20 @@ pub async fn serve_web(ctx: CommandContext, mut args: ServeWebArgs) -> Result<i3
 	legal::require_consent(&ctx.paths, args.accept_server_license_terms)?;
 
 	let platform: crate::update_service::Platform = PreReqChecker::new().verify().await?;
-
 	if !args.without_connection_token {
-		// Ensure there's a defined connection token, since if multiple server versions
-		// are excuted, they will need to have a single shared token.
-		args.connection_token = Some(
-			args.connection_token
-				.clone()
-				.unwrap_or_else(|| uuid::Uuid::new_v4().to_string()),
-		);
+		if let Some(p) = args.connection_token_file.as_deref() {
+			let token = fs::read_to_string(PathBuf::from(p))
+				.map_err(CodeError::CouldNotReadConnectionTokenFile)?;
+			args.connection_token = Some(token.trim().to_string());
+		} else {
+			// Ensure there's a defined connection token, since if multiple server versions
+			// are executed, they will need to have a single shared token.
+			let token_path = ctx.paths.root().join("serve-web-token");
+			let token = mint_connection_token(&token_path, args.connection_token.clone())
+				.map_err(CodeError::CouldNotCreateConnectionTokenFile)?;
+			args.connection_token = Some(token);
+			args.connection_token_file = Some(token_path.to_string_lossy().to_string());
+		}
 	}
 
 	let cm = ConnectionManager::new(&ctx, platform, args.clone());
@@ -123,6 +122,12 @@ pub async fn serve_web(ctx: CommandContext, mut args: ServeWebArgs) -> Result<i3
 		let builder = Server::try_bind(&addr).map_err(CodeError::CouldNotListenOnInterface)?;
 
 		let mut listening = format!("Web UI available at http://{}", addr);
+		if let Some(base) = args.server_base_path {
+			if !base.starts_with('/') {
+				listening.push('/');
+			}
+			listening.push_str(&base);
+		}
 		if let Some(ct) = args.connection_token {
 			listening.push_str(&format!("?tkn={}", ct));
 		}
@@ -151,17 +156,22 @@ struct HandleContext {
 /// Handler function for an inbound request
 async fn handle(ctx: HandleContext, req: Request<Body>) -> Result<Response<Body>, Infallible> {
 	let client_key_half = get_client_key_half(&req);
-	let mut res = match req.uri().path() {
-		SECRET_KEY_MINT_PATH => handle_secret_mint(ctx, req),
-		_ => handle_proxied(ctx, req).await,
+	let path = req.uri().path();
+
+	let mut res = if path.starts_with(&ctx.cm.base_path)
+		&& path.get(ctx.cm.base_path.len()..).unwrap_or_default() == SECRET_KEY_MINT_PATH
+	{
+		handle_secret_mint(&ctx, req)
+	} else {
+		handle_proxied(&ctx, req).await
 	};
 
-	append_secret_headers(&mut res, &client_key_half);
+	append_secret_headers(&ctx.cm.base_path, &mut res, &client_key_half);
 
 	Ok(res)
 }
 
-async fn handle_proxied(ctx: HandleContext, req: Request<Body>) -> Response<Body> {
+async fn handle_proxied(ctx: &HandleContext, req: Request<Body>) -> Response<Body> {
 	let release = if let Some((r, _)) = get_release_from_path(req.uri().path(), ctx.cm.platform) {
 		r
 	} else {
@@ -187,7 +197,7 @@ async fn handle_proxied(ctx: HandleContext, req: Request<Body>) -> Response<Body
 	}
 }
 
-fn handle_secret_mint(ctx: HandleContext, req: Request<Body>) -> Response<Body> {
+fn handle_secret_mint(ctx: &HandleContext, req: Request<Body>) -> Response<Body> {
 	use sha2::{Digest, Sha256};
 
 	let mut hasher = Sha256::new();
@@ -201,11 +211,20 @@ fn handle_secret_mint(ctx: HandleContext, req: Request<Body>) -> Response<Body> 
 /// Appends headers to response to maintain the secret storage of the workbench:
 /// sets the `PATH_COOKIE_VALUE` so workbench.ts knows about the 'mint' endpoint,
 /// and maintains the http-only cookie the client will use for cookies.
-fn append_secret_headers(res: &mut Response<Body>, client_key_half: &SecretKeyPart) {
+fn append_secret_headers(
+	base_path: &str,
+	res: &mut Response<Body>,
+	client_key_half: &SecretKeyPart,
+) {
 	let headers = res.headers_mut();
 	headers.append(
 		hyper::header::SET_COOKIE,
-		PATH_COOKIE_VALUE.parse().unwrap(),
+		format!(
+			"{}={}{}; SameSite=Strict; Path=/",
+			PATH_COOKIE_NAME, base_path, SECRET_KEY_MINT_PATH,
+		)
+		.parse()
+		.unwrap(),
 	);
 	headers.append(
 		hyper::header::SET_COOKIE,
@@ -489,6 +508,8 @@ struct ConnectionManager {
 	pub platform: Platform,
 	pub log: log::Logger,
 	args: ServeWebArgs,
+	/// Server base path, ending in `/`
+	base_path: String,
 	/// Cache where servers are stored
 	cache: DownloadCache,
 	/// Mapping of (Quality, Commit) to the state each server is in
@@ -503,11 +524,24 @@ fn key_for_release(release: &Release) -> (Quality, String) {
 	(release.quality, release.commit.clone())
 }
 
+fn normalize_base_path(p: &str) -> String {
+	let p = p.trim_matches('/');
+
+	if p.is_empty() {
+		return "/".to_string();
+	}
+
+	format!("/{}/", p.trim_matches('/'))
+}
+
 impl ConnectionManager {
 	pub fn new(ctx: &CommandContext, platform: Platform, args: ServeWebArgs) -> Arc<Self> {
+		let base_path = normalize_base_path(args.server_base_path.as_deref().unwrap_or_default());
+
 		Arc::new(Self {
 			platform,
 			args,
+			base_path,
 			log: ctx.log.clone(),
 			cache: DownloadCache::new(ctx.paths.web_server_storage()),
 			update_service: UpdateService::new(
@@ -689,6 +723,10 @@ impl ConnectionManager {
 		// License agreement already checked by the `server_web` function.
 		cmd.args(["--accept-server-license-terms"]);
 
+		if let Some(a) = &args.args.server_base_path {
+			cmd.arg("--server-base-path");
+			cmd.arg(a);
+		}
 		if let Some(a) = &args.args.server_data_dir {
 			cmd.arg("--server-data-dir");
 			cmd.arg(a);
@@ -704,8 +742,10 @@ impl ConnectionManager {
 		if args.args.without_connection_token {
 			cmd.arg("--without-connection-token");
 		}
-		if let Some(ct) = &args.args.connection_token {
-			cmd.arg("--connection-token");
+		// Note: intentional that we don't pass --connection-token here, we always
+		// convert it into the file variant.
+		if let Some(ct) = &args.args.connection_token_file {
+			cmd.arg("--connection-token-file");
 			cmd.arg(ct);
 		}
 
@@ -778,4 +818,31 @@ struct StartArgs {
 	args: ServeWebArgs,
 	release: Release,
 	opener: BarrierOpener<Result<StartData, String>>,
+}
+
+fn mint_connection_token(path: &Path, prefer_token: Option<String>) -> std::io::Result<String> {
+	#[cfg(not(windows))]
+	use std::os::unix::fs::OpenOptionsExt;
+
+	let mut f = fs::OpenOptions::new();
+	f.create(true);
+	f.write(true);
+	f.read(true);
+	#[cfg(not(windows))]
+	f.mode(0o600);
+	let mut f = f.open(path)?;
+
+	if prefer_token.is_none() {
+		let mut t = String::new();
+		f.read_to_string(&mut t)?;
+		let t = t.trim();
+		if !t.is_empty() {
+			return Ok(t.to_string());
+		}
+	}
+
+	f.set_len(0)?;
+	let prefer_token = prefer_token.unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+	f.write_all(prefer_token.as_bytes())?;
+	Ok(prefer_token)
 }

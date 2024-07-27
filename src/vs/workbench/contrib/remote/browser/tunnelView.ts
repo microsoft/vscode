@@ -44,19 +44,20 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { copyAddressIcon, forwardedPortWithoutProcessIcon, forwardedPortWithProcessIcon, forwardPortIcon, labelPortIcon, openBrowserIcon, openPreviewIcon, portsViewIcon, privatePortIcon, stopForwardIcon } from 'vs/workbench/contrib/remote/browser/remoteIcons';
 import { IExternalUriOpenerService } from 'vs/workbench/contrib/externalUriOpener/common/externalUriOpenerService';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { isMacintosh } from 'vs/base/common/platform';
 import { ITableColumn, ITableContextMenuEvent, ITableEvent, ITableMouseEvent, ITableRenderer, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
 import { WorkbenchTable } from 'vs/platform/list/browser/listService';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
-import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
 import { STATUS_BAR_REMOTE_ITEM_BACKGROUND } from 'vs/workbench/common/theme';
 import { Codicon } from 'vs/base/common/codicons';
 import { defaultButtonStyles, defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { Attributes, CandidatePort, Tunnel, TunnelCloseReason, TunnelModel, TunnelSource, forwardedPortsViewEnabled, makeAddress, mapHasAddressLocalhostOrAllInterfaces, parseAddress } from 'vs/workbench/services/remote/common/tunnelModel';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 export const openPreviewEnabledContext = new RawContextKey<boolean>('openPreviewEnabled', false);
 
@@ -355,7 +356,7 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 	) {
 		super();
 
-		this._hoverDelegate = this._register(getDefaultHoverDelegate('mouse', true));
+		this._hoverDelegate = getDefaultHoverDelegate('mouse');
 	}
 
 	set actionRunner(actionRunner: ActionRunner) {
@@ -749,8 +750,8 @@ export class TunnelPanel extends ViewPane {
 	static readonly TITLE: ILocalizedString = nls.localize2('remote.tunnel', "Ports");
 
 	private panelContainer: HTMLElement | undefined;
-	private table!: WorkbenchTable<ITunnelItem>;
-	private tableDisposables: DisposableStore = this._register(new DisposableStore());
+	private table: WorkbenchTable<ITunnelItem> | undefined;
+	private readonly tableDisposables: DisposableStore = this._register(new DisposableStore());
 	private tunnelTypeContext: IContextKey<TunnelType>;
 	private tunnelCloseableContext: IContextKey<boolean>;
 	private tunnelPrivacyContext: IContextKey<TunnelPrivacyId | string | undefined>;
@@ -781,10 +782,11 @@ export class TunnelPanel extends ViewPane {
 		@IThemeService themeService: IThemeService,
 		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IHoverService hoverService: IHoverService,
 		@ITunnelService private readonly tunnelService: ITunnelService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
 		this.tunnelTypeContext = TunnelTypeContextKey.bindTo(contextKeyService);
 		this.tunnelCloseableContext = TunnelCloseableContextKey.bindTo(contextKeyService);
 		this.tunnelPrivacyContext = TunnelPrivacyContextKey.bindTo(contextKeyService);
@@ -828,7 +830,7 @@ export class TunnelPanel extends ViewPane {
 				updateActions();
 				this.registerPrivacyActions();
 				this.createTable();
-				this.table.layout(this.height, this.width);
+				this.table?.layout(this.height, this.width);
 			}
 		}));
 	}
@@ -911,7 +913,7 @@ export class TunnelPanel extends ViewPane {
 		this.tableDisposables.add(this.table.onDidFocus(() => this.tunnelViewFocusContext.set(true)));
 		this.tableDisposables.add(this.table.onDidBlur(() => this.tunnelViewFocusContext.set(false)));
 
-		const rerender = () => this.table.splice(0, Number.POSITIVE_INFINITY, this.viewModel.all);
+		const rerender = () => this.table?.splice(0, Number.POSITIVE_INFINITY, this.viewModel.all);
 
 		rerender();
 		let lastPortCount = this.portCount;
@@ -925,7 +927,7 @@ export class TunnelPanel extends ViewPane {
 		}));
 
 		this.tableDisposables.add(this.table.onMouseClick(e => {
-			if (this.hasOpenLinkModifier(e.browserEvent)) {
+			if (this.hasOpenLinkModifier(e.browserEvent) && this.table) {
 				const selection = this.table.getSelectedElements();
 				if ((selection.length === 0) ||
 					((selection.length === 1) && (selection[0] === e.element))) {
@@ -957,11 +959,11 @@ export class TunnelPanel extends ViewPane {
 				widgetContainer.classList.add('highlight');
 				if (!e) {
 					// When we are in editing mode for a new forward, rather than updating an existing one we need to reveal the input box since it might be out of view.
-					this.table.reveal(this.table.indexOf(this.viewModel.input));
+					this.table?.reveal(this.table.indexOf(this.viewModel.input));
 				}
 			} else {
 				if (e && (e.tunnel.tunnelType !== TunnelType.Add)) {
-					this.table.setFocus(this.lastFocus);
+					this.table?.setFocus(this.lastFocus);
 				}
 				this.focus();
 			}
@@ -981,7 +983,7 @@ export class TunnelPanel extends ViewPane {
 
 	override focus(): void {
 		super.focus();
-		this.table.domFocus();
+		this.table?.domFocus();
 	}
 
 	private onFocusChanged(event: ITableEvent<ITunnelItem>) {
@@ -1043,7 +1045,7 @@ export class TunnelPanel extends ViewPane {
 		const node: TunnelItem | undefined = event.element;
 
 		if (node) {
-			this.table.setFocus([this.table.indexOf(node)]);
+			this.table?.setFocus([this.table.indexOf(node)]);
 			this.tunnelTypeContext.set(node.tunnelType);
 			this.tunnelCloseableContext.set(!!node.closeable);
 			this.tunnelPrivacyContext.set(node.privacy.id);
@@ -1060,7 +1062,7 @@ export class TunnelPanel extends ViewPane {
 		this.contextMenuService.showContextMenu({
 			menuId: MenuId.TunnelContext,
 			menuActionOptions: { shouldForwardArgs: true },
-			contextKeyService: this.table.contextKeyService,
+			contextKeyService: this.table?.contextKeyService,
 			getAnchor: () => event.anchor,
 			getActionViewItem: (action) => {
 				const keybinding = this.keybindingService.lookupKeybinding(action.id);
@@ -1071,7 +1073,7 @@ export class TunnelPanel extends ViewPane {
 			},
 			onHide: (wasCancelled?: boolean) => {
 				if (wasCancelled) {
-					this.table.domFocus();
+					this.table?.domFocus();
 				}
 			},
 			getActionsContext: () => node?.strip(),
@@ -1091,7 +1093,7 @@ export class TunnelPanel extends ViewPane {
 		this.height = height;
 		this.width = width;
 		super.layoutBody(height, width);
-		this.table.layout(height, width);
+		this.table?.layout(height, width);
 	}
 }
 
@@ -1372,9 +1374,9 @@ export namespace OpenPortInPreviewAction {
 		if (tunnel) {
 			const remoteHost = tunnel.remoteHost.includes(':') ? `[${tunnel.remoteHost}]` : tunnel.remoteHost;
 			const sourceUri = URI.parse(`http://${remoteHost}:${tunnel.remotePort}`);
-			const opener = await externalOpenerService.getOpener(tunnel.localUri, { sourceUri }, new CancellationTokenSource().token);
+			const opener = await externalOpenerService.getOpener(tunnel.localUri, { sourceUri }, CancellationToken.None);
 			if (opener) {
-				return opener.openExternalUri(tunnel.localUri, { sourceUri }, new CancellationTokenSource().token);
+				return opener.openExternalUri(tunnel.localUri, { sourceUri }, CancellationToken.None);
 			}
 			return openerService.open(tunnel.localUri);
 		}
@@ -1560,24 +1562,25 @@ namespace SetTunnelProtocolAction {
 	export const LABEL_HTTP = nls.localize('remote.tunnel.protocolHttp', "HTTP");
 	export const LABEL_HTTPS = nls.localize('remote.tunnel.protocolHttps', "HTTPS");
 
-	async function handler(arg: any, protocol: TunnelProtocol, remoteExplorerService: IRemoteExplorerService) {
+	async function handler(arg: any, protocol: TunnelProtocol, remoteExplorerService: IRemoteExplorerService, environmentService: IWorkbenchEnvironmentService) {
 		if (isITunnelItem(arg)) {
 			const attributes: Partial<Attributes> = {
 				protocol
 			};
-			return remoteExplorerService.tunnelModel.configPortsAttributes.addAttributes(arg.remotePort, attributes, ConfigurationTarget.USER_REMOTE);
+			const target = environmentService.remoteAuthority ? ConfigurationTarget.USER_REMOTE : ConfigurationTarget.USER_LOCAL;
+			return remoteExplorerService.tunnelModel.configPortsAttributes.addAttributes(arg.remotePort, attributes, target);
 		}
 	}
 
 	export function handlerHttp(): ICommandHandler {
 		return async (accessor, arg) => {
-			return handler(arg, TunnelProtocol.Http, accessor.get(IRemoteExplorerService));
+			return handler(arg, TunnelProtocol.Http, accessor.get(IRemoteExplorerService), accessor.get(IWorkbenchEnvironmentService));
 		};
 	}
 
 	export function handlerHttps(): ICommandHandler {
 		return async (accessor, arg) => {
-			return handler(arg, TunnelProtocol.Https, accessor.get(IRemoteExplorerService));
+			return handler(arg, TunnelProtocol.Https, accessor.get(IRemoteExplorerService), accessor.get(IWorkbenchEnvironmentService));
 		};
 	}
 }
@@ -1815,10 +1818,5 @@ MenuRegistry.appendMenuItem(MenuId.TunnelLocalAddressInline, ({
 	when: isForwardedOrDetectedExpr
 }));
 
-registerColor('ports.iconRunningProcessForeground', {
-	light: STATUS_BAR_REMOTE_ITEM_BACKGROUND,
-	dark: STATUS_BAR_REMOTE_ITEM_BACKGROUND,
-	hcDark: STATUS_BAR_REMOTE_ITEM_BACKGROUND,
-	hcLight: STATUS_BAR_REMOTE_ITEM_BACKGROUND
-}, nls.localize('portWithRunningProcess.foreground', "The color of the icon for a port that has an associated running process."));
+registerColor('ports.iconRunningProcessForeground', STATUS_BAR_REMOTE_ITEM_BACKGROUND, nls.localize('portWithRunningProcess.foreground', "The color of the icon for a port that has an associated running process."));
 

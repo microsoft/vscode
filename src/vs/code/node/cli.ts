@@ -39,10 +39,6 @@ function shouldSpawnCliProcess(argv: NativeParsedArgs): boolean {
 		|| !!argv['telemetry'];
 }
 
-interface IMainCli {
-	main: (argv: NativeParsedArgs) => Promise<void>;
-}
-
 export async function main(argv: string[]): Promise<any> {
 	let args: NativeParsedArgs;
 
@@ -59,19 +55,28 @@ export async function main(argv: string[]): Promise<any> {
 				console.error(`'${subcommand}' command not supported in ${product.applicationName}`);
 				return;
 			}
+			const env: IProcessEnvironment = {
+				...process.env
+			};
+			// bootstrap-amd.js determines the electron environment based
+			// on the following variable. For the server we need to unset
+			// it to prevent importing any electron specific modules.
+			// Refs https://github.com/microsoft/vscode/issues/221883
+			delete env['ELECTRON_RUN_AS_NODE'];
+
 			const tunnelArgs = argv.slice(argv.indexOf(subcommand) + 1); // all arguments behind `tunnel`
 			return new Promise((resolve, reject) => {
 				let tunnelProcess: ChildProcess;
 				const stdio: StdioOptions = ['ignore', 'pipe', 'pipe'];
 				if (process.env['VSCODE_DEV']) {
-					tunnelProcess = spawn('cargo', ['run', '--', subcommand, ...tunnelArgs], { cwd: join(getAppRoot(), 'cli'), stdio });
+					tunnelProcess = spawn('cargo', ['run', '--', subcommand, ...tunnelArgs], { cwd: join(getAppRoot(), 'cli'), stdio, env });
 				} else {
 					const appPath = process.platform === 'darwin'
 						// ./Contents/MacOS/Electron => ./Contents/Resources/app/bin/code-tunnel-insiders
 						? join(dirname(dirname(process.execPath)), 'Resources', 'app')
 						: dirname(process.execPath);
 					const tunnelCommand = join(appPath, 'bin', `${product.tunnelApplicationName}${isWindows ? '.exe' : ''}`);
-					tunnelProcess = spawn(tunnelCommand, [subcommand, ...tunnelArgs], { cwd: cwd(), stdio });
+					tunnelProcess = spawn(tunnelCommand, [subcommand, ...tunnelArgs], { cwd: cwd(), stdio, env });
 				}
 
 				tunnelProcess.stdout!.pipe(process.stdout);
@@ -112,7 +117,8 @@ export async function main(argv: string[]): Promise<any> {
 
 	// Extensions Management
 	else if (shouldSpawnCliProcess(args)) {
-		const cli = await new Promise<IMainCli>((resolve, reject) => require(['vs/code/node/cliProcessMain'], resolve, reject));
+
+		const cli = await import('vs/code/node/cliProcessMain');
 		await cli.main(args);
 
 		return;
@@ -324,6 +330,7 @@ export async function main(argv: string[]): Promise<any> {
 		// to get better profile traces. Last, we listen on stdout for a signal that tells us to
 		// stop profiling.
 		if (args['prof-startup']) {
+			const profileHost = '127.0.0.1';
 			const portMain = await findFreePort(randomPort(), 10, 3000);
 			const portRenderer = await findFreePort(portMain + 1, 10, 3000);
 			const portExthost = await findFreePort(portRenderer + 1, 10, 3000);
@@ -335,9 +342,9 @@ export async function main(argv: string[]): Promise<any> {
 
 			const filenamePrefix = randomPath(homedir(), 'prof');
 
-			addArg(argv, `--inspect-brk=${portMain}`);
-			addArg(argv, `--remote-debugging-port=${portRenderer}`);
-			addArg(argv, `--inspect-brk-extensions=${portExthost}`);
+			addArg(argv, `--inspect-brk=${profileHost}:${portMain}`);
+			addArg(argv, `--remote-debugging-port=${profileHost}:${portRenderer}`);
+			addArg(argv, `--inspect-brk-extensions=${profileHost}:${portExthost}`);
 			addArg(argv, `--prof-startup-prefix`, filenamePrefix);
 			addArg(argv, `--no-cached-data`);
 
@@ -351,7 +358,7 @@ export async function main(argv: string[]): Promise<any> {
 
 						let session: ProfilingSession;
 						try {
-							session = await profiler.startProfiling(opts);
+							session = await profiler.startProfiling({ ...opts, host: profileHost });
 						} catch (err) {
 							console.error(`FAILED to start profiling for '${name}' on port '${opts.port}'`);
 						}

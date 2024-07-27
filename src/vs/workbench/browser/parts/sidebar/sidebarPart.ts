@@ -21,7 +21,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { LayoutPriority } from 'vs/base/browser/ui/grid/grid';
 import { assertIsDefined } from 'vs/base/common/types';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
-import { AbstractPaneCompositePart } from 'vs/workbench/browser/parts/paneCompositePart';
+import { AbstractPaneCompositePart, CompositeBarPosition } from 'vs/workbench/browser/parts/paneCompositePart';
 import { ActivityBarCompositeBar, ActivitybarPart } from 'vs/workbench/browser/parts/activitybar/activitybarPart';
 import { ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
@@ -31,6 +31,7 @@ import { Action2, IMenuService, registerAction2 } from 'vs/platform/actions/comm
 import { Separator } from 'vs/base/common/actions';
 import { ToggleActivityBarVisibilityActionId } from 'vs/workbench/browser/actions/layoutActions';
 import { localize2 } from 'vs/nls';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 export class SidebarPart extends AbstractPaneCompositePart {
 
@@ -42,6 +43,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 	readonly maximumWidth: number = Number.POSITIVE_INFINITY;
 	readonly minimumHeight: number = 0;
 	readonly maximumHeight: number = Number.POSITIVE_INFINITY;
+	override get snap(): boolean { return true; }
 
 	readonly priority: LayoutPriority = LayoutPriority.Low;
 
@@ -60,7 +62,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		return Math.max(width, 300);
 	}
 
-	private readonly acitivityBarPart: ActivitybarPart;
+	private readonly activityBarPart = this._register(this.instantiationService.createInstance(ActivitybarPart, this));
 
 	//#endregion
 
@@ -70,6 +72,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IKeybindingService keybindingService: IKeybindingService,
+		@IHoverService hoverService: IHoverService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
@@ -92,6 +95,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 			contextMenuService,
 			layoutService,
 			keybindingService,
+			hoverService,
 			instantiationService,
 			themeService,
 			viewDescriptorService,
@@ -100,7 +104,6 @@ export class SidebarPart extends AbstractPaneCompositePart {
 			menuService,
 		);
 
-		this.acitivityBarPart = this._register(instantiationService.createInstance(ActivitybarPart, this));
 		this.rememberActivityBarVisiblePosition();
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION)) {
@@ -112,19 +115,25 @@ export class SidebarPart extends AbstractPaneCompositePart {
 	}
 
 	private onDidChangeActivityBarLocation(): void {
-		this.updateTitleArea();
+		this.activityBarPart.hide();
+
+		this.updateCompositeBar();
+
 		const id = this.getActiveComposite()?.getId();
 		if (id) {
 			this.onTitleAreaUpdate(id);
 		}
-		this.updateActivityBarVisiblity();
+
+		if (this.shouldShowActivityBar()) {
+			this.activityBarPart.show();
+		}
+
 		this.rememberActivityBarVisiblePosition();
 	}
 
 	override updateStyles(): void {
 		super.updateStyles();
 
-		// Part container
 		const container = assertIsDefined(this.getContainer());
 
 		container.style.backgroundColor = this.getColor(SIDE_BAR_BACKGROUND) || '';
@@ -153,7 +162,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		return this.layoutService.getSideBarPosition() === SideBarPosition.LEFT ? AnchorAlignment.LEFT : AnchorAlignment.RIGHT;
 	}
 
-	protected override createCompisteBar(): ActivityBarCompositeBar {
+	protected override createCompositeBar(): ActivityBarCompositeBar {
 		return this.instantiationService.createInstance(ActivityBarCompositeBar, this.getCompositeBarOptions(), this.partId, this, false);
 	}
 
@@ -167,7 +176,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 			orientation: ActionsOrientation.HORIZONTAL,
 			recomputeSizes: true,
 			activityHoverOptions: {
-				position: () => HoverPosition.BELOW,
+				position: () => this.getCompositeBarPosition() === CompositeBarPosition.BOTTOM ? HoverPosition.ABOVE : HoverPosition.BELOW,
 			},
 			fillExtraContextMenuActions: actions => {
 				const viewsSubmenuAction = this.getViewsSubmenuAction();
@@ -178,7 +187,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 			},
 			compositeSize: 0,
 			iconSize: 16,
-			overflowActionSize: 44,
+			overflowActionSize: 30,
 			colors: theme => ({
 				activeBackgroundColor: theme.getColor(SIDE_BAR_BACKGROUND),
 				inactiveBackgroundColor: theme.getColor(SIDE_BAR_BACKGROUND),
@@ -194,14 +203,27 @@ export class SidebarPart extends AbstractPaneCompositePart {
 	}
 
 	protected shouldShowCompositeBar(): boolean {
-		return this.configurationService.getValue(LayoutSettings.ACTIVITY_BAR_LOCATION) === ActivityBarPosition.TOP;
+		const activityBarPosition = this.configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION);
+		return activityBarPosition === ActivityBarPosition.TOP || activityBarPosition === ActivityBarPosition.BOTTOM;
 	}
 
 	private shouldShowActivityBar(): boolean {
 		if (this.shouldShowCompositeBar()) {
 			return false;
 		}
+
 		return this.configurationService.getValue(LayoutSettings.ACTIVITY_BAR_LOCATION) !== ActivityBarPosition.HIDDEN;
+	}
+
+	protected getCompositeBarPosition(): CompositeBarPosition {
+		const activityBarPosition = this.configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION);
+		switch (activityBarPosition) {
+			case ActivityBarPosition.TOP: return CompositeBarPosition.TOP;
+			case ActivityBarPosition.BOTTOM: return CompositeBarPosition.BOTTOM;
+			case ActivityBarPosition.HIDDEN:
+			case ActivityBarPosition.DEFAULT: // noop
+			default: return CompositeBarPosition.TITLE;
+		}
 	}
 
 	private rememberActivityBarVisiblePosition(): void {
@@ -214,39 +236,35 @@ export class SidebarPart extends AbstractPaneCompositePart {
 	private getRememberedActivityBarVisiblePosition(): ActivityBarPosition {
 		const activityBarPosition = this.storageService.get(LayoutSettings.ACTIVITY_BAR_LOCATION, StorageScope.PROFILE);
 		switch (activityBarPosition) {
-			case ActivityBarPosition.SIDE: return ActivityBarPosition.SIDE;
-			default: return ActivityBarPosition.TOP;
-		}
-	}
-
-	private updateActivityBarVisiblity(): void {
-		if (this.shouldShowActivityBar()) {
-			this.acitivityBarPart.show();
-		} else {
-			this.acitivityBarPart.hide();
+			case ActivityBarPosition.TOP: return ActivityBarPosition.TOP;
+			case ActivityBarPosition.BOTTOM: return ActivityBarPosition.BOTTOM;
+			default: return ActivityBarPosition.DEFAULT;
 		}
 	}
 
 	override getPinnedPaneCompositeIds(): string[] {
-		return this.shouldShowCompositeBar() ? super.getPinnedPaneCompositeIds() : this.acitivityBarPart.getPinnedPaneCompositeIds();
+		return this.shouldShowCompositeBar() ? super.getPinnedPaneCompositeIds() : this.activityBarPart.getPinnedPaneCompositeIds();
 	}
 
 	override getVisiblePaneCompositeIds(): string[] {
-		return this.shouldShowCompositeBar() ? super.getVisiblePaneCompositeIds() : this.acitivityBarPart.getVisiblePaneCompositeIds();
+		return this.shouldShowCompositeBar() ? super.getVisiblePaneCompositeIds() : this.activityBarPart.getVisiblePaneCompositeIds();
 	}
 
 	async focusActivityBar(): Promise<void> {
 		if (this.configurationService.getValue(LayoutSettings.ACTIVITY_BAR_LOCATION) === ActivityBarPosition.HIDDEN) {
 			await this.configurationService.updateValue(LayoutSettings.ACTIVITY_BAR_LOCATION, this.getRememberedActivityBarVisiblePosition());
+
 			this.onDidChangeActivityBarLocation();
 		}
+
 		if (this.shouldShowCompositeBar()) {
-			this.focusComositeBar();
+			this.focusCompositeBar();
 		} else {
 			if (!this.layoutService.isVisible(Parts.ACTIVITYBAR_PART)) {
 				this.layoutService.setPartHidden(false, Parts.ACTIVITYBAR_PART);
 			}
-			this.acitivityBarPart.show(true);
+
+			this.activityBarPart.show(true);
 		}
 	}
 

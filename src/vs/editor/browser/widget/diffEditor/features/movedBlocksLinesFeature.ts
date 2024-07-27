@@ -7,7 +7,7 @@ import { h } from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action } from 'vs/base/common/actions';
 import { booleanComparator, compareBy, numberComparator, tieBreakComparators } from 'vs/base/common/arrays';
-import { findMaxIdxBy } from 'vs/base/common/arraysFind';
+import { findMaxIdx } from 'vs/base/common/arraysFind';
 import { Codicon } from 'vs/base/common/codicons';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IObservable, autorun, autorunHandleChanges, autorunWithStore, constObservable, derived, derivedWithStore, observableFromEvent, observableSignalFromEvent, observableValue, recomputeInitiallyAndOnChange } from 'vs/base/common/observable';
@@ -26,8 +26,8 @@ export class MovedBlocksLinesFeature extends Disposable {
 	public static readonly movedCodeBlockPadding = 4;
 
 	private readonly _element: SVGElement;
-	private readonly _originalScrollTop = observableFromEvent(this._editors.original.onDidScrollChange, () => this._editors.original.getScrollTop());
-	private readonly _modifiedScrollTop = observableFromEvent(this._editors.modified.onDidScrollChange, () => this._editors.modified.getScrollTop());
+	private readonly _originalScrollTop = observableFromEvent(this, this._editors.original.onDidScrollChange, () => this._editors.original.getScrollTop());
+	private readonly _modifiedScrollTop = observableFromEvent(this, this._editors.modified.onDidScrollChange, () => this._editors.modified.getScrollTop());
 	private readonly _viewZonesChanged = observableSignalFromEvent('onDidChangeViewZones', this._editors.modified.onDidChangeViewZones);
 
 	public readonly width = observableValue(this, 0);
@@ -258,7 +258,7 @@ class LinesLayout {
 			if (trackIdx === -1) {
 				const maxTrackCount = 6;
 				if (setsPerTrack.length >= maxTrackCount) {
-					trackIdx = findMaxIdxBy(setsPerTrack, compareBy(set => set.intersectWithRangeLength(line), numberComparator));
+					trackIdx = findMaxIdx(setsPerTrack, compareBy(set => set.intersectWithRangeLength(line), numberComparator));
 				} else {
 					trackIdx = setsPerTrack.length;
 					setsPerTrack.push(new OffsetRangeSet());

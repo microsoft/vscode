@@ -40,7 +40,7 @@ export class UntitledTextEditorInputSerializer implements IEditorSerializer {
 	}
 
 	serialize(editorInput: EditorInput): string | undefined {
-		if (!this.filesConfigurationService.isHotExitEnabled || editorInput.isDisposed()) {
+		if (!this.canSerialize(editorInput)) {
 			return undefined;
 		}
 

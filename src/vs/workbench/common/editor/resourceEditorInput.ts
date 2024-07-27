@@ -13,6 +13,7 @@ import { IFilesConfigurationService } from 'vs/workbench/services/filesConfigura
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { isConfigured } from 'vs/platform/configuration/common/configuration';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
+import { ICustomEditorLabelService } from 'vs/workbench/services/editor/common/customEditorLabelService';
 
 /**
  * The base class for all editor inputs that open resources.
@@ -46,7 +47,8 @@ export abstract class AbstractResourceEditorInput extends EditorInput implements
 		@ILabelService protected readonly labelService: ILabelService,
 		@IFileService protected readonly fileService: IFileService,
 		@IFilesConfigurationService protected readonly filesConfigurationService: IFilesConfigurationService,
-		@ITextResourceConfigurationService protected readonly textResourceConfigurationService: ITextResourceConfigurationService
+		@ITextResourceConfigurationService protected readonly textResourceConfigurationService: ITextResourceConfigurationService,
+		@ICustomEditorLabelService protected readonly customEditorLabelService: ICustomEditorLabelService
 	) {
 		super();
 
@@ -61,6 +63,7 @@ export abstract class AbstractResourceEditorInput extends EditorInput implements
 		this._register(this.labelService.onDidChangeFormatters(e => this.onLabelEvent(e.scheme)));
 		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(e => this.onLabelEvent(e.scheme)));
 		this._register(this.fileService.onDidChangeFileSystemProviderCapabilities(e => this.onLabelEvent(e.scheme)));
+		this._register(this.customEditorLabelService.onDidChange(() => this.updateLabel()));
 	}
 
 	private onLabelEvent(scheme: string): void {
@@ -95,7 +98,7 @@ export abstract class AbstractResourceEditorInput extends EditorInput implements
 	private _name: string | undefined = undefined;
 	override getName(): string {
 		if (typeof this._name !== 'string') {
-			this._name = this.labelService.getUriBasenameLabel(this._preferredResource);
+			this._name = this.customEditorLabelService.getName(this._preferredResource) ?? this.labelService.getUriBasenameLabel(this._preferredResource);
 		}
 
 		return this._name;

@@ -15,7 +15,6 @@ import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { index } from 'vs/base/common/arrays';
 import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
-import { ApiProposalName } from 'vs/workbench/services/extensions/common/extensionsApiProposals';
 import { ILocalizedString } from 'vs/platform/action/common/action';
 import { IExtensionFeatureTableRenderer, IExtensionFeaturesRegistry, IRenderedData, IRowData, ITableData, Extensions as ExtensionFeaturesExtensions } from 'vs/workbench/services/extensionManagement/common/extensionFeatures';
 import { IExtensionManifest, IKeyBinding } from 'vs/platform/extensions/common/extensions';
@@ -25,6 +24,7 @@ import { platform } from 'vs/base/common/process';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { ApiProposalName } from 'vs/platform/extensions/common/extensionsApiProposals';
 
 interface IAPIMenu {
 	readonly key: string;
@@ -170,6 +170,18 @@ const apiMenus: IAPIMenu[] = [
 		proposed: 'contribSourceControlInputBoxMenu'
 	},
 	{
+		key: 'scm/historyItemChanges/title',
+		id: MenuId.SCMChangesSeparator,
+		description: localize('menus.historyItemChanges', "The Source Control incoming/outgoing changes title menu"),
+		proposed: 'contribSourceControlHistoryItemChangesMenu'
+	},
+	{
+		key: 'scm/historyItem/context',
+		id: MenuId.SCMChangesContext,
+		description: localize('menus.historyItemContext', "The Source Control history item context menu"),
+		proposed: 'contribSourceControlHistoryItemChangesMenu'
+	},
+	{
 		key: 'scm/incomingChanges',
 		id: MenuId.SCMIncomingChanges,
 		description: localize('menus.incomingChanges', "The Source Control incoming changes menu"),
@@ -291,6 +303,12 @@ const apiMenus: IAPIMenu[] = [
 		proposed: 'contribCommentPeekContext'
 	},
 	{
+		key: 'commentsView/commentThread/context',
+		id: MenuId.CommentsViewThreadActions,
+		description: localize('commentsView.threadActions', "The contributed comment thread context menu in the comments view"),
+		proposed: 'contribCommentsViewThreadMenus'
+	},
+	{
 		key: 'notebook/toolbar',
 		id: MenuId.NotebookToolbar,
 		description: localize('notebook.toolbar', "The contributed notebook toolbar menu")
@@ -336,6 +354,16 @@ const apiMenus: IAPIMenu[] = [
 		key: 'testing/item/gutter',
 		id: MenuId.TestItemGutter,
 		description: localize('testing.item.gutter.title', "The menu for a gutter decoration for a test item"),
+	},
+	{
+		key: 'testing/profiles/context',
+		id: MenuId.TestProfilesContext,
+		description: localize('testing.profiles.context.title', "The menu for configuring testing profiles."),
+	},
+	{
+		key: 'testing/item/result',
+		id: MenuId.TestPeekElement,
+		description: localize('testing.item.result.title', "The menu for an item in the Test Results view or peek."),
 	},
 	{
 		key: 'testing/message/context',
@@ -430,6 +458,18 @@ const apiMenus: IAPIMenu[] = [
 		id: MenuId.MultiDiffEditorFileToolbar,
 		description: localize('menus.multiDiffEditorResource', "The resource toolbar in the multi diff editor"),
 		proposed: 'contribMultiDiffEditorMenus'
+	},
+	{
+		key: 'diffEditor/gutter/hunk',
+		id: MenuId.DiffEditorHunkToolbar,
+		description: localize('menus.diffEditorGutterToolBarMenus', "The gutter toolbar in the diff editor"),
+		proposed: 'contribDiffEditorGutterToolBarMenus'
+	},
+	{
+		key: 'diffEditor/gutter/selection',
+		id: MenuId.DiffEditorSelectionToolbar,
+		description: localize('menus.diffEditorGutterToolBarMenus', "The gutter toolbar in the diff editor"),
+		proposed: 'contribDiffEditorGutterToolBarMenus'
 	}
 ];
 

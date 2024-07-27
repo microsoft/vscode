@@ -4,7 +4,7 @@
 		<meta http-equiv="Content-Security-Policy" content="
 			default-src 'none';
 			child-src 'self' data: blob:;
-			script-src 'self' 'unsafe-eval' 'sha256-75NYUUvf+5++1WbfCZOV3PSWxBhONpaxwx+mkOFRv/Y=' https:;
+			script-src 'self' 'unsafe-eval' 'sha256-V28GQnL3aYxbwgpV3yW1oJ+VKKe/PBSzWntNyH8zVXA=' https: http://localhost:* blob:;
 			connect-src 'self' https: wss: http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:*;"/>
 	</head>
 	<body>
@@ -66,13 +66,44 @@
 	}
 
 	function start() {
+
+		// Before we can load the worker, we need to get the current set of NLS
+		// configuration into this iframe. We ask the parent window to send it
+		// together with the necessary information to load the worker via Blob.
+
+		const bootstrapNlsType = 'vscode.bootstrap.nls';
+
+		self.onmessage = (event) => {
+			if (event.origin !== parentOrigin || event.data.type !== bootstrapNlsType) {
+				return;
+			}
+			const { data } = event.data;
+			createWorker(data.baseUrl, data.workerUrl, data.nls.messages, data.nls.language);
+		};
+
+		window.parent.postMessage({
+			vscodeWebWorkerExtHostId,
+			type: bootstrapNlsType
+		}, '*');
+	}
+
+	function createWorker(baseUrl, workerUrl, nlsMessages, nlsLanguage) {
 		try {
-			let workerUrl = '../../../../base/worker/workerMain.js';
 			if (globalThis.crossOriginIsolated) {
 				workerUrl += '?vscode-coi=2'; // COEP
 			}
 
-			const worker = new Worker(workerUrl, { name });
+			const blob = new Blob([[
+				`/*extensionHostWorker*/`,
+				`globalThis.MonacoEnvironment = { baseUrl: '${baseUrl}' };`,
+				// VSCODE_GLOBALS: NLS
+				`globalThis._VSCODE_NLS_MESSAGES = ${JSON.stringify(nlsMessages)};`,
+				`globalThis._VSCODE_NLS_LANGUAGE = ${JSON.stringify(nlsLanguage)};`,
+				`importScripts('${workerUrl}');`,
+				`/*extensionHostWorker*/`
+			].join('')], { type: 'application/javascript' });
+
+			const worker = new Worker(URL.createObjectURL(blob), { name });
 			worker.postMessage('vs/workbench/api/worker/extensionHostWorker');
 			const nestedWorkers = new Map();
 

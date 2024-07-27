@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { IRegisteredCodeWindow } from 'vs/base/browser/dom';
 import { CodeWindow, mainWindow } from 'vs/base/browser/window';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { BaseWindow } from 'vs/workbench/browser/window';
-import { TestHostService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestEnvironmentService, TestHostService } from 'vs/workbench/test/browser/workbenchTestServices';
 
 suite('Window', () => {
 
@@ -19,7 +19,7 @@ suite('Window', () => {
 	class TestWindow extends BaseWindow {
 
 		constructor(window: CodeWindow, dom: { getWindowsCount: () => number; getWindows: () => Iterable<IRegisteredCodeWindow> }) {
-			super(window, dom, new TestHostService());
+			super(window, dom, new TestHostService(), TestEnvironmentService);
 		}
 
 		protected override enableWindowFocusOnElementFocus(): void { }

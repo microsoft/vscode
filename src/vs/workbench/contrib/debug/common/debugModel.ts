@@ -10,7 +10,7 @@ import { VSBuffer, decodeBase64, encodeBase64 } from 'vs/base/common/buffer';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { stringHash } from 'vs/base/common/hash';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableMap, IDisposable } from 'vs/base/common/lifecycle';
 import { mixin } from 'vs/base/common/objects';
 import { autorun } from 'vs/base/common/observable';
 import * as resources from 'vs/base/common/resources';
@@ -22,7 +22,7 @@ import * as nls from 'vs/nls';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IEditorPane } from 'vs/workbench/common/editor';
-import { DEBUG_MEMORY_SCHEME, DebugTreeItemCollapsibleState, IBaseBreakpoint, IBreakpoint, IBreakpointData, IBreakpointUpdateData, IBreakpointsChangeEvent, IDataBreakpoint, IDebugModel, IDebugSession, IDebugVisualizationTreeItem, IEnablement, IExceptionBreakpoint, IExceptionInfo, IExpression, IExpressionContainer, IFunctionBreakpoint, IInstructionBreakpoint, IMemoryInvalidationEvent, IMemoryRegion, IRawModelUpdate, IRawStoppedDetails, IScope, IStackFrame, IThread, ITreeElement, MemoryRange, MemoryRangeType, State } from 'vs/workbench/contrib/debug/common/debug';
+import { DEBUG_MEMORY_SCHEME, DataBreakpointSetType, DataBreakpointSource, DebugTreeItemCollapsibleState, IBaseBreakpoint, IBreakpoint, IBreakpointData, IBreakpointUpdateData, IBreakpointsChangeEvent, IDataBreakpoint, IDebugEvaluatePosition, IDebugModel, IDebugSession, IDebugVisualizationTreeItem, IEnablement, IExceptionBreakpoint, IExceptionInfo, IExpression, IExpressionContainer, IFunctionBreakpoint, IInstructionBreakpoint, IMemoryInvalidationEvent, IMemoryRegion, IRawModelUpdate, IRawStoppedDetails, IScope, IStackFrame, IThread, ITreeElement, MemoryRange, MemoryRangeType, State, isFrameDeemphasized } from 'vs/workbench/contrib/debug/common/debug';
 import { Source, UNKNOWN_SOURCE_LABEL, getUriFromSource } from 'vs/workbench/contrib/debug/common/debugSource';
 import { DebugStorage } from 'vs/workbench/contrib/debug/common/debugStorage';
 import { IDebugVisualizerService } from 'vs/workbench/contrib/debug/common/debugVisualizers';
@@ -198,7 +198,9 @@ export class ExpressionContainer implements IExpressionContainer {
 		session: IDebugSession | undefined,
 		stackFrame: IStackFrame | undefined,
 		context: string,
-		keepLazyVars = false): Promise<boolean> {
+		keepLazyVars = false,
+		location?: IDebugEvaluatePosition,
+	): Promise<boolean> {
 
 		if (!session || (!stackFrame && context !== 'repl')) {
 			this.value = context === 'repl' ? nls.localize('startDebugFirst', "Please start a debug session to evaluate expressions") : Expression.DEFAULT_VALUE;
@@ -208,7 +210,7 @@ export class ExpressionContainer implements IExpressionContainer {
 
 		this.session = session;
 		try {
-			const response = await session.evaluate(expression, stackFrame ? stackFrame.frameId : undefined, context);
+			const response = await session.evaluate(expression, stackFrame ? stackFrame.frameId : undefined, context, location);
 
 			if (response && response.body) {
 				this.value = response.body.result || '';
@@ -296,6 +298,9 @@ export class Expression extends ExpressionContainer implements IExpression {
 
 	public available: boolean;
 
+	private readonly _onDidChangeValue = new Emitter<IExpression>();
+	public readonly onDidChangeValue: Event<IExpression> = this._onDidChangeValue.event;
+
 	constructor(public name: string, id = generateUuid()) {
 		super(undefined, undefined, 0, id);
 		this.available = false;
@@ -306,8 +311,11 @@ export class Expression extends ExpressionContainer implements IExpression {
 		}
 	}
 
-	async evaluate(session: IDebugSession | undefined, stackFrame: IStackFrame | undefined, context: string, keepLazyVars?: boolean): Promise<void> {
-		this.available = await this.evaluateExpression(this.name, session, stackFrame, context, keepLazyVars);
+	async evaluate(session: IDebugSession | undefined, stackFrame: IStackFrame | undefined, context: string, keepLazyVars?: boolean, location?: IDebugEvaluatePosition): Promise<void> {
+		this.available = await this.evaluateExpression(this.name, session, stackFrame, context, keepLazyVars, location);
+		if (this.valueChanged) {
+			this._onDidChangeValue.fire(this);
+		}
 	}
 
 	override toString(): string {
@@ -540,6 +548,8 @@ export class StackFrame implements IStackFrame {
 	}
 }
 
+const KEEP_SUBTLE_FRAME_AT_TOP_REASONS: readonly string[] = ['breakpoint', 'step', 'function breakpoint'];
+
 export class Thread implements IThread {
 	private callStack: IStackFrame[];
 	private staleCallStack: IStackFrame[];
@@ -578,10 +588,11 @@ export class Thread implements IThread {
 
 	getTopStackFrame(): IStackFrame | undefined {
 		const callStack = this.getCallStack();
+		const stopReason = this.stoppedDetails?.reason;
 		// Allow stack frame without source and with instructionReferencePointer as top stack frame when using disassembly view.
-		const firstAvailableStackFrame = callStack.find(sf => !!(sf &&
-			((this.stoppedDetails?.reason === 'instruction breakpoint' || (this.stoppedDetails?.reason === 'step' && this.lastSteppingGranularity === 'instruction')) && sf.instructionPointerReference) ||
-			(sf.source && sf.source.available && sf.source.presentationHint !== 'deemphasize')));
+		const firstAvailableStackFrame = callStack.find(sf => !!(
+			((stopReason === 'instruction breakpoint' || (stopReason === 'step' && this.lastSteppingGranularity === 'instruction')) && sf.instructionPointerReference) ||
+			(sf.source && sf.source.available && (KEEP_SUBTLE_FRAME_AT_TOP_REASONS.includes(stopReason!) || !isFrameDeemphasized(sf)))));
 		return firstAvailableStackFrame;
 	}
 
@@ -1150,15 +1161,18 @@ export class FunctionBreakpoint extends BaseBreakpoint implements IFunctionBreak
 
 export interface IDataBreakpointOptions extends IBaseBreakpointOptions {
 	description: string;
-	dataId: string;
+	src: DataBreakpointSource;
 	canPersist: boolean;
+	initialSessionData?: { session: IDebugSession; dataId: string };
 	accessTypes: DebugProtocol.DataBreakpointAccessType[] | undefined;
 	accessType: DebugProtocol.DataBreakpointAccessType;
 }
 
 export class DataBreakpoint extends BaseBreakpoint implements IDataBreakpoint {
+	private readonly sessionDataIdForAddr = new WeakMap<IDebugSession, string | null>();
+
 	public readonly description: string;
-	public readonly dataId: string;
+	public readonly src: DataBreakpointSource;
 	public readonly canPersist: boolean;
 	public readonly accessTypes: DebugProtocol.DataBreakpointAccessType[] | undefined;
 	public readonly accessType: DebugProtocol.DataBreakpointAccessType;
@@ -1169,15 +1183,36 @@ export class DataBreakpoint extends BaseBreakpoint implements IDataBreakpoint {
 	) {
 		super(id, opts);
 		this.description = opts.description;
-		this.dataId = opts.dataId;
+		if ('dataId' in opts) { //  back compat with old saved variables in 1.87
+			opts.src = { type: DataBreakpointSetType.Variable, dataId: opts.dataId as string };
+		}
+		this.src = opts.src;
 		this.canPersist = opts.canPersist;
 		this.accessTypes = opts.accessTypes;
 		this.accessType = opts.accessType;
+		if (opts.initialSessionData) {
+			this.sessionDataIdForAddr.set(opts.initialSessionData.session, opts.initialSessionData.dataId);
+		}
 	}
 
-	toDAP(): DebugProtocol.DataBreakpoint {
+	async toDAP(session: IDebugSession): Promise<DebugProtocol.DataBreakpoint | undefined> {
+		let dataId: string;
+		if (this.src.type === DataBreakpointSetType.Variable) {
+			dataId = this.src.dataId;
+		} else {
+			let sessionDataId = this.sessionDataIdForAddr.get(session);
+			if (!sessionDataId) {
+				sessionDataId = (await session.dataBytesBreakpointInfo(this.src.address, this.src.bytes))?.dataId;
+				if (!sessionDataId) {
+					return undefined;
+				}
+				this.sessionDataIdForAddr.set(session, sessionDataId);
+			}
+			dataId = sessionDataId;
+		}
+
 		return {
-			dataId: this.dataId,
+			dataId,
 			accessType: this.accessType,
 			condition: this.condition,
 			hitCondition: this.hitCondition,
@@ -1188,7 +1223,7 @@ export class DataBreakpoint extends BaseBreakpoint implements IDataBreakpoint {
 		return {
 			...super.toJSON(),
 			description: this.description,
-			dataId: this.dataId,
+			src: this.src,
 			accessTypes: this.accessTypes,
 			accessType: this.accessType,
 			canPersist: this.canPersist,
@@ -1374,12 +1409,14 @@ export class DebugModel extends Disposable implements IDebugModel {
 	private readonly _onDidChangeBreakpoints = this._register(new Emitter<IBreakpointsChangeEvent | undefined>());
 	private readonly _onDidChangeCallStack = this._register(new Emitter<void>());
 	private readonly _onDidChangeWatchExpressions = this._register(new Emitter<IExpression | undefined>());
+	private readonly _onDidChangeWatchExpressionValue = this._register(new Emitter<IExpression | undefined>());
 	private readonly _breakpointModes = new Map<string, IBreakpointModeInternal>();
 	private breakpoints!: Breakpoint[];
 	private functionBreakpoints!: FunctionBreakpoint[];
 	private exceptionBreakpoints!: ExceptionBreakpoint[];
 	private dataBreakpoints!: DataBreakpoint[];
 	private watchExpressions!: Expression[];
+	private watchExpressionChangeListeners: DisposableMap<string, IDisposable> = this._register(new DisposableMap());
 	private instructionBreakpoints: InstructionBreakpoint[];
 
 	constructor(
@@ -1405,6 +1442,10 @@ export class DebugModel extends Disposable implements IDebugModel {
 
 		this.instructionBreakpoints = [];
 		this.sessions = [];
+
+		for (const we of this.watchExpressions) {
+			this.watchExpressionChangeListeners.set(we.getId(), we.onDidChangeValue((e) => this._onDidChangeWatchExpressionValue.fire(e)));
+		}
 	}
 
 	getId(): string {
@@ -1468,6 +1509,10 @@ export class DebugModel extends Disposable implements IDebugModel {
 		return this._onDidChangeWatchExpressions.event;
 	}
 
+	get onDidChangeWatchExpressionValue(): Event<IExpression | undefined> {
+		return this._onDidChangeWatchExpressionValue.event;
+	}
+
 	rawUpdate(data: IRawModelUpdate): void {
 		const session = this.sessions.find(p => p.getId() === data.sessionId);
 		if (session) {
@@ -1520,7 +1565,13 @@ export class DebugModel extends Disposable implements IDebugModel {
 			let topCallStack = Promise.resolve();
 			const wholeCallStack = new Promise<void>((c, e) => {
 				topCallStack = thread.fetchCallStack(1).then(() => {
-					if (!this.schedulers.has(thread.getId()) && fetchFullStack) {
+					if (!fetchFullStack) {
+						c();
+						this._onDidChangeCallStack.fire();
+						return;
+					}
+
+					if (!this.schedulers.has(thread.getId())) {
 						const deferred = new DeferredPromise<void>();
 						this.schedulers.set(thread.getId(), {
 							completeDeferred: deferred,
@@ -1872,8 +1923,8 @@ export class DebugModel extends Disposable implements IDebugModel {
 		this._onDidChangeBreakpoints.fire({ changed: changed, sessionOnly: false });
 	}
 
-	addFunctionBreakpoint(functionName: string, id?: string, mode?: string): IFunctionBreakpoint {
-		const newFunctionBreakpoint = new FunctionBreakpoint({ name: functionName, mode }, id);
+	addFunctionBreakpoint(opts: IFunctionBreakpointOptions, id?: string): IFunctionBreakpoint {
+		const newFunctionBreakpoint = new FunctionBreakpoint(opts, id);
 		this.functionBreakpoints.push(newFunctionBreakpoint);
 		this._onDidChangeBreakpoints.fire({ added: [newFunctionBreakpoint], sessionOnly: false });
 
@@ -1968,6 +2019,7 @@ export class DebugModel extends Disposable implements IDebugModel {
 
 	addWatchExpression(name?: string): IExpression {
 		const we = new Expression(name || '');
+		this.watchExpressionChangeListeners.set(we.getId(), we.onDidChangeValue((e) => this._onDidChangeWatchExpressionValue.fire(e)));
 		this.watchExpressions.push(we);
 		this._onDidChangeWatchExpressions.fire(we);
 
@@ -1985,6 +2037,11 @@ export class DebugModel extends Disposable implements IDebugModel {
 	removeWatchExpressions(id: string | null = null): void {
 		this.watchExpressions = id ? this.watchExpressions.filter(we => we.getId() !== id) : [];
 		this._onDidChangeWatchExpressions.fire(undefined);
+		if (!id) {
+			this.watchExpressionChangeListeners.clearAndDisposeAll();
+			return;
+		}
+		this.watchExpressionChangeListeners.deleteAndDispose(id);
 	}
 
 	moveWatchExpression(id: string, position: number): void {

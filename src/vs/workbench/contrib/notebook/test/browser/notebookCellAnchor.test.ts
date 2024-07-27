@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { ScrollEvent } from 'vs/base/common/scrollable';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { CellFocusMode } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';

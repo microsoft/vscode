@@ -136,8 +136,14 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 	private leftItemsContainer: HTMLElement | undefined;
 	private rightItemsContainer: HTMLElement | undefined;
 
-
-	private readonly hoverDelegate: WorkbenchHoverDelegate;
+	private readonly hoverDelegate = this._register(this.instantiationService.createInstance(WorkbenchHoverDelegate, 'element', true, (_, focus?: boolean) => (
+		{
+			persistence: {
+				hideOnKeyDown: true,
+				sticky: focus
+			}
+		}
+	)));
 
 	private readonly compactEntriesDisposable = this._register(new MutableDisposable<DisposableStore>());
 	private readonly styleOverrides = new Set<IStatusbarStyleOverride>();
@@ -149,19 +155,10 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-		@IContextMenuService private contextMenuService: IContextMenuService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super(id, { hasTitle: false }, themeService, storageService, layoutService);
-
-		this.hoverDelegate = this._register(instantiationService.createInstance(WorkbenchHoverDelegate, 'element', true, (_, focus?: boolean) => (
-			{
-				persistence: {
-					hideOnKeyDown: true,
-					sticky: focus
-				}
-			}
-		)));
 
 		this.registerListeners();
 	}
@@ -341,7 +338,7 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 		this.element = parent;
 
 		// Track focus within container
-		const scopedContextKeyService = this.contextKeyService.createScoped(this.element);
+		const scopedContextKeyService = this._register(this.contextKeyService.createScoped(this.element));
 		StatusBarFocused.bindTo(scopedContextKeyService).set(true);
 
 		// Left items container
@@ -436,7 +433,7 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 		}
 
 		// Figure out groups of entries with `compact` alignment
-		const compactEntryGroups = new Map<string, Set<IStatusbarViewModelEntry>>();
+		const compactEntryGroups = new Map<string, Map<string, IStatusbarViewModelEntry>>();
 		for (const entry of mapIdToVisibleEntry.values()) {
 			if (
 				isStatusbarEntryLocation(entry.priority.primary) && // entry references another entry as location
@@ -451,11 +448,25 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 				// Build a map of entries that are compact among each other
 				let compactEntryGroup = compactEntryGroups.get(locationId);
 				if (!compactEntryGroup) {
-					compactEntryGroup = new Set<IStatusbarViewModelEntry>([entry, location]);
-					compactEntryGroups.set(locationId, compactEntryGroup);
-				} else {
-					compactEntryGroup.add(entry);
+
+					// It is possible that this entry references another entry
+					// that itself references an entry. In that case, we want
+					// to add it to the entries of the referenced entry.
+
+					for (const group of compactEntryGroups.values()) {
+						if (group.has(locationId)) {
+							compactEntryGroup = group;
+							break;
+						}
+					}
+
+					if (!compactEntryGroup) {
+						compactEntryGroup = new Map<string, IStatusbarViewModelEntry>();
+						compactEntryGroups.set(locationId, compactEntryGroup);
+					}
 				}
+				compactEntryGroup.set(entry.id, entry);
+				compactEntryGroup.set(location.id, location);
 
 				// Adjust CSS classes to move compact items closer together
 				if (entry.priority.primary.alignment === StatusbarAlignment.LEFT) {
@@ -468,7 +479,6 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 			}
 		}
 
-
 		// Install mouse listeners to update hover feedback for
 		// all compact entries that belong to each other
 		const statusBarItemHoverBackground = this.getColor(STATUS_BAR_ITEM_HOVER_BACKGROUND);
@@ -476,7 +486,7 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 		this.compactEntriesDisposable.value = new DisposableStore();
 		if (statusBarItemHoverBackground && statusBarItemCompactHoverBackground && !isHighContrast(this.theme.type)) {
 			for (const [, compactEntryGroup] of compactEntryGroups) {
-				for (const compactEntry of compactEntryGroup) {
+				for (const compactEntry of compactEntryGroup.values()) {
 					if (!compactEntry.hasCommand) {
 						continue; // only show hover feedback when we have a command
 					}
@@ -678,6 +688,9 @@ export class StatusbarService extends MultiWindowParts<StatusbarPart> implements
 
 	readonly mainPart = this._register(this.instantiationService.createInstance(MainStatusbarPart));
 
+	private readonly _onDidCreateAuxiliaryStatusbarPart = this._register(new Emitter<AuxiliaryStatusbarPart>());
+	private readonly onDidCreateAuxiliaryStatusbarPart = this._onDidCreateAuxiliaryStatusbarPart.event;
+
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
@@ -691,6 +704,8 @@ export class StatusbarService extends MultiWindowParts<StatusbarPart> implements
 	//#region Auxiliary Statusbar Parts
 
 	createAuxiliaryStatusbarPart(container: HTMLElement): IAuxiliaryStatusbarPart {
+
+		// Container
 		const statusbarPartContainer = document.createElement('footer');
 		statusbarPartContainer.classList.add('part', 'statusbar');
 		statusbarPartContainer.setAttribute('role', 'status');
@@ -699,12 +714,16 @@ export class StatusbarService extends MultiWindowParts<StatusbarPart> implements
 		statusbarPartContainer.setAttribute('tabindex', '0');
 		container.appendChild(statusbarPartContainer);
 
+		// Statusbar Part
 		const statusbarPart = this.instantiationService.createInstance(AuxiliaryStatusbarPart, statusbarPartContainer);
 		const disposable = this.registerPart(statusbarPart);
 
 		statusbarPart.create(statusbarPartContainer);
 
 		Event.once(statusbarPart.onWillDispose)(() => disposable.dispose());
+
+		// Emit internal event
+		this._onDidCreateAuxiliaryStatusbarPart.fire(statusbarPart);
 
 		return statusbarPart;
 	}
@@ -720,7 +739,44 @@ export class StatusbarService extends MultiWindowParts<StatusbarPart> implements
 	readonly onDidChangeEntryVisibility = this.mainPart.onDidChangeEntryVisibility;
 
 	addEntry(entry: IStatusbarEntry, id: string, alignment: StatusbarAlignment, priorityOrLocation: number | IStatusbarEntryLocation | IStatusbarEntryPriority = 0): IStatusbarEntryAccessor {
+		if (entry.showInAllWindows) {
+			return this.doAddEntryToAllWindows(entry, id, alignment, priorityOrLocation);
+		}
+
 		return this.mainPart.addEntry(entry, id, alignment, priorityOrLocation);
+	}
+
+	private doAddEntryToAllWindows(entry: IStatusbarEntry, id: string, alignment: StatusbarAlignment, priorityOrLocation: number | IStatusbarEntryLocation | IStatusbarEntryPriority = 0): IStatusbarEntryAccessor {
+		const entryDisposables = new DisposableStore();
+
+		const accessors = new Set<IStatusbarEntryAccessor>();
+
+		function addEntry(part: StatusbarPart | AuxiliaryStatusbarPart): void {
+			const partDisposables = new DisposableStore();
+			partDisposables.add(part.onWillDispose(() => partDisposables.dispose()));
+
+			const accessor = partDisposables.add(part.addEntry(entry, id, alignment, priorityOrLocation));
+			accessors.add(accessor);
+			partDisposables.add(toDisposable(() => accessors.delete(accessor)));
+
+			entryDisposables.add(partDisposables);
+			partDisposables.add(toDisposable(() => entryDisposables.delete(partDisposables)));
+		}
+
+		for (const part of this.parts) {
+			addEntry(part);
+		}
+
+		entryDisposables.add(this.onDidCreateAuxiliaryStatusbarPart(part => addEntry(part)));
+
+		return {
+			update: (entry: IStatusbarEntry) => {
+				for (const update of accessors) {
+					update.update(entry);
+				}
+			},
+			dispose: () => entryDisposables.dispose()
+		};
 	}
 
 	isEntryVisible(id: string): boolean {

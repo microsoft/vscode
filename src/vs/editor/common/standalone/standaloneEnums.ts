@@ -261,67 +261,69 @@ export enum EditorOption {
 	pasteAs = 85,
 	parameterHints = 86,
 	peekWidgetDefaultFocus = 87,
-	definitionLinkOpensInPeek = 88,
-	quickSuggestions = 89,
-	quickSuggestionsDelay = 90,
-	readOnly = 91,
-	readOnlyMessage = 92,
-	renameOnType = 93,
-	renderControlCharacters = 94,
-	renderFinalNewline = 95,
-	renderLineHighlight = 96,
-	renderLineHighlightOnlyWhenFocus = 97,
-	renderValidationDecorations = 98,
-	renderWhitespace = 99,
-	revealHorizontalRightPadding = 100,
-	roundedSelection = 101,
-	rulers = 102,
-	scrollbar = 103,
-	scrollBeyondLastColumn = 104,
-	scrollBeyondLastLine = 105,
-	scrollPredominantAxis = 106,
-	selectionClipboard = 107,
-	selectionHighlight = 108,
-	selectOnLineNumbers = 109,
-	showFoldingControls = 110,
-	showUnused = 111,
-	snippetSuggestions = 112,
-	smartSelect = 113,
-	smoothScrolling = 114,
-	stickyScroll = 115,
-	stickyTabStops = 116,
-	stopRenderingLineAfter = 117,
-	suggest = 118,
-	suggestFontSize = 119,
-	suggestLineHeight = 120,
-	suggestOnTriggerCharacters = 121,
-	suggestSelection = 122,
-	tabCompletion = 123,
-	tabIndex = 124,
-	unicodeHighlighting = 125,
-	unusualLineTerminators = 126,
-	useShadowDOM = 127,
-	useTabStops = 128,
-	wordBreak = 129,
-	wordSeparators = 130,
-	wordWrap = 131,
-	wordWrapBreakAfterCharacters = 132,
-	wordWrapBreakBeforeCharacters = 133,
-	wordWrapColumn = 134,
-	wordWrapOverride1 = 135,
-	wordWrapOverride2 = 136,
-	wrappingIndent = 137,
-	wrappingStrategy = 138,
-	showDeprecated = 139,
-	inlayHints = 140,
-	editorClassName = 141,
-	pixelRatio = 142,
-	tabFocusMode = 143,
-	layoutInfo = 144,
-	wrappingInfo = 145,
-	defaultColorDecorators = 146,
-	colorDecoratorsActivatedOn = 147,
-	inlineCompletionsAccessibilityVerbose = 148
+	placeholder = 88,
+	definitionLinkOpensInPeek = 89,
+	quickSuggestions = 90,
+	quickSuggestionsDelay = 91,
+	readOnly = 92,
+	readOnlyMessage = 93,
+	renameOnType = 94,
+	renderControlCharacters = 95,
+	renderFinalNewline = 96,
+	renderLineHighlight = 97,
+	renderLineHighlightOnlyWhenFocus = 98,
+	renderValidationDecorations = 99,
+	renderWhitespace = 100,
+	revealHorizontalRightPadding = 101,
+	roundedSelection = 102,
+	rulers = 103,
+	scrollbar = 104,
+	scrollBeyondLastColumn = 105,
+	scrollBeyondLastLine = 106,
+	scrollPredominantAxis = 107,
+	selectionClipboard = 108,
+	selectionHighlight = 109,
+	selectOnLineNumbers = 110,
+	showFoldingControls = 111,
+	showUnused = 112,
+	snippetSuggestions = 113,
+	smartSelect = 114,
+	smoothScrolling = 115,
+	stickyScroll = 116,
+	stickyTabStops = 117,
+	stopRenderingLineAfter = 118,
+	suggest = 119,
+	suggestFontSize = 120,
+	suggestLineHeight = 121,
+	suggestOnTriggerCharacters = 122,
+	suggestSelection = 123,
+	tabCompletion = 124,
+	tabIndex = 125,
+	unicodeHighlighting = 126,
+	unusualLineTerminators = 127,
+	useShadowDOM = 128,
+	useTabStops = 129,
+	wordBreak = 130,
+	wordSegmenterLocales = 131,
+	wordSeparators = 132,
+	wordWrap = 133,
+	wordWrapBreakAfterCharacters = 134,
+	wordWrapBreakBeforeCharacters = 135,
+	wordWrapColumn = 136,
+	wordWrapOverride1 = 137,
+	wordWrapOverride2 = 138,
+	wrappingIndent = 139,
+	wrappingStrategy = 140,
+	showDeprecated = 141,
+	inlayHints = 142,
+	editorClassName = 143,
+	pixelRatio = 144,
+	tabFocusMode = 145,
+	layoutInfo = 146,
+	wrappingInfo = 147,
+	defaultColorDecorators = 148,
+	colorDecoratorsActivatedOn = 149,
+	inlineCompletionsAccessibilityVerbose = 150
 }
 
 /**
@@ -363,6 +365,17 @@ export enum GlyphMarginLane {
 	Left = 1,
 	Center = 2,
 	Right = 3
+}
+
+export enum HoverVerbosityAction {
+	/**
+	 * Increase the verbosity of the hover
+	 */
+	Increase = 0,
+	/**
+	 * Decrease the verbosity of the hover
+	 */
+	Decrease = 1
 }
 
 /**
@@ -647,6 +660,14 @@ export enum MinimapPosition {
 }
 
 /**
+ * Section header style.
+ */
+export enum MinimapSectionHeaderStyle {
+	Normal = 1,
+	Underlined = 2
+}
+
+/**
  * Type of hit element with the mouse in the editor.
  */
 export enum MouseTargetType {
@@ -712,6 +733,11 @@ export enum NewSymbolNameTag {
 	AIGenerated = 1
 }
 
+export enum NewSymbolNameTriggerKind {
+	Invoke = 0,
+	Automatic = 1
+}
+
 /**
  * A positioning preference for rendering overlay widgets.
  */
@@ -738,6 +764,15 @@ export enum OverviewRulerLane {
 	Center = 2,
 	Right = 4,
 	Full = 7
+}
+
+/**
+ * How a partial acceptance was triggered.
+ */
+export enum PartialAcceptTriggerKind {
+	Word = 0,
+	Line = 1,
+	Suggest = 2
 }
 
 export enum PositionAffinity {

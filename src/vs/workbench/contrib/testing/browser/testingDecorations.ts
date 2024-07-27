@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { renderStringAsPlaintext } from 'vs/base/browser/markdownRenderer';
 import { Action, IAction, Separator, SubmenuAction } from 'vs/base/common/actions';
 import { equals } from 'vs/base/common/arrays';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -41,13 +40,14 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { EditorLineNumberContextMenu, GutterActionsRegistry } from 'vs/workbench/contrib/codeEditor/browser/editorLineNumberMenu';
 import { getTestItemContextOverlay } from 'vs/workbench/contrib/testing/browser/explorerProjections/testItemContextOverlay';
 import { testingRunAllIcon, testingRunIcon, testingStatesToIcons } from 'vs/workbench/contrib/testing/browser/icons';
+import { renderTestMessageAsText } from 'vs/workbench/contrib/testing/browser/testMessageColorizer';
 import { DefaultGutterClickAction, TestingConfigKeys, getTestingConfiguration } from 'vs/workbench/contrib/testing/common/configuration';
 import { Testing, labelForTestInState } from 'vs/workbench/contrib/testing/common/constants';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { ITestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
 import { ITestResult, LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
-import { ITestService, getContextForTestItem, testsInFile } from 'vs/workbench/contrib/testing/common/testService';
+import { ITestService, getContextForTestItem, simplifyTestsToExecute, testsInFile } from 'vs/workbench/contrib/testing/common/testService';
 import { IRichLocation, ITestMessage, ITestRunProfile, IncrementalTestCollectionItem, InternalTestItem, TestDiffOpType, TestMessageType, TestResultItem, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
 import { ITestDecoration as IPublicTestDecoration, ITestingDecorationsService, TestDecorations } from 'vs/workbench/contrib/testing/common/testingDecorations';
 import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
@@ -174,7 +174,7 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 		super();
 		codeEditorService.registerDecorationType('test-message-decoration', TestMessageDecoration.decorationId, {}, undefined);
 
-		modelService.onModelRemoved(e => this.decorationCache.delete(e.uri));
+		this._register(modelService.onModelRemoved(e => this.decorationCache.delete(e.uri)));
 
 		const debounceInvalidate = this._register(new RunOnceScheduler(() => this.invalidate(), 100));
 
@@ -806,7 +806,7 @@ abstract class RunTestDecoration {
 
 	protected runWith(profile: TestRunProfileBitset) {
 		return this.testService.runTests({
-			tests: this.tests.map(({ test }) => test),
+			tests: simplifyTestsToExecute(this.testService.collection, this.tests.map(({ test }) => test)),
 			group: profile,
 		});
 	}
@@ -835,7 +835,7 @@ abstract class RunTestDecoration {
 	 */
 	protected getTestContextMenuActions(test: InternalTestItem, resultItem?: TestResultItem): IReference<IAction[]> {
 		const testActions: IAction[] = [];
-		const capabilities = this.testProfileService.capabilitiesForTest(test);
+		const capabilities = this.testProfileService.capabilitiesForTest(test.item);
 
 		[
 			{ bitset: TestRunProfileBitset.Run, label: localize('run test', 'Run Test') },
@@ -856,8 +856,8 @@ abstract class RunTestDecoration {
 				}
 
 				this.testService.runResolvedTests({
+					group: profile.group,
 					targets: [{
-						profileGroup: profile.group,
 						profileId: profile.profileId,
 						controllerId: profile.controllerId,
 						testIds: [test.item.extId]
@@ -880,16 +880,12 @@ abstract class RunTestDecoration {
 
 	private getContributedTestActions(test: InternalTestItem, capabilities: number): IAction[] {
 		const contextOverlay = this.contextKeyService.createOverlay(getTestItemContextOverlay(test, capabilities));
-		const menu = this.menuService.createMenu(MenuId.TestItemGutter, contextOverlay);
 
-		try {
-			const target: IAction[] = [];
-			const arg = getContextForTestItem(this.testService.collection, test.item.extId);
-			createAndFillInContextMenuActions(menu, { shouldForwardArgs: true, arg }, target);
-			return target;
-		} finally {
-			menu.dispose();
-		}
+		const target: IAction[] = [];
+		const arg = getContextForTestItem(this.testService.collection, test.item.extId);
+		const menu = this.menuService.getMenuActions(MenuId.TestItemGutter, contextOverlay, { shouldForwardArgs: true, arg });
+		createAndFillInContextMenuActions(menu, target);
+		return target;
 	}
 }
 
@@ -931,7 +927,7 @@ class MultiRunTestDecoration extends RunTestDecoration implements ITestDecoratio
 			{ bitset: TestRunProfileBitset.Coverage, label: localize('run all test with coverage', 'Run All Tests with Coverage') },
 			{ bitset: TestRunProfileBitset.Debug, label: localize('debug all test', 'Debug All Tests') },
 		].forEach(({ bitset, label }, i) => {
-			const canRun = this.tests.some(({ test }) => this.testProfileService.capabilitiesForTest(test) & bitset);
+			const canRun = this.tests.some(({ test }) => this.testProfileService.capabilitiesForTest(test.item) & bitset);
 			if (canRun) {
 				allActions.push(new Action(`testing.gutter.run${i}`, label, undefined, undefined, () => this.runWith(bitset)));
 			}
@@ -975,7 +971,13 @@ class MultiRunTestDecoration extends RunTestDecoration implements ITestDecoratio
 		let testSubmenus: IAction[] = testItems.map(({ currentLabel, testItem }) => {
 			const actions = this.getTestContextMenuActions(testItem.test, testItem.resultItem);
 			disposable.add(actions);
-			return new SubmenuAction(testItem.test.item.extId, stripIcons(currentLabel), actions.object);
+			let label = stripIcons(currentLabel);
+			const lf = label.indexOf('\n');
+			if (lf !== -1) {
+				label = label.slice(0, lf);
+			}
+
+			return new SubmenuAction(testItem.test.item.extId, label, actions.object);
 		});
 
 
@@ -1085,7 +1087,7 @@ class TestMessageDecoration implements ITestDecoration {
 		options.stickiness = TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges;
 		options.collapseOnReplaceEdit = true;
 
-		let inlineText = renderStringAsPlaintext(message).replace(lineBreakRe, ' ');
+		let inlineText = renderTestMessageAsText(message).replace(lineBreakRe, ' ');
 		if (inlineText.length > MAX_INLINE_MESSAGE_LENGTH) {
 			inlineText = inlineText.slice(0, MAX_INLINE_MESSAGE_LENGTH - 1) + '…';
 		}

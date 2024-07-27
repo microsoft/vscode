@@ -10,7 +10,7 @@ import { IComposite, ICompositeControl } from 'vs/workbench/common/composite';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IConstructorSignature, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { trackFocus, Dimension, IDomPosition, focusWindow } from 'vs/base/browser/dom';
+import { trackFocus, Dimension, IDomPosition } from 'vs/base/browser/dom';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { assertIsDefined } from 'vs/base/common/types';
@@ -36,17 +36,13 @@ export abstract class Composite extends Component implements IComposite {
 	private readonly _onTitleAreaUpdate = this._register(new Emitter<void>());
 	readonly onTitleAreaUpdate = this._onTitleAreaUpdate.event;
 
-	private _onDidFocus: Emitter<void> | undefined;
+	protected _onDidFocus: Emitter<void> | undefined;
 	get onDidFocus(): Event<void> {
 		if (!this._onDidFocus) {
 			this._onDidFocus = this.registerFocusTrackEvents().onDidFocus;
 		}
 
 		return this._onDidFocus.event;
-	}
-
-	protected fireOnDidFocus(): void {
-		this._onDidFocus?.fire();
 	}
 
 	private _onDidBlur: Emitter<void> | undefined;
@@ -86,22 +82,16 @@ export abstract class Composite extends Component implements IComposite {
 
 	protected actionRunner: IActionRunner | undefined;
 
-	private _telemetryService: ITelemetryService;
-	protected get telemetryService(): ITelemetryService { return this._telemetryService; }
-
-	private visible: boolean;
+	private visible = false;
 	private parent: HTMLElement | undefined;
 
 	constructor(
 		id: string,
-		telemetryService: ITelemetryService,
+		protected readonly telemetryService: ITelemetryService,
 		themeService: IThemeService,
 		storageService: IStorageService
 	) {
 		super(id, themeService, storageService);
-
-		this._telemetryService = telemetryService;
-		this.visible = false;
 	}
 
 	getTitle(): string | undefined {
@@ -149,13 +139,7 @@ export abstract class Composite extends Component implements IComposite {
 	 * Called when this composite should receive keyboard focus.
 	 */
 	focus(): void {
-		const container = this.getContainer();
-		if (container) {
-			// Make sure to focus the window of the container
-			// because it is possible that the composite is
-			// opened in a auxiliary window that is not focused.
-			focusWindow(container);
-		}
+		// Subclasses can implement
 	}
 
 	/**

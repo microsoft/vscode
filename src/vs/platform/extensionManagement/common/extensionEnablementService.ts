@@ -119,7 +119,7 @@ export class StorageManager extends Disposable {
 	}
 
 	set(key: string, value: IExtensionIdentifier[], scope: StorageScope): void {
-		const newValue: string = JSON.stringify(value.map(({ id, uuid }) => (<IExtensionIdentifier>{ id, uuid })));
+		const newValue: string = JSON.stringify(value.map(({ id, uuid }): IExtensionIdentifier => ({ id, uuid })));
 		const oldValue = this._get(key, scope);
 		if (oldValue !== newValue) {
 			if (scope === StorageScope.PROFILE) {

@@ -8,7 +8,7 @@ import { Event } from 'vs/base/common/event';
 import { localize, localize2 } from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IUserDataProfile, IUserDataProfileOptions, IUserDataProfileUpdateOptions, ProfileResourceType } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfile, IUserDataProfileOptions, IUserDataProfileUpdateOptions, ProfileResourceType, ProfileResourceTypeFlags } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
@@ -42,16 +42,19 @@ export const IUserDataProfileManagementService = createDecorator<IUserDataProfil
 export interface IUserDataProfileManagementService {
 	readonly _serviceBrand: undefined;
 
+	createProfile(name: string, options?: IUserDataProfileOptions): Promise<IUserDataProfile>;
 	createAndEnterProfile(name: string, options?: IUserDataProfileOptions): Promise<IUserDataProfile>;
 	createAndEnterTransientProfile(): Promise<IUserDataProfile>;
 	removeProfile(profile: IUserDataProfile): Promise<void>;
-	updateProfile(profile: IUserDataProfile, updateOptions: IUserDataProfileUpdateOptions): Promise<void>;
+	updateProfile(profile: IUserDataProfile, updateOptions: IUserDataProfileUpdateOptions): Promise<IUserDataProfile>;
 	switchProfile(profile: IUserDataProfile): Promise<void>;
 	getBuiltinProfileTemplates(): Promise<IProfileTemplateInfo[]>;
 
 }
 
 export interface IUserDataProfileTemplate {
+	readonly name: string;
+	readonly icon?: string;
 	readonly settings?: string;
 	readonly keybindings?: string;
 	readonly tasks?: string;
@@ -78,7 +81,12 @@ export function toUserDataProfileUri(path: string, productService: IProductServi
 	});
 }
 
-export interface IProfileImportOptions extends IUserDataProfileOptions {
+export interface IUserDataProfileCreateOptions extends IUserDataProfileOptions {
+	readonly name?: string;
+	readonly resourceTypeFlags?: ProfileResourceTypeFlags;
+}
+
+export interface IProfileImportOptions extends IUserDataProfileCreateOptions {
 	readonly name?: string;
 	readonly icon?: string;
 	readonly mode?: 'preview' | 'apply' | 'both';
@@ -91,13 +99,16 @@ export interface IUserDataProfileImportExportService {
 	registerProfileContentHandler(id: string, profileContentHandler: IUserDataProfileContentHandler): IDisposable;
 	unregisterProfileContentHandler(id: string): void;
 
-	exportProfile(): Promise<void>;
+	resolveProfileTemplate(uri: URI): Promise<IUserDataProfileTemplate | null>;
+	exportProfile(profile: IUserDataProfile): Promise<void>;
+	exportProfile2(): Promise<void>;
 	importProfile(uri: URI, options?: IProfileImportOptions): Promise<void>;
 	showProfileContents(): Promise<void>;
 	createProfile(from?: IUserDataProfile | URI): Promise<void>;
 	editProfile(profile: IUserDataProfile): Promise<void>;
+	createFromProfile(from: IUserDataProfile, options: IUserDataProfileCreateOptions, token: CancellationToken): Promise<IUserDataProfile | undefined>;
+	createProfileFromTemplate(profileTemplate: IUserDataProfileTemplate, options: IUserDataProfileCreateOptions, token: CancellationToken): Promise<IUserDataProfile | undefined>;
 	createTroubleshootProfile(): Promise<void>;
-	setProfile(profile: IUserDataProfileTemplate): Promise<void>;
 }
 
 export interface IProfileResourceInitializer {

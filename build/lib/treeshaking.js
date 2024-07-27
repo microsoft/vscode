@@ -4,7 +4,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.shake = exports.toStringShakeLevel = exports.ShakeLevel = void 0;
+exports.ShakeLevel = void 0;
+exports.toStringShakeLevel = toStringShakeLevel;
+exports.shake = shake;
 const fs = require("fs");
 const path = require("path");
 const TYPESCRIPT_LIB_FOLDER = path.dirname(require.resolve('typescript/lib/lib.d.ts'));
@@ -24,7 +26,6 @@ function toStringShakeLevel(shakeLevel) {
             return 'ClassMembers (2)';
     }
 }
-exports.toStringShakeLevel = toStringShakeLevel;
 function printDiagnostics(options, diagnostics) {
     for (const diag of diagnostics) {
         let result = '';
@@ -61,7 +62,6 @@ function shake(options) {
     markNodes(ts, languageService, options);
     return generateResult(ts, languageService, options.shakeLevel);
 }
-exports.shake = shake;
 //#region Discovery, LanguageService & Setup
 function createTypeScriptLanguageService(ts, options) {
     // Discover referenced files

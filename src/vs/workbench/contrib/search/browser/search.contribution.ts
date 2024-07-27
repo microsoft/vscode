@@ -26,7 +26,7 @@ import { registerContributions as searchWidgetContributions } from 'vs/workbench
 import { SymbolsQuickAccessProvider } from 'vs/workbench/contrib/search/browser/symbolsQuickAccess';
 import { ISearchHistoryService, SearchHistoryService } from 'vs/workbench/contrib/search/common/searchHistoryService';
 import { ISearchViewModelWorkbenchService, SearchViewModelWorkbenchService } from 'vs/workbench/contrib/search/browser/searchModel';
-import { SearchSortOrder, SEARCH_EXCLUDE_CONFIG, VIEWLET_ID, ViewMode, VIEW_ID } from 'vs/workbench/services/search/common/search';
+import { SearchSortOrder, SEARCH_EXCLUDE_CONFIG, VIEWLET_ID, ViewMode, VIEW_ID, DEFAULT_MAX_SEARCH_RESULTS } from 'vs/workbench/services/search/common/search';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { assertType } from 'vs/base/common/types';
 import { getWorkspaceSymbols, IWorkspaceSymbol } from 'vs/workbench/contrib/search/common/search';
@@ -40,6 +40,7 @@ import 'vs/workbench/contrib/search/browser/searchActionsSymbol';
 import 'vs/workbench/contrib/search/browser/searchActionsTopBar';
 import 'vs/workbench/contrib/search/browser/searchActionsTextQuickAccess';
 import { TEXT_SEARCH_QUICK_ACCESS_PREFIX, TextSearchQuickAccess } from 'vs/workbench/contrib/search/browser/quickTextSearch/textSearchQuickAccess';
+import { Extensions, IConfigurationMigrationRegistry } from 'vs/workbench/common/configuration';
 
 registerSingleton(ISearchViewModelWorkbenchService, SearchViewModelWorkbenchService, InstantiationType.Delayed);
 registerSingleton(ISearchHistoryService, SearchHistoryService, InstantiationType.Delayed);
@@ -108,12 +109,12 @@ quickAccessRegistry.registerQuickAccessProvider({
 	ctor: TextSearchQuickAccess,
 	prefix: TEXT_SEARCH_QUICK_ACCESS_PREFIX,
 	contextKey: 'inTextSearchPicker',
-	placeholder: nls.localize('textSearchPickerPlaceholder', "Search for text in your workspace files (experimental)."),
+	placeholder: nls.localize('textSearchPickerPlaceholder', "Search for text in your workspace files."),
 	helpEntries: [
 		{
-			description: nls.localize('textSearchPickerHelp', "Search for Text (Experimental)"),
+			description: nls.localize('textSearchPickerHelp', "Search for Text"),
 			commandId: Constants.SearchCommandIds.QuickTextSearchActionId,
-			commandCenterOrder: 65,
+			commandCenterOrder: 25,
 		}
 	]
 });
@@ -128,7 +129,7 @@ configurationRegistry.registerConfiguration({
 	properties: {
 		[SEARCH_EXCLUDE_CONFIG]: {
 			type: 'object',
-			markdownDescription: nls.localize('exclude', "Configure [glob patterns](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options) for excluding files and folders in fulltext searches and quick open. Inherits all glob patterns from the `#files.exclude#` setting."),
+			markdownDescription: nls.localize('exclude', "Configure [glob patterns](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options) for excluding files and folders in fulltext searches and file search in quick open. To exclude files from the recently opened list in quick open, patterns must be absolute (for example `**/node_modules/**`). Inherits all glob patterns from the `#files.exclude#` setting."),
 			default: { '**/node_modules': true, '**/bower_components': true, '**/*.code-search': true },
 			additionalProperties: {
 				anyOf: [
@@ -182,13 +183,13 @@ configurationRegistry.registerConfiguration({
 		},
 		'search.useGlobalIgnoreFiles': {
 			type: 'boolean',
-			markdownDescription: nls.localize('useGlobalIgnoreFiles', "Controls whether to use your global gitignore file (for example, from `$HOME/.config/git/ignore`) when searching for files. Requires `#search.useIgnoreFiles#` to be enabled."),
+			markdownDescription: nls.localize('useGlobalIgnoreFiles', "Controls whether to use your global gitignore file (for example, from `$HOME/.config/git/ignore`) when searching for files. Requires {0} to be enabled.", '`#search.useIgnoreFiles#`'),
 			default: false,
 			scope: ConfigurationScope.RESOURCE
 		},
 		'search.useParentIgnoreFiles': {
 			type: 'boolean',
-			markdownDescription: nls.localize('useParentIgnoreFiles', "Controls whether to use `.gitignore` and `.ignore` files in parent directories when searching for files. Requires `#search.useIgnoreFiles#` to be enabled."),
+			markdownDescription: nls.localize('useParentIgnoreFiles', "Controls whether to use `.gitignore` and `.ignore` files in parent directories when searching for files. Requires {0} to be enabled.", '`#search.useIgnoreFiles#`'),
 			default: false,
 			scope: ConfigurationScope.RESOURCE
 		},
@@ -197,20 +198,25 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('search.quickOpen.includeSymbols', "Whether to include results from a global symbol search in the file results for Quick Open."),
 			default: false
 		},
+		'search.ripgrep.maxThreads': {
+			type: 'number',
+			description: nls.localize('search.ripgrep.maxThreads', "Number of threads to use for searching. When set to 0, the engine automatically determines this value."),
+			default: 0
+		},
 		'search.quickOpen.includeHistory': {
 			type: 'boolean',
 			description: nls.localize('search.quickOpen.includeHistory', "Whether to include results from recently opened files in the file results for Quick Open."),
 			default: true
 		},
 		'search.quickOpen.history.filterSortOrder': {
-			'type': 'string',
-			'enum': ['default', 'recency'],
-			'default': 'default',
-			'enumDescriptions': [
+			type: 'string',
+			enum: ['default', 'recency'],
+			default: 'default',
+			enumDescriptions: [
 				nls.localize('filterSortOrder.default', 'History entries are sorted by relevance based on the filter value used. More relevant entries appear first.'),
 				nls.localize('filterSortOrder.recency', 'History entries are sorted by recency. More recently opened entries appear first.')
 			],
-			'description': nls.localize('filterSortOrder', "Controls sorting order of editor history in quick open when filtering.")
+			description: nls.localize('filterSortOrder', "Controls sorting order of editor history in quick open when filtering.")
 		},
 		'search.followSymlinks': {
 			type: 'boolean',
@@ -237,7 +243,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'search.maxResults': {
 			type: ['number', 'null'],
-			default: 20000,
+			default: DEFAULT_MAX_SEARCH_RESULTS,
 			markdownDescription: nls.localize('search.maxResults', "Controls the maximum number of search results, this can be set to `null` (empty) to return unlimited results.")
 		},
 		'search.collapseResults': {
@@ -308,6 +314,16 @@ configurationRegistry.registerConfiguration({
 			],
 			markdownDescription: nls.localize('search.searchEditor.doubleClickBehaviour', "Configure effect of double-clicking a result in a search editor.")
 		},
+		'search.searchEditor.singleClickBehaviour': {
+			type: 'string',
+			enum: ['default', 'peekDefinition',],
+			default: 'default',
+			enumDescriptions: [
+				nls.localize('search.searchEditor.singleClickBehaviour.default', "Single-clicking does nothing."),
+				nls.localize('search.searchEditor.singleClickBehaviour.peekDefinition', "Single-clicking opens a Peek Definition window."),
+			],
+			markdownDescription: nls.localize('search.searchEditor.singleClickBehaviour', "Configure effect of single-clicking a result in a search editor.")
+		},
 		'search.searchEditor.reusePriorSearchConfiguration': {
 			type: 'boolean',
 			default: false,
@@ -319,10 +335,10 @@ configurationRegistry.registerConfiguration({
 			markdownDescription: nls.localize('search.searchEditor.defaultNumberOfContextLines', "The default number of surrounding context lines to use when creating new Search Editors. If using `#search.searchEditor.reusePriorSearchConfiguration#`, this can be set to `null` (empty) to use the prior Search Editor's configuration.")
 		},
 		'search.sortOrder': {
-			'type': 'string',
-			'enum': [SearchSortOrder.Default, SearchSortOrder.FileNames, SearchSortOrder.Type, SearchSortOrder.Modified, SearchSortOrder.CountDescending, SearchSortOrder.CountAscending],
-			'default': SearchSortOrder.Default,
-			'enumDescriptions': [
+			type: 'string',
+			enum: [SearchSortOrder.Default, SearchSortOrder.FileNames, SearchSortOrder.Type, SearchSortOrder.Modified, SearchSortOrder.CountDescending, SearchSortOrder.CountAscending],
+			default: SearchSortOrder.Default,
+			enumDescriptions: [
 				nls.localize('searchSortOrder.default', "Results are sorted by folder and file names, in alphabetical order."),
 				nls.localize('searchSortOrder.filesOnly', "Results are sorted by file names ignoring folder order, in alphabetical order."),
 				nls.localize('searchSortOrder.type', "Results are sorted by file extensions, in alphabetical order."),
@@ -330,7 +346,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize('searchSortOrder.countDescending', "Results are sorted by count per file, in descending order."),
 				nls.localize('searchSortOrder.countAscending', "Results are sorted by count per file, in ascending order.")
 			],
-			'description': nls.localize('search.sortOrder', "Controls sorting order of search results.")
+			description: nls.localize('search.sortOrder', "Controls sorting order of search results.")
 		},
 		'search.decorations.colors': {
 			type: 'boolean',
@@ -343,25 +359,26 @@ configurationRegistry.registerConfiguration({
 			default: true
 		},
 		'search.defaultViewMode': {
-			'type': 'string',
-			'enum': [ViewMode.Tree, ViewMode.List],
-			'default': ViewMode.List,
-			'enumDescriptions': [
+			type: 'string',
+			enum: [ViewMode.Tree, ViewMode.List],
+			default: ViewMode.List,
+			enumDescriptions: [
 				nls.localize('scm.defaultViewMode.tree', "Shows search results as a tree."),
 				nls.localize('scm.defaultViewMode.list', "Shows search results as a list.")
 			],
-			'description': nls.localize('search.defaultViewMode', "Controls the default search result view mode.")
+			description: nls.localize('search.defaultViewMode', "Controls the default search result view mode.")
+		},
+		'search.quickAccess.preserveInput': {
+			type: 'boolean',
+			description: nls.localize('search.quickAccess.preserveInput', "Controls whether the last typed input to Quick Search should be restored when opening it the next time."),
+			default: false
 		},
 		'search.experimental.closedNotebookRichContentResults': {
 			type: 'boolean',
 			description: nls.localize('search.experimental.closedNotebookResults', "Show notebook editor rich content results for closed notebooks. Please refresh your search results after changing this setting."),
 			default: false
 		},
-		'search.experimental.quickAccess.preserveInput': {
-			'type': 'boolean',
-			'description': nls.localize('search.experimental.quickAccess.preserveInput', "Controls whether the last typed input to Quick Search should be restored when opening it the next time."),
-			'default': false
-		},
+
 	}
 });
 
@@ -371,3 +388,13 @@ CommandsRegistry.registerCommand('_executeWorkspaceSymbolProvider', async functi
 	const result = await getWorkspaceSymbols(query);
 	return result.map(item => item.symbol);
 });
+
+// todo: @andreamah get rid of this after a few iterations
+Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
+	.registerConfigurationMigrations([{
+		key: 'search.experimental.quickAccess.preserveInput',
+		migrateFn: (value, _accessor) => ([
+			['search.quickAccess.preserveInput', { value }],
+			['search.experimental.quickAccess.preserveInput', { value: undefined }]
+		])
+	}]);

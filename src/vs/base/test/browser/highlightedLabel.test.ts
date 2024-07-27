@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
@@ -59,6 +59,10 @@ suite('HighlightedLabel', () => {
 		escaped = HighlightedLabel.escapeNewLines('ACTION\r\n_TYPE2', highlights);
 		assert.strictEqual(escaped, 'ACTION\u23CE_TYPE2');
 		assert.deepStrictEqual(highlights, [{ start: 5, end: 8 }, { start: 10, end: 11 }]);
+	});
+
+	teardown(() => {
+		label.dispose();
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

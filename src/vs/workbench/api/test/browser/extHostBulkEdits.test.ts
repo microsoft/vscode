@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
+import assert from 'assert';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import { MainContext, IWorkspaceEditDto, MainThreadBulkEditsShape, IWorkspaceTextEditDto } from 'vs/workbench/api/common/extHost.protocol';
 import { URI } from 'vs/base/common/uri';
@@ -13,6 +13,7 @@ import { NullLogService } from 'vs/platform/log/common/log';
 import { ExtHostBulkEdits } from 'vs/workbench/api/common/extHostBulkEdits';
 import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 
 suite('ExtHostBulkEdits.applyWorkspaceEdit', () => {
 
@@ -25,8 +26,8 @@ suite('ExtHostBulkEdits.applyWorkspaceEdit', () => {
 
 		const rpcProtocol = new TestRPCProtocol();
 		rpcProtocol.set(MainContext.MainThreadBulkEdits, new class extends mock<MainThreadBulkEditsShape>() {
-			override $tryApplyWorkspaceEdit(_workspaceResourceEdits: IWorkspaceEditDto): Promise<boolean> {
-				workspaceResourceEdits = _workspaceResourceEdits;
+			override $tryApplyWorkspaceEdit(_workspaceResourceEdits: SerializableObjectWithBuffers<IWorkspaceEditDto>): Promise<boolean> {
+				workspaceResourceEdits = _workspaceResourceEdits.value;
 				return Promise.resolve(true);
 			}
 		});

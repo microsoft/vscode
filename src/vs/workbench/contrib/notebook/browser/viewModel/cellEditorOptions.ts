@@ -32,7 +32,7 @@ export class BaseCellEditorOptions extends Disposable implements IBaseCellEditor
 		lineNumbersMinChars: 3
 	};
 
-	private _localDisposableStore = this._register(new DisposableStore());
+	private readonly _localDisposableStore = this._register(new DisposableStore());
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 	private _value: IEditorOptions;
@@ -83,11 +83,13 @@ export class BaseCellEditorOptions extends Disposable implements IBaseCellEditor
 
 	private _computeEditorOptions() {
 		const editorOptions = deepClone(this.configurationService.getValue<IEditorOptions>('editor', { overrideIdentifier: this.language }));
-		const editorOptionsOverrideRaw = this.notebookOptions.getDisplayOptions().editorOptionsCustomizations ?? {};
-		const editorOptionsOverride: { [key: string]: any } = {};
-		for (const key in editorOptionsOverrideRaw) {
-			if (key.indexOf('editor.') === 0) {
-				editorOptionsOverride[key.substring(7)] = editorOptionsOverrideRaw[key];
+		const editorOptionsOverrideRaw = this.notebookOptions.getDisplayOptions().editorOptionsCustomizations;
+		const editorOptionsOverride: Record<string, any> = {};
+		if (editorOptionsOverrideRaw) {
+			for (const key in editorOptionsOverrideRaw) {
+				if (key.indexOf('editor.') === 0) {
+					editorOptionsOverride[key.substring(7)] = editorOptionsOverrideRaw[key as keyof typeof editorOptionsOverrideRaw];
+				}
 			}
 		}
 		const computed = Object.freeze({

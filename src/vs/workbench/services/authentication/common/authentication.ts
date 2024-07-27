@@ -35,8 +35,12 @@ export interface AuthenticationProviderInformation {
 }
 
 export interface IAuthenticationCreateSessionOptions {
-	sessionToRecreate?: AuthenticationSession;
 	activateImmediate?: boolean;
+	/**
+	 * The account that is being asked about. If this is passed in, the provider should
+	 * attempt to return the sessions that are only related to this account.
+	 */
+	account?: AuthenticationSessionAccount;
 }
 
 export interface AllowedExtension {
@@ -58,44 +62,123 @@ export const IAuthenticationService = createDecorator<IAuthenticationService>('I
 export interface IAuthenticationService {
 	readonly _serviceBrand: undefined;
 
+	/**
+	 * Fires when an authentication provider has been registered
+	 */
+	readonly onDidRegisterAuthenticationProvider: Event<AuthenticationProviderInformation>;
+	/**
+	 * Fires when an authentication provider has been unregistered
+	 */
+	readonly onDidUnregisterAuthenticationProvider: Event<AuthenticationProviderInformation>;
+
+	/**
+	 * Fires when the list of sessions for a provider has been added, removed or changed
+	 */
+	readonly onDidChangeSessions: Event<{ providerId: string; label: string; event: AuthenticationSessionsChangeEvent }>;
+
+	/**
+	 * Fires when the list of declaredProviders has changed
+	 */
+	readonly onDidChangeDeclaredProviders: Event<void>;
+
+	/**
+	 * All providers that have been statically declared by extensions. These may not actually be registered or active yet.
+	 */
+	readonly declaredProviders: AuthenticationProviderInformation[];
+
+	/**
+	 * Registers that an extension has declared an authentication provider in their package.json
+	 * @param provider The provider information to register
+	 */
+	registerDeclaredAuthenticationProvider(provider: AuthenticationProviderInformation): void;
+
+	/**
+	 * Unregisters a declared authentication provider
+	 * @param id The id of the provider to unregister
+	 */
+	unregisterDeclaredAuthenticationProvider(id: string): void;
+
+	/**
+	 * Checks if an authentication provider has been registered
+	 * @param id The id of the provider to check
+	 */
 	isAuthenticationProviderRegistered(id: string): boolean;
-	getProviderIds(): string[];
+
+	/**
+	 * Registers an authentication provider
+	 * @param id The id of the provider
+	 * @param provider The implementation of the provider
+	 */
 	registerAuthenticationProvider(id: string, provider: IAuthenticationProvider): void;
+
+	/**
+	 * Unregisters an authentication provider
+	 * @param id The id of the provider to unregister
+	 */
 	unregisterAuthenticationProvider(id: string): void;
-	isAccessAllowed(providerId: string, accountName: string, extensionId: string): boolean | undefined;
-	updateAllowedExtension(providerId: string, accountName: string, extensionId: string, extensionName: string, isAllowed: boolean): void;
+
+	/**
+	 * Gets the provider ids of all registered authentication providers
+	 */
+	getProviderIds(): string[];
+
+	/**
+	 * Gets the provider with the given id.
+	 * @param id The id of the provider to get
+	 * @throws if the provider is not registered
+	 */
+	getProvider(id: string): IAuthenticationProvider;
+
+	/**
+	 * Gets all accounts that are currently logged in across all sessions
+	 * @param id The id of the provider to ask for accounts
+	 * @returns A promise that resolves to an array of accounts
+	 */
+	getAccounts(id: string): Promise<ReadonlyArray<AuthenticationSessionAccount>>;
+
+	/**
+	 * Gets all sessions that satisfy the given scopes from the provider with the given id
+	 * @param id The id of the provider to ask for a session
+	 * @param scopes The scopes for the session
+	 * @param activateImmediate If true, the provider should activate immediately if it is not already
+	 */
+	getSessions(id: string, scopes?: string[], account?: AuthenticationSessionAccount, activateImmediate?: boolean): Promise<ReadonlyArray<AuthenticationSession>>;
+
+	/**
+	 * Creates an AuthenticationSession with the given provider and scopes
+	 * @param providerId The id of the provider
+	 * @param scopes The scopes to request
+	 * @param options Additional options for creating the session
+	 */
+	createSession(providerId: string, scopes: string[], options?: IAuthenticationCreateSessionOptions): Promise<AuthenticationSession>;
+
+	/**
+	 * Removes the session with the given id from the provider with the given id
+	 * @param providerId The id of the provider
+	 * @param sessionId The id of the session to remove
+	 */
+	removeSession(providerId: string, sessionId: string): Promise<void>;
+}
+
+// TODO: Move this into MainThreadAuthentication
+export const IAuthenticationExtensionsService = createDecorator<IAuthenticationExtensionsService>('IAuthenticationExtensionsService');
+export interface IAuthenticationExtensionsService {
+	readonly _serviceBrand: undefined;
+
 	updateSessionPreference(providerId: string, extensionId: string, session: AuthenticationSession): void;
 	getSessionPreference(providerId: string, extensionId: string, scopes: string[]): string | undefined;
 	removeSessionPreference(providerId: string, extensionId: string, scopes: string[]): void;
-	showGetSessionPrompt(providerId: string, accountName: string, extensionId: string, extensionName: string): Promise<boolean>;
 	selectSession(providerId: string, extensionId: string, extensionName: string, scopes: string[], possibleSessions: readonly AuthenticationSession[]): Promise<AuthenticationSession>;
 	requestSessionAccess(providerId: string, extensionId: string, extensionName: string, scopes: string[], possibleSessions: readonly AuthenticationSession[]): void;
-	completeSessionAccessRequest(providerId: string, extensionId: string, extensionName: string, scopes: string[]): Promise<void>;
 	requestNewSession(providerId: string, scopes: string[], extensionId: string, extensionName: string): Promise<void>;
-
-	readonly onDidRegisterAuthenticationProvider: Event<AuthenticationProviderInformation>;
-	readonly onDidUnregisterAuthenticationProvider: Event<AuthenticationProviderInformation>;
-
-	readonly onDidChangeSessions: Event<{ providerId: string; label: string; event: AuthenticationSessionsChangeEvent }>;
-	readonly onDidChangeExtensionSessionAccess: Event<{ providerId: string; accountName: string }>;
-
-	// TODO completely remove this property
-	declaredProviders: AuthenticationProviderInformation[];
-	readonly onDidChangeDeclaredProviders: Event<AuthenticationProviderInformation[]>;
-
-	getSessions(id: string, scopes?: string[], activateImmediate?: boolean): Promise<ReadonlyArray<AuthenticationSession>>;
-	getLabel(providerId: string): string;
-	supportsMultipleAccounts(providerId: string): boolean;
-	createSession(providerId: string, scopes: string[], options?: IAuthenticationCreateSessionOptions): Promise<AuthenticationSession>;
-	removeSession(providerId: string, sessionId: string): Promise<void>;
-
-	manageTrustedExtensionsForAccount(providerId: string, accountName: string): Promise<void>;
-	readAllowedExtensions(providerId: string, accountName: string): AllowedExtension[];
-	removeAccountSessions(providerId: string, accountName: string, sessions: AuthenticationSession[]): Promise<void>;
 }
 
-export interface IAuthenticationProviderCreateSessionOptions {
-	sessionToRecreate?: AuthenticationSession;
+export interface IAuthenticationProviderSessionOptions {
+	/**
+	 * The account that is being asked about. If this is passed in, the provider should
+	 * attempt to return the sessions that are only related to this account.
+	 */
+	account?: AuthenticationSessionAccount;
 }
 
 /**
@@ -126,9 +209,10 @@ export interface IAuthenticationProvider {
 	/**
 	 * Retrieves a list of authentication sessions.
 	 * @param scopes - An optional list of scopes. If provided, the sessions returned should match these permissions, otherwise all sessions should be returned.
+	 * @param options - Additional options for getting sessions.
 	 * @returns A promise that resolves to an array of authentication sessions.
 	 */
-	getSessions(scopes?: string[]): Promise<readonly AuthenticationSession[]>;
+	getSessions(scopes: string[] | undefined, options: IAuthenticationProviderSessionOptions): Promise<readonly AuthenticationSession[]>;
 
 	/**
 	 * Prompts the user to log in.
@@ -139,7 +223,7 @@ export interface IAuthenticationProvider {
 	 * @param options - Additional options for creating the session.
 	 * @returns A promise that resolves to an authentication session.
 	 */
-	createSession(scopes: string[], options: IAuthenticationProviderCreateSessionOptions): Promise<AuthenticationSession>;
+	createSession(scopes: string[], options: IAuthenticationProviderSessionOptions): Promise<AuthenticationSession>;
 
 	/**
 	 * Removes the session corresponding to the specified session ID.

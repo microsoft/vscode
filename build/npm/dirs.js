@@ -29,7 +29,6 @@ const dirs = [
 	'extensions/jake',
 	'extensions/json-language-features',
 	'extensions/json-language-features/server',
-	'extensions/markdown-language-features/server',
 	'extensions/markdown-language-features',
 	'extensions/markdown-math',
 	'extensions/media-preview',
@@ -52,6 +51,7 @@ const dirs = [
 	'test/integration/browser',
 	'test/monaco',
 	'test/smoke',
+	'.vscode/extensions/vscode-selfhost-test-provider',
 ];
 
 if (fs.existsSync(`${__dirname}/../../.build/distro/npm`)) {

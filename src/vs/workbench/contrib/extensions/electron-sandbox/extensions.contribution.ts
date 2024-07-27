@@ -28,6 +28,7 @@ import { RemoteExtensionsInitializerContribution } from 'vs/workbench/contrib/ex
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ExtensionHostProfileService } from 'vs/workbench/contrib/extensions/electron-sandbox/extensionProfileService';
 import { ExtensionsAutoProfiler } from 'vs/workbench/contrib/extensions/electron-sandbox/extensionsAutoProfiler';
+import { Disposable } from 'vs/base/common/lifecycle';
 
 // Singletons
 registerSingleton(IExtensionHostProfileService, ExtensionHostProfileService, InstantiationType.Delayed);
@@ -55,15 +56,18 @@ Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEdit
 
 // Global actions
 
-class ExtensionsContributions implements IWorkbenchContribution {
+class ExtensionsContributions extends Disposable implements IWorkbenchContribution {
 
 	constructor(
 		@IExtensionRecommendationNotificationService extensionRecommendationNotificationService: IExtensionRecommendationNotificationService,
 		@ISharedProcessService sharedProcessService: ISharedProcessService,
 	) {
+		super();
+
 		sharedProcessService.registerChannel('extensionRecommendationNotification', new ExtensionRecommendationNotificationServiceChannel(extensionRecommendationNotificationService));
-		registerAction2(OpenExtensionsFolderAction);
-		registerAction2(CleanUpExtensionsFolderAction);
+
+		this._register(registerAction2(OpenExtensionsFolderAction));
+		this._register(registerAction2(CleanUpExtensionsFolderAction));
 	}
 }
 
@@ -73,9 +77,9 @@ workbenchRegistry.registerWorkbenchContribution(ExtensionsAutoProfiler, Lifecycl
 workbenchRegistry.registerWorkbenchContribution(RemoteExtensionsInitializerContribution, LifecyclePhase.Restored);
 // Register Commands
 
-CommandsRegistry.registerCommand(DebugExtensionHostAction.ID, (accessor: ServicesAccessor) => {
+CommandsRegistry.registerCommand(DebugExtensionHostAction.ID, (accessor: ServicesAccessor, ...args) => {
 	const instantiationService = accessor.get(IInstantiationService);
-	instantiationService.createInstance(DebugExtensionHostAction).run();
+	return instantiationService.createInstance(DebugExtensionHostAction).run(args);
 });
 
 CommandsRegistry.registerCommand(StartExtensionHostProfileAction.ID, (accessor: ServicesAccessor) => {

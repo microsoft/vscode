@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { asArray } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { URI } from 'vs/base/common/uri';
 import { IProgress } from 'vs/platform/progress/common/progress';
@@ -221,6 +222,35 @@ export interface TextSearchOptions extends SearchOptions {
 	 */
 	afterContext?: number;
 }
+/**
+ * Options that apply to AI text search.
+ */
+export interface AITextSearchOptions extends SearchOptions {
+	/**
+	 * The maximum number of results to be returned.
+	 */
+	maxResults: number;
+
+	/**
+	 * Options to specify the size of the result text preview.
+	 */
+	previewOptions?: TextSearchPreviewOptions;
+
+	/**
+	 * Exclude files larger than `maxFileSize` in bytes.
+	 */
+	maxFileSize?: number;
+
+	/**
+	 * Number of lines of context to include before each match.
+	 */
+	beforeContext?: number;
+
+	/**
+	 * Number of lines of context to include after each match.
+	 */
+	afterContext?: number;
+}
 
 /**
  * Represents the severity of a TextSearchComplete message.
@@ -390,6 +420,17 @@ export interface TextSearchProvider {
 	provideTextSearchResults(query: TextSearchQuery, options: TextSearchOptions, progress: IProgress<TextSearchResult>, token: CancellationToken): ProviderResult<TextSearchComplete>;
 }
 
+export interface AITextSearchProvider {
+	/**
+	 * Provide results that match the given text pattern.
+	 * @param query The parameter for this query.
+	 * @param options A set of options to consider while searching.
+	 * @param progress A progress callback that must be invoked for all results.
+	 * @param token A cancellation token.
+	 */
+	provideAITextSearchResults(query: string, options: AITextSearchOptions, progress: IProgress<TextSearchResult>, token: CancellationToken): ProviderResult<TextSearchComplete>;
+}
+
 /**
  * Options that can be set on a findTextInFiles search.
  */
@@ -457,4 +498,81 @@ export interface FindTextInFilesOptions {
 	 * Number of lines of context to include after each match.
 	 */
 	afterContext?: number;
+}
+
+// NEW TYPES
+// added temporarily for testing new API shape
+/**
+ * A result payload for a text search, pertaining to matches within a single file.
+ */
+export type TextSearchResultNew = TextSearchMatchNew | TextSearchContextNew;
+
+/**
+ * The main match information for a {@link TextSearchResultNew}.
+ */
+export class TextSearchMatchNew {
+	/**
+	 * @param uri The uri for the matching document.
+	 * @param ranges The ranges associated with this match.
+	 * @param previewText The text that is used to preview the match. The highlighted range in `previewText` is specified in `ranges`.
+	 */
+	constructor(
+		public uri: URI,
+		public ranges: { sourceRange: Range; previewRange: Range }[],
+		public previewText: string) { }
+
+}
+
+/**
+ * The potential context information for a {@link TextSearchResultNew}.
+ */
+export class TextSearchContextNew {
+	/**
+	 * @param uri The uri for the matching document.
+	 * @param text The line of context text.
+	 * @param lineNumber The line number of this line of context.
+	 */
+	constructor(
+		public uri: URI,
+		public text: string,
+		public lineNumber: number) { }
+}
+
+/**
+ * Options for following search.exclude and files.exclude settings.
+ */
+export enum ExcludeSettingOptions {
+	/*
+	 * Don't use any exclude settings.
+	 */
+	None = 1,
+	/*
+	 * Use:
+	 * - files.exclude setting
+	 */
+	FilesExclude = 2,
+	/*
+	 * Use:
+	 * - files.exclude setting
+	 * - search.exclude setting
+	 */
+	SearchAndFilesExclude = 3
+}
+
+export enum TextSearchCompleteMessageTypeNew {
+	Information = 1,
+	Warning = 2,
+}
+
+function isTextSearchMatch(object: any): object is TextSearchMatch {
+	return 'uri' in object && 'ranges' in object && 'preview' in object;
+}
+
+export function oldToNewTextSearchResult(result: TextSearchResult): TextSearchResultNew {
+	if (isTextSearchMatch(result)) {
+		const ranges = asArray(result.ranges).map(r => ({ sourceRange: r, previewRange: r }));
+		return new TextSearchMatchNew(result.uri, ranges, result.preview.text);
+	} else {
+		return new TextSearchContextNew(result.uri, result.text, result.lineNumber);
+	}
 }

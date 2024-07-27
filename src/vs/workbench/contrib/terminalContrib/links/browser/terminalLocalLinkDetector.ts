@@ -37,6 +37,8 @@ const enum Constants {
 const fallbackMatchers: RegExp[] = [
 	// Python style error: File "<path>", line <line>
 	/^ *File (?<link>"(?<path>.+)"(, line (?<line>\d+))?)/,
+	// Unknown tool #200166: FILE  <path>:<line>:<col>
+	/^ +FILE +(?<link>(?<path>.+)(?::(?<line>\d+)(?::(?<col>\d+))?)?)/,
 	// Some C++ compile error formats:
 	// C:\foo\bar baz(339) : error ...
 	// C:\foo\bar baz(339,12) : error ...

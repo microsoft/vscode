@@ -20,7 +20,7 @@
     "jsonc-parser": "^3.2.0"
   },
   "devDependencies": {
-    "@types/node": "18.x"
+    "@types/node": "20.x"
   },
   "contributes": {
     "semanticTokenTypes": [

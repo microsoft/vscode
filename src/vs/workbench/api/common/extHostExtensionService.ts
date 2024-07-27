@@ -10,7 +10,7 @@ import * as path from 'vs/base/common/path';
 import * as performance from 'vs/base/common/performance';
 import { originalFSPath, joinPath, extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 import { asPromise, Barrier, IntervalTimer, timeout } from 'vs/base/common/async';
-import { dispose, toDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { dispose, toDisposable, Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -24,7 +24,7 @@ import { MissingExtensionDependency, ActivationKind, checkProposedApiEnabled, is
 import { ExtensionDescriptionRegistry, IActivationEventsReader } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import * as errors from 'vs/base/common/errors';
 import type * as vscode from 'vscode';
-import { ExtensionIdentifier, ExtensionIdentifierMap, ExtensionIdentifierSet, IExtensionDescription, IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, ExtensionIdentifierMap, ExtensionIdentifierSet, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { ExtensionGlobalMemento, ExtensionMemento } from 'vs/workbench/api/common/extHostMemento';
 import { RemoteAuthorityResolverError, ExtensionKind, ExtensionMode, ExtensionRuntime, ManagedResolvedAuthority as ExtHostManagedResolvedAuthority } from 'vs/workbench/api/common/extHostTypes';
@@ -36,6 +36,7 @@ import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IExtHostTunnelService } from 'vs/workbench/api/common/extHostTunnelService';
 import { IExtHostTerminalService } from 'vs/workbench/api/common/extHostTerminalService';
+import { IExtHostLanguageModels } from 'vs/workbench/api/common/extHostLanguageModels';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IExtensionActivationHost, checkActivateWorkspaceContainsExtension } from 'vs/workbench/services/extensions/common/workspaceContains';
 import { ExtHostSecretState, IExtHostSecretState } from 'vs/workbench/api/common/extHostSecretState';
@@ -74,7 +75,7 @@ type TelemetryActivationEventFragment = {
 	extensionVersion: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The version of the extension' };
 	publisherDisplayName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The publisher of the extension' };
 	activationEvents: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'All activation events of the extension' };
-	isBuiltin: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'If the extension is builtin or git installed' };
+	isBuiltin: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'If the extension is builtin or git installed' };
 	reason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The activation event' };
 	reasonId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The identifier of the activation event' };
 };
@@ -116,6 +117,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	private readonly _storagePath: IExtensionStoragePaths;
 	private readonly _activator: ExtensionsActivator;
 	private _extensionPathIndex: Promise<ExtensionPaths> | null;
+	private _realPathCache = new Map<string, Promise<string>>();
 
 	private readonly _resolvers: { [authorityPrefix: string]: vscode.RemoteAuthorityResolver };
 
@@ -136,6 +138,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		@IExtHostTerminalService extHostTerminalService: IExtHostTerminalService,
 		@IExtHostLocalizationService extHostLocalizationService: IExtHostLocalizationService,
 		@IExtHostManagedSockets private readonly _extHostManagedSockets: IExtHostManagedSockets,
+		@IExtHostLanguageModels private readonly _extHostLanguageModels: IExtHostLanguageModels,
 	) {
 		super();
 		this._hostUtils = hostUtils;
@@ -174,10 +177,10 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		this._secretState = new ExtHostSecretState(this._extHostContext);
 		this._storagePath = storagePath;
 
-		this._instaService = instaService.createChild(new ServiceCollection(
+		this._instaService = this._store.add(instaService.createChild(new ServiceCollection(
 			[IExtHostStorage, this._storage],
 			[IExtHostSecretState, this._secretState]
-		));
+		)));
 
 		this._activator = this._register(new ExtensionsActivator(
 			this._myRegistry,
@@ -330,11 +333,16 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	}
 
 	/**
-	 * Applies realpath to file-uris and returns all others uris unmodified
+	 * Applies realpath to file-uris and returns all others uris unmodified.
+	 * The real path is cached for the lifetime of the extension host.
 	 */
 	private async _realPathExtensionUri(uri: URI): Promise<URI> {
 		if (uri.scheme === Schemas.file && this._hostUtils.fsRealpath) {
-			const realpathValue = await this._hostUtils.fsRealpath(uri.fsPath);
+			const fsPath = uri.fsPath;
+			if (!this._realPathCache.has(fsPath)) {
+				this._realPathCache.set(fsPath, this._hostUtils.fsRealpath(fsPath));
+			}
+			const realpathValue = await this._realPathCache.get(fsPath)!;
 			return URI.file(realpathValue);
 		}
 		return uri;
@@ -401,9 +409,9 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 
 		// clean up subscriptions
 		try {
-			dispose(extension.subscriptions);
+			extension.disposable.dispose();
 		} catch (err) {
-			this._logService.error(`An error occurred when deactivating the subscriptions for extension '${extensionId.value}':`);
+			this._logService.error(`An error occurred when disposing the subscriptions for extension '${extensionId.value}':`);
 			this._logService.error(err);
 		}
 
@@ -474,24 +482,26 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		this._logService.info(`ExtensionService#_doActivateExtension ${extensionDescription.identifier.value}, startup: ${reason.startup}, activationEvent: '${reason.activationEvent}'${extensionDescription.identifier.value !== reason.extensionId.value ? `, root cause: ${reason.extensionId.value}` : ``}`);
 		this._logService.flush();
 
+		const extensionInternalStore = new DisposableStore(); // disposables that follow the extension lifecycle
 		const activationTimesBuilder = new ExtensionActivationTimesBuilder(reason.startup);
 		return Promise.all([
 			this._loadCommonJSModule<IExtensionModule>(extensionDescription, joinPath(extensionDescription.extensionLocation, entryPoint), activationTimesBuilder),
-			this._loadExtensionContext(extensionDescription)
+			this._loadExtensionContext(extensionDescription, extensionInternalStore)
 		]).then(values => {
 			performance.mark(`code/extHost/willActivateExtension/${extensionDescription.identifier.value}`);
-			return AbstractExtHostExtensionService._callActivate(this._logService, extensionDescription.identifier, values[0], values[1], activationTimesBuilder);
+			return AbstractExtHostExtensionService._callActivate(this._logService, extensionDescription.identifier, values[0], values[1], extensionInternalStore, activationTimesBuilder);
 		}).then((activatedExtension) => {
 			performance.mark(`code/extHost/didActivateExtension/${extensionDescription.identifier.value}`);
 			return activatedExtension;
 		});
 	}
 
-	private _loadExtensionContext(extensionDescription: IExtensionDescription): Promise<vscode.ExtensionContext> {
+	private _loadExtensionContext(extensionDescription: IExtensionDescription, extensionInternalStore: DisposableStore): Promise<vscode.ExtensionContext> {
 
-		const globalState = new ExtensionGlobalMemento(extensionDescription, this._storage);
-		const workspaceState = new ExtensionMemento(extensionDescription.identifier.value, false, this._storage);
-		const secrets = new ExtensionSecrets(extensionDescription, this._secretState);
+		const lanuageModelAccessInformation = this._extHostLanguageModels.createLanguageModelAccessInformation(extensionDescription);
+		const globalState = extensionInternalStore.add(new ExtensionGlobalMemento(extensionDescription, this._storage));
+		const workspaceState = extensionInternalStore.add(new ExtensionMemento(extensionDescription.identifier.value, false, this._storage));
+		const secrets = extensionInternalStore.add(new ExtensionSecrets(extensionDescription, this._secretState));
 		const extensionMode = extensionDescription.isUnderDevelopment
 			? (this._initData.environment.extensionTestsLocationURI ? ExtensionMode.Test : ExtensionMode.Development)
 			: ExtensionMode.Production;
@@ -517,6 +527,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 				workspaceState,
 				secrets,
 				subscriptions: [],
+				get languageModelAccessInformation() { return lanuageModelAccessInformation; },
 				get extensionUri() { return extensionDescription.extensionLocation; },
 				get extensionPath() { return extensionDescription.extensionLocation.fsPath; },
 				asAbsolutePath(relativePath: string) { return path.join(extensionDescription.extensionLocation.fsPath, relativePath); },
@@ -558,7 +569,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		});
 	}
 
-	private static _callActivate(logService: ILogService, extensionId: ExtensionIdentifier, extensionModule: IExtensionModule, context: vscode.ExtensionContext, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<ActivatedExtension> {
+	private static _callActivate(logService: ILogService, extensionId: ExtensionIdentifier, extensionModule: IExtensionModule, context: vscode.ExtensionContext, extensionInternalStore: IDisposable, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<ActivatedExtension> {
 		// Make sure the extension's surface is not undefined
 		extensionModule = extensionModule || {
 			activate: undefined,
@@ -566,7 +577,10 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		};
 
 		return this._callActivateOptional(logService, extensionId, extensionModule, context, activationTimesBuilder).then((extensionExports) => {
-			return new ActivatedExtension(false, null, activationTimesBuilder.build(), extensionModule, extensionExports, context.subscriptions);
+			return new ActivatedExtension(false, null, activationTimesBuilder.build(), extensionModule, extensionExports, toDisposable(() => {
+				extensionInternalStore.dispose();
+				dispose(context.subscriptions);
+			}));
 		});
 	}
 
@@ -605,7 +619,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		});
 	}
 
-	private _activateAllStartupFinishedDeferred(extensions: Readonly<IRelaxedExtensionDescription>[], start: number = 0): void {
+	private _activateAllStartupFinishedDeferred(extensions: IExtensionDescription[], start: number = 0): void {
 		const timeBudget = 50; // 50 milliseconds
 		const startTime = Date.now();
 
@@ -982,10 +996,13 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		return result;
 	}
 
-	public $startExtensionHost(extensionsDelta: IExtensionDescriptionDelta): Promise<void> {
+	public async $startExtensionHost(extensionsDelta: IExtensionDescriptionDelta): Promise<void> {
 		extensionsDelta.toAdd.forEach((extension) => (<any>extension).extensionLocation = URI.revive(extension.extensionLocation));
 
 		const { globalRegistry, myExtensions } = applyExtensionsDelta(this._activationEventsReader, this._globalRegistry, this._myRegistry, extensionsDelta);
+		const newSearchTree = await this._createExtensionPathIndex(myExtensions);
+		const extensionsPaths = await this.getExtensionPathIndex();
+		extensionsPaths.setSearchTree(newSearchTree);
 		this._globalRegistry.set(globalRegistry.getAllExtensionDescriptions());
 		this._myRegistry.set(myExtensions);
 
@@ -1217,7 +1234,7 @@ class SyncedActivationEventsReader implements IActivationEventsReader {
 		this.addActivationEvents(activationEvents);
 	}
 
-	public readActivationEvents(extensionDescription: Readonly<IRelaxedExtensionDescription>): string[] {
+	public readActivationEvents(extensionDescription: IExtensionDescription): string[] {
 		return this._map.get(extensionDescription.identifier) ?? [];
 	}
 

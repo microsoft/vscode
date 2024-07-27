@@ -175,6 +175,11 @@ const editorConfiguration: IConfigurationNode = {
 			default: diffEditorDefaultOptions.renderMarginRevertIcon,
 			description: nls.localize('renderMarginRevertIcon', "When enabled, the diff editor shows arrows in its glyph margin to revert changes.")
 		},
+		'diffEditor.renderGutterMenu': {
+			type: 'boolean',
+			default: diffEditorDefaultOptions.renderGutterMenu,
+			description: nls.localize('renderGutterMenu', "When enabled, the diff editor shows a special gutter for revert and stage actions.")
+		},
 		'diffEditor.ignoreTrimWhitespace': {
 			type: 'boolean',
 			default: diffEditorDefaultOptions.ignoreTrimWhitespace,
@@ -242,7 +247,12 @@ const editorConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: diffEditorDefaultOptions.experimental.showEmptyDecorations,
 			description: nls.localize('showEmptyDecorations', "Controls whether the diff editor shows empty decorations to see where characters got inserted or deleted."),
-		}
+		},
+		'diffEditor.experimental.useTrueInlineView': {
+			type: 'boolean',
+			default: diffEditorDefaultOptions.experimental.useTrueInlineView,
+			description: nls.localize('useTrueInlineView', "If enabled and the editor uses the inline view, word changes are rendered inline."),
+		},
 	}
 };
 

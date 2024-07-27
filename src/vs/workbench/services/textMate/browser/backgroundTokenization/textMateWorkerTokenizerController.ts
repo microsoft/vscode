@@ -5,7 +5,7 @@
 
 import { importAMDNodeModule } from 'vs/amdX';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IObservable, autorun, keepObserved, observableFromEvent } from 'vs/base/common/observable';
+import { IObservable, autorun, keepObserved } from 'vs/base/common/observable';
 import { countEOL } from 'vs/editor/common/core/eolCounter';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 import { Range } from 'vs/editor/common/core/range';
@@ -15,6 +15,7 @@ import { TokenizationStateStore } from 'vs/editor/common/model/textModelTokens';
 import { IModelContentChange, IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
 import { ContiguousMultilineTokensBuilder } from 'vs/editor/common/tokens/contiguousMultilineTokensBuilder';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { observableConfigValue } from 'vs/platform/observable/common/platformObservableUtils';
 import { ArrayEdit, MonotonousIndexTransformer, SingleArrayEdit } from 'vs/workbench/services/textMate/browser/arrayOperation';
 import type { StateDeltas, TextMateTokenizationWorker } from 'vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker';
 import type { applyStateStackDiff, StateStack } from 'vscode-textmate';
@@ -237,13 +238,3 @@ function changesToString(changes: IModelContentChange[]): string {
 	return changes.map(c => Range.lift(c.range).toString() + ' => ' + c.text).join(' & ');
 }
 
-function observableConfigValue<T>(key: string, defaultValue: T, configurationService: IConfigurationService): IObservable<T> {
-	return observableFromEvent(
-		(handleChange) => configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(key)) {
-				handleChange(e);
-			}
-		}),
-		() => configurationService.getValue<T>(key) ?? defaultValue,
-	);
-}

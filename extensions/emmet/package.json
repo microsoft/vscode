@@ -479,7 +479,7 @@
     "deps": "yarn add @vscode/emmet-helper"
   },
   "devDependencies": {
-    "@types/node": "18.x"
+    "@types/node": "20.x"
   },
   "dependencies": {
     "@emmetio/css-parser": "ramya-rao-a/css-parser#vscode",

@@ -1251,7 +1251,7 @@ declare namespace monaco.editor {
 		 */
 		label: string;
 		/**
-		 * Precondition rule.
+		 * Precondition rule. The value should be a [context key expression](https://code.visualstudio.com/docs/getstarted/keybindings#_when-clause-contexts).
 		 */
 		precondition?: string;
 		/**
@@ -1613,6 +1613,14 @@ declare namespace monaco.editor {
 		Gutter = 2
 	}
 
+	/**
+	 * Section header style.
+	 */
+	export enum MinimapSectionHeaderStyle {
+		Normal = 1,
+		Underlined = 2
+	}
+
 	export interface IDecorationOptions {
 		/**
 		 * CSS color to render.
@@ -1656,6 +1664,14 @@ declare namespace monaco.editor {
 		 * The position in the minimap.
 		 */
 		position: MinimapPosition;
+		/**
+		 * If the decoration is for a section header, which header style.
+		 */
+		sectionHeaderStyle?: MinimapSectionHeaderStyle | null;
+		/**
+		 * If the decoration is for a section header, the header text.
+		 */
+		sectionHeaderText?: string | null;
 	}
 
 	/**
@@ -3103,6 +3119,13 @@ declare namespace monaco.editor {
 		 */
 		rulers?: (number | IRulerOption)[];
 		/**
+		 * Locales used for segmenting lines into words when doing word related navigations or operations.
+		 *
+		 * Specify the BCP 47 language tag of the word you wish to recognize (e.g., ja, zh-CN, zh-Hant-TW, etc.).
+		 * Defaults to empty array
+		 */
+		wordSegmenterLocales?: string | string[];
+		/**
 		 * A string containing the word separators used when doing word navigation.
 		 * Defaults to `~!@#$%^&*()-=+[{]}\\|;:\'",.<>/?
 		 */
@@ -3713,6 +3736,11 @@ declare namespace monaco.editor {
 		 */
 		peekWidgetDefaultFocus?: 'tree' | 'editor';
 		/**
+		 * Sets a placeholder for the editor.
+		 * If set, the placeholder is shown if the editor is empty.
+		*/
+		placeholder?: string | undefined;
+		/**
 		 * Controls whether the definition link opens element in the peek widget.
 		 * Defaults to false.
 		 */
@@ -3794,6 +3822,11 @@ declare namespace monaco.editor {
 		 */
 		useInlineViewWhenSpaceIsLimited?: boolean;
 		/**
+		 * If set, the diff editor is optimized for small views.
+		 * Defaults to `false`.
+		*/
+		compactMode?: boolean;
+		/**
 		 * Timeout in milliseconds after which diff computation is cancelled.
 		 * Defaults to 5000.
 		 */
@@ -3818,6 +3851,10 @@ declare namespace monaco.editor {
 		 * Default to true.
 		 */
 		renderMarginRevertIcon?: boolean;
+		/**
+		 * Indicates if the gutter menu should be rendered.
+		*/
+		renderGutterMenu?: boolean;
 		/**
 		 * Original model should be editable?
 		 * Defaults to false.
@@ -3851,6 +3888,10 @@ declare namespace monaco.editor {
 			 */
 			showMoves?: boolean;
 			showEmptyDecorations?: boolean;
+			/**
+			 * Only applies when `renderSideBySide` is set to false.
+			*/
+			useTrueInlineView?: boolean;
 		};
 		/**
 		 * Is the diff editor inside another editor
@@ -4016,11 +4057,13 @@ declare namespace monaco.editor {
 		multipleDeclarations?: GoToLocationValues;
 		multipleImplementations?: GoToLocationValues;
 		multipleReferences?: GoToLocationValues;
+		multipleTests?: GoToLocationValues;
 		alternativeDefinitionCommand?: string;
 		alternativeTypeDefinitionCommand?: string;
 		alternativeDeclarationCommand?: string;
 		alternativeImplementationCommand?: string;
 		alternativeReferenceCommand?: string;
+		alternativeTestsCommand?: string;
 	}
 
 	/**
@@ -4279,6 +4322,22 @@ declare namespace monaco.editor {
 		 * Relative size of the font in the minimap. Defaults to 1.
 		 */
 		scale?: number;
+		/**
+		 * Whether to show named regions as section headers. Defaults to true.
+		 */
+		showRegionSectionHeaders?: boolean;
+		/**
+		 * Whether to show MARK: comments as section headers. Defaults to true.
+		 */
+		showMarkSectionHeaders?: boolean;
+		/**
+		 * Font size of section headers. Defaults to 9.
+		 */
+		sectionHeaderFontSize?: number;
+		/**
+		 * Spacing between the section header characters (in CSS px). Defaults to 1.
+		 */
+		sectionHeaderLetterSpacing?: number;
 	}
 
 	/**
@@ -4523,7 +4582,6 @@ declare namespace monaco.editor {
 		 * Does not clear active inline suggestions when the editor loses focus.
 		 */
 		keepOnBlur?: boolean;
-		backgroundColoring?: boolean;
 	}
 
 	export interface IBracketPairColorizationOptions {
@@ -4886,67 +4944,69 @@ declare namespace monaco.editor {
 		pasteAs = 85,
 		parameterHints = 86,
 		peekWidgetDefaultFocus = 87,
-		definitionLinkOpensInPeek = 88,
-		quickSuggestions = 89,
-		quickSuggestionsDelay = 90,
-		readOnly = 91,
-		readOnlyMessage = 92,
-		renameOnType = 93,
-		renderControlCharacters = 94,
-		renderFinalNewline = 95,
-		renderLineHighlight = 96,
-		renderLineHighlightOnlyWhenFocus = 97,
-		renderValidationDecorations = 98,
-		renderWhitespace = 99,
-		revealHorizontalRightPadding = 100,
-		roundedSelection = 101,
-		rulers = 102,
-		scrollbar = 103,
-		scrollBeyondLastColumn = 104,
-		scrollBeyondLastLine = 105,
-		scrollPredominantAxis = 106,
-		selectionClipboard = 107,
-		selectionHighlight = 108,
-		selectOnLineNumbers = 109,
-		showFoldingControls = 110,
-		showUnused = 111,
-		snippetSuggestions = 112,
-		smartSelect = 113,
-		smoothScrolling = 114,
-		stickyScroll = 115,
-		stickyTabStops = 116,
-		stopRenderingLineAfter = 117,
-		suggest = 118,
-		suggestFontSize = 119,
-		suggestLineHeight = 120,
-		suggestOnTriggerCharacters = 121,
-		suggestSelection = 122,
-		tabCompletion = 123,
-		tabIndex = 124,
-		unicodeHighlighting = 125,
-		unusualLineTerminators = 126,
-		useShadowDOM = 127,
-		useTabStops = 128,
-		wordBreak = 129,
-		wordSeparators = 130,
-		wordWrap = 131,
-		wordWrapBreakAfterCharacters = 132,
-		wordWrapBreakBeforeCharacters = 133,
-		wordWrapColumn = 134,
-		wordWrapOverride1 = 135,
-		wordWrapOverride2 = 136,
-		wrappingIndent = 137,
-		wrappingStrategy = 138,
-		showDeprecated = 139,
-		inlayHints = 140,
-		editorClassName = 141,
-		pixelRatio = 142,
-		tabFocusMode = 143,
-		layoutInfo = 144,
-		wrappingInfo = 145,
-		defaultColorDecorators = 146,
-		colorDecoratorsActivatedOn = 147,
-		inlineCompletionsAccessibilityVerbose = 148
+		placeholder = 88,
+		definitionLinkOpensInPeek = 89,
+		quickSuggestions = 90,
+		quickSuggestionsDelay = 91,
+		readOnly = 92,
+		readOnlyMessage = 93,
+		renameOnType = 94,
+		renderControlCharacters = 95,
+		renderFinalNewline = 96,
+		renderLineHighlight = 97,
+		renderLineHighlightOnlyWhenFocus = 98,
+		renderValidationDecorations = 99,
+		renderWhitespace = 100,
+		revealHorizontalRightPadding = 101,
+		roundedSelection = 102,
+		rulers = 103,
+		scrollbar = 104,
+		scrollBeyondLastColumn = 105,
+		scrollBeyondLastLine = 106,
+		scrollPredominantAxis = 107,
+		selectionClipboard = 108,
+		selectionHighlight = 109,
+		selectOnLineNumbers = 110,
+		showFoldingControls = 111,
+		showUnused = 112,
+		snippetSuggestions = 113,
+		smartSelect = 114,
+		smoothScrolling = 115,
+		stickyScroll = 116,
+		stickyTabStops = 117,
+		stopRenderingLineAfter = 118,
+		suggest = 119,
+		suggestFontSize = 120,
+		suggestLineHeight = 121,
+		suggestOnTriggerCharacters = 122,
+		suggestSelection = 123,
+		tabCompletion = 124,
+		tabIndex = 125,
+		unicodeHighlighting = 126,
+		unusualLineTerminators = 127,
+		useShadowDOM = 128,
+		useTabStops = 129,
+		wordBreak = 130,
+		wordSegmenterLocales = 131,
+		wordSeparators = 132,
+		wordWrap = 133,
+		wordWrapBreakAfterCharacters = 134,
+		wordWrapBreakBeforeCharacters = 135,
+		wordWrapColumn = 136,
+		wordWrapOverride1 = 137,
+		wordWrapOverride2 = 138,
+		wrappingIndent = 139,
+		wrappingStrategy = 140,
+		showDeprecated = 141,
+		inlayHints = 142,
+		editorClassName = 143,
+		pixelRatio = 144,
+		tabFocusMode = 145,
+		layoutInfo = 146,
+		wrappingInfo = 147,
+		defaultColorDecorators = 148,
+		colorDecoratorsActivatedOn = 149,
+		inlineCompletionsAccessibilityVerbose = 150
 	}
 
 	export const EditorOptions: {
@@ -4959,8 +5019,8 @@ declare namespace monaco.editor {
 		screenReaderAnnounceInlineSuggestion: IEditorOption<EditorOption.screenReaderAnnounceInlineSuggestion, boolean>;
 		autoClosingBrackets: IEditorOption<EditorOption.autoClosingBrackets, 'always' | 'languageDefined' | 'beforeWhitespace' | 'never'>;
 		autoClosingComments: IEditorOption<EditorOption.autoClosingComments, 'always' | 'languageDefined' | 'beforeWhitespace' | 'never'>;
-		autoClosingDelete: IEditorOption<EditorOption.autoClosingDelete, 'always' | 'never' | 'auto'>;
-		autoClosingOvertype: IEditorOption<EditorOption.autoClosingOvertype, 'always' | 'never' | 'auto'>;
+		autoClosingDelete: IEditorOption<EditorOption.autoClosingDelete, 'auto' | 'always' | 'never'>;
+		autoClosingOvertype: IEditorOption<EditorOption.autoClosingOvertype, 'auto' | 'always' | 'never'>;
 		autoClosingQuotes: IEditorOption<EditorOption.autoClosingQuotes, 'always' | 'languageDefined' | 'beforeWhitespace' | 'never'>;
 		autoIndent: IEditorOption<EditorOption.autoIndent, EditorAutoIndentStrategy>;
 		automaticLayout: IEditorOption<EditorOption.automaticLayout, boolean>;
@@ -4972,7 +5032,7 @@ declare namespace monaco.editor {
 		codeLensFontFamily: IEditorOption<EditorOption.codeLensFontFamily, string>;
 		codeLensFontSize: IEditorOption<EditorOption.codeLensFontSize, number>;
 		colorDecorators: IEditorOption<EditorOption.colorDecorators, boolean>;
-		colorDecoratorActivatedOn: IEditorOption<EditorOption.colorDecoratorsActivatedOn, 'clickAndHover' | 'click' | 'hover'>;
+		colorDecoratorActivatedOn: IEditorOption<EditorOption.colorDecoratorsActivatedOn, 'hover' | 'clickAndHover' | 'click'>;
 		colorDecoratorsLimit: IEditorOption<EditorOption.colorDecoratorsLimit, number>;
 		columnSelection: IEditorOption<EditorOption.columnSelection, boolean>;
 		comments: IEditorOption<EditorOption.comments, Readonly<Required<IEditorCommentsOptions>>>;
@@ -5039,6 +5099,7 @@ declare namespace monaco.editor {
 		pasteAs: IEditorOption<EditorOption.pasteAs, Readonly<Required<IPasteAsOptions>>>;
 		parameterHints: IEditorOption<EditorOption.parameterHints, Readonly<Required<IEditorParameterHintOptions>>>;
 		peekWidgetDefaultFocus: IEditorOption<EditorOption.peekWidgetDefaultFocus, 'tree' | 'editor'>;
+		placeholder: IEditorOption<EditorOption.placeholder, string>;
 		definitionLinkOpensInPeek: IEditorOption<EditorOption.definitionLinkOpensInPeek, boolean>;
 		quickSuggestions: IEditorOption<EditorOption.quickSuggestions, InternalQuickSuggestionsOptions>;
 		quickSuggestionsDelay: IEditorOption<EditorOption.quickSuggestionsDelay, number>;
@@ -5080,12 +5141,13 @@ declare namespace monaco.editor {
 		tabCompletion: IEditorOption<EditorOption.tabCompletion, 'on' | 'off' | 'onlySnippets'>;
 		tabIndex: IEditorOption<EditorOption.tabIndex, number>;
 		unicodeHighlight: IEditorOption<EditorOption.unicodeHighlighting, any>;
-		unusualLineTerminators: IEditorOption<EditorOption.unusualLineTerminators, 'auto' | 'off' | 'prompt'>;
+		unusualLineTerminators: IEditorOption<EditorOption.unusualLineTerminators, 'off' | 'auto' | 'prompt'>;
 		useShadowDOM: IEditorOption<EditorOption.useShadowDOM, boolean>;
 		useTabStops: IEditorOption<EditorOption.useTabStops, boolean>;
 		wordBreak: IEditorOption<EditorOption.wordBreak, 'normal' | 'keepAll'>;
+		wordSegmenterLocales: IEditorOption<EditorOption.wordSegmenterLocales, {}>;
 		wordSeparators: IEditorOption<EditorOption.wordSeparators, string>;
-		wordWrap: IEditorOption<EditorOption.wordWrap, 'on' | 'off' | 'wordWrapColumn' | 'bounded'>;
+		wordWrap: IEditorOption<EditorOption.wordWrap, 'wordWrapColumn' | 'on' | 'off' | 'bounded'>;
 		wordWrapBreakAfterCharacters: IEditorOption<EditorOption.wordWrapBreakAfterCharacters, string>;
 		wordWrapBreakBeforeCharacters: IEditorOption<EditorOption.wordWrapBreakBeforeCharacters, string>;
 		wordWrapColumn: IEditorOption<EditorOption.wordWrapColumn, number>;
@@ -5346,12 +5408,21 @@ declare namespace monaco.editor {
 		 * The position preference for the overlay widget.
 		 */
 		preference: OverlayWidgetPositionPreference | IOverlayWidgetPositionCoordinates | null;
+		/**
+		 * When set, stacks with other overlay widgets with the same preference,
+		 * in an order determined by the ordinal value.
+		 */
+		stackOridinal?: number;
 	}
 
 	/**
 	 * An overlay widgets renders on top of the text.
 	 */
 	export interface IOverlayWidget {
+		/**
+		 * Event fired when the widget layout changes.
+		 */
+		onDidLayout?: IEvent<void>;
 		/**
 		 * Render this overlay widget in a location where it could overflow the editor's view dom node.
 		 */
@@ -5611,6 +5682,7 @@ declare namespace monaco.editor {
 	export interface IPasteEvent {
 		readonly range: Range;
 		readonly languageId: string | null;
+		readonly clipboardEvent?: ClipboardEvent;
 	}
 
 	export interface IDiffEditorConstructionOptions extends IDiffEditorOptions, IEditorConstructionOptions {
@@ -5776,6 +5848,18 @@ declare namespace monaco.editor {
 		 * @event
 		 */
 		readonly onDidChangeHiddenAreas: IEvent<void>;
+		/**
+		 * Some editor operations fire multiple events at once.
+		 * To allow users to react to multiple events fired by a single operation,
+		 * the editor fires a begin update before the operation and an end update after the operation.
+		 * Whenever the editor fires `onBeginUpdate`, it will also fire `onEndUpdate` once the operation finishes.
+		 * Note that not all operations are bracketed by `onBeginUpdate` and `onEndUpdate`.
+		*/
+		readonly onBeginUpdate: IEvent<void>;
+		/**
+		 * Fires after the editor completes the operation it fired `onBeginUpdate` for.
+		*/
+		readonly onEndUpdate: IEvent<void>;
 		/**
 		 * Saves current view state of the editor in a serializable object.
 		 */
@@ -6790,19 +6874,56 @@ declare namespace monaco.languages {
 		 * current position itself.
 		 */
 		range?: IRange;
+		/**
+		 * Can increase the verbosity of the hover
+		 */
+		canIncreaseVerbosity?: boolean;
+		/**
+		 * Can decrease the verbosity of the hover
+		 */
+		canDecreaseVerbosity?: boolean;
 	}
 
 	/**
 	 * The hover provider interface defines the contract between extensions and
 	 * the [hover](https://code.visualstudio.com/docs/editor/intellisense)-feature.
 	 */
-	export interface HoverProvider {
+	export interface HoverProvider<THover = Hover> {
 		/**
-		 * Provide a hover for the given position and document. Multiple hovers at the same
+		 * Provide a hover for the given position, context and document. Multiple hovers at the same
 		 * position will be merged by the editor. A hover can have a range which defaults
 		 * to the word range at the position when omitted.
 		 */
-		provideHover(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<Hover>;
+		provideHover(model: editor.ITextModel, position: Position, token: CancellationToken, context?: HoverContext<THover>): ProviderResult<THover>;
+	}
+
+	export interface HoverContext<THover = Hover> {
+		/**
+		 * Hover verbosity request
+		 */
+		verbosityRequest?: HoverVerbosityRequest<THover>;
+	}
+
+	export interface HoverVerbosityRequest<THover = Hover> {
+		/**
+		 * The delta by which to increase/decrease the hover verbosity level
+		 */
+		verbosityDelta: number;
+		/**
+		 * The previous hover for the same position
+		 */
+		previousHover: THover;
+	}
+
+	export enum HoverVerbosityAction {
+		/**
+		 * Increase the verbosity of the hover
+		 */
+		Increase = 0,
+		/**
+		 * Decrease the verbosity of the hover
+		 */
+		Decrease = 1
 	}
 
 	export enum CompletionItemKind {
@@ -6957,6 +7078,22 @@ declare namespace monaco.languages {
 	}
 
 	/**
+	 * Info provided on partial acceptance.
+	 */
+	export interface PartialAcceptInfo {
+		kind: PartialAcceptTriggerKind;
+	}
+
+	/**
+	 * How a partial acceptance was triggered.
+	 */
+	export enum PartialAcceptTriggerKind {
+		Word = 0,
+		Line = 1,
+		Suggest = 2
+	}
+
+	/**
 	 * How a suggest provider was triggered.
 	 */
 	export enum CompletionTriggerKind {
@@ -7102,7 +7239,7 @@ declare namespace monaco.languages {
 		/**
 		 * Will be called when an item is partially accepted.
 		 */
-		handlePartialAccept?(completions: T, item: T['items'][number], acceptedCharacters: number): void;
+		handlePartialAccept?(completions: T, item: T['items'][number], acceptedCharacters: number, info: PartialAcceptInfo): void;
 		/**
 		 * Will be called when a completions list is no longer in use and can be garbage-collected.
 		*/
@@ -7300,7 +7437,7 @@ declare namespace monaco.languages {
 	 * A provider that can provide document highlights across multiple documents.
 	 */
 	export interface MultiDocumentHighlightProvider {
-		selector: LanguageFilter;
+		readonly selector: LanguageSelector;
 		/**
 		 * Provide a Map of Uri --> document highlights, like all occurrences of a variable or
 		 * all exit-points of a function.
@@ -7797,13 +7934,19 @@ declare namespace monaco.languages {
 		AIGenerated = 1
 	}
 
+	export enum NewSymbolNameTriggerKind {
+		Invoke = 0,
+		Automatic = 1
+	}
+
 	export interface NewSymbolName {
 		readonly newSymbolName: string;
 		readonly tags?: readonly NewSymbolNameTag[];
 	}
 
 	export interface NewSymbolNamesProvider {
-		provideNewSymbolNames(model: editor.ITextModel, range: IRange, token: CancellationToken): ProviderResult<NewSymbolName[]>;
+		supportsAutomaticNewSymbolNamesTriggerKind?: Promise<boolean | undefined>;
+		provideNewSymbolNames(model: editor.ITextModel, range: IRange, triggerKind: NewSymbolNameTriggerKind, token: CancellationToken): ProviderResult<NewSymbolName[]>;
 	}
 
 	export interface Command {
@@ -7811,6 +7954,11 @@ declare namespace monaco.languages {
 		title: string;
 		tooltip?: string;
 		arguments?: any[];
+	}
+
+	export interface CommentThreadRevealOptions {
+		preserveFocus: boolean;
+		focusReply: boolean;
 	}
 
 	export interface CommentAuthorInformation {
@@ -7822,7 +7970,7 @@ declare namespace monaco.languages {
 		body: string;
 		range: IRange | undefined;
 		uri: Uri;
-		owner: string;
+		uniqueOwner: string;
 		isReply: boolean;
 	}
 
@@ -7927,7 +8075,7 @@ declare namespace monaco.languages {
 		 *
 		 * @param document The document to provide mapped edits for.
 		 * @param codeBlocks Code blocks that come from an LLM's reply.
-		 * 						"Insert at cursor" in the panel chat only sends one edit that the user clicks on, but inline chat can send multiple blocks and let the lang server decide what to do with them.
+		 * 						"Apply in Editor" in the panel chat only sends one edit that the user clicks on, but inline chat can send multiple blocks and let the lang server decide what to do with them.
 		 * @param context The context for providing mapped edits.
 		 * @param token A cancellation token.
 		 * @returns A provider result of text edits.

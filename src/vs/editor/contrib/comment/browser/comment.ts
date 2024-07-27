@@ -63,7 +63,7 @@ abstract class CommentLineAction extends EditorAction {
 			commands.push(new LineCommentCommand(
 				languageConfigurationService,
 				selection.selection,
-				modelOptions.tabSize,
+				modelOptions.indentSize,
 				this._type,
 				commentsOptions.insertSpace,
 				commentsOptions.ignoreEmptyLines,

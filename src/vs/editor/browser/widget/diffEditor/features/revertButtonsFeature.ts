@@ -15,7 +15,7 @@ import { DiffEditorViewModel } from 'vs/editor/browser/widget/diffEditor/diffEdi
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
 import { LineRange, LineRangeSet } from 'vs/editor/common/core/lineRange';
 import { Range } from 'vs/editor/common/core/range';
-import { RangeMapping } from 'vs/editor/common/diff/rangeMapping';
+import { LineRangeMapping, RangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { GlyphMarginLane } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
 
@@ -31,7 +31,7 @@ export class RevertButtonsFeature extends Disposable {
 		super();
 
 		this._register(autorunWithStore((reader, store) => {
-			if (!this._options.shouldRenderRevertArrows.read(reader)) { return; }
+			if (!this._options.shouldRenderOldRevertArrows.read(reader)) { return; }
 			const model = this._diffModel.read(reader);
 			const diff = model?.diff.read(reader);
 			if (!model || !diff) { return; }
@@ -62,7 +62,7 @@ export class RevertButtonsFeature extends Disposable {
 					const btn = store.add(new RevertButton(
 						m.lineRangeMapping.modified.startLineNumber,
 						this._widget,
-						m.lineRangeMapping.innerChanges,
+						m.lineRangeMapping,
 						false
 					));
 					this._editors.modified.addGlyphMarginWidget(btn);
@@ -122,7 +122,7 @@ export class RevertButton extends Disposable implements IGlyphMarginWidget {
 	constructor(
 		private readonly _lineNumber: number,
 		private readonly _widget: DiffEditorWidget,
-		private readonly _diffs: RangeMapping[],
+		private readonly _diffs: RangeMapping[] | LineRangeMapping,
 		private readonly _revertSelection: boolean,
 	) {
 		super();
@@ -142,7 +142,11 @@ export class RevertButton extends Disposable implements IGlyphMarginWidget {
 		}));
 
 		this._register(addDisposableListener(this._domNode, EventType.CLICK, (e) => {
-			this._widget.revertRangeMappings(this._diffs);
+			if (this._diffs instanceof LineRangeMapping) {
+				this._widget.revert(this._diffs);
+			} else {
+				this._widget.revertRangeMappings(this._diffs);
+			}
 			e.stopPropagation();
 			e.preventDefault();
 		}));

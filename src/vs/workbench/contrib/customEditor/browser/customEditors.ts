@@ -12,7 +12,6 @@ import { extname, isEqual } from 'vs/base/common/resources';
 import { assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { RedoCommand, UndoCommand } from 'vs/editor/browser/editorExtensions';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { FileOperation, IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -24,7 +23,7 @@ import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { CONTEXT_ACTIVE_CUSTOM_EDITOR_ID, CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE, CustomEditorCapabilities, CustomEditorInfo, CustomEditorInfoCollection, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { CustomEditorModelManager } from 'vs/workbench/contrib/customEditor/common/customEditorModelManager';
-import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroup, IEditorGroupContextKeyProvider, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorResolverService, IEditorType, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ContributedCustomEditors } from '../common/contributedCustomEditors';
@@ -40,16 +39,12 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 
 	private readonly _models = new CustomEditorModelManager();
 
-	private readonly _activeCustomEditorId: IContextKey<string>;
-	private readonly _focusedCustomEditorIsEditable: IContextKey<boolean>;
-
 	private readonly _onDidChangeEditorTypes = this._register(new Emitter<void>());
 	public readonly onDidChangeEditorTypes: Event<void> = this._onDidChangeEditorTypes.event;
 
 	private readonly _fileEditorFactory = Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).getFileEditorFactory();
 
 	constructor(
-		@IContextKeyService contextKeyService: IContextKeyService,
 		@IFileService fileService: IFileService,
 		@IStorageService storageService: IStorageService,
 		@IEditorService private readonly editorService: IEditorService,
@@ -60,9 +55,6 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 	) {
 		super();
 
-		this._activeCustomEditorId = CONTEXT_ACTIVE_CUSTOM_EDITOR_ID.bindTo(contextKeyService);
-		this._focusedCustomEditorIsEditable = CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE.bindTo(contextKeyService);
-
 		this._contributedEditors = this._register(new ContributedCustomEditors(storageService));
 		// Register the contribution points only emitting one change from the resolver
 		this.editorResolverService.bufferChangeEvents(this.registerContributionPoints.bind(this));
@@ -70,10 +62,25 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		this._register(this._contributedEditors.onChange(() => {
 			// Register the contribution points only emitting one change from the resolver
 			this.editorResolverService.bufferChangeEvents(this.registerContributionPoints.bind(this));
-			this.updateContexts();
 			this._onDidChangeEditorTypes.fire();
 		}));
-		this._register(this.editorService.onDidActiveEditorChange(() => this.updateContexts()));
+
+		// Register group context key providers.
+		// These set the context keys for each editor group and the global context
+		const activeCustomEditorContextKeyProvider: IEditorGroupContextKeyProvider<string> = {
+			contextKey: CONTEXT_ACTIVE_CUSTOM_EDITOR_ID,
+			getGroupContextKeyValue: group => this.getActiveCustomEditorId(group),
+			onDidChange: this.onDidChangeEditorTypes
+		};
+
+		const customEditorIsEditableContextKeyProvider: IEditorGroupContextKeyProvider<boolean> = {
+			contextKey: CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE,
+			getGroupContextKeyValue: group => this.getCustomEditorIsEditable(group),
+			onDidChange: this.onDidChangeEditorTypes
+		};
+
+		this._register(this.editorGroupService.registerContextKeyProvider(activeCustomEditorContextKeyProvider));
+		this._register(this.editorGroupService.registerContextKeyProvider(customEditorIsEditableContextKeyProvider));
 
 		this._register(fileService.onDidRunOperation(e => {
 			if (e.isOperation(FileOperation.MOVE)) {
@@ -88,8 +95,6 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		this._register(RedoCommand.addImplementation(PRIORITY, 'custom-editor', () => {
 			return this.withActiveCustomEditor(editor => editor.redo());
 		}));
-
-		this.updateContexts();
 	}
 
 	getEditorTypes(): IEditorType[] {
@@ -193,17 +198,24 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		return this._editorCapabilities.get(viewType);
 	}
 
-	private updateContexts() {
-		const activeEditorPane = this.editorService.activeEditorPane;
+	private getActiveCustomEditorId(group: IEditorGroup): string {
+		const activeEditorPane = group.activeEditorPane;
 		const resource = activeEditorPane?.input?.resource;
 		if (!resource) {
-			this._activeCustomEditorId.reset();
-			this._focusedCustomEditorIsEditable.reset();
-			return;
+			return '';
 		}
 
-		this._activeCustomEditorId.set(activeEditorPane?.input instanceof CustomEditorInput ? activeEditorPane.input.viewType : '');
-		this._focusedCustomEditorIsEditable.set(activeEditorPane?.input instanceof CustomEditorInput);
+		return activeEditorPane?.input instanceof CustomEditorInput ? activeEditorPane.input.viewType : '';
+	}
+
+	private getCustomEditorIsEditable(group: IEditorGroup): boolean {
+		const activeEditorPane = group.activeEditorPane;
+		const resource = activeEditorPane?.input?.resource;
+		if (!resource) {
+			return false;
+		}
+
+		return activeEditorPane?.input instanceof CustomEditorInput;
 	}
 
 	private async handleMovedFileInOpenedFileEditors(oldResource: URI, newResource: URI): Promise<void> {

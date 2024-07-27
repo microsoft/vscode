@@ -11,7 +11,7 @@ import { mark } from 'vs/base/common/performance';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { getOrSet } from 'vs/base/common/map';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, isDisposable } from 'vs/base/common/lifecycle';
 import { IEditorPaneService } from 'vs/workbench/services/editor/common/editorPaneService';
 
 /**
@@ -156,6 +156,7 @@ export class WorkbenchContributionsRegistry extends Disposable implements IWorkb
 	private readonly contributionsById = new Map<string, IWorkbenchContributionRegistration>();
 
 	private readonly instancesById = new Map<string, IWorkbenchContribution>();
+	private readonly instanceDisposables = this._register(new DisposableStore());
 
 	private readonly timingsByPhase = new Map<LifecyclePhase, Array<[string /* ID */, number /* Creation Time */]>>();
 	get timings() { return this.timingsByPhase; }
@@ -248,6 +249,11 @@ export class WorkbenchContributionsRegistry extends Disposable implements IWorkb
 		const logService = this.logService = accessor.get(ILogService);
 		const environmentService = this.environmentService = accessor.get(IEnvironmentService);
 		const editorPaneService = this.editorPaneService = accessor.get(IEditorPaneService);
+
+		// Dispose contributions on shutdown
+		this._register(lifecycleService.onDidShutdown(() => {
+			this.instanceDisposables.clear();
+		}));
 
 		// Instantiate contributions by phase when they are ready
 		for (const phase of [LifecyclePhase.Starting, LifecyclePhase.Ready, LifecyclePhase.Restored, LifecyclePhase.Eventually]) {
@@ -377,6 +383,9 @@ export class WorkbenchContributionsRegistry extends Disposable implements IWorkb
 				this.instancesById.set(contribution.id, instance);
 				this.contributionsById.delete(contribution.id);
 			}
+			if (isDisposable(instance)) {
+				this.instanceDisposables.add(instance);
+			}
 		} catch (error) {
 			logService.error(`Unable to create workbench contribution '${contribution.id ?? contribution.ctor.name}'.`, error);
 		} finally {
@@ -385,7 +394,7 @@ export class WorkbenchContributionsRegistry extends Disposable implements IWorkb
 			}
 		}
 
-		if (typeof contribution.id === 'string' || !environmentService.isBuilt /* only log out of sources where we have good ctor names (TODO@bpasero remove when adopted IDs) */) {
+		if (typeof contribution.id === 'string' || !environmentService.isBuilt /* only log out of sources where we have good ctor names */) {
 			const time = Date.now() - now;
 			if (time > (phase < LifecyclePhase.Restored ? WorkbenchContributionsRegistry.BLOCK_BEFORE_RESTORE_WARN_THRESHOLD : WorkbenchContributionsRegistry.BLOCK_AFTER_RESTORE_WARN_THRESHOLD)) {
 				logService.warn(`Creation of workbench contribution '${contribution.id ?? contribution.ctor.name}' took ${time}ms.`);

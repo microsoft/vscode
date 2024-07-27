@@ -139,7 +139,7 @@ export class ExtensionHostProfileService extends Disposable implements IExtensio
 
 		this._setState(ProfileSessionState.Starting);
 
-		return this._instantiationService.createInstance(ExtensionHostProfiler, inspectPorts[0]).start().then((value) => {
+		return this._instantiationService.createInstance(ExtensionHostProfiler, inspectPorts[0].host, inspectPorts[0].port).start().then((value) => {
 			this._profileSession = value;
 			this._setState(ProfileSessionState.Running);
 		}, (err) => {

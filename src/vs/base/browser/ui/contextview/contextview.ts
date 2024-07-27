@@ -60,6 +60,9 @@ export interface IDelegate {
 	canRelayout?: boolean; // default: true
 	onDOMEvent?(e: Event, activeElement: HTMLElement): void;
 	onHide?(data?: unknown): void;
+
+	// context views with higher layers are rendered over contet views with lower layers
+	layer?: number; // Default: 0
 }
 
 export interface IContextViewProvider {
@@ -166,13 +169,11 @@ export class ContextView extends Disposable {
 		if (this.container) {
 			this.toDisposeOnSetContainer.dispose();
 
+			this.view.remove();
 			if (this.shadowRoot) {
-				this.shadowRoot.removeChild(this.view);
 				this.shadowRoot = null;
 				this.shadowRootHostElement?.remove();
 				this.shadowRootHostElement = null;
-			} else {
-				this.container.removeChild(this.view);
 			}
 
 			this.container = null;
@@ -219,10 +220,10 @@ export class ContextView extends Disposable {
 
 		// Show static box
 		DOM.clearNode(this.view);
-		this.view.className = 'context-view';
+		this.view.className = 'context-view monaco-component';
 		this.view.style.top = '0px';
 		this.view.style.left = '0px';
-		this.view.style.zIndex = '2575';
+		this.view.style.zIndex = `${2575 + (delegate.layer ?? 0)}`;
 		this.view.style.position = this.useFixedPosition ? 'fixed' : 'absolute';
 		DOM.show(this.view);
 
@@ -271,7 +272,7 @@ export class ContextView extends Disposable {
 		let around: IView;
 
 		// Get the element's position and size (to anchor the view)
-		if (anchor instanceof HTMLElement) {
+		if (DOM.isHTMLElement(anchor)) {
 			const elementPosition = DOM.getDomNodePagePosition(anchor);
 
 			// In areas where zoom is applied to the element or its ancestors, we need to adjust the size of the element

@@ -524,7 +524,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 
 		this.root.element = input!;
 
-		const viewStateContext = viewState && { viewState, focus: [], selection: [] } as IAsyncDataTreeViewStateContext<TInput, T>;
+		const viewStateContext: IAsyncDataTreeViewStateContext<TInput, T> | undefined = viewState && { viewState, focus: [], selection: [] };
 
 		await this._updateChildren(input, true, false, viewStateContext);
 
@@ -567,10 +567,6 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 
 	resort(element: TInput | T = this.root.element, recursive = true): void {
 		this.tree.resort(this.getDataNode(element), recursive);
-	}
-
-	hasElement(element: TInput | T): boolean {
-		return this.tree.hasElement(this.getDataNode(element));
 	}
 
 	hasNode(element: TInput | T): boolean {

@@ -40,6 +40,7 @@ import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/c
 import { coalesce } from 'vs/base/common/arrays';
 import { mainWindow, isAuxiliaryWindow } from 'vs/base/browser/window';
 import { isIOS, isMacintosh } from 'vs/base/common/platform';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 enum HostShutdownReason {
 
@@ -79,6 +80,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 		@IDialogService private readonly dialogService: IDialogService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
+		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 	) {
 		super();
 
@@ -307,7 +309,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 				}
 
 				// Support diffMode
-				if (options?.diffMode && fileOpenables.length === 2) {
+				else if (options?.diffMode && fileOpenables.length === 2) {
 					const editors = coalesce(await pathsToEditors(fileOpenables, this.fileService, this.logService));
 					if (editors.length !== 2 || !isResourceEditorInput(editors[0]) || !isResourceEditorInput(editors[1])) {
 						return; // invalid resources
@@ -409,8 +411,12 @@ export class BrowserHostService extends Disposable implements IHostService {
 			}
 		}
 
-		if (!this.userDataProfileService.currentProfile.isDefault) {
-			newPayload.push(['lastActiveProfile', this.userDataProfileService.currentProfile.id]);
+		const windowConfig = this.configurationService.getValue<IWindowSettings | undefined>('window');
+		const newWindowProfile = (windowConfig?.newWindowProfile
+			? this.userDataProfilesService.profiles.find(profile => profile.name === windowConfig.newWindowProfile)
+			: undefined) ?? this.userDataProfileService.currentProfile;
+		if (!newWindowProfile.isDefault) {
+			newPayload.push(['lastActiveProfile', newWindowProfile.id]);
 		}
 
 		return newPayload.length ? newPayload : undefined;
@@ -567,6 +573,14 @@ export class BrowserHostService extends Disposable implements IHostService {
 
 		// Signal shutdown reason to lifecycle
 		return this.lifecycleService.withExpectedShutdown(reason);
+	}
+
+	//#endregion
+
+	//#region File
+
+	getPathForFile(): undefined {
+		return undefined; // unsupported in browser environments
 	}
 
 	//#endregion

@@ -17,7 +17,7 @@ import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/vie
 export class ListTopCellToolbar extends Disposable {
 	private readonly topCellToolbarContainer: HTMLElement;
 	private topCellToolbar: HTMLElement;
-	private viewZone: MutableDisposable<DisposableStore> = this._register(new MutableDisposable());
+	private readonly viewZone: MutableDisposable<DisposableStore> = this._register(new MutableDisposable());
 	private readonly _modelDisposables = this._register(new DisposableStore());
 	constructor(
 		protected readonly notebookEditor: INotebookEditorDelegate,
@@ -96,9 +96,9 @@ export class ListTopCellToolbar extends Disposable {
 			DOM.clearNode(this.topCellToolbar);
 
 			const toolbar = this.instantiationService.createInstance(MenuWorkbenchToolBar, this.topCellToolbar, this.notebookEditor.creationOptions.menuIds.cellTopInsertToolbar, {
-				actionViewItemProvider: action => {
+				actionViewItemProvider: (action, options) => {
 					if (action instanceof MenuItemAction) {
-						const item = this.instantiationService.createInstance(CodiconActionViewItem, action, undefined);
+						const item = this.instantiationService.createInstance(CodiconActionViewItem, action, { hoverDelegate: options.hoverDelegate });
 						return item;
 					}
 
@@ -113,9 +113,11 @@ export class ListTopCellToolbar extends Disposable {
 				hiddenItemStrategy: HiddenItemStrategy.Ignore,
 			});
 
-			toolbar.context = <INotebookActionContext>{
-				notebookEditor: this.notebookEditor
-			};
+			if (this.notebookEditor.hasModel()) {
+				toolbar.context = {
+					notebookEditor: this.notebookEditor
+				} satisfies INotebookActionContext;
+			}
 
 			this.viewZone.value?.add(toolbar);
 

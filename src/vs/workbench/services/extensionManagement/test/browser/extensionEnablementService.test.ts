@@ -2,9 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
+import assert from 'assert';
 import * as sinon from 'sinon';
-import { IExtensionManagementService, DidUninstallExtensionEvent, ILocalExtension, InstallExtensionEvent, InstallExtensionResult, UninstallExtensionEvent } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, DidUninstallExtensionEvent, ILocalExtension, InstallExtensionEvent, InstallExtensionResult, UninstallExtensionEvent, DidUpdateExtensionMetadata } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService, ExtensionInstallLocation, IProfileAwareExtensionManagementService, DidChangeProfileEvent } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ExtensionEnablementService } from 'vs/workbench/services/extensionManagement/browser/extensionEnablementService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
@@ -34,9 +34,12 @@ import { ExtensionManifestPropertiesService, IExtensionManifestPropertiesService
 import { TestContextService, TestProductService, TestWorkspaceTrustEnablementService, TestWorkspaceTrustManagementService } from 'vs/workbench/test/common/workbenchTestServices';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { ExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagementService';
-import { NullLogService } from 'vs/platform/log/common/log';
+import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { IFileService } from 'vs/platform/files/common/files';
+import { FileService } from 'vs/platform/files/common/fileService';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 function createStorageService(instantiationService: TestInstantiationService, disposableStore: DisposableStore): IStorageService {
 	let service = instantiationService.get(IStorageService);
@@ -67,7 +70,7 @@ export class TestExtensionEnablementService extends ExtensionEnablementService {
 					onUninstallExtension: disposables.add(new Emitter<UninstallExtensionEvent>()).event,
 					onDidUninstallExtension: disposables.add(new Emitter<DidUninstallExtensionEvent>()).event,
 					onDidChangeProfile: disposables.add(new Emitter<DidChangeProfileEvent>()).event,
-					onDidUpdateExtensionMetadata: disposables.add(new Emitter<ILocalExtension>()).event,
+					onDidUpdateExtensionMetadata: disposables.add(new Emitter<DidUpdateExtensionMetadata>()).event,
 				},
 			}, null, null));
 		const extensionManagementService = disposables.add(instantiationService.createInstance(ExtensionManagementService));
@@ -129,7 +132,10 @@ suite('ExtensionEnablementService Test', () => {
 	setup(() => {
 		installed.splice(0, installed.length);
 		instantiationService = disposableStore.add(new TestInstantiationService());
+		instantiationService.stub(IFileService, disposableStore.add(new FileService(new NullLogService())));
+		instantiationService.stub(IProductService, TestProductService);
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		instantiationService.stub(IWorkspaceContextService, new TestContextService());
 		instantiationService.stub(IExtensionManagementServerService, anExtensionManagementServerService({
 			id: 'local',
 			label: 'local',
@@ -140,6 +146,7 @@ suite('ExtensionEnablementService Test', () => {
 				getInstalled: () => Promise.resolve(installed)
 			},
 		}, null, null));
+		instantiationService.stub(ILogService, NullLogService);
 		instantiationService.stub(IWorkbenchExtensionManagementService, disposableStore.add(instantiationService.createInstance(ExtensionManagementService)));
 		testObject = disposableStore.add(new TestExtensionEnablementService(instantiationService));
 	});
@@ -449,7 +456,7 @@ suite('ExtensionEnablementService Test', () => {
 
 		await testObject.setEnablement([extension], EnablementState.DisabledWorkspace);
 		await testObject.setEnablement([extension], EnablementState.DisabledGlobally);
-		didUninstallEvent.fire({ identifier: { id: 'pub.a' } });
+		didUninstallEvent.fire({ identifier: { id: 'pub.a' }, profileLocation: null! });
 
 		assert.ok(testObject.isEnabled(extension));
 		assert.strictEqual(testObject.getEnablementState(extension), EnablementState.EnabledGlobally);

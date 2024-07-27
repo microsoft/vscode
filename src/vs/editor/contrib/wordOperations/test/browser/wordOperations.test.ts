@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { isFirefox } from 'vs/base/common/platform';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { CoreEditingCommands } from 'vs/editor/browser/coreCommands';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -179,6 +180,82 @@ suite('WordOperations', () => {
 		assert.deepStrictEqual(actual, EXPECTED);
 	});
 
+	test('cursorWordLeft - Recognize words', function () {
+		if (isFirefox) {
+			// https://github.com/microsoft/vscode/issues/219843
+			return this.skip();
+		}
+		const EXPECTED = [
+			'|/* |これ|は|テスト|です |/*',
+		].join('\n');
+		const [text,] = deserializePipePositions(EXPECTED);
+		const actualStops = testRepeatedActionAndExtractPositions(
+			text,
+			new Position(1000, 1000),
+			ed => cursorWordLeft(ed, true),
+			ed => ed.getPosition()!,
+			ed => ed.getPosition()!.equals(new Position(1, 1)),
+			{
+				wordSegmenterLocales: 'ja'
+			}
+		);
+		const actual = serializePipePositions(text, actualStops);
+		assert.deepStrictEqual(actual, EXPECTED);
+	});
+
+	test('cursorWordLeft - Does not recognize words', () => {
+		const EXPECTED = [
+			'|/* |これはテストです |/*',
+		].join('\n');
+		const [text,] = deserializePipePositions(EXPECTED);
+		const actualStops = testRepeatedActionAndExtractPositions(
+			text,
+			new Position(1000, 1000),
+			ed => cursorWordLeft(ed, true),
+			ed => ed.getPosition()!,
+			ed => ed.getPosition()!.equals(new Position(1, 1)),
+			{
+				wordSegmenterLocales: ''
+			}
+		);
+		const actual = serializePipePositions(text, actualStops);
+		assert.deepStrictEqual(actual, EXPECTED);
+	});
+
+	test('cursorWordLeft - issue #169904: cursors out of sync', () => {
+		const text = [
+			'.grid1 {',
+			'  display: grid;',
+			'  grid-template-columns:',
+			'    [full-start] minmax(1em, 1fr)',
+			'    [main-start] minmax(0, 40em) [main-end]',
+			'    minmax(1em, 1fr) [full-end];',
+			'}',
+			'.grid2 {',
+			'  display: grid;',
+			'  grid-template-columns:',
+			'    [full-start] minmax(1em, 1fr)',
+			'    [main-start] minmax(0, 40em) [main-end] minmax(1em, 1fr) [full-end];',
+			'}',
+		];
+		withTestCodeEditor(text, {}, (editor) => {
+			editor.setSelections([
+				new Selection(5, 44, 5, 44),
+				new Selection(6, 32, 6, 32),
+				new Selection(12, 44, 12, 44),
+				new Selection(12, 72, 12, 72),
+			]);
+			cursorWordLeft(editor, false);
+			assert.deepStrictEqual(editor.getSelections(), [
+				new Selection(5, 43, 5, 43),
+				new Selection(6, 31, 6, 31),
+				new Selection(12, 43, 12, 43),
+				new Selection(12, 71, 12, 71),
+			]);
+
+		});
+	});
+
 	test('cursorWordLeftSelect - issue #74369: cursorWordLeft and cursorWordLeftSelect do not behave consistently', () => {
 		const EXPECTED = [
 			'|this.|is.|a.|test',
@@ -322,6 +399,48 @@ suite('WordOperations', () => {
 			ed => cursorWordRight(ed),
 			ed => ed.getPosition()!,
 			ed => ed.getPosition()!.equals(new Position(1, 17))
+		);
+		const actual = serializePipePositions(text, actualStops);
+		assert.deepStrictEqual(actual, EXPECTED);
+	});
+
+	test('cursorWordRight - Recognize words', function () {
+		if (isFirefox) {
+			// https://github.com/microsoft/vscode/issues/219843
+			return this.skip();
+		}
+		const EXPECTED = [
+			'/*| これ|は|テスト|です|/*|',
+		].join('\n');
+		const [text,] = deserializePipePositions(EXPECTED);
+		const actualStops = testRepeatedActionAndExtractPositions(
+			text,
+			new Position(1, 1),
+			ed => cursorWordRight(ed),
+			ed => ed.getPosition()!,
+			ed => ed.getPosition()!.equals(new Position(1, 14)),
+			{
+				wordSegmenterLocales: 'ja'
+			}
+		);
+		const actual = serializePipePositions(text, actualStops);
+		assert.deepStrictEqual(actual, EXPECTED);
+	});
+
+	test('cursorWordRight - Does not recognize words', () => {
+		const EXPECTED = [
+			'/*| これはテストです|/*|',
+		].join('\n');
+		const [text,] = deserializePipePositions(EXPECTED);
+		const actualStops = testRepeatedActionAndExtractPositions(
+			text,
+			new Position(1, 1),
+			ed => cursorWordRight(ed),
+			ed => ed.getPosition()!,
+			ed => ed.getPosition()!.equals(new Position(1, 14)),
+			{
+				wordSegmenterLocales: ''
+			}
 		);
 		const actual = serializePipePositions(text, actualStops);
 		assert.deepStrictEqual(actual, EXPECTED);

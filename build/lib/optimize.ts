@@ -16,6 +16,7 @@ import * as bundle from './bundle';
 import { Language, processNlsFiles } from './i18n';
 import { createStatsStream } from './stats';
 import * as util from './util';
+import { gulpPostcss } from './postcss';
 
 const REPO_ROOT_PATH = path.join(__dirname, '../..');
 
@@ -59,8 +60,7 @@ function loader(src: string, bundledFileHeader: string, bundleLoader: boolean, e
 	if (bundleLoader) {
 		loaderStream = es.merge(
 			loaderStream,
-			loaderPlugin(`${src}/vs/css.js`, `${src}`, 'vs/css'),
-			loaderPlugin(`${src}/vs/nls.js`, `${src}`, 'vs/nls'),
+			loaderPlugin(`${src}/vs/css.js`, `${src}`, 'vs/css')
 		);
 	}
 
@@ -72,10 +72,7 @@ function loader(src: string, bundledFileHeader: string, bundleLoader: boolean, e
 		if (f.path.endsWith('css.js')) {
 			return 1;
 		}
-		if (f.path.endsWith('nls.js')) {
-			return 2;
-		}
-		return 3;
+		return 2;
 	};
 
 	return (
@@ -268,6 +265,7 @@ function optimizeAMDTask(opts: IOptimizeAMDTaskOpts): NodeJS.ReadWriteStream {
 			includeContent: true
 		}))
 		.pipe(opts.languages && opts.languages.length ? processNlsFiles({
+			out: opts.src,
 			fileHeader: bundledFileHeader,
 			languages: opts.languages
 		}) : es.through());
@@ -381,7 +379,6 @@ export function minifyTask(src: string, sourceMapBaseUrl?: string): (cb: any) =>
 
 	return cb => {
 		const cssnano = require('cssnano') as typeof import('cssnano');
-		const postcss = require('gulp-postcss') as typeof import('gulp-postcss');
 		const sourcemaps = require('gulp-sourcemaps') as typeof import('gulp-sourcemaps');
 		const svgmin = require('gulp-svgmin') as typeof import('gulp-svgmin');
 
@@ -420,7 +417,7 @@ export function minifyTask(src: string, sourceMapBaseUrl?: string): (cb: any) =>
 			}),
 			jsFilter.restore,
 			cssFilter,
-			postcss([cssnano({ preset: 'default' })]),
+			gulpPostcss([cssnano({ preset: 'default' })]),
 			cssFilter.restore,
 			svgFilter,
 			svgmin(),

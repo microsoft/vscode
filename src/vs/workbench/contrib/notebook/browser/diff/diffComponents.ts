@@ -9,7 +9,7 @@ import { Schemas } from 'vs/base/common/network';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { DiffElementViewModelBase, getFormattedMetadataJSON, getFormattedOutputJSON, OutputComparison, outputEqual, OUTPUT_EDITOR_HEIGHT_MAGIC, PropertyFoldingState, SideBySideDiffElementViewModel, SingleSideDiffElementViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
 import { CellDiffSideBySideRenderTemplate, CellDiffSingleSideRenderTemplate, DiffSide, DIFF_CELL_MARGIN, INotebookTextDiffEditor, NOTEBOOK_DIFF_CELL_INPUT, NOTEBOOK_DIFF_CELL_PROPERTY, NOTEBOOK_DIFF_CELL_PROPERTY_EXPANDED } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
-import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
+import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { CellEditType, CellUri, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -42,6 +42,7 @@ import { fixedDiffEditorOptions, fixedEditorOptions, fixedEditorPadding } from '
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 export function getOptimizedNestedCodeEditorWidgetOptions(): ICodeEditorWidgetOptions {
 	return {
@@ -82,6 +83,7 @@ class PropertyHeader extends Disposable {
 		},
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@ICommandService private readonly commandService: ICommandService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
@@ -117,15 +119,15 @@ class PropertyHeader extends Disposable {
 
 		const cellToolbarContainer = DOM.append(this.propertyHeaderContainer, DOM.$('div.property-toolbar'));
 		this._toolbar = new WorkbenchToolBar(cellToolbarContainer, {
-			actionViewItemProvider: action => {
+			actionViewItemProvider: (action, options) => {
 				if (action instanceof MenuItemAction) {
-					const item = new CodiconActionViewItem(action, undefined, this.keybindingService, this.notificationService, this.contextKeyService, this.themeService, this.contextMenuService, this.accessibilityService);
+					const item = new CodiconActionViewItem(action, { hoverDelegate: options.hoverDelegate }, this.keybindingService, this.notificationService, this.contextKeyService, this.themeService, this.contextMenuService, this.accessibilityService);
 					return item;
 				}
 
 				return undefined;
 			}
-		}, this.menuService, this.contextKeyService, this.contextMenuService, this.keybindingService, this.telemetryService);
+		}, this.menuService, this.contextKeyService, this.contextMenuService, this.keybindingService, this.commandService, this.telemetryService);
 		this._register(this._toolbar);
 		this._toolbar.context = {
 			cell: this.cell
@@ -233,15 +235,15 @@ interface IDiffElementLayoutState {
 }
 
 abstract class AbstractElementRenderer extends Disposable {
-	protected _metadataLocalDisposable = this._register(new DisposableStore());
-	protected _outputLocalDisposable = this._register(new DisposableStore());
+	protected readonly _metadataLocalDisposable = this._register(new DisposableStore());
+	protected readonly _outputLocalDisposable = this._register(new DisposableStore());
 	protected _ignoreMetadata: boolean = false;
 	protected _ignoreOutputs: boolean = false;
 	protected _metadataHeaderContainer!: HTMLElement;
 	protected _metadataHeader!: PropertyHeader;
 	protected _metadataInfoContainer!: HTMLElement;
 	protected _metadataEditorContainer?: HTMLElement;
-	protected _metadataEditorDisposeStore!: DisposableStore;
+	protected readonly _metadataEditorDisposeStore!: DisposableStore;
 	protected _metadataEditor?: CodeEditorWidget | DiffEditorWidget;
 
 	protected _outputHeaderContainer!: HTMLElement;
@@ -255,7 +257,7 @@ abstract class AbstractElementRenderer extends Disposable {
 	protected _outputEmptyElement?: HTMLElement;
 	protected _outputLeftView?: OutputContainer;
 	protected _outputRightView?: OutputContainer;
-	protected _outputEditorDisposeStore!: DisposableStore;
+	protected readonly _outputEditorDisposeStore!: DisposableStore;
 	protected _outputEditor?: CodeEditorWidget | DiffEditorWidget;
 	protected _outputMetadataEditor?: DiffEditorWidget;
 
@@ -752,6 +754,8 @@ abstract class SingleSideDiffElement extends AbstractElementRenderer {
 		);
 		this.cell = cell;
 		this.templateData = templateData;
+
+		this.updateBorders();
 	}
 
 	init() {
@@ -1243,6 +1247,8 @@ export class ModifiedElement extends AbstractElementRenderer {
 		this.cell = cell;
 		this.templateData = templateData;
 		this._editorViewStateChanged = false;
+
+		this.updateBorders();
 	}
 
 	init() { }
@@ -1538,11 +1544,10 @@ export class ModifiedElement extends AbstractElementRenderer {
 			}
 		}));
 
-		const menu = this.menuService.createMenu(MenuId.NotebookDiffCellInputTitle, scopedContextKeyService);
+		const menu = this.menuService.getMenuActions(MenuId.NotebookDiffCellInputTitle, scopedContextKeyService, { shouldForwardArgs: true });
 		const actions: IAction[] = [];
-		createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, actions);
+		createAndFillInActionBarActions(menu, actions);
 		this._toolbar.setActions(actions);
-		menu.dispose();
 	}
 
 	private async _initializeSourceDiffEditor() {

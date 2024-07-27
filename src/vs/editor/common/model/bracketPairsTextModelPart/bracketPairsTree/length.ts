@@ -6,75 +6,7 @@
 import { splitLines } from 'vs/base/common/strings';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-
-/**
- * Represents a non-negative length in terms of line and column count.
- * Prefer using {@link Length} for performance reasons.
-*/
-export class LengthObj {
-	public static zero = new LengthObj(0, 0);
-
-	public static lengthDiffNonNegative(start: LengthObj, end: LengthObj): LengthObj {
-		if (end.isLessThan(start)) {
-			return LengthObj.zero;
-		}
-		if (start.lineCount === end.lineCount) {
-			return new LengthObj(0, end.columnCount - start.columnCount);
-		} else {
-			return new LengthObj(end.lineCount - start.lineCount, end.columnCount);
-		}
-	}
-
-	constructor(
-		public readonly lineCount: number,
-		public readonly columnCount: number
-	) { }
-
-	public isZero() {
-		return this.lineCount === 0 && this.columnCount === 0;
-	}
-
-	public toLength(): Length {
-		return toLength(this.lineCount, this.columnCount);
-	}
-
-	public isLessThan(other: LengthObj): boolean {
-		if (this.lineCount !== other.lineCount) {
-			return this.lineCount < other.lineCount;
-		}
-		return this.columnCount < other.columnCount;
-	}
-
-	public isGreaterThan(other: LengthObj): boolean {
-		if (this.lineCount !== other.lineCount) {
-			return this.lineCount > other.lineCount;
-		}
-		return this.columnCount > other.columnCount;
-	}
-
-	public equals(other: LengthObj): boolean {
-		return this.lineCount === other.lineCount && this.columnCount === other.columnCount;
-	}
-
-	public compare(other: LengthObj): number {
-		if (this.lineCount !== other.lineCount) {
-			return this.lineCount - other.lineCount;
-		}
-		return this.columnCount - other.columnCount;
-	}
-
-	public add(other: LengthObj): LengthObj {
-		if (other.lineCount === 0) {
-			return new LengthObj(this.lineCount, this.columnCount + other.columnCount);
-		} else {
-			return new LengthObj(this.lineCount + other.lineCount, other.columnCount);
-		}
-	}
-
-	toString() {
-		return `${this.lineCount},${this.columnCount}`;
-	}
-}
+import { TextLength } from 'vs/editor/common/core/textLength';
 
 /**
  * The end must be greater than or equal to the start.
@@ -117,11 +49,11 @@ export function toLength(lineCount: number, columnCount: number): Length {
 	return (lineCount * factor + columnCount) as any as Length;
 }
 
-export function lengthToObj(length: Length): LengthObj {
+export function lengthToObj(length: Length): TextLength {
 	const l = length as any as number;
 	const lineCount = Math.floor(l / factor);
 	const columnCount = l - lineCount * factor;
-	return new LengthObj(lineCount, columnCount);
+	return new TextLength(lineCount, columnCount);
 }
 
 export function lengthGetLineCount(length: Length): number {
@@ -216,11 +148,11 @@ export function lengthsToRange(lengthStart: Length, lengthEnd: Length): Range {
 	return new Range(lineCount + 1, colCount + 1, lineCount2 + 1, colCount2 + 1);
 }
 
-export function lengthOfRange(range: Range): LengthObj {
+export function lengthOfRange(range: Range): TextLength {
 	if (range.startLineNumber === range.endLineNumber) {
-		return new LengthObj(0, range.endColumn - range.startColumn);
+		return new TextLength(0, range.endColumn - range.startColumn);
 	} else {
-		return new LengthObj(range.endLineNumber - range.startLineNumber, range.endColumn - 1);
+		return new TextLength(range.endLineNumber - range.startLineNumber, range.endColumn - 1);
 	}
 }
 
@@ -235,9 +167,9 @@ export function lengthOfString(str: string): Length {
 	return toLength(lines.length - 1, lines[lines.length - 1].length);
 }
 
-export function lengthOfStringObj(str: string): LengthObj {
+export function lengthOfStringObj(str: string): TextLength {
 	const lines = splitLines(str);
-	return new LengthObj(lines.length - 1, lines[lines.length - 1].length);
+	return new TextLength(lines.length - 1, lines[lines.length - 1].length);
 }
 
 /**

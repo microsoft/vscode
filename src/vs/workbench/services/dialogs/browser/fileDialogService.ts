@@ -19,7 +19,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { extractFileListData } from 'vs/platform/dnd/browser/dnd';
 import { Iterable } from 'vs/base/common/iterator';
 import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAccess';
-import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
+import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/embeddedCodeEditorWidget';
 
 export class FileDialogService extends AbstractFileDialogService implements IFileDialogService {
 

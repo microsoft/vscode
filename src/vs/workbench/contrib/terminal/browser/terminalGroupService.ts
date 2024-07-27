@@ -66,13 +66,11 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 	) {
 		super();
 
-		this.onDidDisposeGroup(group => this._removeGroup(group));
-
 		this._terminalGroupCountContextKey = TerminalContextKeys.groupCount.bindTo(this._contextKeyService);
 
-		this.onDidChangeGroups(() => this._terminalGroupCountContextKey.set(this.groups.length));
-
-		Event.any(this.onDidChangeActiveGroup, this.onDidChangeInstances)(() => this.updateVisibility());
+		this._register(this.onDidDisposeGroup(group => this._removeGroup(group)));
+		this._register(this.onDidChangeGroups(() => this._terminalGroupCountContextKey.set(this.groups.length)));
+		this._register(Event.any(this.onDidChangeActiveGroup, this.onDidChangeInstances)(() => this.updateVisibility()));
 	}
 
 	hidePanel(): void {
@@ -138,25 +136,28 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		pane?.terminalTabbedView?.focusHover();
 	}
 
+	async focusInstance(_: ITerminalInstance): Promise<void> {
+		return this.showPanel(true);
+	}
+
 	async focusActiveInstance(): Promise<void> {
 		return this.showPanel(true);
 	}
 
 	createGroup(slcOrInstance?: IShellLaunchConfig | ITerminalInstance): ITerminalGroup {
 		const group = this._instantiationService.createInstance(TerminalGroup, this._container, slcOrInstance);
-		// TODO: Move panel orientation change into this file so it's not fired many times
-		group.onPanelOrientationChanged((orientation) => this._onDidChangePanelOrientation.fire(orientation));
 		this.groups.push(group);
-		group.addDisposable(group.onDidDisposeInstance(this._onDidDisposeInstance.fire, this._onDidDisposeInstance));
-		group.addDisposable(group.onDidFocusInstance(this._onDidFocusInstance.fire, this._onDidFocusInstance));
+		group.addDisposable(Event.forward(group.onPanelOrientationChanged, this._onDidChangePanelOrientation));
+		group.addDisposable(Event.forward(group.onDidDisposeInstance, this._onDidDisposeInstance));
+		group.addDisposable(Event.forward(group.onDidFocusInstance, this._onDidFocusInstance));
+		group.addDisposable(Event.forward(group.onDidChangeInstanceCapability, this._onDidChangeInstanceCapability));
+		group.addDisposable(Event.forward(group.onInstancesChanged, this._onDidChangeInstances));
+		group.addDisposable(Event.forward(group.onDisposed, this._onDidDisposeGroup));
 		group.addDisposable(group.onDidChangeActiveInstance(e => {
 			if (group === this.activeGroup) {
 				this._onDidChangeActiveInstance.fire(e);
 			}
 		}));
-		group.addDisposable(group.onDidChangeInstanceCapability(this._onDidChangeInstanceCapability.fire, this._onDidChangeInstanceCapability));
-		group.addDisposable(group.onInstancesChanged(this._onDidChangeInstances.fire, this._onDidChangeInstances));
-		group.addDisposable(group.onDisposed(this._onDidDisposeGroup.fire, this._onDidDisposeGroup));
 		if (group.terminalInstances.length > 0) {
 			this._onDidChangeInstances.fire();
 		}
@@ -393,7 +394,7 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 					break;
 				}
 			}
-			if (!differentGroups) {
+			if (!differentGroups && group.terminalInstances.length === instances.length) {
 				return;
 			}
 		}

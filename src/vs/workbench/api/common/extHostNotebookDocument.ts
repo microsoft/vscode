@@ -211,6 +211,9 @@ export class ExtHostNotebookDocument {
 				},
 				save() {
 					return that._save();
+				},
+				[Symbol.for('debug.description')]() {
+					return `NotebookDocument(${this.uri.toString()})`;
 				}
 			};
 			this._notebook = Object.freeze(apiObject);
@@ -442,17 +445,7 @@ export class ExtHostNotebookDocument {
 		return this._cells[index];
 	}
 
-	getCell(cellHandle: number | URI): ExtHostCell | undefined {
-		if (URI.isUri(cellHandle)) {
-			const data = notebookCommon.CellUri.parse(cellHandle);
-			if (!data) {
-				return undefined;
-			}
-			if (data.notebook.toString() !== this.uri.toString()) {
-				return undefined;
-			}
-			cellHandle = data.handle;
-		}
+	getCell(cellHandle: number): ExtHostCell | undefined {
 		return this._cells.find(cell => cell.handle === cellHandle);
 	}
 

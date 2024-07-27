@@ -34,7 +34,7 @@ if [ "$VSCODE_INJECTION" == "1" ]; then
 
 		# Apply any explicit path prefix (see #99878)
 		if [ -n "${VSCODE_PATH_PREFIX:-}" ]; then
-			export PATH=$VSCODE_PATH_PREFIX$PATH
+			export PATH="$VSCODE_PATH_PREFIX$PATH"
 			builtin unset VSCODE_PATH_PREFIX
 		fi
 	fi
@@ -50,7 +50,7 @@ if [ -n "${VSCODE_ENV_REPLACE:-}" ]; then
 	IFS=':' read -ra ADDR <<< "$VSCODE_ENV_REPLACE"
 	for ITEM in "${ADDR[@]}"; do
 		VARNAME="$(echo $ITEM | cut -d "=" -f 1)"
-		VALUE="$(echo -e "$ITEM" | cut -d "=" -f 2)"
+		VALUE="$(echo -e "$ITEM" | cut -d "=" -f 2-)"
 		export $VARNAME="$VALUE"
 	done
 	builtin unset VSCODE_ENV_REPLACE
@@ -59,7 +59,7 @@ if [ -n "${VSCODE_ENV_PREPEND:-}" ]; then
 	IFS=':' read -ra ADDR <<< "$VSCODE_ENV_PREPEND"
 	for ITEM in "${ADDR[@]}"; do
 		VARNAME="$(echo $ITEM | cut -d "=" -f 1)"
-		VALUE="$(echo -e "$ITEM" | cut -d "=" -f 2)"
+		VALUE="$(echo -e "$ITEM" | cut -d "=" -f 2-)"
 		export $VARNAME="$VALUE${!VARNAME}"
 	done
 	builtin unset VSCODE_ENV_PREPEND
@@ -68,7 +68,7 @@ if [ -n "${VSCODE_ENV_APPEND:-}" ]; then
 	IFS=':' read -ra ADDR <<< "$VSCODE_ENV_APPEND"
 	for ITEM in "${ADDR[@]}"; do
 		VARNAME="$(echo $ITEM | cut -d "=" -f 1)"
-		VALUE="$(echo -e "$ITEM" | cut -d "=" -f 2)"
+		VALUE="$(echo -e "$ITEM" | cut -d "=" -f 2-)"
 		export $VARNAME="${!VARNAME}$VALUE"
 	done
 	builtin unset VSCODE_ENV_APPEND
@@ -112,15 +112,25 @@ __vsc_escape_value() {
 	fi
 
 	# Process text byte by byte, not by codepoint.
-	builtin local LC_ALL=C str="${1}" i byte token out=''
+	builtin local -r LC_ALL=C
+	builtin local -r str="${1}"
+	builtin local -ir len="${#str}"
+
+	builtin local -i i
+	builtin local -i val
+	builtin local byte
+	builtin local token
+	builtin local out=''
 
 	for (( i=0; i < "${#str}"; ++i )); do
+		# Escape backslashes, semi-colons specially, then special ASCII chars below space (0x20).
 		byte="${str:$i:1}"
-
-		# Escape backslashes and semi-colons
-		if [ "$byte" = "\\" ]; then
+		builtin printf -v val '%d' "'$byte"
+		if  (( val < 31 )); then
+			builtin printf -v token '\\x%02x' "'$byte"
+		elif (( val == 92 )); then # \
 			token="\\\\"
-		elif [ "$byte" = ";" ]; then
+		elif (( val == 59 )); then # ;
 			token="\\x3b"
 		else
 			token="$byte"
@@ -129,21 +139,29 @@ __vsc_escape_value() {
 		out+="$token"
 	done
 
-	builtin printf '%s\n' "${out}"
+	builtin printf '%s\n' "$out"
 }
 
 # Send the IsWindows property if the environment looks like Windows
-if [[ "$(uname -s)" =~ ^CYGWIN*|MINGW*|MSYS* ]]; then
+__vsc_regex_environment="^CYGWIN*|MINGW*|MSYS*"
+if [[ "$(uname -s)" =~ $__vsc_regex_environment ]]; then
 	builtin printf '\e]633;P;IsWindows=True\a'
+	__vsc_is_windows=1
+else
+	__vsc_is_windows=0
 fi
 
 # Allow verifying $BASH_COMMAND doesn't have aliases resolved via history when the right HISTCONTROL
 # configuration is used
-if [[ "$HISTCONTROL" =~ .*(erasedups|ignoreboth|ignoredups).* ]]; then
+__vsc_regex_histcontrol=".*(erasedups|ignoreboth|ignoredups).*"
+if [[ "$HISTCONTROL" =~ $__vsc_regex_histcontrol ]]; then
 	__vsc_history_verify=0
 else
 	__vsc_history_verify=1
 fi
+
+builtin unset __vsc_regex_environment
+builtin unset __vsc_regex_histcontrol
 
 __vsc_initialized=0
 __vsc_original_PS1="$PS1"
@@ -157,6 +175,28 @@ __vsc_current_command=""
 __vsc_nonce="$VSCODE_NONCE"
 unset VSCODE_NONCE
 
+# Some features should only work in Insiders
+__vsc_stable="$VSCODE_STABLE"
+unset VSCODE_STABLE
+
+# Report continuation prompt
+if [ "$__vsc_stable" = "0" ]; then
+	builtin printf "\e]633;P;ContinuationPrompt=$(echo "$PS2" | sed 's/\x1b/\\\\x1b/g')\a"
+fi
+
+__vsc_report_prompt() {
+	# Expand the original PS1 similarly to how bash would normally
+	# See https://stackoverflow.com/a/37137981 for technique
+	if ((BASH_VERSINFO[0] >= 5 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 4))); then
+		__vsc_prompt=${__vsc_original_PS1@P}
+	else
+		__vsc_prompt=${__vsc_original_PS1}
+	fi
+
+	__vsc_prompt="$(builtin printf "%s" "${__vsc_prompt//[$'\001'$'\002']}")"
+	builtin printf "\e]633;P;Prompt=%s\a" "$(__vsc_escape_value "${__vsc_prompt}")"
+}
+
 __vsc_prompt_start() {
 	builtin printf '\e]633;A\a'
 }
@@ -166,12 +206,20 @@ __vsc_prompt_end() {
 }
 
 __vsc_update_cwd() {
-	builtin printf '\e]633;P;Cwd=%s\a' "$(__vsc_escape_value "$PWD")"
+	if [ "$__vsc_is_windows" = "1" ]; then
+		__vsc_cwd="$(cygpath -m "$PWD")"
+	else
+		__vsc_cwd="$PWD"
+	fi
+	builtin printf '\e]633;P;Cwd=%s\a' "$(__vsc_escape_value "$__vsc_cwd")"
 }
 
 __vsc_command_output_start() {
-	builtin printf '\e]633;C\a'
+	if [[ -z "${__vsc_first_prompt-}" ]]; then
+		builtin return
+	fi
 	builtin printf '\e]633;E;%s;%s\a' "$(__vsc_escape_value "${__vsc_current_command}")" $__vsc_nonce
+	builtin printf '\e]633;C\a'
 }
 
 __vsc_continuation_start() {
@@ -183,6 +231,9 @@ __vsc_continuation_end() {
 }
 
 __vsc_command_complete() {
+	if [[ -z "${__vsc_first_prompt-}" ]]; then
+		builtin return
+	fi
 	if [ "$__vsc_current_command" = "" ]; then
 		builtin printf '\e]633;D\a'
 	else
@@ -212,6 +263,11 @@ __vsc_update_prompt() {
 __vsc_precmd() {
 	__vsc_command_complete "$__vsc_status"
 	__vsc_current_command=""
+	# Report prompt is a work in progress, currently encoding is too slow
+	if [ "$__vsc_stable" = "0" ]; then
+		__vsc_report_prompt
+	fi
+	__vsc_first_prompt=1
 	__vsc_update_prompt
 }
 
@@ -275,6 +331,7 @@ __vsc_prompt_cmd_original() {
 	__vsc_restore_exit_code "${__vsc_status}"
 	# Evaluate the original PROMPT_COMMAND similarly to how bash would normally
 	# See https://unix.stackexchange.com/a/672843 for technique
+	builtin local cmd
 	for cmd in "${__vsc_original_prompt_command[@]}"; do
 		eval "${cmd:-}"
 	done

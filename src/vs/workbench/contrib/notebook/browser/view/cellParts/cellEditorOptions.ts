@@ -96,15 +96,15 @@ export class CellEditorOptions extends CellContentPart implements ITextModelUpda
 
 		// TODO @Yoyokrazy find a different way to get the editor overrides, this is not the right way
 		const cellEditorOverridesRaw = this.notebookOptions.getDisplayOptions().editorOptionsCustomizations;
-		const indentSize = cellEditorOverridesRaw['editor.indentSize'];
+		const indentSize = cellEditorOverridesRaw?.['editor.indentSize'];
 		if (indentSize !== undefined) {
 			this.indentSize = indentSize;
 		}
-		const insertSpaces = cellEditorOverridesRaw['editor.insertSpaces'];
+		const insertSpaces = cellEditorOverridesRaw?.['editor.insertSpaces'];
 		if (insertSpaces !== undefined) {
 			this.insertSpaces = insertSpaces;
 		}
-		const tabSize = cellEditorOverridesRaw['editor.tabSize'];
+		const tabSize = cellEditorOverridesRaw?.['editor.tabSize'];
 		if (tabSize !== undefined) {
 			this.tabSize = tabSize;
 		}
