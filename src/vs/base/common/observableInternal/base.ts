@@ -66,6 +66,8 @@ export interface IObservable<T, TChange = unknown> {
 	map<TNew>(fn: (value: T, reader: IReader) => TNew): IObservable<TNew>;
 	map<TNew>(owner: object, fn: (value: T, reader: IReader) => TNew): IObservable<TNew>;
 
+	flatten<TNew>(this: IObservable<IObservable<TNew>>): IObservable<TNew>;
+
 	/**
 	 * Makes sure this value is computed eagerly.
 	 */
@@ -229,6 +231,20 @@ export abstract class ConvenientObservable<T, TChange> implements IObservable<T,
 				debugReferenceFn: fn,
 			},
 			(reader) => fn(this.read(reader), reader),
+		);
+	}
+
+	/**
+	 * @sealed
+	 * Converts an observable of an observable value into a direct observable of the value.
+	*/
+	public flatten<TNew>(this: IObservable<IObservable<TNew, any>>): IObservable<TNew, unknown> {
+		return _derived(
+			{
+				owner: undefined,
+				debugName: () => `${this.debugName} (flattened)`,
+			},
+			(reader) => this.read(reader).read(reader),
 		);
 	}
 

@@ -18,6 +18,7 @@ import { removeDangerousEnvVariables } from 'vs/base/common/processes';
 import { deepClone } from 'vs/base/common/objects';
 import { isWindows } from 'vs/base/common/platform';
 import { isUNCAccessRestrictionsDisabled, getUNCHostAllowlist } from 'vs/base/node/unc';
+import { upcast } from 'vs/base/common/types';
 
 export interface IUtilityProcessConfiguration {
 
@@ -76,6 +77,13 @@ export interface IUtilityProcessConfiguration {
 	 * the V8 sandbox.
 	 */
 	readonly forceAllocationsToV8Sandbox?: boolean;
+
+	/**
+	 * HTTP 401 and 407 requests created via electron:net module
+	 * will be redirected to the main process and can be handled
+	 * via the app#login event.
+	 */
+	readonly respondToAuthRequestsFromMainProcess?: boolean;
 }
 
 export interface IWindowUtilityProcessConfiguration extends IUtilityProcessConfiguration {
@@ -235,20 +243,25 @@ export class UtilityProcess extends Disposable {
 		const execArgv = this.configuration.execArgv ?? [];
 		const allowLoadingUnsignedLibraries = this.configuration.allowLoadingUnsignedLibraries;
 		const forceAllocationsToV8Sandbox = this.configuration.forceAllocationsToV8Sandbox;
+		const respondToAuthRequestsFromMainProcess = this.configuration.respondToAuthRequestsFromMainProcess;
 		const stdio = 'pipe';
 		const env = this.createEnv(configuration);
 
 		this.log('creating new...', Severity.Info);
 
 		// Fork utility process
-		this.process = utilityProcess.fork(modulePath, args, {
+		this.process = utilityProcess.fork(modulePath, args, upcast<ForkOptions, ForkOptions & {
+			forceAllocationsToV8Sandbox?: boolean;
+			respondToAuthRequestsFromMainProcess?: boolean;
+		}>({
 			serviceName,
 			env,
 			execArgv,
 			allowLoadingUnsignedLibraries,
 			forceAllocationsToV8Sandbox,
+			respondToAuthRequestsFromMainProcess,
 			stdio
-		} as ForkOptions & { forceAllocationsToV8Sandbox?: Boolean });
+		}));
 
 		// Register to events
 		this.registerListeners(this.process, this.configuration, serviceName);

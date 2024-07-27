@@ -149,6 +149,9 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 
 	@debounce(500)
 	private _handleCursorMove() {
+		if (this._store.isDisposed) {
+			return;
+		}
 		// Early versions of conpty do not have real support for an alt buffer, in addition certain
 		// commands such as tsc watch will write to the top of the normal buffer. The following
 		// checks when the cursor has moved while the normal buffer is empty and if it is above the

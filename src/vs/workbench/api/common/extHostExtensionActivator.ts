@@ -5,7 +5,7 @@
 
 import type * as vscode from 'vscode';
 import * as errors from 'vs/base/common/errors';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import { ExtensionIdentifier, ExtensionIdentifierMap } from 'vs/platform/extensions/common/extensions';
 import { ExtensionActivationReason, MissingExtensionDependency } from 'vs/workbench/services/extensions/common/extensions';
@@ -119,7 +119,7 @@ export class ActivatedExtension {
 	public readonly activationTimes: ExtensionActivationTimes;
 	public readonly module: IExtensionModule;
 	public readonly exports: IExtensionAPI | undefined;
-	public readonly subscriptions: IDisposable[];
+	public readonly disposable: IDisposable;
 
 	constructor(
 		activationFailed: boolean,
@@ -127,32 +127,32 @@ export class ActivatedExtension {
 		activationTimes: ExtensionActivationTimes,
 		module: IExtensionModule,
 		exports: IExtensionAPI | undefined,
-		subscriptions: IDisposable[]
+		disposable: IDisposable
 	) {
 		this.activationFailed = activationFailed;
 		this.activationFailedError = activationFailedError;
 		this.activationTimes = activationTimes;
 		this.module = module;
 		this.exports = exports;
-		this.subscriptions = subscriptions;
+		this.disposable = disposable;
 	}
 }
 
 export class EmptyExtension extends ActivatedExtension {
 	constructor(activationTimes: ExtensionActivationTimes) {
-		super(false, null, activationTimes, { activate: undefined, deactivate: undefined }, undefined, []);
+		super(false, null, activationTimes, { activate: undefined, deactivate: undefined }, undefined, Disposable.None);
 	}
 }
 
 export class HostExtension extends ActivatedExtension {
 	constructor() {
-		super(false, null, ExtensionActivationTimes.NONE, { activate: undefined, deactivate: undefined }, undefined, []);
+		super(false, null, ExtensionActivationTimes.NONE, { activate: undefined, deactivate: undefined }, undefined, Disposable.None);
 	}
 }
 
 class FailedExtension extends ActivatedExtension {
 	constructor(activationError: Error) {
-		super(true, activationError, ExtensionActivationTimes.NONE, { activate: undefined, deactivate: undefined }, undefined, []);
+		super(true, activationError, ExtensionActivationTimes.NONE, { activate: undefined, deactivate: undefined }, undefined, Disposable.None);
 	}
 }
 

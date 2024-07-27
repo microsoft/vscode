@@ -357,7 +357,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 			let item: IActionViewItem | undefined;
 
-			const viewItemOptions = { hoverDelegate: this._hoverDelegate, ...options };
+			const viewItemOptions: IActionViewItemOptions = { hoverDelegate: this._hoverDelegate, ...options, isTabList: this.options.ariaRole === 'tablist' };
 			if (this.options.actionViewItemProvider) {
 				item = this.options.actionViewItemProvider(action, viewItemOptions);
 			}

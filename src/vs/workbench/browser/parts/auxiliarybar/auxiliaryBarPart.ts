@@ -240,14 +240,6 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 		return headerArea;
 	}
 
-	protected override getToolbarWidth(): number {
-		if (this.getCompositeBarPosition() === CompositeBarPosition.TOP) {
-			return 22;
-		}
-
-		return super.getToolbarWidth();
-	}
-
 	private headerActionViewItemProvider(action: IAction, options: IActionViewItemOptions): IActionViewItem | undefined {
 		if (action.id === ToggleAuxiliaryBarAction.ID) {
 			return this.instantiationService.createInstance(ActionViewItem, undefined, action, options);

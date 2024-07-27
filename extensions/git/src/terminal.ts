@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ExtensionContext, l10n, workspace } from 'vscode';
-import { filterEvent, IDisposable } from './util';
+import { ExtensionContext, l10n, LogOutputChannel, TerminalShellExecutionEndEvent, window, workspace } from 'vscode';
+import { dispose, filterEvent, IDisposable } from './util';
+import { Model } from './model';
 
 export interface ITerminalEnvironmentProvider {
 	featureDescription?: string;
@@ -48,5 +49,44 @@ export class TerminalEnvironmentManager {
 
 	dispose(): void {
 		this.disposable.dispose();
+	}
+}
+
+export class TerminalShellExecutionManager {
+	private readonly subcommands = new Set<string>([
+		'add', 'branch', 'checkout', 'clean', 'commit',
+		'fetch', 'reset', 'revert', 'pull', 'push', 'switch']);
+
+	private readonly disposables: IDisposable[] = [];
+
+	constructor(
+		private readonly model: Model,
+		private readonly logger: LogOutputChannel
+	) {
+		window.onDidEndTerminalShellExecution(this.onDidEndTerminalShellExecution, this, this.disposables);
+	}
+
+	private onDidEndTerminalShellExecution(e: TerminalShellExecutionEndEvent): void {
+		const { execution, exitCode, shellIntegration } = e;
+		const [executable, subcommand] = execution.commandLine.value.split(/\s+/);
+		const cwd = execution.cwd ?? shellIntegration.cwd;
+
+		if (executable.toLowerCase() !== 'git' || !this.subcommands.has(subcommand.toLowerCase()) || !cwd || exitCode !== 0) {
+			return;
+		}
+
+		this.logger.trace(`[TerminalShellExecutionManager][onDidEndTerminalShellExecution] Matched git subcommand: ${subcommand}`);
+
+		const repository = this.model.getRepository(cwd);
+		if (!repository) {
+			this.logger.trace(`[TerminalShellExecutionManager][onDidEndTerminalShellExecution] Unable to find repository for current working directory: ${cwd.toString()}`);
+			return;
+		}
+
+		repository.status();
+	}
+
+	dispose(): void {
+		dispose(this.disposables);
 	}
 }

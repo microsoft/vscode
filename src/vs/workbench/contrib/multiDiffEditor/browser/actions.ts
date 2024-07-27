@@ -12,9 +12,11 @@ import { Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ITextEditorOptions, TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IListService } from 'vs/platform/list/browser/listService';
 import { resolveCommandsContext } from 'vs/workbench/browser/parts/editor/editorCommandsContext';
 import { MultiDiffEditor } from 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffEditor';
 import { MultiDiffEditorInput } from 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class GoToFileAction extends Action2 {
@@ -81,7 +83,7 @@ export class CollapseAllAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
-		const resolvedContext = resolveCommandsContext(accessor, args);
+		const resolvedContext = resolveCommandsContext(args, accessor.get(IEditorService), accessor.get(IEditorGroupsService), accessor.get(IListService));
 
 		const groupContext = resolvedContext.groupedEditors[0];
 		if (!groupContext) {
@@ -114,7 +116,7 @@ export class ExpandAllAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
-		const resolvedContext = resolveCommandsContext(accessor, args);
+		const resolvedContext = resolveCommandsContext(args, accessor.get(IEditorService), accessor.get(IEditorGroupsService), accessor.get(IListService));
 
 		const groupContext = resolvedContext.groupedEditors[0];
 		if (!groupContext) {

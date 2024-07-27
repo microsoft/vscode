@@ -9,7 +9,7 @@ import { cloneAndChange } from 'vs/base/common/objects';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { DefaultURITransformer, IURITransformer, transformAndReviveIncomingURIs } from 'vs/base/common/uriIpc';
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IExtensionIdentifier, IExtensionTipsService, IGalleryExtension, ILocalExtension, IExtensionsControlManifest, isTargetPlatformCompatible, InstallOptions, UninstallOptions, Metadata, IExtensionManagementService, DidUninstallExtensionEvent, InstallExtensionEvent, InstallExtensionResult, UninstallExtensionEvent, InstallOperation, InstallExtensionInfo, IProductVersion, DidUpdateExtensionMetadata } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionIdentifier, IExtensionTipsService, IGalleryExtension, ILocalExtension, IExtensionsControlManifest, isTargetPlatformCompatible, InstallOptions, UninstallOptions, Metadata, IExtensionManagementService, DidUninstallExtensionEvent, InstallExtensionEvent, InstallExtensionResult, UninstallExtensionEvent, InstallOperation, InstallExtensionInfo, IProductVersion, DidUpdateExtensionMetadata, UninstallExtensionInfo } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionType, IExtensionManifest, TargetPlatform } from 'vs/platform/extensions/common/extensions';
 
 function transformIncomingURI(uri: UriComponents, transformer: IURITransformer | null): URI;
@@ -136,6 +136,10 @@ export class ExtensionManagementChannel implements IServerChannel {
 			}
 			case 'uninstall': {
 				return this.service.uninstall(transformIncomingExtension(args[0], uriTransformer), transformIncomingOptions(args[1], uriTransformer));
+			}
+			case 'uninstallExtensions': {
+				const arg: UninstallExtensionInfo[] = args[0];
+				return this.service.uninstallExtensions(arg.map(({ extension, options }) => ({ extension: transformIncomingExtension(extension, uriTransformer), options: transformIncomingOptions(options, uriTransformer) })));
 			}
 			case 'reinstallFromGallery': {
 				return this.service.reinstallFromGallery(transformIncomingExtension(args[0], uriTransformer));
@@ -269,6 +273,14 @@ export class ExtensionManagementChannelClient extends Disposable implements IExt
 			throw new Error('Cannot uninstall a workspace extension');
 		}
 		return Promise.resolve(this.channel.call<void>('uninstall', [extension, options]));
+	}
+
+	uninstallExtensions(extensions: UninstallExtensionInfo[]): Promise<void> {
+		if (extensions.some(e => e.extension.isWorkspaceScoped)) {
+			throw new Error('Cannot uninstall a workspace extension');
+		}
+		return Promise.resolve(this.channel.call<void>('uninstallExtensions', [extensions]));
+
 	}
 
 	reinstallFromGallery(extension: ILocalExtension): Promise<ILocalExtension> {

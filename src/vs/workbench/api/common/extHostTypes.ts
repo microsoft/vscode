@@ -1236,18 +1236,18 @@ export class Hover {
 @es5ClassCompat
 export class VerboseHover extends Hover {
 
-	public canIncreaseHover: boolean | undefined;
-	public canDecreaseHover: boolean | undefined;
+	public canIncreaseVerbosity: boolean | undefined;
+	public canDecreaseVerbosity: boolean | undefined;
 
 	constructor(
 		contents: vscode.MarkdownString | vscode.MarkedString | (vscode.MarkdownString | vscode.MarkedString)[],
 		range?: Range,
-		canIncreaseHover?: boolean,
-		canDecreaseHover?: boolean,
+		canIncreaseVerbosity?: boolean,
+		canDecreaseVerbosity?: boolean,
 	) {
 		super(contents, range);
-		this.canIncreaseHover = canIncreaseHover;
-		this.canDecreaseHover = canDecreaseHover;
+		this.canIncreaseVerbosity = canIncreaseVerbosity;
+		this.canDecreaseVerbosity = canDecreaseVerbosity;
 	}
 }
 
@@ -3341,6 +3341,11 @@ export enum CommentThreadApplicability {
 	Outdated = 1
 }
 
+export enum CommentThreadFocus {
+	Reply = 1,
+	Comment = 2
+}
+
 //#endregion
 
 //#region Semantic Coloring
@@ -3591,6 +3596,11 @@ export class DebugVisualization {
 }
 
 //#endregion
+
+export enum QuickInputButtonLocation {
+	Title = 1,
+	Inline = 2
+}
 
 @es5ClassCompat
 export class QuickInputButtons {
@@ -4457,9 +4467,22 @@ export class ChatResponseCommandButtonPart {
 export class ChatResponseReferencePart {
 	value: vscode.Uri | vscode.Location | { variableName: string; value?: vscode.Uri | vscode.Location };
 	iconPath?: vscode.Uri | vscode.ThemeIcon | { light: vscode.Uri; dark: vscode.Uri };
-	constructor(value: vscode.Uri | vscode.Location | { variableName: string; value?: vscode.Uri | vscode.Location }, iconPath?: vscode.Uri | vscode.ThemeIcon | { light: vscode.Uri; dark: vscode.Uri }) {
+	options?: { status?: { description: string; kind: vscode.ChatResponseReferencePartStatusKind } };
+	constructor(value: vscode.Uri | vscode.Location | { variableName: string; value?: vscode.Uri | vscode.Location }, iconPath?: vscode.Uri | vscode.ThemeIcon | { light: vscode.Uri; dark: vscode.Uri }, options?: { status?: { description: string; kind: vscode.ChatResponseReferencePartStatusKind } }) {
 		this.value = value;
 		this.iconPath = iconPath;
+		this.options = options;
+	}
+}
+
+export class ChatResponseCodeCitationPart {
+	value: vscode.Uri;
+	license: string;
+	snippet: string;
+	constructor(value: vscode.Uri, license: string, snippet: string) {
+		this.value = value;
+		this.license = license;
+		this.snippet = snippet;
 	}
 }
 
@@ -4496,6 +4519,12 @@ export enum ChatLocation {
 	Terminal = 2,
 	Notebook = 3,
 	Editor = 4,
+}
+
+export enum ChatResponseReferencePartStatusKind {
+	Complete = 1,
+	Partial = 2,
+	Omitted = 3
 }
 
 export class ChatRequestEditorData implements vscode.ChatRequestEditorData {

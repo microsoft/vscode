@@ -89,13 +89,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private _onDidBlur = this._register(new Emitter<void>());
 	readonly onDidBlur = this._onDidBlur.event;
 
-	private _onDidDeleteContext = this._register(new Emitter<IChatRequestVariableEntry>());
-	readonly onDidDeleteContext = this._onDidDeleteContext.event;
+	private _onDidChangeContext = this._register(new Emitter<{ removed?: IChatRequestVariableEntry[]; added?: IChatRequestVariableEntry[] }>());
+	readonly onDidChangeContext = this._onDidChangeContext.event;
 
 	private _onDidAcceptFollowup = this._register(new Emitter<{ followup: IChatFollowup; response: IChatResponseViewModel | undefined }>());
 	readonly onDidAcceptFollowup = this._onDidAcceptFollowup.event;
 
-	public get attachedContext() {
+	public get attachedContext(): ReadonlySet<IChatRequestVariableEntry> {
 		return this._attachedContext;
 	}
 
@@ -149,6 +149,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// private readonly editorOptions: ChatEditorOptions, // TODO this should be used
 		private readonly location: ChatAgentLocation,
 		private readonly options: IChatInputPartOptions,
+		private readonly getInputState: () => any,
 		@IChatWidgetHistoryService private readonly historyService: IChatWidgetHistoryService,
 		@IModelService private readonly modelService: IModelService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -234,11 +235,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	showPreviousValue(): void {
+		const inputState = this.getInputState();
 		if (this.history.isAtEnd()) {
-			this.saveCurrentValue();
+			this.saveCurrentValue(inputState);
 		} else {
-			if (!this.history.has({ text: this._inputEditor.getValue(), state: this.history.current().state })) {
-				this.saveCurrentValue();
+			if (!this.history.has({ text: this._inputEditor.getValue(), state: inputState })) {
+				this.saveCurrentValue(inputState);
 				this.history.resetCursor();
 			}
 		}
@@ -247,11 +249,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	showNextValue(): void {
+		const inputState = this.getInputState();
 		if (this.history.isAtEnd()) {
 			return;
 		} else {
-			if (!this.history.has({ text: this._inputEditor.getValue(), state: this.history.current().state })) {
-				this.saveCurrentValue();
+			if (!this.history.has({ text: this._inputEditor.getValue(), state: inputState })) {
+				this.saveCurrentValue(inputState);
 				this.history.resetCursor();
 			}
 		}
@@ -288,12 +291,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.inputEditor.setPosition({ lineNumber: 1, column: value.length + 1 });
 
 		if (!transient) {
-			this.saveCurrentValue();
+			this.saveCurrentValue(this.getInputState());
 		}
 	}
 
-	private saveCurrentValue(): void {
-		const newEntry = { text: this._inputEditor.getValue(), state: this.history.current().state };
+	private saveCurrentValue(inputState: any): void {
+		const newEntry = { text: this._inputEditor.getValue(), state: inputState };
 		this.history.replaceLast(newEntry);
 	}
 
@@ -312,11 +315,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	async acceptInput(isUserQuery?: boolean): Promise<void> {
 		if (isUserQuery) {
 			const userQuery = this._inputEditor.getValue();
-			const entry: IChatHistoryEntry = { text: userQuery, state: this.history.current().state };
+			const entry: IChatHistoryEntry = { text: userQuery, state: this.getInputState() };
 			this.history.replaceLast(entry);
 			this.history.add({ text: '' });
 		}
 
+		// Clear attached context, fire event to clear input state, and clear the input editor
+		this._attachedContext.clear();
 		this._onDidLoadInputState.fire({});
 		if (this.accessibilityService.isScreenReaderOptimized() && isMacintosh) {
 			this._acceptInputForVoiceover();
@@ -339,12 +344,26 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._inputEditor.focus();
 	}
 
-	attachContext(...contentReferences: IChatRequestVariableEntry[]): void {
-		for (const reference of contentReferences) {
-			this.attachedContext.add(reference);
+	attachContext(overwrite: boolean, ...contentReferences: IChatRequestVariableEntry[]): void {
+		const removed = [];
+		if (overwrite) {
+			removed.push(...Array.from(this._attachedContext));
+			this._attachedContext.clear();
 		}
 
-		this.initAttachedContext(this.attachedContextContainer);
+		if (contentReferences.length > 0) {
+			for (const reference of contentReferences) {
+				this._attachedContext.add(reference);
+			}
+		}
+
+		if (removed.length > 0 || contentReferences.length > 0) {
+			this.initAttachedContext(this.attachedContextContainer);
+
+			if (!overwrite) {
+				this._onDidChangeContext.fire({ removed, added: contentReferences });
+			}
+		}
 	}
 
 	render(container: HTMLElement, initialValue: string, widget: IChatWidget) {
@@ -384,6 +403,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			insertMode: 'replace',
 		};
 		options.scrollbar = { ...(options.scrollbar ?? {}), vertical: 'hidden' };
+		options.stickyScroll = { enabled: false };
 
 		this._inputEditorElement = dom.append(inputContainer, $('.interactive-input-editor'));
 		const editorOptions = getSimpleCodeEditorWidgetOptions();
@@ -479,6 +499,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	private initAttachedContext(container: HTMLElement) {
+		const oldHeight = container.offsetHeight;
 		dom.clearNode(container);
 		this.attachedContextDisposables.clear();
 		dom.setVisibility(Boolean(this.attachedContext.size), this.attachedContextContainer);
@@ -505,7 +526,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				widget.tabIndex = 0;
 			} else {
 				const attachmentLabel = attachment.fullName ?? attachment.name;
-				label.setLabel(attachmentLabel, undefined);
+				const withIcon = attachment.icon?.id ? `$(${attachment.icon.id}) ${attachmentLabel}` : attachmentLabel;
+				label.setLabel(withIcon, undefined);
 
 				widget.ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
 				widget.tabIndex = 0;
@@ -521,7 +543,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this.attachedContextDisposables.add(clearButton);
 			clearButton.icon = Codicon.close;
 			const disp = clearButton.onDidClick((e) => {
-				this.attachedContext.delete(attachment);
+				this._attachedContext.delete(attachment);
 				disp.dispose();
 
 				// Set focus to the next attached context item if deletion was triggered by a keystroke (vs a mouse click)
@@ -533,10 +555,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				}
 
 				this._onDidChangeHeight.fire();
-				this._onDidDeleteContext.fire(attachment);
+				this._onDidChangeContext.fire({ removed: [attachment] });
 			});
 			this.attachedContextDisposables.add(disp);
 		});
+
+		if (oldHeight !== container.offsetHeight) {
+			this._onDidChangeHeight.fire();
+		}
 	}
 
 	async renderFollowups(items: IChatFollowup[] | undefined, response: IChatResponseViewModel | undefined): Promise<void> {
@@ -609,6 +635,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	saveState(): void {
+		this.saveCurrentValue(this.getInputState());
 		const inputHistory = [...this.history];
 		this.historyService.saveHistory(this.location, inputHistory);
 	}
