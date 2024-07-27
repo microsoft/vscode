@@ -47,7 +47,7 @@ export class CodeCell extends Disposable {
 	constructor(
 		private readonly notebookEditor: IActiveNotebookEditorDelegate,
 		private readonly viewCell: CodeCellViewModel,
-		private readonly templateData: CodeCellRenderTemplate,
+		private readonly templateData: Readonly<CodeCellRenderTemplate>,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IOpenerService openerService: IOpenerService,
@@ -583,7 +583,6 @@ export class CodeCell extends Disposable {
 			this.notebookEditor.focusContainer();
 		}
 
-		this.templateData.editor = null!; // Strict null override - nulling out in dispose
 		this.viewCell.detachTextEditor();
 		this._removeInputCollapsePreview();
 		this._outputContainerRenderer.dispose();
