@@ -146,6 +146,7 @@ export interface LogOptions {
 	readonly shortStats?: boolean;
 	readonly author?: string;
 	readonly refNames?: string[];
+	readonly maxParents?: number;
 }
 
 export interface CommitOptions {

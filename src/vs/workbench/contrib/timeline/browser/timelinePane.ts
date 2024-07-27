@@ -732,7 +732,7 @@ export class TimelinePane extends ViewPane {
 			timeline.lastRenderedIndex = count - 1;
 		}
 		else {
-			const sources: { timeline: TimelineAggregate; iterator: IterableIterator<TimelineItem>; nextItem: IteratorResult<TimelineItem, TimelineItem> }[] = [];
+			const sources: { timeline: TimelineAggregate; iterator: IterableIterator<TimelineItem>; nextItem: IteratorResult<TimelineItem, undefined> }[] = [];
 
 			let hasAnyItems = false;
 			let mostRecentEnd = 0;
@@ -766,7 +766,7 @@ export class TimelinePane extends ViewPane {
 			function getNextMostRecentSource() {
 				return sources
 					.filter(source => !source.nextItem.done)
-					.reduce((previous, current) => (previous === undefined || current.nextItem.value.timestamp >= previous.nextItem.value.timestamp) ? current : previous, undefined!);
+					.reduce((previous, current) => (previous === undefined || current.nextItem.value!.timestamp >= previous.nextItem.value!.timestamp) ? current : previous, undefined!);
 			}
 
 			let lastRelativeTime: string | undefined;
@@ -774,7 +774,7 @@ export class TimelinePane extends ViewPane {
 			while (nextSource = getNextMostRecentSource()) {
 				nextSource.timeline.lastRenderedIndex++;
 
-				const item = nextSource.nextItem.value;
+				const item = nextSource.nextItem.value!;
 				item.relativeTime = undefined;
 				item.hideRelativeTime = undefined;
 

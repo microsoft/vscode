@@ -29,6 +29,7 @@ import { GroupIdentifier } from 'vs/workbench/common/editor';
 import { ACTIVE_GROUP_TYPE, AUX_WINDOW_GROUP_TYPE, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
 import type { ICurrentPartialCommand } from 'vs/platform/terminal/common/capabilities/commandDetection/terminalCommand';
 import type { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
+import type { IMenu } from 'vs/platform/actions/common/actions';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
 export const ITerminalConfigurationService = createDecorator<ITerminalConfigurationService>('terminalConfigurationService');
@@ -294,6 +295,7 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	getReconnectedTerminals(reconnectionOwner: string): ITerminalInstance[] | undefined;
 
 	getActiveOrCreateInstance(options?: { acceptsInput?: boolean }): Promise<ITerminalInstance>;
+	revealTerminal(source: ITerminalInstance, preserveFocus?: boolean): Promise<void>;
 	revealActiveTerminal(preserveFocus?: boolean): Promise<void>;
 	moveToEditor(source: ITerminalInstance, group?: GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE | AUX_WINDOW_GROUP_TYPE): void;
 	moveIntoNewEditor(source: ITerminalInstance): void;
@@ -524,6 +526,10 @@ export interface ITerminalInstanceHost {
 
 	setActiveInstance(instance: ITerminalInstance): void;
 	/**
+	 * Reveal and focus the instance, regardless of its location.
+	 */
+	focusInstance(instance: ITerminalInstance): void;
+	/**
 	 * Reveal and focus the active instance, regardless of its location.
 	 */
 	focusActiveInstance(): Promise<void>;
@@ -691,6 +697,7 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	onDidChangeTarget: Event<TerminalLocation | undefined>;
 	onDidSendText: Event<string>;
 	onDidChangeShellType: Event<TerminalShellType>;
+	onDidChangeVisibility: Event<boolean>;
 
 	/**
 	 * An event that fires when a terminal is dropped on this instance via drag and drop.
@@ -1034,6 +1041,15 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	 * Update the parent context key service to use for this terminal instance.
 	 */
 	setParentContextKeyService(parentContextKeyService: IContextKeyService): void;
+
+	/**
+	 * Handles a mouse event for the terminal, this may happen on an anscestor of the terminal
+	 * instance's element.
+	 * @param event The mouse event.
+	 * @param contextMenu The context menu to show if needed.
+	 * @returns Whether the context menu should be suppressed.
+	 */
+	handleMouseEvent(event: MouseEvent, contextMenu: IMenu): Promise<{ cancelContextMenu: boolean } | void>;
 }
 
 export const enum XtermTerminalConstants {

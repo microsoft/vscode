@@ -171,6 +171,19 @@
 	},
 	{
 		"type": "comment",
+		"name": "spam",
+		"allowUsers": [
+			"cleidigh",
+			"usernamehw",
+			"gjsjohnmurray",
+			"IllusionMH"
+		],
+		"action": "close",
+		"reason": "not_planned",
+		"addLabel": "invalid"
+	},
+	{
+		"type": "comment",
 		"name": "a11ymas",
 		"allowUsers": [
 			"AccessibilityTestingTeam-TCS",
