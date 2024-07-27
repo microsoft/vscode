@@ -10,9 +10,9 @@ import { VSBuffer, decodeBase64, encodeBase64 } from 'vs/base/common/buffer';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { stringHash } from 'vs/base/common/hash';
-import { Disposable, DisposableMap, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { mixin } from 'vs/base/common/objects';
-import { autorun } from 'vs/base/common/observable';
+import { keepObserved, mapObservableArrayCached } from 'vs/base/common/observableInternal/utils';
 import * as resources from 'vs/base/common/resources';
 import { isString, isUndefinedOrNull } from 'vs/base/common/types';
 import { URI, URI as uri } from 'vs/base/common/uri';
@@ -1411,41 +1411,46 @@ export class DebugModel extends Disposable implements IDebugModel {
 	private readonly _onDidChangeWatchExpressions = this._register(new Emitter<IExpression | undefined>());
 	private readonly _onDidChangeWatchExpressionValue = this._register(new Emitter<IExpression | undefined>());
 	private readonly _breakpointModes = new Map<string, IBreakpointModeInternal>();
-	private breakpoints!: Breakpoint[];
-	private functionBreakpoints!: FunctionBreakpoint[];
-	private exceptionBreakpoints!: ExceptionBreakpoint[];
-	private dataBreakpoints!: DataBreakpoint[];
-	private watchExpressions!: Expression[];
-	private watchExpressionChangeListeners: DisposableMap<string, IDisposable> = this._register(new DisposableMap());
 	private instructionBreakpoints: InstructionBreakpoint[];
 
+	private get breakpoints() {
+		return this.debugStorage.breakpoints;
+	}
+
+	private get functionBreakpoints() {
+		return this.debugStorage.functionBreakpoints;
+	}
+
+	private get exceptionBreakpoints() {
+		return this.debugStorage.exceptionBreakpoints;
+	}
+
+	private get dataBreakpoints() {
+		return this.debugStorage.dataBreakpoints;
+	}
+
+	private get watchExpressions() {
+		return this.debugStorage.watchExpressions;
+	}
+
 	constructor(
-		debugStorage: DebugStorage,
+		private readonly debugStorage: DebugStorage,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
 
-		this._register(autorun(reader => {
-			this.breakpoints = debugStorage.breakpoints.read(reader);
-			this.functionBreakpoints = debugStorage.functionBreakpoints.read(reader);
-			this.exceptionBreakpoints = debugStorage.exceptionBreakpoints.read(reader);
-			this.dataBreakpoints = debugStorage.dataBreakpoints.read(reader);
-			this._onDidChangeBreakpoints.fire(undefined);
-		}));
-
-		this._register(autorun(reader => {
-			this.watchExpressions = debugStorage.watchExpressions.read(reader);
-			this._onDidChangeWatchExpressions.fire(undefined);
-		}));
-
 		this.instructionBreakpoints = [];
 		this.sessions = [];
 
-		for (const we of this.watchExpressions) {
-			this.watchExpressionChangeListeners.set(we.getId(), we.onDidChangeValue((e) => this._onDidChangeWatchExpressionValue.fire(e)));
-		}
+		this._register(keepObserved(mapObservableArrayCached(
+			this,
+			this.watchExpressions,
+			(item, store) => {
+				store.add(item.onDidChangeValue(e => this._onDidChangeWatchExpressionValue.fire(e)));
+			},
+		)));
 	}
 
 	getId(): string {
@@ -1609,11 +1614,11 @@ export class DebugModel extends Disposable implements IDebugModel {
 		return { wholeCallStack, topCallStack: wholeCallStack };
 	}
 
-	getBreakpoints(filter?: { uri?: uri; originalUri?: uri; lineNumber?: number; column?: number; enabledOnly?: boolean; triggeredOnly?: boolean }): IBreakpoint[] {
+	getBreakpoints(filter?: { uri?: uri; originalUri?: uri; lineNumber?: number; column?: number; enabledOnly?: boolean; triggeredOnly?: boolean }): readonly IBreakpoint[] {
 		if (filter) {
 			const uriStr = filter.uri?.toString();
 			const originalUriStr = filter.originalUri?.toString();
-			return this.breakpoints.filter(bp => {
+			return this.breakpoints.get().filter(bp => {
 				if (uriStr && bp.uri.toString() !== uriStr) {
 					return false;
 				}
@@ -1637,26 +1642,26 @@ export class DebugModel extends Disposable implements IDebugModel {
 			});
 		}
 
-		return this.breakpoints;
+		return this.breakpoints.get();
 	}
 
-	getFunctionBreakpoints(): IFunctionBreakpoint[] {
-		return this.functionBreakpoints;
+	getFunctionBreakpoints(): readonly IFunctionBreakpoint[] {
+		return this.functionBreakpoints.get();
 	}
 
-	getDataBreakpoints(): IDataBreakpoint[] {
-		return this.dataBreakpoints;
+	getDataBreakpoints(): readonly IDataBreakpoint[] {
+		return this.dataBreakpoints.get();
 	}
 
-	getExceptionBreakpoints(): IExceptionBreakpoint[] {
-		return this.exceptionBreakpoints;
+	getExceptionBreakpoints(): readonly IExceptionBreakpoint[] {
+		return this.exceptionBreakpoints.get();
 	}
 
-	getExceptionBreakpointsForSession(sessionId?: string): IExceptionBreakpoint[] {
-		return this.exceptionBreakpoints.filter(ebp => ebp.isSupportedSession(sessionId));
+	getExceptionBreakpointsForSession(sessionId?: string): readonly IExceptionBreakpoint[] {
+		return this.exceptionBreakpoints.get().filter(ebp => ebp.isSupportedSession(sessionId));
 	}
 
-	getInstructionBreakpoints(): IInstructionBreakpoint[] {
+	getInstructionBreakpoints(): readonly IInstructionBreakpoint[] {
 		return this.instructionBreakpoints;
 	}
 
@@ -1665,12 +1670,11 @@ export class DebugModel extends Disposable implements IDebugModel {
 			return;
 		}
 
-		let didChangeBreakpoints = false;
+		const newBps: ExceptionBreakpoint[] = [];
 		filters.forEach((d) => {
-			let ebp = this.exceptionBreakpoints.filter((exbp) => exbp.matches(d)).pop();
+			let ebp = this.exceptionBreakpoints.get().filter((exbp) => exbp.matches(d)).pop();
 
 			if (!ebp) {
-				didChangeBreakpoints = true;
 				ebp = new ExceptionBreakpoint({
 					filter: d.filter,
 					label: d.label,
@@ -1679,25 +1683,26 @@ export class DebugModel extends Disposable implements IDebugModel {
 					description: d.description,
 					conditionDescription: d.conditionDescription,
 				});
-				this.exceptionBreakpoints.push(ebp);
+				newBps.push(ebp);
 			}
 
 			ebp.setSupportedSession(sessionId, true);
 		});
 
-		if (didChangeBreakpoints) {
+		if (newBps.length) {
+			this.exceptionBreakpoints.set([...this.exceptionBreakpoints.get(), ...newBps], undefined);
 			this._onDidChangeBreakpoints.fire(undefined);
 		}
 	}
 
 	removeExceptionBreakpointsForSession(sessionId: string): void {
-		this.exceptionBreakpoints.forEach(ebp => ebp.setSupportedSession(sessionId, false));
+		this.exceptionBreakpoints.get().forEach(ebp => ebp.setSupportedSession(sessionId, false));
 	}
 
 	// Set last focused session as fallback session.
 	// This is done to keep track of the exception breakpoints to show when no session is active.
 	setExceptionBreakpointFallbackSession(sessionId: string): void {
-		this.exceptionBreakpoints.forEach(ebp => ebp.setFallback(ebp.isSupportedSession(sessionId)));
+		this.exceptionBreakpoints.get().forEach(ebp => ebp.setFallback(ebp.isSupportedSession(sessionId)));
 	}
 
 	setExceptionBreakpointCondition(exceptionBreakpoint: IExceptionBreakpoint, condition: string | undefined): void {
@@ -1730,7 +1735,7 @@ export class DebugModel extends Disposable implements IDebugModel {
 				modeLabel: rawBp.modeLabel,
 			}, this.textFileService, this.uriIdentityService, this.logService, rawBp.id);
 		});
-		this.breakpoints = this.breakpoints.concat(newBreakpoints);
+		this.breakpoints.set([...this.breakpoints.get(), ...newBreakpoints], undefined);
 		this.breakpointsActivated = true;
 		this.sortAndDeDup();
 
@@ -1741,14 +1746,17 @@ export class DebugModel extends Disposable implements IDebugModel {
 		return newBreakpoints;
 	}
 
-	removeBreakpoints(toRemove: IBreakpoint[]): void {
-		this.breakpoints = this.breakpoints.filter(bp => !toRemove.some(toRemove => toRemove.getId() === bp.getId()));
+	removeBreakpoints(toRemove: readonly IBreakpoint[]): void {
+		this.breakpoints.set(
+			this.breakpoints.get().filter(bp => !toRemove.some(toRemove => toRemove.getId() === bp.getId())),
+			undefined,
+		);
 		this._onDidChangeBreakpoints.fire({ removed: toRemove, sessionOnly: false });
 	}
 
 	updateBreakpoints(data: Map<string, IBreakpointUpdateData>): void {
 		const updated: IBreakpoint[] = [];
-		this.breakpoints.forEach(bp => {
+		this.breakpoints.get().forEach(bp => {
 			const bpData = data.get(bp.getId());
 			if (bpData) {
 				bp.update(bpData);
@@ -1760,7 +1768,7 @@ export class DebugModel extends Disposable implements IDebugModel {
 	}
 
 	setBreakpointSessionData(sessionId: string, capabilites: DebugProtocol.Capabilities, data: Map<string, DebugProtocol.Breakpoint> | undefined): void {
-		this.breakpoints.forEach(bp => {
+		this.breakpoints.get().forEach(bp => {
 			if (!data) {
 				bp.setSessionData(sessionId, undefined);
 			} else {
@@ -1770,7 +1778,7 @@ export class DebugModel extends Disposable implements IDebugModel {
 				}
 			}
 		});
-		this.functionBreakpoints.forEach(fbp => {
+		this.functionBreakpoints.get().forEach(fbp => {
 			if (!data) {
 				fbp.setSessionData(sessionId, undefined);
 			} else {
@@ -1780,7 +1788,7 @@ export class DebugModel extends Disposable implements IDebugModel {
 				}
 			}
 		});
-		this.dataBreakpoints.forEach(dbp => {
+		this.dataBreakpoints.get().forEach(dbp => {
 			if (!data) {
 				dbp.setSessionData(sessionId, undefined);
 			} else {
@@ -1790,7 +1798,7 @@ export class DebugModel extends Disposable implements IDebugModel {
 				}
 			}
 		});
-		this.exceptionBreakpoints.forEach(ebp => {
+		this.exceptionBreakpoints.get().forEach(ebp => {
 			if (!data) {
 				ebp.setSessionData(sessionId, undefined);
 			} else {
@@ -1817,7 +1825,7 @@ export class DebugModel extends Disposable implements IDebugModel {
 	}
 
 	getDebugProtocolBreakpoint(breakpointId: string, sessionId: string): DebugProtocol.Breakpoint | undefined {
-		const bp = this.breakpoints.find(bp => bp.getId() === breakpointId);
+		const bp = this.breakpoints.get().find(bp => bp.getId() === breakpointId);
 		if (bp) {
 			return bp.getDebugProtocolBreakpoint(sessionId);
 		}
@@ -1856,7 +1864,7 @@ export class DebugModel extends Disposable implements IDebugModel {
 	}
 
 	private sortAndDeDup(): void {
-		this.breakpoints = this.breakpoints.sort((first, second) => {
+		const bps = this.breakpoints.get().slice().sort((first, second) => {
 			if (first.uri.toString() !== second.uri.toString()) {
 				return resources.basenameOrAuthority(first.uri).localeCompare(resources.basenameOrAuthority(second.uri));
 			}
@@ -1869,7 +1877,10 @@ export class DebugModel extends Disposable implements IDebugModel {
 
 			return first.lineNumber - second.lineNumber;
 		});
-		this.breakpoints = distinct(this.breakpoints, bp => `${bp.uri.toString()}:${bp.lineNumber}:${bp.column}`);
+		this.breakpoints.set(
+			distinct(bps, bp => `${bp.uri.toString()}:${bp.lineNumber}:${bp.column}`),
+			undefined
+		);
 	}
 
 	setEnablement(element: IEnablement, enable: boolean): void {
@@ -1891,19 +1902,19 @@ export class DebugModel extends Disposable implements IDebugModel {
 	enableOrDisableAllBreakpoints(enable: boolean): void {
 		const changed: Array<IBreakpoint | IFunctionBreakpoint | IDataBreakpoint | IInstructionBreakpoint> = [];
 
-		this.breakpoints.forEach(bp => {
+		this.breakpoints.get().forEach(bp => {
 			if (bp.enabled !== enable) {
 				changed.push(bp);
 			}
 			bp.enabled = enable;
 		});
-		this.functionBreakpoints.forEach(fbp => {
+		this.functionBreakpoints.get().forEach(fbp => {
 			if (fbp.enabled !== enable) {
 				changed.push(fbp);
 			}
 			fbp.enabled = enable;
 		});
-		this.dataBreakpoints.forEach(dbp => {
+		this.dataBreakpoints.get().forEach(dbp => {
 			if (dbp.enabled !== enable) {
 				changed.push(dbp);
 			}
@@ -1925,14 +1936,14 @@ export class DebugModel extends Disposable implements IDebugModel {
 
 	addFunctionBreakpoint(opts: IFunctionBreakpointOptions, id?: string): IFunctionBreakpoint {
 		const newFunctionBreakpoint = new FunctionBreakpoint(opts, id);
-		this.functionBreakpoints.push(newFunctionBreakpoint);
+		this.functionBreakpoints.set([...this.functionBreakpoints.get(), newFunctionBreakpoint], undefined);
 		this._onDidChangeBreakpoints.fire({ added: [newFunctionBreakpoint], sessionOnly: false });
 
 		return newFunctionBreakpoint;
 	}
 
 	updateFunctionBreakpoint(id: string, update: { name?: string; hitCondition?: string; condition?: string }): void {
-		const functionBreakpoint = this.functionBreakpoints.find(fbp => fbp.getId() === id);
+		const functionBreakpoint = this.functionBreakpoints.get().find(fbp => fbp.getId() === id);
 		if (functionBreakpoint) {
 			if (typeof update.name === 'string') {
 				functionBreakpoint.name = update.name;
@@ -1950,23 +1961,23 @@ export class DebugModel extends Disposable implements IDebugModel {
 	removeFunctionBreakpoints(id?: string): void {
 		let removed: FunctionBreakpoint[];
 		if (id) {
-			removed = this.functionBreakpoints.filter(fbp => fbp.getId() === id);
-			this.functionBreakpoints = this.functionBreakpoints.filter(fbp => fbp.getId() !== id);
+			removed = this.functionBreakpoints.get().filter(fbp => fbp.getId() === id);
+			this.functionBreakpoints.set(this.functionBreakpoints.get().filter(fbp => fbp.getId() !== id), undefined);
 		} else {
-			removed = this.functionBreakpoints;
-			this.functionBreakpoints = [];
+			removed = this.functionBreakpoints.get().slice();
+			this.functionBreakpoints.set([], undefined);
 		}
 		this._onDidChangeBreakpoints.fire({ removed, sessionOnly: false });
 	}
 
 	addDataBreakpoint(opts: IDataBreakpointOptions, id?: string): void {
 		const newDataBreakpoint = new DataBreakpoint(opts, id);
-		this.dataBreakpoints.push(newDataBreakpoint);
+		this.dataBreakpoints.set([...this.dataBreakpoints.get(), newDataBreakpoint], undefined);
 		this._onDidChangeBreakpoints.fire({ added: [newDataBreakpoint], sessionOnly: false });
 	}
 
 	updateDataBreakpoint(id: string, update: { hitCondition?: string; condition?: string }): void {
-		const dataBreakpoint = this.dataBreakpoints.find(fbp => fbp.getId() === id);
+		const dataBreakpoint = this.dataBreakpoints.get().find(fbp => fbp.getId() === id);
 		if (dataBreakpoint) {
 			if (typeof update.condition === 'string') {
 				dataBreakpoint.condition = update.condition;
@@ -1981,11 +1992,11 @@ export class DebugModel extends Disposable implements IDebugModel {
 	removeDataBreakpoints(id?: string): void {
 		let removed: DataBreakpoint[];
 		if (id) {
-			removed = this.dataBreakpoints.filter(fbp => fbp.getId() === id);
-			this.dataBreakpoints = this.dataBreakpoints.filter(fbp => fbp.getId() !== id);
+			removed = this.dataBreakpoints.get().filter(dbp => dbp.getId() === id);
+			this.dataBreakpoints.set(this.dataBreakpoints.get().filter(dbp => dbp.getId() !== id), undefined);
 		} else {
-			removed = this.dataBreakpoints;
-			this.dataBreakpoints = [];
+			removed = this.dataBreakpoints.get().slice();
+			this.dataBreakpoints.set([], undefined);
 		}
 		this._onDidChangeBreakpoints.fire({ removed, sessionOnly: false });
 	}
@@ -2013,21 +2024,20 @@ export class DebugModel extends Disposable implements IDebugModel {
 		this._onDidChangeBreakpoints.fire({ removed, sessionOnly: false });
 	}
 
-	getWatchExpressions(): Expression[] {
-		return this.watchExpressions;
+	getWatchExpressions(): readonly Expression[] {
+		return this.watchExpressions.get();
 	}
 
 	addWatchExpression(name?: string): IExpression {
 		const we = new Expression(name || '');
-		this.watchExpressionChangeListeners.set(we.getId(), we.onDidChangeValue((e) => this._onDidChangeWatchExpressionValue.fire(e)));
-		this.watchExpressions.push(we);
+		this.watchExpressions.set([...this.watchExpressions.get(), we], undefined);
 		this._onDidChangeWatchExpressions.fire(we);
 
 		return we;
 	}
 
 	renameWatchExpression(id: string, newName: string): void {
-		const filtered = this.watchExpressions.filter(we => we.getId() === id);
+		const filtered = this.watchExpressions.get().filter(we => we.getId() === id);
 		if (filtered.length === 1) {
 			filtered[0].name = newName;
 			this._onDidChangeWatchExpressions.fire(filtered[0]);
@@ -2035,20 +2045,22 @@ export class DebugModel extends Disposable implements IDebugModel {
 	}
 
 	removeWatchExpressions(id: string | null = null): void {
-		this.watchExpressions = id ? this.watchExpressions.filter(we => we.getId() !== id) : [];
-		this._onDidChangeWatchExpressions.fire(undefined);
-		if (!id) {
-			this.watchExpressionChangeListeners.clearAndDisposeAll();
-			return;
+		if (id) {
+			this.watchExpressions.set(this.watchExpressions.get().filter(we => we.getId() !== id), undefined);
+		} else {
+			this.watchExpressions.set([], undefined);
 		}
-		this.watchExpressionChangeListeners.deleteAndDispose(id);
+		this._onDidChangeWatchExpressions.fire(undefined);
 	}
 
 	moveWatchExpression(id: string, position: number): void {
-		const we = this.watchExpressions.find(we => we.getId() === id);
-		if (we) {
-			this.watchExpressions = this.watchExpressions.filter(we => we.getId() !== id);
-			this.watchExpressions = this.watchExpressions.slice(0, position).concat(we, this.watchExpressions.slice(position));
+		const exprs = this.watchExpressions.get().slice();
+		const index = exprs.findIndex(we => we.getId() === id);
+		if (index !== -1) {
+			const toMove = exprs[index];
+			exprs.splice(index, 1);
+			exprs.splice(position, 0, toMove);
+			this.watchExpressions.set(exprs, undefined);
 			this._onDidChangeWatchExpressions.fire(undefined);
 		}
 	}

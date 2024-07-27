@@ -27,6 +27,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { FileChangeType, FileChangesEvent, IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { bindContextKey } from 'vs/platform/observable/common/platformObservableUtils';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -68,7 +69,6 @@ export class DebugService implements IDebugService {
 	private readonly _onWillNewSession: Emitter<IDebugSession>;
 	private readonly _onDidEndSession: Emitter<{ session: IDebugSession; restart: boolean }>;
 	private readonly restartingSessions = new Set<IDebugSession>();
-	private debugStorage: DebugStorage;
 	private model: DebugModel;
 	private viewModel: ViewModel;
 	private telemetry: DebugTelemetry;
@@ -79,7 +79,6 @@ export class DebugService implements IDebugService {
 	private debugType!: IContextKey<string>;
 	private debugState!: IContextKey<string>;
 	private inDebugMode!: IContextKey<boolean>;
-	private debugUx!: IContextKey<string>;
 	private hasDebugged!: IContextKey<boolean>;
 	private breakpointsExist!: IContextKey<boolean>;
 	private disassemblyViewFocus!: IContextKey<boolean>;
@@ -89,8 +88,8 @@ export class DebugService implements IDebugService {
 	private previousState: State | undefined;
 	private sessionCancellationTokens = new Map<string, CancellationTokenSource>();
 	private activity: IDisposable | undefined;
-	private chosenEnvironments: { [key: string]: string };
 	private haveDoneLazySetup = false;
+	private readonly storage: DebugStorage;
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
@@ -126,11 +125,9 @@ export class DebugService implements IDebugService {
 		this.disposables.add(this.adapterManager);
 		this.configurationManager = this.instantiationService.createInstance(ConfigurationManager, this.adapterManager);
 		this.disposables.add(this.configurationManager);
-		this.debugStorage = this.disposables.add(this.instantiationService.createInstance(DebugStorage));
 
-		this.chosenEnvironments = this.debugStorage.loadChosenEnvironments();
-
-		this.model = this.instantiationService.createInstance(DebugModel, this.debugStorage);
+		this.storage = this.disposables.add(this.instantiationService.createInstance(DebugStorage));
+		this.model = this.instantiationService.createInstance(DebugModel, this.storage);
 		this.telemetry = this.instantiationService.createInstance(DebugTelemetry, this.model);
 
 		this.viewModel = new ViewModel(contextKeyService);
@@ -168,8 +165,7 @@ export class DebugService implements IDebugService {
 		}));
 		this.disposables.add(Event.any(this.adapterManager.onDidRegisterDebugger, this.configurationManager.onDidSelectConfiguration)(() => {
 			const debugUxValue = (this.state !== State.Inactive || (this.configurationManager.getAllConfigurations().length > 0 && this.adapterManager.hasEnabledDebuggers())) ? 'default' : 'simple';
-			this.debugUx.set(debugUxValue);
-			this.debugStorage.storeDebugUxState(debugUxValue);
+			this.storage.debugUX.set(debugUxValue, undefined);
 		}));
 		this.disposables.add(this.model.onDidChangeCallStack(() => {
 			const numberOfSessions = this.model.getSessions().filter(s => !s.parentSession).length;
@@ -219,12 +215,17 @@ export class DebugService implements IDebugService {
 				this.debugState = CONTEXT_DEBUG_STATE.bindTo(contextKeyService);
 				this.hasDebugged = CONTEXT_HAS_DEBUGGED.bindTo(contextKeyService);
 				this.inDebugMode = CONTEXT_IN_DEBUG_MODE.bindTo(contextKeyService);
-				this.debugUx = CONTEXT_DEBUG_UX.bindTo(contextKeyService);
-				this.debugUx.set(this.debugStorage.loadDebugUxState());
 				this.breakpointsExist = CONTEXT_BREAKPOINTS_EXIST.bindTo(contextKeyService);
 				// Need to set disassemblyViewFocus here to make it in the same context as the debug event handlers
 				this.disassemblyViewFocus = CONTEXT_DISASSEMBLY_VIEW_FOCUS.bindTo(contextKeyService);
 			});
+
+
+			this.disposables.add(bindContextKey(
+				CONTEXT_DEBUG_UX,
+				contextKeyService,
+				reader => this.storage.debugUX.read(reader)
+			));
 
 			const setBreakpointsExistContext = () => this.breakpointsExist.set(!!(this.model.getBreakpoints().length || this.model.getDataBreakpoints().length || this.model.getFunctionBreakpoints().length));
 			setBreakpointsExistContext();
@@ -308,8 +309,7 @@ export class DebugService implements IDebugService {
 				this.inDebugMode.set(state !== State.Inactive);
 				// Only show the simple ux if debug is not yet started and if no launch.json exists
 				const debugUxValue = ((state !== State.Inactive && state !== State.Initializing) || (this.adapterManager.hasEnabledDebuggers() && this.configurationManager.selectedConfiguration.name)) ? 'default' : 'simple';
-				this.debugUx.set(debugUxValue);
-				this.debugStorage.storeDebugUxState(debugUxValue);
+				this.storage.debugUX.set(debugUxValue, undefined);
 			});
 			this.previousState = state;
 			this._onDidChangeState.fire(state);
@@ -471,7 +471,7 @@ export class DebugService implements IDebugService {
 		if (!type) {
 			activeEditor = this.editorService.activeEditor;
 			if (activeEditor && activeEditor.resource) {
-				type = this.chosenEnvironments[activeEditor.resource.toString()];
+				type = this.storage.chosenEnvironments.get().get(activeEditor.resource.toString());
 			}
 			if (!type) {
 				guess = await this.adapterManager.guessDebugger(false);
@@ -550,8 +550,9 @@ export class DebugService implements IDebugService {
 				const result = await this.doCreateSession(sessionId, launch?.workspace, { resolved: resolvedConfig, unresolved: unresolvedConfig }, options);
 				if (result && guess && activeEditor && activeEditor.resource) {
 					// Remeber user choice of environment per active editor to make starting debugging smoother #124770
-					this.chosenEnvironments[activeEditor.resource.toString()] = guess.type;
-					this.debugStorage.storeChosenEnvironments(this.chosenEnvironments);
+					const next = new Map(this.storage.chosenEnvironments.get());
+					next.set(activeEditor.resource.toString(), guess.type);
+					this.storage.chosenEnvironments.set(next, undefined);
 				}
 				return result;
 			} catch (err) {
@@ -996,22 +997,18 @@ export class DebugService implements IDebugService {
 		if (!name) {
 			this.viewModel.setSelectedExpression(we, false);
 		}
-		this.debugStorage.storeWatchExpressions(this.model.getWatchExpressions());
 	}
 
 	renameWatchExpression(id: string, newName: string): void {
 		this.model.renameWatchExpression(id, newName);
-		this.debugStorage.storeWatchExpressions(this.model.getWatchExpressions());
 	}
 
 	moveWatchExpression(id: string, position: number): void {
 		this.model.moveWatchExpression(id, position);
-		this.debugStorage.storeWatchExpressions(this.model.getWatchExpressions());
 	}
 
 	removeWatchExpressions(id?: string): void {
 		this.model.removeWatchExpressions(id);
-		this.debugStorage.storeWatchExpressions(this.model.getWatchExpressions());
 	}
 
 	//---- breakpoints
@@ -1023,7 +1020,6 @@ export class DebugService implements IDebugService {
 	async enableOrDisableBreakpoints(enable: boolean, breakpoint?: IEnablement): Promise<void> {
 		if (breakpoint) {
 			this.model.setEnablement(breakpoint, enable);
-			this.debugStorage.storeBreakpoints(this.model);
 			if (breakpoint instanceof Breakpoint) {
 				await this.makeTriggeredBreakpointsMatchEnablement(enable, breakpoint);
 				await this.sendBreakpoints(breakpoint.originalUri);
@@ -1038,10 +1034,9 @@ export class DebugService implements IDebugService {
 			}
 		} else {
 			this.model.enableOrDisableAllBreakpoints(enable);
-			this.debugStorage.storeBreakpoints(this.model);
 			await this.sendAllBreakpoints();
 		}
-		this.debugStorage.storeBreakpoints(this.model);
+
 	}
 
 	async addBreakpoints(uri: uri, rawBreakpoints: IBreakpointData[], ariaAnnounce = true): Promise<IBreakpoint[]> {
@@ -1050,22 +1045,16 @@ export class DebugService implements IDebugService {
 			breakpoints.forEach(bp => aria.status(nls.localize('breakpointAdded', "Added breakpoint, line {0}, file {1}", bp.lineNumber, uri.fsPath)));
 		}
 
-		// In some cases we need to store breakpoints before we send them because sending them can take a long time
-		// And after sending them because the debug adapter can attach adapter data to a breakpoint
-		this.debugStorage.storeBreakpoints(this.model);
 		await this.sendBreakpoints(uri);
-		this.debugStorage.storeBreakpoints(this.model);
 		return breakpoints;
 	}
 
 	async updateBreakpoints(uri: uri, data: Map<string, IBreakpointUpdateData>, sendOnResourceSaved: boolean): Promise<void> {
 		this.model.updateBreakpoints(data);
-		this.debugStorage.storeBreakpoints(this.model);
 		if (sendOnResourceSaved) {
 			this.breakpointsToSendOnResourceSaved.add(uri);
 		} else {
 			await this.sendBreakpoints(uri);
-			this.debugStorage.storeBreakpoints(this.model);
 		}
 	}
 
@@ -1079,7 +1068,6 @@ export class DebugService implements IDebugService {
 		this.model.removeBreakpoints(toRemove);
 		this.unlinkTriggeredBreakpoints(breakpoints, toRemove).forEach(uri => urisToClear.add(uri.toString()));
 
-		this.debugStorage.storeBreakpoints(this.model);
 		await Promise.all([...urisToClear].map(uri => this.sendBreakpoints(URI.parse(uri))));
 	}
 
@@ -1092,69 +1080,55 @@ export class DebugService implements IDebugService {
 		this.model.addFunctionBreakpoint(opts ?? { name: '' }, id);
 		// If opts not provided, sending the breakpoint is handled by a later to call to `updateFunctionBreakpoint`
 		if (opts) {
-			this.debugStorage.storeBreakpoints(this.model);
 			await this.sendFunctionBreakpoints();
-			this.debugStorage.storeBreakpoints(this.model);
 		}
 	}
 
 	async updateFunctionBreakpoint(id: string, update: { name?: string; hitCondition?: string; condition?: string }): Promise<void> {
 		this.model.updateFunctionBreakpoint(id, update);
-		this.debugStorage.storeBreakpoints(this.model);
 		await this.sendFunctionBreakpoints();
 	}
 
 	async removeFunctionBreakpoints(id?: string): Promise<void> {
 		this.model.removeFunctionBreakpoints(id);
-		this.debugStorage.storeBreakpoints(this.model);
 		await this.sendFunctionBreakpoints();
 	}
 
 	async addDataBreakpoint(opts: IDataBreakpointOptions): Promise<void> {
 		this.model.addDataBreakpoint(opts);
-		this.debugStorage.storeBreakpoints(this.model);
 		await this.sendDataBreakpoints();
-		this.debugStorage.storeBreakpoints(this.model);
 	}
 
 	async updateDataBreakpoint(id: string, update: { hitCondition?: string; condition?: string }): Promise<void> {
 		this.model.updateDataBreakpoint(id, update);
-		this.debugStorage.storeBreakpoints(this.model);
 		await this.sendDataBreakpoints();
 	}
 
 	async removeDataBreakpoints(id?: string): Promise<void> {
 		this.model.removeDataBreakpoints(id);
-		this.debugStorage.storeBreakpoints(this.model);
 		await this.sendDataBreakpoints();
 	}
 
 	async addInstructionBreakpoint(opts: IInstructionBreakpointOptions): Promise<void> {
 		this.model.addInstructionBreakpoint(opts);
-		this.debugStorage.storeBreakpoints(this.model);
 		await this.sendInstructionBreakpoints();
-		this.debugStorage.storeBreakpoints(this.model);
 	}
 
 	async removeInstructionBreakpoints(instructionReference?: string, offset?: number): Promise<void> {
 		this.model.removeInstructionBreakpoints(instructionReference, offset);
-		this.debugStorage.storeBreakpoints(this.model);
 		await this.sendInstructionBreakpoints();
 	}
 
 	setExceptionBreakpointFallbackSession(sessionId: string) {
 		this.model.setExceptionBreakpointFallbackSession(sessionId);
-		this.debugStorage.storeBreakpoints(this.model);
 	}
 
 	setExceptionBreakpointsForSession(session: IDebugSession, filters: DebugProtocol.ExceptionBreakpointsFilter[]): void {
 		this.model.setExceptionBreakpointsForSession(session.getId(), filters);
-		this.debugStorage.storeBreakpoints(this.model);
 	}
 
 	async setExceptionBreakpointCondition(exceptionBreakpoint: IExceptionBreakpoint, condition: string | undefined): Promise<void> {
 		this.model.setExceptionBreakpointCondition(exceptionBreakpoint, condition);
-		this.debugStorage.storeBreakpoints(this.model);
 		await this.sendExceptionBreakpoints();
 	}
 
@@ -1238,6 +1212,7 @@ export class DebugService implements IDebugService {
 				await s.sendFunctionBreakpoints(breakpointsToSend);
 			}
 		});
+
 	}
 
 	private async sendDataBreakpoints(session?: IDebugSession): Promise<void> {

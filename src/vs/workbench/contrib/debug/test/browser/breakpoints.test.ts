@@ -87,7 +87,7 @@ suite('Debug - Breakpoints', () => {
 		addBreakpointsAndCheckEvents(model, modelUri, [{ lineNumber: 5, enabled: true }, { lineNumber: 10, enabled: false }]);
 		addBreakpointsAndCheckEvents(model, modelUri, [{ lineNumber: 12, enabled: true, condition: 'fake condition' }]);
 		assert.strictEqual(model.getBreakpoints().length, 3);
-		const bp = model.getBreakpoints().pop();
+		const bp = model.getBreakpoints().slice().pop();
 		if (bp) {
 			model.removeBreakpoints([bp]);
 		}
@@ -457,7 +457,7 @@ suite('Debug - Breakpoints', () => {
 		];
 
 		addBreakpointsAndCheckEvents(model1, modelUri, first);
-		debugStorage1.storeBreakpoints(model1);
+		storage1.flush();
 		const stored = storage1.get('debug.breakpoint', StorageScope.WORKSPACE);
 
 		// 2. hydrate a new model and ensure external breakpoints get applied
