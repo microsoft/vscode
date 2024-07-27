@@ -21,7 +21,8 @@ import { EditorAction2 } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/embeddedCodeEditorWidget';
 import { EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/embeddedDiffEditorWidget';
-import { IPosition, Position } from 'vs/editor/common/core/position';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditor, IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -52,7 +53,7 @@ import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/vie
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { renderTestMessageAsText } from 'vs/workbench/contrib/testing/browser/testMessageColorizer';
 import { InspectSubject, MessageSubject, TaskSubject, TestOutputSubject, mapFindTestMessage } from 'vs/workbench/contrib/testing/browser/testResultsView/testResultsSubject';
-import { ITestResultsViewContentUiState, TestResultsViewContent } from 'vs/workbench/contrib/testing/browser/testResultsView/testResultsViewContent';
+import { TestResultsViewContent } from 'vs/workbench/contrib/testing/browser/testResultsView/testResultsViewContent';
 import { testingMessagePeekBorder, testingPeekBorder, testingPeekHeaderBackground, testingPeekMessageHeaderBackground } from 'vs/workbench/contrib/testing/browser/theme';
 import { AutoOpenPeekViewWhen, TestingConfigKeys, getTestingConfiguration } from 'vs/workbench/contrib/testing/common/configuration';
 import { Testing } from 'vs/workbench/contrib/testing/common/constants';
@@ -61,7 +62,7 @@ import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
 import { ITestResult, TestResultItemChange, TestResultItemChangeReason, resultItemParents } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService, ResultChangeEvent } from 'vs/workbench/contrib/testing/common/testResultService';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
-import { IRichLocation, ITestMessage, ITestMessageStackFrame, TestMessageType, TestResultItem } from 'vs/workbench/contrib/testing/common/testTypes';
+import { IRichLocation, ITestMessage, TestMessageType, TestResultItem } from 'vs/workbench/contrib/testing/common/testTypes';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { IShowResultOptions, ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
 import { isFailedState } from 'vs/workbench/contrib/testing/common/testingStates';
@@ -114,16 +115,9 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 		@IViewsService private readonly viewsService: IViewsService,
 		@ICommandService private readonly commandService: ICommandService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
 		this._register(testResults.onTestChanged(this.openPeekOnFailure, this));
-
-		const callStackVisibleKey = TestingContextKeys.showCallStackInPeek.bindTo(contextKeyService);
-		this._register(this.callStackVisible.onDidChange(() => {
-			callStackVisibleKey.set(this.callStackVisible.value);
-		}));
-		callStackVisibleKey.set(this.callStackVisible.value);
 	}
 
 	/** @inheritdoc */
@@ -464,7 +458,7 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 	/**
 	 * Shows a peek for the existing inspect subject.
 	 */
-	public async showSubject(subject: InspectSubject, frame?: ITestMessageStackFrame, uiState?: ITestResultsViewContentUiState) {
+	public async showSubject(subject: InspectSubject) {
 		if (!this.peek.value) {
 			this.peek.value = this.instantiationService.createInstance(TestResultsPeek, this.editor);
 			this.peek.value.onDidClose(() => {
@@ -480,7 +474,7 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 			alert(renderTestMessageAsText(subject.message.message));
 		}
 
-		this.peek.value.setModel(subject, frame, uiState);
+		this.peek.value.setModel(subject);
 	}
 
 	public async openAndShow(uri: URI) {
@@ -707,59 +701,9 @@ class TestResultsPeek extends PeekViewWidget {
 			this._disposables.add(this.content.onClose(() => {
 				TestingOutputPeekController.get(this.editor)?.removePeek();
 			}));
-
-			this._disposables.add(this.content.onDidChangeStackFrame(sf => {
-				if (!sf.uri) {
-					return;
-				}
-
-				if (this.uriIdentityService.extUri.isEqual(sf.uri, this.editor.getModel()?.uri)) {
-					if (sf.position) {
-						this.changePositionTo(sf.position);
-					}
-					return;
-				}
-
-				const current = this.current;
-				const uiState = this.content.uiState;
-				this.codeEditorService.openCodeEditor(
-					{
-						resource: sf.uri,
-						options: {
-							preserveFocus: true,
-							selection: sf.position ? Range.fromPositions(sf.position) : undefined,
-							transient: true,
-						}
-					},
-					this.editor,
-				).then(newEditor => {
-					if (!newEditor || !current) {
-						return;
-					}
-
-					TestingOutputPeekController.get(newEditor)?.showSubject(current, sf, uiState);
-				});
-			}));
 		}
 
 		super._fillContainer(container);
-	}
-
-	/** Moves the peek to a new position in the current editor, maintaining its position on the screen */
-	private changePositionTo(position: IPosition) {
-		const currentPosition = this.position;
-		if (!currentPosition) {
-			this.show(position, TestResultsPeek.lastHeightInLines || 10);
-			return;
-		}
-
-		const currentPositionViewOffset = this.editor.getScrolledVisiblePosition(currentPosition);
-		this.updatePositionAndHeight(position);
-
-		if (currentPositionViewOffset) {
-			const newPosition = this.editor.getTopForPosition(position.lineNumber, position.column);
-			this.editor.setScrollTop(newPosition - currentPositionViewOffset?.top);
-		}
 	}
 
 	protected override _fillHead(container: HTMLElement): void {
@@ -793,35 +737,47 @@ class TestResultsPeek extends PeekViewWidget {
 	/**
 	 * Updates the test to be shown.
 	 */
-	public setModel(subject: InspectSubject, frame?: ITestMessageStackFrame, uiState?: ITestResultsViewContentUiState): Promise<void> {
+	public setModel(subject: InspectSubject): Promise<void> {
 		if (subject instanceof TaskSubject || subject instanceof TestOutputSubject) {
 			this.current = subject;
-			return this.showInPlace(subject, frame, uiState);
+			return this.showInPlace(subject);
 		}
 
 		const message = subject.message;
 		const previous = this.current;
-		const revealLocation = frame?.position || subject.revealLocation?.range.getStartPosition();
+		const revealLocation = subject.revealLocation?.range.getStartPosition();
 		if (!revealLocation && !previous) {
 			return Promise.resolve();
 		}
 
 		this.current = subject;
 		if (!revealLocation) {
-			return this.showInPlace(subject, frame, uiState);
+			return this.showInPlace(subject);
 		}
 
-		this.show(revealLocation, TestResultsPeek.lastHeightInLines || hintMessagePeekHeight(message));
+		// If there is a stack we want to display, ensure the default size is large-ish
+		const peekLines = TestResultsPeek.lastHeightInLines || Math.max(
+			subject instanceof MessageSubject && subject.stack?.length ? Math.ceil(this.getVisibleEditorLines() / 2) : 0,
+			hintMessagePeekHeight(message)
+		);
+
+		this.show(revealLocation, peekLines);
 		this.editor.revealRangeNearTopIfOutsideViewport(Range.fromPositions(revealLocation), ScrollType.Smooth);
 
-		return this.showInPlace(subject, frame, uiState);
+		return this.showInPlace(subject);
+	}
+
+	private getVisibleEditorLines() {
+		// note that we don't use the view ranges because we don't want to get
+		// thrown off by large wrapping lines. Being approximate here is okay.
+		return Math.round(this.editor.getDomNode()!.clientHeight / this.editor.getOption(EditorOption.lineHeight));
 	}
 
 	/**
 	 * Shows a message in-place without showing or changing the peek location.
 	 * This is mostly used if peeking a message without a location.
 	 */
-	public async showInPlace(subject: InspectSubject, frame?: ITestMessageStackFrame, uiState?: ITestResultsViewContentUiState) {
+	public async showInPlace(subject: InspectSubject) {
 		if (subject instanceof MessageSubject) {
 			const message = subject.message;
 			this.setTitle(firstLine(renderTestMessageAsText(message.message)), stripIcons(subject.test.label));
@@ -829,7 +785,7 @@ class TestResultsPeek extends PeekViewWidget {
 			this.setTitle(localize('testOutputTitle', 'Test Output'));
 		}
 		this.applyTheme();
-		await this.content.reveal({ subject, frame, preserveFocus: false, uiState });
+		await this.content.reveal({ subject, preserveFocus: false });
 	}
 
 	protected override _relayout(newHeightInLines: number): void {
@@ -874,7 +830,6 @@ export class TestResultsView extends ViewPane {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService,
 		@ITestResultService private readonly resultService: ITestResultService,
-		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
 	}
@@ -912,17 +867,6 @@ export class TestResultsView extends ViewPane {
 		const content = this.content.value;
 		content.fillBody(container);
 		this._register(content.onDidRequestReveal(subject => content.reveal({ preserveFocus: true, subject })));
-		this._register(content.onDidChangeStackFrame(sf => {
-			if (sf.uri) {
-				this.editorService.openEditor({
-					resource: sf.uri,
-					options: {
-						preserveFocus: true,
-						selection: sf.position ? Range.fromPositions(sf.position) : undefined,
-					}
-				});
-			}
-		}));
 
 		const [lastResult] = this.resultService.results;
 		if (lastResult && lastResult.tasks.length) {
@@ -1134,37 +1078,5 @@ export class ToggleTestingPeekHistory extends Action2 {
 	public override run(accessor: ServicesAccessor) {
 		const opener = accessor.get(ITestingPeekOpener);
 		opener.historyVisible.value = !opener.historyVisible.value;
-	}
-}
-
-export class ToggleCallStackAction extends Action2 {
-	public static readonly ID = 'testing.toggleCallStack';
-	constructor() {
-		super({
-			id: ToggleCallStackAction.ID,
-			title: localize2('testing.toggleCallStack', 'Show Call Stack in Peek'),
-			metadata: {
-				description: localize2('testing.toggleCallStack.description', 'Shows or hides the history of test runs in the peek view')
-			},
-			icon: Codicon.debugLineByLine,
-			toggled: TestingContextKeys.showCallStackInPeek,
-			category: Categories.Test,
-			menu: [{
-				id: MenuId.TestCallStackContext,
-			}, {
-				id: MenuId.ViewTitle,
-				when: ContextKeyExpr.equals('view', Testing.ResultsViewId)
-			}, {
-				id: MenuId.TestPeekTitle,
-				group: 'navigation',
-				when: ContextKeyExpr.not(TestingContextKeys.showCallStackInPeek.key),
-				order: 4,
-			}],
-		});
-	}
-
-	public override run(accessor: ServicesAccessor) {
-		const opener = accessor.get(ITestingPeekOpener);
-		opener.callStackVisible.value = !opener.callStackVisible.value;
 	}
 }

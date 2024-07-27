@@ -16,14 +16,14 @@ import { isLinuxSnap, isMacintosh } from 'vs/base/common/platform';
 import { escape } from 'vs/base/common/strings';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
-import { IssueReporterModel, IssueReporterData as IssueReporterModelData } from 'vs/workbench/contrib/issue/browser/issueReporterModel';
 import { localize } from 'vs/nls';
 import { isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
-import { IIssueMainService, IProcessMainService, IssueReporterData, IssueReporterExtensionData, IssueReporterStyles, IssueReporterWindowConfiguration, IssueType } from 'vs/platform/issue/common/issue';
-import { normalizeGitHubUrl } from 'vs/platform/issue/common/issueReporterUtil';
 import { INativeHostService } from 'vs/platform/native/common/native';
 import { getIconsStyleSheet } from 'vs/platform/theme/browser/iconsStyleSheet';
 import { applyZoom, zoomIn, zoomOut } from 'vs/platform/window/electron-sandbox/window';
+import { IssueReporterData, IssueReporterModel, IssueReporterData as IssueReporterModelData } from 'vs/workbench/contrib/issue/browser/issueReporterModel';
+import { IProcessMainService, IIssueMainService, OldIssueReporterData, OldIssueReporterExtensionData, OldIssueReporterStyles, OldIssueReporterWindowConfiguration, OldIssueType } from 'vs/platform/issue/common/issue';
+import { normalizeGitHubUrl } from 'vs/workbench/contrib/issue/common/issueReporterUtil';
 
 // GitHub has let us know that we could up our limit here to 8k. We chose 7500 to play it safe.
 // ref https://github.com/microsoft/vscode/issues/159191
@@ -57,7 +57,7 @@ export class IssueReporter extends Disposable {
 	private nonGitHubIssueUrl = false;
 
 	constructor(
-		private readonly configuration: IssueReporterWindowConfiguration,
+		private readonly configuration: OldIssueReporterWindowConfiguration,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@IIssueMainService private readonly issueMainService: IIssueMainService,
 		@IProcessMainService private readonly processMainService: IProcessMainService
@@ -66,7 +66,7 @@ export class IssueReporter extends Disposable {
 		const targetExtension = configuration.data.extensionId ? configuration.data.enabledExtensions.find(extension => extension.id.toLocaleLowerCase() === configuration.data.extensionId?.toLocaleLowerCase()) : undefined;
 		this.issueReporterModel = new IssueReporterModel({
 			...configuration.data,
-			issueType: configuration.data.issueType || IssueType.Bug,
+			issueType: configuration.data.issueType || OldIssueType.Bug,
 			versionInfo: {
 				vscodeVersion: `${configuration.product.nameShort} ${!!configuration.product.darwinUniversalAssetId ? `${configuration.product.version} (Universal)` : configuration.product.version} (${configuration.product.commit || 'Commit unknown'}, ${configuration.product.date || 'Date unknown'})`,
 				os: `${this.configuration.os.type} ${this.configuration.os.arch} ${this.configuration.os.release}${isLinuxSnap ? ' snap' : ''}`
@@ -115,7 +115,7 @@ export class IssueReporter extends Disposable {
 			this.updateSystemInfo(this.issueReporterModel.getData());
 			this.updatePreviewButtonState();
 		});
-		if (configuration.data.issueType === IssueType.PerformanceIssue) {
+		if (configuration.data.issueType === OldIssueType.PerformanceIssue) {
 			this.processMainService.$getPerformanceInfo().then(info => {
 				this.updatePerformanceInfo(info as Partial<IssueReporterData>);
 			});
@@ -169,7 +169,7 @@ export class IssueReporter extends Disposable {
 	}
 
 	// TODO @justschen: After migration to Aux Window, switch to dedicated css.
-	private applyStyles(styles: IssueReporterStyles) {
+	private applyStyles(styles: OldIssueReporterStyles) {
 		const styleTag = document.createElement('style');
 		const content: string[] = [];
 
@@ -245,7 +245,7 @@ export class IssueReporter extends Disposable {
 		mainWindow.document.body.style.color = styles.color || '';
 	}
 
-	private handleExtensionData(extensions: IssueReporterExtensionData[]) {
+	private handleExtensionData(extensions: OldIssueReporterExtensionData[]) {
 		const installedExtensions = extensions.filter(x => !x.isBuiltin);
 		const { nonThemes, themes } = groupBy(installedExtensions, ext => {
 			return ext.isTheme ? 'themes' : 'nonThemes';
@@ -261,7 +261,7 @@ export class IssueReporter extends Disposable {
 		this.updateExtensionSelector(installedExtensions);
 	}
 
-	private async updateIssueReporterUri(extension: IssueReporterExtensionData): Promise<void> {
+	private async updateIssueReporterUri(extension: OldIssueReporterExtensionData): Promise<void> {
 		try {
 			if (extension.uri) {
 				const uri = URI.revive(extension.uri);
@@ -272,7 +272,7 @@ export class IssueReporter extends Disposable {
 		}
 	}
 
-	private async sendReporterMenu(extension: IssueReporterExtensionData): Promise<IssueReporterData | undefined> {
+	private async sendReporterMenu(extension: OldIssueReporterExtensionData): Promise<OldIssueReporterData | undefined> {
 		try {
 			const data = await this.issueMainService.$sendReporterMenu(extension.id, extension.name);
 			return data;
@@ -286,7 +286,7 @@ export class IssueReporter extends Disposable {
 		this.addEventListener('issue-type', 'change', (event: Event) => {
 			const issueType = parseInt((<HTMLInputElement>event.target).value);
 			this.issueReporterModel.update({ issueType: issueType });
-			if (issueType === IssueType.PerformanceIssue && !this.receivedPerformanceInfo) {
+			if (issueType === OldIssueType.PerformanceIssue && !this.receivedPerformanceInfo) {
 				this.processMainService.$getPerformanceInfo().then(info => {
 					this.updatePerformanceInfo(info as Partial<IssueReporterData>);
 				});
@@ -526,15 +526,15 @@ export class IssueReporter extends Disposable {
 			return false;
 		}
 
-		if (issueType === IssueType.Bug && this.receivedSystemInfo) {
+		if (issueType === OldIssueType.Bug && this.receivedSystemInfo) {
 			return true;
 		}
 
-		if (issueType === IssueType.PerformanceIssue && this.receivedSystemInfo && this.receivedPerformanceInfo) {
+		if (issueType === OldIssueType.PerformanceIssue && this.receivedSystemInfo && this.receivedPerformanceInfo) {
 			return true;
 		}
 
-		if (issueType === IssueType.FeatureRequest) {
+		if (issueType === OldIssueType.FeatureRequest) {
 			return true;
 		}
 
@@ -725,14 +725,14 @@ export class IssueReporter extends Disposable {
 	}
 
 	private setUpTypes(): void {
-		const makeOption = (issueType: IssueType, description: string) => $('option', { 'value': issueType.valueOf() }, escape(description));
+		const makeOption = (issueType: OldIssueType, description: string) => $('option', { 'value': issueType.valueOf() }, escape(description));
 
 		const typeSelect = this.getElementById('issue-type')! as HTMLSelectElement;
 		const { issueType } = this.issueReporterModel.getData();
 		reset(typeSelect,
-			makeOption(IssueType.Bug, localize('bugReporter', "Bug Report")),
-			makeOption(IssueType.FeatureRequest, localize('featureRequest', "Feature Request")),
-			makeOption(IssueType.PerformanceIssue, localize('performanceIssue', "Performance Issue (freeze, slow, crash)"))
+			makeOption(OldIssueType.Bug, localize('bugReporter', "Bug Report")),
+			makeOption(OldIssueType.FeatureRequest, localize('featureRequest', "Feature Request")),
+			makeOption(OldIssueType.PerformanceIssue, localize('performanceIssue', "Performance Issue (freeze, slow, crash)"))
 		);
 
 		typeSelect.value = issueType.toString();
@@ -773,7 +773,7 @@ export class IssueReporter extends Disposable {
 			sourceSelect.append(this.makeOption(IssueSource.Marketplace, localize('marketplace', "Extensions Marketplace"), false));
 		}
 
-		if (issueType !== IssueType.FeatureRequest) {
+		if (issueType !== OldIssueType.FeatureRequest) {
 			sourceSelect.append(this.makeOption(IssueSource.Unknown, localize('unknown', "Don't know"), false));
 		}
 
@@ -852,7 +852,7 @@ export class IssueReporter extends Disposable {
 			}, 100);
 		}
 
-		if (issueType === IssueType.Bug) {
+		if (issueType === OldIssueType.Bug) {
 			if (!fileOnMarketplace) {
 				show(blockContainer);
 				show(systemBlock);
@@ -864,7 +864,7 @@ export class IssueReporter extends Disposable {
 
 			reset(descriptionTitle, localize('stepsToReproduce', "Steps to Reproduce") + ' ', $('span.required-input', undefined, '*'));
 			reset(descriptionSubtitle, localize('bugDescription', "Share the steps needed to reliably reproduce the problem. Please include actual and expected results. We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub."));
-		} else if (issueType === IssueType.PerformanceIssue) {
+		} else if (issueType === OldIssueType.PerformanceIssue) {
 			if (!fileOnMarketplace) {
 				show(blockContainer);
 				show(systemBlock);
@@ -881,7 +881,7 @@ export class IssueReporter extends Disposable {
 
 			reset(descriptionTitle, localize('stepsToReproduce', "Steps to Reproduce") + ' ', $('span.required-input', undefined, '*'));
 			reset(descriptionSubtitle, localize('performanceIssueDesciption', "When did this performance issue happen? Does it occur on startup or after a specific series of actions? We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub."));
-		} else if (issueType === IssueType.FeatureRequest) {
+		} else if (issueType === OldIssueType.FeatureRequest) {
 			reset(descriptionTitle, localize('description', "Description") + ' ', $('span.required-input', undefined, '*'));
 			reset(descriptionSubtitle, localize('featureRequestDescription', "Please describe the feature you would like to see. We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub."));
 		}
@@ -1172,7 +1172,7 @@ export class IssueReporter extends Disposable {
 		}
 	}
 
-	private updateExtensionSelector(extensions: IssueReporterExtensionData[]): void {
+	private updateExtensionSelector(extensions: OldIssueReporterExtensionData[]): void {
 		interface IOption {
 			name: string;
 			id: string;
@@ -1200,7 +1200,7 @@ export class IssueReporter extends Disposable {
 			return 0;
 		});
 
-		const makeOption = (extension: IOption, selectedExtension?: IssueReporterExtensionData): HTMLOptionElement => {
+		const makeOption = (extension: IOption, selectedExtension?: OldIssueReporterExtensionData): HTMLOptionElement => {
 			const selected = selectedExtension && extension.id === selectedExtension.id;
 			return $<HTMLOptionElement>('option', {
 				'value': extension.id,
@@ -1279,7 +1279,7 @@ export class IssueReporter extends Disposable {
 		this.configuration.data.uri = undefined;
 	}
 
-	private async updateExtensionStatus(extension: IssueReporterExtensionData) {
+	private async updateExtensionStatus(extension: OldIssueReporterExtensionData) {
 		this.issueReporterModel.update({ selectedExtension: extension });
 
 		// uses this.configuuration.data to ensure that data is coming from `openReporter` command.
@@ -1416,7 +1416,7 @@ export class IssueReporter extends Disposable {
 		mainWindow.document.querySelector('.block-workspace .block-info code')!.textContent = '\n' + state.workspaceInfo;
 	}
 
-	private updateExtensionTable(extensions: IssueReporterExtensionData[], numThemeExtensions: number): void {
+	private updateExtensionTable(extensions: OldIssueReporterExtensionData[], numThemeExtensions: number): void {
 		const target = mainWindow.document.querySelector<HTMLElement>('.block-extensions .block-info');
 		if (target) {
 			if (this.configuration.disableExtensions) {
@@ -1452,7 +1452,7 @@ export class IssueReporter extends Disposable {
 		}
 	}
 
-	private getExtensionTableHtml(extensions: IssueReporterExtensionData[]): HTMLTableElement {
+	private getExtensionTableHtml(extensions: OldIssueReporterExtensionData[]): HTMLTableElement {
 		return $('table', undefined,
 			$('tr', undefined,
 				$('th', undefined, 'Extension'),

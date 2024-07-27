@@ -55,7 +55,8 @@ const enum State {
 	Empty,
 	Open,
 	Frozen,
-	Details
+	Details,
+	onDetailsKeyDown
 }
 
 export interface ISelectedSuggestion {

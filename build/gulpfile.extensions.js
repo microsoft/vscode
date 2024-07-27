@@ -48,7 +48,6 @@ const compilations = [
 	'extensions/json-language-features/client/tsconfig.json',
 	'extensions/json-language-features/server/tsconfig.json',
 	'extensions/markdown-language-features/preview-src/tsconfig.json',
-	'extensions/markdown-language-features/server/tsconfig.json',
 	'extensions/markdown-language-features/tsconfig.json',
 	'extensions/markdown-math/tsconfig.json',
 	'extensions/media-preview/tsconfig.json',

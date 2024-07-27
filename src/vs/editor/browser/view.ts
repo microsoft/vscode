@@ -97,6 +97,7 @@ export class View extends ViewEventHandler {
 	private readonly _linesContent: FastDomNode<HTMLElement>;
 	public readonly domNode: FastDomNode<HTMLElement>;
 	private readonly _overflowGuardContainer: FastDomNode<HTMLElement>;
+	private readonly _overflowWidgetsDomNode: HTMLElement | null;
 
 	// Actual mutable state
 	private _shouldRecomputeGlyphMarginLanes: boolean = false;
@@ -114,6 +115,7 @@ export class View extends ViewEventHandler {
 		super();
 		this._selections = [new Selection(1, 1, 1, 1)];
 		this._renderAnimationFrame = null;
+		this._overflowWidgetsDomNode = overflowWidgetsDomNode ?? null;
 
 		const viewController = new ViewController(configuration, model, userInputEvents, commandDelegate);
 
@@ -278,6 +280,7 @@ export class View extends ViewEventHandler {
 	private _createPointerHandlerHelper(): IPointerHandlerHelper {
 		return {
 			viewDomNode: this.domNode.domNode,
+			overflowWidgetsDomNode: this._overflowWidgetsDomNode,
 			linesContentDomNode: this._linesContent.domNode,
 			viewLinesDomNode: this._viewLines.getDomNode().domNode,
 
@@ -399,14 +402,6 @@ export class View extends ViewEventHandler {
 		}
 
 		super.dispose();
-
-		// See https://github.com/microsoft/vscode/pull/219297
-		// Reduces the impact of detached dom node memory leaks
-		// E.g when a memory leak occurs in a child component
-		// of the editor (e.g. Minimap, GlyphMarginWidgets,...)
-		// the editor dom (linked to the child dom) should not be
-		// leaked as well.
-		dom.clearNodeRecursively(this.domNode.domNode);
 	}
 
 	private _scheduleRender(): void {

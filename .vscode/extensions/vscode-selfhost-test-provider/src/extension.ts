@@ -20,6 +20,7 @@ import {
 	itemData,
 } from './testTree';
 import { BrowserTestRunner, PlatformTestRunner, VSCodeTestRunner } from './vscodeTestRunner';
+import { ImportGraph } from './importGraph';
 
 const TEST_FILE_PATTERN = 'src/vs/**/*.{test,integrationTest}.ts';
 
@@ -51,10 +52,15 @@ export async function activate(context: vscode.ExtensionContext) {
 		},
 	}));
 
-
-	ctrl.resolveHandler = async test => {
+	let initialWatchPromise: Promise<vscode.Disposable> | undefined;
+	const resolveHandler = async (test?: vscode.TestItem) => {
 		if (!test) {
-			context.subscriptions.push(await startWatchingWorkspace(ctrl, fileChangedEmitter));
+			if (!initialWatchPromise) {
+				initialWatchPromise = startWatchingWorkspace(ctrl, fileChangedEmitter);
+				context.subscriptions.push(await initialWatchPromise);
+			} else {
+				await initialWatchPromise;
+			}
 			return;
 		}
 
@@ -66,10 +72,24 @@ export async function activate(context: vscode.ExtensionContext) {
 		}
 	};
 
+	ctrl.resolveHandler = resolveHandler;
+
 	guessWorkspaceFolder().then(folder => {
-		if (folder) {
-			context.subscriptions.push(new FailureTracker(context, folder.uri.fsPath));
+		if (!folder) {
+			return;
 		}
+
+		const graph = new ImportGraph(
+			folder.uri, async () => {
+				await resolveHandler();
+				return [...ctrl.items].map(([, item]) => item);
+			}, uri => ctrl.items.get(uri.toString().toLowerCase()));
+		ctrl.relatedCodeProvider = graph;
+
+		context.subscriptions.push(
+			new FailureTracker(context, folder.uri.fsPath),
+			fileChangedEmitter.event(e => graph.didChange(e.uri, e.removed)),
+		);
 	});
 
 	const createRunHandler = (

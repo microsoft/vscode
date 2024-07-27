@@ -55,19 +55,28 @@ export async function main(argv: string[]): Promise<any> {
 				console.error(`'${subcommand}' command not supported in ${product.applicationName}`);
 				return;
 			}
+			const env: IProcessEnvironment = {
+				...process.env
+			};
+			// bootstrap-amd.js determines the electron environment based
+			// on the following variable. For the server we need to unset
+			// it to prevent importing any electron specific modules.
+			// Refs https://github.com/microsoft/vscode/issues/221883
+			delete env['ELECTRON_RUN_AS_NODE'];
+
 			const tunnelArgs = argv.slice(argv.indexOf(subcommand) + 1); // all arguments behind `tunnel`
 			return new Promise((resolve, reject) => {
 				let tunnelProcess: ChildProcess;
 				const stdio: StdioOptions = ['ignore', 'pipe', 'pipe'];
 				if (process.env['VSCODE_DEV']) {
-					tunnelProcess = spawn('cargo', ['run', '--', subcommand, ...tunnelArgs], { cwd: join(getAppRoot(), 'cli'), stdio });
+					tunnelProcess = spawn('cargo', ['run', '--', subcommand, ...tunnelArgs], { cwd: join(getAppRoot(), 'cli'), stdio, env });
 				} else {
 					const appPath = process.platform === 'darwin'
 						// ./Contents/MacOS/Electron => ./Contents/Resources/app/bin/code-tunnel-insiders
 						? join(dirname(dirname(process.execPath)), 'Resources', 'app')
 						: dirname(process.execPath);
 					const tunnelCommand = join(appPath, 'bin', `${product.tunnelApplicationName}${isWindows ? '.exe' : ''}`);
-					tunnelProcess = spawn(tunnelCommand, [subcommand, ...tunnelArgs], { cwd: cwd(), stdio });
+					tunnelProcess = spawn(tunnelCommand, [subcommand, ...tunnelArgs], { cwd: cwd(), stdio, env });
 				}
 
 				tunnelProcess.stdout!.pipe(process.stdout);

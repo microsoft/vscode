@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { deepStrictEqual, fail, strictEqual, ok } from 'assert';
+import { deepStrictEqual, strictEqual, ok } from 'assert';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Schemas } from 'vs/base/common/network';
 import { join } from 'vs/base/common/path';
@@ -328,10 +328,13 @@ suite('Terminal history', () => {
 			instantiationService = new TestInstantiationService();
 			instantiationService.stub(IFileService, {
 				async readFile(resource: URI) {
-					const expected = URI.from({ scheme: fileScheme, path: filePath });
-					if (resource.scheme !== expected.scheme || resource.fsPath !== expected.fsPath) {
-						fail(`Unexpected file scheme/path ${resource.scheme} ${resource.fsPath}`);
-					}
+					const expected = URI.from({
+						scheme: fileScheme,
+						authority: remoteConnection?.remoteAuthority,
+						path: URI.file(filePath).path
+					});
+					// Sanitize the encoded `/` chars as they don't impact behavior
+					strictEqual(resource.toString().replaceAll('%5C', '/'), expected.toString().replaceAll('%5C', '/'));
 					return { value: VSBuffer.fromString(fileContent) };
 				}
 			} as Pick<IFileService, 'readFile'>);

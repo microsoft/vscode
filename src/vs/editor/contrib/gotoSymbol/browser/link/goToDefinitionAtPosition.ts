@@ -297,7 +297,7 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 			return Promise.resolve(null);
 		}
 
-		return getDefinitionsAtPosition(this.languageFeaturesService.definitionProvider, model, position, token);
+		return getDefinitionsAtPosition(this.languageFeaturesService.definitionProvider, model, position, false, token);
 	}
 
 	private gotoDefinition(position: Position, openToSide: boolean): Promise<any> {

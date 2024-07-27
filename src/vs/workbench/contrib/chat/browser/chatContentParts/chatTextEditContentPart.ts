@@ -75,6 +75,7 @@ export class ChatTextEditContentPart extends Disposable implements IChatContentP
 			this._register(toDisposable(() => {
 				isDisposed = true;
 				cts.dispose(true);
+				this.ref?.object.clearModel();
 			}));
 
 			this.ref = this._register(diffEditorPool.get());

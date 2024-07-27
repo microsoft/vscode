@@ -1098,7 +1098,7 @@ export class CommentController implements IEditorContribution {
 			const existingCommentsAtLine = this._commentWidgets.filter(widget => widget.getGlyphPosition() === (commentRange ? commentRange.endLineNumber : 0));
 			if (existingCommentsAtLine.length) {
 				const allExpanded = existingCommentsAtLine.every(widget => widget.expanded);
-				existingCommentsAtLine.forEach(allExpanded ? widget => widget.collapse() : widget => widget.expand());
+				existingCommentsAtLine.forEach(allExpanded ? widget => widget.collapse() : widget => widget.expand(true));
 				this.processNextThreadToAdd();
 				return;
 			} else {

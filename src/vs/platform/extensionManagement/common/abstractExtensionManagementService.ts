@@ -9,6 +9,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { CancellationError, getErrorMessage, isCancellationError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { ResourceMap } from 'vs/base/common/map';
 import { isWeb } from 'vs/base/common/platform';
 import { isDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
@@ -19,7 +20,8 @@ import {
 	InstallOptions, UninstallOptions, Metadata, InstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionResult, UninstallExtensionEvent, IExtensionManagementService, InstallExtensionInfo, EXTENSION_INSTALL_DEP_PACK_CONTEXT, ExtensionGalleryError,
 	IProductVersion, ExtensionGalleryErrorCode,
 	EXTENSION_INSTALL_SOURCE_CONTEXT,
-	DidUpdateExtensionMetadata
+	DidUpdateExtensionMetadata,
+	UninstallExtensionInfo
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions, ExtensionKey, getGalleryExtensionId, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionType, IExtensionManifest, isApplicationScopedExtension, TargetPlatform } from 'vs/platform/extensions/common/extensions';
@@ -48,6 +50,7 @@ export interface IInstallExtensionTask {
 
 export type UninstallExtensionTaskOptions = UninstallOptions & { readonly profileLocation: URI };
 export interface IUninstallExtensionTask {
+	readonly options: UninstallExtensionTaskOptions;
 	readonly extension: ILocalExtension;
 	run(): Promise<void>;
 	waitUntilTaskIsFinished(): Promise<void>;
@@ -142,9 +145,9 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 		return results;
 	}
 
-	async uninstall(extension: ILocalExtension, options: UninstallOptions = {}): Promise<void> {
+	async uninstall(extension: ILocalExtension, options?: UninstallOptions): Promise<void> {
 		this.logService.trace('ExtensionManagementService#uninstall', extension.identifier.id);
-		return this.uninstallExtension(extension, options);
+		return this.uninstallExtensions([{ extension, options }]);
 	}
 
 	async toggleAppliationScope(extension: ILocalExtension, fromProfileLocation: URI): Promise<ILocalExtension> {
@@ -615,43 +618,23 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 		return compatibleExtension;
 	}
 
-	private async uninstallExtension(extension: ILocalExtension, options: UninstallOptions): Promise<void> {
-		const uninstallOptions: UninstallExtensionTaskOptions = {
-			...options,
-			profileLocation: extension.isApplicationScoped ? this.userDataProfilesService.defaultProfile.extensionsResource : options.profileLocation ?? this.getCurrentExtensionsManifestLocation()
-		};
-		const getUninstallExtensionTaskKey = (identifier: IExtensionIdentifier) => `${identifier.id.toLowerCase()}${uninstallOptions.versionOnly ? `-${extension.manifest.version}` : ''}${uninstallOptions.profileLocation ? `@${uninstallOptions.profileLocation.toString()}` : ''}`;
-		const uninstallExtensionTask = this.uninstallingExtensions.get(getUninstallExtensionTaskKey(extension.identifier));
-		if (uninstallExtensionTask) {
-			this.logService.info('Extensions is already requested to uninstall', extension.identifier.id);
-			return uninstallExtensionTask.waitUntilTaskIsFinished();
-		}
+	async uninstallExtensions(extensions: UninstallExtensionInfo[]): Promise<void> {
 
-		const createUninstallExtensionTask = (extension: ILocalExtension): IUninstallExtensionTask => {
+		const getUninstallExtensionTaskKey = (extension: ILocalExtension, uninstallOptions: UninstallExtensionTaskOptions) => `${extension.identifier.id.toLowerCase()}${uninstallOptions.versionOnly ? `-${extension.manifest.version}` : ''}@${uninstallOptions.profileLocation.toString()}`;
+
+		const createUninstallExtensionTask = (extension: ILocalExtension, uninstallOptions: UninstallExtensionTaskOptions): IUninstallExtensionTask => {
 			const uninstallExtensionTask = this.createUninstallExtensionTask(extension, uninstallOptions);
-			this.uninstallingExtensions.set(getUninstallExtensionTaskKey(uninstallExtensionTask.extension.identifier), uninstallExtensionTask);
-			if (uninstallOptions.profileLocation) {
-				this.logService.info('Uninstalling extension from the profile:', `${extension.identifier.id}@${extension.manifest.version}`, uninstallOptions.profileLocation.toString());
-			} else {
-				this.logService.info('Uninstalling extension:', `${extension.identifier.id}@${extension.manifest.version}`);
-			}
+			this.uninstallingExtensions.set(getUninstallExtensionTaskKey(uninstallExtensionTask.extension, uninstallOptions), uninstallExtensionTask);
+			this.logService.info('Uninstalling extension from the profile:', `${extension.identifier.id}@${extension.manifest.version}`, uninstallOptions.profileLocation.toString());
 			this._onUninstallExtension.fire({ identifier: extension.identifier, profileLocation: uninstallOptions.profileLocation, applicationScoped: extension.isApplicationScoped });
 			return uninstallExtensionTask;
 		};
 
-		const postUninstallExtension = (extension: ILocalExtension, error?: ExtensionManagementError): void => {
+		const postUninstallExtension = (extension: ILocalExtension, uninstallOptions: UninstallExtensionTaskOptions, error?: ExtensionManagementError): void => {
 			if (error) {
-				if (uninstallOptions.profileLocation) {
-					this.logService.error('Failed to uninstall extension from the profile:', `${extension.identifier.id}@${extension.manifest.version}`, uninstallOptions.profileLocation.toString(), error.message);
-				} else {
-					this.logService.error('Failed to uninstall extension:', `${extension.identifier.id}@${extension.manifest.version}`, error.message);
-				}
+				this.logService.error('Failed to uninstall extension from the profile:', `${extension.identifier.id}@${extension.manifest.version}`, uninstallOptions.profileLocation.toString(), error.message);
 			} else {
-				if (uninstallOptions.profileLocation) {
-					this.logService.info('Successfully uninstalled extension from the profile', `${extension.identifier.id}@${extension.manifest.version}`, uninstallOptions.profileLocation.toString());
-				} else {
-					this.logService.info('Successfully uninstalled extension:', `${extension.identifier.id}@${extension.manifest.version}`);
-				}
+				this.logService.info('Successfully uninstalled extension from the profile', `${extension.identifier.id}@${extension.manifest.version}`, uninstallOptions.profileLocation.toString());
 			}
 			reportTelemetry(this.telemetryService, 'extensionGallery:uninstall', { extensionData: getLocalExtensionTelemetryData(extension), error });
 			this._onDidUninstallExtension.fire({ identifier: extension.identifier, error: error?.code, profileLocation: uninstallOptions.profileLocation, applicationScoped: extension.isApplicationScoped });
@@ -659,64 +642,91 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 
 		const allTasks: IUninstallExtensionTask[] = [];
 		const processedTasks: IUninstallExtensionTask[] = [];
+		const alreadyRequestedUninstalls: Promise<any>[] = [];
+
+		const installedExtensionsMap = new ResourceMap<ILocalExtension[]>();
+
+		for (const { extension, options } of extensions) {
+			const uninstallOptions: UninstallExtensionTaskOptions = {
+				...options,
+				profileLocation: extension.isApplicationScoped ? this.userDataProfilesService.defaultProfile.extensionsResource : options?.profileLocation ?? this.getCurrentExtensionsManifestLocation()
+			};
+			const uninstallExtensionTask = this.uninstallingExtensions.get(getUninstallExtensionTaskKey(extension, uninstallOptions));
+			if (uninstallExtensionTask) {
+				this.logService.info('Extensions is already requested to uninstall', extension.identifier.id);
+				alreadyRequestedUninstalls.push(uninstallExtensionTask.waitUntilTaskIsFinished());
+			} else {
+				allTasks.push(createUninstallExtensionTask(extension, uninstallOptions));
+			}
+		}
 
 		try {
-			allTasks.push(createUninstallExtensionTask(extension));
-			const installed = await this.getInstalled(ExtensionType.User, uninstallOptions.profileLocation);
-			if (uninstallOptions.donotIncludePack) {
-				this.logService.info('Uninstalling the extension without including packed extension', `${extension.identifier.id}@${extension.manifest.version}`);
-			} else {
-				const packedExtensions = this.getAllPackExtensionsToUninstall(extension, installed);
-				for (const packedExtension of packedExtensions) {
-					if (this.uninstallingExtensions.has(getUninstallExtensionTaskKey(packedExtension.identifier))) {
-						this.logService.info('Extensions is already requested to uninstall', packedExtension.identifier.id);
-					} else {
-						allTasks.push(createUninstallExtensionTask(packedExtension));
+			for (const task of allTasks.slice(0)) {
+				let installed = installedExtensionsMap.get(task.options.profileLocation);
+				if (!installed) {
+					installedExtensionsMap.set(task.options.profileLocation, installed = await this.getInstalled(ExtensionType.User, task.options.profileLocation));
+				}
+
+				if (task.options.donotIncludePack) {
+					this.logService.info('Uninstalling the extension without including packed extension', `${task.extension.identifier.id}@${task.extension.manifest.version}`);
+				} else {
+					const packedExtensions = this.getAllPackExtensionsToUninstall(task.extension, installed);
+					for (const packedExtension of packedExtensions) {
+						if (this.uninstallingExtensions.has(getUninstallExtensionTaskKey(packedExtension, task.options))) {
+							this.logService.info('Extensions is already requested to uninstall', packedExtension.identifier.id);
+						} else {
+							allTasks.push(createUninstallExtensionTask(packedExtension, task.options));
+						}
 					}
 				}
-			}
-
-			if (uninstallOptions.donotCheckDependents) {
-				this.logService.info('Uninstalling the extension without checking dependents', `${extension.identifier.id}@${extension.manifest.version}`);
-			} else {
-				this.checkForDependents(allTasks.map(task => task.extension), installed, extension);
+				if (task.options.donotCheckDependents) {
+					this.logService.info('Uninstalling the extension without checking dependents', `${task.extension.identifier.id}@${task.extension.manifest.version}`);
+				} else {
+					this.checkForDependents(allTasks.map(task => task.extension), installed, task.extension);
+				}
 			}
 
 			// Uninstall extensions in parallel and wait until all extensions are uninstalled / failed
 			await this.joinAllSettled(allTasks.map(async task => {
 				try {
 					await task.run();
-					await this.joinAllSettled(this.participants.map(participant => participant.postUninstall(task.extension, uninstallOptions, CancellationToken.None)));
+					await this.joinAllSettled(this.participants.map(participant => participant.postUninstall(task.extension, task.options, CancellationToken.None)));
 					// only report if extension has a mapped gallery extension. UUID identifies the gallery extension.
 					if (task.extension.identifier.uuid) {
 						try {
 							await this.galleryService.reportStatistic(task.extension.manifest.publisher, task.extension.manifest.name, task.extension.manifest.version, StatisticType.Uninstall);
 						} catch (error) { /* ignore */ }
 					}
-					postUninstallExtension(task.extension);
 				} catch (e) {
 					const error = toExtensionManagementError(e);
-					postUninstallExtension(task.extension, error);
+					postUninstallExtension(task.extension, task.options, error);
 					throw error;
 				} finally {
 					processedTasks.push(task);
 				}
 			}));
 
+			if (alreadyRequestedUninstalls.length) {
+				await this.joinAllSettled(alreadyRequestedUninstalls);
+			}
+
+			for (const task of allTasks) {
+				postUninstallExtension(task.extension, task.options);
+			}
 		} catch (e) {
 			const error = toExtensionManagementError(e);
 			for (const task of allTasks) {
 				// cancel the tasks
 				try { task.cancel(); } catch (error) { /* ignore */ }
 				if (!processedTasks.includes(task)) {
-					postUninstallExtension(task.extension, error);
+					postUninstallExtension(task.extension, task.options, error);
 				}
 			}
 			throw error;
 		} finally {
 			// Remove tasks from cache
 			for (const task of allTasks) {
-				if (!this.uninstallingExtensions.delete(getUninstallExtensionTaskKey(task.extension.identifier))) {
+				if (!this.uninstallingExtensions.delete(getUninstallExtensionTaskKey(task.extension, task.options))) {
 					this.logService.warn('Uninstallation task is not found in the cache', task.extension.identifier.id);
 				}
 			}

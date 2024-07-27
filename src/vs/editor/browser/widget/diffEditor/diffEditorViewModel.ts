@@ -394,6 +394,7 @@ function normalizeRangeMapping(rangeMapping: RangeMapping, original: ITextModel,
 	let originalRange = rangeMapping.originalRange;
 	let modifiedRange = rangeMapping.modifiedRange;
 	if (
+		originalRange.startColumn === 1 && modifiedRange.startColumn === 1 &&
 		(originalRange.endColumn !== 1 || modifiedRange.endColumn !== 1) &&
 		originalRange.endColumn === original.getLineMaxColumn(originalRange.endLineNumber)
 		&& modifiedRange.endColumn === modified.getLineMaxColumn(modifiedRange.endLineNumber)

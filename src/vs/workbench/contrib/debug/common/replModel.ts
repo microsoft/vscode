@@ -260,7 +260,7 @@ export interface INewReplElementData {
 
 export class ReplModel {
 	private replElements: IReplElement[] = [];
-	private readonly _onDidChangeElements = new Emitter<void>();
+	private readonly _onDidChangeElements = new Emitter<IReplElement | undefined>();
 	readonly onDidChangeElements = this._onDidChangeElements.event;
 
 	constructor(private readonly configurationService: IConfigurationService) { }
@@ -306,7 +306,7 @@ export class ReplModel {
 			if (!previousElement.value.endsWith('\n') && !previousElement.value.endsWith('\r\n') && previousElement.count === 1) {
 				this.replElements[this.replElements.length - 1] = new ReplOutputElement(
 					session, getUniqueId(), previousElement.value + output, sev, source);
-				this._onDidChangeElements.fire();
+				this._onDidChangeElements.fire(undefined);
 				return;
 			}
 		}
@@ -337,14 +337,13 @@ export class ReplModel {
 				this.replElements.splice(0, this.replElements.length - MAX_REPL_LENGTH);
 			}
 		}
-
-		this._onDidChangeElements.fire();
+		this._onDidChangeElements.fire(newElement);
 	}
 
 	removeReplExpressions(): void {
 		if (this.replElements.length > 0) {
 			this.replElements = [];
-			this._onDidChangeElements.fire();
+			this._onDidChangeElements.fire(undefined);
 		}
 	}
 
