@@ -137,7 +137,7 @@ export abstract class BaseWindow extends Disposable {
 				// this can happen for timeouts on unfocused windows
 				let didClear = false;
 
-				const handle = (window as any).vscodeOriginalSetTimeout.apply(this, [(...args: any[]) => {
+				const handle = (window as any).vscodeOriginalSetTimeout.apply(this, [(...args: unknown[]) => {
 					if (didClear) {
 						return;
 					}
