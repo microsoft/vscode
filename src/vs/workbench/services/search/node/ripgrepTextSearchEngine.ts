@@ -18,13 +18,14 @@ import { Range, TextSearchComplete, TextSearchContext, TextSearchMatch, TextSear
 import { AST as ReAST, RegExpParser, RegExpVisitor } from 'vscode-regexpp';
 import { rgPath } from '@vscode/ripgrep';
 import { anchorGlob, createTextSearchResult, IOutputChannel, Maybe } from './ripgrepSearchUtils';
+import type { RipgrepTextSearchOptions } from 'vs/workbench/services/search/common/searchExtTypesInternal';
 
 // If @vscode/ripgrep is in an .asar file, then the binary is unpacked.
 const rgDiskPath = rgPath.replace(/\bnode_modules\.asar\b/, 'node_modules.asar.unpacked');
 
 export class RipgrepTextSearchEngine {
 
-	constructor(private outputChannel: IOutputChannel) { }
+	constructor(private outputChannel: IOutputChannel, private readonly _numThreads?: number | undefined) { }
 
 	provideTextSearchResults(query: TextSearchQuery, options: TextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): Promise<TextSearchComplete> {
 		this.outputChannel.appendLine(`provideTextSearchResults ${query.pattern}, ${JSON.stringify({
@@ -37,7 +38,11 @@ export class RipgrepTextSearchEngine {
 		return new Promise((resolve, reject) => {
 			token.onCancellationRequested(() => cancel());
 
-			const rgArgs = getRgArgs(query, options);
+			const extendedOptions: RipgrepTextSearchOptions = {
+				...options,
+				numThreads: this._numThreads
+			};
+			const rgArgs = getRgArgs(query, extendedOptions);
 
 			const cwd = options.folder.fsPath;
 
@@ -368,7 +373,7 @@ function getNumLinesAndLastNewlineLength(text: string): { numLines: number; last
 }
 
 // exported for testing
-export function getRgArgs(query: TextSearchQuery, options: TextSearchOptions): string[] {
+export function getRgArgs(query: TextSearchQuery, options: RipgrepTextSearchOptions): string[] {
 	const args = ['--hidden', '--no-require-git'];
 	args.push(query.isCaseSensitive ? '--case-sensitive' : '--ignore-case');
 
@@ -420,6 +425,10 @@ export function getRgArgs(query: TextSearchQuery, options: TextSearchOptions): s
 
 	if (options.encoding && options.encoding !== 'utf8') {
 		args.push('--encoding', options.encoding);
+	}
+
+	if (options.numThreads) {
+		args.push('--threads', `${options.numThreads}`);
 	}
 
 	// Ripgrep handles -- as a -- arg separator. Only --.

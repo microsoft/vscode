@@ -35,7 +35,7 @@ import { CommentsModel } from 'vs/workbench/contrib/comments/browser/commentsMod
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { createActionViewItem, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IAction } from 'vs/base/common/actions';
 import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -142,9 +142,9 @@ export class CommentsMenus implements IDisposable {
 		@IMenuService private readonly menuService: IMenuService
 	) { }
 
-	getResourceActions(element: CommentNode): { menu?: IMenu; actions: IAction[] } {
+	getResourceActions(element: CommentNode): { actions: IAction[] } {
 		const actions = this.getActions(MenuId.CommentsViewThreadActions, element);
-		return { menu: actions.menu, actions: actions.primary };
+		return { actions: actions.primary };
 	}
 
 	getResourceContextActions(element: CommentNode): IAction[] {
@@ -155,7 +155,7 @@ export class CommentsMenus implements IDisposable {
 		this.contextKeyService = service;
 	}
 
-	private getActions(menuId: MenuId, element: CommentNode): { menu?: IMenu; primary: IAction[]; secondary: IAction[] } {
+	private getActions(menuId: MenuId, element: CommentNode): { primary: IAction[]; secondary: IAction[] } {
 		if (!this.contextKeyService) {
 			return { primary: [], secondary: [] };
 		}
@@ -168,12 +168,11 @@ export class CommentsMenus implements IDisposable {
 		];
 		const contextKeyService = this.contextKeyService.createOverlay(overlay);
 
-		const menu = this.menuService.createMenu(menuId, contextKeyService);
+		const menu = this.menuService.getMenuActions(menuId, contextKeyService, { shouldForwardArgs: true });
 		const primary: IAction[] = [];
 		const secondary: IAction[] = [];
 		const result = { primary, secondary, menu };
-		createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, result, 'inline');
-		menu.dispose();
+		createAndFillInContextMenuActions(menu, result, 'inline');
 
 		return result;
 	}
@@ -303,7 +302,7 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 			const renderedComment = this.getRenderedComment(originalComment.comment.body, disposables);
 			templateData.disposables.push(renderedComment);
 			templateData.threadMetadata.commentPreview.appendChild(renderedComment.element.firstElementChild ?? renderedComment.element);
-			templateData.disposables.push(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), templateData.threadMetadata.commentPreview, renderedComment.element.textContent ?? ''));
+			templateData.disposables.push(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), templateData.threadMetadata.commentPreview, renderedComment.element.textContent ?? ''));
 		}
 
 		if (node.element.range) {
@@ -320,7 +319,7 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 			commentControlHandle: node.element.controllerHandle,
 			commentThreadHandle: node.element.threadHandle,
 			$mid: MarshalledId.CommentThread
-		} as MarshalledCommentThread;
+		} satisfies MarshalledCommentThread;
 
 		if (!node.element.hasReply()) {
 			templateData.repliesMetadata.container.style.display = 'none';

@@ -30,7 +30,7 @@ interface IResourceCommentThreadEvent {
 	commentInfos: ICommentInfo[];
 }
 
-export interface ICommentInfo extends CommentInfo {
+export interface ICommentInfo<T = IRange> extends CommentInfo<T> {
 	uniqueOwner: string;
 	label?: string;
 }
@@ -63,11 +63,11 @@ export interface ICommentController {
 	options?: CommentOptions;
 	contextValue?: string;
 	owner: string;
-	createCommentThreadTemplate(resource: UriComponents, range: IRange | undefined): Promise<void>;
+	createCommentThreadTemplate(resource: UriComponents, range: IRange | undefined, editorId?: string): Promise<void>;
 	updateCommentThreadTemplate(threadHandle: number, range: IRange): Promise<void>;
 	deleteCommentThreadMain(commentThreadId: string): void;
 	toggleReaction(uri: URI, thread: CommentThread, comment: Comment, reaction: CommentReaction, token: CancellationToken): Promise<void>;
-	getDocumentComments(resource: URI, token: CancellationToken): Promise<ICommentInfo>;
+	getDocumentComments(resource: URI, token: CancellationToken): Promise<ICommentInfo<IRange>>;
 	getNotebookComments(resource: URI, token: CancellationToken): Promise<INotebookCommentInfo>;
 	setActiveCommentAndThread(commentInfo: { thread: CommentThread; comment?: Comment } | undefined): Promise<void>;
 }
@@ -97,7 +97,7 @@ export interface ICommentService {
 	registerCommentController(uniqueOwner: string, commentControl: ICommentController): void;
 	unregisterCommentController(uniqueOwner?: string): void;
 	getCommentController(uniqueOwner: string): ICommentController | undefined;
-	createCommentThreadTemplate(uniqueOwner: string, resource: URI, range: Range | undefined): Promise<void>;
+	createCommentThreadTemplate(uniqueOwner: string, resource: URI, range: Range | undefined, editorId?: string): Promise<void>;
 	updateCommentThreadTemplate(uniqueOwner: string, threadHandle: number, range: Range): Promise<void>;
 	getCommentMenus(uniqueOwner: string): CommentMenus;
 	updateComments(ownerId: string, event: CommentThreadChangedEvent<IRange>): void;
@@ -361,14 +361,14 @@ export class CommentService extends Disposable implements ICommentService {
 		return this._commentControls.get(uniqueOwner);
 	}
 
-	async createCommentThreadTemplate(uniqueOwner: string, resource: URI, range: Range | undefined): Promise<void> {
+	async createCommentThreadTemplate(uniqueOwner: string, resource: URI, range: Range | undefined, editorId?: string): Promise<void> {
 		const commentController = this._commentControls.get(uniqueOwner);
 
 		if (!commentController) {
 			return;
 		}
 
-		return commentController.createCommentThreadTemplate(resource, range);
+		return commentController.createCommentThreadTemplate(resource, range, editorId);
 	}
 
 	async updateCommentThreadTemplate(uniqueOwner: string, threadHandle: number, range: Range) {

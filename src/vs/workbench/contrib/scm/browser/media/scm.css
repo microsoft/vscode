@@ -67,10 +67,6 @@
 	justify-content: flex-end;
 }
 
-.scm-view .monaco-editor .selected-text {
-	border-radius: 0;
-}
-
 /**
  * The following rules are very specific because of inline drop down menus
  * https://github.com/microsoft/vscode/issues/101410
@@ -114,6 +110,10 @@
 	line-height: 22px;
 }
 
+.scm-view .monaco-list-row .monaco-icon-label-container {
+	height: 22px;
+}
+
 .scm-view .monaco-list-row .history,
 .scm-view .monaco-list-row .history-item-group,
 .scm-view .monaco-list-row .resource-group {
@@ -131,6 +131,31 @@
 .scm-view .monaco-list-row .history-item {
 	display: flex;
 	align-items: center;
+}
+
+.scm-view .monaco-list-row .history-item > .graph-container {
+	display: flex;
+	flex-shrink: 0;
+	height: 22px;
+}
+
+.scm-view .monaco-list-row .history-item > .graph-container > .graph > circle {
+	stroke: var(--vscode-sideBar-background);
+}
+
+.scm-view .monaco-list-row .history-item > .label-container {
+	display: flex;
+	opacity: 0.75;
+	flex-shrink: 0;
+	gap: 4px;
+}
+
+.scm-view .monaco-list-row .history-item > .label-container > .codicon {
+	font-size: 14px;
+	border: 1px solid var(--vscode-scm-historyItemStatisticsBorder);
+	border-radius: 2px;
+	margin: 1px 0;
+	padding: 2px
 }
 
 .scm-view .monaco-list-row .history-item .stats-container {
@@ -198,7 +223,9 @@
 }
 
 .scm-view .monaco-list-row.focused .separator-container .label-name,
-.scm-view .monaco-list-row.selected .separator-container .label-name {
+.scm-view .monaco-list-row.selected .separator-container .label-name,
+.scm-view .monaco-list-row.focused .separator-container .action-label::before,
+.scm-view .monaco-list-row.selected .separator-container .action-label::before {
 	color: var(--vscode-foreground);
 }
 
@@ -330,10 +357,6 @@
 
 .scm-view .scm-editor-container .monaco-editor {
 	border-radius: 2px;
-}
-
-.scm-view .scm-editor-container .monaco-editor .focused .selected-text {
-	background-color: var(--vscode-editor-selectionBackground);
 }
 
 .scm-view .scm-editor {
@@ -475,22 +498,6 @@
 	margin-top: 1px;
 }
 
-.scm-view .scm-editor-placeholder {
-	position: absolute;
-	pointer-events: none;
-	z-index: 1;
-	padding: 2px 6px;
-	box-sizing: border-box;
-	overflow: hidden;
-	white-space: nowrap;
-	text-overflow: ellipsis;
-	color: var(--vscode-input-placeholderForeground);
-}
-
-.scm-view .scm-editor-placeholder.hidden {
-	display: none;
-}
-
 .scm-view .scm-editor-container .monaco-editor-background,
 .scm-view .scm-editor-container .monaco-editor,
 .scm-view .scm-editor-container .monaco-editor .margin,
@@ -505,6 +512,10 @@
 	color: var(--vscode-input-foreground);
 }
 
+.scm-view .scm-editor-container .placeholder-text.mtk1 {
+	color: var(--vscode-input-placeholderForeground);
+}
+
 /* Repositories */
 
 .scm-repositories-view .scm-provider {
@@ -514,4 +525,27 @@
 
 .scm-repositories-view .scm-provider > .label > .name {
 	font-weight: normal;
+}
+
+/* History item hover */
+
+.monaco-hover.history-item-hover p:first-child {
+	margin-top: 4px;
+}
+
+.monaco-hover.history-item-hover p:last-child {
+	margin-bottom: 4px;
+}
+
+.monaco-hover.history-item-hover hr {
+	margin-top: 4px;
+	margin-bottom: 4px;
+}
+
+.monaco-hover.history-item-hover hr + p {
+	margin: 4px 0;
+}
+
+.monaco-hover.history-item-hover .markdown-hover .hover-contents:not(.code-hover-contents):not(.html-hover-contents) span:not(.codicon) {
+	margin-bottom: 0 !important;
 }

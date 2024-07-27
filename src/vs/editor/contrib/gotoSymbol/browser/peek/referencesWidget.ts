@@ -390,7 +390,7 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 				this._onDidSelectReference.fire({ element, kind, source: 'tree' });
 			}
 		};
-		this._tree.onDidOpen(e => {
+		this._disposables.add(this._tree.onDidOpen(e => {
 			if (e.sideBySide) {
 				onEvent(e.element, 'side');
 			} else if (e.editorOptions.pinned) {
@@ -398,7 +398,7 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 			} else {
 				onEvent(e.element, 'show');
 			}
-		});
+		}));
 
 		dom.hide(this._treeContainer);
 	}

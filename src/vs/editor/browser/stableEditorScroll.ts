@@ -5,6 +5,7 @@
 
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
+import { ScrollType } from 'vs/editor/common/editorCommon';
 
 export class StableEditorScrollState {
 
@@ -19,6 +20,16 @@ export class StableEditorScrollState {
 		const visibleRanges = editor.getVisibleRanges();
 		if (visibleRanges.length > 0) {
 			visiblePosition = visibleRanges[0].getStartPosition();
+
+			const cursorPos = editor.getPosition();
+			if (cursorPos) {
+				const isVisible = visibleRanges.some(range => range.containsPosition(cursorPos));
+				if (isVisible) {
+					// Keep cursor pos fixed if it is visible
+					visiblePosition = cursorPos;
+				}
+			}
+
 			const visiblePositionScrollTop = editor.getTopForPosition(visiblePosition.lineNumber, visiblePosition.column);
 			visiblePositionScrollDelta = editor.getScrollTop() - visiblePositionScrollTop;
 		}
@@ -59,7 +70,7 @@ export class StableEditorScrollState {
 		}
 
 		const offset = editor.getTopForLineNumber(currentCursorPosition.lineNumber) - editor.getTopForLineNumber(this._cursorPosition.lineNumber);
-		editor.setScrollTop(editor.getScrollTop() + offset);
+		editor.setScrollTop(editor.getScrollTop() + offset, ScrollType.Immediate);
 	}
 }
 
@@ -78,7 +89,7 @@ export class StableEditorBottomScrollState {
 		if (visibleRanges.length > 0) {
 			visiblePosition = visibleRanges.at(-1)!.getEndPosition();
 			const visiblePositionScrollBottom = editor.getBottomForLineNumber(visiblePosition.lineNumber);
-			visiblePositionScrollDelta = (editor.getScrollTop() + editor.getLayoutInfo().height) - visiblePositionScrollBottom;
+			visiblePositionScrollDelta = visiblePositionScrollBottom - editor.getScrollTop();
 		}
 		return new StableEditorBottomScrollState(editor.getScrollTop(), editor.getContentHeight(), visiblePosition, visiblePositionScrollDelta);
 	}
@@ -99,7 +110,7 @@ export class StableEditorBottomScrollState {
 
 		if (this._visiblePosition) {
 			const visiblePositionScrollBottom = editor.getBottomForLineNumber(this._visiblePosition.lineNumber);
-			editor.setScrollTop(visiblePositionScrollBottom - (this._visiblePositionScrollDelta + editor.getLayoutInfo().height));
+			editor.setScrollTop(visiblePositionScrollBottom - this._visiblePositionScrollDelta, ScrollType.Immediate);
 		}
 	}
 }

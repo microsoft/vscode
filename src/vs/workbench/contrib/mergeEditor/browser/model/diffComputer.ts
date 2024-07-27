@@ -11,7 +11,7 @@ import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';
 import { DetailedLineRangeMapping, RangeMapping } from 'vs/workbench/contrib/mergeEditor/browser/model/mapping';
-import { observableConfigValue } from 'vs/workbench/contrib/mergeEditor/browser/utils';
+import { observableConfigValue } from 'vs/platform/observable/common/platformObservableUtils';
 import { LineRange as DiffLineRange } from 'vs/editor/common/core/lineRange';
 
 export interface IMergeDiffComputer {

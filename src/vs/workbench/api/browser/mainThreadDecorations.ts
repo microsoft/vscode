@@ -87,13 +87,13 @@ export class MainThreadDecorations implements MainThreadDecorationsShape {
 		const registration = this._decorationsService.registerDecorationsProvider({
 			label,
 			onDidChange: emitter.event,
-			provideDecorations: async (uri, token) => {
+			provideDecorations: async (uri, token): Promise<IDecorationData | undefined> => {
 				const data = await queue.enqueue(uri, token);
 				if (!data) {
 					return undefined;
 				}
 				const [bubble, tooltip, letter, themeColor] = data;
-				return <IDecorationData>{
+				return {
 					weight: 10,
 					bubble: bubble ?? false,
 					color: themeColor?.id,

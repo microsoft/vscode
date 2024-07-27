@@ -30,15 +30,15 @@ export function serializeWebviewMessage(
 		const replacer = (_key: string, value: any) => {
 			if (value instanceof ArrayBuffer) {
 				const index = arrayBuffers.add(value);
-				return <extHostProtocol.WebviewMessageArrayBufferReference>{
+				return {
 					$$vscode_array_buffer_reference$$: true,
 					index,
-				};
+				} satisfies extHostProtocol.WebviewMessageArrayBufferReference;
 			} else if (ArrayBuffer.isView(value)) {
 				const type = getTypedArrayType(value);
 				if (type) {
 					const index = arrayBuffers.add(value.buffer);
-					return <extHostProtocol.WebviewMessageArrayBufferReference>{
+					return {
 						$$vscode_array_buffer_reference$$: true,
 						index,
 						view: {
@@ -46,7 +46,7 @@ export function serializeWebviewMessage(
 							byteLength: value.byteLength,
 							byteOffset: value.byteOffset,
 						}
-					};
+					} satisfies extHostProtocol.WebviewMessageArrayBufferReference;
 				}
 			}
 

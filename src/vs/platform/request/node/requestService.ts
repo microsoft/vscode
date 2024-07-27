@@ -17,7 +17,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { getResolvedShellEnv } from 'vs/platform/shell/node/shellEnv';
 import { ILogService, ILoggerService } from 'vs/platform/log/common/log';
-import { AbstractRequestService, IRequestService } from 'vs/platform/request/common/request';
+import { AbstractRequestService, AuthInfo, Credentials, IRequestService } from 'vs/platform/request/common/request';
 import { Agent, getProxyAgent } from 'vs/platform/request/node/proxy';
 import { createGunzip } from 'zlib';
 
@@ -110,6 +110,26 @@ export class RequestService extends AbstractRequestService implements IRequestSe
 		return undefined; // currently not implemented in node
 	}
 
+	async lookupAuthorization(authInfo: AuthInfo): Promise<Credentials | undefined> {
+		return undefined; // currently not implemented in node
+	}
+
+	async lookupKerberosAuthorization(urlStr: string): Promise<string | undefined> {
+		try {
+			const kerberos = await import('kerberos');
+			const url = new URL(urlStr);
+			const spn = this.configurationService.getValue<string>('http.proxyKerberosServicePrincipal')
+				|| (process.platform === 'win32' ? `HTTP/${url.hostname}` : `HTTP@${url.hostname}`);
+			this.logService.debug('RequestService#lookupKerberosAuthorization Kerberos authentication lookup', `proxyURL:${url}`, `spn:${spn}`);
+			const client = await kerberos.initializeClient(spn);
+			const response = await client.step('');
+			return 'Negotiate ' + response;
+		} catch (err) {
+			this.logService.debug('RequestService#lookupKerberosAuthorization Kerberos authentication failed', err);
+			return undefined;
+		}
+	}
+
 	async loadCertificates(): Promise<string[]> {
 		const proxyAgent = await import('@vscode/proxy-agent');
 		return proxyAgent.loadSystemCertificates({ log: this.logService });
@@ -165,7 +185,7 @@ export async function nodeRequest(options: NodeRequestOptions, token: Cancellati
 					stream = res.pipe(createGunzip());
 				}
 
-				resolve({ res, stream: streamToBufferReadableStream(stream) } as IRequestContext);
+				resolve({ res, stream: streamToBufferReadableStream(stream) } satisfies IRequestContext);
 			}
 		});
 

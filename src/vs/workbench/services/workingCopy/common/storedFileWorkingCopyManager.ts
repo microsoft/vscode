@@ -30,6 +30,7 @@ import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/wo
 import { isWeb } from 'vs/base/common/platform';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { SnapshotContext } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
+import { IProgressService } from 'vs/platform/progress/common/progress';
 
 /**
  * The only one that should be dealing with `IStoredFileWorkingCopy` and handle all
@@ -186,7 +187,8 @@ export class StoredFileWorkingCopyManager<M extends IStoredFileWorkingCopyModel>
 		@INotificationService private readonly notificationService: INotificationService,
 		@IWorkingCopyEditorService private readonly workingCopyEditorService: IWorkingCopyEditorService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IElevatedFileService private readonly elevatedFileService: IElevatedFileService
+		@IElevatedFileService private readonly elevatedFileService: IElevatedFileService,
+		@IProgressService private readonly progressService: IProgressService
 	) {
 		super(fileService, logService, workingCopyBackupService);
 
@@ -411,12 +413,17 @@ export class StoredFileWorkingCopyManager<M extends IStoredFileWorkingCopyModel>
 
 						await Promises.settled(workingCopiesToRestore.map(async workingCopyToRestore => {
 
+							// From this moment on, only operate on the canonical resource
+							// to fix a potential data loss issue:
+							// https://github.com/microsoft/vscode/issues/211374
+							const target = this.uriIdentityService.asCanonicalUri(workingCopyToRestore.target);
+
 							// Restore the working copy at the target. if we have previous dirty content, we pass it
 							// over to be used, otherwise we force a reload from disk. this is important
 							// because we know the file has changed on disk after the move and the working copy might
 							// have still existed with the previous state. this ensures that the working copy is not
 							// tracking a stale state.
-							await this.resolve(workingCopyToRestore.target, {
+							await this.resolve(target, {
 								reload: { async: false }, // enforce a reload
 								contents: workingCopyToRestore.snapshot
 							});
@@ -527,7 +534,7 @@ export class StoredFileWorkingCopyManager<M extends IStoredFileWorkingCopyModel>
 				async options => { await this.resolve(resource, { ...options, reload: { async: false } }); },
 				this.fileService, this.logService, this.workingCopyFileService, this.filesConfigurationService,
 				this.workingCopyBackupService, this.workingCopyService, this.notificationService, this.workingCopyEditorService,
-				this.editorService, this.elevatedFileService
+				this.editorService, this.elevatedFileService, this.progressService
 			);
 
 			workingCopyResolve = workingCopy.resolve(resolveOptions);

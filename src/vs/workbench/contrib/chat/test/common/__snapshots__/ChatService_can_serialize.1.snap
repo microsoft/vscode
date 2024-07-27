@@ -1,7 +1,7 @@
 {
   requesterUsername: "test",
   requesterAvatarIconUri: undefined,
-  responderUsername: "test",
+  responderUsername: "",
   responderAvatarIconUri: undefined,
   initialLocation: "panel",
   welcomeMessage: undefined,
@@ -27,13 +27,11 @@
                 value: "nullExtensionDescription",
                 _lower: "nullextensiondescription"
               },
-              extensionPublisher: "",
+              extensionPublisherId: "",
+              publisherDisplayName: "",
               extensionDisplayName: "",
               locations: [ "panel" ],
-              metadata: {
-                requester: { name: "test" },
-                fullName: "test"
-              },
+              metadata: { requester: { name: "test" } },
               slashCommands: [  ]
             },
             kind: "agent"
@@ -68,28 +66,18 @@
           value: "nullExtensionDescription",
           _lower: "nullextensiondescription"
         },
-        extensionPublisher: "",
+        extensionPublisherId: "",
+        publisherDisplayName: "",
         extensionDisplayName: "",
         locations: [ "panel" ],
-        metadata: {
-          requester: { name: "test" },
-          fullName: "test"
-        },
+        metadata: { requester: { name: "test" } },
         slashCommands: [  ]
       },
       slashCommand: undefined,
       usedContext: {
         documents: [
           {
-            uri: {
-              scheme: "file",
-              authority: "",
-              path: "/test/path/to/file",
-              query: "",
-              fragment: "",
-              _formatted: null,
-              _fsPath: null
-            },
+            uri: URI(file:///test/path/to/file),
             version: 3,
             ranges: [
               {
@@ -103,7 +91,8 @@
         ],
         kind: "usedContext"
       },
-      contentReferences: [  ]
+      contentReferences: [  ],
+      codeCitations: [  ]
     }
   ]
 }

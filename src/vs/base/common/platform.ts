@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 import * as nls from 'vs/nls';
 
 export const LANGUAGE_DEFAULT = 'en';
@@ -21,13 +22,6 @@ let _language: string = LANGUAGE_DEFAULT;
 let _platformLocale: string = LANGUAGE_DEFAULT;
 let _translationsConfigFile: string | undefined = undefined;
 let _userAgent: string | undefined = undefined;
-
-interface NLSConfig {
-	locale: string;
-	osLocale: string;
-	availableLanguages: { [key: string]: string };
-	_translationsConfigFile: string;
-}
 
 export interface IProcessEnvironment {
 	[key: string]: string | undefined;
@@ -89,13 +83,11 @@ if (typeof nodeProcess === 'object') {
 	const rawNlsConfig = nodeProcess.env['VSCODE_NLS_CONFIG'];
 	if (rawNlsConfig) {
 		try {
-			const nlsConfig: NLSConfig = JSON.parse(rawNlsConfig);
-			const resolved = nlsConfig.availableLanguages['*'];
-			_locale = nlsConfig.locale;
+			const nlsConfig: nls.INLSConfiguration = JSON.parse(rawNlsConfig);
+			_locale = nlsConfig.userLocale;
 			_platformLocale = nlsConfig.osLocale;
-			// VSCode's default language is 'en'
-			_language = resolved ? resolved : LANGUAGE_DEFAULT;
-			_translationsConfigFile = nlsConfig._translationsConfigFile;
+			_language = nlsConfig.resolvedLanguage || LANGUAGE_DEFAULT;
+			_translationsConfigFile = nlsConfig.languagePack?.translationsConfigFile;
 		} catch (e) {
 		}
 	}
@@ -111,18 +103,10 @@ else if (typeof navigator === 'object' && !isElectronRenderer) {
 	_isLinux = _userAgent.indexOf('Linux') >= 0;
 	_isMobile = _userAgent?.indexOf('Mobi') >= 0;
 	_isWeb = true;
-
-	const configuredLocale = nls.getConfiguredDefaultLocale(
-		// This call _must_ be done in the file that calls `nls.getConfiguredDefaultLocale`
-		// to ensure that the NLS AMD Loader plugin has been loaded and configured.
-		// This is because the loader plugin decides what the default locale is based on
-		// how it's able to resolve the strings.
-		nls.localize({ key: 'ensureLoaderPluginIsLoaded', comment: ['{Locked}'] }, '_')
-	);
-
-	_locale = configuredLocale || LANGUAGE_DEFAULT;
-	_language = _locale;
-	_platformLocale = navigator.language;
+	// VSCODE_GLOBALS: NLS
+	_language = globalThis._VSCODE_NLS_LANGUAGE || LANGUAGE_DEFAULT;
+	_locale = navigator.language.toLowerCase();
+	_platformLocale = _locale;
 }
 
 // Unknown environment
@@ -178,7 +162,7 @@ export const userAgent = _userAgent;
 /**
  * The language used for the user interface. The format of
  * the string is all lower case (e.g. zh-tw for Traditional
- * Chinese)
+ * Chinese or de for German)
  */
 export const language = _language;
 
@@ -204,15 +188,16 @@ export namespace Language {
 }
 
 /**
- * The OS locale or the locale specified by --locale. The format of
- * the string is all lower case (e.g. zh-tw for Traditional
- * Chinese). The UI is not necessarily shown in the provided locale.
+ * Desktop: The OS locale or the locale specified by --locale or `argv.json`.
+ * Web: matches `platformLocale`.
+ *
+ * The UI is not necessarily shown in the provided locale.
  */
 export const locale = _locale;
 
 /**
  * This will always be set to the OS/browser's locale regardless of
- * what was specified by --locale. The format of the string is all
+ * what was specified otherwise. The format of the string is all
  * lower case (e.g. zh-tw for Traditional Chinese). The UI is not
  * necessarily shown in the provided locale.
  */

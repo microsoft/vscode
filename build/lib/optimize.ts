@@ -60,8 +60,7 @@ function loader(src: string, bundledFileHeader: string, bundleLoader: boolean, e
 	if (bundleLoader) {
 		loaderStream = es.merge(
 			loaderStream,
-			loaderPlugin(`${src}/vs/css.js`, `${src}`, 'vs/css'),
-			loaderPlugin(`${src}/vs/nls.js`, `${src}`, 'vs/nls'),
+			loaderPlugin(`${src}/vs/css.js`, `${src}`, 'vs/css')
 		);
 	}
 
@@ -73,10 +72,7 @@ function loader(src: string, bundledFileHeader: string, bundleLoader: boolean, e
 		if (f.path.endsWith('css.js')) {
 			return 1;
 		}
-		if (f.path.endsWith('nls.js')) {
-			return 2;
-		}
-		return 3;
+		return 2;
 	};
 
 	return (
@@ -269,6 +265,7 @@ function optimizeAMDTask(opts: IOptimizeAMDTaskOpts): NodeJS.ReadWriteStream {
 			includeContent: true
 		}))
 		.pipe(opts.languages && opts.languages.length ? processNlsFiles({
+			out: opts.src,
 			fileHeader: bundledFileHeader,
 			languages: opts.languages
 		}) : es.through());

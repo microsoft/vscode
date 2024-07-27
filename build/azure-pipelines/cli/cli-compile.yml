@@ -49,16 +49,22 @@ steps:
               export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER="$VSCODE_SYSROOT_DIR/aarch64-linux-gnu/bin/aarch64-linux-gnu-gcc"
               export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_RUSTFLAGS="-C link-arg=--sysroot=$VSCODE_SYSROOT_DIR/aarch64-linux-gnu/aarch64-linux-gnu/sysroot"
               export CC_aarch64_unknown_linux_gnu="$VSCODE_SYSROOT_DIR/aarch64-linux-gnu/bin/aarch64-linux-gnu-gcc --sysroot=$VSCODE_SYSROOT_DIR/aarch64-linux-gnu/aarch64-linux-gnu/sysroot"
+              export PKG_CONFIG_LIBDIR_aarch64_unknown_linux_gnu="$VSCODE_SYSROOT_DIR/aarch64-linux-gnu/aarch64-linux-gnu/sysroot/usr/lib/aarch64-linux-gnu/pkgconfig:$VSCODE_SYSROOT_DIR/aarch64-linux-gnu/aarch64-linux-gnu/sysroot/usr/share/pkgconfig"
+              export PKG_CONFIG_SYSROOT_DIR_aarch64_unknown_linux_gnu="$VSCODE_SYSROOT_DIR/aarch64-linux-gnu/aarch64-linux-gnu/sysroot"
               export OBJDUMP="$VSCODE_SYSROOT_DIR/aarch64-linux-gnu/aarch64-linux-gnu/bin/objdump"
             elif [ "$SYSROOT_ARCH" == "amd64" ]; then
               export CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER="$VSCODE_SYSROOT_DIR/x86_64-linux-gnu/bin/x86_64-linux-gnu-gcc"
               export CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS="-C link-arg=--sysroot=$VSCODE_SYSROOT_DIR/x86_64-linux-gnu/x86_64-linux-gnu/sysroot -C link-arg=-L$VSCODE_SYSROOT_DIR/x86_64-linux-gnu/x86_64-linux-gnu/sysroot/usr/lib/x86_64-linux-gnu"
               export CC_x86_64_unknown_linux_gnu="$VSCODE_SYSROOT_DIR/x86_64-linux-gnu/bin/x86_64-linux-gnu-gcc --sysroot=$VSCODE_SYSROOT_DIR/x86_64-linux-gnu/x86_64-linux-gnu/sysroot"
+              export PKG_CONFIG_LIBDIR_x86_64_unknown_linux_gnu="$VSCODE_SYSROOT_DIR/x86_64-linux-gnu/x86_64-linux-gnu/sysroot/usr/lib/x86_64-linux-gnu/pkgconfig:$VSCODE_SYSROOT_DIR/x86_64-linux-gnu/x86_64-linux-gnu/sysroot/usr/share/pkgconfig"
+              export PKG_CONFIG_SYSROOT_DIR_x86_64_unknown_linux_gnu="$VSCODE_SYSROOT_DIR/x86_64-linux-gnu/x86_64-linux-gnu/sysroot"
               export OBJDUMP="$VSCODE_SYSROOT_DIR/x86_64-linux-gnu/x86_64-linux-gnu/bin/objdump"
             elif [ "$SYSROOT_ARCH" == "armhf" ]; then
               export CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABIHF_LINKER="$VSCODE_SYSROOT_DIR/arm-rpi-linux-gnueabihf/bin/arm-rpi-linux-gnueabihf-gcc"
               export CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABIHF_RUSTFLAGS="-C link-arg=--sysroot=$VSCODE_SYSROOT_DIR/arm-rpi-linux-gnueabihf/arm-rpi-linux-gnueabihf/sysroot"
               export CC_armv7_unknown_linux_gnueabihf="$VSCODE_SYSROOT_DIR/arm-rpi-linux-gnueabihf/bin/arm-rpi-linux-gnueabihf-gcc --sysroot=$VSCODE_SYSROOT_DIR/arm-rpi-linux-gnueabihf/arm-rpi-linux-gnueabihf/sysroot"
+              export PKG_CONFIG_LIBDIR_armv7_unknown_linux_gnueabihf="$VSCODE_SYSROOT_DIR/arm-rpi-linux-gnueabihf/arm-rpi-linux-gnueabihf/sysroot/usr/lib/arm-rpi-linux-gnueabihf/pkgconfig:$VSCODE_SYSROOT_DIR/arm-rpi-linux-gnueabihf/arm-rpi-linux-gnueabihf/sysroot/usr/share/pkgconfig"
+              export PKG_CONFIG_SYSROOT_DIR_armv7_unknown_linux_gnueabihf="$VSCODE_SYSROOT_DIR/arm-rpi-linux-gnueabihf/arm-rpi-linux-gnueabihf/sysroot"
               export OBJDUMP="$VSCODE_SYSROOT_DIR/arm-rpi-linux-gnueabihf/arm-rpi-linux-gnueabihf/bin/objdump"
             fi
           fi
@@ -78,7 +84,7 @@ steps:
               fi
             done < <("$OBJDUMP" -T "$PWD/target/${{ parameters.VSCODE_CLI_TARGET }}/release/code")
             if [[ "$glibc_version" != "2.17" ]]; then
-              echo "Error: binary has dependency on GLIBC > 2.17"
+              echo "Error: binary has dependency on GLIBC > 2.17, found $glibc_version"
               exit 1
             fi
           fi

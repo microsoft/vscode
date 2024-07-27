@@ -14,11 +14,11 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Event } from 'vs/base/common/event';
 import type { ISearchOptions } from '@xterm/addon-search';
-import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { openContextMenu } from 'vs/workbench/contrib/terminalContrib/find/browser/textInputContextMenu';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
+import { TerminalFindCommandId } from 'vs/workbench/contrib/terminalContrib/find/common/terminal.find';
 
 const TERMINAL_FIND_WIDGET_INITIAL_WIDTH = 419;
 
@@ -46,12 +46,12 @@ export class TerminalFindWidget extends SimpleFindWidget {
 			showResultCount: true,
 			initialWidth: TERMINAL_FIND_WIDGET_INITIAL_WIDTH,
 			enableSash: true,
-			appendCaseSensitiveActionId: TerminalCommandId.ToggleFindCaseSensitive,
-			appendRegexActionId: TerminalCommandId.ToggleFindRegex,
-			appendWholeWordsActionId: TerminalCommandId.ToggleFindWholeWord,
-			previousMatchActionId: TerminalCommandId.FindPrevious,
-			nextMatchActionId: TerminalCommandId.FindNext,
-			closeWidgetActionId: TerminalCommandId.FindHide,
+			appendCaseSensitiveActionId: TerminalFindCommandId.ToggleFindCaseSensitive,
+			appendRegexActionId: TerminalFindCommandId.ToggleFindRegex,
+			appendWholeWordsActionId: TerminalFindCommandId.ToggleFindWholeWord,
+			previousMatchActionId: TerminalFindCommandId.FindPrevious,
+			nextMatchActionId: TerminalFindCommandId.FindNext,
+			closeWidgetActionId: TerminalFindCommandId.FindHide,
 			type: 'Terminal',
 			matchesLimit: XtermTerminalConstants.SearchHighlightLimit
 		}, _contextViewService, _contextKeyService, hoverService, keybindingService);

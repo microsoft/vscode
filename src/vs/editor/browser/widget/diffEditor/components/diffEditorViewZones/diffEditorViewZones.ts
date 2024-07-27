@@ -30,6 +30,7 @@ import { InlineDecoration, InlineDecorationType } from 'vs/editor/common/viewMod
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { DiffEditorOptions } from '../../diffEditorOptions';
+import { Range } from 'vs/editor/common/core/range';
 
 /**
  * Ensures both editors have the same height by aligning unchanged lines.
@@ -81,7 +82,7 @@ export class DiffEditorViewZones extends Disposable {
 		}));
 
 		const originalModelTokenizationCompleted = this._diffModel.map(m =>
-			m ? observableFromEvent(m.model.original.onDidChangeTokens, () => m.model.original.tokenization.backgroundTokenizationState === BackgroundTokenizationState.Completed) : undefined
+			m ? observableFromEvent(this, m.model.original.onDidChangeTokens, () => m.model.original.tokenization.backgroundTokenizationState === BackgroundTokenizationState.Completed) : undefined
 		).map((m, reader) => m?.read(reader));
 
 		const alignments = derived<ILineRangeAlignment[] | null>((reader) => {
@@ -187,7 +188,7 @@ export class DiffEditorViewZones extends Disposable {
 			const renderOptions = RenderOptions.fromEditor(this._editors.modified);
 
 			for (const a of alignmentsVal) {
-				if (a.diff && !renderSideBySide) {
+				if (a.diff && !renderSideBySide && (!this._options.useTrueInlineDiffRendering.read(reader) || !allowsTrueInlineDiffRendering(a.diff))) {
 					if (!a.originalRange.isEmpty) {
 						originalModelTokenizationCompleted.read(reader); // Update view-zones once tokenization completes
 
@@ -525,13 +526,15 @@ function computeRangeAlignment(
 		let lastModLineNumber = c.modified.startLineNumber;
 		let lastOrigLineNumber = c.original.startLineNumber;
 
-		function emitAlignment(origLineNumberExclusive: number, modLineNumberExclusive: number) {
+		function emitAlignment(origLineNumberExclusive: number, modLineNumberExclusive: number, forceAlignment = false) {
 			if (origLineNumberExclusive < lastOrigLineNumber || modLineNumberExclusive < lastModLineNumber) {
 				return;
 			}
 			if (first) {
 				first = false;
-			} else if (origLineNumberExclusive === lastOrigLineNumber || modLineNumberExclusive === lastModLineNumber) {
+			} else if (!forceAlignment && (origLineNumberExclusive === lastOrigLineNumber || modLineNumberExclusive === lastModLineNumber)) {
+				// This causes a re-alignment of an already aligned line.
+				// However, we don't care for the final alignment.
 				return;
 			}
 			const originalRange = new LineRange(lastOrigLineNumber, origLineNumberExclusive);
@@ -575,7 +578,7 @@ function computeRangeAlignment(
 			}
 		}
 
-		emitAlignment(c.original.endLineNumberExclusive, c.modified.endLineNumberExclusive);
+		emitAlignment(c.original.endLineNumberExclusive, c.modified.endLineNumberExclusive, true);
 
 		lastOriginalLineNumber = c.original.endLineNumberExclusive;
 		lastModifiedLineNumber = c.modified.endLineNumberExclusive;
@@ -624,4 +627,15 @@ function getAdditionalLineHeights(editor: CodeEditorWidget, viewZonesToIgnore: R
 	);
 
 	return result;
+}
+
+export function allowsTrueInlineDiffRendering(mapping: DetailedLineRangeMapping): boolean {
+	if (!mapping.innerChanges) {
+		return false;
+	}
+	return mapping.innerChanges.every(c => rangeIsSingleLine(c.modifiedRange) && rangeIsSingleLine(c.originalRange));
+}
+
+function rangeIsSingleLine(range: Range): boolean {
+	return range.startLineNumber === range.endLineNumber;
 }

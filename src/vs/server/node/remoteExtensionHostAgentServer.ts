@@ -67,7 +67,7 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 
 	private readonly _serverRootPath: string;
 
-	private shutdownTimer: NodeJS.Timer | undefined;
+	private shutdownTimer: NodeJS.Timeout | undefined;
 
 	constructor(
 		private readonly _socketServer: SocketServer<RemoteAgentConnectionContext>,
@@ -505,6 +505,7 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 				this._extHostConnections[reconnectionToken] = con;
 				this._allReconnectionTokens.add(reconnectionToken);
 				con.onClose(() => {
+					con.dispose();
 					delete this._extHostConnections[reconnectionToken];
 					this._onDidCloseExtHostConnection();
 				});

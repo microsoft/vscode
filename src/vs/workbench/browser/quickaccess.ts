@@ -82,7 +82,6 @@ export class PickerEditorState extends Disposable {
 				state: getIEditor(activeEditorPane.getControl())?.saveViewState() ?? undefined,
 			};
 		}
-
 	}
 
 	/**

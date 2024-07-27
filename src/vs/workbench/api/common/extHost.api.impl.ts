@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { AsyncIterableObject } from 'vs/base/common/async';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { combinedDisposable } from 'vs/base/common/lifecycle';
@@ -44,6 +45,7 @@ import { ExtHostDocumentSaveParticipant } from 'vs/workbench/api/common/extHostD
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import { IExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { IExtHostEditorTabs } from 'vs/workbench/api/common/extHostEditorTabs';
+import { ExtHostEmbeddings } from 'vs/workbench/api/common/extHostEmbedding';
 import { ExtHostAiEmbeddingVector } from 'vs/workbench/api/common/extHostEmbeddingVector';
 import { Extension, IExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
 import { ExtHostFileSystem } from 'vs/workbench/api/common/extHostFileSystem';
@@ -51,10 +53,10 @@ import { IExtHostConsumerFileSystem } from 'vs/workbench/api/common/extHostFileS
 import { ExtHostFileSystemEventService, FileSystemWatcherCreateOptions } from 'vs/workbench/api/common/extHostFileSystemEventService';
 import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
-import { ExtHostInteractiveEditor } from 'vs/workbench/api/common/extHostInlineChat';
 import { ExtHostInteractive } from 'vs/workbench/api/common/extHostInteractive';
 import { ExtHostLabelService } from 'vs/workbench/api/common/extHostLabelService';
 import { ExtHostLanguageFeatures } from 'vs/workbench/api/common/extHostLanguageFeatures';
+import { ExtHostLanguageModelTools } from 'vs/workbench/api/common/extHostLanguageModelTools';
 import { IExtHostLanguageModels } from 'vs/workbench/api/common/extHostLanguageModels';
 import { ExtHostLanguages } from 'vs/workbench/api/common/extHostLanguages';
 import { IExtHostLocalizationService } from 'vs/workbench/api/common/extHostLocalizationService';
@@ -84,7 +86,7 @@ import { IExtHostTask } from 'vs/workbench/api/common/extHostTask';
 import { ExtHostTelemetryLogger, IExtHostTelemetry, isNewAppInstall } from 'vs/workbench/api/common/extHostTelemetry';
 import { IExtHostTerminalService } from 'vs/workbench/api/common/extHostTerminalService';
 import { IExtHostTerminalShellIntegration } from 'vs/workbench/api/common/extHostTerminalShellIntegration';
-import { ExtHostTesting } from 'vs/workbench/api/common/extHostTesting';
+import { IExtHostTesting } from 'vs/workbench/api/common/extHostTesting';
 import { ExtHostEditors } from 'vs/workbench/api/common/extHostTextEditors';
 import { ExtHostTheming } from 'vs/workbench/api/common/extHostTheming';
 import { ExtHostTimeline } from 'vs/workbench/api/common/extHostTimeline';
@@ -105,7 +107,7 @@ import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/c
 import { UIKind } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { checkProposedApiEnabled, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { ProxyIdentifier } from 'vs/workbench/services/extensions/common/proxyIdentifier';
-import { TextSearchCompleteMessageType } from 'vs/workbench/services/search/common/searchExtTypes';
+import { ExcludeSettingOptions, oldToNewTextSearchResult, TextSearchCompleteMessageType, TextSearchCompleteMessageTypeNew, TextSearchContextNew, TextSearchMatchNew } from 'vs/workbench/services/search/common/searchExtTypes';
 import type * as vscode from 'vscode';
 
 export interface IExtensionRegistries {
@@ -178,7 +180,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostDocuments = rpcProtocol.set(ExtHostContext.ExtHostDocuments, new ExtHostDocuments(rpcProtocol, extHostDocumentsAndEditors));
 	const extHostDocumentContentProviders = rpcProtocol.set(ExtHostContext.ExtHostDocumentContentProviders, new ExtHostDocumentContentProvider(rpcProtocol, extHostDocumentsAndEditors, extHostLogService));
 	const extHostDocumentSaveParticipant = rpcProtocol.set(ExtHostContext.ExtHostDocumentSaveParticipant, new ExtHostDocumentSaveParticipant(extHostLogService, extHostDocuments, rpcProtocol.getProxy(MainContext.MainThreadBulkEdits)));
-	const extHostNotebook = rpcProtocol.set(ExtHostContext.ExtHostNotebook, new ExtHostNotebookController(rpcProtocol, extHostCommands, extHostDocumentsAndEditors, extHostDocuments, extHostConsumerFileSystem, extHostSearch));
+	const extHostNotebook = rpcProtocol.set(ExtHostContext.ExtHostNotebook, new ExtHostNotebookController(rpcProtocol, extHostCommands, extHostDocumentsAndEditors, extHostDocuments, extHostConsumerFileSystem, extHostSearch, extHostLogService));
 	const extHostNotebookDocuments = rpcProtocol.set(ExtHostContext.ExtHostNotebookDocuments, new ExtHostNotebookDocuments(extHostNotebook));
 	const extHostNotebookEditors = rpcProtocol.set(ExtHostContext.ExtHostNotebookEditors, new ExtHostNotebookEditors(extHostLogService, extHostNotebook));
 	const extHostNotebookKernels = rpcProtocol.set(ExtHostContext.ExtHostNotebookKernels, new ExtHostNotebookKernels(rpcProtocol, initData, extHostNotebook, extHostCommands, extHostLogService));
@@ -205,17 +207,18 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostWebviewPanels = rpcProtocol.set(ExtHostContext.ExtHostWebviewPanels, new ExtHostWebviewPanels(rpcProtocol, extHostWebviews, extHostWorkspace));
 	const extHostCustomEditors = rpcProtocol.set(ExtHostContext.ExtHostCustomEditors, new ExtHostCustomEditors(rpcProtocol, extHostDocuments, extensionStoragePaths, extHostWebviews, extHostWebviewPanels));
 	const extHostWebviewViews = rpcProtocol.set(ExtHostContext.ExtHostWebviewViews, new ExtHostWebviewViews(rpcProtocol, extHostWebviews));
-	const extHostTesting = rpcProtocol.set(ExtHostContext.ExtHostTesting, new ExtHostTesting(rpcProtocol, extHostLogService, extHostCommands, extHostDocumentsAndEditors));
+	const extHostTesting = rpcProtocol.set(ExtHostContext.ExtHostTesting, accessor.get(IExtHostTesting));
 	const extHostUriOpeners = rpcProtocol.set(ExtHostContext.ExtHostUriOpeners, new ExtHostUriOpeners(rpcProtocol));
 	const extHostProfileContentHandlers = rpcProtocol.set(ExtHostContext.ExtHostProfileContentHandlers, new ExtHostProfileContentHandlers(rpcProtocol));
 	rpcProtocol.set(ExtHostContext.ExtHostInteractive, new ExtHostInteractive(rpcProtocol, extHostNotebook, extHostDocumentsAndEditors, extHostCommands, extHostLogService));
-	const extHostInteractiveEditor = rpcProtocol.set(ExtHostContext.ExtHostInlineChat, new ExtHostInteractiveEditor(rpcProtocol, extHostCommands, extHostDocuments, extHostLogService));
-	const extHostChatAgents2 = rpcProtocol.set(ExtHostContext.ExtHostChatAgents2, new ExtHostChatAgents2(rpcProtocol, extHostLogService, extHostCommands));
+	const extHostChatAgents2 = rpcProtocol.set(ExtHostContext.ExtHostChatAgents2, new ExtHostChatAgents2(rpcProtocol, extHostLogService, extHostCommands, extHostDocuments));
 	const extHostChatVariables = rpcProtocol.set(ExtHostContext.ExtHostChatVariables, new ExtHostChatVariables(rpcProtocol));
+	const extHostLanguageModelTools = rpcProtocol.set(ExtHostContext.ExtHostLanguageModelTools, new ExtHostLanguageModelTools(rpcProtocol));
 	const extHostAiRelatedInformation = rpcProtocol.set(ExtHostContext.ExtHostAiRelatedInformation, new ExtHostRelatedInformation(rpcProtocol));
 	const extHostAiEmbeddingVector = rpcProtocol.set(ExtHostContext.ExtHostAiEmbeddingVector, new ExtHostAiEmbeddingVector(rpcProtocol));
 	const extHostStatusBar = rpcProtocol.set(ExtHostContext.ExtHostStatusBar, new ExtHostStatusBar(rpcProtocol, extHostCommands.converter));
 	const extHostSpeech = rpcProtocol.set(ExtHostContext.ExtHostSpeech, new ExtHostSpeech(rpcProtocol));
+	const extHostEmbeddings = rpcProtocol.set(ExtHostContext.ExtHostEmbeddings, new ExtHostEmbeddings(rpcProtocol));
 
 	// Check that no named customers are missing
 	const expected = Object.values<ProxyIdentifier<any>>(ExtHostContext);
@@ -287,11 +290,14 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				if (typeof options?.forceNewSession === 'object' && options.forceNewSession.learnMore) {
 					checkProposedApiEnabled(extension, 'authLearnMore');
 				}
+				if (options?.account) {
+					checkProposedApiEnabled(extension, 'authGetSessions');
+				}
 				return extHostAuthentication.getSession(extension, providerId, scopes, options as any);
 			},
-			getSessions(providerId: string, scopes: readonly string[]) {
+			getAccounts(providerId: string) {
 				checkProposedApiEnabled(extension, 'authGetSessions');
-				return extHostAuthentication.getSessions(extension, providerId, scopes);
+				return extHostAuthentication.getAccounts(providerId);
 			},
 			// TODO: remove this after GHPR and Codespaces move off of it
 			async hasSession(providerId: string, scopes: readonly string[]) {
@@ -452,6 +458,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			runTests(provider) {
 				checkProposedApiEnabled(extension, 'testObserver');
 				return extHostTesting.runTests(provider);
+			},
+			registerTestFollowupProvider(provider) {
+				checkProposedApiEnabled(extension, 'testObserver');
+				return extHostTesting.registerTestFollowupProvider(provider);
 			},
 			get onDidChangeTestResults() {
 				checkProposedApiEnabled(extension, 'testObserver');
@@ -957,9 +967,24 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				// Note, undefined/null have different meanings on "exclude"
 				return extHostWorkspace.findFiles(include, exclude, maxResults, extension.identifier, token);
 			},
-			findFiles2: (filePattern, options?, token?) => {
+			findFiles2: (filePattern: vscode.GlobPattern, options?: vscode.FindFiles2Options, token?: vscode.CancellationToken): Thenable<vscode.Uri[]> => {
 				checkProposedApiEnabled(extension, 'findFiles2');
 				return extHostWorkspace.findFiles2(filePattern, options, extension.identifier, token);
+			},
+			findFiles2New: (filePattern: vscode.GlobPattern[], options?: vscode.FindFiles2OptionsNew, token?: vscode.CancellationToken): Thenable<vscode.Uri[]> => {
+				checkProposedApiEnabled(extension, 'findFiles2New');
+
+				const oldOptions = {
+					exclude: options?.exclude && options.exclude.length > 0 ? options.exclude[0] : undefined,
+					useDefaultExcludes: !options?.useExcludeSettings || (options?.useExcludeSettings === ExcludeSettingOptions.FilesExclude || options?.useExcludeSettings === ExcludeSettingOptions.SearchAndFilesExclude),
+					useDefaultSearchExcludes: !options?.useExcludeSettings || (options?.useExcludeSettings === ExcludeSettingOptions.SearchAndFilesExclude),
+					maxResults: options?.maxResults,
+					useIgnoreFiles: options?.useIgnoreFiles?.local,
+					useGlobalIgnoreFiles: options?.useIgnoreFiles?.global,
+					useParentIgnoreFiles: options?.useIgnoreFiles?.parent,
+					followSymlinks: options?.followSymlinks,
+				};
+				return extHostWorkspace.findFiles2(filePattern && filePattern.length > 0 ? filePattern[0] : undefined, oldOptions, extension.identifier, token);
 			},
 			findTextInFiles: (query: vscode.TextSearchQuery, optionsOrCallback: vscode.FindTextInFilesOptions | ((result: vscode.TextSearchResult) => void), callbackOrToken?: vscode.CancellationToken | ((result: vscode.TextSearchResult) => void), token?: vscode.CancellationToken) => {
 				checkProposedApiEnabled(extension, 'findTextInFiles');
@@ -976,6 +1001,60 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				}
 
 				return extHostWorkspace.findTextInFiles(query, options || {}, callback, extension.identifier, token);
+			},
+			findTextInFilesNew: (query: vscode.TextSearchQueryNew, options?: vscode.FindTextInFilesOptionsNew, token?: vscode.CancellationToken): vscode.FindTextInFilesResponse => {
+				checkProposedApiEnabled(extension, 'findTextInFilesNew');
+				checkProposedApiEnabled(extension, 'textSearchProviderNew');
+				let oldOptions = {};
+
+
+				if (options) {
+					oldOptions = {
+						include: options.include && options.include.length > 0 ? options.include[0] : undefined,
+						exclude: options.exclude && options.exclude.length > 0 ? options.exclude[0] : undefined,
+						useDefaultExcludes: options.useExcludeSettings === undefined || (options.useExcludeSettings === ExcludeSettingOptions.FilesExclude || options.useExcludeSettings === ExcludeSettingOptions.SearchAndFilesExclude),
+						useSearchExclude: options.useExcludeSettings === undefined || (options.useExcludeSettings === ExcludeSettingOptions.SearchAndFilesExclude),
+						maxResults: options.maxResults,
+						useIgnoreFiles: options.useIgnoreFiles?.local,
+						useGlobalIgnoreFiles: options.useIgnoreFiles?.global,
+						useParentIgnoreFiles: options.useIgnoreFiles?.parent,
+						followSymlinks: options.followSymlinks,
+						encoding: options.encoding,
+						previewOptions: options.previewOptions ? {
+							matchLines: options.previewOptions?.numMatchLines ?? 100,
+							charsPerLine: options.previewOptions?.charsPerLine ?? 10000,
+						} : undefined,
+						beforeContext: options.surroundingContext,
+						afterContext: options.surroundingContext,
+					} satisfies vscode.FindTextInFilesOptions & { useSearchExclude?: boolean };
+				}
+
+				const complete: Promise<undefined | vscode.TextSearchComplete> = Promise.resolve(undefined);
+
+				const asyncIterable = new AsyncIterableObject<vscode.TextSearchResultNew>(async emitter => {
+					const callback = async (result: vscode.TextSearchResult) => {
+						emitter.emitOne(oldToNewTextSearchResult(result));
+						return result;
+					};
+					await complete.then(e => {
+						return extHostWorkspace.findTextInFiles(
+							query,
+							oldOptions,
+							callback,
+							extension.identifier,
+							token
+						);
+					});
+				});
+
+				return {
+					results: asyncIterable,
+					complete: complete.then((e) => {
+						return {
+							limitHit: e?.limitHit ?? false
+						};
+					}),
+				};
 			},
 			save: (uri) => {
 				return extHostWorkspace.save(uri);
@@ -1125,6 +1204,20 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'textSearchProvider');
 				return extHostSearch.registerAITextSearchProvider(scheme, provider);
 			},
+			registerFileSearchProviderNew: (scheme: string, provider: vscode.FileSearchProviderNew) => {
+				checkProposedApiEnabled(extension, 'fileSearchProviderNew');
+				return { dispose: () => { } };
+			},
+			registerTextSearchProviderNew: (scheme: string, provider: vscode.TextSearchProviderNew) => {
+				checkProposedApiEnabled(extension, 'textSearchProviderNew');
+				return { dispose: () => { } };
+			},
+			registerAITextSearchProviderNew: (scheme: string, provider: vscode.AITextSearchProviderNew) => {
+				// there are some dependencies on textSearchProvider, so we need to check for both
+				checkProposedApiEnabled(extension, 'aiTextSearchProviderNew');
+				checkProposedApiEnabled(extension, 'textSearchProviderNew');
+				return { dispose: () => { } };
+			},
 			registerRemoteAuthorityResolver: (authorityPrefix: string, resolver: vscode.RemoteAuthorityResolver) => {
 				checkProposedApiEnabled(extension, 'resolvers');
 				return extensionService.registerRemoteAuthorityResolver(authorityPrefix, resolver);
@@ -1244,9 +1337,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostDebugService.breakpoints;
 			},
 			get activeStackItem() {
-				if (!isProposedApiEnabled(extension, 'debugFocus')) {
-					return undefined;
-				}
 				return extHostDebugService.activeStackItem;
 			},
 			registerDebugVisualizationProvider(id, provider) {
@@ -1273,7 +1363,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return _asExtensionEvent(extHostDebugService.onDidChangeBreakpoints)(listener, thisArgs, disposables);
 			},
 			onDidChangeActiveStackItem(listener, thisArg?, disposables?) {
-				checkProposedApiEnabled(extension, 'debugFocus');
 				return _asExtensionEvent(extHostDebugService.onDidChangeActiveStackItem)(listener, thisArg, disposables);
 			},
 			registerDebugConfigurationProvider(debugType: string, provider: vscode.DebugConfigurationProvider, triggerKind?: vscode.DebugConfigurationProviderTriggerKind) {
@@ -1381,14 +1470,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 		// namespace: interactive
 		const interactive: typeof vscode.interactive = {
-			// IMPORTANT
-			// this needs to be updated whenever the API proposal changes
+			// TODO Can be deleted after another Insiders
 			_version: 1,
-
-			registerInteractiveEditorSessionProvider(provider: vscode.InteractiveEditorSessionProvider, metadata?: vscode.InteractiveEditorSessionProviderMetadata) {
-				checkProposedApiEnabled(extension, 'interactive');
-				return extHostInteractiveEditor.registerProvider(extension, provider, metadata);
-			},
 			transferActiveChat(toWorkspace: vscode.Uri) {
 				checkProposedApiEnabled(extension, 'interactive');
 				return extHostChatAgents2.transferActiveChat(toWorkspace);
@@ -1413,51 +1496,76 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 		// namespace: chat
 		const chat: typeof vscode.chat = {
+			// IMPORTANT
+			// this needs to be updated whenever the API proposal changes and breaks backwards compatibility
+			_version: 1,
+
 			registerChatResponseProvider(id: string, provider: vscode.ChatResponseProvider, metadata: vscode.ChatResponseProviderMetadata) {
 				checkProposedApiEnabled(extension, 'chatProvider');
 				return extHostLanguageModels.registerLanguageModel(extension, id, provider, metadata);
 			},
-			registerChatVariableResolver(name: string, description: string, resolver: vscode.ChatVariableResolver) {
+			registerChatVariableResolver(id: string, name: string, userDescription: string, modelDescription: string | undefined, isSlow: boolean | undefined, resolver: vscode.ChatVariableResolver, fullName?: string, icon?: vscode.ThemeIcon) {
 				checkProposedApiEnabled(extension, 'chatVariableResolver');
-				return extHostChatVariables.registerVariableResolver(extension, name, description, resolver);
+				return extHostChatVariables.registerVariableResolver(extension, id, name, userDescription, modelDescription, isSlow, resolver, fullName, icon?.id);
 			},
 			registerMappedEditsProvider(selector: vscode.DocumentSelector, provider: vscode.MappedEditsProvider) {
 				checkProposedApiEnabled(extension, 'mappedEditsProvider');
 				return extHostLanguageFeatures.registerMappedEditsProvider(extension, selector, provider);
 			},
 			createChatParticipant(id: string, handler: vscode.ChatExtendedRequestHandler) {
-				checkProposedApiEnabled(extension, 'chatParticipant');
 				return extHostChatAgents2.createChatAgent(extension, id, handler);
 			},
-			createDynamicChatParticipant(id: string, name: string, description: string, handler: vscode.ChatExtendedRequestHandler): vscode.ChatParticipant {
-				checkProposedApiEnabled(extension, 'chatParticipantAdditions');
-				return extHostChatAgents2.createDynamicChatAgent(extension, id, name, description, handler);
-			}
+			createDynamicChatParticipant(id: string, dynamicProps: vscode.DynamicChatParticipantProps, handler: vscode.ChatExtendedRequestHandler): vscode.ChatParticipant {
+				checkProposedApiEnabled(extension, 'chatParticipantPrivate');
+				return extHostChatAgents2.createDynamicChatAgent(extension, id, dynamicProps, handler);
+			},
 		};
 
 		// namespace: lm
 		const lm: typeof vscode.lm = {
-			get languageModels() {
-				checkProposedApiEnabled(extension, 'languageModels');
-				return extHostLanguageModels.getLanguageModelIds();
+			selectChatModels: (selector) => {
+				return extHostLanguageModels.selectLanguageModels(extension, selector ?? {});
 			},
-			onDidChangeLanguageModels: (listener, thisArgs?, disposables?) => {
-				checkProposedApiEnabled(extension, 'languageModels');
+			onDidChangeChatModels: (listener, thisArgs?, disposables?) => {
 				return extHostLanguageModels.onDidChangeProviders(listener, thisArgs, disposables);
 			},
-			sendChatRequest(languageModel: string, messages: vscode.LanguageModelChatMessage[], options: vscode.LanguageModelChatRequestOptions, token: vscode.CancellationToken) {
-				checkProposedApiEnabled(extension, 'languageModels');
-				return extHostLanguageModels.sendChatRequest(extension, languageModel, messages, options, token);
+			registerChatModelProvider: (id, provider, metadata) => {
+				checkProposedApiEnabled(extension, 'chatProvider');
+				return extHostLanguageModels.registerLanguageModel(extension, id, provider, metadata);
 			},
-			computeTokenLength(languageModel: string, text: string | vscode.LanguageModelChatMessage, token?: vscode.CancellationToken) {
-				checkProposedApiEnabled(extension, 'languageModels');
-				token ??= CancellationToken.None;
-				return extHostLanguageModels.computeTokenLength(languageModel, text, token);
+			// --- embeddings
+			get embeddingModels() {
+				checkProposedApiEnabled(extension, 'embeddings');
+				return extHostEmbeddings.embeddingsModels;
 			},
-			getLanguageModelInformation(languageModel: string) {
-				checkProposedApiEnabled(extension, 'languageModels');
-				return extHostLanguageModels.getLanguageModelInfo(languageModel);
-			}
+			onDidChangeEmbeddingModels: (listener, thisArgs?, disposables?) => {
+				checkProposedApiEnabled(extension, 'embeddings');
+				return extHostEmbeddings.onDidChange(listener, thisArgs, disposables);
+			},
+			registerEmbeddingsProvider(embeddingsModel, provider) {
+				checkProposedApiEnabled(extension, 'embeddings');
+				return extHostEmbeddings.registerEmbeddingsProvider(extension, embeddingsModel, provider);
+			},
+			async computeEmbeddings(embeddingsModel, input, token?): Promise<any> {
+				checkProposedApiEnabled(extension, 'embeddings');
+				if (typeof input === 'string') {
+					return extHostEmbeddings.computeEmbeddings(embeddingsModel, input, token);
+				} else {
+					return extHostEmbeddings.computeEmbeddings(embeddingsModel, input, token);
+				}
+			},
+			registerTool(toolId: string, tool: vscode.LanguageModelTool) {
+				checkProposedApiEnabled(extension, 'lmTools');
+				return extHostLanguageModelTools.registerTool(extension, toolId, tool);
+			},
+			invokeTool(toolId: string, parameters: Object, token: vscode.CancellationToken) {
+				checkProposedApiEnabled(extension, 'lmTools');
+				return extHostLanguageModelTools.invokeTool(toolId, parameters, token);
+			},
+			get tools() {
+				checkProposedApiEnabled(extension, 'lmTools');
+				return extHostLanguageModelTools.tools;
+			},
 		};
 
 		// namespace: speech
@@ -1515,6 +1623,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			CommentThreadCollapsibleState: extHostTypes.CommentThreadCollapsibleState,
 			CommentThreadState: extHostTypes.CommentThreadState,
 			CommentThreadApplicability: extHostTypes.CommentThreadApplicability,
+			CommentThreadFocus: extHostTypes.CommentThreadFocus,
 			CompletionItem: extHostTypes.CompletionItem,
 			CompletionItemKind: extHostTypes.CompletionItemKind,
 			CompletionItemTag: extHostTypes.CompletionItemTag,
@@ -1574,6 +1683,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			Position: extHostTypes.Position,
 			ProcessExecution: extHostTypes.ProcessExecution,
 			ProgressLocation: extHostTypes.ProgressLocation,
+			QuickInputButtonLocation: extHostTypes.QuickInputButtonLocation,
 			QuickInputButtons: extHostTypes.QuickInputButtons,
 			Range: extHostTypes.Range,
 			RelativePattern: extHostTypes.RelativePattern,
@@ -1661,8 +1771,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			LinkedEditingRanges: extHostTypes.LinkedEditingRanges,
 			TestResultState: extHostTypes.TestResultState,
 			TestRunRequest: extHostTypes.TestRunRequest,
-			TestRunRequest2: extHostTypes.TestRunRequest,
 			TestMessage: extHostTypes.TestMessage,
+			TestMessage2: extHostTypes.TestMessage,
+			TestMessageStackFrame: extHostTypes.TestMessageStackFrame,
 			TestTag: extHostTypes.TestTag,
 			TestRunProfileKind: extHostTypes.TestRunProfileKind,
 			TextSearchCompleteMessageType: TextSearchCompleteMessageType,
@@ -1670,6 +1781,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			DataTransferItem: extHostTypes.DataTransferItem,
 			TestCoverageCount: extHostTypes.TestCoverageCount,
 			FileCoverage: extHostTypes.FileCoverage,
+			FileCoverage2: extHostTypes.FileCoverage,
 			StatementCoverage: extHostTypes.StatementCoverage,
 			BranchCoverage: extHostTypes.BranchCoverage,
 			DeclarationCoverage: extHostTypes.DeclarationCoverage,
@@ -1698,32 +1810,44 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			DebugThread: extHostTypes.DebugThread,
 			RelatedInformationType: extHostTypes.RelatedInformationType,
 			SpeechToTextStatus: extHostTypes.SpeechToTextStatus,
+			TextToSpeechStatus: extHostTypes.TextToSpeechStatus,
 			PartialAcceptTriggerKind: extHostTypes.PartialAcceptTriggerKind,
 			KeywordRecognitionStatus: extHostTypes.KeywordRecognitionStatus,
 			ChatResponseMarkdownPart: extHostTypes.ChatResponseMarkdownPart,
 			ChatResponseFileTreePart: extHostTypes.ChatResponseFileTreePart,
 			ChatResponseAnchorPart: extHostTypes.ChatResponseAnchorPart,
 			ChatResponseProgressPart: extHostTypes.ChatResponseProgressPart,
+			ChatResponseProgressPart2: extHostTypes.ChatResponseProgressPart2,
 			ChatResponseReferencePart: extHostTypes.ChatResponseReferencePart,
+			ChatResponseReferencePart2: extHostTypes.ChatResponseReferencePart,
+			ChatResponseCodeCitationPart: extHostTypes.ChatResponseCodeCitationPart,
+			ChatResponseWarningPart: extHostTypes.ChatResponseWarningPart,
 			ChatResponseTextEditPart: extHostTypes.ChatResponseTextEditPart,
 			ChatResponseMarkdownWithVulnerabilitiesPart: extHostTypes.ChatResponseMarkdownWithVulnerabilitiesPart,
 			ChatResponseCommandButtonPart: extHostTypes.ChatResponseCommandButtonPart,
 			ChatResponseDetectedParticipantPart: extHostTypes.ChatResponseDetectedParticipantPart,
+			ChatResponseConfirmationPart: extHostTypes.ChatResponseConfirmationPart,
+			ChatResponseReferencePartStatusKind: extHostTypes.ChatResponseReferencePartStatusKind,
 			ChatRequestTurn: extHostTypes.ChatRequestTurn,
 			ChatResponseTurn: extHostTypes.ChatResponseTurn,
 			ChatLocation: extHostTypes.ChatLocation,
-			LanguageModelChatSystemMessage: extHostTypes.LanguageModelChatSystemMessage,
-			LanguageModelChatUserMessage: extHostTypes.LanguageModelChatUserMessage,
-			LanguageModelChatAssistantMessage: extHostTypes.LanguageModelChatAssistantMessage,
-			LanguageModelSystemMessage: extHostTypes.LanguageModelChatSystemMessage, // TODO@jrieken REMOVE
-			LanguageModelUserMessage: extHostTypes.LanguageModelChatUserMessage, // TODO@jrieken REMOVE
-			LanguageModelAssistantMessage: extHostTypes.LanguageModelChatAssistantMessage, // TODO@jrieken REMOVE
+			ChatRequestEditorData: extHostTypes.ChatRequestEditorData,
+			ChatRequestNotebookData: extHostTypes.ChatRequestNotebookData,
+			LanguageModelChatMessageRole: extHostTypes.LanguageModelChatMessageRole,
+			LanguageModelChatMessage: extHostTypes.LanguageModelChatMessage,
+			LanguageModelChatMessageFunctionResultPart: extHostTypes.LanguageModelFunctionResultPart,
+			LanguageModelChatResponseTextPart: extHostTypes.LanguageModelTextPart,
+			LanguageModelChatResponseFunctionUsePart: extHostTypes.LanguageModelFunctionUsePart,
 			LanguageModelError: extHostTypes.LanguageModelError,
 			NewSymbolName: extHostTypes.NewSymbolName,
 			NewSymbolNameTag: extHostTypes.NewSymbolNameTag,
 			NewSymbolNameTriggerKind: extHostTypes.NewSymbolNameTriggerKind,
 			InlineEdit: extHostTypes.InlineEdit,
 			InlineEditTriggerKind: extHostTypes.InlineEditTriggerKind,
+			ExcludeSettingOptions: ExcludeSettingOptions,
+			TextSearchContextNew: TextSearchContextNew,
+			TextSearchMatchNew: TextSearchMatchNew,
+			TextSearchCompleteMessageTypeNew: TextSearchCompleteMessageTypeNew,
 		};
 	};
 }

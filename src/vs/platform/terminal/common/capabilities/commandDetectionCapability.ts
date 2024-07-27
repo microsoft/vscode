@@ -30,6 +30,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 
 	protected _commands: TerminalCommand[] = [];
 	private _cwd: string | undefined;
+	private _promptTerminator: string | undefined;
 	private _currentCommand: PartialTerminalCommand = new PartialTerminalCommand(this._terminal);
 	private _commandMarkers: IMarker[] = [];
 	private _dimensions: ITerminalDimensions;
@@ -54,23 +55,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		return this._currentCommand;
 	}
 	get cwd(): string | undefined { return this._cwd; }
-	private get _isInputting(): boolean {
-		return !!(this._currentCommand.commandStartMarker && !this._currentCommand.commandExecutedMarker);
-	}
-
-	get hasInput(): boolean | undefined {
-		if (!this._isInputting || !this._currentCommand?.commandStartMarker) {
-			return undefined;
-		}
-		if (this._terminal.buffer.active.baseY + this._terminal.buffer.active.cursorY === this._currentCommand.commandStartMarker?.line) {
-			const line = this._terminal.buffer.active.getLine(this._terminal.buffer.active.cursorY)?.translateToString(true, this._currentCommand.commandStartX);
-			if (line === undefined) {
-				return undefined;
-			}
-			return line.length > 0;
-		}
-		return true;
-	}
+	get promptTerminator(): string | undefined { return this._promptTerminator; }
 
 	private readonly _onCommandStarted = this._register(new Emitter<ITerminalCommand>());
 	readonly onCommandStarted = this._onCommandStarted.event;
@@ -164,6 +149,9 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 
 	@debounce(500)
 	private _handleCursorMove() {
+		if (this._store.isDisposed) {
+			return;
+		}
 		// Early versions of conpty do not have real support for an alt buffer, in addition certain
 		// commands such as tsc watch will write to the top of the normal buffer. The following
 		// checks when the cursor has moved while the normal buffer is empty and if it is above the
@@ -201,6 +189,13 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 
 	setContinuationPrompt(value: string): void {
 		this._promptInputModel.setContinuationPrompt(value);
+	}
+
+	// TODO: Simplify this, can everything work off the last line?
+	setPromptTerminator(promptTerminator: string, lastPromptLine: string) {
+		this._logService.debug('CommandDetectionCapability#setPromptTerminator', promptTerminator);
+		this._promptTerminator = promptTerminator;
+		this._promptInputModel.setLastPromptLine(lastPromptLine);
 	}
 
 	setCwd(value: string) {
@@ -416,7 +411,8 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		}
 		return {
 			isWindowsPty: this._ptyHeuristics.value instanceof WindowsPtyHeuristics,
-			commands
+			commands,
+			promptInputModel: this._promptInputModel.serialize(),
 		};
 	}
 
@@ -450,6 +446,9 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			this._commands.push(newCommand);
 			this._logService.debug('CommandDetectionCapability#onCommandFinished', newCommand);
 			this._onCommandFinished.fire(newCommand);
+		}
+		if (serialized.promptInputModel) {
+			this._promptInputModel.deserialize(serialized.promptInputModel);
 		}
 	}
 }
@@ -922,7 +921,6 @@ class WindowsPtyHeuristics extends Disposable {
 		if (!line) {
 			return;
 		}
-		// TODO: fine tune prompt regex to accomodate for unique configurations.
 		const lineText = line.translateToString(true);
 		if (!lineText) {
 			return;
@@ -965,6 +963,14 @@ class WindowsPtyHeuristics extends Disposable {
 				prompt: pythonPrompt,
 				likelySingleLine: true
 			};
+		}
+
+		// Dynamic prompt detection
+		if (this._capability.promptTerminator && lineText.trim().endsWith(this._capability.promptTerminator)) {
+			const adjustedPrompt = this._adjustPrompt(lineText, lineText, this._capability.promptTerminator);
+			if (adjustedPrompt) {
+				return adjustedPrompt;
+			}
 		}
 
 		// Command Prompt

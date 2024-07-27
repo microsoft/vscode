@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { EXTENSION_IDENTIFIER_PATTERN } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { distinct, equals, flatten } from 'vs/base/common/arrays';
+import { distinct, equals } from 'vs/base/common/arrays';
 import { ExtensionRecommendations, ExtensionRecommendation } from 'vs/workbench/contrib/extensions/browser/extensionRecommendations';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ExtensionRecommendationReason } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
@@ -54,6 +54,8 @@ export class WorkspaceRecommendations extends ExtensionRecommendations {
 		for (const folder of this.contextService.getWorkspace().folders) {
 			this._register(this.fileService.watch(this.uriIdentityService.extUri.joinPath(folder.uri, WORKSPACE_EXTENSIONS_FOLDER)));
 		}
+
+		this._register(this.contextService.onDidChangeWorkspaceFolders(() => this.onDidChangeWorkspaceExtensionsScheduler.schedule()));
 
 		this._register(this.fileService.onDidFilesChange(e => {
 			if (this.contextService.getWorkspace().folders.some(folder =>
@@ -150,7 +152,7 @@ export class WorkspaceRecommendations extends ExtensionRecommendations {
 		const invalidExtensions: string[] = [];
 		let message = '';
 
-		const allRecommendations = distinct(flatten(contents.map(({ recommendations }) => recommendations || [])));
+		const allRecommendations = distinct(contents.flatMap(({ recommendations }) => recommendations || []));
 		const regEx = new RegExp(EXTENSION_IDENTIFIER_PATTERN);
 		for (const extensionId of allRecommendations) {
 			if (regEx.test(extensionId)) {

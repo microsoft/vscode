@@ -369,14 +369,14 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 				} else {
 					title = nls.localize('extensionActivating', "Extension is activating...");
 				}
-				data.elementDisposables.push(this._hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), data.activationTime, title));
+				data.elementDisposables.push(this._hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), data.activationTime, title));
 
 				clearNode(data.msgContainer);
 
 				if (this._getUnresponsiveProfile(element.description.identifier)) {
 					const el = $('span', undefined, ...renderLabelWithIcons(` $(alert) Unresponsive`));
 					const extensionHostFreezTitle = nls.localize('unresponsive.title', "Extension has caused the extension host to freeze.");
-					data.elementDisposables.push(this._hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), el, extensionHostFreezTitle));
+					data.elementDisposables.push(this._hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), el, extensionHostFreezTitle));
 
 					data.msgContainer.appendChild(el);
 				}
@@ -421,10 +421,12 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 							data.msgContainer.appendChild($('span', undefined, `${feature.label}: `));
 							data.msgContainer.appendChild($('span', undefined, ...renderLabelWithIcons(`$(${status.severity === Severity.Error ? errorIcon.id : warningIcon.id}) ${status.message}`)));
 						}
-						if (accessData?.current) {
-							const element = $('span', undefined, nls.localize('requests count', "{0} Requests: {1} (Session)", feature.label, accessData.current.count));
-							const title = nls.localize('requests count title', "Last request was {0}. Overall Requests: {1}", fromNow(accessData.current.lastAccessed, true, true), accessData.totalCount);
-							data.elementDisposables.push(this._hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), element, title));
+						if (accessData?.totalCount > 0) {
+							const element = $('span', undefined, `${nls.localize('requests count', "{0} Requests: {1} (Overall)", feature.label, accessData.totalCount)}${accessData.current ? nls.localize('session requests count', ", {0} (Session)", accessData.current.count) : ''}`);
+							if (accessData.current) {
+								const title = nls.localize('requests count title', "Last request was {0}.", fromNow(accessData.current.lastAccessed, true, true));
+								data.elementDisposables.push(this._hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), element, title));
+							}
 
 							data.msgContainer.appendChild(element);
 						}

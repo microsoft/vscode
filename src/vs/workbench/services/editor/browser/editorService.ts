@@ -5,7 +5,7 @@
 
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IResourceEditorInput, IEditorOptions, EditorActivation, IResourceEditorInputIdentifier, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { SideBySideEditor, IEditorPane, GroupIdentifier, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, EditorInputWithOptions, isEditorInputWithOptions, IEditorIdentifier, IEditorCloseEvent, ITextDiffEditorPane, IRevertOptions, SaveReason, EditorsOrder, IWorkbenchEditorConfiguration, EditorResourceAccessor, IVisibleEditorPane, EditorInputCapabilities, isResourceDiffEditorInput, IUntypedEditorInput, isResourceEditorInput, isEditorInput, isEditorInputWithOptionsAndGroup, IFindEditorOptions, isResourceMergeEditorInput, IEditorWillOpenEvent } from 'vs/workbench/common/editor';
+import { SideBySideEditor, IEditorPane, GroupIdentifier, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, EditorInputWithOptions, isEditorInputWithOptions, IEditorIdentifier, IEditorCloseEvent, ITextDiffEditorPane, IRevertOptions, SaveReason, EditorsOrder, IWorkbenchEditorConfiguration, EditorResourceAccessor, IVisibleEditorPane, EditorInputCapabilities, isResourceDiffEditorInput, IUntypedEditorInput, isResourceEditorInput, isEditorInput, isEditorInputWithOptionsAndGroup, IFindEditorOptions, isResourceMergeEditorInput, IEditorWillOpenEvent, IEditorControl } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { ResourceMap, ResourceSet } from 'vs/base/common/map';
@@ -14,6 +14,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
+import { SideBySideEditor as SideBySideEditorPane } from 'vs/workbench/browser/parts/editor/sideBySideEditor';
 import { IEditorGroupsService, IEditorGroup, GroupsOrder, IEditorReplacement, isEditorReplacement, ICloseEditorOptions, IEditorGroupsContainer } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IUntypedEditorReplacement, IEditorService, ISaveEditorsOptions, ISaveAllEditorsOptions, IRevertAllEditorsOptions, IBaseSaveRevertAllEditorOptions, IOpenEditorsOptions, PreferredGroup, isPreferredGroup, IEditorsChangeEvent, ISaveEditorsResult } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -491,9 +492,18 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	get visibleTextEditorControls(): Array<ICodeEditor | IDiffEditor> {
 		const visibleTextEditorControls: Array<ICodeEditor | IDiffEditor> = [];
 		for (const visibleEditorPane of this.visibleEditorPanes) {
-			const control = visibleEditorPane.getControl();
-			if (isCodeEditor(control) || isDiffEditor(control)) {
-				visibleTextEditorControls.push(control);
+			const controls: Array<IEditorControl | undefined> = [];
+			if (visibleEditorPane instanceof SideBySideEditorPane) {
+				controls.push(visibleEditorPane.getPrimaryEditorPane()?.getControl());
+				controls.push(visibleEditorPane.getSecondaryEditorPane()?.getControl());
+			} else {
+				controls.push(visibleEditorPane.getControl());
+			}
+
+			for (const control of controls) {
+				if (isCodeEditor(control) || isDiffEditor(control)) {
+					visibleTextEditorControls.push(control);
+				}
 			}
 		}
 

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { binarySearch } from 'vs/base/common/arrays';
 import { SkipList } from 'vs/base/common/skipList';
 import { StopWatch } from 'vs/base/common/stopwatch';

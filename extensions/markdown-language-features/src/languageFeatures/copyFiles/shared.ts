@@ -20,6 +20,7 @@ enum MediaKind {
 
 export const mediaFileExtensions = new Map<string, MediaKind>([
 	// Images
+	['avif', MediaKind.Image],
 	['bmp', MediaKind.Image],
 	['gif', MediaKind.Image],
 	['ico', MediaKind.Image],

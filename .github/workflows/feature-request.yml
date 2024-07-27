@@ -4,8 +4,6 @@ on:
     types: [trigger-feature-request-manager]
   issues:
     types: [milestoned]
-  schedule:
-    - cron: 20 2 * * * # 4:20am Zurich
 
 # also make changes in ./on-label.yml
 jobs:
@@ -26,8 +24,9 @@ jobs:
         if: github.event_name != 'issues' || contains(github.event.issue.labels.*.name, 'feature-request')
         uses: ./actions/feature-request
         with:
-          appInsightsKey: ${{secrets.TRIAGE_ACTIONS_APP_INSIGHTS}}
           token: ${{secrets.VSCODE_ISSUE_TRIAGE_BOT_PAT}}
+          repo: "vscode"
+          owner: "microsoft"
           candidateMilestoneID: 107
           candidateMilestoneName: Backlog Candidates
           backlogMilestoneID: 8

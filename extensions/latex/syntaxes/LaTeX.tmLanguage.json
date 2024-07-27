@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jlelong/vscode-latex-basics/commit/4f8b49bca02b0bfde6e46252c209396ba6c567f9",
+	"version": "https://github.com/jlelong/vscode-latex-basics/commit/9cd6bc151f4b9df5d9aeb1e39e30071018d3cb2a",
 	"name": "LaTeX",
 	"scopeName": "text.tex.latex",
 	"patterns": [
@@ -2646,7 +2646,7 @@
 			]
 		},
 		{
-			"begin": "((\\\\)(?:\\w*[rR]ef\\*?))(\\{)",
+			"begin": "((\\\\)(?:\\w*[rR]ef\\*?))(?:\\[[^\\]]*\\])?(\\{)",
 			"beginCaptures": {
 				"1": {
 					"name": "keyword.control.ref.latex"
@@ -2904,6 +2904,32 @@
 			"name": "meta.function.verb.latex"
 		},
 		{
+			"begin": "((\\\\)(?:directlua|luadirect))(\\{)",
+			"beginCaptures": {
+				"1": {
+					"name": "support.function.verb.latex"
+				},
+				"2": {
+					"name": "punctuation.definition.function.latex"
+				},
+				"3": {
+					"name": "punctuation.definition.arguments.begin.latex"
+				}
+			},
+			"end": "\\}",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.definition.arguments.end.latex"
+				}
+			},
+			"contentName": "source.lua",
+			"patterns": [
+				{
+					"include": "source.lua"
+				}
+			]
+		},
+		{
 			"match": "\\\\(?:newline|pagebreak|clearpage|linebreak|pause)(?:\\b)",
 			"name": "keyword.control.layout.latex"
 		},
@@ -3019,6 +3045,15 @@
 		{
 			"captures": {
 				"1": {
+					"name": "punctuation.definition.variable.latex"
+				}
+			},
+			"match": "(\\\\)[cgl](?:[_\\p{Alphabetic}@]+)+_[a-z]+",
+			"name": "variable.other.latex3.latex"
+		},
+		{
+			"captures": {
+				"1": {
 					"name": "punctuation.definition.column-specials.begin.latex"
 				},
 				"2": {
@@ -3113,7 +3148,7 @@
 			"match": "\\s*((\\\\)(?:begin|end))(\\{)([a-zA-Z]*\\*?)(\\})(?:(\\[)([^\\]]*)(\\])){,2}(?:(\\{)([^{}]*)(\\}))?"
 		},
 		"definition-label": {
-			"begin": "((\\\\)label)((?:\\[[^\\[]*?\\])*)(\\{)",
+			"begin": "((\\\\)z?label)((?:\\[[^\\[]*?\\])*)(\\{)",
 			"beginCaptures": {
 				"1": {
 					"name": "keyword.control.label.latex"
