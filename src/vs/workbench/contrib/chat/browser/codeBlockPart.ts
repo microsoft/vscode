@@ -786,6 +786,10 @@ export class CodeCompareBlockPart extends Disposable {
 			diffEditor: this.diffEditor,
 		} satisfies ICodeCompareBlockActionContext;
 	}
+
+	clearModel() {
+		this.diffEditor.setModel(null);
+	}
 }
 
 export class DefaultChatTextEditor {

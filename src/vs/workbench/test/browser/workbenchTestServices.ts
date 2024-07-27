@@ -124,7 +124,7 @@ import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 
 import { IExtensionTerminalProfile, IShellLaunchConfig, ITerminalBackend, ITerminalLogService, ITerminalProfile, TerminalIcon, TerminalLocation, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { ICreateTerminalOptions, IDeserializedTerminalEditorInput, ITerminalConfigurationService, ITerminalEditorService, ITerminalGroup, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, TerminalEditorLocation } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { assertIsDefined, upcast } from 'vs/base/common/types';
-import { IRegisterContributedProfileArgs, IShellLaunchConfigResolveOptions, ITerminalProfileProvider, ITerminalProfileResolverService, ITerminalProfileService } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IRegisterContributedProfileArgs, IShellLaunchConfigResolveOptions, ITerminalProfileProvider, ITerminalProfileResolverService, ITerminalProfileService, type ITerminalConfiguration } from 'vs/workbench/contrib/terminal/common/terminal';
 import { EditorResolverService } from 'vs/workbench/services/editor/browser/editorResolverService';
 import { FILE_EDITOR_INPUT_ID } from 'vs/workbench/contrib/files/common/files';
 import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
@@ -351,7 +351,7 @@ export function workbenchInstantiationService(
 	instantiationService.stub(ITerminalInstanceService, new TestTerminalInstanceService());
 	instantiationService.stub(ITerminalProfileService, new TestTerminalProfileService());
 	instantiationService.stub(ITerminalProfileResolverService, new TestTerminalProfileResolverService());
-	instantiationService.stub(ITerminalConfigurationService, disposables.add(instantiationService.createInstance(TerminalConfigurationService)));
+	instantiationService.stub(ITerminalConfigurationService, disposables.add(instantiationService.createInstance(TestTerminalConfigurationService)));
 	instantiationService.stub(ITerminalLogService, disposables.add(instantiationService.createInstance(TerminalLogService)));
 	instantiationService.stub(IEnvironmentVariableService, disposables.add(instantiationService.createInstance(EnvironmentVariableService)));
 	instantiationService.stub(IElevatedFileService, new BrowserElevatedFileService());
@@ -2071,6 +2071,11 @@ export class TestTerminalProfileResolverService implements ITerminalProfileResol
 	getSafeConfigValue(key: string, os: OperatingSystem): unknown | undefined { return undefined; }
 	getSafeConfigValueFullKey(key: string): unknown | undefined { return undefined; }
 	createProfileFromShellAndShellArgs(shell?: unknown, shellArgs?: unknown): Promise<string | ITerminalProfile> { throw new Error('Method not implemented.'); }
+}
+
+export class TestTerminalConfigurationService extends TerminalConfigurationService {
+	get fontMetrics() { return this._fontMetrics; }
+	setConfig(config: Partial<ITerminalConfiguration>) { this._config = config as any; }
 }
 
 export class TestQuickInputService implements IQuickInputService {

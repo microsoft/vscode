@@ -424,6 +424,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this.serverState = new ServerState.Running(handle, apiVersion, undefined, true);
 		this.lastStart = Date.now();
 
+		const hasGlobalPlugins = this.pluginManager.plugins.length > 0;
 		/* __GDPR__
 			"tsserver.spawned" : {
 				"owner": "mjbvz",
@@ -431,12 +432,14 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 					"${TypeScriptCommonProperties}"
 				],
 				"localTypeScriptVersion": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"typeScriptVersionSource": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				"typeScriptVersionSource": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"hasGlobalPlugins": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 			}
 		*/
 		this.logTelemetry('tsserver.spawned', {
 			localTypeScriptVersion: this.versionProvider.localVersion ? this.versionProvider.localVersion.displayName : '',
 			typeScriptVersionSource: version.source,
+			hasGlobalPlugins,
 		});
 
 		handle.onError((err: Error) => {
@@ -460,10 +463,11 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 					"owner": "mjbvz",
 					"${include}": [
 						"${TypeScriptCommonProperties}"
-					]
+					],
+					"hasGlobalPlugins": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 				}
 			*/
-			this.logTelemetry('tsserver.error');
+			this.logTelemetry('tsserver.error', { hasGlobalPlugins });
 			this.serviceExited(false, apiVersion);
 		});
 
@@ -476,14 +480,19 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			/* __GDPR__
 				"tsserver.exitWithCode" : {
 					"owner": "mjbvz",
-					"code" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-					"signal" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 					"${include}": [
 						"${TypeScriptCommonProperties}"
-					]
+					],
+					"code" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+					"signal" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+					"hasGlobalPlugins": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 				}
 			*/
-			this.logTelemetry('tsserver.exitWithCode', { code: code ?? undefined, signal: signal ?? undefined });
+			this.logTelemetry('tsserver.exitWithCode', {
+				code: code ?? undefined,
+				signal: signal ?? undefined,
+				hasGlobalPlugins,
+			});
 
 			if (this.token !== mytoken) {
 				// this is coming from an old process

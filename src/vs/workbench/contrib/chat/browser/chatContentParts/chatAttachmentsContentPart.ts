@@ -47,12 +47,21 @@ export class ChatAttachmentsContentPart extends Disposable {
 			const range = attachment.value && typeof attachment.value === 'object' && 'range' in attachment.value && Range.isIRange(attachment.value.range) ? attachment.value.range : undefined;
 
 			const correspondingContentReference = this.contentReferences.find((ref) => 'variableName' in ref.reference && ref.reference.variableName === attachment.name);
+			const isAttachmentOmitted = correspondingContentReference?.options?.status?.kind === ChatResponseReferencePartStatusKind.Omitted;
+			const isAttachmentPartialOrOmitted = isAttachmentOmitted || correspondingContentReference?.options?.status?.kind === ChatResponseReferencePartStatusKind.Partial;
 
 			if (file) {
 				const fileBasename = basename(file.path);
 				const fileDirname = dirname(file.path);
 				const friendlyName = `${fileBasename} ${fileDirname}`;
-				const ariaLabel = range ? localize('chat.fileAttachmentWithRange2', "Attached file, {0}, line {1} to line {2}.", friendlyName, range.startLineNumber, range.endLineNumber) : localize('chat.fileAttachment2', "Attached file, {0}.", friendlyName);
+				let ariaLabel;
+				if (isAttachmentOmitted) {
+					ariaLabel = range ? localize('chat.omittedFileAttachmentWithRange', "Omitted: {0}, line {1} to line {2}.", friendlyName, range.startLineNumber, range.endLineNumber) : localize('chat.omittedFileAttachment', "Omitted: {0}.", friendlyName);
+				} else if (isAttachmentPartialOrOmitted) {
+					ariaLabel = range ? localize('chat.partialFileAttachmentWithRange', "Partially attached: {0}, line {1} to line {2}.", friendlyName, range.startLineNumber, range.endLineNumber) : localize('chat.partialFileAttachment', "Partially attached: {0}.", friendlyName);
+				} else {
+					ariaLabel = range ? localize('chat.fileAttachmentWithRange3', "Attached: {0}, line {1} to line {2}.", friendlyName, range.startLineNumber, range.endLineNumber) : localize('chat.fileAttachment3', "Attached: {0}.", friendlyName);
+				}
 
 				label.setFile(file, {
 					fileKind: FileKind.FILE,
@@ -79,13 +88,13 @@ export class ChatAttachmentsContentPart extends Disposable {
 				}));
 			} else {
 				const attachmentLabel = attachment.fullName ?? attachment.name;
-				label.setLabel(attachmentLabel, correspondingContentReference?.options?.status?.description);
+				const withIcon = attachment.icon?.id ? `$(${attachment.icon.id}) ${attachmentLabel}` : attachmentLabel;
+				label.setLabel(withIcon, correspondingContentReference?.options?.status?.description);
 
-				widget.ariaLabel = localize('chat.attachment2', "Attached context, {0}.", attachment.name);
+				widget.ariaLabel = localize('chat.attachment3', "Attached context: {0}.", attachment.name);
 				widget.tabIndex = 0;
 			}
 
-			const isAttachmentPartialOrOmitted = correspondingContentReference?.options?.status?.kind === ChatResponseReferencePartStatusKind.Omitted || correspondingContentReference?.options?.status?.kind === ChatResponseReferencePartStatusKind.Partial;
 			if (isAttachmentPartialOrOmitted) {
 				widget.classList.add('warning');
 			}

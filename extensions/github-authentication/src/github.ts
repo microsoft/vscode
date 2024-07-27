@@ -142,6 +142,10 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			this.context.secrets.onDidChange(() => this.checkForUpdates()),
 			vscode.workspace.onDidChangeConfiguration(async e => {
 				if (e.affectsConfiguration('github.experimental.multipleAccounts')) {
+					const newValue = vscode.workspace.getConfiguration('github.experimental').get<boolean>('multipleAccounts', false);
+					if (newValue === this._supportsMultipleAccounts) {
+						return;
+					}
 					const result = await vscode.window.showInformationMessage(vscode.l10n.t('Please reload the window to apply the new setting.'), { modal: true }, vscode.l10n.t('Reload Window'));
 					if (result) {
 						vscode.commands.executeCommand('workbench.action.reloadWindow');
