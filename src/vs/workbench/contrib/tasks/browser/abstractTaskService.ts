@@ -316,14 +316,21 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		this._registerCommands().then(() => TaskCommandsRegistered.bindTo(this._contextKeyService).set(true));
 		ServerlessWebContext.bindTo(this._contextKeyService).set(Platform.isWeb && !remoteAgentService.getConnection()?.remoteAuthority);
 		this._configurationResolverService.contributeVariable('defaultBuildTask', async (): Promise<string | undefined> => {
-			let tasks = await this._getTasksForGroup(TaskGroup.Build);
+			// delay provider activation, we might find a single default build task in the tasks.json file
+			let tasks = await this._getTasksForGroup(TaskGroup.Build, true);
 			if (tasks.length > 0) {
 				const defaults = this._getDefaultTasks(tasks);
 				if (defaults.length === 1) {
 					return defaults[0]._label;
-				} else if (defaults.length) {
-					tasks = defaults;
 				}
+			}
+			// activate all providers, we haven't found the default build task in the tasks.json file
+			tasks = await this._getTasksForGroup(TaskGroup.Build);
+			const defaults = this._getDefaultTasks(tasks);
+			if (defaults.length === 1) {
+				return defaults[0]._label;
+			} else if (defaults.length) {
+				tasks = defaults;
 			}
 
 			let entry: ITaskQuickPickEntry | null | undefined;
@@ -608,6 +615,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		// We need to first wait for extensions to be registered because we might read
 		// the `TaskDefinitionRegistry` in case `type` is `undefined`
 		await this._extensionService.whenInstalledExtensionsRegistered();
+		this._log('Activating task providers ' + type ?? 'all');
 		await raceTimeout(
 			Promise.all(this._getActivationEvents(type).map(activationEvent => this._extensionService.activateByEvent(activationEvent))),
 			5000,
@@ -1418,8 +1426,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return task;
 	}
 
-	private async _getTasksForGroup(group: TaskGroup): Promise<Task[]> {
-		const groups = await this._getGroupedTasks();
+	private async _getTasksForGroup(group: TaskGroup, waitToActivate?: boolean): Promise<Task[]> {
+		const groups = await this._getGroupedTasks(undefined, waitToActivate);
 		const result: Task[] = [];
 		groups.forEach(tasks => {
 			for (const task of tasks) {
@@ -2001,11 +2009,13 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return !definition || !definition.when || this._contextKeyService.contextMatchesRules(definition.when);
 	}
 
-	private async _getGroupedTasks(filter?: ITaskFilter): Promise<TaskMap> {
+	private async _getGroupedTasks(filter?: ITaskFilter, waitToActivate?: boolean): Promise<TaskMap> {
 		await this._waitForAllSupportedExecutions;
 		const type = filter?.type;
 		const needsRecentTasksMigration = this._needsRecentTasksMigration();
-		await this._activateTaskProviders(filter?.type);
+		if (!waitToActivate) {
+			await this._activateTaskProviders(filter?.type);
+		}
 		const validTypes: IStringDictionary<boolean> = Object.create(null);
 		TaskDefinitionRegistry.all().forEach(definition => validTypes[definition.taskType] = true);
 		validTypes['shell'] = true;

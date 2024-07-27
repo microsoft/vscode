@@ -73,7 +73,7 @@ import { ITestProfileService, canUseProfileWithTest } from 'vs/workbench/contrib
 import { LiveTestResult, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { IMainThreadTestCollection, ITestService, testCollectionIsEmpty } from 'vs/workbench/contrib/testing/common/testService';
-import { ITestRunProfile, InternalTestItem, TestItemExpandState, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
+import { ITestRunProfile, InternalTestItem, TestControllerCapability, TestItemExpandState, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestingContinuousRunService } from 'vs/workbench/contrib/testing/common/testingContinuousRunService';
 import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
@@ -327,7 +327,7 @@ export class TestingExplorerView extends ViewPane {
 				if (!hasAdded) {
 					hasAdded = true;
 					participatingGroups++;
-					profileActions.push(new Action(`${controller.id}.$root`, controller.label.value, undefined, false));
+					profileActions.push(new Action(`${controller.id}.$root`, controller.label.get(), undefined, false));
 				}
 
 				hasConfigurable = hasConfigurable || profile.hasConfigurationHandler;
@@ -1544,7 +1544,7 @@ const getActionableElementActions = (
 		const supportsCr = !!ctrl && profiles.getControllerProfiles(ctrl.id).some(p => p.supportsContinuousRun);
 		contextKeys.push([
 			TestingContextKeys.canRefreshTests.key,
-			!!ctrl?.canRefresh.value && TestId.isRoot(test.item.extId),
+			ctrl && !!(ctrl.capabilities.get() & TestControllerCapability.Refresh) && TestId.isRoot(test.item.extId),
 		], [
 			TestingContextKeys.testItemIsHidden.key,
 			testService.excluded.contains(test)

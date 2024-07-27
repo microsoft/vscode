@@ -69,8 +69,6 @@ export interface IChatWidgetContrib extends IDisposable {
 	 */
 	getInputState?(): any;
 
-	onDidChangeInputState?: Event<void>;
-
 	/**
 	 * Called with the result of getInputState when navigating input history.
 	 */
@@ -260,8 +258,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 						inner.setSelection({
 							startLineNumber: input.options.selection.startLineNumber,
 							startColumn: input.options.selection.startColumn,
-							endLineNumber: input.options.selection.startLineNumber ?? input.options.selection.endLineNumber,
-							endColumn: input.options.selection.startColumn ?? input.options.selection.endColumn
+							endLineNumber: input.options.selection.endLineNumber ?? input.options.selection.startLineNumber,
+							endColumn: input.options.selection.endColumn ?? input.options.selection.startColumn
 						});
 					}
 					return inner;
@@ -337,15 +335,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				return undefined;
 			}
 		}).filter(isDefined);
-
-		this.contribs.forEach(c => {
-			if (c.onDidChangeInputState) {
-				this._register(c.onDidChangeInputState(() => {
-					const state = this.collectInputState();
-					this.inputPart.updateState(state);
-				}));
-			}
-		});
 	}
 
 	getContrib<T extends IChatWidgetContrib>(id: string): T | undefined {
@@ -412,7 +401,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 							// be re-rendered so progressive rendering is restarted, even if the model wasn't updated.
 							`${isResponseVM(element) && element.renderData ? `_${this.visibleChangeCount}` : ''}` +
 							// Re-render once content references are loaded
-							(isResponseVM(element) ? `_${element.contentReferences.length}` : '');
+							(isResponseVM(element) ? `_${element.contentReferences.length}` : '') +
+							// Rerender request if we got new content references in the response
+							// since this may change how we render the corresponding attachments in the request
+							(isRequestVM(element) && element.contentReferences ? `_${element.contentReferences?.length}` : '');
 					},
 				}
 			});
@@ -583,7 +575,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				renderStyle: options?.renderStyle === 'minimal' ? 'compact' : options?.renderStyle,
 				menus: { executeToolbar: MenuId.ChatExecute, ...this.viewOptions.menus },
 				editorOverflowWidgetsDomNode: this.viewOptions.editorOverflowWidgetsDomNode,
-			}
+			},
+			() => this.collectInputState()
 		));
 		this.inputPart.render(container, '', this);
 
@@ -783,10 +776,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			});
 
 			if (result) {
-				this.inputPart.clearContext();
 				this.inputPart.acceptInput(isUserQuery);
 				this._onDidSubmitAgent.fire({ agent: result.agent, slashCommand: result.slashCommand });
-				this.inputPart.updateState(this.collectInputState());
 				result.responseCompletePromise.then(() => {
 					const responses = this.viewModel?.getItems().filter(isResponseVM);
 					const lastResponse = responses?.[responses.length - 1];
@@ -797,7 +788,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 		return undefined;
 	}
-
 
 	setContext(overwrite: boolean, ...contentReferences: IChatRequestVariableEntry[]) {
 		this.inputPart.attachContext(overwrite, ...contentReferences);
@@ -961,7 +951,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	getViewState(): IChatViewState {
-		this.inputPart.saveState();
 		return { inputValue: this.getInput(), inputState: this.collectInputState() };
 	}
 }

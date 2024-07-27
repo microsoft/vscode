@@ -4,27 +4,44 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class DebugWatchAccessibilityAnnouncer extends Disposable implements IWorkbenchContribution {
 	static ID = 'workbench.contrib.debugWatchAccessibilityAnnouncer';
+	private readonly _listener: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
 	constructor(
-		@IDebugService _debugService: IDebugService,
-		@ILogService _logService: ILogService,
-		@IAccessibilityService _accessibilityService: IAccessibilityService
+		@IDebugService private readonly _debugService: IDebugService,
+		@ILogService private readonly _logService: ILogService,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		super();
-		this._register(_debugService.getModel().onDidChangeWatchExpressionValue((e) => {
-			if (!e || e.value === 'not available') {
-				return;
+		this._setListener();
+		this._register(_configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('accessibility.debugWatchVariableAnnouncements')) {
+				this._setListener();
 			}
-
-			// TODO: get user feedback, perhaps setting to configure verbosity + whether value, name, neither, or both are announced
-			_accessibilityService.alert(`${e.name} = ${e.value}`);
-			_logService.trace(`debugAccessibilityAnnouncerValueChanged ${e.name} ${e.value}`);
 		}));
+	}
+
+	private _setListener(): void {
+		const value = this._configurationService.getValue('accessibility.debugWatchVariableAnnouncements');
+		if (value && !this._listener.value) {
+			this._listener.value = this._debugService.getModel().onDidChangeWatchExpressionValue((e) => {
+				if (!e || e.value === 'not available') {
+					return;
+				}
+
+				// TODO: get user feedback, perhaps setting to configure verbosity + whether value, name, neither, or both are announced
+				this._accessibilityService.alert(`${e.name} = ${e.value}`);
+				this._logService.trace(`debugAccessibilityAnnouncerValueChanged ${e.name} ${e.value}`);
+			});
+		} else {
+			this._listener.clear();
+		}
 	}
 }

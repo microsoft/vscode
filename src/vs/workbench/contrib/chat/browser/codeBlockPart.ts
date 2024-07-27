@@ -623,9 +623,11 @@ export class CodeCompareBlockPart extends Disposable {
 				useTrueInlineView: true,
 			},
 			renderSideBySideInlineBreakpoint: 300,
+			renderOverviewRuler: false,
 			compactMode: true,
 			hideUnchangedRegions: { enabled: true, contextLineCount: 1 },
 			renderGutterMenu: false,
+			lineNumbersMinChars: 1,
 			...options
 		}, { originalEditor: widgetOptions, modifiedEditor: widgetOptions }));
 	}
@@ -783,6 +785,10 @@ export class CodeCompareBlockPart extends Disposable {
 			element: data.element,
 			diffEditor: this.diffEditor,
 		} satisfies ICodeCompareBlockActionContext;
+	}
+
+	clearModel() {
+		this.diffEditor.setModel(null);
 	}
 }
 

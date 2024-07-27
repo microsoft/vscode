@@ -250,7 +250,7 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 
 	renderTemplate(container: HTMLElement): ICollapsibleListTemplate {
 		const templateDisposables = new DisposableStore();
-		const label = templateDisposables.add(this.labels.create(container, { supportHighlights: true }));
+		const label = templateDisposables.add(this.labels.create(container, { supportHighlights: true, supportIcons: true }));
 		return { templateDisposables, label };
 	}
 
@@ -286,7 +286,11 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 					}, { icon, title: data.options?.status?.description ?? data.title });
 			} else {
 				const variable = this.chatVariablesService.getVariable(reference.variableName);
-				templateData.label.setLabel(`#${reference.variableName}`, undefined, { title: data.options?.status?.description ?? variable?.description });
+				// This is a hack to get chat attachment ThemeIcons to render for resource labels
+				const asThemeIcon = variable?.icon ? `$(${variable.icon.id}) ` : '';
+				const asVariableName = `#${reference.variableName}`; // Fallback, shouldn't really happen
+				const label = `${asThemeIcon}${variable?.fullName ?? asVariableName}`;
+				templateData.label.setLabel(label, asVariableName, { title: data.options?.status?.description ?? variable?.description });
 			}
 		} else {
 			const uri = 'uri' in reference ? reference.uri : reference;
@@ -300,7 +304,7 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 				const settingId = uri.path.substring(1);
 				templateData.label.setResource({ resource: uri, name: settingId }, { icon: Codicon.settingsGear, title: localize('setting.hover', "Open setting '{0}'", settingId) });
 			} else if (matchesSomeScheme(uri, Schemas.mailto, Schemas.http, Schemas.https)) {
-				templateData.label.setResource({ resource: uri, name: uri.toString() }, { icon: icon ?? Codicon.globe, title: data.options?.status?.description ?? data.title });
+				templateData.label.setResource({ resource: uri, name: uri.toString() }, { icon: icon ?? Codicon.globe, title: data.options?.status?.description ?? data.title ?? uri.toString() });
 			} else {
 				templateData.label.setFile(uri, {
 					fileKind: FileKind.FILE,
@@ -312,11 +316,13 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 			}
 		}
 
-		if (data.options?.status?.kind === ChatResponseReferencePartStatusKind.Omitted || data.options?.status?.kind === ChatResponseReferencePartStatusKind.Partial) {
-			for (const selector of ['.monaco-icon-suffix-container', '.monaco-icon-name-container']) {
-				const element = templateData.label.element.querySelector(selector);
-				if (element) {
+		for (const selector of ['.monaco-icon-suffix-container', '.monaco-icon-name-container']) {
+			const element = templateData.label.element.querySelector(selector);
+			if (element) {
+				if (data.options?.status?.kind === ChatResponseReferencePartStatusKind.Omitted || data.options?.status?.kind === ChatResponseReferencePartStatusKind.Partial) {
 					element.classList.add('warning');
+				} else {
+					element.classList.remove('warning');
 				}
 			}
 		}

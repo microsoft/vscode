@@ -4204,21 +4204,24 @@ export class CommandCenter {
 			}
 		}
 
-		const historyItemId = historyItem1.id;
-		const historyItemParentId = historyItem2 ? historyItem2.id :
-			historyItem1.parentIds.length > 0 ? historyItem1.parentIds[0] : `${historyItemId}^`;
+		let title: string | undefined;
+		let historyItemParentId: string | undefined;
 
-		let title = '';
+		// If historyItem2 is not provided, we are viewing a single commit. If historyItem2 is
+		// provided, we are viewing a range and we have to include both start and end commits.
+		// TODO@lszomoru - handle the case when historyItem2 is the first commit in the repository
 		if (!historyItem2) {
-			const commit = await repository.getCommit(historyItemId);
-			title = `${historyItemId.substring(0, 8)} - ${commit.message}`;
+			const commit = await repository.getCommit(historyItem1.id);
+			title = `${historyItem1.id.substring(0, 8)} - ${commit.message}`;
+			historyItemParentId = historyItem1.parentIds.length > 0 ? historyItem1.parentIds[0] : `${historyItem1.id}^`;
 		} else {
-			title = l10n.t('All Changes ({0} ↔ {1})', historyItemParentId.substring(0, 8), historyItemId.substring(0, 8));
+			title = l10n.t('All Changes ({0} ↔ {1})', historyItem2.id.substring(0, 8), historyItem1.id.substring(0, 8));
+			historyItemParentId = historyItem2.parentIds.length > 0 ? historyItem2.parentIds[0] : `${historyItem2.id}^`;
 		}
 
-		const multiDiffSourceUri = toGitUri(Uri.file(repository.root), `${historyItemParentId}..${historyItemId}`, { scheme: 'git-commit', });
+		const multiDiffSourceUri = toGitUri(Uri.file(repository.root), `${historyItemParentId}..${historyItem1.id}`, { scheme: 'git-commit', });
 
-		await this._viewChanges(repository, historyItemId, historyItemParentId, multiDiffSourceUri, title);
+		await this._viewChanges(repository, historyItem1.id, historyItemParentId, multiDiffSourceUri, title);
 	}
 
 	@command('git.viewAllChanges', { repository: true })

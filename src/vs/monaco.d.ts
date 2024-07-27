@@ -4057,11 +4057,13 @@ declare namespace monaco.editor {
 		multipleDeclarations?: GoToLocationValues;
 		multipleImplementations?: GoToLocationValues;
 		multipleReferences?: GoToLocationValues;
+		multipleTests?: GoToLocationValues;
 		alternativeDefinitionCommand?: string;
 		alternativeTypeDefinitionCommand?: string;
 		alternativeDeclarationCommand?: string;
 		alternativeImplementationCommand?: string;
 		alternativeReferenceCommand?: string;
+		alternativeTestsCommand?: string;
 	}
 
 	/**

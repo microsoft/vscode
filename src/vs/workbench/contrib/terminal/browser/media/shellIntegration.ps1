@@ -189,12 +189,25 @@ function Set-MappedKeyHandlers {
 		# VS Code send global completions request
 		Set-PSReadLineKeyHandler -Chord 'F12,f' -ScriptBlock {
 			# Get commands, convert to string array to reduce the payload size and send as JSON
-			$commands = [System.Management.Automation.CompletionCompleters]::CompleteCommand('')
+			$commands = @(
+				[System.Management.Automation.CompletionCompleters]::CompleteCommand('')
+				# Keywords aren't included in CompletionCommand
+				[System.Management.Automation.CompletionResult]::new('exit', 'exit', [System.Management.Automation.CompletionResultType]::Keyword, "exit [<exitcode>]")
+			)
 			$mappedCommands = Compress-Completions($commands)
 			$result = "$([char]0x1b)]633;CompletionsPwshCommands;commands;"
 			$result += $mappedCommands | ConvertTo-Json -Compress
 			$result += "`a"
 			Write-Host -NoNewLine $result
+		}
+
+		Set-PSReadLineKeyHandler -Chord 'F12,g' -ScriptBlock {
+			Import-Module "$PSScriptRoot\GitTabExpansion.psm1"
+			Remove-PSReadLineKeyHandler -Chord 'F12,g'
+		}
+		Set-PSReadLineKeyHandler -Chord 'F12,h' -ScriptBlock {
+			Import-Module "$PSScriptRoot\CodeTabExpansion.psm1"
+			Remove-PSReadLineKeyHandler -Chord 'F12,h'
 		}
 	}
 }
@@ -247,7 +260,7 @@ function Send-Completions {
 					$_
 				}
 			}
-			([System.Management.Automation.CompletionCompleters]::CompleteVariable($completionPrefix));
+			([System.Management.Automation.CompletionCompleters]::CompleteVariable(''))
 		)
 		if ($null -ne $completions) {
 			$result += ";$($completions.ReplacementIndex);$($completions.ReplacementLength);$($cursorIndex);"
@@ -265,7 +278,13 @@ function Send-Completions {
 }
 
 function Compress-Completions($completions) {
-	$completions | ForEach-Object { ,@($_.CompletionText, $_.ResultType, $_.tooltip) }
+	$completions | ForEach-Object {
+		if ($_.CompletionText -eq $_.ToolTip) {
+			,@($_.CompletionText, $_.ResultType)
+		} else {
+			,@($_.CompletionText, $_.ResultType, $_.ToolTip)
+		}
+	}
 }
 
 # Register key handlers if PSReadLine is available

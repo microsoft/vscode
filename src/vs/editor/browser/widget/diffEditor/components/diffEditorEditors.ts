@@ -30,7 +30,10 @@ export class DiffEditorEditors extends Disposable {
 	public readonly modifiedScrollTop = observableFromEvent(this, this.modified.onDidScrollChange, () => /** @description modified.getScrollTop */ this.modified.getScrollTop());
 	public readonly modifiedScrollHeight = observableFromEvent(this, this.modified.onDidScrollChange, () => /** @description modified.getScrollHeight */ this.modified.getScrollHeight());
 
-	public readonly modifiedModel = observableCodeEditor(this.modified).model;
+	public readonly modifiedObs = observableCodeEditor(this.modified);
+	public readonly originalObs = observableCodeEditor(this.original);
+
+	public readonly modifiedModel = this.modifiedObs.model;
 
 	public readonly modifiedSelections = observableFromEvent(this, this.modified.onDidChangeCursorSelection, () => this.modified.getSelections() ?? []);
 	public readonly modifiedCursor = derivedOpts({ owner: this, equalsFn: Position.equals }, reader => this.modifiedSelections.read(reader)[0]?.getPosition() ?? new Position(1, 1));
