@@ -159,7 +159,7 @@ __vsc_update_prompt() {
 }
 
 __vsc_precmd() {
-	local __vsc_status="$?"
+	builtin local __vsc_status="$?"
 	if [ -z "${__vsc_in_command_execution-}" ]; then
 		# not in command execution
 		__vsc_command_output_start

@@ -11,7 +11,7 @@ import { CodeActionsExtensionPoint, codeActionsExtensionPointDescriptor } from '
 import { DocumentationExtensionPoint, documentationExtensionPointDescriptor } from 'vs/workbench/contrib/codeActions/common/documentationExtensionPoint';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { CodeActionsContribution, editorConfiguration } from './codeActionsContribution';
+import { CodeActionsContribution, editorConfiguration, notebookEditorConfiguration } from './codeActionsContribution';
 import { CodeActionDocumentationContribution } from './documentationContribution';
 
 const codeActionsExtensionPoint = ExtensionsRegistry.registerExtensionPoint<CodeActionsExtensionPoint[]>(codeActionsExtensionPointDescriptor);
@@ -19,6 +19,9 @@ const documentationExtensionPoint = ExtensionsRegistry.registerExtensionPoint<Do
 
 Registry.as<IConfigurationRegistry>(Extensions.Configuration)
 	.registerConfiguration(editorConfiguration);
+
+Registry.as<IConfigurationRegistry>(Extensions.Configuration)
+	.registerConfiguration(notebookEditorConfiguration);
 
 class WorkbenchConfigurationContribution {
 	constructor(

@@ -7,6 +7,7 @@
 import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
+import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { ITestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { IRichLocation, ITestItem, ITestMessage, ITestMessageMenuArgs, ITestRunTask, ITestTaskState, InternalTestItem, TestMessageType, TestResultItem } from 'vs/workbench/contrib/testing/common/testTypes';
 import { TestUriType, buildTestUri } from 'vs/workbench/contrib/testing/common/testingUri';
@@ -17,7 +18,11 @@ export const getMessageArgs = (test: TestResultItem, message: ITestMessage): ITe
 	message: ITestMessage.serialize(message),
 });
 
-export class MessageSubject {
+interface ISubjectCommon {
+	controllerId: string;
+}
+
+export class MessageSubject implements ISubjectCommon {
 	public readonly test: ITestItem;
 	public readonly message: ITestMessage;
 	public readonly expectedUri: URI;
@@ -25,6 +30,10 @@ export class MessageSubject {
 	public readonly messageUri: URI;
 	public readonly revealLocation: IRichLocation | undefined;
 	public readonly context: ITestMessageMenuArgs | undefined;
+
+	public get controllerId() {
+		return TestId.root(this.test.extId);
+	}
 
 	public get isDiffable() {
 		return this.message.type === TestMessageType.Error && ITestMessage.isDiffable(this.message);
@@ -54,19 +63,27 @@ export class MessageSubject {
 	}
 }
 
-export class TaskSubject {
+export class TaskSubject implements ISubjectCommon {
 	public readonly outputUri: URI;
 	public readonly revealLocation: undefined;
+
+	public get controllerId() {
+		return this.result.tasks[this.taskIndex].ctrlId;
+	}
 
 	constructor(public readonly result: ITestResult, public readonly taskIndex: number) {
 		this.outputUri = buildTestUri({ resultId: result.id, taskIndex, type: TestUriType.TaskOutput });
 	}
 }
 
-export class TestOutputSubject {
+export class TestOutputSubject implements ISubjectCommon {
 	public readonly outputUri: URI;
 	public readonly revealLocation: undefined;
 	public readonly task: ITestRunTask;
+
+	public get controllerId() {
+		return TestId.root(this.test.item.extId);
+	}
 
 	constructor(public readonly result: ITestResult, public readonly taskIndex: number, public readonly test: TestResultItem) {
 		this.outputUri = buildTestUri({ resultId: this.result.id, taskIndex: this.taskIndex, testExtId: this.test.item.extId, type: TestUriType.TestOutput });
@@ -95,4 +112,16 @@ export const mapFindTestMessage = <T>(test: TestResultItem, fn: (task: ITestTask
 	}
 
 	return undefined;
+};
+
+export const getSubjectTestItem = (subject: InspectSubject) => {
+	if (subject instanceof MessageSubject) {
+		return subject.test;
+	}
+
+	if (subject instanceof TaskSubject) {
+		return undefined;
+	}
+
+	return subject.test.item;
 };

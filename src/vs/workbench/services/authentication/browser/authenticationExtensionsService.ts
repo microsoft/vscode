@@ -15,7 +15,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IAuthenticationAccessService } from 'vs/workbench/services/authentication/browser/authenticationAccessService';
 import { IAuthenticationUsageService } from 'vs/workbench/services/authentication/browser/authenticationUsageService';
-import { AuthenticationSession, IAuthenticationProvider, IAuthenticationService, IAuthenticationExtensionsService } from 'vs/workbench/services/authentication/common/authentication';
+import { AuthenticationSession, IAuthenticationProvider, IAuthenticationService, IAuthenticationExtensionsService, AuthenticationSessionAccount } from 'vs/workbench/services/authentication/common/authentication';
 
 // OAuth2 spec prohibits space in a scope, so use that to join them.
 const SCOPESLIST_SEPARATOR = ' ';
@@ -212,45 +212,52 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 		return result === SessionPromptChoice.Allow;
 	}
 
+	/**
+	 * This function should be used only when there are sessions to disambiguate.
+	 */
 	async selectSession(providerId: string, extensionId: string, extensionName: string, scopes: string[], availableSessions: AuthenticationSession[]): Promise<AuthenticationSession> {
-		return new Promise((resolve, reject) => {
-			// This function should be used only when there are sessions to disambiguate.
-			if (!availableSessions.length) {
-				reject('No available sessions');
-				return;
+		const allAccounts = await this._authenticationService.getAccounts(providerId);
+		if (!allAccounts.length) {
+			throw new Error('No accounts available');
+		}
+		const quickPick = this.quickInputService.createQuickPick<{ label: string; session?: AuthenticationSession; account?: AuthenticationSessionAccount }>();
+		quickPick.ignoreFocusOut = true;
+		const items: { label: string; session?: AuthenticationSession; account?: AuthenticationSessionAccount }[] = availableSessions.map(session => {
+			return {
+				label: session.account.label,
+				session: session
+			};
+		});
+
+		// Add the additional accounts that have been logged into the provider but are
+		// don't have a session yet.
+		const accountsWithSessions = new Set(availableSessions.map(session => session.account.label));
+		allAccounts.forEach(account => {
+			if (!accountsWithSessions.has(account.label)) {
+				items.push({ label: account.label, account });
 			}
+		});
+		items.push({ label: nls.localize('useOtherAccount', "Sign in to another account") });
+		quickPick.items = items;
+		quickPick.title = nls.localize(
+			{
+				key: 'selectAccount',
+				comment: ['The placeholder {0} is the name of an extension. {1} is the name of the type of account, such as Microsoft or GitHub.']
+			},
+			"The extension '{0}' wants to access a {1} account",
+			extensionName,
+			this._authenticationService.getProvider(providerId).label
+		);
+		quickPick.placeholder = nls.localize('getSessionPlateholder', "Select an account for '{0}' to use or Esc to cancel", extensionName);
 
-			const quickPick = this.quickInputService.createQuickPick<{ label: string; session?: AuthenticationSession }>();
-			quickPick.ignoreFocusOut = true;
-			const items: { label: string; session?: AuthenticationSession }[] = availableSessions.map(session => {
-				return {
-					label: session.account.label,
-					session: session
-				};
-			});
-
-			items.push({
-				label: nls.localize('useOtherAccount', "Sign in to another account")
-			});
-
-			quickPick.items = items;
-
-			quickPick.title = nls.localize(
-				{
-					key: 'selectAccount',
-					comment: ['The placeholder {0} is the name of an extension. {1} is the name of the type of account, such as Microsoft or GitHub.']
-				},
-				"The extension '{0}' wants to access a {1} account",
-				extensionName,
-				this._authenticationService.getProvider(providerId).label);
-			quickPick.placeholder = nls.localize('getSessionPlateholder', "Select an account for '{0}' to use or Esc to cancel", extensionName);
-
+		return await new Promise((resolve, reject) => {
 			quickPick.onDidAccept(async _ => {
 				quickPick.dispose();
 				let session = quickPick.selectedItems[0].session;
 				if (!session) {
+					const account = quickPick.selectedItems[0].account;
 					try {
-						session = await this._authenticationService.createSession(providerId, scopes);
+						session = await this._authenticationService.createSession(providerId, scopes, { account });
 					} catch (e) {
 						reject(e);
 						return;

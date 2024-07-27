@@ -14,7 +14,7 @@ import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
 import { localize } from 'vs/nls';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { IIssueMainService, IssueReporterData, IssueReporterWindowConfiguration } from 'vs/platform/issue/common/issue';
+import { IIssueMainService, OldIssueReporterData, OldIssueReporterWindowConfiguration } from 'vs/platform/issue/common/issue';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
 import product from 'vs/platform/product/common/product';
@@ -53,13 +53,13 @@ export class IssueMainService implements IIssueMainService {
 
 	//#region Used by renderer
 
-	async openReporter(data: IssueReporterData): Promise<void> {
+	async openReporter(data: OldIssueReporterData): Promise<void> {
 		if (!this.issueReporterWindow) {
 			this.issueReporterParentWindow = BrowserWindow.getFocusedWindow();
 			if (this.issueReporterParentWindow) {
 				const issueReporterDisposables = new DisposableStore();
 
-				const issueReporterWindowConfigUrl = issueReporterDisposables.add(this.protocolMainService.createIPCObjectUrl<IssueReporterWindowConfiguration>());
+				const issueReporterWindowConfigUrl = issueReporterDisposables.add(this.protocolMainService.createIPCObjectUrl<OldIssueReporterWindowConfiguration>());
 				const position = this.getWindowPosition(this.issueReporterParentWindow, 700, 800);
 
 				this.issueReporterWindow = this.createBrowserWindow(position, issueReporterWindowConfigUrl, {
@@ -174,16 +174,16 @@ export class IssueMainService implements IIssueMainService {
 		return window;
 	}
 
-	async $sendReporterMenu(extensionId: string, extensionName: string): Promise<IssueReporterData | undefined> {
+	async $sendReporterMenu(extensionId: string, extensionName: string): Promise<OldIssueReporterData | undefined> {
 		const window = this.issueReporterWindowCheck();
 		const replyChannel = `vscode:triggerReporterMenu`;
 		const cts = new CancellationTokenSource();
 		window.sendWhenReady(replyChannel, cts.token, { replyChannel, extensionId, extensionName });
-		const result = await raceTimeout(new Promise(resolve => validatedIpcMain.once(`vscode:triggerReporterMenuResponse:${extensionId}`, (_: unknown, data: IssueReporterData | undefined) => resolve(data))), 5000, () => {
+		const result = await raceTimeout(new Promise(resolve => validatedIpcMain.once(`vscode:triggerReporterMenuResponse:${extensionId}`, (_: unknown, data: OldIssueReporterData | undefined) => resolve(data))), 5000, () => {
 			this.logService.error(`Error: Extension ${extensionId} timed out waiting for menu response`);
 			cts.cancel();
 		});
-		return result as IssueReporterData | undefined;
+		return result as OldIssueReporterData | undefined;
 	}
 
 	async $closeReporter(): Promise<void> {

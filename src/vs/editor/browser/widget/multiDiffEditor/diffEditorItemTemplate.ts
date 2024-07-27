@@ -6,20 +6,20 @@ import { h } from 'vs/base/browser/dom';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { Codicon } from 'vs/base/common/codicons';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { autorun, derived, observableFromEvent } from 'vs/base/common/observable';
-import { IObservable, globalTransaction, observableValue } from 'vs/base/common/observableInternal/base';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { autorun, derived } from 'vs/base/common/observable';
+import { globalTransaction, observableValue } from 'vs/base/common/observableInternal/base';
+import { observableCodeEditor } from 'vs/editor/browser/observableCodeEditor';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
 import { DocumentDiffItemViewModel } from 'vs/editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel';
 import { IWorkbenchUIElementFactory } from 'vs/editor/browser/widget/multiDiffEditor/workbenchUIElementFactory';
 import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { OffsetRange } from 'vs/editor/common/core/offsetRange';
+import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IObjectData, IPooledObject } from './objectPool';
 import { ActionRunnerWithContext } from './utils';
-import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 
 export class TemplateData implements IObjectData {
 	constructor(
@@ -81,8 +81,8 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 		overflowWidgetsDomNode: this._overflowWidgetsDomNode,
 	}, {}));
 
-	private readonly isModifedFocused = isFocused(this.editor.getModifiedEditor());
-	private readonly isOriginalFocused = isFocused(this.editor.getOriginalEditor());
+	private readonly isModifedFocused = observableCodeEditor(this.editor.getModifiedEditor()).isFocused;
+	private readonly isOriginalFocused = observableCodeEditor(this.editor.getOriginalEditor()).isFocused;
 	public readonly isFocused = derived(this, reader => this.isModifedFocused.read(reader) || this.isOriginalFocused.read(reader));
 
 	private readonly _resourceLabel = this._workbenchUIElementFactory.createResourceLabel
@@ -177,7 +177,7 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 
 	private _data: TemplateData | undefined;
 
-	public setData(data: TemplateData): void {
+	public setData(data: TemplateData | undefined): void {
 		this._data = data;
 		function updateOptions(options: IDiffEditorOptions): IDiffEditorOptions {
 			return {
@@ -198,13 +198,17 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 			};
 		}
 
-		const value = data.viewModel.entry.value!; // TODO
-
-		if (value.onOptionsDidChange) {
-			this._dataStore.add(value.onOptionsDidChange(() => {
-				this.editor.updateOptions(updateOptions(value.options ?? {}));
-			}));
+		if (!data) {
+			globalTransaction(tx => {
+				this._viewModel.set(undefined, tx);
+				this.editor.setDiffModel(null, tx);
+				this._dataStore.clear();
+			});
+			return;
 		}
+
+		const value = data.viewModel.documentDiffItem;
+
 		globalTransaction(tx => {
 			this._resourceLabel?.setUri(data.viewModel.modifiedUri ?? data.viewModel.originalUri!, { strikethrough: data.viewModel.modifiedUri === undefined });
 
@@ -231,8 +235,18 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 
 			this._dataStore.clear();
 			this._viewModel.set(data.viewModel, tx);
-			this.editor.setModel(data.viewModel.diffEditorViewModel, tx);
+			this.editor.setDiffModel(data.viewModel.diffEditorViewModelRef, tx);
 			this.editor.updateOptions(updateOptions(value.options ?? {}));
+		});
+		if (value.onOptionsDidChange) {
+			this._dataStore.add(value.onOptionsDidChange(() => {
+				this.editor.updateOptions(updateOptions(value.options ?? {}));
+			}));
+		}
+		data.viewModel.isAlive.recomputeInitiallyAndOnChange(this._dataStore, value => {
+			if (!value) {
+				this.setData(undefined);
+			}
 		});
 	}
 
@@ -275,16 +289,4 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 		this._elements.root.style.top = `-100000px`;
 		this._elements.root.style.visibility = 'hidden'; // Some editor parts are still visible
 	}
-}
-
-function isFocused(editor: ICodeEditor): IObservable<boolean> {
-	return observableFromEvent(
-		h => {
-			const store = new DisposableStore();
-			store.add(editor.onDidFocusEditorWidget(() => h(true)));
-			store.add(editor.onDidBlurEditorWidget(() => h(false)));
-			return store;
-		},
-		() => editor.hasTextFocus()
-	);
 }

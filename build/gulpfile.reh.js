@@ -63,6 +63,8 @@ const serverResources = [
 
 	// Terminal shell integration
 	'out-build/vs/workbench/contrib/terminal/browser/media/shellIntegration.ps1',
+	'out-build/vs/workbench/contrib/terminal/browser/media/CodeTabExpansion.psm1',
+	'out-build/vs/workbench/contrib/terminal/browser/media/GitTabExpansion.psm1',
 	'out-build/vs/workbench/contrib/terminal/browser/media/shellIntegration-bash.sh',
 	'out-build/vs/workbench/contrib/terminal/browser/media/shellIntegration-env.zsh',
 	'out-build/vs/workbench/contrib/terminal/browser/media/shellIntegration-profile.zsh',

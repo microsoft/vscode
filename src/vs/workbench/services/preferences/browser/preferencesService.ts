@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getErrorMessage } from 'vs/base/common/errors';
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { parse } from 'vs/base/common/json';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import * as network from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { CoreEditingCommands } from 'vs/editor/browser/coreCommands';
@@ -45,6 +45,9 @@ import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/use
 import { ResourceSet } from 'vs/base/common/map';
 import { isEqual } from 'vs/base/common/resources';
 import { IURLService } from 'vs/platform/url/common/url';
+import { compareIgnoreCase } from 'vs/base/common/strings';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 
 const emptyEditableSettingsContent = '{\n}';
 
@@ -66,8 +69,6 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	private readonly _requestedDefaultSettings = new ResourceSet();
 
 	private _settingsGroups: ISettingsGroup[] | undefined = undefined;
-	private _defaultSettings: DefaultSettings | undefined = undefined;
-
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
@@ -86,7 +87,9 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		@ILabelService private readonly labelService: ILabelService,
 		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
 		@ITextEditorService private readonly textEditorService: ITextEditorService,
-		@IURLService urlService: IURLService
+		@IURLService urlService: IURLService,
+		@IExtensionService private readonly extensionService: IExtensionService,
+		@IProgressService private readonly progressService: IProgressService
 	) {
 		super();
 		// The default keybindings.json updates based on keyboard layouts, so here we make sure
@@ -440,14 +443,14 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 	private getDefaultSettings(target: ConfigurationTarget): DefaultSettings {
 		if (target === ConfigurationTarget.WORKSPACE) {
-			this._defaultWorkspaceSettingsContentModel ??= this._register(new DefaultSettings(this.getMostCommonlyUsedSettings(), target));
+			this._defaultWorkspaceSettingsContentModel ??= this._register(new DefaultSettings(this.getMostCommonlyUsedSettings(), target, this.configurationService));
 			return this._defaultWorkspaceSettingsContentModel;
 		}
 		if (target === ConfigurationTarget.WORKSPACE_FOLDER) {
-			this._defaultFolderSettingsContentModel ??= this._register(new DefaultSettings(this.getMostCommonlyUsedSettings(), target));
+			this._defaultFolderSettingsContentModel ??= this._register(new DefaultSettings(this.getMostCommonlyUsedSettings(), target, this.configurationService));
 			return this._defaultFolderSettingsContentModel;
 		}
-		this._defaultUserSettingsContentModel ??= this._register(new DefaultSettings(this.getMostCommonlyUsedSettings(), target));
+		this._defaultUserSettingsContentModel ??= this._register(new DefaultSettings(this.getMostCommonlyUsedSettings(), target, this.configurationService));
 		return this._defaultUserSettingsContentModel;
 	}
 
@@ -593,22 +596,21 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return position;
 	}
 
-	private get defaultSettings(): DefaultSettings {
-		if (!this._defaultSettings) {
-			this._defaultSettings = new DefaultSettings([], ConfigurationTarget.USER);
-		}
-		return this._defaultSettings;
-	}
-
 	getSetting(settingId: string): ISetting | undefined {
 		if (!this._settingsGroups) {
-			this._settingsGroups = this.defaultSettings.getSettingsGroups();
+			const defaultSettings = this.getDefaultSettings(ConfigurationTarget.USER);
+			const defaultsChangedDisposable: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
+			defaultsChangedDisposable.value = defaultSettings.onDidChange(() => {
+				this._settingsGroups = undefined;
+				defaultsChangedDisposable.clear();
+			});
+			this._settingsGroups = defaultSettings.getSettingsGroups();
 		}
 
 		for (const group of this._settingsGroups) {
 			for (const section of group.sections) {
 				for (const setting of section.settings) {
-					if (setting.key === settingId) {
+					if (compareIgnoreCase(setting.key, settingId) === 0) {
 						return setting;
 					}
 				}
@@ -625,17 +627,30 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	 *
 	 */
 	async handleURL(uri: URI): Promise<boolean> {
-		if (uri.authority !== SETTINGS_AUTHORITY) {
+		if (compareIgnoreCase(uri.authority, SETTINGS_AUTHORITY) !== 0) {
 			return false;
+		}
+
+		const settingInfo = uri.path.split('/').filter(part => !!part);
+		const settingId = ((settingInfo.length > 0) ? settingInfo[0] : undefined);
+		if (!settingId) {
+			this.openSettings();
+			return true;
+		}
+
+		let setting = this.getSetting(settingId);
+
+		if (!setting && this.extensionService.extensions.length === 0) {
+			// wait for extension points to be processed
+			await this.progressService.withProgress({ location: ProgressLocation.Window }, () => Event.toPromise(this.extensionService.onDidRegisterExtensions));
+			setting = this.getSetting(settingId);
 		}
 
 		const openSettingsOptions: IOpenSettingsOptions = {};
-		const settingInfo = uri.path.split('/').filter(part => !!part);
-		if ((settingInfo.length === 0) || !this.getSetting(settingInfo[0])) {
-			return false;
+		if (setting) {
+			openSettingsOptions.query = settingId;
 		}
 
-		openSettingsOptions.query = settingInfo[0];
 		this.openSettings(openSettingsOptions);
 		return true;
 	}

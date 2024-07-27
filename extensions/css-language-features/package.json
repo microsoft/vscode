@@ -23,6 +23,9 @@
       "supported": true
     }
   },
+  "enabledApiProposals": [
+    "documentPaste"
+  ],
   "scripts": {
     "compile": "npx gulp compile-extension:css-language-features-client compile-extension:css-language-features-server",
     "watch": "npx gulp watch-extension:css-language-features-client watch-extension:css-language-features-server",

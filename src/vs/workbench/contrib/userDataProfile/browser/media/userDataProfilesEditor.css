@@ -21,7 +21,6 @@
 }
 
 .profiles-editor .contents-container {
-	padding: 0px 20px;
 	height: 100%;
 }
 
@@ -49,13 +48,13 @@
 
 .profiles-editor .monaco-list-row .profile-tree-item-actions-container {
 	display: none;
+	align-items: center;
 }
 
 .profiles-editor .monaco-list-row.focused .profile-tree-item-actions-container,
 .profiles-editor .monaco-list-row.selected .profile-tree-item-actions-container,
 .profiles-editor .monaco-list-row:hover .profile-tree-item-actions-container {
 	display: flex;
-	align-items: center;
 }
 
 .profiles-editor .sidebar-container .profiles-list {
@@ -70,6 +69,11 @@
 
 .profiles-editor .sidebar-container .profiles-list .profile-list-item > * {
 	margin-right: 5px;
+}
+
+.profiles-editor .sidebar-container .profiles-list .profile-list-item > .profile-list-item-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 .profiles-editor .sidebar-container .profiles-list .profile-list-item > .profile-list-item-label.new-profile {
@@ -95,33 +99,15 @@
 }
 
 .profiles-editor .contents-container .profile-header {
+	margin-left: 27px;
 	display: flex;
 	height: 40px;
 	align-items: center;
 }
 
 .profiles-editor .contents-container .profile-header .profile-title-container {
-	flex: 1;
-	display: flex;
-	align-items: center;
-	font-size: medium;
-}
-
-.profiles-editor .contents-container .profile-title-container .codicon {
-	cursor: pointer;
-	font-size: large;
-	padding: 4px;
-	margin-right: 8px;
-	border-radius: 5px;
-}
-
-.profiles-editor .contents-container .profile-title-container .codicon.disabled {
-	cursor: default;
-}
-
-.profiles-editor .contents-container .profile-title-container .codicon:not(.disabled):hover {
-	background-color: var(--vscode-toolbar-hoverBackground);
-	outline: 1px dashed var(--vscode-toolbar-hoverOutline);
+	font-size: 26px;
+	font-weight: 600;
 }
 
 .profiles-editor .contents-container .profile-title-container .monaco-inputbox {
@@ -129,35 +115,69 @@
 	flex: 1;
 }
 
-.profiles-editor .contents-container .profile-header .profile-button-container {
-	display: flex;
-	align-items: center;
-}
-
-.profiles-editor .contents-container .profile-header .profile-button-container .monaco-button {
-	margin-left: 4px;
-}
-
-.profiles-editor .contents-container .profile-header .profile-actions-container {
-	display: flex;
-}
-
-.profiles-editor .contents-container .profile-header .profile-actions-container .profile-button-container {
-	margin-right: 6px;
-	min-width: 120px;
-}
-
-.profiles-editor .contents-container .profile-header .profile-actions-container .profile-button-container .monaco-button {
-	padding-left: 10px;
-	padding-right: 10px;
-}
-
 .profiles-editor .contents-container .profile-header .profile-actions-container .actions-container .action-label {
 	padding: 6px;
 }
 
 .profiles-editor .contents-container .profile-body {
-	margin-top: 20px;
+	margin: 15px 0px 0px 1px
+}
+
+.profiles-editor .contents-container .profile-body .profile-row-container {
+	padding: 12px 0px;
+}
+
+.profiles-editor .contents-container .profile-body .profile-row-container.no-padding-bottom {
+	padding-bottom: 0px;
+}
+
+.profiles-editor .contents-container .profile-body .profile-row-container .profile-label-element {
+	font-weight: 600;
+	padding-bottom: 5px;
+}
+
+.profiles-editor .contents-container .profile-body .profile-row-container .profile-description-element {
+	color: var(--vscode-foreground);
+	opacity: 0.9;
+}
+
+.profiles-editor .contents-container .profile-body .profile-row-container .profile-description-element ul,
+.profiles-editor .contents-container .profile-body .profile-row-container .profile-description-element p {
+	margin: 0px;
+}
+
+.profiles-editor .contents-container .profile-body .profile-row-container .profile-description-element ul {
+	padding-inline-start: 28px;
+}
+
+.profiles-editor .contents-container .profile-body .profile-row-container .profile-description-element ul li {
+	padding-left: 2px;
+}
+
+.profiles-editor .contents-container .profile-body .profile-row-container .monaco-inputbox {
+	width: 400px;
+}
+
+.profiles-editor .contents-container .profile-body .profile-row-container .profile-icon-container {
+	line-height: 22px;
+	display: flex;
+	align-items: center;
+}
+
+.profiles-editor .contents-container .profile-body .profile-row-container .profile-icon-container .codicon {
+	cursor: pointer;
+	margin-right: 4px;
+	padding: 2px;
+	border-radius: 5px;
+}
+
+.profiles-editor .contents-container .profile-body .profile-row-container .profile-icon-container .codicon:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	outline: 1px dashed var(--vscode-toolbar-hoverOutline);
+}
+
+.profiles-editor .contents-container .profile-body .profile-row-container .profile-icon-container .profile-description-element {
+	margin-top: -1px;
 }
 
 .profiles-editor .contents-container .profile-select-container {
@@ -174,27 +194,19 @@
 	border-radius: 2px;
 }
 
-.profiles-editor .contents-container .profile-copy-from-container {
-	display: flex;
-	align-items: center;
-	margin: 0px 0px 15px 36px;
-}
-
-.profiles-editor .contents-container .profile-copy-from-container > .profile-copy-from-label {
-	margin-right: 25px;
-	display: inline-flex;
-	align-items: center;
-}
-
-.profiles-editor .contents-container .profile-copy-from-container > .profile-select-container {
+.profiles-editor .contents-container .profile-copy-from-container .profile-select-container {
+	margin-top: 5px;
 	width: 250px;
 }
 
 .profiles-editor .contents-container .profile-use-as-default-container {
 	display: flex;
 	align-items: center;
-	margin: 0px 20px 15px 6px;
-	cursor: pointer;
+	line-height: 22px;
+}
+
+.profiles-editor .contents-container .profile-body .profile-row-container .profile-use-as-default-container .profile-description-element {
+	margin-top: -1px;
 }
 
 .profiles-editor .contents-container .profile-use-as-default-container .profile-use-as-default-label {
@@ -205,60 +217,50 @@
 	margin: 0px 0px 10px 20px;
 }
 
-.profiles-editor .contents-container .profile-content-tree-header,
-.profiles-editor .contents-container .profile-content-tree {
-	margin-left: 6px;
-}
-
 .profiles-editor .contents-container .profile-content-tree-header {
 	display: grid;
-	grid-template-columns: 30px repeat(1, 1fr) 150px 100px;
-	height: 24px;
+	grid-template-columns: 30px repeat(1, 1fr) 200px 80px;
+	line-height: 22px;
 	align-items: center;
-	margin-bottom: 2px;
+	margin: 5px 0px 2px 0px;
 	background-color: var(--vscode-keybindingTable-headerBackground);
 	font-weight: bold;
+}
+
+.profiles-editor .contents-container .profile-content-tree-header > .actions-header,
+.profiles-editor .contents-container .profile-content-tree-header > .options-header {
+	display: flex;
+	justify-self: center;
+	align-items: center;
+}
+
+.profiles-editor .contents-container .profile-content-tree-header > .options-header .codicon {
+	cursor: pointer;
+	padding-left: 2px;
+}
+
+.profiles-editor .contents-container .profile-content-tree-header.default-profile {
+	grid-template-columns: 30px repeat(1, 1fr) 80px;
+}
+
+.profiles-editor .contents-container .profile-content-tree-header.default-profile > .options-header {
+	display: none;
 }
 
 .profiles-editor .contents-container .profile-tree-item-container {
 	display: grid;
 	align-items: center;
+	grid-template-columns: repeat(1, 1fr) 200px 80px;
 }
 
-.profiles-editor .contents-container .profile-tree-item-container.existing-profile-resource-type-container {
-	grid-template-columns: repeat(1, 1fr) 150px 100px;
+.profiles-editor .contents-container .profile-body .profile-tree .monaco-list-row .profile-content-tree-header,
+.profiles-editor .contents-container .profile-body .profile-tree .monaco-list-row .profile-content-tree {
+	margin-right: 1px;
 }
 
-.profiles-editor .contents-container .profile-content-tree-header > .inherit-label,
-.profiles-editor .contents-container .profile-tree-item-container > .inherit-container {
-	justify-content: center;
-	align-items: center;
-}
-
-.profiles-editor .contents-container .profile-tree-item-container > .inherit-container {
-	padding-left: 50px;
-}
-
-.profiles-editor .contents-container .profile-content-tree-header > .actions-label {
-	display: flex;
-	justify-content: center;
-	align-items: center;
-}
-
-.profiles-editor .contents-container .profile-content-tree-header.new-profile {
-	grid-template-columns: 30px repeat(2, 1fr) 100px;
-}
-
-.profiles-editor .contents-container .profile-tree-item-container.new-profile-resource-type-container {
-	grid-template-columns: repeat(2, 1fr) 100px;
-}
-
-.profiles-editor .contents-container .profile-tree-item-container.new-profile-resource-type-container .profile-select-container {
-	width: 170px;
-}
-
+.profiles-editor .contents-container .profile-tree-item-container.default-profile,
 .profiles-editor .contents-container .profile-tree-item-container.profile-resource-child-container {
-	grid-template-columns: repeat(1, 1fr) 100px;
+	grid-template-columns: repeat(1, 1fr) 80px;
 }
 
 .profiles-editor .contents-container .profile-tree-item-container .profile-resource-type-description {
@@ -267,6 +269,78 @@
 	opacity: 0.7;
 }
 
-.profiles-editor .contents-container .profile-tree-item-container .profile-tree-item-actions-container {
-	justify-content: center;
+.profiles-editor .contents-container .profile-tree-item-container .profile-resource-options-container {
+	height: fit-content;
+	width: fit-content;
+	justify-self: center;
+}
+
+.profiles-editor .contents-container .profile-tree-item-container .monaco-custom-radio .monaco-button {
+	outline-offset: -1px !important;
+}
+
+.profiles-editor .contents-container .profile-tree-item-container .profile-resource-actions-container {
+	justify-self: center;
+}
+
+.profiles-editor .contents-container .profile-body .profile-row-container.profile-button-container {
+	margin-top: 10px;
+	margin-left: 30px;
+	display: flex;
+	align-items: center;
+}
+
+.profiles-editor .contents-container .profile-body .profile-row-container.profile-button-container .monaco-button {
+	margin-right: 10px;
+	max-width: 80px;
+}
+
+/* Profile Editor Tree Theming */
+
+.profiles-editor .contents-container .profile-body .profile-tree .monaco-list-row.focused {
+	background-color: var(--vscode-settings-focusedRowBackground) !important;
+}
+
+.profiles-editor .contents-container .profile-body .profile-tree .monaco-list-row:not(.focused):hover {
+	background-color: var(--vscode-settings-rowHoverBackground) !important;
+}
+
+.profiles-editor .contents-container .profile-body .profile-tree .monaco-list-row.focused {
+	outline: 1px solid var(--vscode-settings-focusedRowBorder) !important;
+}
+
+.profiles-editor .contents-container .profile-body .profile-tree .monaco-list-row {
+	cursor: default;
+}
+
+.profiles-editor .contents-container .profile-body .profile-tree .monaco-list-row .profile-content-tree .monaco-list-row {
+	cursor: default;
+}
+
+.profiles-editor .contents-container .profile-body .profile-tree .monaco-list-row .profile-content-tree .monaco-list-row.focused,
+.profiles-editor .contents-container .profile-body .profile-tree .monaco-list-row .profile-content-tree .monaco-list-row.selected:not(:focus),
+.profiles-editor .contents-container .profile-body .profile-tree .monaco-list-row .profile-content-tree .monaco-list-row.selected:focus {
+	background-color: inherit !important;
+	color: inherit !important;
+}
+
+.monaco-workbench:not(.hc-black):not(.hc-light) .profiles-editor .contents-container .profile-body .profile-tree .monaco-list-row .profile-content-tree .monaco-list-row.selected.focused:hover,
+.monaco-workbench:not(.hc-black):not(.hc-light) .profiles-editor .contents-container .profile-body .profile-tree .monaco-list-row .profile-content-tree .monaco-list-row:hover {
+	background-color: var(--vscode-list-hoverBackground) !important;
+}
+
+.profiles-editor .contents-container .profile-body .profile-tree .monaco-list-row .profile-content-tree .monaco-list::before,
+.profiles-editor .contents-container .profile-body .profile-tree .monaco-list-row .profile-content-tree .monaco-list-row.selected,
+.profiles-editor .contents-container .profile-body .profile-tree .monaco-list-row .profile-content-tree .monaco-list-row.focused,
+.profiles-editor .contents-container .profile-body .profile-tree .monaco-list-row .profile-content-tree .monaco-list-row:hover {
+	outline: none !important;
+}
+
+.profiles-editor .contents-container .profile-body .profile-tree .monaco-list-row .profile-content-tree .monaco-list-row .monaco-tl-twistie {
+	cursor: pointer;
+}
+
+.profiles-editor .contents-container .profile-body .profile-tree .monaco-list-row .codicon,
+.profiles-editor .contents-container .profile-body .profile-tree .monaco-list-row .profile-content-tree .monaco-list-row .codicon {
+	color: inherit !important;
 }

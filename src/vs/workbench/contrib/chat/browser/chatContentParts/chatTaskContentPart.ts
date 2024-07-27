@@ -10,7 +10,7 @@ import { MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/brow
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IChatContentPart, IChatContentPartRenderContext } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatContentParts';
 import { ChatProgressContentPart } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatProgressContentPart';
-import { ChatReferencesContentPart, ContentReferencesListPool } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatReferencesContentPart';
+import { ChatCollapsibleListContentPart, CollapsibleListPool } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatReferencesContentPart';
 import { IChatProgressRenderableResponseContent } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatTask } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
@@ -21,7 +21,7 @@ export class ChatTaskContentPart extends Disposable implements IChatContentPart 
 
 	constructor(
 		private readonly task: IChatTask,
-		contentReferencesListPool: ContentReferencesListPool,
+		contentReferencesListPool: CollapsibleListPool,
 		renderer: MarkdownRenderer,
 		context: IChatContentPartRenderContext,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -29,7 +29,7 @@ export class ChatTaskContentPart extends Disposable implements IChatContentPart 
 		super();
 
 		if (task.progress.length) {
-			const refsPart = this._register(instantiationService.createInstance(ChatReferencesContentPart, task.progress, task.content.value, context.element as IChatResponseViewModel, contentReferencesListPool));
+			const refsPart = this._register(instantiationService.createInstance(ChatCollapsibleListContentPart, task.progress, task.content.value, context.element as IChatResponseViewModel, contentReferencesListPool));
 			this.domNode = dom.$('.chat-progress-task');
 			this.domNode.appendChild(refsPart.domNode);
 			this.onDidChangeHeight = refsPart.onDidChangeHeight;
