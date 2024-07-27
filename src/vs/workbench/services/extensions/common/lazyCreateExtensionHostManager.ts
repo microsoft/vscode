@@ -90,6 +90,9 @@ export class LazyCreateExtensionHostManager extends Disposable implements IExten
 			await this._actual.ready();
 		}
 	}
+	public async disconnect(): Promise<void> {
+		await this._actual?.disconnect();
+	}
 	public representsRunningLocation(runningLocation: ExtensionRunningLocation): boolean {
 		return this._extensionHost.runningLocation.equals(runningLocation);
 	}
