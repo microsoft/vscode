@@ -6,5 +6,5 @@
 import { IEditorPane } from 'vs/workbench/common/editor';
 
 export interface IUserDataProfilesEditor extends IEditorPane {
-
+	createNewProfile(): Promise<void>;
 }

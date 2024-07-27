@@ -175,7 +175,8 @@ export const enum WindowMode {
 	Maximized,
 	Normal,
 	Minimized, // not used anymore, but also cannot remove due to existing stored UI state (needs migration)
-	Fullscreen
+	Fullscreen,
+	Custom
 }
 
 export interface ILoadEvent {

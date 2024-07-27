@@ -463,7 +463,8 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 				set label(value: string | undefined) { that.label = value; },
 				get state(): vscode.CommentThreadState | { resolved?: vscode.CommentThreadState; applicability?: vscode.CommentThreadApplicability } | undefined { return that.state; },
 				set state(value: vscode.CommentThreadState | { resolved?: vscode.CommentThreadState; applicability?: vscode.CommentThreadApplicability }) { that.state = value; },
-				reveal: (options?: vscode.CommentThreadRevealOptions) => that.reveal(options),
+				reveal: (comment?: vscode.Comment | vscode.CommentThreadRevealOptions, options?: vscode.CommentThreadRevealOptions) => that.reveal(comment, options),
+				hide: () => that.hide(),
 				dispose: () => {
 					that.dispose();
 				}
@@ -547,9 +548,29 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 			return;
 		}
 
-		async reveal(options?: vscode.CommentThreadRevealOptions): Promise<void> {
+		async reveal(commentOrOptions?: vscode.Comment | vscode.CommentThreadRevealOptions, options?: vscode.CommentThreadRevealOptions): Promise<void> {
 			checkProposedApiEnabled(this.extensionDescription, 'commentReveal');
-			return proxy.$revealCommentThread(this._commentControllerHandle, this.handle, { preserveFocus: false, focusReply: false, ...options });
+			let comment: vscode.Comment | undefined;
+			if (commentOrOptions && (commentOrOptions as vscode.Comment).body !== undefined) {
+				comment = commentOrOptions as vscode.Comment;
+			} else {
+				options = options ?? commentOrOptions as vscode.CommentThreadRevealOptions;
+			}
+			let commentToReveal = comment ? this._commentsMap.get(comment) : undefined;
+			commentToReveal ??= this._commentsMap.get(this._comments[0])!;
+			let preserveFocus: boolean = true;
+			let focusReply: boolean = false;
+			if (options?.focus === types.CommentThreadFocus.Reply) {
+				focusReply = true;
+				preserveFocus = false;
+			} else if (options?.focus === types.CommentThreadFocus.Comment) {
+				preserveFocus = false;
+			}
+			return proxy.$revealCommentThread(this._commentControllerHandle, this.handle, commentToReveal, { preserveFocus, focusReply });
+		}
+
+		async hide(): Promise<void> {
+			return proxy.$hideCommentThread(this._commentControllerHandle, this.handle);
 		}
 
 		dispose() {

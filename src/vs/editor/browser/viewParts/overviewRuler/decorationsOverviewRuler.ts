@@ -512,9 +512,7 @@ export class DecorationsOverviewRuler extends ViewPart {
 			canvasCtx.strokeStyle = this._settings.borderColor;
 			canvasCtx.moveTo(0, 0);
 			canvasCtx.lineTo(0, canvasHeight);
-			canvasCtx.stroke();
-
-			canvasCtx.moveTo(0, 0);
+			canvasCtx.moveTo(1, 0);
 			canvasCtx.lineTo(canvasWidth, 0);
 			canvasCtx.stroke();
 		}

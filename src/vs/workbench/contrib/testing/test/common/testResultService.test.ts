@@ -66,7 +66,7 @@ suite('Workbench - Test Results Service', () => {
 		));
 
 		ds.add(r.onChange(e => changed.add(e)));
-		r.addTask({ id: 't', name: undefined, running: true });
+		r.addTask({ id: 't', name: undefined, running: true, ctrlId: 'ctrl' });
 
 		tests = ds.add(testStubs.nested());
 		const cts = ds.add(new CancellationTokenSource());
@@ -293,7 +293,7 @@ suite('Workbench - Test Results Service', () => {
 		} as IUriIdentityService, {
 			completedAt,
 			id: 'some-id',
-			tasks: [{ id: 't', name: undefined }],
+			tasks: [{ id: 't', name: undefined, ctrlId: 'ctrl' }],
 			name: 'hello world',
 			request: defaultOpts([]),
 			items: [{

@@ -487,7 +487,7 @@ export const events = [
 	},
 	{
 		"type": "sendText",
-		"data": ".\\README.md"
+		"data": "ADME.md"
 	},
 	{
 		"type": "output",

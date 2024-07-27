@@ -124,6 +124,10 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		this._onDidChangeActiveInstance.fire(this.activeInstance);
 	}
 
+	async focusInstance(instance: ITerminalInstance): Promise<void> {
+		return instance.focusWhenReady(true);
+	}
+
 	async focusActiveInstance(): Promise<void> {
 		return this.activeInstance?.focusWhenReady(true);
 	}

@@ -99,7 +99,7 @@ export class ChatViewPane extends ViewPane {
 		};
 	}
 
-	private updateModel(model?: IChatModel | undefined, viewState?: IViewPaneState): void {
+	private updateModel(model?: IChatModel | undefined): void {
 		this.modelDisposables.clear();
 
 		model = model ?? (this.chatService.transferredSessionData?.sessionId
@@ -109,7 +109,7 @@ export class ChatViewPane extends ViewPane {
 			throw new Error('Could not start chat session');
 		}
 
-		this._widget.setModel(model, { ...(viewState ?? this.viewState) });
+		this._widget.setModel(model, { ...this.viewState });
 		this.viewState.sessionId = model.sessionId;
 	}
 
@@ -179,7 +179,10 @@ export class ChatViewPane extends ViewPane {
 		if (this.widget.viewModel) {
 			this.chatService.clearSession(this.widget.viewModel.sessionId);
 		}
-		this.updateModel(undefined, { ...this.viewState, inputValue: undefined });
+
+		// Grab the widget's latest view state because it will be loaded back into the widget
+		this.updateViewState();
+		this.updateModel(undefined);
 	}
 
 	loadSession(sessionId: string): void {
@@ -211,12 +214,16 @@ export class ChatViewPane extends ViewPane {
 			// TODO multiple chat views will overwrite each other
 			this._widget.saveState();
 
-			const widgetViewState = this._widget.getViewState();
-			this.viewState.inputValue = widgetViewState.inputValue;
-			this.viewState.inputState = widgetViewState.inputState;
+			this.updateViewState();
 			this.memento.saveMemento();
 		}
 
 		super.saveState();
+	}
+
+	private updateViewState(): void {
+		const widgetViewState = this._widget.getViewState();
+		this.viewState.inputValue = widgetViewState.inputValue;
+		this.viewState.inputState = widgetViewState.inputState;
 	}
 }

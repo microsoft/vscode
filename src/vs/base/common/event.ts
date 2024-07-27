@@ -616,6 +616,25 @@ export namespace Event {
 	}
 
 	/**
+	 * A convenience function for forwarding an event to another emitter which
+	 * improves readability.
+	 *
+	 * This is similar to {@link Relay} but allows instantiating and forwarding
+	 * on a single line and also allows for multiple source events.
+	 * @param from The event to forward.
+	 * @param to The emitter to forward the event to.
+	 * @example
+	 * Event.forward(event, emitter);
+	 * // equivalent to
+	 * event(e => emitter.fire(e));
+	 * // equivalent to
+	 * event(emitter.fire, emitter);
+	 */
+	export function forward<T>(from: Event<T>, to: Emitter<T>): IDisposable {
+		return from(e => to.fire(e));
+	}
+
+	/**
 	 * Adds a listener to an event and calls the listener immediately with undefined as the event object.
 	 *
 	 * @example

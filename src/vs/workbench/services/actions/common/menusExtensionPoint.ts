@@ -176,6 +176,12 @@ const apiMenus: IAPIMenu[] = [
 		proposed: 'contribSourceControlHistoryItemChangesMenu'
 	},
 	{
+		key: 'scm/historyItem/context',
+		id: MenuId.SCMChangesContext,
+		description: localize('menus.historyItemContext', "The Source Control history item context menu"),
+		proposed: 'contribSourceControlHistoryItemChangesMenu'
+	},
+	{
 		key: 'scm/incomingChanges',
 		id: MenuId.SCMIncomingChanges,
 		description: localize('menus.incomingChanges', "The Source Control incoming changes menu"),

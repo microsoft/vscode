@@ -30,6 +30,7 @@ import { InlineDecoration, InlineDecorationType } from 'vs/editor/common/viewMod
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { DiffEditorOptions } from '../../diffEditorOptions';
+import { Range } from 'vs/editor/common/core/range';
 
 /**
  * Ensures both editors have the same height by aligning unchanged lines.
@@ -187,7 +188,7 @@ export class DiffEditorViewZones extends Disposable {
 			const renderOptions = RenderOptions.fromEditor(this._editors.modified);
 
 			for (const a of alignmentsVal) {
-				if (a.diff && !renderSideBySide) {
+				if (a.diff && !renderSideBySide && (!this._options.useTrueInlineDiffRendering.read(reader) || !allowsTrueInlineDiffRendering(a.diff))) {
 					if (!a.originalRange.isEmpty) {
 						originalModelTokenizationCompleted.read(reader); // Update view-zones once tokenization completes
 
@@ -626,4 +627,15 @@ function getAdditionalLineHeights(editor: CodeEditorWidget, viewZonesToIgnore: R
 	);
 
 	return result;
+}
+
+export function allowsTrueInlineDiffRendering(mapping: DetailedLineRangeMapping): boolean {
+	if (!mapping.innerChanges) {
+		return false;
+	}
+	return mapping.innerChanges.every(c => rangeIsSingleLine(c.modifiedRange) && rangeIsSingleLine(c.originalRange));
+}
+
+function rangeIsSingleLine(range: Range): boolean {
+	return range.startLineNumber === range.endLineNumber;
 }

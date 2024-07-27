@@ -12,6 +12,8 @@ export const enum TerminalSuggestSettingId {
 	Enabled = 'terminal.integrated.suggest.enabled',
 	QuickSuggestions = 'terminal.integrated.suggest.quickSuggestions',
 	SuggestOnTriggerCharacters = 'terminal.integrated.suggest.suggestOnTriggerCharacters',
+	RunOnEnter = 'terminal.integrated.suggest.runOnEnter',
+	BuiltinCompletions = 'terminal.integrated.suggest.builtinCompletions',
 }
 
 export const terminalSuggestConfigSection = 'terminal.integrated.suggest';
@@ -20,6 +22,11 @@ export interface ITerminalSuggestConfiguration {
 	enabled: boolean;
 	quickSuggestions: boolean;
 	suggestOnTriggerCharacters: boolean;
+	runOnEnter: 'never' | 'exactMatch' | 'exactMatchIgnoreExtension' | 'always';
+	builtinCompletions: {
+		'pwshCode': boolean;
+		'pwshGit': boolean;
+	};
 }
 
 export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
@@ -40,5 +47,36 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 		markdownDescription: localize('suggest.suggestOnTriggerCharacters', "Controls whether suggestions should automatically show up when typing trigger characters."),
 		type: 'boolean',
 		default: true,
+	},
+	[TerminalSuggestSettingId.RunOnEnter]: {
+		restricted: true,
+		markdownDescription: localize('suggest.runOnEnter', "Controls whether suggestions should run immediately when `Enter` (not `Tab`) is used to accept the result."),
+		enum: ['never', 'exactMatch', 'exactMatchIgnoreExtension', 'always'],
+		markdownEnumDescriptions: [
+			localize('runOnEnter.never', "Never run on `Enter`."),
+			localize('runOnEnter.exactMatch', "Run on `Enter` when the suggestion is typed in its entirety."),
+			localize('runOnEnter.exactMatchIgnoreExtension', "Run on `Enter` when the suggestion is typed in its entirety or when a file is typed without its extension included."),
+			localize('runOnEnter.always', "Always run on `Enter`.")
+		],
+		default: 'exactMatchIgnoreExtension',
+	},
+	[TerminalSuggestSettingId.BuiltinCompletions]: {
+		restricted: true,
+		markdownDescription: localize('suggest.builtinCompletions', "Controls which built-in completions are activated. This setting can cause conflicts if custom shell completions are configured in the shell profile."),
+		type: 'object',
+		properties: {
+			'pwshCode': {
+				description: localize('suggest.builtinCompletions.pwshCode', 'Custom PowerShell argument completers will be registered for VS Code\'s `code` and `code-insiders` CLIs. This is currently very basic and always suggests flags and subcommands without checking context.'),
+				type: 'boolean'
+			},
+			'pwshGit': {
+				description: localize('suggest.builtinCompletions.pwshGit', 'Custom PowerShell argument completers will be registered for the `git` CLI.'),
+				type: 'boolean'
+			},
+		},
+		default: {
+			pwshCode: true,
+			pwshGit: true,
+		}
 	},
 };
