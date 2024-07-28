@@ -27,8 +27,13 @@
   },
   "dependencies": {
     "jsonc-parser": "^3.2.0",
+<<<<<< snyk-upgrade-d70232d73d4d5c8e507755d6a07d2d7c
+    "markdown-it": "^12.3.2",
+    "parse5": "^7.1.2"
+======
     "markdown-it": "^14.0.0",
     "parse5": "^3.0.2"
+>>>>>> main
   },
   "contributes": {
     "jsonValidation": [
