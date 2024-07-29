@@ -69,8 +69,6 @@ export interface IChatWidgetContrib extends IDisposable {
 	 */
 	getInputState?(): any;
 
-	onDidChangeInputState?: Event<void>;
-
 	/**
 	 * Called with the result of getInputState when navigating input history.
 	 */
@@ -337,15 +335,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				return undefined;
 			}
 		}).filter(isDefined);
-
-		this.contribs.forEach(c => {
-			if (c.onDidChangeInputState) {
-				this._register(c.onDidChangeInputState(() => {
-					const state = this.collectInputState();
-					this.inputPart.updateState(state);
-				}));
-			}
-		});
 	}
 
 	getContrib<T extends IChatWidgetContrib>(id: string): T | undefined {
@@ -586,7 +575,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				renderStyle: options?.renderStyle === 'minimal' ? 'compact' : options?.renderStyle,
 				menus: { executeToolbar: MenuId.ChatExecute, ...this.viewOptions.menus },
 				editorOverflowWidgetsDomNode: this.viewOptions.editorOverflowWidgetsDomNode,
-			}
+			},
+			() => this.collectInputState()
 		));
 		this.inputPart.render(container, '', this);
 
@@ -788,8 +778,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			if (result) {
 				this.inputPart.acceptInput(isUserQuery);
 				this._onDidSubmitAgent.fire({ agent: result.agent, slashCommand: result.slashCommand });
-				this.inputPart.updateState(this.collectInputState());
-				this.inputPart.clearContext();
 				result.responseCompletePromise.then(() => {
 					const responses = this.viewModel?.getItems().filter(isResponseVM);
 					const lastResponse = responses?.[responses.length - 1];
@@ -800,7 +788,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 		return undefined;
 	}
-
 
 	setContext(overwrite: boolean, ...contentReferences: IChatRequestVariableEntry[]) {
 		this.inputPart.attachContext(overwrite, ...contentReferences);
@@ -964,7 +951,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	getViewState(): IChatViewState {
-		this.inputPart.saveState();
 		return { inputValue: this.getInput(), inputState: this.collectInputState() };
 	}
 }

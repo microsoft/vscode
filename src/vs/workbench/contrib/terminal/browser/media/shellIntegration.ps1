@@ -260,7 +260,7 @@ function Send-Completions {
 					$_
 				}
 			}
-			([System.Management.Automation.CompletionCompleters]::CompleteVariable($completionPrefix))
+			([System.Management.Automation.CompletionCompleters]::CompleteVariable(''))
 		)
 		if ($null -ne $completions) {
 			$result += ";$($completions.ReplacementIndex);$($completions.ReplacementLength);$($cursorIndex);"

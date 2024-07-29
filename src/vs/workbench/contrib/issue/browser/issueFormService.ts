@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { safeInnerHtml } from 'vs/base/browser/dom';
-import { mainWindow } from 'vs/base/browser/window';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import 'vs/css!./media/issueReporter';
@@ -30,6 +29,8 @@ export class IssueFormService implements IIssueFormService {
 
 	readonly _serviceBrand: undefined;
 
+	private currentData: IssueReporterData | undefined;
+
 	private issueReporterWindow: Window | null = null;
 	private extensionIdentifierSet: ExtensionIdentifierSet = new ExtensionIdentifierSet();
 
@@ -41,35 +42,8 @@ export class IssueFormService implements IIssueFormService {
 		@ILogService private readonly logService: ILogService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IHostService private readonly hostService: IHostService,
-	) {
+	) { }
 
-		// listen for messages from the main window
-		mainWindow.addEventListener('message', async (event) => {
-			if (event.data && event.data.sendChannel === 'vscode:triggerReporterMenu') {
-				// gets menu actions from contributed
-				const actions = this.menuService.getMenuActions(MenuId.IssueReporter, this.contextKeyService, { renderShortTitle: true }).flatMap(entry => entry[1]);
-
-				// render menu
-				for (const action of actions) {
-					try {
-						if (action.item && 'source' in action.item && action.item.source?.id === event.data.extensionId) {
-							this.extensionIdentifierSet.add(event.data.extensionId);
-							await action.run();
-						}
-					} catch (error) {
-						console.error(error);
-					}
-				}
-
-				if (!this.extensionIdentifierSet.has(event.data.extensionId)) {
-					// send undefined to indicate no action was taken
-					const replyChannel = `vscode:triggerReporterMenuResponse`;
-					mainWindow.postMessage({ replyChannel }, '*');
-				}
-			}
-		});
-
-	}
 	async reloadWithExtensionsDisabled(): Promise<void> {
 		if (this.issueReporterWindow) {
 			try {
@@ -79,6 +53,7 @@ export class IssueFormService implements IIssueFormService {
 			}
 		}
 	}
+
 	async showConfirmCloseDialog(): Promise<void> {
 		await this.dialogService.prompt({
 			type: Severity.Warning,
@@ -121,25 +96,12 @@ export class IssueFormService implements IIssueFormService {
 
 	async openReporter(data: IssueReporterData): Promise<void> {
 		if (data.extensionId && this.extensionIdentifierSet.has(data.extensionId)) {
-			const replyChannel = `vscode:triggerReporterMenuResponse`;
-			mainWindow.postMessage({ data, replyChannel }, '*');
-			this.extensionIdentifierSet.delete(new ExtensionIdentifier(data.extensionId));
+			this.currentData = data;
+			this.issueReporterWindow?.focus();
+			return;
 		}
 
 		if (this.issueReporterWindow) {
-			const getModelData = await this.getIssueData();
-			if (getModelData) {
-				const { issueTitle, issueBody } = getModelData;
-				if (issueTitle || issueBody) {
-					data.issueTitle = data.issueTitle ?? issueTitle;
-					data.issueBody = data.issueBody ?? issueBody;
-
-					// close issue reporter and re-open with new data
-					this.issueReporterWindow.close();
-					this.openAuxIssueReporter(data);
-					return;
-				}
-			}
 			this.issueReporterWindow.focus();
 			return;
 		}
@@ -182,53 +144,37 @@ export class IssueFormService implements IIssueFormService {
 		});
 	}
 
-	async sendReporterMenu(extensionId: string, extensionName: string): Promise<IssueReporterData | undefined> {
-		const sendChannel = `vscode:triggerReporterMenu`;
-		mainWindow.postMessage({ sendChannel, extensionId, extensionName }, '*');
+	async sendReporterMenu(extensionId: string): Promise<IssueReporterData | undefined> {
+		const menu = this.menuService.createMenu(MenuId.IssueReporter, this.contextKeyService);
 
-		const result = await new Promise((resolve, reject) => {
-			const timeout = setTimeout(() => {
-				mainWindow.removeEventListener('message', listener);
-				reject(new Error('Timeout exceeded'));
-			}, 5000); // Set the timeout value in milliseconds (e.g., 5000 for 5 seconds)
-
-			const listener = (event: MessageEvent) => {
-				const replyChannel = `vscode:triggerReporterMenuResponse`;
-				if (event.data && event.data.replyChannel === replyChannel) {
-					clearTimeout(timeout);
-					mainWindow.removeEventListener('message', listener);
-					resolve(event.data.data);
+		// render menu and dispose
+		const actions = menu.getActions({ renderShortTitle: true }).flatMap(entry => entry[1]);
+		for (const action of actions) {
+			try {
+				if (action.item && 'source' in action.item && action.item.source?.id === extensionId) {
+					this.extensionIdentifierSet.add(extensionId);
+					await action.run();
 				}
-			};
-			mainWindow.addEventListener('message', listener);
-		});
+			} catch (error) {
+				console.error(error);
+			}
+		}
 
-		return result as IssueReporterData | undefined;
-	}
+		if (!this.extensionIdentifierSet.has(extensionId)) {
+			// send undefined to indicate no action was taken
+			return undefined;
+		}
 
-	// Listens to data from the issue reporter model, which is updated regularly
-	async getIssueData(): Promise<IssuePassData | undefined> {
-		const sendChannel = `vscode:triggerIssueData`;
-		mainWindow.postMessage({ sendChannel }, '*');
+		// we found the extension, now we clean up the menu and remove it from the set. This is to ensure that we do duplicate extension identifiers
+		this.extensionIdentifierSet.delete(new ExtensionIdentifier(extensionId));
+		menu.dispose();
 
-		const result = await new Promise((resolve, reject) => {
-			const timeout = setTimeout(() => {
-				mainWindow.removeEventListener('message', listener);
-				reject(new Error('Timeout exceeded'));
-			}, 5000); // Set the timeout value in milliseconds (e.g., 5000 for 5 seconds)
+		const result = this.currentData;
 
-			const listener = (event: MessageEvent) => {
-				const replyChannel = `vscode:triggerIssueDataResponse`;
-				if (event.data && event.data.replyChannel === replyChannel) {
-					clearTimeout(timeout);
-					mainWindow.removeEventListener('message', listener);
-					resolve(event.data.data);
-				}
-			};
-			mainWindow.addEventListener('message', listener);
-		});
+		// reset current data.
+		this.currentData = undefined;
 
-		return result as IssuePassData | undefined;
+		return result ?? undefined;
 	}
 
 	async closeReporter(): Promise<void> {

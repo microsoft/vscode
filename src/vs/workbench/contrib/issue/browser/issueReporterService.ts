@@ -62,7 +62,7 @@ export class IssueWebReporter extends BaseIssueReporterService {
 
 	private async sendReporterMenu(extension: IssueReporterExtensionData): Promise<IssueReporterData | undefined> {
 		try {
-			const data = await this.issueFormService.sendReporterMenu(extension.id, extension.name);
+			const data = await this.issueFormService.sendReporterMenu(extension.id);
 			return data;
 		} catch (e) {
 			console.error(e);

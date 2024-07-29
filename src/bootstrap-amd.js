@@ -18,7 +18,10 @@ const isESM = false;
 // import * as path from 'path';
 // import * as fs from 'fs';
 // import { fileURLToPath } from 'url';
-// import { createRequire } from 'node:module';
+// import { createRequire, register } from 'node:module';
+// if (process.env['ELECTRON_RUN_AS_NODE'] || process.versions['electron']) {
+// 	register('./loader-original-fs.mjs', import.meta.url);
+// }
 // import { product, pkg } from './bootstrap-meta.js';
 // import * as bootstrap from './bootstrap.js';
 // import * as performance from './vs/base/common/performance.js';

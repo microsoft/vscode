@@ -191,7 +191,7 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 
 			for (const extension of delta.removed) {
 				for (const providerDescriptor of extension.value) {
-					this._participantRegistrationDisposables.deleteAndDispose(getParticipantKey(extension.description.identifier, providerDescriptor.name));
+					this._participantRegistrationDisposables.deleteAndDispose(getParticipantKey(extension.description.identifier, providerDescriptor.id));
 				}
 			}
 		});
