@@ -130,6 +130,12 @@ export interface IChatAgentRequest {
 	rejectedConfirmationData?: any[];
 }
 
+export interface IChatQuestion {
+	readonly prompt: string;
+	readonly participant?: string;
+	readonly command?: string;
+}
+
 export interface IChatAgentResult {
 	errorDetails?: IChatResponseErrorDetails;
 	timings?: {
@@ -138,6 +144,7 @@ export interface IChatAgentResult {
 	};
 	/** Extra properties that the agent can use to identify a result */
 	readonly metadata?: { readonly [key: string]: any };
+	nextQuestion?: IChatQuestion;
 }
 
 export const IChatAgentService = createDecorator<IChatAgentService>('chatAgentService');

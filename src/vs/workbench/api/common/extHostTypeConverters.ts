@@ -2693,6 +2693,7 @@ export namespace ChatAgentResult {
 		return {
 			errorDetails: result.errorDetails,
 			metadata: result.metadata,
+			nextQuestion: result.nextQuestion,
 		};
 	}
 }
