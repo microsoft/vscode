@@ -80,7 +80,6 @@ type ExtensionsLoadClassification = {
 export class Extension implements IExtension {
 
 	public enablementState: EnablementState = EnablementState.EnabledGlobally;
-	public readonly resourceExtension: IResourceExtension | undefined;
 
 	private galleryResourcesCache = new Map<string, any>();
 
@@ -97,7 +96,23 @@ export class Extension implements IExtension {
 		@IFileService private readonly fileService: IFileService,
 		@IProductService private readonly productService: IProductService
 	) {
-		this.resourceExtension = resourceExtensionInfo?.resourceExtension;
+	}
+
+	get resourceExtension(): IResourceExtension | undefined {
+		if (this.resourceExtensionInfo) {
+			return this.resourceExtensionInfo.resourceExtension;
+		}
+		if (this.local?.isWorkspaceScoped) {
+			return {
+				type: 'resource',
+				identifier: this.local.identifier,
+				location: this.local.location,
+				manifest: this.local.manifest,
+				changelogUri: this.local.changelogUrl,
+				readmeUri: this.local.readmeUrl,
+			};
+		}
+		return undefined;
 	}
 
 	get gallery(): IGalleryExtension | undefined {
