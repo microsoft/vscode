@@ -138,6 +138,7 @@ export interface IExtensionsWorkbenchService {
 	setEnablement(extensions: IExtension | IExtension[], enablementState: EnablementState): Promise<void>;
 	isAutoUpdateEnabledFor(extensionOrPublisher: IExtension | string): boolean;
 	updateAutoUpdateEnablementFor(extensionOrPublisher: IExtension | string, enable: boolean): Promise<void>;
+	shouldRequireConsentToUpdate(extension: IExtension): Promise<string | undefined>;
 	open(extension: IExtension | string, options?: IExtensionEditorOptions): Promise<void>;
 	updateAutoUpdateValue(value: AutoUpdateConfigurationValue): Promise<void>;
 	getAutoUpdateValue(): AutoUpdateConfigurationValue;

@@ -130,6 +130,13 @@ export interface IAuthenticationService {
 	getProvider(id: string): IAuthenticationProvider;
 
 	/**
+	 * Gets all accounts that are currently logged in across all sessions
+	 * @param id The id of the provider to ask for accounts
+	 * @returns A promise that resolves to an array of accounts
+	 */
+	getAccounts(id: string): Promise<ReadonlyArray<AuthenticationSessionAccount>>;
+
+	/**
 	 * Gets all sessions that satisfy the given scopes from the provider with the given id
 	 * @param id The id of the provider to ask for a session
 	 * @param scopes The scopes for the session

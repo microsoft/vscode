@@ -94,7 +94,10 @@ class EditorAccessibilityHelpProvider extends Disposable implements IAccessibleV
 		} else {
 			content.push(AccessibilityHelpNLS.tabFocusModeOffMsg);
 		}
-		return content.join('\n\n');
+
+		content.push(AccessibilityHelpNLS.setBreakpoint);
+		content.push(AccessibilityHelpNLS.debugExecuteSelection);
+		return content.join('\n');
 	}
 }
 

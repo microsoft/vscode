@@ -43,7 +43,7 @@ import { FileAccess } from 'vs/base/common/network';
 import { IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
 import { IUserDataAutoSyncService, IUserDataSyncEnablementService, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { isBoolean, isString, isUndefined } from 'vs/base/common/types';
+import { isBoolean, isDefined, isString, isUndefined } from 'vs/base/common/types';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { IExtensionService, IExtensionsStatus, toExtension, toExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { isWeb, language } from 'vs/base/common/platform';
@@ -80,14 +80,15 @@ type ExtensionsLoadClassification = {
 export class Extension implements IExtension {
 
 	public enablementState: EnablementState = EnablementState.EnabledGlobally;
-	public readonly resourceExtension: IResourceExtension | undefined;
+
+	private galleryResourcesCache = new Map<string, any>();
 
 	constructor(
 		private stateProvider: IExtensionStateProvider<ExtensionState>,
 		private runtimeStateProvider: IExtensionStateProvider<ExtensionRuntimeState | undefined>,
 		public readonly server: IExtensionManagementServer | undefined,
 		public local: ILocalExtension | undefined,
-		public gallery: IGalleryExtension | undefined,
+		private _gallery: IGalleryExtension | undefined,
 		private readonly resourceExtensionInfo: { resourceExtension: IResourceExtension; isWorkspaceScoped: boolean } | undefined,
 		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
@@ -95,7 +96,32 @@ export class Extension implements IExtension {
 		@IFileService private readonly fileService: IFileService,
 		@IProductService private readonly productService: IProductService
 	) {
-		this.resourceExtension = resourceExtensionInfo?.resourceExtension;
+	}
+
+	get resourceExtension(): IResourceExtension | undefined {
+		if (this.resourceExtensionInfo) {
+			return this.resourceExtensionInfo.resourceExtension;
+		}
+		if (this.local?.isWorkspaceScoped) {
+			return {
+				type: 'resource',
+				identifier: this.local.identifier,
+				location: this.local.location,
+				manifest: this.local.manifest,
+				changelogUri: this.local.changelogUrl,
+				readmeUri: this.local.readmeUrl,
+			};
+		}
+		return undefined;
+	}
+
+	get gallery(): IGalleryExtension | undefined {
+		return this._gallery;
+	}
+
+	set gallery(gallery: IGalleryExtension | undefined) {
+		this._gallery = gallery;
+		this.galleryResourcesCache.clear();
 	}
 
 	get type(): ExtensionType {
@@ -362,17 +388,32 @@ export class Extension implements IExtension {
 		}
 
 		if (this.gallery) {
-			if (this.gallery.assets.manifest) {
-				return this.galleryService.getManifest(this.gallery, token);
-			}
-			this.logService.error(nls.localize('Manifest is not found', "Manifest is not found"), this.identifier.id);
-			return null;
+			return this.getGalleryManifest(token);
 		}
 
 		if (this.resourceExtension) {
 			return this.resourceExtension.manifest;
 		}
 
+		return null;
+	}
+
+	async getGalleryManifest(token: CancellationToken = CancellationToken.None): Promise<IExtensionManifest | null> {
+		if (this.gallery) {
+			let cache = this.galleryResourcesCache.get('manifest');
+			if (!cache) {
+				if (this.gallery.assets.manifest) {
+					this.galleryResourcesCache.set('manifest', cache = this.galleryService.getManifest(this.gallery, token)
+						.catch(e => {
+							this.galleryResourcesCache.delete('manifest');
+							throw e;
+						}));
+				} else {
+					this.logService.error(nls.localize('Manifest is not found', "Manifest is not found"), this.identifier.id);
+				}
+			}
+			return cache;
+		}
 		return null;
 	}
 
@@ -1788,7 +1829,17 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	private async autoUpdateExtensions(): Promise<void> {
-		const toUpdate = this.outdated.filter(e => this.shouldAutoUpdateExtension(e));
+		const toUpdate: IExtension[] = [];
+		for (const extension of this.outdated) {
+			if (!this.shouldAutoUpdateExtension(extension)) {
+				continue;
+			}
+			if (await this.shouldRequireConsentToUpdate(extension)) {
+				continue;
+			}
+			toUpdate.push(extension);
+		}
+
 		if (!toUpdate.length) {
 			return;
 		}
@@ -1857,6 +1908,35 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 
 		return false;
+	}
+
+	async shouldRequireConsentToUpdate(extension: IExtension): Promise<string | undefined> {
+		if (!extension.outdated) {
+			return;
+		}
+
+		if (extension.local?.manifest.main || extension.local?.manifest.browser) {
+			return;
+		}
+
+		if (!extension.gallery) {
+			return;
+		}
+
+		if (isDefined(extension.gallery.properties?.executesCode)) {
+			if (!extension.gallery.properties.executesCode) {
+				return;
+			}
+		} else {
+			const manifest = extension instanceof Extension
+				? await extension.getGalleryManifest()
+				: await this.galleryService.getManifest(extension.gallery, CancellationToken.None);
+			if (!manifest?.main && !manifest?.browser) {
+				return;
+			}
+		}
+
+		return nls.localize('consentRequiredToUpdate', "The update for {0} extension introduces executable code, which is not present in the currently installed version.", extension.displayName);
 	}
 
 	isAutoUpdateEnabledFor(extensionOrPublisher: IExtension | string): boolean {
@@ -2478,30 +2558,29 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 	}
 
-	private checkAndSetEnablement(extensions: IExtension[], otherExtensions: IExtension[], enablementState: EnablementState): Promise<any> {
+	private async checkAndSetEnablement(extensions: IExtension[], otherExtensions: IExtension[], enablementState: EnablementState): Promise<any> {
 		const allExtensions = [...extensions, ...otherExtensions];
 		const enable = enablementState === EnablementState.EnabledGlobally || enablementState === EnablementState.EnabledWorkspace;
 		if (!enable) {
 			for (const extension of extensions) {
 				const dependents = this.getDependentsAfterDisablement(extension, allExtensions, this.local);
 				if (dependents.length) {
-					return new Promise<void>((resolve, reject) => {
-						this.notificationService.prompt(Severity.Error, this.getDependentsErrorMessageForDisablement(extension, allExtensions, dependents), [
-							{
-								label: nls.localize('disable all', 'Disable All'),
-								run: async () => {
-									try {
-										await this.checkAndSetEnablement(dependents, [extension], enablementState);
-										resolve();
-									} catch (error) {
-										reject(error);
-									}
-								}
-							}
-						], {
-							onCancel: () => reject(new CancellationError())
-						});
+					const { result } = await this.dialogService.prompt({
+						title: nls.localize('disableDependents', "Disable Extension with Dependents"),
+						type: Severity.Warning,
+						message: this.getDependentsErrorMessageForDisablement(extension, allExtensions, dependents),
+						buttons: [{
+							label: nls.localize('disable all', 'Disable All'),
+							run: () => true
+						}],
+						cancelButton: {
+							run: () => false
+						}
 					});
+					if (!result) {
+						throw new CancellationError();
+					}
+					await this.checkAndSetEnablement(dependents, [extension], enablementState);
 				}
 			}
 		}

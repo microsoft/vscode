@@ -787,7 +787,7 @@ export class DirtyDiffController extends Disposable implements DirtyDiffContribu
 		if (this.editor.hasModel() && (typeof lineNumber === 'number' || !this.widget.provider)) {
 			index = this.model.findNextClosestChange(typeof lineNumber === 'number' ? lineNumber : this.editor.getPosition().lineNumber, true, this.widget.provider);
 		} else {
-			const providerChanges: number[] = this.model.mapChanges.get(this.widget.provider) ?? this.model.mapChanges.values().next().value;
+			const providerChanges: number[] = this.model.mapChanges.get(this.widget.provider) ?? this.model.mapChanges.values().next().value!;
 			const mapIndex = providerChanges.findIndex(value => value === this.widget!.index);
 			index = providerChanges[rot(mapIndex + 1, providerChanges.length)];
 		}
@@ -807,7 +807,7 @@ export class DirtyDiffController extends Disposable implements DirtyDiffContribu
 		if (this.editor.hasModel() && (typeof lineNumber === 'number')) {
 			index = this.model.findPreviousClosestChange(typeof lineNumber === 'number' ? lineNumber : this.editor.getPosition().lineNumber, true, this.widget.provider);
 		} else {
-			const providerChanges: number[] = this.model.mapChanges.get(this.widget.provider) ?? this.model.mapChanges.values().next().value;
+			const providerChanges: number[] = this.model.mapChanges.get(this.widget.provider) ?? this.model.mapChanges.values().next().value!;
 			const mapIndex = providerChanges.findIndex(value => value === this.widget!.index);
 			index = providerChanges[rot(mapIndex - 1, providerChanges.length)];
 		}

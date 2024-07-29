@@ -189,6 +189,7 @@ export class UserDataSyncTestServer implements IRequestService {
 
 	async resolveProxy(url: string): Promise<string | undefined> { return url; }
 	async lookupAuthorization(authInfo: AuthInfo): Promise<Credentials | undefined> { return undefined; }
+	async lookupKerberosAuthorization(url: string): Promise<string | undefined> { return undefined; }
 	async loadCertificates(): Promise<string[]> { return []; }
 
 	async request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {

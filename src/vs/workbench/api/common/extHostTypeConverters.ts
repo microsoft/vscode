@@ -40,7 +40,7 @@ import { DEFAULT_EDITOR_ASSOCIATION, SaveReason } from 'vs/workbench/common/edit
 import { IViewBadge } from 'vs/workbench/common/views';
 import { ChatAgentLocation, IChatAgentRequest, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatRequestVariableEntry } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IChatAgentDetection, IChatAgentMarkdownContentWithVulnerability, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatProgressMessage, IChatTaskDto, IChatTaskResult, IChatTextEdit, IChatTreeData, IChatUserActionEvent, IChatWarningMessage } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatAgentDetection, IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatProgressMessage, IChatTaskDto, IChatTaskResult, IChatTextEdit, IChatTreeData, IChatUserActionEvent, IChatWarningMessage } from 'vs/workbench/contrib/chat/common/chatService';
 import * as chatProvider from 'vs/workbench/contrib/chat/common/languageModels';
 import { DebugTreeItemCollapsibleState, IDebugVisualizationTreeItem } from 'vs/workbench/contrib/debug/common/debug';
 import * as notebooks from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -787,7 +787,7 @@ export namespace SymbolTag {
 
 export namespace WorkspaceSymbol {
 	export function from(info: vscode.SymbolInformation): search.IWorkspaceSymbol {
-		return <search.IWorkspaceSymbol>{
+		return {
 			name: info.name,
 			kind: SymbolKind.from(info.kind),
 			tags: info.tags && info.tags.map(SymbolTag.from),
@@ -966,7 +966,7 @@ export namespace Hover {
 
 export namespace EvaluatableExpression {
 	export function from(expression: vscode.EvaluatableExpression): languages.EvaluatableExpression {
-		return <languages.EvaluatableExpression>{
+		return {
 			range: Range.from(expression.range),
 			expression: expression.expression
 		};
@@ -980,24 +980,24 @@ export namespace EvaluatableExpression {
 export namespace InlineValue {
 	export function from(inlineValue: vscode.InlineValue): languages.InlineValue {
 		if (inlineValue instanceof types.InlineValueText) {
-			return <languages.InlineValueText>{
+			return {
 				type: 'text',
 				range: Range.from(inlineValue.range),
 				text: inlineValue.text
-			};
+			} satisfies languages.InlineValueText;
 		} else if (inlineValue instanceof types.InlineValueVariableLookup) {
-			return <languages.InlineValueVariableLookup>{
+			return {
 				type: 'variable',
 				range: Range.from(inlineValue.range),
 				variableName: inlineValue.variableName,
 				caseSensitiveLookup: inlineValue.caseSensitiveLookup
-			};
+			} satisfies languages.InlineValueVariableLookup;
 		} else if (inlineValue instanceof types.InlineValueEvaluatableExpression) {
-			return <languages.InlineValueExpression>{
+			return {
 				type: 'expression',
 				range: Range.from(inlineValue.range),
 				expression: inlineValue.expression
-			};
+			} satisfies languages.InlineValueExpression;
 		} else {
 			throw new Error(`Unknown 'InlineValue' type`);
 		}
@@ -1006,28 +1006,28 @@ export namespace InlineValue {
 	export function to(inlineValue: languages.InlineValue): vscode.InlineValue {
 		switch (inlineValue.type) {
 			case 'text':
-				return <vscode.InlineValueText>{
+				return {
 					range: Range.to(inlineValue.range),
 					text: inlineValue.text
-				};
+				} satisfies vscode.InlineValueText;
 			case 'variable':
-				return <vscode.InlineValueVariableLookup>{
+				return {
 					range: Range.to(inlineValue.range),
 					variableName: inlineValue.variableName,
 					caseSensitiveLookup: inlineValue.caseSensitiveLookup
-				};
+				} satisfies vscode.InlineValueVariableLookup;
 			case 'expression':
-				return <vscode.InlineValueEvaluatableExpression>{
+				return {
 					range: Range.to(inlineValue.range),
 					expression: inlineValue.expression
-				};
+				} satisfies vscode.InlineValueEvaluatableExpression;
 		}
 	}
 }
 
 export namespace InlineValueContext {
 	export function from(inlineValueContext: vscode.InlineValueContext): extHostProtocol.IInlineValueContextDto {
-		return <extHostProtocol.IInlineValueContextDto>{
+		return {
 			frameId: inlineValueContext.frameId,
 			stoppedLocation: Range.from(inlineValueContext.stoppedLocation)
 		};
@@ -2511,7 +2511,8 @@ export namespace ChatResponseReferencePart {
 						part.value.value :
 						Location.from(part.value.value as vscode.Location)
 				},
-				iconPath
+				iconPath,
+				options: part.options
 			};
 		}
 
@@ -2520,7 +2521,8 @@ export namespace ChatResponseReferencePart {
 			reference: URI.isUri(part.value) ?
 				part.value :
 				Location.from(<vscode.Location>part.value),
-			iconPath
+			iconPath,
+			options: part.options
 		};
 	}
 	export function to(part: Dto<IChatContentReference>): vscode.ChatResponseReferencePart {
@@ -2540,9 +2542,20 @@ export namespace ChatResponseReferencePart {
 	}
 }
 
+export namespace ChatResponseCodeCitationPart {
+	export function from(part: vscode.ChatResponseCodeCitationPart): Dto<IChatCodeCitation> {
+		return {
+			kind: 'codeCitation',
+			value: part.value,
+			license: part.license,
+			snippet: part.snippet
+		};
+	}
+}
+
 export namespace ChatResponsePart {
 
-	export function from(part: vscode.ChatResponsePart | vscode.ChatResponseTextEditPart | vscode.ChatResponseMarkdownWithVulnerabilitiesPart | vscode.ChatResponseDetectedParticipantPart | vscode.ChatResponseWarningPart | vscode.ChatResponseConfirmationPart | vscode.ChatResponseWarningPart, commandsConverter: CommandsConverter, commandDisposables: DisposableStore): extHostProtocol.IChatProgressDto {
+	export function from(part: vscode.ChatResponsePart | vscode.ChatResponseTextEditPart | vscode.ChatResponseMarkdownWithVulnerabilitiesPart | vscode.ChatResponseDetectedParticipantPart | vscode.ChatResponseWarningPart | vscode.ChatResponseConfirmationPart | vscode.ChatResponseReferencePart2, commandsConverter: CommandsConverter, commandDisposables: DisposableStore): extHostProtocol.IChatProgressDto {
 		if (part instanceof types.ChatResponseMarkdownPart) {
 			return ChatResponseMarkdownPart.from(part);
 		} else if (part instanceof types.ChatResponseAnchorPart) {
@@ -2565,6 +2578,8 @@ export namespace ChatResponsePart {
 			return ChatResponseWarningPart.from(part);
 		} else if (part instanceof types.ChatResponseConfirmationPart) {
 			return ChatResponseConfirmationPart.from(part);
+		} else if (part instanceof types.ChatResponseCodeCitationPart) {
+			return ChatResponseCodeCitationPart.from(part);
 		}
 
 		return {
@@ -2601,16 +2616,19 @@ export namespace ChatResponsePart {
 
 export namespace ChatAgentRequest {
 	export function to(request: IChatAgentRequest, location2: vscode.ChatRequestEditorData | vscode.ChatRequestNotebookData | undefined): vscode.ChatRequest {
+		const requestedTools = request.variables.variables.filter(v => v.isTool).map(tool => tool.id);
+		const variablesWithoutTools = request.variables.variables.filter(v => !v.isTool);
 		return {
 			prompt: request.message,
 			command: request.command,
 			attempt: request.attempt ?? 0,
 			enableCommandDetection: request.enableCommandDetection ?? true,
-			references: request.variables.variables.map(ChatAgentValueReference.to),
+			references: variablesWithoutTools.map(ChatAgentValueReference.to),
 			location: ChatLocation.to(request.location),
 			acceptedConfirmationData: request.acceptedConfirmationData,
 			rejectedConfirmationData: request.rejectedConfirmationData,
-			location2
+			location2,
+			requestedTools
 		};
 	}
 }

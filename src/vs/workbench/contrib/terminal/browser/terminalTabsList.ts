@@ -10,7 +10,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ThemeIcon } from 'vs/base/common/themables';
-import { ITerminalGroupService, ITerminalInstance, ITerminalService, TerminalDataTransfers } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalConfigurationService, ITerminalGroupService, ITerminalInstance, ITerminalService, TerminalDataTransfers } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { localize } from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -52,6 +52,7 @@ import { getColorForSeverity } from 'vs/workbench/contrib/terminal/browser/termi
 import { TerminalContextActionRunner } from 'vs/workbench/contrib/terminal/browser/terminalContextMenu';
 import type { IHoverAction } from 'vs/base/browser/ui/hover/hover';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 
 const $ = DOM.$;
 
@@ -250,6 +251,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		private readonly _labels: ResourceLabels,
 		private readonly _getSelection: () => ITerminalInstance[],
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@IHoverService private readonly _hoverService: IHoverService,
@@ -274,8 +276,15 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 					return this._hoverService.showHover({
 						...options,
 						actions: context.hoverActions,
+						target: element,
 						persistence: {
 							hideOnHover: true
+						},
+						appearance: {
+							showPointer: true
+						},
+						position: {
+							hoverPosition: this._terminalConfigurationService.config.tabs.location === 'left' ? HoverPosition.RIGHT : HoverPosition.LEFT
 						}
 					});
 				}

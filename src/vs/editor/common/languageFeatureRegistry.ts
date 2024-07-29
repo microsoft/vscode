@@ -10,10 +10,10 @@ import { LanguageFilter, LanguageSelector, score } from 'vs/editor/common/langua
 import { URI } from 'vs/base/common/uri';
 
 interface Entry<T> {
-	selector: LanguageSelector;
-	provider: T;
+	readonly selector: LanguageSelector;
+	readonly provider: T;
 	_score: number;
-	_time: number;
+	readonly _time: number;
 }
 
 function isExclusive(selector: LanguageSelector): boolean {
@@ -40,14 +40,16 @@ class MatchCandidate {
 		readonly uri: URI,
 		readonly languageId: string,
 		readonly notebookUri: URI | undefined,
-		readonly notebookType: string | undefined
+		readonly notebookType: string | undefined,
+		readonly recursive: boolean,
 	) { }
 
 	equals(other: MatchCandidate): boolean {
 		return this.notebookType === other.notebookType
 			&& this.languageId === other.languageId
 			&& this.uri.toString() === other.uri.toString()
-			&& this.notebookUri?.toString() === other.notebookUri?.toString();
+			&& this.notebookUri?.toString() === other.notebookUri?.toString()
+			&& this.recursive === other.recursive;
 	}
 }
 
@@ -96,7 +98,7 @@ export class LanguageFeatureRegistry<T> {
 			return [];
 		}
 
-		this._updateScores(model);
+		this._updateScores(model, false);
 		const result: T[] = [];
 
 		// from registry
@@ -113,9 +115,9 @@ export class LanguageFeatureRegistry<T> {
 		return this._entries.map(entry => entry.provider);
 	}
 
-	ordered(model: ITextModel): T[] {
+	ordered(model: ITextModel, recursive = false): T[] {
 		const result: T[] = [];
-		this._orderedForEach(model, entry => result.push(entry.provider));
+		this._orderedForEach(model, recursive, entry => result.push(entry.provider));
 		return result;
 	}
 
@@ -124,7 +126,7 @@ export class LanguageFeatureRegistry<T> {
 		let lastBucket: T[];
 		let lastBucketScore: number;
 
-		this._orderedForEach(model, entry => {
+		this._orderedForEach(model, false, entry => {
 			if (lastBucket && lastBucketScore === entry._score) {
 				lastBucket.push(entry.provider);
 			} else {
@@ -137,9 +139,9 @@ export class LanguageFeatureRegistry<T> {
 		return result;
 	}
 
-	private _orderedForEach(model: ITextModel, callback: (provider: Entry<T>) => any): void {
+	private _orderedForEach(model: ITextModel, recursive: boolean, callback: (provider: Entry<T>) => any): void {
 
-		this._updateScores(model);
+		this._updateScores(model, recursive);
 
 		for (const entry of this._entries) {
 			if (entry._score > 0) {
@@ -150,15 +152,15 @@ export class LanguageFeatureRegistry<T> {
 
 	private _lastCandidate: MatchCandidate | undefined;
 
-	private _updateScores(model: ITextModel): void {
+	private _updateScores(model: ITextModel, recursive: boolean): void {
 
 		const notebookInfo = this._notebookInfoResolver?.(model.uri);
 
 		// use the uri (scheme, pattern) of the notebook info iff we have one
 		// otherwise it's the model's/document's uri
 		const candidate = notebookInfo
-			? new MatchCandidate(model.uri, model.getLanguageId(), notebookInfo.uri, notebookInfo.type)
-			: new MatchCandidate(model.uri, model.getLanguageId(), undefined, undefined);
+			? new MatchCandidate(model.uri, model.getLanguageId(), notebookInfo.uri, notebookInfo.type, recursive)
+			: new MatchCandidate(model.uri, model.getLanguageId(), undefined, undefined, recursive);
 
 		if (this._lastCandidate?.equals(candidate)) {
 			// nothing has changed
@@ -171,13 +173,17 @@ export class LanguageFeatureRegistry<T> {
 			entry._score = score(entry.selector, candidate.uri, candidate.languageId, shouldSynchronizeModel(model), candidate.notebookUri, candidate.notebookType);
 
 			if (isExclusive(entry.selector) && entry._score > 0) {
-				// support for one exclusive selector that overwrites
-				// any other selector
-				for (const entry of this._entries) {
+				if (recursive) {
 					entry._score = 0;
+				} else {
+					// support for one exclusive selector that overwrites
+					// any other selector
+					for (const entry of this._entries) {
+						entry._score = 0;
+					}
+					entry._score = 1000;
+					break;
 				}
-				entry._score = 1000;
-				break;
 			}
 		}
 

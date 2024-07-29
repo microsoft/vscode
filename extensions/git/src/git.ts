@@ -1165,6 +1165,10 @@ export class Repository {
 			args.push(`--author="${options.author}"`);
 		}
 
+		if (typeof options?.maxParents === 'number') {
+			args.push(`--max-parents=${options.maxParents}`);
+		}
+
 		if (options?.refNames) {
 			args.push('--topo-order');
 			args.push('--decorate=full');
@@ -1492,6 +1496,21 @@ export class Repository {
 
 		if (ref) {
 			args.push(ref);
+		}
+
+		const gitResult = await this.exec(args);
+		if (gitResult.exitCode) {
+			return [];
+		}
+
+		return parseGitChanges(this.repositoryRoot, gitResult.stdout);
+	}
+
+	async diffTrees(treeish1: string, treeish2?: string): Promise<Change[]> {
+		const args = ['diff-tree', '-r', '--name-status', '-z', '--diff-filter=ADMR', treeish1];
+
+		if (treeish2) {
+			args.push(treeish2);
 		}
 
 		const gitResult = await this.exec(args);
@@ -2670,7 +2689,7 @@ export class Repository {
 	}
 
 	async getCommit(ref: string): Promise<Commit> {
-		const result = await this.exec(['show', '-s', '--decorate=full', `--format=${COMMIT_FORMAT}`, '-z', ref]);
+		const result = await this.exec(['show', '-s', '--decorate=full', '--shortstat', `--format=${COMMIT_FORMAT}`, '-z', ref]);
 		const commits = parseGitCommits(result.stdout);
 		if (commits.length === 0) {
 			return Promise.reject<Commit>('bad commit format');
