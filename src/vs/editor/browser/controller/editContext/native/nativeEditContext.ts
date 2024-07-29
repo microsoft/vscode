@@ -38,7 +38,6 @@ import { Selection } from 'vs/editor/common/core/selection';
  * 7. selection problems
  *   7.a. On the current implementation, when selecting words, the new content that is selected is read out
  *   7.b. My implementation reads all of the lines from the beginning of the selection? Then it reads the text corresponding to the selection.
- * 8. When scroll is changed horizontally, the black box should sticky to a specific letter and remain there
  */
 
 /** TODO: multi-selection work
@@ -61,14 +60,10 @@ export class NativeEditContext extends AbstractEditContext {
 	private _parent!: HTMLElement;
 	private _scrollTop = 0;
 	private _contentLeft = 0;
-	private _previousStartLineNumber: number = -1;
-	private _previousEndLineNumber: number = -1;
+	private _previousSelection: Selection | undefined;
 	private _previousValue: string | undefined;
-	private _selectionOffsetRange: OffsetRange | undefined = undefined;
 	private _nodeToRemove: ChildNode | null = null;
-
 	private _isFocused = false;
-
 	private _editContextState: EditContextState | undefined = undefined;
 
 	constructor(
@@ -79,6 +74,7 @@ export class NativeEditContext extends AbstractEditContext {
 		const domNode = this._domElement.domNode;
 		domNode.id = 'native-edit-context';
 		domNode.tabIndex = 0;
+		// not sure if needed
 		domNode.role = 'textbox';
 		domNode.ariaMultiLine = 'true';
 		domNode.ariaRequired = 'false';
@@ -105,9 +101,26 @@ export class NativeEditContext extends AbstractEditContext {
 		}));
 		let copiedText: string | undefined;
 		this._register(dom.addDisposableListener(domNode, 'copy', () => {
-			const child = this._domElement.domNode.firstChild;
-			if (this._selectionOffsetRange && child) {
-				copiedText = child.textContent?.substring(this._selectionOffsetRange.start, this._selectionOffsetRange.endExclusive);
+			if (this._previousSelection) {
+				const numberOfLines = this._previousSelection.endLineNumber - this._previousSelection.startLineNumber;
+				copiedText = '';
+				for (let i = 0; i <= numberOfLines; i++) {
+					const childElement = this._domElement.domNode.children.item(i);
+					if (!childElement) {
+						continue;
+					}
+					if (i === 0) {
+						const startColumn = this._previousSelection.startColumn;
+						copiedText += childElement.textContent?.substring(startColumn - 1) ?? '';
+					}
+					else if (i === numberOfLines) {
+						const endColumn = this._previousSelection.endColumn;
+						copiedText += '\n' + (childElement.textContent?.substring(0, endColumn) ?? '');
+					}
+					else {
+						copiedText += '\n' + (childElement.textContent ?? '');
+					}
+				}
 				console.log('copiedText : ', copiedText);
 			}
 		}));
@@ -142,10 +155,10 @@ export class NativeEditContext extends AbstractEditContext {
 					break;
 				}
 				case OutgoingViewModelEventKind.ScrollChanged: {
-					if (this._previousStartLineNumber === undefined) {
+					if (this._previousSelection?.startLineNumber === undefined) {
 						return;
 					}
-					domNode.style.top = `${this._context.viewLayout.getVerticalOffsetForLineNumber(this._previousStartLineNumber - 5) - e.scrollTop}px`;
+					domNode.style.top = `${this._context.viewLayout.getVerticalOffsetForLineNumber(this._previousSelection.startLineNumber - 5) - e.scrollTop}px`;
 					domNode.style.left = `${this._contentLeft - this._context.viewLayout.getCurrentScrollLeft()}px`;
 				}
 			}
@@ -202,7 +215,6 @@ export class NativeEditContext extends AbstractEditContext {
 	private _onDidChangeSelection(e: CursorStateChangedEvent) {
 		const selection = e.selections[0];
 		const { value: valueForHiddenArea, offsetRange: selectionForHiddenArea } = this._editContextRenderingData(selection);
-		this._selectionOffsetRange = selectionForHiddenArea;
 
 		const domNode = this._domElement.domNode;
 		domNode.style.top = `${this._context.viewLayout.getVerticalOffsetForLineNumber(selection.startLineNumber - 5) - this._context.viewLayout.getCurrentScrollTop()}px`;
@@ -234,7 +246,7 @@ export class NativeEditContext extends AbstractEditContext {
 		// Update the hidden area line
 		// need to treat the case of multiple selection
 		let startIndex = 0;
-		if (this._previousValue !== valueForHiddenArea || this._previousStartLineNumber !== selection.startLineNumber || this._previousEndLineNumber !== selection.endLineNumber) {
+		if (this._previousValue !== valueForHiddenArea || this._previousSelection?.startLineNumber !== selection.startLineNumber || this._previousSelection.endLineNumber !== selection.endLineNumber) {
 			startIndex = this._renderNode(valueForHiddenArea, selection);
 		}
 
@@ -252,8 +264,7 @@ export class NativeEditContext extends AbstractEditContext {
 				activeDocumentSelection.addRange(range);
 			}
 		}
-		this._previousStartLineNumber = selection.startLineNumber;
-		this._previousEndLineNumber = selection.endLineNumber;
+		this._previousSelection = selection;
 		this._previousValue = valueForHiddenArea;
 	}
 
@@ -277,18 +288,18 @@ export class NativeEditContext extends AbstractEditContext {
 
 		const domNode = this._domElement.domNode;
 		const splitContent = content.split('\n');
-		const numberOfLinesInPreviousSelection = this._previousEndLineNumber - this._previousStartLineNumber;
+		const numberOfLinesInPreviousSelection = this._previousSelection ? this._previousSelection.endLineNumber - this._previousSelection.startLineNumber : 0;
 		const numberOfLinesInCurrentSelection = selection.endLineNumber - selection.startLineNumber;
 		if (numberOfLinesInPreviousSelection - numberOfLinesInCurrentSelection === 1) {
 			// Meaning we decreased the selection
-			if (domNode.lastChild && this._previousStartLineNumber === selection.startLineNumber && this._previousEndLineNumber - 1 === selection.endLineNumber) {
+			if (domNode.lastChild && this._previousSelection?.startLineNumber === selection.startLineNumber && this._previousSelection.endLineNumber - 1 === selection.endLineNumber) {
 				// We decreased the selection at the bottom
 				console.log('decreased the selection at the bottom');
 				// not directly removing the child, because should read the word 'unselected', should read this on the next selection change when no longer needed
 				// domNode.removeChild(domNode.lastChild);
 				this._nodeToRemove = domNode.lastChild;
 			}
-			else if (domNode.firstChild && this._previousEndLineNumber === selection.endLineNumber && this._previousStartLineNumber + 1 === selection.startLineNumber) {
+			else if (domNode.firstChild && this._previousSelection?.endLineNumber === selection.endLineNumber && this._previousSelection.startLineNumber + 1 === selection.startLineNumber) {
 				// We decreased the selection at the top
 				console.log('decreased the selection at the top');
 				// not directly removing the child, because should read the word 'unselected', should read this on the next selection change when no longer needed
@@ -300,13 +311,13 @@ export class NativeEditContext extends AbstractEditContext {
 			}
 		} else if (numberOfLinesInCurrentSelection - numberOfLinesInPreviousSelection === 1) {
 			// Meaning we increased the selection
-			if (this._previousStartLineNumber === selection.startLineNumber && this._previousEndLineNumber + 1 === selection.endLineNumber) {
+			if (this._previousSelection?.startLineNumber === selection.startLineNumber && this._previousSelection.endLineNumber + 1 === selection.endLineNumber) {
 				// We increased the selection at the bottom
 				console.log('increased the selection at the bottom');
 				const lastLine = splitContent[splitContent.length - 1];
 				const childElement = createDivWithContent(lastLine);
 				domNode.appendChild(childElement);
-			} else if (this._previousEndLineNumber === selection.endLineNumber && this._previousStartLineNumber - 1 === selection.startLineNumber) {
+			} else if (this._previousSelection?.endLineNumber === selection.endLineNumber && this._previousSelection.startLineNumber - 1 === selection.startLineNumber) {
 				// We increased the selection at the top
 				console.log('increased the selection at the top');
 				const firstLine = splitContent[0];
