@@ -7,22 +7,26 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ContextKeyEqualsExpr, ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Event, Emitter } from 'vs/base/common/event';
 import { CommentsViewFilterFocusContextKey, ICommentsView } from 'vs/workbench/contrib/comments/browser/comments';
-import { registerAction2 } from 'vs/platform/actions/common/actions';
+import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { COMMENTS_VIEW_ID } from 'vs/workbench/contrib/comments/browser/commentsTreeViewer';
 import { FocusedViewContext } from 'vs/workbench/common/contextkeys';
 import { viewFilterSubmenu } from 'vs/workbench/browser/parts/views/viewFilter';
+import { Codicon } from 'vs/base/common/codicons';
 
-export type CommentsSortOrder = 'resource' | 'updatedAt';
+export const enum CommentsSortOrder {
+	ResourceAscending = 'resourceAscending',
+	UpdatedAtDescending = 'updatedAtDescending',
+}
+
 
 const CONTEXT_KEY_SHOW_RESOLVED = new RawContextKey<boolean>('commentsView.showResolvedFilter', true);
 const CONTEXT_KEY_SHOW_UNRESOLVED = new RawContextKey<boolean>('commentsView.showUnResolvedFilter', true);
-const CONTEXT_KEY_SORT_BY = new RawContextKey<CommentsSortOrder>('commentsView.sortBy', 'resource');
-const CONTEXT_KEY_SORT_BY_UPDATED_AT = ContextKeyEqualsExpr.create('commentsView.sortBy', 'updatedAt');
+const CONTEXT_KEY_SORT_BY = new RawContextKey<CommentsSortOrder>('commentsView.sortBy', CommentsSortOrder.ResourceAscending);
 
 export interface CommentsFiltersChangeEvent {
 	showResolved?: boolean;
@@ -192,21 +196,25 @@ registerAction2(class extends ViewAction<ICommentsView> {
 			id: `workbench.actions.${COMMENTS_VIEW_ID}.toggleSortByUpdatedAt`,
 			title: localize('toggle sorting by updated at', "Sort by Updated At"),
 			category: localize('comments', "Comments"),
+			icon: Codicon.history,
+			viewId: COMMENTS_VIEW_ID,
 			toggled: {
-				condition: CONTEXT_KEY_SORT_BY_UPDATED_AT,
+				condition: ContextKeyExpr.equals('commentsView.sortBy', CommentsSortOrder.UpdatedAtDescending),
 				title: localize('sorting by updated at', "Sort by Updated At"),
 			},
 			menu: {
-				id: viewFilterSubmenu,
-				group: '2_sort',
+				id: MenuId.ViewTitle,
 				when: ContextKeyExpr.equals('view', COMMENTS_VIEW_ID),
-				order: 1
+				group: 'navigation',
+				order: 0,
+				isHiddenByDefault: false,
 			},
-			viewId: COMMENTS_VIEW_ID
 		});
 	}
 
 	async runInView(serviceAccessor: ServicesAccessor, view: ICommentsView): Promise<void> {
-		view.filters.sortBy = view.filters.sortBy === 'resource' ? 'updatedAt' : 'resource';
+		view.filters.sortBy = view.filters.sortBy === CommentsSortOrder.ResourceAscending
+			? CommentsSortOrder.UpdatedAtDescending
+			: CommentsSortOrder.ResourceAscending;
 	}
 });

@@ -24,7 +24,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { CommentsViewFilterFocusContextKey, ICommentsView } from 'vs/workbench/contrib/comments/browser/comments';
-import { CommentsFilters, CommentsFiltersChangeEvent } from 'vs/workbench/contrib/comments/browser/commentsViewActions';
+import { CommentsFilters, CommentsFiltersChangeEvent, CommentsSortOrder } from 'vs/workbench/contrib/comments/browser/commentsViewActions';
 import { Memento, MementoObject } from 'vs/workbench/common/memento';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { FilterOptions } from 'vs/workbench/contrib/comments/browser/commentsFilterOptions';
@@ -32,10 +32,11 @@ import { CommentThreadApplicability, CommentThreadState } from 'vs/editor/common
 import { Iterable } from 'vs/base/common/iterator';
 import { revealCommentThread } from 'vs/workbench/contrib/comments/browser/commentsController';
 import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
-import { CommentsModel } from 'vs/workbench/contrib/comments/browser/commentsModel';
+import { CommentsModel, type ICommentsModel } from 'vs/workbench/contrib/comments/browser/commentsModel';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { AccessibleViewAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
+import type { ITreeElement } from 'vs/base/browser/ui/tree/tree';
 
 export const CONTEXT_KEY_HAS_COMMENTS = new RawContextKey<boolean>('commentsView.hasComments', false);
 export const CONTEXT_KEY_SOME_COMMENTS_EXPANDED = new RawContextKey<boolean>('commentsView.someCommentsExpanded', false);
@@ -43,6 +44,15 @@ export const CONTEXT_KEY_COMMENT_FOCUSED = new RawContextKey<boolean>('commentsV
 const VIEW_STORAGE_ID = 'commentsViewState';
 
 type CommentsTreeNode = CommentsModel | ResourceWithCommentThreads | CommentNode;
+
+function createResourceCommentsIterator(model: ICommentsModel): Iterable<ITreeElement<CommentsTreeNode>> {
+	return Iterable.map(model.resourceCommentThreads, m => {
+		const CommentNodeIt = Iterable.from(m.commentThreads);
+		const children = Iterable.map(CommentNodeIt, r => ({ element: r }));
+
+		return { element: m, children };
+	});
+}
 
 export class CommentsPanel extends FilterViewPane implements ICommentsView {
 	private treeLabels!: ResourceLabels;
@@ -271,13 +281,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		this.treeContainer.classList.toggle('hidden', !this.commentService.commentsModel.hasCommentThreads());
 		this.renderMessage();
 		if (this.tree) {
-			const model = this.commentService.commentsModel.resourceCommentThreads;
-			const iterator = Iterable.map(model, m => {
-				const CommentNodeIt = Iterable.from(m.commentThreads);
-				const children = Iterable.map(CommentNodeIt, r => ({ element: r }));
-				return { element: m, children };
-			});
-			this.tree.setChildren(null, iterator);
+			this.tree?.setChildren(null, createResourceCommentsIterator(this.commentService.commentsModel));
 		}
 	}
 
@@ -398,7 +402,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 			filter: this.filter,
 			sorter: {
 				compare: (a: CommentsTreeNode, b: CommentsTreeNode) => {
-					if (this.filters.sortBy === 'updatedAt' && 'lastUpdatedAt' in a && 'lastUpdatedAt' in b) {
+					if (this.filters.sortBy === CommentsSortOrder.UpdatedAtDescending && 'lastUpdatedAt' in a && 'lastUpdatedAt' in b) {
 						return a.lastUpdatedAt > b.lastUpdatedAt ? -1 : 1;
 					}
 					return 0;
