@@ -54,7 +54,6 @@ export namespace QuickOutlineNLS {
 
 export namespace StandaloneCodeEditorNLS {
 	export const editorViewAccessibleLabel = nls.localize('editorViewAccessibleLabel', "Editor content");
-	export const accessibilityHelpMessage = nls.localize('accessibilityHelpMessage', "Press Alt+F1 for Accessibility Options.");
 }
 
 export namespace ToggleHighContrastNLS {
