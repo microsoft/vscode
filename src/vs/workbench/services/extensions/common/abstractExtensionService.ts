@@ -197,22 +197,24 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 		this._register(this._lifecycleService.onWillShutdown(event => {
 			if (this._remoteAgentService.getConnection()) {
-				event.join(() => this._remoteAgentService.endConnection(), {
+				event.join(async () => {
+					// We need to disconnect the management connection before killing the local extension host.
+					// Otherwise, the local extension host might terminate the underlying tunnel before the
+					// management connection has a chance to send its disconnection message.
+					await this._remoteAgentService.endConnection();
+					await this._doStopExtensionHosts();
+					this._remoteAgentService.getConnection()?.dispose();
+				}, {
 					id: 'join.disconnectRemote',
 					label: nls.localize('disconnectRemote', "Disconnect Remote Agent"),
 					order: WillShutdownJoinerOrder.Last // after others have joined that might depend on a remote connection
 				});
+			} else {
+				event.join(this._doStopExtensionHosts(), {
+					id: 'join.stopExtensionHosts',
+					label: nls.localize('stopExtensionHosts', "Stopping Extension Hosts"),
+				});
 			}
-		}));
-
-		this._register(this._lifecycleService.onDidShutdown(() => {
-			// We need to disconnect the management connection before killing the local extension host.
-			// Otherwise, the local extension host might terminate the underlying tunnel before the
-			// management connection has a chance to send its disconnection message.
-			const connection = this._remoteAgentService.getConnection();
-			connection?.dispose();
-
-			this._doStopExtensionHosts();
 		}));
 	}
 
@@ -667,7 +669,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		return this._doStopExtensionHostsWithVeto(reason, auto);
 	}
 
-	protected _doStopExtensionHosts(): void {
+	protected async _doStopExtensionHosts(): Promise<void> {
 		const previouslyActivatedExtensionIds: ExtensionIdentifier[] = [];
 		for (const extensionStatus of this._extensionStatus.values()) {
 			if (extensionStatus.activationStarted) {
@@ -675,7 +677,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			}
 		}
 
-		this._extensionHostManagers.disposeAllInReverse();
+		await this._extensionHostManagers.stopAllInReverse();
 		for (const extensionStatus of this._extensionStatus.values()) {
 			extensionStatus.clearRuntimeStatus();
 		}
@@ -712,7 +714,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 		const veto = await handleVetos(vetos, error => this._logService.error(error));
 		if (!veto) {
-			this._doStopExtensionHosts();
+			await this._doStopExtensionHosts();
 		} else {
 			if (!auto) {
 				const vetoReasonsArray = Array.from(vetoReasons);
@@ -803,7 +805,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			if (signal) {
 				this._onRemoteExtensionHostCrashed(extensionHost, signal);
 			}
-			this._extensionHostManagers.disposeOne(extensionHost);
+			this._extensionHostManagers.stopOne(extensionHost);
 		}
 	}
 
@@ -868,7 +870,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	}
 
 	public async startExtensionHosts(updates?: { toAdd: IExtension[]; toRemove: string[] }): Promise<void> {
-		this._doStopExtensionHosts();
+		await this._doStopExtensionHosts();
 
 		if (updates) {
 			await this._handleDeltaExtensions(new DeltaExtensionsQueueItem(updates.toAdd, updates.toRemove));
@@ -1182,7 +1184,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	//#endregion
 
 	protected abstract _resolveExtensions(): Promise<ResolvedExtensions>;
-	protected abstract _onExtensionHostExit(code: number): void;
+	protected abstract _onExtensionHostExit(code: number): Promise<void>;
 	protected abstract _resolveAuthority(remoteAuthority: string): Promise<ResolverResult>;
 }
 
@@ -1190,8 +1192,13 @@ class ExtensionHostCollection extends Disposable {
 
 	private _extensionHostManagers: ExtensionHostManagerData[] = [];
 
-	public override dispose(): void {
-		this.disposeAllInReverse();
+	public override dispose() {
+		for (let i = this._extensionHostManagers.length - 1; i >= 0; i--) {
+			const manager = this._extensionHostManagers[i];
+			manager.extensionHost.disconnect();
+			manager.dispose();
+		}
+		this._extensionHostManagers = [];
 		super.dispose();
 	}
 
@@ -1199,20 +1206,23 @@ class ExtensionHostCollection extends Disposable {
 		this._extensionHostManagers.push(new ExtensionHostManagerData(extensionHostManager, disposableStore));
 	}
 
-	public disposeAllInReverse(): void {
+	public async stopAllInReverse(): Promise<void> {
 		// See https://github.com/microsoft/vscode/issues/152204
 		// Dispose extension hosts in reverse creation order because the local extension host
 		// might be critical in sustaining a connection to the remote extension host
 		for (let i = this._extensionHostManagers.length - 1; i >= 0; i--) {
-			this._extensionHostManagers[i].dispose();
+			const manager = this._extensionHostManagers[i];
+			await manager.extensionHost.disconnect();
+			manager.dispose();
 		}
 		this._extensionHostManagers = [];
 	}
 
-	public disposeOne(extensionHostManager: IExtensionHostManager): void {
+	public async stopOne(extensionHostManager: IExtensionHostManager): Promise<void> {
 		const index = this._extensionHostManagers.findIndex(el => el.extensionHost === extensionHostManager);
 		if (index >= 0) {
 			this._extensionHostManagers.splice(index, 1);
+			await extensionHostManager.disconnect();
 			extensionHostManager.dispose();
 		}
 	}

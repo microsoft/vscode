@@ -1948,12 +1948,11 @@ registerAction2(class extends Action2 {
 
 		const title = historyItems.length === 1 ?
 			`${historyItems[0].id.substring(0, 8)} - ${historyItems[0].message}` :
-			localize('historyItemChangesEditorTitle', "All Changes ({0} ↔ {1})", historyItem.id.substring(0, 8), historyItemLast.id.substring(0, 8));
+			localize('historyItemChangesEditorTitle', "All Changes ({0} ↔ {1})", historyItemLast.id.substring(0, 8), historyItem.id.substring(0, 8));
 
 		const rootUri = provider.rootUri;
-		const multiDiffSourceUri = rootUri ?
-			rootUri.with({ scheme: 'scm-history-item', path: `${rootUri.path}/${historyItem.id}..${historyItemParentId}` }) :
-			URI.from({ scheme: 'scm-history-item', path: `${provider.label}/${historyItem.id}..${historyItemParentId}` }, true);
+		const path = rootUri ? rootUri.path : provider.label;
+		const multiDiffSourceUri = URI.from({ scheme: 'scm-history-item', path: `${path}/${historyItemParentId}..${historyItem.id}` }, true);
 
 		commandService.executeCommand('_workbench.openMultiDiffEditor', { title, multiDiffSourceUri, resources: historyItemChanges });
 	}
@@ -3431,9 +3430,8 @@ export class SCMViewPane extends ViewPane {
 				const title = `${historyItem.id.substring(0, 8)} - ${historyItem.message}`;
 
 				const rootUri = e.element.repository.provider.rootUri;
-				const multiDiffSourceUri = rootUri ?
-					rootUri.with({ scheme: 'scm-history-item', path: `${rootUri.path}/${historyItem.id}..${historyItemParentId}` }) :
-					URI.from({ scheme: 'scm-history-item', path: `${e.element.repository.provider.label}/${historyItem.id}..${historyItemParentId}` }, true);
+				const path = rootUri ? rootUri.path : e.element.repository.provider.label;
+				const multiDiffSourceUri = URI.from({ scheme: 'scm-history-item', path: `${path}/${historyItemParentId}..${historyItem.id}` }, true);
 
 				await this.commandService.executeCommand('_workbench.openMultiDiffEditor', { title, multiDiffSourceUri, resources: historyItemChanges });
 			}
@@ -4136,9 +4134,9 @@ class SCMTreeHistoryProviderDataSource extends Disposable {
 			});
 		}
 
-		// If we only have one history item that contains all the
-		// labels (current, remote, base), we don't need to show it
-		if (historyItemsElement.length === 1) {
+		// If we only have one history item that contains all the labels (current, remote, base),
+		// we don't need to show it, unless it is the root commit (does not have any parents).
+		if (historyItemsElement.length === 1 && historyItemsElement[0].parentIds.length > 0) {
 			const currentHistoryItemGroupLabels = [
 				currentHistoryItemGroup.name,
 				...currentHistoryItemGroup.remote ? [currentHistoryItemGroup.remote.name] : [],

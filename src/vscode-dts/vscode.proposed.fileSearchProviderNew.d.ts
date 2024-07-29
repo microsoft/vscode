@@ -10,7 +10,7 @@ declare module 'vscode' {
 	/**
 	 * Options that apply to file search.
 	 */
-	export interface FileSearchProviderOptionsNew {
+	export interface FileSearchProviderOptions {
 		folderOptions: {
 			/**
 			 * The root folder to search within.
@@ -42,11 +42,11 @@ declare module 'vscode' {
 				 */
 				local: boolean;
 				/**
-				 * Use ignore files at the parent directory. If set, {@link FileSearchProviderOptionsNew.useIgnoreFiles.local} should also be `true`.
+				 * Use ignore files at the parent directory. If set, {@link FileSearchProviderOptions.useIgnoreFiles.local} should also be `true`.
 				 */
 				parent: boolean;
 				/**
-				 * Use global ignore files. If set, {@link FileSearchProviderOptionsNew.useIgnoreFiles.local} should also be `true`.
+				 * Use global ignore files. If set, {@link FileSearchProviderOptions.useIgnoreFiles.local} should also be `true`.
 				 */
 				global: boolean;
 			};
@@ -81,7 +81,7 @@ declare module 'vscode' {
 		 * @param options A set of options to consider while searching files.
 		 * @param token A cancellation token.
 		 */
-		provideFileSearchResults(pattern: string, options: FileSearchProviderOptionsNew, token: CancellationToken): ProviderResult<Uri[]>;
+		provideFileSearchResults(pattern: string, options: FileSearchProviderOptions, token: CancellationToken): ProviderResult<Uri[]>;
 	}
 
 	export namespace workspace {

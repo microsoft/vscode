@@ -149,6 +149,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// private readonly editorOptions: ChatEditorOptions, // TODO this should be used
 		private readonly location: ChatAgentLocation,
 		private readonly options: IChatInputPartOptions,
+		private readonly getInputState: () => any,
 		@IChatWidgetHistoryService private readonly historyService: IChatWidgetHistoryService,
 		@IModelService private readonly modelService: IModelService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -234,11 +235,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	showPreviousValue(): void {
+		const inputState = this.getInputState();
 		if (this.history.isAtEnd()) {
-			this.saveCurrentValue();
+			this.saveCurrentValue(inputState);
 		} else {
-			if (!this.history.has({ text: this._inputEditor.getValue(), state: this.history.current().state })) {
-				this.saveCurrentValue();
+			if (!this.history.has({ text: this._inputEditor.getValue(), state: inputState })) {
+				this.saveCurrentValue(inputState);
 				this.history.resetCursor();
 			}
 		}
@@ -247,11 +249,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	showNextValue(): void {
+		const inputState = this.getInputState();
 		if (this.history.isAtEnd()) {
 			return;
 		} else {
-			if (!this.history.has({ text: this._inputEditor.getValue(), state: this.history.current().state })) {
-				this.saveCurrentValue();
+			if (!this.history.has({ text: this._inputEditor.getValue(), state: inputState })) {
+				this.saveCurrentValue(inputState);
 				this.history.resetCursor();
 			}
 		}
@@ -288,12 +291,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.inputEditor.setPosition({ lineNumber: 1, column: value.length + 1 });
 
 		if (!transient) {
-			this.saveCurrentValue();
+			this.saveCurrentValue(this.getInputState());
 		}
 	}
 
-	private saveCurrentValue(): void {
-		const newEntry = { text: this._inputEditor.getValue(), state: this.history.current().state };
+	private saveCurrentValue(inputState: any): void {
+		const newEntry = { text: this._inputEditor.getValue(), state: inputState };
 		this.history.replaceLast(newEntry);
 	}
 
@@ -312,11 +315,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	async acceptInput(isUserQuery?: boolean): Promise<void> {
 		if (isUserQuery) {
 			const userQuery = this._inputEditor.getValue();
-			const entry: IChatHistoryEntry = { text: userQuery, state: this.history.current().state };
+			const entry: IChatHistoryEntry = { text: userQuery, state: this.getInputState() };
 			this.history.replaceLast(entry);
 			this.history.add({ text: '' });
 		}
 
+		// Clear attached context, fire event to clear input state, and clear the input editor
+		this._attachedContext.clear();
 		this._onDidLoadInputState.fire({});
 		if (this.accessibilityService.isScreenReaderOptimized() && isMacintosh) {
 			this._acceptInputForVoiceover();
@@ -337,14 +342,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._inputEditor.setValue('');
 		this._inputEditorElement.appendChild(domNode);
 		this._inputEditor.focus();
-	}
-
-	clearContext(): void {
-		if (this._attachedContext.size > 0) {
-			const removed = Array.from(this._attachedContext);
-			this._attachedContext.clear();
-			this._onDidChangeContext.fire({ removed });
-		}
 	}
 
 	attachContext(overwrite: boolean, ...contentReferences: IChatRequestVariableEntry[]): void {
@@ -638,6 +635,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	saveState(): void {
+		this.saveCurrentValue(this.getInputState());
 		const inputHistory = [...this.history];
 		this.historyService.saveHistory(this.location, inputHistory);
 	}

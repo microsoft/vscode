@@ -538,22 +538,25 @@ export class TextSearchContextNew {
 		public lineNumber: number) { }
 }
 
+/**
+ * Options for following search.exclude and files.exclude settings.
+ */
 export enum ExcludeSettingOptions {
 	/*
 	 * Don't use any exclude settings.
 	 */
-	none = 1,
+	None = 1,
 	/*
 	 * Use:
 	 * - files.exclude setting
 	 */
-	filesExclude = 2,
+	FilesExclude = 2,
 	/*
 	 * Use:
 	 * - files.exclude setting
 	 * - search.exclude setting
 	 */
-	searchAndFilesExclude = 3
+	SearchAndFilesExclude = 3
 }
 
 export enum TextSearchCompleteMessageTypeNew {

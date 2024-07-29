@@ -976,8 +976,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 				const oldOptions = {
 					exclude: options?.exclude && options.exclude.length > 0 ? options.exclude[0] : undefined,
-					useDefaultExcludes: !options?.useExcludeSettings || (options?.useExcludeSettings === ExcludeSettingOptions.filesExclude || options?.useExcludeSettings === ExcludeSettingOptions.searchAndFilesExclude),
-					useDefaultSearchExcludes: !options?.useExcludeSettings || (options?.useExcludeSettings === ExcludeSettingOptions.searchAndFilesExclude),
+					useDefaultExcludes: !options?.useExcludeSettings || (options?.useExcludeSettings === ExcludeSettingOptions.FilesExclude || options?.useExcludeSettings === ExcludeSettingOptions.SearchAndFilesExclude),
+					useDefaultSearchExcludes: !options?.useExcludeSettings || (options?.useExcludeSettings === ExcludeSettingOptions.SearchAndFilesExclude),
 					maxResults: options?.maxResults,
 					useIgnoreFiles: options?.useIgnoreFiles?.local,
 					useGlobalIgnoreFiles: options?.useIgnoreFiles?.global,
@@ -1012,8 +1012,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 					oldOptions = {
 						include: options.include && options.include.length > 0 ? options.include[0] : undefined,
 						exclude: options.exclude && options.exclude.length > 0 ? options.exclude[0] : undefined,
-						useDefaultExcludes: options.useExcludeSettings === undefined || (options.useExcludeSettings === ExcludeSettingOptions.filesExclude || options.useExcludeSettings === ExcludeSettingOptions.searchAndFilesExclude),
-						useSearchExclude: options.useExcludeSettings === undefined || (options.useExcludeSettings === ExcludeSettingOptions.searchAndFilesExclude),
+						useDefaultExcludes: options.useExcludeSettings === undefined || (options.useExcludeSettings === ExcludeSettingOptions.FilesExclude || options.useExcludeSettings === ExcludeSettingOptions.SearchAndFilesExclude),
+						useSearchExclude: options.useExcludeSettings === undefined || (options.useExcludeSettings === ExcludeSettingOptions.SearchAndFilesExclude),
 						maxResults: options.maxResults,
 						useIgnoreFiles: options.useIgnoreFiles?.local,
 						useGlobalIgnoreFiles: options.useIgnoreFiles?.global,
@@ -1021,7 +1021,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 						followSymlinks: options.followSymlinks,
 						encoding: options.encoding,
 						previewOptions: options.previewOptions ? {
-							matchLines: options.previewOptions?.matchLines ?? 100,
+							matchLines: options.previewOptions?.numMatchLines ?? 100,
 							charsPerLine: options.previewOptions?.charsPerLine ?? 10000,
 						} : undefined,
 						beforeContext: options.surroundingContext,

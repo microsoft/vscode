@@ -127,6 +127,7 @@ export interface IExtensionHost {
 	start(): Promise<IMessagePassingProtocol>;
 	getInspectPort(): { port: number; host: string } | undefined;
 	enableInspectPort(): Promise<boolean>;
+	disconnect?(): Promise<void>;
 	dispose(): void;
 }
 

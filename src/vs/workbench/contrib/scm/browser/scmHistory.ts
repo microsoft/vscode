@@ -102,7 +102,8 @@ export function renderSCMHistoryItemGraph(historyItemViewModel: ISCMHistoryItemV
 	const circleIndex = inputIndex !== -1 ? inputIndex : inputSwimlanes.length;
 
 	// Circle color - use the output swimlane color if present, otherwise the input swimlane color
-	const circleColor = circleIndex < outputSwimlanes.length ? outputSwimlanes[circleIndex].color : inputSwimlanes[circleIndex].color;
+	const circleColor = circleIndex < outputSwimlanes.length ? outputSwimlanes[circleIndex].color :
+		circleIndex < inputSwimlanes.length ? inputSwimlanes[circleIndex].color : historyItemGroupLocal;
 
 	let outputSwimlaneIndex = 0;
 	for (let index = 0; index < inputSwimlanes.length; index++) {
@@ -238,10 +239,10 @@ export function toISCMHistoryItemViewModelArray(historyItems: ISCMHistoryItem[],
 		const inputSwimlanes = outputSwimlanesFromPreviousItem.map(i => deepClone(i));
 		const outputSwimlanes: ISCMHistoryItemGraphNode[] = [];
 
-		if (historyItem.parentIds.length > 0) {
-			let firstParentAdded = false;
+		let firstParentAdded = false;
 
-			// Add first parent to the output
+		// Add first parent to the output
+		if (historyItem.parentIds.length > 0) {
 			for (const node of inputSwimlanes) {
 				if (node.id === historyItem.id) {
 					if (!firstParentAdded) {
@@ -257,30 +258,30 @@ export function toISCMHistoryItemViewModelArray(historyItems: ISCMHistoryItem[],
 
 				outputSwimlanes.push(deepClone(node));
 			}
+		}
 
-			// Add unprocessed parent(s) to the output
-			for (let i = firstParentAdded ? 1 : 0; i < historyItem.parentIds.length; i++) {
-				// Color index (label -> next color)
-				let colorIdentifier: string | undefined;
+		// Add unprocessed parent(s) to the output
+		for (let i = firstParentAdded ? 1 : 0; i < historyItem.parentIds.length; i++) {
+			// Color index (label -> next color)
+			let colorIdentifier: string | undefined;
 
-				if (!firstParentAdded) {
-					colorIdentifier = getLabelColorIdentifier(historyItem, colorMap);
-				} else {
-					const historyItemParent = historyItems
-						.find(h => h.id === historyItem.parentIds[i]);
-					colorIdentifier = historyItemParent ? getLabelColorIdentifier(historyItemParent, colorMap) : undefined;
-				}
-
-				if (!colorIdentifier) {
-					colorIndex = rot(colorIndex + 1, colorRegistry.length);
-					colorIdentifier = colorRegistry[colorIndex];
-				}
-
-				outputSwimlanes.push({
-					id: historyItem.parentIds[i],
-					color: colorIdentifier
-				});
+			if (!firstParentAdded) {
+				colorIdentifier = getLabelColorIdentifier(historyItem, colorMap);
+			} else {
+				const historyItemParent = historyItems
+					.find(h => h.id === historyItem.parentIds[i]);
+				colorIdentifier = historyItemParent ? getLabelColorIdentifier(historyItemParent, colorMap) : undefined;
 			}
+
+			if (!colorIdentifier) {
+				colorIndex = rot(colorIndex + 1, colorRegistry.length);
+				colorIdentifier = colorRegistry[colorIndex];
+			}
+
+			outputSwimlanes.push({
+				id: historyItem.parentIds[i],
+				color: colorIdentifier
+			});
 		}
 
 		viewModels.push({
