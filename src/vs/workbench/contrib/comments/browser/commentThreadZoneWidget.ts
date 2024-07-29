@@ -423,6 +423,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this._commentThreadDisposables.push(this._commentThread.onDidChangeCollapsibleState(state => {
 			if (state === languages.CommentThreadCollapsibleState.Expanded && !this._isExpanded) {
 				this.show(this.arrowPosition(this._commentThread.range), 2);
+				this._commentThreadWidget.ensureFocusIntoNewEditingComment();
 				return;
 			}
 
