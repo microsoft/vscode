@@ -23,20 +23,3 @@ pub fn sign_challenge(challenge: &str) -> String {
 pub fn verify_challenge(challenge: &str, response: &str) -> bool {
 	sign_challenge(challenge) == response
 }
-
-#[cfg(feature = "vsda")]
-pub fn create_challenge() -> String {
-	use rand::distributions::{Alphanumeric, DistString};
-	let str = Alphanumeric.sample_string(&mut rand::thread_rng(), 16);
-	vsda::create_new_message(&str)
-}
-
-#[cfg(feature = "vsda")]
-pub fn sign_challenge(challenge: &str) -> String {
-	vsda::sign(challenge)
-}
-
-#[cfg(feature = "vsda")]
-pub fn verify_challenge(challenge: &str, response: &str) -> bool {
-	vsda::validate(challenge, response)
-}
