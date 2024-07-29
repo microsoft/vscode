@@ -223,11 +223,10 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 				}
 			} else {
 				const spawnOptions: cp.SpawnOptions = {
-					env: env
+					cwd: options.cwd,
+					env: env,
+					shell: options.shell,
 				};
-				if (options.cwd) {
-					spawnOptions.cwd = options.cwd;
-				}
 				this.serverProcess = cp.spawn(command, args, spawnOptions);
 			}
 
@@ -247,6 +246,10 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 
 			this.serverProcess.stdin!.on('error', error => {
 				this._onError.fire(error);
+			});
+
+			this.serverProcess.stderr!.on('data', data => {
+				console.log(data);
 			});
 
 			this.serverProcess.stderr!.resume();

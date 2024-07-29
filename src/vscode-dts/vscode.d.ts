@@ -15864,6 +15864,13 @@ declare module 'vscode' {
 		 * The current working directory for the executed debug adapter.
 		 */
 		cwd?: string;
+
+		/**
+		 * If true, runs command inside of a shell. A different shell can be specified as a string.
+		 *
+		 * The path to the parent executable may need escaping and quoting when executing in a shell.
+		 */
+		shell?: string | boolean;
 	}
 
 	/**

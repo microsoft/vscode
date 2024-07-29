@@ -875,6 +875,7 @@ export interface IDebugAdapterFactory extends ITerminalLauncher {
 export interface IDebugAdapterExecutableOptions {
 	cwd?: string;
 	env?: { [key: string]: string };
+	shell?: string | boolean;
 }
 
 export interface IDebugAdapterExecutable {
