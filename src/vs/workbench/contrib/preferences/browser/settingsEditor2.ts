@@ -710,11 +710,9 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	private onDidDismissExtensionSetting(extensionId: string): void {
-		if (this.dismissedExtensionSettings.includes(extensionId)) {
-			return;
+		if (!this.dismissedExtensionSettings.includes(extensionId)) {
+			this.dismissedExtensionSettings.push(extensionId);
 		}
-
-		this.dismissedExtensionSettings.push(extensionId);
 		this.storageService.store(
 			this.DISMISSED_EXTENSION_SETTINGS_STORAGE_KEY,
 			this.dismissedExtensionSettings.join(this.DISMISSED_EXTENSION_SETTINGS_DELIMITER),
@@ -1390,6 +1388,7 @@ export class SettingsEditor2 extends EditorPane {
 						displayName: extension.displayName,
 					}
 				};
+				groups.push(additionalGroup);
 				additionalGroups.push(additionalGroup);
 				setAdditionalGroups = true;
 			}

@@ -3,28 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { mark } from 'vs/base/common/performance';
-import { Emitter, Event } from 'vs/base/common/event';
+import { getZoomLevel } from 'vs/base/browser/browser';
 import { Dimension, EventHelper, EventType, ModifierKeyEmitter, addDisposableListener, cloneGlobalStylesheets, copyAttributes, createLinkElement, createMetaElement, getActiveWindow, getClientArea, getWindowId, isGlobalStylesheet, isHTMLElement, position, registerWindow, sharedMutationObserver, trackAttributes } from 'vs/base/browser/dom';
 import { CodeWindow, ensureCodeWindow, mainWindow } from 'vs/base/browser/window';
+import { coalesce } from 'vs/base/common/arrays';
+import { Barrier } from 'vs/base/common/async';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { mark } from 'vs/base/common/performance';
+import { isFirefox, isWeb } from 'vs/base/common/platform';
+import Severity from 'vs/base/common/severity';
+import { localize } from 'vs/nls';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { isFirefox, isWeb } from 'vs/base/common/platform';
-import { IRectangle, WindowMinimumSize } from 'vs/platform/window/common/window';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import Severity from 'vs/base/common/severity';
-import { BaseWindow } from 'vs/workbench/browser/window';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { Barrier } from 'vs/base/common/async';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IRectangle, WindowMinimumSize } from 'vs/platform/window/common/window';
+import { BaseWindow } from 'vs/workbench/browser/window';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { coalesce } from 'vs/base/common/arrays';
-import { getZoomLevel } from 'vs/base/browser/browser';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 
 export const IAuxiliaryWindowService = createDecorator<IAuxiliaryWindowService>('auxiliaryWindowService');
 
@@ -36,7 +36,8 @@ export interface IAuxiliaryWindowOpenEvent {
 export enum AuxiliaryWindowMode {
 	Maximized,
 	Normal,
-	Fullscreen
+	Fullscreen,
+	Custom
 }
 
 export interface IAuxiliaryWindowOpenOptions {
@@ -328,6 +329,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 			`top=${newWindowBounds.y}`,
 			`width=${newWindowBounds.width}`,
 			`height=${newWindowBounds.height}`,
+			options?.mode === AuxiliaryWindowMode.Custom ? 'titlebar=yes' : undefined, 	// non-standard property
 			options?.mode === AuxiliaryWindowMode.Maximized ? 'window-maximized=yes' : undefined, 	// non-standard property
 			options?.mode === AuxiliaryWindowMode.Fullscreen ? 'window-fullscreen=yes' : undefined 	// non-standard property
 		]);

@@ -163,6 +163,7 @@ export interface IGalleryExtensionProperties {
 	localizedLanguages?: string[];
 	targetPlatform: TargetPlatform;
 	isPreReleaseVersion: boolean;
+	executesCode?: boolean;
 }
 
 export interface IGalleryExtensionAsset {
@@ -425,6 +426,7 @@ export const enum ExtensionGalleryErrorCode {
 	Cancelled = 'Cancelled',
 	Failed = 'Failed',
 	DownloadFailedWriting = 'DownloadFailedWriting',
+	Offline = 'Offline',
 }
 
 export class ExtensionGalleryError extends Error {

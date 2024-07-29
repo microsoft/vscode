@@ -50,6 +50,13 @@ export interface IHoverDelegateOptions extends IManagedHoverOptions {
 		 */
 		showPointer?: boolean;
 		/**
+		 * When {@link hideOnHover} is explicitly true or undefined and its auto value is detected to
+		 * hide, show a hint at the bottom of the hover explaining how to mouse over the widget. This
+		 * should be used in the cases where despite the hover having no interactive content, it's
+		 * likely the user may want to interact with it somehow.
+		 */
+		showHoverHint?: boolean;
+		/**
 		 * Whether to skip the fade in animation, this should be used when hovering from one hover to
 		 * another in the same group so it looks like the hover is moving from one element to the other.
 		 */

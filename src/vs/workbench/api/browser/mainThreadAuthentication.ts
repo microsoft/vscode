@@ -261,15 +261,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 	}
 
 	async $getAccounts(providerId: string): Promise<ReadonlyArray<AuthenticationSessionAccount>> {
-		const sessions = await this.authenticationService.getSessions(providerId);
-		const accounts = new Array<AuthenticationSessionAccount>();
-		const seenAccounts = new Set<string>();
-		for (const session of sessions) {
-			if (!seenAccounts.has(session.account.label)) {
-				seenAccounts.add(session.account.label);
-				accounts.push(session.account);
-			}
-		}
+		const accounts = await this.authenticationService.getAccounts(providerId);
 		return accounts;
 	}
 

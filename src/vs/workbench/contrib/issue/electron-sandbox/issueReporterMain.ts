@@ -5,8 +5,8 @@
 
 import { safeInnerHtml } from 'vs/base/browser/dom';
 import 'vs/base/browser/ui/codicons/codiconStyles'; // make sure codicon css is loaded
+import { mainWindow } from 'vs/base/browser/window';
 import { isLinux, isWindows } from 'vs/base/common/platform';
-import BaseHtml from 'vs/workbench/contrib/issue/browser/issueReporterPage';
 import 'vs/css!./media/issueReporter';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { getSingletonServiceDescriptors } from 'vs/platform/instantiation/common/extensions';
@@ -15,14 +15,14 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
 import { ElectronIPCMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 import { registerMainProcessRemoteService } from 'vs/platform/ipc/electron-sandbox/services';
-import { IIssueMainService, IProcessMainService, IssueReporterWindowConfiguration } from 'vs/platform/issue/common/issue';
 import { INativeHostService } from 'vs/platform/native/common/native';
 import { NativeHostService } from 'vs/platform/native/common/nativeHostService';
-import { IssueReporter2 } from 'vs/workbench/contrib/issue/electron-sandbox/issueReporterService2';
-import { mainWindow } from 'vs/base/browser/window';
+import BaseHtml from 'vs/workbench/contrib/issue/browser/issueReporterPage';
+import { IProcessMainService, IIssueMainService, OldIssueReporterWindowConfiguration } from 'vs/platform/issue/common/issue';
+import { IssueReporter } from 'vs/workbench/contrib/issue/electron-sandbox/issueReporterService';
 
 
-export function startup(configuration: IssueReporterWindowConfiguration) {
+export function startup(configuration: OldIssueReporterWindowConfiguration) {
 	const platformClass = isWindows ? 'windows' : isLinux ? 'linux' : 'mac';
 	mainWindow.document.body.classList.add(platformClass); // used by our fonts
 
@@ -30,7 +30,7 @@ export function startup(configuration: IssueReporterWindowConfiguration) {
 
 	const instantiationService = initServices(configuration.windowId);
 
-	const issueReporter = instantiationService.createInstance(IssueReporter2, configuration);
+	const issueReporter = instantiationService.createInstance(IssueReporter, configuration);
 	issueReporter.render();
 	mainWindow.document.body.style.display = 'block';
 	issueReporter.setInitialFocus();

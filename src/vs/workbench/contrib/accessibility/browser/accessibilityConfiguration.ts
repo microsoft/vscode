@@ -25,6 +25,8 @@ export const accessibleViewOnLastLine = new RawContextKey<boolean>('accessibleVi
 export const accessibleViewCurrentProviderId = new RawContextKey<string>('accessibleViewCurrentProviderId', undefined, undefined);
 export const accessibleViewInCodeBlock = new RawContextKey<boolean>('accessibleViewInCodeBlock', undefined, undefined);
 export const accessibleViewContainsCodeBlocks = new RawContextKey<boolean>('accessibleViewContainsCodeBlocks', undefined, undefined);
+export const accessibleViewHasUnassignedKeybindings = new RawContextKey<boolean>('accessibleViewHasUnassignedKeybindings', undefined, undefined);
+export const accessibleViewHasAssignedKeybindings = new RawContextKey<boolean>('accessibleViewHasAssignedKeybindings', undefined, undefined);
 
 /**
  * Miscellaneous settings tagged with accessibility and implemented in the accessibility contrib but
@@ -59,7 +61,7 @@ export const enum AccessibilityVerbositySettingId {
 	ReplInputHint = 'accessibility.verbosity.replInputHint',
 	Comments = 'accessibility.verbosity.comments',
 	DiffEditorActive = 'accessibility.verbosity.diffEditorActive',
-	DebugConsole = 'accessibility.verbosity.debugConsole',
+	Debug = 'accessibility.verbosity.debug',
 }
 
 const baseVerbosityProperty: IConfigurationPropertySchema = {
@@ -172,8 +174,8 @@ const configuration: IConfigurationNode = {
 			description: localize('verbosity.diffEditorActive', 'Indicate when a diff editor becomes the active editor.'),
 			...baseVerbosityProperty
 		},
-		[AccessibilityVerbositySettingId.DebugConsole]: {
-			description: localize('verbosity.debugConsole', 'Provide information about how to access the debug console accessibility help dialog when the debug console is focused.'),
+		[AccessibilityVerbositySettingId.Debug]: {
+			description: localize('verbosity.debug', 'Provide information about how to access the debug console accessibility help dialog when the debug console or run and debug viewlet is focused. Note that a reload of the window is required for this to take effect.'),
 			...baseVerbosityProperty
 		},
 		[AccessibilityWorkbenchSettingId.AccessibleViewCloseOnKeyPress]: {
@@ -671,6 +673,11 @@ const configuration: IConfigurationNode = {
 			'type': 'boolean',
 			'description': localize('accessibility.underlineLinks', "Controls whether links should be underlined in the workbench."),
 			'default': false,
+		},
+		'accessibility.debugWatchVariableAnnouncements': {
+			'type': 'boolean',
+			'description': localize('accessibility.debugWatchVariableAnnouncements', "Controls whether variable changes should be announced in the debug watch view."),
+			'default': true,
 		},
 	}
 };

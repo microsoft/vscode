@@ -268,15 +268,9 @@
 }
 
 .testing-followup-action {
-	position: absolute;
-	top: 100%;
-	left: 22px;
-	right: 22px;
-	margin-top: -25px;
 	line-height: 25px;
 	overflow: hidden;
 	pointer-events: none;
-	background: linear-gradient(transparent, var(--vscode-peekViewEditor-background) 50%);
 	display: flex;
 	align-items: center;
 	gap: 14px;
@@ -315,44 +309,6 @@
 
 .test-output-call-stack {
 	height: 100%;
-
-	.monaco-list-row {
-		padding: 0 3px 0 8px;
-		display: flex;
-		gap: 3px;
-
-		.location, .label {
-			white-space: nowrap;
-		}
-
-		.label {
-			flex-grow: 1;
-		}
-
-		.location {
-			/*Use direction so the source shows elipses on the left*/
-			direction: rtl;
-			overflow: hidden;
-			text-overflow: ellipsis;
-			font-size: 0.9em;
-		}
-
-		&.no-source .label {
-			opacity: 0.7;
-		}
-
-		&:hover {
-			.label {
-				overflow: hidden;
-				text-overflow: ellipsis;
-			}
-
-			.location {
-				overflow: visible;
-				text-overflow: unset;
-			}
-		}
-	}
 }
 
 /** -- filter  */
