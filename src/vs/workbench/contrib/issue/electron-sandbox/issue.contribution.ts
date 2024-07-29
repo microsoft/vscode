@@ -18,7 +18,6 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from 'vs/platform/quickinput/common/quickAccess';
 import { IssueQuickAccess } from 'vs/workbench/contrib/issue/browser/issueQuickAccess';
 import { registerSingleton, InstantiationType } from 'vs/platform/instantiation/common/extensions';
-import { IssueFormService2 } from 'vs/workbench/contrib/issue/electron-sandbox/issueFormService';
 import { NativeIssueService } from 'vs/workbench/contrib/issue/electron-sandbox/issueService';
 import 'vs/workbench/contrib/issue/electron-sandbox/issueMainService';
 import 'vs/workbench/contrib/issue/browser/issueTroubleshoot';

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 import { safeInnerHtml } from 'vs/base/browser/dom';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { isWeb } from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
 import 'vs/css!./media/issueReporter';
 import { localize } from 'vs/nls';
@@ -13,13 +12,11 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { ExtensionIdentifier, ExtensionIdentifierSet } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IProcessMainService } from 'vs/platform/issue/common/issue';
 import { ILogService } from 'vs/platform/log/common/log';
 import product from 'vs/platform/product/common/product';
 import BaseHtml from 'vs/workbench/contrib/issue/browser/issueReporterPage';
 import { IssueWebReporter } from 'vs/workbench/contrib/issue/browser/issueReporterService';
 import { IIssueFormService, IssueReporterData } from 'vs/workbench/contrib/issue/common/issue';
-// import { IssueReporter2 } from 'vs/workbench/contrib/issue/electron-sandbox/issueReporterService2';
 import { AuxiliaryWindowMode, IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 
@@ -37,9 +34,10 @@ export class IssueFormService implements IIssueFormService {
 	protected issueReporterWindow: Window | null = null;
 	protected extensionIdentifierSet: ExtensionIdentifierSet = new ExtensionIdentifierSet();
 
-	public arch: string = '';
-	public release: string = '';
-	public type: string = '';
+	protected arch: string = '';
+	protected release: string = '';
+	protected type: string = '';
+
 	constructor(
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IAuxiliaryWindowService protected readonly auxiliaryWindowService: IAuxiliaryWindowService,
@@ -47,59 +45,8 @@ export class IssueFormService implements IIssueFormService {
 		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
 		@ILogService protected readonly logService: ILogService,
 		@IDialogService protected readonly dialogService: IDialogService,
-		@IHostService protected readonly hostService: IHostService,
-		// @IProcessMainService protected readonly processMainService: IProcessMainService,
+		@IHostService protected readonly hostService: IHostService
 	) { }
-
-	async reloadWithExtensionsDisabled(): Promise<void> {
-		if (this.issueReporterWindow) {
-			try {
-				await this.hostService.reload({ disableExtensions: true });
-			} catch (error) {
-				this.logService.error(error);
-			}
-		}
-	}
-
-	async showConfirmCloseDialog(): Promise<void> {
-		await this.dialogService.prompt({
-			type: Severity.Warning,
-			message: localize('confirmCloseIssueReporter', "Your input will not be saved. Are you sure you want to close this window?"),
-			buttons: [
-				{
-					label: localize({ key: 'yes', comment: ['&& denotes a mnemonic'] }, "&&Yes"),
-					run: () => {
-						this.closeReporter();
-						this.issueReporterWindow = null;
-					}
-				},
-				{
-					label: localize('cancel', "Cancel"),
-					run: () => { }
-				}
-			]
-		});
-	}
-	async showClipboardDialog(): Promise<boolean> {
-		let result = false;
-
-		await this.dialogService.prompt({
-			type: Severity.Warning,
-			message: localize('issueReporterWriteToClipboard', "There is too much data to send to GitHub directly. The data will be copied to the clipboard, please paste it into the GitHub issue page that is opened."),
-			buttons: [
-				{
-					label: localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK"),
-					run: () => { result = true; }
-				},
-				{
-					label: localize('cancel', "Cancel"),
-					run: () => { result = false; }
-				}
-			]
-		});
-
-		return result;
-	}
 
 	async openReporter(data: IssueReporterData): Promise<void> {
 		if (data.extensionId && this.extensionIdentifierSet.has(data.extensionId)) {
@@ -112,13 +59,13 @@ export class IssueFormService implements IIssueFormService {
 			this.issueReporterWindow.focus();
 			return;
 		}
-		this.openAuxIssueReporter(data);
+
+		await this.openAuxIssueReporter(data);
 
 		if (this.issueReporterWindow) {
 			const issueReporter = this.instantiationService.createInstance(IssueWebReporter, false, data, { type: this.type, arch: this.arch, release: this.release }, product, this.issueReporterWindow);
 			issueReporter.render();
 		}
-
 	}
 
 	async openAuxIssueReporter(data: IssueReporterData): Promise<void> {
@@ -126,8 +73,6 @@ export class IssueFormService implements IIssueFormService {
 
 		// Auxiliary Window
 		const auxiliaryWindow = disposables.add(await this.auxiliaryWindowService.open({ mode: AuxiliaryWindowMode.Custom, bounds: { width: 700, height: 800 } }));
-
-
 
 		if (auxiliaryWindow) {
 			await auxiliaryWindow.whenStylesHaveLoaded;
@@ -144,16 +89,6 @@ export class IssueFormService implements IIssueFormService {
 			safeInnerHtml(div, BaseHtml());
 
 			this.issueReporterWindow = auxiliaryWindow.window;
-
-			// create issue reporter and instantiate
-			// if (isWeb) {
-			// 	const issueReporter = this.instantiationService.createInstance(IssueWebReporter, false, data, { type: this.type, arch: this.arch, release: this.release }, product, auxiliaryWindow.window);
-			// 	issueReporter.render();
-			// } else {
-			// 	const issueReporter = this.instantiationService.createInstance(IssueWebReporter, false, data, { type: this.type, arch: this.arch, release: this.release }, product, auxiliaryWindow.window);
-			// 	issueReporter.render();
-			// }
-
 		} else {
 			console.error('Failed to open auxiliary window');
 		}
@@ -198,7 +133,60 @@ export class IssueFormService implements IIssueFormService {
 		return result ?? undefined;
 	}
 
+	//#region used by issue reporter
+
 	async closeReporter(): Promise<void> {
 		this.issueReporterWindow?.close();
+	}
+
+	async reloadWithExtensionsDisabled(): Promise<void> {
+		if (this.issueReporterWindow) {
+			try {
+				await this.hostService.reload({ disableExtensions: true });
+			} catch (error) {
+				this.logService.error(error);
+			}
+		}
+	}
+
+	async showConfirmCloseDialog(): Promise<void> {
+		await this.dialogService.prompt({
+			type: Severity.Warning,
+			message: localize('confirmCloseIssueReporter', "Your input will not be saved. Are you sure you want to close this window?"),
+			buttons: [
+				{
+					label: localize({ key: 'yes', comment: ['&& denotes a mnemonic'] }, "&&Yes"),
+					run: () => {
+						this.closeReporter();
+						this.issueReporterWindow = null;
+					}
+				},
+				{
+					label: localize('cancel', "Cancel"),
+					run: () => { }
+				}
+			]
+		});
+	}
+
+	async showClipboardDialog(): Promise<boolean> {
+		let result = false;
+
+		await this.dialogService.prompt({
+			type: Severity.Warning,
+			message: localize('issueReporterWriteToClipboard', "There is too much data to send to GitHub directly. The data will be copied to the clipboard, please paste it into the GitHub issue page that is opened."),
+			buttons: [
+				{
+					label: localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK"),
+					run: () => { result = true; }
+				},
+				{
+					label: localize('cancel', "Cancel"),
+					run: () => { result = false; }
+				}
+			]
+		});
+
+		return result;
 	}
 }
