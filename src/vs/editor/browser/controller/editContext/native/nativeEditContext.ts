@@ -146,6 +146,7 @@ export class NativeEditContext extends AbstractEditContext {
 						return;
 					}
 					domNode.style.top = `${this._context.viewLayout.getVerticalOffsetForLineNumber(this._previousStartLineNumber - 5) - e.scrollTop}px`;
+					domNode.style.left = `${this._contentLeft - this._context.viewLayout.getCurrentScrollLeft()}px`;
 				}
 			}
 		}));
