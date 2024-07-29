@@ -381,6 +381,12 @@
       }
     ],
     "menus": {
+      "viewContainer/title": [
+        {
+          "command": "workbench.action.chat.newChat",
+          "group": "navigation"
+        }
+      ],
       "commandPalette": [
         {
           "command": "editor.emmet.action.wrapWithAbbreviation",

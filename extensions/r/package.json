@@ -13,6 +13,14 @@
   },
   "categories": ["Programming Languages"],
   "contributes": {
+    "menus": {
+      "viewContainer/title": [
+        {
+          "command": "workbench.action.chat.newChat",
+          "group": "navigation"
+        }
+      ]
+    },
     "languages": [
       {
         "id": "r",
