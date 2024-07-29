@@ -115,6 +115,7 @@ import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
 import { IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { fromNow } from 'vs/base/common/date';
 import { equals } from 'vs/base/common/arrays';
+import { observableConfigValue } from 'vs/platform/observable/common/platformObservableUtils';
 
 // type SCMResourceTreeNode = IResourceNode<ISCMResource, ISCMResourceGroup>;
 // type SCMHistoryItemChangeResourceTreeNode = IResourceNode<SCMHistoryItemChangeTreeElement, SCMHistoryItemTreeElement>;
@@ -3271,7 +3272,7 @@ export class SCMViewPane extends ViewPane {
 		const treeDataSource = this.instantiationService.createInstance(SCMTreeDataSource, () => this.viewMode, this.historyProviderDataSource);
 		this.disposables.add(treeDataSource);
 
-		const isCompressionEnabled = () => this.configurationService.getValue<boolean>('scm.compactFolders');
+		const compressionEnabled = observableConfigValue('scm.compactFolders', true, this.configurationService);
 
 		this.tree = this.instantiationService.createInstance(
 			WorkbenchCompressibleAsyncDataTree,
@@ -3302,7 +3303,7 @@ export class SCMViewPane extends ViewPane {
 				sorter: new SCMTreeSorter(() => this.viewMode, () => this.viewSortKey),
 				keyboardNavigationLabelProvider: this.instantiationService.createInstance(SCMTreeKeyboardNavigationLabelProvider, () => this.viewMode),
 				overrideStyles: this.getLocationBasedColors().listOverrideStyles,
-				compressionEnabled: isCompressionEnabled(),
+				compressionEnabled: compressionEnabled.get(),
 				collapseByDefault: (e: unknown) => {
 					// Repository, Resource Group, Resource Folder (Tree), History Item Change Folder (Tree)
 					if (isSCMRepository(e) || isSCMResourceGroup(e) || isSCMResourceNode(e) || isSCMHistoryItemChangeNode(e)) {
@@ -3322,13 +3323,11 @@ export class SCMViewPane extends ViewPane {
 		this.tree.onDidScroll(this.inputRenderer.clearValidation, this.inputRenderer, this.disposables);
 		Event.filter(this.tree.onDidChangeCollapseState, e => isSCMRepository(e.node.element?.element), this.disposables)(this.updateRepositoryCollapseAllContextKeys, this, this.disposables);
 
-		Event.filter(this.configurationService.onDidChangeConfiguration,
-			e => e.affectsConfiguration('scm.compactFolders'),
-			this.disposables)(() => {
-				this.tree.updateOptions({
-					compressionEnabled: isCompressionEnabled()
-				});
-			}, this, this.disposables);
+		this.disposables.add(autorun(reader => {
+			this.tree.updateOptions({
+				compressionEnabled: compressionEnabled.read(reader)
+			});
+		}));
 
 		append(container, overflowWidgetsDomNode);
 	}
