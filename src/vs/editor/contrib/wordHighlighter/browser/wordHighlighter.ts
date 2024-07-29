@@ -335,7 +335,16 @@ class WordHighlighter {
 			const newValue = this.editor.getOption(EditorOption.occurrencesHighlight);
 			if (this.occurrencesHighlight !== newValue) {
 				this.occurrencesHighlight = newValue;
-				this._stopAll();
+				switch (newValue) {
+					case 'off':
+						this._stopAll();
+					case 'singleFile':
+						this._stopAll(WordHighlighter.query?.modelInfo?.model);
+					case 'multiFile':
+						if (WordHighlighter.query) {
+							this._run();
+						}
+				}
 			}
 		}));
 
@@ -437,12 +446,12 @@ class WordHighlighter {
 		}
 	}
 
-	private _removeAllDecorations(): void {
+	private _removeAllDecorations(preservedModel?: ITextModel): void {
 		const currentEditors = this.codeEditorService.listCodeEditors();
 		const deleteURI = [];
 		// iterate over editors and store models in currentModels
 		for (const editor of currentEditors) {
-			if (!editor.hasModel()) {
+			if (!editor.hasModel() || editor.getModel().uri.toString() === preservedModel?.uri.toString()) {
 				continue;
 			}
 
@@ -505,11 +514,11 @@ class WordHighlighter {
 		}
 	}
 
-	private _stopAll() {
+	private _stopAll(preservedModel?: ITextModel): void {
 		// Remove any existing decorations
 		// TODO: @Yoyokrazy -- this triggers as notebooks scroll, causing highlights to disappear momentarily.
 		// maybe a nb type check?
-		this._removeAllDecorations();
+		this._removeAllDecorations(preservedModel);
 
 		// Cancel any renderDecorationsTimer
 		if (this.renderDecorationsTimer !== -1) {
@@ -786,7 +795,7 @@ class WordHighlighter {
 	}
 
 	public dispose(): void {
-		this._stopSingular();
+		this._stopSingular(); //! should this be stop all?
 		this.toUnhook.dispose();
 	}
 }
