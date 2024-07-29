@@ -11,10 +11,12 @@ import { DocumentSelector } from '../configuration/documentSelector';
 import { documentationToMarkdown } from './util/textRendering';
 import * as typeConverters from '../typeConverters';
 import FileConfigurationManager from './fileConfigurationManager';
-
+import { API } from '../tsServer/api';
 
 
 class TypeScriptHoverProvider implements vscode.HoverProvider {
+
+	private readonly hoverToLevel: Map<vscode.Hover, number> = new Map();
 
 	public constructor(
 		private readonly client: ITypeScriptServiceClient,
@@ -24,17 +26,24 @@ class TypeScriptHoverProvider implements vscode.HoverProvider {
 	public async provideHover(
 		document: vscode.TextDocument,
 		position: vscode.Position,
-		token: vscode.CancellationToken
-	): Promise<vscode.Hover | undefined> {
+		token: vscode.CancellationToken,
+		context?: vscode.HoverContext,
+	): Promise<vscode.VerboseHover | undefined> {
 		const filepath = this.client.toOpenTsFilePath(document);
 		if (!filepath) {
 			return undefined;
 		}
 
+		let verbosityLevel: number | undefined;
+		if (this.client.apiVersion.gte(API.v560)) { // >> TODO: use v570
+			const previousLevel = (context?.previousHover && this.hoverToLevel.get(context.previousHover)) ?? 0;
+			verbosityLevel = Math.max(0, previousLevel + (context?.verbosityDelta ?? 0));
+		}
+		const args = { ...typeConverters.Position.toFileLocationRequestArgs(filepath, position), verbosityLevel };
+
 		const response = await this.client.interruptGetErr(async () => {
 			await this.fileConfigurationManager.ensureConfigurationForDocument(document, token);
 
-			const args = typeConverters.Position.toFileLocationRequestArgs(filepath, position);
 			return this.client.execute('quickinfo', args, token);
 		});
 
@@ -42,9 +51,23 @@ class TypeScriptHoverProvider implements vscode.HoverProvider {
 			return undefined;
 		}
 
-		return new vscode.Hover(
-			this.getContents(document.uri, response.body, response._serverType),
-			typeConverters.Range.fromTextSpan(response.body));
+		const contents = this.getContents(document.uri, response.body, response._serverType);
+		const range = typeConverters.Range.fromTextSpan(response.body);
+		const hover = verbosityLevel !== undefined ?
+			new vscode.VerboseHover(
+				contents,
+				range,
+				/*canIncreaseVerbosity*/ true,
+				/*canDecreaseVerbosity*/ verbosityLevel !== 0
+			) : new vscode.Hover(
+				contents,
+				range
+			);
+
+		if (verbosityLevel !== undefined) {
+			this.hoverToLevel.set(hover, verbosityLevel);
+		}
+		return hover;
 	}
 
 	private getContents(
