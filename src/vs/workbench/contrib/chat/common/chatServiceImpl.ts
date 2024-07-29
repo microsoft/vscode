@@ -544,6 +544,7 @@ export class ChatService extends Disposable implements IChatService {
 						rawResult.errorDetails && gotProgress ? 'errorWithOutput' :
 							rawResult.errorDetails ? 'error' :
 								'success';
+					const commandForTelemetry = agentSlashCommandPart ? agentSlashCommandPart.command.name : commandPart?.slashCommand.command;
 					this.telemetryService.publicLog2<ChatProviderInvokedEvent, ChatProviderInvokedClassification>('interactiveSessionProviderInvoked', {
 						timeToFirstProgress: rawResult.timings?.firstProgress,
 						totalTime: rawResult.timings?.totalElapsed,
@@ -551,7 +552,7 @@ export class ChatService extends Disposable implements IChatService {
 						requestType,
 						agent: agentPart?.agent.id ?? '',
 						agentExtensionId: agentPart?.agent.extensionId.value ?? '',
-						slashCommand: agentSlashCommandPart ? agentSlashCommandPart.command.name : commandPart?.slashCommand.command,
+						slashCommand: commandForTelemetry,
 						chatSessionId: model.sessionId,
 						location,
 						citations: request.response?.codeCitations.length ?? 0
@@ -564,6 +565,7 @@ export class ChatService extends Disposable implements IChatService {
 					if (agentOrCommandFollowups) {
 						agentOrCommandFollowups.then(followups => {
 							model.setFollowups(request, followups);
+							this._chatServiceTelemetry.retrievedFollowups(agentPart?.agent.id ?? '', commandForTelemetry, followups?.length ?? 0);
 						});
 					}
 				}
