@@ -248,10 +248,6 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 				this._onError.fire(error);
 			});
 
-			this.serverProcess.stderr!.on('data', data => {
-				console.log(data);
-			});
-
 			this.serverProcess.stderr!.resume();
 
 			// finally connect to the DA
