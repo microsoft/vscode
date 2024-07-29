@@ -300,7 +300,12 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 		id: REOPEN_WITH_COMMAND_ID,
 		title: nls.localize('reopenWith', "Reopen Editor With...")
 	},
-	when: ActiveEditorAvailableEditorIdsContext
+	when: ContextKeyExpr.and(
+		// Editors with Available Choices to Open With
+		ActiveEditorAvailableEditorIdsContext,
+		// Not: editor groups
+		OpenEditorsGroupContext.toNegated()
+	)
 });
 
 MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
