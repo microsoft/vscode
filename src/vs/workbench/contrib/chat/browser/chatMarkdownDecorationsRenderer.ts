@@ -106,7 +106,7 @@ export class ChatMarkdownDecorationsRenderer {
 		const uri = part instanceof ChatRequestDynamicVariablePart && part.data instanceof URI ?
 			part.data :
 			undefined;
-		const title = uri ? encodeURIComponent(this.labelService.getUriLabel(uri, { relative: true })) :
+		const title = uri ? this.labelService.getUriLabel(uri, { relative: true }) :
 			part instanceof ChatRequestSlashCommandPart ? part.slashCommand.detail :
 				part instanceof ChatRequestAgentSubcommandPart ? part.command.description :
 					part instanceof ChatRequestVariablePart ? (this.chatVariablesService.getVariable(part.variableName)?.description ?? '') :
