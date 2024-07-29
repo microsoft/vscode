@@ -38,7 +38,7 @@ export interface ITestingDecorationsService {
 
 	/**
 	 * Gets the range where a test ID is displayed, in the given URI.
-	 * Returns undefined if there's no sucodicon-testing-run-iconch decoration.
+	 * Returns undefined if there's no such decoration.
 	 */
 	getDecoratedTestPosition(resource: URI, testId: string): Position | undefined;
 
