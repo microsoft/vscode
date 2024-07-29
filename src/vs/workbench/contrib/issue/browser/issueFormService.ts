@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { safeInnerHtml } from 'vs/base/browser/dom';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { isWeb } from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
 import 'vs/css!./media/issueReporter';
 import { localize } from 'vs/nls';
@@ -12,11 +13,13 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { ExtensionIdentifier, ExtensionIdentifierSet } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IProcessMainService } from 'vs/platform/issue/common/issue';
 import { ILogService } from 'vs/platform/log/common/log';
 import product from 'vs/platform/product/common/product';
 import BaseHtml from 'vs/workbench/contrib/issue/browser/issueReporterPage';
 import { IssueWebReporter } from 'vs/workbench/contrib/issue/browser/issueReporterService';
 import { IIssueFormService, IssueReporterData } from 'vs/workbench/contrib/issue/common/issue';
+// import { IssueReporter2 } from 'vs/workbench/contrib/issue/electron-sandbox/issueReporterService2';
 import { AuxiliaryWindowMode, IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 
@@ -29,19 +32,23 @@ export class IssueFormService implements IIssueFormService {
 
 	readonly _serviceBrand: undefined;
 
-	private currentData: IssueReporterData | undefined;
+	protected currentData: IssueReporterData | undefined;
 
-	private issueReporterWindow: Window | null = null;
-	private extensionIdentifierSet: ExtensionIdentifierSet = new ExtensionIdentifierSet();
+	protected issueReporterWindow: Window | null = null;
+	protected extensionIdentifierSet: ExtensionIdentifierSet = new ExtensionIdentifierSet();
 
+	public arch: string = '';
+	public release: string = '';
+	public type: string = '';
 	constructor(
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IAuxiliaryWindowService private readonly auxiliaryWindowService: IAuxiliaryWindowService,
-		@IMenuService private readonly menuService: IMenuService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@ILogService private readonly logService: ILogService,
-		@IDialogService private readonly dialogService: IDialogService,
-		@IHostService private readonly hostService: IHostService,
+		@IInstantiationService protected readonly instantiationService: IInstantiationService,
+		@IAuxiliaryWindowService protected readonly auxiliaryWindowService: IAuxiliaryWindowService,
+		@IMenuService protected readonly menuService: IMenuService,
+		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
+		@ILogService protected readonly logService: ILogService,
+		@IDialogService protected readonly dialogService: IDialogService,
+		@IHostService protected readonly hostService: IHostService,
+		// @IProcessMainService protected readonly processMainService: IProcessMainService,
 	) { }
 
 	async reloadWithExtensionsDisabled(): Promise<void> {
@@ -106,15 +113,21 @@ export class IssueFormService implements IIssueFormService {
 			return;
 		}
 		this.openAuxIssueReporter(data);
+
+		if (this.issueReporterWindow) {
+			const issueReporter = this.instantiationService.createInstance(IssueWebReporter, false, data, { type: this.type, arch: this.arch, release: this.release }, product, this.issueReporterWindow);
+			issueReporter.render();
+		}
+
 	}
 
 	async openAuxIssueReporter(data: IssueReporterData): Promise<void> {
 		const disposables = new DisposableStore();
 
 		// Auxiliary Window
-		const auxiliaryWindow = disposables.add(await this.auxiliaryWindowService.open({ mode: AuxiliaryWindowMode.Normal, bounds: { width: 700, height: 800 } }));
+		const auxiliaryWindow = disposables.add(await this.auxiliaryWindowService.open({ mode: AuxiliaryWindowMode.Custom, bounds: { width: 700, height: 800 } }));
 
-		this.issueReporterWindow = auxiliaryWindow.window;
+
 
 		if (auxiliaryWindow) {
 			await auxiliaryWindow.whenStylesHaveLoaded;
@@ -130,9 +143,17 @@ export class IssueFormService implements IIssueFormService {
 			auxiliaryWindow.window.document.body.appendChild(div);
 			safeInnerHtml(div, BaseHtml());
 
+			this.issueReporterWindow = auxiliaryWindow.window;
+
 			// create issue reporter and instantiate
-			const issueReporter = this.instantiationService.createInstance(IssueWebReporter, false, data, { type: '', arch: '', release: '' }, product, auxiliaryWindow.window);
-			issueReporter.render();
+			// if (isWeb) {
+			// 	const issueReporter = this.instantiationService.createInstance(IssueWebReporter, false, data, { type: this.type, arch: this.arch, release: this.release }, product, auxiliaryWindow.window);
+			// 	issueReporter.render();
+			// } else {
+			// 	const issueReporter = this.instantiationService.createInstance(IssueWebReporter, false, data, { type: this.type, arch: this.arch, release: this.release }, product, auxiliaryWindow.window);
+			// 	issueReporter.render();
+			// }
+
 		} else {
 			console.error('Failed to open auxiliary window');
 		}

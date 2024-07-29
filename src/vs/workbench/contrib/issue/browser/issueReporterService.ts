@@ -37,7 +37,6 @@ export class IssueWebReporter extends BaseIssueReporterService {
 			target?.appendChild(this.window.document.createTextNode(webInfo));
 			this.receivedSystemInfo = true;
 			this.issueReporterModel.update({ systemInfoWeb: webInfo });
-
 		}
 
 		this.setEventHandlers();

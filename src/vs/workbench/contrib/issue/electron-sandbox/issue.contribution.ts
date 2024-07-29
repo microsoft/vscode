@@ -23,12 +23,14 @@ import { NativeIssueService } from 'vs/workbench/contrib/issue/electron-sandbox/
 import 'vs/workbench/contrib/issue/electron-sandbox/issueMainService';
 import 'vs/workbench/contrib/issue/browser/issueTroubleshoot';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { NativeIssueFormService } from 'vs/workbench/contrib/issue/electron-sandbox/nativeIssueFormService';
 
 
 //#region Issue Contribution
 
 registerSingleton(IWorkbenchIssueService, NativeIssueService, InstantiationType.Delayed);
-registerSingleton(IIssueFormService, IssueFormService2, InstantiationType.Delayed);
+// registerSingleton(IIssueFormService, IssueFormService2, InstantiationType.Delayed);
+registerSingleton(IIssueFormService, NativeIssueFormService, InstantiationType.Delayed);
 
 class NativeIssueContribution extends BaseIssueContribution {
 
