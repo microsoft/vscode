@@ -4123,9 +4123,9 @@ class SCMTreeHistoryProviderDataSource extends Disposable {
 			});
 		}
 
-		// If we only have one history item that contains all the
-		// labels (current, remote, base), we don't need to show it
-		if (historyItemsElement.length === 1) {
+		// If we only have one history item that contains all the labels (current, remote, base),
+		// we don't need to show it, unless it is the root commit (does not have any parents).
+		if (historyItemsElement.length === 1 && historyItemsElement[0].parentIds.length > 0) {
 			const currentHistoryItemGroupLabels = [
 				currentHistoryItemGroup.name,
 				...currentHistoryItemGroup.remote ? [currentHistoryItemGroup.remote.name] : [],

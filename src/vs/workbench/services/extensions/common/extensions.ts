@@ -386,6 +386,11 @@ export interface WillStopExtensionHostsEvent {
 	readonly reason: string;
 
 	/**
+	 * A flag to indicate if the operation was triggered automatically
+	 */
+	readonly auto: boolean;
+
+	/**
 	 * Allows to veto the stopping of extension hosts. The veto can be a long running
 	 * operation.
 	 *

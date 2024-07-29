@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { importAMDNodeModule, resolveAmdNodeModulePath } from 'vs/amdX';
+import { isESM } from 'vs/base/common/amd';
 import * as dom from 'vs/base/browser/dom';
 import { equals as equalArray } from 'vs/base/common/arrays';
 import { Color } from 'vs/base/common/color';
@@ -38,7 +39,6 @@ import { ITMSyntaxExtensionPoint, grammarsExtPoint } from 'vs/workbench/services
 import { IValidEmbeddedLanguagesMap, IValidGrammarDefinition, IValidTokenTypeMap } from 'vs/workbench/services/textMate/common/TMScopeRegistry';
 import { ITextMateThemingRule, IWorkbenchColorTheme, IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import type { IGrammar, IOnigLib, IRawTheme } from 'vscode-textmate';
-import { isESM } from 'vs/base/common/amd';
 
 export class TextMateTokenizationFeature extends Disposable implements ITextMateTokenizationService {
 	private static reportTokenizationTimeCounter = { sync: 0, async: 0 };
@@ -372,11 +372,9 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 
 	private async _loadVSCodeOnigurumaWASM(): Promise<Response | ArrayBuffer> {
 		if (isWeb) {
-			const url = isESM
+			const response = await fetch(isESM
 				? resolveAmdNodeModulePath('vscode-oniguruma', 'release/onig.wasm')
-				: FileAccess.asBrowserUri('vscode-oniguruma/../onig.wasm').toString(true);
-
-			const response = await fetch(url);
+				: FileAccess.asBrowserUri('vscode-oniguruma/../onig.wasm').toString(true));
 			// Using the response directly only works if the server sets the MIME type 'application/wasm'.
 			// Otherwise, a TypeError is thrown when using the streaming compiler.
 			// We therefore use the non-streaming compiler :(.

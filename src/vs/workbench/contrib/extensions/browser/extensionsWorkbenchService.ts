@@ -1052,7 +1052,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 					this.setEnabledAutoUpdateExtensions([]);
 					this.setDisabledAutoUpdateExtensions([]);
 					this._onChange.fire(undefined);
-					this.extensionManagementService.resetPinnedStateForAllUserExtensions(!isAutoUpdateEnabled);
+					this.updateExtensionsPinnedState(!isAutoUpdateEnabled);
 				}
 				if (isAutoUpdateEnabled) {
 					this.eventuallyAutoUpdateExtensions();
@@ -1179,6 +1179,13 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		for (const changedExtension of changedExtensions) {
 			this._onChange.fire(changedExtension);
 		}
+	}
+
+	private updateExtensionsPinnedState(pinned: boolean): Promise<void> {
+		return this.progressService.withProgress({
+			location: ProgressLocation.Extensions,
+			title: nls.localize('updatingExtensions', "Updating Extensions Auto Update State"),
+		}, () => this.extensionManagementService.resetPinnedStateForAllUserExtensions(pinned));
 	}
 
 	private reset(): void {
