@@ -1506,6 +1506,21 @@ export class Repository {
 		return parseGitChanges(this.repositoryRoot, gitResult.stdout);
 	}
 
+	async diffTrees(treeish1: string, treeish2?: string): Promise<Change[]> {
+		const args = ['diff-tree', '-r', '--name-status', '-z', '--diff-filter=ADMR', treeish1];
+
+		if (treeish2) {
+			args.push(treeish2);
+		}
+
+		const gitResult = await this.exec(args);
+		if (gitResult.exitCode) {
+			return [];
+		}
+
+		return parseGitChanges(this.repositoryRoot, gitResult.stdout);
+	}
+
 	async getMergeBase(ref1: string, ref2: string, ...refs: string[]): Promise<string | undefined> {
 		try {
 			const args = ['merge-base'];
