@@ -348,6 +348,11 @@ export interface IChatSendRequestOptions {
 	/** The target agent ID can be specified with this property instead of using @ in 'message' */
 	agentId?: string;
 	slashCommand?: string;
+
+	/**
+	 * The label of the confirmation action that was selected.
+	 */
+	confirmation?: string;
 }
 
 export const IChatService = createDecorator<IChatService>('IChatService');
