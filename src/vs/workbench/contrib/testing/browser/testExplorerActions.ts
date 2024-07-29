@@ -707,7 +707,7 @@ export class CancelTestRunAction extends Action2 {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.Semicolon, KeyMod.CtrlCmd | KeyCode.KeyX),
 			},
-			menu: {
+			menu: [{
 				id: MenuId.ViewTitle,
 				order: ActionOrder.Run,
 				group: 'navigation',
@@ -715,19 +715,23 @@ export class CancelTestRunAction extends Action2 {
 					ContextKeyExpr.equals('view', Testing.ExplorerViewId),
 					ContextKeyExpr.equals(TestingContextKeys.isRunning.serialize(), true),
 				)
-			}
+			}]
 		});
 	}
 
 	/**
 	 * @override
 	 */
-	public async run(accessor: ServicesAccessor) {
+	public async run(accessor: ServicesAccessor, resultId?: string, taskId?: string) {
 		const resultService = accessor.get(ITestResultService);
 		const testService = accessor.get(ITestService);
-		for (const run of resultService.results) {
-			if (!run.completedAt) {
-				testService.cancelTestRun(run.id);
+		if (resultId) {
+			testService.cancelTestRun(resultId, taskId);
+		} else {
+			for (const run of resultService.results) {
+				if (!run.completedAt) {
+					testService.cancelTestRun(run.id);
+				}
 			}
 		}
 	}
