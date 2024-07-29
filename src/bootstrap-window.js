@@ -197,6 +197,7 @@ const isESM = false;
 			// using a fallback such as node.js require which does not exist in sandbox
 			const baseNodeModulesPath = isDev ? '../node_modules' : '../node_modules.asar';
 			loaderConfig.paths = {
+				'@vscode/tree-sitter-wasm': `${baseNodeModulesPath}/@vscode/tree-sitter-wasm/wasm/tree-sitter.js`,
 				'vscode-textmate': `${baseNodeModulesPath}/vscode-textmate/release/main.js`,
 				'vscode-oniguruma': `${baseNodeModulesPath}/vscode-oniguruma/release/main.js`,
 				'vsda': `${baseNodeModulesPath}/vsda/index.js`,
