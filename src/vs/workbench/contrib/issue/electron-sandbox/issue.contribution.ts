@@ -28,7 +28,6 @@ import { NativeIssueFormService } from 'vs/workbench/contrib/issue/electron-sand
 //#region Issue Contribution
 
 registerSingleton(IWorkbenchIssueService, NativeIssueService, InstantiationType.Delayed);
-// registerSingleton(IIssueFormService, IssueFormService2, InstantiationType.Delayed);
 registerSingleton(IIssueFormService, NativeIssueFormService, InstantiationType.Delayed);
 
 class NativeIssueContribution extends BaseIssueContribution {
