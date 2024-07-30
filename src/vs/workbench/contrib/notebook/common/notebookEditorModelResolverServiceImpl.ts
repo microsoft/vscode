@@ -9,7 +9,6 @@ import { CellUri, IResolvedNotebookEditorModel, NotebookEditorModelCreationOptio
 import { NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModelFactory, SimpleNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
 import { combinedDisposable, DisposableStore, dispose, IDisposable, IReference, ReferenceCollection, toDisposable } from 'vs/base/common/lifecycle';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { ILogService } from 'vs/platform/log/common/log';
 import { AsyncEmitter, Emitter, Event } from 'vs/base/common/event';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
@@ -23,6 +22,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFileReadLimits } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { INotebookLoggingService } from 'vs/workbench/contrib/notebook/common/notebookLoggingService';
 
 class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IResolvedNotebookEditorModel>> {
 
@@ -42,9 +42,9 @@ class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IReso
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@INotebookService private readonly _notebookService: INotebookService,
-		@ILogService private readonly _logService: ILogService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@INotebookLoggingService private readonly _notebookLoggingService: INotebookLoggingService,
 	) {
 		super();
 	}
@@ -70,7 +70,7 @@ class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IReso
 		const workingCopyTypeId = NotebookWorkingCopyTypeIdentifier.create(viewType);
 		let workingCopyManager = this._workingCopyManagers.get(workingCopyTypeId);
 		if (!workingCopyManager) {
-			const factory = new NotebookFileWorkingCopyModelFactory(viewType, this._notebookService, this._configurationService, this._telemetryService, this._logService);
+			const factory = new NotebookFileWorkingCopyModelFactory(viewType, this._notebookService, this._configurationService, this._telemetryService, this._notebookLoggingService);
 			workingCopyManager = <IFileWorkingCopyManager<NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModel>><any>this._instantiationService.createInstance(
 				FileWorkingCopyManager,
 				workingCopyTypeId,
@@ -138,7 +138,7 @@ class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IReso
 				this._modelListener.delete(model);
 				model.dispose();
 			} catch (err) {
-				this._logService.error('FAILED to destory notebook', err);
+				this._notebookLoggingService.error('NotebookModelCollection', 'FAILED to destory notebook - ' + err);
 			} finally {
 				this.modelsToDispose.delete(key); // Untrack as being disposed
 			}
