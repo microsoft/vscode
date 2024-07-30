@@ -53,7 +53,6 @@ const vscodeResources = [
 	'out-build/loader-*.mjs',
 	'out-build/nls.messages.json',
 	'out-build/nls.keys.json',
-	'out-build/package.json', // TODO@bpasero ESM: this is a stepping stone until we can set this on the root package.json
 	'out-build/vs/**/*.{svg,png,html,jpg,mp3}',
 	'!out-build/vs/code/browser/**/*.html',
 	'!out-build/vs/code/**/*-dev.html',
@@ -82,8 +81,6 @@ const vscodeResources = [
 // be inlined into the target window file in this order
 // and they depend on each other in this way.
 const windowBootstrapFiles = [
-	'out-build/bootstrap.js',
-	'out-build/vs/loader.js',
 	'out-build/bootstrap-window.js'
 ];
 
@@ -245,7 +242,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 		}
 
 		const name = product.nameShort;
-		const packageJsonUpdates = { name, version };
+		const packageJsonUpdates = { name, version, type: 'module', main: 'out/main.js' }; // TODO@esm this should be configured in the top level package.json
 
 		// for linux url handling
 		if (platform === 'linux') {
@@ -286,18 +283,19 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 			.pipe(util.cleanNodeModules(path.join(__dirname, `.moduleignore.${process.platform}`)))
 			.pipe(jsFilter)
 			.pipe(util.rewriteSourceMappingURL(sourceMappingURLBase))
-			.pipe(jsFilter.restore)
-			.pipe(createAsar(path.join(process.cwd(), 'node_modules'), [
-				'**/*.node',
-				'**/@vscode/ripgrep/bin/*',
-				'**/node-pty/build/Release/*',
-				'**/node-pty/lib/worker/conoutSocketWorker.js',
-				'**/node-pty/lib/shared/conout.js',
-				'**/*.wasm',
-				'**/@vscode/vsce-sign/bin/*',
-			], [
-				'**/*.mk',
-			], 'node_modules.asar'));
+			.pipe(jsFilter.restore);
+		// TODO@esm: ASAR disabled in ESM
+		// .pipe(createAsar(path.join(process.cwd(), 'node_modules'), [
+		// 	'**/*.node',
+		// 	'**/@vscode/ripgrep/bin/*',
+		// 	'**/node-pty/build/Release/*',
+		// 	'**/node-pty/lib/worker/conoutSocketWorker.js',
+		// 	'**/node-pty/lib/shared/conout.js',
+		// 	'**/*.wasm',
+		// 	'**/@vscode/vsce-sign/bin/*',
+		// ], [
+		// 	'**/*.mk',
+		// ], 'node_modules.asar'));
 
 		let all = es.merge(
 			packageJsonStream,

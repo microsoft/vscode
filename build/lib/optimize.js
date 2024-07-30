@@ -205,7 +205,7 @@ function optimizeESMTask(opts, cjsOpts) {
     const bundleInfoStream = es.through(); // this stream will contain bundleInfo.json
     const entryPoints = opts.entryPoints;
     if (cjsOpts) {
-        cjsOpts.entryPoints.forEach(entryPoint => entryPoints.push({ name: path.parse(entryPoint).name })); // TODO@bpasero ESM: this is brittle and only works for top-level bootstrap entry points
+        cjsOpts.entryPoints.forEach(entryPoint => entryPoints.push({ name: path.parse(entryPoint).name }));
     }
     const allMentionedModules = new Set();
     for (const entryPoint of entryPoints) {
@@ -261,7 +261,8 @@ function optimizeESMTask(opts, cjsOpts) {
                 }
                 for (const file of res.outputFiles) {
                     let contents = file.contents;
-                    if (file.path.endsWith('.js')) {
+                    // 3 TODO this seems to break the build
+                    if (false && file.path.endsWith('.js')) {
                         const newText = bundle.removeDuplicateTSBoilerplate(file.text, []);
                         contents = Buffer.from(newText);
                     }

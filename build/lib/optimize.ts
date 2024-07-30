@@ -271,7 +271,7 @@ function optimizeAMDTask(opts: IOptimizeAMDTaskOpts): NodeJS.ReadWriteStream {
 		}) : es.through());
 }
 
-function optimizeESMTask(opts: IOptimizeAMDTaskOpts, cjsOpts?: IOptimizeCommonJSTaskOpts): NodeJS.ReadWriteStream { // TODO@bpasero ESM: these 2 should merge into one
+function optimizeESMTask(opts: IOptimizeAMDTaskOpts, cjsOpts?: IOptimizeCommonJSTaskOpts): NodeJS.ReadWriteStream {
 	// 1 TODO
 	// honor IEntryPoint#prepred/append (unused?)
 
@@ -287,7 +287,7 @@ function optimizeESMTask(opts: IOptimizeAMDTaskOpts, cjsOpts?: IOptimizeCommonJS
 
 	const entryPoints = opts.entryPoints;
 	if (cjsOpts) {
-		cjsOpts.entryPoints.forEach(entryPoint => entryPoints.push({ name: path.parse(entryPoint).name })); // TODO@bpasero ESM: this is brittle and only works for top-level bootstrap entry points
+		cjsOpts.entryPoints.forEach(entryPoint => entryPoints.push({ name: path.parse(entryPoint).name }));
 	}
 
 	const allMentionedModules = new Set<string>();
@@ -357,7 +357,8 @@ function optimizeESMTask(opts: IOptimizeAMDTaskOpts, cjsOpts?: IOptimizeCommonJS
 				for (const file of res.outputFiles) {
 
 					let contents = file.contents;
-					if (file.path.endsWith('.js')) {
+					// 3 TODO this seems to break the build
+					if (false && file.path.endsWith('.js')) {
 						const newText = bundle.removeDuplicateTSBoilerplate(file.text, []);
 						contents = Buffer.from(newText);
 					}
