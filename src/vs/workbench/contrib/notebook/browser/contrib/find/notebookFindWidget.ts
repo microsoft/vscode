@@ -25,6 +25,7 @@ import { NotebookFindFilters } from 'vs/workbench/contrib/notebook/browser/contr
 import { FindModel } from 'vs/workbench/contrib/notebook/browser/contrib/find/findModel';
 import { SimpleFindReplaceWidget } from 'vs/workbench/contrib/notebook/browser/contrib/find/notebookFindReplaceWidget';
 import { CellEditState, ICellViewModel, INotebookEditor, INotebookEditorContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookFindScope } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 
 const FIND_HIDE_TRANSITION = 'find-hide-transition';
@@ -39,6 +40,7 @@ export interface IShowNotebookFindWidgetOptions {
 	matchIndex?: number;
 	focus?: boolean;
 	searchStringSeededFrom?: { cell: ICellViewModel; range: Range };
+	findScope?: INotebookFindScope;
 }
 
 export class NotebookFindContrib extends Disposable implements INotebookEditorContribution {
@@ -118,7 +120,7 @@ class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEdi
 		}));
 
 		this._register(DOM.addDisposableListener(this.getDomNode(), DOM.EventType.FOCUS, e => {
-			this._previousFocusElement = e.relatedTarget instanceof HTMLElement ? e.relatedTarget : undefined;
+			this._previousFocusElement = DOM.isHTMLElement(e.relatedTarget) ? e.relatedTarget : undefined;
 		}, true));
 	}
 
@@ -345,9 +347,7 @@ class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEdi
 		this._matchesCount.title = '';
 
 		// remove previous content
-		if (this._matchesCount.firstChild) {
-			this._matchesCount.removeChild(this._matchesCount.firstChild);
-		}
+		this._matchesCount.firstChild?.remove();
 
 		let label: string;
 

@@ -273,7 +273,7 @@ export async function applyCodeAction(
 		codeActionKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The kind (refactor, quickfix) of the applied code action' };
 		codeActionIsPreferred: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Was the code action marked as being a preferred action?' };
 		reason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The kind of action used to trigger apply code action.' };
-		owner: 'mjbvz';
+		owner: 'justschen';
 		comment: 'Event used to gain insights into which code actions are being triggered';
 	};
 

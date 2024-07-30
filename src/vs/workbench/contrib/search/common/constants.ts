@@ -30,7 +30,7 @@ export const enum SearchCommandIds {
 	RevealInSideBarForSearchResults = 'search.action.revealInSideBar',
 	ReplaceInFilesActionId = 'workbench.action.replaceInFiles',
 	ShowAllSymbolsActionId = 'workbench.action.showAllSymbols',
-	QuickTextSearchActionId = 'workbench.action.experimental.quickTextSearch',
+	QuickTextSearchActionId = 'workbench.action.quickTextSearch',
 	CancelSearchActionId = 'search.action.cancel',
 	RefreshSearchResultsActionId = 'search.action.refreshSearchResults',
 	FocusNextSearchResultActionId = 'search.action.focusNextSearchResult',

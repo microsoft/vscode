@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createCancelablePromise, firstParallel } from 'vs/base/common/async';
+import { createCancelablePromise, firstParallel, timeout } from 'vs/base/common/async';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import * as nls from 'vs/nls';
@@ -27,7 +27,7 @@ import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/c
 import type * as vscode from 'vscode';
 import { ExtHostConfigProvider, IExtHostConfiguration } from '../common/extHostConfiguration';
 import { IExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
-import { createHash } from 'crypto';
+import { IExtHostTesting } from 'vs/workbench/api/common/extHostTesting';
 
 export class ExtHostDebugService extends ExtHostDebugServiceBase {
 
@@ -45,8 +45,9 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 		@IExtHostEditorTabs editorTabs: IExtHostEditorTabs,
 		@IExtHostVariableResolverProvider variableResolver: IExtHostVariableResolverProvider,
 		@IExtHostCommands commands: IExtHostCommands,
+		@IExtHostTesting testing: IExtHostTesting,
 	) {
-		super(extHostRpcService, workspaceService, extensionService, configurationService, editorTabs, variableResolver, commands);
+		super(extHostRpcService, workspaceService, extensionService, configurationService, editorTabs, variableResolver, commands, testing);
 	}
 
 	protected override createDebugAdapter(adapter: IAdapterDescriptor, session: ExtHostDebugSession): AbstractDebugAdapter | undefined {
@@ -79,9 +80,9 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 
 			if (!this._terminalDisposedListener) {
 				// React on terminal disposed and check if that is the debug terminal #12956
-				this._terminalDisposedListener = this._terminalService.onDidCloseTerminal(terminal => {
+				this._terminalDisposedListener = this._register(this._terminalService.onDidCloseTerminal(terminal => {
 					this._integratedTerminalInstances.onTerminalClosed(terminal);
-				});
+				}));
 			}
 
 			const configProvider = await this._configurationService.getConfigProvider();
@@ -90,8 +91,8 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 
 			const terminalName = args.title || nls.localize('debug.terminal.title', "Debug Process");
 
-			const termKey = createKeyForShell(shell, shellArgs, args);
-			let terminal = await this._integratedTerminalInstances.checkout(termKey, terminalName, true);
+			const shellConfig = JSON.stringify({ shell, shellArgs });
+			let terminal = await this._integratedTerminalInstances.checkout(shellConfig, terminalName);
 
 			let cwdForPrepareCommand: string | undefined;
 			let giveShellTimeToInitialize = false;
@@ -103,7 +104,6 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 					cwd: args.cwd,
 					name: terminalName,
 					iconPath: new ThemeIcon('debug'),
-					env: args.env,
 				};
 				giveShellTimeToInitialize = true;
 				terminal = this._terminalService.createTerminalFromOptions(options, {
@@ -113,7 +113,7 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 					forceShellIntegration: true,
 					useShellEnvironment: true
 				});
-				this._integratedTerminalInstances.insert(terminal, termKey);
+				this._integratedTerminalInstances.insert(terminal, shellConfig);
 
 			} else {
 				cwdForPrepareCommand = args.cwd;
@@ -129,6 +129,7 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 			} else {
 				if (terminal.state.isInteractedWith) {
 					terminal.sendText('\u0003'); // Ctrl+C for #106743. Not part of the same command for #107969
+					await timeout(200); // mirroring https://github.com/microsoft/vscode/blob/c67ccc70ece5f472ec25464d3eeb874cfccee9f1/src/vs/workbench/contrib/terminal/browser/terminalInstance.ts#L852-L857
 				}
 
 				if (configProvider.getConfiguration('debug.terminal').get<boolean>('clearBeforeReusing')) {
@@ -145,7 +146,7 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 				}
 			}
 
-			const command = prepareCommand(shell, args.args, !!args.argsCanBeInterpretedByShell, cwdForPrepareCommand);
+			const command = prepareCommand(shell, args.args, !!args.argsCanBeInterpretedByShell, cwdForPrepareCommand, args.env);
 			terminal.sendText(command);
 
 			// Mark terminal as unused when its session ends, see #112055
@@ -163,14 +164,6 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 		}
 		return super.$runInTerminal(args, sessionId);
 	}
-}
-
-/** Creates a key that determines how terminals get reused */
-function createKeyForShell(shell: string, shellArgs: string | string[], args: DebugProtocol.RunInTerminalRequestArguments) {
-	const hash = createHash('sha256');
-	hash.update(JSON.stringify({ shell, shellArgs }));
-	hash.update(JSON.stringify(Object.entries(args.env || {}).sort(([k1], [k2]) => k1.localeCompare(k2))));
-	return hash.digest('base64');
 }
 
 let externalTerminalService: IExternalTerminalService | undefined = undefined;

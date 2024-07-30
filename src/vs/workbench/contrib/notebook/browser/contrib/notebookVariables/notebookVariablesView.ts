@@ -128,9 +128,8 @@ export class NotebookVariablesView extends ViewPane {
 			[CONTEXT_VARIABLE_LANGUAGE.key, element.language],
 			[CONTEXT_VARIABLE_EXTENSIONID.key, element.extensionId]
 		]);
-		const menu = this.menuService.createMenu(MenuId.NotebookVariablesContext, overlayedContext);
-		createAndFillInContextMenuActions(menu, { arg, shouldForwardArgs: true }, actions);
-		menu.dispose();
+		const menu = this.menuService.getMenuActions(MenuId.NotebookVariablesContext, overlayedContext, { arg, shouldForwardArgs: true });
+		createAndFillInContextMenuActions(menu, actions);
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
 			getActions: () => actions

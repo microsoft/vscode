@@ -8,7 +8,7 @@ declare module 'vscode' {
 	export type ChatWelcomeMessageContent = string | MarkdownString;
 
 	export interface ChatWelcomeMessageProvider {
-		provideWelcomeMessage(token: CancellationToken): ProviderResult<ChatWelcomeMessageContent[]>;
+		provideWelcomeMessage(location: ChatLocation, token: CancellationToken): ProviderResult<ChatWelcomeMessageContent[]>;
 		provideSampleQuestions?(location: ChatLocation, token: CancellationToken): ProviderResult<ChatFollowup[]>;
 	}
 
@@ -26,11 +26,6 @@ declare module 'vscode' {
 		 * When true, this participant is invoked by default when no other participant is being invoked
 		 */
 		isDefault?: boolean;
-
-		/**
-		 * The full name of this participant.
-		 */
-		fullName?: string;
 
 		/**
 		 * When true, this participant is invoked when the user submits their query using ctrl/cmd+enter

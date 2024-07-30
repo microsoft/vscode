@@ -45,3 +45,15 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 		},
 	}
 });
+
+Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
+	...editorConfigurationBaseNode,
+	properties: {
+		'editor.codeActions.triggerOnFocusChange': {
+			type: 'boolean',
+			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
+			markdownDescription: nls.localize('triggerOnFocusChange', 'Enable triggering {0} when {1} is set to {2}. Code Actions must be set to {3} to be triggered for window and focus changes.', '`#editor.codeActionsOnSave#`', '`#files.autoSave#`', '`afterDelay`', '`always`'),
+			default: false,
+		},
+	}
+});

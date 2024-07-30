@@ -243,7 +243,7 @@ export class GlyphMarginWidgets extends ViewPart {
 			const domNode = widgetData.domNode.domNode;
 			delete this._widgets[widgetId];
 
-			domNode.parentNode?.removeChild(domNode);
+			domNode.remove();
 			this.setShouldRender();
 		}
 	}

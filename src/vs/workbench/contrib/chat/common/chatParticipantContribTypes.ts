@@ -17,9 +17,12 @@ export type RawChatParticipantLocation = 'panel' | 'terminal' | 'notebook';
 export interface IRawChatParticipantContribution {
 	id: string;
 	name: string;
+	fullName: string;
+	when?: string;
 	description?: string;
 	isDefault?: boolean;
 	isSticky?: boolean;
+	sampleRequest?: string;
 	commands?: IRawChatCommandContribution[];
 	defaultImplicitVariables?: string[];
 	locations?: RawChatParticipantLocation[];

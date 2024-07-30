@@ -53,7 +53,7 @@ export class UserDataSyncLocalStoreService extends Disposable implements IUserDa
 
 		if (stat.children) {
 			for (const child of stat.children) {
-				if (child.isDirectory && !this.userDataProfilesService.profiles.some(profile => profile.id === child.name)) {
+				if (child.isDirectory && !ALL_SYNC_RESOURCES.includes(<SyncResource>child.name) && !this.userDataProfilesService.profiles.some(profile => profile.id === child.name)) {
 					try {
 						this.logService.info('Deleting non existing profile from backup', child.resource.path);
 						await this.fileService.del(child.resource, { recursive: true });

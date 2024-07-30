@@ -18,13 +18,16 @@ export class ShowOrFocusStandaloneColorPicker extends EditorAction2 {
 		super({
 			id: 'editor.action.showOrFocusStandaloneColorPicker',
 			title: {
-				...localize2('showOrFocusStandaloneColorPicker', "Show or focus a standalone color picker which uses the default color provider. It displays hex/rgb/hsl colors."),
+				...localize2('showOrFocusStandaloneColorPicker', "Show or Focus Standalone Color Picker"),
 				mnemonicTitle: localize({ key: 'mishowOrFocusStandaloneColorPicker', comment: ['&& denotes a mnemonic'] }, "&&Show or Focus Standalone Color Picker"),
 			},
 			precondition: undefined,
 			menu: [
 				{ id: MenuId.CommandPalette },
-			]
+			],
+			metadata: {
+				description: localize2('showOrFocusStandaloneColorPickerDescription', "Show or focus a standalone color picker which uses the default color provider. It displays hex/rgb/hsl colors."),
+			}
 		});
 	}
 	runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor) {

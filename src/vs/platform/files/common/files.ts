@@ -519,6 +519,15 @@ export interface IWatchOptionsWithoutCorrelation {
 	 * always matched relative to the watched folder.
 	 */
 	includes?: Array<string | IRelativePattern>;
+
+	/**
+	 * If provided, allows to filter the events that the watcher should consider
+	 * for emitting. If not provided, all events are emitted.
+	 *
+	 * For example, to emit added and updated events, set to:
+	 * `FileChangeFilter.ADDED | FileChangeFilter.UPDATED`.
+	 */
+	filter?: FileChangeFilter;
 }
 
 export interface IWatchOptions extends IWatchOptionsWithoutCorrelation {
@@ -529,6 +538,12 @@ export interface IWatchOptions extends IWatchOptionsWithoutCorrelation {
 	 * id.
 	 */
 	readonly correlationId?: number;
+}
+
+export const enum FileChangeFilter {
+	UPDATED = 1 << 1,
+	ADDED = 1 << 2,
+	DELETED = 1 << 3
 }
 
 export interface IWatchOptionsWithCorrelation extends IWatchOptions {
@@ -1445,7 +1460,7 @@ export interface IGlobPatterns {
 }
 
 export interface IFilesConfiguration {
-	files: IFilesConfigurationNode;
+	files?: IFilesConfigurationNode;
 }
 
 export interface IFilesConfigurationNode {
@@ -1455,6 +1470,7 @@ export interface IFilesConfigurationNode {
 	watcherInclude: string[];
 	encoding: string;
 	autoGuessEncoding: boolean;
+	candidateGuessEncodings: string[];
 	defaultLanguage: string;
 	trimTrailingWhitespace: boolean;
 	autoSave: string;

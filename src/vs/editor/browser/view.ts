@@ -97,6 +97,7 @@ export class View extends ViewEventHandler {
 	private readonly _linesContent: FastDomNode<HTMLElement>;
 	public readonly domNode: FastDomNode<HTMLElement>;
 	private readonly _overflowGuardContainer: FastDomNode<HTMLElement>;
+	private readonly _overflowWidgetsDomNode: HTMLElement | null;
 
 	// Actual mutable state
 	private _shouldRecomputeGlyphMarginLanes: boolean = false;
@@ -114,6 +115,7 @@ export class View extends ViewEventHandler {
 		super();
 		this._selections = [new Selection(1, 1, 1, 1)];
 		this._renderAnimationFrame = null;
+		this._overflowWidgetsDomNode = overflowWidgetsDomNode ?? null;
 
 		const viewController = new ViewController(configuration, model, userInputEvents, commandDelegate);
 
@@ -278,6 +280,7 @@ export class View extends ViewEventHandler {
 	private _createPointerHandlerHelper(): IPointerHandlerHelper {
 		return {
 			viewDomNode: this.domNode.domNode,
+			overflowWidgetsDomNode: this._overflowWidgetsDomNode,
 			linesContentDomNode: this._linesContent.domNode,
 			viewLinesDomNode: this._viewLines.getDomNode().domNode,
 
@@ -634,8 +637,7 @@ export class View extends ViewEventHandler {
 	}
 
 	public layoutOverlayWidget(widgetData: IOverlayWidgetData): void {
-		const newPreference = widgetData.position ? widgetData.position.preference : null;
-		const shouldRender = this._overlayWidgets.setWidgetPosition(widgetData.widget, newPreference);
+		const shouldRender = this._overlayWidgets.setWidgetPosition(widgetData.widget, widgetData.position);
 		if (shouldRender) {
 			this._scheduleRender();
 		}

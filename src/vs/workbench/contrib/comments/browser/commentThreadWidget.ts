@@ -6,7 +6,7 @@
 import 'vs/css!./media/review';
 import * as dom from 'vs/base/browser/dom';
 import { Emitter } from 'vs/base/common/event';
-import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import * as languages from 'vs/editor/common/languages';
 import { IMarkdownRendererOptions } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
@@ -88,7 +88,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 
 		this._commentMenus = this.commentService.getCommentMenus(this._owner);
 
-		this._header = new CommentThreadHeader<T>(
+		this._register(this._header = new CommentThreadHeader<T>(
 			container,
 			{
 				collapse: this.collapse.bind(this)
@@ -98,12 +98,13 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 			this._contextKeyService,
 			this._scopedInstantiationService,
 			contextMenuService
-		);
+		));
 
 		this._header.updateCommentThread(this._commentThread);
 
 		const bodyElement = <HTMLDivElement>dom.$('.body');
 		container.appendChild(bodyElement);
+		this._register(toDisposable(() => bodyElement.remove()));
 
 		const tracker = this._register(dom.trackFocus(bodyElement));
 		this._register(registerNavigableContainer({
@@ -230,7 +231,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		}
 	}
 
-	async display(lineHeight: number) {
+	async display(lineHeight: number, focus: boolean) {
 		const headHeight = Math.max(23, Math.ceil(lineHeight * 1.2)); // 23 is the value of `Math.ceil(lineHeight * 1.2)` with the default editor font size
 		this._header.updateHeight(headHeight);
 
@@ -238,7 +239,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 
 		// create comment thread only when it supports reply
 		if (this._commentThread.canReply) {
-			this._createCommentForm();
+			this._createCommentForm(focus);
 		}
 		this._createAdditionalActions();
 
@@ -272,7 +273,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 				this._commentReply.updateCanReply();
 			} else {
 				if (this._commentThread.canReply) {
-					this._createCommentForm();
+					this._createCommentForm(false);
 				}
 			}
 		}));
@@ -286,7 +287,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		}));
 	}
 
-	private _createCommentForm() {
+	private _createCommentForm(focus: boolean) {
 		this._commentReply = this._scopedInstantiationService.createInstance(
 			CommentReply,
 			this._owner,
@@ -299,6 +300,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 			this._commentOptions,
 			this._pendingComment,
 			this,
+			focus,
 			this._containerDelegate.actionRunner
 		);
 
@@ -349,6 +351,10 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		if (widthInPixel !== undefined) {
 			this._commentReply?.layout(widthInPixel);
 		}
+	}
+
+	ensureFocusIntoNewEditingComment() {
+		this._body.ensureFocusIntoNewEditingComment();
 	}
 
 	focusCommentEditor() {

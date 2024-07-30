@@ -6,25 +6,37 @@
 import 'vs/css!./codeBlockPart';
 
 import * as dom from 'vs/base/browser/dom';
+import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
 import { Button } from 'vs/base/browser/ui/button/button';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
+import { isEqual } from 'vs/base/common/resources';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
+import { TabFocus } from 'vs/editor/browser/config/tabFocus';
+import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
+import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
 import { EDITOR_FONT_DEFAULTS, EditorOption, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { IDiffEditorViewModel, ScrollType } from 'vs/editor/common/editorCommon';
+import { TextEdit } from 'vs/editor/common/languages';
 import { EndOfLinePreference, ITextModel } from 'vs/editor/common/model';
+import { TextModelText } from 'vs/editor/common/model/textModelText';
 import { IModelService } from 'vs/editor/common/services/model';
+import { DefaultModelSHA1Computer } from 'vs/editor/common/services/modelService';
 import { IResolvedTextEditorModel, ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { BracketMatchingController } from 'vs/editor/contrib/bracketMatching/browser/bracketMatching';
+import { ColorDetector } from 'vs/editor/contrib/colorPicker/browser/colorDetector';
 import { ContextMenuController } from 'vs/editor/contrib/contextmenu/browser/contextmenu';
 import { GotoDefinitionAtPositionEditorContribution } from 'vs/editor/contrib/gotoSymbol/browser/link/goToDefinitionAtPosition';
-import { HoverController } from 'vs/editor/contrib/hover/browser/hover';
+import { HoverController } from 'vs/editor/contrib/hover/browser/hoverController';
+import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
 import { ViewportSemanticTokensContribution } from 'vs/editor/contrib/semanticTokens/browser/viewportSemanticTokens';
 import { SmartSelectController } from 'vs/editor/contrib/smartSelect/browser/smartSelect';
 import { WordHighlighterContribution } from 'vs/editor/contrib/wordHighlighter/browser/wordHighlighter';
@@ -34,22 +46,24 @@ import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { ChatTreeItem } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatRendererDelegate } from 'vs/workbench/contrib/chat/browser/chatListRenderer';
 import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions';
+import { CONTEXT_CHAT_EDIT_APPLIED } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { IChatResponseModel, IChatTextEditGroup } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatResponseViewModel, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { IMarkdownVulnerability } from '../common/annotations';
-import { TabFocus } from 'vs/editor/browser/config/tabFocus';
-import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
-import { ChatTreeItem } from 'vs/workbench/contrib/chat/browser/chat';
-import { TextEdit } from 'vs/editor/common/languages';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { ResourceLabel } from 'vs/workbench/browser/labels';
+import { FileKind } from 'vs/platform/files/common/files';
 
 const $ = dom.$;
 
@@ -130,6 +144,7 @@ export class CodeBlockPart extends Disposable {
 	private currentScrollWidth = 0;
 
 	private readonly disposableStore = this._register(new DisposableStore());
+	private isDisposed = false;
 
 	constructor(
 		private readonly options: ChatEditorOptions,
@@ -146,7 +161,7 @@ export class CodeBlockPart extends Disposable {
 		this.element = $('.interactive-result-code-block');
 
 		this.contextKeyService = this._register(contextKeyService.createScoped(this.element));
-		const scopedInstantiationService = instantiationService.createChild(new ServiceCollection([IContextKeyService, this.contextKeyService]));
+		const scopedInstantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, this.contextKeyService])));
 		const editorElement = dom.append(this.element, $('.interactive-result-editor'));
 		this.editor = this.createEditor(scopedInstantiationService, editorElement, {
 			...getSimpleEditorOptions(this.configurationService),
@@ -176,7 +191,7 @@ export class CodeBlockPart extends Disposable {
 
 		const toolbarElement = dom.append(this.element, $('.interactive-result-code-block-toolbar'));
 		const editorScopedService = this.editor.contextKeyService.createScoped(toolbarElement);
-		const editorScopedInstantiationService = scopedInstantiationService.createChild(new ServiceCollection([IContextKeyService, editorScopedService]));
+		const editorScopedInstantiationService = this._register(scopedInstantiationService.createChild(new ServiceCollection([IContextKeyService, editorScopedService])));
 		this.toolbar = this._register(editorScopedInstantiationService.createInstance(MenuWorkbenchToolBar, toolbarElement, menuId, {
 			menuOptions: {
 				shouldForwardArgs: true
@@ -250,6 +265,11 @@ export class CodeBlockPart extends Disposable {
 		}
 	}
 
+	override dispose() {
+		this.isDisposed = true;
+		super.dispose();
+	}
+
 	get uri(): URI | undefined {
 		return this.editor.getModel()?.uri;
 	}
@@ -267,7 +287,9 @@ export class CodeBlockPart extends Disposable {
 				BracketMatchingController.ID,
 				SmartSelectController.ID,
 				HoverController.ID,
+				MessageController.ID,
 				GotoDefinitionAtPositionEditorContribution.ID,
+				ColorDetector.ID
 			])
 		}));
 	}
@@ -340,6 +362,9 @@ export class CodeBlockPart extends Disposable {
 		}
 
 		await this.updateEditor(data);
+		if (this.isDisposed) {
+			return;
+		}
 
 		this.layout(width);
 		if (editable) {
@@ -425,21 +450,26 @@ export class ChatCodeBlockContentProvider extends Disposable implements ITextMod
 //
 
 export interface ICodeCompareBlockActionContext {
-	readonly element: ChatTreeItem;
+	readonly element: IChatResponseViewModel;
 	readonly diffEditor: IDiffEditor;
-	readonly uri: URI;
-	readonly edits: readonly TextEdit[];
+	readonly edit: IChatTextEditGroup;
+}
+
+export interface ICodeCompareBlockDiffData {
+	modified: ITextModel;
+	original: ITextModel;
+	originalSha1: string;
 }
 
 export interface ICodeCompareBlockData {
 	readonly element: ChatTreeItem;
 
-	readonly originalTextModel: Promise<ITextModel | undefined>;
-	readonly modifiedTextModel: Promise<ITextModel | undefined>;
-	readonly edits: readonly TextEdit[];
+	readonly edit: IChatTextEditGroup;
+
+	readonly diffData: Promise<ICodeCompareBlockDiffData | undefined>;
 
 	readonly parentContextKeyService?: IContextKeyService;
-	readonly hideToolbar?: boolean;
+	// readonly hideToolbar?: boolean;
 }
 
 
@@ -448,9 +478,11 @@ export class CodeCompareBlockPart extends Disposable {
 	public readonly onDidChangeContentHeight = this._onDidChangeContentHeight.event;
 
 	private readonly contextKeyService: IContextKeyService;
-	public readonly diffEditor: DiffEditorWidget;
-	protected readonly toolbar: MenuWorkbenchToolBar;
-	public readonly element: HTMLElement;
+	private readonly diffEditor: DiffEditorWidget;
+	private readonly resourceLabel: ResourceLabel;
+	private readonly toolbar: MenuWorkbenchToolBar;
+	readonly element: HTMLElement;
+	private readonly messageElement: HTMLElement;
 
 	private readonly _lastDiffEditorViewModel = this._store.add(new MutableDisposable<IDiffEditorViewModel>());
 	private currentScrollWidth = 0;
@@ -465,17 +497,23 @@ export class CodeCompareBlockPart extends Disposable {
 		@IModelService protected readonly modelService: IModelService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@ILabelService private readonly labelService: ILabelService,
+		@IOpenerService private readonly openerService: IOpenerService,
 	) {
 		super();
 		this.element = $('.interactive-result-code-block');
 		this.element.classList.add('compare');
 
+		this.messageElement = dom.append(this.element, $('.message'));
+		this.messageElement.setAttribute('role', 'status');
+		this.messageElement.tabIndex = 0;
+
 		this.contextKeyService = this._register(contextKeyService.createScoped(this.element));
-		const scopedInstantiationService = instantiationService.createChild(new ServiceCollection([IContextKeyService, this.contextKeyService]));
+		const scopedInstantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, this.contextKeyService])));
+		const editorHeader = dom.append(this.element, $('.interactive-result-header.show-file-icons'));
 		const editorElement = dom.append(this.element, $('.interactive-result-editor'));
 		this.diffEditor = this.createDiffEditor(scopedInstantiationService, editorElement, {
 			...getSimpleEditorOptions(this.configurationService),
-			readOnly: true,
 			lineNumbers: 'on',
 			selectOnLineNumbers: true,
 			scrollBeyondLastLine: false,
@@ -499,18 +537,14 @@ export class CodeCompareBlockPart extends Disposable {
 			...this.getEditorOptionsFromConfig(),
 		});
 
-		const toolbarElement = dom.append(this.element, $('.interactive-result-code-block-toolbar'));
-		const editorScopedService = this.diffEditor.getModifiedEditor().contextKeyService.createScoped(toolbarElement);
-		const editorScopedInstantiationService = scopedInstantiationService.createChild(new ServiceCollection([IContextKeyService, editorScopedService]));
-		this.toolbar = this._register(editorScopedInstantiationService.createInstance(MenuWorkbenchToolBar, toolbarElement, menuId, {
+		this.resourceLabel = this._register(scopedInstantiationService.createInstance(ResourceLabel, editorHeader, { supportIcons: true }));
+
+		const editorScopedService = this.diffEditor.getModifiedEditor().contextKeyService.createScoped(editorHeader);
+		const editorScopedInstantiationService = this._register(scopedInstantiationService.createChild(new ServiceCollection([IContextKeyService, editorScopedService])));
+		this.toolbar = this._register(editorScopedInstantiationService.createInstance(MenuWorkbenchToolBar, editorHeader, menuId, {
 			menuOptions: {
 				shouldForwardArgs: true
 			}
-		}));
-
-
-		this._register(this.toolbar.onDidChangeDropdownVisibility(e => {
-			toolbarElement.classList.toggle('force-visibility', e);
 		}));
 
 		this._configureForScreenReader();
@@ -582,10 +616,18 @@ export class CodeCompareBlockPart extends Disposable {
 			originalAriaLabel: localize('original', 'Original'),
 			modifiedAriaLabel: localize('modified', 'Modified'),
 			diffAlgorithm: 'advanced',
-			readOnly: true,
+			readOnly: false,
 			isInEmbeddedEditor: true,
-			useInlineViewWhenSpaceIsLimited: false,
+			useInlineViewWhenSpaceIsLimited: true,
+			experimental: {
+				useTrueInlineView: true,
+			},
+			renderSideBySideInlineBreakpoint: 300,
+			renderOverviewRuler: false,
+			compactMode: true,
 			hideUnchangedRegions: { enabled: true, contextLineCount: 1 },
+			renderGutterMenu: false,
+			lineNumbersMinChars: 1,
 			...options
 		}, { originalEditor: widgetOptions, modifiedEditor: widgetOptions }));
 	}
@@ -659,11 +701,10 @@ export class CodeCompareBlockPart extends Disposable {
 		this.layout(width);
 		this.diffEditor.updateOptions({ ariaLabel: localize('chat.compareCodeBlockLabel', "Code Edits") });
 
-		if (data.hideToolbar) {
-			dom.hide(this.toolbar.getElement());
-		} else {
-			dom.show(this.toolbar.getElement());
-		}
+		this.resourceLabel.element.setFile(data.edit.uri, {
+			fileKind: FileKind.FILE,
+			fileDecorations: { colors: true, badges: false }
+		});
 	}
 
 	reset() {
@@ -677,32 +718,196 @@ export class CodeCompareBlockPart extends Disposable {
 
 	private async updateEditor(data: ICodeCompareBlockData, token: CancellationToken): Promise<void> {
 
-		const originalTextModel = await data.originalTextModel;
-		const modifiedTextModel = await data.modifiedTextModel;
-
-		if (!originalTextModel || !modifiedTextModel) {
+		if (!isResponseVM(data.element)) {
 			return;
 		}
 
-		const viewModel = this.diffEditor.createViewModel({
-			original: originalTextModel,
-			modified: modifiedTextModel
-		});
+		const isEditApplied = Boolean(data.edit.state?.applied ?? 0);
 
-		await viewModel.waitForDiff();
+		CONTEXT_CHAT_EDIT_APPLIED.bindTo(this.contextKeyService).set(isEditApplied);
 
-		if (token.isCancellationRequested) {
+		this.element.classList.toggle('no-diff', isEditApplied);
+
+		if (data.edit.state?.applied) {
+
+			const uriLabel = this.labelService.getUriLabel(data.edit.uri, { relative: true, noPrefix: true });
+
+			let template: string;
+			if (data.edit.state.applied === 1) {
+				template = localize('chat.edits.1', "Made 1 change in [[``{0}``]]", uriLabel);
+			} else if (data.edit.state.applied < 0) {
+				template = localize('chat.edits.rejected', "Edits in [[``{0}``]] have been rejected", uriLabel);
+			} else {
+				template = localize('chat.edits.N', "Made {0} changes in [[``{1}``]]", data.edit.state.applied, uriLabel);
+			}
+
+			const message = renderFormattedText(template, {
+				renderCodeSegments: true,
+				actionHandler: {
+					callback: () => {
+						this.openerService.open(data.edit.uri, { fromUserGesture: true, allowCommands: false });
+					},
+					disposables: this._store,
+				}
+			});
+
+			dom.reset(this.messageElement, message);
+
+		}
+
+		const diffData = await data.diffData;
+		if (!diffData) {
 			return;
 		}
 
-		this.diffEditor.setModel(viewModel);
-		this._lastDiffEditorViewModel.value = viewModel;
+		if (!isEditApplied) {
+			const viewModel = this.diffEditor.createViewModel({
+				original: diffData.original,
+				modified: diffData.modified
+			});
+
+			await viewModel.waitForDiff();
+
+			if (token.isCancellationRequested) {
+				return;
+			}
+
+			this.diffEditor.setModel(viewModel);
+			this._lastDiffEditorViewModel.value = viewModel;
+
+		} else {
+			this.diffEditor.setModel(null);
+			this._lastDiffEditorViewModel.value = undefined;
+		}
 
 		this.toolbar.context = {
-			uri: originalTextModel.uri,
-			edits: data.edits,
+			edit: data.edit,
 			element: data.element,
 			diffEditor: this.diffEditor,
 		} satisfies ICodeCompareBlockActionContext;
+	}
+
+	clearModel() {
+		this.diffEditor.setModel(null);
+	}
+}
+
+export class DefaultChatTextEditor {
+
+	private readonly _sha1 = new DefaultModelSHA1Computer();
+
+	constructor(
+		@ITextModelService private readonly modelService: ITextModelService,
+		@ICodeEditorService private readonly editorService: ICodeEditorService,
+		@IDialogService private readonly dialogService: IDialogService,
+	) { }
+
+	async apply(response: IChatResponseModel | IChatResponseViewModel, item: IChatTextEditGroup, diffEditor: IDiffEditor | undefined): Promise<void> {
+
+		if (!response.response.value.includes(item)) {
+			// bogous item
+			return;
+		}
+
+		if (item.state?.applied) {
+			// already applied
+			return;
+		}
+
+		if (!diffEditor) {
+			for (const candidate of this.editorService.listDiffEditors()) {
+				if (!candidate.getContainerDomNode().isConnected) {
+					continue;
+				}
+				const model = candidate.getModel();
+				if (!model || !isEqual(model.original.uri, item.uri) || model.modified.uri.scheme !== Schemas.vscodeChatCodeCompareBlock) {
+					diffEditor = candidate;
+					break;
+				}
+			}
+		}
+
+		const edits = diffEditor
+			? await this._applyWithDiffEditor(diffEditor, item)
+			: await this._apply(item);
+
+		response.setEditApplied(item, edits);
+	}
+
+	private async _applyWithDiffEditor(diffEditor: IDiffEditor, item: IChatTextEditGroup) {
+		const model = diffEditor.getModel();
+		if (!model) {
+			return 0;
+		}
+
+		const diff = diffEditor.getDiffComputationResult();
+		if (!diff || diff.identical) {
+			return 0;
+		}
+
+
+		if (!await this._checkSha1(model.original, item)) {
+			return 0;
+		}
+
+		const modified = new TextModelText(model.modified);
+		const edits = diff.changes2.map(i => i.toRangeMapping().toTextEdit(modified).toSingleEditOperation());
+
+		model.original.pushStackElement();
+		model.original.pushEditOperations(null, edits, () => null);
+		model.original.pushStackElement();
+
+		return edits.length;
+	}
+
+	private async _apply(item: IChatTextEditGroup) {
+		const ref = await this.modelService.createModelReference(item.uri);
+		try {
+
+			if (!await this._checkSha1(ref.object.textEditorModel, item)) {
+				return 0;
+			}
+
+			ref.object.textEditorModel.pushStackElement();
+			let total = 0;
+			for (const group of item.edits) {
+				const edits = group.map(TextEdit.asEditOperation);
+				ref.object.textEditorModel.pushEditOperations(null, edits, () => null);
+				total += edits.length;
+			}
+			ref.object.textEditorModel.pushStackElement();
+			return total;
+
+		} finally {
+			ref.dispose();
+		}
+	}
+
+	private async _checkSha1(model: ITextModel, item: IChatTextEditGroup) {
+		if (item.state?.sha1 && this._sha1.computeSHA1(model) && this._sha1.computeSHA1(model) !== item.state.sha1) {
+			const result = await this.dialogService.confirm({
+				message: localize('interactive.compare.apply.confirm', "The original file has been modified."),
+				detail: localize('interactive.compare.apply.confirm.detail', "Do you want to apply the changes anyway?"),
+			});
+
+			if (!result.confirmed) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	discard(response: IChatResponseModel | IChatResponseViewModel, item: IChatTextEditGroup) {
+		if (!response.response.value.includes(item)) {
+			// bogous item
+			return;
+		}
+
+		if (item.state?.applied) {
+			// already applied
+			return;
+		}
+
+		response.setEditApplied(item, -1);
 	}
 }

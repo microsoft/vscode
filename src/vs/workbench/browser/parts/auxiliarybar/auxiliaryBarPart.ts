@@ -71,7 +71,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 		return Math.max(width, 300);
 	}
 
-	readonly priority: LayoutPriority = LayoutPriority.Low;
+	readonly priority = LayoutPriority.Low;
 
 	constructor(
 		@INotificationService notificationService: INotificationService,
@@ -191,10 +191,9 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 			actions.push(viewsSubmenuAction);
 		}
 
-		const activityBarPositionMenu = this.menuService.createMenu(MenuId.ActivityBarPositionMenu, this.contextKeyService);
+		const activityBarPositionMenu = this.menuService.getMenuActions(MenuId.ActivityBarPositionMenu, this.contextKeyService, { shouldForwardArgs: true, renderShortTitle: true });
 		const positionActions: IAction[] = [];
-		createAndFillInContextMenuActions(activityBarPositionMenu, { shouldForwardArgs: true, renderShortTitle: true }, { primary: [], secondary: positionActions });
-		activityBarPositionMenu.dispose();
+		createAndFillInContextMenuActions(activityBarPositionMenu, { primary: [], secondary: positionActions });
 
 		actions.push(...[
 			new Separator(),
@@ -239,13 +238,6 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 
 		headerArea.appendChild(globalHeaderContainer);
 		return headerArea;
-	}
-
-	protected override getToolbarWidth(): number {
-		if (this.getCompositeBarPosition() === CompositeBarPosition.TOP) {
-			return 22;
-		}
-		return super.getToolbarWidth();
 	}
 
 	private headerActionViewItemProvider(action: IAction, options: IActionViewItemOptions): IActionViewItem | undefined {

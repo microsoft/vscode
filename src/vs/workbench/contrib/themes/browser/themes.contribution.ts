@@ -49,7 +49,6 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
 import { defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { COLOR_THEME_CONFIGURATION_SETTINGS_TAG } from 'vs/workbench/services/themes/common/themeConfiguration';
 
 export const manageExtensionIcon = registerIcon('theme-selection-manage-extension', Codicon.gear, localize('manageExtensionIcon', 'Icon for the \'Manage\' action in the theme selection quick pick.'));
 
@@ -423,14 +422,14 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	private getTitle(colorScheme: ColorScheme | undefined): string | undefined {
+	private getTitle(colorScheme: ColorScheme | undefined): string {
 		switch (colorScheme) {
-			case ColorScheme.DARK: return localize('themes.selectTheme.darkScheme', "Select Color Theme for Dark Mode");
-			case ColorScheme.LIGHT: return localize('themes.selectTheme.lightScheme', "Select Color Theme for Light Mode");
-			case ColorScheme.HIGH_CONTRAST_DARK: return localize('themes.selectTheme.darkHC', "Select Color Theme for Dark High Contrast Mode");
-			case ColorScheme.HIGH_CONTRAST_LIGHT: return localize('themes.selectTheme.lightHC', "Select Color Theme for Light High Contrast Mode");
+			case ColorScheme.DARK: return localize('themes.selectTheme.darkScheme', "Select Color Theme for System Dark Mode");
+			case ColorScheme.LIGHT: return localize('themes.selectTheme.lightScheme', "Select Color Theme for System Light Mode");
+			case ColorScheme.HIGH_CONTRAST_DARK: return localize('themes.selectTheme.darkHC', "Select Color Theme for High Contrast Dark Mode");
+			case ColorScheme.HIGH_CONTRAST_LIGHT: return localize('themes.selectTheme.lightHC', "Select Color Theme for High Contrast Light Mode");
 			default:
-				return undefined;
+				return localize('themes.selectTheme.default', "Select Color Theme (detect system color mode disabled)");
 		}
 	}
 
@@ -443,15 +442,15 @@ registerAction2(class extends Action2 {
 		let modeConfigureToggle;
 		if (preferredColorScheme) {
 			modeConfigureToggle = new Toggle({
-				title: 'Automatic Mode Switching is Enabled. Click to configure.',
+				title: localize('themes.configure.switchingEnabled', 'Detect system color mode enabled. Click to configure.'),
 				icon: Codicon.colorMode,
 				isChecked: false,
 				...defaultToggleStyles
 			});
 		} else {
 			modeConfigureToggle = new Toggle({
-				title: 'Click to configure automatic mode switching.',
-				icon: Codicon.gear,
+				title: localize('themes.configure.switchingDisabled', 'Detect system color mode disabled. Click to configure.'),
+				icon: Codicon.colorMode,
 				isChecked: false,
 				...defaultToggleStyles
 			});
@@ -460,12 +459,12 @@ registerAction2(class extends Action2 {
 		const options = {
 			installMessage: localize('installColorThemes', "Install Additional Color Themes..."),
 			browseMessage: '$(plus) ' + localize('browseColorThemes', "Browse Additional Color Themes..."),
-			placeholderMessage: this.getTitle(preferredColorScheme) ?? 'Select Color Theme (Mode Switching Disabled)',
+			placeholderMessage: this.getTitle(preferredColorScheme),
 			marketplaceTag: 'category:themes',
 			toggles: [modeConfigureToggle],
 			onToggle: async (toggle, picker) => {
 				picker.hide();
-				await preferencesService.openSettings({ query: `@tag:${COLOR_THEME_CONFIGURATION_SETTINGS_TAG}` });
+				await preferencesService.openSettings({ query: ThemeSettings.DETECT_COLOR_SCHEME });
 			}
 		} satisfies InstalledThemesPickerOptions;
 		const setTheme = (theme: IWorkbenchTheme | undefined, settingsTarget: ThemeSettingTarget) => themeService.setColorTheme(theme as IWorkbenchColorTheme, settingsTarget);
@@ -722,6 +721,21 @@ registerAction2(class extends Action2 {
 	override async run(accessor: ServicesAccessor) {
 		const themeService = accessor.get(IWorkbenchThemeService);
 		const configurationService = accessor.get(IConfigurationService);
+		const notificationService = accessor.get(INotificationService);
+		const preferencesService = accessor.get(IPreferencesService);
+
+		if (configurationService.getValue(ThemeSettings.DETECT_COLOR_SCHEME)) {
+			const message = localize({ key: 'cannotToggle', comment: ['{0} is a setting name'] }, "Cannot toggle between light and dark themes when `{0}` is enabled in settings.", ThemeSettings.DETECT_COLOR_SCHEME);
+			notificationService.prompt(Severity.Info, message, [
+				{
+					label: localize('goToSetting', "Open Settings"),
+					run: () => {
+						return preferencesService.openUserSettings({ query: ThemeSettings.DETECT_COLOR_SCHEME });
+					}
+				}
+			]);
+			return;
+		}
 
 		const currentTheme = themeService.getColorTheme();
 		let newSettingsId: string = ThemeSettings.PREFERRED_DARK_THEME;
@@ -801,18 +815,18 @@ registerAction2(class extends Action2 {
 });
 
 const ThemesSubMenu = new MenuId('ThemesSubMenu');
-MenuRegistry.appendMenuItem(MenuId.GlobalActivity, <ISubmenuItem>{
+MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 	title: localize('themes', "Themes"),
 	submenu: ThemesSubMenu,
 	group: '2_configuration',
 	order: 7
-});
-MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, <ISubmenuItem>{
+} satisfies ISubmenuItem);
+MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 	title: localize({ key: 'miSelectTheme', comment: ['&& denotes a mnemonic'] }, "&&Theme"),
 	submenu: ThemesSubMenu,
 	group: '2_configuration',
 	order: 7
-});
+} satisfies ISubmenuItem);
 
 MenuRegistry.appendMenuItem(ThemesSubMenu, {
 	command: {

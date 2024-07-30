@@ -578,26 +578,26 @@ export class PaneCompositeBar extends Disposable {
 
 	private storeCachedViewContainersState(cachedViewContainers: ICachedViewContainer[]): void {
 		const pinnedViewContainers = this.getPinnedViewContainers();
-		this.setPinnedViewContainers(cachedViewContainers.map(({ id, pinned, order }) => (<IPinnedViewContainer>{
+		this.setPinnedViewContainers(cachedViewContainers.map(({ id, pinned, order }) => ({
 			id,
 			pinned,
-			visible: pinnedViewContainers.find(({ id: pinnedId }) => pinnedId === id)?.visible,
+			visible: Boolean(pinnedViewContainers.find(({ id: pinnedId }) => pinnedId === id)?.visible),
 			order
-		})));
+		} satisfies IPinnedViewContainer)));
 
-		this.setPlaceholderViewContainers(cachedViewContainers.map(({ id, icon, name, views, isBuiltin }) => (<IPlaceholderViewContainer>{
+		this.setPlaceholderViewContainers(cachedViewContainers.map(({ id, icon, name, views, isBuiltin }) => ({
 			id,
 			iconUrl: URI.isUri(icon) ? icon : undefined,
 			themeIcon: ThemeIcon.isThemeIcon(icon) ? icon : undefined,
 			name,
 			isBuiltin,
 			views
-		})));
+		} satisfies IPlaceholderViewContainer)));
 
-		this.setViewContainersWorkspaceState(cachedViewContainers.map(({ id, visible }) => (<IViewContainerWorkspaceState>{
+		this.setViewContainersWorkspaceState(cachedViewContainers.map(({ id, visible }) => ({
 			id,
 			visible,
-		})));
+		} satisfies IViewContainerWorkspaceState)));
 	}
 
 	private getPinnedViewContainers(): IPinnedViewContainer[] {

@@ -9,7 +9,7 @@ import { equals } from 'vs/base/common/arrays';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/base/common/themables';
 import 'vs/css!./stickyScroll';
-import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
 import { getColumnOfNodeOffset } from 'vs/editor/browser/viewParts/lines/viewLine';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/embeddedCodeEditorWidget';
 import { EditorLayoutInfo, EditorOption, RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
@@ -34,6 +34,10 @@ export class StickyScrollWidgetState {
 			&& this.showEndForLine === other.showEndForLine
 			&& equals(this.startLineNumbers, other.startLineNumbers)
 			&& equals(this.endLineNumbers, other.endLineNumbers);
+	}
+
+	static get Empty() {
+		return new StickyScrollWidgetState([], [], 0);
 	}
 }
 
@@ -126,7 +130,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		return this._lineNumbers;
 	}
 
-	setState(_state: StickyScrollWidgetState | undefined, foldingModel: FoldingModel | null, _rebuildFromLine?: number): void {
+	setState(_state: StickyScrollWidgetState | undefined, foldingModel: FoldingModel | undefined, _rebuildFromLine?: number): void {
 		if (_rebuildFromLine === undefined &&
 			((!this._previousState && !_state) || (this._previousState && this._previousState.equals(_state)))
 		) {
@@ -205,7 +209,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		}
 	}
 
-	private async _renderRootNode(state: StickyScrollWidgetState | undefined, foldingModel: FoldingModel | null, rebuildFromLine: number): Promise<void> {
+	private async _renderRootNode(state: StickyScrollWidgetState | undefined, foldingModel: FoldingModel | undefined, rebuildFromLine: number): Promise<void> {
 		this._clearStickyLinesFromLine(rebuildFromLine);
 		if (!state) {
 			return;
@@ -258,7 +262,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		}));
 	}
 
-	private _renderChildNode(index: number, line: number, foldingModel: FoldingModel | null, layoutInfo: EditorLayoutInfo): RenderedStickyLine | undefined {
+	private _renderChildNode(index: number, line: number, foldingModel: FoldingModel | undefined, layoutInfo: EditorLayoutInfo): RenderedStickyLine | undefined {
 		const viewModel = this._editor._getViewModel();
 		if (!viewModel) {
 			return;
@@ -358,7 +362,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		return stickyLine;
 	}
 
-	private _renderFoldingIconForLine(foldingModel: FoldingModel | null, line: number): StickyFoldingIcon | undefined {
+	private _renderFoldingIconForLine(foldingModel: FoldingModel | undefined, line: number): StickyFoldingIcon | undefined {
 		const showFoldingControls: 'mouseover' | 'always' | 'never' = this._editor.getOption(EditorOption.showFoldingControls);
 		if (!foldingModel || showFoldingControls === 'never') {
 			return;
@@ -387,7 +391,8 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 
 	getPosition(): IOverlayWidgetPosition | null {
 		return {
-			preference: null
+			preference: OverlayWidgetPositionPreference.TOP_CENTER,
+			stackOridinal: 10,
 		};
 	}
 

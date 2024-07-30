@@ -14,7 +14,6 @@ import * as Constants from 'vs/workbench/contrib/search/common/constants';
 import * as SearchEditorConstants from 'vs/workbench/contrib/searchEditor/browser/constants';
 import { FileMatch, FolderMatchWithResource, Match, RenderableMatch } from 'vs/workbench/contrib/search/browser/searchModel';
 import { OpenSearchEditorArgs } from 'vs/workbench/contrib/searchEditor/browser/searchEditor.contribution';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ISearchConfiguration, ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
 import { URI } from 'vs/base/common/uri';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -33,6 +32,8 @@ import { category, getElementsToOperateOn, getSearchView, openSearchView } from 
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { Schemas } from 'vs/base/common/network';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 
 //#region Interfaces
@@ -48,6 +49,7 @@ export interface IFindInFilesArgs {
 	matchWholeWord?: boolean;
 	useExcludeSettingsAndIgnoreFiles?: boolean;
 	onlyOpenEditors?: boolean;
+	showIncludesExcludes?: boolean;
 }
 //#endregion
 
@@ -88,7 +90,7 @@ registerAction2(class ExpandSelectedTreeCommandAction extends Action2 {
 			menu: [{
 				id: MenuId.SearchContext,
 				when: ContextKeyExpr.and(
-					ContextKeyExpr.or(Constants.SearchContext.FileFocusKey, Constants.SearchContext.FolderFocusKey),
+					Constants.SearchContext.FolderFocusKey,
 					Constants.SearchContext.HasSearchResults
 				),
 				group: 'search',
@@ -97,8 +99,8 @@ registerAction2(class ExpandSelectedTreeCommandAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: any): Promise<any> {
-		await expandSelectSubtree(accessor);
+	override run(accessor: any) {
+		expandSelectSubtree(accessor);
 	}
 });
 
@@ -207,6 +209,7 @@ registerAction2(class FindInFilesAction extends Action2 {
 								matchWholeWord: { 'type': 'boolean' },
 								useExcludeSettingsAndIgnoreFiles: { 'type': 'boolean' },
 								onlyOpenEditors: { 'type': 'boolean' },
+								showIncludesExcludes: { 'type': 'boolean' }
 							}
 						}
 					},
@@ -306,7 +309,6 @@ function expandSelectSubtree(accessor: ServicesAccessor) {
 }
 
 async function searchWithFolderCommand(accessor: ServicesAccessor, isFromExplorer: boolean, isIncludes: boolean, resource?: URI, folderMatch?: FolderMatchWithResource) {
-	const listService = accessor.get(IListService);
 	const fileService = accessor.get(IFileService);
 	const viewsService = accessor.get(IViewsService);
 	const contextService = accessor.get(IWorkspaceContextService);
@@ -317,9 +319,9 @@ async function searchWithFolderCommand(accessor: ServicesAccessor, isFromExplore
 	let resources: URI[];
 
 	if (isFromExplorer) {
-		resources = getMultiSelectedResources(resource, listService, accessor.get(IEditorService), accessor.get(IExplorerService));
+		resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService), accessor.get(IEditorGroupsService), accessor.get(IExplorerService));
 	} else {
-		const searchView = getSearchView(accessor.get(IViewsService));
+		const searchView = getSearchView(viewsService);
 		if (!searchView) {
 			return;
 		}
@@ -406,6 +408,9 @@ export async function findInFilesCommand(accessor: ServicesAccessor, _args: IFin
 					updatedText = openedView.updateTextFromFindWidgetOrSelection({ allowUnselectedWord: typeof args.replace !== 'string' });
 				}
 				openedView.setSearchParameters(args);
+				if (typeof args.showIncludesExcludes === 'boolean') {
+					openedView.toggleQueryDetails(false, args.showIncludesExcludes);
+				}
 
 				openedView.searchAndReplaceWidget.focus(undefined, updatedText, updatedText);
 			}

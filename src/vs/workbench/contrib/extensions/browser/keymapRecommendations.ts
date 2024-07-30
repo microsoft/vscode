@@ -20,7 +20,7 @@ export class KeymapRecommendations extends ExtensionRecommendations {
 
 	protected async doActivate(): Promise<void> {
 		if (this.productService.keymapExtensionTips) {
-			this._recommendations = this.productService.keymapExtensionTips.map(extensionId => (<ExtensionRecommendation>{
+			this._recommendations = this.productService.keymapExtensionTips.map(extensionId => ({
 				extension: extensionId.toLowerCase(),
 				reason: {
 					reasonId: ExtensionRecommendationReason.Application,

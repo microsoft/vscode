@@ -6,7 +6,7 @@
 import { NullExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { stub } from 'sinon';
 import { NotebookRendererMessagingService } from 'vs/workbench/contrib/notebook/browser/services/notebookRendererMessagingServiceImpl';
-import * as assert from 'assert';
+import assert from 'assert';
 import { timeout } from 'vs/base/common/async';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 

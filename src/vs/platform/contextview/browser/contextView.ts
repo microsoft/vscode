@@ -19,7 +19,7 @@ export interface IContextViewService extends IContextViewProvider {
 
 	readonly _serviceBrand: undefined;
 
-	showContextView(delegate: IContextViewDelegate, container?: HTMLElement, shadowRoot?: boolean): IDisposable;
+	showContextView(delegate: IContextViewDelegate, container?: HTMLElement, shadowRoot?: boolean): IOpenContextView;
 	hideContextView(data?: any): void;
 	getContextViewElement(): HTMLElement;
 	layout(): void;
@@ -46,6 +46,10 @@ export interface IContextViewDelegate {
 
 	// context views with higher layers are rendered over contet views with lower layers
 	layer?: number; // Default: 0
+}
+
+export interface IOpenContextView {
+	close: () => void;
 }
 
 export const IContextMenuService = createDecorator<IContextMenuService>('contextMenuService');
