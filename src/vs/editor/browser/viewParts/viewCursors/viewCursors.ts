@@ -400,7 +400,7 @@ registerThemingParticipant((theme, collector) => {
 			if (!caretBackground) {
 				caretBackground = caret.opposite();
 			}
-			collector.addRule(`.monaco-editor .cursors-layer ${cursorTheme.class} { background-color: ${caret}; border-color: ${caret}; color: ${caretBackground}; }`);
+			collector.addRule(`.monaco-editor .cursors-layer ${cursorTheme.class} { background-color: ${caretBackground}; border-color: ${caretBackground}; color: ${caret}; }`);
 			if (isHighContrast(theme.type)) {
 				collector.addRule(`.monaco-editor .cursors-layer.has-selection ${cursorTheme.class} { border-left: 1px solid ${caretBackground}; border-right: 1px solid ${caretBackground}; }`);
 			}
