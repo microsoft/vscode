@@ -139,6 +139,7 @@ export interface ITerminalGroup {
 	addInstance(instance: ITerminalInstance): void;
 	removeInstance(instance: ITerminalInstance): void;
 	moveInstance(instance: ITerminalInstance, index: number): void;
+	moveInstance2(instances: ITerminalInstance | ITerminalInstance[], index: number, position: 'before' | 'after'): void;
 	setVisible(visible: boolean): void;
 	layout(width: number, height: number): void;
 	addDisposable(disposable: IDisposable): void;
@@ -487,7 +488,9 @@ export interface ITerminalGroupService extends ITerminalInstanceHost {
 	 * @param target The target instance to move the source instance to.
 	 */
 	moveGroup(source: ITerminalInstance, target: ITerminalInstance): void;
+	moveGroup2(source: ITerminalInstance | ITerminalInstance[], target: ITerminalInstance): void;
 	moveGroupToEnd(source: ITerminalInstance): void;
+	moveGroupToEnd2(source: ITerminalInstance | ITerminalInstance[]): void;
 
 	moveInstance(source: ITerminalInstance, target: ITerminalInstance, side: 'before' | 'after'): void;
 	unsplitInstance(instance: ITerminalInstance): void;
