@@ -351,7 +351,7 @@ function computeCompletionRanges(model: ITextModel, position: Position, reg: Reg
 		return;
 	}
 	if (varWord && onlyOnWordStart) {
-		const wordBeforePositionColumn = position.column > 0 ? position.column - 1 : 0;
+		const wordBeforePositionColumn = varWord.startColumn > 0 ? varWord.startColumn - 1 : 0;
 		const wordBefore = model.getWordUntilPosition({ lineNumber: position.lineNumber, column: wordBeforePositionColumn });
 		if (wordBefore.word) {
 			// inside a word
