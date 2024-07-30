@@ -10,7 +10,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Event, Emitter } from 'vs/base/common/event';
 import { CommentsViewFilterFocusContextKey, ICommentsView } from 'vs/workbench/contrib/comments/browser/comments';
-import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { COMMENTS_VIEW_ID } from 'vs/workbench/contrib/comments/browser/commentsTreeViewer';
@@ -190,21 +190,29 @@ registerAction2(class extends ViewAction<ICommentsView> {
 	}
 });
 
+const commentSortSubmenu = new MenuId('submenu.filter.commentSort');
+MenuRegistry.appendMenuItem(viewFilterSubmenu, {
+	submenu: commentSortSubmenu,
+	title: localize('comment sorts', "Sort By"),
+	group: '2_sort',
+	icon: Codicon.history,
+	when: ContextKeyExpr.equals('view', COMMENTS_VIEW_ID),
+});
+
 registerAction2(class extends ViewAction<ICommentsView> {
 	constructor() {
 		super({
 			id: `workbench.actions.${COMMENTS_VIEW_ID}.toggleSortByUpdatedAt`,
-			title: localize('toggle sorting by updated at', "Sort by Updated At"),
+			title: localize('toggle sorting by updated at', "Updated Time"),
 			category: localize('comments', "Comments"),
 			icon: Codicon.history,
 			viewId: COMMENTS_VIEW_ID,
 			toggled: {
 				condition: ContextKeyExpr.equals('commentsView.sortBy', CommentsSortOrder.UpdatedAtDescending),
-				title: localize('sorting by updated at', "Sort by Updated At"),
+				title: localize('sorting by updated at', "Updated Time"),
 			},
 			menu: {
-				id: MenuId.ViewTitle,
-				when: ContextKeyExpr.equals('view', COMMENTS_VIEW_ID),
+				id: commentSortSubmenu,
 				group: 'navigation',
 				order: 0,
 				isHiddenByDefault: false,

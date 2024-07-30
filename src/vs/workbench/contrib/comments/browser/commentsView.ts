@@ -280,9 +280,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 	private renderComments(): void {
 		this.treeContainer.classList.toggle('hidden', !this.commentService.commentsModel.hasCommentThreads());
 		this.renderMessage();
-		if (this.tree) {
-			this.tree?.setChildren(null, createResourceCommentsIterator(this.commentService.commentsModel));
-		}
+		this.tree?.setChildren(null, createResourceCommentsIterator(this.commentService.commentsModel));
 	}
 
 	public collapseAll() {
@@ -402,7 +400,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 			filter: this.filter,
 			sorter: {
 				compare: (a: CommentsTreeNode, b: CommentsTreeNode) => {
-					if (this.filters.sortBy === CommentsSortOrder.UpdatedAtDescending && 'lastUpdatedAt' in a && 'lastUpdatedAt' in b) {
+					if (this.filters.sortBy === CommentsSortOrder.UpdatedAtDescending && !(a instanceof CommentsModel) && !(b instanceof CommentsModel)) {
 						return a.lastUpdatedAt > b.lastUpdatedAt ? -1 : 1;
 					}
 					return 0;
