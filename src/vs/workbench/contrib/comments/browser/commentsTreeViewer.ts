@@ -35,7 +35,7 @@ import { CommentsModel } from 'vs/workbench/contrib/comments/browser/commentsMod
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { createActionViewItem, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IAction } from 'vs/base/common/actions';
 import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -76,7 +76,7 @@ interface ICommentThreadTemplateData {
 	disposables: IDisposable[];
 }
 
-class CommentsModelVirualDelegate implements IListVirtualDelegate<ResourceWithCommentThreads | CommentNode> {
+class CommentsModelVirtualDelegate implements IListVirtualDelegate<ResourceWithCommentThreads | CommentNode> {
 	private static readonly RESOURCE_ID = 'resource-with-comments';
 	private static readonly COMMENT_ID = 'comment-node';
 
@@ -90,10 +90,10 @@ class CommentsModelVirualDelegate implements IListVirtualDelegate<ResourceWithCo
 
 	public getTemplateId(element: any): string {
 		if (element instanceof ResourceWithCommentThreads) {
-			return CommentsModelVirualDelegate.RESOURCE_ID;
+			return CommentsModelVirtualDelegate.RESOURCE_ID;
 		}
 		if (element instanceof CommentNode) {
-			return CommentsModelVirualDelegate.COMMENT_ID;
+			return CommentsModelVirtualDelegate.COMMENT_ID;
 		}
 
 		return '';
@@ -142,9 +142,9 @@ export class CommentsMenus implements IDisposable {
 		@IMenuService private readonly menuService: IMenuService
 	) { }
 
-	getResourceActions(element: CommentNode): { menu?: IMenu; actions: IAction[] } {
+	getResourceActions(element: CommentNode): { actions: IAction[] } {
 		const actions = this.getActions(MenuId.CommentsViewThreadActions, element);
-		return { menu: actions.menu, actions: actions.primary };
+		return { actions: actions.primary };
 	}
 
 	getResourceContextActions(element: CommentNode): IAction[] {
@@ -155,7 +155,7 @@ export class CommentsMenus implements IDisposable {
 		this.contextKeyService = service;
 	}
 
-	private getActions(menuId: MenuId, element: CommentNode): { menu?: IMenu; primary: IAction[]; secondary: IAction[] } {
+	private getActions(menuId: MenuId, element: CommentNode): { primary: IAction[]; secondary: IAction[] } {
 		if (!this.contextKeyService) {
 			return { primary: [], secondary: [] };
 		}
@@ -168,12 +168,11 @@ export class CommentsMenus implements IDisposable {
 		];
 		const contextKeyService = this.contextKeyService.createOverlay(overlay);
 
-		const menu = this.menuService.createMenu(menuId, contextKeyService);
+		const menu = this.menuService.getMenuActions(menuId, contextKeyService, { shouldForwardArgs: true });
 		const primary: IAction[] = [];
 		const secondary: IAction[] = [];
 		const result = { primary, secondary, menu };
-		createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, result, 'inline');
-		menu.dispose();
+		createAndFillInContextMenuActions(menu, result, 'inline');
 
 		return result;
 	}
@@ -303,7 +302,7 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 			const renderedComment = this.getRenderedComment(originalComment.comment.body, disposables);
 			templateData.disposables.push(renderedComment);
 			templateData.threadMetadata.commentPreview.appendChild(renderedComment.element.firstElementChild ?? renderedComment.element);
-			templateData.disposables.push(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), templateData.threadMetadata.commentPreview, renderedComment.element.textContent ?? ''));
+			templateData.disposables.push(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), templateData.threadMetadata.commentPreview, renderedComment.element.textContent ?? ''));
 		}
 
 		if (node.element.range) {
@@ -451,7 +450,7 @@ export class CommentsList extends WorkbenchObjectTree<CommentsModel | ResourceWi
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) {
-		const delegate = new CommentsModelVirualDelegate();
+		const delegate = new CommentsModelVirtualDelegate();
 		const actionViewItemProvider = createActionViewItem.bind(undefined, instantiationService);
 		const menus = instantiationService.createInstance(CommentsMenus);
 		menus.setContextKeyService(contextKeyService);
@@ -485,6 +484,7 @@ export class CommentsList extends WorkbenchObjectTree<CommentsModel | ResourceWi
 				collapseByDefault: false,
 				overrideStyles: options.overrideStyles,
 				filter: options.filter,
+				sorter: options.sorter,
 				findWidgetEnabled: false,
 				multipleSelectionSupport: false,
 			},

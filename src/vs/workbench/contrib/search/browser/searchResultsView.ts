@@ -136,7 +136,7 @@ export class FolderMatchRenderer extends Disposable implements ICompressibleTree
 		SearchContext.FileFocusKey.bindTo(contextKeyServiceMain).set(false);
 		SearchContext.FolderFocusKey.bindTo(contextKeyServiceMain).set(true);
 
-		const instantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyServiceMain]));
+		const instantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyServiceMain])));
 		const actions = disposables.add(instantiationService.createInstance(MenuWorkbenchToolBar, actionBarContainer, MenuId.SearchActionMenu, {
 			menuOptions: {
 				shouldForwardArgs: true
@@ -365,7 +365,7 @@ export class MatchRenderer extends Disposable implements ICompressibleTreeRender
 		templateData.after.textContent = preview.after;
 
 		const title = (preview.fullBefore + (replace ? match.replaceString : preview.inside) + preview.after).trim().substr(0, 999);
-		templateData.disposables.add(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), templateData.parent, title));
+		templateData.disposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), templateData.parent, title));
 
 		SearchContext.IsEditableItemKey.bindTo(templateData.contextKeyService).set(!(match instanceof MatchInNotebook && match.isReadonly()));
 
@@ -377,7 +377,7 @@ export class MatchRenderer extends Disposable implements ICompressibleTreeRender
 		templateData.lineNumber.classList.toggle('show', (numLines > 0) || showLineNumbers);
 
 		templateData.lineNumber.textContent = lineNumberStr + extraLinesStr;
-		templateData.disposables.add(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), templateData.lineNumber, this.getMatchTitle(match, showLineNumbers)));
+		templateData.disposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), templateData.lineNumber, this.getMatchTitle(match, showLineNumbers)));
 
 		templateData.actions.context = { viewer: this.searchView.getControl(), element: match } satisfies ISearchActionContext;
 

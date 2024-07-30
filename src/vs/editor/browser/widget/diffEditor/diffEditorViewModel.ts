@@ -8,7 +8,8 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IObservable, IReader, ISettableObservable, ITransaction, autorun, autorunWithStore, derived, observableSignal, observableSignalFromEvent, observableValue, transaction, waitForState } from 'vs/base/common/observable';
 import { IDiffProviderFactoryService } from 'vs/editor/browser/widget/diffEditor/diffProviderFactoryService';
-import { filterWithPrevious, readHotReloadableExport } from 'vs/editor/browser/widget/diffEditor/utils';
+import { filterWithPrevious } from 'vs/editor/browser/widget/diffEditor/utils';
+import { readHotReloadableExport } from 'vs/base/common/hotReloadHelpers';
 import { ISerializedLineRange, LineRange, LineRangeSet } from 'vs/editor/common/core/lineRange';
 import { DefaultLinesDiffComputer } from 'vs/editor/common/diff/defaultLinesDiffComputer/defaultLinesDiffComputer';
 import { IDocumentDiff } from 'vs/editor/common/diff/documentDiffProvider';
@@ -393,6 +394,7 @@ function normalizeRangeMapping(rangeMapping: RangeMapping, original: ITextModel,
 	let originalRange = rangeMapping.originalRange;
 	let modifiedRange = rangeMapping.modifiedRange;
 	if (
+		originalRange.startColumn === 1 && modifiedRange.startColumn === 1 &&
 		(originalRange.endColumn !== 1 || modifiedRange.endColumn !== 1) &&
 		originalRange.endColumn === original.getLineMaxColumn(originalRange.endLineNumber)
 		&& modifiedRange.endColumn === modified.getLineMaxColumn(modifiedRange.endLineNumber)

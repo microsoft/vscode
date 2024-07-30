@@ -48,6 +48,7 @@ import { NativeWorkingCopyBackupService } from 'vs/workbench/services/workingCop
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { AuthInfo, Credentials } from 'vs/platform/request/common/request';
 
 export class TestSharedProcessService implements ISharedProcessService {
 
@@ -121,9 +122,10 @@ export class TestNativeHostService implements INativeHostService {
 	async getOSVirtualMachineHint(): Promise<number> { return 0; }
 	async getOSColorScheme(): Promise<IColorScheme> { return { dark: true, highContrast: false }; }
 	async hasWSLFeatureInstalled(): Promise<boolean> { return false; }
+	async getProcessId(): Promise<number> { throw new Error('Method not implemented.'); }
 	async killProcess(): Promise<void> { }
 	async setDocumentEdited(edited: boolean): Promise<void> { }
-	async openExternal(url: string): Promise<boolean> { return false; }
+	async openExternal(url: string, defaultApplication?: string): Promise<boolean> { return false; }
 	async updateTouchBar(): Promise<void> { }
 	async moveItemToTrash(): Promise<void> { }
 	async newWindowTab(): Promise<void> { }
@@ -143,6 +145,8 @@ export class TestNativeHostService implements INativeHostService {
 	async openDevTools(options?: Partial<Electron.OpenDevToolsOptions> & INativeHostOptions | undefined): Promise<void> { }
 	async toggleDevTools(): Promise<void> { }
 	async resolveProxy(url: string): Promise<string | undefined> { return undefined; }
+	async lookupAuthorization(authInfo: AuthInfo): Promise<Credentials | undefined> { return undefined; }
+	async lookupKerberosAuthorization(url: string): Promise<string | undefined> { return undefined; }
 	async loadCertificates(): Promise<string[]> { return []; }
 	async findFreePort(startPort: number, giveUpAfter: number, timeout: number, stride?: number): Promise<number> { return -1; }
 	async readClipboardText(type?: 'selection' | 'clipboard' | undefined): Promise<string> { return ''; }

@@ -267,6 +267,50 @@
 	cursor: pointer;
 }
 
+.testing-followup-action {
+	line-height: 25px;
+	overflow: hidden;
+	pointer-events: none;
+	display: flex;
+	align-items: center;
+	gap: 14px;
+
+	&.animated {
+		animation: fadeIn 150ms ease-out;
+	}
+
+	> a {
+		display: flex;
+		align-items: center;
+		gap: 4px;
+		cursor: pointer;
+		pointer-events: auto;
+		width: fit-content;
+		flex-shrink: 0;
+
+		&, .codicon {
+			color: var(--vscode-textLink-foreground);
+		}
+
+		&:hover {
+			color: var(--vscode-textLink-activeForeground);
+		}
+
+		&[aria-disabled="true"] {
+			color: inherit;
+			cursor: default;
+
+			.codicon {
+				color: inherit;
+			}
+		}
+	}
+}
+
+.test-output-call-stack {
+	height: 100%;
+}
+
 /** -- filter  */
 .monaco-action-bar.testing-filter-action-bar {
 	flex-shrink: 0;
@@ -362,6 +406,10 @@
 }
 
 /** -- coverage  */
+
+.coverage-view-is-filtered > .pane-header > .actions {
+	display: block !important;
+}
 
 .test-coverage-list-item {
 	display: flex;

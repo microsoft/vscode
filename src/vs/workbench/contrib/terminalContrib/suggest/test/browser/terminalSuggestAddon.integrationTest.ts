@@ -3,9 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// eslint-disable-next-line local/code-import-patterns, local/code-amd-node-module
-import { Terminal } from '@xterm/xterm';
-
+import type { Terminal } from '@xterm/xterm';
 import { strictEqual } from 'assert';
 import { getActiveDocument } from 'vs/base/browser/dom';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
@@ -16,10 +14,10 @@ import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/cap
 import type { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 import { ShellIntegrationAddon } from 'vs/platform/terminal/common/xterm/shellIntegrationAddon';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { SuggestAddon } from 'vs/workbench/contrib/terminalContrib/suggest/browser/terminalSuggestAddon';
+import { parseCompletionsFromShell, SuggestAddon } from 'vs/workbench/contrib/terminalContrib/suggest/browser/terminalSuggestAddon';
 import { TerminalSuggestCommandId } from 'vs/workbench/contrib/terminalContrib/suggest/common/terminal.suggest';
 import type { ITerminalSuggestConfiguration } from 'vs/workbench/contrib/terminalContrib/suggest/common/terminalSuggestConfiguration';
-import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { workbenchInstantiationService, type TestTerminalConfigurationService } from 'vs/workbench/test/browser/workbenchTestServices';
 
 import { events as macos_bash_echo_simple } from 'vs/workbench/contrib/terminalContrib/suggest/test/browser/recordings/macos_bash_echo_simple';
 import { events as macos_bash_echo_multiline } from 'vs/workbench/contrib/terminalContrib/suggest/test/browser/recordings/macos_bash_echo_multiline';
@@ -30,6 +28,9 @@ import { events as windows11_pwsh_namespace_completion } from 'vs/workbench/cont
 import { events as windows11_pwsh_type_before_prompt } from 'vs/workbench/contrib/terminalContrib/suggest/test/browser/recordings/windows11_pwsh_type_before_prompt';
 import { events as windows11_pwsh_writehost_multiline_nav_up } from 'vs/workbench/contrib/terminalContrib/suggest/test/browser/recordings/windows11_pwsh_writehost_multiline_nav_up';
 import { events as windows11_pwsh_writehost_multiline } from 'vs/workbench/contrib/terminalContrib/suggest/test/browser/recordings/windows11_pwsh_writehost_multiline';
+import { importAMDNodeModule } from 'vs/amdX';
+import { testRawPwshCompletions } from 'vs/workbench/contrib/terminalContrib/suggest/test/browser/testRawPwshCompletions';
+import { ITerminalConfigurationService } from 'vs/workbench/contrib/terminal/browser/terminal';
 
 const recordedTestCases: { name: string; events: RecordedSessionEvent[] }[] = [
 	{ name: 'macos_bash_echo_simple', events: macos_bash_echo_simple as any as RecordedSessionEvent[] },
@@ -69,26 +70,40 @@ suite('Terminal Contrib Suggest Recordings', () => {
 	let suggestWidgetVisibleContextKey: IContextKey<boolean>;
 	let suggestAddon: SuggestAddon;
 
-	setup(() => {
+	setup(async () => {
+		const terminalConfig = {
+			fontFamily: 'monospace',
+			fontSize: 12,
+			fontWeight: 'normal',
+			letterSpacing: 0,
+			lineHeight: 1,
+			integrated: {
+				suggest: {
+					enabled: true,
+					quickSuggestions: true,
+					suggestOnTriggerCharacters: true,
+					runOnEnter: 'never',
+					builtinCompletions: {
+						pwshCode: true,
+						pwshGit: true
+					}
+				} satisfies ITerminalSuggestConfiguration
+			}
+		};
 		const instantiationService = workbenchInstantiationService({
 			configurationService: () => new TestConfigurationService({
 				files: { autoSave: false },
-				terminal: {
-					integrated: {
-						suggest: {
-							enabled: true,
-							quickSuggestions: true,
-							suggestOnTriggerCharacters: true,
-						} satisfies ITerminalSuggestConfiguration
-					}
-				}
+				terminal: terminalConfig
 			})
 		}, store);
-		xterm = store.add(new Terminal({ allowProposedApi: true }));
+		const terminalConfigurationService = instantiationService.get(ITerminalConfigurationService) as TestTerminalConfigurationService;
+		terminalConfigurationService.setConfig(terminalConfig as any);
+		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
+		xterm = store.add(new TerminalCtor({ allowProposedApi: true }));
 		const shellIntegrationAddon = store.add(new ShellIntegrationAddon('', true, undefined, new NullLogService));
 		capabilities = shellIntegrationAddon.capabilities;
 		suggestWidgetVisibleContextKey = TerminalContextKeys.suggestWidgetVisible.bindTo(instantiationService.get(IContextKeyService));
-		suggestAddon = store.add(instantiationService.createInstance(SuggestAddon, shellIntegrationAddon.capabilities, suggestWidgetVisibleContextKey));
+		suggestAddon = store.add(instantiationService.createInstance(SuggestAddon, new Set(parseCompletionsFromShell(testRawPwshCompletions)), shellIntegrationAddon.capabilities, suggestWidgetVisibleContextKey));
 
 		const testContainer = document.createElement('div');
 		getActiveDocument().body.append(testContainer);

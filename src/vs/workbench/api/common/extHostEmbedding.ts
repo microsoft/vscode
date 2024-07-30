@@ -39,6 +39,7 @@ export class ExtHostEmbeddings implements ExtHostEmbeddingsShape {
 		this._provider.set(handle, { id: embeddingsModel, provider });
 
 		return toDisposable(() => {
+			this._allKnownModels.delete(embeddingsModel);
 			this._proxy.$unregisterEmbeddingProvider(handle);
 			this._provider.delete(handle);
 		});

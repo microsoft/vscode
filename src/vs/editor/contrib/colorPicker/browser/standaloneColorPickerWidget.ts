@@ -12,7 +12,7 @@ import { StandaloneColorPickerHover, StandaloneColorPickerParticipant } from 'vs
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EditorHoverStatusBar } from 'vs/editor/contrib/hover/browser/contentHoverStatusBar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ColorPickerWidget, InsertButton } from 'vs/editor/contrib/colorPicker/browser/colorPickerWidget';
+import { InsertButton } from 'vs/editor/contrib/colorPicker/browser/colorPickerWidget';
 import { Emitter } from 'vs/base/common/event';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IColorInformation } from 'vs/editor/common/languages';
@@ -215,42 +215,42 @@ export class StandaloneColorPickerWidget extends Disposable implements IContentW
 	private _render(colorHover: StandaloneColorPickerHover, foundInEditor: boolean) {
 		const fragment = document.createDocumentFragment();
 		const statusBar = this._register(new EditorHoverStatusBar(this._keybindingService));
-		let colorPickerWidget: ColorPickerWidget | undefined;
 
 		const context: IEditorHoverRenderContext = {
 			fragment,
 			statusBar,
-			setColorPicker: (widget: ColorPickerWidget) => colorPickerWidget = widget,
 			onContentsChanged: () => { },
 			hide: () => this.hide()
 		};
 
 		this._colorHover = colorHover;
-		this._register(this._standaloneColorPickerParticipant.renderHoverParts(context, [colorHover]));
-		if (colorPickerWidget === undefined) {
+		const renderedHoverPart = this._standaloneColorPickerParticipant.renderHoverParts(context, [colorHover]);
+		if (!renderedHoverPart) {
 			return;
 		}
+		this._register(renderedHoverPart.disposables);
+		const colorPicker = renderedHoverPart.colorPicker;
 		this._body.classList.add('standalone-colorpicker-body');
 		this._body.style.maxHeight = Math.max(this._editor.getLayoutInfo().height / 4, 250) + 'px';
 		this._body.style.maxWidth = Math.max(this._editor.getLayoutInfo().width * 0.66, 500) + 'px';
 		this._body.tabIndex = 0;
 		this._body.appendChild(fragment);
-		colorPickerWidget.layout();
+		colorPicker.layout();
 
-		const colorPickerBody = colorPickerWidget.body;
+		const colorPickerBody = colorPicker.body;
 		const saturationBoxWidth = colorPickerBody.saturationBox.domNode.clientWidth;
 		const widthOfOriginalColorBox = colorPickerBody.domNode.clientWidth - saturationBoxWidth - CLOSE_BUTTON_WIDTH - PADDING;
-		const enterButton: InsertButton | null = colorPickerWidget.body.enterButton;
+		const enterButton: InsertButton | null = colorPicker.body.enterButton;
 		enterButton?.onClicked(() => {
 			this.updateEditor();
 			this.hide();
 		});
-		const colorPickerHeader = colorPickerWidget.header;
+		const colorPickerHeader = colorPicker.header;
 		const pickedColorNode = colorPickerHeader.pickedColorNode;
 		pickedColorNode.style.width = saturationBoxWidth + PADDING + 'px';
 		const originalColorNode = colorPickerHeader.originalColorNode;
 		originalColorNode.style.width = widthOfOriginalColorBox + 'px';
-		const closeButton = colorPickerWidget.header.closeButton;
+		const closeButton = colorPicker.header.closeButton;
 		closeButton?.onClicked(() => {
 			this.hide();
 		});

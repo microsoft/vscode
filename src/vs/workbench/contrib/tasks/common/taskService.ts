@@ -15,7 +15,7 @@ import { ITaskSummary, ITaskTerminateResponse, ITaskSystemInfo } from 'vs/workbe
 import { IStringDictionary } from 'vs/base/common/collections';
 import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
-export { ITaskSummary, Task, ITaskTerminateResponse as TaskTerminateResponse };
+export type { ITaskSummary, Task, ITaskTerminateResponse as TaskTerminateResponse };
 
 export const CustomExecutionSupportedContext = new RawContextKey<boolean>('customExecutionSupported', false, nls.localize('tasks.customExecutionSupported', "Whether CustomExecution tasks are supported. Consider using in the when clause of a \'taskDefinition\' contribution."));
 export const ShellExecutionSupportedContext = new RawContextKey<boolean>('shellExecutionSupported', false, nls.localize('tasks.shellExecutionSupported', "Whether ShellExecution tasks are supported. Consider using in the when clause of a \'taskDefinition\' contribution."));
@@ -75,6 +75,11 @@ export interface ITaskService {
 	getBusyTasks(): Promise<Task[]>;
 	terminate(task: Task): Promise<ITaskTerminateResponse>;
 	tasks(filter?: ITaskFilter): Promise<Task[]>;
+	/**
+	 * Gets tasks currently known to the task system. Unlike {@link tasks},
+	 * this does not activate extensions or prompt for workspace trust.
+	 */
+	getKnownTasks(filter?: ITaskFilter): Promise<Task[]>;
 	taskTypes(): string[];
 	getWorkspaceTasks(runSource?: TaskRunSource): Promise<Map<string, IWorkspaceFolderTaskResult>>;
 	getSavedTasks(type: 'persistent' | 'historical'): Promise<(Task | ConfiguringTask)[]>;

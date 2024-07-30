@@ -9,7 +9,7 @@
     "vscode": "*"
   },
   "scripts": {
-    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin textmate/yaml.tmbundle Syntaxes/YAML.tmLanguage ./syntaxes/yaml.tmLanguage.json"
+    "update-grammar": "node ./build/update-grammar.js"
   },
   "categories": ["Programming Languages"],
   "contributes": {
@@ -56,6 +56,22 @@
         "scopeName": "source.yaml",
         "path": "./syntaxes/yaml.tmLanguage.json"
       },
+      {
+				"scopeName": "source.yaml.1.3",
+				"path": "./syntaxes/yaml-1.3.tmLanguage.json"
+			},
+			{
+				"scopeName": "source.yaml.1.2",
+				"path": "./syntaxes/yaml-1.2.tmLanguage.json"
+			},
+			{
+				"scopeName": "source.yaml.1.1",
+				"path": "./syntaxes/yaml-1.1.tmLanguage.json"
+			},
+			{
+				"scopeName": "source.yaml.1.0",
+				"path": "./syntaxes/yaml-1.0.tmLanguage.json"
+			},
       {
         "language": "yaml",
         "scopeName": "source.yaml",

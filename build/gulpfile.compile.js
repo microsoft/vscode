@@ -3,18 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+//@ts-check
 'use strict';
 
 const gulp = require('gulp');
 const util = require('./lib/util');
+const date = require('./lib/date');
 const task = require('./lib/task');
 const compilation = require('./lib/compilation');
 const optimize = require('./lib/optimize');
 
+/**
+ * @param {boolean} disableMangle
+ */
 function makeCompileBuildTask(disableMangle) {
 	return task.series(
 		util.rimraf('out-build'),
 		util.buildWebNodePaths('out-build'),
+		date.writeISODate('out-build'),
 		compilation.compileApiProposalNamesTask,
 		compilation.compileTask('src', 'out-build', true, { disableMangle }),
 		optimize.optimizeLoaderTask('out-build', 'out-build', true)

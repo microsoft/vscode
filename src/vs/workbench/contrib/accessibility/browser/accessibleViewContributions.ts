@@ -4,22 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { accessibleViewIsShown } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import * as strings from 'vs/base/common/strings';
 import { AccessibilityHelpAction, AccessibleViewAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
-import { AccessibleViewType, AdvancedContentProvider, ExtensionContentProvider, IAccessibleViewService } from 'vs/platform/accessibility/browser/accessibleView';
+import { AccessibleViewType, AccessibleContentProvider, ExtensionContentProvider, IAccessibleViewService } from 'vs/platform/accessibility/browser/accessibleView';
 import { AccessibleViewRegistry } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-
-export function descriptionForCommand(commandId: string, msg: string, noKbMsg: string, keybindingService: IKeybindingService): string {
-	const kb = keybindingService.lookupKeybinding(commandId);
-	if (kb) {
-		return strings.format(msg, kb.getAriaLabel());
-	}
-	return strings.format(noKbMsg, commandId);
-}
-
 
 export class AccesibleViewHelpContribution extends Disposable {
 	static ID: 'accesibleViewHelpContribution';
@@ -38,12 +27,17 @@ export class AccesibleViewContributions extends Disposable {
 		super();
 		AccessibleViewRegistry.getImplementations().forEach(impl => {
 			const implementation = (accessor: ServicesAccessor) => {
-				const provider: AdvancedContentProvider | ExtensionContentProvider | undefined = impl.getProvider(accessor);
-				if (provider) {
+				const provider: AccessibleContentProvider | ExtensionContentProvider | undefined = impl.getProvider(accessor);
+				if (!provider) {
+					return false;
+				}
+				try {
 					accessor.get(IAccessibleViewService).show(provider);
 					return true;
+				} catch {
+					provider.dispose();
+					return false;
 				}
-				return false;
 			};
 			if (impl.type === AccessibleViewType.View) {
 				this._register(AccessibleViewAction.addImplementation(impl.priority, impl.name, implementation, impl.when));

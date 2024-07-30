@@ -29,8 +29,9 @@ import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/w
 import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { Disposable } from 'vs/base/common/lifecycle';
 
-export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditingService {
+export abstract class AbstractWorkspaceEditingService extends Disposable implements IWorkspaceEditingService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -51,7 +52,9 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
-	) { }
+	) {
+		super();
+	}
 
 	async pickNewWorkspacePath(): Promise<URI | undefined> {
 		const availableFileSystems = [Schemas.file];

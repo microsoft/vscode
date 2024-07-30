@@ -9,7 +9,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { workbenchConfigurationNodeBase, Extensions as WorkbenchExtensions, IConfigurationMigrationRegistry, ConfigurationKeyValuePairs, ConfigurationMigration } from 'vs/workbench/common/configuration';
 import { AccessibilitySignal } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
-import { ISpeechService, SPEECH_LANGUAGES, SPEECH_LANGUAGE_CONFIG } from 'vs/workbench/contrib/speech/common/speechService';
+import { AccessibilityVoiceSettingId, ISpeechService, SPEECH_LANGUAGES } from 'vs/workbench/contrib/speech/common/speechService';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Event } from 'vs/base/common/event';
@@ -25,6 +25,8 @@ export const accessibleViewOnLastLine = new RawContextKey<boolean>('accessibleVi
 export const accessibleViewCurrentProviderId = new RawContextKey<string>('accessibleViewCurrentProviderId', undefined, undefined);
 export const accessibleViewInCodeBlock = new RawContextKey<boolean>('accessibleViewInCodeBlock', undefined, undefined);
 export const accessibleViewContainsCodeBlocks = new RawContextKey<boolean>('accessibleViewContainsCodeBlocks', undefined, undefined);
+export const accessibleViewHasUnassignedKeybindings = new RawContextKey<boolean>('accessibleViewHasUnassignedKeybindings', undefined, undefined);
+export const accessibleViewHasAssignedKeybindings = new RawContextKey<boolean>('accessibleViewHasAssignedKeybindings', undefined, undefined);
 
 /**
  * Miscellaneous settings tagged with accessibility and implemented in the accessibility contrib but
@@ -56,8 +58,10 @@ export const enum AccessibilityVerbositySettingId {
 	Hover = 'accessibility.verbosity.hover',
 	Notification = 'accessibility.verbosity.notification',
 	EmptyEditorHint = 'accessibility.verbosity.emptyEditorHint',
+	ReplInputHint = 'accessibility.verbosity.replInputHint',
 	Comments = 'accessibility.verbosity.comments',
-	DiffEditorActive = 'accessibility.verbosity.diffEditorActive'
+	DiffEditorActive = 'accessibility.verbosity.diffEditorActive',
+	Debug = 'accessibility.verbosity.debug',
 }
 
 const baseVerbosityProperty: IConfigurationPropertySchema = {
@@ -158,6 +162,10 @@ const configuration: IConfigurationNode = {
 			description: localize('verbosity.emptyEditorHint', 'Provide information about relevant actions in an empty text editor.'),
 			...baseVerbosityProperty
 		},
+		[AccessibilityVerbositySettingId.ReplInputHint]: {
+			description: localize('verbosity.replInputHint', 'Provide information about relevant actions For the Repl input.'),
+			...baseVerbosityProperty
+		},
 		[AccessibilityVerbositySettingId.Comments]: {
 			description: localize('verbosity.comments', 'Provide information about actions that can be taken in the comment widget or in a file which contains comments.'),
 			...baseVerbosityProperty
@@ -166,33 +174,86 @@ const configuration: IConfigurationNode = {
 			description: localize('verbosity.diffEditorActive', 'Indicate when a diff editor becomes the active editor.'),
 			...baseVerbosityProperty
 		},
+		[AccessibilityVerbositySettingId.Debug]: {
+			description: localize('verbosity.debug', 'Provide information about how to access the debug console accessibility help dialog when the debug console or run and debug viewlet is focused. Note that a reload of the window is required for this to take effect.'),
+			...baseVerbosityProperty
+		},
 		[AccessibilityWorkbenchSettingId.AccessibleViewCloseOnKeyPress]: {
 			markdownDescription: localize('terminal.integrated.accessibleView.closeOnKeyPress', "On keypress, close the Accessible View and focus the element from which it was invoked."),
 			type: 'boolean',
 			default: true
 		},
-		'accessibility.signalOptions': {
-			type: 'object',
-			additionalProperties: false,
-			properties: {
-				'volume': {
-					'description': localize('accessibility.signalOptions.volume', "The volume of the sounds in percent (0-100)."),
+		'accessibility.signalOptions.volume': {
+			'description': localize('accessibility.signalOptions.volume', "The volume of the sounds in percent (0-100)."),
+			'type': 'number',
+			'minimum': 0,
+			'maximum': 100,
+			'default': 70,
+			'tags': ['accessibility']
+		},
+		'accessibility.signalOptions.debouncePositionChanges': {
+			'description': localize('accessibility.signalOptions.debouncePositionChanges', "Whether or not position changes should be debounced"),
+			'type': 'boolean',
+			'default': false,
+			'tags': ['accessibility']
+		},
+		'accessibility.signalOptions.experimental.delays.general': {
+			'type': 'object',
+			'description': 'Delays for all signals besides error and warning at position',
+			'additionalProperties': false,
+			'properties': {
+				'announcement': {
+					'description': localize('accessibility.signalOptions.delays.general.announcement', "The delay in milliseconds before an announcement is made."),
 					'type': 'number',
 					'minimum': 0,
-					'maximum': 100,
-					'default': 70,
+					'default': 3000
 				},
-				'debouncePositionChanges': {
-					'description': localize('accessibility.signalOptions.debouncePositionChanges', "Whether or not position changes should be debounced"),
-					'type': 'boolean',
-					'default': false,
+				'sound': {
+					'description': localize('accessibility.signalOptions.delays.general.sound', "The delay in milliseconds before a sound is played."),
+					'type': 'number',
+					'minimum': 0,
+					'default': 400
+				}
+			},
+			'tags': ['accessibility']
+		},
+		'accessibility.signalOptions.experimental.delays.warningAtPosition': {
+			'type': 'object',
+			'additionalProperties': false,
+			'properties': {
+				'announcement': {
+					'description': localize('accessibility.signalOptions.delays.warningAtPosition.announcement', "The delay in milliseconds before an announcement is made when there's a warning at the position."),
+					'type': 'number',
+					'minimum': 0,
+					'default': 3000
 				},
+				'sound': {
+					'description': localize('accessibility.signalOptions.delays.warningAtPosition.sound', "The delay in milliseconds before a sound is played when there's a warning at the position."),
+					'type': 'number',
+					'minimum': 0,
+					'default': 1000
+				}
 			},
-			default: {
-				'volume': 70,
-				'debouncePositionChanges': false
+			'tags': ['accessibility']
+		},
+		'accessibility.signalOptions.experimental.delays.errorAtPosition': {
+			'type': 'object',
+			'additionalProperties': false,
+			'properties': {
+				'announcement': {
+					'description': localize('accessibility.signalOptions.delays.errorAtPosition.announcement', "The delay in milliseconds before an announcement is made when there's an error at the position."),
+					'type': 'number',
+					'minimum': 0,
+					'default': 3000
+				},
+				'sound': {
+					'description': localize('accessibility.signalOptions.delays.errorAtPosition.sound', "The delay in milliseconds before a sound is played when there's an error at the position."),
+					'type': 'number',
+					'minimum': 0,
+					'default': 1000
+				}
 			},
-			tags: ['accessibility']
+			'tags': ['accessibility']
 		},
 		'accessibility.signals.lineHasBreakpoint': {
 			...signalFeatureBase,
@@ -360,6 +421,20 @@ const configuration: IConfigurationNode = {
 				},
 				'announcement': {
 					'description': localize('accessibility.signals.terminalCommandFailed.announcement', "Announces when a terminal command fails (non-zero exit code) or when a command with such an exit code is navigated to in the accessible view."),
+					...announcementFeatureBase
+				},
+			}
+		},
+		'accessibility.signals.terminalCommandSucceeded': {
+			...signalFeatureBase,
+			'description': localize('accessibility.signals.terminalCommandSucceeded', "Plays a signal - sound (audio cue) and/or announcement (alert) - when a terminal command succeeds (zero exit code) or when a command with such an exit code is navigated to in the accessible view."),
+			'properties': {
+				'sound': {
+					'description': localize('accessibility.signals.terminalCommandSucceeded.sound', "Plays a sound when a terminal command succeeds (zero exit code) or when a command with such an exit code is navigated to in the accessible view."),
+					...soundFeatureBase
+				},
+				'announcement': {
+					'description': localize('accessibility.signals.terminalCommandSucceeded.announcement', "Announces when a terminal command succeeds (zero exit code) or when a command with such an exit code is navigated to in the accessible view."),
 					...announcementFeatureBase
 				},
 			}
@@ -594,6 +669,16 @@ const configuration: IConfigurationNode = {
 				'announcement': 'never'
 			}
 		},
+		'accessibility.underlineLinks': {
+			'type': 'boolean',
+			'description': localize('accessibility.underlineLinks', "Controls whether links should be underlined in the workbench."),
+			'default': false,
+		},
+		'accessibility.debugWatchVariableAnnouncements': {
+			'type': 'boolean',
+			'description': localize('accessibility.debugWatchVariableAnnouncements', "Controls whether variable changes should be announced in the debug watch view."),
+			'default': true,
+		},
 	}
 };
 
@@ -630,11 +715,8 @@ export function registerAccessibilityConfiguration() {
 	});
 }
 
-export const enum AccessibilityVoiceSettingId {
-	SpeechTimeout = 'accessibility.voice.speechTimeout',
-	AutoSynthesize = 'accessibility.voice.autoSynthesize',
-	SpeechLanguage = SPEECH_LANGUAGE_CONFIG
-}
+export { AccessibilityVoiceSettingId };
+
 export const SpeechTimeoutDefault = 1200;
 
 export class DynamicSpeechAccessibilityConfiguration extends Disposable implements IWorkbenchContribution {
@@ -703,10 +785,9 @@ export class DynamicSpeechAccessibilityConfiguration extends Disposable implemen
 Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMigration)
 	.registerConfigurationMigrations([{
 		key: 'audioCues.volume',
-		migrateFn: (volume, accessor) => {
-			const debouncePositionChanges = getDebouncePositionChangesFromConfig(accessor);
+		migrateFn: (value, accessor) => {
 			return [
-				['accessibility.signalOptions', { value: debouncePositionChanges !== undefined ? { volume, debouncePositionChanges } : { volume } }],
+				['accessibility.signalOptions.volume', { value }],
 				['audioCues.volume', { value: undefined }]
 			];
 		}
@@ -715,10 +796,9 @@ Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMi
 Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMigration)
 	.registerConfigurationMigrations([{
 		key: 'audioCues.debouncePositionChanges',
-		migrateFn: (debouncePositionChanges, accessor) => {
-			const volume = getVolumeFromConfig(accessor);
+		migrateFn: (value) => {
 			return [
-				['accessibility.signalOptions', { value: volume !== undefined ? { volume, debouncePositionChanges } : { debouncePositionChanges } }],
+				['accessibility.signalOptions.debouncePositionChanges', { value }],
 				['audioCues.debouncePositionChanges', { value: undefined }]
 			];
 		}
@@ -726,11 +806,31 @@ Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMi
 
 Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMigration)
 	.registerConfigurationMigrations([{
-		key: 'accessibility.signals.sounds.volume',
-		migrateFn: (volume, accessor) => {
+		key: 'accessibility.signalOptions',
+		migrateFn: (value, accessor) => {
+			const delayGeneral = getDelaysFromConfig(accessor, 'general');
+			const delayError = getDelaysFromConfig(accessor, 'errorAtPosition');
+			const delayWarning = getDelaysFromConfig(accessor, 'warningAtPosition');
+			const volume = getVolumeFromConfig(accessor);
 			const debouncePositionChanges = getDebouncePositionChangesFromConfig(accessor);
 			return [
-				['accessibility.signalOptions', { value: debouncePositionChanges !== undefined ? { volume, debouncePositionChanges } : { volume } }],
+				['accessibility.signalOptions.volume', { value: volume }],
+				['accessibility.signalOptions.debouncePositionChanges', { value: debouncePositionChanges }],
+				['accessibility.signalOptions.experimental.delays.general', { value: delayGeneral }],
+				['accessibility.signalOptions.experimental.delays.errorAtPosition', { value: delayError }],
+				['accessibility.signalOptions.experimental.delays.warningAtPosition', { value: delayWarning }],
+				['accessibility.signalOptions', { value: undefined }],
+			];
+		}
+	}]);
+
+
+Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMigration)
+	.registerConfigurationMigrations([{
+		key: 'accessibility.signals.sounds.volume',
+		migrateFn: (value) => {
+			return [
+				['accessibility.signalOptions.volume', { value }],
 				['accessibility.signals.sounds.volume', { value: undefined }]
 			];
 		}
@@ -739,21 +839,24 @@ Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMi
 Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMigration)
 	.registerConfigurationMigrations([{
 		key: 'accessibility.signals.debouncePositionChanges',
-		migrateFn: (debouncePositionChanges, accessor) => {
-			const volume = getVolumeFromConfig(accessor);
+		migrateFn: (value) => {
 			return [
-				['accessibility.signalOptions', { value: volume !== undefined ? { volume, debouncePositionChanges } : { debouncePositionChanges } }],
+				['accessibility.signalOptions.debouncePositionChanges', { value }],
 				['accessibility.signals.debouncePositionChanges', { value: undefined }]
 			];
 		}
 	}]);
 
+function getDelaysFromConfig(accessor: (key: string) => any, type: 'general' | 'errorAtPosition' | 'warningAtPosition'): { announcement: number; sound: number } | undefined {
+	return accessor(`accessibility.signalOptions.experimental.delays.${type}`) || accessor('accessibility.signalOptions')?.['experimental.delays']?.[`${type}`] || accessor('accessibility.signalOptions')?.['delays']?.[`${type}`];
+}
+
 function getVolumeFromConfig(accessor: (key: string) => any): string | undefined {
-	return accessor('accessibility.signalOptions')?.volume || accessor('accessibility.signals.sounds.volume') || accessor('audioCues.volume');
+	return accessor('accessibility.signalOptions.volume') || accessor('accessibility.signalOptions')?.volume || accessor('accessibility.signals.sounds.volume') || accessor('audioCues.volume');
 }
 
 function getDebouncePositionChangesFromConfig(accessor: (key: string) => any): number | undefined {
-	return accessor('accessibility.signalOptions')?.debouncePositionChanges || accessor('accessibility.signals.debouncePositionChanges') || accessor('audioCues.debouncePositionChanges');
+	return accessor('accessibility.signalOptions.debouncePositionChanges') || accessor('accessibility.signalOptions')?.debouncePositionChanges || accessor('accessibility.signals.debouncePositionChanges') || accessor('audioCues.debouncePositionChanges');
 }
 
 Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMigration)

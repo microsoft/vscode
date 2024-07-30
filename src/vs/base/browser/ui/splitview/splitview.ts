@@ -1127,7 +1127,7 @@ export class SplitView<TLayoutContext = undefined, TView extends IView<TLayoutCo
 			}
 
 			const onChangeDisposable = view.onDidChange(size => this.onViewChange(item, size));
-			const containerDisposable = toDisposable(() => this.viewContainer.removeChild(container));
+			const containerDisposable = toDisposable(() => container.remove());
 			const disposable = combinedDisposable(onChangeDisposable, containerDisposable);
 
 			let viewSize: ViewItemSize;

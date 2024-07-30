@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
 import { exec } from 'child_process';
 import { timeout } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -10,7 +11,6 @@ import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import * as path from 'vs/base/common/path';
 import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
-import { Promises } from 'vs/base/node/pfs';
 import { localize } from 'vs/nls';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -211,9 +211,9 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 				}
 				if (injection.filesToCopy) {
 					for (const f of injection.filesToCopy) {
-						await Promises.mkdir(path.dirname(f.dest), { recursive: true });
+						await fs.promises.mkdir(path.dirname(f.dest), { recursive: true });
 						try {
-							await Promises.copyFile(f.source, f.dest);
+							await fs.promises.copyFile(f.source, f.dest);
 						} catch {
 							// Swallow error, this should only happen when multiple users are on the same
 							// machine. Since the shell integration scripts rarely change, plus the other user
@@ -241,7 +241,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 	private async _validateCwd(): Promise<undefined | ITerminalLaunchError> {
 		try {
-			const result = await Promises.stat(this._initialCwd);
+			const result = await fs.promises.stat(this._initialCwd);
 			if (!result.isDirectory()) {
 				return { message: localize('launchFail.cwdNotDirectory', "Starting directory (cwd) \"{0}\" is not a directory", this._initialCwd.toString()) };
 			}
@@ -268,7 +268,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		}
 
 		try {
-			const result = await Promises.stat(executable);
+			const result = await fs.promises.stat(executable);
 			if (!result.isFile() && !result.isSymbolicLink()) {
 				return { message: localize('launchFail.executableIsNotFileOrSymlink', "Path to shell executable \"{0}\" is not a file or a symlink", slc.executable) };
 			}
@@ -401,7 +401,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		if (this._store.isDisposed) {
 			return;
 		}
-		this._currentTitle = ptyProcess.process;
+		// HACK: The node-pty API can return undefined somehow https://github.com/microsoft/vscode/issues/222323
+		this._currentTitle = (ptyProcess.process ?? '');
 		this._onDidChangeProperty.fire({ type: ProcessPropertyType.Title, value: this._currentTitle });
 		// If fig is installed it may change the title of the process
 		const sanitizedTitle = this.currentTitle.replace(/ \(figterm\)$/g, '');
@@ -608,7 +609,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			}
 			this._logService.trace('node-pty.IPty#pid');
 			try {
-				return await Promises.readlink(`/proc/${this._ptyProcess.pid}/cwd`);
+				return await fs.promises.readlink(`/proc/${this._ptyProcess.pid}/cwd`);
 			} catch (error) {
 				return this._initialCwd;
 			}

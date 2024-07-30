@@ -18,11 +18,11 @@ import { ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { Table } from 'vs/base/browser/ui/table/tableWidget';
 import { AbstractTree, TreeFindMatchType, TreeFindMode } from 'vs/base/browser/ui/tree/abstractTree';
-import { EventType, getActiveWindow, isActiveElement } from 'vs/base/browser/dom';
+import { isActiveElement } from 'vs/base/browser/dom';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { localize, localize2 } from 'vs/nls';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 function ensureDOMFocus(widget: ListWidget | undefined): void {
 	// it can happen that one of the commands is executed while
@@ -58,10 +58,6 @@ async function updateFocus(widget: WorkbenchListWidget, updateFocusFn: (widget: 
 async function navigate(widget: WorkbenchListWidget | undefined, updateFocusFn: (widget: WorkbenchListWidget) => void | Promise<void>): Promise<void> {
 	if (!widget) {
 		return;
-	}
-
-	if (activeHover) {
-		toggleCustomHover(activeHover, widget);
 	}
 
 	await updateFocus(widget, updateFocusFn);
@@ -727,37 +723,27 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			return;
 		}
 
-		// Check if the focused element has a hover, otherwise find the first child with a hover
-		const elementWithHover = focusedElement.matches('[custom-hover="true"]') ? focusedElement : focusedElement.querySelector('[custom-hover="true"]');
-		if (!elementWithHover) {
-			return;
+		const elementWithHover = getCustomHoverForElement(focusedElement as HTMLElement);
+		if (elementWithHover) {
+			accessor.get(IHoverService).showManagedHover(elementWithHover as HTMLElement);
 		}
-
-		toggleCustomHover(elementWithHover as HTMLElement, lastFocusedList);
 	},
 });
 
-let activeHover: undefined | HTMLElement;
-let disposable: IDisposable | undefined;
-function toggleCustomHover(element: HTMLElement, list: WorkbenchListWidget) {
-	const show = !element.getAttribute('custom-hover-active');
-	const mouseEvent = new MouseEvent(show ? EventType.MOUSE_OVER : EventType.MOUSE_LEAVE, {
-		view: getActiveWindow(),
-		bubbles: true,
-		cancelable: true,
-	});
-	element.dispatchEvent(mouseEvent);
-
-	if (activeHover === element && !show) {
-		activeHover = undefined;
-		disposable?.dispose();
-		disposable = undefined;
-	} else {
-		activeHover = element;
-		disposable = list.onDidBlur(() => {
-			toggleCustomHover(element, list);
-		});
+function getCustomHoverForElement(element: HTMLElement): HTMLElement | undefined {
+	// Check if the element itself has a hover
+	if (element.matches('[custom-hover="true"]')) {
+		return element;
 	}
+
+	// Only consider children that are not action items or have a tabindex
+	// as these element are focusable and the user is able to trigger them already
+	const noneFocusableElementWithHover = element.querySelector('[custom-hover="true"]:not([tabindex]):not(.action-item)');
+	if (noneFocusableElementWithHover) {
+		return noneFocusableElementWithHover as HTMLElement;
+	}
+
+	return undefined;
 }
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({

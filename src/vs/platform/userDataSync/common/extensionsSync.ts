@@ -533,7 +533,7 @@ export class LocalExtensionsProvider {
 					addToSkipped.push(e);
 					this.logService.info(`${syncResourceLogLabel}: Skipped synchronizing extension`, gallery.displayName || gallery.identifier.id);
 				}
-				if (error instanceof ExtensionManagementError && [ExtensionManagementErrorCode.Incompatible, ExtensionManagementErrorCode.IncompatibleTargetPlatform].includes(error.code)) {
+				if (error instanceof ExtensionManagementError && [ExtensionManagementErrorCode.Incompatible, ExtensionManagementErrorCode.IncompatibleApi, ExtensionManagementErrorCode.IncompatibleTargetPlatform].includes(error.code)) {
 					this.logService.info(`${syncResourceLogLabel}: Skipped synchronizing extension because the compatible extension is not found.`, gallery.displayName || gallery.identifier.id);
 				} else if (error) {
 					this.logService.error(error);
@@ -570,7 +570,7 @@ export class LocalExtensionsProvider {
 		return this.userDataProfileStorageService.withProfileScopedStorageService(profile,
 			async storageService => {
 				const disposables = new DisposableStore();
-				const instantiationService = this.instantiationService.createChild(new ServiceCollection([IStorageService, storageService]));
+				const instantiationService = disposables.add(this.instantiationService.createChild(new ServiceCollection([IStorageService, storageService])));
 				const extensionEnablementService = disposables.add(instantiationService.createInstance(GlobalExtensionEnablementService));
 				const extensionStorageService = disposables.add(instantiationService.createInstance(ExtensionStorageService));
 				try {

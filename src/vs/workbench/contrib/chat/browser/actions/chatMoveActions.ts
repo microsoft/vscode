@@ -92,12 +92,11 @@ export function registerMoveActions() {
 
 async function executeMoveToAction(accessor: ServicesAccessor, moveTo: MoveToNewLocation, chatView?: ChatViewPane) {
 	const widgetService = accessor.get(IChatWidgetService);
-	const viewService = accessor.get(IViewsService);
 	const editorService = accessor.get(IEditorService);
 
 	const widget = chatView?.widget ?? widgetService.lastFocusedWidget;
 	if (!widget || !('viewId' in widget.viewContext)) {
-		await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: <IChatEditorOptions>{ pinned: true } }, moveTo === MoveToNewLocation.Window ? AUX_WINDOW_GROUP : ACTIVE_GROUP);
+		await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: { pinned: true } }, moveTo === MoveToNewLocation.Window ? AUX_WINDOW_GROUP : ACTIVE_GROUP);
 		return;
 	}
 
@@ -107,11 +106,11 @@ async function executeMoveToAction(accessor: ServicesAccessor, moveTo: MoveToNew
 	}
 
 	const sessionId = viewModel.sessionId;
-	const view = await viewService.openView(widget.viewContext.viewId) as ChatViewPane;
-	const viewState = view.widget.getViewState();
-	view.clear();
+	const viewState = widget.getViewState();
+	widget.clear();
 
-	await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: <IChatEditorOptions>{ target: { sessionId }, pinned: true, viewState: viewState } }, moveTo === MoveToNewLocation.Window ? AUX_WINDOW_GROUP : ACTIVE_GROUP);
+	const options: IChatEditorOptions = { target: { sessionId }, pinned: true, viewState: viewState };
+	await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options }, moveTo === MoveToNewLocation.Window ? AUX_WINDOW_GROUP : ACTIVE_GROUP);
 }
 
 async function moveToSidebar(accessor: ServicesAccessor): Promise<void> {
@@ -120,11 +119,14 @@ async function moveToSidebar(accessor: ServicesAccessor): Promise<void> {
 	const editorGroupService = accessor.get(IEditorGroupsService);
 
 	const chatEditorInput = editorService.activeEditor;
+	let view: ChatViewPane;
 	if (chatEditorInput instanceof ChatEditorInput && chatEditorInput.sessionId) {
 		await editorService.closeEditor({ editor: chatEditorInput, groupId: editorGroupService.activeGroup.id });
-		const view = await viewsService.openView(CHAT_VIEW_ID) as ChatViewPane;
+		view = await viewsService.openView(CHAT_VIEW_ID) as ChatViewPane;
 		view.loadSession(chatEditorInput.sessionId);
 	} else {
-		await viewsService.openView(CHAT_VIEW_ID);
+		view = await viewsService.openView(CHAT_VIEW_ID) as ChatViewPane;
 	}
+
+	view.focus();
 }

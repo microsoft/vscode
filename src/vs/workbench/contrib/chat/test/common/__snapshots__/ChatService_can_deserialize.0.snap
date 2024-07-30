@@ -77,15 +77,7 @@
       usedContext: {
         documents: [
           {
-            uri: {
-              scheme: "file",
-              authority: "",
-              path: "/test/path/to/file",
-              query: "",
-              fragment: "",
-              _formatted: null,
-              _fsPath: null
-            },
+            uri: URI(file:///test/path/to/file),
             version: 3,
             ranges: [
               {
@@ -99,7 +91,8 @@
         ],
         kind: "usedContext"
       },
-      contentReferences: [  ]
+      contentReferences: [  ],
+      codeCitations: [  ]
     }
   ]
 }

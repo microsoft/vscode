@@ -57,7 +57,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { NotebookRendererMessagingService } from 'vs/workbench/contrib/notebook/browser/services/notebookRendererMessagingServiceImpl';
 import { INotebookRendererMessagingService } from 'vs/workbench/contrib/notebook/common/notebookRendererMessagingService';
-import { INotebookCellOutlineProviderFactory, NotebookCellOutlineProviderFactory } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineProviderFactory';
+import { INotebookCellOutlineDataSourceFactory, NotebookCellOutlineDataSourceFactory } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineDataSourceFactory';
 
 // Editor Controller
 import 'vs/workbench/contrib/notebook/browser/controller/coreActions';
@@ -122,6 +122,7 @@ import { NotebookVariables } from 'vs/workbench/contrib/notebook/browser/contrib
 import { AccessibleViewRegistry } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
 import { NotebookAccessibilityHelp } from 'vs/workbench/contrib/notebook/browser/notebookAccessibilityHelp';
 import { NotebookAccessibleView } from 'vs/workbench/contrib/notebook/browser/notebookAccessibleView';
+import { DefaultFormatter } from 'vs/workbench/contrib/format/browser/formatActionsMultiple';
 
 /*--------------------------------------------------------------------------------------------- */
 
@@ -186,8 +187,8 @@ class NotebookDiffEditorSerializer implements IEditorSerializer {
 }
 type SerializedNotebookEditorData = { resource: URI; preferredResource: URI; viewType: string; options?: NotebookEditorInputOptions };
 class NotebookEditorSerializer implements IEditorSerializer {
-	canSerialize(): boolean {
-		return true;
+	canSerialize(input: EditorInput): boolean {
+		return input.typeId === NotebookEditorInput.ID;
 	}
 	serialize(input: EditorInput): string {
 		assertType(input instanceof NotebookEditorInput);
@@ -643,7 +644,7 @@ class SimpleNotebookWorkingCopyEditorHandler extends Disposable implements IWork
 
 	private handlesSync(workingCopy: IWorkingCopyIdentifier): string /* viewType */ | undefined {
 		const viewType = this._getViewType(workingCopy);
-		if (!viewType || viewType === 'interactive') {
+		if (!viewType || viewType === 'interactive' || extname(workingCopy.resource) === '.replNotebook') {
 			return undefined;
 		}
 
@@ -725,7 +726,7 @@ registerSingleton(INotebookExecutionStateService, NotebookExecutionStateService,
 registerSingleton(INotebookRendererMessagingService, NotebookRendererMessagingService, InstantiationType.Delayed);
 registerSingleton(INotebookKeymapService, NotebookKeymapService, InstantiationType.Delayed);
 registerSingleton(INotebookLoggingService, NotebookLoggingService, InstantiationType.Delayed);
-registerSingleton(INotebookCellOutlineProviderFactory, NotebookCellOutlineProviderFactory, InstantiationType.Delayed);
+registerSingleton(INotebookCellOutlineDataSourceFactory, NotebookCellOutlineDataSourceFactory, InstantiationType.Delayed);
 
 const schemas: IJSONSchemaMap = {};
 function isConfigurationPropertySchema(x: IConfigurationPropertySchema | { [path: string]: IConfigurationPropertySchema }): x is IConfigurationPropertySchema {
@@ -983,6 +984,14 @@ configurationRegistry.registerConfiguration({
 			tags: ['notebookLayout', 'notebookOutputLayout'],
 			default: false
 		},
+		[NotebookSetting.defaultFormatter]: {
+			description: nls.localize('notebookFormatter.default', "Defines a default notebook formatter which takes precedence over all other formatter settings. Must be the identifier of an extension contributing a formatter."),
+			type: ['string', 'null'],
+			default: null,
+			enum: DefaultFormatter.extensionIds,
+			enumItemLabels: DefaultFormatter.extensionItemLabels,
+			markdownEnumDescriptions: DefaultFormatter.extensionDescriptions
+		},
 		[NotebookSetting.formatOnSave]: {
 			markdownDescription: nls.localize('notebook.formatOnSave', "Format a notebook on save. A formatter must be available, the file must not be saved after delay, and the editor must not be shutting down."),
 			type: 'boolean',
@@ -995,18 +1004,6 @@ configurationRegistry.registerConfiguration({
 			tags: ['notebookLayout'],
 			default: false
 		},
-		[NotebookSetting.codeActionsOnSave]: {
-			markdownDescription: nls.localize('notebook.codeActionsOnSave', 'Run a series of Code Actions for a notebook on save. Code Actions must be specified, the file must not be saved after delay, and the editor must not be shutting down. Example: `"notebook.source.organizeImports": "explicit"`'),
-			type: 'object',
-			additionalProperties: {
-				type: ['string', 'boolean'],
-				enum: ['explicit', 'never', true, false],
-				// enum: ['explicit', 'always', 'never'], -- autosave support needs to be built first
-				// nls.localize('always', 'Always triggers Code Actions on save, including autosave, focus, and window change events.'),
-				enumDescriptions: [nls.localize('explicit', 'Triggers Code Actions only when explicitly saved.'), nls.localize('never', 'Never triggers Code Actions on save.'), nls.localize('explicitBoolean', 'Triggers Code Actions only when explicitly saved. This value will be deprecated in favor of "explicit".'), nls.localize('neverBoolean', 'Triggers Code Actions only when explicitly saved. This value will be deprecated in favor of "never".')],
-			},
-			default: {}
-		},
 		[NotebookSetting.formatOnCellExecution]: {
 			markdownDescription: nls.localize('notebook.formatOnCellExecution', "Format a notebook cell upon execution. A formatter must be available."),
 			type: 'boolean',
@@ -1017,8 +1014,8 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: true
 		},
-		[NotebookSetting.findScope]: {
-			markdownDescription: nls.localize('notebook.findScope', "Customize the Find Widget behavior for searching within notebook cells. When both markup source and markup preview are enabled, the Find Widget will search either the source code or preview based on the current state of the cell."),
+		[NotebookSetting.findFilters]: {
+			markdownDescription: nls.localize('notebook.findFilters', "Customize the Find Widget behavior for searching within notebook cells. When both markup source and markup preview are enabled, the Find Widget will search either the source code or preview based on the current state of the cell."),
 			type: 'object',
 			properties: {
 				markupSource: {

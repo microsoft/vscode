@@ -17,7 +17,6 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { EditorsOrder } from 'vs/workbench/common/editor';
 import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
-import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
 import { CTX_INLINE_CHAT_FOCUSED } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { insertCell } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
 import { CTX_NOTEBOOK_CELL_CHAT_FOCUSED } from 'vs/workbench/contrib/notebook/browser/controller/chat/notebookChatContext';
@@ -105,13 +104,6 @@ async function runCell(editorGroupsService: IEditorGroupsService, context: INote
 	if (!foundEditor) {
 		return;
 	}
-
-	const controller = InlineChatController.get(foundEditor);
-	if (!controller) {
-		return;
-	}
-
-	controller.createSnapshot();
 }
 
 registerAction2(class RenderAllMarkdownCellsAction extends NotebookAction {

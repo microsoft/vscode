@@ -10,6 +10,7 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, DisposableMap, IDisposable } from 'vs/base/common/lifecycle';
 import { revive } from 'vs/base/common/marshalling';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -73,6 +74,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 
 	private readonly _agents = this._register(new DisposableMap<number, AgentData>());
 	private readonly _agentCompletionProviders = this._register(new DisposableMap<number, IDisposable>());
+	private readonly _agentIdsToCompletionProviders = this._register(new DisposableMap<string, IDisposable>);
 
 	private readonly _pendingProgress = new Map<string, (part: IChatProgress) => void>();
 	private readonly _proxy: ExtHostChatAgentsShape2;
@@ -170,7 +172,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			disposable = this._chatAgentService.registerDynamicAgent(
 				{
 					id,
-					name: dynamicProps.name ?? '', // This case is for an API change and can be removed tomorrow
+					name: dynamicProps.name,
 					description: dynamicProps.description,
 					extensionId: extension,
 					extensionDisplayName: extensionDescription?.displayName ?? extension.value,
@@ -197,7 +199,8 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 	$updateAgent(handle: number, metadataUpdate: IExtensionChatAgentMetadata): void {
 		const data = this._agents.get(handle);
 		if (!data) {
-			throw new Error(`No agent with handle ${handle} registered`);
+			this._logService.error(`MainThreadChatAgents2#$updateAgent: No agent with handle ${handle} registered`);
+			return;
 		}
 		data.hasFollowups = metadataUpdate.hasFollowups;
 		this._chatAgentService.updateAgent(data.id, revive(metadataUpdate));
@@ -233,7 +236,13 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		this._pendingProgress.get(requestId)?.(revivedProgress);
 	}
 
-	$registerAgentCompletionsProvider(handle: number, triggerCharacters: string[]): void {
+	$registerAgentCompletionsProvider(handle: number, id: string, triggerCharacters: string[]): void {
+		const provide = async (query: string, token: CancellationToken) => {
+			const completions = await this._proxy.$invokeCompletionProvider(handle, query, token);
+			return completions.map((c) => ({ ...c, icon: c.icon ? ThemeIcon.fromId(c.icon) : undefined }));
+		};
+		this._agentIdsToCompletionProviders.set(id, this._chatAgentService.registerAgentCompletionProvider(id, provide));
+
 		this._agentCompletionProviders.set(handle, this._languageFeaturesService.completionProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, hasAccessToAllModels: true }, {
 			_debugDisplayName: 'chatAgentCompletions:' + handle,
 			triggerCharacters,
@@ -263,7 +272,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					return null;
 				}
 
-				const result = await this._proxy.$invokeCompletionProvider(handle, query, token);
+				const result = await provide(query, token);
 				const variableItems = result.map(v => {
 					const insertText = v.insertText ?? (typeof v.label === 'string' ? v.label : v.label.label);
 					const rangeAfterInsert = new Range(range.insert.startLineNumber, range.insert.startColumn, range.insert.endLineNumber, range.insert.startColumn + insertText.length);
@@ -285,8 +294,9 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		}));
 	}
 
-	$unregisterAgentCompletionsProvider(handle: number): void {
+	$unregisterAgentCompletionsProvider(handle: number, id: string): void {
 		this._agentCompletionProviders.deleteAndDispose(handle);
+		this._agentIdsToCompletionProviders.deleteAndDispose(id);
 	}
 }
 

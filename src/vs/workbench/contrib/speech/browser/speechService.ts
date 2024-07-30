@@ -153,7 +153,7 @@ export class SpeechService extends Disposable implements ISpeechService {
 		const disposables = new DisposableStore();
 
 		const onSessionStoppedOrCanceled = () => {
-			this.activeSpeechToTextSessions--;
+			this.activeSpeechToTextSessions = Math.max(0, this.activeSpeechToTextSessions - 1);
 			if (!this.hasActiveSpeechToTextSession) {
 				this.speechToTextInProgress.reset();
 			}
@@ -264,7 +264,7 @@ export class SpeechService extends Disposable implements ISpeechService {
 		const disposables = new DisposableStore();
 
 		const onSessionStoppedOrCanceled = (dispose: boolean) => {
-			this.activeTextToSpeechSessions--;
+			this.activeTextToSpeechSessions = Math.max(0, this.activeTextToSpeechSessions - 1);
 			if (!this.hasActiveTextToSpeechSession) {
 				this.textToSpeechInProgress.reset();
 			}
@@ -406,7 +406,7 @@ export class SpeechService extends Disposable implements ISpeechService {
 		const disposables = new DisposableStore();
 
 		const onSessionStoppedOrCanceled = () => {
-			this.activeKeywordRecognitionSessions--;
+			this.activeKeywordRecognitionSessions = Math.max(0, this.activeKeywordRecognitionSessions - 1);
 			this._onDidEndKeywordRecognition.fire();
 
 			disposables.dispose();

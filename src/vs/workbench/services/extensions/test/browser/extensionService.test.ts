@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { mock } from 'vs/base/test/common/mock';
@@ -12,7 +12,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
 import { ExtensionKind, IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ExtensionIdentifier, IExtension, IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtension, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TestInstantiationService, createServices } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
@@ -198,6 +198,9 @@ suite('ExtensionService', () => {
 			return new class extends mock<IExtensionHostManager>() {
 				override onDidExit = Event.None;
 				override onDidChangeResponsiveState = Event.None;
+				override disconnect() {
+					return Promise.resolve();
+				}
 				override dispose(): void {
 					order.push(`dispose ${extensionHostId}`);
 				}
@@ -209,10 +212,10 @@ suite('ExtensionService', () => {
 		protected _resolveExtensions(): Promise<ResolvedExtensions> {
 			throw new Error('Method not implemented.');
 		}
-		protected _scanSingleExtension(extension: IExtension): Promise<Readonly<IRelaxedExtensionDescription> | null> {
+		protected _scanSingleExtension(extension: IExtension): Promise<IExtensionDescription | null> {
 			throw new Error('Method not implemented.');
 		}
-		protected _onExtensionHostExit(code: number): void {
+		protected _onExtensionHostExit(code: number): Promise<void> {
 			throw new Error('Method not implemented.');
 		}
 		protected _resolveAuthority(remoteAuthority: string): Promise<ResolverResult> {
@@ -255,7 +258,7 @@ suite('ExtensionService', () => {
 		extService = <MyTestExtensionService>instantiationService.get(IExtensionService);
 	});
 
-	teardown(() => {
+	teardown(async () => {
 		disposables.dispose();
 	});
 

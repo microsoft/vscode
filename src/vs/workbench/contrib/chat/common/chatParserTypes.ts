@@ -6,7 +6,7 @@
 import { revive } from 'vs/base/common/marshalling';
 import { IOffsetRange, OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { IRange } from 'vs/editor/common/core/range';
-import { IChatAgentCommand, IChatAgentData } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentService, reviveSerializedAgent } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatSlashData } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
 
@@ -154,13 +154,7 @@ export function reviveParsedChatRequest(serialized: IParsedChatRequest): IParsed
 				);
 			} else if (part.kind === ChatRequestAgentPart.Kind) {
 				let agent = (part as ChatRequestAgentPart).agent;
-				if (!('name' in agent)) {
-					// Port old format
-					agent = {
-						...(agent as any),
-						name: (agent as any).id
-					};
-				}
+				agent = reviveSerializedAgent(agent);
 
 				return new ChatRequestAgentPart(
 					new OffsetRange(part.range.start, part.range.endExclusive),
@@ -199,4 +193,21 @@ export function extractAgentAndCommand(parsed: IParsedChatRequest): { agentPart:
 	const agentPart = parsed.parts.find((r): r is ChatRequestAgentPart => r instanceof ChatRequestAgentPart);
 	const commandPart = parsed.parts.find((r): r is ChatRequestAgentSubcommandPart => r instanceof ChatRequestAgentSubcommandPart);
 	return { agentPart, commandPart };
+}
+
+export function formatChatQuestion(chatAgentService: IChatAgentService, location: ChatAgentLocation, prompt: string, participant: string | null = null, command: string | null = null): string | undefined {
+	let question = '';
+	if (participant && participant !== chatAgentService.getDefaultAgent(location)?.id) {
+		const agent = chatAgentService.getAgent(participant);
+		if (!agent) {
+			// Refers to agent that doesn't exist
+			return undefined;
+		}
+
+		question += `${chatAgentLeader}${agent.name} `;
+		if (command) {
+			question += `${chatSubcommandLeader}${command} `;
+		}
+	}
+	return question + prompt;
 }

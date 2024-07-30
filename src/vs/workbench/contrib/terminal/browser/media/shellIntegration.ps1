@@ -21,6 +21,9 @@ $Global:__LastHistoryId = -1
 $Nonce = $env:VSCODE_NONCE
 $env:VSCODE_NONCE = $null
 
+$isStable = $env:VSCODE_STABLE
+$env:VSCODE_STABLE = $null
+
 $osVersion = [System.Environment]::OSVersion.Version
 $isWindows10 = $IsWindows -and $osVersion.Major -eq 10 -and $osVersion.Minor -eq 0 -and $osVersion.Build -lt 22000
 
@@ -52,7 +55,7 @@ if ($env:VSCODE_ENV_APPEND) {
 function Global:__VSCode-Escape-Value([string]$value) {
 	# NOTE: In PowerShell v6.1+, this can be written `$value -replace '…', { … }` instead of `[regex]::Replace`.
 	# Replace any non-alphanumeric characters.
-	[regex]::Replace($value, "[$([char]0x1b)\\\n;]", { param($match)
+	[regex]::Replace($value, "[$([char]0x00)-$([char]0x1f)\\\n;]", { param($match)
 			# Encode the (ascii) matches as `\x<hex>`
 			-Join (
 				[System.Text.Encoding]::UTF8.GetBytes($match.Value) | ForEach-Object { '\x{0:x2}' -f $_ }
@@ -95,7 +98,9 @@ function Global:Prompt() {
 
 	# Prompt
 	# OSC 633 ; <Property>=<Value> ST
-	$Result += "$([char]0x1b)]633;P;Prompt=$(__VSCode-Escape-Value $OriginalPrompt)`a"
+	if ($isStable -eq "0") {
+		$Result += "$([char]0x1b)]633;P;Prompt=$(__VSCode-Escape-Value $OriginalPrompt)`a"
+	}
 
 	# Write command started
 	$Result += "$([char]0x1b)]633;B`a"
@@ -142,9 +147,11 @@ else {
 }
 
 # Set ContinuationPrompt property
-$ContinuationPrompt = (Get-PSReadLineOption).ContinuationPrompt
-if ($ContinuationPrompt) {
-	[Console]::Write("$([char]0x1b)]633;P;ContinuationPrompt=$(__VSCode-Escape-Value $ContinuationPrompt)`a")
+if ($isStable -eq "0") {
+	$ContinuationPrompt = (Get-PSReadLineOption).ContinuationPrompt
+	if ($ContinuationPrompt) {
+		[Console]::Write("$([char]0x1b)]633;P;ContinuationPrompt=$(__VSCode-Escape-Value $ContinuationPrompt)`a")
+	}
 }
 
 # Set always on key handlers which map to default VS Code keybindings
@@ -169,8 +176,9 @@ function Set-MappedKeyHandlers {
 	Set-MappedKeyHandler -Chord Shift+Enter -Sequence 'F12,c'
 	Set-MappedKeyHandler -Chord Shift+End -Sequence 'F12,d'
 
-	# Conditionally enable suggestions
-	if ($env:VSCODE_SUGGEST -eq '1') {
+	# Enable suggestions if the environment variable is set and Windows PowerShell is not being used
+	# as APIs are not available to support this feature
+	if ($env:VSCODE_SUGGEST -eq '1' -and $PSVersionTable.PSVersion -ge "6.0") {
 		Remove-Item Env:VSCODE_SUGGEST
 
 		# VS Code send completions request (may override Ctrl+Spacebar)
@@ -178,14 +186,29 @@ function Set-MappedKeyHandlers {
 			Send-Completions
 		}
 
-		# TODO: When does this invalidate? Installing a new module could add new commands. We could expose a command to update? Track `(Get-Module).Count`?
-		# Commands are expensive to complete and send over, do this once for the empty string so we
-		# don't need to do it each time the user requests. Additionally we also want to do filtering
-		# and ranking on the client side with the full list of results.
-		$result = "$([char]0x1b)]633;CompletionsPwshCommands;commands;"
-		$result += [System.Management.Automation.CompletionCompleters]::CompleteCommand('') | ConvertTo-Json -Compress
-		$result += "`a"
-		Write-Host -NoNewLine $result
+		# VS Code send global completions request
+		Set-PSReadLineKeyHandler -Chord 'F12,f' -ScriptBlock {
+			# Get commands, convert to string array to reduce the payload size and send as JSON
+			$commands = @(
+				[System.Management.Automation.CompletionCompleters]::CompleteCommand('')
+				# Keywords aren't included in CompletionCommand
+				[System.Management.Automation.CompletionResult]::new('exit', 'exit', [System.Management.Automation.CompletionResultType]::Keyword, "exit [<exitcode>]")
+			)
+			$mappedCommands = Compress-Completions($commands)
+			$result = "$([char]0x1b)]633;CompletionsPwshCommands;commands;"
+			$result += $mappedCommands | ConvertTo-Json -Compress
+			$result += "`a"
+			Write-Host -NoNewLine $result
+		}
+
+		Set-PSReadLineKeyHandler -Chord 'F12,g' -ScriptBlock {
+			Import-Module "$PSScriptRoot\GitTabExpansion.psm1"
+			Remove-PSReadLineKeyHandler -Chord 'F12,g'
+		}
+		Set-PSReadLineKeyHandler -Chord 'F12,h' -ScriptBlock {
+			Import-Module "$PSScriptRoot\CodeTabExpansion.psm1"
+			Remove-PSReadLineKeyHandler -Chord 'F12,h'
+		}
 	}
 }
 
@@ -203,11 +226,31 @@ function Send-Completions {
 	# `[` is included here as namespace commands are not included in CompleteCommand(''),
 	# additionally for some reason CompleteVariable('[') causes the prompt to clear and reprint
 	# multiple times
-	if ($completionPrefix.Contains(' ') -or $completionPrefix.Contains('[')) {
+	if ($completionPrefix.Contains(' ') -or $completionPrefix.Contains('[') -or $PSVersionTable.PSVersion -lt "6.0") {
 		$completions = TabExpansion2 -inputScript $completionPrefix -cursorColumn $cursorIndex
 		if ($null -ne $completions.CompletionMatches) {
 			$result += ";$($completions.ReplacementIndex);$($completions.ReplacementLength);$($cursorIndex);"
-			$result += $completions.CompletionMatches | ConvertTo-Json -Compress
+			$json = [System.Collections.ArrayList]@($completions.CompletionMatches)
+			# Add `.` and `..` to the completions list for results that only contain files and dirs
+			if ($completions.CompletionMatches.Count -gt 0 -and $completions.CompletionMatches.Where({ $_.ResultType -eq 3 -or $_.ResultType -eq 4 })) {
+				$json.Add([System.Management.Automation.CompletionResult]::new(
+					'.', '.', [System.Management.Automation.CompletionResultType]::ProviderContainer, (Get-Location).Path)
+				)
+				$json.Add([System.Management.Automation.CompletionResult]::new(
+					'..', '..', [System.Management.Automation.CompletionResultType]::ProviderContainer, (Split-Path (Get-Location) -Parent))
+				)
+			}
+			# Add `-` and `+` as a completion for move backwards in location history. Unfortunately
+			# we don't set the path it will navigate to since the Set-Location stack is not public
+			# API https://github.com/PowerShell/PowerShell/issues/23860
+			if ($completionPrefix -eq "cd -") {
+				$json.Add([System.Management.Automation.CompletionResult]::new('-', '-', [System.Management.Automation.CompletionResultType]::ProviderContainer, "Navigate backwards in location history"))
+			}
+			if ($completionPrefix -eq "cd +") {
+				$json.Add([System.Management.Automation.CompletionResult]::new('+', '+', [System.Management.Automation.CompletionResultType]::ProviderContainer, "Navigate forwards in location history"))
+			}
+			$mappedCommands = Compress-Completions($json)
+			$result += $mappedCommands | ConvertTo-Json -Compress
 		}
 	}
 	# If there is no space, get completions using CompletionCompleters as it gives us more
@@ -215,12 +258,20 @@ function Send-Completions {
 	else {
 		# Note that CompleteCommand isn't included here as it's expensive
 		$completions = $(
-			([System.Management.Automation.CompletionCompleters]::CompleteFilename($completionPrefix));
-			([System.Management.Automation.CompletionCompleters]::CompleteVariable($completionPrefix));
+			# Add trailing \ for directories so behavior aligns with TabExpansion2
+			[System.Management.Automation.CompletionCompleters]::CompleteFilename($completionPrefix) | ForEach-Object {
+				if ($_.ResultType -eq [System.Management.Automation.CompletionResultType]::ProviderContainer) {
+					[System.Management.Automation.CompletionResult]::new("$($_.CompletionText)$([System.IO.Path]::DirectorySeparatorChar)", "$($_.CompletionText)$([System.IO.Path]::DirectorySeparatorChar)", $_.ResultType, $_.ToolTip)
+				} else {
+					$_
+				}
+			}
+			([System.Management.Automation.CompletionCompleters]::CompleteVariable(''))
 		)
 		if ($null -ne $completions) {
 			$result += ";$($completions.ReplacementIndex);$($completions.ReplacementLength);$($cursorIndex);"
-			$result += $completions | ConvertTo-Json -Compress
+			$mappedCommands = Compress-Completions($completions)
+			$result += $mappedCommands | ConvertTo-Json -Compress
 		} else {
 			$result += ";0;$($completionPrefix.Length);$($completionPrefix.Length);[]"
 		}
@@ -230,6 +281,16 @@ function Send-Completions {
 	$result += "`a"
 
 	Write-Host -NoNewLine $result
+}
+
+function Compress-Completions($completions) {
+	$completions | ForEach-Object {
+		if ($_.CompletionText -eq $_.ToolTip) {
+			,@($_.CompletionText, $_.ResultType)
+		} else {
+			,@($_.CompletionText, $_.ResultType, $_.ToolTip)
+		}
+	}
 }
 
 # Register key handlers if PSReadLine is available
