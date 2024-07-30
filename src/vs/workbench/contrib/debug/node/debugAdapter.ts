@@ -222,13 +222,20 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 					throw new Error(nls.localize('unableToLaunchDebugAdapterNoArgs', "Unable to launch debug adapter."));
 				}
 			} else {
+				let spawnCommand = command;
 				const spawnOptions: cp.SpawnOptions = {
 					env: env
 				};
 				if (options.cwd) {
 					spawnOptions.cwd = options.cwd;
 				}
-				this.serverProcess = cp.spawn(command, args, spawnOptions);
+				if (platform.isWindows && command.endsWith('.bat')) {
+					// https://github.com/microsoft/vscode/issues/224184
+					spawnOptions.shell = true;
+					spawnCommand = `"${command}"`;
+				}
+
+				this.serverProcess = cp.spawn(spawnCommand, args, spawnOptions);
 			}
 
 			this.serverProcess.on('error', err => {
