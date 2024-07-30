@@ -33,13 +33,15 @@ export class NativeEditContext extends AbstractEditContext {
 	private readonly _domElement = new FastDomNode(document.createElement('div'));
 	private readonly _ctx: EditContext = this._domElement.domNode.editContext = new EditContext();
 
-	private _parent!: HTMLElement;
+	private _isFocused = false;
 	private _contentLeft = 0;
 	private _previousSelection: Selection | undefined;
 	private _previousValue: string | undefined;
-	private _nodeToRemove: ChildNode | null = null;
-	private _isFocused = false;
+	private _domNodeToRemove: ChildNode | null = null;
 	private _editContextState: EditContextState | undefined = undefined;
+
+	// Development variables, remove later
+	private _parent!: HTMLElement;
 	private _selectionBoundsElement: HTMLElement | undefined;
 	private _controlBoundsElement: HTMLElement | undefined;
 
@@ -56,18 +58,20 @@ export class NativeEditContext extends AbstractEditContext {
 
 		this._register(dom.addDisposableListener(domNode, 'focus', () => {
 			this._isFocused = true;
+			// Is the below correct?
 			this._context.viewModel.setHasFocus(true);
 		}));
 		this._register(dom.addDisposableListener(domNode, 'blur', () => {
 			this._isFocused = false;
+			// Is the below correct?
 			this._context.viewModel.setHasFocus(false);
 		}));
 		let copiedText: string | undefined;
 		this._register(dom.addDisposableListener(domNode, 'copy', () => {
 			if (this._previousSelection) {
-				const numberOfLines = this._previousSelection.endLineNumber - this._previousSelection.startLineNumber;
 				copiedText = '';
-				for (let i = 0; i <= numberOfLines; i++) {
+				const numberOfLinesToCopy = this._previousSelection.endLineNumber - this._previousSelection.startLineNumber;
+				for (let i = 0; i <= numberOfLinesToCopy; i++) {
 					const childElement = this._domElement.domNode.children.item(i);
 					if (!childElement) {
 						continue;
@@ -76,7 +80,7 @@ export class NativeEditContext extends AbstractEditContext {
 						const startColumn = this._previousSelection.startColumn;
 						copiedText += childElement.textContent?.substring(startColumn - 1) ?? '';
 					}
-					else if (i === numberOfLines) {
+					else if (i === numberOfLinesToCopy) {
 						const endColumn = this._previousSelection.endColumn;
 						copiedText += '\n' + (childElement.textContent?.substring(0, endColumn) ?? '');
 					}
@@ -88,28 +92,24 @@ export class NativeEditContext extends AbstractEditContext {
 			}
 		}));
 		this._register(dom.addDisposableListener(domNode, 'keydown', (e) => {
-			if (this._editContextState && copiedText && e.metaKey && e.key === 'v') {
+			if (this._editContextState && copiedText !== undefined && e.metaKey && e.key === 'v') {
 				this._handlePasteUpdate(this._editContextState.selection.start, this._editContextState.selection.endExclusive, copiedText);
+				copiedText = undefined;
 			}
-			const x = new StandardKeyboardEvent(e);
-			this._viewController.emitKeyDown(x);
+			this._viewController.emitKeyDown(new StandardKeyboardEvent(e));
 		}));
 		this._register(dom.addDisposableListener(domNode, 'keyup', (e) => {
-			const x = new StandardKeyboardEvent(e);
-			this._viewController.emitKeyUp(x);
+			this._viewController.emitKeyUp(new StandardKeyboardEvent(e));
 		}));
 		this._register(dom.addDisposableListener(domNode, 'beforeinput', (e) => {
 			if (e.inputType === 'insertParagraph' || e.inputType === 'insertLineBreak') {
 				this._handleEnter(e);
 			}
 		}));
-		this._onDidChangeContent();
-		this._register(this._context.viewModel.model.onDidChangeContent(() => {
-			this._onDidChangeContent();
-		}));
-		// Need to handle copy/paste event, could use the handle text update method for that
 		this._register(editContextAddDisposableListener(this._ctx, 'textupdate', e => this._handleTextUpdate(e.updateRangeStart, e.updateRangeEnd, e.text)));
 		this._register(editContextAddDisposableListener(this._ctx, 'textformatupdate', e => this._handleTextFormatUpdate(e)));
+		this._register(this._context.viewModel.model.onDidChangeContent(() => this._onDidChangeContent()));
+		this._onDidChangeContent();
 
 		// --- developer code
 		domNode.addEventListener('focus', () => {
@@ -198,9 +198,9 @@ export class NativeEditContext extends AbstractEditContext {
 		try {
 			// remove node if it needs to be removed then reset the value of nodeToRemove
 			// this way the screen reader reads 'selected' or 'unselected'
-			if (this._nodeToRemove && domNode.childNodes) {
-				domNode.removeChild(this._nodeToRemove);
-				this._nodeToRemove = null;
+			if (this._domNodeToRemove && domNode.childNodes) {
+				domNode.removeChild(this._domNodeToRemove);
+				this._domNodeToRemove = null;
 			}
 		} catch (e) { }
 
@@ -259,14 +259,14 @@ export class NativeEditContext extends AbstractEditContext {
 				console.log('decreased the selection at the bottom');
 				// not directly removing the child, because should read the word 'unselected', should read this on the next selection change when no longer needed
 				// domNode.removeChild(domNode.lastChild);
-				this._nodeToRemove = domNode.lastChild;
+				this._domNodeToRemove = domNode.lastChild;
 			}
 			else if (domNode.firstChild && this._previousSelection?.endLineNumber === selection.endLineNumber && this._previousSelection.startLineNumber + 1 === selection.startLineNumber) {
 				// We decreased the selection at the top
 				console.log('decreased the selection at the top');
 				// not directly removing the child, because should read the word 'unselected', should read this on the next selection change when no longer needed
 				// domNode.removeChild(domNode.firstChild);
-				this._nodeToRemove = domNode.firstChild;
+				this._domNodeToRemove = domNode.firstChild;
 				return 1;
 			} else {
 				rerenderAllContent(splitContent);
