@@ -32,9 +32,11 @@ import { Context as SuggestContext } from 'vs/editor/contrib/suggest/browser/sug
 import { MANAGE_TRUST_COMMAND_ID, WorkspaceTrustContext } from 'vs/workbench/contrib/workspace/common/workspace';
 import { IQuickDiffService } from 'vs/workbench/contrib/scm/common/quickDiff';
 import { QuickDiffService } from 'vs/workbench/contrib/scm/common/quickDiffService';
-import { getActiveElement } from 'vs/base/browser/dom';
+import { getActiveElement, isActiveElement } from 'vs/base/browser/dom';
 import { SCMWorkingSetController } from 'vs/workbench/contrib/scm/browser/workingSet';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
+import { IListService, WorkbenchList } from 'vs/platform/list/browser/listService';
+import { isSCMRepository } from 'vs/workbench/contrib/scm/browser/util';
 
 ModesRegistry.registerLanguage({
 	id: 'scminput',
@@ -463,12 +465,35 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyMod.Alt | KeyCode.UpArrow
 });
 
-CommandsRegistry.registerCommand('scm.openInIntegratedTerminal', async (accessor, provider: ISCMProvider) => {
-	if (!provider || !provider.rootUri) {
+CommandsRegistry.registerCommand('scm.openInIntegratedTerminal', async (accessor, ...providers: ISCMProvider[]) => {
+	if (!providers || providers.length === 0) {
 		return;
 	}
 
 	const commandService = accessor.get(ICommandService);
+	const listService = accessor.get(IListService);
+
+	let provider = providers.length === 1 ? providers[0] : undefined;
+
+	if (!provider) {
+		const list = listService.lastFocusedList;
+		const element = list?.getHTMLElement();
+
+		if (list instanceof WorkbenchList && element && isActiveElement(element)) {
+			const [index] = list.getFocus();
+			const focusedElement = list.element(index);
+
+			// Source Control Repositories
+			if (isSCMRepository(focusedElement)) {
+				provider = focusedElement.provider;
+			}
+		}
+	}
+
+	if (!provider?.rootUri) {
+		return;
+	}
+
 	await commandService.executeCommand('openInIntegratedTerminal', provider.rootUri);
 });
 
