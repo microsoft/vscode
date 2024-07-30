@@ -445,7 +445,7 @@ class LanguageServiceHost {
         if (result) {
             return result.getVersion();
         }
-        return 'UNKNWON_FILE_' + Math.random().toString(16).slice(2);
+        return 'UNKNOWN_FILE_' + Math.random().toString(16).slice(2);
     }
     getScriptSnapshot(filename, resolve = true) {
         filename = normalize(filename);
