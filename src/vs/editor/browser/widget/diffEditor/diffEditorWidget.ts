@@ -15,7 +15,7 @@ import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfi
 import { ICodeEditor, IDiffEditor, IDiffEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
 import { EditorExtensionsRegistry, IDiffEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { StableEditorScrollState } from 'vs/editor/browser/stableEditorScroll';
+import { StableEditorScrollState, StableEditorScrollStrategy } from 'vs/editor/browser/stableEditorScroll';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
 import { AccessibleDiffViewer, AccessibleDiffViewerModelFromEditors } from 'vs/editor/browser/widget/diffEditor/components/accessibleDiffViewer';
 import { DiffEditorDecorations } from 'vs/editor/browser/widget/diffEditor/components/diffEditorDecorations';
@@ -244,7 +244,8 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 		this._register(applyViewZones(this._editors.modified, modifiedViewZones, isUpdatingModViewZones => {
 			isUpdatingViewZones = isUpdatingModViewZones;
 			if (isUpdatingViewZones) {
-				scrollState = StableEditorScrollState.capture(this._editors.modified);
+				// TODO@hediet: Using the FirstViewportLine strategy here to avoid flickering when deleting lines
+				scrollState = StableEditorScrollState.capture(this._editors.modified, StableEditorScrollStrategy.FirstViewportLine);
 			} else {
 				scrollState?.restore(this._editors.modified);
 				scrollState = undefined;

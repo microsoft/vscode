@@ -7,9 +7,21 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 
+export const enum StableEditorScrollStrategy {
+	/**
+	 * Try to keep stable the line where the cursor is positioned.
+	 * If the cursor is not in the viewport, try to keep stable the first line in the viewport.
+	 */
+	CursorOrFirstViewportLine = 0,
+	/**
+	 * Try to keep stable the first line in the viewport.
+	 */
+	FirstViewportLine = 1
+}
+
 export class StableEditorScrollState {
 
-	public static capture(editor: ICodeEditor): StableEditorScrollState {
+	public static capture(editor: ICodeEditor, strategy = StableEditorScrollStrategy.CursorOrFirstViewportLine): StableEditorScrollState {
 		if (editor.getScrollTop() === 0 || editor.hasPendingScrollAnimation()) {
 			// Never mess with the scroll top if the editor is at the top of the file or if there is a pending scroll animation
 			return new StableEditorScrollState(editor.getScrollTop(), editor.getContentHeight(), null, 0, null);
@@ -21,12 +33,14 @@ export class StableEditorScrollState {
 		if (visibleRanges.length > 0) {
 			visiblePosition = visibleRanges[0].getStartPosition();
 
-			const cursorPos = editor.getPosition();
-			if (cursorPos) {
-				const isVisible = visibleRanges.some(range => range.containsPosition(cursorPos));
-				if (isVisible) {
-					// Keep cursor pos fixed if it is visible
-					visiblePosition = cursorPos;
+			if (strategy === StableEditorScrollStrategy.CursorOrFirstViewportLine) {
+				const cursorPos = editor.getPosition();
+				if (cursorPos) {
+					const isVisible = visibleRanges.some(range => range.containsPosition(cursorPos));
+					if (isVisible) {
+						// Keep cursor pos fixed if it is visible
+						visiblePosition = cursorPos;
+					}
 				}
 			}
 
