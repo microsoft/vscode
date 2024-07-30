@@ -484,6 +484,7 @@ export class CommentsList extends WorkbenchObjectTree<CommentsModel | ResourceWi
 				collapseByDefault: false,
 				overrideStyles: options.overrideStyles,
 				filter: options.filter,
+				sorter: options.sorter,
 				findWidgetEnabled: false,
 				multipleSelectionSupport: false,
 			},
