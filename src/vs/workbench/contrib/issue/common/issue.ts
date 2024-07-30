@@ -133,7 +133,7 @@ export interface IIssueFormService {
 	reloadWithExtensionsDisabled(): Promise<void>;
 	showConfirmCloseDialog(): Promise<void>;
 	showClipboardDialog(): Promise<boolean>;
-	sendReporterMenu(extensionId: string, extensionName: string): Promise<IssueReporterData | undefined>;
+	sendReporterMenu(extensionId: string): Promise<IssueReporterData | undefined>;
 	closeReporter(): Promise<void>;
 }
 

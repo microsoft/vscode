@@ -354,7 +354,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 					} catch (err) {
 						const msg = `result.metadata MUST be JSON.stringify-able. Got error: ${err.message}`;
 						this._logService.error(`[${agent.extension.identifier.value}] [@${agent.id}] ${msg}`, agent.extension);
-						return { errorDetails: { message: msg }, timings: stream.timings };
+						return { errorDetails: { message: msg }, timings: stream.timings, nextQuestion: result.nextQuestion };
 					}
 				}
 				let errorDetails: IChatResponseErrorDetails | undefined;
@@ -368,7 +368,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 					checkProposedApiEnabled(agent.extension, 'chatParticipantPrivate');
 				}
 
-				return { errorDetails, timings: stream.timings, metadata: result?.metadata } satisfies IChatAgentResult;
+				return { errorDetails, timings: stream.timings, metadata: result?.metadata, nextQuestion: result?.nextQuestion } satisfies IChatAgentResult;
 			}), token);
 		} catch (e) {
 			this._logService.error(e, agent.extension);

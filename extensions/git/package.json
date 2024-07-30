@@ -1960,19 +1960,14 @@
       ],
       "scm/historyItem/context": [
         {
-          "command": "git.viewCommit",
-          "when": "scmProvider == git && config.multiDiffEditor.experimental.enabled",
-          "group": "1_view@1"
-        },
-        {
           "command": "git.copyCommitId",
           "when": "scmProvider == git && !listMultiSelection",
-          "group": "3_copy@1"
+          "group": "1_copy@1"
         },
         {
           "command": "git.copyCommitMessage",
           "when": "scmProvider == git && !listMultiSelection",
-          "group": "3_copy@2"
+          "group": "1_copy@2"
         }
       ],
       "scm/incomingChanges": [

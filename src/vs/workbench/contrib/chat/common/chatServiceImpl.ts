@@ -50,6 +50,7 @@ type ChatProviderInvokedEvent = {
 	requestType: 'string' | 'followup' | 'slashCommand';
 	chatSessionId: string;
 	agent: string;
+	agentExtensionId: string | undefined;
 	slashCommand: string | undefined;
 	location: ChatAgentLocation;
 	citations: number;
@@ -62,6 +63,7 @@ type ChatProviderInvokedClassification = {
 	requestType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of request that the user made.' };
 	chatSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A random ID for the session.' };
 	agent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of agent used.' };
+	agentExtensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension that contributed the agent.' };
 	slashCommand?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of slashCommand used.' };
 	location: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The location at which chat request was made.' };
 	citations: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of public code citations that were returned with the response.' };
@@ -460,6 +462,7 @@ export class ChatService extends Disposable implements IChatService {
 					result: 'cancelled',
 					requestType,
 					agent: agentPart?.agent.id ?? '',
+					agentExtensionId: agentPart?.agent.extensionId.value ?? '',
 					slashCommand: agentSlashCommandPart ? agentSlashCommandPart.command.name : commandPart?.slashCommand.command,
 					chatSessionId: model.sessionId,
 					location,
@@ -479,7 +482,7 @@ export class ChatService extends Disposable implements IChatService {
 					const history = getHistoryEntriesFromModel(model, agentPart?.agent.id);
 
 					const initVariableData: IChatRequestVariableData = { variables: [] };
-					request = model.addRequest(parsedRequest, initVariableData, attempt, agent, agentSlashCommandPart?.command);
+					request = model.addRequest(parsedRequest, initVariableData, attempt, agent, agentSlashCommandPart?.command, options?.confirmation);
 					completeResponseCreated();
 					const variableData = await this.chatVariablesService.resolveVariables(parsedRequest, options?.attachedContext, model, progressCallback, token);
 					model.updateRequest(request, variableData);
@@ -541,13 +544,15 @@ export class ChatService extends Disposable implements IChatService {
 						rawResult.errorDetails && gotProgress ? 'errorWithOutput' :
 							rawResult.errorDetails ? 'error' :
 								'success';
+					const commandForTelemetry = agentSlashCommandPart ? agentSlashCommandPart.command.name : commandPart?.slashCommand.command;
 					this.telemetryService.publicLog2<ChatProviderInvokedEvent, ChatProviderInvokedClassification>('interactiveSessionProviderInvoked', {
 						timeToFirstProgress: rawResult.timings?.firstProgress,
 						totalTime: rawResult.timings?.totalElapsed,
 						result,
 						requestType,
 						agent: agentPart?.agent.id ?? '',
-						slashCommand: agentSlashCommandPart ? agentSlashCommandPart.command.name : commandPart?.slashCommand.command,
+						agentExtensionId: agentPart?.agent.extensionId.value ?? '',
+						slashCommand: commandForTelemetry,
 						chatSessionId: model.sessionId,
 						location,
 						citations: request.response?.codeCitations.length ?? 0
@@ -560,6 +565,7 @@ export class ChatService extends Disposable implements IChatService {
 					if (agentOrCommandFollowups) {
 						agentOrCommandFollowups.then(followups => {
 							model.setFollowups(request, followups);
+							this._chatServiceTelemetry.retrievedFollowups(agentPart?.agent.id ?? '', commandForTelemetry, followups?.length ?? 0);
 						});
 					}
 				}
@@ -571,6 +577,7 @@ export class ChatService extends Disposable implements IChatService {
 					result,
 					requestType,
 					agent: agentPart?.agent.id ?? '',
+					agentExtensionId: agentPart?.agent.extensionId.value ?? '',
 					slashCommand: agentSlashCommandPart ? agentSlashCommandPart.command.name : commandPart?.slashCommand.command,
 					chatSessionId: model.sessionId,
 					location,

@@ -35,6 +35,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { CONFIG_NEW_WINDOW_PROFILE } from 'vs/workbench/common/configuration';
 import { ResourceMap } from 'vs/base/common/map';
+import { getErrorMessage } from 'vs/base/common/errors';
 
 export type ChangeEvent = {
 	readonly name?: boolean;
@@ -175,7 +176,7 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 
 	validate(): void {
 		if (!this.name) {
-			this.message = localize('profileNameRequired', "Profile name is required.");
+			this.message = localize('name required', "Profile name is required and must be a non-empty value.");
 			return;
 		}
 		if (this.shouldValidateName() && this.name !== this.getInitialName() && this.userDataProfilesService.profiles.some(p => p.name === this.name)) {
@@ -841,6 +842,16 @@ export class UserDataProfilesEditorModel extends EditorModel {
 			}
 			this.revert();
 		}
+
+		if (copyFrom instanceof URI) {
+			try {
+				await this.userDataProfileImportExportService.resolveProfileTemplate(copyFrom);
+			} catch (error) {
+				this.dialogService.error(getErrorMessage(error));
+				return;
+			}
+		}
+
 		if (!this.newProfileElement) {
 			const disposables = new DisposableStore();
 			const cancellationTokenSource = new CancellationTokenSource();
@@ -872,6 +883,14 @@ export class UserDataProfilesEditorModel extends EditorModel {
 				[[createAction], [cancelAction, previewProfileAction]],
 				[[cancelAction], []],
 			));
+			const updateCreateActionLabel = () => {
+				if (this.newProfileElement?.copyFrom && this.userDataProfilesService.profiles.some(p => p.name === this.newProfileElement?.name)) {
+					createAction.label = localize('replace', "Replace");
+				} else {
+					createAction.label = localize('create', "Create");
+				}
+			};
+			updateCreateActionLabel();
 			disposables.add(this.newProfileElement.onDidChange(e => {
 				if (e.preview) {
 					previewProfileAction.checked = !!this.newProfileElement?.previewProfile;
@@ -879,13 +898,13 @@ export class UserDataProfilesEditorModel extends EditorModel {
 				if (e.disabled || e.message) {
 					previewProfileAction.enabled = createAction.enabled = !this.newProfileElement?.disabled && !this.newProfileElement?.message;
 				}
-				if (e.name) {
-					if (this.newProfileElement?.copyFrom && this.userDataProfilesService.profiles.some(p => p.name === this.newProfileElement?.name)) {
-						createAction.label = localize('replace', "Replace");
-					} else {
-						createAction.label = localize('create', "Create");
-					}
+				if (e.name || e.copyFrom) {
+					updateCreateActionLabel();
 				}
+			}));
+			disposables.add(this.userDataProfilesService.onDidChangeProfiles((e) => {
+				updateCreateActionLabel();
+				this.newProfileElement?.validate();
 			}));
 			this._profiles.push([this.newProfileElement, disposables]);
 			this._onDidChange.fire(this.newProfileElement);
