@@ -175,6 +175,9 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 						}
 
 						private _getLabel(): string {
+							// MEMBRANE: don't show "(Workspace)" in the command center.
+							return 'Membrane';
+							/*
 							const { prefix, suffix } = that._windowTitle.getTitleDecorations();
 							let label = that._windowTitle.workspaceName;
 							if (that._windowTitle.isCustomTitleFormat()) {
@@ -193,6 +196,7 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 							}
 
 							return label.replaceAll(/\r\n|\r|\n/g, '\u23CE');
+							*/
 						}
 					});
 				}

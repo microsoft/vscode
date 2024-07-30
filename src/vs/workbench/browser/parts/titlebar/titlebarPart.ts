@@ -387,6 +387,42 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		this.centerContent = append(this.rootContainer, $('.titlebar-center'));
 		this.rightContent = append(this.rootContainer, $('.titlebar-right'));
 
+		// MEMBRANE: Show the home link on the top-left corner
+		// App Icon (Native Windows/Linux and Web)
+		this.appIcon = prepend(this.leftContent, $('a.membrane-appicon'));
+		this.appIcon.style.paddingLeft = '10px';
+		this.appIcon.style.paddingTop = '9px';
+		this.appIcon.style.width = '35px';
+		this.appIcon.style.height = '100%';
+		this.appIcon.style.zIndex = '2500';
+		this.appIcon.style.flexShrink = '0';
+		this.appIcon.style.order = '1';
+
+		// Web-only home indicator and menu (not for auxiliary windows)
+		if (!this.isAuxiliary && isWeb) {
+			const homeIndicator = this.environmentService.options?.homeIndicator;
+			if (homeIndicator) {
+				this.appIcon.setAttribute('href', homeIndicator.href);
+
+				// Create an svg element with a path inside
+				const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+				svg.setAttribute('viewBox', '0 0 55 55');
+				svg.style.width = '100%';
+				svg.style.height = '100%';
+				// svg.setAttribute('width', '100%');
+				// svg.setAttribute('height', '100%');
+
+				const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+				path.setAttribute('d', 'M23.41 35.93h.5l.2-.46 4.14-9.85a1425.49 1425.49 0 0 1 1.61-3.93l.32-.81a237.65 237.65 0 0 0 .02 5.2 71.5 71.5 0 0 0 .07 2.48l.3 6.66.02.71h9.08l-.05-.79-.98-16.6-.97-16.58-.04-.71h-7.99l-.2.47-7.6 19.11a49.6 49.6 0 0 0-1.35 3.68l-.4-1.17a92.1 92.1 0 0 0-.9-2.5L11.56 1.72l-.19-.47H3.26l-.05.7-1.95 33.19-.05.8H10.14l.02-.73.25-6.66a203.24 203.24 0 0 0 .1-5.67V20.67a1308.45 1308.45 0 0 0 2.05 5.35l.01.02v.02l4.06 9.41.19.45h6.59ZM39.57 35.97h5.68v5.68h-5.68z');
+				path.setAttribute('stroke', '#000');
+				path.setAttribute('fill', '#fffc');
+				svg.appendChild(path);
+				this.appIcon.appendChild(svg);
+			}
+		}
+
+		// MEMBRANE: comment this out since we added our own home link above
+		/*
 		// App Icon (Native Windows/Linux and Web)
 		if (!isMacintosh && !isWeb && !hasNativeTitlebar(this.configurationService, this.titleBarStyle)) {
 			this.appIcon = prepend(this.leftContent, $('a.window-appicon'));
@@ -405,6 +441,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 				}
 			}
 		}
+		*/
 
 		// Draggable region that we can manipulate for #52522
 		this.dragRegion = prepend(this.rootContainer, $('div.titlebar-drag-region'));

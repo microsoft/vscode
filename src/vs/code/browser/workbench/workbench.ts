@@ -106,6 +106,8 @@ class SecretStorageProvider implements ISecretStorageProvider {
 			}
 		}];
 
+	config.homeIndicator = { href: window.location.origin, icon: 'home', title: 'Membrane Home' };
+
 	// eslint-disable-next-line no-restricted-syntax
 	const domElement = document.body;
 	create(domElement, config);

@@ -53,7 +53,8 @@ const folderEntries = [
 	findInFiles,
 	startDebugging,
 	toggleTerminal,
-	toggleFullscreen,
+	// MEMBRANE: Unnecessary hotkey
+	// toggleFullscreen,
 	showSettings
 ];
 
@@ -73,7 +74,8 @@ export class EditorGroupWatermark extends Disposable {
 		super();
 
 		const elements = h('.editor-group-watermark', [
-			h('.letterpress'),
+			// MEMBRANE: Remove large "letterpress" watermark
+			// h('.letterpress'),
 			h('.shortcuts@shortcuts'),
 		]);
 
