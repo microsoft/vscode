@@ -120,7 +120,7 @@
 }
 
 .profiles-editor .contents-container .profile-body {
-	margin: 14px 0px 0px 1px
+	margin: 15px 0px 0px 1px
 }
 
 .profiles-editor .contents-container .profile-body .profile-row-container {
@@ -336,7 +336,7 @@
 	outline: none !important;
 }
 
-.profiles-editor .contents-container .profile-body .profile-tree .monaco-list-row .profile-content-tree .monaco-list-row .monaco-tl-twistie {
+.profiles-editor .contents-container .profile-body .profile-tree .monaco-list-row .profile-content-tree .monaco-list-row .monaco-tl-twistie.collapsible {
 	cursor: pointer;
 }
 

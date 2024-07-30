@@ -72,6 +72,7 @@ export interface IChatRequestViewModel {
 	readonly variables: IChatRequestVariableEntry[];
 	currentRenderedHeight: number | undefined;
 	readonly contentReferences?: ReadonlyArray<IChatContentReference>;
+	readonly confirmation?: string;
 }
 
 export interface IChatResponseMarkdownRenderData {
@@ -379,6 +380,10 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 
 	get contentReferences() {
 		return this._model.response?.contentReferences;
+	}
+
+	get confirmation() {
+		return this._model.confirmation;
 	}
 
 	currentRenderedHeight: number | undefined;

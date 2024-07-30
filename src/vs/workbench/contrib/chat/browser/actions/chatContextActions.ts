@@ -201,7 +201,7 @@ class AttachContextAction extends Action2 {
 					value: pick.value,
 					name: `${typeof pick.value === 'string' && pick.value.startsWith('#') ? pick.value.slice(1) : ''}${selection}`,
 					// Apply the original icon with the new name
-					fullName: `${pick.icon ? `$(${pick.icon.id}) ` : ''}${selection}`
+					fullName: selection
 				});
 			} else if ('symbol' in pick && pick.symbol) {
 				// Symbol
@@ -278,9 +278,10 @@ class AttachContextAction extends Action2 {
 		for (const variable of chatVariablesService.getVariables(widget.location)) {
 			if (variable.fullName && (!variable.isSlow || slowSupported)) {
 				quickPickItems.push({
-					label: `${variable.icon ? `$(${variable.icon.id}) ` : ''}${variable.fullName}`,
+					label: variable.fullName,
 					name: variable.name,
 					id: variable.id,
+					iconClass: variable.icon ? ThemeIcon.asClassName(variable.icon) : undefined,
 					icon: variable.icon
 				});
 			}
@@ -293,10 +294,11 @@ class AttachContextAction extends Action2 {
 				for (const variable of completions) {
 					if (variable.fullName) {
 						quickPickItems.push({
-							label: `${variable.icon ? `$(${variable.icon.id}) ` : ''}${variable.fullName}`,
+							label: variable.fullName,
 							id: variable.id,
 							command: variable.command,
 							icon: variable.icon,
+							iconClass: variable.icon ? ThemeIcon.asClassName(variable.icon) : undefined,
 							value: variable.value,
 							isDynamic: true,
 							name: variable.name
@@ -324,8 +326,9 @@ class AttachContextAction extends Action2 {
 		}
 
 		quickPickItems.push({
-			label: localize('chatContext.symbol', '{0} Symbol...', `$(${Codicon.symbolField.id})`),
+			label: localize('chatContext.symbol', 'Symbol...'),
 			icon: ThemeIcon.fromId(Codicon.symbolField.id),
+			iconClass: ThemeIcon.asClassName(Codicon.symbolField),
 			prefix: SymbolsQuickAccessProvider.PREFIX
 		});
 
@@ -347,6 +350,7 @@ class AttachContextAction extends Action2 {
 	}
 
 	private _show(quickInputService: IQuickInputService, commandService: ICommandService, widget: IChatWidget, quickPickItems: (IChatContextQuickPickItem | QuickPickItem)[], query: string = '') {
+
 		quickInputService.quickAccess.show(query, {
 			enabledProviderPrefixes: [
 				AnythingQuickAccessProvider.PREFIX,

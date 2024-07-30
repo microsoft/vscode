@@ -59,6 +59,7 @@ export class IssueFormService2 implements IIssueFormService {
 			this.issueReporterWindow.focus();
 			return;
 		}
+
 		this.openAuxIssueReporter(data);
 	}
 
@@ -96,6 +97,7 @@ export class IssueFormService2 implements IIssueFormService {
 
 			// Store into config object URL
 			this.configuration = {
+				zoomLevel: data.zoomLevel,
 				appRoot: this.environmentService.appRoot,
 				windowId: 0,
 				userEnv: {},
@@ -182,7 +184,7 @@ export class IssueFormService2 implements IIssueFormService {
 		return result;
 	}
 
-	async sendReporterMenu(extensionId: string, extensionName: string): Promise<IssueReporterData | undefined> {
+	async sendReporterMenu(extensionId: string): Promise<IssueReporterData | undefined> {
 		const menu = this.menuService.createMenu(MenuId.IssueReporter, this.contextKeyService);
 
 		// render menu and dispose

@@ -189,7 +189,11 @@ function Set-MappedKeyHandlers {
 		# VS Code send global completions request
 		Set-PSReadLineKeyHandler -Chord 'F12,f' -ScriptBlock {
 			# Get commands, convert to string array to reduce the payload size and send as JSON
-			$commands = [System.Management.Automation.CompletionCompleters]::CompleteCommand('')
+			$commands = @(
+				[System.Management.Automation.CompletionCompleters]::CompleteCommand('')
+				# Keywords aren't included in CompletionCommand
+				[System.Management.Automation.CompletionResult]::new('exit', 'exit', [System.Management.Automation.CompletionResultType]::Keyword, "exit [<exitcode>]")
+			)
 			$mappedCommands = Compress-Completions($commands)
 			$result = "$([char]0x1b)]633;CompletionsPwshCommands;commands;"
 			$result += $mappedCommands | ConvertTo-Json -Compress
@@ -256,7 +260,7 @@ function Send-Completions {
 					$_
 				}
 			}
-			([System.Management.Automation.CompletionCompleters]::CompleteVariable($completionPrefix));
+			([System.Management.Automation.CompletionCompleters]::CompleteVariable(''))
 		)
 		if ($null -ne $completions) {
 			$result += ";$($completions.ReplacementIndex);$($completions.ReplacementLength);$($cursorIndex);"

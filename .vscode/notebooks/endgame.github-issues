@@ -32,7 +32,7 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "$REPOS -$MILESTONE is:issue is:closed reason:completed label:bug label:insiders-released -label:verified -label:*duplicate -label:*as-designed -label:z-author-verified -label:on-testplan"
+    "value": "$REPOS -$MILESTONE is:issue is:closed reason:completed label:bug label:insiders-released -label:verified -label:*duplicate -label:*as-designed -label:z-author-verified -label:on-testplan -label:error-telemetry"
   },
   {
     "kind": 1,

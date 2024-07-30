@@ -869,8 +869,7 @@ export class CommentController implements IEditorContribution {
 		const pendingCommentText = (this._pendingNewCommentCache[uniqueOwner] && this._pendingNewCommentCache[uniqueOwner][thread.threadId])
 			?? continueOnCommentText;
 		const pendingEdits = this._pendingEditsCache[uniqueOwner] && this._pendingEditsCache[uniqueOwner][thread.threadId];
-		const isThreadTemplateOrEmpty = (thread.isTemplate || (!thread.comments || (thread.comments.length === 0)));
-		const shouldReveal = thread.canReply && isThreadTemplateOrEmpty && (!thread.editorId || (thread.editorId === editorId));
+		const shouldReveal = thread.canReply && thread.isTemplate && (!thread.comments || (thread.comments.length === 0)) && (!thread.editorId || (thread.editorId === editorId));
 		await this.displayCommentThread(uniqueOwner, thread, shouldReveal, pendingCommentText, pendingEdits);
 		this._commentInfos.filter(info => info.uniqueOwner === uniqueOwner)[0].threads.push(thread);
 		this.tryUpdateReservedSpace();
@@ -1098,7 +1097,7 @@ export class CommentController implements IEditorContribution {
 			const existingCommentsAtLine = this._commentWidgets.filter(widget => widget.getGlyphPosition() === (commentRange ? commentRange.endLineNumber : 0));
 			if (existingCommentsAtLine.length) {
 				const allExpanded = existingCommentsAtLine.every(widget => widget.expanded);
-				existingCommentsAtLine.forEach(allExpanded ? widget => widget.collapse() : widget => widget.expand());
+				existingCommentsAtLine.forEach(allExpanded ? widget => widget.collapse() : widget => widget.expand(true));
 				this.processNextThreadToAdd();
 				return;
 			} else {

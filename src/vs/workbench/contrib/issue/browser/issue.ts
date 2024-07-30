@@ -163,6 +163,7 @@ export class BaseIssueReporterService extends Disposable {
 
 		if (styles.backgroundColor) {
 			content.push(`.monaco-workbench { background-color: ${styles.backgroundColor} !important; }`);
+			content.push(`.issue-reporter-body::-webkit-scrollbar-track { background-color: ${styles.backgroundColor}; }`);
 		}
 
 		if (styles.inputBorder) {
@@ -204,16 +205,13 @@ export class BaseIssueReporterService extends Disposable {
 			content.push(`a:hover, .workbenchCommand:hover { color: ${styles.textLinkActiveForeground}; }`);
 		}
 
-		if (styles.sliderBackgroundColor) {
-			content.push(`::-webkit-scrollbar-thumb { background-color: ${styles.sliderBackgroundColor}; }`);
-		}
-
 		if (styles.sliderActiveColor) {
-			content.push(`::-webkit-scrollbar-thumb:active { background-color: ${styles.sliderActiveColor}; }`);
+			content.push(`.issue-reporter-body::-webkit-scrollbar-thumb:active { background-color: ${styles.sliderActiveColor}; }`);
 		}
 
 		if (styles.sliderHoverColor) {
-			content.push(`::--webkit-scrollbar-thumb:hover { background-color: ${styles.sliderHoverColor}; }`);
+			content.push(`.issue-reporter-body::-webkit-scrollbar-thumb { background-color: ${styles.sliderHoverColor}; }`);
+			content.push(`.issue-reporter-body::--webkit-scrollbar-thumb:hover { background-color: ${styles.sliderHoverColor}; }`);
 		}
 
 		if (styles.buttonBackground) {
@@ -417,6 +415,10 @@ export class BaseIssueReporterService extends Disposable {
 			}
 
 			if (issueType === IssueType.PerformanceIssue && this.receivedSystemInfo && this.receivedPerformanceInfo) {
+				return true;
+			}
+
+			if (issueType === IssueType.FeatureRequest) {
 				return true;
 			}
 		}

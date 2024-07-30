@@ -80,7 +80,6 @@ type ExtensionsLoadClassification = {
 export class Extension implements IExtension {
 
 	public enablementState: EnablementState = EnablementState.EnabledGlobally;
-	public readonly resourceExtension: IResourceExtension | undefined;
 
 	private galleryResourcesCache = new Map<string, any>();
 
@@ -97,7 +96,23 @@ export class Extension implements IExtension {
 		@IFileService private readonly fileService: IFileService,
 		@IProductService private readonly productService: IProductService
 	) {
-		this.resourceExtension = resourceExtensionInfo?.resourceExtension;
+	}
+
+	get resourceExtension(): IResourceExtension | undefined {
+		if (this.resourceExtensionInfo) {
+			return this.resourceExtensionInfo.resourceExtension;
+		}
+		if (this.local?.isWorkspaceScoped) {
+			return {
+				type: 'resource',
+				identifier: this.local.identifier,
+				location: this.local.location,
+				manifest: this.local.manifest,
+				changelogUri: this.local.changelogUrl,
+				readmeUri: this.local.readmeUrl,
+			};
+		}
+		return undefined;
 	}
 
 	get gallery(): IGalleryExtension | undefined {
@@ -1037,7 +1052,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 					this.setEnabledAutoUpdateExtensions([]);
 					this.setDisabledAutoUpdateExtensions([]);
 					this._onChange.fire(undefined);
-					this.extensionManagementService.resetPinnedStateForAllUserExtensions(!isAutoUpdateEnabled);
+					this.updateExtensionsPinnedState(!isAutoUpdateEnabled);
 				}
 				if (isAutoUpdateEnabled) {
 					this.eventuallyAutoUpdateExtensions();
@@ -1164,6 +1179,13 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		for (const changedExtension of changedExtensions) {
 			this._onChange.fire(changedExtension);
 		}
+	}
+
+	private updateExtensionsPinnedState(pinned: boolean): Promise<void> {
+		return this.progressService.withProgress({
+			location: ProgressLocation.Extensions,
+			title: nls.localize('updatingExtensions', "Updating Extensions Auto Update State"),
+		}, () => this.extensionManagementService.resetPinnedStateForAllUserExtensions(pinned));
 	}
 
 	private reset(): void {

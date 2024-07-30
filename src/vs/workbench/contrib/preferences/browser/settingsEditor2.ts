@@ -1388,6 +1388,7 @@ export class SettingsEditor2 extends EditorPane {
 						displayName: extension.displayName,
 					}
 				};
+				groups.push(additionalGroup);
 				additionalGroups.push(additionalGroup);
 				setAdditionalGroups = true;
 			}

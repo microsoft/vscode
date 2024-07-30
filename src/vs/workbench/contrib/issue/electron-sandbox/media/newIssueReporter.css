@@ -359,6 +359,8 @@ body.issue-reporter-body {
 	cursor: pointer;
 	appearance: auto;
 	border: none;
+	border-right: 6px solid transparent;
+	padding-left: 10px;
 }
 
 .issue-reporter-body #similar-issues {
