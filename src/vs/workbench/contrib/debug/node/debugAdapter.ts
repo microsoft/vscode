@@ -223,6 +223,7 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 				}
 			} else {
 				let spawnCommand = command;
+				let spawnArgs = args;
 				const spawnOptions: cp.SpawnOptions = {
 					env: env
 				};
@@ -233,9 +234,10 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 					// https://github.com/microsoft/vscode/issues/224184
 					spawnOptions.shell = true;
 					spawnCommand = `"${command}"`;
+					spawnArgs = args.map(a => `"${a}"`);
 				}
 
-				this.serverProcess = cp.spawn(spawnCommand, args, spawnOptions);
+				this.serverProcess = cp.spawn(spawnCommand, spawnArgs, spawnOptions);
 			}
 
 			this.serverProcess.on('error', err => {
