@@ -795,7 +795,7 @@ class WordHighlighter {
 	}
 
 	public dispose(): void {
-		this._stopSingular(); //! should this be stop all?
+		this._stopSingular();
 		this.toUnhook.dispose();
 	}
 }
