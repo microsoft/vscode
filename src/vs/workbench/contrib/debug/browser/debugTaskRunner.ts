@@ -5,7 +5,7 @@
 
 import { Action } from 'vs/base/common/actions';
 import { disposableTimeout } from 'vs/base/common/async';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { createErrorWithActions } from 'vs/base/common/errorMessage';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
@@ -191,7 +191,7 @@ export class DebugTaskRunner implements IDisposable {
 		}
 	}
 
-	async runTask(root: IWorkspace | IWorkspaceFolder | undefined, taskId: string | ITaskIdentifier | undefined, token: CancellationToken): Promise<IRunnerTaskSummary | null> {
+	async runTask(root: IWorkspace | IWorkspaceFolder | undefined, taskId: string | ITaskIdentifier | undefined, token = this.globalCancellation.token): Promise<IRunnerTaskSummary | null> {
 		if (!taskId) {
 			return Promise.resolve(null);
 		}
