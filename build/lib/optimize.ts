@@ -271,15 +271,10 @@ function optimizeAMDTask(opts: IOptimizeAMDTaskOpts): NodeJS.ReadWriteStream {
 		}) : es.through());
 }
 
-function optimizeESMTask(opts: IOptimizeAMDTaskOpts): NodeJS.ReadWriteStream {
+function optimizeESMTask(opts: IOptimizeAMDTaskOpts, cjsOpts?: IOptimizeCommonJSTaskOpts): NodeJS.ReadWriteStream { // TODO@bpasero ESM: these 2 should merge into one
 	// 1 TODO
 	// honor IEntryPoint#prepred/append (unused?)
 
-	// 2 TODO
-	// somehow bootstrap-XYZ files are pulled into this but they are understood as CJS
-	// and therefore defunct (they use import.meta.url which won't work)
-	// const bootstraps = ['bootstrap-amd', 'bootstrap-fork', 'bootstrap-meta', 'bootstrap-node', 'bootstrap-window', 'bootstrap', 'cli', 'main'];
-	// bootstraps.forEach(bootstrap => opts.entryPoints.push({ name: bootstrap }));
 
 	const esbuild = require('esbuild') as typeof import('esbuild');
 
@@ -290,14 +285,19 @@ function optimizeESMTask(opts: IOptimizeAMDTaskOpts): NodeJS.ReadWriteStream {
 	const bundlesStream = es.through(); // this stream will contain the bundled files
 	const bundleInfoStream = es.through(); // this stream will contain bundleInfo.json
 
+	const entryPoints = opts.entryPoints;
+	if (cjsOpts) {
+		cjsOpts.entryPoints.forEach(entryPoint => entryPoints.push({ name: path.parse(entryPoint).name })); // TODO@bpasero ESM: this is brittle and only works for top-level bootstrap entry points
+	}
+
 	const allMentionedModules = new Set<string>();
-	for (const entryPoint of opts.entryPoints) {
+	for (const entryPoint of entryPoints) {
 		allMentionedModules.add(entryPoint.name);
 		entryPoint.include?.forEach(allMentionedModules.add, allMentionedModules);
 		entryPoint.exclude?.forEach(allMentionedModules.add, allMentionedModules);
 	}
 
-	// 3 TODO remove this from the bundle files
+	// 2 TODO remove this from the bundle files
 	allMentionedModules.delete('vs/css');
 
 	const bundleAsync = async () => {
@@ -510,12 +510,13 @@ export function optimizeTask(opts: IOptimizeTaskOpts): () => NodeJS.ReadWriteStr
 	return function () {
 		const optimizers: NodeJS.ReadWriteStream[] = [];
 		if (isESM) {
-			optimizers.push(optimizeESMTask(opts.amd));
+			optimizers.push(optimizeESMTask(opts.amd, opts.commonJS));
 		} else {
 			optimizers.push(optimizeAMDTask(opts.amd));
-		}
-		if (opts.commonJS) {
-			optimizers.push(optimizeCommonJSTask(opts.commonJS));
+
+			if (opts.commonJS) {
+				optimizers.push(optimizeCommonJSTask(opts.commonJS));
+			}
 		}
 
 		if (opts.manual) {

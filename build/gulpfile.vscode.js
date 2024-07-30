@@ -53,6 +53,7 @@ const vscodeResources = [
 	'out-build/loader-*.mjs',
 	'out-build/nls.messages.json',
 	'out-build/nls.keys.json',
+	'out-build/package.json', // TODO@bpasero ESM: this is a stepping stone until we can set this on the root package.json
 	'out-build/vs/**/*.{svg,png,html,jpg,mp3}',
 	'!out-build/vs/code/browser/**/*.html',
 	'!out-build/vs/code/**/*-dev.html',
