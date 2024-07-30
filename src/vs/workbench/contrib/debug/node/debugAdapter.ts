@@ -234,7 +234,12 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 					// https://github.com/microsoft/vscode/issues/224184
 					spawnOptions.shell = true;
 					spawnCommand = `"${command}"`;
-					spawnArgs = args.map(a => `"${a}"`);
+					spawnArgs = args.map(a => {
+						a = a.replace(/\\/g, '\\\\'); // Escape existing \
+						a = a.replace(/"/g, '\\"'); // Escape existing double quotes with \
+						// Wrap in double quotes
+						return `"${a}"`;
+					});
 				}
 
 				this.serverProcess = cp.spawn(spawnCommand, spawnArgs, spawnOptions);
