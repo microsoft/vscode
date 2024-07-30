@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { $, reset } from 'vs/base/browser/dom';
 import { CancellationError } from 'vs/base/common/errors';
+import { IProductConfiguration } from 'vs/base/common/product';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
@@ -12,7 +13,7 @@ import { INativeHostService } from 'vs/platform/native/common/native';
 import { applyZoom } from 'vs/platform/window/electron-sandbox/window';
 import { BaseIssueReporterService } from 'vs/workbench/contrib/issue/browser/baseIssueReporterService';
 import { IssueReporterData as IssueReporterModelData } from 'vs/workbench/contrib/issue/browser/issueReporterModel';
-import { IIssueFormService, IssueReporterData, IssueReporterWindowConfiguration, IssueType } from 'vs/workbench/contrib/issue/common/issue';
+import { IIssueFormService, IssueReporterData, IssueType } from 'vs/workbench/contrib/issue/common/issue';
 
 // GitHub has let us know that we could up our limit here to 8k. We chose 7500 to play it safe.
 // ref https://github.com/microsoft/vscode/issues/159191
@@ -22,13 +23,20 @@ const MAX_URL_LENGTH = 7500;
 export class IssueReporter2 extends BaseIssueReporterService {
 	private readonly processMainService: IProcessMainService;
 	constructor(
-		private readonly configuration: IssueReporterWindowConfiguration,
-		public override readonly window: Window,
+		disableExtensions: boolean,
+		data: IssueReporterData,
+		os: {
+			type: string;
+			arch: string;
+			release: string;
+		},
+		product: IProductConfiguration,
+		window: Window,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@IIssueFormService issueFormService: IIssueFormService,
 		@IProcessMainService processMainService: IProcessMainService
 	) {
-		super(configuration.disableExtensions, configuration.data, configuration.os, configuration.product, window, false, issueFormService);
+		super(disableExtensions, data, os, product, window, false, issueFormService);
 
 		this.processMainService = processMainService;
 		this.processMainService.$getSystemInfo().then(info => {
@@ -38,17 +46,17 @@ export class IssueReporter2 extends BaseIssueReporterService {
 			this.updateSystemInfo(this.issueReporterModel.getData());
 			this.updatePreviewButtonState();
 		});
-		if (this.configuration.data.issueType === IssueType.PerformanceIssue) {
+		if (this.data.issueType === IssueType.PerformanceIssue) {
 			this.processMainService.$getPerformanceInfo().then(info => {
 				this.updatePerformanceInfo(info as Partial<IssueReporterData>);
 			});
 		}
 
 		this.setEventHandlers();
-		applyZoom(configuration.data.zoomLevel, this.window);
-		this.updateExperimentsInfo(this.configuration.data.experiments);
-		this.updateRestrictedMode(this.configuration.data.restrictedMode);
-		this.updateUnsupportedMode(this.configuration.data.isUnsupported);
+		applyZoom(this.data.zoomLevel, this.window);
+		this.updateExperimentsInfo(this.data.experiments);
+		this.updateRestrictedMode(this.data.restrictedMode);
+		this.updateUnsupportedMode(this.data.isUnsupported);
 	}
 
 	public override setEventHandlers(): void {

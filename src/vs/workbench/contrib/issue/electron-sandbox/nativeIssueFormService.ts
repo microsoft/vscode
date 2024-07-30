@@ -14,14 +14,13 @@ import { INativeHostService } from 'vs/platform/native/common/native';
 import product from 'vs/platform/product/common/product';
 import { BrowserWindow } from 'vs/workbench/browser/window';
 import { IssueFormService } from 'vs/workbench/contrib/issue/browser/issueFormService';
-import { IIssueFormService, IssueReporterData, IssueReporterWindowConfiguration } from 'vs/workbench/contrib/issue/common/issue';
+import { IIssueFormService, IssueReporterData } from 'vs/workbench/contrib/issue/common/issue';
 import { IssueReporter2 } from 'vs/workbench/contrib/issue/electron-sandbox/issueReporterService2';
 import { IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 export class NativeIssueFormService extends IssueFormService implements IIssueFormService {
 	private issueReporterParentWindow: BrowserWindow | null = null;
-	private configuration: IssueReporterWindowConfiguration | undefined;
 
 	constructor(
 		@IInstantiationService protected override readonly instantiationService: IInstantiationService,
@@ -58,30 +57,9 @@ export class NativeIssueFormService extends IssueFormService implements IIssueFo
 			this.type = os.type;
 		});
 
-		// Store into config object URL
-		this.configuration = {
-			zoomLevel: data.zoomLevel,
-			appRoot: this.environmentService.appRoot,
-			windowId: 0,
-			userEnv: {},
-			data,
-			disableExtensions: !!this.environmentService.disableExtensions,
-			os: {
-				type: this.type,
-				arch: this.arch,
-				release: this.release,
-			},
-			product,
-			nls: {
-				// VSCODE_GLOBALS: NLS
-				messages: globalThis._VSCODE_NLS_MESSAGES,
-				language: globalThis._VSCODE_NLS_LANGUAGE
-			}
-		};
-
 		// create issue reporter and instantiate
 		if (this.issueReporterWindow) {
-			const issueReporter = this.instantiationService.createInstance(IssueReporter2, this.configuration, this.issueReporterWindow);
+			const issueReporter = this.instantiationService.createInstance(IssueReporter2, !!this.environmentService.disableExtensions, data, { type: this.type, arch: this.arch, release: this.release }, product, this.issueReporterWindow);
 			issueReporter.render();
 		}
 	}
