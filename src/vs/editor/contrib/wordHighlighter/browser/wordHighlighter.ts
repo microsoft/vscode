@@ -33,6 +33,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { Schemas } from 'vs/base/common/network';
 import { ResourceMap } from 'vs/base/common/map';
 import { score } from 'vs/editor/common/languageSelector';
+import { isEqual } from 'vs/base/common/resources';
 // import { TextualMultiDocumentHighlightFeature } from 'vs/editor/contrib/wordHighlighter/browser/textualHighlightProvider';
 // import { registerEditorFeature } from 'vs/editor/common/editorFeatures';
 
@@ -344,6 +345,9 @@ class WordHighlighter {
 						if (WordHighlighter.query) {
 							this._run();
 						}
+					default:
+						console.warn('Unknown occurrencesHighlight setting value:', newValue);
+						break;
 				}
 			}
 		}));
@@ -451,7 +455,7 @@ class WordHighlighter {
 		const deleteURI = [];
 		// iterate over editors and store models in currentModels
 		for (const editor of currentEditors) {
-			if (!editor.hasModel() || editor.getModel().uri.toString() === preservedModel?.uri.toString()) {
+			if (!editor.hasModel() || isEqual(editor.getModel().uri, preservedModel?.uri)) {
 				continue;
 			}
 
