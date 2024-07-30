@@ -668,11 +668,8 @@ class TerminalTabsDragAndDrop extends Disposable implements IListDragAndDrop<ITe
 			for (const uri of resources) {
 				const instance = this._terminalService.getInstanceFromResource(uri);
 				if (instance) {
-					if (sourceInstances) {
-						sourceInstances.push(instance);
-					} else {
-						sourceInstances = [instance];
-					}
+					sourceInstances ??= [];
+					sourceInstances.push(instance);
 					this._terminalService.moveToTerminalView(instance);
 				} else if (this._primaryBackend) {
 					const terminalIdentifier = parseTerminalUri(uri);
