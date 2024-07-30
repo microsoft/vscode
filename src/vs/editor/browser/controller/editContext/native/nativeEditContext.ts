@@ -13,7 +13,6 @@ import { IEditorAriaOptions } from 'vs/editor/browser/editorBrowser';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
 import { ViewController } from 'vs/editor/browser/view/viewController';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { LineRange } from 'vs/editor/common/core/lineRange';
 import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { Position } from 'vs/editor/common/core/position';
 import { PositionOffsetTransformer } from 'vs/editor/common/core/positionToOffset';
@@ -26,66 +25,31 @@ import * as dom from 'vs/base/browser/dom';
 import { CursorStateChangedEvent, OutgoingViewModelEventKind } from 'vs/editor/common/viewModelEventDispatcher';
 import { Selection } from 'vs/editor/common/core/selection';
 
-/**
- * TODO (things that currently do not work and should be made to work, spend time finding these cases in order to have an overview of what works and what doesn't so can focus on most important things):
- * 1. Currently always reading 'insertion at end of text between ..., edit text' in the screen reader
- *   - This happens because each inner div has role textbox. If we do not use the role textbox then there are some navigation issues in the div. I am not sure why.
- *   - We also need to have the child div because we want to read the full line.
- *   - disappears when not using the active descendant attribute, but if not used, black box not positioned correctly
- * 2. For some reason, when the line is empty, the whole VS Code window is selected by the screen reader instead of the specific line of interest.
- * 3. Test the accessibility with NVDA on the current implementation and the PR implementation and check the behavior is also the same
- *   4.a. In the current implementation, if you select a letter and scroll, the letter or an adjacent letter becomes selected. In my implementation, the whole phrase becomes selected. The behavior should be the same as in the current implementation.
- * 7. selection problems
- *   7.a. On the current implementation, when selecting words, the new content that is selected is read out
- *   7.b. My implementation reads all of the lines from the beginning of the selection? Then it reads the text corresponding to the selection.
- */
-
-/** TODO: multi-selection work
- * - When selecting on the same line, then letters are correctly read one by one
- * - When doing multi-selection, when just selecting next line, reading all the new lines added
- * - When the active descendant is removed, need to find how to keep the box around the line
- *
- * - When not using the active descendant, not reading anymore the edit text prompt at the end. So shoud not use it? Should find a way to not use it.
- *   - Currently when not using it, the black box sometimes completely disappears from the editor even though element is focused? then when doing multi-selection, no changes are read?
- *   - Then need to press Left and right arrow, presumably enter into inner textbox and then can do multi-line selection and keep black box in the right place
- * - When active descendant is set, there is an issue when moving from a selection to an empty selection state where black box is not correctly positioned
- */
-
-// keep the child div of the parent div, and try to fix the selection issue that is happening by modifying for example the text content of the existing divs, and appending the new divs when new divs are created
+// TODO: refactor the code
+// TODO: Can control and selection bounds be used to fix the issues?
+// TODO: test accessibility on NVDA with Windows
 
 export class NativeEditContext extends AbstractEditContext {
+
 	private readonly _domElement = new FastDomNode(document.createElement('div'));
 	private readonly _ctx: EditContext = this._domElement.domNode.editContext = new EditContext();
 
 	private _parent!: HTMLElement;
-	private _scrollTop = 0;
 	private _contentLeft = 0;
 	private _previousSelection: Selection | undefined;
 	private _previousValue: string | undefined;
 	private _nodeToRemove: ChildNode | null = null;
 	private _isFocused = false;
 	private _editContextState: EditContextState | undefined = undefined;
+	private _selectionBoundsElement: HTMLElement | undefined;
+	private _controlBoundsElement: HTMLElement | undefined;
 
 	constructor(
 		context: ViewContext,
 		private readonly _viewController: ViewController,
 	) {
 		super(context);
-		const domNode = this._domElement.domNode;
-		domNode.id = 'native-edit-context';
-		domNode.tabIndex = 0;
-		// not sure if needed
-		domNode.role = 'textbox';
-		domNode.ariaMultiLine = 'true';
-		domNode.ariaRequired = 'false';
-		domNode.ariaLabel = 'use Option+F1 to open the accessibility help.';
-		domNode.ariaAutoComplete = 'both';
-		domNode.ariaRoleDescription = 'editor';
-		domNode.style.fontSize = `${this._context.configuration.options.get(EditorOption.fontSize)}px`;
-		domNode.setAttribute('autocorrect', 'off');
-		domNode.setAttribute('autocapitalize', 'off');
-		domNode.setAttribute('autocomplete', 'off');
-		domNode.setAttribute('spellcheck', 'false');
+		const domNode = this._initializeDomNode();
 
 		const options = this._context.configuration.options;
 		const layoutInfo = options.get(EditorOption.layoutInfo);
@@ -177,6 +141,24 @@ export class NativeEditContext extends AbstractEditContext {
 	}
 
 	private _decorations: string[] = [];
+
+	private _initializeDomNode(): HTMLElement {
+		const domNode = this._domElement.domNode;
+		domNode.id = 'native-edit-context';
+		domNode.tabIndex = 0;
+		domNode.role = 'textbox';
+		domNode.ariaMultiLine = 'true';
+		domNode.ariaRequired = 'false';
+		domNode.ariaLabel = 'use Option+F1 to open the accessibility help.';
+		domNode.ariaAutoComplete = 'both';
+		domNode.ariaRoleDescription = 'editor';
+		domNode.style.fontSize = `${this._context.configuration.options.get(EditorOption.fontSize)}px`;
+		domNode.setAttribute('autocorrect', 'off');
+		domNode.setAttribute('autocapitalize', 'off');
+		domNode.setAttribute('autocomplete', 'off');
+		domNode.setAttribute('spellcheck', 'false');
+		return domNode;
+	}
 
 	private _onDidChangeContent() {
 		console.log('onDidChangeContent');
@@ -449,24 +431,47 @@ export class NativeEditContext extends AbstractEditContext {
 		const linesVisibleRanges = ctx.linesVisibleRangesForRange(primaryViewState.selection, true) ?? [];
 		if (linesVisibleRanges.length === 0) { return; }
 
-		const lineRange = new LineRange(linesVisibleRanges[0].lineNumber, linesVisibleRanges[linesVisibleRanges.length - 1].lineNumber + 1);
-
-		const verticalOffsetStart = this._context.viewLayout.getVerticalOffsetForLineNumber(lineRange.startLineNumber);
-		const verticalOffsetEnd = this._context.viewLayout.getVerticalOffsetForLineNumber(lineRange.endLineNumberExclusive);
-
-		const minLeft = Math.min(...linesVisibleRanges.map(r => Math.min(...r.ranges.map(r => r.left))));
-		const maxLeft = Math.max(...linesVisibleRanges.map(r => Math.max(...r.ranges.map(r => r.left + r.width))));
-
-		const controlBounds = this._parent.getBoundingClientRect();
-		const selectionBounds = new DOMRect(
-			controlBounds.left + minLeft + this._contentLeft,
-			controlBounds.top + verticalOffsetStart - this._scrollTop,
-			maxLeft - minLeft,
-			verticalOffsetEnd - verticalOffsetStart,
+		const controlBoundingClientRect = this._domElement.domNode.getBoundingClientRect();
+		const controlBounds = new DOMRect(
+			controlBoundingClientRect.left - this._contentLeft + 19, // +19 to align with the text
+			controlBoundingClientRect.top - 92, // instead of using these hardcoded values, need to find actual values
+			controlBoundingClientRect.width,
+			controlBoundingClientRect.height,
 		);
+		const selectionBounds = controlBounds;
+
+		console.log('controlBounds : ', controlBounds);
+		console.log('selectionBounds : ', selectionBounds);
 
 		this._ctx.updateControlBounds(controlBounds);
 		this._ctx.updateSelectionBounds(selectionBounds);
+
+		const controlBoundsElement = document.createElement('div');
+		controlBoundsElement.style.position = 'absolute';
+		controlBoundsElement.style.left = `${controlBounds.left}px`;
+		controlBoundsElement.style.top = `${controlBounds.top}px`;
+		controlBoundsElement.style.width = `${controlBounds.width}px`;
+		controlBoundsElement.style.height = `${controlBounds.height}px`;
+		controlBoundsElement.style.background = `blue`;
+		this._controlBoundsElement?.remove();
+		this._controlBoundsElement = controlBoundsElement;
+
+		const selectionBoundsElement = document.createElement('div');
+		selectionBoundsElement.style.position = 'absolute';
+		selectionBoundsElement.style.left = `${selectionBounds.left}px`;
+		selectionBoundsElement.style.top = `${selectionBounds.top}px`;
+		selectionBoundsElement.style.width = `${selectionBounds.width}px`;
+		selectionBoundsElement.style.height = `${selectionBounds.height}px`;
+		selectionBoundsElement.style.background = `green`;
+		this._selectionBoundsElement?.remove();
+		this._selectionBoundsElement = selectionBoundsElement;
+
+		this._parent.appendChild(controlBoundsElement);
+		this._parent.appendChild(selectionBoundsElement);
+
+		console.log('controlBoundsElement : ', controlBoundsElement);
+		console.log('selectionBoundsElement : ', selectionBoundsElement);
+		console.log('character bounds : ', this._ctx.characterBounds());
 
 		this.updateEditContext();
 	}
