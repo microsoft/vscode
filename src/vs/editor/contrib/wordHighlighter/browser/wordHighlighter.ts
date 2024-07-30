@@ -339,12 +339,15 @@ class WordHighlighter {
 				switch (newValue) {
 					case 'off':
 						this._stopAll();
+						break;
 					case 'singleFile':
 						this._stopAll(WordHighlighter.query?.modelInfo?.model);
+						break;
 					case 'multiFile':
 						if (WordHighlighter.query) {
 							this._run();
 						}
+						break;
 					default:
 						console.warn('Unknown occurrencesHighlight setting value:', newValue);
 						break;
