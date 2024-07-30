@@ -17,7 +17,7 @@ import { IWordAtPosition, getWordAtText } from 'vs/editor/common/core/wordHelper
 import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
 import { IBackgroundTokenizationStore, IBackgroundTokenizer, ILanguageIdCodec, IState, ITokenizationSupport, TokenizationRegistry } from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
-import { ILanguageConfigurationService, ResolvedLanguageConfiguration } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { ILanguageConfigurationService, LanguageConfigurationServiceChangeEvent, ResolvedLanguageConfiguration } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { IAttachedView } from 'vs/editor/common/model';
 import { BracketPairsTextModelPart } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsImpl';
 import { AttachedViews, IAttachedViewState, TextModel } from 'vs/editor/common/model/textModel';
@@ -47,20 +47,14 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 	private readonly grammarTokens = this._register(new GrammarTokens(this._languageService.languageIdCodec, this._textModel, () => this._languageId, this._attachedViews));
 
 	constructor(
-		private readonly _languageService: ILanguageService,
-		private readonly _languageConfigurationService: ILanguageConfigurationService,
 		private readonly _textModel: TextModel,
 		private readonly _bracketPairsTextModelPart: BracketPairsTextModelPart,
 		private _languageId: string,
 		private readonly _attachedViews: AttachedViews,
+		@ILanguageService private readonly _languageService: ILanguageService,
+		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
 	) {
 		super();
-
-		this._register(this._languageConfigurationService.onDidChange(e => {
-			if (e.affects(this._languageId)) {
-				this._onDidChangeLanguageConfiguration.fire({});
-			}
-		}));
 
 		this._register(this.grammarTokens.onDidChangeTokens(e => {
 			this._emitModelTokensChangedEvent(e);
@@ -75,6 +69,12 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 		return (this._onDidChangeLanguage.hasListeners()
 			|| this._onDidChangeLanguageConfiguration.hasListeners()
 			|| this._onDidChangeTokens.hasListeners());
+	}
+
+	public handleLanguageConfigurationServiceChange(e: LanguageConfigurationServiceChangeEvent): void {
+		if (e.affects(this._languageId)) {
+			this._onDidChangeLanguageConfiguration.fire({});
+		}
 	}
 
 	public handleDidChangeContent(e: IModelContentChangedEvent): void {

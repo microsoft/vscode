@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { DisposableMap, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableMap, DisposableStore } from 'vs/base/common/lifecycle';
+import { autorun, autorunWithStore } from 'vs/base/common/observable';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { observableConfigValue } from 'vs/platform/observable/common/platformObservableUtils';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { getProviderKey } from 'vs/workbench/contrib/scm/browser/util';
@@ -24,13 +25,13 @@ interface ISCMRepositoryWorkingSet {
 	readonly editorWorkingSets: Map<string, IEditorWorkingSet>;
 }
 
-export class SCMWorkingSetController implements IWorkbenchContribution {
+export class SCMWorkingSetController extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.scmWorkingSets';
 
 	private _workingSets!: Map<string, ISCMRepositoryWorkingSet>;
+	private _enabledConfig = observableConfigValue<boolean>('scm.workingSets.enabled', false, this.configurationService);
+
 	private readonly _repositoryDisposables = new DisposableMap<ISCMRepository>();
-	private readonly _scmServiceDisposables = new DisposableStore();
-	private readonly _disposables = new DisposableStore();
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -39,69 +40,61 @@ export class SCMWorkingSetController implements IWorkbenchContribution {
 		@IStorageService private readonly storageService: IStorageService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
 	) {
-		const onDidChangeConfiguration = Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.workingSets.enabled'), this._disposables);
-		this._disposables.add(Event.runAndSubscribe(onDidChangeConfiguration, () => this._onDidChangeConfiguration()));
-	}
+		super();
 
-	private _onDidChangeConfiguration(): void {
-		if (!this.configurationService.getValue<boolean>('scm.workingSets.enabled')) {
-			this.storageService.remove('scm.workingSets', StorageScope.WORKSPACE);
+		this._store.add(autorunWithStore((reader, store) => {
+			if (!this._enabledConfig.read(reader)) {
+				this.storageService.remove('scm.workingSets', StorageScope.WORKSPACE);
+				this._repositoryDisposables.clearAndDisposeAll();
+				return;
+			}
 
-			this._scmServiceDisposables.clear();
-			this._repositoryDisposables.clearAndDisposeAll();
+			this._workingSets = this._loadWorkingSets();
 
-			return;
-		}
+			this.scmService.onDidAddRepository(this._onDidAddRepository, this, store);
+			this.scmService.onDidRemoveRepository(this._onDidRemoveRepository, this, store);
 
-		this._workingSets = this._loadWorkingSets();
-
-		this.scmService.onDidAddRepository(this._onDidAddRepository, this, this._scmServiceDisposables);
-		this.scmService.onDidRemoveRepository(this._onDidRemoveRepository, this, this._scmServiceDisposables);
-
-		for (const repository of this.scmService.repositories) {
-			this._onDidAddRepository(repository);
-		}
+			for (const repository of this.scmService.repositories) {
+				this._onDidAddRepository(repository);
+			}
+		}));
 	}
 
 	private _onDidAddRepository(repository: ISCMRepository): void {
 		const disposables = new DisposableStore();
 
-		disposables.add(Event.runAndSubscribe(repository.provider.onDidChangeHistoryProvider, () => {
-			if (!repository.provider.historyProvider) {
+		disposables.add(autorun(async reader => {
+			const historyProvider = repository.provider.historyProvider.read(reader);
+			const currentHistoryItemGroupId = historyProvider?.currentHistoryItemGroupId.read(reader);
+
+			if (!currentHistoryItemGroupId) {
 				return;
 			}
 
-			disposables.add(Event.runAndSubscribe(repository.provider.historyProvider.onDidChangeCurrentHistoryItemGroup, async () => {
-				if (!repository.provider.historyProvider?.currentHistoryItemGroup?.id) {
-					return;
-				}
+			const providerKey = getProviderKey(repository.provider);
+			const repositoryWorkingSets = this._workingSets.get(providerKey);
 
-				const providerKey = getProviderKey(repository.provider);
-				const currentHistoryItemGroupId = repository.provider.historyProvider.currentHistoryItemGroup.id;
-				const repositoryWorkingSets = this._workingSets.get(providerKey);
+			if (!repositoryWorkingSets) {
+				this._workingSets.set(providerKey, { currentHistoryItemGroupId, editorWorkingSets: new Map() });
+				return;
+			}
 
-				if (!repositoryWorkingSets) {
-					this._workingSets.set(providerKey, { currentHistoryItemGroupId, editorWorkingSets: new Map() });
-					return;
-				}
+			// Editors for the current working set are automatically restored
+			if (repositoryWorkingSets.currentHistoryItemGroupId === currentHistoryItemGroupId) {
+				return;
+			}
 
-				if (repositoryWorkingSets.currentHistoryItemGroupId === currentHistoryItemGroupId) {
-					return;
-				}
+			// Save the working set
+			this._saveWorkingSet(providerKey, currentHistoryItemGroupId, repositoryWorkingSets);
 
-				// Save the working set
-				this._saveWorkingSet(providerKey, currentHistoryItemGroupId, repositoryWorkingSets);
-
-				// Restore the working set
-				await this._restoreWorkingSet(providerKey, currentHistoryItemGroupId);
-			}));
+			// Restore the working set
+			await this._restoreWorkingSet(providerKey, currentHistoryItemGroupId);
 		}));
 
 		this._repositoryDisposables.set(repository, disposables);
 	}
 
 	private _onDidRemoveRepository(repository: ISCMRepository): void {
-		this._workingSets.delete(getProviderKey(repository.provider));
 		this._repositoryDisposables.deleteAndDispose(repository);
 	}
 
@@ -159,9 +152,8 @@ export class SCMWorkingSetController implements IWorkbenchContribution {
 		}
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this._repositoryDisposables.dispose();
-		this._scmServiceDisposables.dispose();
-		this._disposables.dispose();
+		super.dispose();
 	}
 }

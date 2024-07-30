@@ -8,36 +8,41 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDiffResult } from 'vs/base/common/diff/diff';
 import { Event } from 'vs/base/common/event';
 import * as glob from 'vs/base/common/glob';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Iterable } from 'vs/base/common/iterator';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { Mimes } from 'vs/base/common/mime';
 import { Schemas } from 'vs/base/common/network';
 import { basename } from 'vs/base/common/path';
 import { isWindows } from 'vs/base/common/platform';
 import { ISplice } from 'vs/base/common/sequence';
+import { ThemeColor } from 'vs/base/common/themables';
 import { URI, UriComponents } from 'vs/base/common/uri';
+import { Range } from 'vs/editor/common/core/range';
 import { ILineChange } from 'vs/editor/common/diff/legacyLinesDiffComputer';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Command, WorkspaceEditMetadata } from 'vs/editor/common/languages';
 import { IReadonlyTextBuffer } from 'vs/editor/common/model';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IDisposable } from 'vs/base/common/lifecycle';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { ThemeColor } from 'vs/base/common/themables';
+import { IFileReadLimits } from 'vs/platform/files/common/files';
 import { UndoRedoGroup } from 'vs/platform/undoRedo/common/undoRedo';
 import { IRevertOptions, ISaveOptions, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import { IWorkingCopyBackupMeta, IWorkingCopySaveEvent } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { IFileReadLimits } from 'vs/platform/files/common/files';
-import { parse as parseUri, generate as generateUri } from 'vs/workbench/services/notebook/common/notebookDocumentService';
 import { ICellExecutionError } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { INotebookTextModelLike } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
+import { RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
+import { generate as generateUri, parse as parseUri } from 'vs/workbench/services/notebook/common/notebookDocumentService';
+import { IWorkingCopyBackupMeta, IWorkingCopySaveEvent } from 'vs/workbench/services/workingCopy/common/workingCopy';
 
 export const NOTEBOOK_EDITOR_ID = 'workbench.editor.notebook';
 export const NOTEBOOK_DIFF_EDITOR_ID = 'workbench.editor.notebookTextDiffEditor';
 export const INTERACTIVE_WINDOW_EDITOR_ID = 'workbench.editor.interactive';
+export const REPL_EDITOR_ID = 'workbench.editor.repl';
 
+export const EXECUTE_REPL_COMMAND_ID = 'replNotebook.input.execute';
 
 export enum CellKind {
 	Markup = 1,
@@ -252,7 +257,8 @@ export interface ICell {
 	onDidChangeInternalMetadata: Event<CellInternalMetadataChangedEvent>;
 }
 
-export interface INotebookTextModel {
+export interface INotebookTextModel extends INotebookTextModelLike {
+	readonly notebookType: string;
 	readonly viewType: string;
 	metadata: NotebookDocumentMetadata;
 	readonly transientOptions: TransientOptions;
@@ -551,7 +557,7 @@ export interface INotebookContributionData {
 	providerDisplayName: string;
 	displayName: string;
 	filenamePattern: (string | glob.IRelativePattern | INotebookExclusiveDocumentFilter)[];
-	exclusive: boolean;
+	priority?: RegisteredEditorPriority;
 }
 
 
@@ -776,6 +782,11 @@ export interface INotebookLoadOptions {
 	readonly limits?: IFileReadLimits;
 }
 
+export type NotebookEditorModelCreationOptions = {
+	limits?: IFileReadLimits;
+	scratchpad?: boolean;
+};
+
 export interface IResolvedNotebookEditorModel extends INotebookEditorModel {
 	notebook: NotebookTextModel;
 }
@@ -818,7 +829,7 @@ export enum NotebookEditorPriority {
 	option = 'option',
 }
 
-export interface INotebookSearchOptions {
+export interface INotebookFindOptions {
 	regex?: boolean;
 	wholeWord?: boolean;
 	caseSensitive?: boolean;
@@ -827,8 +838,19 @@ export interface INotebookSearchOptions {
 	includeMarkupPreview?: boolean;
 	includeCodeInput?: boolean;
 	includeOutput?: boolean;
-	searchInRanges?: boolean;
-	selectedRanges?: ICellRange[];
+	findScope?: INotebookFindScope;
+}
+
+export interface INotebookFindScope {
+	findScopeType: NotebookFindScopeType;
+	selectedCellRanges?: ICellRange[];
+	selectedTextRanges?: Range[];
+}
+
+export enum NotebookFindScopeType {
+	Cells = 'cells',
+	Text = 'text',
+	None = 'none'
 }
 
 export interface INotebookExclusiveDocumentFilter {
@@ -954,7 +976,6 @@ export const NotebookSetting = {
 	outputFontFamilyDeprecated: 'notebook.outputFontFamily',
 	outputFontFamily: 'notebook.output.fontFamily',
 	findFilters: 'notebook.find.filters',
-	findScope: 'notebook.experimental.find.scope.enabled',
 	logging: 'notebook.logging',
 	confirmDeleteRunningCell: 'notebook.confirmDeleteRunningCell',
 	remoteSaving: 'notebook.experimental.remoteSave',

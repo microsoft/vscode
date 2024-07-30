@@ -3,18 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { AsyncIterableSource, DeferredPromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { SerializedError, transformErrorForSerialization, transformErrorFromSerialization } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IProgress, Progress } from 'vs/platform/progress/common/progress';
 import { ExtHostLanguageModelsShape, ExtHostContext, MainContext, MainThreadLanguageModelsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ILanguageModelStatsService } from 'vs/workbench/contrib/chat/common/languageModelStats';
-import { ILanguageModelChatMetadata, IChatResponseFragment, ILanguageModelsService, IChatMessage, ILanguageModelChatSelector } from 'vs/workbench/contrib/chat/common/languageModels';
+import { ILanguageModelChatMetadata, IChatResponseFragment, ILanguageModelsService, IChatMessage, ILanguageModelChatSelector, ILanguageModelChatResponse } from 'vs/workbench/contrib/chat/common/languageModels';
 import { IAuthenticationAccessService } from 'vs/workbench/services/authentication/browser/authenticationAccessService';
-import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationProvider, IAuthenticationProviderCreateSessionOptions, IAuthenticationService, INTERNAL_AUTH_PROVIDER_PREFIX } from 'vs/workbench/services/authentication/common/authentication';
+import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationProvider, IAuthenticationService, INTERNAL_AUTH_PROVIDER_PREFIX } from 'vs/workbench/services/authentication/common/authentication';
 import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
@@ -24,7 +25,7 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 	private readonly _proxy: ExtHostLanguageModelsShape;
 	private readonly _store = new DisposableStore();
 	private readonly _providerRegistrations = new DisposableMap<number>();
-	private readonly _pendingProgress = new Map<number, IProgress<IChatResponseFragment>>();
+	private readonly _pendingProgress = new Map<number, { defer: DeferredPromise<any>; stream: AsyncIterableSource<IChatResponseFragment> }>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -49,14 +50,23 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 		const dipsosables = new DisposableStore();
 		dipsosables.add(this._chatProviderService.registerLanguageModelChat(identifier, {
 			metadata,
-			provideChatResponse: async (messages, from, options, progress, token) => {
+			sendChatRequest: async (messages, from, options, token) => {
 				const requestId = (Math.random() * 1e6) | 0;
-				this._pendingProgress.set(requestId, progress);
+				const defer = new DeferredPromise<any>();
+				const stream = new AsyncIterableSource<IChatResponseFragment>();
+
 				try {
-					await this._proxy.$provideLanguageModelResponse(handle, requestId, from, messages, options, token);
-				} finally {
+					this._pendingProgress.set(requestId, { defer, stream });
+					await this._proxy.$startChatRequest(handle, requestId, from, messages, options, token);
+				} catch (err) {
 					this._pendingProgress.delete(requestId);
+					throw err;
 				}
+
+				return {
+					result: defer.p,
+					stream: stream.asyncIterable
+				} satisfies ILanguageModelChatResponse;
 			},
 			provideTokenCount: (str, token) => {
 				return this._proxy.$provideTokenLength(handle, str, token);
@@ -68,8 +78,28 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 		this._providerRegistrations.set(handle, dipsosables);
 	}
 
-	async $handleProgressChunk(requestId: number, chunk: IChatResponseFragment): Promise<void> {
-		this._pendingProgress.get(requestId)?.report(chunk);
+	async $reportResponsePart(requestId: number, chunk: IChatResponseFragment): Promise<void> {
+		const data = this._pendingProgress.get(requestId);
+		this._logService.trace('[LM] report response PART', Boolean(data), requestId, chunk);
+		if (data) {
+			data.stream.emitOne(chunk);
+		}
+	}
+
+	async $reportResponseDone(requestId: number, err: SerializedError | undefined): Promise<void> {
+		const data = this._pendingProgress.get(requestId);
+		this._logService.trace('[LM] report response DONE', Boolean(data), requestId, err);
+		if (data) {
+			this._pendingProgress.delete(requestId);
+			if (err) {
+				const error = transformErrorFromSerialization(err);
+				data.stream.reject(error);
+				data.defer.error(error);
+			} else {
+				data.stream.resolve();
+				data.defer.complete(undefined);
+			}
+		}
 	}
 
 	$unregisterProvider(handle: number): void {
@@ -84,21 +114,36 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 		this._languageModelStatsService.update(identifier, extensionId, participant, tokenCount);
 	}
 
-	async $fetchResponse(extension: ExtensionIdentifier, providerId: string, requestId: number, messages: IChatMessage[], options: {}, token: CancellationToken): Promise<any> {
-		this._logService.debug('[CHAT] extension request STARTED', extension.value, requestId);
+	async $tryStartChatRequest(extension: ExtensionIdentifier, providerId: string, requestId: number, messages: IChatMessage[], options: {}, token: CancellationToken): Promise<any> {
+		this._logService.trace('[CHAT] request STARTED', extension.value, requestId);
 
-		const task = this._chatProviderService.makeLanguageModelChatRequest(providerId, extension, messages, options, new Progress(value => {
-			this._proxy.$handleResponseFragment(requestId, value);
-		}), token);
+		const response = await this._chatProviderService.sendChatRequest(providerId, extension, messages, options, token);
 
-		task.catch(err => {
-			this._logService.error('[CHAT] extension request ERRORED', err, extension.value, requestId);
-			throw err;
-		}).finally(() => {
+		// !!! IMPORTANT !!!
+		// This method must return before the response is done (has streamed all parts)
+		// and because of that we consume the stream without awaiting
+		// !!! IMPORTANT !!!
+		const streaming = (async () => {
+			try {
+				for await (const part of response.stream) {
+					this._logService.trace('[CHAT] request PART', extension.value, requestId, part);
+					await this._proxy.$acceptResponsePart(requestId, part);
+				}
+				this._logService.trace('[CHAT] request DONE', extension.value, requestId);
+			} catch (err) {
+				this._logService.error('[CHAT] extension request ERRORED in STREAM', err, extension.value, requestId);
+				this._proxy.$acceptResponseDone(requestId, transformErrorForSerialization(err));
+			}
+		})();
+
+		// When the response is done (signaled via its result) we tell the EH
+		Promise.allSettled([response.result, streaming]).then(() => {
 			this._logService.debug('[CHAT] extension request DONE', extension.value, requestId);
+			this._proxy.$acceptResponseDone(requestId, undefined);
+		}, err => {
+			this._logService.error('[CHAT] extension request ERRORED', err, extension.value, requestId);
+			this._proxy.$acceptResponseDone(requestId, transformErrorForSerialization(err));
 		});
-
-		return task;
 	}
 
 
@@ -161,9 +206,9 @@ class LanguageModelAccessAuthProvider implements IAuthenticationProvider {
 		if (this._session) {
 			return [this._session];
 		}
-		return [await this.createSession(scopes || [], {})];
+		return [await this.createSession(scopes || [])];
 	}
-	async createSession(scopes: string[], options: IAuthenticationProviderCreateSessionOptions): Promise<AuthenticationSession> {
+	async createSession(scopes: string[]): Promise<AuthenticationSession> {
 		this._session = this._createFakeSession(scopes);
 		this._onDidChangeSessions.fire({ added: [this._session], changed: [], removed: [] });
 		return this._session;

@@ -114,6 +114,13 @@ export abstract class AbstractRemoteAgentService extends Disposable implements I
 		);
 	}
 
+	async endConnection(): Promise<void> {
+		if (this._connection) {
+			await this._connection.end();
+			this._connection.dispose();
+		}
+	}
+
 	private _withChannel<R>(callback: (channel: IChannel, connection: IRemoteAgentConnection) => Promise<R>, fallback: R): Promise<R> {
 		const connection = this.getConnection();
 		if (!connection) {
@@ -158,6 +165,8 @@ class RemoteAgentConnection extends Disposable implements IRemoteAgentConnection
 		this.remoteAuthority = remoteAuthority;
 		this._connection = null;
 	}
+
+	end: () => Promise<void> = () => Promise.resolve();
 
 	getChannel<T extends IChannel>(channelName: string): T {
 		return <T>getDelayedChannel(this._getOrCreateConnection().then(c => c.getChannel(channelName)));
@@ -222,6 +231,10 @@ class RemoteAgentConnection extends Disposable implements IRemoteAgentConnection
 		connection.protocol.onDidDispose(() => {
 			connection.dispose();
 		});
+		this.end = () => {
+			connection.protocol.sendDisconnect();
+			return connection.protocol.drain();
+		};
 		this._register(connection.onDidStateChange(e => this._onDidStateChange.fire(e)));
 		return connection.client;
 	}

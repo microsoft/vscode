@@ -119,7 +119,7 @@ export async function realpath(path: string): Promise<string> {
 		// to not resolve links but to simply see if the path is read accessible or not.
 		const normalizedPath = normalizePath(path);
 
-		await Promises.access(normalizedPath, fs.constants.R_OK);
+		await fs.promises.access(normalizedPath, fs.constants.R_OK);
 
 		return normalizedPath;
 	}

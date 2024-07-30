@@ -15,16 +15,17 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IsLinuxContext, IsWindowsContext } from 'vs/platform/contextkey/common/contextkeys';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
+import { clearChatEditor } from 'vs/workbench/contrib/chat/browser/actions/chatClear';
 import { CHAT_VIEW_ID, IChatWidgetService, showChatView } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatEditor';
 import { ChatEditorInput } from 'vs/workbench/contrib/chat/browser/chatEditorInput';
 import { ChatViewPane } from 'vs/workbench/contrib/chat/browser/chatViewPane';
 import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { CONTEXT_CHAT_INPUT_CURSOR_AT_TOP, CONTEXT_CHAT_LOCATION, CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_CHAT_ENABLED } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_INPUT_CURSOR_AT_TOP, CONTEXT_CHAT_LOCATION, CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatDetail, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { IChatWidgetHistoryService } from 'vs/workbench/contrib/chat/common/chatWidgetHistoryService';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ACTIVE_GROUP, IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 
@@ -102,10 +103,9 @@ class OpenChatGlobalAction extends Action2 {
 	}
 }
 
-class ChatHistoryAction extends ViewAction<ChatViewPane> {
+class ChatHistoryAction extends Action2 {
 	constructor() {
 		super({
-			viewId: CHAT_VIEW_ID,
 			id: `workbench.action.chat.history`,
 			title: localize2('chat.history.label', "Show Chats..."),
 			menu: {
@@ -121,12 +121,11 @@ class ChatHistoryAction extends ViewAction<ChatViewPane> {
 		});
 	}
 
-	async runInView(accessor: ServicesAccessor, view: ChatViewPane) {
+	async run(accessor: ServicesAccessor) {
 		const chatService = accessor.get(IChatService);
 		const quickInputService = accessor.get(IQuickInputService);
 		const viewsService = accessor.get(IViewsService);
 		const editorService = accessor.get(IEditorService);
-		const items = chatService.getHistory();
 
 		const openInEditorButton: IQuickInputButton = {
 			iconClass: ThemeIcon.asClassName(Codicon.file),
@@ -140,25 +139,31 @@ class ChatHistoryAction extends ViewAction<ChatViewPane> {
 		interface IChatPickerItem extends IQuickPickItem {
 			chat: IChatDetail;
 		}
-		const picks: IChatPickerItem[] = items.map((i): IChatPickerItem => ({
-			label: i.title,
-			chat: i,
-			buttons: [
-				openInEditorButton,
-				deleteButton
-			]
-		}));
+
+		const getPicks = () => {
+			const items = chatService.getHistory();
+			return items.map((i): IChatPickerItem => ({
+				label: i.title,
+				chat: i,
+				buttons: [
+					openInEditorButton,
+					deleteButton
+				]
+			}));
+		};
+
 		const store = new DisposableStore();
 		const picker = store.add(quickInputService.createQuickPick<IChatPickerItem>());
 		picker.placeholder = localize('interactiveSession.history.pick', "Switch to chat");
-		picker.items = picks;
+		picker.items = getPicks();
 		store.add(picker.onDidTriggerItemButton(context => {
 			if (context.button === openInEditorButton) {
-				editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: <IChatEditorOptions>{ target: { sessionId: context.item.chat.sessionId }, pinned: true } }, ACTIVE_GROUP);
+				const options: IChatEditorOptions = { target: { sessionId: context.item.chat.sessionId }, pinned: true };
+				editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options }, ACTIVE_GROUP);
 				picker.hide();
 			} else if (context.button === deleteButton) {
 				chatService.removeHistoryEntry(context.item.chat.sessionId);
-				picker.items = picks.filter(i => i !== context.item);
+				picker.items = getPicks();
 			}
 		}));
 		store.add(picker.onDidAccept(async () => {
@@ -226,8 +231,26 @@ export function registerChatActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor, ...args: any[]) {
+			const editorGroupsService = accessor.get(IEditorGroupsService);
+			const viewsService = accessor.get(IViewsService);
+
 			const chatService = accessor.get(IChatService);
 			chatService.clearAllHistoryEntries();
+
+			const chatView = viewsService.getViewWithId(CHAT_VIEW_ID) as ChatViewPane | undefined;
+			if (chatView) {
+				chatView.widget.clear();
+			}
+
+			// Clear all chat editors. Have to go this route because the chat editor may be in the background and
+			// not have a ChatEditorInput.
+			editorGroupsService.groups.forEach(group => {
+				group.editors.forEach(editor => {
+					if (editor instanceof ChatEditorInput) {
+						clearChatEditor(accessor, editor);
+					}
+				});
+			});
 		}
 	});
 
@@ -288,6 +311,6 @@ export function stringifyItem(item: IChatRequestViewModel | IChatResponseViewMod
 	if (isRequestVM(item)) {
 		return (includeName ? `${item.username}: ` : '') + item.messageText;
 	} else {
-		return (includeName ? `${item.username}: ` : '') + item.response.asString();
+		return (includeName ? `${item.username}: ` : '') + item.response.toString();
 	}
 }

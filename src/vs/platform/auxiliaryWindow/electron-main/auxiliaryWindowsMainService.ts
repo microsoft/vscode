@@ -118,6 +118,9 @@ export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliar
 				case 'window-fullscreen':
 					windowState.mode = WindowMode.Fullscreen;
 					break;
+				case 'titlebar':
+					windowState.mode = WindowMode.Custom;
+					break;
 			}
 		}
 

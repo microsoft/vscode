@@ -15,7 +15,6 @@ import { ExplorerFocusCondition, TextFileContentProvider, VIEWLET_ID, ExplorerCo
 import { ExplorerViewPaneContainer } from 'vs/workbench/contrib/files/browser/explorerViewlet';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { IListService } from 'vs/platform/list/browser/listService';
 import { CommandsRegistry, ICommandHandler, ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -25,7 +24,7 @@ import { isWeb, isWindows } from 'vs/base/common/platform';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { getResourceForCommand, getMultiSelectedResources, getOpenEditorsViewMultiSelection, IExplorerService } from 'vs/workbench/contrib/files/browser/files';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
-import { getMultiSelectedEditorContexts } from 'vs/workbench/browser/parts/editor/editorCommands';
+import { resolveCommandsContext } from 'vs/workbench/browser/parts/editor/editorCommandsContext';
 import { Schemas } from 'vs/base/common/network';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -35,7 +34,6 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { basename, joinPath, isEqual } from 'vs/base/common/resources';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { coalesce } from 'vs/base/common/arrays';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/embeddedCodeEditorWidget';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -53,6 +51,7 @@ import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { RemoveRootFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { OpenEditorsView } from 'vs/workbench/contrib/files/browser/views/openEditorsView';
 import { ExplorerView } from 'vs/workbench/contrib/files/browser/views/explorerView';
+import { IListService } from 'vs/platform/list/browser/listService';
 
 export const openWindowCommand = (accessor: ServicesAccessor, toOpen: IWindowOpenable[], options?: IOpenWindowOptions) => {
 	if (Array.isArray(toOpen)) {
@@ -90,11 +89,9 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	},
 	id: OPEN_TO_SIDE_COMMAND_ID, handler: async (accessor, resource: URI | object) => {
 		const editorService = accessor.get(IEditorService);
-		const editorGroupService = accessor.get(IEditorGroupsService);
-		const listService = accessor.get(IListService);
 		const fileService = accessor.get(IFileService);
 		const explorerService = accessor.get(IExplorerService);
-		const resources = getMultiSelectedResources(resource, listService, editorService, editorGroupService, explorerService);
+		const resources = getMultiSelectedResources(resource, accessor.get(IListService), editorService, accessor.get(IEditorGroupsService), explorerService);
 
 		// Set side input
 		if (resources.length) {
@@ -151,6 +148,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const textModelService = accessor.get(ITextModelService);
 		const editorService = accessor.get(IEditorService);
 		const fileService = accessor.get(IFileService);
+		const listService = accessor.get(IListService);
 
 		// Register provider at first as needed
 		let registerEditorListener = false;
@@ -163,7 +161,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		}
 
 		// Open editor (only resources that can be handled by file service are supported)
-		const uri = getResourceForCommand(resource, accessor.get(IListService), editorService);
+		const uri = getResourceForCommand(resource, editorService, listService);
 		if (uri && fileService.hasProvider(uri)) {
 			const name = basename(uri);
 			const editorLabel = nls.localize('modifiedLabel', "{0} (in file) ↔ {1}", name, name);
@@ -190,9 +188,7 @@ let resourceSelectedForCompareContext: IContextKey<boolean>;
 CommandsRegistry.registerCommand({
 	id: SELECT_FOR_COMPARE_COMMAND_ID,
 	handler: (accessor, resource: URI | object) => {
-		const listService = accessor.get(IListService);
-
-		globalResourceToCompare = getResourceForCommand(resource, listService, accessor.get(IEditorService));
+		globalResourceToCompare = getResourceForCommand(resource, accessor.get(IEditorService), accessor.get(IListService));
 		if (!resourceSelectedForCompareContext) {
 			resourceSelectedForCompareContext = ResourceSelectedForCompareContext.bindTo(accessor.get(IContextKeyService));
 		}
@@ -204,14 +200,12 @@ CommandsRegistry.registerCommand({
 	id: COMPARE_SELECTED_COMMAND_ID,
 	handler: async (accessor, resource: URI | object) => {
 		const editorService = accessor.get(IEditorService);
-		const editorGroupService = accessor.get(IEditorGroupsService);
-		const explorerService = accessor.get(IExplorerService);
-		const resources = getMultiSelectedResources(resource, accessor.get(IListService), editorService, editorGroupService, explorerService);
+		const resources = getMultiSelectedResources(resource, accessor.get(IListService), editorService, accessor.get(IEditorGroupsService), accessor.get(IExplorerService));
 
 		if (resources.length === 2) {
 			return editorService.openEditor({
-				original: { resource: resources[0] },
-				modified: { resource: resources[1] },
+				original: { resource: resources[1] },
+				modified: { resource: resources[0] },
 				options: { pinned: true }
 			});
 		}
@@ -224,9 +218,7 @@ CommandsRegistry.registerCommand({
 	id: COMPARE_RESOURCE_COMMAND_ID,
 	handler: (accessor, resource: URI | object) => {
 		const editorService = accessor.get(IEditorService);
-		const listService = accessor.get(IListService);
-
-		const rightResource = getResourceForCommand(resource, listService, editorService);
+		const rightResource = getResourceForCommand(resource, editorService, accessor.get(IListService));
 		if (globalResourceToCompare && rightResource) {
 			editorService.openEditor({
 				original: { resource: globalResourceToCompare },
@@ -328,7 +320,9 @@ CommandsRegistry.registerCommand({
 		const viewService = accessor.get(IViewsService);
 		const contextService = accessor.get(IWorkspaceContextService);
 		const explorerService = accessor.get(IExplorerService);
-		const uri = getResourceForCommand(resource, accessor.get(IListService), accessor.get(IEditorService));
+		const editorService = accessor.get(IEditorService);
+		const listService = accessor.get(IListService);
+		const uri = getResourceForCommand(resource, editorService, listService);
 
 		if (uri && contextService.isInsideWorkspace(uri)) {
 			const explorerView = await viewService.openView<ExplorerView>(VIEW_ID, false);
@@ -356,8 +350,8 @@ CommandsRegistry.registerCommand({
 	id: OPEN_WITH_EXPLORER_COMMAND_ID,
 	handler: async (accessor, resource: URI | object) => {
 		const editorService = accessor.get(IEditorService);
-
-		const uri = getResourceForCommand(resource, accessor.get(IListService), accessor.get(IEditorService));
+		const listService = accessor.get(IListService);
+		const uri = getResourceForCommand(resource, editorService, listService);
 		if (uri) {
 			return editorService.openEditor({ resource: uri, options: { override: EditorResolution.PICK, source: EditorOpenSource.USER } });
 		}
@@ -369,13 +363,12 @@ CommandsRegistry.registerCommand({
 // Save / Save As / Save All / Revert
 
 async function saveSelectedEditors(accessor: ServicesAccessor, options?: ISaveEditorsOptions): Promise<void> {
-	const listService = accessor.get(IListService);
 	const editorGroupService = accessor.get(IEditorGroupsService);
 	const codeEditorService = accessor.get(ICodeEditorService);
 	const textFileService = accessor.get(ITextFileService);
 
 	// Retrieve selected or active editor
-	let editors = getOpenEditorsViewMultiSelection(listService, editorGroupService);
+	let editors = getOpenEditorsViewMultiSelection(accessor);
 	if (!editors) {
 		const activeGroup = editorGroupService.activeGroup;
 		if (activeGroup.activeEditor) {
@@ -512,15 +505,15 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 CommandsRegistry.registerCommand({
 	id: SAVE_ALL_IN_GROUP_COMMAND_ID,
 	handler: (accessor, _: URI | object, editorContext: IEditorCommandsContext) => {
-		const editorGroupService = accessor.get(IEditorGroupsService);
+		const editorGroupsService = accessor.get(IEditorGroupsService);
 
-		const contexts = getMultiSelectedEditorContexts(editorContext, accessor.get(IListService), accessor.get(IEditorGroupsService));
+		const resolvedContext = resolveCommandsContext([editorContext], accessor.get(IEditorService), editorGroupsService, accessor.get(IListService));
 
 		let groups: readonly IEditorGroup[] | undefined = undefined;
-		if (!contexts.length) {
-			groups = editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
+		if (!resolvedContext.groupedEditors.length) {
+			groups = editorGroupsService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
 		} else {
-			groups = coalesce(contexts.map(context => editorGroupService.getGroup(context.groupId)));
+			groups = resolvedContext.groupedEditors.map(({ group }) => group);
 		}
 
 		return saveDirtyEditorsOfGroups(accessor, groups, { reason: SaveReason.EXPLICIT });
@@ -540,13 +533,11 @@ CommandsRegistry.registerCommand({
 CommandsRegistry.registerCommand({
 	id: REVERT_FILE_COMMAND_ID,
 	handler: async accessor => {
-		const notificationService = accessor.get(INotificationService);
-		const listService = accessor.get(IListService);
 		const editorGroupService = accessor.get(IEditorGroupsService);
 		const editorService = accessor.get(IEditorService);
 
 		// Retrieve selected or active editor
-		let editors = getOpenEditorsViewMultiSelection(listService, editorGroupService);
+		let editors = getOpenEditorsViewMultiSelection(accessor);
 		if (!editors) {
 			const activeGroup = editorGroupService.activeGroup;
 			if (activeGroup.activeEditor) {
@@ -561,6 +552,7 @@ CommandsRegistry.registerCommand({
 		try {
 			await editorService.revert(editors.filter(({ editor }) => !editor.hasCapability(EditorInputCapabilities.Untitled) /* all except untitled */), { force: true });
 		} catch (error) {
+			const notificationService = accessor.get(INotificationService);
 			notificationService.error(nls.localize('genericRevertError', "Failed to revert '{0}': {1}", editors.map(({ editor }) => editor.getName()).join(', '), toErrorMessage(error, false)));
 		}
 	}
@@ -569,7 +561,6 @@ CommandsRegistry.registerCommand({
 CommandsRegistry.registerCommand({
 	id: REMOVE_ROOT_FOLDER_COMMAND_ID,
 	handler: (accessor, resource: URI | object) => {
-		const workspaceEditingService = accessor.get(IWorkspaceEditingService);
 		const contextService = accessor.get(IWorkspaceContextService);
 		const uriIdentityService = accessor.get(IUriIdentityService);
 		const workspace = contextService.getWorkspace();
@@ -583,6 +574,7 @@ CommandsRegistry.registerCommand({
 			return commandService.executeCommand(RemoveRootFolderAction.ID);
 		}
 
+		const workspaceEditingService = accessor.get(IWorkspaceEditingService);
 		return workspaceEditingService.removeFolders(resources);
 	}
 });

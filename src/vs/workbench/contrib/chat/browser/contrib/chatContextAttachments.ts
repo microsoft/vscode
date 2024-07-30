@@ -21,8 +21,10 @@ export class ChatContextAttachments extends Disposable implements IChatWidgetCon
 	constructor(readonly widget: IChatWidget) {
 		super();
 
-		this._register(this.widget.onDidDeleteContext((e) => {
-			this._removeContext(e);
+		this._register(this.widget.onDidChangeContext((e) => {
+			if (e.removed) {
+				this._removeContext(e.removed);
+			}
 		}));
 
 		this._register(this.widget.onDidSubmitAgent(() => {
@@ -30,13 +32,18 @@ export class ChatContextAttachments extends Disposable implements IChatWidgetCon
 		}));
 	}
 
-	getInputState?() {
+	getInputState(): IChatRequestVariableEntry[] {
 		return [...this._attachedContext.values()];
 	}
 
-	setInputState?(s: any): void {
+	setInputState(s: any): void {
 		if (!Array.isArray(s)) {
-			return;
+			s = [];
+		}
+
+		this._attachedContext.clear();
+		for (const attachment of s) {
+			this._attachedContext.add(attachment);
 		}
 
 		this.widget.setContext(true, ...s);
@@ -57,8 +64,10 @@ export class ChatContextAttachments extends Disposable implements IChatWidgetCon
 		this.widget.setContext(overwrite, ...attachments);
 	}
 
-	private _removeContext(attachment: IChatRequestVariableEntry) {
-		this._attachedContext.delete(attachment);
+	private _removeContext(attachments: IChatRequestVariableEntry[]) {
+		if (attachments.length) {
+			attachments.forEach(this._attachedContext.delete, this._attachedContext);
+		}
 	}
 
 	private _clearAttachedContext() {

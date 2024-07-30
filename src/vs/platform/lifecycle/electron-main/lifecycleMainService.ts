@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, BrowserWindow, Event as ElectronEvent } from 'electron';
+import electron from 'electron';
 import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
 import { Barrier, Promises, timeout } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -294,7 +294,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 				this.fireOnWillShutdown(ShutdownReason.QUIT);
 			}
 		};
-		app.addListener('before-quit', beforeQuitListener);
+		electron.app.addListener('before-quit', beforeQuitListener);
 
 		// window-all-closed: an event that only fires when the last window
 		// was closed. We override this event to be in charge if app.quit()
@@ -305,14 +305,14 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 			// Windows/Linux: we quit when all windows have closed
 			// Mac: we only quit when quit was requested
 			if (this._quitRequested || !isMacintosh) {
-				app.quit();
+				electron.app.quit();
 			}
 		};
-		app.addListener('window-all-closed', windowAllClosedListener);
+		electron.app.addListener('window-all-closed', windowAllClosedListener);
 
 		// will-quit: an event that is fired after all windows have been
 		// closed, but before actually quitting.
-		app.once('will-quit', e => {
+		electron.app.once('will-quit', e => {
 			this.trace('Lifecycle#app.on(will-quit) - begin');
 
 			// Prevent the quit until the shutdown promise was resolved
@@ -332,12 +332,12 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 				// will-quit listener is only installed "once". Also
 				// remove any listener we have that is no longer needed
 
-				app.removeListener('before-quit', beforeQuitListener);
-				app.removeListener('window-all-closed', windowAllClosedListener);
+				electron.app.removeListener('before-quit', beforeQuitListener);
+				electron.app.removeListener('window-all-closed', windowAllClosedListener);
 
 				this.trace('Lifecycle#app.on(will-quit) - calling app.quit()');
 
-				app.quit();
+				electron.app.quit();
 			});
 		});
 	}
@@ -428,7 +428,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 
 		// Window Before Closing: Main -> Renderer
 		const win = assertIsDefined(window.win);
-		windowListeners.add(Event.fromNodeEventEmitter<ElectronEvent>(win, 'close')(e => {
+		windowListeners.add(Event.fromNodeEventEmitter<electron.Event>(win, 'close')(e => {
 
 			// The window already acknowledged to be closed
 			const windowId = window.id;
@@ -458,7 +458,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 				window.close();
 			});
 		}));
-		windowListeners.add(Event.fromNodeEventEmitter<ElectronEvent>(win, 'closed')(() => {
+		windowListeners.add(Event.fromNodeEventEmitter<electron.Event>(win, 'closed')(() => {
 			this.trace(`Lifecycle#window.on('closed') - window ID ${window.id}`);
 
 			// update window count
@@ -480,7 +480,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 		const win = assertIsDefined(auxWindow.win);
 
 		const windowListeners = new DisposableStore();
-		windowListeners.add(Event.fromNodeEventEmitter<ElectronEvent>(win, 'close')(e => {
+		windowListeners.add(Event.fromNodeEventEmitter<electron.Event>(win, 'close')(e => {
 			this.trace(`Lifecycle#auxWindow.on('close') - window ID ${auxWindow.id}`);
 
 			if (this._quitRequested) {
@@ -499,7 +499,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 				e.preventDefault();
 			}
 		}));
-		windowListeners.add(Event.fromNodeEventEmitter<ElectronEvent>(win, 'closed')(() => {
+		windowListeners.add(Event.fromNodeEventEmitter<electron.Event>(win, 'closed')(() => {
 			this.trace(`Lifecycle#auxWindow.on('closed') - window ID ${auxWindow.id}`);
 
 			windowListeners.dispose();
@@ -652,7 +652,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 			// Calling app.quit() will trigger the close handlers of each opened window
 			// and only if no window vetoed the shutdown, we will get the will-quit event
 			this.trace('Lifecycle#quit() - calling app.quit()');
-			app.quit();
+			electron.app.quit();
 		});
 
 		return this.pendingQuitPromise;
@@ -690,16 +690,16 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 		const quitListener = () => {
 			if (!this.relaunchHandler?.handleRelaunch(options)) {
 				this.trace('Lifecycle#relaunch() - calling app.relaunch()');
-				app.relaunch({ args });
+				electron.app.relaunch({ args });
 			}
 		};
-		app.once('quit', quitListener);
+		electron.app.once('quit', quitListener);
 
 		// `app.relaunch()` does not quit automatically, so we quit first,
 		// check for vetoes and then relaunch from the `app.on('quit')` event
 		const veto = await this.quit(true /* will restart */);
 		if (veto) {
-			app.removeListener('quit', quitListener);
+			electron.app.removeListener('quit', quitListener);
 		}
 	}
 
@@ -727,7 +727,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 			// to a participant within the window. this is not wanted when we
 			// are asked to kill the application.
 			(async () => {
-				for (const window of BrowserWindow.getAllWindows()) {
+				for (const window of electron.BrowserWindow.getAllWindows()) {
 					if (window && !window.isDestroyed()) {
 						let whenWindowClosed: Promise<void>;
 						if (window.webContents && !window.webContents.isDestroyed()) {
@@ -744,6 +744,6 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 		]);
 
 		// Now exit either after 1s or all windows destroyed
-		app.exit(code);
+		electron.app.exit(code);
 	}
 }

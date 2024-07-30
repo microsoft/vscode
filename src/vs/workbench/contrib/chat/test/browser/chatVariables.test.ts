@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -19,6 +19,7 @@ import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVari
 import { MockChatWidgetService } from 'vs/workbench/contrib/chat/test/browser/mockChatWidget';
 import { MockChatService } from 'vs/workbench/contrib/chat/test/common/mockChatService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { TestViewsService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestExtensionService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 
 suite('ChatVariables', function () {
@@ -28,7 +29,7 @@ suite('ChatVariables', function () {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(function () {
-		service = new ChatVariablesService(new MockChatWidgetService());
+		service = new ChatVariablesService(new MockChatWidgetService(), new TestViewsService());
 		instantiationService = testDisposables.add(new TestInstantiationService());
 		instantiationService.stub(IStorageService, testDisposables.add(new TestStorageService()));
 		instantiationService.stub(ILogService, new NullLogService());

@@ -18,7 +18,7 @@ import { AbstractEditorWithViewState } from 'vs/workbench/browser/parts/editor/e
 import { ICompositeControl } from 'vs/workbench/common/composite';
 import { IEditorOpenContext } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { MultiDiffEditorInput } from 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput';
+import { IDocumentDiffItemWithMultiDiffEditorItem, MultiDiffEditorInput } from 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { URI } from 'vs/base/common/uri';
@@ -27,6 +27,7 @@ import { IMultiDiffEditorOptions, IMultiDiffEditorViewState } from 'vs/editor/br
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffEditor } from 'vs/editor/common/editorCommon';
 import { Range } from 'vs/editor/common/core/range';
+import { MultiDiffEditorItem } from 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffSourceResolverService';
 
 export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEditorViewState> {
 	static readonly ID = 'multiDiffEditor';
@@ -138,6 +139,13 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 
 	public tryGetCodeEditor(resource: URI): { diffEditor: IDiffEditor; editor: ICodeEditor } | undefined {
 		return this._multiDiffEditorWidget!.tryGetCodeEditor(resource);
+	}
+
+	public findDocumentDiffItem(resource: URI): MultiDiffEditorItem | undefined {
+		const i = this._multiDiffEditorWidget!.findDocumentDiffItem(resource);
+		if (!i) { return undefined; }
+		const i2 = i as IDocumentDiffItemWithMultiDiffEditorItem;
+		return i2.multiDiffEditorItem;
 	}
 }
 

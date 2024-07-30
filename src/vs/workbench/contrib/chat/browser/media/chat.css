@@ -40,6 +40,12 @@
 	display: flex;
 	align-items: center;
 	gap: 8px;
+
+	/*
+	Rendering the avatar icon as round makes it a little larger than the .user container.
+	Add padding so that the focus outline doesn't run into it, and counteract it with a negative margin so it doesn't actually take up any extra space */
+	padding: 2px;
+	margin: -2px;
 }
 
 .interactive-item-container .header .username {
@@ -48,12 +54,13 @@
 	font-weight: 600;
 }
 
-.interactive-item-container .header .detail-container {
+.interactive-item-container .detail-container {
 	font-size: 12px;
 	color: var(--vscode-descriptionForeground);
+	overflow: hidden;
 }
 
-.interactive-item-container .header .detail-container .detail .agentOrSlashCommandDetected A {
+.interactive-item-container .detail-container .detail .agentOrSlashCommandDetected A {
 	cursor: pointer;
 	color: var(--vscode-textLink-foreground);
 }
@@ -170,8 +177,8 @@
 	width: 100%;
 }
 
-.interactive-item-container .chat-progress-task {
-	padding-bottom: 8px;
+.interactive-item-container > .value .chat-used-context {
+	margin-bottom: 8px;
 }
 
 .interactive-item-container .value .rendered-markdown table {
@@ -341,6 +348,34 @@
 	margin: 8px 0;
 }
 
+.interactive-item-container.minimal {
+	flex-direction: row;
+}
+
+.interactive-item-container.minimal .column.left {
+	padding-top: 2px;
+	display: inline-block;
+	flex-grow: 0;
+}
+
+.interactive-item-container.minimal .column.right {
+	display: inline-block;
+	flex-grow: 1;
+}
+
+.interactive-item-container.minimal .user > .username {
+	display: none;
+}
+
+.interactive-item-container.minimal .detail-container {
+	font-size: unset;
+}
+
+.interactive-item-container.minimal > .header {
+	position: absolute;
+	right: 0;
+}
+
 .interactive-session .interactive-input-and-execute-toolbar {
 	display: flex;
 	box-sizing: border-box;
@@ -453,6 +488,17 @@
 	color: var(--vscode-interactive-session-foreground);
 }
 
+.chat-attached-context .chat-attached-context-attachment .monaco-icon-name-container.warning,
+.chat-attached-context .chat-attached-context-attachment .monaco-icon-suffix-container.warning,
+.chat-used-context-list .monaco-icon-name-container.warning,
+.chat-used-context-list .monaco-icon-suffix-container.warning {
+	color: var(--vscode-notificationsWarningIcon-foreground);
+}
+
+.chat-attached-context .chat-attached-context-attachment.show-file-icons.warning {
+	border-color: var(--vscode-notificationsWarningIcon-foreground);
+}
+
 .chat-notification-widget .chat-warning-codicon .codicon-warning {
 	color: var(--vscode-notificationsWarningIcon-foreground) !important; /* Have to override default styles which apply to all lists */
 }
@@ -505,6 +551,7 @@
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label .monaco-button.codicon.codicon-close,
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-button.codicon.codicon-close {
 	color: var(--vscode-descriptionForeground);
+	cursor: pointer;
 }
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label .codicon {
@@ -518,12 +565,20 @@
 	flex-wrap: wrap;
 }
 
+.interactive-session .interactive-item-container.interactive-request .chat-attached-context {
+	margin-top: -8px;
+}
+
 .interactive-session .chat-attached-context .chat-attached-context-attachment {
 	padding: 2px;
 	border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
 	border-radius: 4px;
 	height: 18px;
 	max-width: 100%;
+}
+
+.interactive-session .interactive-item-container.interactive-request .chat-attached-context .chat-attached-context-attachment {
+	padding-right: 6px;
 }
 
 .interactive-session-followups {
@@ -555,6 +610,12 @@
 	display: block;
 	color: var(--vscode-textLink-foreground);
 	font-size: 12px;
+
+	/* clamp to max 3 lines */
+	display: -webkit-box;
+	-webkit-line-clamp: 3;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
 }
 
 .interactive-session .interactive-input-part .interactive-input-followups .interactive-session-followups code {
@@ -780,4 +841,20 @@
 .interactive-item-container .chat-command-button .monaco-button .codicon {
 	margin-left: 0;
 	margin-top: 1px;
+}
+
+.chat-code-citation-label {
+	opacity: 0.7;
+	white-space: pre-wrap;
+}
+
+.chat-code-citation-button-container {
+	display: inline;
+}
+
+.chat-code-citation-button-container .monaco-button {
+	display: inline;
+	border: none;
+	padding: 0;
+	color: var(--vscode-textLink-foreground);
 }

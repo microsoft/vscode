@@ -3,17 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { ITextModel } from 'vs/editor/common/model';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import * as nls from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationScope, Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import * as JSONContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
@@ -24,35 +18,36 @@ import { RegisteredEditorPriority, IEditorResolverService } from 'vs/workbench/s
 import { ITextEditorService } from 'vs/workbench/services/textfile/common/textEditorService';
 import { DEFAULT_SETTINGS_EDITOR_SETTING, FOLDER_SETTINGS_PATH, IPreferencesService, USE_SPLIT_JSON_SETTING } from 'vs/workbench/services/preferences/common/preferences';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IFileService } from 'vs/platform/files/common/files';
+import { SettingsFileSystemProvider } from 'vs/workbench/contrib/preferences/common/settingsFilesystemProvider';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
-const schemaRegistry = Registry.as<JSONContributionRegistry.IJSONContributionRegistry>(JSONContributionRegistry.Extensions.JSONContribution);
-
-export class PreferencesContribution implements IWorkbenchContribution {
+export class PreferencesContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.preferences';
 
 	private editorOpeningListener: IDisposable | undefined;
-	private settingsListener: IDisposable;
 
 	constructor(
-		@IModelService private readonly modelService: IModelService,
-		@ITextModelService private readonly textModelResolverService: ITextModelService,
+		@IFileService fileService: IFileService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
-		@ILanguageService private readonly languageService: ILanguageService,
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
-		@ITextEditorService private readonly textEditorService: ITextEditorService
+		@ITextEditorService private readonly textEditorService: ITextEditorService,
 	) {
-		this.settingsListener = this.configurationService.onDidChangeConfiguration(e => {
+		super();
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(USE_SPLIT_JSON_SETTING) || e.affectsConfiguration(DEFAULT_SETTINGS_EDITOR_SETTING)) {
 				this.handleSettingsEditorRegistration();
 			}
-		});
+		}));
 		this.handleSettingsEditorRegistration();
 
-		this.start();
+		const fileSystemProvider = this._register(this.instantiationService.createInstance(SettingsFileSystemProvider));
+		this._register(fileService.registerProvider(SettingsFileSystemProvider.SCHEMA, fileSystemProvider));
 	}
 
 	private handleSettingsEditorRegistration(): void {
@@ -102,43 +97,12 @@ export class PreferencesContribution implements IWorkbenchContribution {
 			);
 		}
 	}
-
-	private start(): void {
-
-		this.textModelResolverService.registerTextModelContentProvider('vscode', {
-			provideTextContent: async (uri: URI): Promise<ITextModel | null> => {
-				if (uri.scheme !== 'vscode') {
-					return null;
-				}
-				if (uri.authority === 'schemas') {
-					return this.getSchemaModel(uri);
-				}
-				return this.preferencesService.resolveModel(uri);
-			}
-		});
-	}
-
-	private getSchemaModel(uri: URI): ITextModel {
-		let schema = schemaRegistry.getSchemaContributions().schemas[uri.toString()] ?? {} /* Use empty schema if not yet registered */;
-		const modelContent = JSON.stringify(schema);
-		const languageSelection = this.languageService.createById('jsonc');
-		const model = this.modelService.createModel(modelContent, languageSelection, uri);
-		const disposables = new DisposableStore();
-		disposables.add(schemaRegistry.onDidChangeSchema(schemaUri => {
-			if (schemaUri === uri.toString()) {
-				schema = schemaRegistry.getSchemaContributions().schemas[uri.toString()];
-				model.setValue(JSON.stringify(schema));
-			}
-		}));
-		disposables.add(model.onWillDispose(() => disposables.dispose()));
-		return model;
-	}
-
-	dispose(): void {
+	override dispose(): void {
 		dispose(this.editorOpeningListener);
-		dispose(this.settingsListener);
+		super.dispose();
 	}
 }
+
 
 const registry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 registry.registerConfiguration({

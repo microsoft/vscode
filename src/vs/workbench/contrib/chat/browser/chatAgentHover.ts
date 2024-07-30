@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { h } from 'vs/base/browser/dom';
-import { IUpdatableHoverOptions } from 'vs/base/browser/ui/hover/hover';
+import { IManagedHoverOptions } from 'vs/base/browser/ui/hover/hover';
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { FileAccess } from 'vs/base/common/network';
 import { ThemeIcon } from 'vs/base/common/themables';
@@ -29,6 +29,9 @@ export class ChatAgentHover extends Disposable {
 	private readonly publisherName: HTMLElement;
 	private readonly description: HTMLElement;
 
+	private readonly _onDidChangeContents = this._register(new Emitter<void>());
+	public readonly onDidChangeContents: Event<void> = this._onDidChangeContents.event;
+
 	constructor(
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IExtensionsWorkbenchService private readonly extensionService: IExtensionsWorkbenchService,
@@ -36,22 +39,22 @@ export class ChatAgentHover extends Disposable {
 	) {
 		super();
 
-		const hoverElement = h(
+		const hoverElement = dom.h(
 			'.chat-agent-hover@root',
 			[
-				h('.chat-agent-hover-header', [
-					h('.chat-agent-hover-icon@icon'),
-					h('.chat-agent-hover-details', [
-						h('.chat-agent-hover-name@name'),
-						h('.chat-agent-hover-extension', [
-							h('.chat-agent-hover-extension-name@extensionName'),
-							h('.chat-agent-hover-separator@separator'),
-							h('.chat-agent-hover-publisher@publisher'),
+				dom.h('.chat-agent-hover-header', [
+					dom.h('.chat-agent-hover-icon@icon'),
+					dom.h('.chat-agent-hover-details', [
+						dom.h('.chat-agent-hover-name@name'),
+						dom.h('.chat-agent-hover-extension', [
+							dom.h('.chat-agent-hover-extension-name@extensionName'),
+							dom.h('.chat-agent-hover-separator@separator'),
+							dom.h('.chat-agent-hover-publisher@publisher'),
 						]),
 					]),
 				]),
-				h('.chat-agent-hover-warning@warning'),
-				h('span.chat-agent-hover-description@description'),
+				dom.h('.chat-agent-hover-warning@warning'),
+				dom.h('span.chat-agent-hover-description@description'),
 			]);
 		this.domNode = hoverElement.root;
 
@@ -110,13 +113,14 @@ export class ChatAgentHover extends Disposable {
 				const extension = extensions[0];
 				if (extension?.publisherDomain?.verified) {
 					this.domNode.classList.toggle('verifiedPublisher', true);
+					this._onDidChangeContents.fire();
 				}
 			});
 		}
 	}
 }
 
-export function getChatAgentHoverOptions(getAgent: () => IChatAgentData | undefined, commandService: ICommandService): IUpdatableHoverOptions {
+export function getChatAgentHoverOptions(getAgent: () => IChatAgentData | undefined, commandService: ICommandService): IManagedHoverOptions {
 	return {
 		actions: [
 			{

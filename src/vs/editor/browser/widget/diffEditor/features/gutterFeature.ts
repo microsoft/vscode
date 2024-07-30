@@ -37,7 +37,7 @@ const width = 35;
 
 export class DiffEditorGutter extends Disposable {
 	private readonly _menu = this._register(this._menuService.createMenu(MenuId.DiffEditorHunkToolbar, this._contextKeyService));
-	private readonly _actions = observableFromEvent(this._menu.onDidChange, () => this._menu.getActions());
+	private readonly _actions = observableFromEvent(this, this._menu.onDidChange, () => this._menu.getActions());
 	private readonly _hasActions = this._actions.map(a => a.length > 0);
 	private readonly _showSash = derived(this, reader => this._options.renderSideBySide.read(reader) && this._hasActions.read(reader));
 

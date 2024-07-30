@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { setupInstantiationService, withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
 import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 import { IFileIconTheme, IThemeService } from 'vs/platform/theme/common/themeService';
@@ -18,6 +18,9 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { NotebookCellOutline } from 'vs/workbench/contrib/notebook/browser/contrib/outline/notebookOutline';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
+import { IEditorPaneSelectionChangeEvent } from 'vs/workbench/common/editor';
 
 suite('Notebook Outline', function () {
 
@@ -32,6 +35,7 @@ suite('Notebook Outline', function () {
 		disposables = new DisposableStore();
 		instantiationService = setupInstantiationService(disposables);
 		instantiationService.set(IEditorService, new class extends mock<IEditorService>() { });
+		instantiationService.set(ILanguageFeaturesService, new LanguageFeaturesService());
 		instantiationService.set(IMarkerService, disposables.add(new MarkerService()));
 		instantiationService.set(IThemeService, new class extends mock<IThemeService>() {
 			override onDidFileIconThemeChange = Event.None;
@@ -52,6 +56,7 @@ suite('Notebook Outline', function () {
 					return editor;
 				}
 				override onDidChangeModel: Event<void> = Event.None;
+				override onDidChangeSelection: Event<IEditorPaneSelectionChangeEvent> = Event.None;
 			}, OutlineTarget.OutlinePane);
 
 			disposables.add(outline);

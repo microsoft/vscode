@@ -138,7 +138,11 @@ export default class LanguageProvider extends Disposable {
 		this.client.bufferSyncSupport.requestAllDiagnostics();
 	}
 
-	public diagnosticsReceived(diagnosticsKind: DiagnosticKind, file: vscode.Uri, diagnostics: (vscode.Diagnostic & { reportUnnecessary: any; reportDeprecated: any })[]): void {
+	public diagnosticsReceived(
+		diagnosticsKind: DiagnosticKind,
+		file: vscode.Uri,
+		diagnostics: (vscode.Diagnostic & { reportUnnecessary: any; reportDeprecated: any })[],
+		ranges: vscode.Range[] | undefined): void {
 		if (diagnosticsKind !== DiagnosticKind.Syntax && !this.client.hasCapabilityForResource(file, ClientCapability.Semantic)) {
 			return;
 		}
@@ -175,7 +179,7 @@ export default class LanguageProvider extends Disposable {
 				}
 			}
 			return true;
-		}));
+		}), ranges);
 	}
 
 	public configFileDiagnosticsReceived(file: vscode.Uri, diagnostics: vscode.Diagnostic[]): void {

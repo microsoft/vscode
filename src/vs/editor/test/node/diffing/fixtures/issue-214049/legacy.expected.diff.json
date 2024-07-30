@@ -1,0 +1,17 @@
+{
+	"original": {
+		"content": "hello world; \ny",
+		"fileName": "./1.txt"
+	},
+	"modified": {
+		"content": "hello world;\n// new line\ny",
+		"fileName": "./2.txt"
+	},
+	"diffs": [
+		{
+			"originalRange": "[1,2)",
+			"modifiedRange": "[1,3)",
+			"innerChanges": null
+		}
+	]
+}

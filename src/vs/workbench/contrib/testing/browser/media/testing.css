@@ -268,15 +268,9 @@
 }
 
 .testing-followup-action {
-	position: absolute;
-	top: 100%;
-	left: 22px;
-	right: 22px;
-	margin-top: -25px;
 	line-height: 25px;
 	overflow: hidden;
 	pointer-events: none;
-	background: linear-gradient(transparent, var(--vscode-peekViewEditor-background) 50%);
 	display: flex;
 	align-items: center;
 	gap: 14px;
@@ -311,6 +305,10 @@
 			}
 		}
 	}
+}
+
+.test-output-call-stack {
+	height: 100%;
 }
 
 /** -- filter  */

@@ -172,7 +172,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			disposable = this._chatAgentService.registerDynamicAgent(
 				{
 					id,
-					name: dynamicProps.name ?? '', // This case is for an API change and can be removed tomorrow
+					name: dynamicProps.name,
 					description: dynamicProps.description,
 					extensionId: extension,
 					extensionDisplayName: extensionDescription?.displayName ?? extension.value,
@@ -199,7 +199,8 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 	$updateAgent(handle: number, metadataUpdate: IExtensionChatAgentMetadata): void {
 		const data = this._agents.get(handle);
 		if (!data) {
-			throw new Error(`No agent with handle ${handle} registered`);
+			this._logService.error(`MainThreadChatAgents2#$updateAgent: No agent with handle ${handle} registered`);
+			return;
 		}
 		data.hasFollowups = metadataUpdate.hasFollowups;
 		this._chatAgentService.updateAgent(data.id, revive(metadataUpdate));

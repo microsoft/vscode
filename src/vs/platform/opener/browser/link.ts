@@ -14,7 +14,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import 'vs/css!./link';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
-import type { IUpdatableHover } from 'vs/base/browser/ui/hover/hover';
+import type { IManagedHover } from 'vs/base/browser/ui/hover/hover';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 export interface ILinkDescriptor {
@@ -33,7 +33,7 @@ export interface ILinkOptions {
 export class Link extends Disposable {
 
 	private el: HTMLAnchorElement;
-	private hover?: IUpdatableHover;
+	private hover?: IManagedHover;
 	private hoverDelegate: IHoverDelegate;
 
 	private _enabled: boolean = true;
@@ -131,7 +131,7 @@ export class Link extends Disposable {
 		if (this.hoverDelegate.showNativeHover) {
 			this.el.title = title ?? '';
 		} else if (!this.hover && title) {
-			this.hover = this._register(this._hoverService.setupUpdatableHover(this.hoverDelegate, this.el, title));
+			this.hover = this._register(this._hoverService.setupManagedHover(this.hoverDelegate, this.el, title));
 		} else if (this.hover) {
 			this.hover.update(title);
 		}

@@ -4,15 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isNonEmptyArray } from 'vs/base/common/arrays';
-import * as strings from 'vs/base/common/strings';
 import { Codicon } from 'vs/base/common/codicons';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import * as strings from 'vs/base/common/strings';
 import { localize, localize2 } from 'vs/nls';
-import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IProductService } from 'vs/platform/product/common/productService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -40,7 +38,7 @@ const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.regi
 					type: 'string'
 				},
 				name: {
-					description: localize('chatParticipantName', "User-facing name for this chat participant. The user will use '@' with this name to invoke the participant."),
+					description: localize('chatParticipantName', "User-facing name for this chat participant. The user will use '@' with this name to invoke the participant. Name must not contain whitespace."),
 					type: 'string',
 					pattern: '^[\\w0-9_-]+$'
 				},
@@ -58,6 +56,10 @@ const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.regi
 				},
 				sampleRequest: {
 					description: localize('chatSampleRequest', "When the user clicks this participant in `/help`, this text will be submitted to the participant."),
+					type: 'string'
+				},
+				when: {
+					description: localize('chatParticipantWhen', "A condition which must be true to enable this participant."),
 					type: 'string'
 				},
 				commands: {
@@ -106,64 +108,20 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.chatExtensionPointHandler';
 
-	private readonly disposables = new DisposableStore();
-	private _welcomeViewDescriptor?: IViewDescriptor;
 	private _viewContainer: ViewContainer;
 	private _participantRegistrationDisposables = new DisposableMap<string>();
 
 	constructor(
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
-		@IProductService private readonly productService: IProductService,
-		@IContextKeyService private readonly contextService: IContextKeyService,
 		@ILogService private readonly logService: ILogService,
 	) {
 		this._viewContainer = this.registerViewContainer();
-		this.registerListeners();
 		this.handleAndRegisterChatExtensions();
-	}
-
-	private registerListeners() {
-		this.contextService.onDidChangeContext(e => {
-
-			if (!this.productService.chatWelcomeView) {
-				return;
-			}
-
-			const showWelcomeViewConfigKey = 'workbench.chat.experimental.showWelcomeView';
-			const keys = new Set([showWelcomeViewConfigKey]);
-			if (e.affectsSome(keys)) {
-				const contextKeyExpr = ContextKeyExpr.equals(showWelcomeViewConfigKey, true);
-				const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
-				if (this.contextService.contextMatchesRules(contextKeyExpr)) {
-					this._welcomeViewDescriptor = {
-						id: CHAT_VIEW_ID,
-						name: { original: this.productService.chatWelcomeView.welcomeViewTitle, value: this.productService.chatWelcomeView.welcomeViewTitle },
-						containerIcon: this._viewContainer.icon,
-						ctorDescriptor: new SyncDescriptor(ChatViewPane),
-						canToggleVisibility: false,
-						canMoveView: true,
-						order: 100
-					};
-					viewsRegistry.registerViews([this._welcomeViewDescriptor], this._viewContainer);
-
-					viewsRegistry.registerViewWelcomeContent(CHAT_VIEW_ID, {
-						content: this.productService.chatWelcomeView.welcomeViewContent,
-					});
-				} else if (this._welcomeViewDescriptor) {
-					viewsRegistry.deregisterViews([this._welcomeViewDescriptor], this._viewContainer);
-				}
-			}
-		}, null, this.disposables);
 	}
 
 	private handleAndRegisterChatExtensions(): void {
 		chatParticipantExtensionPoint.setHandler((extensions, delta) => {
 			for (const extension of delta.added) {
-				if (this.productService.quality === 'stable' && !isProposedApiEnabled(extension.description, 'chatParticipantPrivate')) {
-					this.logService.warn(`Chat participants are not yet enabled in VS Code Stable (${extension.description.identifier.value})`);
-					continue;
-				}
-
 				for (const providerDescriptor of extension.value) {
 					if (!providerDescriptor.name.match(/^[\w0-9_-]+$/)) {
 						this.logService.error(`Extension '${extension.description.identifier.value}' CANNOT register participant with invalid name: ${providerDescriptor.name}. Name must match /^[\\w0-9_-]+$/.`);
@@ -201,11 +159,6 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 						store.add(this.registerDefaultParticipantView(providerDescriptor));
 					}
 
-					if (providerDescriptor.when && !isProposedApiEnabled(extension.description, 'chatParticipantAdditions')) {
-						this.logService.error(`Extension '${extension.description.identifier.value}' CANNOT use API proposal: chatParticipantAdditions.`);
-						continue;
-					}
-
 					store.add(this._chatAgentService.registerAgent(
 						providerDescriptor.id,
 						{
@@ -223,7 +176,6 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 							name: providerDescriptor.name,
 							fullName: providerDescriptor.fullName,
 							isDefault: providerDescriptor.isDefault,
-							defaultImplicitVariables: providerDescriptor.defaultImplicitVariables,
 							locations: isNonEmptyArray(providerDescriptor.locations) ?
 								providerDescriptor.locations.map(ChatAgentLocation.fromRaw) :
 								[ChatAgentLocation.Panel],
@@ -239,7 +191,7 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 
 			for (const extension of delta.removed) {
 				for (const providerDescriptor of extension.value) {
-					this._participantRegistrationDisposables.deleteAndDispose(getParticipantKey(extension.description.identifier, providerDescriptor.name));
+					this._participantRegistrationDisposables.deleteAndDispose(getParticipantKey(extension.description.identifier, providerDescriptor.id));
 				}
 			}
 		});

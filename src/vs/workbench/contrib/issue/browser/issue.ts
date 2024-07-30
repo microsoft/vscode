@@ -2,24 +2,25 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IProductConfiguration } from 'vs/base/common/product';
 import { $, createStyleSheet, reset, windowOpenNoOpener } from 'vs/base/browser/dom';
 import { Button, unthemedButtonStyles } from 'vs/base/browser/ui/button/button';
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
+import { mainWindow } from 'vs/base/browser/window';
 import { Delayer, RunOnceScheduler } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
 import { debounce } from 'vs/base/common/decorators';
 import { CancellationError } from 'vs/base/common/errors';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { isLinuxSnap } from 'vs/base/common/platform';
+import { IProductConfiguration } from 'vs/base/common/product';
 import { escape } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { IIssueMainService, IssueReporterData, IssueReporterExtensionData, IssueReporterStyles, IssueType } from 'vs/platform/issue/common/issue';
-import { normalizeGitHubUrl } from 'vs/platform/issue/common/issueReporterUtil';
+import { OldIssueReporterData } from 'vs/platform/issue/common/issue';
 import { getIconsStyleSheet } from 'vs/platform/theme/browser/iconsStyleSheet';
 import { IssueReporterModel, IssueReporterData as IssueReporterModelData } from 'vs/workbench/contrib/issue/browser/issueReporterModel';
-import { mainWindow } from 'vs/base/browser/window';
+import { IIssueFormService, IssueReporterData, IssueReporterExtensionData, IssueReporterStyles, IssueType } from 'vs/workbench/contrib/issue/common/issue';
+import { normalizeGitHubUrl } from 'vs/workbench/contrib/issue/common/issueReporterUtil';
 
 const MAX_URL_LENGTH = 7500;
 
@@ -53,7 +54,7 @@ export class BaseIssueReporterService extends Disposable {
 
 	constructor(
 		public disableExtensions: boolean,
-		public data: IssueReporterData,
+		public data: IssueReporterData | OldIssueReporterData,
 		public os: {
 			type: string;
 			arch: string;
@@ -62,7 +63,7 @@ export class BaseIssueReporterService extends Disposable {
 		public product: IProductConfiguration,
 		public readonly window: Window,
 		public readonly isWeb: boolean,
-		@IIssueMainService public readonly issueMainService: IIssueMainService
+		@IIssueFormService public readonly issueFormService: IIssueFormService
 	) {
 		super();
 		const targetExtension = data.extensionId ? data.enabledExtensions.find(extension => extension.id.toLocaleLowerCase() === data.extensionId?.toLocaleLowerCase()) : undefined;
@@ -160,6 +161,11 @@ export class BaseIssueReporterService extends Disposable {
 			content.push(`input[type="text"], textarea, select, .issues-container > .issue > .issue-state, .block-info { background-color: ${styles.inputBackground} !important; }`);
 		}
 
+		if (styles.backgroundColor) {
+			content.push(`.monaco-workbench { background-color: ${styles.backgroundColor} !important; }`);
+			content.push(`.issue-reporter-body::-webkit-scrollbar-track { background-color: ${styles.backgroundColor}; }`);
+		}
+
 		if (styles.inputBorder) {
 			content.push(`input[type="text"], textarea, select { border: 1px solid ${styles.inputBorder}; }`);
 		} else {
@@ -199,16 +205,13 @@ export class BaseIssueReporterService extends Disposable {
 			content.push(`a:hover, .workbenchCommand:hover { color: ${styles.textLinkActiveForeground}; }`);
 		}
 
-		if (styles.sliderBackgroundColor) {
-			content.push(`::-webkit-scrollbar-thumb { background-color: ${styles.sliderBackgroundColor}; }`);
-		}
-
 		if (styles.sliderActiveColor) {
-			content.push(`::-webkit-scrollbar-thumb:active { background-color: ${styles.sliderActiveColor}; }`);
+			content.push(`.issue-reporter-body::-webkit-scrollbar-thumb:active { background-color: ${styles.sliderActiveColor}; }`);
 		}
 
 		if (styles.sliderHoverColor) {
-			content.push(`::--webkit-scrollbar-thumb:hover { background-color: ${styles.sliderHoverColor}; }`);
+			content.push(`.issue-reporter-body::-webkit-scrollbar-thumb { background-color: ${styles.sliderHoverColor}; }`);
+			content.push(`.issue-reporter-body::--webkit-scrollbar-thumb:hover { background-color: ${styles.sliderHoverColor}; }`);
 		}
 
 		if (styles.buttonBackground) {
@@ -240,26 +243,6 @@ export class BaseIssueReporterService extends Disposable {
 	}
 
 	public setEventHandlers(): void {
-		this.addEventListener('issue-type', 'change', (event: Event) => {
-			const issueType = parseInt((<HTMLInputElement>event.target).value);
-			this.issueReporterModel.update({ issueType: issueType });
-			if (issueType === IssueType.PerformanceIssue && !this.receivedPerformanceInfo) {
-				this.issueMainService.$getPerformanceInfo().then(info => {
-					this.updatePerformanceInfo(info as Partial<IssueReporterData>);
-				});
-			}
-
-			// Resets placeholder
-			const descriptionTextArea = <HTMLInputElement>this.getElementById('issue-title');
-			if (descriptionTextArea) {
-				descriptionTextArea.placeholder = localize('undefinedPlaceholder', "Please enter a title");
-			}
-
-			this.updatePreviewButtonState();
-			this.setSourceOptions();
-			this.render();
-		});
-
 		(['includeSystemInfo', 'includeProcessInfo', 'includeWorkspaceInfo', 'includeExtensions', 'includeExperiments', 'includeExtensionData'] as const).forEach(elementId => {
 			this.addEventListener(elementId, 'click', (event: Event) => {
 				event.stopPropagation();
@@ -434,6 +417,10 @@ export class BaseIssueReporterService extends Disposable {
 			if (issueType === IssueType.PerformanceIssue && this.receivedSystemInfo && this.receivedPerformanceInfo) {
 				return true;
 			}
+
+			if (issueType === IssueType.FeatureRequest) {
+				return true;
+			}
 		}
 
 		return false;
@@ -500,7 +487,7 @@ export class BaseIssueReporterService extends Disposable {
 	}
 
 	public async close(): Promise<void> {
-		await this.issueMainService.$closeReporter();
+		await this.issueFormService.closeReporter();
 	}
 
 	public clearSearchResults(): void {
@@ -790,7 +777,9 @@ export class BaseIssueReporterService extends Disposable {
 		const inputElement = (<HTMLInputElement>this.getElementById(inputId));
 		const inputValidationMessage = this.getElementById(`${inputId}-empty-error`);
 		const descriptionShortMessage = this.getElementById(`description-short-error`);
-		if (!inputElement.value) {
+		if (inputId === 'description' && this.nonGitHubIssueUrl && this.data.extensionId) {
+			return true;
+		} else if (!inputElement.value) {
 			inputElement.classList.add('invalid-input');
 			inputValidationMessage?.classList.remove('hidden');
 			descriptionShortMessage?.classList.add('hidden');
@@ -800,8 +789,7 @@ export class BaseIssueReporterService extends Disposable {
 			descriptionShortMessage?.classList.remove('hidden');
 			inputValidationMessage?.classList.add('hidden');
 			return false;
-		}
-		else {
+		} else {
 			inputElement.classList.remove('invalid-input');
 			inputValidationMessage?.classList.add('hidden');
 			if (inputId === 'description') {
@@ -930,7 +918,7 @@ export class BaseIssueReporterService extends Disposable {
 	}
 
 	public async writeToClipboard(baseUrl: string, issueBody: string): Promise<string> {
-		const shouldWrite = await this.issueMainService.$showClipboardDialog();
+		const shouldWrite = await this.issueFormService.showClipboardDialog();
 		if (!shouldWrite) {
 			throw new CancellationError();
 		}
@@ -1076,7 +1064,7 @@ export class BaseIssueReporterService extends Disposable {
 		const showLoading = this.getElementById('ext-loading')!;
 		show(showLoading);
 		while (showLoading.firstChild) {
-			showLoading.removeChild(showLoading.firstChild);
+			showLoading.firstChild.remove();
 		}
 		showLoading.append(element);
 
@@ -1097,7 +1085,7 @@ export class BaseIssueReporterService extends Disposable {
 		const hideLoading = this.getElementById('ext-loading')!;
 		hide(hideLoading);
 		if (hideLoading.firstChild) {
-			hideLoading.removeChild(element);
+			element.remove();
 		}
 		this.renderBlocks();
 	}
@@ -1202,5 +1190,3 @@ export function hide(el: Element | undefined | null) {
 export function show(el: Element | undefined | null) {
 	el?.classList.remove('hidden');
 }
-
-
