@@ -99,18 +99,18 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 	}
 
 	private updateDecorations(): void {
-		this.widget.inputEditor.setDecorationsByType('chat', dynamicVariableDecorationType, this._variables.map(r => (<IDecorationOptions>{
+		this.widget.inputEditor.setDecorationsByType('chat', dynamicVariableDecorationType, this._variables.map((r): IDecorationOptions => ({
 			range: r.range,
 			hoverMessage: this.getHoverForReference(r)
 		})));
 	}
 
-	private getHoverForReference(ref: IDynamicVariable): string | IMarkdownString {
+	private getHoverForReference(ref: IDynamicVariable): IMarkdownString | undefined {
 		const value = ref.data;
 		if (URI.isUri(value)) {
 			return new MarkdownString(this.labelService.getUriLabel(value, { relative: true }));
 		} else {
-			return (value as any).toString();
+			return undefined;
 		}
 	}
 }
@@ -162,11 +162,10 @@ export class SelectAndInsertFileAction extends Action2 {
 		// This of course assumes that the `files` variable has the behavior that it searches
 		// through files in the workspace.
 		if (chatVariablesService.hasVariable(SelectAndInsertFileAction.Name)) {
-			options = {
-				providerOptions: <AnythingQuickAccessProviderRunOptions>{
-					additionPicks: [SelectAndInsertFileAction.Item, { type: 'separator' }]
-				},
+			const providerOptions: AnythingQuickAccessProviderRunOptions = {
+				additionPicks: [SelectAndInsertFileAction.Item, { type: 'separator' }]
 			};
+			options = { providerOptions };
 		}
 		// TODO: have dedicated UX for this instead of using the quick access picker
 		const picks = await quickInputService.quickAccess.pick('', options);

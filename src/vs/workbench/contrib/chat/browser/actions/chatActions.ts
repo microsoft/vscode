@@ -158,7 +158,8 @@ class ChatHistoryAction extends Action2 {
 		picker.items = getPicks();
 		store.add(picker.onDidTriggerItemButton(context => {
 			if (context.button === openInEditorButton) {
-				editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: <IChatEditorOptions>{ target: { sessionId: context.item.chat.sessionId }, pinned: true } }, ACTIVE_GROUP);
+				const options: IChatEditorOptions = { target: { sessionId: context.item.chat.sessionId }, pinned: true };
+				editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options }, ACTIVE_GROUP);
 				picker.hide();
 			} else if (context.button === deleteButton) {
 				chatService.removeHistoryEntry(context.item.chat.sessionId);
