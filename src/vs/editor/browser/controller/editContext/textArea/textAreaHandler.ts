@@ -107,7 +107,7 @@ class VisibleTextAreaData {
 
 const canUseZeroSizeTextarea = (browser.isFirefox);
 
-export class TextAreaHandler extends AbstractEditContext {
+export class TextAreaContext extends AbstractEditContext {
 
 	private readonly _viewController: ViewController;
 	private readonly _visibleRangeProvider: IVisibleRangeProvider;
