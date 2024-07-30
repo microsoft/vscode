@@ -230,7 +230,7 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 				if (options.cwd) {
 					spawnOptions.cwd = options.cwd;
 				}
-				if (platform.isWindows && command.endsWith('.bat')) {
+				if (platform.isWindows && (command.endsWith('.bat') || command.endsWith('.cmd'))) {
 					// https://github.com/microsoft/vscode/issues/224184
 					spawnOptions.shell = true;
 					spawnCommand = `"${command}"`;
