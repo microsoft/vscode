@@ -19,10 +19,9 @@ import { PositionOffsetTransformer } from 'vs/editor/common/core/positionToOffse
 import { Range } from 'vs/editor/common/core/range';
 import { SingleTextEdit, TextEdit, LineBasedText } from 'vs/editor/common/core/textEdit';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
-import { ViewConfigurationChangedEvent, ViewCursorStateChangedEvent, ViewScrollChangedEvent } from 'vs/editor/common/viewEvents';
+import { ViewConfigurationChangedEvent, ViewCursorStateChangedEvent, ViewScrollChangedEvent, ViewTokensChangedEvent } from 'vs/editor/common/viewEvents';
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import * as dom from 'vs/base/browser/dom';
-import { CursorStateChangedEvent, OutgoingViewModelEventKind } from 'vs/editor/common/viewModelEventDispatcher';
 import { Selection } from 'vs/editor/common/core/selection';
 
 // TODO: refactor the code
@@ -108,25 +107,6 @@ export class NativeEditContext extends AbstractEditContext {
 		this._register(this._context.viewModel.model.onDidChangeContent(() => {
 			this._onDidChangeContent();
 		}));
-		this._register(this._context.viewModel.onEvent((e) => {
-			switch (e.kind) {
-				case OutgoingViewModelEventKind.ContentSizeChanged: {
-					domNode.style.fontSize = `${this._context.configuration.options.get(EditorOption.fontSize)}px`;
-					break;
-				}
-				case OutgoingViewModelEventKind.CursorStateChanged: {
-					this._onDidChangeSelection(e);
-					break;
-				}
-				case OutgoingViewModelEventKind.ScrollChanged: {
-					if (this._previousSelection?.startLineNumber === undefined) {
-						return;
-					}
-					domNode.style.top = `${this._context.viewLayout.getVerticalOffsetForLineNumber(this._previousSelection.startLineNumber - 5) - e.scrollTop}px`;
-					domNode.style.left = `${this._contentLeft - this._context.viewLayout.getCurrentScrollLeft()}px`;
-				}
-			}
-		}));
 		// Need to handle copy/paste event, could use the handle text update method for that
 		this._register(editContextAddDisposableListener(this._ctx, 'textupdate', e => this._handleTextUpdate(e.updateRangeStart, e.updateRangeEnd, e.text)));
 		this._register(editContextAddDisposableListener(this._ctx, 'textformatupdate', e => this._handleTextFormatUpdate(e)));
@@ -194,7 +174,7 @@ export class NativeEditContext extends AbstractEditContext {
 		return this._findEditData(doc, textEditForHiddenArea, selection);
 	}
 
-	private _onDidChangeSelection(e: CursorStateChangedEvent) {
+	private _onDidChangeSelection(e: ViewCursorStateChangedEvent) {
 		const selection = e.selections[0];
 		const { value: valueForHiddenArea, offsetRange: selectionForHiddenArea } = this._editContextRenderingData(selection);
 
@@ -477,7 +457,7 @@ export class NativeEditContext extends AbstractEditContext {
 	}
 
 	public override render(ctx: RestrictedRenderingContext): void {
-		// TODO
+		console.log('render');
 	}
 
 	public override onConfigurationChanged(e: ViewConfigurationChangedEvent): boolean {
@@ -487,12 +467,23 @@ export class NativeEditContext extends AbstractEditContext {
 		return true;
 	}
 
+	override onTokensChanged(e: ViewTokensChangedEvent): boolean {
+		this._domElement.domNode.style.fontSize = `${this._context.configuration.options.get(EditorOption.fontSize)}px`;
+		return true;
+	}
+
 	override onCursorStateChanged(e: ViewCursorStateChangedEvent): boolean {
+		this._onDidChangeSelection(e);
 		return true;
 	}
 
 	override onScrollChanged(e: ViewScrollChangedEvent): boolean {
-		this._scrollTop = e.scrollTop;
+		if (this._previousSelection?.startLineNumber === undefined) {
+			return false;
+		}
+		const domNode = this._domElement.domNode;
+		domNode.style.top = `${this._context.viewLayout.getVerticalOffsetForLineNumber(this._previousSelection.startLineNumber - 5) - e.scrollTop}px`;
+		domNode.style.left = `${this._contentLeft - this._context.viewLayout.getCurrentScrollLeft()}px`;
 		return true;
 	}
 
@@ -500,8 +491,7 @@ export class NativeEditContext extends AbstractEditContext {
 		return this._isFocused;
 	}
 
-	public override writeScreenReaderContent(reason: string): void {
-	}
+	public override writeScreenReaderContent(reason: string): void { }
 
 	public override focusTextArea(): void {
 		this._domElement.domNode.focus();

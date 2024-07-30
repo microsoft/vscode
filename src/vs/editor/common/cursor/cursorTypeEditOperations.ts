@@ -714,7 +714,6 @@ export class PasteOperation {
 export class CompositionOperation {
 
 	public static getEdits(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], text: string, replacePrevCharCnt: number, replaceNextCharCnt: number, positionDelta: number) {
-		console.log('getEdits selections : ', selections);
 		const commands = selections.map(selection => this._compositionType(model, selection, text, replacePrevCharCnt, replaceNextCharCnt, positionDelta));
 		return new EditOperationResult(EditOperationType.TypingOther, commands, {
 			shouldPushStackElementBefore: shouldPushStackElementBetween(prevEditOperationType, EditOperationType.TypingOther),
@@ -730,11 +729,9 @@ export class CompositionOperation {
 			return null;
 		}
 		const pos = selection.getPosition();
-		console.log('pos : ', pos);
 		const startColumn = Math.max(1, pos.column - replacePrevCharCnt);
 		const endColumn = Math.min(model.getLineMaxColumn(pos.lineNumber), pos.column + replaceNextCharCnt);
 		const range = new Range(pos.lineNumber, startColumn, pos.lineNumber, endColumn);
-		console.log('range : ', range);
 		const oldText = model.getValueInRange(range);
 		if (oldText === text && positionDelta === 0) {
 			// => ignore composition that doesn't do anything

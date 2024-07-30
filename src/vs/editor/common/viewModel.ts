@@ -18,8 +18,6 @@ import { BracketGuideOptions, IActiveIndentGuideInfo, IndentGuide } from 'vs/edi
 import { IViewLineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { ViewEventHandler } from 'vs/editor/common/viewEventHandler';
 import { VerticalRevealType } from 'vs/editor/common/viewEvents';
-import { Event } from 'vs/base/common/event';
-import { OutgoingViewModelEvent } from 'vs/editor/common/viewModelEventDispatcher';
 
 export interface IViewModel extends ICursorSimpleModel {
 
@@ -33,7 +31,6 @@ export interface IViewModel extends ICursorSimpleModel {
 
 	readonly glyphLanes: IGlyphMarginLanesModel;
 
-	onEvent: Event<OutgoingViewModelEvent>;
 	addViewEventHandler(eventHandler: ViewEventHandler): void;
 	removeViewEventHandler(eventHandler: ViewEventHandler): void;
 
