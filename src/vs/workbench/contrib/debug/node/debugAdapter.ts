@@ -235,7 +235,6 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 					spawnOptions.shell = true;
 					spawnCommand = `"${command}"`;
 					spawnArgs = args.map(a => {
-						a = a.replace(/\\/g, '\\\\'); // Escape existing \
 						a = a.replace(/"/g, '\\"'); // Escape existing double quotes with \
 						// Wrap in double quotes
 						return `"${a}"`;
