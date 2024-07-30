@@ -21,12 +21,12 @@ const binaryFileExtensions = new Set([
 	'.svg', '.ttf', '.png', '.sh', '.html', '.json', '.zsh', '.scpt', '.mp3', '.fish', '.ps1', '.md', '.txt', '.zip', '.pdf', '.qwoff', '.jxs', '.tst', '.wuff', '.less', '.utf16le', '.snap', '.tsx'
 ]);
 
-function migrate() {
+function migrate(enableWatching) {
 	console.log(`~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`);
 	console.log(`STARTING MIGRATION of src to src2.`);
 
 	// installing watcher quickly to avoid missing early events
-	const watchSrc = watch('src/**', { base: 'src', readDelay: 200 });
+	const watchSrc = enableWatching ? watch('src/**', { base: 'src', readDelay: 200 }) : undefined;
 
 	/** @type {string[]} */
 	const files = [];
@@ -42,12 +42,15 @@ function migrate() {
 
 	console.log(`~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`);
 	console.log(`COMPLETED MIGRATION of src to src2. You can now launch yarn watch or yarn watch-client`);
-	console.log(`WATCHING src for changes...`);
 
-	watchSrc.on('data', (e) => {
-		migrateOne(e.path, e.contents);
-		console.log(`Handled change event for ${e.path}.`);
-	});
+	if (watchSrc) {
+		console.log(`WATCHING src for changes...`);
+
+		watchSrc.on('data', (e) => {
+			migrateOne(e.path, e.contents);
+			console.log(`Handled change event for ${e.path}.`);
+		});
+	}
 }
 
 /**
@@ -331,4 +334,4 @@ function buffersAreEqual(existingFileContents, fileContents) {
 	return existingFileContents.equals(fileContents);
 }
 
-migrate();
+migrate(!process.argv.includes('--disable-watch'));
