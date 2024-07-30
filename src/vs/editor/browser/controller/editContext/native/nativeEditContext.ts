@@ -142,48 +142,32 @@ export class NativeEditContext extends AbstractEditContext {
 
 	private _onDidChangeContent() {
 		console.log('onDidChangeContent');
-		const primaryViewState = this._context.viewModel.getCursorStates()[0].viewState;
-		const selection = primaryViewState.selection;
-		const { value: valueForHiddenArea } = this._editContextRenderingData(selection);
 
-		// Update position of the hidden area
-		const domNode = this._domElement.domNode;
-		domNode.style.top = `${this._context.viewLayout.getVerticalOffsetForLineNumber(primaryViewState.selection.startLineNumber - 5) - this._context.viewLayout.getCurrentScrollTop()}px`;
-		domNode.style.left = `${this._contentLeft - this._context.viewLayout.getCurrentScrollLeft()}px`;
-
-		// Update the hidden area line
-		// can place the below attribute update into the constructor
-		const firstChild = domNode.firstChild;
-		if (firstChild) {
-			firstChild.textContent = valueForHiddenArea.length > 0 ? valueForHiddenArea : '\n';
-		} else {
-			this._renderNode(valueForHiddenArea, selection);
-		}
+		const selection = this._context.viewModel.getCursorStates()[0].viewState.selection;
+		const hiddenAreaContent = this._hiddenAreaContent(selection);
+		this._renderHiddenAreaElement(hiddenAreaContent, selection);
 	}
 
-	private _editContextRenderingData(selection: Selection): { value: string; offsetRange: OffsetRange; editContextState: EditContextState } {
-		// Need to find the selection after typing has happened
+	private _hiddenAreaContent(selection: Selection): string {
 		const doc = new LineBasedText(lineNumber => this._context.viewModel.getLineContent(lineNumber), this._context.viewModel.getLineCount());
 		const docStart = new Position(1, 1);
-		const textStartForHiddenArea = new Position(selection.startLineNumber, 1);
-		const textEndForHiddenArea = new Position(selection.endLineNumber, Number.MAX_SAFE_INTEGER);
-		const textEditForHiddenArea = new TextEdit([
-			docStart.isBefore(textStartForHiddenArea) ? new SingleTextEdit(Range.fromPositions(docStart, textStartForHiddenArea), '') : undefined,
-			textEndForHiddenArea.isBefore(doc.endPositionExclusive) ? new SingleTextEdit(Range.fromPositions(textEndForHiddenArea, doc.endPositionExclusive), '') : undefined
+		const textStart = new Position(selection.startLineNumber, 1);
+		const textEnd = new Position(selection.endLineNumber, Number.MAX_SAFE_INTEGER);
+		const textEdit = new TextEdit([
+			docStart.isBefore(textStart) ? new SingleTextEdit(Range.fromPositions(docStart, textStart), '') : undefined,
+			textEnd.isBefore(doc.endPositionExclusive) ? new SingleTextEdit(Range.fromPositions(textEnd, doc.endPositionExclusive), '') : undefined
 		].filter(isDefined));
-		return this._findEditData(doc, textEditForHiddenArea, selection);
+		const text = textEdit.apply(doc);
+		return text;
 	}
 
 	private _onDidChangeSelection(e: ViewCursorStateChangedEvent) {
 		const selection = e.selections[0];
-		const { value: valueForHiddenArea, offsetRange: selectionForHiddenArea } = this._editContextRenderingData(selection);
+		const hiddenAreaContent = this._hiddenAreaContent(selection);
 
 		const domNode = this._domElement.domNode;
-		domNode.style.top = `${this._context.viewLayout.getVerticalOffsetForLineNumber(selection.startLineNumber - 5) - this._context.viewLayout.getCurrentScrollTop()}px`;
-		domNode.style.left = `${this._contentLeft - this._context.viewLayout.getCurrentScrollLeft()}px`;
 		console.log('onDidChangeSelection');
 		console.log('selection ; ', selection);
-		console.log('selectionForHiddenArea : ', selectionForHiddenArea);
 
 		// TODO: maybe removed
 		// need to set an unset on specific occasions
@@ -208,8 +192,8 @@ export class NativeEditContext extends AbstractEditContext {
 		// Update the hidden area line
 		// need to treat the case of multiple selection
 		let startIndex = 0;
-		if (this._previousValue !== valueForHiddenArea || this._previousSelection?.startLineNumber !== selection.startLineNumber || this._previousSelection.endLineNumber !== selection.endLineNumber) {
-			startIndex = this._renderNode(valueForHiddenArea, selection);
+		if (this._previousValue !== hiddenAreaContent || this._previousSelection?.startLineNumber !== selection.startLineNumber || this._previousSelection.endLineNumber !== selection.endLineNumber) {
+			startIndex = this._renderHiddenAreaElement(hiddenAreaContent, selection);
 		}
 
 		// Update the active selection in the dom node
@@ -227,11 +211,13 @@ export class NativeEditContext extends AbstractEditContext {
 			}
 		}
 		this._previousSelection = selection;
-		this._previousValue = valueForHiddenArea;
+		this._previousValue = hiddenAreaContent;
+
+		this._updatePosition(selection.startLineNumber);
 	}
 
 	// Rendering only the new nodes allows us to not reread the content that already existed before, only rendering the nodes that are new in the selection, and the new text specifically
-	private _renderNode(content: string, selection: Selection): number {
+	private _renderHiddenAreaElement(content: string, selection: Selection): number {
 		const rerenderAllContent = (content: string[]) => {
 			domNode.replaceChildren();
 			console.log('rerenderAllContent');
@@ -292,6 +278,8 @@ export class NativeEditContext extends AbstractEditContext {
 			// In this case not doing a multi-selection, so rerender everything
 			rerenderAllContent(splitContent);
 		}
+
+		this._updatePosition(selection.startLineNumber);
 		return 0;
 	}
 
@@ -481,10 +469,14 @@ export class NativeEditContext extends AbstractEditContext {
 		if (this._previousSelection?.startLineNumber === undefined) {
 			return false;
 		}
-		const domNode = this._domElement.domNode;
-		domNode.style.top = `${this._context.viewLayout.getVerticalOffsetForLineNumber(this._previousSelection.startLineNumber - 5) - e.scrollTop}px`;
-		domNode.style.left = `${this._contentLeft - this._context.viewLayout.getCurrentScrollLeft()}px`;
+		this._updatePosition(this._previousSelection.startLineNumber);
 		return true;
+	}
+
+	private _updatePosition(startLineNumber: number): void {
+		const domNode = this._domElement.domNode;
+		domNode.style.top = `${this._context.viewLayout.getVerticalOffsetForLineNumber(startLineNumber - 5) - this._context.viewLayout.getCurrentScrollTop()}px`;
+		domNode.style.left = `${this._contentLeft - this._context.viewLayout.getCurrentScrollLeft()}px`;
 	}
 
 	public override isFocused(): boolean {
