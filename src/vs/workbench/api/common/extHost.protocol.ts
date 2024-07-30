@@ -2731,7 +2731,7 @@ export const enum ExtHostTestingResource {
 export interface ExtHostTestingShape {
 	$runControllerTests(req: IStartControllerTests[], token: CancellationToken): Promise<{ error?: string }[]>;
 	$startContinuousRun(req: ICallProfileRunHandler[], token: CancellationToken): Promise<{ error?: string }[]>;
-	$cancelExtensionTestRun(runId: string | undefined): void;
+	$cancelExtensionTestRun(runId: string | undefined, taskId: string | undefined): void;
 	/** Handles a diff of tests, as a result of a subscribeToDiffs() call */
 	$acceptDiff(diff: TestsDiffOp.Serialized[]): void;
 	/** Expands a test item's children, by the given number of levels. */

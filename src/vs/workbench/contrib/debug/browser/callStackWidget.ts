@@ -459,9 +459,13 @@ class FrameCodeRenderer extends AbstractFrameRenderer<IStackTemplateData> {
 			const next = editor.getContentHeight();
 			if (next !== prev) {
 				editor.layout({ width: container.clientWidth, height: next });
-				item.editorHeight.set(next, undefined);
 			}
+
+			item.editorHeight.set(next, undefined);
 		};
+		elementStore.add(editor.onDidChangeModelDecorations(layout));
+		elementStore.add(editor.onDidChangeModelContent(layout));
+		elementStore.add(editor.onDidChangeModelOptions(layout));
 		elementStore.add(this.onLayout(layout));
 		layout();
 	}

@@ -179,6 +179,8 @@ import { TerminalLogService } from 'vs/platform/terminal/common/terminalLogServi
 import { IEnvironmentVariableService } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { EnvironmentVariableService } from 'vs/workbench/contrib/terminal/common/environmentVariableService';
 import { ContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
+import { NullHoverService } from 'vs/platform/hover/test/browser/nullHoverService';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined, undefined, undefined, undefined);
@@ -348,7 +350,6 @@ export function workbenchInstantiationService(
 	instantiationService.stub(ITerminalInstanceService, new TestTerminalInstanceService());
 	instantiationService.stub(ITerminalEditorService, new TestTerminalEditorService());
 	instantiationService.stub(ITerminalGroupService, new TestTerminalGroupService());
-	instantiationService.stub(ITerminalInstanceService, new TestTerminalInstanceService());
 	instantiationService.stub(ITerminalProfileService, new TestTerminalProfileService());
 	instantiationService.stub(ITerminalProfileResolverService, new TestTerminalProfileResolverService());
 	instantiationService.stub(ITerminalConfigurationService, disposables.add(instantiationService.createInstance(TestTerminalConfigurationService)));
@@ -357,6 +358,7 @@ export function workbenchInstantiationService(
 	instantiationService.stub(IElevatedFileService, new BrowserElevatedFileService());
 	instantiationService.stub(IRemoteSocketFactoryService, new RemoteSocketFactoryService());
 	instantiationService.stub(ICustomEditorLabelService, disposables.add(new CustomEditorLabelService(configService, workspaceContextService)));
+	instantiationService.stub(IHoverService, NullHoverService);
 
 	return instantiationService;
 }
