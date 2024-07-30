@@ -214,6 +214,32 @@ registerAction2(class extends ViewAction<ICommentsView> {
 			menu: {
 				id: commentSortSubmenu,
 				group: 'navigation',
+				order: 1,
+				isHiddenByDefault: false,
+			},
+		});
+	}
+
+	async runInView(serviceAccessor: ServicesAccessor, view: ICommentsView): Promise<void> {
+		view.filters.sortBy = CommentsSortOrder.UpdatedAtDescending;
+	}
+});
+
+registerAction2(class extends ViewAction<ICommentsView> {
+	constructor() {
+		super({
+			id: `workbench.actions.${COMMENTS_VIEW_ID}.toggleSortByResource`,
+			title: localize('toggle sorting by resource', "File"),
+			category: localize('comments', "Comments"),
+			icon: Codicon.history,
+			viewId: COMMENTS_VIEW_ID,
+			toggled: {
+				condition: ContextKeyExpr.equals('commentsView.sortBy', CommentsSortOrder.ResourceAscending),
+				title: localize('sorting by file', "File"),
+			},
+			menu: {
+				id: commentSortSubmenu,
+				group: 'navigation',
 				order: 0,
 				isHiddenByDefault: false,
 			},
@@ -221,8 +247,6 @@ registerAction2(class extends ViewAction<ICommentsView> {
 	}
 
 	async runInView(serviceAccessor: ServicesAccessor, view: ICommentsView): Promise<void> {
-		view.filters.sortBy = view.filters.sortBy === CommentsSortOrder.ResourceAscending
-			? CommentsSortOrder.UpdatedAtDescending
-			: CommentsSortOrder.ResourceAscending;
+		view.filters.sortBy = CommentsSortOrder.ResourceAscending;
 	}
 });

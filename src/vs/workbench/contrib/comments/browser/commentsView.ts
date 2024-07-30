@@ -37,6 +37,7 @@ import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { AccessibleViewAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
 import type { ITreeElement } from 'vs/base/browser/ui/tree/tree';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
 
 export const CONTEXT_KEY_HAS_COMMENTS = new RawContextKey<boolean>('commentsView.hasComments', false);
 export const CONTEXT_KEY_SOME_COMMENTS_EXPANDED = new RawContextKey<boolean>('commentsView.someCommentsExpanded', false);
@@ -140,7 +141,8 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@IStorageService storageService: IStorageService
+		@IStorageService storageService: IStorageService,
+		@IPathService private readonly pathService: IPathService
 	) {
 		const stateMemento = new Memento(VIEW_STORAGE_ID, storageService);
 		const viewState = stateMemento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
@@ -400,8 +402,22 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 			filter: this.filter,
 			sorter: {
 				compare: (a: CommentsTreeNode, b: CommentsTreeNode) => {
-					if (this.filters.sortBy === CommentsSortOrder.UpdatedAtDescending && !(a instanceof CommentsModel) && !(b instanceof CommentsModel)) {
+					if (a instanceof CommentsModel || b instanceof CommentsModel) {
+						return 0;
+					}
+					if (this.filters.sortBy === CommentsSortOrder.UpdatedAtDescending) {
 						return a.lastUpdatedAt > b.lastUpdatedAt ? -1 : 1;
+					} else if (this.filters.sortBy === CommentsSortOrder.ResourceAscending) {
+						if (a instanceof ResourceWithCommentThreads && b instanceof ResourceWithCommentThreads) {
+							const workspaceScheme = this.pathService.defaultUriScheme;
+							if ((a.resource.scheme !== b.resource.scheme) && (a.resource.scheme === workspaceScheme || b.resource.scheme === workspaceScheme)) {
+								// Workspace scheme should always come first
+								return b.resource.scheme === workspaceScheme ? 1 : -1;
+							}
+							return a.resource.toString() > b.resource.toString() ? 1 : -1;
+						} else if (a instanceof CommentNode && b instanceof CommentNode && a.thread.range && b.thread.range) {
+							return a.thread.range?.startLineNumber > b.thread.range?.startLineNumber ? 1 : -1;
+						}
 					}
 					return 0;
 				},
