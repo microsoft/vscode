@@ -34,7 +34,7 @@ import { TerminalAccessibilitySettingId } from 'vs/workbench/contrib/terminalCon
 import { TerminalAccessibilityCommandId } from 'vs/workbench/contrib/terminalContrib/accessibility/common/terminal.accessibility';
 import { IAccessibleViewService, AccessibleViewProviderId, NavigationType } from 'vs/platform/accessibility/browser/accessibleView';
 import { accessibleViewCurrentProviderId, accessibleViewIsShown } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { isMacintosh, isWindows } from 'vs/base/common/platform';
+import { isWindows } from 'vs/base/common/platform';
 
 // #region Terminal Contributions
 
