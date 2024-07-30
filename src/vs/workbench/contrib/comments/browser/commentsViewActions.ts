@@ -221,9 +221,7 @@ registerAction2(class extends ViewAction<ICommentsView> {
 	}
 
 	async runInView(serviceAccessor: ServicesAccessor, view: ICommentsView): Promise<void> {
-		view.filters.sortBy = view.filters.sortBy === CommentsSortOrder.ResourceAscending
-			? CommentsSortOrder.UpdatedAtDescending
-			: CommentsSortOrder.ResourceAscending;
+		view.filters.sortBy = CommentsSortOrder.UpdatedAtDescending;
 	}
 });
 
@@ -249,8 +247,6 @@ registerAction2(class extends ViewAction<ICommentsView> {
 	}
 
 	async runInView(serviceAccessor: ServicesAccessor, view: ICommentsView): Promise<void> {
-		view.filters.sortBy = view.filters.sortBy === CommentsSortOrder.UpdatedAtDescending
-			? CommentsSortOrder.ResourceAscending
-			: CommentsSortOrder.UpdatedAtDescending;
+		view.filters.sortBy = CommentsSortOrder.ResourceAscending;
 	}
 });
