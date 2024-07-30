@@ -344,6 +344,44 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		this._onDidChangeInstances.fire();
 	}
 
+	moveGroup2(sources: ITerminalInstance | ITerminalInstance[], target: ITerminalInstance) {
+		const sourcesArray = Array.isArray(sources) ? sources : [sources];
+
+		const sourceGroups = new Set<ITerminalGroup>();
+		for (const source of sourcesArray) {
+			const sourceGroup = this.getGroupForInstance(source);
+			if (!sourceGroup) {
+				return;
+			}
+			sourceGroups.add(sourceGroup);
+		}
+		const targetGroup = this.getGroupForInstance(target);
+		if (!targetGroup) {
+			return;
+		}
+
+		if (sourceGroups.size === 1 && sourceGroups.has(targetGroup)) {
+			const sourceGroup = Array.from(sourceGroups)[0];
+			const targetIndex = sourceGroup.terminalInstances.indexOf(target);
+			const firstTargetIndex = sourceGroup.terminalInstances.indexOf(sourcesArray[0]);
+			const position: 'before' | 'after' = firstTargetIndex < targetIndex ? 'after' : 'before';
+			sourceGroup.moveInstance2(sourcesArray, targetIndex, position);
+			this._onDidChangeInstances.fire();
+			return;
+		}
+
+		const targetGroupIndex = this.groups.indexOf(targetGroup);
+		const firstSourceGroupIndex = this.groups.indexOf(Array.from(sourceGroups)[0]);
+		const position: 'before' | 'after' = firstSourceGroupIndex < targetGroupIndex ? 'after' : 'before';
+		this.groups.splice(position === 'after' ? targetGroupIndex + 1 : targetGroupIndex, 0, ...sourceGroups);
+		for (const sourceGroup of sourceGroups) {
+			const sourceGroupIndex = position === 'after' ? this.groups.indexOf(sourceGroup) : this.groups.lastIndexOf(sourceGroup);
+			this.groups.splice(sourceGroupIndex, 1);
+		}
+		this._onDidChangeInstances.fire();
+	}
+
+
 	moveGroupToEnd(source: ITerminalInstance): void {
 		const sourceGroup = this.getGroupForInstance(source);
 		if (!sourceGroup) {
@@ -352,6 +390,26 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		const sourceGroupIndex = this.groups.indexOf(sourceGroup);
 		this.groups.splice(sourceGroupIndex, 1);
 		this.groups.push(sourceGroup);
+		this._onDidChangeInstances.fire();
+	}
+
+	moveGroupToEnd2(sources: ITerminalInstance | ITerminalInstance[]): void {
+		const sourcesArray = Array.isArray(sources) ? sources : [sources];
+
+		const sourceGroups = new Set<ITerminalGroup>();
+		for (const source of sourcesArray) {
+			const sourceGroup = this.getGroupForInstance(source);
+			if (!sourceGroup) {
+				return;
+			}
+			sourceGroups.add(sourceGroup);
+		}
+		const lastInstanceIndex = this.groups.length - 1;
+		this.groups.splice(lastInstanceIndex + 1, 0, ...sourceGroups);
+		for (const sourceGroup of sourceGroups) {
+			const sourceGroupIndex = this.groups.indexOf(sourceGroup);
+			this.groups.splice(sourceGroupIndex, 1);
+		}
 		this._onDidChangeInstances.fire();
 	}
 
