@@ -465,13 +465,13 @@ export class ActionBar extends Disposable implements IActionRunner {
 			const firstEnabled = this.viewItems.findIndex(item => item.isEnabled());
 			// Focus the first enabled item
 			this.focusedItem = firstEnabled === -1 ? undefined : firstEnabled;
-			this.updateFocus(undefined, undefined, true);
+			this.updateFocus();
 		} else {
 			if (index !== undefined) {
 				this.focusedItem = index;
 			}
 
-			this.updateFocus(undefined, undefined, true);
+			this.updateFocus();
 		}
 	}
 
@@ -537,7 +537,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 		return true;
 	}
 
-	protected updateFocus(fromRight?: boolean, preventScroll?: boolean, forceFocus: boolean = false): void {
+	protected updateFocus(fromRight?: boolean, preventScroll?: boolean): void {
 		if (typeof this.focusedItem === 'undefined') {
 			this.actionsList.focus({ preventScroll });
 		}
@@ -563,10 +563,10 @@ export class ActionBar extends Disposable implements IActionRunner {
 			if (!focusItem) {
 				this.actionsList.focus({ preventScroll });
 				this.previouslyFocusedItem = undefined;
-			} else if (forceFocus || this.previouslyFocusedItem !== this.focusedItem) {
-				actionViewItem.focus(fromRight);
-				this.previouslyFocusedItem = this.focusedItem;
+				return;
 			}
+			actionViewItem.focus(fromRight);
+			this.previouslyFocusedItem = this.focusedItem;
 			if (focusItem) {
 				actionViewItem.showHover?.();
 			}
