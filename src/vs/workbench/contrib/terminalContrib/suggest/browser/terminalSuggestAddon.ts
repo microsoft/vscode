@@ -239,12 +239,14 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 			// Trigger characters - this happens even if the widget is showing
 			if (config.suggestOnTriggerCharacters && !sent) {
-				const lastChar = promptInputState.value.at(promptInputState.cursorIndex - 1);
+				const prefix = promptInputState.cursorIndex === -1 ? '' : promptInputState.value.substring(0, promptInputState.cursorIndex);
 				if (
-					lastChar?.match(/[\-]/) ||
-					// Only trigger on \ and / if it's a directory. Not doing so causes problems
+					// Only trigger on `-` if it's after a space. This is required to not clear
+					// completions when typing the `-` in `git cherry-pick`
+					prefix?.match(/\s[\-]$/) ||
+					// Only trigger on `\` and `/` if it's a directory. Not doing so causes problems
 					// with git branches in particular
-					this._isFilteringDirectories && lastChar?.match(/[\\\/]/)
+					this._isFilteringDirectories && prefix?.match(/[\\\/]$/)
 				) {
 					this._requestCompletions();
 					sent = true;
