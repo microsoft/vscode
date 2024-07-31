@@ -68,7 +68,7 @@ export class EmptyTextEditorHintContribution implements IEditorContribution {
 		this.toDispose = [];
 		this.toDispose.push(this.editor.onKeyDown((e) => {
 			const shouldRenderHint = this._shouldRenderHint();
-			if (shouldRenderHint && e.keyCode === KeyCode.Tab) {
+			if (shouldRenderHint && e.keyCode === KeyCode.Tab && e.shiftKey) {
 				e.stopPropagation();
 				e.preventDefault();
 				this.textHintContentWidget?.firstHintStatement?.focus();
@@ -406,30 +406,23 @@ class EmptyTextEditorHintContentWidget implements IContentWidget {
 		const keybindingLabels = keybindingsLookup.map((id) => this.keybindingService.lookupKeybinding(id)?.getLabel() ?? id);
 		const ariaLabel = localize('defaultHintAriaLabel', 'Execute {0} to select a language, execute {1} to fill with template, or execute {2} to open a different editor and get started. Start typing to dismiss.', ...keybindingLabels);
 		this.firstHintStatement = hintElement.querySelectorAll('a')[0];
-		const hintLanguageMappings: { [key: string]: string } = {
-			'Select a language': '0',
-			'fill with template': '1',
-			'open a different editor': '2',
-			'don\'t show': '3'
-		};
-		for (const anchor of hintElement.querySelectorAll('a')) {
+		hintElement.querySelectorAll('a').forEach((anchor, index) => {
 			anchor.style.cursor = 'pointer';
 			anchor.tabIndex = 0;
 			const id = keybindingsLookup.shift();
 			const title = id && this.keybindingService.lookupKeybinding(id)?.getLabel();
 			hintHandler.disposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), anchor, title ?? ''));
-
 			hintHandler.disposables.add(dom.addStandardDisposableListener(anchor, 'keydown', (event) => {
-				if (event.keyCode === KeyCode.Enter && event.target.innerText in hintLanguageMappings) {
+				if (event.keyCode === KeyCode.Enter) {
 					event.stopPropagation();
 					event.preventDefault();
-					hintHandler.callback(hintLanguageMappings[event.target.innerText], event);
+					hintHandler.callback(String(index), event);
 				}
 				else if (event.keyCode === KeyCode.Escape) {
 					this.editor.focus();
 				}
 			}));
-		}
+		});
 
 		return { hintElement, ariaLabel };
 	}
