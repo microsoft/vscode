@@ -225,8 +225,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			// Quick suggestions
 			if (!this._terminalSuggestWidgetVisibleContextKey.get()) {
 				if (config.quickSuggestions) {
-					const completionPrefix = promptInputState.value.substring(0, promptInputState.cursorIndex);
-					if (promptInputState.cursorIndex === 1 || completionPrefix.match(/([\s\[])[^\s]$/)) {
+					if (promptInputState.cursorIndex === 1 || promptInputState.prefix.match(/([\s\[])[^\s]$/)) {
 						// Never request completions if the last key sequence was up or down as the user was likely
 						// navigating history
 						if (this._lastUserData !== /*up*/'\x1b[A' && this._lastUserData !== /*down*/'\x1b[B') {
@@ -239,7 +238,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 			// Trigger characters - this happens even if the widget is showing
 			if (config.suggestOnTriggerCharacters && !sent) {
-				const prefix = promptInputState.cursorIndex === -1 ? '' : promptInputState.value.substring(0, promptInputState.cursorIndex);
+				const prefix = promptInputState.prefix;
 				if (
 					// Only trigger on `-` if it's after a space. This is required to not clear
 					// completions when typing the `-` in `git cherry-pick`
@@ -334,7 +333,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 		let replacementIndex = 0;
 		let replacementLength = this._promptInputModel.cursorIndex;
-		this._leadingLineContent = this._promptInputModel.value.substring(0, this._promptInputModel.cursorIndex);
+		this._leadingLineContent = this._promptInputModel.prefix;
 
 		const payload = data.slice(command.length + args[0].length + args[1].length + args[2].length + 4/*semi-colons*/);
 		const rawCompletions: PwshCompletion | PwshCompletion[] | CompressedPwshCompletion[] | CompressedPwshCompletion = args.length === 0 || payload.length === 0 ? undefined : JSON.parse(payload);
@@ -345,7 +344,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		if (this._leadingLineContent.includes(' ') || firstChar === '[') {
 			replacementIndex = parseInt(args[0]);
 			replacementLength = parseInt(args[1]);
-			this._leadingLineContent = this._promptInputModel.value.substring(0, this._promptInputModel.cursorIndex);
+			this._leadingLineContent = this._promptInputModel.prefix;
 		}
 		// This is a global command, add cached commands list to completions
 		else {
@@ -359,6 +358,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 		this._currentPromptInputState = {
 			value: this._promptInputModel.value,
+			prefix: this._promptInputModel.prefix,
 			cursorIndex: this._promptInputModel.cursorIndex,
 			ghostTextIndex: this._promptInputModel.ghostTextIndex
 		};
@@ -500,6 +500,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		const xtermBox = this._screen!.getBoundingClientRect();
 		this._initialPromptInputState = {
 			value: this._promptInputModel.value,
+			prefix: this._promptInputModel.prefix,
 			cursorIndex: this._promptInputModel.cursorIndex,
 			ghostTextIndex: this._promptInputModel.ghostTextIndex
 		};
