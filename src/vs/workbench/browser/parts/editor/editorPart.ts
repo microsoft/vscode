@@ -114,7 +114,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 	private readonly _onDidActivateGroup = this._register(new Emitter<IEditorGroupView>());
 	readonly onDidActivateGroup = this._onDidActivateGroup.event;
 
-	private readonly _onDidAddGroup = this._register(new Emitter<IEditorGroupView>());
+	private readonly _onDidAddGroup = this._register(new PauseableEmitter<IEditorGroupView>());
 	readonly onDidAddGroup = this._onDidAddGroup.event;
 
 	private readonly _onDidRemoveGroup = this._register(new PauseableEmitter<IEditorGroupView>());
@@ -1356,7 +1356,17 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 
 	private async doApplyState(state: IEditorPartUIState, options?: IEditorGroupViewOptions): Promise<void> {
 		const groups = await this.doPrepareApplyState();
-		const resumeEvents = this.disposeGroups(true /* suspress events for the duration of applying state */);
+
+		// Pause add/remove events for groups during the duration of applying the state
+		// This ensures that we can do this transition atomically with the new state
+		// being ready when the events are fired. This is important because usually there
+		// is never the state where no groups are present, but for this transition we
+		// need to temporarily dispose all groups to restore the new set.
+
+		this._onDidAddGroup.pause();
+		this._onDidRemoveGroup.pause();
+
+		this.disposeGroups();
 
 		// MRU
 		this.mostRecentActiveGroups = state.mostRecentActiveGroups;
@@ -1365,7 +1375,12 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		try {
 			this.doApplyGridState(state.serializedGrid, state.activeGroup, undefined, options);
 		} finally {
-			resumeEvents();
+			// It is very important to keep this order: first resume the events for
+			// removed groups and then for added groups. Many listeners may store
+			// groups in sets by their identifier and groups can have the same
+			// identifier before and after.
+			this._onDidRemoveGroup.resume();
+			this._onDidAddGroup.resume();
 		}
 
 		// Restore editors that were not closed before and are now opened now
@@ -1439,13 +1454,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		};
 	}
 
-	private disposeGroups(): void;
-	private disposeGroups(surpressEvents: boolean): Function;
-	private disposeGroups(surpressEvents?: boolean): Function | void {
-		if (surpressEvents) {
-			this._onDidRemoveGroup.pause();
-		}
-
+	private disposeGroups(): void {
 		for (const group of this.groups) {
 			group.dispose();
 
@@ -1454,10 +1463,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 
 		this.groupViews.clear();
 		this.mostRecentActiveGroups = [];
-
-		if (surpressEvents) {
-			return () => this._onDidRemoveGroup.resume();
-		}
 	}
 
 	override dispose(): void {
