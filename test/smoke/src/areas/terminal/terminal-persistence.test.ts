@@ -75,7 +75,8 @@ export function setup(options?: { skipSuite: boolean }) {
 				await terminal.assertTerminalGroups([
 					[{ name }]
 				]);
-				await terminal.waitForTerminalText(buffer => buffer.some(e => e.includes('terminal_test_content')));
+				// There can be line wrapping, so remove newlines #216464
+				await terminal.waitForTerminalText(buffer => buffer.some(e => e.replaceAll('\n', '').includes('terminal_test_content')));
 			});
 		});
 	});
