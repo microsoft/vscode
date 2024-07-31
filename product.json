@@ -1656,55 +1656,13 @@
 	"newsletterSignupUrl": "https://www.research.net/r/vsc-newsletter",
 	"youTubeUrl": "https://aka.ms/vscode-youtube",
 	"requestFeatureUrl": "https://go.microsoft.com/fwlink/?LinkID=533482",
-	"reportIssueUrl": "https://github.com/Microsoft/vscode/issues/new",
 	"reportMarketplaceIssueUrl": "https://github.com/microsoft/vsmarketplace/issues/new",
-	"licenseUrl": "https://go.microsoft.com/fwlink/?LinkID=533485",
-	"serverLicenseUrl": "https://aka.ms/vscode-server-license",
 	"privacyStatementUrl": "https://go.microsoft.com/fwlink/?LinkId=521839",
 	"showTelemetryOptOut": true,
 	"npsSurveyUrl": "https://aka.ms/vscode-nps",
 	"cesSurveyUrl": "https://aka.ms/new-to-vscode-feedback",
 	"checksumFailMoreInfoUrl": "https://go.microsoft.com/fwlink/?LinkId=828886",
-	"electronRepository": "Microsoft/vscode-electron-prebuilt",
-	"nodejsRepository": "Microsoft/vscode-node",
 	"settingsSearchUrl": "https://bingsettingssearch.trafficmanager.net/api/Search",
-	"surveys": [
-		{
-			"surveyId": "cpp.1",
-			"surveyUrl": "https://www.research.net/r/VBVV6C6",
-			"languageId": "cpp",
-			"editCount": 10,
-			"userProbability": 0.15
-		},
-		{
-			"surveyId": "java.2",
-			"surveyUrl": "https://www.research.net/r/vscodejava",
-			"languageId": "java",
-			"editCount": 10,
-			"userProbability": 0.3
-		},
-		{
-			"surveyId": "javascript.1",
-			"surveyUrl": "https://www.research.net/r/vscode-js",
-			"languageId": "javascript",
-			"editCount": 10,
-			"userProbability": 0.05
-		},
-		{
-			"surveyId": "typescript.1",
-			"surveyUrl": "https://www.research.net/r/vscode-ts",
-			"languageId": "typescript",
-			"editCount": 10,
-			"userProbability": 0.05
-		},
-		{
-			"surveyId": "csharp.1",
-			"surveyUrl": "https://www.research.net/r/8KGJ9V8",
-			"languageId": "csharp",
-			"editCount": 10,
-			"userProbability": 0.1
-		}
-	],
 	"extensionsEnabledWithApiProposalVersion": [
 		"GitHub.copilot-chat"
 	],
@@ -2282,7 +2240,6 @@
 			"serverApplicationName": "code-server-insiders"
 		}
 	},
-	"tunnelApplicationName": "code-tunnel",
 	"tunnelApplicationConfig": {
 		"editorWebUrl": "https://vscode.dev",
 		"extension": {
@@ -2305,8 +2262,6 @@
 			}
 		}
 	},
-	"win32TunnelServiceMutex": "vscode-tunnelservice",
-	"win32TunnelMutex": "vscode-tunnel",
 	"commonlyUsedSettings": [
 		"files.autoSave",
 		"editor.fontSize",
