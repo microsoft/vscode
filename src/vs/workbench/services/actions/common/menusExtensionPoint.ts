@@ -1047,6 +1047,12 @@ menusExtensionPoint.setHandler(extensions => {
 					}
 				}
 
+				if (menu.id === MenuId.ViewContainerTitle && !menuItem.when?.includes('viewContainer == workbench.view.debug')) {
+					// Not a perfect check but enough to communicate that this proposed extension point is currently only for the debug view container
+					collector.error(localize('viewContainerTitle.when', "The {0} menu contribution must check {1} in its {2} clause.", '`viewContainer/title`', '`viewContainer == workbench.view.debug`', '"when"'));
+					continue;
+				}
+
 				item.when = ContextKeyExpr.deserialize(menuItem.when);
 				_menuRegistrations.add(MenuRegistry.appendMenuItem(menu.id, item));
 			}
