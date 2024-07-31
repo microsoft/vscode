@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isSafari, isWebkitWebView } from 'vs/base/browser/browser';
-import { $, addDisposableListener, getActiveDocument, onDidRegisterWindow } from 'vs/base/browser/dom';
+import { $, addDisposableListener, getActiveDocument, getActiveWindow, isHTMLElement, onDidRegisterWindow } from 'vs/base/browser/dom';
 import { mainWindow } from 'vs/base/browser/window';
 import { DeferredPromise } from 'vs/base/common/async';
 import { Event } from 'vs/base/common/event';
@@ -14,6 +14,13 @@ import { URI } from 'vs/base/common/uri';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { ILogService } from 'vs/platform/log/common/log';
+
+/**
+ * Custom mime type used for storing a list of uris in the clipboard.
+ *
+ * Requires support for custom web clipboards https://github.com/w3c/clipboard-apis/pull/175
+ */
+const vscodeResourcesMime = 'application/vnd.code.resources';
 
 export class BrowserClipboardService extends Disposable implements IClipboardService {
 
@@ -66,7 +73,7 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 			// This allows us to pass in a Promise that will either be cancelled by another event or
 			// resolved with the contents of the first call to this.writeText.
 			// see https://developer.mozilla.org/en-US/docs/Web/API/ClipboardItem/ClipboardItem#parameters
-			navigator.clipboard.write([new ClipboardItem({
+			getActiveWindow().navigator.clipboard.write([new ClipboardItem({
 				'text/plain': currentWritePromise.p,
 			})]).catch(async err => {
 				if (!(err instanceof Error) || err.name !== 'NotAllowedError' || !currentWritePromise.isRejected) {
@@ -106,7 +113,7 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 		// as we have seen DOMExceptions in certain browsers
 		// due to security policies.
 		try {
-			return await navigator.clipboard.writeText(text);
+			return await getActiveWindow().navigator.clipboard.writeText(text);
 		} catch (error) {
 			console.error(error);
 		}
@@ -130,11 +137,11 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 
 		activeDocument.execCommand('copy');
 
-		if (activeElement instanceof HTMLElement) {
+		if (isHTMLElement(activeElement)) {
 			activeElement.focus();
 		}
 
-		activeDocument.body.removeChild(textArea);
+		textArea.remove();
 	}
 
 	async readText(type?: string): Promise<string> {
@@ -148,7 +155,7 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 		// as we have seen DOMExceptions in certain browsers
 		// due to security policies.
 		try {
-			return await navigator.clipboard.readText();
+			return await getActiveWindow().navigator.clipboard.readText();
 		} catch (error) {
 			console.error(error);
 		}
@@ -172,6 +179,26 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 	private static readonly MAX_RESOURCE_STATE_SOURCE_LENGTH = 1000;
 
 	async writeResources(resources: URI[]): Promise<void> {
+		// Guard access to navigator.clipboard with try/catch
+		// as we have seen DOMExceptions in certain browsers
+		// due to security policies.
+		try {
+			await getActiveWindow().navigator.clipboard.write([
+				new ClipboardItem({
+					[`web ${vscodeResourcesMime}`]: new Blob([
+						JSON.stringify(resources.map(x => x.toJSON()))
+					], {
+						type: vscodeResourcesMime
+					})
+				})
+			]);
+
+			// Continue to write to the in-memory clipboard as well.
+			// This is needed because some browsers allow the paste but then can't read the custom resources.
+		} catch (error) {
+			// Noop
+		}
+
 		if (resources.length === 0) {
 			this.clearResources();
 		} else {
@@ -181,6 +208,22 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 	}
 
 	async readResources(): Promise<URI[]> {
+		// Guard access to navigator.clipboard with try/catch
+		// as we have seen DOMExceptions in certain browsers
+		// due to security policies.
+		try {
+			const items = await getActiveWindow().navigator.clipboard.read();
+			for (const item of items) {
+				if (item.types.includes(`web ${vscodeResourcesMime}`)) {
+					const blob = await item.getType(`web ${vscodeResourcesMime}`);
+					const resources = (JSON.parse(await blob.text()) as URI[]).map(x => URI.from(x));
+					return resources;
+				}
+			}
+		} catch (error) {
+			// Noop
+		}
+
 		const resourcesStateHash = await this.computeResourcesStateHash();
 		if (this.resourcesStateHash !== resourcesStateHash) {
 			this.clearResources(); // state mismatch, resources no longer valid
@@ -204,6 +247,20 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 	}
 
 	async hasResources(): Promise<boolean> {
+		// Guard access to navigator.clipboard with try/catch
+		// as we have seen DOMExceptions in certain browsers
+		// due to security policies.
+		try {
+			const items = await getActiveWindow().navigator.clipboard.read();
+			for (const item of items) {
+				if (item.types.includes(`web ${vscodeResourcesMime}`)) {
+					return true;
+				}
+			}
+		} catch (error) {
+			// Noop
+		}
+
 		return this.resources.length > 0;
 	}
 

@@ -53,7 +53,7 @@ function loaderPlugin(src, base, amdModuleId) {
 function loader(src, bundledFileHeader, bundleLoader, externalLoaderInfo) {
     let loaderStream = gulp.src(`${src}/vs/loader.js`, { base: `${src}` });
     if (bundleLoader) {
-        loaderStream = es.merge(loaderStream, loaderPlugin(`${src}/vs/css.js`, `${src}`, 'vs/css'), loaderPlugin(`${src}/vs/nls.js`, `${src}`, 'vs/nls'));
+        loaderStream = es.merge(loaderStream, loaderPlugin(`${src}/vs/css.js`, `${src}`, 'vs/css'));
     }
     const files = [];
     const order = (f) => {
@@ -63,10 +63,7 @@ function loader(src, bundledFileHeader, bundleLoader, externalLoaderInfo) {
         if (f.path.endsWith('css.js')) {
             return 1;
         }
-        if (f.path.endsWith('nls.js')) {
-            return 2;
-        }
-        return 3;
+        return 2;
     };
     return (loaderStream
         .pipe(es.through(function (data) {
@@ -192,6 +189,7 @@ function optimizeAMDTask(opts) {
         includeContent: true
     }))
         .pipe(opts.languages && opts.languages.length ? (0, i18n_1.processNlsFiles)({
+        out: opts.src,
         fileHeader: bundledFileHeader,
         languages: opts.languages
     }) : es.through());

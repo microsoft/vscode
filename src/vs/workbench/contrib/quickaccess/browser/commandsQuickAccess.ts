@@ -176,7 +176,7 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 		const defaultAgent = this.chatAgentService.getDefaultAgent(ChatAgentLocation.Panel);
 		if (defaultAgent) {
 			additionalPicks.push({
-				label: localize('askXInChat', "Ask {0}: {1}", defaultAgent.metadata.fullName, filter),
+				label: localize('askXInChat', "Ask {0}: {1}", defaultAgent.fullName, filter),
 				commandId: this.configuration.experimental.askChatLocation === 'quickChat' ? ASK_QUICK_QUESTION_ACTION_ID : CHAT_OPEN_ACTION_ID,
 				args: [filter]
 			});
@@ -214,8 +214,8 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 	private getGlobalCommandPicks(): ICommandQuickPick[] {
 		const globalCommandPicks: ICommandQuickPick[] = [];
 		const scopedContextKeyService = this.editorService.activeEditorPane?.scopedContextKeyService || this.editorGroupService.activeGroup.scopedContextKeyService;
-		const globalCommandsMenu = this.menuService.createMenu(MenuId.CommandPalette, scopedContextKeyService);
-		const globalCommandsMenuActions = globalCommandsMenu.getActions()
+		const globalCommandsMenu = this.menuService.getMenuActions(MenuId.CommandPalette, scopedContextKeyService);
+		const globalCommandsMenuActions = globalCommandsMenu
 			.reduce((r, [, actions]) => [...r, ...actions], <Array<MenuItemAction | SubmenuItemAction | string>>[])
 			.filter(action => action instanceof MenuItemAction && action.enabled) as MenuItemAction[];
 
@@ -250,9 +250,6 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 				commandDescription,
 			});
 		}
-
-		// Cleanup
-		globalCommandsMenu.dispose();
 
 		return globalCommandPicks;
 	}

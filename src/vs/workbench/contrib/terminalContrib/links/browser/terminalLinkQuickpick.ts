@@ -11,8 +11,6 @@ import { IDetectedLinks } from 'vs/workbench/contrib/terminalContrib/links/brows
 import { TerminalLinkQuickPickEvent, type IDetachedTerminalInstance, type ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import type { ILink } from '@xterm/xterm';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
-import { AccessibleViewProviderId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import type { TerminalLink } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLink';
 import { Sequencer, timeout } from 'vs/base/common/async';
 import { PickerEditorState } from 'vs/workbench/browser/quickaccess';
@@ -21,6 +19,7 @@ import { TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminalContrib/li
 import { ILabelService } from 'vs/platform/label/common/label';
 import { basenameOrAuthority, dirname } from 'vs/base/common/resources';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { AccessibleViewProviderId, IAccessibleViewService } from 'vs/platform/accessibility/browser/accessibleView';
 
 export class TerminalLinkQuickpick extends DisposableStore {
 

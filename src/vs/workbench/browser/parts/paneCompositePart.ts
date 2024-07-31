@@ -29,7 +29,6 @@ import { localize } from 'vs/nls';
 import { CompositeDragAndDropObserver, toggleDropEffect } from 'vs/workbench/browser/dnd';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
 import { IPartOptions } from 'vs/workbench/browser/part';
-import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { CompositeMenuActions } from 'vs/workbench/browser/actions';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { ActionsOrientation, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -40,6 +39,7 @@ import { Composite } from 'vs/workbench/browser/composite';
 import { ViewsSubMenu } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
+import { HiddenItemStrategy, WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 
 export enum CompositeBarPosition {
 	TOP,
@@ -122,7 +122,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	private compositeBarPosition: CompositeBarPosition | undefined = undefined;
 	private emptyPaneMessageElement: HTMLElement | undefined;
 
-	private globalToolBar: ToolBar | undefined;
+	private globalToolBar: WorkbenchToolBar | undefined;
 	private readonly globalActions: CompositeMenuActions;
 
 	private blockOpening = false;
@@ -315,13 +315,14 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		const globalTitleActionsContainer = titleArea.appendChild($('.global-actions'));
 
 		// Global Actions Toolbar
-		this.globalToolBar = this._register(new ToolBar(globalTitleActionsContainer, this.contextMenuService, {
+		this.globalToolBar = this._register(this.instantiationService.createInstance(WorkbenchToolBar, globalTitleActionsContainer, {
 			actionViewItemProvider: (action, options) => this.actionViewItemProvider(action, options),
 			orientation: ActionsOrientation.HORIZONTAL,
 			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
 			anchorAlignmentProvider: () => this.getTitleAreaDropDownAnchorAlignment(),
 			toggleMenuTitle: localize('moreActions', "More Actions..."),
-			hoverDelegate: this.toolbarHoverDelegate
+			hoverDelegate: this.toolbarHoverDelegate,
+			hiddenItemStrategy: HiddenItemStrategy.NoHide
 		}));
 
 		this.updateGlobalToolbarActions();
@@ -525,7 +526,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		this.hideActiveComposite();
 	}
 
-	protected focusComositeBar(): void {
+	protected focusCompositeBar(): void {
 		this.paneCompositeBar.value?.focus();
 	}
 
@@ -628,8 +629,8 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 			const viewsActions: IAction[] = [];
 			const scopedContextKeyService = disposables.add(this.contextKeyService.createScoped(this.element));
 			scopedContextKeyService.createKey('viewContainer', viewPaneContainer.viewContainer.id);
-			const menu = disposables.add(this.menuService.createMenu(ViewsSubMenu, scopedContextKeyService));
-			createAndFillInActionBarActions(menu, { shouldForwardArgs: true, renderShortTitle: true }, { primary: viewsActions, secondary: [] }, () => true);
+			const menu = this.menuService.getMenuActions(ViewsSubMenu, scopedContextKeyService, { shouldForwardArgs: true, renderShortTitle: true });
+			createAndFillInActionBarActions(menu, { primary: viewsActions, secondary: [] }, () => true);
 			disposables.dispose();
 			return viewsActions.length > 1 && viewsActions.some(a => a.enabled) ? new SubmenuAction('views', localize('views', "Views"), viewsActions) : undefined;
 		}

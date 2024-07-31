@@ -3,10 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { Emitter, Event } from 'vs/base/common/event';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ISettableObservable, autorun, derived, ITransaction, observableFromEvent, observableValue, transaction, keepObserved, waitForState, autorunHandleChanges, observableSignal } from 'vs/base/common/observable';
 import { BaseObservable, IObservable, IObserver } from 'vs/base/common/observableInternal/base';
+import { derivedDisposable } from 'vs/base/common/observableInternal/derived';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('observables', () => {
@@ -1236,6 +1238,67 @@ suite('observables', () => {
 				'rejected {\"state\":\"error\"}'
 			]);
 		});
+
+		test('derived as lazy', () => {
+			const store = new DisposableStore();
+			const log = new Log();
+			let i = 0;
+			const d = derivedDisposable(() => {
+				const id = i++;
+				log.log('myDerived ' + id);
+				return {
+					dispose: () => log.log(`disposed ${id}`)
+				};
+			});
+
+			d.get();
+			assert.deepStrictEqual(log.getAndClearEntries(), ['myDerived 0', 'disposed 0']);
+			d.get();
+			assert.deepStrictEqual(log.getAndClearEntries(), ['myDerived 1', 'disposed 1']);
+
+			d.keepObserved(store);
+			assert.deepStrictEqual(log.getAndClearEntries(), []);
+			d.get();
+			assert.deepStrictEqual(log.getAndClearEntries(), ['myDerived 2']);
+			d.get();
+			assert.deepStrictEqual(log.getAndClearEntries(), []);
+
+			store.dispose();
+
+			assert.deepStrictEqual(log.getAndClearEntries(), ['disposed 2']);
+		});
+	});
+
+	test('observableValue', () => {
+		const log = new Log();
+		const myObservable1 = observableValue<number>('myObservable1', 0);
+		const myObservable2 = observableValue<number, { message: string }>('myObservable2', 0);
+
+		const d = autorun(reader => {
+			/** @description update */
+			const v1 = myObservable1.read(reader);
+			const v2 = myObservable2.read(reader);
+			log.log('autorun, myObservable1:' + v1 + ', myObservable2:' + v2);
+		});
+
+		assert.deepStrictEqual(log.getAndClearEntries(), [
+			'autorun, myObservable1:0, myObservable2:0'
+		]);
+
+		// Doesn't trigger the autorun, because no delta was provided and the value did not change
+		myObservable1.set(0, undefined);
+
+		assert.deepStrictEqual(log.getAndClearEntries(), [
+		]);
+
+		// Triggers the autorun. The value did not change, but a delta value was provided
+		myObservable2.set(0, undefined, { message: 'change1' });
+
+		assert.deepStrictEqual(log.getAndClearEntries(), [
+			'autorun, myObservable1:0, myObservable2:0'
+		]);
+
+		d.dispose();
 	});
 });
 

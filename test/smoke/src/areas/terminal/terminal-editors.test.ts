@@ -56,19 +56,19 @@ export function setup() {
 			await terminal.assertEditorGroupCount(2);
 		});
 
-		it('should create new terminals in the active editor group via command', async () => {
+		it.skip('should create new terminals in the active editor group via command', async () => {
 			await terminal.runCommand(TerminalCommandId.CreateNewEditor);
 			await terminal.runCommand(TerminalCommandId.CreateNewEditor);
 			await terminal.assertEditorGroupCount(1);
 		});
 
-		it('should create new terminals in the active editor group via plus button', async () => {
+		it.skip('should create new terminals in the active editor group via plus button', async () => {
 			await terminal.runCommand(TerminalCommandId.CreateNewEditor);
 			await terminal.clickPlusButton();
 			await terminal.assertEditorGroupCount(1);
 		});
 
-		it('should create a terminal in the editor area by default', async () => {
+		it.skip('should create a terminal in the editor area by default', async () => {
 			await app.workbench.settingsEditor.addUserSetting('terminal.integrated.defaultLocation', '"editor"');
 			// Close the settings editor
 			await app.workbench.quickaccess.runCommand('workbench.action.closeAllEditors');

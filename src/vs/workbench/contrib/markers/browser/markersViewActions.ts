@@ -59,7 +59,7 @@ export class MarkersFilters extends Disposable {
 	set excludedFiles(filesExclude: boolean) {
 		if (this._excludedFiles.get() !== filesExclude) {
 			this._excludedFiles.set(filesExclude);
-			this._onDidChange.fire(<IMarkersFiltersChangeEvent>{ excludedFiles: true });
+			this._onDidChange.fire({ excludedFiles: true });
 		}
 	}
 
@@ -70,7 +70,7 @@ export class MarkersFilters extends Disposable {
 	set activeFile(activeFile: boolean) {
 		if (this._activeFile.get() !== activeFile) {
 			this._activeFile.set(activeFile);
-			this._onDidChange.fire(<IMarkersFiltersChangeEvent>{ activeFile: true });
+			this._onDidChange.fire({ activeFile: true });
 		}
 	}
 
@@ -81,7 +81,7 @@ export class MarkersFilters extends Disposable {
 	set showWarnings(showWarnings: boolean) {
 		if (this._showWarnings.get() !== showWarnings) {
 			this._showWarnings.set(showWarnings);
-			this._onDidChange.fire(<IMarkersFiltersChangeEvent>{ showWarnings: true });
+			this._onDidChange.fire({ showWarnings: true });
 		}
 	}
 
@@ -92,7 +92,7 @@ export class MarkersFilters extends Disposable {
 	set showErrors(showErrors: boolean) {
 		if (this._showErrors.get() !== showErrors) {
 			this._showErrors.set(showErrors);
-			this._onDidChange.fire(<IMarkersFiltersChangeEvent>{ showErrors: true });
+			this._onDidChange.fire({ showErrors: true });
 		}
 	}
 
@@ -103,7 +103,7 @@ export class MarkersFilters extends Disposable {
 	set showInfos(showInfos: boolean) {
 		if (this._showInfos.get() !== showInfos) {
 			this._showInfos.set(showInfos);
-			this._onDidChange.fire(<IMarkersFiltersChangeEvent>{ showInfos: true });
+			this._onDidChange.fire({ showInfos: true });
 		}
 	}
 

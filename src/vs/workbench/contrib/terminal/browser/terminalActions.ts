@@ -20,7 +20,7 @@ import { Action2, registerAction2, IAction2Options, MenuId } from 'vs/platform/a
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IListService } from 'vs/platform/list/browser/listService';
@@ -60,12 +60,11 @@ import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/cap
 import { killTerminalIcon, newTerminalIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { Iterable } from 'vs/base/common/iterator';
-import { AccessibleViewProviderId, accessibleViewCurrentProviderId, accessibleViewIsShown, accessibleViewOnLastLine } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { accessibleViewCurrentProviderId, accessibleViewIsShown, accessibleViewOnLastLine } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { isKeyboardEvent, isMouseEvent, isPointerEvent } from 'vs/base/browser/dom';
 import { editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { InstanceContext } from 'vs/workbench/contrib/terminal/browser/terminalContextMenu';
-import { TerminalVoiceSession } from 'vs/workbench/contrib/terminal/browser/terminalVoice';
-import { HasSpeechProvider } from 'vs/workbench/contrib/speech/common/speechService';
+import { AccessibleViewProviderId } from 'vs/platform/accessibility/browser/accessibleView';
 
 export const switchTerminalActionViewItemSeparator = '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';
 export const switchTerminalShowTabsTitle = localize('showTerminalTabs', "Show Tabs");
@@ -1522,24 +1521,6 @@ export function registerTerminalActions() {
 		}
 	});
 
-	registerTerminalAction({
-		id: TerminalCommandId.ToggleStickyScroll,
-		title: localize2('workbench.action.terminal.toggleStickyScroll', 'Toggle Sticky Scroll'),
-		toggled: {
-			condition: ContextKeyExpr.equals('config.terminal.integrated.stickyScroll.enabled', true),
-			title: localize('stickyScroll', "Sticky Scroll"),
-			mnemonicTitle: localize({ key: 'miStickyScroll', comment: ['&& denotes a mnemonic'] }, "&&Sticky Scroll"),
-		},
-		run: (c, accessor) => {
-			const configurationService = accessor.get(IConfigurationService);
-			const newValue = !configurationService.getValue(TerminalSettingId.StickyScrollEnabled);
-			return configurationService.updateValue(TerminalSettingId.StickyScrollEnabled, newValue);
-		},
-		menu: [
-			{ id: MenuId.TerminalStickyScrollContext }
-		]
-	});
-
 	// Some commands depend on platform features
 	if (BrowserFeatures.clipboard.writeText) {
 		registerActiveXtermAction({
@@ -1659,28 +1640,6 @@ export function registerTerminalActions() {
 			} else {
 				console.warn(`Unmatched terminal item: "${item}"`);
 			}
-		}
-	});
-
-	registerActiveInstanceAction({
-		id: TerminalCommandId.StartVoice,
-		title: localize2('workbench.action.terminal.startDictation', "Start Dictation in Terminal"),
-		precondition: ContextKeyExpr.and(HasSpeechProvider, sharedWhenClause.terminalAvailable),
-		f1: true,
-		run: (activeInstance, c, accessor) => {
-			const instantiationService = accessor.get(IInstantiationService);
-			TerminalVoiceSession.getInstance(instantiationService).start();
-		}
-	});
-
-	registerActiveInstanceAction({
-		id: TerminalCommandId.StopVoice,
-		title: localize2('workbench.action.terminal.stopDictation', "Stop Dictation in Terminal"),
-		precondition: ContextKeyExpr.and(HasSpeechProvider, sharedWhenClause.terminalAvailable),
-		f1: true,
-		run: (activeInstance, c, accessor) => {
-			const instantiationService = accessor.get(IInstantiationService);
-			TerminalVoiceSession.getInstance(instantiationService).stop(true);
 		}
 	});
 }

@@ -19,9 +19,6 @@ import { CellStatusbarAlignment, INotebookCellStatusBarItem, NotebookCellExecuti
 import { INotebookCellExecution, INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
-import { OPEN_CELL_FAILURE_ACTIONS_COMMAND_ID } from 'vs/workbench/contrib/notebook/browser/contrib/cellCommands/cellCommands';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 export function formatCellDuration(duration: number, showMilliseconds: boolean = true): string {
 	if (showMilliseconds && duration < 1000) {
@@ -164,13 +161,13 @@ class ExecutionStateCellStatusBarItem extends Disposable {
 		const state = runState?.state;
 		const { lastRunSuccess } = internalMetadata;
 		if (!state && lastRunSuccess) {
-			return [<INotebookCellStatusBarItem>{
+			return [{
 				text: `$(${successStateIcon.id})`,
 				color: themeColorFromId(cellStatusIconSuccess),
 				tooltip: localize('notebook.cell.status.success', "Success"),
 				alignment: CellStatusbarAlignment.Left,
 				priority: Number.MAX_SAFE_INTEGER
-			}];
+			} satisfies INotebookCellStatusBarItem];
 		} else if (!state && lastRunSuccess === false) {
 			return [{
 				text: `$(${errorStateIcon.id})`,
@@ -180,22 +177,22 @@ class ExecutionStateCellStatusBarItem extends Disposable {
 				priority: Number.MAX_SAFE_INTEGER
 			}];
 		} else if (state === NotebookCellExecutionState.Pending || state === NotebookCellExecutionState.Unconfirmed) {
-			return [<INotebookCellStatusBarItem>{
+			return [{
 				text: `$(${pendingStateIcon.id})`,
 				tooltip: localize('notebook.cell.status.pending', "Pending"),
 				alignment: CellStatusbarAlignment.Left,
 				priority: Number.MAX_SAFE_INTEGER
-			}];
+			} satisfies INotebookCellStatusBarItem];
 		} else if (state === NotebookCellExecutionState.Executing) {
 			const icon = runState?.didPause ?
 				executingStateIcon :
 				ThemeIcon.modify(executingStateIcon, 'spin');
-			return [<INotebookCellStatusBarItem>{
+			return [{
 				text: `$(${icon.id})`,
 				tooltip: localize('notebook.cell.status.executing', "Executing"),
 				alignment: CellStatusbarAlignment.Left,
 				priority: Number.MAX_SAFE_INTEGER
-			}];
+			} satisfies INotebookCellStatusBarItem];
 		}
 
 		return [];
@@ -321,12 +318,12 @@ class TimerCellStatusBarItem extends Disposable {
 
 		}
 
-		return <INotebookCellStatusBarItem>{
+		return {
 			text: formatCellDuration(duration, false),
 			alignment: CellStatusbarAlignment.Left,
 			priority: Number.MAX_SAFE_INTEGER - 5,
 			tooltip
-		};
+		} satisfies INotebookCellStatusBarItem;
 	}
 
 	override dispose() {
@@ -334,62 +331,5 @@ class TimerCellStatusBarItem extends Disposable {
 
 		this._deferredUpdate?.dispose();
 		this._notebookViewModel.deltaCellStatusBarItems(this._currentItemIds, [{ handle: this._cell.handle, items: [] }]);
-	}
-}
-
-export class DiagnosticCellStatusBarContrib extends Disposable implements INotebookEditorContribution {
-	static id: string = 'workbench.notebook.statusBar.diagtnostic';
-
-	constructor(
-		notebookEditor: INotebookEditor,
-		@IInstantiationService instantiationService: IInstantiationService
-	) {
-		super();
-		this._register(new NotebookStatusBarController(notebookEditor, (vm, cell) =>
-			cell instanceof CodeCellViewModel ?
-				instantiationService.createInstance(DiagnosticCellStatusBarItem, vm, cell) :
-				Disposable.None
-		));
-	}
-}
-registerNotebookContribution(DiagnosticCellStatusBarContrib.id, DiagnosticCellStatusBarContrib);
-
-
-class DiagnosticCellStatusBarItem extends Disposable {
-	private _currentItemIds: string[] = [];
-
-	constructor(
-		private readonly _notebookViewModel: INotebookViewModel,
-		private readonly cell: CodeCellViewModel,
-		@IKeybindingService private readonly keybindingService: IKeybindingService
-	) {
-		super();
-		this._update();
-		this._register(this.cell.cellDiagnostics.onDidDiagnosticsChange(() => this._update()));
-	}
-
-	private async _update() {
-		let item: INotebookCellStatusBarItem | undefined;
-
-		if (!!this.cell.cellDiagnostics.ErrorDetails) {
-			const keybinding = this.keybindingService.lookupKeybinding(OPEN_CELL_FAILURE_ACTIONS_COMMAND_ID)?.getLabel();
-			const tooltip = localize('notebook.cell.status.diagnostic', "Quick Actions {0}", `(${keybinding})`);
-
-			item = {
-				text: `$(sparkle)`,
-				tooltip,
-				alignment: CellStatusbarAlignment.Left,
-				command: OPEN_CELL_FAILURE_ACTIONS_COMMAND_ID,
-				priority: Number.MAX_SAFE_INTEGER - 1
-			};
-		}
-
-		const items = item ? [item] : [];
-		this._currentItemIds = this._notebookViewModel.deltaCellStatusBarItems(this._currentItemIds, [{ handle: this.cell.handle, items }]);
-	}
-
-	override dispose() {
-		super.dispose();
-		this._notebookViewModel.deltaCellStatusBarItems(this._currentItemIds, [{ handle: this.cell.handle, items: [] }]);
 	}
 }

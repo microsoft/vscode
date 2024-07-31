@@ -152,7 +152,7 @@ suite('Notebook builtin output renderer', () => {
 			const inserted = outputElement.firstChild as HTMLElement;
 			assert.ok(inserted, `nothing appended to output element: ${outputElement.innerHTML}`);
 			assert.ok(outputElement.classList.contains('remove-padding'), `Padding should be removed for scrollable outputs ${outputElement.classList}`);
-			assert.ok(inserted.classList.contains('word-wrap') && inserted.classList.contains('scrollable'),
+			assert.ok(outputElement.classList.contains('word-wrap') && inserted.classList.contains('scrollable'),
 				`output content classList should contain word-wrap and scrollable ${inserted.classList}`);
 			assert.ok(inserted.innerHTML.indexOf('>content</') > -1, `Content was not added to output element: ${outputElement.innerHTML}`);
 		});
@@ -169,7 +169,7 @@ suite('Notebook builtin output renderer', () => {
 			const inserted = outputElement.firstChild as HTMLElement;
 			assert.ok(inserted, `nothing appended to output element: ${outputElement.innerHTML}`);
 			assert.ok(outputElement.classList.contains('remove-padding'), `Padding should be removed for non-scrollable outputs: ${outputElement.classList}`);
-			assert.ok(!inserted.classList.contains('word-wrap') && !inserted.classList.contains('scrollable'),
+			assert.ok(!outputElement.classList.contains('word-wrap') && !inserted.classList.contains('scrollable'),
 				`output content classList should not contain word-wrap and scrollable ${inserted.classList}`);
 			assert.ok(inserted.innerHTML.indexOf('>content</') > -1, `Content was not added to output element: ${outputElement.innerHTML}`);
 		});
@@ -316,7 +316,7 @@ suite('Notebook builtin output renderer', () => {
 		const inserted = outputElement.firstChild as HTMLElement;
 		assert.ok(inserted, `nothing appended to output element: ${outputElement.innerHTML}`);
 		assert.ok(outputElement.classList.contains('remove-padding'), 'Padding should be removed for scrollable outputs');
-		assert.ok(inserted.classList.contains('word-wrap') && inserted.classList.contains('scrollable'),
+		assert.ok(outputElement.classList.contains('word-wrap') && inserted.classList.contains('scrollable'),
 			`output content classList should contain word-wrap and scrollable ${inserted.classList}`);
 		assert.ok(inserted.innerHTML.indexOf('>Expected type `str`, but received type') > -1, `Content was not added to output element:\n ${outputElement.innerHTML}`);
 		assert.ok(inserted.textContent!.indexOf('Expected type `str`, but received type `<class \'int\'>`') > -1, `Content was not added to output element:\n ${outputElement.textContent}`);
@@ -465,7 +465,7 @@ suite('Notebook builtin output renderer', () => {
 		fireSettingsChange({ outputWordWrap: true, outputScrolling: true });
 
 		const inserted = outputElement.firstChild as HTMLElement;
-		assert.ok(inserted.classList.contains('word-wrap') && inserted.classList.contains('scrollable'),
+		assert.ok(outputElement.classList.contains('word-wrap') && inserted.classList.contains('scrollable'),
 			`output content classList should contain word-wrap and scrollable ${inserted.classList}`);
 	});
 

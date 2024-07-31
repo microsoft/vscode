@@ -119,7 +119,7 @@ export class FloatingClickMenu extends AbstractFloatingClickMenu {
 		const w = this.instantiationService.createInstance(FloatingClickWidget, action.label);
 		const node = w.getDomNode();
 		this.options.container.appendChild(node);
-		disposable.add(toDisposable(() => this.options.container.removeChild(node)));
+		disposable.add(toDisposable(() => node.remove()));
 		return w;
 	}
 

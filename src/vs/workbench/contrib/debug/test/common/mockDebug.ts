@@ -258,7 +258,7 @@ export class MockSession implements IDebugSession {
 	}
 
 	removeReplExpressions(): void { }
-	get onDidChangeReplElements(): Event<void> {
+	get onDidChangeReplElements(): Event<IReplElement | undefined> {
 		throw new Error('not implemented');
 	}
 

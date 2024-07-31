@@ -37,13 +37,15 @@
 }
 
 .open-editors .monaco-list .monaco-list-row.dirty:not(:hover) > .monaco-action-bar .codicon-pinned::before {
-	content: "\ebb2"; /* use `pinned-dirty` icon unicode for sticky-dirty indication */
-	font-family: 'codicon';
+	/* use `pinned-dirty` icon unicode for sticky-dirty indication */
+	content: var(--vscode-icon-pinned-dirty-content);
+	font-family: var(--vscode-icon-pinned-dirty-font-family);
 }
 
 .open-editors .monaco-list .monaco-list-row.dirty:not(:hover) > .monaco-action-bar .codicon-close::before {
-	content: "\ea71"; /* use `circle-filled` icon unicode for dirty indication */
-	font-family: 'codicon';
+	/* use `circle-filled` icon unicode for dirty indication */
+	content: var(--vscode-icon-circle-filled-content);
+	font-family: var(--vscode-icon-circle-filled-font-family);
 }
 
 .open-editors .monaco-list .monaco-list-row > .monaco-action-bar .action-close-all-files,

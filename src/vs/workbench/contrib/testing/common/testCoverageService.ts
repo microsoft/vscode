@@ -4,12 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { Iterable } from 'vs/base/common/iterator';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, observableValue } from 'vs/base/common/observable';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IObservable, ISettableObservable, observableValue, transaction } from 'vs/base/common/observable';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { bindContextKey, observableConfigValue } from 'vs/platform/observable/common/platformObservableUtils';
+import { TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
 import { Testing } from 'vs/workbench/contrib/testing/common/constants';
 import { TestCoverage } from 'vs/workbench/contrib/testing/common/testCoverage';
+import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { ITestRunTaskResults } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
@@ -27,6 +32,16 @@ export interface ITestCoverageService {
 	readonly selected: IObservable<TestCoverage | undefined>;
 
 	/**
+	 * Filter to per-test coverage from the given test ID.
+	 */
+	readonly filterToTest: ISettableObservable<TestId | undefined>;
+
+	/**
+	 * Whether inline coverage is shown.
+	 */
+	readonly showInline: ISettableObservable<boolean>;
+
+	/**
 	 * Opens a test coverage report from a task, optionally focusing it in the editor.
 	 */
 	openCoverage(task: ITestRunTaskResults, focus?: boolean): Promise<void>;
@@ -39,18 +54,50 @@ export interface ITestCoverageService {
 
 export class TestCoverageService extends Disposable implements ITestCoverageService {
 	declare readonly _serviceBrand: undefined;
-	private readonly _isOpenKey: IContextKey<boolean>;
 	private readonly lastOpenCts = this._register(new MutableDisposable<CancellationTokenSource>());
 
 	public readonly selected = observableValue<TestCoverage | undefined>('testCoverage', undefined);
+	public readonly filterToTest = observableValue<TestId | undefined>('filterToTest', undefined);
+	public readonly showInline = observableValue('inlineCoverage', false);
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ITestResultService resultService: ITestResultService,
+		@IConfigurationService configService: IConfigurationService,
 		@IViewsService private readonly viewsService: IViewsService,
 	) {
 		super();
-		this._isOpenKey = TestingContextKeys.isTestCoverageOpen.bindTo(contextKeyService);
+
+		const toolbarConfig = observableConfigValue(TestingConfigKeys.CoverageToolbarEnabled, true, configService);
+		this._register(bindContextKey(
+			TestingContextKeys.coverageToolbarEnabled,
+			contextKeyService,
+			reader => toolbarConfig.read(reader),
+		));
+
+		this._register(bindContextKey(
+			TestingContextKeys.inlineCoverageEnabled,
+			contextKeyService,
+			reader => this.showInline.read(reader),
+		));
+
+		this._register(bindContextKey(
+			TestingContextKeys.isTestCoverageOpen,
+			contextKeyService,
+			reader => !!this.selected.read(reader),
+		));
+
+		this._register(bindContextKey(
+			TestingContextKeys.hasPerTestCoverage,
+			contextKeyService,
+			reader => !Iterable.isEmpty(this.selected.read(reader)?.allPerTestIDs()),
+		));
+
+		this._register(bindContextKey(
+			TestingContextKeys.isCoverageFilteredToTest,
+			contextKeyService,
+			reader => !!this.filterToTest.read(reader),
+		));
 
 		this._register(resultService.onResultsChanged(evt => {
 			if ('completed' in evt) {
@@ -78,8 +125,11 @@ export class TestCoverageService extends Disposable implements ITestCoverageServ
 			return;
 		}
 
-		this.selected.set(coverage, undefined);
-		this._isOpenKey.set(true);
+		transaction(tx => {
+			// todo: may want to preserve this if coverage for that test in the new run?
+			this.filterToTest.set(undefined, tx);
+			this.selected.set(coverage, tx);
+		});
 
 		if (focus && !cts.token.isCancellationRequested) {
 			this.viewsService.openView(Testing.CoverageViewId, true);
@@ -88,7 +138,6 @@ export class TestCoverageService extends Disposable implements ITestCoverageServ
 
 	/** @inheritdoc */
 	public closeCoverage() {
-		this._isOpenKey.set(false);
 		this.selected.set(undefined, undefined);
 	}
 }

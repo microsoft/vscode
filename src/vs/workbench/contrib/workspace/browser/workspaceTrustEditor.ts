@@ -431,7 +431,8 @@ class TrustedUriActionsColumnRenderer implements ITableRenderer<ITrustedUriItem,
 	}
 
 	private createEditAction(item: ITrustedUriItem): IAction {
-		return <IAction>{
+		return {
+			label: '',
 			class: ThemeIcon.asClassName(editIcon),
 			enabled: true,
 			id: 'editTrustedUri',
@@ -443,7 +444,8 @@ class TrustedUriActionsColumnRenderer implements ITableRenderer<ITrustedUriItem,
 	}
 
 	private createPickerAction(item: ITrustedUriItem): IAction {
-		return <IAction>{
+		return {
+			label: '',
 			class: ThemeIcon.asClassName(folderPickerIcon),
 			enabled: true,
 			id: 'pickerTrustedUri',
@@ -455,7 +457,8 @@ class TrustedUriActionsColumnRenderer implements ITableRenderer<ITrustedUriItem,
 	}
 
 	private createDeleteAction(item: ITrustedUriItem): IAction {
-		return <IAction>{
+		return {
+			label: '',
 			class: ThemeIcon.asClassName(removeIcon),
 			enabled: true,
 			id: 'deleteTrustedUri',

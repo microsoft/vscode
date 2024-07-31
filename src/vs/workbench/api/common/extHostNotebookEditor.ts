@@ -71,6 +71,9 @@ export class ExtHostNotebookEditor {
 				get viewColumn() {
 					return that._viewColumn;
 				},
+				[Symbol.for('debug.description')]() {
+					return `NotebookEditor(${this.notebook.uri.toString()})`;
+				}
 			};
 
 			ExtHostNotebookEditor.apiEditorsToExtHost.set(this._editor, this);

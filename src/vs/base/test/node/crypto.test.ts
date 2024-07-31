@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'vs/base/common/path';
 import { checksum } from 'vs/base/node/crypto';
@@ -19,7 +20,7 @@ flakySuite('Crypto', () => {
 	setup(function () {
 		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'crypto');
 
-		return Promises.mkdir(testDir, { recursive: true });
+		return fs.promises.mkdir(testDir, { recursive: true });
 	});
 
 	teardown(function () {

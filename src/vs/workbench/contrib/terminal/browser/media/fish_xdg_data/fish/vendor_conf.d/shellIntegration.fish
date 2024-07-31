@@ -24,7 +24,7 @@ set --global VSCODE_SHELL_INTEGRATION 1
 
 # Apply any explicit path prefix (see #99878)
 if status --is-login; and set -q VSCODE_PATH_PREFIX
-	fish_add_path -p $VSCODE_PATH_PREFIX
+	set -gx PATH "$VSCODE_PATH_PREFIX$PATH"
 end
 set -e VSCODE_PATH_PREFIX
 
@@ -173,11 +173,11 @@ function __init_vscode_shell_integration
 		function fish_mode_prompt
 			__vsc_fish_prompt_start
 			__vsc_fish_mode_prompt
-			__vsc_fish_cmd_start
 		end
 
 		function fish_prompt
 			__vsc_fish_prompt
+			__vsc_fish_cmd_start
 		end
 	else
 		# No fish_mode_prompt, so put everything in fish_prompt.

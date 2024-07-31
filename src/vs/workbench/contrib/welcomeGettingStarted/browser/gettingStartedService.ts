@@ -26,7 +26,7 @@ import { ILink, LinkedText, parseLinkedText } from 'vs/base/common/linkedText';
 import { walkthroughsExtensionPoint } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedExtensionPoint';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { dirname } from 'vs/base/common/path';
-import { coalesce, flatten } from 'vs/base/common/arrays';
+import { coalesce } from 'vs/base/common/arrays';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { localize, localize2 } from 'vs/nls';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -226,13 +226,12 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 			installed.forEach(ext => this.progressByEvent(`extensionInstalled:${ext.identifier.id.toLowerCase()}`));
 		});
 
-		this._register(this.extensionManagementService.onDidInstallExtensions(async (result) => {
-			const hadLastFoucs = await this.hostService.hadLastFocus();
+		this._register(this.extensionManagementService.onDidInstallExtensions((result) => {
 			for (const e of result) {
 				const skipWalkthrough = e?.context?.[EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT] || e?.context?.[EXTENSION_INSTALL_DEP_PACK_CONTEXT];
 				// If the window had last focus and the install didn't specify to skip the walkthrough
 				// Then add it to the sessionInstallExtensions to be opened
-				if (hadLastFoucs && !skipWalkthrough) {
+				if (!skipWalkthrough) {
 					this.sessionInstalledExtensions.add(e.identifier.id.toLowerCase());
 				}
 				this.progressByEvent(`extensionInstalled:${e.identifier.id.toLowerCase()}`);
@@ -408,7 +407,8 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 
 		this.storageService.store(walkthroughMetadataConfigurationKey, JSON.stringify([...this.metadata.entries()]), StorageScope.PROFILE, StorageTarget.USER);
 
-		if (sectionToOpen && this.configurationService.getValue<string>('workbench.welcomePage.walkthroughs.openOnInstall')) {
+		const hadLastFoucs = await this.hostService.hadLastFocus();
+		if (hadLastFoucs && sectionToOpen && this.configurationService.getValue<string>('workbench.welcomePage.walkthroughs.openOnInstall')) {
 			type GettingStartedAutoOpenClassification = {
 				owner: 'lramos15';
 				comment: 'When a walkthrthrough is opened upon extension installation';
@@ -567,10 +567,10 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 		}
 
 		if (!step.completionEvents.length) {
-			step.completionEvents = coalesce(flatten(
+			step.completionEvents = coalesce(
 				step.description
 					.filter(linkedText => linkedText.nodes.length === 1) // only buttons
-					.map(linkedText =>
+					.flatMap(linkedText =>
 						linkedText.nodes
 							.filter(((node): node is ILink => typeof node !== 'string'))
 							.map(({ href }) => {
@@ -581,7 +581,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 									return 'onLink:' + href;
 								}
 								return undefined;
-							}))));
+							})));
 		}
 
 		if (!step.completionEvents.length) {

@@ -47,6 +47,11 @@ export interface IExtensionFeatureTableRenderer extends IExtensionFeatureRendere
 	render(manifest: IExtensionManifest): IRenderedData<ITableData>;
 }
 
+export interface IExtensionFeatureMarkdownAndTableRenderer extends IExtensionFeatureRenderer {
+	type: 'markdown+table';
+	render(manifest: IExtensionManifest): IRenderedData<Array<IMarkdownString | ITableData>>;
+}
+
 export interface IExtensionFeatureDescriptor {
 	readonly id: string;
 	readonly label: string;

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -16,7 +17,6 @@ import { Delayer } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { CONTEXT_FIND_WIDGET_NOT_VISIBLE } from 'vs/editor/contrib/find/browser/findModel';
-import * as nls from 'vs/nls';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -44,6 +44,7 @@ import { GroupModelChangeKind } from 'vs/workbench/common/editor';
 import { SearchFindInput } from 'vs/workbench/contrib/search/browser/searchFindInput';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { NotebookFindScopeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 /** Specified in searchview.css */
 const SingleLineInputHeight = 26;
@@ -204,7 +205,8 @@ export class SearchWidget extends Widget {
 				notebookOptions.isInNotebookMarkdownInput,
 				notebookOptions.isInNotebookMarkdownPreview,
 				notebookOptions.isInNotebookCellInput,
-				notebookOptions.isInNotebookCellOutput
+				notebookOptions.isInNotebookCellOutput,
+				{ findScopeType: NotebookFindScopeType.None }
 			));
 
 		this._register(
@@ -226,13 +228,13 @@ export class SearchWidget extends Widget {
 
 		this.render(container, options);
 
-		this.configurationService.onDidChangeConfiguration(e => {
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('editor.accessibilitySupport')) {
 				this.updateAccessibilitySupport();
 			}
-		});
+		}));
 
-		this.accessibilityService.onDidChangeScreenReaderOptimized(() => this.updateAccessibilitySupport());
+		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized(() => this.updateAccessibilitySupport()));
 		this.updateAccessibilitySupport();
 	}
 
@@ -350,6 +352,12 @@ export class SearchWidget extends Widget {
 		this.searchInput?.focusOnRegex();
 	}
 
+	set replaceButtonVisibility(val: boolean) {
+		if (this.toggleReplaceButton) {
+			this.toggleReplaceButton.element.style.display = val ? '' : 'none';
+		}
+	}
+
 	private render(container: HTMLElement, options: ISearchWidgetOptions): void {
 		this.domNode = dom.append(container, dom.$('.search-widget'));
 		this.domNode.style.position = 'relative';
@@ -419,7 +427,7 @@ export class SearchWidget extends Widget {
 			)
 		);
 
-		this.searchInput.onKeyDown((keyboardEvent: IKeyboardEvent) => this.onSearchInputKeyDown(keyboardEvent));
+		this._register(this.searchInput.onKeyDown((keyboardEvent: IKeyboardEvent) => this.onSearchInputKeyDown(keyboardEvent)));
 		this.searchInput.setValue(options.value || '');
 		this.searchInput.setRegex(!!options.isRegex);
 		this.searchInput.setCaseSensitive(!!options.isCaseSensitive);
@@ -521,7 +529,7 @@ export class SearchWidget extends Widget {
 			}
 		}));
 
-		this.replaceInput.onKeyDown((keyboardEvent) => this.onReplaceInputKeyDown(keyboardEvent));
+		this._register(this.replaceInput.onKeyDown((keyboardEvent) => this.onReplaceInputKeyDown(keyboardEvent)));
 		this.replaceInput.setValue(options.replaceValue || '');
 		this._register(this.replaceInput.inputBox.onDidChange(() => this._onReplaceValueChanged.fire()));
 		this._register(this.replaceInput.inputBox.onDidHeightChange(() => this._onDidHeightChange.fire()));
@@ -662,6 +670,25 @@ export class SearchWidget extends Widget {
 
 		else if (keyboardEvent.equals(KeyCode.DownArrow)) {
 			stopPropagationForMultiLineDownwards(keyboardEvent, this.searchInput?.getValue() ?? '', this.searchInput?.domNode.querySelector('textarea') ?? null);
+		}
+
+		else if (keyboardEvent.equals(KeyCode.PageUp)) {
+			const inputElement = this.searchInput?.inputBox.inputElement;
+			if (inputElement) {
+				inputElement.setSelectionRange(0, 0);
+				inputElement.focus();
+				keyboardEvent.preventDefault();
+			}
+		}
+
+		else if (keyboardEvent.equals(KeyCode.PageDown)) {
+			const inputElement = this.searchInput?.inputBox.inputElement;
+			if (inputElement) {
+				const endOfText = inputElement.value.length;
+				inputElement.setSelectionRange(endOfText, endOfText);
+				inputElement.focus();
+				keyboardEvent.preventDefault();
+			}
 		}
 	}
 

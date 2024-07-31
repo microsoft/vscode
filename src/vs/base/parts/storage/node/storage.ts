@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
 import { timeout } from 'vs/base/common/async';
 import { Event } from 'vs/base/common/event';
 import { mapToString, setToString } from 'vs/base/common/map';
@@ -194,7 +195,7 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 					// Delete the existing DB. If the path does not exist or fails to
 					// be deleted, we do not try to recover anymore because we assume
 					// that the path is no longer writeable for us.
-					return Promises.unlink(this.path).then(() => {
+					return fs.promises.unlink(this.path).then(() => {
 
 						// Re-open the DB fresh
 						return this.doConnect(this.path).then(recoveryConnection => {
@@ -280,7 +281,7 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 			// folder is really not writeable for us.
 			//
 			try {
-				await Promises.unlink(path);
+				await fs.promises.unlink(path);
 				try {
 					await Promises.rename(this.toBackupPath(path), path, false /* no retry */);
 				} catch (error) {
@@ -308,8 +309,14 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 	private doConnect(path: string): Promise<IDatabaseConnection> {
 		return new Promise((resolve, reject) => {
 			import('@vscode/sqlite3').then(sqlite3 => {
+				// ESM-comment-begin
+				const ctor = (this.logger.isTracing ? sqlite3.verbose().Database : sqlite3.Database);
+				// ESM-comment-end
+				// ESM-uncomment-begin
+				// const ctor = (this.logger.isTracing ? sqlite3.default.verbose().Database : sqlite3.default.Database);
+				// ESM-uncomment-end
 				const connection: IDatabaseConnection = {
-					db: new (this.logger.isTracing ? sqlite3.verbose().Database : sqlite3.Database)(path, (error: (Error & { code?: string }) | null) => {
+					db: new ctor(path, (error: (Error & { code?: string }) | null) => {
 						if (error) {
 							return (connection.db && error.code !== 'SQLITE_CANTOPEN' /* https://github.com/TryGhost/node-sqlite3/issues/1617 */) ? connection.db.close(() => reject(error)) : reject(error);
 						}

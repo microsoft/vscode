@@ -33,7 +33,7 @@ function getSystemShellUnixLike(os: platform.OperatingSystem, env: platform.IPro
 	}
 
 	if (!_TERMINAL_DEFAULT_SHELL_UNIX_LIKE) {
-		let unixLikeTerminal: string | undefined;
+		let unixLikeTerminal: string | undefined | null;
 		if (platform.isWindows) {
 			unixLikeTerminal = '/bin/bash'; // for WSL
 		} else {

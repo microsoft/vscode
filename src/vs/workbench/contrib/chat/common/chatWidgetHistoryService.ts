@@ -7,6 +7,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Memento } from 'vs/workbench/common/memento';
+import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { CHAT_PROVIDER_ID } from 'vs/workbench/contrib/chat/common/chatParticipantContribTypes';
 
 export interface IChatHistoryEntry {
@@ -21,8 +22,8 @@ export interface IChatWidgetHistoryService {
 	readonly onDidClearHistory: Event<void>;
 
 	clearHistory(): void;
-	getHistory(): IChatHistoryEntry[];
-	saveHistory(history: IChatHistoryEntry[]): void;
+	getHistory(location: ChatAgentLocation): IChatHistoryEntry[];
+	saveHistory(location: ChatAgentLocation, history: IChatHistoryEntry[]): void;
 }
 
 interface IChatHistory {
@@ -51,15 +52,23 @@ export class ChatWidgetHistoryService implements IChatWidgetHistoryService {
 		this.viewState = loadedState;
 	}
 
-	getHistory(): IChatHistoryEntry[] {
-		return this.viewState.history?.[CHAT_PROVIDER_ID] ?? [];
+	getHistory(location: ChatAgentLocation): IChatHistoryEntry[] {
+		const key = this.getKey(location);
+		return this.viewState.history?.[key] ?? [];
 	}
 
-	saveHistory(history: IChatHistoryEntry[]): void {
+	private getKey(location: ChatAgentLocation): string {
+		// Preserve history for panel by continuing to use the same old provider id. Use the location as a key for other chat locations.
+		return location === ChatAgentLocation.Panel ? CHAT_PROVIDER_ID : location;
+	}
+
+	saveHistory(location: ChatAgentLocation, history: IChatHistoryEntry[]): void {
 		if (!this.viewState.history) {
 			this.viewState.history = {};
 		}
-		this.viewState.history[CHAT_PROVIDER_ID] = history;
+
+		const key = this.getKey(location);
+		this.viewState.history[key] = history;
 		this.memento.saveMemento();
 	}
 

@@ -90,7 +90,7 @@ export class WorkspacesFinderContribution extends Disposable implements IWorkben
 				label: localize('selectWorkspace', "Select Workspace"),
 				run: () => {
 					this.quickInputService.pick(
-						workspaces.map(workspace => ({ label: workspace } as IQuickPickItem)),
+						workspaces.map(workspace => ({ label: workspace } satisfies IQuickPickItem)),
 						{ placeHolder: localize('selectToOpen', "Select a workspace to open") }).then(pick => {
 							if (pick) {
 								this.hostService.openWindow([{ workspaceUri: joinPath(folder, pick.label) }]);

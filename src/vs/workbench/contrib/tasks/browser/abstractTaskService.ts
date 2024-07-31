@@ -316,14 +316,21 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		this._registerCommands().then(() => TaskCommandsRegistered.bindTo(this._contextKeyService).set(true));
 		ServerlessWebContext.bindTo(this._contextKeyService).set(Platform.isWeb && !remoteAgentService.getConnection()?.remoteAuthority);
 		this._configurationResolverService.contributeVariable('defaultBuildTask', async (): Promise<string | undefined> => {
-			let tasks = await this._getTasksForGroup(TaskGroup.Build);
+			// delay provider activation, we might find a single default build task in the tasks.json file
+			let tasks = await this._getTasksForGroup(TaskGroup.Build, true);
 			if (tasks.length > 0) {
 				const defaults = this._getDefaultTasks(tasks);
 				if (defaults.length === 1) {
 					return defaults[0]._label;
-				} else if (defaults.length) {
-					tasks = defaults;
 				}
+			}
+			// activate all providers, we haven't found the default build task in the tasks.json file
+			tasks = await this._getTasksForGroup(TaskGroup.Build);
+			const defaults = this._getDefaultTasks(tasks);
+			if (defaults.length === 1) {
+				return defaults[0]._label;
+			} else if (defaults.length) {
+				tasks = defaults;
 			}
 
 			let entry: ITaskQuickPickEntry | null | undefined;
@@ -388,7 +395,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		// update tasks so an incomplete list isn't returned when getWorkspaceTasks is called
 		this._workspaceTasksPromise = undefined;
 		this._onDidRegisterSupportedExecutions.fire();
-		if (custom && shell && process) {
+		if (Platform.isWeb || (custom && shell && process)) {
 			this._onDidRegisterAllSupportedExecutions.fire();
 		}
 	}
@@ -608,6 +615,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		// We need to first wait for extensions to be registered because we might read
 		// the `TaskDefinitionRegistry` in case `type` is `undefined`
 		await this._extensionService.whenInstalledExtensionsRegistered();
+		this._log('Activating task providers ' + (type ?? 'all'));
 		await raceTimeout(
 			Promise.all(this._getActivationEvents(type).map(activationEvent => this._extensionService.activateByEvent(activationEvent))),
 			5000,
@@ -870,29 +878,15 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (!this._versionAndEngineCompatible(filter)) {
 			return Promise.resolve<Task[]>([]);
 		}
-		return this._getGroupedTasks(filter).then((map) => {
-			if (!filter || !filter.type) {
-				return map.all();
-			}
-			const result: Task[] = [];
-			map.forEach((tasks) => {
-				for (const task of tasks) {
-					if (ContributedTask.is(task) && ((task.defines.type === filter.type) || (task._source.label === filter.type))) {
-						result.push(task);
-					} else if (CustomTask.is(task)) {
-						if (task.type === filter.type) {
-							result.push(task);
-						} else {
-							const customizes = task.customizes();
-							if (customizes && customizes.type === filter.type) {
-								result.push(task);
-							}
-						}
-					}
-				}
-			});
-			return result;
-		});
+		return this._getGroupedTasks(filter).then((map) => this.applyFilterToTaskMap(filter, map));
+	}
+
+	public async getKnownTasks(filter?: ITaskFilter): Promise<Task[]> {
+		if (!this._versionAndEngineCompatible(filter)) {
+			return Promise.resolve<Task[]>([]);
+		}
+
+		return this._getGroupedTasks(filter, false).then((map) => this.applyFilterToTaskMap(filter, map));
 	}
 
 	public taskTypes(): string[] {
@@ -953,6 +947,30 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 		}
 		return this._recentlyUsedTasksV1;
+	}
+
+	private applyFilterToTaskMap(filter: ITaskFilter | undefined, map: TaskMap): Task[] {
+		if (!filter || !filter.type) {
+			return map.all();
+		}
+		const result: Task[] = [];
+		map.forEach((tasks) => {
+			for (const task of tasks) {
+				if (ContributedTask.is(task) && ((task.defines.type === filter.type) || (task._source.label === filter.type))) {
+					result.push(task);
+				} else if (CustomTask.is(task)) {
+					if (task.type === filter.type) {
+						result.push(task);
+					} else {
+						const customizes = task.customizes();
+						if (customizes && customizes.type === filter.type) {
+							result.push(task);
+						}
+					}
+				}
+			}
+		});
+		return result;
 	}
 
 	private _getTasksFromStorage(type: 'persistent' | 'historical'): LRUCache<string, string> {
@@ -1286,7 +1304,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (type === undefined) {
 			return true;
 		}
-		const settingValueMap: IStringDictionary<boolean> = <any>settingValue;
+		const settingValueMap: IStringDictionary<boolean> = settingValue as any;
 		return !settingValueMap[type];
 	}
 
@@ -1418,8 +1436,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return task;
 	}
 
-	private async _getTasksForGroup(group: TaskGroup): Promise<Task[]> {
-		const groups = await this._getGroupedTasks();
+	private async _getTasksForGroup(group: TaskGroup, waitToActivate?: boolean): Promise<Task[]> {
+		const groups = await this._getGroupedTasks(undefined, waitToActivate);
 		const result: Task[] = [];
 		groups.forEach(tasks => {
 			for (const task of tasks) {
@@ -2001,11 +2019,13 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return !definition || !definition.when || this._contextKeyService.contextMatchesRules(definition.when);
 	}
 
-	private async _getGroupedTasks(filter?: ITaskFilter): Promise<TaskMap> {
+	private async _getGroupedTasks(filter?: ITaskFilter, waitToActivate?: boolean): Promise<TaskMap> {
 		await this._waitForAllSupportedExecutions;
 		const type = filter?.type;
 		const needsRecentTasksMigration = this._needsRecentTasksMigration();
-		await this._activateTaskProviders(filter?.type);
+		if (!waitToActivate) {
+			await this._activateTaskProviders(filter?.type);
+		}
 		const validTypes: IStringDictionary<boolean> = Object.create(null);
 		TaskDefinitionRegistry.all().forEach(definition => validTypes[definition.taskType] = true);
 		validTypes['shell'] = true;
@@ -2574,7 +2594,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	private _handleError(err: any): void {
 		let showOutput = true;
 		if (err instanceof TaskError) {
-			const buildError = <TaskError>err;
+			const buildError = err;
 			const needsConfig = buildError.code === TaskErrors.NotConfigured || buildError.code === TaskErrors.NoBuildTask || buildError.code === TaskErrors.NoTestTask;
 			const needsTerminate = buildError.code === TaskErrors.RunningTask;
 			if (needsConfig || needsTerminate) {
@@ -2592,7 +2612,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				this._notificationService.notify({ severity: buildError.severity, message: buildError.message });
 			}
 		} else if (err instanceof Error) {
-			const error = <Error>err;
+			const error = err;
 			this._notificationService.error(error.message);
 			showOutput = false;
 		} else if (Types.isString(err)) {
@@ -3241,7 +3261,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		let configFileCreated = false;
 		this._fileService.stat(resource).then((stat) => stat, () => undefined).then(async (stat) => {
 			const fileExists: boolean = !!stat;
-			const configValue = this._configurationService.inspect<TaskConfig.IExternalTaskRunnerConfiguration>('tasks');
+			const configValue = this._configurationService.inspect<TaskConfig.IExternalTaskRunnerConfiguration>('tasks', { resource });
 			let tasksExistInFile: boolean;
 			let target: ConfigurationTarget;
 			switch (taskSource) {
@@ -3268,10 +3288,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					return result[0].resource;
 				});
 			} else if (fileExists && (tasksExistInFile || content)) {
-				if (content) {
-					this._configurationService.updateValue('tasks', json.parse(content), target);
+				const statResource = stat?.resource;
+				if (content && statResource) {
+					this._configurationService.updateValue('tasks', json.parse(content), { resource: statResource }, target);
 				}
-				return stat?.resource;
+				return statResource;
 			}
 			return undefined;
 		}).then((resource) => {
@@ -3403,7 +3424,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		})]);
 
 		if (!timeout && ((await entries).length === 1) && this._configurationService.getValue<boolean>(QUICKOPEN_SKIP_CONFIG)) {
-			const entry: any = <any>((await entries)[0]);
+			const entry: any = (await entries)[0];
 			if (entry.task) {
 				this._handleSelection(entry);
 				return;
