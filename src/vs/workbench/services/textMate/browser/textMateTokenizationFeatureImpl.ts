@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { importAMDNodeModule, resolveAmdNodeModulePath } from 'vs/amdX';
-import { isESM } from 'vs/base/common/amd';
+import { canASAR, isESM } from 'vs/base/common/amd';
 import * as dom from 'vs/base/browser/dom';
 import { equals as equalArray } from 'vs/base/common/arrays';
 import { Color } from 'vs/base/common/color';
@@ -380,7 +380,7 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 			// We therefore use the non-streaming compiler :(.
 			return await response.arrayBuffer();
 		} else {
-			const response = await fetch(this._environmentService.isBuilt
+			const response = await fetch(canASAR && this._environmentService.isBuilt
 				? FileAccess.asBrowserUri(`${nodeModulesAsarUnpackedPath}/vscode-oniguruma/release/onig.wasm`).toString(true)
 				: FileAccess.asBrowserUri(`${nodeModulesPath}/vscode-oniguruma/release/onig.wasm`).toString(true));
 			return response;

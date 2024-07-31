@@ -38,7 +38,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { ILogService } from 'vs/platform/log/common/log';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ChatTreeItem, GeneratingPhrase, IChatCodeBlockInfo, IChatFileTreeInfo } from 'vs/workbench/contrib/chat/browser/chat';
+import { ChatTreeItem, GeneratingPhrase, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatAgentHover, getChatAgentHoverOptions } from 'vs/workbench/contrib/chat/browser/chatAgentHover';
 import { ChatAttachmentsContentPart } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatAttachmentsContentPart';
 import { ChatCodeCitationContentPart } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatCodeCitationContentPart';
@@ -66,7 +66,6 @@ import { IChatCodeCitations, IChatReferences, IChatRendererContent, IChatRequest
 import { getNWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 import { annotateSpecialMarkdownContent } from '../common/annotations';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection';
-import { IChatListItemRendererOptions } from './chat';
 
 const $ = dom.$;
 
