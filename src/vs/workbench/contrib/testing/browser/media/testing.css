@@ -398,11 +398,11 @@
 }
 
 .monaco-editor .testing-inline-message-severity-0 {
-	color: var(--vscode-testing-message-error-decorationForeground) !important;
+	background: var(--vscode-testing-message-error-lineBackground) !important;
 }
 
 .monaco-editor .testing-inline-message-severity-1 {
-	color: var(--vscode-testing-message-info-decorationForeground) !important;
+	background: var(--vscode-testing-message-info-lineBackground) !important;
 }
 
 /** -- coverage  */
