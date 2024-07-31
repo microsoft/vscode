@@ -274,7 +274,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 	}
 
 	hasFocus(): boolean {
-		return !!this._chatWidget?.rawValue?.hasFocus() ?? false;
+		return this._chatWidget?.rawValue?.hasFocus() ?? false;
 	}
 
 	populateHistory(up: boolean) {

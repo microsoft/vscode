@@ -224,6 +224,14 @@ declare module 'vscode' {
 
 	export type ChatExtendedRequestHandler = (request: ChatRequest, context: ChatContext, response: ChatResponseStream, token: CancellationToken) => ProviderResult<ChatResult | void>;
 
+	export interface ChatResult {
+		nextQuestion?: {
+			prompt: string;
+			participant?: string;
+			command?: string;
+		};
+	}
+
 	export namespace chat {
 		/**
 		 * Create a chat participant with the extended progress type

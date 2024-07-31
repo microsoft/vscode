@@ -230,21 +230,27 @@ function Send-Completions {
 		$completions = TabExpansion2 -inputScript $completionPrefix -cursorColumn $cursorIndex
 		if ($null -ne $completions.CompletionMatches) {
 			$result += ";$($completions.ReplacementIndex);$($completions.ReplacementLength);$($cursorIndex);"
+			$json = [System.Collections.ArrayList]@($completions.CompletionMatches)
+			# Add `.` and `..` to the completions list for results that only contain files and dirs
 			if ($completions.CompletionMatches.Count -gt 0 -and $completions.CompletionMatches.Where({ $_.ResultType -eq 3 -or $_.ResultType -eq 4 })) {
-				$json = [System.Collections.ArrayList]@($completions.CompletionMatches)
-				# Add . and .. to the completions list
 				$json.Add([System.Management.Automation.CompletionResult]::new(
 					'.', '.', [System.Management.Automation.CompletionResultType]::ProviderContainer, (Get-Location).Path)
 				)
 				$json.Add([System.Management.Automation.CompletionResult]::new(
 					'..', '..', [System.Management.Automation.CompletionResultType]::ProviderContainer, (Split-Path (Get-Location) -Parent))
 				)
-				$mappedCommands = Compress-Completions($json)
-				$result += $mappedCommands | ConvertTo-Json -Compress
-			} else {
-				$mappedCommands = Compress-Completions($completions.CompletionMatches)
-				$result += $mappedCommands | ConvertTo-Json -Compress
 			}
+			# Add `-` and `+` as a completion for move backwards in location history. Unfortunately
+			# we don't set the path it will navigate to since the Set-Location stack is not public
+			# API https://github.com/PowerShell/PowerShell/issues/23860
+			if ($completionPrefix -eq "cd -") {
+				$json.Add([System.Management.Automation.CompletionResult]::new('-', '-', [System.Management.Automation.CompletionResultType]::ProviderContainer, "Navigate backwards in location history"))
+			}
+			if ($completionPrefix -eq "cd +") {
+				$json.Add([System.Management.Automation.CompletionResult]::new('+', '+', [System.Management.Automation.CompletionResultType]::ProviderContainer, "Navigate forwards in location history"))
+			}
+			$mappedCommands = Compress-Completions($json)
+			$result += $mappedCommands | ConvertTo-Json -Compress
 		}
 	}
 	# If there is no space, get completions using CompletionCompleters as it gives us more
@@ -260,7 +266,7 @@ function Send-Completions {
 					$_
 				}
 			}
-			([System.Management.Automation.CompletionCompleters]::CompleteVariable($completionPrefix))
+			([System.Management.Automation.CompletionCompleters]::CompleteVariable(''))
 		)
 		if ($null -ne $completions) {
 			$result += ";$($completions.ReplacementIndex);$($completions.ReplacementLength);$($cursorIndex);"

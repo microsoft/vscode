@@ -63,7 +63,7 @@ module.exports.injectNodeModuleLookupPath = function (injectPath) {
 	if (isESM) {
 		// register a loader hook
 		// ESM-uncomment-begin
-		// Module.register('./server-loader.mjs', { parentURL: import.meta.url, data: injectPath });
+		// Module.register('./loader-lookup-path.mjs', { parentURL: import.meta.url, data: injectPath });
 		// ESM-uncomment-end
 	} else {
 		const nodeModulesPath = path.join(__dirname, '../node_modules');

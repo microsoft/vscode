@@ -533,6 +533,11 @@ configurationRegistry.registerConfiguration({
 			],
 			'description': nls.localize('sortOrderLexicographicOptions', "Controls the lexicographic sorting of file and folder names in the Explorer.")
 		},
+		'explorer.sortOrderReverse': {
+			'type': 'boolean',
+			'description': nls.localize('sortOrderReverse', "Controls whether the file and folder sort order, should be reversed."),
+			'default': false,
+		},
 		'explorer.decorations.colors': {
 			type: 'boolean',
 			description: nls.localize('explorer.decorations.colors', "Controls whether file decorations should use colors."),

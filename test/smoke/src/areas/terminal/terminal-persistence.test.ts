@@ -6,8 +6,8 @@
 import { Application, Terminal, TerminalCommandId, TerminalCommandIdWithValue, SettingsEditor } from '../../../../automation';
 import { setTerminalTestSettings } from './terminal-helpers';
 
-export function setup() {
-	describe('Terminal Persistence', () => {
+export function setup(options?: { skipSuite: boolean }) {
+	(options?.skipSuite ? describe.skip : describe)('Terminal Persistence', () => {
 		// Acquire automation API
 		let terminal: Terminal;
 		let settingsEditor: SettingsEditor;
@@ -49,7 +49,7 @@ export function setup() {
 				]);
 			});
 
-			it.skip('should persist buffer content', async () => {
+			it('should persist buffer content', async () => {
 				await terminal.createTerminal();
 				// TODO: Handle passing in an actual regex, not string
 				await terminal.assertTerminalGroups([

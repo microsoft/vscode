@@ -186,7 +186,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 	protected async _onExtensionHostExit(code: number): Promise<void> {
 		// Dispose everything associated with the extension host
-		this._doStopExtensionHosts();
+		await this._doStopExtensionHosts();
 
 		// If we are running extension tests, forward logs and exit code
 		const automatedWindow = mainWindow as unknown as IAutomatedWindow;

@@ -225,8 +225,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			// Quick suggestions
 			if (!this._terminalSuggestWidgetVisibleContextKey.get()) {
 				if (config.quickSuggestions) {
-					const completionPrefix = promptInputState.value.substring(0, promptInputState.cursorIndex);
-					if (promptInputState.cursorIndex === 1 || completionPrefix.match(/([\s\[])[^\s]$/)) {
+					if (promptInputState.cursorIndex === 1 || promptInputState.prefix.match(/([\s\[])[^\s]$/)) {
 						// Never request completions if the last key sequence was up or down as the user was likely
 						// navigating history
 						if (this._lastUserData !== /*up*/'\x1b[A' && this._lastUserData !== /*down*/'\x1b[B') {
@@ -239,12 +238,14 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 			// Trigger characters - this happens even if the widget is showing
 			if (config.suggestOnTriggerCharacters && !sent) {
-				const lastChar = promptInputState.value.at(promptInputState.cursorIndex - 1);
+				const prefix = promptInputState.prefix;
 				if (
-					lastChar?.match(/[\-]/) ||
-					// Only trigger on \ and / if it's a directory. Not doing so causes problems
+					// Only trigger on `-` if it's after a space. This is required to not clear
+					// completions when typing the `-` in `git cherry-pick`
+					prefix?.match(/\s[\-]$/) ||
+					// Only trigger on `\` and `/` if it's a directory. Not doing so causes problems
 					// with git branches in particular
-					this._isFilteringDirectories && lastChar?.match(/[\\\/]/)
+					this._isFilteringDirectories && prefix?.match(/[\\\/]$/)
 				) {
 					this._requestCompletions();
 					sent = true;
@@ -332,7 +333,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 		let replacementIndex = 0;
 		let replacementLength = this._promptInputModel.cursorIndex;
-		this._leadingLineContent = this._promptInputModel.value.substring(0, this._promptInputModel.cursorIndex);
+		this._leadingLineContent = this._promptInputModel.prefix;
 
 		const payload = data.slice(command.length + args[0].length + args[1].length + args[2].length + 4/*semi-colons*/);
 		const rawCompletions: PwshCompletion | PwshCompletion[] | CompressedPwshCompletion[] | CompressedPwshCompletion = args.length === 0 || payload.length === 0 ? undefined : JSON.parse(payload);
@@ -343,7 +344,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		if (this._leadingLineContent.includes(' ') || firstChar === '[') {
 			replacementIndex = parseInt(args[0]);
 			replacementLength = parseInt(args[1]);
-			this._leadingLineContent = this._promptInputModel.value.substring(0, this._promptInputModel.cursorIndex);
+			this._leadingLineContent = this._promptInputModel.prefix;
 		}
 		// This is a global command, add cached commands list to completions
 		else {
@@ -357,6 +358,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 		this._currentPromptInputState = {
 			value: this._promptInputModel.value,
+			prefix: this._promptInputModel.prefix,
 			cursorIndex: this._promptInputModel.cursorIndex,
 			ghostTextIndex: this._promptInputModel.ghostTextIndex
 		};
@@ -498,6 +500,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		const xtermBox = this._screen!.getBoundingClientRect();
 		this._initialPromptInputState = {
 			value: this._promptInputModel.value,
+			prefix: this._promptInputModel.prefix,
 			cursorIndex: this._promptInputModel.cursorIndex,
 			ghostTextIndex: this._promptInputModel.ghostTextIndex
 		};
@@ -711,7 +714,12 @@ function rawCompletionToSimpleCompletionItem(rawCompletion: PwshCompletion): Sim
 	// `.` and `..` entries because they are optimized not for navigating to different directories
 	// but for passing as args.
 	let label = rawCompletion.CompletionText;
-	if (rawCompletion.ResultType === 4 && !label.match(/^\.\.?$/) && !label.match(/[\\\/]$/)) {
+	if (
+		rawCompletion.ResultType === 4 &&
+		!label.match(/^[\-+]$/) && // Don't add a `/` to `-` or `+` (navigate location history)
+		!label.match(/^\.\.?$/) &&
+		!label.match(/[\\\/]$/)
+	) {
 		const separator = label.match(/(?<sep>[\\\/])/)?.groups?.sep ?? sep;
 		label = label + separator;
 	}

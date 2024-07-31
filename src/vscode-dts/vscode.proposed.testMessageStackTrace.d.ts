@@ -16,7 +16,7 @@ declare module 'vscode' {
 		 * The location of this stack frame. This should be provided as a URI if the
 		 * location of the call frame can be accessed by the editor.
 		 */
-		file?: Uri;
+		uri?: Uri;
 
 		/**
 		 * Position of the stack frame within the file.
@@ -33,6 +33,6 @@ declare module 'vscode' {
 		 * @param file The file URI of the stack frame
 		 * @param position The position of the stack frame within the file
 		 */
-		constructor(label: string, file?: Uri, position?: Position);
+		constructor(label: string, uri?: Uri, position?: Position);
 	}
 }

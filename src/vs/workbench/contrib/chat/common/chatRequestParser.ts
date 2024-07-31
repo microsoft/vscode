@@ -109,11 +109,11 @@ export class ChatRequestParser {
 		}
 
 		// If there is more than one agent with this name, and the user picked it from the suggest widget, then the selected agent should be in the
-		// context and we use that one. Otherwise just pick the first.
+		// context and we use that one.
 		const agent = agents.length > 1 && context?.selectedAgent ?
 			context.selectedAgent :
-			agents[0];
-		if (!agent || !agent.locations.includes(location)) {
+			agents.find((a) => a.locations.includes(location));
+		if (!agent) {
 			return;
 		}
 

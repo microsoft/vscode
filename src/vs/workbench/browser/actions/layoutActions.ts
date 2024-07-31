@@ -683,7 +683,7 @@ export class ConfigureEditorTabsAction extends Action2 {
 	constructor() {
 		super({
 			id: ConfigureEditorTabsAction.ID,
-			title: localize2('configureTabs', "Configure Tabs ..."),
+			title: localize2('configureTabs', "Configure Tabs"),
 			category: Categories.View,
 		});
 	}
@@ -704,7 +704,7 @@ export class ConfigureEditorAction extends Action2 {
 	constructor() {
 		super({
 			id: ConfigureEditorAction.ID,
-			title: localize2('configureEditor', "Configure Editor ..."),
+			title: localize2('configureEditors', "Configure Editors"),
 			category: Categories.View,
 		});
 	}
