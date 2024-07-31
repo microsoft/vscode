@@ -1032,7 +1032,15 @@ registerAction2(class extends ViewAction<Repl> {
 				id: MenuId.DebugConsoleContext,
 				group: 'z_commands',
 				order: 20
-			}]
+			}],
+			keybinding: [{
+				primary: 0,
+				mac: { primary: KeyMod.CtrlCmd | KeyCode.KeyK },
+				// Weight is higher than work workbench contributions so the keybinding remains
+				// highest priority when chords are registered afterwards
+				weight: KeybindingWeight.WorkbenchContrib + 1,
+				when: ContextKeyExpr.equals('focusedView', 'workbench.panel.repl.view')
+			}],
 		});
 	}
 
