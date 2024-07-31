@@ -29,10 +29,9 @@ import { Memento, MementoObject } from 'vs/workbench/common/memento';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { FilterOptions } from 'vs/workbench/contrib/comments/browser/commentsFilterOptions';
 import { CommentThreadApplicability, CommentThreadState } from 'vs/editor/common/languages';
-import { Iterable } from 'vs/base/common/iterator';
 import { revealCommentThread } from 'vs/workbench/contrib/comments/browser/commentsController';
 import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
-import { CommentsModel, type ICommentsModel } from 'vs/workbench/contrib/comments/browser/commentsModel';
+import { CommentsModel, threadHasMeaningfulComments, type ICommentsModel } from 'vs/workbench/contrib/comments/browser/commentsModel';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { AccessibleViewAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
@@ -47,12 +46,20 @@ const VIEW_STORAGE_ID = 'commentsViewState';
 type CommentsTreeNode = CommentsModel | ResourceWithCommentThreads | CommentNode;
 
 function createResourceCommentsIterator(model: ICommentsModel): Iterable<ITreeElement<CommentsTreeNode>> {
-	return Iterable.map(model.resourceCommentThreads, m => {
-		const CommentNodeIt = Iterable.from(m.commentThreads);
-		const children = Iterable.map(CommentNodeIt, r => ({ element: r }));
+	const result: ITreeElement<CommentsTreeNode>[] = [];
 
-		return { element: m, children };
-	});
+	for (const m of model.resourceCommentThreads) {
+		const children = [];
+		for (const r of m.commentThreads) {
+			if (threadHasMeaningfulComments(r.thread)) {
+				children.push({ element: r });
+			}
+		}
+		if (children.length > 0) {
+			result.push({ element: m, children });
+		}
+	}
+	return result;
 }
 
 export class CommentsPanel extends FilterViewPane implements ICommentsView {
