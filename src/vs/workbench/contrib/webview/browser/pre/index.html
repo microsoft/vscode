@@ -6,7 +6,7 @@
 
 	<meta http-equiv="Content-Security-Policy"
 
-	content="default-src 'none'; script-src 'sha256-ikaxwm2UFoiIKkEZTEU4mnSxpYf3lmsrhy5KqqJZfek=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+	content="default-src 'none'; script-src 'sha256-do0JYOd6tnX/oPD1hA0DsaK1A/PBXPScl/63LG7W6A0=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 
 	<!-- Disable pinch zooming -->
@@ -945,6 +945,9 @@
 				activeFrame.contentWindow.focus();
 			});
 
+			/** @type { {href: string | undefined} | undefined } */
+			let linkState = { href: undefined };
+			const linkContainerId = 'link-container';
 			// update iframe-contents
 			let updateId = 0;
 			hostMessaging.onMessage('content', async (_event, /** @type {import('../webviewMessages').UpdateContentEvent} */ data) => {
@@ -1098,6 +1101,11 @@
 						newFrame.setAttribute('id', 'active-frame');
 						newFrame.style.visibility = 'visible';
 
+						const linkContainer = newFrame.contentDocument.createElement('textarea');
+						linkContainer.style.cssText = 'position: absolute; top: -1000px; left: -1000px; opacity: 0;';
+						linkContainer.setAttribute('id', linkContainerId);
+						newFrame.contentDocument.body.appendChild(linkContainer);
+
 						contentWindow.addEventListener('scroll', handleInnerScroll);
 						contentWindow.addEventListener('wheel', handleWheel);
 
@@ -1152,11 +1160,19 @@
 						/** @type { Record<string, boolean>} */
 						let context = {};
 
+						linkState = undefined;
+
 						/** @type {HTMLElement | null} */
 						let el = e.target;
 						while (true) {
 							if (!el) {
 								break;
+							}
+
+							if (el.nodeType === Node.ELEMENT_NODE && el.nodeName === 'A' && el.href) {
+								linkState = {
+									href: el.href
+								}
 							}
 
 							// Search self/ancestors for the closest context data attribute
@@ -1226,7 +1242,18 @@
 				if (!target) {
 					return;
 				}
-				assertIsDefined(target.contentDocument).execCommand(data);
+				const targetDocument = assertIsDefined(target.contentDocument);
+				if (linkState && linkState.href) {
+					const linkContainer = targetDocument.querySelector(`#${linkContainerId}`);
+					if (linkContainer) {
+						linkContainer.value = linkState.href;
+						linkContainer.select();
+					}
+				}
+				targetDocument.execCommand(data);
+				if (linkState && linkState.href) {
+					linkState = undefined;
+				}
 			});
 
 			/** @type {string | undefined} */
