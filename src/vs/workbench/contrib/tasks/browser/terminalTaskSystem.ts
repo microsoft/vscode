@@ -509,6 +509,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				const nextLiveDependencies = new Set(liveDependencies).add(task.getCommonTaskId());
 				for (const dependency of task.configurationProperties.dependsOn) {
 					const dependencyTask = await resolver.resolve(dependency.uri, dependency.task);
+					this._log('dependency task ' + dependencyTask?._label);
 					if (dependencyTask) {
 						this._adoptConfigurationForDependencyTask(dependencyTask, task);
 						let taskResult;
@@ -521,17 +522,24 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 							if (!taskResult) {
 								const activeTask = this._activeTasks[dependencyTask.getMapKey()] ?? this._getInstances(dependencyTask).pop();
 								taskResult = activeTask && this._getDependencyPromise(activeTask);
+								if (activeTask) {
+									// If the task is already running, terminate it
+									this._log('terminating already active task ' + activeTask.task._label);
+									this.terminate(activeTask.task);
+									this._removeFromActiveTasks(activeTask.task);
+								}
 							}
 						}
-						if (!taskResult) {
-							this._fireTaskEvent(TaskEvent.general(TaskEventKind.DependsOnStarted, task));
-							taskResult = this._executeDependencyTask(dependencyTask, resolver, trigger, nextLiveDependencies, encounteredTasks, alreadyResolved);
-						}
+						this._log('depends on started ' + task._label);
+						this._fireTaskEvent(TaskEvent.general(TaskEventKind.DependsOnStarted, task));
+						taskResult = this._executeDependencyTask(dependencyTask, resolver, trigger, nextLiveDependencies, encounteredTasks, alreadyResolved);
+						this._log('encounteredTasks set ' + commonKey);
 						encounteredTasks.set(commonKey, taskResult);
 						promises.push(taskResult);
 						if (task.configurationProperties.dependsOrder === DependsOrder.sequence) {
 							const promiseResult = await taskResult;
 							if (promiseResult.exitCode !== 0) {
+								this._log('value of promiseResult.exitCode ' + promiseResult.exitCode);
 								break;
 							}
 						}
@@ -570,6 +578,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		const count = lastInstance?.count ?? { count: 0 };
 		count.count++;
 		const activeTask = { task, promise, count };
+		this._log('setting active task ' + activeTask.task._label);
 		this._activeTasks[mapKey] = activeTask;
 		return promise;
 	}
