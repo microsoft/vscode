@@ -129,6 +129,9 @@ steps:
       retryCountOnTaskFailure: 3
 
   - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
+    - powershell: node migrate.mjs --disable-watch
+      displayName: Migrate to ESM
+
     - powershell: yarn gulp "transpile-client-swc" "transpile-extensions"
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
