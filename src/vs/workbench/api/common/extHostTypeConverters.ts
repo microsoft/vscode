@@ -1891,7 +1891,7 @@ export namespace TestMessage {
 			stackTrace: (message as vscode.TestMessage2).stackTrace?.map(s => ({
 				label: s.label,
 				position: s.position && Position.from(s.position),
-				uri: s.file && URI.revive(s.file).toJSON(),
+				uri: s.uri && URI.revive(s.uri).toJSON(),
 			})),
 		};
 	}

@@ -37,7 +37,7 @@ export class ChatFollowups<T extends IChatFollowup> extends Disposable {
 		}
 
 		const tooltipPrefix = formatChatQuestion(this.chatAgentService, this.location, '', followup.agentId, followup.subCommand);
-		if (!tooltipPrefix) {
+		if (tooltipPrefix === undefined) {
 			return;
 		}
 
