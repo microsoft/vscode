@@ -139,8 +139,8 @@ export class ChatService extends Disposable implements IChatService {
 		this._register(storageService.onWillSaveState(() => this.saveState()));
 
 		const voteUpEnabled = CONTEXT_VOTE_UP_ENABLED.bindTo(contextKeyService);
-		workbenchAssignmentService.getTreatment('chatVoteUpDisabled')
-			.then(value => voteUpEnabled.set(value === false)); // undefined (OSS or no experiment) -> leave key disabled
+		workbenchAssignmentService.getTreatment('chatVoteUpEnabled')
+			.then(value => voteUpEnabled.set(!!value));
 	}
 
 	isEnabled(location: ChatAgentLocation): boolean {
