@@ -525,6 +525,10 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		this.tree?.collapseAll();
 	}
 
+	getDebugSession(): IDebugSession | undefined {
+		return this.tree?.getInput();
+	}
+
 	getReplInput(): CodeEditorWidget {
 		return this.replInput;
 	}

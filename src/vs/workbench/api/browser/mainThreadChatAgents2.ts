@@ -172,7 +172,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			disposable = this._chatAgentService.registerDynamicAgent(
 				{
 					id,
-					name: dynamicProps.name ?? '', // This case is for an API change and can be removed tomorrow
+					name: dynamicProps.name,
 					description: dynamicProps.description,
 					extensionId: extension,
 					extensionDisplayName: extensionDescription?.displayName ?? extension.value,

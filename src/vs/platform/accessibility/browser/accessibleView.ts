@@ -121,7 +121,7 @@ export interface IAccessibleViewService {
 	goToSymbol(): void;
 	disableHint(): void;
 	getPosition(id: AccessibleViewProviderId): IPosition | undefined;
-	setPosition(position: IPosition, reveal?: boolean): void;
+	setPosition(position: IPosition, reveal?: boolean, select?: boolean): void;
 	getLastPosition(): IPosition | undefined;
 	/**
 	 * If the setting is enabled, provides the open accessible view hint as a localized string.
