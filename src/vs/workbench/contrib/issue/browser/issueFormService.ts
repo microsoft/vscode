@@ -49,14 +49,7 @@ export class IssueFormService implements IIssueFormService {
 	) { }
 
 	async openReporter(data: IssueReporterData): Promise<void> {
-		if (data.extensionId && this.extensionIdentifierSet.has(data.extensionId)) {
-			this.currentData = data;
-			this.issueReporterWindow?.focus();
-			return;
-		}
-
-		if (this.issueReporterWindow) {
-			this.issueReporterWindow.focus();
+		if (this.hasToReload(data)) {
 			return;
 		}
 
@@ -188,5 +181,20 @@ export class IssueFormService implements IIssueFormService {
 		});
 
 		return result;
+	}
+
+	hasToReload(data: IssueReporterData): boolean {
+		if (data.extensionId && this.extensionIdentifierSet.has(data.extensionId)) {
+			this.currentData = data;
+			this.issueReporterWindow?.focus();
+			return true;
+		}
+
+		if (this.issueReporterWindow) {
+			this.issueReporterWindow.focus();
+			return true;
+		}
+
+		return false;
 	}
 }

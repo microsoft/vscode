@@ -23,39 +23,31 @@ export class NativeIssueFormService extends IssueFormService implements IIssueFo
 	private issueReporterParentWindow: BrowserWindow | null = null;
 
 	constructor(
-		@IInstantiationService protected override readonly instantiationService: IInstantiationService,
-		@IAuxiliaryWindowService protected override readonly auxiliaryWindowService: IAuxiliaryWindowService,
-		@INativeEnvironmentService protected readonly environmentService: INativeEnvironmentService,
-		@ILogService protected override readonly logService: ILogService,
-		@IDialogService protected override readonly dialogService: IDialogService,
-		@IMenuService protected override readonly menuService: IMenuService,
-		@IContextKeyService protected override readonly contextKeyService: IContextKeyService,
-		@IHostService protected override readonly hostService: IHostService,
-		@INativeHostService private readonly nativeHostService: INativeHostService) {
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IAuxiliaryWindowService auxiliaryWindowService: IAuxiliaryWindowService,
+		@ILogService logService: ILogService,
+		@IDialogService dialogService: IDialogService,
+		@IMenuService menuService: IMenuService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IHostService hostService: IHostService,
+		@INativeHostService private readonly nativeHostService: INativeHostService,
+		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,) {
 		super(instantiationService, auxiliaryWindowService, menuService, contextKeyService, logService, dialogService, hostService);
 	}
 
 	// override to grab platform info
 	override async openReporter(data: IssueReporterData): Promise<void> {
-		if (data.extensionId && this.extensionIdentifierSet.has(data.extensionId)) {
-			this.currentData = data;
-			this.issueReporterWindow?.focus();
-			return;
-		}
-
-		if (this.issueReporterWindow) {
-			this.issueReporterWindow.focus();
+		if (this.hasToReload(data)) {
 			return;
 		}
 
 		await super.openAuxIssueReporter(data);
 
 		// Get platform information
-		await this.nativeHostService.getOSProperties().then(os => {
-			this.arch = os.arch;
-			this.release = os.release;
-			this.type = os.type;
-		});
+		const { arch, release, type } = await this.nativeHostService.getOSProperties();
+		this.arch = arch;
+		this.release = release;
+		this.type = type;
 
 		// create issue reporter and instantiate
 		if (this.issueReporterWindow) {
