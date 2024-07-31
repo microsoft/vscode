@@ -711,7 +711,12 @@ function rawCompletionToSimpleCompletionItem(rawCompletion: PwshCompletion): Sim
 	// `.` and `..` entries because they are optimized not for navigating to different directories
 	// but for passing as args.
 	let label = rawCompletion.CompletionText;
-	if (rawCompletion.ResultType === 4 && !label.match(/^\.\.?$/) && !label.match(/[\\\/]$/)) {
+	if (
+		rawCompletion.ResultType === 4 &&
+		!label.match(/^[\-+]$/) && // Don't add a `/` to `-` or `+` (navigate location history)
+		!label.match(/^\.\.?$/) &&
+		!label.match(/[\\\/]$/)
+	) {
 		const separator = label.match(/(?<sep>[\\\/])/)?.groups?.sep ?? sep;
 		label = label + separator;
 	}
