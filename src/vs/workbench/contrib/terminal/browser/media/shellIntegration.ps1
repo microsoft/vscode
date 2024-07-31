@@ -232,11 +232,12 @@ function Send-Completions {
 		# Adjust the completion prefix and cursor index such that tab expansion will be requested
 		# immediately after the last whitespace. This allows the client to perform fuzzy filtering
 		# such that requesting completions in the middle of a word should show the same completions
-		# as at the start. This only happens when the last word does not include `/` and `\` as
-		# often it will significantly change completions like when navigating directories.
+		# as at the start. This only happens when the last word does not include special characters:
+		# - `/` and `\`: Completions change when navigating directories.
+		# - `$`: Completions change when variables.
 		$lastWhitespaceIndex = $completionPrefix.LastIndexOf(' ')
 		$lastWord = $completionPrefix.Substring($lastWhitespaceIndex + 1)
-		if ($lastWord.Contains('/') -eq $false -and $lastWord.Contains('\\') -eq $false) {
+		if ($lastWord -notmatch '[/\\$]') {
 			if ($lastWhitespaceIndex -ne -1 -and $lastWhitespaceIndex -lt $cursorIndex) {
 				$newCursorIndex = $lastWhitespaceIndex + 1
 				$completionPrefix = $completionPrefix.Substring(0, $newCursorIndex)
