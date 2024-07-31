@@ -12,7 +12,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ILogService } from 'vs/platform/log/common/log';
 import { INativeHostService } from 'vs/platform/native/common/native';
 import product from 'vs/platform/product/common/product';
-import { BrowserWindow } from 'vs/workbench/browser/window';
 import { IssueFormService } from 'vs/workbench/contrib/issue/browser/issueFormService';
 import { IIssueFormService, IssueReporterData } from 'vs/workbench/contrib/issue/common/issue';
 import { IssueReporter2 } from 'vs/workbench/contrib/issue/electron-sandbox/issueReporterService2';
@@ -20,8 +19,6 @@ import { IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/b
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 export class NativeIssueFormService extends IssueFormService implements IIssueFormService {
-	private issueReporterParentWindow: BrowserWindow | null = null;
-
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IAuxiliaryWindowService auxiliaryWindowService: IAuxiliaryWindowService,
@@ -53,19 +50,6 @@ export class NativeIssueFormService extends IssueFormService implements IIssueFo
 		if (this.issueReporterWindow) {
 			const issueReporter = this.instantiationService.createInstance(IssueReporter2, !!this.environmentService.disableExtensions, data, { type: this.type, arch: this.arch, release: this.release }, product, this.issueReporterWindow);
 			issueReporter.render();
-		}
-	}
-
-	//#endregion
-
-	//#region used by issue reporter window
-	override async reloadWithExtensionsDisabled(): Promise<void> {
-		if (this.issueReporterParentWindow) {
-			try {
-				await this.nativeHostService.reload({ disableExtensions: true });
-			} catch (error) {
-				this.logService.error(error);
-			}
 		}
 	}
 }

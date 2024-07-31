@@ -83,7 +83,6 @@ export class IssueReporter2 extends BaseIssueReporterService {
 		});
 	}
 
-	// Uses native host service instead.
 	public override async submitToGitHub(issueTitle: string, issueBody: string, gitHubDetails: { owner: string; repositoryName: string }): Promise<boolean> {
 		const url = `https://api.github.com/repos/${gitHubDetails.owner}/${gitHubDetails.repositoryName}/issues`;
 		const init = {
