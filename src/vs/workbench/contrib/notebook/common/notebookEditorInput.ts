@@ -90,8 +90,15 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 				return;
 			}
 
+			const reason = e.auto
+				? localize('vetoAutoExtHostRestart', "One of the opened editors is a notebook editor.")
+				: localize('vetoExtHostRestart', "Notebook '{0}' could not be saved.", this.resource.path);
+
 			e.veto((async () => {
 				const editors = editorService.findEditors(this);
+				if (e.auto) {
+					return true;
+				}
 				if (editors.length > 0) {
 					const result = await editorService.save(editors[0]);
 					if (result.success) {
@@ -99,7 +106,7 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 					}
 				}
 				return true; // Veto
-			})(), localize('vetoExtHostRestart', "Notebook '{0}' could not be saved.", this.resource.path));
+			})(), reason);
 		}));
 	}
 

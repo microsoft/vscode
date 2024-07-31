@@ -50,8 +50,8 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 			getTestsRelatedToCode: (uri, position, token) => this.proxy.$getTestsRelatedToCode(uri, position, token),
 		}));
 
-		this._register(this.testService.onDidCancelTestRun(({ runId }) => {
-			this.proxy.$cancelExtensionTestRun(runId);
+		this._register(this.testService.onDidCancelTestRun(({ runId, taskId }) => {
+			this.proxy.$cancelExtensionTestRun(runId, taskId);
 		}));
 
 		this._register(Event.debounce(testProfiles.onDidChange, (_last, e) => e)(() => {

@@ -4107,7 +4107,7 @@ export class TestMessageStackFrame {
 	 */
 	constructor(
 		public label: string,
-		public file?: vscode.Uri,
+		public uri?: vscode.Uri,
 		public position?: Position,
 	) { }
 }

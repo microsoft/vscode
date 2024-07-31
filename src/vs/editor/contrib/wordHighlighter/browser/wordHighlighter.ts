@@ -33,6 +33,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { Schemas } from 'vs/base/common/network';
 import { ResourceMap } from 'vs/base/common/map';
 import { score } from 'vs/editor/common/languageSelector';
+import { isEqual } from 'vs/base/common/resources';
 // import { TextualMultiDocumentHighlightFeature } from 'vs/editor/contrib/wordHighlighter/browser/textualHighlightProvider';
 // import { registerEditorFeature } from 'vs/editor/common/editorFeatures';
 
@@ -335,7 +336,22 @@ class WordHighlighter {
 			const newValue = this.editor.getOption(EditorOption.occurrencesHighlight);
 			if (this.occurrencesHighlight !== newValue) {
 				this.occurrencesHighlight = newValue;
-				this._stopAll();
+				switch (newValue) {
+					case 'off':
+						this._stopAll();
+						break;
+					case 'singleFile':
+						this._stopAll(WordHighlighter.query?.modelInfo?.model);
+						break;
+					case 'multiFile':
+						if (WordHighlighter.query) {
+							this._run();
+						}
+						break;
+					default:
+						console.warn('Unknown occurrencesHighlight setting value:', newValue);
+						break;
+				}
 			}
 		}));
 
@@ -437,12 +453,12 @@ class WordHighlighter {
 		}
 	}
 
-	private _removeAllDecorations(): void {
+	private _removeAllDecorations(preservedModel?: ITextModel): void {
 		const currentEditors = this.codeEditorService.listCodeEditors();
 		const deleteURI = [];
 		// iterate over editors and store models in currentModels
 		for (const editor of currentEditors) {
-			if (!editor.hasModel()) {
+			if (!editor.hasModel() || isEqual(editor.getModel().uri, preservedModel?.uri)) {
 				continue;
 			}
 
@@ -505,11 +521,11 @@ class WordHighlighter {
 		}
 	}
 
-	private _stopAll() {
+	private _stopAll(preservedModel?: ITextModel): void {
 		// Remove any existing decorations
 		// TODO: @Yoyokrazy -- this triggers as notebooks scroll, causing highlights to disappear momentarily.
 		// maybe a nb type check?
-		this._removeAllDecorations();
+		this._removeAllDecorations(preservedModel);
 
 		// Cancel any renderDecorationsTimer
 		if (this.renderDecorationsTimer !== -1) {

@@ -2,21 +2,18 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { $, isHTMLInputElement, isHTMLTextAreaElement, reset, windowOpenNoOpener } from 'vs/base/browser/dom';
-import { Codicon } from 'vs/base/common/codicons';
-import { groupBy } from 'vs/base/common/collections';
+import { $, reset } from 'vs/base/browser/dom';
 import { CancellationError } from 'vs/base/common/errors';
-import { isMacintosh } from 'vs/base/common/platform';
-import { ThemeIcon } from 'vs/base/common/themables';
+import { IProductConfiguration } from 'vs/base/common/product';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
 import { IProcessMainService } from 'vs/platform/issue/common/issue';
 import { INativeHostService } from 'vs/platform/native/common/native';
 import { applyZoom } from 'vs/platform/window/electron-sandbox/window';
-import { BaseIssueReporterService, hide, show } from 'vs/workbench/contrib/issue/browser/issue';
+import { BaseIssueReporterService } from 'vs/workbench/contrib/issue/browser/baseIssueReporterService';
 import { IssueReporterData as IssueReporterModelData } from 'vs/workbench/contrib/issue/browser/issueReporterModel';
-import { IIssueFormService, IssueReporterData, IssueReporterExtensionData, IssueReporterWindowConfiguration, IssueType } from 'vs/workbench/contrib/issue/common/issue';
+import { IIssueFormService, IssueReporterData, IssueType } from 'vs/workbench/contrib/issue/common/issue';
 
 // GitHub has let us know that we could up our limit here to 8k. We chose 7500 to play it safe.
 // ref https://github.com/microsoft/vscode/issues/159191
@@ -26,13 +23,20 @@ const MAX_URL_LENGTH = 7500;
 export class IssueReporter2 extends BaseIssueReporterService {
 	private readonly processMainService: IProcessMainService;
 	constructor(
-		private readonly configuration: IssueReporterWindowConfiguration,
-		public override readonly window: Window,
+		disableExtensions: boolean,
+		data: IssueReporterData,
+		os: {
+			type: string;
+			arch: string;
+			release: string;
+		},
+		product: IProductConfiguration,
+		window: Window,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@IIssueFormService issueFormService: IIssueFormService,
 		@IProcessMainService processMainService: IProcessMainService
 	) {
-		super(configuration.disableExtensions, configuration.data, configuration.os, configuration.product, window, false, issueFormService);
+		super(disableExtensions, data, os, product, window, false, issueFormService);
 
 		this.processMainService = processMainService;
 		this.processMainService.$getSystemInfo().then(info => {
@@ -42,44 +46,17 @@ export class IssueReporter2 extends BaseIssueReporterService {
 			this.updateSystemInfo(this.issueReporterModel.getData());
 			this.updatePreviewButtonState();
 		});
-		if (configuration.data.issueType === IssueType.PerformanceIssue) {
+		if (this.data.issueType === IssueType.PerformanceIssue) {
 			this.processMainService.$getPerformanceInfo().then(info => {
 				this.updatePerformanceInfo(info as Partial<IssueReporterData>);
 			});
 		}
 
 		this.setEventHandlers();
-		applyZoom(configuration.data.zoomLevel, this.window);
-		this.handleExtensionData(configuration.data.enabledExtensions);
-		this.updateExperimentsInfo(configuration.data.experiments);
-		this.updateRestrictedMode(configuration.data.restrictedMode);
-		this.updateUnsupportedMode(configuration.data.isUnsupported);
-	}
-
-	private handleExtensionData(extensions: IssueReporterExtensionData[]) {
-		const installedExtensions = extensions.filter(x => !x.isBuiltin);
-		const { nonThemes, themes } = groupBy(installedExtensions, ext => {
-			return ext.isTheme ? 'themes' : 'nonThemes';
-		});
-
-		const numberOfThemeExtesions = themes && themes.length;
-		this.issueReporterModel.update({ numberOfThemeExtesions, enabledNonThemeExtesions: nonThemes, allExtensions: installedExtensions });
-		this.updateExtensionTable(nonThemes, numberOfThemeExtesions);
-		if (this.disableExtensions || installedExtensions.length === 0) {
-			(<HTMLButtonElement>this.getElementById('disableExtensions')).disabled = true;
-		}
-
-		this.updateExtensionSelector(installedExtensions);
-	}
-
-	private async sendReporterMenu(extension: IssueReporterExtensionData): Promise<IssueReporterData | undefined> {
-		try {
-			const data = await this.issueFormService.sendReporterMenu(extension.id);
-			return data;
-		} catch (e) {
-			console.error(e);
-			return undefined;
-		}
+		applyZoom(this.data.zoomLevel, this.window);
+		this.updateExperimentsInfo(this.data.experiments);
+		this.updateRestrictedMode(this.data.restrictedMode);
+		this.updateUnsupportedMode(this.data.isUnsupported);
 	}
 
 	public override setEventHandlers(): void {
@@ -104,68 +81,6 @@ export class IssueReporter2 extends BaseIssueReporterService {
 			this.setSourceOptions();
 			this.render();
 		});
-
-		// Keep all event listerns involving window and issue creation
-		this.previewButton.onDidClick(async () => {
-			this.delayedSubmit.trigger(async () => {
-				this.createIssue();
-			});
-		});
-
-		this.addEventListener('disableExtensions', 'click', () => {
-			this.issueFormService.reloadWithExtensionsDisabled();
-		});
-
-		this.addEventListener('extensionBugsLink', 'click', (e: Event) => {
-			const url = (<HTMLElement>e.target).innerText;
-			windowOpenNoOpener(url);
-		});
-
-		this.addEventListener('disableExtensions', 'keydown', (e: Event) => {
-			e.stopPropagation();
-			if ((e as KeyboardEvent).keyCode === 13 || (e as KeyboardEvent).keyCode === 32) {
-				this.issueFormService.reloadWithExtensionsDisabled();
-			}
-		});
-
-
-		// THIS IS THE MAIN IMPORTANT PART
-		this.window.document.onkeydown = async (e: KeyboardEvent) => {
-			const cmdOrCtrlKey = isMacintosh ? e.metaKey : e.ctrlKey;
-			// Cmd/Ctrl+Enter previews issue and closes window
-			if (cmdOrCtrlKey && e.key === 'Enter') {
-				this.delayedSubmit.trigger(async () => {
-					if (await this.createIssue()) {
-						this.close();
-					}
-				});
-			}
-
-			// Cmd/Ctrl + w closes issue window
-			if (cmdOrCtrlKey && e.key === 'w') {
-				e.stopPropagation();
-				e.preventDefault();
-
-				const issueTitle = (<HTMLInputElement>this.getElementById('issue-title'))!.value;
-				const { issueDescription } = this.issueReporterModel.getData();
-				if (!this.hasBeenSubmitted && (issueTitle || issueDescription)) {
-					// fire and forget
-					this.issueFormService.showConfirmCloseDialog();
-				} else {
-					this.close();
-				}
-			}
-
-			// With latest electron upgrade, cmd+a is no longer propagating correctly for inputs in this window on mac
-			// Manually perform the selection
-			if (isMacintosh) {
-				if (cmdOrCtrlKey && e.key === 'a' && e.target) {
-					if (isHTMLInputElement(e.target) || isHTMLTextAreaElement(e.target)) {
-						(<HTMLInputElement>e.target).select();
-					}
-				}
-			}
-		};
 	}
 
 	public override async submitToGitHub(issueTitle: string, issueBody: string, gitHubDetails: { owner: string; repositoryName: string }): Promise<boolean> {
@@ -362,147 +277,6 @@ export class IssueReporter2 extends BaseIssueReporterService {
 				}
 			});
 		}
-	}
-
-	public updateExtensionSelector(extensions: IssueReporterExtensionData[]): void {
-		interface IOption {
-			name: string;
-			id: string;
-		}
-
-		const extensionOptions: IOption[] = extensions.map(extension => {
-			return {
-				name: extension.displayName || extension.name || '',
-				id: extension.id
-			};
-		});
-
-		// Sort extensions by name
-		extensionOptions.sort((a, b) => {
-			const aName = a.name.toLowerCase();
-			const bName = b.name.toLowerCase();
-			if (aName > bName) {
-				return 1;
-			}
-
-			if (aName < bName) {
-				return -1;
-			}
-
-			return 0;
-		});
-
-		const makeOption = (extension: IOption, selectedExtension?: IssueReporterExtensionData): HTMLOptionElement => {
-			const selected = selectedExtension && extension.id === selectedExtension.id;
-			return $<HTMLOptionElement>('option', {
-				'value': extension.id,
-				'selected': selected || ''
-			}, extension.name);
-		};
-
-		const extensionsSelector = this.getElementById<HTMLSelectElement>('extension-selector');
-		if (extensionsSelector) {
-			const { selectedExtension } = this.issueReporterModel.getData();
-			reset(extensionsSelector, this.makeOption('', localize('selectExtension', "Select extension"), true), ...extensionOptions.map(extension => makeOption(extension, selectedExtension)));
-
-			if (!selectedExtension) {
-				extensionsSelector.selectedIndex = 0;
-			}
-
-			this.addEventListener('extension-selector', 'change', async (e: Event) => {
-				this.clearExtensionData();
-				const selectedExtensionId = (<HTMLInputElement>e.target).value;
-				this.selectedExtension = selectedExtensionId;
-				const extensions = this.issueReporterModel.getData().allExtensions;
-				const matches = extensions.filter(extension => extension.id === selectedExtensionId);
-				if (matches.length) {
-					this.issueReporterModel.update({ selectedExtension: matches[0] });
-					const selectedExtension = this.issueReporterModel.getData().selectedExtension;
-					if (selectedExtension) {
-						const iconElement = document.createElement('span');
-						iconElement.classList.add(...ThemeIcon.asClassNameArray(Codicon.loading), 'codicon-modifier-spin');
-						this.setLoading(iconElement);
-						const openReporterData = await this.sendReporterMenu(selectedExtension);
-						if (openReporterData) {
-							if (this.selectedExtension === selectedExtensionId) {
-								this.removeLoading(iconElement, true);
-								this.configuration.data = openReporterData;
-								this.data = openReporterData;
-							} else if (this.selectedExtension !== selectedExtensionId) {
-							}
-						}
-						else {
-							if (!this.loadingExtensionData) {
-								iconElement.classList.remove(...ThemeIcon.asClassNameArray(Codicon.loading), 'codicon-modifier-spin');
-							}
-							this.removeLoading(iconElement);
-							// if not using command, should have no configuration data in fields we care about and check later.
-							this.clearExtensionData();
-
-							// case when previous extension was opened from normal openIssueReporter command
-							selectedExtension.data = undefined;
-							selectedExtension.uri = undefined;
-						}
-						if (this.selectedExtension === selectedExtensionId) {
-							// repopulates the fields with the new data given the selected extension.
-							this.updateExtensionStatus(matches[0]);
-							this.openReporter = false;
-						}
-					} else {
-						this.issueReporterModel.update({ selectedExtension: undefined });
-						this.clearSearchResults();
-						this.clearExtensionData();
-						this.validateSelectedExtension();
-						this.updateExtensionStatus(matches[0]);
-					}
-				}
-			});
-		}
-
-		this.addEventListener('problem-source', 'change', (_) => {
-			this.validateSelectedExtension();
-		});
-	}
-
-	public override setLoading(element: HTMLElement) {
-		// Show loading
-		this.openReporter = true;
-		this.loadingExtensionData = true;
-		this.updatePreviewButtonState();
-
-		const extensionDataCaption = this.getElementById('extension-id')!;
-		hide(extensionDataCaption);
-
-		const extensionDataCaption2 = Array.from(this.window.document.querySelectorAll('.ext-parens'));
-		extensionDataCaption2.forEach(extensionDataCaption2 => hide(extensionDataCaption2));
-
-		const showLoading = this.getElementById('ext-loading')!;
-		show(showLoading);
-		while (showLoading.firstChild) {
-			showLoading.firstChild.remove();
-		}
-		showLoading.append(element);
-
-		this.renderBlocks();
-	}
-
-	public override removeLoading(element: HTMLElement, fromReporter: boolean = false) {
-		this.openReporter = fromReporter;
-		this.loadingExtensionData = false;
-		this.updatePreviewButtonState();
-
-		const extensionDataCaption = this.getElementById('extension-id')!;
-		show(extensionDataCaption);
-
-		const extensionDataCaption2 = Array.from(this.window.document.querySelectorAll('.ext-parens'));
-		extensionDataCaption2.forEach(extensionDataCaption2 => show(extensionDataCaption2));
-
-		const hideLoading = this.getElementById('ext-loading')!;
-		hide(hideLoading);
-		if (hideLoading.firstChild) {
-			element.remove();
-		}
-		this.renderBlocks();
 	}
 
 	private updateRestrictedMode(restrictedMode: boolean) {
