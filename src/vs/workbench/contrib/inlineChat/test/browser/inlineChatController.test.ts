@@ -63,6 +63,8 @@ import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/se
 import { RerunAction } from 'vs/workbench/contrib/inlineChat/browser/inlineChatActions';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { assertType } from 'vs/base/common/types';
+import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
+import { NullWorkbenchAssignmentService } from 'vs/workbench/services/assignment/test/common/nullAssignmentService';
 
 suite('InteractiveChatController', function () {
 
@@ -196,7 +198,8 @@ suite('InteractiveChatController', function () {
 			}],
 			[INotebookEditorService, new class extends mock<INotebookEditorService>() {
 				override listNotebookEditors() { return []; }
-			}]
+			}],
+			[IWorkbenchAssignmentService, new NullWorkbenchAssignmentService()]
 		);
 
 		instaService = store.add((store.add(workbenchInstantiationService(undefined, store))).createChild(serviceCollection));
