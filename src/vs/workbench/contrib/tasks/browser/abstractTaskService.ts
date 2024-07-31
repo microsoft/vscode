@@ -615,7 +615,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		// We need to first wait for extensions to be registered because we might read
 		// the `TaskDefinitionRegistry` in case `type` is `undefined`
 		await this._extensionService.whenInstalledExtensionsRegistered();
-		this._log('Activating task providers ' + type ?? 'all');
+		this._log('Activating task providers ' + (type ?? 'all'));
 		await raceTimeout(
 			Promise.all(this._getActivationEvents(type).map(activationEvent => this._extensionService.activateByEvent(activationEvent))),
 			5000,
@@ -878,29 +878,15 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (!this._versionAndEngineCompatible(filter)) {
 			return Promise.resolve<Task[]>([]);
 		}
-		return this._getGroupedTasks(filter).then((map) => {
-			if (!filter || !filter.type) {
-				return map.all();
-			}
-			const result: Task[] = [];
-			map.forEach((tasks) => {
-				for (const task of tasks) {
-					if (ContributedTask.is(task) && ((task.defines.type === filter.type) || (task._source.label === filter.type))) {
-						result.push(task);
-					} else if (CustomTask.is(task)) {
-						if (task.type === filter.type) {
-							result.push(task);
-						} else {
-							const customizes = task.customizes();
-							if (customizes && customizes.type === filter.type) {
-								result.push(task);
-							}
-						}
-					}
-				}
-			});
-			return result;
-		});
+		return this._getGroupedTasks(filter).then((map) => this.applyFilterToTaskMap(filter, map));
+	}
+
+	public async getKnownTasks(filter?: ITaskFilter): Promise<Task[]> {
+		if (!this._versionAndEngineCompatible(filter)) {
+			return Promise.resolve<Task[]>([]);
+		}
+
+		return this._getGroupedTasks(filter, false).then((map) => this.applyFilterToTaskMap(filter, map));
 	}
 
 	public taskTypes(): string[] {
@@ -961,6 +947,30 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 		}
 		return this._recentlyUsedTasksV1;
+	}
+
+	private applyFilterToTaskMap(filter: ITaskFilter | undefined, map: TaskMap): Task[] {
+		if (!filter || !filter.type) {
+			return map.all();
+		}
+		const result: Task[] = [];
+		map.forEach((tasks) => {
+			for (const task of tasks) {
+				if (ContributedTask.is(task) && ((task.defines.type === filter.type) || (task._source.label === filter.type))) {
+					result.push(task);
+				} else if (CustomTask.is(task)) {
+					if (task.type === filter.type) {
+						result.push(task);
+					} else {
+						const customizes = task.customizes();
+						if (customizes && customizes.type === filter.type) {
+							result.push(task);
+						}
+					}
+				}
+			}
+		});
+		return result;
 	}
 
 	private _getTasksFromStorage(type: 'persistent' | 'historical'): LRUCache<string, string> {

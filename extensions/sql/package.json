@@ -21,7 +21,8 @@
           ".dsql"
         ],
         "aliases": [
-          "SQL"
+          "MS SQL",
+          "T-SQL"
         ],
         "configuration": "./language-configuration.json"
       }

@@ -38,9 +38,6 @@ export class CommentsModel extends Disposable implements ICommentsModel {
 				return resource;
 			}).flat();
 		}).flat();
-		this._resourceCommentThreads.sort((a, b) => {
-			return a.resource.toString() > b.resource.toString() ? 1 : -1;
-		});
 	}
 
 	public setCommentThreads(uniqueOwner: string, owner: string, ownerLabel: string, commentThreads: CommentThread[]): void {
