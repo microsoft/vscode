@@ -24,19 +24,24 @@ interface NlsMetadata {
 
 function main(): Promise<void> {
 	return new Promise((c, e) => {
+		// NLS: we must ensure to pick the right `nlsBase` for the build that is going
+		// to use the uploaded NLS metadata. This is because each build will produce
+		// a different order of NLS indeces and thus will not be compatible with each other.
+		const nlsBase = 'out-vscode-web-min';
+		const nlsKeysJsonPath = `${nlsBase}/nls.keys.json`;
+		const nlsMessagesJsonPath = `${nlsBase}/nls.messages.json`;
+		const nlsMessagesJsPath = `${nlsBase}/nls.messages.js`;
+
 		const combinedMetadataJson = es.merge(
-			// vscode: we are not using `out-build/nls.metadata.json` here because
-			// it includes metadata for translators for `keys`. but for our purpose
-			// we want only the `keys` and `messages` as `string`.
 			es.merge(
-				vfs.src('out-build/nls.keys.json', { base: 'out-build' }),
-				vfs.src('out-build/nls.messages.json', { base: 'out-build' }))
+				vfs.src(nlsKeysJsonPath, { base: nlsBase }),
+				vfs.src(nlsMessagesJsonPath, { base: nlsBase }))
 				.pipe(merge({
 					fileName: 'vscode.json',
 					jsonSpace: '',
 					concatArrays: true,
 					edit: (parsedJson, file) => {
-						if (file.base === 'out-build') {
+						if (file.base === nlsBase) {
 							if (file.basename === 'nls.keys.json') {
 								return { keys: parsedJson };
 							} else {
@@ -112,7 +117,7 @@ function main(): Promise<void> {
 			},
 		}));
 
-		const nlsMessagesJs = vfs.src('out-build/nls.messages.js', { base: 'out-build' });
+		const nlsMessagesJs = vfs.src(nlsMessagesJsPath, { base: nlsBase });
 
 		es.merge(combinedMetadataJson, nlsMessagesJs)
 			.pipe(gzip({ append: false }))

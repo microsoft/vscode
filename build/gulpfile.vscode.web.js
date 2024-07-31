@@ -40,6 +40,8 @@ const vscodeWebResourceIncludes = [
 
 	// NLS
 	'out-build/nls.messages.js',
+	'out-build/nls.messages.json',
+	'out-build/nls.keys.json',
 
 	// Webview
 	'out-build/vs/workbench/contrib/webview/browser/pre/*.js',

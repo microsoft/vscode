@@ -17,16 +17,16 @@ const credential = new identity_1.ClientSecretCredential(process.env['AZURE_TENA
 function main() {
     return new Promise((c, e) => {
         const combinedMetadataJson = es.merge(
-        // vscode: we are not using `out-build/nls.metadata.json` here because
+        // vscode: we are not using `out-vscode-web-min/nls.metadata.json` here because
         // it includes metadata for translators for `keys`. but for our purpose
         // we want only the `keys` and `messages` as `string`.
-        es.merge(vfs.src('out-build/nls.keys.json', { base: 'out-build' }), vfs.src('out-build/nls.messages.json', { base: 'out-build' }))
+        es.merge(vfs.src('out-vscode-web-min/nls.keys.json', { base: 'out-vscode-web-min' }), vfs.src('out-vscode-web-min/nls.messages.json', { base: 'out-vscode-web-min' }))
             .pipe(merge({
             fileName: 'vscode.json',
             jsonSpace: '',
             concatArrays: true,
             edit: (parsedJson, file) => {
-                if (file.base === 'out-build') {
+                if (file.base === 'out-vscode-web-min') {
                     if (file.basename === 'nls.keys.json') {
                         return { keys: parsedJson };
                     }
@@ -93,7 +93,7 @@ function main() {
                 return { [key]: parsedJson };
             },
         }));
-        const nlsMessagesJs = vfs.src('out-build/nls.messages.js', { base: 'out-build' });
+        const nlsMessagesJs = vfs.src('out-vscode-web-min/nls.messages.js', { base: 'out-vscode-web-min' });
         es.merge(combinedMetadataJson, nlsMessagesJs)
             .pipe(gzip({ append: false }))
             .pipe(vfs.dest('./nlsMetadata'))
