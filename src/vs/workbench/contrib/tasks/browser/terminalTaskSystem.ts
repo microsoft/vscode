@@ -575,7 +575,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		const count = lastInstance?.count ?? { count: 0 };
 		count.count++;
 		const activeTask = { task, promise, count };
-		this._log('setting active task ' + activeTask.task._label);
 		this._activeTasks[mapKey] = activeTask;
 		return promise;
 	}
