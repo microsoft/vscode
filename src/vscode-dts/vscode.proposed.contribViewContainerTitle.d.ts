@@ -3,6 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// empty placeholder for view container context menus
+// empty placeholder for view container title menus
 
-// https://github.com/microsoft/vscode/issues/200880 @thegecko
+// https://github.com/microsoft/vscode/issues/200880 @roblourens
