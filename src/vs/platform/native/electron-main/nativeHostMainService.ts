@@ -179,6 +179,14 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		return undefined;
 	}
 
+	async getActiveWindowPosition(): Promise<IRectangle | undefined> {
+		const activeWindow = this.windowsMainService.getFocusedWindow() || this.windowsMainService.getLastActiveWindow();
+		if (activeWindow) {
+			return activeWindow.getBounds();
+		}
+		return undefined;
+	}
+
 	openWindow(windowId: number | undefined, options?: IOpenEmptyWindowOptions): Promise<void>;
 	openWindow(windowId: number | undefined, toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void>;
 	openWindow(windowId: number | undefined, arg1?: IOpenEmptyWindowOptions | IWindowOpenable[], arg2?: IOpenWindowOptions): Promise<void> {

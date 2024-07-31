@@ -38,7 +38,12 @@ export class NativeIssueFormService extends IssueFormService implements IIssueFo
 			return;
 		}
 
-		await super.openAuxIssueReporter(data);
+		const bounds = await this.nativeHostService.getActiveWindowPosition();
+		if (!bounds) {
+			return;
+		}
+
+		await this.openAuxIssueReporter(data, bounds);
 
 		// Get platform information
 		const { arch, release, type } = await this.nativeHostService.getOSProperties();
