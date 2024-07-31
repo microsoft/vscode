@@ -514,5 +514,29 @@
 		"addLabel": "verification-steps-needed",
 		"removeLabel": "~verification-steps-needed",
 		"comment": "Friendly ping! Looks like this issue requires some further steps to be verified. Please provide us with the steps necessary to verify this issue."
+	},
+	{
+		"type": "label",
+		"name": "~info-needed",
+		"action": "updateLabels",
+		"addLabel": "info-needed",
+		"removeLabel": "~info-needed",
+		"comment": "Thanks for creating this issue! We figured it's missing some basic information or in some other way doesn't follow our [issue reporting guidelines](https://aka.ms/vscodeissuereporting). Please take the time to review these and update the issue.\n\nHappy Coding!"
+	},
+	{
+		"type": "label",
+		"name": "~version-info-needed",
+		"action": "updateLabels",
+		"addLabel": "info-needed",
+		"removeLabel": "~version-info-needed",
+		"comment": "Thanks for creating this issue! We figured it's missing some basic information, such as a version number, or in some other way doesn't follow our [issue reporting guidelines](https://aka.ms/vscodeissuereporting). Please take the time to review these and update the issue.\n\nHappy Coding!"
+	},
+	{
+		"type": "label",
+		"name": "~confirmation-needed",
+		"action": "updateLabels",
+		"addLabel": "info-needed",
+		"removeLabel": "~confirmation-needed",
+		"comment": "Please diagnose the root cause of the issue by running the command `F1 > Help: Troubleshoot Issue` and following the instructions. Once you have done that, please update the issue with the results.\n\nHappy Coding!"
 	}
 ]
