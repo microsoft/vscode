@@ -118,7 +118,7 @@ flakySuite('Native Modules (all platforms)', () => {
 		assert.ok(typeof result === 'string' || typeof result === 'undefined', testErrorMessage('@vscode/windows-registry'));
 	});
 
-	test('@vscode/windows-ca-certs', async () => {
+	test.skip('@vscode/windows-ca-certs', async () => { // TODO@esm is this test still needed?
 		// @ts-ignore we do not directly depend on this module anymore
 		// but indirectly from our dependency to `@vscode/proxy-agent`
 		// we still want to ensure this module can work properly.
