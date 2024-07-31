@@ -13,7 +13,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator, IQuickPickSeparatorButtonEvent, QuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator, IQuickPickSeparatorButtonEvent, QuickPickItem, QuickPickFocus } from 'vs/platform/quickinput/common/quickInput';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IMatch } from 'vs/base/common/filters';
 import { IListAccessibilityProvider, IListStyles } from 'vs/base/browser/ui/list/listWidget';
@@ -37,7 +37,6 @@ import { RenderIndentGuides } from 'vs/base/browser/ui/tree/abstractTree';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { isCancellationError } from 'vs/base/common/errors';
 import type { IHoverWidget, IManagedHoverTooltipMarkdownString } from 'vs/base/browser/ui/hover/hover';
-import { QuickPickFocus } from '../common/quickInput';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { observableValue, observableValueOpts } from 'vs/base/common/observable';
 import { equals } from 'vs/base/common/arrays';
