@@ -215,6 +215,7 @@ function Set-MappedKeyHandlers {
 function Send-Completions {
 	$commandLine = ""
 	$cursorIndex = 0
+	$prefixCursorDelta = 0
 	[Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$commandLine, [ref]$cursorIndex)
 	$completionPrefix = $commandLine
 
@@ -222,14 +223,32 @@ function Send-Completions {
 	$result = "$([char]0x1b)]633;Completions"
 
 	# If there is a space in the input, defer to TabExpansion2 as it's more complicated to
-	# determine what type of completions to use
+	# determine what type of completions to use.
 	# `[` is included here as namespace commands are not included in CompleteCommand(''),
 	# additionally for some reason CompleteVariable('[') causes the prompt to clear and reprint
 	# multiple times
 	if ($completionPrefix.Contains(' ') -or $completionPrefix.Contains('[') -or $PSVersionTable.PSVersion -lt "6.0") {
+
+		# Adjust the completion prefix and cursor index such that tab expansion will be requested
+		# immediately after the last whitespace. This allows the client to perform fuzzy filtering
+		# such that requesting completions in the middle of a word should show the same completions
+		# as at the start. This only happens when the last word does not include `/` and `\` as
+		# often it will significantly change completions like when navigating directories.
+		$lastWhitespaceIndex = $completionPrefix.LastIndexOf(' ')
+		$lastWord = $completionPrefix.Substring($lastWhitespaceIndex + 1)
+		if ($lastWord.Contains('/') -eq $false -and $lastWord.Contains('\\') -eq $false) {
+			if ($lastWhitespaceIndex -ne -1 -and $lastWhitespaceIndex -lt $cursorIndex) {
+				$newCursorIndex = $lastWhitespaceIndex + 1
+				$completionPrefix = $completionPrefix.Substring(0, $newCursorIndex)
+				$prefixCursorDelta = $cursorIndex - $newCursorIndex
+				$cursorIndex = $newCursorIndex
+			}
+		}
+
+		# Get completions using TabExpansion2
 		$completions = TabExpansion2 -inputScript $completionPrefix -cursorColumn $cursorIndex
 		if ($null -ne $completions.CompletionMatches) {
-			$result += ";$($completions.ReplacementIndex);$($completions.ReplacementLength);$($cursorIndex);"
+			$result += ";$($completions.ReplacementIndex);$($completions.ReplacementLength + $prefixCursorDelta);$($cursorIndex - $prefixCursorDelta);"
 			$json = [System.Collections.ArrayList]@($completions.CompletionMatches)
 			# Add `.` and `..` to the completions list for results that only contain files and dirs
 			if ($completions.CompletionMatches.Count -gt 0 -and $completions.CompletionMatches.Where({ $_.ResultType -eq 3 -or $_.ResultType -eq 4 })) {
@@ -269,7 +288,7 @@ function Send-Completions {
 			([System.Management.Automation.CompletionCompleters]::CompleteVariable(''))
 		)
 		if ($null -ne $completions) {
-			$result += ";$($completions.ReplacementIndex);$($completions.ReplacementLength);$($cursorIndex);"
+			$result += ";$($completions.ReplacementIndex);$($completions.ReplacementLength + $prefixCursorDelta);$($cursorIndex - $prefixCursorDelta);"
 			$mappedCommands = Compress-Completions($completions)
 			$result += $mappedCommands | ConvertTo-Json -Compress
 		} else {
