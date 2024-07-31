@@ -498,7 +498,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 
 	private _loadExtensionContext(extensionDescription: IExtensionDescription, extensionInternalStore: DisposableStore): Promise<vscode.ExtensionContext> {
 
-		const lanuageModelAccessInformation = this._extHostLanguageModels.createLanguageModelAccessInformation(extensionDescription);
+		const languageModelAccessInformation = this._extHostLanguageModels.createLanguageModelAccessInformation(extensionDescription);
 		const globalState = extensionInternalStore.add(new ExtensionGlobalMemento(extensionDescription, this._storage));
 		const workspaceState = extensionInternalStore.add(new ExtensionMemento(extensionDescription.identifier.value, false, this._storage));
 		const secrets = extensionInternalStore.add(new ExtensionSecrets(extensionDescription, this._secretState));
@@ -527,7 +527,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 				workspaceState,
 				secrets,
 				subscriptions: [],
-				get languageModelAccessInformation() { return lanuageModelAccessInformation; },
+				get languageModelAccessInformation() { return languageModelAccessInformation; },
 				get extensionUri() { return extensionDescription.extensionLocation; },
 				get extensionPath() { return extensionDescription.extensionLocation.fsPath; },
 				asAbsolutePath(relativePath: string) { return path.join(extensionDescription.extensionLocation.fsPath, relativePath); },

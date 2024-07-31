@@ -718,6 +718,8 @@ export class Repository implements Disposable {
 	private _untrackedGroup: SourceControlResourceGroup;
 	get untrackedGroup(): GitResourceGroup { return this._untrackedGroup as GitResourceGroup; }
 
+	private _EMPTY_TREE: string | undefined;
+
 	private _HEAD: Branch | undefined;
 	get HEAD(): Branch | undefined {
 		return this._HEAD;
@@ -1110,6 +1112,10 @@ export class Repository implements Disposable {
 
 	diffBetweenShortStat(ref1: string, ref2: string): Promise<{ files: number; insertions: number; deletions: number }> {
 		return this.run(Operation.Diff, () => this.repository.diffBetweenShortStat(ref1, ref2));
+	}
+
+	diffTrees(treeish1: string, treeish2?: string): Promise<Change[]> {
+		return this.run(Operation.Diff, () => this.repository.diffTrees(treeish1, treeish2));
 	}
 
 	getMergeBase(ref1: string, ref2: string, ...refs: string[]): Promise<string | undefined> {
@@ -1600,6 +1606,15 @@ export class Repository implements Disposable {
 
 	async getCommit(ref: string): Promise<Commit> {
 		return await this.repository.getCommit(ref);
+	}
+
+	async getEmptyTree(): Promise<string> {
+		if (!this._EMPTY_TREE) {
+			const result = await this.repository.exec(['hash-object', '-t', 'tree', '/dev/null']);
+			this._EMPTY_TREE = result.stdout.trim();
+		}
+
+		return this._EMPTY_TREE;
 	}
 
 	async getCommitCount(range: string): Promise<{ ahead: number; behind: number }> {

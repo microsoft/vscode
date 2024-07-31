@@ -127,6 +127,7 @@ export interface IExtensionHost {
 	start(): Promise<IMessagePassingProtocol>;
 	getInspectPort(): { port: number; host: string } | undefined;
 	enableInspectPort(): Promise<boolean>;
+	disconnect?(): Promise<void>;
 	dispose(): void;
 }
 
@@ -383,6 +384,11 @@ export interface WillStopExtensionHostsEvent {
 	 * user.
 	 */
 	readonly reason: string;
+
+	/**
+	 * A flag to indicate if the operation was triggered automatically
+	 */
+	readonly auto: boolean;
 
 	/**
 	 * Allows to veto the stopping of extension hosts. The veto can be a long running

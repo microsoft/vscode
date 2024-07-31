@@ -364,4 +364,4 @@ export class NotebookEditorStatusContribution extends Disposable implements IWor
 }
 
 
-registerWorkbenchContribution2(NotebookEditorStatusContribution.ID, NotebookEditorStatusContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(NotebookEditorStatusContribution.ID, NotebookEditorStatusContribution, WorkbenchPhase.BlockRestore);

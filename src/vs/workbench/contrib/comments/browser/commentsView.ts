@@ -24,26 +24,29 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { CommentsViewFilterFocusContextKey, ICommentsView } from 'vs/workbench/contrib/comments/browser/comments';
-import { CommentsFilters, CommentsFiltersChangeEvent } from 'vs/workbench/contrib/comments/browser/commentsViewActions';
+import { CommentsFilters, CommentsFiltersChangeEvent, CommentsSortOrder } from 'vs/workbench/contrib/comments/browser/commentsViewActions';
 import { Memento, MementoObject } from 'vs/workbench/common/memento';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { FilterOptions } from 'vs/workbench/contrib/comments/browser/commentsFilterOptions';
 import { CommentThreadApplicability, CommentThreadState } from 'vs/editor/common/languages';
-import { ITreeElement } from 'vs/base/browser/ui/tree/tree';
 import { Iterable } from 'vs/base/common/iterator';
 import { revealCommentThread } from 'vs/workbench/contrib/comments/browser/commentsController';
 import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
-import { CommentsModel, ICommentsModel } from 'vs/workbench/contrib/comments/browser/commentsModel';
+import { CommentsModel, type ICommentsModel } from 'vs/workbench/contrib/comments/browser/commentsModel';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { AccessibleViewAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
+import type { ITreeElement } from 'vs/base/browser/ui/tree/tree';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
 
 export const CONTEXT_KEY_HAS_COMMENTS = new RawContextKey<boolean>('commentsView.hasComments', false);
 export const CONTEXT_KEY_SOME_COMMENTS_EXPANDED = new RawContextKey<boolean>('commentsView.someCommentsExpanded', false);
 export const CONTEXT_KEY_COMMENT_FOCUSED = new RawContextKey<boolean>('commentsView.commentFocused', false);
 const VIEW_STORAGE_ID = 'commentsViewState';
 
-function createResourceCommentsIterator(model: ICommentsModel): Iterable<ITreeElement<ResourceWithCommentThreads | CommentNode>> {
+type CommentsTreeNode = CommentsModel | ResourceWithCommentThreads | CommentNode;
+
+function createResourceCommentsIterator(model: ICommentsModel): Iterable<ITreeElement<CommentsTreeNode>> {
 	return Iterable.map(model.resourceCommentThreads, m => {
 		const CommentNodeIt = Iterable.from(m.commentThreads);
 		const children = Iterable.map(CommentNodeIt, r => ({ element: r }));
@@ -138,7 +141,8 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@IStorageService storageService: IStorageService
+		@IStorageService storageService: IStorageService,
+		@IPathService private readonly pathService: IPathService
 	) {
 		const stateMemento = new Memento(VIEW_STORAGE_ID, storageService);
 		const viewState = stateMemento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
@@ -161,12 +165,16 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		this.filters = this._register(new CommentsFilters({
 			showResolved: this.viewState['showResolved'] !== false,
 			showUnresolved: this.viewState['showUnresolved'] !== false,
+			sortBy: this.viewState['sortBy'],
 		}, this.contextKeyService));
 		this.filter = new Filter(new FilterOptions(this.filterWidget.getFilterText(), this.filters.showResolved, this.filters.showUnresolved));
 
 		this._register(this.filters.onDidChange((event: CommentsFiltersChangeEvent) => {
 			if (event.showResolved || event.showUnresolved) {
 				this.updateFilter();
+			}
+			if (event.sortBy) {
+				this.refresh();
 			}
 		}));
 		this._register(this.filterWidget.onDidChangeFilterText(() => this.updateFilter()));
@@ -177,6 +185,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		this.viewState['filterHistory'] = this.filterWidget.getHistory();
 		this.viewState['showResolved'] = this.filters.showResolved;
 		this.viewState['showUnresolved'] = this.filters.showUnresolved;
+		this.viewState['sortBy'] = this.filters.sortBy;
 		this.stateMemento.saveMemento();
 		super.saveState();
 	}
@@ -270,10 +279,10 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		}
 	}
 
-	private async renderComments(): Promise<void> {
+	private renderComments(): void {
 		this.treeContainer.classList.toggle('hidden', !this.commentService.commentsModel.hasCommentThreads());
 		this.renderMessage();
-		await this.tree?.setChildren(null, createResourceCommentsIterator(this.commentService.commentsModel));
+		this.tree?.setChildren(null, createResourceCommentsIterator(this.commentService.commentsModel));
 	}
 
 	public collapseAll() {
@@ -391,8 +400,30 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 			selectionNavigation: true,
 			filter: this.filter,
+			sorter: {
+				compare: (a: CommentsTreeNode, b: CommentsTreeNode) => {
+					if (a instanceof CommentsModel || b instanceof CommentsModel) {
+						return 0;
+					}
+					if (this.filters.sortBy === CommentsSortOrder.UpdatedAtDescending) {
+						return a.lastUpdatedAt > b.lastUpdatedAt ? -1 : 1;
+					} else if (this.filters.sortBy === CommentsSortOrder.ResourceAscending) {
+						if (a instanceof ResourceWithCommentThreads && b instanceof ResourceWithCommentThreads) {
+							const workspaceScheme = this.pathService.defaultUriScheme;
+							if ((a.resource.scheme !== b.resource.scheme) && (a.resource.scheme === workspaceScheme || b.resource.scheme === workspaceScheme)) {
+								// Workspace scheme should always come first
+								return b.resource.scheme === workspaceScheme ? 1 : -1;
+							}
+							return a.resource.toString() > b.resource.toString() ? 1 : -1;
+						} else if (a instanceof CommentNode && b instanceof CommentNode && a.thread.range && b.thread.range) {
+							return a.thread.range?.startLineNumber > b.thread.range?.startLineNumber ? 1 : -1;
+						}
+					}
+					return 0;
+				},
+			},
 			keyboardNavigationLabelProvider: {
-				getKeyboardNavigationLabel: (item: CommentsModel | ResourceWithCommentThreads | CommentNode) => {
+				getKeyboardNavigationLabel: (item: CommentsTreeNode) => {
 					return undefined;
 				}
 			},
@@ -449,11 +480,8 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		}
 		if (this.isVisible()) {
 			this.hasCommentsContextKey.set(this.commentService.commentsModel.hasCommentThreads());
-
-			this.treeContainer.classList.toggle('hidden', !this.commentService.commentsModel.hasCommentThreads());
 			this.cachedFilterStats = undefined;
-			this.renderMessage();
-			this.tree?.setChildren(null, createResourceCommentsIterator(this.commentService.commentsModel));
+			this.renderComments();
 
 			if (this.tree.getSelection().length === 0 && this.commentService.commentsModel.hasCommentThreads()) {
 				const firstComment = this.commentService.commentsModel.resourceCommentThreads[0].commentThreads[0];

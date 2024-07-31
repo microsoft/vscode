@@ -52,6 +52,7 @@ export interface IChatRequestModel {
 	readonly message: IParsedChatRequest;
 	readonly attempt: number;
 	readonly variableData: IChatRequestVariableData;
+	readonly confirmation?: string;
 	readonly response?: IChatResponseModel;
 }
 
@@ -144,11 +145,16 @@ export class ChatRequestModel implements IChatRequestModel {
 		this._variableData = v;
 	}
 
+	public get confirmation(): string | undefined {
+		return this._confirmation;
+	}
+
 	constructor(
 		private _session: ChatModel,
 		public readonly message: IParsedChatRequest,
 		private _variableData: IChatRequestVariableData,
-		private _attempt: number = 0
+		private _attempt: number = 0,
+		private _confirmation?: string
 	) {
 		this.id = 'request_' + ChatRequestModel.nextId++;
 	}
@@ -765,6 +771,7 @@ export class ChatModel extends Disposable implements IChatModel {
 
 					// Port entries from old format
 					const result = 'responseErrorDetails' in raw ?
+						// eslint-disable-next-line local/code-no-dangerous-type-assertions
 						{ errorDetails: raw.responseErrorDetails } as IChatAgentResult : raw.result;
 					request.response = new ChatResponseModel(raw.response ?? [new MarkdownString(raw.response)], this, agent, raw.slashCommand, request.id, true, raw.isCanceled, raw.vote, result, raw.followups);
 					if (raw.usedContext) { // @ulugbekna: if this's a new vscode sessions, doc versions are incorrect anyway?
@@ -861,8 +868,8 @@ export class ChatModel extends Disposable implements IChatModel {
 		return this._requests;
 	}
 
-	addRequest(message: IParsedChatRequest, variableData: IChatRequestVariableData, attempt: number, chatAgent?: IChatAgentData, slashCommand?: IChatAgentCommand): ChatRequestModel {
-		const request = new ChatRequestModel(this, message, variableData, attempt);
+	addRequest(message: IParsedChatRequest, variableData: IChatRequestVariableData, attempt: number, chatAgent?: IChatAgentData, slashCommand?: IChatAgentCommand, confirmation?: string): ChatRequestModel {
+		const request = new ChatRequestModel(this, message, variableData, attempt, confirmation);
 		request.response = new ChatResponseModel([], this, chatAgent, slashCommand, request.id);
 
 		this._requests.push(request);
