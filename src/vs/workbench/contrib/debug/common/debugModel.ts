@@ -312,8 +312,9 @@ export class Expression extends ExpressionContainer implements IExpression {
 	}
 
 	async evaluate(session: IDebugSession | undefined, stackFrame: IStackFrame | undefined, context: string, keepLazyVars?: boolean, location?: IDebugEvaluatePosition): Promise<void> {
+		const hadDefaultValue = this.value === Expression.DEFAULT_VALUE;
 		this.available = await this.evaluateExpression(this.name, session, stackFrame, context, keepLazyVars, location);
-		if (this.valueChanged) {
+		if (hadDefaultValue || this.valueChanged) {
 			this._onDidChangeValue.fire(this);
 		}
 	}
