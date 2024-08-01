@@ -567,7 +567,6 @@ export class ActionBar extends Disposable implements IActionRunner {
 			if (!focusItem) {
 				this.actionsList.focus({ preventScroll });
 				this.previouslyFocusedItem = undefined;
-				return;
 			} else if (forceFocus || this.previouslyFocusedItem !== this.focusedItem) {
 				actionViewItem.focus(fromRight);
 				this.previouslyFocusedItem = this.focusedItem;
