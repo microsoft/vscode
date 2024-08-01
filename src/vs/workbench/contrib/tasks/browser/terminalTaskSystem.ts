@@ -1056,9 +1056,10 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				this._terminalService.focusInstance(terminal);
 			}
 		}
-		if (this._activeTasks[task.getMapKey()]) {
-			// it's possible this has been removed already
-			this._activeTasks[task.getMapKey()].terminal = terminal;
+		const activeTask = this._activeTasks[task.getMapKey()];
+		// it's possible this has been removed already
+		if (activeTask) {
+			activeTask.terminal = terminal;
 		}
 		this._fireTaskEvent(TaskEvent.changed());
 		return promise;
