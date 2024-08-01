@@ -16,14 +16,13 @@ import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import { isString } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
-import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInput, IQuickInputButton, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, IQuickWidget, QuickInputHideReason, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
+import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInput, IQuickInputButton, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, IQuickWidget, QuickInputHideReason, QuickPickInput, QuickPickFocus } from 'vs/platform/quickinput/common/quickInput';
 import { QuickInputBox } from 'vs/platform/quickinput/browser/quickInputBox';
 import { QuickInputUI, Writeable, IQuickInputStyles, IQuickInputOptions, QuickPick, backButton, InputBox, Visibilities, QuickWidget, InQuickInputContextKey, QuickInputTypeContextKey, EndOfQuickInputBoxContextKey } from 'vs/platform/quickinput/browser/quickInput';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { mainWindow } from 'vs/base/browser/window';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { QuickInputTree } from 'vs/platform/quickinput/browser/quickInputTree';
-import { QuickPickFocus } from '../common/quickInput';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import 'vs/platform/quickinput/browser/quickInputActions';
 

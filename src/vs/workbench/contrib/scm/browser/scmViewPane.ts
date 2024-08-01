@@ -115,6 +115,7 @@ import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
 import { IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { fromNow } from 'vs/base/common/date';
 import { equals } from 'vs/base/common/arrays';
+import { observableConfigValue } from 'vs/platform/observable/common/platformObservableUtils';
 
 // type SCMResourceTreeNode = IResourceNode<ISCMResource, ISCMResourceGroup>;
 // type SCMHistoryItemChangeResourceTreeNode = IResourceNode<SCMHistoryItemChangeTreeElement, SCMHistoryItemTreeElement>;
@@ -1948,12 +1949,11 @@ registerAction2(class extends Action2 {
 
 		const title = historyItems.length === 1 ?
 			`${historyItems[0].id.substring(0, 8)} - ${historyItems[0].message}` :
-			localize('historyItemChangesEditorTitle', "All Changes ({0} ↔ {1})", historyItem.id.substring(0, 8), historyItemLast.id.substring(0, 8));
+			localize('historyItemChangesEditorTitle', "All Changes ({0} ↔ {1})", historyItemLast.id.substring(0, 8), historyItem.id.substring(0, 8));
 
 		const rootUri = provider.rootUri;
-		const multiDiffSourceUri = rootUri ?
-			rootUri.with({ scheme: 'scm-history-item', path: `${rootUri.path}/${historyItem.id}..${historyItemParentId}` }) :
-			URI.from({ scheme: 'scm-history-item', path: `${provider.label}/${historyItem.id}..${historyItemParentId}` }, true);
+		const path = rootUri ? rootUri.path : provider.label;
+		const multiDiffSourceUri = URI.from({ scheme: 'scm-history-item', path: `${path}/${historyItemParentId}..${historyItem.id}` }, true);
 
 		commandService.executeCommand('_workbench.openMultiDiffEditor', { title, multiDiffSourceUri, resources: historyItemChanges });
 	}
@@ -3272,6 +3272,8 @@ export class SCMViewPane extends ViewPane {
 		const treeDataSource = this.instantiationService.createInstance(SCMTreeDataSource, () => this.viewMode, this.historyProviderDataSource);
 		this.disposables.add(treeDataSource);
 
+		const compressionEnabled = observableConfigValue('scm.compactFolders', true, this.configurationService);
+
 		this.tree = this.instantiationService.createInstance(
 			WorkbenchCompressibleAsyncDataTree,
 			'SCM Tree Repo',
@@ -3301,6 +3303,7 @@ export class SCMViewPane extends ViewPane {
 				sorter: new SCMTreeSorter(() => this.viewMode, () => this.viewSortKey),
 				keyboardNavigationLabelProvider: this.instantiationService.createInstance(SCMTreeKeyboardNavigationLabelProvider, () => this.viewMode),
 				overrideStyles: this.getLocationBasedColors().listOverrideStyles,
+				compressionEnabled: compressionEnabled.get(),
 				collapseByDefault: (e: unknown) => {
 					// Repository, Resource Group, Resource Folder (Tree), History Item Change Folder (Tree)
 					if (isSCMRepository(e) || isSCMResourceGroup(e) || isSCMResourceNode(e) || isSCMHistoryItemChangeNode(e)) {
@@ -3319,6 +3322,12 @@ export class SCMViewPane extends ViewPane {
 		this.tree.onContextMenu(this.onListContextMenu, this, this.disposables);
 		this.tree.onDidScroll(this.inputRenderer.clearValidation, this.inputRenderer, this.disposables);
 		Event.filter(this.tree.onDidChangeCollapseState, e => isSCMRepository(e.node.element?.element), this.disposables)(this.updateRepositoryCollapseAllContextKeys, this, this.disposables);
+
+		this.disposables.add(autorun(reader => {
+			this.tree.updateOptions({
+				compressionEnabled: compressionEnabled.read(reader)
+			});
+		}));
 
 		append(container, overflowWidgetsDomNode);
 	}
@@ -3420,9 +3429,8 @@ export class SCMViewPane extends ViewPane {
 				const title = `${historyItem.id.substring(0, 8)} - ${historyItem.message}`;
 
 				const rootUri = e.element.repository.provider.rootUri;
-				const multiDiffSourceUri = rootUri ?
-					rootUri.with({ scheme: 'scm-history-item', path: `${rootUri.path}/${historyItem.id}..${historyItemParentId}` }) :
-					URI.from({ scheme: 'scm-history-item', path: `${e.element.repository.provider.label}/${historyItem.id}..${historyItemParentId}` }, true);
+				const path = rootUri ? rootUri.path : e.element.repository.provider.label;
+				const multiDiffSourceUri = URI.from({ scheme: 'scm-history-item', path: `${path}/${historyItemParentId}..${historyItem.id}` }, true);
 
 				await this.commandService.executeCommand('_workbench.openMultiDiffEditor', { title, multiDiffSourceUri, resources: historyItemChanges });
 			}
@@ -4125,9 +4133,9 @@ class SCMTreeHistoryProviderDataSource extends Disposable {
 			});
 		}
 
-		// If we only have one history item that contains all the
-		// labels (current, remote, base), we don't need to show it
-		if (historyItemsElement.length === 1) {
+		// If we only have one history item that contains all the labels (current, remote, base),
+		// we don't need to show it, unless it is the root commit (does not have any parents).
+		if (historyItemsElement.length === 1 && historyItemsElement[0].parentIds.length > 0) {
 			const currentHistoryItemGroupLabels = [
 				currentHistoryItemGroup.name,
 				...currentHistoryItemGroup.remote ? [currentHistoryItemGroup.remote.name] : [],

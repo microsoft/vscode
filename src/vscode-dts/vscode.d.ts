@@ -18620,8 +18620,8 @@ declare module 'vscode' {
 		 * An event that fires whenever feedback for a result is received, e.g. when a user up- or down-votes
 		 * a result.
 		 *
-		 * The passed {@link ChatResultFeedback.result result} is guaranteed to be the same instance that was
-		 * previously returned from this chat participant.
+		 * The passed {@link ChatResultFeedback.result result} is guaranteed to have the same properties as the result that was
+		 * previously returned from this chat participant's handler.
 		 */
 		onDidReceiveFeedback: Event<ChatResultFeedback>;
 

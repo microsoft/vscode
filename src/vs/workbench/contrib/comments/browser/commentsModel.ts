@@ -9,6 +9,12 @@ import { CommentThread } from 'vs/editor/common/languages';
 import { localize } from 'vs/nls';
 import { ResourceWithCommentThreads, ICommentThreadChangedEvent } from 'vs/workbench/contrib/comments/common/commentModel';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { isMarkdownString } from 'vs/base/common/htmlContent';
+
+export function threadHasMeaningfulComments(thread: CommentThread): boolean {
+	return !!thread.comments && !!thread.comments.length && thread.comments.some(comment => isMarkdownString(comment.body) ? comment.body.value.length > 0 : comment.body.length > 0);
+
+}
 
 export interface ICommentsModel {
 	hasCommentThreads(): boolean;
@@ -38,9 +44,6 @@ export class CommentsModel extends Disposable implements ICommentsModel {
 				return resource;
 			}).flat();
 		}).flat();
-		this._resourceCommentThreads.sort((a, b) => {
-			return a.resource.toString() > b.resource.toString() ? 1 : -1;
-		});
 	}
 
 	public setCommentThreads(uniqueOwner: string, owner: string, ownerLabel: string, commentThreads: CommentThread[]): void {
@@ -116,7 +119,14 @@ export class CommentsModel extends Disposable implements ICommentsModel {
 	}
 
 	public hasCommentThreads(): boolean {
-		return !!this._resourceCommentThreads.length;
+		// There's a resource with at least one thread
+		return !!this._resourceCommentThreads.length && this._resourceCommentThreads.some(resource => {
+			// At least one of the threads in the the resource has comments
+			return (resource.commentThreads.length > 0) && resource.commentThreads.some(thread => {
+				// At least one of the comments in the thread is not empty
+				return threadHasMeaningfulComments(thread.thread);
+			});
+		});
 	}
 
 	public getMessage(): string {
