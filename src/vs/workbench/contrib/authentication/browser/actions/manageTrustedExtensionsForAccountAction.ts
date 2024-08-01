@@ -152,19 +152,8 @@ export class ManageTrustedExtensionsForAccountAction extends Action2 {
 			};
 		};
 		const items: Array<TrustedExtensionsQuickPickItem | IQuickPickSeparator> = [
-			{
-				type: 'separator', label: localize('trustedExtensions', "Trusted by Microsoft"), buttons: [{
-					iconClass: 'codicon-gear',
-					tooltip: localize('manageTrustedExtensions', "Manage Trusted Extensions")
-				}]
-			},
 			...otherExtensions.sort(sortByLastUsed).map(toQuickPickItem),
-			{
-				type: 'separator', label: localize('trustedExtensions', "Trusted by Microsoft"), buttons: [{
-					iconClass: 'codicon-gear',
-					tooltip: localize('manageTrustedExtensions', "Manage Trusted Extensions")
-				}]
-			},
+			{ type: 'separator', label: localize('trustedExtensions', "Trusted by Microsoft") },
 			...trustedExtensions.sort(sortByLastUsed).map(toQuickPickItem)
 		];
 		quickPick.sortByLabel = false;
