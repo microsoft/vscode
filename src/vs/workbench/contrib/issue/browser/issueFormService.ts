@@ -14,6 +14,7 @@ import { ExtensionIdentifier, ExtensionIdentifierSet } from 'vs/platform/extensi
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import product from 'vs/platform/product/common/product';
+import { IRectangle } from 'vs/platform/window/common/window';
 import BaseHtml from 'vs/workbench/contrib/issue/browser/issueReporterPage';
 import { IssueWebReporter } from 'vs/workbench/contrib/issue/browser/issueReporterService';
 import { IIssueFormService, IssueReporterData } from 'vs/workbench/contrib/issue/common/issue';
@@ -61,11 +62,21 @@ export class IssueFormService implements IIssueFormService {
 		}
 	}
 
-	async openAuxIssueReporter(data: IssueReporterData): Promise<void> {
+	async openAuxIssueReporter(data: IssueReporterData, bounds?: IRectangle): Promise<void> {
+
+		let issueReporterBounds: Partial<IRectangle> = { width: 700, height: 800 };
+
+		// Center Issue Reporter Window based on bounds from native host service
+		if (bounds && bounds.x && bounds.y) {
+			const centerX = bounds.x + bounds.width / 2;
+			const centerY = bounds.y + bounds.height / 2;
+			issueReporterBounds = { ...issueReporterBounds, x: centerX - 350, y: centerY - 400 };
+		}
+
 		const disposables = new DisposableStore();
 
 		// Auxiliary Window
-		const auxiliaryWindow = disposables.add(await this.auxiliaryWindowService.open({ mode: AuxiliaryWindowMode.Custom, bounds: { width: 700, height: 800 } }));
+		const auxiliaryWindow = disposables.add(await this.auxiliaryWindowService.open({ mode: AuxiliaryWindowMode.Custom, bounds: issueReporterBounds }));
 
 		if (auxiliaryWindow) {
 			await auxiliaryWindow.whenStylesHaveLoaded;
