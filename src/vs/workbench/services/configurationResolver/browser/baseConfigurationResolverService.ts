@@ -22,6 +22,14 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 
+function getSelection(editorService: IEditorService) {
+	const activeTextEditorControl = editorService.activeTextEditorControl;
+	if (isCodeEditor(activeTextEditorControl)) {
+		return activeTextEditorControl.getSelection();
+	}
+	return undefined;
+}
+
 export abstract class BaseConfigurationResolverService extends AbstractVariableResolverService {
 
 	static readonly INPUT_OR_COMMAND_VARIABLES_PATTERN = /\${((input|command):(.*?))}/g;
@@ -105,13 +113,16 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 				return undefined;
 			},
 			getLineNumber: (): string | undefined => {
-				const activeTextEditorControl = editorService.activeTextEditorControl;
-				if (isCodeEditor(activeTextEditorControl)) {
-					const selection = activeTextEditorControl.getSelection();
-					if (selection) {
-						const lineNumber = selection.positionLineNumber;
-						return String(lineNumber);
-					}
+				const selection = getSelection(editorService);
+				if (selection) {
+					return String(selection.positionLineNumber);
+				}
+				return undefined;
+			},
+			getColumnNumber: (): string | undefined => {
+				const selection = getSelection(editorService);
+				if (selection) {
+					return String(selection.positionColumn);
 				}
 				return undefined;
 			},
