@@ -167,6 +167,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 			} else if (event.equals(KeyCode.End)) {
 				eventHandled = this.focusLast();
 			} else if (event.equals(KeyCode.Tab) && focusedItem instanceof BaseActionViewItem && focusedItem.trapsArrowNavigation) {
+				// Tab, so forcibly focus next #219199
 				eventHandled = this.focusNext(undefined, true);
 			} else if (this.isTriggerKeyEvent(event)) {
 				// Staying out of the else branch even if not triggered
