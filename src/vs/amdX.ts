@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isESM } from 'vs/base/common/amd';
+import { isESM, canASAR } from 'vs/base/common/amd';
 import { AppResourcePath, FileAccess, nodeModulesAsarPath, nodeModulesPath } from 'vs/base/common/network';
 import * as platform from 'vs/base/common/platform';
 import { IProductConfiguration } from 'vs/base/common/product';
@@ -198,7 +198,7 @@ export async function importAMDNodeModule<T>(nodeModuleName: string, pathInsideN
 			// bit of a special case for: src/vs/workbench/services/languageDetection/browser/languageDetectionSimpleWorker.ts
 			scriptSrc = nodeModulePath;
 		} else {
-			const useASAR = (isBuilt && !platform.isWeb);
+			const useASAR = (canASAR && isBuilt && !platform.isWeb);
 			const actualNodeModulesPath = (useASAR ? nodeModulesAsarPath : nodeModulesPath);
 			const resourcePath: AppResourcePath = `${actualNodeModulesPath}/${nodeModulePath}`;
 			scriptSrc = FileAccess.asBrowserUri(resourcePath).toString(true);
@@ -216,7 +216,7 @@ export function resolveAmdNodeModulePath(nodeModuleName: string, pathInsideNodeM
 
 	const product = globalThis._VSCODE_PRODUCT_JSON as unknown as IProductConfiguration;
 	const isBuilt = Boolean((product ?? (<any>globalThis).vscode?.context?.configuration()?.product)?.commit);
-	const useASAR = (isBuilt && !platform.isWeb);
+	const useASAR = (canASAR && isBuilt && !platform.isWeb);
 
 	const nodeModulePath = `${nodeModuleName}/${pathInsideNodeModule}`;
 	const actualNodeModulesPath = (useASAR ? nodeModulesAsarPath : nodeModulesPath);
