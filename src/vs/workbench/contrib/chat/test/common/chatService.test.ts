@@ -26,6 +26,8 @@ import { ChatSlashCommandService, IChatSlashCommandService } from 'vs/workbench/
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { MockChatService } from 'vs/workbench/contrib/chat/test/common/mockChatService';
 import { MockChatVariablesService } from 'vs/workbench/contrib/chat/test/common/mockChatVariables';
+import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
+import { NullWorkbenchAssignmentService } from 'vs/workbench/services/assignment/test/common/nullAssignmentService';
 import { IExtensionService, nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { TestContextService, TestExtensionService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
@@ -73,6 +75,7 @@ suite('ChatService', () => {
 	setup(async () => {
 		instantiationService = testDisposables.add(new TestInstantiationService(new ServiceCollection(
 			[IChatVariablesService, new MockChatVariablesService()],
+			[IWorkbenchAssignmentService, new NullWorkbenchAssignmentService()]
 		)));
 		instantiationService.stub(IStorageService, storageService = testDisposables.add(new TestStorageService()));
 		instantiationService.stub(ILogService, new NullLogService());

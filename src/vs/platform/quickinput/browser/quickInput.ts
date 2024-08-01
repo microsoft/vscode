@@ -25,13 +25,12 @@ import Severity from 'vs/base/common/severity';
 import { ThemeIcon } from 'vs/base/common/themables';
 import 'vs/css!./media/quickInput';
 import { localize } from 'vs/nls';
-import { IInputBox, IKeyMods, IQuickInput, IQuickInputButton, IQuickInputHideEvent, IQuickInputToggle, IQuickNavigateConfiguration, IQuickPick, IQuickPickDidAcceptEvent, IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator, IQuickPickSeparatorButtonEvent, IQuickPickWillAcceptEvent, IQuickWidget, ItemActivation, NO_KEY_MODS, QuickInputButtonLocation, QuickInputHideReason, QuickInputType } from 'vs/platform/quickinput/common/quickInput';
+import { IInputBox, IKeyMods, IQuickInput, IQuickInputButton, IQuickInputHideEvent, IQuickInputToggle, IQuickNavigateConfiguration, IQuickPick, IQuickPickDidAcceptEvent, IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator, IQuickPickSeparatorButtonEvent, IQuickPickWillAcceptEvent, IQuickWidget, ItemActivation, NO_KEY_MODS, QuickInputButtonLocation, QuickInputHideReason, QuickInputType, QuickPickFocus } from 'vs/platform/quickinput/common/quickInput';
 import { QuickInputBox } from './quickInputBox';
 import { quickInputButtonToAction, renderQuickInputDescription } from './quickInputUtils';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IHoverService, WorkbenchHoverDelegate } from 'vs/platform/hover/browser/hover';
 import { QuickInputTree } from 'vs/platform/quickinput/browser/quickInputTree';
-import { QuickPickFocus } from '../common/quickInput';
 import type { IHoverOptions } from 'vs/base/browser/ui/hover/hover';
 import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 

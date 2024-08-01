@@ -1062,6 +1062,7 @@ export interface PullOptions {
 }
 
 export class Repository {
+	private _isUsingRefTable = false;
 
 	constructor(
 		private _git: Git,
@@ -2330,13 +2331,25 @@ export class Repository {
 	}
 
 	async getHEAD(): Promise<Ref> {
-		try {
-			// Attempt to parse the HEAD file
-			const result = await this.getHEADFS();
-			return result;
-		}
-		catch (err) {
-			this.logger.warn(`[Git][getHEAD] Failed to parse HEAD file: ${err.message}`);
+		if (!this._isUsingRefTable) {
+			try {
+				// Attempt to parse the HEAD file
+				const result = await this.getHEADFS();
+
+				// Git 2.45 adds support for a new reference storage backend called "reftable", promising
+				// faster lookups, reads, and writes for repositories with any number of references. For
+				// backwards compatibility the `.git/HEAD` file contains `ref: refs/heads/.invalid`. More
+				// details are available at https://git-scm.com/docs/reftable
+				if (result.name === '.invalid') {
+					this._isUsingRefTable = true;
+					this.logger.warn(`[Git][getHEAD] Failed to parse HEAD file: Repository is using reftable format.`);
+				} else {
+					return result;
+				}
+			}
+			catch (err) {
+				this.logger.warn(`[Git][getHEAD] Failed to parse HEAD file: ${err.message}`);
+			}
 		}
 
 		try {

@@ -56,7 +56,7 @@ import { IChatRequestVariableEntry } from 'vs/workbench/contrib/chat/common/chat
 import { IChatFollowup } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { IChatHistoryEntry, IChatWidgetHistoryService } from 'vs/workbench/contrib/chat/common/chatWidgetHistoryService';
-import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
+import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions, setupSimpleEditorSelectionStyling } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 
 const $ = dom.$;
 
@@ -405,7 +405,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		options.scrollbar = { ...(options.scrollbar ?? {}), vertical: 'hidden' };
 		options.stickyScroll = { enabled: false };
 
-		this._inputEditorElement = dom.append(inputContainer, $('.interactive-input-editor'));
+		this._inputEditorElement = dom.append(inputContainer, $(chatInputEditorContainerSelector));
 		const editorOptions = getSimpleCodeEditorWidgetOptions();
 		editorOptions.contributions?.push(...EditorExtensionsRegistry.getSomeEditorContributions([HoverController.ID]));
 		this._inputEditor = this._register(scopedInstantiationService.createInstance(CodeEditorWidget, this._inputEditorElement, options, editorOptions));
@@ -697,3 +697,6 @@ class ChatSubmitDropdownActionItem extends DropdownWithPrimaryActionViewItem {
 		this._register(menu.onDidChange(() => setActions()));
 	}
 }
+
+const chatInputEditorContainerSelector = '.interactive-input-editor';
+setupSimpleEditorSelectionStyling(chatInputEditorContainerSelector);

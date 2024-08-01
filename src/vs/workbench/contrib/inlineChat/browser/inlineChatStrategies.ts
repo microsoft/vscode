@@ -26,10 +26,9 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { Progress } from 'vs/platform/progress/common/progress';
 import { SaveReason } from 'vs/workbench/common/editor';
 import { countWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
-import { HunkInformation, Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
+import { HunkInformation, Session, HunkState } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { InlineChatZoneWidget } from './inlineChatZoneWidget';
 import { CTX_INLINE_CHAT_CHANGE_HAS_DIFF, CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF, CTX_INLINE_CHAT_DOCUMENT_CHANGED, InlineChatConfigKeys, minimapInlineChatDiffInserted, overviewRulerInlineChatDiffInserted } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
-import { HunkState } from './inlineChatSession';
 import { assertType } from 'vs/base/common/types';
 import { IModelService } from 'vs/editor/common/services/model';
 import { performAsyncTextEdit, asProgressiveEdit } from './utils';

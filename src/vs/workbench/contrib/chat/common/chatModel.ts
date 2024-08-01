@@ -554,6 +554,9 @@ export interface ISerializableChatData extends IExportableChatData {
 	sessionId: string;
 	creationDate: number;
 	isImported: boolean;
+
+	/** Indicates that this session was created in this window. Is cleared after the chat has been written to storage once. Needed to sync chat creations/deletions between empty windows. */
+	isNew?: boolean;
 }
 
 export function isExportableSessionData(obj: unknown): obj is IExportableChatData {
