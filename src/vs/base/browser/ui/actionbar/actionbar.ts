@@ -167,6 +167,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 			} else if (event.equals(KeyCode.End)) {
 				eventHandled = this.focusLast();
 			} else if (event.equals(KeyCode.Tab) && focusedItem instanceof BaseActionViewItem && focusedItem.trapsArrowNavigation) {
+				this.previouslyFocusedItem = undefined;
 				eventHandled = this.focusNext();
 			} else if (this.isTriggerKeyEvent(event)) {
 				// Staying out of the else branch even if not triggered
@@ -202,6 +203,9 @@ export class ActionBar extends Disposable implements IActionRunner {
 			// Recompute focused item
 			else if (event.equals(KeyCode.Tab) || event.equals(KeyMod.Shift | KeyCode.Tab) || event.equals(KeyCode.UpArrow) || event.equals(KeyCode.DownArrow) || event.equals(KeyCode.LeftArrow) || event.equals(KeyCode.RightArrow)) {
 				this.updateFocusedItem();
+				if (event.equals(KeyCode.Tab)) {
+					this.previouslyFocusedItem = undefined;
+				}
 			}
 		}));
 
@@ -465,13 +469,13 @@ export class ActionBar extends Disposable implements IActionRunner {
 			const firstEnabled = this.viewItems.findIndex(item => item.isEnabled());
 			// Focus the first enabled item
 			this.focusedItem = firstEnabled === -1 ? undefined : firstEnabled;
-			this.updateFocus();
+			this.updateFocus(undefined, undefined, true);
 		} else {
 			if (index !== undefined) {
 				this.focusedItem = index;
 			}
 
-			this.updateFocus();
+			this.updateFocus(undefined, undefined, true);
 		}
 	}
 
@@ -537,7 +541,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 		return true;
 	}
 
-	protected updateFocus(fromRight?: boolean, preventScroll?: boolean): void {
+	protected updateFocus(fromRight?: boolean, preventScroll?: boolean, forceFocus: boolean = false): void {
 		if (typeof this.focusedItem === 'undefined') {
 			this.actionsList.focus({ preventScroll });
 		}
@@ -564,9 +568,10 @@ export class ActionBar extends Disposable implements IActionRunner {
 				this.actionsList.focus({ preventScroll });
 				this.previouslyFocusedItem = undefined;
 				return;
+			} else if (forceFocus || this.previouslyFocusedItem !== this.focusedItem) {
+				actionViewItem.focus(fromRight);
+				this.previouslyFocusedItem = this.focusedItem;
 			}
-			actionViewItem.focus(fromRight);
-			this.previouslyFocusedItem = this.focusedItem;
 			if (focusItem) {
 				actionViewItem.showHover?.();
 			}
