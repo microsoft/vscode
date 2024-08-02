@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Protocol } from 'playwright-core/types/protocol';
+const { decode_bytes } = require('@vscode/v8-heap-parser');
 import { Code } from './code';
 import { PlaywrightDriver } from './playwrightDriver';
 
@@ -38,6 +39,26 @@ export class Profiler {
 			const countAfter = matchedInstancesAfter.count;
 			if (countAfter !== countsBefore[className]) {
 				leaks.push(`Leaked ${countAfter - countsBefore[className]} ${className}`);
+			}
+		}
+
+		if (leaks.length > 0) {
+			throw new Error(leaks.join('\n'));
+		}
+	}
+
+	async checkHeapLeaks(classNames: string | string[], fn: () => Promise<void>): Promise<void> {
+		await this.code.driver.startCDP();
+		await fn();
+
+		const heapSnapshotAfter = await this.code.driver.takeHeapSnapshot();
+		const buff = Buffer.from(heapSnapshotAfter);
+		const graph = await decode_bytes(buff);
+		const counts: number[] = Array.from(graph.get_class_counts(classNames));
+		const leaks: string[] = [];
+		for (let i = 0; i < classNames.length; i++) {
+			if (counts[i] > 0) {
+				leaks.push(`Leaked ${counts[i]} ${classNames[i]}`);
 			}
 		}
 
@@ -106,6 +127,7 @@ function generateUuid() {
  *--------------------------------------------------------------------------------------------*/
 
 const getInstances = async (driver: PlaywrightDriver): Promise<Array<{ name: string; count: number }>> => {
+	await driver.collectGarbage();
 	const objectGroup = `og:${generateUuid()}`;
 	const prototypeDescriptor = await driver.evaluate({
 		expression: 'Object.prototype',

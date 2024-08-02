@@ -94,6 +94,14 @@ export class PlaywrightDriver {
 		this._cdpSession = await this.page.context().newCDPSession(this.page);
 	}
 
+	async collectGarbage() {
+		if (!this._cdpSession) {
+			throw new Error('CDP not started');
+		}
+
+		await this._cdpSession.send('HeapProfiler.collectGarbage');
+	}
+
 	async evaluate(options: Protocol.Runtime.evaluateParameters): Promise<Protocol.Runtime.evaluateReturnValue> {
 		if (!this._cdpSession) {
 			throw new Error('CDP not started');
@@ -116,6 +124,20 @@ export class PlaywrightDriver {
 		}
 
 		return await this._cdpSession.send('Runtime.callFunctionOn', parameters);
+	}
+
+	async takeHeapSnapshot(): Promise<string> {
+		if (!this._cdpSession) {
+			throw new Error('CDP not started');
+		}
+
+		let snapshot = '';
+		this._cdpSession.addListener('HeapProfiler.addHeapSnapshotChunk', ({ chunk }) => {
+			snapshot += chunk;
+		});
+
+		await this._cdpSession.send('HeapProfiler.takeHeapSnapshot');
+		return snapshot;
 	}
 
 	async getProperties(parameters: Protocol.Runtime.getPropertiesParameters): Promise<Protocol.Runtime.getPropertiesReturnValue> {
