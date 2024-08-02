@@ -228,7 +228,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 					if (promptInputState.cursorIndex === 1 || promptInputState.prefix.match(/([\s\[])[^\s]$/)) {
 						// Never request completions if the last key sequence was up or down as the user was likely
 						// navigating history
-						if (this._lastUserData !== /*up*/'\x1b[A' && this._lastUserData !== /*down*/'\x1b[B') {
+						if (!this._lastUserData?.match(/\x1b[\[O][AB]/)) {
 							this._requestCompletions();
 							sent = true;
 						}
