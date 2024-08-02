@@ -16,11 +16,12 @@ import { Extensions as WorkbenchExtensions, IConfigurationMigrationRegistry, Con
 // Import configuration schemes from terminalContrib - this is an exception to the eslint rule since
 // they need to be declared at part of the rest of the terminal configuration
 import { terminalAccessibilityConfiguration } from 'vs/workbench/contrib/terminalContrib/accessibility/common/terminalAccessibilityConfiguration'; // eslint-disable-line local/code-import-patterns
+import { terminalCommandGuideConfiguration } from 'vs/workbench/contrib/terminalContrib/commandGuide/common/terminalCommandGuideConfiguration'; // eslint-disable-line local/code-import-patterns
+import { terminalInitialHintConfiguration } from 'vs/workbench/contrib/terminalContrib/chat/common/terminalInitialHintConfiguration'; // eslint-disable-line local/code-import-patterns
 import { terminalStickyScrollConfiguration } from 'vs/workbench/contrib/terminalContrib/stickyScroll/common/terminalStickyScrollConfiguration'; // eslint-disable-line local/code-import-patterns
+import { terminalSuggestConfiguration } from 'vs/workbench/contrib/terminalContrib/suggest/common/terminalSuggestConfiguration'; // eslint-disable-line local/code-import-patterns
 import { terminalTypeAheadConfiguration } from 'vs/workbench/contrib/terminalContrib/typeAhead/common/terminalTypeAheadConfiguration'; // eslint-disable-line local/code-import-patterns
 import { terminalZoomConfiguration } from 'vs/workbench/contrib/terminalContrib/zoom/common/terminal.zoom'; // eslint-disable-line local/code-import-patterns
-import { terminalSuggestConfiguration } from 'vs/workbench/contrib/terminalContrib/suggest/common/terminalSuggestConfiguration'; // eslint-disable-line local/code-import-patterns
-import { terminalInitialHintConfiguration } from 'vs/workbench/contrib/terminalContrib/chat/common/terminalInitialHintConfiguration';  // eslint-disable-line local/code-import-patterns
 
 const terminalDescriptors = '\n- ' + [
 	'`\${cwd}`: ' + localize("cwd", "the terminal's current working directory"),
@@ -624,6 +625,7 @@ const terminalConfiguration: IConfigurationNode = {
 			]
 		},
 		...terminalAccessibilityConfiguration,
+		...terminalCommandGuideConfiguration,
 		...terminalInitialHintConfiguration,
 		...terminalStickyScrollConfiguration,
 		...terminalSuggestConfiguration,
