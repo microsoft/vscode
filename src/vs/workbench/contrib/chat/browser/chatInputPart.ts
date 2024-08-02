@@ -432,18 +432,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 			this._onDidBlur.fire();
 		}));
-		this._register(this._inputEditor.onDidChangeCursorPosition(e => {
-			const model = this._inputEditor.getModel();
-			if (!model) {
-				return;
-			}
-
-			const atTop = e.position.column === 1 && e.position.lineNumber === 1;
-			this.chatCursorAtTop.set(atTop);
-
-			this.historyNavigationBackwardsEnablement.set(atTop);
-			this.historyNavigationForewardsEnablement.set(e.position.equals(getLastPosition(model)));
-		}));
 
 		this.toolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, inputContainer, this.options.menus.executeToolbar, {
 			telemetrySource: this.options.menus.telemetrySource,
@@ -496,6 +484,26 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const lineNumber = this.inputModel.getLineCount();
 			this._inputEditor.setPosition({ lineNumber, column: this.inputModel.getLineMaxColumn(lineNumber) });
 		}
+
+		const onDidChangeCursorPosition = () => {
+			const model = this._inputEditor.getModel();
+			if (!model) {
+				return;
+			}
+
+			const position = this._inputEditor.getPosition();
+			if (!position) {
+				return;
+			}
+
+			const atTop = position.column === 1 && position.lineNumber === 1;
+			this.chatCursorAtTop.set(atTop);
+
+			this.historyNavigationBackwardsEnablement.set(atTop);
+			this.historyNavigationForewardsEnablement.set(position.equals(getLastPosition(model)));
+		};
+		this._register(this._inputEditor.onDidChangeCursorPosition(e => onDidChangeCursorPosition()));
+		onDidChangeCursorPosition();
 	}
 
 	private initAttachedContext(container: HTMLElement) {
