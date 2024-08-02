@@ -2264,7 +2264,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const showAllColorsItem = { label: 'Reset to default' };
 		items.push(showAllColorsItem);
 
-		const quickPick = this._quickInputService.createQuickPick();
+		const quickPick = this._quickInputService.createQuickPick({ useSeparators: true });
 		quickPick.items = items;
 		quickPick.matchOnDescription = true;
 		quickPick.placeholder = nls.localize('changeColor', 'Select a color for the terminal');

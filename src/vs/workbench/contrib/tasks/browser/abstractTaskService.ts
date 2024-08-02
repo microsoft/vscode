@@ -55,7 +55,7 @@ import { getTemplates as getTaskTemplates } from 'vs/workbench/contrib/tasks/com
 import * as TaskConfig from '../common/taskConfiguration';
 import { TerminalTaskSystem } from './terminalTaskSystem';
 
-import { IQuickInputService, IQuickPick, IQuickPickItem, IQuickPickSeparator, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService, IQuickPickItem, IQuickPickSeparator, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { TaskDefinitionRegistry } from 'vs/workbench/contrib/tasks/common/taskDefinitionRegistry';
@@ -2738,7 +2738,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			entries.push(additionalEntries[0]);
 		}
 
-		const picker: IQuickPick<ITaskQuickPickEntry> = this._quickInputService.createQuickPick();
+		const picker = this._quickInputService.createQuickPick<ITaskQuickPickEntry>({ useSeparators: true });
 		picker.placeholder = placeHolder;
 		picker.matchOnDescription = true;
 		if (name) {
