@@ -371,8 +371,11 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 			return;
 		}
 		const lastInstanceIndex = this.groups.length - 1;
-		this.groups.splice(lastInstanceIndex + 1, 0, ...sourceGroups);
-		for (const sourceGroup of sourceGroups) {
+		const sortedSourceGroups = Array.from(sourceGroups).sort((a, b) => {
+			return this.groups.indexOf(a) - this.groups.indexOf(b);
+		});
+		this.groups.splice(lastInstanceIndex + 1, 0, ...sortedSourceGroups);
+		for (const sourceGroup of sortedSourceGroups) {
 			const sourceGroupIndex = this.groups.indexOf(sourceGroup);
 			this.groups.splice(sourceGroupIndex, 1);
 		}
