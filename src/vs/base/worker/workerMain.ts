@@ -18,7 +18,6 @@
 	// ESM-comment-end
 	// ESM-uncomment-begin
 	// const isESM = true;
-	// globalThis._VSCODE_FILE_ROOT = new URL(self.location.href).searchParams.get('_VSCODE_FILE_ROOT') ?? '';
 	// ESM-uncomment-end
 
 	// SHARED-PROCESS: worker with node integration but with blink's import
@@ -128,7 +127,7 @@
 
 	function loadCode(moduleId: string): Promise<SimpleWorkerModule> {
 		if (isESM) {
-			const moduleUrl = new URL(`${moduleId}.js`, globalThis._VSCODE_FILE_ROOT);
+			const moduleUrl = new URL(`${globalThis._VSCODE_FILE_ROOT}/${moduleId}.js`, globalThis.location.origin);
 			return import(moduleUrl.href);
 		} else {
 			return loadAMDLoader().then(() => {

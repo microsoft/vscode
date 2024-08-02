@@ -336,10 +336,6 @@ export class SimpleWorkerClient<W extends object, H extends object> extends Disp
 			loaderConfiguration = (globalThis as any).requirejs.s.contexts._.config;
 		}
 
-		if (isESM) {
-			loaderConfiguration = { _VSCODE_FILE_ROOT: globalThis._VSCODE_FILE_ROOT };
-		}
-
 		const hostMethods = getAllMethodNames(host);
 
 		// Send initialize message
@@ -519,29 +515,23 @@ export class SimpleWorkerServer<H extends object> {
 		}
 
 		if (loaderConfig) {
-
-			if (isESM) {
-				globalThis._VSCODE_FILE_ROOT = loaderConfig._VSCODE_FILE_ROOT;
-
-			} else {
-				// Remove 'baseUrl', handling it is beyond scope for now
-				if (typeof loaderConfig.baseUrl !== 'undefined') {
-					delete loaderConfig['baseUrl'];
-				}
-				if (typeof loaderConfig.paths !== 'undefined') {
-					if (typeof loaderConfig.paths.vs !== 'undefined') {
-						delete loaderConfig.paths['vs'];
-					}
-				}
-				if (typeof loaderConfig.trustedTypesPolicy !== 'undefined') {
-					// don't use, it has been destroyed during serialize
-					delete loaderConfig['trustedTypesPolicy'];
-				}
-
-				// Since this is in a web worker, enable catching errors
-				loaderConfig.catchError = true;
-				globalThis.require.config(loaderConfig);
+			// Remove 'baseUrl', handling it is beyond scope for now
+			if (typeof loaderConfig.baseUrl !== 'undefined') {
+				delete loaderConfig['baseUrl'];
 			}
+			if (typeof loaderConfig.paths !== 'undefined') {
+				if (typeof loaderConfig.paths.vs !== 'undefined') {
+					delete loaderConfig.paths['vs'];
+				}
+			}
+			if (typeof loaderConfig.trustedTypesPolicy !== 'undefined') {
+				// don't use, it has been destroyed during serialize
+				delete loaderConfig['trustedTypesPolicy'];
+			}
+
+			// Since this is in a web worker, enable catching errors
+			loaderConfig.catchError = true;
+			globalThis.require.config(loaderConfig);
 		}
 
 		if (isESM) {

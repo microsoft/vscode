@@ -195,8 +195,7 @@ function optimizeAMDTask(opts) {
     }) : es.through());
 }
 function optimizeESMTask(opts, cjsOpts) {
-    // 1 TODO
-    // honor IEntryPoint#prepred/append (unused?)
+    // TODO honor IEntryPoint#prepred/append (unused?)
     const esbuild = require('esbuild');
     const bundledFileHeader = opts.header || DEFAULT_FILE_HEADER;
     const sourcemaps = require('gulp-sourcemaps');
@@ -207,13 +206,15 @@ function optimizeESMTask(opts, cjsOpts) {
     if (cjsOpts) {
         cjsOpts.entryPoints.forEach(entryPoint => entryPoints.push({ name: path.parse(entryPoint).name }));
     }
+    // TODO remove hardcoded entry point and support `dest` of `IEntryPoint` or clean that up
+    entryPoints.push({ name: 'vs/base/worker/workerMain' });
     const allMentionedModules = new Set();
     for (const entryPoint of entryPoints) {
         allMentionedModules.add(entryPoint.name);
         entryPoint.include?.forEach(allMentionedModules.add, allMentionedModules);
         entryPoint.exclude?.forEach(allMentionedModules.add, allMentionedModules);
     }
-    // 2 TODO remove this from the bundle files
+    // TODO remove this from the bundle files
     allMentionedModules.delete('vs/css');
     const bundleAsync = async () => {
         let bundleData;

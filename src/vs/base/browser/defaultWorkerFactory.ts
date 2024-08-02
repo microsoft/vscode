@@ -9,6 +9,7 @@ import { COI } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { IWorker, IWorkerCallback, IWorkerFactory, logOnceWebWorkerWarning } from 'vs/base/common/worker/simpleWorker';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { coalesce } from 'vs/base/common/arrays';
 
 // Reuse the trusted types policy defined from worker bootstrap
 // when available.
@@ -45,60 +46,54 @@ function getWorker(workerMainLocation: URI | undefined, label: string): Worker |
 	}
 	// ESM-comment-begin
 	if (typeof require === 'function') {
-		// check if the JS lives on a different origin
-		const workerMain = require.toUrl('vs/base/worker/workerMain.js'); // explicitly using require.toUrl(), see https://github.com/microsoft/vscode/issues/107440#issuecomment-698982321
-		const workerUrl = getWorkerBootstrapUrl(workerMain, label);
+		const workerMainLocation = require.toUrl('vs/base/worker/workerMain.js'); // explicitly using require.toUrl(), see https://github.com/microsoft/vscode/issues/107440#issuecomment-698982321
+		const factoryModuleId = 'vs/base/worker/defaultWorkerFactory.js';
+		const workerBaseUrl = require.toUrl(factoryModuleId).slice(0, -factoryModuleId.length); // explicitly using require.toUrl(), see https://github.com/microsoft/vscode/issues/107440#issuecomment-698982321
+		const workerUrl = getWorkerBootstrapUrl(label, workerMainLocation, workerBaseUrl);
 		return new Worker(ttPolicy ? ttPolicy.createScriptURL(workerUrl) as unknown as string : workerUrl, { name: label });
 	}
 	// ESM-comment-end
 	if (workerMainLocation) {
-
-		const workerURL = new URL(workerMainLocation.toString(true));
-		COI.addSearchParam(workerURL.searchParams, true, true);
-		workerURL.searchParams.append('_VSCODE_FILE_ROOT', globalThis._VSCODE_FILE_ROOT);
-
-		return new Worker(ttPolicy ? ttPolicy.createScriptURL(workerURL.href) as unknown as string : workerURL.href, { name: label });
+		const workerUrl = getWorkerBootstrapUrl(label, workerMainLocation.toString(true));
+		return new Worker(ttPolicy ? ttPolicy.createScriptURL(workerUrl) as unknown as string : workerUrl, { name: label });
 	}
 	throw new Error(`You must define a function MonacoEnvironment.getWorkerUrl or MonacoEnvironment.getWorker`);
 }
 
-// ESM-comment-begin
-export function getWorkerBootstrapUrl(scriptPath: string, label: string): string {
-	if (/^((http:)|(https:)|(file:))/.test(scriptPath) && scriptPath.substring(0, globalThis.origin.length) !== globalThis.origin) {
+function getWorkerBootstrapUrl(label: string, workerScriptUrl: string, workerBaseUrl?: string): string {
+	if (/^((http:)|(https:)|(file:))/.test(workerScriptUrl) && workerScriptUrl.substring(0, globalThis.origin.length) !== globalThis.origin) {
 		// this is the cross-origin case
 		// i.e. the webpage is running at a different origin than where the scripts are loaded from
 	} else {
-		const start = scriptPath.lastIndexOf('?');
-		const end = scriptPath.lastIndexOf('#', start);
+		const start = workerScriptUrl.lastIndexOf('?');
+		const end = workerScriptUrl.lastIndexOf('#', start);
 		const params = start > 0
-			? new URLSearchParams(scriptPath.substring(start + 1, ~end ? end : undefined))
+			? new URLSearchParams(workerScriptUrl.substring(start + 1, ~end ? end : undefined))
 			: new URLSearchParams();
 
 		COI.addSearchParam(params, true, true);
 		const search = params.toString();
 		if (!search) {
-			scriptPath = `${scriptPath}#${label}`;
+			workerScriptUrl = `${workerScriptUrl}#${label}`;
 		} else {
-			scriptPath = `${scriptPath}?${params.toString()}#${label}`;
+			workerScriptUrl = `${workerScriptUrl}?${params.toString()}#${label}`;
 		}
 	}
 
-	const factoryModuleId = 'vs/base/worker/defaultWorkerFactory.js';
-	const workerBaseUrl = require.toUrl(factoryModuleId).slice(0, -factoryModuleId.length); // explicitly using require.toUrl(), see https://github.com/microsoft/vscode/issues/107440#issuecomment-698982321
-	const blob = new Blob([[
+	const blob = new Blob([coalesce([
 		`/*${label}*/`,
-		`globalThis.MonacoEnvironment = { baseUrl: '${workerBaseUrl}' };`,
+		workerBaseUrl ? `globalThis.MonacoEnvironment = { baseUrl: '${workerBaseUrl}' };` : undefined,
 		// VSCODE_GLOBALS: NLS
 		`globalThis._VSCODE_NLS_MESSAGES = ${JSON.stringify(globalThis._VSCODE_NLS_MESSAGES)};`,
 		`globalThis._VSCODE_NLS_LANGUAGE = ${JSON.stringify(globalThis._VSCODE_NLS_LANGUAGE)};`,
+		`globalThis._VSCODE_FILE_ROOT = '${_VSCODE_FILE_ROOT}';`,
 		`const ttPolicy = globalThis.trustedTypes?.createPolicy('defaultWorkerFactory', { createScriptURL: value => value });`,
 		`globalThis.workerttPolicy = ttPolicy;`,
-		`importScripts(ttPolicy?.createScriptURL('${scriptPath}') ?? '${scriptPath}');`,
+		`importScripts(ttPolicy?.createScriptURL('${workerScriptUrl}') ?? '${workerScriptUrl}');`,
 		`/*${label}*/`
-	].join('')], { type: 'application/javascript' });
+	]).join('')], { type: 'application/javascript' });
 	return URL.createObjectURL(blob);
 }
-// ESM-comment-end
 
 function isPromiseLike<T>(obj: any): obj is PromiseLike<T> {
 	if (typeof obj.then === 'function') {

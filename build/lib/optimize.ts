@@ -272,9 +272,7 @@ function optimizeAMDTask(opts: IOptimizeAMDTaskOpts): NodeJS.ReadWriteStream {
 }
 
 function optimizeESMTask(opts: IOptimizeAMDTaskOpts, cjsOpts?: IOptimizeCommonJSTaskOpts): NodeJS.ReadWriteStream {
-	// 1 TODO
-	// honor IEntryPoint#prepred/append (unused?)
-
+	// TODO honor IEntryPoint#prepred/append (unused?)
 
 	const esbuild = require('esbuild') as typeof import('esbuild');
 
@@ -290,6 +288,9 @@ function optimizeESMTask(opts: IOptimizeAMDTaskOpts, cjsOpts?: IOptimizeCommonJS
 		cjsOpts.entryPoints.forEach(entryPoint => entryPoints.push({ name: path.parse(entryPoint).name }));
 	}
 
+	// TODO remove hardcoded entry point and support `dest` of `IEntryPoint` or clean that up
+	entryPoints.push({ name: 'vs/base/worker/workerMain' });
+
 	const allMentionedModules = new Set<string>();
 	for (const entryPoint of entryPoints) {
 		allMentionedModules.add(entryPoint.name);
@@ -297,7 +298,7 @@ function optimizeESMTask(opts: IOptimizeAMDTaskOpts, cjsOpts?: IOptimizeCommonJS
 		entryPoint.exclude?.forEach(allMentionedModules.add, allMentionedModules);
 	}
 
-	// 2 TODO remove this from the bundle files
+	// TODO remove this from the bundle files
 	allMentionedModules.delete('vs/css');
 
 	const bundleAsync = async () => {
