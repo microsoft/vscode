@@ -6,8 +6,12 @@
 import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
 import { addDisposableListener } from 'vs/base/browser/dom';
 import { combinedDisposable, Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { listInactiveSelectionBackground } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, transparent } from 'vs/platform/theme/common/colorUtils';
+import { PANEL_BORDER } from 'vs/workbench/common/theme';
 import { IDetachedTerminalInstance, ITerminalContribution, ITerminalInstance, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
@@ -86,5 +90,12 @@ class TerminalCommandGuideContribution extends Disposable implements ITerminalCo
 }
 
 registerTerminalContribution(TerminalCommandGuideContribution.ID, TerminalCommandGuideContribution, false);
+
+export const TERMINAL_COMMAND_GUIDE_COLOR = registerColor('terminalCommandGuide.foreground', {
+	dark: transparent(listInactiveSelectionBackground, 1),
+	light: transparent(listInactiveSelectionBackground, 1),
+	hcDark: PANEL_BORDER,
+	hcLight: PANEL_BORDER
+}, localize('terminalCommandGuide.foreground', 'The foreground color of the terminal command guide that appears to the left of a command and its output on hover.'));
 
 // #endregion
