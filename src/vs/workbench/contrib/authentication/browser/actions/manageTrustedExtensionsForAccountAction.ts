@@ -156,7 +156,6 @@ export class ManageTrustedExtensionsForAccountAction extends Action2 {
 			{ type: 'separator', label: localize('trustedExtensions', "Trusted by Microsoft") },
 			...trustedExtensions.sort(sortByLastUsed).map(toQuickPickItem)
 		];
-		quickPick.sortByLabel = false;
 
 		quickPick.items = items;
 		quickPick.selectedItems = items.filter((item): item is TrustedExtensionsQuickPickItem => item.type !== 'separator' && (item.extension.allowed === undefined || item.extension.allowed));
