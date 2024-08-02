@@ -47,6 +47,7 @@ const vscodeWebResourceIncludes = [
 
 	// Extension Worker
 	'out-build/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html',
+	'out-build/vs/workbench/services/extensions/worker/webWorkerExtensionHost-esm.html',
 
 	// Web node paths (needed for integration tests)
 	'out-build/vs/webPackagePaths.js',
