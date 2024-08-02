@@ -132,7 +132,8 @@ import 'vs/workbench/contrib/debug/browser/extensionHostDebugService';
 import 'vs/workbench/contrib/welcomeBanner/browser/welcomeBanner.contribution';
 
 // Welcome Dialog
-import 'vs/workbench/contrib/welcomeDialog/browser/welcomeDialog.contribution';
+// MEMBRANE: our extension has its own welcome dialog
+// import 'vs/workbench/contrib/welcomeDialog/browser/welcomeDialog.contribution';
 
 // Webview
 import 'vs/workbench/contrib/webview/browser/webview.web.contribution';
@@ -157,8 +158,9 @@ import 'vs/workbench/contrib/issue/browser/issue.contribution';
 // Splash
 import 'vs/workbench/contrib/splash/browser/splash.contribution';
 
-// Remote Start Entry for the Web
-import 'vs/workbench/contrib/remote/browser/remoteStartEntry.contribution';
+// // Remote Start Entry for the Web
+// MEMBRANE: unused feature
+// import 'vs/workbench/contrib/remote/browser/remoteStartEntry.contribution';
 
 //#endregion
 

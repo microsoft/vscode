@@ -15,7 +15,7 @@ import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/co
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ThemeIcon } from 'vs/base/common/themables';
+// import { ThemeIcon } from 'vs/base/common/themables';
 import { TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_BACKGROUND, TITLE_BAR_BORDER, WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
 import { isMacintosh, isWindows, isLinux, isWeb, isNative, platformLocale } from 'vs/base/common/platform';
 import { Color } from 'vs/base/common/color';
@@ -29,8 +29,8 @@ import { createActionViewItem, createAndFillInActionBarActions } from 'vs/platfo
 import { Action2, IMenu, IMenuService, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { Codicon } from 'vs/base/common/codicons';
-import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
+// import { Codicon } from 'vs/base/common/codicons';
+// import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
 import { WindowTitle } from 'vs/workbench/browser/parts/titlebar/windowTitle';
 import { CommandCenterControl } from 'vs/workbench/browser/parts/titlebar/commandCenterControl';
 import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';

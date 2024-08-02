@@ -162,7 +162,8 @@ registerSingleton(IOpenerService, OpenerService, InstantiationType.Delayed);
 //#region --- workbench contributions
 
 // Telemetry
-import 'vs/workbench/contrib/telemetry/browser/telemetry.contribution';
+// MEMBRANE: disable this until we figure out if we can use it ourselves
+// import 'vs/workbench/contrib/telemetry/browser/telemetry.contribution';
 
 // Preferences
 import 'vs/workbench/contrib/preferences/browser/preferences.contribution';
@@ -279,8 +280,9 @@ import 'vs/workbench/contrib/relauncher/browser/relauncher.contribution';
 import 'vs/workbench/contrib/tasks/browser/task.contribution';
 
 // Remote
-import 'vs/workbench/contrib/remote/common/remote.contribution';
-import 'vs/workbench/contrib/remote/browser/remote.contribution';
+// MEMBRANE: unused feature
+// import 'vs/workbench/contrib/remote/common/remote.contribution';
+// import 'vs/workbench/contrib/remote/browser/remote.contribution';
 
 // Emmet
 import 'vs/workbench/contrib/emmet/browser/emmet.contribution';
@@ -313,15 +315,17 @@ import 'vs/workbench/contrib/themes/browser/themes.contribution';
 import 'vs/workbench/contrib/update/browser/update.contribution';
 
 // Surveys
-import 'vs/workbench/contrib/surveys/browser/nps.contribution';
-import 'vs/workbench/contrib/surveys/browser/ces.contribution';
-import 'vs/workbench/contrib/surveys/browser/languageSurveys.contribution';
+// MEMBRANE: unused feature
+// import 'vs/workbench/contrib/surveys/browser/nps.contribution';
+// import 'vs/workbench/contrib/surveys/browser/ces.contribution';
+// import 'vs/workbench/contrib/surveys/browser/languageSurveys.contribution';
 
 // Welcome
-import 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStarted.contribution';
-import 'vs/workbench/contrib/welcomeWalkthrough/browser/walkThrough.contribution';
-import 'vs/workbench/contrib/welcomeViews/common/viewsWelcome.contribution';
-import 'vs/workbench/contrib/welcomeViews/common/newFile.contribution';
+// MEMBRANE: unused feature
+// import 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStarted.contribution';
+// import 'vs/workbench/contrib/welcomeWalkthrough/browser/walkThrough.contribution';
+// import 'vs/workbench/contrib/welcomeViews/common/viewsWelcome.contribution';
+// import 'vs/workbench/contrib/welcomeViews/common/newFile.contribution';
 
 // Call Hierarchy
 import 'vs/workbench/contrib/callHierarchy/browser/callHierarchy.contribution';
@@ -373,7 +377,8 @@ import 'vs/workbench/contrib/audioCues/browser/audioCues.contribution';
 import 'vs/workbench/contrib/deprecatedExtensionMigrator/browser/deprecatedExtensionMigrator.contribution';
 
 // Bracket Pair Colorizer 2 Telemetry
-import 'vs/workbench/contrib/bracketPairColorizer2Telemetry/browser/bracketPairColorizer2Telemetry.contribution';
+// MEMBRANE: unused telemetry
+// import 'vs/workbench/contrib/bracketPairColorizer2Telemetry/browser/bracketPairColorizer2Telemetry.contribution';
 
 // Accessibility
 import 'vs/workbench/contrib/accessibility/browser/accessibility.contribution';
