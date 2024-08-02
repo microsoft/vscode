@@ -72,6 +72,8 @@ import { DynamicEditorConfigurations } from 'vs/workbench/browser/parts/editor/e
 import { ConfigureEditorAction, ConfigureEditorTabsAction, EditorActionsDefaultAction, EditorActionsTitleBarAction, HideEditorActionsAction, HideEditorTabsAction, ShowMultipleEditorTabsAction, ShowSingleEditorTabAction, ZenHideEditorTabsAction, ZenShowMultipleEditorTabsAction, ZenShowSingleEditorTabAction } from 'vs/workbench/browser/actions/layoutActions';
 import { ICommandAction } from 'vs/platform/action/common/action';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { getFontSnippets } from 'vs/base/browser/fonts';
+import { registerEditorFontConfigurations } from 'vs/editor/common/config/editorConfigurationSchema';
 
 //#region Editor Registrations
 
@@ -1102,3 +1104,6 @@ MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
 });
 
 //#endregion
+
+
+registerEditorFontConfigurations(getFontSnippets);

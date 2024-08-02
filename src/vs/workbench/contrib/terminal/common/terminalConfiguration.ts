@@ -21,6 +21,7 @@ import { terminalTypeAheadConfiguration } from 'vs/workbench/contrib/terminalCon
 import { terminalZoomConfiguration } from 'vs/workbench/contrib/terminalContrib/zoom/common/terminal.zoom'; // eslint-disable-line local/code-import-patterns
 import { terminalSuggestConfiguration } from 'vs/workbench/contrib/terminalContrib/suggest/common/terminalSuggestConfiguration'; // eslint-disable-line local/code-import-patterns
 import { terminalInitialHintConfiguration } from 'vs/workbench/contrib/terminalContrib/chat/common/terminalInitialHintConfiguration';  // eslint-disable-line local/code-import-patterns
+import type { IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
 
 const terminalDescriptors = '\n- ' + [
 	'`\${cwd}`: ' + localize("cwd", "the terminal's current working directory"),
@@ -177,7 +178,7 @@ const terminalConfiguration: IConfigurationNode = {
 		},
 		[TerminalSettingId.FontFamily]: {
 			markdownDescription: localize('terminal.integrated.fontFamily', "Controls the font family of the terminal. Defaults to {0}'s value.", '`#editor.fontFamily#`'),
-			type: 'string'
+			type: 'string',
 		},
 		// TODO: Support font ligatures
 		// 'terminal.integrated.fontLigatures': {
@@ -632,9 +633,13 @@ const terminalConfiguration: IConfigurationNode = {
 	}
 };
 
-export function registerTerminalConfiguration() {
+export async function registerTerminalConfiguration(getFontSnippets: () => Promise<IJSONSchemaSnippet[]>) {
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 	configurationRegistry.registerConfiguration(terminalConfiguration);
+	const fontsSnippets = await getFontSnippets();
+	if (terminalConfiguration.properties) {
+		terminalConfiguration.properties[TerminalSettingId.FontFamily].defaultSnippets = fontsSnippets;
+	}
 }
 
 Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMigration)

@@ -170,12 +170,13 @@ export class CodeApplication extends Disposable {
 			'clipboard-sanitized-write',
 		]);
 
+		const allowedPermissionsDefault = new Set(['font-access', 'local-fonts']);
+
 		session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback, details) => {
 			if (isUrlFromWebview(details.requestingUrl)) {
 				return callback(allowedPermissionsInWebview.has(permission));
 			}
-
-			return callback(false);
+			return callback(allowedPermissionsDefault.has(permission));
 		});
 
 		session.defaultSession.setPermissionCheckHandler((_webContents, permission, _origin, details) => {
@@ -183,7 +184,7 @@ export class CodeApplication extends Disposable {
 				return allowedPermissionsInWebview.has(permission);
 			}
 
-			return false;
+			return allowedPermissionsDefault.has(permission);
 		});
 
 		//#endregion
