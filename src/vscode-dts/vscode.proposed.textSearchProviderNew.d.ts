@@ -8,31 +8,47 @@ declare module 'vscode' {
 	// https://github.com/microsoft/vscode/issues/59921
 
 	/**
-	 * The parameters of a query for text search.
+	 * The parameters of a query for text search. All optional booleans default to `false`.
 	 */
 	export interface TextSearchQueryNew {
 		/**
 		 * The text pattern to search for.
+		 *
+		 * If explicitly contains a newline character (`\n`), the default search behavior
+		 * will automatically enable {@link isMultiline}.
 		 */
 		pattern: string;
 
 		/**
 		 * Whether or not `pattern` should match multiple lines of text.
+		 *
+		 * If using the default search provider, this will be interpreted as `true` if
+		 * `pattern` contains a newline character (`\n`).
 		 */
 		isMultiline?: boolean;
 
 		/**
 		 * Whether or not `pattern` should be interpreted as a regular expression.
+		 *
+		 * If using the default search provider, this will be interpreted case-insensitively
+		 * if {@link isCaseSensitive} is `false` or not set.
 		 */
 		isRegExp?: boolean;
 
 		/**
 		 * Whether or not the search should be case-sensitive.
+		 *
+		 * If using the default search provider, this can be affected by the `search.smartCase` setting.
+		 * See the setting description for more information.
 		 */
 		isCaseSensitive?: boolean;
 
 		/**
 		 * Whether or not to search for whole word matches only.
+		 *
+		 * If enabled, the default search provider will check for boundary characters
+		 * (regex pattern `\b`) surrounding the {@link pattern} to see whether something
+		 * is a word match.
 		 */
 		isWordMatch?: boolean;
 	}
