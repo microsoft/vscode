@@ -409,22 +409,20 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 	}
 
 	moveInstance(instances: ITerminalInstance | ITerminalInstance[], index: number, position: 'before' | 'after'): void {
-		const instances2 = Array.isArray(instances) ? instances : [instances];
-		for (const instance of instances2) {
-			const index = this.terminalInstances.indexOf(instance);
-			if (index === -1) {
-				return;
-			}
+		const instancesArray = Array.isArray(instances) ? instances : [instances];
+		const hasInvalidInstance = instancesArray.some(instance => !this.terminalInstances.includes(instance));
+		if (hasInvalidInstance) {
+			return;
 		}
 		const insertIndex = position === 'before' ? index : index + 1;
-		this._terminalInstances.splice(insertIndex, 0, ...instances2);
-		for (const item of instances2) {
+		this._terminalInstances.splice(insertIndex, 0, ...instancesArray);
+		for (const item of instancesArray) {
 			const originSourceGroupIndex = position === 'after' ? this._terminalInstances.indexOf(item) : this._terminalInstances.lastIndexOf(item);
 			this._terminalInstances.splice(originSourceGroupIndex, 1);
 		}
 		if (this._splitPaneContainer) {
-			for (let i = 0; i < instances2.length; i++) {
-				const item = instances2[i];
+			for (let i = 0; i < instancesArray.length; i++) {
+				const item = instancesArray[i];
 				this._splitPaneContainer.remove(item);
 				this._splitPaneContainer.split(item, index + (position === 'before' ? i : 0));
 			}
