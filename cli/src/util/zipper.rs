@@ -44,15 +44,12 @@ fn should_skip_first_segment(archive: &mut ZipArchive<File>) -> bool {
 	archive.len() > 1 // prefix removal is invalid if there's only a single file
 }
 
-pub fn unzip_file<T>(path: &Path, parent_path: &Path, mut reporter: T) -> Result<(), WrappedError>
+pub fn unzip_file<T>(file: File, parent_path: &Path, mut reporter: T) -> Result<(), WrappedError>
 where
 	T: ReportCopyProgress,
 {
-	let file = fs::File::open(path)
-		.map_err(|e| wrap(e, format!("unable to open file {}", path.display())))?;
-
-	let mut archive = zip::ZipArchive::new(file)
-		.map_err(|e| wrap(e, format!("failed to open zip archive {}", path.display())))?;
+	let mut archive =
+		zip::ZipArchive::new(file).map_err(|e| wrap(e, "failed to open zip archive"))?;
 
 	let skip_segments_no = usize::from(should_skip_first_segment(&mut archive));
 	let report_progress_every = archive.len() / 20;
