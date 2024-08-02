@@ -254,7 +254,12 @@ export class QueryBuilder {
 			const providerExists = isAbsolutePath(file);
 			// Special case userdata as we don't have a search provider for it, but it can be searched.
 			if (providerExists) {
-				const searchRoot = this.workspaceContextService.getWorkspaceFolder(file)?.uri ?? file.with({ path: path.dirname(file.fsPath) });
+
+				let searchRoot = this.workspaceContextService.getWorkspaceFolder(file)?.uri;
+				if (!searchRoot) {
+					const pathDir = path.dirname(normalizePathSeparator(file.fsPath, path.sep));
+					searchRoot = file.with({ path: pathDir });
+				}
 
 				let folderQuery = foldersToSearch.get(searchRoot);
 				if (!folderQuery) {
@@ -670,4 +675,11 @@ export function resolveResourcesForSearchIncludes(resources: URI[], contextServi
 		});
 	}
 	return folderPaths;
+}
+
+function normalizePathSeparator(path: string, sep: string): string {
+	if (sep === '/') {
+		return path.replaceAll('\\', '/');
+	}
+	return path.replaceAll('/', '\\');
 }
