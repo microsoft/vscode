@@ -49,6 +49,10 @@ export interface IPromptInputModelState {
 	 */
 	readonly prefix: string;
 	/**
+	 * The prompt input from the cursor to the end, this _does not_ include ghost text.
+	 */
+	readonly suffix: string;
+	/**
 	 * The index of the cursor in {@link value}.
 	 */
 	readonly cursorIndex: number;
@@ -80,6 +84,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 	private _value: string = '';
 	get value() { return this._value; }
 	get prefix() { return this._value.substring(0, this._cursorIndex); }
+	get suffix() { return this._value.substring(this._cursorIndex, this._ghostTextIndex === -1 ? undefined : this._ghostTextIndex); }
 
 	private _cursorIndex: number = 0;
 	get cursorIndex() { return this._cursorIndex; }
@@ -474,6 +479,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		return Object.freeze({
 			value: this._value,
 			prefix: this.prefix,
+			suffix: this.suffix,
 			cursorIndex: this._cursorIndex,
 			ghostTextIndex: this._ghostTextIndex
 		});
