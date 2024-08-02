@@ -46,4 +46,11 @@ export interface IClipboardService {
 	 * Find out if resources are copied to the clipboard.
 	 */
 	hasResources(): Promise<boolean>;
+
+	/**
+	 * Resets the internal state of the clipboard (if any) without touching the real clipboard.
+	 *
+	 * Used for implementations such as web which do not always support using the real clipboard.
+	 */
+	clearInternalState?(): void;
 }
