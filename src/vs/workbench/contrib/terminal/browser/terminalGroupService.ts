@@ -318,18 +318,19 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		this.setActiveGroupByIndex(newIndex);
 	}
 
+	private _getValidTerminalGroups = (sources: ITerminalInstance[]): Set<ITerminalGroup> => {
+		return new Set(
+			sources
+				.map(source => this.getGroupForInstance(source))
+				.filter((group) => group !== undefined)
+		);
+	};
+
 	moveGroup(sources: ITerminalInstance | ITerminalInstance[], target: ITerminalInstance) {
 		const sourcesArray = Array.isArray(sources) ? sources : [sources];
-		const sourceGroups = new Set<ITerminalGroup>();
-		for (const source of sourcesArray) {
-			const sourceGroup = this.getGroupForInstance(source);
-			if (!sourceGroup) {
-				return;
-			}
-			sourceGroups.add(sourceGroup);
-		}
+		const sourceGroups = this._getValidTerminalGroups(sourcesArray);
 		const targetGroup = this.getGroupForInstance(target);
-		if (!targetGroup) {
+		if (!targetGroup || sourceGroups.size === 0) {
 			return;
 		}
 
@@ -365,13 +366,9 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 
 	moveGroupToEnd(sources: ITerminalInstance | ITerminalInstance[]): void {
 		const sourcesArray = Array.isArray(sources) ? sources : [sources];
-		const sourceGroups = new Set<ITerminalGroup>();
-		for (const source of sourcesArray) {
-			const sourceGroup = this.getGroupForInstance(source);
-			if (!sourceGroup) {
-				return;
-			}
-			sourceGroups.add(sourceGroup);
+		const sourceGroups = this._getValidTerminalGroups(sourcesArray);
+		if (sourceGroups.size === 0) {
+			return;
 		}
 		const lastInstanceIndex = this.groups.length - 1;
 		this.groups.splice(lastInstanceIndex + 1, 0, ...sourceGroups);
