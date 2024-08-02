@@ -11,7 +11,7 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { SelectBox, ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IDebugService, IDebugSession, IDebugConfiguration, IConfig, ILaunch, State } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, IDebugSession, IDebugConfiguration, IConfig, ILaunch, State, CONTEXT_DEBUG_VIEW_TOOLBAR_FOCUSED } from 'vs/workbench/contrib/debug/common/debug';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { selectBorder, selectBackground, asCssVariable } from 'vs/platform/theme/common/colorRegistry';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
@@ -26,7 +26,7 @@ import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateF
 import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 const $ = dom.$;
 
@@ -41,6 +41,7 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 	private toDispose: IDisposable[];
 	private selected = 0;
 	private providers: { label: string; type: string; pick: () => Promise<{ launch: ILaunch; config: IConfig } | undefined> }[] = [];
+	private focusedContextKey: IContextKey<boolean> | undefined;
 
 	constructor(
 		private context: unknown,
@@ -78,6 +79,12 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 	override render(container: HTMLElement): void {
 		this.container = container;
 		container.classList.add('start-debug-action-item');
+
+		this.focusedContextKey = CONTEXT_DEBUG_VIEW_TOOLBAR_FOCUSED.bindTo(this.contextKeyService);
+		const focusTracker = this._register(dom.trackFocus(container));
+		focusTracker.onDidBlur(() => this.focusedContextKey?.reset());
+		focusTracker.onDidFocus(() => this.focusedContextKey?.set(true));
+
 		this.start = dom.append(container, $(ThemeIcon.asCSSSelector(debugStart)));
 		const keybinding = this.keybindingService.lookupKeybinding(this.action.id)?.getLabel();
 		const keybindingLabel = keybinding ? ` (${keybinding})` : '';

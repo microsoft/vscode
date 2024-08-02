@@ -7,18 +7,20 @@
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { AccessibleViewProviderId, AccessibleViewType, IAccessibleViewContentProvider } from 'vs/platform/accessibility/browser/accessibleView';
 import { IAccessibleViewImplentation } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { localize } from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { AccessibilityHelpNLS } from 'vs/editor/common/standaloneStrings';
+import { CONTEXT_DEBUG_VIEW_TOOLBAR_FOCUSED, CONTEXT_DEBUG_VIEW_FOCUSED } from 'vs/workbench/contrib/debug/common/debug';
+import { WelcomeView } from 'vs/workbench/contrib/debug/browser/welcomeView';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 export class RunAndDebugAccessibilityHelp implements IAccessibleViewImplentation {
 	priority = 120;
 	name = 'runAndDebugHelp';
-	when = ContextKeyExpr.equals('activeViewlet', 'workbench.view.debug');
+	when = ContextKeyExpr.or(CONTEXT_DEBUG_VIEW_FOCUSED, CONTEXT_DEBUG_VIEW_TOOLBAR_FOCUSED, ContextKeyExpr.equals('focusedView', WelcomeView.ID));
 	type: AccessibleViewType = AccessibleViewType.Help;
 	getProvider(accessor: ServicesAccessor) {
 		return new RunAndDebugAccessibilityHelpProvider(accessor.get(ICommandService), accessor.get(IViewsService));

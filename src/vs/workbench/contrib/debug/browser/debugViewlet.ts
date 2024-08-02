@@ -11,7 +11,7 @@ import * as nls from 'vs/nls';
 import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { Action2, MenuId, MenuItemAction, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IProgressService } from 'vs/platform/progress/common/progress';
@@ -30,10 +30,11 @@ import { DEBUG_CONFIGURE_COMMAND_ID, DEBUG_CONFIGURE_LABEL, DEBUG_START_COMMAND_
 import { debugConfigure } from 'vs/workbench/contrib/debug/browser/debugIcons';
 import { createDisconnectMenuItemAction } from 'vs/workbench/contrib/debug/browser/debugToolBar';
 import { WelcomeView } from 'vs/workbench/contrib/debug/browser/welcomeView';
-import { BREAKPOINTS_VIEW_ID, CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_DEBUG_STATE, CONTEXT_DEBUG_UX, CONTEXT_DEBUG_UX_KEY, getStateLabel, IDebugService, ILaunch, REPL_VIEW_ID, State, VIEWLET_ID } from 'vs/workbench/contrib/debug/common/debug';
+import { BREAKPOINTS_VIEW_ID, CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_DEBUG_STATE, CONTEXT_DEBUG_UX, CONTEXT_DEBUG_UX_KEY, getStateLabel, IDebugService, ILaunch, REPL_VIEW_ID, State, VIEWLET_ID, CONTEXT_DEBUG_VIEW_FOCUSED } from 'vs/workbench/contrib/debug/common/debug';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import * as dom from 'vs/base/browser/dom';
 
 export class DebugViewPaneContainer extends ViewPaneContainer {
 
@@ -43,6 +44,7 @@ export class DebugViewPaneContainer extends ViewPaneContainer {
 	private paneListeners = new Map<string, IDisposable>();
 
 	private readonly stopActionViewItemDisposables = this._register(new DisposableStore());
+	private readonly focusedContextKey: IContextKey<boolean>;
 
 	constructor(
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
@@ -77,11 +79,19 @@ export class DebugViewPaneContainer extends ViewPaneContainer {
 				this.updateTitleArea();
 			}
 		}));
+		this.focusedContextKey = CONTEXT_DEBUG_VIEW_FOCUSED.bindTo(this.contextKeyService);
 	}
 
 	override create(parent: HTMLElement): void {
 		super.create(parent);
 		parent.classList.add('debug-viewlet');
+		this._register(this.onDidFocusView(() => this.focusedContextKey.set(true)));
+		this._register(this.onDidBlurView(() => {
+			const activeElement = dom.getActiveWindow().document.activeElement;
+			if (!parent.contains(activeElement)) {
+				this.focusedContextKey.reset();
+			}
+		}));
 	}
 
 	override focus(): void {
