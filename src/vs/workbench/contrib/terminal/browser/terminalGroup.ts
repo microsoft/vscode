@@ -408,26 +408,19 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 		}
 	}
 
-	moveInstance(instance: ITerminalInstance, index: number): void {
-		const sourceIndex = this.terminalInstances.indexOf(instance);
-		if (sourceIndex === -1) {
-			return;
-		}
-		this._terminalInstances.splice(sourceIndex, 1);
-		this._terminalInstances.splice(index, 0, instance);
-		if (this._splitPaneContainer) {
-			this._splitPaneContainer.remove(instance);
-			this._splitPaneContainer.split(instance, index);
-		}
-		this._onInstancesChanged.fire();
-	}
-
-	moveInstance2(instances: ITerminalInstance | ITerminalInstance[], index: number, position: 'before' | 'after'): void {
+	moveInstance(instances: ITerminalInstance | ITerminalInstance[], index: number, position: 'before' | 'after'): void {
 		const instances2 = Array.isArray(instances) ? instances : [instances];
-		this._terminalInstances.splice(position === 'before' ? index : index + 1, 0, ...instances2);
+		for (const instance of instances2) {
+			const index = this.terminalInstances.indexOf(instance);
+			if (index === -1) {
+				return;
+			}
+		}
+		const insertIndex = position === 'before' ? index : index + 1;
+		this._terminalInstances.splice(insertIndex, 0, ...instances2);
 		for (const item of instances2) {
-			const sourceGroupIndex = position === 'after' ? this._terminalInstances.indexOf(item) : this._terminalInstances.lastIndexOf(item);
-			this._terminalInstances.splice(sourceGroupIndex, 1);
+			const originSourceGroupIndex = position === 'after' ? this._terminalInstances.indexOf(item) : this._terminalInstances.lastIndexOf(item);
+			this._terminalInstances.splice(originSourceGroupIndex, 1);
 		}
 		if (this._splitPaneContainer) {
 			for (let i = 0; i < instances2.length; i++) {

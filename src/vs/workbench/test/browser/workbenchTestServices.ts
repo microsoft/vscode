@@ -2017,10 +2017,8 @@ export class TestTerminalGroupService implements ITerminalGroupService {
 	onDidChangeInstances = Event.None;
 	createGroup(instance?: any): ITerminalGroup { throw new Error('Method not implemented.'); }
 	getGroupForInstance(instance: ITerminalInstance): ITerminalGroup | undefined { throw new Error('Method not implemented.'); }
-	moveGroup(source: ITerminalInstance, target: ITerminalInstance): void { throw new Error('Method not implemented.'); }
-	moveGroup2(sources: ITerminalInstance | ITerminalInstance[], target: ITerminalInstance): void { throw new Error('Method not implemented.'); }
-	moveGroupToEnd(source: ITerminalInstance): void { throw new Error('Method not implemented.'); }
-	moveGroupToEnd2(sources: ITerminalInstance | ITerminalInstance[]): void { throw new Error('Method not implemented.'); }
+	moveGroup(sources: ITerminalInstance | ITerminalInstance[], target: ITerminalInstance): void { throw new Error('Method not implemented.'); }
+	moveGroupToEnd(sources: ITerminalInstance | ITerminalInstance[]): void { throw new Error('Method not implemented.'); }
 	moveInstance(source: ITerminalInstance, target: ITerminalInstance, side: 'before' | 'after'): void { throw new Error('Method not implemented.'); }
 	unsplitInstance(instance: ITerminalInstance): void { throw new Error('Method not implemented.'); }
 	joinInstances(instances: ITerminalInstance[]): void { throw new Error('Method not implemented.'); }

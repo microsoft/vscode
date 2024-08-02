@@ -716,12 +716,12 @@ class TerminalTabsDragAndDrop extends Disposable implements IListDragAndDrop<ITe
 		}
 
 		if (!targetInstance) {
-			this._terminalGroupService.moveGroupToEnd2(sourceInstances);
+			this._terminalGroupService.moveGroupToEnd(sourceInstances);
 			this._terminalService.setActiveInstance(sourceInstances[0]);
 			return;
 		}
 
-		this._terminalGroupService.moveGroup2(sourceInstances, targetInstance);
+		this._terminalGroupService.moveGroup(sourceInstances, targetInstance);
 		this._terminalService.setActiveInstance(sourceInstances[0]);
 	}
 
