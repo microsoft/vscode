@@ -27,7 +27,7 @@ export function setup(logger: Logger) {
 
 		it('leaks check', async function () {
 			const app = this.app as Application;
-			await app.profiler.checkLeaks('NotebookTextModel', async () => {
+			await app.profiler.checkLeaks(['NotebookTextModel', 'NotebookCellTextModel'], async () => {
 				await app.workbench.notebook.openNotebook();
 				await app.workbench.quickaccess.runCommand('workbench.action.files.save');
 				await app.workbench.quickaccess.runCommand('workbench.action.closeActiveEditor');

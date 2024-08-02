@@ -11,27 +11,38 @@ export class Profiler {
 	constructor(private readonly code: Code) {
 	}
 
-	async checkLeaks(className: string, fn: () => Promise<void>): Promise<void> {
+	async checkLeaks(classNames: string | string[], fn: () => Promise<void>): Promise<void> {
 		await this.code.driver.startCDP();
-		const instancesBefore = await getInstances(this.code.driver);
-		const matchedInstances = instancesBefore.find(e => e.name !== undefined && e.name === className);
-		if (!matchedInstances) {
-			throw new Error(`${className} not found`);
-		}
 
-		const countBefore = matchedInstances.count;
+		const countsBefore: { [key: string]: number } = {};
+		const instancesBefore = await getInstances(this.code.driver);
+		const classNamesArray = Array.isArray(classNames) ? classNames : [classNames];
+		for (const className of classNamesArray) {
+			const matchedInstances = instancesBefore.find(e => e.name !== undefined && e.name === className);
+			if (!matchedInstances) {
+				throw new Error(`${className} not found`);
+			}
+			countsBefore[className] = matchedInstances.count;
+		}
 
 		await fn();
 
 		const instancesAfter = await getInstances(this.code.driver);
-		const matchedInstancesAfter = instancesAfter.find(e => e.name !== undefined && e.name === className);
-		if (!matchedInstancesAfter) {
-			throw new Error(`${className} not found`);
+		const leaks: string[] = [];
+		for (const className of classNamesArray) {
+			const matchedInstancesAfter = instancesAfter.find(e => e.name !== undefined && e.name === className);
+			if (!matchedInstancesAfter) {
+				throw new Error(`${className} not found`);
+			}
+
+			const countAfter = matchedInstancesAfter.count;
+			if (countAfter !== countsBefore[className]) {
+				leaks.push(`Leaked ${countAfter - countsBefore[className]} ${className}`);
+			}
 		}
 
-		const countAfter = matchedInstancesAfter.count;
-		if (countAfter !== countBefore) {
-			throw new Error(`Leaked ${countAfter - countBefore} ${className}`);
+		if (leaks.length > 0) {
+			throw new Error(leaks.join('\n'));
 		}
 	}
 }
