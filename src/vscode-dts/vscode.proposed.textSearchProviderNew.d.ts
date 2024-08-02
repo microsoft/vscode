@@ -138,7 +138,17 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * The main match information for a {@link TextSearchResultNew}.
+	 * A query match instance in a file.
+	 *
+	 * For example, consider this excerpt:
+	 *
+	 * ```ts
+	 * const bar = 1;
+	 * console.log(bar);
+	 * const foo = bar;
+	 * ```
+	 *
+	 * If the query is `log`, then the line `console.log(bar);` should be represented using a {@link TextSearchMatchNew}.
 	 */
 	export class TextSearchMatchNew {
 		/**
@@ -171,7 +181,20 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * The potential context information for a {@link TextSearchResultNew}.
+	 * The context lines of text that are not a part of a match,
+	 * but that surround a match line of type {@link TextSearchMatchNew}.
+	 *
+	 * For example, consider this excerpt:
+	 *
+	 * ```ts
+	 * const bar = 1;
+	 * console.log(bar);
+	 * const foo = bar;
+	 * ```
+	 *
+	 * If the query is `log`, then the lines `const bar = 1;` and `const foo = bar;`
+	 * should be represented using two separate {@link TextSearchContextNew} for the search instance.
+	 * This example assumes that the finder requests one line of surrounding context.
 	 */
 	export class TextSearchContextNew {
 		/**
@@ -199,7 +222,8 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * A result payload for a text search, pertaining to matches within a single file.
+	 * A result payload for a text search, pertaining to {@link TextSearchMatchNew matches}
+	 * and its associated {@link TextSearchContextNew context} within a single file.
 	 */
 	export type TextSearchResultNew = TextSearchMatchNew | TextSearchContextNew;
 
@@ -213,7 +237,8 @@ declare module 'vscode' {
 		 * Provide results that match the given text pattern.
 		 * @param query The parameters for this query.
 		 * @param options A set of options to consider while searching.
-		 * @param progress A progress callback that must be invoked for all results.
+		 * @param progress A progress callback that must be invoked for all {@link TextSearchResultNew results}.
+		 * These results can be direct matches, or context that surrounds matches.
 		 * @param token A cancellation token.
 		 */
 		provideTextSearchResults(query: TextSearchQueryNew, options: TextSearchProviderOptions, progress: Progress<TextSearchResultNew>, token: CancellationToken): ProviderResult<TextSearchCompleteNew>;
