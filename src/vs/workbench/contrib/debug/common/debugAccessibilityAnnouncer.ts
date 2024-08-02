@@ -9,6 +9,7 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { Expression } from 'vs/workbench/contrib/debug/common/debugModel';
 
 export class DebugWatchAccessibilityAnnouncer extends Disposable implements IWorkbenchContribution {
 	static ID = 'workbench.contrib.debugWatchAccessibilityAnnouncer';
@@ -32,7 +33,7 @@ export class DebugWatchAccessibilityAnnouncer extends Disposable implements IWor
 		const value = this._configurationService.getValue('accessibility.debugWatchVariableAnnouncements');
 		if (value && !this._listener.value) {
 			this._listener.value = this._debugService.getModel().onDidChangeWatchExpressionValue((e) => {
-				if (!e || e.value === 'not available') {
+				if (!e || e.value === Expression.DEFAULT_VALUE) {
 					return;
 				}
 

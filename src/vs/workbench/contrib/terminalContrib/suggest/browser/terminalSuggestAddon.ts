@@ -607,7 +607,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				}
 				case 'exactMatchIgnoreExtension': {
 					runOnEnter = replacementText.toLowerCase() === completionText.toLowerCase();
-					if (completion.icon === Codicon.symbolFile || completion.icon === Codicon.symbolMethod) {
+					if (completion.isFile) {
 						runOnEnter ||= replacementText.toLowerCase() === completionText.toLowerCase().replace(/\.[^\.]+$/, '');
 					}
 					break;
@@ -731,7 +731,7 @@ function rawCompletionToSimpleCompletionItem(rawCompletion: PwshCompletion): Sim
 	// and file extension score boost. An example of where this improves the experience is typing
 	// `git`, `git.exe` should appear at the top and beat `git-lfs.exe`. Keep the same icon though.
 	const icon = getIcon(rawCompletion.ResultType, detail);
-	const isExecutable = rawCompletion.ResultType === 2 && rawCompletion.CompletionText.match(/\.[a-z]{2,4}$/i);
+	const isExecutable = rawCompletion.ResultType === 2 && rawCompletion.CompletionText.match(/\.[a-z0-9]{2,4}$/i);
 	if (isExecutable) {
 		rawCompletion.ResultType = 3;
 	}

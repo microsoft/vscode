@@ -15,6 +15,7 @@ import { revive } from 'vs/base/common/marshalling';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Progress } from 'vs/platform/progress/common/progress';
@@ -22,6 +23,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ChatAgentLocation, IChatAgent, IChatAgentRequest, IChatAgentResult, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { CONTEXT_VOTE_UP_ENABLED } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, ChatWelcomeMessageModel, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatsData, getHistoryEntriesFromModel, updateRanges } from 'vs/workbench/contrib/chat/common/chatModel';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, IParsedChatRequest, chatAgentLeader, chatSubcommandLeader, getPromptText } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { ChatRequestParser } from 'vs/workbench/contrib/chat/common/chatRequestParser';
@@ -30,6 +32,7 @@ import { ChatServiceTelemetry } from 'vs/workbench/contrib/chat/common/chatServi
 import { IChatSlashCommandService } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { ChatMessageRole, IChatMessage } from 'vs/workbench/contrib/chat/common/languageModels';
+import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 const serializedChatKey = 'interactive.sessions';
@@ -80,6 +83,8 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly _pendingRequests = this._register(new DisposableMap<string, CancellationTokenSource>());
 	private _persistedSessions: ISerializableChatsData;
 
+	/** Just for empty windows, need to enforce that a chat was deleted, even though other windows still have it */
+	private _deletedChatIds = new Set<string>();
 
 	private _transferredSessionData: IChatTransferredSessionData | undefined;
 	public get transferredSessionData(): IChatTransferredSessionData | undefined {
@@ -105,11 +110,14 @@ export class ChatService extends Disposable implements IChatService {
 		@IChatSlashCommandService private readonly chatSlashCommandService: IChatSlashCommandService,
 		@IChatVariablesService private readonly chatVariablesService: IChatVariablesService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
+		@IWorkbenchAssignmentService workbenchAssignmentService: IWorkbenchAssignmentService,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super();
 
 		this._chatServiceTelemetry = this.instantiationService.createInstance(ChatServiceTelemetry);
-		const sessionData = storageService.get(serializedChatKey, StorageScope.WORKSPACE, '');
+		const isEmptyWindow = !workspaceContextService.getWorkspace().folders.length;
+		const sessionData = storageService.get(serializedChatKey, isEmptyWindow ? StorageScope.APPLICATION : StorageScope.WORKSPACE, '');
 		if (sessionData) {
 			this._persistedSessions = this.deserializeChats(sessionData);
 			const countsForLog = Object.keys(this._persistedSessions).length;
@@ -129,6 +137,10 @@ export class ChatService extends Disposable implements IChatService {
 		}
 
 		this._register(storageService.onWillSaveState(() => this.saveState()));
+
+		const voteUpEnabled = CONTEXT_VOTE_UP_ENABLED.bindTo(contextKeyService);
+		workbenchAssignmentService.getTreatment('chatVoteUpEnabled')
+			.then(value => voteUpEnabled.set(!!value));
 	}
 
 	isEnabled(location: ChatAgentLocation): boolean {
@@ -136,26 +148,85 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	private saveState(): void {
-		let allSessions: (ChatModel | ISerializableChatData)[] = Array.from(this._sessionModels.values())
+		const liveChats = Array.from(this._sessionModels.values())
 			.filter(session => session.initialLocation === ChatAgentLocation.Panel)
 			.filter(session => session.getRequests().length > 0);
-		allSessions = allSessions.concat(
-			Object.values(this._persistedSessions)
-				.filter(session => !this._sessionModels.has(session.sessionId))
-				.filter(session => session.requests.length));
-		allSessions.sort((a, b) => (b.creationDate ?? 0) - (a.creationDate ?? 0));
-		allSessions = allSessions.slice(0, maxPersistedSessions);
-		if (allSessions.length) {
-			this.trace('onWillSaveState', `Persisting ${allSessions.length} sessions`);
+
+		const isEmptyWindow = !this.workspaceContextService.getWorkspace().folders.length;
+		if (isEmptyWindow) {
+			this.syncEmptyWindowChats(liveChats);
+		} else {
+			let allSessions: (ChatModel | ISerializableChatData)[] = liveChats;
+			allSessions = allSessions.concat(
+				Object.values(this._persistedSessions)
+					.filter(session => !this._sessionModels.has(session.sessionId))
+					.filter(session => session.requests.length));
+			allSessions.sort((a, b) => (b.creationDate ?? 0) - (a.creationDate ?? 0));
+			allSessions = allSessions.slice(0, maxPersistedSessions);
+			if (allSessions.length) {
+				this.trace('onWillSaveState', `Persisting ${allSessions.length} sessions`);
+			}
+
+			const serialized = JSON.stringify(allSessions);
+
+			if (allSessions.length) {
+				this.trace('onWillSaveState', `Persisting ${serialized.length} chars`);
+			}
+
+			this.storageService.store(serializedChatKey, serialized, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		}
 
-		const serialized = JSON.stringify(allSessions);
+		this._deletedChatIds.clear();
+	}
 
-		if (allSessions.length) {
-			this.trace('onWillSaveState', `Persisting ${serialized.length} chars`);
+	private syncEmptyWindowChats(thisWindowChats: ChatModel[]): void {
+		// Note- an unavoidable race condition exists here. If there are multiple empty windows open, and the user quits the application, then the focused
+		// window may lose active chats, because all windows are reading and writing to storageService at the same time. This can't be fixed without some
+		// kind of locking, but in reality, the focused window will likely have run `saveState` at some point, like on a window focus change, and it will
+		// generally be fine.
+		const sessionData = this.storageService.get(serializedChatKey, StorageScope.APPLICATION, '');
+
+		const originalPersistedSessions = this._persistedSessions;
+		let persistedSessions: ISerializableChatsData;
+		if (sessionData) {
+			persistedSessions = this.deserializeChats(sessionData);
+			const countsForLog = Object.keys(persistedSessions).length;
+			if (countsForLog > 0) {
+				this.trace('constructor', `Restored ${countsForLog} persisted sessions`);
+			}
+		} else {
+			persistedSessions = {};
 		}
 
-		this.storageService.store(serializedChatKey, serialized, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		this._deletedChatIds.forEach(id => delete persistedSessions[id]);
+
+		// Has the chat in this window been updated, and then closed? Overwrite the old persisted chats.
+		Object.values(originalPersistedSessions).forEach(session => {
+			const persistedSession = persistedSessions[session.sessionId];
+			if (persistedSession && session.requests.length > persistedSession.requests.length) {
+				// We will add a 'modified date' at some point, but comparing the number of requests is good enough
+				persistedSessions[session.sessionId] = session;
+			} else if (!persistedSession && session.isNew) {
+				// This session was created in this window, and hasn't been persisted yet
+				session.isNew = false;
+				persistedSessions[session.sessionId] = session;
+			}
+		});
+
+		this._persistedSessions = persistedSessions;
+
+		// Add this window's active chat models to the set to persist.
+		// Having the same session open in two empty windows at the same time can lead to data loss, this is acceptable
+		const allSessions: Record<string, ISerializableChatData | ChatModel> = { ...this._persistedSessions };
+		for (const chat of thisWindowChats) {
+			allSessions[chat.sessionId] = chat;
+		}
+
+		let sessionsList = Object.values(allSessions);
+		sessionsList.sort((a, b) => (b.creationDate ?? 0) - (a.creationDate ?? 0));
+		sessionsList = sessionsList.slice(0, maxPersistedSessions);
+		const data = JSON.stringify(sessionsList);
+		this.storageService.store(serializedChatKey, data, StorageScope.APPLICATION, StorageTarget.MACHINE);
 	}
 
 	notifyUserAction(action: IChatUserActionEvent): void {
@@ -248,11 +319,13 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	removeHistoryEntry(sessionId: string): void {
+		this._deletedChatIds.add(sessionId);
 		delete this._persistedSessions[sessionId];
 		this.saveState();
 	}
 
 	clearAllHistoryEntries(): void {
+		Object.values(this._persistedSessions).forEach(session => this._deletedChatIds.add(session.sessionId));
 		this._persistedSessions = {};
 		this.saveState();
 	}
@@ -682,7 +755,9 @@ export class ChatService extends Disposable implements IChatService {
 		if (model.initialLocation === ChatAgentLocation.Panel) {
 			// Turn all the real objects into actual JSON, otherwise, calling 'revive' may fail when it tries to
 			// assign values to properties that are getters- microsoft/vscode-copilot-release#1233
-			this._persistedSessions[sessionId] = JSON.parse(JSON.stringify(model));
+			const sessionData: ISerializableChatData = JSON.parse(JSON.stringify(model));
+			sessionData.isNew = true;
+			this._persistedSessions[sessionId] = sessionData;
 		}
 
 		this._sessionModels.deleteAndDispose(sessionId);

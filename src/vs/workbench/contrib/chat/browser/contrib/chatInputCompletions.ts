@@ -318,7 +318,7 @@ class BuiltinDynamicCompletions extends Disposable {
 					return null;
 				}
 
-				const range = computeCompletionRanges(model, position, BuiltinDynamicCompletions.VariableNameDef);
+				const range = computeCompletionRanges(model, position, BuiltinDynamicCompletions.VariableNameDef, true);
 				if (!range) {
 					return null;
 				}
@@ -344,11 +344,18 @@ class BuiltinDynamicCompletions extends Disposable {
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(BuiltinDynamicCompletions, LifecyclePhase.Eventually);
 
-function computeCompletionRanges(model: ITextModel, position: Position, reg: RegExp): { insert: Range; replace: Range; varWord: IWordAtPosition | null } | undefined {
+function computeCompletionRanges(model: ITextModel, position: Position, reg: RegExp, onlyOnWordStart = false): { insert: Range; replace: Range; varWord: IWordAtPosition | null } | undefined {
 	const varWord = getWordAtText(position.column, reg, model.getLineContent(position.lineNumber), 0);
 	if (!varWord && model.getWordUntilPosition(position).word) {
 		// inside a "normal" word
 		return;
+	}
+	if (varWord && onlyOnWordStart) {
+		const wordBefore = model.getWordUntilPosition({ lineNumber: position.lineNumber, column: varWord.startColumn });
+		if (wordBefore.word) {
+			// inside a word
+			return;
+		}
 	}
 
 	let insert: Range;
@@ -394,7 +401,7 @@ class VariableCompletions extends Disposable {
 					return null;
 				}
 
-				const range = computeCompletionRanges(model, position, VariableCompletions.VariableNameDef);
+				const range = computeCompletionRanges(model, position, VariableCompletions.VariableNameDef, true);
 				if (!range) {
 					return null;
 				}
