@@ -298,12 +298,11 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 		if (this._terminalSuggestWidgetVisibleContextKey.get()) {
 			this._cursorIndexDelta = this._currentPromptInputState.cursorIndex - this._initialPromptInputState.cursorIndex;
-			// let leadingLineContent = this._leadingLineContent + this._currentPromptInputState.value.substring(this._leadingLineContent.length, this._leadingLineContent.length + this._cursorIndexDelta);
-			let leadingLineContent = this._currentPromptInputState.value.substring(this._replacementIndex, this._replacementIndex + this._replacementLength + this._cursorIndexDelta);
+			let normalizedLeadingLineContent = this._currentPromptInputState.value.substring(this._replacementIndex, this._replacementIndex + this._replacementLength + this._cursorIndexDelta);
 			if (this._isFilteringDirectories) {
-				leadingLineContent = normalizePathSeparator(leadingLineContent, this._pathSeparator);
+				normalizedLeadingLineContent = normalizePathSeparator(normalizedLeadingLineContent, this._pathSeparator);
 			}
-			const lineContext = new LineContext(leadingLineContent, this._cursorIndexDelta);
+			const lineContext = new LineContext(normalizedLeadingLineContent, this._cursorIndexDelta);
 			this._suggestWidget.setLineContext(lineContext);
 		}
 
@@ -398,7 +397,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 		this._cursorIndexDelta = this._currentPromptInputState.cursorIndex - this._initialPromptInputState.cursorIndex;
 
-		let leadingLineContent = this._leadingLineContent;
+		let normalizedLeadingLineContent = this._leadingLineContent;
 		// If there is a single directory in the completions:
 		// - `\` and `/` are normalized such that either can be used
 		// - Using `\` or `/` will request new completions. It's important that this only occurs
@@ -408,9 +407,9 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		if (this._isFilteringDirectories) {
 			const firstDir = completions.find(e => e.completion.isDirectory);
 			this._pathSeparator = firstDir?.completion.label.match(/(?<sep>[\\\/])/)?.groups?.sep ?? sep;
-			leadingLineContent = normalizePathSeparator(leadingLineContent, this._pathSeparator);
+			normalizedLeadingLineContent = normalizePathSeparator(normalizedLeadingLineContent, this._pathSeparator);
 		}
-		const lineContext = new LineContext(leadingLineContent, this._cursorIndexDelta);
+		const lineContext = new LineContext(normalizedLeadingLineContent, this._cursorIndexDelta);
 		const model = new SimpleCompletionModel(completions, lineContext, replacementIndex, replacementLength);
 		this._handleCompletionModel(model);
 	}
