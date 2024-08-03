@@ -285,8 +285,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 		// Hide the widget if the latest character was a space
 		if (this._currentPromptInputState.cursorIndex > 1 && this._currentPromptInputState.value.at(this._currentPromptInputState.cursorIndex - 1) === ' ') {
-			this._preventCompletionsRequest = false;
-			this._allowCompletionsRequestTask.cancel();
 			this.hideSuggestWidget(true);
 			return;
 		}
@@ -294,8 +292,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		// Hide the widget if the cursor moves to the left of the initial position as the
 		// completions are no longer valid
 		if (this._currentPromptInputState.cursorIndex < this._initialPromptInputState.cursorIndex) {
-			this._preventCompletionsRequest = false;
-			this._allowCompletionsRequestTask.cancel();
 			this.hideSuggestWidget(true);
 			return;
 		}
@@ -321,7 +317,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		if (!dimensions.width || !dimensions.height) {
 			return;
 		}
-		// TODO: What do frozen and auto do?
 		const xtermBox = this._screen!.getBoundingClientRect();
 		this._suggestWidget.showSuggestions(0, false, false, {
 			left: xtermBox.left + this._terminal.buffer.active.cursorX * dimensions.width,
