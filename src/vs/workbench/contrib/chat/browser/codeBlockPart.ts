@@ -64,6 +64,7 @@ import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/
 import { IMarkdownVulnerability } from '../common/annotations';
 import { ResourceLabel } from 'vs/workbench/browser/labels';
 import { FileKind } from 'vs/platform/files/common/files';
+import { ResourceContextKey } from 'vs/workbench/common/contextkeys';
 
 const $ = dom.$;
 
@@ -146,6 +147,8 @@ export class CodeBlockPart extends Disposable {
 	private readonly disposableStore = this._register(new DisposableStore());
 	private isDisposed = false;
 
+	private resourceContextKey: ResourceContextKey;
+
 	constructor(
 		private readonly options: ChatEditorOptions,
 		readonly menuId: MenuId,
@@ -160,6 +163,7 @@ export class CodeBlockPart extends Disposable {
 		super();
 		this.element = $('.interactive-result-code-block');
 
+		this.resourceContextKey = this._register(instantiationService.createInstance(ResourceContextKey));
 		this.contextKeyService = this._register(contextKeyService.createScoped(this.element));
 		const scopedInstantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, this.contextKeyService])));
 		const editorElement = dom.append(this.element, $('.interactive-result-editor'));
@@ -413,6 +417,7 @@ export class CodeBlockPart extends Disposable {
 			element: data.element,
 			languageId: textModel.getLanguageId()
 		} satisfies ICodeBlockActionContext;
+		this.resourceContextKey.set(textModel.uri);
 	}
 
 	private getVulnerabilitiesLabel(): string {
