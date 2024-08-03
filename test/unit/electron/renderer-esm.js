@@ -91,6 +91,15 @@ Object.assign(globalThis, {
 	__mkdirPInTests: path => fs.promises.mkdir(path, { recursive: true }),
 });
 
+function initNls(opts) {
+	if (opts.build) {
+		// when running from `out-build`, ensure to load the default
+		// messages file, because all `nls.localize` calls have their
+		// english values removed and replaced by an index.
+		// VSCODE_GLOBALS: NLS
+		globalThis._VSCODE_NLS_MESSAGES = require(`../../../out-build/nls.messages.json`);
+	}
+}
 const _tests_glob = '**/test/**/*.test.js';
 let loader;
 let _out;
@@ -110,8 +119,6 @@ function initLoader(opts) {
 	 * @param {(...args:any[]) => void} callback
 	 */
 	function esmRequire(modules, callback, errorback) {
-
-
 		const tasks = modules.map(mod => {
 
 			const url = new URL(`./${mod}.js`, baseUrl).href;
@@ -342,6 +349,7 @@ function runTests(opts) {
 }
 
 ipcRenderer.on('run', async (_e, opts) => {
+	initNls(opts);
 	initLoader(opts);
 
 	await Promise.resolve(globalThis._VSCODE_TEST_INIT);
