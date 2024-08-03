@@ -36,6 +36,8 @@ import { showLoadedScriptMenu } from 'vs/workbench/contrib/debug/common/loadedSc
 import { showDebugSessionMenu } from 'vs/workbench/contrib/debug/browser/debugSessionPicker';
 import { TEXT_FILE_EDITOR_ID } from 'vs/workbench/contrib/files/common/files';
 import { ILocalizedString } from 'vs/platform/action/common/action';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { URI } from 'vs/base/common/uri';
 import { CONTEXT_IN_CHAT_SESSION } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 
 export const ADD_CONFIGURATION_ID = 'debug.addConfiguration';
@@ -311,9 +313,11 @@ CommandsRegistry.registerCommand({
 		const clipboardService = accessor.get(IClipboardService);
 		const debugService = accessor.get(IDebugService);
 		const frame = getFrame(debugService, context);
+		const labelService = accessor.get(ILabelService);
+		const labelFormatter = (x: URI) => labelService.getUriLabel(x);
 		if (frame) {
 			const eol = textResourcePropertiesService.getEOL(frame.source.uri);
-			await clipboardService.writeText(frame.thread.getCallStack().map(sf => sf.toString()).join(eol));
+			await clipboardService.writeText(frame.thread.getCallStack().map(sf => sf.toString(labelFormatter)).join(eol));
 		}
 	}
 });
