@@ -4,7 +4,7 @@
 		<meta http-equiv="Content-Security-Policy" content="
 			default-src 'none';
 			child-src 'self' data: blob:;
-			script-src 'self' 'unsafe-eval' 'sha256-x+xy3Mbd7prKkdEiN6FyBYRGIwENqBUS+4nb8VrEZTU=' https: http://localhost:* blob:;
+			script-src 'self' 'unsafe-eval' 'sha256-2Q+j4hfT09+1+imS46J2YlkCtHWQt0/BE79PXjJ0ZJ8=' https: http://localhost:* blob:;
 			connect-src 'self' https: wss: http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:*;"/>
 	</head>
 	<body>
@@ -108,11 +108,15 @@
 				`globalThis._VSCODE_NLS_LANGUAGE = ${JSON.stringify(nlsLanguage)};`,
 				`globalThis._VSCODE_FILE_ROOT = '${fileRoot}';`,
 				isESM ? `await import('${workerUrl}');` : `importScripts('${workerUrl}');`,
+				isESM ? `globalThis.onmessage({ data: 'vs/workbench/api/worker/extensionHostWorker' });` : undefined, // important to start loading after the ESM async import has finished
 				`/*extensionHostWorker*/`
 			].join('')], { type: 'application/javascript' });
 
 			const worker = new Worker(URL.createObjectURL(blob), { name, type: isESM ? 'module' : undefined });
-			worker.postMessage('vs/workbench/api/worker/extensionHostWorker');
+			if (!isESM) {
+				// Note: cannot postMessage into a worker that is ESM because imports are async
+				worker.postMessage('vs/workbench/api/worker/extensionHostWorker');
+			}
 			const nestedWorkers = new Map();
 
 			worker.onmessage = (event) => {

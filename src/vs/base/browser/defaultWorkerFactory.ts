@@ -56,7 +56,12 @@ function getWorker(workerMainLocation: URI | undefined, label: string): Worker |
 	// ESM-comment-end
 	if (workerMainLocation) {
 		const workerUrl = getWorkerBootstrapUrl(label, workerMainLocation.toString(true));
-		return new Worker(ttPolicy ? ttPolicy.createScriptURL(workerUrl) as unknown as string : workerUrl, { name: label, type: isESM ? 'module' : undefined });
+		const worker = new Worker(ttPolicy ? ttPolicy.createScriptURL(workerUrl) as unknown as string : workerUrl, { name: label, type: isESM ? 'module' : undefined });
+		if (isESM) {
+			return whenESMWorkerReady(worker);
+		} else {
+			return worker;
+		}
 	}
 	throw new Error(`You must define a function MonacoEnvironment.getWorkerUrl or MonacoEnvironment.getWorker`);
 }
@@ -90,10 +95,23 @@ function getWorkerBootstrapUrl(label: string, workerScriptUrl: string, workerBas
 		`globalThis._VSCODE_FILE_ROOT = '${_VSCODE_FILE_ROOT}';`,
 		`const ttPolicy = globalThis.trustedTypes?.createPolicy('defaultWorkerFactory', { createScriptURL: value => value });`,
 		`globalThis.workerttPolicy = ttPolicy;`,
-		isESM ? `await import(ttPolicy?.createScriptURL('${workerScriptUrl}') ?? '${workerScriptUrl}');` : `importScripts(ttPolicy?.createScriptURL('${workerScriptUrl}') ?? '${workerScriptUrl}');`,
+		isESM ? `await import(ttPolicy?.createScriptURL('${workerScriptUrl}') ?? '${workerScriptUrl}');` : `importScripts(ttPolicy?.createScriptURL('${workerScriptUrl}') ?? '${workerScriptUrl}');`, //
+		isESM ? `globalThis.postMessage({ type: 'vscode-worker-ready' });` : undefined, // in ESM signal we are ready after the async import
 		`/*${label}*/`
 	]).join('')], { type: 'application/javascript' });
 	return URL.createObjectURL(blob);
+}
+
+function whenESMWorkerReady(worker: Worker): Promise<Worker> {
+	return new Promise<Worker>((resolve, reject) => {
+		worker.onmessage = function (e) {
+			if (e.data.type === 'vscode-worker-ready') {
+				worker.onmessage = null;
+				resolve(worker);
+			}
+		};
+		worker.onerror = reject;
+	});
 }
 
 function isPromiseLike<T>(obj: any): obj is PromiseLike<T> {

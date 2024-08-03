@@ -80,7 +80,7 @@ suite('vscode API - commands', () => {
 
 	});
 
-	test.skip('api-command: vscode.diff', function () { // TODO@esm flaky
+	test('api-command: vscode.diff', function () {
 
 		const registration = workspace.registerTextDocumentContentProvider('sc', {
 			provideTextDocumentContent(uri) {
