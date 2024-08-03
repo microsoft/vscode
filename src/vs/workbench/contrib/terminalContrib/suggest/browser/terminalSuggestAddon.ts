@@ -238,8 +238,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._onAcceptedCompletion.fire(SuggestAddon.requestGlobalCompletionsSequence);
 	}
 
-	private _state: 'cleared' | undefined;
-
 	private _sync(promptInputState: IPromptInputModelState): void {
 		const config = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection);
 
@@ -279,8 +277,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 
 		this._mostRecentPromptInputState = promptInputState;
-		// TODO: This check used to prevent old completions showing for a frame. Need to clean up state handling
-		if (!this._promptInputModel || !this._terminal || !this._suggestWidget || !this._initialPromptInputState || this._leadingLineContent === undefined || this._state === 'cleared') {
+		if (!this._promptInputModel || !this._terminal || !this._suggestWidget || !this._initialPromptInputState || this._leadingLineContent === undefined) {
 			return;
 		}
 
@@ -290,8 +287,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		if (this._currentPromptInputState.cursorIndex > 1 && this._currentPromptInputState.value.at(this._currentPromptInputState.cursorIndex - 1) === ' ') {
 			this._preventCompletionsRequest = false;
 			this._allowCompletionsRequestTask.cancel();
-			this._state = 'cleared';
-			this.hideSuggestWidget();
+			this.hideSuggestWidget(true);
 			return;
 		}
 
@@ -300,8 +296,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		if (this._currentPromptInputState.cursorIndex < this._initialPromptInputState.cursorIndex) {
 			this._preventCompletionsRequest = false;
 			this._allowCompletionsRequestTask.cancel();
-			this._state = 'cleared';
-			this.hideSuggestWidget();
+			this.hideSuggestWidget(true);
 			return;
 		}
 
@@ -318,9 +313,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 		// Hide and clear model if there are no more items
 		if (!this._suggestWidget.hasCompletions()) {
-			this._preventCompletionsRequest = false;
-			this._allowCompletionsRequestTask.cancel();
-			this.hideSuggestWidget();
+			this.hideSuggestWidget(true);
 			return;
 		}
 
@@ -543,7 +536,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			return;
 		}
 		const xtermBox = this._screen!.getBoundingClientRect();
-		this._state = undefined;
 		suggestWidget.setCompletionModel(model);
 		suggestWidget.showSuggestions(0, false, false, {
 			left: xtermBox.left + this._terminal.buffer.active.cursorX * dimensions.width,
@@ -688,10 +680,15 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this.hideSuggestWidget();
 	}
 
-	hideSuggestWidget(): void {
+	hideSuggestWidget(forceClearState?: boolean): void {
+		if (forceClearState && this._preventCompletionsRequest) {
+			this._preventCompletionsRequest = false;
+			this._allowCompletionsRequestTask.cancel();
+		}
 		if (!this._preventCompletionsRequest) {
 			this._initialPromptInputState = undefined;
 			this._currentPromptInputState = undefined;
+			this._leadingLineContent = undefined;
 		}
 		this._suggestWidget?.hide();
 	}
