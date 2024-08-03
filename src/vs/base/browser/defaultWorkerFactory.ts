@@ -10,6 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { IWorker, IWorkerCallback, IWorkerFactory, logOnceWebWorkerWarning } from 'vs/base/common/worker/simpleWorker';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { coalesce } from 'vs/base/common/arrays';
+import { isESM } from 'vs/base/common/amd';
 
 // Reuse the trusted types policy defined from worker bootstrap
 // when available.
@@ -25,7 +26,7 @@ export function createBlobWorker(blobUrl: string, options?: WorkerOptions): Work
 	if (!blobUrl.startsWith('blob:')) {
 		throw new URIError('Not a blob-url: ' + blobUrl);
 	}
-	return new Worker(ttPolicy ? ttPolicy.createScriptURL(blobUrl) as unknown as string : blobUrl, options);
+	return new Worker(ttPolicy ? ttPolicy.createScriptURL(blobUrl) as unknown as string : blobUrl, { ...options, type: isESM ? 'module' : undefined });
 }
 
 function getWorker(workerMainLocation: URI | undefined, label: string): Worker | Promise<Worker> {
@@ -41,7 +42,7 @@ function getWorker(workerMainLocation: URI | undefined, label: string): Worker |
 		}
 		if (typeof monacoEnvironment.getWorkerUrl === 'function') {
 			const workerUrl = monacoEnvironment.getWorkerUrl('workerMain.js', label);
-			return new Worker(ttPolicy ? ttPolicy.createScriptURL(workerUrl) as unknown as string : workerUrl, { name: label });
+			return new Worker(ttPolicy ? ttPolicy.createScriptURL(workerUrl) as unknown as string : workerUrl, { name: label, type: isESM ? 'module' : undefined });
 		}
 	}
 	// ESM-comment-begin
@@ -50,12 +51,12 @@ function getWorker(workerMainLocation: URI | undefined, label: string): Worker |
 		const factoryModuleId = 'vs/base/worker/defaultWorkerFactory.js';
 		const workerBaseUrl = require.toUrl(factoryModuleId).slice(0, -factoryModuleId.length); // explicitly using require.toUrl(), see https://github.com/microsoft/vscode/issues/107440#issuecomment-698982321
 		const workerUrl = getWorkerBootstrapUrl(label, workerMainLocation, workerBaseUrl);
-		return new Worker(ttPolicy ? ttPolicy.createScriptURL(workerUrl) as unknown as string : workerUrl, { name: label });
+		return new Worker(ttPolicy ? ttPolicy.createScriptURL(workerUrl) as unknown as string : workerUrl, { name: label, type: isESM ? 'module' : undefined });
 	}
 	// ESM-comment-end
 	if (workerMainLocation) {
 		const workerUrl = getWorkerBootstrapUrl(label, workerMainLocation.toString(true));
-		return new Worker(ttPolicy ? ttPolicy.createScriptURL(workerUrl) as unknown as string : workerUrl, { name: label });
+		return new Worker(ttPolicy ? ttPolicy.createScriptURL(workerUrl) as unknown as string : workerUrl, { name: label, type: isESM ? 'module' : undefined });
 	}
 	throw new Error(`You must define a function MonacoEnvironment.getWorkerUrl or MonacoEnvironment.getWorker`);
 }
@@ -89,7 +90,7 @@ function getWorkerBootstrapUrl(label: string, workerScriptUrl: string, workerBas
 		`globalThis._VSCODE_FILE_ROOT = '${_VSCODE_FILE_ROOT}';`,
 		`const ttPolicy = globalThis.trustedTypes?.createPolicy('defaultWorkerFactory', { createScriptURL: value => value });`,
 		`globalThis.workerttPolicy = ttPolicy;`,
-		`importScripts(ttPolicy?.createScriptURL('${workerScriptUrl}') ?? '${workerScriptUrl}');`,
+		isESM ? `await import(ttPolicy?.createScriptURL('${workerScriptUrl}') ?? '${workerScriptUrl}');` : `importScripts(ttPolicy?.createScriptURL('${workerScriptUrl}') ?? '${workerScriptUrl}');`,
 		`/*${label}*/`
 	]).join('')], { type: 'application/javascript' });
 	return URL.createObjectURL(blob);

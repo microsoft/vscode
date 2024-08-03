@@ -387,13 +387,13 @@ export class WebClientServer {
 			return void res.end('Not found');
 		}
 
-		const webWorkerExtensionHostIframeScriptSHA = 'sha256-V28GQnL3aYxbwgpV3yW1oJ+VKKe/PBSzWntNyH8zVXA=';
+		const webWorkerExtensionHostIframeScriptSHA = 'sha256-x+xy3Mbd7prKkdEiN6FyBYRGIwENqBUS+4nb8VrEZTU=';
 
 		const cspDirectives = [
 			'default-src \'self\';',
 			'img-src \'self\' https: data: blob:;',
 			'media-src \'self\';',
-			`script-src 'self' 'unsafe-eval' ${WORKBENCH_NLS_BASE_URL ?? ''} blob: 'nonce-1nline-m4p' ${this._getScriptCspHashes(data).join(' ')} '${webWorkerExtensionHostIframeScriptSHA}' 'sha256-/r7rqQ+yrxt57sxLuQ6AMYcy/lUpvAIzHjIJt/OeLWU=' 'sha256-OFamA3tyjcAu68sYOODXgCBYQzkGSFLQStx0u4hWd/8=' ${useTestResolver ? '' : `http://${remoteAuthority}`};`, // the sha is the same as in src/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html and src/vs/workbench/services/extensions/worker/webWorkerExtensionHost-esm.html
+			`script-src 'self' 'unsafe-eval' ${WORKBENCH_NLS_BASE_URL ?? ''} blob: 'nonce-1nline-m4p' ${this._getScriptCspHashes(data).join(' ')} '${webWorkerExtensionHostIframeScriptSHA}' 'sha256-/r7rqQ+yrxt57sxLuQ6AMYcy/lUpvAIzHjIJt/OeLWU=' ${useTestResolver ? '' : `http://${remoteAuthority}`};`, // the sha is the same as in src/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html
 			'child-src \'self\';',
 			`frame-src 'self' https://*.vscode-cdn.net data:;`,
 			'worker-src \'self\' data: blob:;',
