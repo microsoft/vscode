@@ -228,7 +228,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 					if (promptInputState.cursorIndex === 1 || promptInputState.prefix.match(/([\s\[])[^\s]$/)) {
 						// Never request completions if the last key sequence was up or down as the user was likely
 						// navigating history
-						if (this._lastUserData !== /*up*/'\x1b[A' && this._lastUserData !== /*down*/'\x1b[B') {
+						if (!this._lastUserData?.match(/\x1b[\[O][AB]/)) {
 							this._requestCompletions();
 							sent = true;
 						}
@@ -359,6 +359,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._currentPromptInputState = {
 			value: this._promptInputModel.value,
 			prefix: this._promptInputModel.prefix,
+			suffix: this._promptInputModel.suffix,
 			cursorIndex: this._promptInputModel.cursorIndex,
 			ghostTextIndex: this._promptInputModel.ghostTextIndex
 		};
@@ -501,6 +502,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._initialPromptInputState = {
 			value: this._promptInputModel.value,
 			prefix: this._promptInputModel.prefix,
+			suffix: this._promptInputModel.suffix,
 			cursorIndex: this._promptInputModel.cursorIndex,
 			ghostTextIndex: this._promptInputModel.ghostTextIndex
 		};
@@ -623,18 +625,27 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._mostRecentCompletion = completion;
 
 		const commonPrefixLen = commonPrefixLength(replacementText, completion.label);
+		const commonPrefix = replacementText.substring(replacementText.length - 1 - commonPrefixLen, replacementText.length - 1);
+		const completionSuffix = completion.label.substring(commonPrefixLen);
+		let resultSequence: string;
+		if (currentPromptInputState.prefix.endsWith(commonPrefix) && currentPromptInputState.suffix.startsWith(completionSuffix)) {
+			// Move right to the end of the completion
+			resultSequence = '\x1bOC'.repeat(completion.label.length - commonPrefixLen);
+		} else {
+			resultSequence = [
+				// Backspace (left) to remove all additional input
+				'\x7F'.repeat(replacementText.length - commonPrefixLen),
+				// Delete (right) to remove any additional text in the same word
+				'\x1b[3~'.repeat(rightSideReplacementText.length),
+				// Write the completion
+				completionSuffix,
+				// Run on enter if needed
+				runOnEnter ? '\r' : ''
+			].join('');
+		}
 
 		// Send the completion
-		this._onAcceptedCompletion.fire([
-			// Backspace (left) to remove all additional input
-			'\x7F'.repeat(replacementText.length - commonPrefixLen),
-			// Delete (right) to remove any additional text in the same word
-			'\x1b[3~'.repeat(rightSideReplacementText.length),
-			// Write the completion
-			completion.label.substring(commonPrefixLen),
-			// Run on enter if needed
-			runOnEnter ? '\r' : ''
-		].join(''));
+		this._onAcceptedCompletion.fire(resultSequence);
 
 		this.hideSuggestWidget();
 	}

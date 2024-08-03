@@ -251,14 +251,31 @@ function Send-Completions {
 		if ($null -ne $completions.CompletionMatches) {
 			$result += ";$($completions.ReplacementIndex);$($completions.ReplacementLength + $prefixCursorDelta);$($cursorIndex - $prefixCursorDelta);"
 			$json = [System.Collections.ArrayList]@($completions.CompletionMatches)
-			# Add `.` and `..` to the completions list for results that only contain files and dirs
+			# Relative directory completions
 			if ($completions.CompletionMatches.Count -gt 0 -and $completions.CompletionMatches.Where({ $_.ResultType -eq 3 -or $_.ResultType -eq 4 })) {
-				$json.Add([System.Management.Automation.CompletionResult]::new(
-					'.', '.', [System.Management.Automation.CompletionResultType]::ProviderContainer, (Get-Location).Path)
-				)
-				$json.Add([System.Management.Automation.CompletionResult]::new(
-					'..', '..', [System.Management.Automation.CompletionResultType]::ProviderContainer, (Split-Path (Get-Location) -Parent))
-				)
+				# Add `../ relative to the top completion
+				$firstCompletion = $completions.CompletionMatches[0]
+				if ($firstCompletion.CompletionText.StartsWith('../')) {
+					if ($completionPrefix -match '(\.\.\/)+') {
+						$parentDir = "$($matches[0])../"
+						$currentPath = Split-Path -Parent $firstCompletion.ToolTip
+						try {
+							$parentDirPath = Split-Path -Parent $currentPath
+							$json.Add([System.Management.Automation.CompletionResult]::new(
+								$parentDir, $parentDir, [System.Management.Automation.CompletionResultType]::ProviderContainer, $parentDirPath)
+							)
+						} catch { }
+					}
+				}
+				# Add `.` and `..` to the completions list for results that only contain files and dirs
+				else {
+					$json.Add([System.Management.Automation.CompletionResult]::new(
+						'.', '.', [System.Management.Automation.CompletionResultType]::ProviderContainer, (Get-Location).Path)
+					)
+					$json.Add([System.Management.Automation.CompletionResult]::new(
+						'..', '..', [System.Management.Automation.CompletionResultType]::ProviderContainer, (Split-Path (Get-Location) -Parent))
+					)
+				}
 			}
 			# Add `-` and `+` as a completion for move backwards in location history. Unfortunately
 			# we don't set the path it will navigate to since the Set-Location stack is not public

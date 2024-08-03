@@ -293,7 +293,7 @@ export class PackageJSONContribution implements IJSONContribution {
 			// COREPACK_ENABLE_PROJECT_SPEC makes the npm view command succeed
 			//   even if packageManager specified a package manager other than npm.
 			const env = { ...process.env, COREPACK_ENABLE_AUTO_PIN: '0', COREPACK_ENABLE_PROJECT_SPEC: '0' };
-			cp.execFile(npmCommandPath, args, { cwd, env }, (error, stdout) => {
+			cp.execFile(`"${npmCommandPath}"`, args, { cwd, env, shell: true }, (error, stdout) => {
 				if (!error) {
 					try {
 						const content = JSON.parse(stdout);
