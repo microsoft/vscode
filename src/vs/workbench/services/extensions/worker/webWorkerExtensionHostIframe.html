@@ -78,7 +78,7 @@
 				return;
 			}
 			const { data } = event.data;
-			createWorker(data.baseUrl, data.workerUrl,data.fileRoot, data.nls.messages, data.nls.language);
+			createWorker(data.baseUrl, data.workerUrl, data.fileRoot, data.nls.messages, data.nls.language);
 		};
 
 		window.parent.postMessage({

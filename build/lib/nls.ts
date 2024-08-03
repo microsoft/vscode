@@ -212,7 +212,7 @@ module _nls {
 		return node.kind === ts.SyntaxKind.CallExpression ? CollectStepResult.YesAndRecurse : CollectStepResult.NoAndRecurse;
 	}
 
-	const isESM = false; // TODO@esm remove eventually
+	const isESM = true; // TODO@esm remove eventually
 
 	function analyze(
 		ts: typeof import('typescript'),

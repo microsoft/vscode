@@ -41,5 +41,9 @@
 	<script>
 		performance.mark('code/willLoadWorkbenchMain');
 	</script>
+	<!-- always ensure built in english NLS messages -->
+	<script type="module" src="{{WORKBENCH_NLS_FALLBACK_URL}}"></script>
+	<!-- attempt to load NLS messages in case non-english -->
+	<script type="module" src="{{WORKBENCH_NLS_URL}}"></script>
 	<script type="module" src="{{WORKBENCH_WEB_BASE_URL}}/out/vs/code/browser/workbench/workbench.js"></script>
 </html>
