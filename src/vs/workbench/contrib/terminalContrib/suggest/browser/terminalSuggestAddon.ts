@@ -173,10 +173,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			return this._handleVSCodeSequence(data);
 		}));
 		this._register(xterm.onData(e => {
-			if (!e.startsWith('\x1b[')) {
-				this._lastUserData = e;
-				this._lastUserDataTimestamp = Date.now();
-			}
+			this._lastUserData = e;
+			this._lastUserDataTimestamp = Date.now();
 		}));
 	}
 
@@ -228,7 +226,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 					if (promptInputState.cursorIndex === 1 || promptInputState.prefix.match(/([\s\[])[^\s]$/)) {
 						// Never request completions if the last key sequence was up or down as the user was likely
 						// navigating history
-						if (!this._lastUserData?.match(/\x1b[\[O][AB]/)) {
+						if (!this._lastUserData?.match(/^\x1b[\[O]?[A-D]$/)) {
 							this._requestCompletions();
 							sent = true;
 						}
