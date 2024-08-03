@@ -135,7 +135,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	static requestEnableCodeCompletionsSequence = '\x1b[24~h'; // F12,h
 
 	private _preventCompletionsRequest: boolean = false;
-	private _allowCompletionsRequestTask = new RunOnceScheduler(() => this._preventCompletionsRequest = false, 500);
+	private _allowCompletionsRequestTask = new RunOnceScheduler(() => this._preventCompletionsRequest = false, 50);
 
 	private readonly _onBell = this._register(new Emitter<void>());
 	readonly onBell = this._onBell.event;
