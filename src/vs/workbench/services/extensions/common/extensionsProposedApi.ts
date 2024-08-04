@@ -110,12 +110,14 @@ export class ExtensionsProposedApi {
 			return;
 		}
 
-		const argvContent = await this.fileService.readFile(this._environmentService.argvResource);
-		const argvJSON = parse(argvContent.value.toString());
-		const enableProposedApi = argvJSON['enable-proposed-api'];
-		if (Array.isArray(enableProposedApi) && enableProposedApi.includes(key)) {
-			// allow proposed API for this extension because it is listed in --enable-proposed-api
-			return;
+		if (await this.fileService.exists(this._environmentService.argvResource)) {
+			const argvContent = await this.fileService.readFile(this._environmentService.argvResource);
+			const argvJSON = parse(argvContent.value.toString());
+			const enableProposedApi = argvJSON['enable-proposed-api'];
+			if (Array.isArray(enableProposedApi) && enableProposedApi.includes(key)) {
+				// allow proposed API for this extension because it is listed in --enable-proposed-api
+				return;
+			}
 		}
 
 		if (!extension.isBuiltin && isNonEmptyArray(extension.enabledApiProposals)) {
