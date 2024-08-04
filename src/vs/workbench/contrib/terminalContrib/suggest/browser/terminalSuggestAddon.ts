@@ -5,7 +5,6 @@
 
 import type { ITerminalAddon, Terminal } from '@xterm/xterm';
 import * as dom from 'vs/base/browser/dom';
-import { RunOnceScheduler } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { combinedDisposable, Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
@@ -106,7 +105,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	private readonly _promptInputModelSubscriptions = this._register(new MutableDisposable());
 
 	private _mostRecentPromptInputState?: IPromptInputModelState;
-	private _initialPromptInputState?: IPromptInputModelState;
 	private _currentPromptInputState?: IPromptInputModelState;
 	private _model?: SimpleCompletionModel;
 
@@ -133,9 +131,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	static requestGlobalCompletionsSequence = '\x1b[24~f'; // F12,f
 	static requestEnableGitCompletionsSequence = '\x1b[24~g'; // F12,g
 	static requestEnableCodeCompletionsSequence = '\x1b[24~h'; // F12,h
-
-	private _preventCompletionsRequest: boolean = false;
-	private _allowCompletionsRequestTask = new RunOnceScheduler(() => this._preventCompletionsRequest = false, 50);
 
 	private readonly _onBell = this._register(new Emitter<void>());
 	readonly onBell = this._onBell.event;
@@ -210,24 +205,9 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			this._requestGlobalCompletions();
 		}
 
-		if (this._preventCompletionsRequest) {
-			return;
-		}
-		this._preventCompletionsRequest = true;
-		this._allowCompletionsRequestTask.schedule();
-		this._initialPromptInputState = undefined;
-		this._currentPromptInputState = undefined;
-
 		// Ensure that a key has been pressed since the last accepted completion in order to prevent
 		// completions being requested again right after accepting a completion
 		if (this._lastUserDataTimestamp > this._lastAcceptedCompletionTimestamp) {
-			this._initialPromptInputState = {
-				value: this._promptInputModel.value,
-				prefix: this._promptInputModel.prefix,
-				suffix: this._promptInputModel.suffix,
-				cursorIndex: this._promptInputModel.cursorIndex,
-				ghostTextIndex: this._promptInputModel.ghostTextIndex
-			};
 			this._onAcceptedCompletion.fire(SuggestAddon.requestCompletionsSequence);
 		}
 	}
@@ -275,7 +255,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 
 		this._mostRecentPromptInputState = promptInputState;
-		if (!this._promptInputModel || !this._terminal || !this._suggestWidget || !this._initialPromptInputState || this._leadingLineContent === undefined) {
+		if (!this._promptInputModel || !this._terminal || !this._suggestWidget || this._leadingLineContent === undefined) {
 			return;
 		}
 
@@ -283,19 +263,19 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 		// Hide the widget if the latest character was a space
 		if (this._currentPromptInputState.cursorIndex > 1 && this._currentPromptInputState.value.at(this._currentPromptInputState.cursorIndex - 1) === ' ') {
-			this.hideSuggestWidget(true);
+			this.hideSuggestWidget();
 			return;
 		}
 
 		// Hide the widget if the cursor moves to the left of the initial position as the
 		// completions are no longer valid
-		if (this._currentPromptInputState.cursorIndex < this._initialPromptInputState.cursorIndex) {
-			this.hideSuggestWidget(true);
+		if (this._currentPromptInputState.cursorIndex < this._replacementIndex + this._replacementLength) {
+			this.hideSuggestWidget();
 			return;
 		}
 
 		if (this._terminalSuggestWidgetVisibleContextKey.get()) {
-			this._cursorIndexDelta = this._currentPromptInputState.cursorIndex - this._initialPromptInputState.cursorIndex;
+			this._cursorIndexDelta = this._currentPromptInputState.cursorIndex - (this._replacementIndex + this._replacementLength);
 			let normalizedLeadingLineContent = this._currentPromptInputState.value.substring(this._replacementIndex, this._replacementIndex + this._replacementLength + this._cursorIndexDelta);
 			if (this._isFilteringDirectories) {
 				normalizedLeadingLineContent = normalizePathSeparator(normalizedLeadingLineContent, this._pathSeparator);
@@ -306,7 +286,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 		// Hide and clear model if there are no more items
 		if (!this._suggestWidget.hasCompletions()) {
-			this.hideSuggestWidget(true);
+			this.hideSuggestWidget();
 			return;
 		}
 
@@ -343,13 +323,10 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		// Unrecognized sequence
 		return false;
 	}
-
 	private _replacementIndex: number = 0;
 	private _replacementLength: number = 0;
 
 	private _handleCompletionsSequence(terminal: Terminal, data: string, command: string, args: string[]): void {
-		this._preventCompletionsRequest = false;
-
 		// Nothing to handle if the terminal is not attached
 		if (!terminal.element || !this._enableWidget || !this._promptInputModel) {
 			return;
@@ -365,7 +342,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			cursorIndex: this._promptInputModel.cursorIndex,
 			ghostTextIndex: this._promptInputModel.ghostTextIndex
 		};
-		this._initialPromptInputState ??= this._currentPromptInputState;
 
 		this._leadingLineContent = this._currentPromptInputState.prefix.substring(replacementIndex, replacementIndex + replacementLength + this._cursorIndexDelta);
 
@@ -393,9 +369,10 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 		this._mostRecentCompletion = undefined;
 
-		this._cursorIndexDelta = this._currentPromptInputState.cursorIndex - this._initialPromptInputState.cursorIndex;
+		this._cursorIndexDelta = this._currentPromptInputState.cursorIndex - (replacementIndex + replacementLength);
 
 		let normalizedLeadingLineContent = this._leadingLineContent;
+
 		// If there is a single directory in the completions:
 		// - `\` and `/` are normalized such that either can be used
 		// - Using `\` or `/` will request new completions. It's important that this only occurs
@@ -527,7 +504,15 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		if (!dimensions.width || !dimensions.height) {
 			return;
 		}
+		// TODO: What do frozen and auto do?
 		const xtermBox = this._screen!.getBoundingClientRect();
+		// this._initialPromptInputState = {
+		// 	value: this._promptInputModel.value,
+		// 	prefix: this._promptInputModel.prefix,
+		// 	suffix: this._promptInputModel.suffix,
+		// 	cursorIndex: this._promptInputModel.cursorIndex,
+		// 	ghostTextIndex: this._promptInputModel.ghostTextIndex
+		// };
 		suggestWidget.setCompletionModel(model);
 		suggestWidget.showSuggestions(0, false, false, {
 			left: xtermBox.left + this._terminal.buffer.active.cursorX * dimensions.width,
@@ -586,7 +571,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		if (!suggestion) {
 			suggestion = this._suggestWidget?.getFocusedItem();
 		}
-		const initialPromptInputState = this._initialPromptInputState ?? this._mostRecentPromptInputState;
+		const initialPromptInputState = this._mostRecentPromptInputState;
 		if (!suggestion || !initialPromptInputState || !this._leadingLineContent || !this._model) {
 			return;
 		}
@@ -672,16 +657,9 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this.hideSuggestWidget();
 	}
 
-	hideSuggestWidget(forceClearState?: boolean): void {
-		if (forceClearState && this._preventCompletionsRequest) {
-			this._preventCompletionsRequest = false;
-			this._allowCompletionsRequestTask.cancel();
-		}
-		if (!this._preventCompletionsRequest) {
-			this._initialPromptInputState = undefined;
-			this._currentPromptInputState = undefined;
-			this._leadingLineContent = undefined;
-		}
+	hideSuggestWidget(): void {
+		this._currentPromptInputState = undefined;
+		this._leadingLineContent = undefined;
 		this._suggestWidget?.hide();
 	}
 }
