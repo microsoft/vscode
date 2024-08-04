@@ -90,7 +90,7 @@ export class SignService extends AbstractSignService implements ISignService {
 
 	private async getWasmBytes(): Promise<ArrayBuffer> {
 		const url = isESM
-			? resolveAmdNodeModulePath('vsda', 'vsda_bg.wasm')
+			? resolveAmdNodeModulePath('vsda', 'rust/web/vsda_bg.wasm')
 			: FileAccess.asBrowserUri('vsda/../vsda_bg.wasm').toString(true);
 		const response = await fetch(url);
 		if (!response.ok) {
