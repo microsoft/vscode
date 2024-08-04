@@ -18,24 +18,21 @@ import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { Mutable } from 'vs/base/common/types';
 import { IFileService } from 'vs/platform/files/common/files';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { Event } from 'vs/base/common/event';
 import { parse } from 'vs/base/common/jsonc';
 
-export class ExtensionsProposedApi extends Disposable {
+export class ExtensionsProposedApi {
 
 	private readonly _envEnablesProposedApiForAll: boolean;
 	private readonly _envEnabledExtensions: Set<string>;
 	private readonly _productEnabledExtensions: Map<string, string[]>;
-	private _argvJsonEnabledExtensions: string[];
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IProductService productService: IProductService,
 		@IFileService private readonly fileService: IFileService,
-		@INativeEnvironmentService private readonly environmentMainService: INativeEnvironmentService,
+		@INativeEnvironmentService private readonly environmentMainService: INativeEnvironmentService
 	) {
-		super();
 
 		this._envEnabledExtensions = new Set((_environmentService.extensionEnabledProposedApi ?? []).map(id => ExtensionIdentifier.toKey(id)));
 
@@ -46,14 +43,6 @@ export class ExtensionsProposedApi extends Disposable {
 
 		this._productEnabledExtensions = new Map<string, ApiProposalName[]>();
 
-		this._argvJsonEnabledExtensions = [];
-		this.updateApiProposalsFromArgvJson();
-		this._register(fileService.watch(environmentMainService.argvResource));
-		this._register(
-			Event.filter(
-				fileService.onDidFilesChange, e => e.contains(environmentMainService.argvResource)
-			)(async () => this.updateApiProposalsFromArgvJson())
-		);
 
 		// NEW world - product.json spells out what proposals each extension can use
 		if (productService.extensionEnabledApiProposals) {
@@ -71,24 +60,13 @@ export class ExtensionsProposedApi extends Disposable {
 		}
 	}
 
-	private updateApiProposalsFromArgvJson = async () => {
-		const argvContent = await this.fileService.readFile(this.environmentMainService.argvResource);
-		const argvJSON = parse(argvContent.value.toString());
-		const enableProposedApi = argvJSON['enable-proposed-api'];
-		if (Array.isArray(enableProposedApi)) {
-			this._argvJsonEnabledExtensions = enableProposedApi;
-		} else {
-			this._argvJsonEnabledExtensions = [];
-		}
-	};
-
-	updateEnabledApiProposals(extensions: IExtensionDescription[]): void {
+	async updateEnabledApiProposals(extensions: IExtensionDescription[]): Promise<void> {
 		for (const extension of extensions) {
-			this.doUpdateEnabledApiProposals(extension);
+			await this.doUpdateEnabledApiProposals(extension);
 		}
 	}
 
-	private doUpdateEnabledApiProposals(extension: Mutable<IExtensionDescription>): void {
+	private async doUpdateEnabledApiProposals(extension: Mutable<IExtensionDescription>): Promise<void> {
 
 		const key = ExtensionIdentifier.toKey(extension.identifier);
 
@@ -134,8 +112,11 @@ export class ExtensionsProposedApi extends Disposable {
 			return;
 		}
 
-		if (this._argvJsonEnabledExtensions.includes(key)) {
-			// enable proposed api if the extension is listed in the argv.json file
+		const argvContent = await this.fileService.readFile(this.environmentMainService.argvResource);
+		const argvJSON = parse(argvContent.value.toString());
+		const enableProposedApi = argvJSON['enable-proposed-api'];
+		if (Array.isArray(enableProposedApi) && enableProposedApi.includes(key)) {
+			// allow proposed API for this extension because it is listed in --enable-proposed-api
 			return;
 		}
 
