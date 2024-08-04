@@ -129,18 +129,16 @@ class AMDModuleImporter {
 		});
 	}
 
-	private _workerLoadScript(scriptSrc: string): Promise<DefineCall | undefined> {
-		return new Promise<DefineCall | undefined>((resolve, reject) => {
-			try {
-				if (this._amdPolicy) {
-					scriptSrc = this._amdPolicy.createScriptURL(scriptSrc) as any as string;
-				}
-				importScripts(scriptSrc);
-				resolve(this._defineCalls.pop());
-			} catch (err) {
-				reject(err);
-			}
-		});
+	private async _workerLoadScript(scriptSrc: string): Promise<DefineCall | undefined> {
+		if (this._amdPolicy) {
+			scriptSrc = this._amdPolicy.createScriptURL(scriptSrc) as any as string;
+		}
+		if (isESM) {
+			await import(scriptSrc);
+		} else {
+			importScripts(scriptSrc);
+		}
+		return this._defineCalls.pop();
 	}
 
 	private async _nodeJSLoadScript(scriptSrc: string): Promise<DefineCall | undefined> {
