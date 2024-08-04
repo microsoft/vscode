@@ -17,7 +17,6 @@ import { Extensions, IExtensionFeatureMarkdownRenderer, IExtensionFeaturesRegist
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { Mutable } from 'vs/base/common/types';
 import { IFileService } from 'vs/platform/files/common/files';
-import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { parse } from 'vs/base/common/jsonc';
 
 export class ExtensionsProposedApi {
@@ -29,9 +28,8 @@ export class ExtensionsProposedApi {
 	constructor(
 		@ILogService private readonly _logService: ILogService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
-		@IProductService productService: IProductService,
 		@IFileService private readonly fileService: IFileService,
-		@INativeEnvironmentService private readonly environmentMainService: INativeEnvironmentService
+		@IProductService productService: IProductService
 	) {
 
 		this._envEnabledExtensions = new Set((_environmentService.extensionEnabledProposedApi ?? []).map(id => ExtensionIdentifier.toKey(id)));
@@ -112,7 +110,7 @@ export class ExtensionsProposedApi {
 			return;
 		}
 
-		const argvContent = await this.fileService.readFile(this.environmentMainService.argvResource);
+		const argvContent = await this.fileService.readFile(this._environmentService.argvResource);
 		const argvJSON = parse(argvContent.value.toString());
 		const enableProposedApi = argvJSON['enable-proposed-api'];
 		if (Array.isArray(enableProposedApi) && enableProposedApi.includes(key)) {
