@@ -626,7 +626,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		const commonPrefix = replacementText.substring(replacementText.length - 1 - commonPrefixLen, replacementText.length - 1);
 		const completionSuffix = completion.label.substring(commonPrefixLen);
 		let resultSequence: string;
-		if (currentPromptInputState.prefix.endsWith(commonPrefix) && currentPromptInputState.suffix.startsWith(completionSuffix)) {
+		if (currentPromptInputState.suffix.length > 0 && currentPromptInputState.prefix.endsWith(commonPrefix) && currentPromptInputState.suffix.startsWith(completionSuffix)) {
 			// Move right to the end of the completion
 			resultSequence = '\x1bOC'.repeat(completion.label.length - commonPrefixLen);
 		} else {
