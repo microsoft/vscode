@@ -166,7 +166,6 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 				this._instance.focus();
 				this._instance.sendText(text, false);
 			}));
-			this.add(this._instance.onDidSendText(() => this._addon.value?.hideSuggestWidget()));
 		}
 	}
 }
