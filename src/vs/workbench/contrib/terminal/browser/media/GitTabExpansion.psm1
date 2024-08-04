@@ -546,6 +546,7 @@ function GitTabExpansionInternal($lastBlock, $GitStatus = $null) {
 
 		# Handles git checkout|switch <ref>
 		"^(?:checkout|switch).* (?<ref>\S*)$" {
+			[System.Management.Automation.CompletionResult]::new('.', '.', 'ParameterName', "Discard changes in working directory")
 			gitBranches $matches['ref'] $true | ConvertTo-VscodeCompletion -Type 'branch'
 			gitRemoteUniqueBranches $matches['ref'] | ConvertTo-VscodeCompletion -Type 'branch'
 			gitTags $matches['ref'] | ConvertTo-VscodeCompletion -Type 'tag'
