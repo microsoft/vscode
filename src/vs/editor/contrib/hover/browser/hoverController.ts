@@ -53,7 +53,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 
 	public static readonly ID = 'editor.contrib.hover';
 
-	public shouldKeepOpenOnEditorMouseMoveOrLeave: boolean = false;
+	public shouldKeepOpenOnEditorMouseMove: boolean = false;
 
 	private readonly _listenersStore = new DisposableStore();
 
@@ -112,7 +112,6 @@ export class HoverController extends Disposable implements IEditorContribution {
 			this._listenersStore.add(this._editor.onKeyDown((e: IKeyboardEvent) => this._onKeyDown(e)));
 		}
 
-		this._listenersStore.add(this._editor.onMouseLeave((e) => this._onEditorMouseLeave(e)));
 		this._listenersStore.add(this._editor.onDidChangeModel(() => {
 			this._cancelScheduler();
 			this._hideWidgets();
@@ -179,23 +178,6 @@ export class HoverController extends Disposable implements IEditorContribution {
 		this._hoverState.mouseDown = false;
 	}
 
-	private _onEditorMouseLeave(mouseEvent: IPartialEditorMouseEvent): void {
-		if (this.shouldKeepOpenOnEditorMouseMoveOrLeave) {
-			return;
-		}
-
-		this._cancelScheduler();
-
-		const shouldNotHideCurrentHoverWidget = this._shouldNotHideCurrentHoverWidget(mouseEvent);
-		if (shouldNotHideCurrentHoverWidget) {
-			return;
-		}
-		if (_sticky) {
-			return;
-		}
-		this._hideWidgets();
-	}
-
 	private _shouldNotRecomputeCurrentHoverWidget(mouseEvent: IEditorMouseEvent): boolean {
 
 		const isHoverSticky = this._hoverSettings.sticky;
@@ -232,7 +214,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 	}
 
 	private _onEditorMouseMove(mouseEvent: IEditorMouseEvent): void {
-		if (this.shouldKeepOpenOnEditorMouseMoveOrLeave) {
+		if (this.shouldKeepOpenOnEditorMouseMove) {
 			return;
 		}
 

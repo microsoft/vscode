@@ -91,7 +91,7 @@ abstract class BaseHoverAccessibleViewProvider extends Disposable implements IAc
 		if (!this._hoverController) {
 			return;
 		}
-		this._hoverController.shouldKeepOpenOnEditorMouseMoveOrLeave = true;
+		this._hoverController.shouldKeepOpenOnEditorMouseMove = true;
 		this._focusedHoverPartIndex = this._hoverController.focusedHoverPartIndex();
 		this._register(this._hoverController.onHoverContentsChanged(() => {
 			this._onDidChangeContent.fire();
@@ -108,7 +108,7 @@ abstract class BaseHoverAccessibleViewProvider extends Disposable implements IAc
 			this._hoverController.focusHoverPartWithIndex(this._focusedHoverPartIndex);
 		}
 		this._focusedHoverPartIndex = -1;
-		this._hoverController.shouldKeepOpenOnEditorMouseMoveOrLeave = false;
+		this._hoverController.shouldKeepOpenOnEditorMouseMove = false;
 	}
 
 	provideContentAtIndex(focusedHoverIndex: number, includeVerbosityActions: boolean): string {
