@@ -25,6 +25,7 @@ import { CONTEXT_CHAT_INPUT_HAS_TEXT } from 'vs/workbench/contrib/chat/common/ch
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { InlineChatAccessibilityHelp } from 'vs/workbench/contrib/inlineChat/browser/inlineChatAccessibilityHelp';
 
 
 // --- browser
@@ -94,8 +95,8 @@ const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegist
 workbenchContributionsRegistry.registerWorkbenchContribution(InlineChatNotebookContribution, LifecyclePhase.Restored);
 
 registerWorkbenchContribution2(InlineChatEnabler.Id, InlineChatEnabler, WorkbenchPhase.AfterRestored);
-
 AccessibleViewRegistry.register(new InlineChatAccessibleView());
+AccessibleViewRegistry.register(new InlineChatAccessibilityHelp());
 
 
 // MARK - Menu Copier

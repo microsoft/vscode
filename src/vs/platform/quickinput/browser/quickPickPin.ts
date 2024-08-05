@@ -18,7 +18,7 @@ const buttonClasses = [pinButtonClass, pinnedButtonClass];
  * be removed if @param filterDupliates has been provided. Pin and pinned button events trigger updates to the underlying storage.
  * Shows the quickpick once formatted.
  */
-export async function showWithPinnedItems(storageService: IStorageService, storageKey: string, quickPick: IQuickPick<IQuickPickItem>, filterDuplicates?: boolean): Promise<void> {
+export async function showWithPinnedItems(storageService: IStorageService, storageKey: string, quickPick: IQuickPick<IQuickPickItem, { useSeparators: true }>, filterDuplicates?: boolean): Promise<void> {
 	const itemsWithoutPinned = quickPick.items;
 	let itemsWithPinned = _formatPinnedItems(storageKey, quickPick, storageService, undefined, filterDuplicates);
 	quickPick.onDidTriggerItemButton(async buttonEvent => {
@@ -41,7 +41,7 @@ export async function showWithPinnedItems(storageService: IStorageService, stora
 	quickPick.show();
 }
 
-function _formatPinnedItems(storageKey: string, quickPick: IQuickPick<IQuickPickItem>, storageService: IStorageService, changedItem?: IQuickPickItem, filterDuplicates?: boolean): QuickPickItem[] {
+function _formatPinnedItems(storageKey: string, quickPick: IQuickPick<IQuickPickItem, { useSeparators: true }>, storageService: IStorageService, changedItem?: IQuickPickItem, filterDuplicates?: boolean): QuickPickItem[] {
 	const formattedItems: QuickPickItem[] = [];
 	let pinnedItems;
 	if (changedItem) {

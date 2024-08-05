@@ -211,8 +211,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 				}
 				if (injection.filesToCopy) {
 					for (const f of injection.filesToCopy) {
-						await fs.promises.mkdir(path.dirname(f.dest), { recursive: true });
 						try {
+							await fs.promises.mkdir(path.dirname(f.dest), { recursive: true });
 							await fs.promises.copyFile(f.source, f.dest);
 						} catch {
 							// Swallow error, this should only happen when multiple users are on the same
@@ -401,7 +401,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		if (this._store.isDisposed) {
 			return;
 		}
-		this._currentTitle = ptyProcess.process;
+		// HACK: The node-pty API can return undefined somehow https://github.com/microsoft/vscode/issues/222323
+		this._currentTitle = (ptyProcess.process ?? '');
 		this._onDidChangeProperty.fire({ type: ProcessPropertyType.Title, value: this._currentTitle });
 		// If fig is installed it may change the title of the process
 		const sanitizedTitle = this.currentTitle.replace(/ \(figterm\)$/g, '');

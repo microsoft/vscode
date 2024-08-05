@@ -13,7 +13,7 @@ Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
 			if (value === true) {
 				newValue = 'on';
 			} else if (value === false) {
-				newValue = 'auto';
+				newValue = 'off';
 			}
 			return [
 				['debug.autoExpandLazyVariables', { value: newValue }],

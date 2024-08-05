@@ -675,7 +675,7 @@ export class HydratedTestResult implements ITestResult {
 		this.completedAt = serialized.completedAt;
 		this.tasks = serialized.tasks.map((task, i) => ({
 			id: task.id,
-			name: task.name,
+			name: task.name || localize('testUnnamedTask', 'Unnamed Task'),
 			ctrlId: task.ctrlId,
 			running: false,
 			coverage: observableValue(this, undefined),

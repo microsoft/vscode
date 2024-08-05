@@ -197,7 +197,8 @@ export class UserDataProfilesEditor extends EditorPane implements IUserDataProfi
 						}
 						return e.name;
 					}
-				}
+				},
+				alwaysConsumeMouseWheel: false,
 			}));
 	}
 
@@ -527,6 +528,7 @@ class ProfileWidget extends Disposable {
 				openOnSingleClick: false,
 				setRowLineHeight: false,
 				supportDynamicHeights: true,
+				alwaysConsumeMouseWheel: false,
 			}));
 
 		this.profileTree.style(listStyles);
@@ -847,6 +849,7 @@ class ProfileNameRenderer extends ProfilePropertyRenderer {
 
 	constructor(
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
+		@IContextViewService private readonly contextViewService: IContextViewService,
 	) {
 		super();
 	}
@@ -858,9 +861,9 @@ class ProfileNameRenderer extends ProfilePropertyRenderer {
 
 		const nameContainer = append(parent, $('.profile-row-container'));
 		append(nameContainer, $('.profile-label-element', undefined, localize('name', "Name")));
-		const nameInput = new InputBox(
+		const nameInput = disposables.add(new InputBox(
 			nameContainer,
-			undefined,
+			this.contextViewService,
 			{
 				inputBoxStyles: getInputBoxStyle({
 					inputBorder: settingsTextInputBorder
@@ -872,10 +875,13 @@ class ProfileNameRenderer extends ProfilePropertyRenderer {
 						if (!value) {
 							return {
 								content: localize('name required', "Profile name is required and must be a non-empty value."),
-								type: MessageType.ERROR
+								type: MessageType.WARNING
 							};
 						}
 						if (profileElement?.root.disabled) {
+							return null;
+						}
+						if (!profileElement?.root.shouldValidateName()) {
 							return null;
 						}
 						const initialName = profileElement?.root.getInitialName();
@@ -890,7 +896,8 @@ class ProfileNameRenderer extends ProfilePropertyRenderer {
 					}
 				}
 			}
-		);
+		));
+		disposables.add(this.userDataProfilesService.onDidChangeProfiles(() => nameInput.validate()));
 		nameInput.onDidChange(value => {
 			if (profileElement && value) {
 				profileElement.root.name = value;
@@ -1257,6 +1264,7 @@ class ContentsProfileRenderer extends ProfilePropertyRenderer {
 				renderIndentGuides: RenderIndentGuides.None,
 				enableStickyScroll: false,
 				openOnSingleClick: false,
+				alwaysConsumeMouseWheel: false,
 			}));
 
 		this.profilesContentTree.style(listStyles);
@@ -1330,7 +1338,7 @@ class ContentsProfileRenderer extends ProfilePropertyRenderer {
 				}
 				profilesContentTree.setInput(profileElement.root);
 				elementDisposables.add(profileElement.root.onDidChange(e => {
-					if (e.copyFrom) {
+					if (e.copyFrom || e.copyFlags || e.flags) {
 						profilesContentTree.updateChildren(element.root);
 					}
 					if (e.copyFromInfo) {

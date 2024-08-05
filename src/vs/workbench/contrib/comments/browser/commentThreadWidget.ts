@@ -353,6 +353,10 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		}
 	}
 
+	ensureFocusIntoNewEditingComment() {
+		this._body.ensureFocusIntoNewEditingComment();
+	}
+
 	focusCommentEditor() {
 		this._commentReply?.expandReplyAreaAndFocusCommentEditor();
 	}

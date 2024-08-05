@@ -63,6 +63,18 @@ type ChatCommandClassification = {
 	comment: 'Provides insight into the usage of Chat features.';
 };
 
+type ChatFollowupEvent = {
+	agentId: string;
+	command: string | undefined;
+};
+
+type ChatFollowupClassification = {
+	agentId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the related chat agent.' };
+	command: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The name of the related slash command.' };
+	owner: 'roblourens';
+	comment: 'Provides insight into the usage of Chat features.';
+};
+
 type ChatTerminalEvent = {
 	languageId: string;
 	agentId: string;
@@ -73,6 +85,20 @@ type ChatTerminalClassification = {
 	languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language of the code that was run in the terminal.' };
 	agentId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the related chat agent.' };
 	command: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The name of the related slash command.' };
+	owner: 'roblourens';
+	comment: 'Provides insight into the usage of Chat features.';
+};
+
+type ChatFollowupsRetrievedEvent = {
+	agentId: string;
+	command: string | undefined;
+	numFollowups: number;
+};
+
+type ChatFollowupsRetrievedClassification = {
+	agentId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the related chat agent.' };
+	command: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The name of the related slash command.' };
+	numFollowups: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of followup prompts returned by the agent.' };
 	owner: 'roblourens';
 	comment: 'Provides insight into the usage of Chat features.';
 };
@@ -116,6 +142,19 @@ export class ChatServiceTelemetry {
 				agentId: action.agentId ?? '',
 				command: action.command,
 			});
+		} else if (action.action.kind === 'followUp') {
+			this.telemetryService.publicLog2<ChatFollowupEvent, ChatFollowupClassification>('chatFollowupClicked', {
+				agentId: action.agentId ?? '',
+				command: action.command,
+			});
 		}
+	}
+
+	retrievedFollowups(agentId: string, command: string | undefined, numFollowups: number): void {
+		this.telemetryService.publicLog2<ChatFollowupsRetrievedEvent, ChatFollowupsRetrievedClassification>('chatFollowupsRetrieved', {
+			agentId,
+			command,
+			numFollowups,
+		});
 	}
 }

@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import * as arrays from 'vs/base/common/arrays';
 import { alert } from 'vs/base/browser/ui/aria/aria';
-import { CancelablePromise, createCancelablePromise, first, timeout } from 'vs/base/common/async';
+import { CancelablePromise, createCancelablePromise, Delayer, first, timeout } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
@@ -33,6 +33,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { Schemas } from 'vs/base/common/network';
 import { ResourceMap } from 'vs/base/common/map';
 import { score } from 'vs/editor/common/languageSelector';
+import { isEqual } from 'vs/base/common/resources';
 // import { TextualMultiDocumentHighlightFeature } from 'vs/editor/contrib/wordHighlighter/browser/textualHighlightProvider';
 // import { registerEditorFeature } from 'vs/editor/common/editorFeatures';
 
@@ -266,11 +267,11 @@ class WordHighlighter {
 	private readonly editor: IActiveCodeEditor;
 	private readonly providers: LanguageFeatureRegistry<DocumentHighlightProvider>;
 	private readonly multiDocumentProviders: LanguageFeatureRegistry<MultiDocumentHighlightProvider>;
-	private occurrencesHighlight: string;
 	private readonly model: ITextModel;
 	private readonly decorations: IEditorDecorationsCollection;
 	private readonly toUnhook = new DisposableStore();
 	private readonly codeEditorService: ICodeEditorService;
+	private occurrencesHighlight: string;
 
 	private workerRequestTokenId: number = 0;
 	private workerRequest: IOccurenceAtPositionRequest | null;
@@ -283,7 +284,9 @@ class WordHighlighter {
 	private readonly _hasWordHighlights: IContextKey<boolean>;
 	private _ignorePositionChangeEvent: boolean;
 
-	private static storedDecorations: ResourceMap<string[]> = new ResourceMap();
+	private readonly runDelayer: Delayer<void> = this.toUnhook.add(new Delayer<void>(50));
+
+	private static storedDecorationIDs: ResourceMap<string[]> = new ResourceMap();
 	private static query: IWordHighlighterQuery | null = null;
 
 	constructor(editor: IActiveCodeEditor, providers: LanguageFeatureRegistry<DocumentHighlightProvider>, multiProviders: LanguageFeatureRegistry<MultiDocumentHighlightProvider>, contextKeyService: IContextKeyService, @ICodeEditorService codeEditorService: ICodeEditorService) {
@@ -307,7 +310,7 @@ class WordHighlighter {
 				return;
 			}
 
-			this._onPositionChanged(e);
+			this.runDelayer.trigger(() => { this._onPositionChanged(e); });
 		}));
 		this.toUnhook.add(editor.onDidFocusEditorText((e) => {
 			if (this.occurrencesHighlight === 'off') {
@@ -316,7 +319,7 @@ class WordHighlighter {
 			}
 
 			if (!this.workerRequest) {
-				this._run();
+				this.runDelayer.trigger(() => { this._run(); });
 			}
 		}));
 		this.toUnhook.add(editor.onDidChangeModelContent((e) => {
@@ -335,7 +338,22 @@ class WordHighlighter {
 			const newValue = this.editor.getOption(EditorOption.occurrencesHighlight);
 			if (this.occurrencesHighlight !== newValue) {
 				this.occurrencesHighlight = newValue;
-				this._stopAll();
+				switch (newValue) {
+					case 'off':
+						this._stopAll();
+						break;
+					case 'singleFile':
+						this._stopAll(WordHighlighter.query?.modelInfo?.model);
+						break;
+					case 'multiFile':
+						if (WordHighlighter.query) {
+							this._run(true);
+						}
+						break;
+					default:
+						console.warn('Unknown occurrencesHighlight setting value:', newValue);
+						break;
+				}
 			}
 		}));
 
@@ -423,13 +441,13 @@ class WordHighlighter {
 			return;
 		}
 
-		const currentDecorationIDs = WordHighlighter.storedDecorations.get(this.editor.getModel().uri);
+		const currentDecorationIDs = WordHighlighter.storedDecorationIDs.get(this.editor.getModel().uri);
 		if (!currentDecorationIDs) {
 			return;
 		}
 
 		this.editor.removeDecorations(currentDecorationIDs);
-		WordHighlighter.storedDecorations.delete(this.editor.getModel().uri);
+		WordHighlighter.storedDecorationIDs.delete(this.editor.getModel().uri);
 
 		if (this.decorations.length > 0) {
 			this.decorations.clear();
@@ -437,16 +455,16 @@ class WordHighlighter {
 		}
 	}
 
-	private _removeAllDecorations(): void {
+	private _removeAllDecorations(preservedModel?: ITextModel): void {
 		const currentEditors = this.codeEditorService.listCodeEditors();
 		const deleteURI = [];
 		// iterate over editors and store models in currentModels
 		for (const editor of currentEditors) {
-			if (!editor.hasModel()) {
+			if (!editor.hasModel() || isEqual(editor.getModel().uri, preservedModel?.uri)) {
 				continue;
 			}
 
-			const currentDecorationIDs = WordHighlighter.storedDecorations.get(editor.getModel().uri);
+			const currentDecorationIDs = WordHighlighter.storedDecorationIDs.get(editor.getModel().uri);
 			if (!currentDecorationIDs) {
 				continue;
 			}
@@ -467,7 +485,7 @@ class WordHighlighter {
 		}
 
 		for (const uri of deleteURI) {
-			WordHighlighter.storedDecorations.delete(uri);
+			WordHighlighter.storedDecorationIDs.delete(uri);
 		}
 	}
 
@@ -505,11 +523,11 @@ class WordHighlighter {
 		}
 	}
 
-	private _stopAll() {
+	private _stopAll(preservedModel?: ITextModel): void {
 		// Remove any existing decorations
 		// TODO: @Yoyokrazy -- this triggers as notebooks scroll, causing highlights to disappear momentarily.
 		// maybe a nb type check?
-		this._removeAllDecorations();
+		this._removeAllDecorations(preservedModel);
 
 		// Cancel any renderDecorationsTimer
 		if (this.renderDecorationsTimer !== -1) {
@@ -623,13 +641,14 @@ class WordHighlighter {
 		return currentModels;
 	}
 
-	private _run(): void {
+	private _run(multiFileConfigChange?: boolean): void {
 
 		let workerRequestIsValid;
 		const hasTextFocus = this.editor.hasTextFocus();
 
 		if (!hasTextFocus) { // new nb cell scrolled in, didChangeModel fires
 			if (!WordHighlighter.query) { // no previous query, nothing to highlight off of
+				this._stopAll();
 				return;
 			}
 		} else { // has text focus
@@ -689,10 +708,22 @@ class WordHighlighter {
 				this.renderDecorationsTimer = -1;
 				this._beginRenderDecorations();
 			}
-		} else {
+		} else if (isEqual(this.editor.getModel().uri, WordHighlighter.query.modelInfo?.model.uri)) { // only trigger new worker requests from the primary model that initiated the query
 			// case d)
-			// Stop all previous actions and start fresh
-			this._stopAll();
+
+			// check if the new queried word is contained in the range of a stored decoration for this model
+			if (!multiFileConfigChange) {
+				const currentModelDecorationRanges = this.decorations.getRanges();
+				for (const storedRange of currentModelDecorationRanges) {
+					if (storedRange.containsPosition(this.editor.getPosition())) {
+						return;
+					}
+				}
+			}
+
+			// stop all previous actions if new word is highlighted
+			// if we trigger the run off a setting change -> multifile highlighting, we do not want to remove decorations from this model
+			this._stopAll(multiFileConfigChange ? this.model : undefined);
 
 			const myRequestId = ++this.workerRequestTokenId;
 			this.workerRequestCompleted = false;
@@ -757,7 +788,7 @@ class WordHighlighter {
 			const newDecorations: IModelDeltaDecoration[] = [];
 			const uri = editor.getModel()?.uri;
 			if (uri && this.workerRequestValue.has(uri)) {
-				const oldDecorationIDs: string[] | undefined = WordHighlighter.storedDecorations.get(uri);
+				const oldDecorationIDs: string[] | undefined = WordHighlighter.storedDecorationIDs.get(uri);
 				const newDocumentHighlights = this.workerRequestValue.get(uri);
 				if (newDocumentHighlights) {
 					for (const highlight of newDocumentHighlights) {
@@ -775,7 +806,7 @@ class WordHighlighter {
 				editor.changeDecorations((changeAccessor) => {
 					newDecorationIDs = changeAccessor.deltaDecorations(oldDecorationIDs ?? [], newDecorations);
 				});
-				WordHighlighter.storedDecorations = WordHighlighter.storedDecorations.set(uri, newDecorationIDs);
+				WordHighlighter.storedDecorationIDs = WordHighlighter.storedDecorationIDs.set(uri, newDecorationIDs);
 
 				if (newDecorations.length > 0) {
 					editorHighlighterContrib.wordHighlighter?.decorations.set(newDecorations);
