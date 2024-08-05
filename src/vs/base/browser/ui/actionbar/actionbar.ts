@@ -167,7 +167,8 @@ export class ActionBar extends Disposable implements IActionRunner {
 			} else if (event.equals(KeyCode.End)) {
 				eventHandled = this.focusLast();
 			} else if (event.equals(KeyCode.Tab) && focusedItem instanceof BaseActionViewItem && focusedItem.trapsArrowNavigation) {
-				eventHandled = this.focusNext();
+				// Tab, so forcibly focus next #219199
+				eventHandled = this.focusNext(undefined, true);
 			} else if (this.isTriggerKeyEvent(event)) {
 				// Staying out of the else branch even if not triggered
 				if (this._triggerKeys.keyDown) {
@@ -485,7 +486,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 		return this.focusPrevious(true);
 	}
 
-	protected focusNext(forceLoop?: boolean): boolean {
+	protected focusNext(forceLoop?: boolean, forceFocus?: boolean): boolean {
 		if (typeof this.focusedItem === 'undefined') {
 			this.focusedItem = this.viewItems.length - 1;
 		} else if (this.viewItems.length <= 1) {
@@ -505,7 +506,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 			item = this.viewItems[this.focusedItem];
 		} while (this.focusedItem !== startIndex && ((this.options.focusOnlyEnabledItems && !item.isEnabled()) || item.action.id === Separator.ID));
 
-		this.updateFocus();
+		this.updateFocus(undefined, undefined, forceFocus);
 		return true;
 	}
 

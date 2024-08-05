@@ -8,8 +8,8 @@ import assert from 'assert';
 // eslint-disable-next-line local/code-import-patterns
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { IssueReporterModel } from 'vs/workbench/contrib/issue/browser/issueReporterModel';
-import { IssueType } from 'vs/platform/issue/common/issue';
-import { normalizeGitHubUrl } from 'vs/platform/issue/common/issueReporterUtil';
+import { IssueType } from 'vs/workbench/contrib/issue/common/issue';
+import { normalizeGitHubUrl } from 'vs/workbench/contrib/issue/common/issueReporterUtil';
 
 suite('IssueReporter', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

@@ -312,8 +312,9 @@ export class Expression extends ExpressionContainer implements IExpression {
 	}
 
 	async evaluate(session: IDebugSession | undefined, stackFrame: IStackFrame | undefined, context: string, keepLazyVars?: boolean, location?: IDebugEvaluatePosition): Promise<void> {
+		const hadDefaultValue = this.value === Expression.DEFAULT_VALUE;
 		this.available = await this.evaluateExpression(this.name, session, stackFrame, context, keepLazyVars, location);
-		if (this.valueChanged) {
+		if (hadDefaultValue || this.valueChanged) {
 			this._onDidChangeValue.fire(this);
 		}
 	}
@@ -1442,6 +1443,10 @@ export class DebugModel extends Disposable implements IDebugModel {
 
 		this.instructionBreakpoints = [];
 		this.sessions = [];
+
+		for (const we of this.watchExpressions) {
+			this.watchExpressionChangeListeners.set(we.getId(), we.onDidChangeValue((e) => this._onDidChangeWatchExpressionValue.fire(e)));
+		}
 	}
 
 	getId(): string {

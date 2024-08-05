@@ -34,7 +34,7 @@ if [ "$VSCODE_INJECTION" == "1" ]; then
 
 		# Apply any explicit path prefix (see #99878)
 		if [ -n "${VSCODE_PATH_PREFIX:-}" ]; then
-			export PATH=$VSCODE_PATH_PREFIX$PATH
+			export PATH="$VSCODE_PATH_PREFIX$PATH"
 			builtin unset VSCODE_PATH_PREFIX
 		fi
 	fi

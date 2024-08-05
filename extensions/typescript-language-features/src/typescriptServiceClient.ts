@@ -424,6 +424,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this.serverState = new ServerState.Running(handle, apiVersion, undefined, true);
 		this.lastStart = Date.now();
 
+		const hasGlobalPlugins = this.pluginManager.plugins.length > 0;
 		/* __GDPR__
 			"tsserver.spawned" : {
 				"owner": "mjbvz",
@@ -431,12 +432,14 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 					"${TypeScriptCommonProperties}"
 				],
 				"localTypeScriptVersion": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"typeScriptVersionSource": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				"typeScriptVersionSource": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"hasGlobalPlugins": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 			}
 		*/
 		this.logTelemetry('tsserver.spawned', {
 			localTypeScriptVersion: this.versionProvider.localVersion ? this.versionProvider.localVersion.displayName : '',
 			typeScriptVersionSource: version.source,
+			hasGlobalPlugins,
 		});
 
 		handle.onError((err: Error) => {
@@ -460,10 +463,11 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 					"owner": "mjbvz",
 					"${include}": [
 						"${TypeScriptCommonProperties}"
-					]
+					],
+					"hasGlobalPlugins": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 				}
 			*/
-			this.logTelemetry('tsserver.error');
+			this.logTelemetry('tsserver.error', { hasGlobalPlugins });
 			this.serviceExited(false, apiVersion);
 		});
 
@@ -476,14 +480,19 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			/* __GDPR__
 				"tsserver.exitWithCode" : {
 					"owner": "mjbvz",
-					"code" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-					"signal" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 					"${include}": [
 						"${TypeScriptCommonProperties}"
-					]
+					],
+					"code" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+					"signal" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+					"hasGlobalPlugins": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 				}
 			*/
-			this.logTelemetry('tsserver.exitWithCode', { code: code ?? undefined, signal: signal ?? undefined });
+			this.logTelemetry('tsserver.exitWithCode', {
+				code: code ?? undefined,
+				signal: signal ?? undefined,
+				hasGlobalPlugins,
+			});
 
 			if (this.token !== mytoken) {
 				// this is coming from an old process
@@ -963,16 +972,16 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 						spans: diagnosticEvent.body.spans,
 					});
 				}
-				break;
+				return;
 			}
 			case EventName.configFileDiag:
 				this._onConfigDiagnosticsReceived.fire(event as Proto.ConfigFileDiagnosticEvent);
-				break;
+				return;
 
 			case EventName.telemetry: {
 				const body = (event as Proto.TelemetryEvent).body;
 				this.dispatchTelemetryEvent(body);
-				break;
+				return;
 			}
 			case EventName.projectLanguageServiceState: {
 				const body = (event as Proto.ProjectLanguageServiceStateEvent).body!;
@@ -980,7 +989,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 					this.serverState.updateLanguageServiceEnabled(body.languageServiceEnabled);
 				}
 				this._onProjectLanguageServiceStateChanged.fire(body);
-				break;
+				return;
 			}
 			case EventName.projectsUpdatedInBackground: {
 				this.loadingIndicator.reset();
@@ -988,56 +997,66 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				const body = (event as Proto.ProjectsUpdatedInBackgroundEvent).body;
 				const resources = body.openFiles.map(file => this.toResource(file));
 				this.bufferSyncSupport.getErr(resources);
-				break;
+				return;
 			}
 			case EventName.beginInstallTypes:
 				this._onDidBeginInstallTypings.fire((event as Proto.BeginInstallTypesEvent).body);
-				break;
+				return;
 
 			case EventName.endInstallTypes:
 				this._onDidEndInstallTypings.fire((event as Proto.EndInstallTypesEvent).body);
-				break;
+				return;
 
 			case EventName.typesInstallerInitializationFailed:
 				this._onTypesInstallerInitializationFailed.fire((event as Proto.TypesInstallerInitializationFailedEvent).body);
-				break;
+				return;
 
 			case EventName.surveyReady:
 				this._onSurveyReady.fire((event as Proto.SurveyReadyEvent).body);
-				break;
+				return;
 
 			case EventName.projectLoadingStart:
 				this.loadingIndicator.startedLoadingProject((event as Proto.ProjectLoadingStartEvent).body.projectName);
-				break;
+				return;
 
 			case EventName.projectLoadingFinish:
 				this.loadingIndicator.finishedLoadingProject((event as Proto.ProjectLoadingFinishEvent).body.projectName);
-				break;
+				return;
 
-			case EventName.createDirectoryWatcher:
+			case EventName.createDirectoryWatcher: {
+				const path = (event.body as Proto.CreateDirectoryWatcherEventBody).path;
+				if (path.startsWith(inMemoryResourcePrefix)) {
+					return;
+				}
+
 				this.createFileSystemWatcher(
 					(event.body as Proto.CreateDirectoryWatcherEventBody).id,
 					new vscode.RelativePattern(
-						vscode.Uri.file((event.body as Proto.CreateDirectoryWatcherEventBody).path),
+						vscode.Uri.file(path),
 						(event.body as Proto.CreateDirectoryWatcherEventBody).recursive ? '**' : '*'
 					),
 					(event.body as Proto.CreateDirectoryWatcherEventBody).ignoreUpdate
 				);
-				break;
+				return;
+			}
+			case EventName.createFileWatcher: {
+				const path = (event.body as Proto.CreateFileWatcherEventBody).path;
+				if (path.startsWith(inMemoryResourcePrefix)) {
+					return;
+				}
 
-			case EventName.createFileWatcher:
 				this.createFileSystemWatcher(
 					(event.body as Proto.CreateFileWatcherEventBody).id,
 					new vscode.RelativePattern(
-						vscode.Uri.file((event.body as Proto.CreateFileWatcherEventBody).path),
+						vscode.Uri.file(path),
 						'*'
 					)
 				);
-				break;
-
+				return;
+			}
 			case EventName.closeFileWatcher:
 				this.closeFileSystemWatcher(event.body.id);
-				break;
+				return;
 
 			case EventName.requestCompleted: {
 				// @ts-expect-error until ts 5.6
@@ -1054,7 +1073,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 						})
 					);
 				}
-				break;
+				return;
 			}
 		}
 	}
@@ -1139,13 +1158,9 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this.watches.set(id, disposable);
 	}
 
-	private closeFileSystemWatcher(
-		id: number,
-	) {
+	private closeFileSystemWatcher(id: number) {
 		const existing = this.watches.get(id);
-		if (existing) {
-			existing.dispose();
-		}
+		existing?.dispose();
 	}
 
 	private dispatchTelemetryEvent(telemetryData: Proto.TelemetryEventBody): void {

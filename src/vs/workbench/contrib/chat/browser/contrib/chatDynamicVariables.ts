@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { coalesce } from 'vs/base/common/arrays';
-import { Emitter } from 'vs/base/common/event';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { basename } from 'vs/base/common/resources';
@@ -39,9 +38,6 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 		return ChatDynamicVariableModel.ID;
 	}
 
-	private _onDidChangeInputState = this._register(new Emitter<void>());
-	readonly onDidChangeInputState = this._onDidChangeInputState.event;
-
 	constructor(
 		private readonly widget: IChatWidget,
 		@ILabelService private readonly labelService: ILabelService,
@@ -50,7 +46,6 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 		this._register(widget.inputEditor.onDidChangeModelContent(e => {
 			e.changes.forEach(c => {
 				// Don't mutate entries in _variables, since they will be returned from the getter
-				let didModifyState = false;
 				this._variables = coalesce(this._variables.map(ref => {
 					const intersection = Range.intersectRanges(ref.range, c.range);
 					if (intersection && !intersection.isEmpty()) {
@@ -63,11 +58,9 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 								text: '',
 							}]);
 						}
-						didModifyState = true;
 						return null;
 					} else if (Range.compareRangesUsingStarts(ref.range, c.range) > 0) {
 						const delta = c.text.length - c.rangeLength;
-						didModifyState = true;
 						return {
 							...ref,
 							range: {
@@ -81,10 +74,6 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 
 					return ref;
 				}));
-
-				if (didModifyState) {
-					this._onDidChangeInputState.fire();
-				}
 			});
 
 			this.updateDecorations();
@@ -107,22 +96,21 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 	addReference(ref: IDynamicVariable): void {
 		this._variables.push(ref);
 		this.updateDecorations();
-		this._onDidChangeInputState.fire();
 	}
 
 	private updateDecorations(): void {
-		this.widget.inputEditor.setDecorationsByType('chat', dynamicVariableDecorationType, this._variables.map(r => (<IDecorationOptions>{
+		this.widget.inputEditor.setDecorationsByType('chat', dynamicVariableDecorationType, this._variables.map((r): IDecorationOptions => ({
 			range: r.range,
 			hoverMessage: this.getHoverForReference(r)
 		})));
 	}
 
-	private getHoverForReference(ref: IDynamicVariable): string | IMarkdownString {
+	private getHoverForReference(ref: IDynamicVariable): IMarkdownString | undefined {
 		const value = ref.data;
 		if (URI.isUri(value)) {
 			return new MarkdownString(this.labelService.getUriLabel(value, { relative: true }));
 		} else {
-			return (value as any).toString();
+			return undefined;
 		}
 	}
 }
@@ -174,11 +162,10 @@ export class SelectAndInsertFileAction extends Action2 {
 		// This of course assumes that the `files` variable has the behavior that it searches
 		// through files in the workspace.
 		if (chatVariablesService.hasVariable(SelectAndInsertFileAction.Name)) {
-			options = {
-				providerOptions: <AnythingQuickAccessProviderRunOptions>{
-					additionPicks: [SelectAndInsertFileAction.Item, { type: 'separator' }]
-				},
+			const providerOptions: AnythingQuickAccessProviderRunOptions = {
+				additionPicks: [SelectAndInsertFileAction.Item, { type: 'separator' }]
 			};
+			options = { providerOptions };
 		}
 		// TODO: have dedicated UX for this instead of using the quick access picker
 		const picks = await quickInputService.quickAccess.pick('', options);

@@ -29,6 +29,7 @@ import { GroupIdentifier } from 'vs/workbench/common/editor';
 import { ACTIVE_GROUP_TYPE, AUX_WINDOW_GROUP_TYPE, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
 import type { ICurrentPartialCommand } from 'vs/platform/terminal/common/capabilities/commandDetection/terminalCommand';
 import type { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
+import type { IMenu } from 'vs/platform/actions/common/actions';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
 export const ITerminalConfigurationService = createDecorator<ITerminalConfigurationService>('terminalConfigurationService');
@@ -1040,6 +1041,15 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	 * Update the parent context key service to use for this terminal instance.
 	 */
 	setParentContextKeyService(parentContextKeyService: IContextKeyService): void;
+
+	/**
+	 * Handles a mouse event for the terminal, this may happen on an anscestor of the terminal
+	 * instance's element.
+	 * @param event The mouse event.
+	 * @param contextMenu The context menu to show if needed.
+	 * @returns Whether the context menu should be suppressed.
+	 */
+	handleMouseEvent(event: MouseEvent, contextMenu: IMenu): Promise<{ cancelContextMenu: boolean } | void>;
 }
 
 export const enum XtermTerminalConstants {

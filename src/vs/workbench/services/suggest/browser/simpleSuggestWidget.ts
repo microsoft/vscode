@@ -10,7 +10,7 @@ import { List } from 'vs/base/browser/ui/list/listWidget';
 import { ResizableHTMLElement } from 'vs/base/browser/ui/resizable/resizable';
 import { SimpleCompletionItem } from 'vs/workbench/services/suggest/browser/simpleCompletionItem';
 import { LineContext, SimpleCompletionModel } from 'vs/workbench/services/suggest/browser/simpleCompletionModel';
-import { SimpleSuggestWidgetItemRenderer } from 'vs/workbench/services/suggest/browser/simpleSuggestWidgetRenderer';
+import { SimpleSuggestWidgetItemRenderer, type ISimpleSuggestWidgetFontInfo } from 'vs/workbench/services/suggest/browser/simpleSuggestWidgetRenderer';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { MutableDisposable, Disposable } from 'vs/base/common/lifecycle';
@@ -84,6 +84,7 @@ export class SimpleSuggestWidget extends Disposable {
 	constructor(
 		private readonly _container: HTMLElement,
 		private readonly _persistedSize: IPersistedWidgetSizeDelegate,
+		private readonly _getFontInfo: () => ISimpleSuggestWidgetFontInfo,
 		options: IWorkbenchSuggestWidgetOptions,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
@@ -140,7 +141,7 @@ export class SimpleSuggestWidget extends Disposable {
 			state = undefined;
 		}));
 
-		const renderer = new SimpleSuggestWidgetItemRenderer();
+		const renderer = new SimpleSuggestWidgetItemRenderer(_getFontInfo);
 		this._register(renderer);
 		this._listElement = dom.append(this.element.domNode, $('.tree'));
 		this._list = this._register(new List('SuggestWidget', this._listElement, {
@@ -503,11 +504,8 @@ export class SimpleSuggestWidget extends Disposable {
 	}
 
 	private _getLayoutInfo() {
-		const fontInfo = {
-			lineHeight: 20,
-			typicalHalfwidthCharacterWidth: 10
-		}; //this.editor.getOption(EditorOption.fontInfo);
-		const itemHeight = clamp(fontInfo.lineHeight, 8, 1000);
+		const fontInfo = this._getFontInfo();
+		const itemHeight = clamp(Math.ceil(fontInfo.lineHeight), 8, 1000);
 		const statusBarHeight = 0; //!this.editor.getOption(EditorOption.suggest).showStatusBar || this._state === State.Empty || this._state === State.Loading ? 0 : itemHeight;
 		const borderWidth = 1; //this._details.widget.borderWidth;
 		const borderHeight = 2 * borderWidth;
@@ -517,7 +515,7 @@ export class SimpleSuggestWidget extends Disposable {
 			statusBarHeight,
 			borderWidth,
 			borderHeight,
-			typicalHalfwidthCharacterWidth: fontInfo.typicalHalfwidthCharacterWidth,
+			typicalHalfwidthCharacterWidth: 10,
 			verticalPadding: 22,
 			horizontalPadding: 14,
 			defaultSize: new dom.Dimension(430, statusBarHeight + 12 * itemHeight + borderHeight)

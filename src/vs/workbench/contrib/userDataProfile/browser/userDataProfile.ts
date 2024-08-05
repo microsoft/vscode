@@ -139,6 +139,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		this._register(this.registerSwitchProfileAction());
 
 		this.registerOpenProfileSubMenu();
+		this.registerNewWindowWithProfileAction();
 		this.registerProfilesActions();
 		this._register(this.userDataProfilesService.onDidChangeProfiles(() => this.registerProfilesActions()));
 
@@ -235,6 +236,39 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		});
 	}
 
+	private registerNewWindowWithProfileAction(): IDisposable {
+		return registerAction2(class NewWindowWithProfileAction extends Action2 {
+			constructor() {
+				super({
+					id: `workbench.profiles.actions.newWindowWithProfile`,
+					title: localize2('newWindowWithProfile', "New Window with Profile..."),
+					category: PROFILES_CATEGORY,
+					precondition: HAS_PROFILES_CONTEXT,
+					f1: true,
+				});
+			}
+			async run(accessor: ServicesAccessor) {
+				const quickInputService = accessor.get(IQuickInputService);
+				const userDataProfilesService = accessor.get(IUserDataProfilesService);
+				const hostService = accessor.get(IHostService);
+
+				const pick = await quickInputService.pick(
+					userDataProfilesService.profiles.map(profile => ({
+						label: profile.name,
+						profile
+					})),
+					{
+						title: localize('new window with profile', "New Window with Profile"),
+						placeHolder: localize('pick profile', "Select Profile"),
+						canPickMany: false
+					});
+				if (pick) {
+					return hostService.openWindow({ remoteAuthority: null, forceProfile: pick.profile.name });
+				}
+			}
+		});
+	}
+
 	private registerNewWindowAction(profile: IUserDataProfile): IDisposable {
 		const disposables = new DisposableStore();
 
@@ -324,13 +358,18 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 							id: MenuId.GlobalActivity,
 							group: '2_configuration',
 							order: 1,
-							when: CONTEXT_ENABLE_NEW_PROFILES_UI,
+							when: ContextKeyExpr.and(CONTEXT_ENABLE_NEW_PROFILES_UI, HAS_PROFILES_CONTEXT.negate()),
 						},
 						{
 							id: MenuId.MenubarPreferencesMenu,
 							group: '2_configuration',
 							order: 1,
-							when: CONTEXT_ENABLE_NEW_PROFILES_UI,
+							when: ContextKeyExpr.and(CONTEXT_ENABLE_NEW_PROFILES_UI, HAS_PROFILES_CONTEXT.negate()),
+						},
+						{
+							id: ProfilesMenu,
+							group: '1_manage',
+							when: ContextKeyExpr.and(CONTEXT_ENABLE_NEW_PROFILES_UI, HAS_PROFILES_CONTEXT),
 						},
 					]
 				});

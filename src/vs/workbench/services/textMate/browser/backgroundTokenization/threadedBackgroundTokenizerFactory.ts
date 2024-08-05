@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { canASAR } from 'vs/base/common/amd';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { AppResourcePath, FileAccess, nodeModulesAsarPath, nodeModulesPath } from 'vs/base/common/network';
 import { IObservable } from 'vs/base/common/observable';
@@ -132,7 +133,7 @@ export class ThreadedBackgroundTokenizerFactory implements IDisposable {
 		const onigurumaModuleLocation: AppResourcePath = `${nodeModulesPath}/vscode-oniguruma`;
 		const onigurumaModuleLocationAsar: AppResourcePath = `${nodeModulesAsarPath}/vscode-oniguruma`;
 
-		const useAsar = this._environmentService.isBuilt && !isWeb;
+		const useAsar = canASAR && this._environmentService.isBuilt && !isWeb;
 		const textmateLocation: AppResourcePath = useAsar ? textmateModuleLocationAsar : textmateModuleLocation;
 		const onigurumaLocation: AppResourcePath = useAsar ? onigurumaModuleLocationAsar : onigurumaModuleLocation;
 		const textmateMain: AppResourcePath = `${textmateLocation}/release/main.js`;

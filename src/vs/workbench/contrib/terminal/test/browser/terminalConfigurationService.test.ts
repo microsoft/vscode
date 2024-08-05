@@ -13,12 +13,7 @@ import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configur
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ITerminalConfigurationService, LinuxDistro } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { TerminalConfigurationService } from 'vs/workbench/contrib/terminal/browser/terminalConfigurationService';
-import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
-
-class TestTerminalConfigurationService extends TerminalConfigurationService {
-	get fontMetrics() { return this._fontMetrics; }
-}
+import { TestTerminalConfigurationService, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 
 suite('Workbench - TerminalConfigurationService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

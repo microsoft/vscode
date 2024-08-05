@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $, asCssValueWithDefault, h, multibyteAwareBtoa, trackAttributes, copyAttributes, disposableWindowInterval, getWindows, getWindowsCount, getWindowId, getWindowById, hasWindow, getWindow, getDocument, isHTMLElement } from 'vs/base/browser/dom';
+import { $, asCssValueWithDefault, h, multibyteAwareBtoa, trackAttributes, copyAttributes, disposableWindowInterval, getWindows, getWindowsCount, getWindowId, getWindowById, hasWindow, getWindow, getDocument, isHTMLElement, SafeTriangle } from 'vs/base/browser/dom';
 import { ensureCodeWindow, isAuxiliaryWindow, mainWindow } from 'vs/base/browser/window';
 import { DeferredPromise, timeout } from 'vs/base/common/async';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
@@ -404,6 +404,39 @@ suite('dom', () => {
 			interval.dispose();
 			await timeout(5);
 			assert.strictEqual(count, 0);
+		});
+	});
+
+	suite('SafeTriangle', () => {
+		const fakeElement = (left: number, right: number, top: number, bottom: number): HTMLElement => {
+			return { getBoundingClientRect: () => ({ left, right, top, bottom }) } as any;
+		};
+
+		test('works', () => {
+			const safeTriangle = new SafeTriangle(0, 0, fakeElement(10, 20, 10, 20));
+
+			assert.strictEqual(safeTriangle.contains(5, 5), true); // in triangle region
+			assert.strictEqual(safeTriangle.contains(15, 5), false);
+			assert.strictEqual(safeTriangle.contains(25, 5), false);
+
+			assert.strictEqual(safeTriangle.contains(5, 15), false);
+			assert.strictEqual(safeTriangle.contains(15, 15), true);
+			assert.strictEqual(safeTriangle.contains(25, 15), false);
+
+			assert.strictEqual(safeTriangle.contains(5, 25), false);
+			assert.strictEqual(safeTriangle.contains(15, 25), false);
+			assert.strictEqual(safeTriangle.contains(25, 25), false);
+		});
+
+		test('other dirations', () => {
+			const a = new SafeTriangle(30, 30, fakeElement(10, 20, 10, 20));
+			assert.strictEqual(a.contains(25, 25), true);
+
+			const b = new SafeTriangle(0, 30, fakeElement(10, 20, 10, 20));
+			assert.strictEqual(b.contains(5, 25), true);
+
+			const c = new SafeTriangle(30, 0, fakeElement(10, 20, 10, 20));
+			assert.strictEqual(c.contains(25, 5), true);
 		});
 	});
 

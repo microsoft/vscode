@@ -34,8 +34,8 @@ export class MarginHoverWidget extends Disposable implements IOverlayWidget, IHo
 
 	constructor(
 		editor: ICodeEditor,
-		languageService: ILanguageService,
-		openerService: IOpenerService,
+		@ILanguageService languageService: ILanguageService,
+		@IOpenerService openerService: IOpenerService,
 	) {
 		super();
 		this._editor = editor;
