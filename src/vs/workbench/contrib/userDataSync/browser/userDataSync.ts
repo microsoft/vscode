@@ -904,7 +904,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					const quickInputService = accessor.get(IQuickInputService);
 					const commandService = accessor.get(ICommandService);
 					const disposables = new DisposableStore();
-					const quickPick = quickInputService.createQuickPick();
+					const quickPick = quickInputService.createQuickPick({ useSeparators: true });
 					disposables.add(quickPick);
 					const items: Array<QuickPickItem> = [];
 					if (that.userDataSyncService.conflicts.length) {

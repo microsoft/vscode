@@ -716,7 +716,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		const editorPicks = this.mapEditorsToQuickPickEntry(resource, showDefaultPicker);
 
 		// Create the editor picker
-		const editorPicker = this.quickInputService.createQuickPick<IQuickPickItem>();
+		const editorPicker = this.quickInputService.createQuickPick<IQuickPickItem>({ useSeparators: true });
 		const placeHolderMessage = showDefaultPicker ?
 			localize('promptOpenWith.updateDefaultPlaceHolder', "Select new default editor for '{0}'", `*${extname(resource)}`) :
 			localize('promptOpenWith.placeHolder', "Select editor for '{0}'", basename(resource));

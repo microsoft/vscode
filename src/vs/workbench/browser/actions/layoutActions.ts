@@ -966,7 +966,7 @@ registerAction2(class extends Action2 {
 	}
 
 	private async getView(quickInputService: IQuickInputService, viewDescriptorService: IViewDescriptorService, paneCompositePartService: IPaneCompositePartService, viewId?: string): Promise<string> {
-		const quickPick = quickInputService.createQuickPick();
+		const quickPick = quickInputService.createQuickPick({ useSeparators: true });
 		quickPick.placeholder = localize('moveFocusedView.selectView', "Select a View to Move");
 		quickPick.items = this.getViewItems(viewDescriptorService, paneCompositePartService);
 		quickPick.selectedItems = quickPick.items.filter(item => (item as IQuickPickItem).id === viewId) as IQuickPickItem[];
@@ -1025,7 +1025,7 @@ class MoveFocusedViewAction extends Action2 {
 			return;
 		}
 
-		const quickPick = quickInputService.createQuickPick();
+		const quickPick = quickInputService.createQuickPick({ useSeparators: true });
 		quickPick.placeholder = localize('moveFocusedView.selectDestination', "Select a Destination for the View");
 		quickPick.title = localize({ key: 'moveFocusedView.title', comment: ['{0} indicates the title of the view the user has selected to move.'] }, "View: Move {0}", viewDescriptor.name.value);
 
@@ -1411,7 +1411,7 @@ for (const { active } of [...ToggleVisibilityActions, ...MoveSideBarActions, ...
 
 registerAction2(class CustomizeLayoutAction extends Action2 {
 
-	private _currentQuickPick?: IQuickPick<IQuickPickItem>;
+	private _currentQuickPick?: IQuickPick<IQuickPickItem, { useSeparators: true }>;
 
 	constructor() {
 		super({
@@ -1504,7 +1504,7 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 		const commandService = accessor.get(ICommandService);
 		const quickInputService = accessor.get(IQuickInputService);
 		const keybindingService = accessor.get(IKeybindingService);
-		const quickPick = quickInputService.createQuickPick();
+		const quickPick = quickInputService.createQuickPick({ useSeparators: true });
 
 		this._currentQuickPick = quickPick;
 		quickPick.items = this.getItems(contextKeyService, keybindingService);
