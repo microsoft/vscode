@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Protocol } from 'playwright-core/types/protocol';
 const { decode_bytes } = require('@vscode/v8-heap-parser');
 import { Code } from './code';
 import { PlaywrightDriver } from './playwrightDriver';
@@ -15,36 +14,20 @@ export class Profiler {
 	async checkObjectLeaks(classNames: string | string[], fn: () => Promise<void>): Promise<void> {
 		await this.code.driver.startCDP();
 
-		const countsBefore: { [key: string]: number } = {};
-		const instancesBefore = await getInstances(this.code.driver);
 		const classNamesArray = Array.isArray(classNames) ? classNames : [classNames];
-		for (const className of classNamesArray) {
-			const matchedInstances = instancesBefore.value.find(e => e.name !== undefined && e.name === className);
-			if (!matchedInstances) {
-				throw new Error(`${className} not found`);
-			}
-			countsBefore[className] = matchedInstances.count;
-		}
-
-		await instancesBefore.dispose();
+		const countsBefore = await getInstances(this.code.driver, classNamesArray);
 
 		await fn();
 
-		const instancesAfter = await getInstances(this.code.driver);
+		const countAfter = await getInstances(this.code.driver, classNamesArray);
 		const leaks: string[] = [];
 		for (const className of classNamesArray) {
-			const matchedInstancesAfter = instancesAfter.value.find(e => e.name !== undefined && e.name === className);
-			if (!matchedInstancesAfter) {
-				throw new Error(`${className} not found`);
-			}
-
-			const countAfter = matchedInstancesAfter.count;
-			if (countAfter !== countsBefore[className]) {
-				leaks.push(`Leaked ${countAfter - countsBefore[className]} ${className}`);
+			const count = countAfter[className] ?? 0;
+			const countBefore = countsBefore[className] ?? 0;
+			if (count !== countBefore) {
+				leaks.push(`Leaked ${count - countBefore} ${className}`);
 			}
 		}
-
-		await instancesAfter.dispose();
 
 		if (leaks.length > 0) {
 			throw new Error(leaks.join('\n'));
@@ -130,7 +113,7 @@ function generateUuid() {
  *  This code is derived from https://github.com/SimonSiefke/vscode-memory-leak-finder
  *--------------------------------------------------------------------------------------------*/
 
-const getInstances = async (driver: PlaywrightDriver): Promise<{ value: Array<{ name: string; count: number }>; dispose: () => Promise<void> }> => {
+const getInstances = async (driver: PlaywrightDriver, classNames: string[]): Promise<{ [key: string]: number }> => {
 	await driver.collectGarbage();
 	const objectGroup = `og:${generateUuid()}`;
 	const prototypeDescriptor = await driver.evaluate({
@@ -145,6 +128,7 @@ const getInstances = async (driver: PlaywrightDriver): Promise<{ value: Array<{ 
 	const fnResult1 = await driver.callFunctionOn({
 		functionDeclaration: `function(){
 	const objects = this
+	const classNames = ${JSON.stringify(classNames)}
 
 	const nativeConstructors = [
 		Object,
@@ -202,66 +186,23 @@ const getInstances = async (driver: PlaywrightDriver): Promise<{ value: Array<{ 
 	}
 
 	const instances = objects.filter(isInstance)
-	return instances
+
+	const counts = Object.create(null)
+	for(const instance of instances){
+		const name=instance.constructor.name
+		if(classNames.includes(name)){
+			counts[name]||= 0
+			counts[name]++
+		}
+	}
+	return counts
 }`,
 		objectId: objects.objects.objectId,
-		returnByValue: false,
-		objectGroup,
-	});
-
-	const fnResult2 = await getInstanceCountMap(driver, objectGroup, fnResult1.result);
-	const fnResult3 = await getInstanceCountArray(driver, objectGroup, fnResult2.result);
-	return {
-		value: fnResult3.result.value,
-		dispose: async () => {
-			// release object group
-			await driver.releaseObjectGroup({ objectGroup: objectGroup });
-		}
-	};
-};
-
-const getInstanceCountMap = async (driver: PlaywrightDriver, objectGroup: string, objects: Protocol.Runtime.RemoteObject) => {
-	const fnResult1 = await driver.callFunctionOn({
-		functionDeclaration: `function(){
-	const instances = this
-
-	const map = new Map()
-
-	for(const instance of instances){
-		if(map.has(instance.constructor)){
-			map.set(instance.constructor, map.get(instance.constructor) + 1)
-		} else {
-			map.set(instance.constructor, 1)
-		}
-	}
-	return map
-}`,
-		objectId: objects.objectId,
-		returnByValue: false,
-		objectGroup,
-	});
-
-	return fnResult1;
-};
-
-const getInstanceCountArray = async (driver: PlaywrightDriver, objectGroup: string, map: Protocol.Runtime.RemoteObject) => {
-	const fnResult1 = await driver.callFunctionOn({
-		functionDeclaration: `function(){
-	const map = this
-	const array = []
-
-	for(const [instanceConstructor, count] of map.entries()){
-		array.push({
-			name: instanceConstructor.name,
-			count,
-		})
-	}
-
-	return array
-}`,
-		objectId: map.objectId,
 		returnByValue: true,
 		objectGroup,
 	});
-	return fnResult1;
+
+	const returnObject = fnResult1.result.value;
+	await driver.releaseObjectGroup({ objectGroup: objectGroup });
+	return returnObject;
 };
