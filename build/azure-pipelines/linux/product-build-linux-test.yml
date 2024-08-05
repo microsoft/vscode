@@ -150,7 +150,7 @@ steps:
       - script: yarn --cwd test/smoke compile
         displayName: Compile smoke tests
 
-      - script: yarn gulp compile-extension:markdown-language-features compile-extension-media compile-extension:vscode-test-resolver
+      - script: yarn gulp compile-extension:markdown-language-features compile-extension:ipynb compile-extension-media compile-extension:vscode-test-resolver
         displayName: Build extensions for smoke tests
 
       - script: yarn gulp node
