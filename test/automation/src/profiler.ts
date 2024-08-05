@@ -12,26 +12,28 @@ export class Profiler {
 	constructor(private readonly code: Code) {
 	}
 
-	async checkLeaks(classNames: string | string[], fn: () => Promise<void>): Promise<void> {
+	async checkObjectLeaks(classNames: string | string[], fn: () => Promise<void>): Promise<void> {
 		await this.code.driver.startCDP();
 
 		const countsBefore: { [key: string]: number } = {};
 		const instancesBefore = await getInstances(this.code.driver);
 		const classNamesArray = Array.isArray(classNames) ? classNames : [classNames];
 		for (const className of classNamesArray) {
-			const matchedInstances = instancesBefore.find(e => e.name !== undefined && e.name === className);
+			const matchedInstances = instancesBefore.value.find(e => e.name !== undefined && e.name === className);
 			if (!matchedInstances) {
 				throw new Error(`${className} not found`);
 			}
 			countsBefore[className] = matchedInstances.count;
 		}
 
+		await instancesBefore.dispose();
+
 		await fn();
 
 		const instancesAfter = await getInstances(this.code.driver);
 		const leaks: string[] = [];
 		for (const className of classNamesArray) {
-			const matchedInstancesAfter = instancesAfter.find(e => e.name !== undefined && e.name === className);
+			const matchedInstancesAfter = instancesAfter.value.find(e => e.name !== undefined && e.name === className);
 			if (!matchedInstancesAfter) {
 				throw new Error(`${className} not found`);
 			}
@@ -41,6 +43,8 @@ export class Profiler {
 				leaks.push(`Leaked ${countAfter - countsBefore[className]} ${className}`);
 			}
 		}
+
+		await instancesAfter.dispose();
 
 		if (leaks.length > 0) {
 			throw new Error(leaks.join('\n'));
@@ -126,7 +130,7 @@ function generateUuid() {
  *  This code is derived from https://github.com/SimonSiefke/vscode-memory-leak-finder
  *--------------------------------------------------------------------------------------------*/
 
-const getInstances = async (driver: PlaywrightDriver): Promise<Array<{ name: string; count: number }>> => {
+const getInstances = async (driver: PlaywrightDriver): Promise<{ value: Array<{ name: string; count: number }>; dispose: () => Promise<void> }> => {
 	await driver.collectGarbage();
 	const objectGroup = `og:${generateUuid()}`;
 	const prototypeDescriptor = await driver.evaluate({
@@ -207,7 +211,13 @@ const getInstances = async (driver: PlaywrightDriver): Promise<Array<{ name: str
 
 	const fnResult2 = await getInstanceCountMap(driver, objectGroup, fnResult1.result);
 	const fnResult3 = await getInstanceCountArray(driver, objectGroup, fnResult2.result);
-	return fnResult3.result.value;
+	return {
+		value: fnResult3.result.value,
+		dispose: async () => {
+			// release object group
+			await driver.releaseObjectGroup({ objectGroup: objectGroup });
+		}
+	};
 };
 
 const getInstanceCountMap = async (driver: PlaywrightDriver, objectGroup: string, objects: Protocol.Runtime.RemoteObject) => {

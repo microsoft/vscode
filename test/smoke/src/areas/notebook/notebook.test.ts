@@ -25,7 +25,7 @@ export function setup(logger: Logger) {
 			cp.execSync('git reset --hard HEAD --quiet', { cwd: app.workspacePathOrFolder });
 		});
 
-		it('check heap leaks', async function () {
+		it.skip('check heap leaks', async function () {
 			const app = this.app as Application;
 			await app.profiler.checkHeapLeaks(['NotebookTextModel', 'NotebookCellTextModel', 'NotebookEventDispatcher'], async () => {
 				await app.workbench.notebook.openNotebook();
@@ -36,7 +36,7 @@ export function setup(logger: Logger) {
 
 		it('check object leaks', async function () {
 			const app = this.app as Application;
-			await app.profiler.checkLeaks(['NotebookTextModel'], async () => {
+			await app.profiler.checkObjectLeaks(['NotebookTextModel', 'NotebookCellTextModel', 'NotebookEventDispatcher'], async () => {
 				await app.workbench.notebook.openNotebook();
 				await app.workbench.quickaccess.runCommand('workbench.action.files.save');
 				await app.workbench.quickaccess.runCommand('workbench.action.closeActiveEditor');

@@ -110,6 +110,14 @@ export class PlaywrightDriver {
 		return await this._cdpSession.send('Runtime.evaluate', options);
 	}
 
+	async releaseObjectGroup(parameters: Protocol.Runtime.releaseObjectGroupParameters): Promise<void> {
+		if (!this._cdpSession) {
+			throw new Error('CDP not started');
+		}
+
+		await this._cdpSession.send('Runtime.releaseObjectGroup', parameters);
+	}
+
 	async queryObjects(parameters: Protocol.Runtime.queryObjectsParameters): Promise<Protocol.Runtime.queryObjectsReturnValue> {
 		if (!this._cdpSession) {
 			throw new Error('CDP not started');
@@ -132,11 +140,15 @@ export class PlaywrightDriver {
 		}
 
 		let snapshot = '';
-		this._cdpSession.addListener('HeapProfiler.addHeapSnapshotChunk', ({ chunk }) => {
-			snapshot += chunk;
-		});
+		const listener = (c: { chunk: string }) => {
+			snapshot += c.chunk;
+		};
+
+		this._cdpSession.addListener('HeapProfiler.addHeapSnapshotChunk', listener);
 
 		await this._cdpSession.send('HeapProfiler.takeHeapSnapshot');
+
+		this._cdpSession.removeListener('HeapProfiler.addHeapSnapshotChunk', listener);
 		return snapshot;
 	}
 
