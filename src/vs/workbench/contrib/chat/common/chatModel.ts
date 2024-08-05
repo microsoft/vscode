@@ -164,8 +164,8 @@ export class ChatRequestModel implements IChatRequestModel {
 	}
 }
 
-export class Response implements IResponse {
-	private _onDidChangeValue = new Emitter<void>();
+export class Response extends Disposable implements IResponse {
+	private _onDidChangeValue = this._register(new Emitter<void>());
 	public get onDidChangeValue() {
 		return this._onDidChangeValue.event;
 	}
@@ -189,6 +189,7 @@ export class Response implements IResponse {
 	}
 
 	constructor(value: IMarkdownString | ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference | IChatAgentMarkdownContentWithVulnerability>) {
+		super();
 		this._responseParts = asArray(value).map((v) => (isMarkdownString(v) ?
 			{ content: v, kind: 'markdownContent' } satisfies IChatMarkdownContent :
 			'kind' in v ? v : { kind: 'treeData', treeData: v }));
@@ -196,7 +197,7 @@ export class Response implements IResponse {
 		this._updateRepr(true);
 	}
 
-	toString(): string {
+	override toString(): string {
 		return this._responseRepr;
 	}
 
@@ -416,7 +417,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		this._isStale = Array.isArray(_response) && (_response.length !== 0 || isMarkdownString(_response) && _response.value.length !== 0);
 
 		this._followups = followups ? [...followups] : undefined;
-		this._response = new Response(_response);
+		this._response = this._register(new Response(_response));
 		this._register(this._response.onDidChangeValue(() => this._onDidChange.fire()));
 		this.id = 'response_' + ChatResponseModel.nextId++;
 	}

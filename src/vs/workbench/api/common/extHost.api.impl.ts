@@ -1519,6 +1519,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'chatParticipantPrivate');
 				return extHostChatAgents2.createDynamicChatAgent(extension, id, dynamicProps, handler);
 			},
+			registerChatParticipantDetectionProvider(provider: vscode.ChatParticipantDetectionProvider) {
+				checkProposedApiEnabled(extension, 'chatParticipantAdditions');
+				return extHostChatAgents2.registerChatParticipantDetectionProvider(provider);
+			},
 		};
 
 		// namespace: lm

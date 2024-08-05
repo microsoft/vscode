@@ -18,10 +18,13 @@ export function registerAtaSupport(): vscode.Disposable {
 		requireGlobalConfiguration('typescript', 'tsserver.web.typeAcquisition.enabled'),
 	], () => {
 		return vscode.Disposable.from(
+			// Ata
 			vscode.workspace.registerFileSystemProvider('vscode-global-typings', new MemFs(), {
 				isCaseSensitive: true,
-				isReadonly: false
+				isReadonly: false,
 			}),
+
+			// Read accesses to node_modules
 			vscode.workspace.registerFileSystemProvider('vscode-node-modules', new AutoInstallerFs(), {
 				isCaseSensitive: true,
 				isReadonly: false

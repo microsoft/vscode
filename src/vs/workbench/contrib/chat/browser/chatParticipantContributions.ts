@@ -3,14 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Action } from 'vs/base/common/actions';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { Codicon } from 'vs/base/common/codicons';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import { localize, localize2 } from 'vs/nls';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ILogService } from 'vs/platform/log/common/log';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -19,6 +22,7 @@ import { CHAT_VIEW_ID } from 'vs/workbench/contrib/chat/browser/chat';
 import { CHAT_SIDEBAR_PANEL_ID, ChatViewPane } from 'vs/workbench/contrib/chat/browser/chatViewPane';
 import { ChatAgentLocation, IChatAgentData, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IRawChatParticipantContribution } from 'vs/workbench/contrib/chat/common/chatParticipantContribTypes';
+import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import * as extensionsRegistry from 'vs/workbench/services/extensions/common/extensionsRegistry';
 
@@ -103,6 +107,35 @@ const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.regi
 		}
 	},
 });
+
+export class ChatCompatibilityNotifier implements IWorkbenchContribution {
+	static readonly ID = 'workbench.contrib.chatCompatNotifier';
+
+	constructor(
+		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@INotificationService notificationService: INotificationService,
+		@ICommandService commandService: ICommandService
+	) {
+		// It may be better to have some generic UI for this, for any extension that is incompatible,
+		// but this is only enabled for Copilot Chat now and it needs to be obvious.
+		extensionsWorkbenchService.queryLocal().then(exts => {
+			const chat = exts.find(ext => ext.identifier.id === 'github.copilot-chat');
+			if (chat?.local?.validations.some(v => v[0] === Severity.Error)) {
+				notificationService.notify({
+					severity: Severity.Error,
+					message: localize('chatFailErrorMessage', "Chat failed to load. Please ensure that the GitHub Copilot Chat extension is up to date."),
+					actions: {
+						primary: [
+							new Action('showExtension', localize('action.showExtension', "Show Extension"), undefined, true, () => {
+								return commandService.executeCommand('workbench.extensions.action.showExtensionsWithIds', ['GitHub.copilot-chat']);
+							})
+						]
+					}
+				});
+			}
+		});
+	}
+}
 
 export class ChatExtensionPointHandler implements IWorkbenchContribution {
 
