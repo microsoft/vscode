@@ -130,7 +130,7 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 					sourceElement.innerText = source;
 				}
 				const codeLink = dom.append(sourceAndCodeElement, $('a.code-link'));
-				codeLink.setAttribute('href', code.target.toString());
+				codeLink.setAttribute('href', code.target.toString(true));
 
 				disposables.add(dom.addDisposableListener(codeLink, 'click', (e) => {
 					this._openerService.open(code.target, { allowCommands: true });
