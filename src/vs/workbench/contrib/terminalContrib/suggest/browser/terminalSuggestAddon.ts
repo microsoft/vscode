@@ -495,25 +495,20 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	}
 
 	private _handleCompletionModel(model: SimpleCompletionModel): void {
-		if (model.items.length === 0 || !this._terminal?.element || !this._promptInputModel) {
+		if (!this._terminal?.element) {
+			return;
+		}
+		const suggestWidget = this._ensureSuggestWidget(this._terminal);
+		suggestWidget.setCompletionModel(model);
+		if (model.items.length === 0 || !this._promptInputModel) {
 			return;
 		}
 		this._model = model;
-		const suggestWidget = this._ensureSuggestWidget(this._terminal);
 		const dimensions = this._getTerminalDimensions();
 		if (!dimensions.width || !dimensions.height) {
 			return;
 		}
-		// TODO: What do frozen and auto do?
 		const xtermBox = this._screen!.getBoundingClientRect();
-		// this._initialPromptInputState = {
-		// 	value: this._promptInputModel.value,
-		// 	prefix: this._promptInputModel.prefix,
-		// 	suffix: this._promptInputModel.suffix,
-		// 	cursorIndex: this._promptInputModel.cursorIndex,
-		// 	ghostTextIndex: this._promptInputModel.ghostTextIndex
-		// };
-		suggestWidget.setCompletionModel(model);
 		suggestWidget.showSuggestions(0, false, false, {
 			left: xtermBox.left + this._terminal.buffer.active.cursorX * dimensions.width,
 			top: xtermBox.top + this._terminal.buffer.active.cursorY * dimensions.height,
