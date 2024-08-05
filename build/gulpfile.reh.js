@@ -483,7 +483,7 @@ function tweakProductForServerWeb(product) {
 				compileBuildTask,
 				compileExtensionsBuildTask,
 				compileExtensionMediaBuildTask,
-				minified ? optimizeTask : optimizeTask, // TODO@esm revert
+				minified ? minifyTask : optimizeTask,
 				serverTaskCI
 			));
 			gulp.task(serverTask);
