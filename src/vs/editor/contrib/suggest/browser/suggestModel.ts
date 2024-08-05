@@ -7,31 +7,31 @@ import { TimeoutTimer } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
+import { FuzzyScoreOptions } from 'vs/base/common/filters';
 import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { getLeadingWhitespace, isHighSurrogate, isLowSurrogate } from 'vs/base/common/strings';
+import { assertType } from 'vs/base/common/types';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { CursorChangeReason, ICursorSelectionChangedEvent } from 'vs/editor/common/cursorEvents';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
-import { ITextModel } from 'vs/editor/common/model';
+import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
+import { CursorChangeReason, ICursorSelectionChangedEvent } from 'vs/editor/common/cursorEvents';
 import { CompletionContext, CompletionItemKind, CompletionItemProvider, CompletionTriggerKind } from 'vs/editor/common/languages';
+import { ITextModel } from 'vs/editor/common/model';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { InlineCompletionContextKeys } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionContextKeys';
+import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { WordDistance } from 'vs/editor/contrib/suggest/browser/wordDistance';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CompletionModel } from './completionModel';
 import { CompletionDurations, CompletionItem, CompletionOptions, getSnippetSuggestSupport, provideSuggestionItems, QuickSuggestionsOptions, SnippetSortOrder } from './suggest';
-import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { FuzzyScoreOptions } from 'vs/base/common/filters';
-import { assertType } from 'vs/base/common/types';
-import { InlineCompletionContextKeys } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionContextKeys';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export interface ICancelEvent {
 	readonly retrigger: boolean;
@@ -543,6 +543,11 @@ export class SuggestModel implements IDisposable {
 
 			this._onNewContext(ctx);
 
+			if (this._completionModel) {
+				// report telemetry about completion items
+				this._reportCompletionsTelemetry(this._completionModel.items);
+			}
+
 			// finally report telemetry about durations
 			this._reportDurationsTelemetry(completions.durations);
 
@@ -575,6 +580,31 @@ export class SuggestModel implements IDisposable {
 			};
 			this._telemetryService.publicLog2<Durations, DurationsClassification>('suggest.durations.json', { data: JSON.stringify(durations) });
 			this._logService.debug('suggest.durations.json', durations);
+		});
+	}
+
+	private _reportCompletionsTelemetry(completions: CompletionItem[]): void {
+
+		// if (this._telemetryGate++ % 230 !== 0) {
+		// 	return;
+		// }
+
+		const items: CompletionItem[] = [];
+		for (let i = 0; i < 5 && i < completions.length; i++) {
+			items.push(completions[i]);
+		}
+		console.log(items);
+		// console.log(completions[0]);
+
+		setTimeout(() => {
+			type Completions = { data: CompletionItem[] };
+			type CompletionsClassification = {
+				owner: 'jrieken';
+				comment: 'Completions performance numbers';
+				data: { comment: 'Completions per source and overall'; classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+			};
+			this._telemetryService.publicLog2<Completions, CompletionsClassification>('suggest.durations.json', { data: completions });
+			this._logService.debug('suggest.durations.json', completions);
 		});
 	}
 
