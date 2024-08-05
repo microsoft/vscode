@@ -6,7 +6,7 @@
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Disposable, DisposableMap } from 'vs/base/common/lifecycle';
 import { ExtHostLanguageModelToolsShape, ExtHostContext, MainContext, MainThreadLanguageModelToolsShape } from 'vs/workbench/api/common/extHost.protocol';
-import { IToolData, ILanguageModelToolsService } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
+import { IToolData, ILanguageModelToolsService, IToolResult } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
 import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageModelTools)
@@ -29,7 +29,7 @@ export class MainThreadLanguageModelTools extends Disposable implements MainThre
 		return Array.from(this._languageModelToolsService.getTools());
 	}
 
-	$invokeTool(name: string, parameters: any, token: CancellationToken): Promise<string> {
+	$invokeTool(name: string, parameters: any, token: CancellationToken): Promise<IToolResult> {
 		return this._languageModelToolsService.invokeTool(name, parameters, token);
 	}
 
