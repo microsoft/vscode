@@ -581,7 +581,7 @@ export class ChatService extends Disposable implements IChatService {
 
 					let detectedAgent: IChatAgentData | undefined;
 					let detectedCommand: IChatAgentCommand | undefined;
-					if (this.configurationService.getValue('chat.experimental.detectParticipant.enabled') && !agentPart && !commandPart) {
+					if (this.configurationService.getValue('chat.experimental.detectParticipant.enabled') && !agentPart && !commandPart && enableCommandDetection) {
 						// We have no agent or command to scope history with, pass the full history to the participant detection provider
 						const defaultAgentHistory = getHistoryEntriesFromModel(model, defaultAgent.id);
 
