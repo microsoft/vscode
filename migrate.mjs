@@ -53,6 +53,10 @@ function migrate(enableWatching) {
 	}
 }
 
+function posixFilePath(filePath) {
+	return filePath.replace(/\\/g, '/');
+}
+
 /**
  * @param filePath
  * @param fileContents
@@ -64,7 +68,7 @@ function migrateOne(filePath, fileContents) {
 		migrateTS(filePath, fileContents.toString());
 	} else if (fileExtension === '.js' || fileExtension === '.cjs') {
 		if (
-			filePath.endsWith('vs/loader.js')
+			posixFilePath(filePath).endsWith('vs/loader.js')
 		) {
 			// fake loader
 			writeDestFile(filePath, `(function () {
@@ -139,7 +143,8 @@ function discoverImports(fileContents) {
  * @param fileContents
  */
 function migrateTS(filePath, fileContents) {
-	if (filePath.endsWith('.d.ts') || filePath.includes('/typings-esm/')) {
+	const filePathPosix = posixFilePath(filePath);
+	if (filePath.endsWith('.d.ts') || filePathPosix.includes('/typings-esm/')) {
 		return writeDestFile(filePath, fileContents);
 	}
 
@@ -161,7 +166,7 @@ function migrateTS(filePath, fileContents) {
 
 		// list of node modules that we swap out for ESM-AMD magic files
 		// to some guess for what files endup in the shared process
-		if (!filePath.includes('vs/workbench/') && !filePath.includes('vs/editor/')) {
+		if (!filePathPosix.includes('vs/workbench/') && !filePathPosix.includes('vs/editor/')) {
 			const monacoNodeModules = new Set([
 				'child_process', // inside worker of shared process
 				'console', // inside worker of shared process
