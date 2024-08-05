@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-use std::{ffi::OsStr, fmt, path::Path};
+use std::{fmt, path::Path};
 
 use serde::{Deserialize, Serialize};
 
@@ -11,10 +11,11 @@ use crate::{
 	constants::VSCODE_CLI_UPDATE_ENDPOINT,
 	debug, log, options, spanf,
 	util::{
-		errors::{AnyError, CodeError, WrappedError},
+		errors::{wrap, AnyError, CodeError, WrappedError},
 		http::{BoxedHttp, SimpleResponse},
 		io::ReportCopyProgress,
-		tar, zipper,
+		tar::{self, has_gzip_header},
+		zipper,
 	},
 };
 
@@ -178,10 +179,10 @@ pub fn unzip_downloaded_release<T>(
 where
 	T: ReportCopyProgress,
 {
-	if compressed_file.extension() == Some(OsStr::new("zip")) {
-		zipper::unzip_file(compressed_file, target_dir, reporter)
-	} else {
-		tar::decompress_tarball(compressed_file, target_dir, reporter)
+	match has_gzip_header(compressed_file) {
+		Ok((f, true)) => tar::decompress_tarball(f, target_dir, reporter),
+		Ok((f, false)) => zipper::unzip_file(f, target_dir, reporter),
+		Err(e) => Err(wrap(e, "error checking for gzip header")),
 	}
 }
 

@@ -1958,7 +1958,8 @@ export class Repository implements Disposable {
 		return await this.run(Operation.Ignore, async () => {
 			const ignoreFile = `${this.repository.root}${path.sep}.gitignore`;
 			const textToAppend = files
-				.map(uri => relativePath(this.repository.root, uri.fsPath).replace(/\\/g, '/'))
+				.map(uri => relativePath(this.repository.root, uri.fsPath)
+					.replace(/\\|\[/g, match => match === '\\' ? '/' : `\\${match}`))
 				.join('\n');
 
 			const document = await new Promise(c => fs.exists(ignoreFile, c))

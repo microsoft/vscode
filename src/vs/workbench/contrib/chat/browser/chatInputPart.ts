@@ -56,7 +56,7 @@ import { IChatRequestVariableEntry } from 'vs/workbench/contrib/chat/common/chat
 import { IChatFollowup } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { IChatHistoryEntry, IChatWidgetHistoryService } from 'vs/workbench/contrib/chat/common/chatWidgetHistoryService';
-import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
+import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions, setupSimpleEditorSelectionStyling } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 
 const $ = dom.$;
 
@@ -405,7 +405,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		options.scrollbar = { ...(options.scrollbar ?? {}), vertical: 'hidden' };
 		options.stickyScroll = { enabled: false };
 
-		this._inputEditorElement = dom.append(inputContainer, $('.interactive-input-editor'));
+		this._inputEditorElement = dom.append(inputContainer, $(chatInputEditorContainerSelector));
 		const editorOptions = getSimpleCodeEditorWidgetOptions();
 		editorOptions.contributions?.push(...EditorExtensionsRegistry.getSomeEditorContributions([HoverController.ID]));
 		this._inputEditor = this._register(scopedInstantiationService.createInstance(CodeEditorWidget, this._inputEditorElement, options, editorOptions));
@@ -431,18 +431,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			inputContainer.classList.toggle('focused', false);
 
 			this._onDidBlur.fire();
-		}));
-		this._register(this._inputEditor.onDidChangeCursorPosition(e => {
-			const model = this._inputEditor.getModel();
-			if (!model) {
-				return;
-			}
-
-			const atTop = e.position.column === 1 && e.position.lineNumber === 1;
-			this.chatCursorAtTop.set(atTop);
-
-			this.historyNavigationBackwardsEnablement.set(atTop);
-			this.historyNavigationForewardsEnablement.set(e.position.equals(getLastPosition(model)));
 		}));
 
 		this.toolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, inputContainer, this.options.menus.executeToolbar, {
@@ -496,6 +484,26 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const lineNumber = this.inputModel.getLineCount();
 			this._inputEditor.setPosition({ lineNumber, column: this.inputModel.getLineMaxColumn(lineNumber) });
 		}
+
+		const onDidChangeCursorPosition = () => {
+			const model = this._inputEditor.getModel();
+			if (!model) {
+				return;
+			}
+
+			const position = this._inputEditor.getPosition();
+			if (!position) {
+				return;
+			}
+
+			const atTop = position.column === 1 && position.lineNumber === 1;
+			this.chatCursorAtTop.set(atTop);
+
+			this.historyNavigationBackwardsEnablement.set(atTop);
+			this.historyNavigationForewardsEnablement.set(position.equals(getLastPosition(model)));
+		};
+		this._register(this._inputEditor.onDidChangeCursorPosition(e => onDidChangeCursorPosition()));
+		onDidChangeCursorPosition();
 	}
 
 	private initAttachedContext(container: HTMLElement) {
@@ -697,3 +705,6 @@ class ChatSubmitDropdownActionItem extends DropdownWithPrimaryActionViewItem {
 		this._register(menu.onDidChange(() => setActions()));
 	}
 }
+
+const chatInputEditorContainerSelector = '.interactive-input-editor';
+setupSimpleEditorSelectionStyling(chatInputEditorContainerSelector);
