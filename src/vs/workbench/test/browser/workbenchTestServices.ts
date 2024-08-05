@@ -836,6 +836,7 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 	onDidLayout: Event<IDimension> = Event.None;
 	onDidChangeEditorPartOptions = Event.None;
 	onDidScroll = Event.None;
+	onWillDispose = Event.None;
 
 	orientation = GroupOrientation.HORIZONTAL;
 	isReady = true;
@@ -879,6 +880,7 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 	isLayoutCentered(): boolean { return false; }
 	createEditorDropTarget(container: HTMLElement, delegate: IEditorDropTargetDelegate): IDisposable { return Disposable.None; }
 	registerContextKeyProvider<T extends ContextKeyValue>(_provider: IEditorGroupContextKeyProvider<T>): IDisposable { throw new Error('not implemented'); }
+	getScopedInstantiationService(part: IEditorPart): IInstantiationService { throw new Error('Method not implemented.'); }
 
 	partOptions!: IEditorPartOptions;
 	enforcePartOptions(options: IEditorPartOptions): IDisposable { return Disposable.None; }
@@ -1849,6 +1851,10 @@ export class TestEditorPart extends MainEditorPart implements IEditorGroupsServi
 	}
 
 	createAuxiliaryEditorPart(): Promise<IAuxiliaryEditorPart> {
+		throw new Error('Method not implemented.');
+	}
+
+	getScopedInstantiationService(part: IEditorPart): IInstantiationService {
 		throw new Error('Method not implemented.');
 	}
 

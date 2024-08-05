@@ -439,6 +439,11 @@ export interface IEditorPart extends IEditorGroupsContainer {
 	readonly onDidScroll: Event<void>;
 
 	/**
+	 * An event for when the editor part is disposed.
+	 */
+	readonly onWillDispose: Event<void>;
+
+	/**
 	 * The identifier of the window the editor part is contained in.
 	 */
 	readonly windowId: number;
@@ -560,6 +565,14 @@ export interface IEditorGroupsService extends IEditorGroupsContainer {
 	 * in there at the optional position and size on screen.
 	 */
 	createAuxiliaryEditorPart(options?: { bounds?: Partial<IRectangle> }): Promise<IAuxiliaryEditorPart>;
+
+	/**
+	 * Returns the instantiation service that is scoped to the
+	 * provided editor part. Use this method when building UI
+	 * that contributes to auxiliary editor parts to ensure the
+	 * UI is scoped to that part.
+	 */
+	getScopedInstantiationService(part: IEditorPart): IInstantiationService;
 
 	/**
 	 * Save a new editor working set from the currently opened
