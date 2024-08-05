@@ -546,14 +546,14 @@ function GitTabExpansionInternal($lastBlock, $GitStatus = $null) {
 
 		# Handles git checkout|switch <ref>
 		"^(?:checkout|switch).* (?<ref>\S*)$" {
-			& {
-				& {
-					gitBranches $matches['ref'] $true
-					gitRemoteUniqueBranches $matches['ref']
-					# Return only unique branches (to eliminate duplicates where the branch exists locally and on the remote)
-				} | Select-Object -Unique | ConvertTo-VscodeCompletion -Type 'branch'
-
-				gitTags $matches['ref'] | Select-Object -Unique | ConvertTo-VscodeCompletion -Type 'tag'
+			# Return a dummy value to prevent file path completion from happening
+			if ($lastBlock -match "-b\s[^\s]*$") {
+				'~'
+			} else {
+				[System.Management.Automation.CompletionResult]::new('.', '.', 'ParameterName', "Discard changes in working directory")
+				gitBranches $matches['ref'] $true | ConvertTo-VscodeCompletion -Type 'branch'
+				gitRemoteUniqueBranches $matches['ref'] | ConvertTo-VscodeCompletion -Type 'branch'
+				gitTags $matches['ref'] | ConvertTo-VscodeCompletion -Type 'tag'
 			}
 		}
 

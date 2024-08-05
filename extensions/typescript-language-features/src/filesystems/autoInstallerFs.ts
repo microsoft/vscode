@@ -3,49 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { PackageManager } from '@vscode/ts-package-manager';
+import { basename, join } from 'path';
 import * as vscode from 'vscode';
-import { MemFs } from './memFs';
 import { URI } from 'vscode-uri';
-import { PackageManager, FileSystem, packagePath } from '@vscode/ts-package-manager';
-import { join, basename, dirname } from 'path';
+import { Throttler } from '../utils/async';
+import { Disposable } from '../utils/dispose';
+import { MemFs } from './memFs';
 
 const TEXT_DECODER = new TextDecoder('utf-8');
 const TEXT_ENCODER = new TextEncoder();
 
-export class AutoInstallerFs implements vscode.FileSystemProvider {
+export class AutoInstallerFs extends Disposable implements vscode.FileSystemProvider {
 
 	private readonly memfs = new MemFs();
-	private readonly fs: FileSystem;
-	private readonly projectCache = new Map<string, Set<string>>();
-	private readonly watcher: vscode.FileSystemWatcher;
-	private readonly _emitter = new vscode.EventEmitter<vscode.FileChangeEvent[]>();
+	private readonly packageManager: PackageManager;
+	private readonly _projectCache = new Map</* root */ string, {
+		readonly throttler: Throttler;
+	}>();
 
-	readonly onDidChangeFile: vscode.Event<vscode.FileChangeEvent[]> = this._emitter.event;
+	private readonly _emitter = this._register(new vscode.EventEmitter<vscode.FileChangeEvent[]>());
+	readonly onDidChangeFile = this._emitter.event;
 
 	constructor() {
-		this.watcher = vscode.workspace.createFileSystemWatcher('**/{package.json,package-lock.json,package-lock.kdl}');
-		const handler = (uri: URI) => {
-			const root = dirname(uri.path);
-			if (this.projectCache.delete(root)) {
-				(async () => {
-					const pm = new PackageManager(this.fs);
-					const opts = await this.getInstallOpts(uri, root);
-					const proj = await pm.resolveProject(root, opts);
-					proj.pruneExtraneous();
-					// TODO: should this fire on vscode-node-modules instead?
-					// NB(kmarchan): This should tell TSServer that there's
-					// been changes inside node_modules and it needs to
-					// re-evaluate things.
-					this._emitter.fire([{
-						type: vscode.FileChangeType.Changed,
-						uri: uri.with({ path: join(root, 'node_modules') })
-					}]);
-				})();
-			}
-		};
-		this.watcher.onDidChange(handler);
-		this.watcher.onDidCreate(handler);
-		this.watcher.onDidDelete(handler);
+		super();
+
 		const memfs = this.memfs;
 		memfs.onDidChangeFile((e) => {
 			this._emitter.fire(e.map(ev => ({
@@ -54,7 +36,8 @@ export class AutoInstallerFs implements vscode.FileSystemProvider {
 				uri: ev.uri.with({ scheme: 'memfs' })
 			})));
 		});
-		this.fs = {
+
+		this.packageManager = new PackageManager({
 			readDirectory(path: string, _extensions?: readonly string[], _exclude?: readonly string[], _include?: readonly string[], _depth?: number): string[] {
 				return memfs.readDirectory(URI.file(path)).map(([name, _]) => name);
 			},
@@ -87,7 +70,7 @@ export class AutoInstallerFs implements vscode.FileSystemProvider {
 					return undefined;
 				}
 			}
-		};
+		});
 	}
 
 	watch(resource: vscode.Uri): vscode.Disposable {
@@ -151,8 +134,6 @@ export class AutoInstallerFs implements vscode.FileSystemProvider {
 	}
 
 	private async ensurePackageContents(incomingUri: MappedUri): Promise<void> {
-		// console.log('ensurePackageContents', incomingUri.path);
-
 		// If we're not looking for something inside node_modules, bail early.
 		if (!incomingUri.path.includes('node_modules')) {
 			throw vscode.FileSystemError.FileNotFound();
@@ -164,25 +145,26 @@ export class AutoInstallerFs implements vscode.FileSystemProvider {
 		}
 
 		const root = this.getProjectRoot(incomingUri.path);
-
-		const pkgPath = packagePath(incomingUri.path);
-		if (!root || this.projectCache.get(root)?.has(pkgPath)) {
+		if (!root) {
 			return;
 		}
+		console.log('ensurePackageContents', incomingUri.path, root);
 
-		const proj = await (new PackageManager(this.fs)).resolveProject(root, await this.getInstallOpts(incomingUri.original, root));
+		let projectEntry = this._projectCache.get(root);
+		if (!projectEntry) {
+			projectEntry = { throttler: new Throttler() };
+			this._projectCache.set(root, projectEntry);
+		}
 
-		const restore = proj.restorePackageAt(incomingUri.path);
-		try {
-			await restore;
-		} catch (e) {
-			console.error(`failed to restore package at ${incomingUri.path}: `, e);
-			throw e;
-		}
-		if (!this.projectCache.has(root)) {
-			this.projectCache.set(root, new Set());
-		}
-		this.projectCache.get(root)!.add(pkgPath);
+		projectEntry.throttler.queue(async () => {
+			const proj = await this.packageManager.resolveProject(root, await this.getInstallOpts(incomingUri.original, root));
+			try {
+				await proj.restore();
+			} catch (e) {
+				console.error(`failed to restore package at ${incomingUri.path}: `, e);
+				throw e;
+			}
+		});
 	}
 
 	private async getInstallOpts(originalUri: URI, root: string) {

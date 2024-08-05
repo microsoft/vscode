@@ -41,7 +41,7 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 		// and not in the clipboard, we have to invalidate
 		// that state when the user copies other data.
 		this._register(Event.runAndSubscribe(onDidRegisterWindow, ({ window, disposables }) => {
-			disposables.add(addDisposableListener(window.document, 'copy', () => this.clearResources()));
+			disposables.add(addDisposableListener(window.document, 'copy', () => this.clearResourcesState()));
 		}, { window: mainWindow, disposables: this._store }));
 	}
 
@@ -93,7 +93,7 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 	async writeText(text: string, type?: string): Promise<void> {
 
 		// Clear resources given we are writing text
-		this.writeResources([]);
+		this.clearResourcesState();
 
 		// With type: only in-memory is supported
 		if (type) {
@@ -200,7 +200,7 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 		}
 
 		if (resources.length === 0) {
-			this.clearResources();
+			this.clearResourcesState();
 		} else {
 			this.resources = resources;
 			this.resourcesStateHash = await this.computeResourcesStateHash();
@@ -226,7 +226,7 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 
 		const resourcesStateHash = await this.computeResourcesStateHash();
 		if (this.resourcesStateHash !== resourcesStateHash) {
-			this.clearResources(); // state mismatch, resources no longer valid
+			this.clearResourcesState(); // state mismatch, resources no longer valid
 		}
 
 		return this.resources;
@@ -264,7 +264,11 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 		return this.resources.length > 0;
 	}
 
-	private clearResources(): void {
+	public clearInternalState(): void {
+		this.clearResourcesState();
+	}
+
+	private clearResourcesState(): void {
 		this.resources = [];
 		this.resourcesStateHash = undefined;
 	}

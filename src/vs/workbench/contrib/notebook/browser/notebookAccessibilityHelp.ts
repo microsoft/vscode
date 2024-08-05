@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IAccessibleViewImplentation } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
-import { NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
+import { NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { localize } from 'vs/nls';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { AccessibleViewProviderId, AccessibleViewType, AccessibleContentProvider } from 'vs/platform/accessibility/browser/accessibleView';
@@ -16,7 +16,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 export class NotebookAccessibilityHelp implements IAccessibleViewImplentation {
 	readonly priority = 105;
 	readonly name = 'notebook';
-	readonly when = NOTEBOOK_IS_ACTIVE_EDITOR;
+	readonly when = NOTEBOOK_EDITOR_FOCUSED;
 	readonly type: AccessibleViewType = AccessibleViewType.Help;
 	getProvider(accessor: ServicesAccessor) {
 		const activeEditor = accessor.get(ICodeEditorService).getActiveCodeEditor()
