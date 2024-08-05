@@ -245,20 +245,48 @@ function Send-Completions {
 				$cursorIndex = $newCursorIndex
 			}
 		}
+		# If it contains `/` or `\`, get completions from the nearest `/` or `\` such that file
+		# completions are consistent regardless of where it was requested
+		elseif ($lastWord -match '[/\\]') {
+			$lastSlashIndex = $completionPrefix.LastIndexOfAny(@('/', '\'))
+			if ($lastSlashIndex -ne -1 && $lastSlashIndex -lt $cursorIndex) {
+				$newCursorIndex = $lastSlashIndex + 1
+				$completionPrefix = $completionPrefix.Substring(0, $newCursorIndex)
+				$prefixCursorDelta = $cursorIndex - $newCursorIndex
+				$cursorIndex = $newCursorIndex
+			}
+		}
 
 		# Get completions using TabExpansion2
 		$completions = TabExpansion2 -inputScript $completionPrefix -cursorColumn $cursorIndex
 		if ($null -ne $completions.CompletionMatches) {
 			$result += ";$($completions.ReplacementIndex);$($completions.ReplacementLength + $prefixCursorDelta);$($cursorIndex - $prefixCursorDelta);"
 			$json = [System.Collections.ArrayList]@($completions.CompletionMatches)
-			# Add `.` and `..` to the completions list for results that only contain files and dirs
+			# Relative directory completions
 			if ($completions.CompletionMatches.Count -gt 0 -and $completions.CompletionMatches.Where({ $_.ResultType -eq 3 -or $_.ResultType -eq 4 })) {
-				$json.Add([System.Management.Automation.CompletionResult]::new(
-					'.', '.', [System.Management.Automation.CompletionResultType]::ProviderContainer, (Get-Location).Path)
-				)
-				$json.Add([System.Management.Automation.CompletionResult]::new(
-					'..', '..', [System.Management.Automation.CompletionResultType]::ProviderContainer, (Split-Path (Get-Location) -Parent))
-				)
+				# Add `../ relative to the top completion
+				$firstCompletion = $completions.CompletionMatches[0]
+				if ($firstCompletion.CompletionText.StartsWith('../')) {
+					if ($completionPrefix -match '(\.\.\/)+') {
+						$parentDir = "$($matches[0])../"
+						$currentPath = Split-Path -Parent $firstCompletion.ToolTip
+						try {
+							$parentDirPath = Split-Path -Parent $currentPath
+							$json.Add([System.Management.Automation.CompletionResult]::new(
+								$parentDir, $parentDir, [System.Management.Automation.CompletionResultType]::ProviderContainer, $parentDirPath)
+							)
+						} catch { }
+					}
+				}
+				# Add `.` and `..` to the completions list for results that only contain files and dirs
+				else {
+					$json.Add([System.Management.Automation.CompletionResult]::new(
+						'.', '.', [System.Management.Automation.CompletionResultType]::ProviderContainer, (Get-Location).Path)
+					)
+					$json.Add([System.Management.Automation.CompletionResult]::new(
+						'..', '..', [System.Management.Automation.CompletionResultType]::ProviderContainer, (Split-Path (Get-Location) -Parent))
+					)
+				}
 			}
 			# Add `-` and `+` as a completion for move backwards in location history. Unfortunately
 			# we don't set the path it will navigate to since the Set-Location stack is not public
@@ -276,6 +304,17 @@ function Send-Completions {
 	# If there is no space, get completions using CompletionCompleters as it gives us more
 	# control and works on the empty string
 	else {
+		# If it contains `/` or `\`, get completions from the nearest `/` or `\` such that file
+		# completions are consistent regardless of where it was requested
+		if ($completionPrefix -match '[/\\]') {
+			$lastSlashIndex = $completionPrefix.LastIndexOfAny(@('/', '\'))
+			if ($lastSlashIndex -ne -1 && $lastSlashIndex -lt $cursorIndex) {
+				$newCursorIndex = $lastSlashIndex + 1
+				$completionPrefix = $completionPrefix.Substring(0, $newCursorIndex)
+				$prefixCursorDelta = $cursorIndex - $newCursorIndex
+				$cursorIndex = $newCursorIndex
+			}
+		}
 		# Note that CompleteCommand isn't included here as it's expensive
 		$completions = $(
 			# Add trailing \ for directories so behavior aligns with TabExpansion2

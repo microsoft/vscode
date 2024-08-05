@@ -76,7 +76,7 @@ export class IssueFormService implements IIssueFormService {
 		const disposables = new DisposableStore();
 
 		// Auxiliary Window
-		const auxiliaryWindow = disposables.add(await this.auxiliaryWindowService.open({ mode: AuxiliaryWindowMode.Custom, bounds: issueReporterBounds }));
+		const auxiliaryWindow = disposables.add(await this.auxiliaryWindowService.open({ mode: AuxiliaryWindowMode.Normal, bounds: issueReporterBounds, nativeTitlebar: true, disableFullscreen: true }));
 
 		if (auxiliaryWindow) {
 			await auxiliaryWindow.whenStylesHaveLoaded;
