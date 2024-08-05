@@ -22,7 +22,7 @@ class DropOrPasteResourceProvider implements vscode.DocumentDropEditProvider, vs
 			return;
 		}
 
-		const snippet = await this.createUriListSnippet(uriList);
+		const snippet = await this.createUriListSnippet(document.uri, uriList);
 		if (!snippet || token.isCancellationRequested) {
 			return;
 		}
@@ -47,7 +47,7 @@ class DropOrPasteResourceProvider implements vscode.DocumentDropEditProvider, vs
 			return;
 		}
 
-		const snippet = await this.createUriListSnippet(uriList);
+		const snippet = await this.createUriListSnippet(document.uri, uriList);
 		if (!snippet || token.isCancellationRequested) {
 			return;
 		}
@@ -78,7 +78,7 @@ class DropOrPasteResourceProvider implements vscode.DocumentDropEditProvider, vs
 		return new UriList(uris.map(uri => ({ uri, str: uri.toString(true) })));
 	}
 
-	private async createUriListSnippet(uriList: UriList): Promise<{ readonly snippet: vscode.SnippetString; readonly label: string } | undefined> {
+	private async createUriListSnippet(docUri: vscode.Uri, uriList: UriList): Promise<{ readonly snippet: vscode.SnippetString; readonly label: string } | undefined> {
 		if (!uriList.entries.length) {
 			return;
 		}
@@ -86,7 +86,7 @@ class DropOrPasteResourceProvider implements vscode.DocumentDropEditProvider, vs
 		const snippet = new vscode.SnippetString();
 		for (let i = 0; i < uriList.entries.length; i++) {
 			const uri = uriList.entries[i];
-			const relativePath = getRelativePath(uri.uri);
+			const relativePath = getRelativePath(getDocumentDir(docUri), uri.uri);
 			const urlText = relativePath ?? uri.str;
 
 			snippet.appendText(`url(${urlText})`);
@@ -114,18 +114,17 @@ class DropOrPasteResourceProvider implements vscode.DocumentDropEditProvider, vs
 	}
 }
 
-function getRelativePath(file: vscode.Uri): string | undefined {
-	const dir = getDocumentDir(file);
-	if (dir && dir.scheme === file.scheme && dir.authority === file.authority) {
-		if (file.scheme === Schemes.file) {
+function getRelativePath(fromFile: vscode.Uri | undefined, toFile: vscode.Uri): string | undefined {
+	if (fromFile && fromFile.scheme === toFile.scheme && fromFile.authority === toFile.authority) {
+		if (toFile.scheme === Schemes.file) {
 			// On windows, we must use the native `path.relative` to generate the relative path
 			// so that drive-letters are resolved cast insensitively. However we then want to
 			// convert back to a posix path to insert in to the document
-			const relativePath = path.relative(dir.fsPath, file.fsPath);
+			const relativePath = path.relative(fromFile.fsPath, toFile.fsPath);
 			return path.posix.normalize(relativePath.split(path.sep).join(path.posix.sep));
 		}
 
-		return path.posix.relative(dir.path, file.path);
+		return path.posix.relative(fromFile.path, toFile.path);
 	}
 
 	return undefined;

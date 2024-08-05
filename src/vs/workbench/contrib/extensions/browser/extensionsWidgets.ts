@@ -561,7 +561,18 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 					}, focus);
 				},
 				placement: 'element'
-			}, this.options.target, { markdown: () => Promise.resolve(this.getHoverMarkdown()), markdownNotSupportedFallback: undefined });
+			},
+				this.options.target,
+				{
+					markdown: () => Promise.resolve(this.getHoverMarkdown()),
+					markdownNotSupportedFallback: undefined
+				},
+				{
+					appearance: {
+						showHoverHint: true
+					}
+				}
+			);
 		}
 	}
 

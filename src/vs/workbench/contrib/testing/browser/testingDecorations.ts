@@ -11,6 +11,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { stripIcons } from 'vs/base/common/iconLabels';
 import { Iterable } from 'vs/base/common/iterator';
+import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, IReference, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
 import { isMacintosh } from 'vs/base/common/platform';
@@ -24,7 +25,7 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { overviewRulerError, overviewRulerInfo } from 'vs/editor/common/core/editorColorRegistry';
 import { IRange } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { GlyphMarginLane, IModelDeltaDecoration, ITextModel, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { GlyphMarginLane, IModelDecorationOptions, IModelDeltaDecoration, ITextModel, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
 import { localize } from 'vs/nls';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -39,7 +40,7 @@ import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { EditorLineNumberContextMenu, GutterActionsRegistry } from 'vs/workbench/contrib/codeEditor/browser/editorLineNumberMenu';
 import { getTestItemContextOverlay } from 'vs/workbench/contrib/testing/browser/explorerProjections/testItemContextOverlay';
-import { testingRunAllIcon, testingRunIcon, testingStatesToIcons } from 'vs/workbench/contrib/testing/browser/icons';
+import { testingDebugAllIcon, testingDebugIcon, testingRunAllIcon, testingRunIcon, testingStatesToIcons } from 'vs/workbench/contrib/testing/browser/icons';
 import { renderTestMessageAsText } from 'vs/workbench/contrib/testing/browser/testMessageColorizer';
 import { DefaultGutterClickAction, TestingConfigKeys, getTestingConfiguration } from 'vs/workbench/contrib/testing/common/configuration';
 import { Testing, labelForTestInState } from 'vs/workbench/contrib/testing/common/constants';
@@ -147,6 +148,7 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 		rangeUpdateVersionId?: number;
 		/** Counter for the results rendered in the document */
 		generation: number;
+		isAlt?: boolean;
 		value: CachedDecorations;
 	}>();
 
@@ -275,6 +277,29 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 	private invalidate() {
 		this.generation++;
 		this.changeEmitter.fire();
+	}
+
+	/**
+	 * Sets whether alternate actions are shown for the model.
+	 */
+	public updateDecorationsAlternateAction(resource: URI, isAlt: boolean) {
+		const model = this.modelService.getModel(resource);
+		const cached = this.decorationCache.get(resource);
+		if (!model || !cached || cached.isAlt === isAlt) {
+			return;
+		}
+
+		cached.isAlt = isAlt;
+		model.changeDecorations(accessor => {
+			for (const decoration of cached.value) {
+				if (decoration instanceof RunTestDecoration && decoration.editorDecoration.alternate) {
+					accessor.changeDecorationOptions(
+						decoration.id,
+						isAlt ? decoration.editorDecoration.alternate : decoration.editorDecoration.options,
+					);
+				}
+			}
+		});
 	}
 
 	/**
@@ -431,6 +456,16 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 				decorations.syncDecorations(this._currentUri);
 			}
 		}));
+		this._register(this.editor.onKeyDown(e => {
+			if (e.keyCode === KeyCode.Alt && this._currentUri) {
+				decorations.updateDecorationsAlternateAction(this._currentUri!, true);
+			}
+		}));
+		this._register(this.editor.onKeyUp(e => {
+			if (e.keyCode === KeyCode.Alt && this._currentUri) {
+				decorations.updateDecorationsAlternateAction(this._currentUri!, false);
+			}
+		}));
 		this._register(this.editor.onDidChangeModel(e => this.attachModel(e.newModelUrl || undefined)));
 		this._register(this.editor.onMouseDown(e => {
 			if (e.target.position && this.currentUri) {
@@ -531,14 +566,22 @@ const collapseRange = (originalRange: IRange) => ({
 	endColumn: originalRange.startColumn,
 });
 
-const createRunTestDecoration = (tests: readonly IncrementalTestCollectionItem[], states: readonly (TestResultItem | undefined)[], visible: boolean): IModelDeltaDecoration => {
+const createRunTestDecoration = (
+	tests: readonly IncrementalTestCollectionItem[],
+	states: readonly (TestResultItem | undefined)[],
+	visible: boolean,
+	defaultGutterAction: DefaultGutterClickAction,
+): IModelDeltaDecoration & { alternate?: IModelDecorationOptions } => {
 	const range = tests[0]?.item.range;
 	if (!range) {
 		throw new Error('Test decorations can only be created for tests with a range');
 	}
 
 	if (!visible) {
-		return { range: collapseRange(range), options: { isWholeLine: true, description: 'run-test-decoration' } };
+		return {
+			range: collapseRange(range),
+			options: { isWholeLine: true, description: 'run-test-decoration' },
+		};
 	}
 
 	let computedState = TestResultState.Unset;
@@ -560,38 +603,51 @@ const createRunTestDecoration = (tests: readonly IncrementalTestCollectionItem[]
 	}
 
 	const hasMultipleTests = tests.length > 1 || tests[0].children.size > 0;
-	const icon = computedState === TestResultState.Unset
+
+	const primaryIcon = computedState === TestResultState.Unset
 		? (hasMultipleTests ? testingRunAllIcon : testingRunIcon)
 		: testingStatesToIcons.get(computedState)!;
 
+	const alternateIcon = defaultGutterAction === DefaultGutterClickAction.Debug
+		? (hasMultipleTests ? testingRunAllIcon : testingRunIcon)
+		: (hasMultipleTests ? testingDebugAllIcon : testingDebugIcon);
+
 	let hoverMessage: IMarkdownString | undefined;
 
-	let glyphMarginClassName = ThemeIcon.asClassName(icon) + ' testing-run-glyph';
+	let glyphMarginClassName = 'testing-run-glyph';
 	if (retired) {
 		glyphMarginClassName += ' retired';
 	}
 
+	const defaultOptions: IModelDecorationOptions = {
+		description: 'run-test-decoration',
+		showIfCollapsed: true,
+		get hoverMessage() {
+			if (!hoverMessage) {
+				const building = hoverMessage = new MarkdownString('', true).appendText(hoverMessageParts.join(', ') + '.');
+				if (testIdWithMessages) {
+					const args = encodeURIComponent(JSON.stringify([testIdWithMessages]));
+					building.appendMarkdown(` [${localize('peekTestOutout', 'Peek Test Output')}](command:vscode.peekTestError?${args})`);
+				}
+			}
+
+			return hoverMessage;
+		},
+		glyphMargin: { position: GLYPH_MARGIN_LANE },
+		glyphMarginClassName: `${ThemeIcon.asClassName(primaryIcon)} ${glyphMarginClassName}`,
+		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		zIndex: 10000,
+	};
+
+	const alternateOptions: IModelDecorationOptions = {
+		...defaultOptions,
+		glyphMarginClassName: `${ThemeIcon.asClassName(alternateIcon)} ${glyphMarginClassName}`,
+	};
+
 	return {
 		range: collapseRange(range),
-		options: {
-			description: 'run-test-decoration',
-			showIfCollapsed: true,
-			get hoverMessage() {
-				if (!hoverMessage) {
-					const building = hoverMessage = new MarkdownString('', true).appendText(hoverMessageParts.join(', ') + '.');
-					if (testIdWithMessages) {
-						const args = encodeURIComponent(JSON.stringify([testIdWithMessages]));
-						building.appendMarkdown(` [${localize('peekTestOutout', 'Peek Test Output')}](command:vscode.peekTestError?${args})`);
-					}
-				}
-
-				return hoverMessage;
-			},
-			glyphMargin: { position: GLYPH_MARGIN_LANE },
-			glyphMarginClassName,
-			stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-			zIndex: 10000,
-		}
+		options: defaultOptions,
+		alternate: alternateOptions,
 	};
 };
 
@@ -716,7 +772,7 @@ abstract class RunTestDecoration {
 		return this.tests.map(t => t.test.item.extId);
 	}
 
-	public editorDecoration: IModelDeltaDecoration;
+	public editorDecoration: IModelDeltaDecoration & { alternate?: IModelDecorationOptions };
 	public displayedStates: readonly (TestResultState | undefined)[];
 
 	constructor(
@@ -736,7 +792,12 @@ abstract class RunTestDecoration {
 		@IMenuService protected readonly menuService: IMenuService,
 	) {
 		this.displayedStates = tests.map(t => t.resultItem?.computedState);
-		this.editorDecoration = createRunTestDecoration(tests.map(t => t.test), tests.map(t => t.resultItem), visible);
+		this.editorDecoration = createRunTestDecoration(
+			tests.map(t => t.test),
+			tests.map(t => t.resultItem),
+			visible,
+			getTestingConfiguration(this.configurationService, TestingConfigKeys.DefaultGutterClickAction),
+		);
 		this.editorDecoration.options.glyphMarginHoverMessage = new MarkdownString().appendText(this.getGutterLabel());
 	}
 
@@ -787,7 +848,16 @@ abstract class RunTestDecoration {
 		this.tests = newTests;
 		this.displayedStates = displayedStates;
 		this.visible = visible;
-		this.editorDecoration.options = createRunTestDecoration(newTests.map(t => t.test), newTests.map(t => t.resultItem), visible).options;
+
+		const { options, alternate } = createRunTestDecoration(
+			newTests.map(t => t.test),
+			newTests.map(t => t.resultItem),
+			visible,
+			getTestingConfiguration(this.configurationService, TestingConfigKeys.DefaultGutterClickAction)
+		);
+
+		this.editorDecoration.options = options;
+		this.editorDecoration.alternate = alternate;
 		this.editorDecoration.options.glyphMarginHoverMessage = new MarkdownString().appendText(this.getGutterLabel());
 		return true;
 	}

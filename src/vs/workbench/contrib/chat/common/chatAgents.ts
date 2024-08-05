@@ -83,6 +83,21 @@ export interface IChatAgentImplementation {
 	provideSampleQuestions?(location: ChatAgentLocation, token: CancellationToken): ProviderResult<IChatFollowup[] | undefined>;
 }
 
+export interface IChatParticipantDetectionResult {
+	participant: string;
+	command?: string;
+}
+
+export interface IChatParticipantMetadata {
+	participant: string;
+	command?: string;
+	description?: string;
+}
+
+export interface IChatParticipantDetectionProvider {
+	provideParticipantDetection(request: IChatAgentRequest, history: IChatAgentHistoryEntry[], options: { location: ChatAgentLocation; participants: IChatParticipantMetadata[] }, token: CancellationToken): Promise<IChatParticipantDetectionResult | null | undefined>;
+}
+
 export type IChatAgent = IChatAgentData & IChatAgentImplementation;
 
 export interface IChatAgentCommand extends IRawChatCommandContribution {
@@ -130,6 +145,12 @@ export interface IChatAgentRequest {
 	rejectedConfirmationData?: any[];
 }
 
+export interface IChatQuestion {
+	readonly prompt: string;
+	readonly participant?: string;
+	readonly command?: string;
+}
+
 export interface IChatAgentResult {
 	errorDetails?: IChatResponseErrorDetails;
 	timings?: {
@@ -138,6 +159,7 @@ export interface IChatAgentResult {
 	};
 	/** Extra properties that the agent can use to identify a result */
 	readonly metadata?: { readonly [key: string]: any };
+	nextQuestion?: IChatQuestion;
 }
 
 export const IChatAgentService = createDecorator<IChatAgentService>('chatAgentService');
@@ -167,6 +189,8 @@ export interface IChatAgentService {
 	registerDynamicAgent(data: IChatAgentData, agentImpl: IChatAgentImplementation): IDisposable;
 	registerAgentCompletionProvider(id: string, provider: (query: string, token: CancellationToken) => Promise<IChatAgentCompletionItem[]>): IDisposable;
 	getAgentCompletionItems(id: string, query: string, token: CancellationToken): Promise<IChatAgentCompletionItem[]>;
+	registerChatParticipantDetectionProvider(handle: number, provider: IChatParticipantDetectionProvider): IDisposable;
+	detectAgentOrCommand(request: IChatAgentRequest, history: IChatAgentHistoryEntry[], options: { location: ChatAgentLocation }, token: CancellationToken): Promise<{ agent: IChatAgentData; command?: IChatAgentCommand } | undefined>;
 	invokeAgent(agent: string, request: IChatAgentRequest, progress: (part: IChatProgress) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult>;
 	getFollowups(id: string, request: IChatAgentRequest, result: IChatAgentResult, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatFollowup[]>;
 	getAgent(id: string): IChatAgentData | undefined;
@@ -376,6 +400,53 @@ export class ChatAgentService implements IChatAgentService {
 		}
 
 		return data.impl.provideFollowups(request, result, history, token);
+	}
+
+	private _chatParticipantDetectionProviders = new Map<number, IChatParticipantDetectionProvider>();
+	registerChatParticipantDetectionProvider(handle: number, provider: IChatParticipantDetectionProvider) {
+		this._chatParticipantDetectionProviders.set(handle, provider);
+		return toDisposable(() => {
+			this._chatParticipantDetectionProviders.delete(handle);
+		});
+	}
+
+	async detectAgentOrCommand(request: IChatAgentRequest, history: IChatAgentHistoryEntry[], options: { location: ChatAgentLocation }, token: CancellationToken): Promise<{ agent: IChatAgentData; command?: IChatAgentCommand } | undefined> {
+		// TODO@joyceerhl should we have a selector to be able to narrow down which provider to use
+		const provider = Iterable.first(this._chatParticipantDetectionProviders.values());
+		if (!provider) {
+			return;
+		}
+
+		const participants = this.getAgents().reduce<IChatParticipantMetadata[]>((acc, a) => {
+			acc.push({ participant: a.id, description: undefined });
+			for (const command of a.slashCommands) {
+				acc.push({ participant: a.id, command: command.name, description: undefined });
+			}
+			return acc;
+		}, []);
+
+		const result = await provider.provideParticipantDetection(request, history, { ...options, participants }, token);
+		if (!result) {
+			return;
+		}
+
+		const agent = this.getAgent(result.participant);
+		if (!agent) {
+			// Couldn't find a participant matching the participant detection result
+			return;
+		}
+
+		if (!result.command) {
+			return { agent };
+		}
+
+		const command = agent?.slashCommands.find(c => c.name === result.command);
+		if (!command) {
+			// Couldn't find a slash command matching the participant detection result
+			return;
+		}
+
+		return { agent, command };
 	}
 }
 

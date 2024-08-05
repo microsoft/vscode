@@ -72,6 +72,7 @@ export interface IChatRequestViewModel {
 	readonly variables: IChatRequestVariableEntry[];
 	currentRenderedHeight: number | undefined;
 	readonly contentReferences?: ReadonlyArray<IChatContentReference>;
+	readonly confirmation?: string;
 }
 
 export interface IChatResponseMarkdownRenderData {
@@ -322,18 +323,26 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 	 */
 	private ensureFencedCodeBlocksTerminated(content: string): string {
 		const lines = content.split('\n');
-		let inCodeBlock = false;
 
+		let codeBlockState: undefined | { readonly delimiter: string; readonly indent: string };
 		for (let i = 0; i < lines.length; i++) {
 			const line = lines[i];
-			if (line.startsWith('```')) {
-				inCodeBlock = !inCodeBlock;
+
+			if (codeBlockState) {
+				if (new RegExp(`^\\s*${codeBlockState.delimiter}\\s*$`).test(line)) {
+					codeBlockState = undefined;
+				}
+			} else {
+				const match = line.match(/^(\s*)(`{3,}|~{3,}|)/);
+				if (match) {
+					codeBlockState = { delimiter: match[2], indent: match[1] };
+				}
 			}
 		}
 
 		// If we're still in a code block at the end of the content, add a closing fence
-		if (inCodeBlock) {
-			lines.push('```');
+		if (codeBlockState) {
+			lines.push(codeBlockState.indent + codeBlockState.delimiter);
 		}
 
 		return lines.join('\n');
@@ -379,6 +388,10 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 
 	get contentReferences() {
 		return this._model.response?.contentReferences;
+	}
+
+	get confirmation() {
+		return this._model.confirmation;
 	}
 
 	currentRenderedHeight: number | undefined;

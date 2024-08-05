@@ -145,7 +145,7 @@ export class AccessibilitySignalService extends Disposable implements IAccessibi
 	}
 
 	private getVolumeInPercent(): number {
-		const volume = this.configurationService.getValue<number>('accessibilitySignals.volume');
+		const volume = this.configurationService.getValue<number>('accessibility.signalOptions.volume');
 		if (typeof volume !== 'number') {
 			return 50;
 		}
