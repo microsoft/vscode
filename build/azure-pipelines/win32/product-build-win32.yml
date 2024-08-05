@@ -111,6 +111,7 @@ steps:
       }
       echo $includes > "~/.gyp/include.gypi"
     displayName: Create include.gypi
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
