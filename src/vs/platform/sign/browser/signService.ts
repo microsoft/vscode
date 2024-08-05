@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { resolveAmdNodeModulePath } from 'vs/amdX';
+import { importAMDNodeModule, resolveAmdNodeModulePath } from 'vs/amdX';
 import { WindowIntervalTimer } from 'vs/base/browser/dom';
 import { mainWindow } from 'vs/base/browser/window';
 import { isESM } from 'vs/base/common/amd';
@@ -64,7 +64,7 @@ export class SignService extends AbstractSignService implements ISignService {
 		let [wasm] = await Promise.all([
 			this.getWasmBytes(),
 			new Promise<void>((resolve, reject) => {
-				require(['vsda'], resolve, reject);
+				importAMDNodeModule('vsda', 'rust/web/vsda.js').then(() => resolve(), reject);
 
 				// todo@connor4312: there seems to be a bug(?) in vscode-loader with
 				// require() not resolving in web once the script loads, so check manually
@@ -75,7 +75,6 @@ export class SignService extends AbstractSignService implements ISignService {
 				}, 50, mainWindow);
 			}).finally(() => checkInterval.dispose()),
 		]);
-
 
 		const keyBytes = new TextEncoder().encode(this.productService.serverLicense?.join('\n') || '');
 		for (let i = 0; i + STEP_SIZE < keyBytes.length; i += STEP_SIZE) {
