@@ -485,12 +485,6 @@ export interface IAuxiliaryEditorPart extends IEditorPart {
 	close(): boolean;
 }
 
-export interface IAuxiliaryEditorPartCreateEvent {
-	readonly part: IAuxiliaryEditorPart;
-	readonly instantiationService: IInstantiationService;
-	readonly disposables: DisposableStore;
-}
-
 export interface IEditorWorkingSet {
 	readonly id: string;
 	readonly name: string;
@@ -528,7 +522,7 @@ export interface IEditorGroupsService extends IEditorGroupsContainer {
 	/**
 	 * An event for when a new auxiliary editor part is created.
 	 */
-	readonly onDidCreateAuxiliaryEditorPart: Event<IAuxiliaryEditorPartCreateEvent>;
+	readonly onDidCreateAuxiliaryEditorPart: Event<IAuxiliaryEditorPart>;
 
 	/**
 	 * Provides access to the main window editor part.

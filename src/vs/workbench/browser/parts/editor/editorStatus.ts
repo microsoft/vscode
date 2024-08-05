@@ -892,7 +892,7 @@ export class EditorStatusContribution extends Disposable implements IWorkbenchCo
 			this.createEditorStatus(part);
 		}
 
-		this._register(editorGroupService.onDidCreateAuxiliaryEditorPart(({ part }) => this.createEditorStatus(part)));
+		this._register(editorGroupService.onDidCreateAuxiliaryEditorPart(part => this.createEditorStatus(part)));
 	}
 
 	private createEditorStatus(part: IEditorPart): void {

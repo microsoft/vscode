@@ -348,7 +348,7 @@ export class NotebookEditorStatusContribution extends Disposable implements IWor
 			this.createNotebookStatus(part);
 		}
 
-		this._register(editorGroupService.onDidCreateAuxiliaryEditorPart(({ part }) => this.createNotebookStatus(part)));
+		this._register(editorGroupService.onDidCreateAuxiliaryEditorPart(part => this.createNotebookStatus(part)));
 	}
 
 	private createNotebookStatus(part: IEditorPart): void {

@@ -73,7 +73,7 @@ class LanguageStatusContribution extends Disposable implements IWorkbenchContrib
 			this.createLanguageStatus(part);
 		}
 
-		this._register(editorGroupService.onDidCreateAuxiliaryEditorPart(({ part }) => this.createLanguageStatus(part)));
+		this._register(editorGroupService.onDidCreateAuxiliaryEditorPart(part => this.createLanguageStatus(part)));
 	}
 
 	private createLanguageStatus(part: IEditorPart): void {

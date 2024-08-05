@@ -377,7 +377,7 @@ export class NativeWindow extends BaseWindow {
 			this.createWindowZoomStatusEntry(part);
 		}
 
-		this._register(this.editorGroupService.onDidCreateAuxiliaryEditorPart(({ part }) => this.createWindowZoomStatusEntry(part)));
+		this._register(this.editorGroupService.onDidCreateAuxiliaryEditorPart(part => this.createWindowZoomStatusEntry(part)));
 
 		// Listen to visible editor changes (debounced in case a new editor opens immediately after)
 		this._register(Event.debounce(this.editorService.onDidVisibleEditorsChange, () => undefined, 0, undefined, undefined, undefined, this._store)(() => this.maybeCloseWindow()));
@@ -394,7 +394,7 @@ export class NativeWindow extends BaseWindow {
 				this.handleRepresentedFilename(part);
 			}
 
-			this._register(this.editorGroupService.onDidCreateAuxiliaryEditorPart(({ part }) => this.handleRepresentedFilename(part)));
+			this._register(this.editorGroupService.onDidCreateAuxiliaryEditorPart(part => this.handleRepresentedFilename(part)));
 		}
 
 		// Maximize/Restore on doubleclick (for macOS custom title)
