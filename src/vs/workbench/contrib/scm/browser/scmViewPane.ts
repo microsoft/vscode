@@ -2273,6 +2273,29 @@ class ExpandAllRepositoriesAction extends ViewAction<SCMViewPane> {
 registerAction2(CollapseAllRepositoriesAction);
 registerAction2(ExpandAllRepositoriesAction);
 
+class ShowHistoryGraphAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.scm.action.showHistoryGraph',
+			title: localize('showHistoryGraph', "Show Incoming/Outgoing Changes"),
+			f1: false,
+			toggled: ContextKeyExpr.equals('config.scm.showHistoryGraph', true),
+			menu: {
+				id: Menus.ViewSort,
+				group: '3_other'
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor) {
+		const configurationService = accessor.get(IConfigurationService);
+		const configValue = configurationService.getValue('scm.showHistoryGraph') === true;
+		configurationService.updateValue('scm.showHistoryGraph', !configValue);
+	}
+}
+
+registerAction2(ShowHistoryGraphAction);
+
 const enum SCMInputWidgetCommandId {
 	CancelAction = 'scm.input.cancelAction'
 }
