@@ -55,9 +55,7 @@ import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { TabFocus } from 'vs/editor/browser/config/tabFocus';
-import { mainWindow } from 'vs/base/browser/window';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { IEditorGroupsService, IEditorPart } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 class SideBySideEditorEncodingSupport implements IEncodingSupport {
 	constructor(private primary: IEncodingSupport, private secondary: IEncodingSupport) { }
@@ -886,22 +884,23 @@ export class EditorStatusContribution extends Disposable implements IWorkbenchCo
 	static readonly ID = 'workbench.contrib.editorStatus';
 
 	constructor(
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IEditorService editorService: IEditorService
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 	) {
 		super();
 
-		// Main Editor Status
-		const mainInstantiationService = this._register(instantiationService.createChild(new ServiceCollection(
-			[IEditorService, editorService.createScoped('main', this._store)]
-		)));
-		this._register(mainInstantiationService.createInstance(EditorStatus, mainWindow.vscodeWindowId));
+		for (const part of editorGroupService.parts) {
+			this.createEditorStatus(part);
+		}
 
-		// Auxiliary Editor Status
-		this._register(editorGroupService.onDidCreateAuxiliaryEditorPart(({ part, instantiationService, disposables }) => {
-			disposables.add(instantiationService.createInstance(EditorStatus, part.windowId));
-		}));
+		this._register(editorGroupService.onDidCreateAuxiliaryEditorPart(part => this.createEditorStatus(part)));
+	}
+
+	private createEditorStatus(part: IEditorPart): void {
+		const disposables = new DisposableStore();
+		Event.once(part.onWillDispose)(() => disposables.dispose());
+
+		const scopedInstantiationService = this.editorGroupService.getScopedInstantiationService(part);
+		disposables.add(scopedInstantiationService.createInstance(EditorStatus, part.windowId));
 	}
 }
 
