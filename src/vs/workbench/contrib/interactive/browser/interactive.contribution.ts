@@ -542,7 +542,7 @@ registerAction2(class extends Action2 {
 		}
 
 		if (editorControl && isReplEditor) {
-			executeReplInput(accessor, editorControl);
+			executeReplInput(bulkEditService, historyService, notebookEditorService, editorControl);
 		}
 
 		if (editorControl && editorControl.notebookEditor && editorControl.codeEditor) {

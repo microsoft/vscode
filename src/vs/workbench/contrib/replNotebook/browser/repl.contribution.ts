@@ -196,10 +196,11 @@ registerAction2(class extends Action2 {
 	}
 });
 
-export async function executeReplInput(accessor: ServicesAccessor, editorControl: { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget }) {
-	const bulkEditService = accessor.get(IBulkEditService);
-	const historyService = accessor.get(IInteractiveHistoryService);
-	const notebookEditorService = accessor.get(INotebookEditorService);
+export async function executeReplInput(
+	bulkEditService: IBulkEditService,
+	historyService: IInteractiveHistoryService,
+	notebookEditorService: INotebookEditorService,
+	editorControl: { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget }) {
 
 	if (editorControl && editorControl.notebookEditor && editorControl.codeEditor) {
 		const notebookDocument = editorControl.notebookEditor.textModel;
