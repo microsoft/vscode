@@ -146,10 +146,10 @@ steps:
 
   - task: APIScan@2
     inputs:
-      softwareFolder: $(agent.builddirectory)\scanbin
+      softwareFolder: $(Agent.BuildDirectory)\scanbin
       softwareName: 'vscode-client'
       softwareVersionNum: '1'
-      symbolsFolder: 'srv*https://symweb.azurefd.net;$(agent.builddirectory)\symbols'
+      symbolsFolder: 'srv*https://symweb.azurefd.net;$(Agent.BuildDirectory)\symbols'
       isLargeApp: false
       toolVersion: 'Latest'
       azureSubscription: 'vscode-apiscan'
