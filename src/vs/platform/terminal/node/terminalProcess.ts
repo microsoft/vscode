@@ -211,8 +211,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 				}
 				if (injection.filesToCopy) {
 					for (const f of injection.filesToCopy) {
-						await fs.promises.mkdir(path.dirname(f.dest), { recursive: true });
 						try {
+							await fs.promises.mkdir(path.dirname(f.dest), { recursive: true });
 							await fs.promises.copyFile(f.source, f.dest);
 						} catch {
 							// Swallow error, this should only happen when multiple users are on the same
