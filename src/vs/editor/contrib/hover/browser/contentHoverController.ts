@@ -16,11 +16,11 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { HoverVerbosityAction } from 'vs/editor/common/standalone/standaloneEnums';
 import { ContentHoverWidget } from 'vs/editor/contrib/hover/browser/contentHoverWidget';
-import { mousePositionWithinElement } from 'vs/editor/contrib/hover/browser/hoverUtils';
 import { ContentHoverComputer } from 'vs/editor/contrib/hover/browser/contentHoverComputer';
 import { HoverResult } from 'vs/editor/contrib/hover/browser/contentHoverTypes';
 import { Emitter } from 'vs/base/common/event';
 import { RenderedContentHover } from 'vs/editor/contrib/hover/browser/contentHoverRendered';
+import { isMousePositionWithinElement } from 'vs/editor/contrib/hover/browser/hoverUtils';
 
 export class ContentHoverController extends Disposable implements IHoverWidget {
 
@@ -288,14 +288,10 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 
 	private _onMouseLeave(e: MouseEvent): void {
 		const editorDomNode = this._editor.getDomNode();
-		if (!editorDomNode) {
-			return undefined;
+		const isMousePositionOutsideOfEditor = !editorDomNode || !isMousePositionWithinElement(editorDomNode, e.x, e.y);
+		if (isMousePositionOutsideOfEditor) {
+			this.hide();
 		}
-		const isMouseWithinEditor = mousePositionWithinElement(editorDomNode, e.x, e.y);
-		if (isMouseWithinEditor) {
-			return undefined;
-		}
-		this.hide();
 	}
 
 	public startShowingAtRange(range: Range, mode: HoverStartMode, source: HoverStartSource, focus: boolean): void {

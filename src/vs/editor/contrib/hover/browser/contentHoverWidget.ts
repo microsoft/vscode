@@ -7,7 +7,6 @@ import * as dom from 'vs/base/browser/dom';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { HoverStartSource } from 'vs/editor/contrib/hover/browser/hoverOperation';
-import { computeDistanceFromPointToRectangle } from 'vs/editor/contrib/hover/browser/hoverUtils';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ResizableContentWidget } from 'vs/editor/contrib/hover/browser/resizableContentWidget';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -458,3 +457,10 @@ export class ContentHoverWidget extends ResizableContentWidget {
 	}
 }
 
+function computeDistanceFromPointToRectangle(pointX: number, pointY: number, left: number, top: number, width: number, height: number): number {
+	const x = (left + width / 2); // x center of rectangle
+	const y = (top + height / 2); // y center of rectangle
+	const dx = Math.max(Math.abs(pointX - x) - width / 2, 0);
+	const dy = Math.max(Math.abs(pointY - y) - height / 2, 0);
+	return Math.sqrt(dx * dx + dy * dy);
+}

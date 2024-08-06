@@ -14,7 +14,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { HoverWidget } from 'vs/base/browser/ui/hover/hoverWidget';
 import { IHoverWidget } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import { IHoverMessage, LaneOrLineNumber, MarginHoverComputer } from 'vs/editor/contrib/hover/browser/marginHoverComputer';
-import { mousePositionWithinElement } from 'vs/editor/contrib/hover/browser/hoverUtils';
+import { isMousePositionWithinElement } from 'vs/editor/contrib/hover/browser/hoverUtils';
 
 const $ = dom.$;
 
@@ -187,13 +187,9 @@ export class MarginHoverWidget extends Disposable implements IOverlayWidget, IHo
 
 	private _onMouseLeave(e: MouseEvent): void {
 		const editorDomNode = this._editor.getDomNode();
-		if (!editorDomNode) {
-			return undefined;
+		const isMousePositionOutsideOfEditor = !editorDomNode || !isMousePositionWithinElement(editorDomNode, e.x, e.y);
+		if (isMousePositionOutsideOfEditor) {
+			this.hide();
 		}
-		const isMouseWithinEditor = mousePositionWithinElement(editorDomNode, e.x, e.y);
-		if (isMouseWithinEditor) {
-			return undefined;
-		}
-		this.hide();
 	}
 }

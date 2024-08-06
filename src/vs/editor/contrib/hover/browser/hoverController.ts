@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
 import { DECREASE_HOVER_VERBOSITY_ACTION_ID, INCREASE_HOVER_VERBOSITY_ACTION_ID, SHOW_OR_FOCUS_HOVER_ACTION_ID } from 'vs/editor/contrib/hover/browser/hoverActionIds';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -20,7 +19,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
 import { HoverVerbosityAction } from 'vs/editor/common/languages';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { computeDistanceFromPointToRectangle } from 'vs/editor/contrib/hover/browser/hoverUtils';
+import { isMousePositionWithinElement } from 'vs/editor/contrib/hover/browser/hoverUtils';
 import { ContentHoverWidget } from 'vs/editor/contrib/hover/browser/contentHoverWidget';
 import { ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHoverController';
 import 'vs/css!./hover';
@@ -163,18 +162,30 @@ export class HoverController extends Disposable implements IEditorContribution {
 
 	private _isMouseOnMarginHoverWidget(mouseEvent: IPartialEditorMouseEvent): boolean {
 		const target = mouseEvent.target;
-		if (!target) {
-			return false;
+		// TODO: potentially not needed check as we check mouse position below, kept for now
+		const isTargetMarginHoverWidget = target && (target.type === MouseTargetType.OVERLAY_WIDGET && target.detail === MarginHoverWidget.ID);
+		if (isTargetMarginHoverWidget) {
+			return true;
 		}
-		return target.type === MouseTargetType.OVERLAY_WIDGET && target.detail === MarginHoverWidget.ID;
+		const marginHoverWidgetNode = this._glyphWidget?.getDomNode();
+		if (marginHoverWidgetNode) {
+			return isMousePositionWithinElement(marginHoverWidgetNode, mouseEvent.event.posx, mouseEvent.event.posy);
+		}
+		return false;
 	}
 
 	private _isMouseOnContentHoverWidget(mouseEvent: IPartialEditorMouseEvent): boolean {
 		const target = mouseEvent.target;
-		if (!target) {
-			return false;
+		// TODO: potentially not needed check as we check mouse position below, kept for now
+		const isTargetContentHoverWidget = target && (target.type === MouseTargetType.CONTENT_WIDGET && target.detail === ContentHoverWidget.ID);
+		if (isTargetContentHoverWidget) {
+			return true;
 		}
-		return target.type === MouseTargetType.CONTENT_WIDGET && target.detail === ContentHoverWidget.ID;
+		const contentWidgetNode = this._contentWidget?.getDomNode();
+		if (contentWidgetNode) {
+			return isMousePositionWithinElement(contentWidgetNode, mouseEvent.event.posx, mouseEvent.event.posy);
+		}
+		return false;
 	}
 
 	private _onEditorMouseUp(): void {
@@ -195,30 +206,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 		if (_sticky) {
 			return;
 		}
-		const mouseDistanceToContentWidget = this._mouseDistanceToWidget(mouseEvent, HoverWidgetType.Content);
-		if (mouseDistanceToContentWidget > 0) {
-			this._contentWidget?.hide();
-		}
-		const mouseDistanceToGlyphWidget = this._mouseDistanceToWidget(mouseEvent, HoverWidgetType.Glyph);
-		if (mouseDistanceToGlyphWidget > 0) {
-			this._glyphWidget?.hide();
-		}
-	}
-
-	private _mouseDistanceToWidget(mouseEvent: IPartialEditorMouseEvent, widgetType: HoverWidgetType): number {
-		const widget = widgetType === HoverWidgetType.Content ? this._contentWidget : this._glyphWidget;
-		if (!widget) {
-			return Infinity;
-		}
-		const widgetRect = dom.getDomNodePagePosition(widget.getDomNode());
-		return computeDistanceFromPointToRectangle(
-			mouseEvent.event.posx,
-			mouseEvent.event.posy,
-			widgetRect.left,
-			widgetRect.top,
-			widgetRect.width,
-			widgetRect.height
-		);
+		this._hideWidgets();
 	}
 
 	private _shouldNotRecomputeCurrentHoverWidget(mouseEvent: IEditorMouseEvent): boolean {
