@@ -146,7 +146,16 @@ export class InlineChatWidget {
 				renderInputOnTop: false,
 				renderFollowups: true,
 				supportsFileReferences: _configurationService.getValue(`chat.experimental.variables.${location.location}`) === true,
-				filter: item => !isWelcomeVM(item),
+				filter: item => {
+					if (isWelcomeVM(item)) {
+						return false;
+					}
+					if (isResponseVM(item) && item.isComplete && item.response.value.every(item => item.kind === 'textEditGroup' && options.chatWidgetViewOptions?.rendererOptions?.renderTextEditsAsSummary?.(item.uri))) {
+						// filter responses that are just text edits (prevents the "Made Edits")
+						return false;
+					}
+					return true;
+				},
 				...options.chatWidgetViewOptions
 			},
 			{

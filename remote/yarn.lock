@@ -484,10 +484,10 @@ node-gyp-build@4.8.1, node-gyp-build@^4.3.0:
   resolved "https://registry.yarnpkg.com/node-gyp-build/-/node-gyp-build-4.8.1.tgz#976d3ad905e71b76086f4f0b0d3637fe79b6cda5"
   integrity sha512-OSs33Z9yWr148JZcbZd5WiAXhh/n9z8TxQcdMhIOlpN9AhWpLfvVFO73+m77bBABQMaY9XSvIa+qk0jlI7Gcaw==
 
-node-pty@1.1.0-beta11:
-  version "1.1.0-beta11"
-  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-1.1.0-beta11.tgz#909d5dd8f9aa2a7857e7b632fd4d2d4768bdf69f"
-  integrity sha512-vTjF+VrvSCfPDILUkIT+YrG1Fdn06/eBRS2fc9a3JzYAvknMB1Ip8aoJhxl8hNpjWAbprmCEiV91mlfNpCD+GQ==
+node-pty@1.1.0-beta18:
+  version "1.1.0-beta18"
+  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-1.1.0-beta18.tgz#8ec680788a491423e93096fb1235df0c9079451a"
+  integrity sha512-H3b5Z9EaMRfKtcz7K5vaIBXLKg0OG+Rz0DjfpUBG9yS2XSbm6Ve4/RjqiJTMJUgp7l2s+ymHCHOp+J1fpDRiHw==
   dependencies:
     node-addon-api "^7.1.0"
 
