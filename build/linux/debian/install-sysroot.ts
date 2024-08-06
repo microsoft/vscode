@@ -13,7 +13,7 @@ import { DebianArchString } from './types';
 import * as ansiColors from 'ansi-colors';
 
 // Based on https://source.chromium.org/chromium/chromium/src/+/main:build/linux/sysroot_scripts/install-sysroot.py.
-const URL_PREFIX = 'https://msftelectron.blob.core.windows.net';
+const URL_PREFIX = 'https://msftelectronbuild.z5.web.core.windows.net';
 const URL_PATH = 'sysroots/toolchain';
 const REPO_ROOT = path.dirname(path.dirname(path.dirname(__dirname)));
 
@@ -187,7 +187,7 @@ export async function getChromiumSysroot(arch: DebianArchString): Promise<string
 	const tarballFilename = sysrootDict['Tarball'];
 	const tarballSha = sysrootDict['Sha256Sum'];
 	const sysroot = path.join(tmpdir(), sysrootDict['SysrootDir']);
-	const url = [URL_PREFIX, URL_PATH, tarballSha, tarballFilename].join('/');
+	const url = [URL_PREFIX, URL_PATH, tarballSha].join('/');
 	const stamp = path.join(sysroot, '.stamp');
 	if (fs.existsSync(stamp) && fs.readFileSync(stamp).toString() === url) {
 		return sysroot;
