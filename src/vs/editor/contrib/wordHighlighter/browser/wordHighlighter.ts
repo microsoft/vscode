@@ -671,7 +671,7 @@ class WordHighlighter {
 			// 		1) we have text focus, and a valid query was updated.
 			// 		2) we do not have text focus, and a valid query is cached.
 			// the query will ALWAYS have the correct data for the current highlight request, so it can always be passed to the workerRequest safely
-			if (!WordHighlighter.query.modelInfo || WordHighlighter.query.modelInfo.model.isDisposed()) {
+			if (!WordHighlighter.query || !WordHighlighter.query.modelInfo || WordHighlighter.query.modelInfo.model.isDisposed()) {
 				return;
 			}
 			this.workerRequest = this.computeWithModel(WordHighlighter.query.modelInfo.model, WordHighlighter.query.modelInfo.selection, WordHighlighter.query.word, otherModelsToHighlight);
