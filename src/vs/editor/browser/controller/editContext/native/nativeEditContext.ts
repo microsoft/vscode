@@ -25,6 +25,7 @@ import * as dom from 'vs/base/browser/dom';
 import { Selection } from 'vs/editor/common/core/selection';
 import { getScreenReaderContent } from 'vs/editor/browser/controller/editContext/editContextUtils';
 import { TextAreaState } from 'vs/editor/browser/controller/editContext/textArea/textAreaState';
+import { PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
 
 // TODO: use the pagination strategy to render the hidden area
 // TODO: refactor the code
@@ -126,7 +127,10 @@ export class NativeEditContext extends AbstractEditContext {
 
 	private _initializeDomNode(): HTMLElement {
 		const domNode = this._domElement.domNode;
-		domNode.id = 'native-edit-context';
+		// TODO: Do we need to add a part fingerprint here? Should this be text area or should this be something else other than text area.
+		PartFingerprints.write(this._domElement, PartFingerprint.TextArea);
+		domNode.className = 'native-edit-context';
+		// continue from where we set the wrapping option
 		domNode.tabIndex = 0;
 		domNode.role = 'textbox';
 		domNode.ariaMultiLine = 'true';
@@ -168,7 +172,6 @@ export class NativeEditContext extends AbstractEditContext {
 		// TODO: need to check what text is placed in the text area when selection is changed when the accessibility page size is set to a small value like 5, in order to understand the inner working of the code
 		const selection = e.selections[0];
 		const textAreaState = this._hiddenAreaContent(selection);
-		this._updateAriaAttributes(selection);
 		this._removeChildNodeIfNeeded();
 		this._rerenderHiddenAreaElementOnSelectionChange(textAreaState, selection);
 		this._updateDocumentSelection(textAreaState);
@@ -176,17 +179,6 @@ export class NativeEditContext extends AbstractEditContext {
 
 		console.log('onDidChangeSelection');
 		console.log('selection ; ', selection);
-	}
-
-	private _updateAriaAttributes(selection: Selection) {
-		const domNode = this._domElement.domNode;
-		if (selection.isEmpty()) {
-			domNode.setAttribute('aria-activedescendant', `edit-context-content`);
-			domNode.setAttribute('aria-controls', 'native-edit-context');
-		} else {
-			domNode.removeAttribute('aria-activedescendant');
-			domNode.removeAttribute('aria-controls');
-		}
 	}
 
 	private _removeChildNodeIfNeeded() {

@@ -41,6 +41,10 @@ export interface IVisibleRangeProvider {
 	visibleRangeForPosition(position: Position): HorizontalPosition | null;
 }
 
+// TODO: verify all of the code here and check what is needed in the other native edit context code and what is not needed. Do a full port of the code there. Use vscode2 in order to understand what the code is used for and if I need it.
+// TODO: once that is done and the port is done, then check that with NVDA works as expected and voice over as compared to normal code
+// TODO: then do IME scenarios.
+
 class VisibleTextAreaData {
 	_visibleTextAreaBrand: void = undefined;
 
@@ -67,6 +71,7 @@ class VisibleTextAreaData {
 	) {
 	}
 
+	// called mainly inside of onCompositionStart and onCompositionUpdate. In order to understand why this is needed, need to first start working with the IME issues, and make the div 0 by 0 pixels before touching this ground.
 	prepareRender(visibleRangeProvider: IVisibleRangeProvider): void {
 		const startModelPosition = new Position(this.modelLineNumber, this.distanceToModelLineStart + 1);
 		const endModelPosition = new Position(this.modelLineNumber, this._context.viewModel.model.getLineMaxColumn(this.modelLineNumber) - this.distanceToModelLineEnd);
@@ -84,6 +89,7 @@ class VisibleTextAreaData {
 		}
 	}
 
+	// will need to define the presentation when the IME is used. Currently in my PR I have not touched upon this, when the time comes, need to understand what this is used for and how I should use it.
 	definePresentation(tokenPresentation: ITokenPresentation | null): ITokenPresentation {
 		if (!this._previousPresentation) {
 			// To avoid flickering, once set, always reuse a presentation throughout the entire IME session
