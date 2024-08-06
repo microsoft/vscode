@@ -155,7 +155,6 @@ export class ProcessMainService implements IProcessMainService {
 					data,
 					product,
 					nls: {
-						// VSCODE_GLOBALS: NLS
 						messages: globalThis._VSCODE_NLS_MESSAGES,
 						language: globalThis._VSCODE_NLS_LANGUAGE
 					}

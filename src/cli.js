@@ -14,7 +14,6 @@
 delete process.env['VSCODE_CWD'];
 
 // ESM-comment-begin
-const bootstrap = require('./bootstrap');
 const bootstrapNode = require('./bootstrap-node');
 const bootstrapAmd = require('./bootstrap-amd');
 const { resolveNLSConfiguration } = require('./vs/base/node/nls');
@@ -23,7 +22,6 @@ const product = require('./bootstrap-meta').product;
 // ESM-uncomment-begin
 // import * as path from 'path';
 // import { fileURLToPath } from 'url';
-// import * as bootstrap from './bootstrap.js';
 // import * as bootstrapNode from './bootstrap-node.js';
 // import * as bootstrapAmd from './bootstrap-amd.js';
 // import { resolveNLSConfiguration } from './vs/base/node/nls.js';
@@ -43,7 +41,7 @@ async function start() {
 	bootstrapNode.configurePortable(product);
 
 	// Enable ASAR support
-	bootstrap.enableASARSupport();
+	bootstrapNode.enableASARSupport();
 
 	// Signal processes that we got launched as CLI
 	process.env['VSCODE_CLI'] = '1';
