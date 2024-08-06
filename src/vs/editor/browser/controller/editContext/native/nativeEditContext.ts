@@ -23,7 +23,8 @@ import { ViewConfigurationChangedEvent, ViewCursorStateChangedEvent, ViewScrollC
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import * as dom from 'vs/base/browser/dom';
 import { Selection } from 'vs/editor/common/core/selection';
-import { splitLines } from 'vs/base/common/strings';
+import { getScreenReaderContent } from 'vs/editor/browser/controller/editContext/editContextUtils';
+import { TextAreaState } from 'vs/editor/browser/controller/editContext/textArea/textAreaState';
 
 // TODO: use the pagination strategy to render the hidden area
 // TODO: refactor the code
@@ -145,31 +146,32 @@ export class NativeEditContext extends AbstractEditContext {
 		console.log('onDidChangeContent');
 
 		const selection = this._context.viewModel.getCursorStates()[0].viewState.selection;
-		const hiddenAreaContent = this._hiddenAreaContent(selection);
-		this._renderHiddenAreaElement(hiddenAreaContent, selection);
+		const textAreaState = this._hiddenAreaContent(selection);
+		this._renderHiddenAreaElement(textAreaState, selection);
 	}
 
-	private _hiddenAreaContent(selection: Selection): string {
-		const doc = new LineBasedText(lineNumber => this._context.viewModel.getLineContent(lineNumber), this._context.viewModel.getLineCount());
-		const docStart = new Position(1, 1);
-		const textStart = new Position(selection.startLineNumber, 1);
-		const textEnd = new Position(selection.endLineNumber, Number.MAX_SAFE_INTEGER);
-		const textEdit = new TextEdit([
-			docStart.isBefore(textStart) ? new SingleTextEdit(Range.fromPositions(docStart, textStart), '') : undefined,
-			textEnd.isBefore(doc.endPositionExclusive) ? new SingleTextEdit(Range.fromPositions(textEnd, doc.endPositionExclusive), '') : undefined
-		].filter(isDefined));
-		const text = textEdit.apply(doc);
-		return text;
+	private _hiddenAreaContent(selection: Selection): TextAreaState {
+		// TODO: Maybe should place into the constructor
+		const options = this._context.configuration.options;
+		const accessibilitySupport = options.get(EditorOption.accessibilitySupport);
+		// TODO: uncomment this when will be sent to production
+		// const accessibilityPageSize = options.get(EditorOption.accessibilityPageSize);
+		const accessibilityPageSize = 10;
+		const textAreaState = getScreenReaderContent(this._context, selection, accessibilitySupport, accessibilityPageSize);
+		console.log('textAreaState : ', textAreaState);
+		return textAreaState;
 	}
 
 	private _onDidChangeSelection(e: ViewCursorStateChangedEvent) {
 
+		// TODO: may no longer need to rerender the hidden element on selection change because we are sending in a big block of text?
+		// TODO: need to check what text is placed in the text area when selection is changed when the accessibility page size is set to a small value like 5, in order to understand the inner working of the code
 		const selection = e.selections[0];
-		const hiddenAreaContent = this._hiddenAreaContent(selection);
+		const textAreaState = this._hiddenAreaContent(selection);
 		this._updateAriaAttributes(selection);
 		this._removeChildNodeIfNeeded();
-		const startIndexOfSelection = this._rerenderHiddenAreaElementOnSelectionChange(hiddenAreaContent, selection);
-		this._updateDocumentSelection(selection, startIndexOfSelection);
+		this._rerenderHiddenAreaElementOnSelectionChange(textAreaState, selection);
+		this._updateDocumentSelection(textAreaState);
 		this._updateDomNodePosition(selection.startLineNumber);
 
 		console.log('onDidChangeSelection');
@@ -198,76 +200,36 @@ export class NativeEditContext extends AbstractEditContext {
 		} catch (e) { }
 	}
 
-	private _updateDocumentSelection(selection: Selection, startIndexOfSelection: number) {
+	private _updateDocumentSelection(textAreaState: TextAreaState) {
 		const domNode = this._domElement.domNode;
 		const activeDocument = dom.getActiveWindow().document;
 		const activeDocumentSelection = activeDocument.getSelection();
 		if (activeDocumentSelection) {
 			const range = new globalThis.Range();
-			const startDomNode = domNode.childNodes.item(startIndexOfSelection).firstChild;
-			const endDomNode = domNode.childNodes.item(selection.endLineNumber - selection.startLineNumber + startIndexOfSelection).firstChild;
-			if (startDomNode && endDomNode) {
-				range.setStart(startDomNode, selection.startColumn - 1);
-				range.setEnd(endDomNode, selection.endColumn - 1);
+			const firstChild = domNode.firstChild;
+			if (firstChild) {
+				range.setStart(firstChild, textAreaState.selectionStart);
+				range.setEnd(firstChild, textAreaState.selectionEnd);
 				activeDocumentSelection.removeAllRanges();
 				activeDocumentSelection.addRange(range);
 			}
 		}
 	}
 
-	private _rerenderHiddenAreaElementOnSelectionChange(hiddenAreaContent: string, selection: Selection): number {
-		let startIndexOfSelection = 0;
+	private _rerenderHiddenAreaElementOnSelectionChange(textAreaState: TextAreaState, selection: Selection): void {
+		const hiddenAreaContent = textAreaState.value;
 		if (this._previousHiddenAreaValue !== hiddenAreaContent
 			|| this._previousSelection?.startLineNumber !== selection.startLineNumber
 			|| this._previousSelection?.endLineNumber !== selection.endLineNumber) {
-			startIndexOfSelection = this._renderHiddenAreaElement(hiddenAreaContent, selection);
+			this._renderHiddenAreaElement(textAreaState, selection);
 		}
 		this._previousSelection = selection;
 		this._previousHiddenAreaValue = hiddenAreaContent;
-		return startIndexOfSelection;
 	}
 
-	private _renderHiddenAreaElement(content: string, selection: Selection): number {
-		const rerenderAllChildrenNodes = (content: string[]) => {
-			domNode.replaceChildren();
-			content.forEach(line => domNode.appendChild(createDivWithContent(line)));
-		};
-		const createDivWithContent = (line: string): HTMLElement => {
-			const childElement = document.createElement('div');
-			childElement.textContent = line.length > 0 ? line : '\n';
-			childElement.id = `edit-context-content`;
-			childElement.role = 'textbox';
-			return childElement;
-		};
-
-		const domNode = this._domElement.domNode;
-		const splitContent = splitLines(content);
-
-		if (domNode.lastChild
-			&& this._previousSelection?.startLineNumber === selection.startLineNumber
-			&& this._previousSelection.endLineNumber - 1 === selection.endLineNumber) {
-			// We decreased the selection at the bottom
-			// Remove the dom node on the next selection change so the screen reader can read 'unselected' on the text
-			this._domNodeToRemove = domNode.lastChild;
-		}
-		else if (domNode.firstChild && this._previousSelection?.endLineNumber === selection.endLineNumber && this._previousSelection.startLineNumber + 1 === selection.startLineNumber) {
-			// We decreased the selection at the top
-			// Remove the dom node on the next selection change so the screen reader can read 'unselected' on the text
-			this._domNodeToRemove = domNode.firstChild;
-			return 1;
-		} else if (this._previousSelection?.startLineNumber === selection.startLineNumber && this._previousSelection.endLineNumber + 1 === selection.endLineNumber) {
-			// We increased the selection at the bottom
-			const lastLineContent = splitContent[splitContent.length - 1];
-			domNode.appendChild(createDivWithContent(lastLineContent));
-		} else if (this._previousSelection?.endLineNumber === selection.endLineNumber && this._previousSelection.startLineNumber - 1 === selection.startLineNumber) {
-			// We increased the selection at the top
-			const firstLineContent = splitContent[0];
-			domNode.prepend(createDivWithContent(firstLineContent));
-		} else {
-			rerenderAllChildrenNodes(splitContent);
-		}
+	private _renderHiddenAreaElement(textAreaState: TextAreaState, selection: Selection): void {
+		this._domElement.domNode.textContent = textAreaState.value;
 		this._updateDomNodePosition(selection.startLineNumber);
-		return 0;
 	}
 
 	private _handleTextFormatUpdate(e: TextFormatUpdateEvent): void {
@@ -444,7 +406,8 @@ export class NativeEditContext extends AbstractEditContext {
 
 	private _updateDomNodePosition(startLineNumber: number): void {
 		const domNode = this._domElement.domNode;
-		domNode.style.top = `${this._context.viewLayout.getVerticalOffsetForLineNumber(startLineNumber - 5) - this._context.viewLayout.getCurrentScrollTop()}px`;
+		// TODO: should not be adding 15 but doing it for the purpose of the development
+		domNode.style.top = `${this._context.viewLayout.getVerticalOffsetForLineNumber(startLineNumber + 15) - this._context.viewLayout.getCurrentScrollTop()}px`;
 		domNode.style.left = `${this._contentLeft - this._context.viewLayout.getCurrentScrollLeft()}px`;
 	}
 

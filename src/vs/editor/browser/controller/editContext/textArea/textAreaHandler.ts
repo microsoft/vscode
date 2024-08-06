@@ -9,22 +9,19 @@ import * as browser from 'vs/base/browser/browser';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import * as platform from 'vs/base/common/platform';
-import * as strings from 'vs/base/common/strings';
 import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 import { CopyOptions, ICompositionData, IPasteData, ITextAreaInputHost, TextAreaInput, ClipboardDataToCopy, TextAreaWrapper } from 'vs/editor/browser/controller/editContext/textArea/textAreaInput';
-import { ISimpleModel, ITypeData, PagedScreenReaderStrategy, TextAreaState, _debugComposition } from 'vs/editor/browser/controller/editContext/textArea/textAreaState';
+import { ITypeData, TextAreaState, _debugComposition } from 'vs/editor/browser/controller/editContext/textArea/textAreaState';
 import { ViewController } from 'vs/editor/browser/view/viewController';
 import { PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
 import { LineNumbersOverlay } from 'vs/editor/browser/viewParts/lineNumbers/lineNumbers';
 import { Margin } from 'vs/editor/browser/viewParts/margin/margin';
 import { RenderLineNumbersType, EditorOption, IComputedEditorOptions, EditorOptions } from 'vs/editor/common/config/editorOptions';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
-import { WordCharacterClass, getMapForWordSeparators } from 'vs/editor/common/core/wordCharacterClassifier';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ScrollType } from 'vs/editor/common/editorCommon';
-import { EndOfLinePreference } from 'vs/editor/common/model';
 import { RenderingContext, RestrictedRenderingContext, HorizontalPosition } from 'vs/editor/browser/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import * as viewEvents from 'vs/editor/common/viewEvents';
@@ -38,6 +35,7 @@ import { IME } from 'vs/base/common/ime';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { AbstractEditContext } from 'vs/editor/browser/controller/editContext/editContext';
+import { getScreenReaderContent } from 'vs/editor/browser/controller/editContext/editContextUtils';
 
 export interface IVisibleRangeProvider {
 	visibleRangeForPosition(position: Position): HorizontalPosition | null;
@@ -198,23 +196,6 @@ export class TextAreaContext extends AbstractEditContext {
 		this.textAreaCover = createFastDomNode(document.createElement('div'));
 		this.textAreaCover.setPosition('absolute');
 
-		const simpleModel: ISimpleModel = {
-			getLineCount: (): number => {
-				return this._context.viewModel.getLineCount();
-			},
-			getLineMaxColumn: (lineNumber: number): number => {
-				return this._context.viewModel.getLineMaxColumn(lineNumber);
-			},
-			getValueInRange: (range: Range, eol: EndOfLinePreference): string => {
-				return this._context.viewModel.getValueInRange(range, eol);
-			},
-			getValueLengthInRange: (range: Range, eol: EndOfLinePreference): number => {
-				return this._context.viewModel.getValueLengthInRange(range, eol);
-			},
-			modifyPosition: (position: Position, offset: number): Position => {
-				return this._context.viewModel.modifyPosition(position, offset);
-			}
-		};
 
 		const textAreaInputHost: ITextAreaInputHost = {
 			getDataToCopy: (): ClipboardDataToCopy => {
@@ -243,61 +224,7 @@ export class TextAreaContext extends AbstractEditContext {
 				};
 			},
 			getScreenReaderContent: (): TextAreaState => {
-				if (this._accessibilitySupport === AccessibilitySupport.Disabled) {
-					// We know for a fact that a screen reader is not attached
-					// On OSX, we write the character before the cursor to allow for "long-press" composition
-					// Also on OSX, we write the word before the cursor to allow for the Accessibility Keyboard to give good hints
-					const selection = this._selections[0];
-					if (platform.isMacintosh && selection.isEmpty()) {
-						const position = selection.getStartPosition();
-
-						let textBefore = this._getWordBeforePosition(position);
-						if (textBefore.length === 0) {
-							textBefore = this._getCharacterBeforePosition(position);
-						}
-
-						if (textBefore.length > 0) {
-							return new TextAreaState(textBefore, textBefore.length, textBefore.length, Range.fromPositions(position), 0);
-						}
-					}
-					// on macOS, write current selection into textarea will allow system text services pick selected text,
-					// but we still want to limit the amount of text given Chromium handles very poorly text even of a few
-					// thousand chars
-					// (https://github.com/microsoft/vscode/issues/27799)
-					const LIMIT_CHARS = 500;
-					if (platform.isMacintosh && !selection.isEmpty() && simpleModel.getValueLengthInRange(selection, EndOfLinePreference.TextDefined) < LIMIT_CHARS) {
-						const text = simpleModel.getValueInRange(selection, EndOfLinePreference.TextDefined);
-						return new TextAreaState(text, 0, text.length, selection, 0);
-					}
-
-					// on Safari, document.execCommand('cut') and document.execCommand('copy') will just not work
-					// if the textarea has no content selected. So if there is an editor selection, ensure something
-					// is selected in the textarea.
-					if (browser.isSafari && !selection.isEmpty()) {
-						const placeholderText = 'vscode-placeholder';
-						return new TextAreaState(placeholderText, 0, placeholderText.length, null, undefined);
-					}
-
-					return TextAreaState.EMPTY;
-				}
-
-				if (browser.isAndroid) {
-					// when tapping in the editor on a word, Android enters composition mode.
-					// in the `compositionstart` event we cannot clear the textarea, because
-					// it then forgets to ever send a `compositionend`.
-					// we therefore only write the current word in the textarea
-					const selection = this._selections[0];
-					if (selection.isEmpty()) {
-						const position = selection.getStartPosition();
-						const [wordAtPosition, positionOffsetInWord] = this._getAndroidWordAtPosition(position);
-						if (wordAtPosition.length > 0) {
-							return new TextAreaState(wordAtPosition, positionOffsetInWord, positionOffsetInWord, Range.fromPositions(position), 0);
-						}
-					}
-					return TextAreaState.EMPTY;
-				}
-
-				return PagedScreenReaderStrategy.fromEditorSelection(simpleModel, this._selections[0], this._accessibilityPageSize, this._accessibilitySupport === AccessibilitySupport.Unknown);
+				return getScreenReaderContent(this._context, this._selections[0], this._accessibilitySupport, this._accessibilityPageSize);
 			},
 
 			deduceModelPosition: (viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position => {
@@ -491,76 +418,6 @@ export class TextAreaContext extends AbstractEditContext {
 
 	public override dispose(): void {
 		super.dispose();
-	}
-
-	private _getAndroidWordAtPosition(position: Position): [string, number] {
-		const ANDROID_WORD_SEPARATORS = '`~!@#$%^&*()-=+[{]}\\|;:",.<>/?';
-		const lineContent = this._context.viewModel.getLineContent(position.lineNumber);
-		const wordSeparators = getMapForWordSeparators(ANDROID_WORD_SEPARATORS, []);
-
-		let goingLeft = true;
-		let startColumn = position.column;
-		let goingRight = true;
-		let endColumn = position.column;
-		let distance = 0;
-		while (distance < 50 && (goingLeft || goingRight)) {
-			if (goingLeft && startColumn <= 1) {
-				goingLeft = false;
-			}
-			if (goingLeft) {
-				const charCode = lineContent.charCodeAt(startColumn - 2);
-				const charClass = wordSeparators.get(charCode);
-				if (charClass !== WordCharacterClass.Regular) {
-					goingLeft = false;
-				} else {
-					startColumn--;
-				}
-			}
-			if (goingRight && endColumn > lineContent.length) {
-				goingRight = false;
-			}
-			if (goingRight) {
-				const charCode = lineContent.charCodeAt(endColumn - 1);
-				const charClass = wordSeparators.get(charCode);
-				if (charClass !== WordCharacterClass.Regular) {
-					goingRight = false;
-				} else {
-					endColumn++;
-				}
-			}
-			distance++;
-		}
-
-		return [lineContent.substring(startColumn - 1, endColumn - 1), position.column - startColumn];
-	}
-
-	private _getWordBeforePosition(position: Position): string {
-		const lineContent = this._context.viewModel.getLineContent(position.lineNumber);
-		const wordSeparators = getMapForWordSeparators(this._context.configuration.options.get(EditorOption.wordSeparators), []);
-
-		let column = position.column;
-		let distance = 0;
-		while (column > 1) {
-			const charCode = lineContent.charCodeAt(column - 2);
-			const charClass = wordSeparators.get(charCode);
-			if (charClass !== WordCharacterClass.Regular || distance > 50) {
-				return lineContent.substring(column - 1, position.column - 1);
-			}
-			distance++;
-			column--;
-		}
-		return lineContent.substring(0, position.column - 1);
-	}
-
-	private _getCharacterBeforePosition(position: Position): string {
-		if (position.column > 1) {
-			const lineContent = this._context.viewModel.getLineContent(position.lineNumber);
-			const charBefore = lineContent.charAt(position.column - 2);
-			if (!strings.isHighSurrogate(charBefore.charCodeAt(0))) {
-				return charBefore;
-			}
-		}
-		return '';
 	}
 
 	private _getAriaLabel(options: IComputedEditorOptions): string {
