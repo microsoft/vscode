@@ -15,7 +15,6 @@
 const path = require('path');
 const fs = require('original-fs');
 const os = require('os');
-const bootstrap = require('./bootstrap');
 const bootstrapNode = require('./bootstrap-node');
 const bootstrapAmd = require('./bootstrap-amd');
 const { getUserDataPath } = require(`./vs/platform/environment/node/userDataPath`);
@@ -30,7 +29,6 @@ const { app, protocol, crashReporter, Menu, contentTracing } = require('electron
 // import * as path from 'path';
 // import * as fs from 'original-fs';
 // import * as os from 'os';
-// import * as bootstrap from './bootstrap.js';
 // import * as bootstrapNode from './bootstrap-node.js';
 // import * as bootstrapAmd from './bootstrap-amd.js';
 // import { fileURLToPath } from 'url';
@@ -51,7 +49,7 @@ perf.mark('code/didStartMain');
 const portable = bootstrapNode.configurePortable(product);
 
 // Enable ASAR support
-bootstrap.enableASARSupport();
+bootstrapNode.enableASARSupport();
 
 // ESM-comment-begin
 const minimist = require('minimist'); // !!! IMPORTANT: MUST come after bootstrap#enableASARSupport

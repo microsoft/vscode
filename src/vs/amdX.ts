@@ -129,25 +129,23 @@ class AMDModuleImporter {
 		});
 	}
 
-	private _workerLoadScript(scriptSrc: string): Promise<DefineCall | undefined> {
-		return new Promise<DefineCall | undefined>((resolve, reject) => {
-			try {
-				if (this._amdPolicy) {
-					scriptSrc = this._amdPolicy.createScriptURL(scriptSrc) as any as string;
-				}
-				importScripts(scriptSrc);
-				resolve(this._defineCalls.pop());
-			} catch (err) {
-				reject(err);
-			}
-		});
+	private async _workerLoadScript(scriptSrc: string): Promise<DefineCall | undefined> {
+		if (this._amdPolicy) {
+			scriptSrc = this._amdPolicy.createScriptURL(scriptSrc) as any as string;
+		}
+		if (isESM) {
+			await import(scriptSrc);
+		} else {
+			importScripts(scriptSrc);
+		}
+		return this._defineCalls.pop();
 	}
 
 	private async _nodeJSLoadScript(scriptSrc: string): Promise<DefineCall | undefined> {
 		try {
-			const fs = <typeof import('fs')>globalThis._VSCODE_NODE_MODULES['fs'];
-			const vm = <typeof import('vm')>globalThis._VSCODE_NODE_MODULES['vm'];
-			const module = <typeof import('module')>globalThis._VSCODE_NODE_MODULES['module'];
+			const fs = (globalThis as any)._VSCODE_NODE_MODULES['fs'];
+			const vm = (globalThis as any)._VSCODE_NODE_MODULES['vm'];
+			const module = (globalThis as any)._VSCODE_NODE_MODULES['module'];
 
 			const filePath = URI.parse(scriptSrc).fsPath;
 			const content = fs.readFileSync(filePath).toString();
