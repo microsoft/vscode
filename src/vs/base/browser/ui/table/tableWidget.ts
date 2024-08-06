@@ -156,11 +156,11 @@ export class Table<TRow> implements ISpliceable<TRow>, IDisposable {
 	private splitview: SplitView;
 	private list: List<TRow>;
 	private styleElement: HTMLStyleElement;
+	private columns: ITableColumn<TRow, TCell>[] = [];
 	protected readonly disposables = new DisposableStore();
 
 	private cachedWidth: number = 0;
 	private cachedHeight: number = 0;
-	public columns: ITableColumn<TRow, any>[];
 
 	get onDidChangeFocus(): Event<ITableEvent<TRow>> { return this.list.onDidChangeFocus; }
 	get onDidChangeSelection(): Event<ITableEvent<TRow>> { return this.list.onDidChangeSelection; }
@@ -199,6 +199,7 @@ export class Table<TRow> implements ISpliceable<TRow>, IDisposable {
 		_options?: ITableOptions<TRow>
 	) {
 		this.domNode = append(container, $(`.monaco-table.${this.domId}`));
+		this.columns = columns;
 
 		const headers = columns.map((c, i) => this.disposables.add(new ColumnHeader(c, i)));
 		const descriptor: ISplitViewDescriptor = {
@@ -218,7 +219,6 @@ export class Table<TRow> implements ISpliceable<TRow>, IDisposable {
 
 		const renderer = new TableListRenderer(columns, renderers, i => this.splitview.getViewSize(i));
 		this.list = this.disposables.add(new List(user, this.domNode, asListVirtualDelegate(virtualDelegate), [renderer], _options));
-		this.columns = columns;
 		Event.any(...headers.map(h => h.onDidLayout))
 			(([index, size]) => renderer.layoutColumn(index, size), null, this.disposables);
 
@@ -232,8 +232,12 @@ export class Table<TRow> implements ISpliceable<TRow>, IDisposable {
 		this.style(unthemedListStyles);
 	}
 
-	resizeColumn(index: number, percent: number): void {
-		const size = percent * this.cachedWidth;
+	getColumnLabels(): string[] {
+		return this.columns.map(c => c.label);
+	}
+
+	resizeColumn(index: number, percentage: number): void {
+		const size = percentage * this.cachedWidth;
 		this.splitview.resizeView(index, size);
 	}
 

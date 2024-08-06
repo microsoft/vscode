@@ -5,6 +5,7 @@
 
 import { Table } from 'vs/base/browser/ui/table/tableWidget';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import Severity from 'vs/base/common/severity';
 import { localize } from 'vs/nls';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 
@@ -24,9 +25,9 @@ export class ListColumnResizeQuickPick extends DisposableStore {
 	async show(): Promise<void> {
 		const pick = this._quickInputService.createQuickPick<IColumnResizeQuickPickItem>({ useSeparators: true });
 		const picks: IColumnResizeQuickPickItem[] = [];
-		this._table.columns.forEach((column, index) => {
-			if (column.label) {
-				picks.push({ label: column.label, index });
+		this._table.getColumnLabels().forEach((label, index) => {
+			if (label) {
+				picks.push({ label, index });
 			}
 		});
 		pick.items = picks;
@@ -40,20 +41,26 @@ export class ListColumnResizeQuickPick extends DisposableStore {
 				pick.placeholder = localize('table.column.resizeValue', "Please enter a width in percentage for the column.");
 				pick.show();
 				this.add(pick.onDidAccept(() => {
-					const value = Number(pick.value);
-					if (!isNaN(value)) {
-						this._table.resizeColumn(index, value);
+					const percentage = Number(pick.value);
+					if (!isNaN(percentage)) {
+						this._table.resizeColumn(index, percentage);
 					}
 					pick.hide();
 					this.dispose();
 				}));
+				this.add(pick.onDidChangeValue(() => {
+					const value = Number.parseInt(pick.value);
+					if (isNaN(value) || Number(value) < 0 || Number(value) >= 100) {
+						pick.validationMessage = localize('table.column.resizeValue.invalid', "Please enter a valid number.");
+						pick.severity = Severity.Error;
+					}
+				}));
 			}
-		}));
-		this.add(pick.onDidHide(() => {
-			pick.dispose();
-			this.dispose();
-		}));
+			this.add(pick.onDidHide(() => {
+				pick.dispose();
+				this.dispose();
+			}));
+		}
+		));
 	}
 }
-
-
