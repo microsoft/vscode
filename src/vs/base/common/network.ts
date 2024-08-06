@@ -339,7 +339,7 @@ class FileAccessImpl {
 
 			} else {
 				const modulePath = paths.join(rootUriOrPath, uriOrModule);
-				return URI.parse(modulePath);
+				return URI.file(modulePath);
 			}
 		}
 

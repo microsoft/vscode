@@ -23,7 +23,7 @@ const isESM = false;
 // 	register('./loader-original-fs.mjs', import.meta.url);
 // }
 // import { product, pkg } from './bootstrap-meta.js';
-// import * as bootstrap from './bootstrap.js';
+// import * as bootstrapNode from './bootstrap-node.js';
 // import * as performance from './vs/base/common/performance.js';
 //
 // const require = createRequire(import.meta.url);
@@ -67,7 +67,7 @@ globalThis._VSCODE_PACKAGE_JSON = require('./bootstrap-meta').pkg;
 globalThis._VSCODE_FILE_ROOT = __dirname;
 
 // ESM-comment-begin
-const bootstrap = require('./bootstrap');
+const bootstrapNode = require('./bootstrap-node');
 const performance = require(`./vs/base/common/performance`);
 const fs = require('fs');
 // ESM-comment-end
@@ -186,7 +186,7 @@ if (isESM) {
 	const loader = require('./vs/loader');
 
 	loader.config({
-		baseUrl: bootstrap.fileUriFromPath(__dirname, { isWindows: process.platform === 'win32' }),
+		baseUrl: bootstrapNode.fileUriFromPath(__dirname, { isWindows: process.platform === 'win32' }),
 		catchError: true,
 		nodeRequire,
 		amdModulesPattern: /^vs\//,
