@@ -723,43 +723,44 @@ abstract class AbstractElementRenderer extends Disposable {
 	abstract layout(state: IDiffElementLayoutState): void;
 
 	protected updateEditorOptions(editor: DiffEditorWidget, optionsToUpdate: ('hideUnchangedRegions' | 'renderSideBySide' | 'useInlineViewWhenSpaceIsLimited')[]): IDisposable {
-		if (!optionsToUpdate.length) {
-			return Disposable.None;
-		}
+		return Disposable.None;
+		// if (!optionsToUpdate.length) {
+		// 	return Disposable.None;
+		// }
 
-		const options: {
-			renderSideBySide?: boolean;
-			useInlineViewWhenSpaceIsLimited?: boolean;
-			hideUnchangedRegions?: { enabled: boolean };
-		} = {};
+		// const options: {
+		// 	renderSideBySide?: boolean;
+		// 	useInlineViewWhenSpaceIsLimited?: boolean;
+		// 	hideUnchangedRegions?: { enabled: boolean };
+		// } = {};
 
-		if (optionsToUpdate.includes('renderSideBySide')) {
-			options.renderSideBySide = this.configurationService.getValue<boolean>('diffEditor.renderSideBySide');
-		}
-		if (optionsToUpdate.includes('hideUnchangedRegions')) {
-			const enabled = this.configurationService.getValue<boolean>('diffEditor.hideUnchangedRegions.enabled');
-			options.hideUnchangedRegions = { enabled };
-		}
-		if (optionsToUpdate.includes('useInlineViewWhenSpaceIsLimited')) {
-			options.useInlineViewWhenSpaceIsLimited = this.configurationService.getValue<boolean>('diffEditor.useInlineViewWhenSpaceIsLimited');
-		}
+		// if (optionsToUpdate.includes('renderSideBySide')) {
+		// 	options.renderSideBySide = this.configurationService.getValue<boolean>('diffEditor.renderSideBySide');
+		// }
+		// if (optionsToUpdate.includes('hideUnchangedRegions')) {
+		// 	const enabled = this.configurationService.getValue<boolean>('diffEditor.hideUnchangedRegions.enabled');
+		// 	options.hideUnchangedRegions = { enabled };
+		// }
+		// if (optionsToUpdate.includes('useInlineViewWhenSpaceIsLimited')) {
+		// 	options.useInlineViewWhenSpaceIsLimited = this.configurationService.getValue<boolean>('diffEditor.useInlineViewWhenSpaceIsLimited');
+		// }
 
-		editor.updateOptions(options);
+		// editor.updateOptions(options);
 
-		return this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('diffEditor.hideUnchangedRegions.enabled')) {
-				const enabled = this.configurationService.getValue<boolean>('diffEditor.hideUnchangedRegions.enabled');
-				editor.updateOptions({ hideUnchangedRegions: { enabled } });
-			}
-			if (e.affectsConfiguration('diffEditor.renderSideBySide')) {
-				const renderSideBySide = this.configurationService.getValue<boolean>('diffEditor.renderSideBySide');
-				editor.updateOptions({ renderSideBySide });
-			}
-			if (e.affectsConfiguration('diffEditor.useInlineViewWhenSpaceIsLimited')) {
-				const useInlineViewWhenSpaceIsLimited = this.configurationService.getValue<boolean>('diffEditor.useInlineViewWhenSpaceIsLimited');
-				editor.updateOptions({ useInlineViewWhenSpaceIsLimited });
-			}
-		});
+		// return this.configurationService.onDidChangeConfiguration(e => {
+		// 	if (e.affectsConfiguration('diffEditor.hideUnchangedRegions.enabled')) {
+		// 		const enabled = this.configurationService.getValue<boolean>('diffEditor.hideUnchangedRegions.enabled');
+		// 		editor.updateOptions({ hideUnchangedRegions: { enabled } });
+		// 	}
+		// 	if (e.affectsConfiguration('diffEditor.renderSideBySide')) {
+		// 		const renderSideBySide = this.configurationService.getValue<boolean>('diffEditor.renderSideBySide');
+		// 		editor.updateOptions({ renderSideBySide });
+		// 	}
+		// 	if (e.affectsConfiguration('diffEditor.useInlineViewWhenSpaceIsLimited')) {
+		// 		const useInlineViewWhenSpaceIsLimited = this.configurationService.getValue<boolean>('diffEditor.useInlineViewWhenSpaceIsLimited');
+		// 		editor.updateOptions({ useInlineViewWhenSpaceIsLimited });
+		// 	}
+		// });
 	}
 }
 
