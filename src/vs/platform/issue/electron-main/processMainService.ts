@@ -146,7 +146,7 @@ export class ProcessMainService implements IProcessMainService {
 					backgroundColor: data.styles.backgroundColor,
 					title: localize('processExplorer', "Process Explorer"),
 					zoomLevel: data.zoomLevel,
-					alwaysOnTop: true,
+					alwaysOnTop: true
 				}, 'process-explorer');
 
 				// DEV: list all CSS modules and send them the new window

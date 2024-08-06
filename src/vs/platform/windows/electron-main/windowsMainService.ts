@@ -1474,12 +1474,10 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			accessibilitySupport: app.accessibilitySupportEnabled,
 			colorScheme: this.themeMainService.getColorScheme(),
 			policiesData: this.policyService.serialize(),
-			continueOn: this.environmentMainService.continueOn
-		};
+			continueOn: this.environmentMainService.continueOn,
 
-		if (this.cssDevelopmentService.isEnabled) {
-			configuration.cssModules = await this.cssDevelopmentService.getCssModules();
-		}
+			cssModules: this.cssDevelopmentService.isEnabled ? await this.cssDevelopmentService.getCssModules() : undefined
+		};
 
 		// New window
 		if (!window) {
