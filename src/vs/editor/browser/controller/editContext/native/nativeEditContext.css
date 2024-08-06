@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-editor #native-edit-context {
+.monaco-editor .native-edit-context {
 	position : absolute;
 	z-index : 100;
 	background : white;
@@ -16,3 +16,29 @@
 	tab-size: 4;
 	text-wrap: nowrap;
 }
+
+/**
+ * Later will need to use the following CSS when I make the div 0px by 0px. Currently it is visible for developmen purposes.
+ * Transitioning to a hidden div, will require some additional work and some additional changes in order to make it work.
+
+.monaco-editor .native-edit-context {
+	min-width: 0;
+	min-height: 0;
+	margin: 0;
+	padding: 0;
+	position: absolute;
+	outline: none !important;
+	resize: none;
+	border: none;
+	overflow: hidden;
+	color: transparent;
+	background-color: transparent;
+	z-index: -10;
+}
+
+.monaco-editor .native-edit-context.ime-input {
+	z-index: 10;
+	caret-color: var(--vscode-editorCursor-foreground);
+	color: var(--vscode-editor-foreground);
+}
+ */
