@@ -79,6 +79,7 @@ export class InMemoryClipboardMetadataManager {
 	}
 
 	public set(lastCopiedValue: string, data: ClipboardStoredMetadata): void {
+		// storing the metadata
 		this._lastState = { lastCopiedValue, data };
 	}
 
@@ -159,6 +160,7 @@ class CompositionContext {
  */
 export class TextAreaInput extends Disposable {
 
+	// All different events and emitters for keyboard interaction
 	private _onFocus = this._register(new Emitter<void>());
 	public readonly onFocus: Event<void> = this._onFocus.event;
 
@@ -241,6 +243,7 @@ export class TextAreaInput extends Disposable {
 			if (e.keyCode === KeyCode.KEY_IN_COMPOSITION
 				|| (this._currentComposition && e.keyCode === KeyCode.Backspace)) {
 				// Stop propagation for keyDown events if the IME is processing key input
+				// this._currentComposition probably means there is a composition in progress
 				e.stopPropagation();
 			}
 
@@ -274,7 +277,7 @@ export class TextAreaInput extends Disposable {
 
 			if (
 				this._OS === OperatingSystem.Macintosh
-				&& lastKeyDown
+				&& lastKeyDown // last key that has pressed down
 				&& lastKeyDown.equals(KeyCode.KEY_IN_COMPOSITION)
 				&& this._textAreaState.selectionStart === this._textAreaState.selectionEnd
 				&& this._textAreaState.selectionStart > 0
@@ -353,6 +356,7 @@ export class TextAreaInput extends Disposable {
 				return;
 			}
 
+			// normally using this method but using special handling when considering android devices
 			const typeInput = currentComposition.handleCompositionUpdate(e.data);
 			this._textAreaState = TextAreaState.readFromTextArea(this._textArea, this._textAreaState);
 			this._onType.fire(typeInput);
@@ -431,6 +435,7 @@ export class TextAreaInput extends Disposable {
 			// try the in-memory store
 			metadata = metadata || InMemoryClipboardMetadataManager.INSTANCE.get(text);
 
+			// Firing the text that was pased as well as the corresponding metadata
 			this._onPaste.fire({
 				text: text,
 				metadata: metadata
@@ -513,6 +518,7 @@ export class TextAreaInput extends Disposable {
 		return dom.addDisposableListener(this._textArea.ownerDocument, 'selectionchange', (e) => {//todo
 			inputLatency.onSelectionChange();
 
+			// If the text area does not have document, is doing composition, or is not in chrome browser then return
 			if (!this._hasFocus) {
 				return;
 			}
@@ -631,6 +637,7 @@ export class TextAreaInput extends Disposable {
 			textAreaState = textAreaState.collapseSelection();
 		}
 
+		// calling the method writeToTextArea of the state
 		textAreaState.writeToTextArea(reason, this._textArea, this._hasFocus);
 		this._textAreaState = textAreaState;
 	}
@@ -642,6 +649,7 @@ export class TextAreaInput extends Disposable {
 			return;
 		}
 		this._logService.trace(`writeTextAreaState(reason: ${reason})`);
+		// Here we are getting the screen reader content
 		this._setAndWriteTextAreaState(reason, this._host.getScreenReaderContent());
 	}
 
@@ -776,7 +784,9 @@ export class TextAreaWrapper extends Disposable implements ICompleteTextAreaWrap
 			return;
 		}
 		// console.log('reason: ' + reason + ', current value: ' + textArea.value + ' => new value: ' + value);
+		// Ignore the selection change while we are setting the value
 		this.setIgnoreSelectionChangeTime('setValue');
+		// Setting the value field of the HTML text area element directly
 		textArea.value = value;
 	}
 
@@ -792,6 +802,7 @@ export class TextAreaWrapper extends Disposable implements ICompleteTextAreaWrap
 		const textArea = this._actual;
 
 		let activeElement: Element | null = null;
+		// the active element is either the shadow root of the text area or the active element of the dom library
 		const shadowRoot = dom.getShadowRoot(textArea);
 		if (shadowRoot) {
 			activeElement = shadowRoot.activeElement;
@@ -800,6 +811,7 @@ export class TextAreaWrapper extends Disposable implements ICompleteTextAreaWrap
 		}
 		const activeWindow = dom.getWindow(activeElement);
 
+		// If the active element is the text area
 		const currentIsFocused = (activeElement === textArea);
 		const currentSelectionStart = textArea.selectionStart;
 		const currentSelectionEnd = textArea.selectionEnd;
@@ -818,7 +830,9 @@ export class TextAreaWrapper extends Disposable implements ICompleteTextAreaWrap
 		if (currentIsFocused) {
 			// No need to focus, only need to change the selection range
 			this.setIgnoreSelectionChangeTime('setSelectionRange');
+			// selection start and selection end are passed into the method signature
 			textArea.setSelectionRange(selectionStart, selectionEnd);
+			// Same bug as above
 			if (browser.isFirefox && activeWindow.parent !== activeWindow) {
 				textArea.focus();
 			}
@@ -832,6 +846,7 @@ export class TextAreaWrapper extends Disposable implements ICompleteTextAreaWrap
 			this.setIgnoreSelectionChangeTime('setSelectionRange');
 			textArea.focus();
 			textArea.setSelectionRange(selectionStart, selectionEnd);
+			// scroll back after setting the selection range
 			dom.restoreParentsScrollTop(textArea, scrollState);
 		} catch (e) {
 			// Sometimes IE throws when setting selection (e.g. textarea is off-DOM)

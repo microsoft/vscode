@@ -63,6 +63,7 @@ export class TextAreaState {
 			const valueBeforeSelectionStart = value.substring(0, selectionStart);
 			const previousValueBeforeSelectionStart = previousState.value.substring(0, previousState.selectionStart);
 			if (valueBeforeSelectionStart === previousValueBeforeSelectionStart) {
+				// if the value before the selection start is equal to the previous value before the selection start then update the new line count before the selection
 				newlineCountBeforeSelection = previousState.newlineCountBeforeSelection;
 			}
 		}
@@ -82,6 +83,7 @@ export class TextAreaState {
 		}
 		textArea.setValue(reason, this.value);
 		if (select) {
+			// if the selection should be reset then we set the selection range using the fields selectionStart and selectionEnd
 			textArea.setSelectionRange(reason, this.selectionStart, this.selectionEnd);
 		}
 	}
@@ -253,6 +255,7 @@ export class PagedScreenReaderStrategy {
 			const pretextStart = model.modifyPosition(pretextRange.getEndPosition(), -LIMIT_CHARS);
 			pretextRange = Range.fromPositions(pretextStart, pretextRange.getEndPosition());
 		}
+		// text pre the text of interest
 		const pretext = model.getValueInRange(pretextRange, EndOfLinePreference.LF);
 
 		const lastLine = model.getLineCount();
@@ -262,6 +265,7 @@ export class PagedScreenReaderStrategy {
 			const posttextEnd = model.modifyPosition(posttextRange.getStartPosition(), LIMIT_CHARS);
 			posttextRange = Range.fromPositions(posttextRange.getStartPosition(), posttextEnd);
 		}
+		// text post the text of interet
 		const posttext = model.getValueInRange(posttextRange, EndOfLinePreference.LF);
 
 

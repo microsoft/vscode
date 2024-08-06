@@ -114,6 +114,7 @@ export class TextAreaHandler extends ViewPart {
 	private _scrollTop: number;
 
 	private _accessibilitySupport!: AccessibilitySupport;
+	// the number of lines in the hidden text area
 	private _accessibilityPageSize!: number;
 	private _textAreaWrapping!: boolean;
 	private _textAreaWidth!: number;
@@ -125,6 +126,7 @@ export class TextAreaHandler extends ViewPart {
 	private _emptySelectionClipboard: boolean;
 	private _copyWithSyntaxHighlighting: boolean;
 
+	// The text area is visible when using IME?
 	/**
 	 * Defined only when the text area is visible (composition case).
 	 */
@@ -159,6 +161,7 @@ export class TextAreaHandler extends ViewPart {
 		const options = this._context.configuration.options;
 		const layoutInfo = options.get(EditorOption.layoutInfo);
 
+		// Savinf the layout info and the options information
 		this._setAccessibilityOptions(options);
 		this._contentLeft = layoutInfo.contentLeft;
 		this._contentWidth = layoutInfo.contentWidth;
@@ -169,12 +172,14 @@ export class TextAreaHandler extends ViewPart {
 		this._copyWithSyntaxHighlighting = options.get(EditorOption.copyWithSyntaxHighlighting);
 
 		this._visibleTextArea = null;
+		// initial selections are an array with one selection at the top left corner
 		this._selections = [new Selection(1, 1, 1, 1)];
 		this._modelSelections = [new Selection(1, 1, 1, 1)];
 		this._lastRenderPosition = null;
 
 		// Text Area (The focus will always be in the textarea when the cursor is blinking)
 		this.textArea = createFastDomNode(document.createElement('textarea'));
+		// Adding som fingerprint attribute to the text area in order for the hit test to determine that this is a text area
 		PartFingerprints.write(this.textArea, PartFingerprint.TextArea);
 		this.textArea.setClassName(`inputarea ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`);
 		this.textArea.setAttribute('wrap', this._textAreaWrapping && !this._visibleTextArea ? 'on' : 'off');
@@ -197,6 +202,8 @@ export class TextAreaHandler extends ViewPart {
 		this.textAreaCover = createFastDomNode(document.createElement('div'));
 		this.textAreaCover.setPosition('absolute');
 
+		// In fact this simple model limits the methods that can be accessed from the view model of the context
+		// otherwise it is equivalent
 		const simpleModel: ISimpleModel = {
 			getLineCount: (): number => {
 				return this._context.viewModel.getLineCount();
@@ -218,8 +225,10 @@ export class TextAreaHandler extends ViewPart {
 		const textAreaInputHost: ITextAreaInputHost = {
 			getDataToCopy: (): ClipboardDataToCopy => {
 				const rawTextToCopy = this._context.viewModel.getPlainTextToCopy(this._modelSelections, this._emptySelectionClipboard, platform.isWindows);
+				// Method getEOL returns the end-of-line character of the viewModel
 				const newLineCharacter = this._context.viewModel.model.getEOL();
 
+				// only one selection and this unique selection is empty
 				const isFromEmptySelection = (this._emptySelectionClipboard && this._modelSelections.length === 1 && this._modelSelections[0].isEmpty());
 				const multicursorText = (Array.isArray(rawTextToCopy) ? rawTextToCopy : null);
 				const text = (Array.isArray(rawTextToCopy) ? rawTextToCopy.join(newLineCharacter) : rawTextToCopy);
@@ -248,13 +257,16 @@ export class TextAreaHandler extends ViewPart {
 					// Also on OSX, we write the word before the cursor to allow for the Accessibility Keyboard to give good hints
 					const selection = this._selections[0];
 					if (platform.isMacintosh && selection.isEmpty()) {
+						// main position of the selection
 						const position = selection.getStartPosition();
 
+						// Either get the character or the word before the position
 						let textBefore = this._getWordBeforePosition(position);
 						if (textBefore.length === 0) {
 							textBefore = this._getCharacterBeforePosition(position);
 						}
 
+						// If there is a character or word before the position, the return a text are state
 						if (textBefore.length > 0) {
 							return new TextAreaState(textBefore, textBefore.length, textBefore.length, Range.fromPositions(position), 0);
 						}
@@ -264,6 +276,7 @@ export class TextAreaHandler extends ViewPart {
 					// thousand chars
 					// (https://github.com/microsoft/vscode/issues/27799)
 					const LIMIT_CHARS = 500;
+					// We get the range of the text within the selection, and if the number of characters is smaller than 500 then get the corresponding text and return it in a text area state
 					if (platform.isMacintosh && !selection.isEmpty() && simpleModel.getValueLengthInRange(selection, EndOfLinePreference.TextDefined) < LIMIT_CHARS) {
 						const text = simpleModel.getValueInRange(selection, EndOfLinePreference.TextDefined);
 						return new TextAreaState(text, 0, text.length, selection, 0);
@@ -274,6 +287,7 @@ export class TextAreaHandler extends ViewPart {
 					// is selected in the textarea.
 					if (browser.isSafari && !selection.isEmpty()) {
 						const placeholderText = 'vscode-placeholder';
+						// if nothing is selected then we send the placeholder text?
 						return new TextAreaState(placeholderText, 0, placeholderText.length, null, undefined);
 					}
 
@@ -305,6 +319,7 @@ export class TextAreaHandler extends ViewPart {
 		};
 
 		const textAreaWrapper = this._register(new TextAreaWrapper(this.textArea.domNode));
+		// we have some options indicating whether we are on android, chrome, firefox or safari
 		this._textAreaInput = this._register(this._instantiationService.createInstance(TextAreaInput, textAreaInputHost, textAreaWrapper, platform.OS, {
 			isAndroid: browser.isAndroid,
 			isChrome: browser.isChrome,
@@ -342,6 +357,7 @@ export class TextAreaHandler extends ViewPart {
 				if (_debugComposition) {
 					console.log(` => compositionType: <<${e.text}>>, ${e.replacePrevCharCnt}, ${e.replaceNextCharCnt}, ${e.positionDelta}`);
 				}
+				// sending type event forwards
 				this._viewController.compositionType(e.text, e.replacePrevCharCnt, e.replaceNextCharCnt, e.positionDelta);
 			} else {
 				if (_debugComposition) {
@@ -352,6 +368,7 @@ export class TextAreaHandler extends ViewPart {
 		}));
 
 		this._register(this._textAreaInput.onSelectionChangeRequest((modelSelection: Selection) => {
+			// when the selection changes on the text are input, then we change it also in the view controller
 			this._viewController.setSelection(modelSelection);
 		}));
 
@@ -379,13 +396,17 @@ export class TextAreaHandler extends ViewPart {
 			const ta = this.textArea.domNode;
 			const modelSelection = this._modelSelections[0];
 
+			// immediately executed function
 			const { distanceToModelLineStart, widthOfHiddenTextBefore } = (() => {
 				// Find the text that is on the current line before the selection
 				const textBeforeSelection = ta.value.substring(0, Math.min(ta.selectionStart, ta.selectionEnd));
+				// finding the last index of the new line character
 				const lineFeedOffset1 = textBeforeSelection.lastIndexOf('\n');
+				// find the last line after the last new line character
 				const lineTextBeforeSelection = textBeforeSelection.substring(lineFeedOffset1 + 1);
 
 				// We now search to see if we should hide some part of it (if it contains \t)
+				// finding the last tab index
 				const tabOffset1 = lineTextBeforeSelection.lastIndexOf('\t');
 				const desiredVisibleBeforeCharCount = lineTextBeforeSelection.length - tabOffset1 - 1;
 				const startModelPosition = modelSelection.getStartPosition();
@@ -414,6 +435,7 @@ export class TextAreaHandler extends ViewPart {
 			})();
 
 			// Scroll to reveal the location in the editor where composition occurs
+			// Scrolling in an immediate manner
 			this._context.viewModel.revealRange(
 				'keyboard',
 				true,
@@ -439,6 +461,7 @@ export class TextAreaHandler extends ViewPart {
 			// Show the textarea
 			this.textArea.setClassName(`inputarea ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME} ime-input`);
 
+			// need to signal that the composition has started to the view controller and the context view model
 			this._viewController.compositionStart();
 			this._context.viewModel.onCompositionStart();
 		}));
@@ -480,6 +503,7 @@ export class TextAreaHandler extends ViewPart {
 	}
 
 	public writeScreenReaderContent(reason: string): void {
+		// write the screen reader content in the text area input
 		this._textAreaInput.writeNativeTextAreaContent(reason);
 	}
 
@@ -487,6 +511,7 @@ export class TextAreaHandler extends ViewPart {
 		super.dispose();
 	}
 
+	// Getting the android word when placing the finger on a specific position
 	private _getAndroidWordAtPosition(position: Position): [string, number] {
 		const ANDROID_WORD_SEPARATORS = '`~!@#$%^&*()-=+[{]}\\|;:",.<>/?';
 		const lineContent = this._context.viewModel.getLineContent(position.lineNumber);
@@ -561,6 +586,7 @@ export class TextAreaHandler extends ViewPart {
 		const accessibilitySupport = options.get(EditorOption.accessibilitySupport);
 		if (accessibilitySupport === AccessibilitySupport.Disabled) {
 
+			// When the accessibility support is disabled, then we return a phrase which will be used as an array label
 			const toggleKeybindingLabel = this._keybindingService.lookupKeybinding('editor.action.toggleScreenReaderAccessibilityMode')?.getAriaLabel();
 			const runCommandKeybindingLabel = this._keybindingService.lookupKeybinding('workbench.action.showCommands')?.getAriaLabel();
 			const keybindingEditorKeybindingLabel = this._keybindingService.lookupKeybinding('workbench.action.openGlobalKeybindings')?.getAriaLabel();
@@ -583,9 +609,11 @@ export class TextAreaHandler extends ViewPart {
 		this._accessibilitySupport = options.get(EditorOption.accessibilitySupport);
 		const accessibilityPageSize = options.get(EditorOption.accessibilityPageSize);
 		if (this._accessibilitySupport === AccessibilitySupport.Enabled && accessibilityPageSize === EditorOptions.accessibilityPageSize.defaultValue) {
-			// If a screen reader is attached and the default value is not set we should automatically increase the page size to 500 for a better experience
+			// If a screen reader is attached and the default value is not set we should automatically increase the page size to 500 for a better experience.
+			// Meaning that the hidden text area will have 500 lines of text
 			this._accessibilityPageSize = 500;
 		} else {
+			// The value of the setting
 			this._accessibilityPageSize = accessibilityPageSize;
 		}
 
@@ -934,11 +962,13 @@ function measureText(targetDocument: Document, text: string, fontInfo: FontInfo,
 		return 0;
 	}
 
+	// creates a container
 	const container = targetDocument.createElement('div');
 	container.style.position = 'absolute';
 	container.style.top = '-50000px';
 	container.style.width = '50000px';
 
+	// creates a span within the target document, will be added into the container, which will be added itself into the target document
 	const regularDomNode = targetDocument.createElement('span');
 	applyFontInfo(regularDomNode, fontInfo);
 	regularDomNode.style.whiteSpace = 'pre'; // just like the textarea
