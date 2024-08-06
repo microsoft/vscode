@@ -25,8 +25,8 @@ import * as dom from 'vs/base/browser/dom';
 import { Selection } from 'vs/editor/common/core/selection';
 import { splitLines } from 'vs/base/common/strings';
 
+// TODO: use the pagination strategy to render the hidden area
 // TODO: refactor the code
-// TODO: Can control and selection bounds be used to fix the issues?
 // TODO: test accessibility on NVDA with Windows
 
 export class NativeEditContext extends AbstractEditContext {
