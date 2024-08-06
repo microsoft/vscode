@@ -99,6 +99,7 @@
 	width: 50%;
 }
 
+.notebook-text-diff-editor .cell-diff-editor-container .cell-header-container,
 .notebook-text-diff-editor .cell-diff-editor-container .output-header-container,
 .notebook-text-diff-editor .cell-diff-editor-container .metadata-header-container {
 	display: flex;
@@ -107,6 +108,7 @@
 	cursor: default;
 }
 
+.notebook-text-diff-editor .cell-diff-editor-container .cell-header-container .property-folding-indicator .codicon,
 .notebook-text-diff-editor .cell-diff-editor-container .output-header-container .property-folding-indicator .codicon,
 .notebook-text-diff-editor .cell-diff-editor-container .metadata-header-container .property-folding-indicator .codicon {
 	visibility: visible;
@@ -114,6 +116,7 @@
 	cursor: pointer;
 }
 
+.notebook-text-diff-editor .cell-diff-editor-container .cell-header-container,
 .notebook-text-diff-editor .cell-diff-editor-container .output-header-container,
 .notebook-text-diff-editor .cell-diff-editor-container .metadata-header-container {
 	display: flex;
@@ -121,22 +124,26 @@
 	align-items: center;
 }
 
+.notebook-text-diff-editor .cell-diff-editor-container .cell-header-container .property-toolbar,
 .notebook-text-diff-editor .cell-diff-editor-container .output-header-container .property-toolbar,
 .notebook-text-diff-editor .cell-diff-editor-container .metadata-header-container .property-toolbar {
 	margin-left: auto;
 }
 
+.notebook-text-diff-editor .cell-diff-editor-container .cell-header-container .property-status,
 .notebook-text-diff-editor .cell-diff-editor-container .output-header-container .property-status,
 .notebook-text-diff-editor .cell-diff-editor-container .metadata-header-container .property-status {
 	font-size: 12px;
 }
 
+.notebook-text-diff-editor .cell-diff-editor-container .cell-header-container .property-status span,
 .notebook-text-diff-editor .cell-diff-editor-container .output-header-container .property-status span,
 .notebook-text-diff-editor .cell-diff-editor-container .metadata-header-container .property-status span {
 	margin: 0 0 0 8px;
 	line-height: 21px;
 }
 
+.notebook-text-diff-editor .cell-diff-editor-container .cell-header-container .property-status span.property-description,
 .notebook-text-diff-editor .cell-diff-editor-container .output-header-container .property-status span.property-description,
 .notebook-text-diff-editor .cell-diff-editor-container .metadata-header-container .property-status span.property-description {
 	font-style: italic;

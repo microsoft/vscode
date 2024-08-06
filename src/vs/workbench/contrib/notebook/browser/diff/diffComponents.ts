@@ -239,6 +239,8 @@ abstract class AbstractElementRenderer extends Disposable {
 	protected readonly _outputLocalDisposable = this._register(new DisposableStore());
 	protected _ignoreMetadata: boolean = false;
 	protected _ignoreOutputs: boolean = false;
+	protected _cellHeaderContainer!: HTMLElement;
+	protected _cellHeader!: PropertyHeader;
 	protected _metadataHeaderContainer!: HTMLElement;
 	protected _metadataHeader!: PropertyHeader;
 	protected _metadataInfoContainer!: HTMLElement;
@@ -321,6 +323,9 @@ abstract class AbstractElementRenderer extends Disposable {
 
 		this.styleContainer(this._diffEditorContainer);
 		this.updateSourceEditor();
+		if (this.cell.modified) {
+			this._register(this.cell.modified.textModel.onDidChangeContent(() => this._cellHeader.refresh()));
+		}
 
 		this._ignoreMetadata = this.configurationService.getValue('notebook.diff.ignoreMetadata');
 		if (this._ignoreMetadata) {
@@ -828,6 +833,7 @@ abstract class SingleSideDiffElement extends AbstractElementRenderer {
 	_disposeMetadata() {
 		this.cell.metadataStatusHeight = 0;
 		this.cell.metadataHeight = 0;
+		this.templateData.cellHeaderContainer.style.display = 'none';
 		this.templateData.metadataHeaderContainer.style.display = 'none';
 		this.templateData.metadataInfoContainer.style.display = 'none';
 		this._metadataEditor = undefined;
@@ -1221,7 +1227,6 @@ export class ModifiedElement extends AbstractElementRenderer {
 	private _editor?: DiffEditorWidget;
 	private _editorViewStateChanged: boolean;
 	private _editorContainer!: HTMLElement;
-	private _inputToolbarContainer!: HTMLElement;
 	protected _toolbar!: ToolBar;
 	protected _menu!: IMenu;
 
@@ -1491,63 +1496,100 @@ export class ModifiedElement extends AbstractElementRenderer {
 	}
 
 	updateSourceEditor(): void {
+		this._cellHeaderContainer = this.templateData.cellHeaderContainer;
+		this._cellHeaderContainer.style.display = 'flex';
+		this._cellHeaderContainer.innerText = '';
 		const modifiedCell = this.cell.modified;
-		const lineCount = modifiedCell.textModel.textBuffer.getLineCount();
-		const lineHeight = this.notebookEditor.getLayoutInfo().fontInfo.lineHeight || 17;
-
-		const editorHeight = this.cell.layoutInfo.editorHeight !== 0 ? this.cell.layoutInfo.editorHeight : lineCount * lineHeight + fixedEditorPadding.top + fixedEditorPadding.bottom;
 		this._editorContainer = this.templateData.editorContainer;
-		this._editor = this.templateData.sourceEditor;
-
 		this._editorContainer.classList.add('diff');
 
-		this._editor.layout({
-			width: this.notebookEditor.getLayoutInfo().width - 2 * DIFF_CELL_MARGIN,
-			height: editorHeight
-		});
-
-		this._editorContainer.style.height = `${editorHeight}px`;
-
-		this._register(this._editor.onDidContentSizeChange((e) => {
-			if (e.contentHeightChanged && this.cell.layoutInfo.editorHeight !== e.contentHeight) {
-				this.cell.editorHeight = e.contentHeight;
+		const renderSourceEditor = () => {
+			if (this.cell.cellFoldingState === PropertyFoldingState.Collapsed) {
+				this._editorContainer.style.display = 'none';
+				this.cell.editorHeight = 0;
+				return;
 			}
-		}));
 
-		this._initializeSourceDiffEditor();
-		const scopedContextKeyService = this.contextKeyService.createScoped(this.templateData.inputToolbarContainer);
+			const lineCount = modifiedCell.textModel.textBuffer.getLineCount();
+			const lineHeight = this.notebookEditor.getLayoutInfo().fontInfo.lineHeight || 17;
+			const editorHeight = this.cell.layoutInfo.editorHeight !== 0 ? this.cell.layoutInfo.editorHeight : (lineCount * lineHeight) + fixedEditorPadding.top + fixedEditorPadding.bottom;
+
+			this._editorContainer.style.height = `${editorHeight}px`;
+			this._editorContainer.style.display = 'block';
+
+			if (this._editor) {
+				const contentHeight = this._editor.getContentHeight();
+				if (contentHeight >= 0) {
+					this.cell.editorHeight = contentHeight;
+				}
+				return;
+			}
+
+			this._editor = this.templateData.sourceEditor;
+			this._editor.layout({
+				width: this.notebookEditor.getLayoutInfo().width - 2 * DIFF_CELL_MARGIN,
+				height: editorHeight
+			});
+			this._register(this._editor.onDidContentSizeChange((e) => {
+				if (this.cell.cellFoldingState === PropertyFoldingState.Expanded && e.contentHeightChanged && this.cell.layoutInfo.editorHeight !== e.contentHeight) {
+					this.cell.editorHeight = e.contentHeight;
+				}
+			}));
+			this._initializeSourceDiffEditor();
+		};
+
+		this._cellHeader = this._register(this.instantiationService.createInstance(
+			PropertyHeader,
+			this.cell,
+			this._cellHeaderContainer,
+			this.notebookEditor,
+			{
+				updateInfoRendering: () => renderSourceEditor(),
+				checkIfModified: (cell) => {
+					return cell.modified?.textModel.getValue() !== cell.original?.textModel.getValue() ? { reason: undefined } : false;
+				},
+				getFoldingState: (cell) => cell.cellFoldingState,
+				updateFoldingState: (cell, state) => cell.cellFoldingState = state,
+				unChangedLabel: 'Cell',
+				changedLabel: 'Cell changed',
+				prefix: 'cell',
+				menuId: MenuId.NotebookDiffCellInputTitle
+			}
+		));
+		this._cellHeader.buildHeader();
+		renderSourceEditor();
+
+		const scopedContextKeyService = this.contextKeyService.createScoped(this._cellHeaderContainer);
 		this._register(scopedContextKeyService);
 		const inputChanged = NOTEBOOK_DIFF_CELL_INPUT.bindTo(scopedContextKeyService);
+		inputChanged.set(this.cell.modified.textModel.getValue() !== this.cell.original.textModel.getValue());
 
-		this._inputToolbarContainer = this.templateData.inputToolbarContainer;
 		this._toolbar = this.templateData.toolbar;
 
 		this._toolbar.context = {
 			cell: this.cell
 		};
 
-		if (this.cell.modified.textModel.getValue() !== this.cell.original.textModel.getValue()) {
-			this._inputToolbarContainer.style.display = 'block';
-			inputChanged.set(true);
-		} else {
-			this._inputToolbarContainer.style.display = 'none';
-			inputChanged.set(false);
-		}
-
-		this._register(this.cell.modified.textModel.onDidChangeContent(() => {
-			if (this.cell.modified.textModel.getValue() !== this.cell.original.textModel.getValue()) {
-				this._inputToolbarContainer.style.display = 'block';
-				inputChanged.set(true);
-			} else {
-				this._inputToolbarContainer.style.display = 'none';
-				inputChanged.set(false);
-			}
-		}));
-
-		const menu = this.menuService.getMenuActions(MenuId.NotebookDiffCellInputTitle, scopedContextKeyService, { shouldForwardArgs: true });
 		const actions: IAction[] = [];
-		createAndFillInActionBarActions(menu, actions);
-		this._toolbar.setActions(actions);
+
+		const refreshToolbar = () => {
+			const hasChanges = this.cell.modified.textModel.getValue() !== this.cell.original.textModel.getValue();
+			inputChanged.set(hasChanges);
+
+			if (!actions.length) {
+				const menu = this.menuService.getMenuActions(MenuId.NotebookDiffCellInputTitle, scopedContextKeyService, { shouldForwardArgs: true });
+				createAndFillInActionBarActions(menu, actions);
+			}
+
+			if (hasChanges) {
+				this._toolbar.setActions(actions);
+			} else {
+				this._toolbar.setActions([]);
+			}
+		};
+
+		this._register(this.cell.modified.textModel.onDidChangeContent(() => refreshToolbar()));
+		refreshToolbar();
 	}
 
 	private async _initializeSourceDiffEditor() {
@@ -1597,17 +1639,17 @@ export class ModifiedElement extends AbstractElementRenderer {
 
 	layout(state: IDiffElementLayoutState) {
 		DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this._diffEditorContainer), () => {
-			if (state.editorHeight) {
+			if (state.editorHeight && this._editor) {
 				this._editorContainer.style.height = `${this.cell.layoutInfo.editorHeight}px`;
-				this._editor!.layout({
+				this._editor.layout({
 					width: this._editor!.getViewWidth(),
 					height: this.cell.layoutInfo.editorHeight
 				});
 			}
 
-			if (state.outerWidth) {
+			if (state.outerWidth && this._editor) {
 				this._editorContainer.style.height = `${this.cell.layoutInfo.editorHeight}px`;
-				this._editor!.layout();
+				this._editor.layout();
 			}
 
 			if (state.metadataHeight || state.outerWidth) {

@@ -82,6 +82,7 @@ export class CellDiffSingleSideRenderer implements IListRenderer<SingleSideDiffE
 
 		const diagonalFill = DOM.append(body, DOM.$('.diagonal-fill'));
 
+		const cellHeaderContainer = DOM.append(diffEditorContainer, DOM.$('.cell-header-container'));
 		const sourceContainer = DOM.append(diffEditorContainer, DOM.$('.source-container'));
 		const editor = this._buildSourceEditor(sourceContainer);
 
@@ -102,6 +103,7 @@ export class CellDiffSingleSideRenderer implements IListRenderer<SingleSideDiffE
 			container,
 			diffEditorContainer,
 			diagonalFill,
+			cellHeaderContainer,
 			sourceEditor: editor,
 			metadataHeaderContainer,
 			metadataInfoContainer,
@@ -183,6 +185,7 @@ export class CellDiffSideBySideRenderer implements IListRenderer<SideBySideDiffE
 		const diffEditorContainer = DOM.$('.cell-diff-editor-container');
 		DOM.append(body, diffEditorContainer);
 
+		const cellHeaderContainer = DOM.append(diffEditorContainer, DOM.$('.cell-header-container'));
 		const sourceContainer = DOM.append(diffEditorContainer, DOM.$('.source-container'));
 		const { editor, editorContainer } = this._buildSourceEditor(sourceContainer);
 
@@ -216,6 +219,7 @@ export class CellDiffSideBySideRenderer implements IListRenderer<SideBySideDiffE
 			body,
 			container,
 			diffEditorContainer,
+			cellHeaderContainer,
 			sourceEditor: editor,
 			editorContainer,
 			inputToolbarContainer,
