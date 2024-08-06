@@ -47,12 +47,17 @@ steps:
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Authentication
 
+  # Remove msvs_configuration_attributes once kerberos 2.1.2-alpha.0 or newer is available.
+  # Ref https://github.com/mongodb-js/kerberos/pull/187.
   - pwsh: |
       $includes = @'
         {
           'target_defaults': {
             'conditions': [
               ['OS=="win"', {
+                'msvs_configuration_attributes': {
+                  'SpectreMitigation': 'Spectre'
+                },
                 'msvs_settings': {
                   'VCCLCompilerTool': {
                     'AdditionalOptions': [
