@@ -34,6 +34,7 @@ interface ILayoutInfoDelta extends ILayoutInfoDelta0 {
 }
 
 export abstract class DiffElementViewModelBase extends Disposable {
+	public cellFoldingState: PropertyFoldingState;
 	public metadataFoldingState: PropertyFoldingState;
 	public outputFoldingState: PropertyFoldingState;
 	protected _layoutInfoEmitter = this._register(new Emitter<CellDiffViewModelLayoutChangeEvent>());
@@ -132,21 +133,24 @@ export abstract class DiffElementViewModelBase extends Disposable {
 	) {
 		super();
 		const editorHeight = this._estimateEditorHeight(initData.fontInfo);
+		const cellStatusHeight = 25;
 		this._layoutInfo = {
 			width: 0,
 			editorHeight: editorHeight,
 			editorMargin: 0,
 			metadataHeight: 0,
+			cellStatusHeight,
 			metadataStatusHeight: 25,
 			rawOutputHeight: 0,
 			outputTotalHeight: 0,
 			outputStatusHeight: 25,
 			outputMetadataHeight: 0,
 			bodyMargin: 32,
-			totalHeight: 82 + editorHeight,
+			totalHeight: 82 + cellStatusHeight + editorHeight,
 			layoutState: CellLayoutState.Uninitialized
 		};
 
+		this.cellFoldingState = modified?.textModel?.getValue() !== original?.textModel?.getValue() ? PropertyFoldingState.Expanded : PropertyFoldingState.Collapsed;
 		this.metadataFoldingState = PropertyFoldingState.Collapsed;
 		this.outputFoldingState = PropertyFoldingState.Collapsed;
 
@@ -185,6 +189,7 @@ export abstract class DiffElementViewModelBase extends Disposable {
 		const editorHeight = delta.editorHeight !== undefined ? delta.editorHeight : this._layoutInfo.editorHeight;
 		const editorMargin = delta.editorMargin !== undefined ? delta.editorMargin : this._layoutInfo.editorMargin;
 		const metadataHeight = delta.metadataHeight !== undefined ? delta.metadataHeight : this._layoutInfo.metadataHeight;
+		const cellStatusHeight = delta.cellStatusHeight !== undefined ? delta.cellStatusHeight : this._layoutInfo.cellStatusHeight;
 		const metadataStatusHeight = delta.metadataStatusHeight !== undefined ? delta.metadataStatusHeight : this._layoutInfo.metadataStatusHeight;
 		const rawOutputHeight = delta.rawOutputHeight !== undefined ? delta.rawOutputHeight : this._layoutInfo.rawOutputHeight;
 		const outputStatusHeight = delta.outputStatusHeight !== undefined ? delta.outputStatusHeight : this._layoutInfo.outputStatusHeight;
@@ -194,6 +199,7 @@ export abstract class DiffElementViewModelBase extends Disposable {
 
 		const totalHeight = editorHeight
 			+ editorMargin
+			+ cellStatusHeight
 			+ metadataHeight
 			+ metadataStatusHeight
 			+ outputHeight
@@ -205,6 +211,7 @@ export abstract class DiffElementViewModelBase extends Disposable {
 			editorHeight: editorHeight,
 			editorMargin: editorMargin,
 			metadataHeight: metadataHeight,
+			cellStatusHeight,
 			metadataStatusHeight: metadataStatusHeight,
 			outputTotalHeight: outputHeight,
 			outputStatusHeight: outputStatusHeight,
@@ -236,6 +243,11 @@ export abstract class DiffElementViewModelBase extends Disposable {
 
 		if (newLayout.metadataHeight !== this._layoutInfo.metadataHeight) {
 			changeEvent.metadataHeight = true;
+			somethingChanged = true;
+		}
+
+		if (newLayout.cellStatusHeight !== this._layoutInfo.cellStatusHeight) {
+			changeEvent.cellStatusHeight = true;
 			somethingChanged = true;
 		}
 
@@ -288,6 +300,7 @@ export abstract class DiffElementViewModelBase extends Disposable {
 		const totalHeight = editorHeight
 			+ this._layoutInfo.editorMargin
 			+ this._layoutInfo.metadataHeight
+			+ this._layoutInfo.cellStatusHeight
 			+ this._layoutInfo.metadataStatusHeight
 			+ this._layoutInfo.outputTotalHeight
 			+ this._layoutInfo.outputStatusHeight
@@ -410,6 +423,7 @@ export class SideBySideDiffElementViewModel extends DiffElementViewModelBase {
 		this.modified = modified;
 		this.type = type;
 
+		this.cellFoldingState = modified.textModel.getValue() !== original.textModel.getValue() ? PropertyFoldingState.Expanded : PropertyFoldingState.Collapsed;
 		this.metadataFoldingState = PropertyFoldingState.Collapsed;
 		this.outputFoldingState = PropertyFoldingState.Collapsed;
 
@@ -491,6 +505,7 @@ export class SideBySideDiffElementViewModel extends DiffElementViewModelBase {
 		return this._layoutInfo.editorHeight
 			+ this._layoutInfo.editorMargin
 			+ this._layoutInfo.metadataHeight
+			+ this._layoutInfo.cellStatusHeight
 			+ this._layoutInfo.metadataStatusHeight
 			+ this._layoutInfo.outputStatusHeight
 			+ this._layoutInfo.bodyMargin / 2
@@ -599,6 +614,7 @@ export class SingleSideDiffElementViewModel extends DiffElementViewModelBase {
 		return this._layoutInfo.editorHeight
 			+ this._layoutInfo.editorMargin
 			+ this._layoutInfo.metadataHeight
+			+ this._layoutInfo.cellStatusHeight
 			+ this._layoutInfo.metadataStatusHeight
 			+ this._layoutInfo.outputStatusHeight
 			+ this._layoutInfo.bodyMargin / 2
