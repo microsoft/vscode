@@ -403,7 +403,7 @@ function optimizeESMTask(opts: IOptimizeAMDTaskOpts, cjsOpts?: IOptimizeCommonJS
 	const result = es.merge(
 		bundlesStream,
 		resourcesStream,
-		bundlesStream
+		bundleInfoStream
 	);
 
 	return result

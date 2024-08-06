@@ -296,7 +296,7 @@ function optimizeESMTask(opts, cjsOpts) {
         // forward all resources
         gulp.src(opts.resources, { base: `${opts.src}`, allowEmpty: true }).pipe(resourcesStream);
     });
-    const result = es.merge(bundlesStream, resourcesStream, bundlesStream);
+    const result = es.merge(bundlesStream, resourcesStream, bundleInfoStream);
     return result
         .pipe(sourcemaps.write('./', {
         sourceRoot: undefined,
