@@ -563,7 +563,7 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "src/vs/workbench/contrib/replNotebook",
+			"name": "vs/workbench/contrib/replNotebook",
 			"project": "vscode-workbench"
 		}
 	]
