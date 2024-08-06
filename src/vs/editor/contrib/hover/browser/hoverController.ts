@@ -149,14 +149,9 @@ export class HoverController extends Disposable implements IEditorContribution {
 	}
 
 	private _shouldNotHideCurrentHoverWidget(mouseEvent: IPartialEditorMouseEvent): boolean {
-		if (
-			this._isMouseOnContentHoverWidget(mouseEvent)
+		return this._isMouseOnContentHoverWidget(mouseEvent)
 			|| this._isMouseOnMarginHoverWidget(mouseEvent)
-			|| this._isContentWidgetResizing()
-		) {
-			return true;
-		}
-		return false;
+			|| this._isContentWidgetResizing();
 	}
 
 	private _isMouseOnMarginHoverWidget(mouseEvent: IPartialEditorMouseEvent): boolean {
@@ -200,35 +195,30 @@ export class HoverController extends Disposable implements IEditorContribution {
 
 		const isHoverSticky = this._hoverSettings.sticky;
 
-		const isMouseOnStickyMarginHoverWidget = (mouseEvent: IEditorMouseEvent, isHoverSticky: boolean) => {
+		const isMouseOnStickyMarginHoverWidget = (mouseEvent: IEditorMouseEvent, isHoverSticky: boolean): boolean => {
 			const isMouseOnMarginHoverWidget = this._isMouseOnMarginHoverWidget(mouseEvent);
 			return isHoverSticky && isMouseOnMarginHoverWidget;
 		};
-		const isMouseOnStickyContentHoverWidget = (mouseEvent: IEditorMouseEvent, isHoverSticky: boolean) => {
+		const isMouseOnStickyContentHoverWidget = (mouseEvent: IEditorMouseEvent, isHoverSticky: boolean): boolean => {
 			const isMouseOnContentHoverWidget = this._isMouseOnContentHoverWidget(mouseEvent);
 			return isHoverSticky && isMouseOnContentHoverWidget;
 		};
-		const isMouseOnColorPicker = (mouseEvent: IEditorMouseEvent) => {
+		const isMouseOnColorPicker = (mouseEvent: IEditorMouseEvent): boolean => {
 			const isMouseOnContentHoverWidget = this._isMouseOnContentHoverWidget(mouseEvent);
-			const isColorPickerVisible = this._contentWidget?.isColorPickerVisible;
+			const isColorPickerVisible = this._contentWidget?.isColorPickerVisible ?? false;
 			return isMouseOnContentHoverWidget && isColorPickerVisible;
 		};
 		// TODO@aiday-mar verify if the following is necessary code
-		const isTextSelectedWithinContentHoverWidget = (mouseEvent: IEditorMouseEvent, sticky: boolean) => {
-			return sticky
+		const isTextSelectedWithinContentHoverWidget = (mouseEvent: IEditorMouseEvent, sticky: boolean): boolean => {
+			return (sticky
 				&& this._contentWidget?.containsNode(mouseEvent.event.browserEvent.view?.document.activeElement)
-				&& !mouseEvent.event.browserEvent.view?.getSelection()?.isCollapsed;
+				&& !mouseEvent.event.browserEvent.view?.getSelection()?.isCollapsed) ?? false;
 		};
 
-		if (
-			isMouseOnStickyMarginHoverWidget(mouseEvent, isHoverSticky)
+		return isMouseOnStickyMarginHoverWidget(mouseEvent, isHoverSticky)
 			|| isMouseOnStickyContentHoverWidget(mouseEvent, isHoverSticky)
 			|| isMouseOnColorPicker(mouseEvent)
-			|| isTextSelectedWithinContentHoverWidget(mouseEvent, isHoverSticky)
-		) {
-			return true;
-		}
-		return false;
+			|| isTextSelectedWithinContentHoverWidget(mouseEvent, isHoverSticky);
 	}
 
 	private _onEditorMouseMove(mouseEvent: IEditorMouseEvent): void {
