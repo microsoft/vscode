@@ -212,8 +212,6 @@ module _nls {
 		return node.kind === ts.SyntaxKind.CallExpression ? CollectStepResult.YesAndRecurse : CollectStepResult.NoAndRecurse;
 	}
 
-	const isESM = true; // TODO@esm remove eventually
-
 	function analyze(
 		ts: typeof import('typescript'),
 		contents: string,
@@ -233,26 +231,14 @@ module _nls {
 			.filter(n => n.kind === ts.SyntaxKind.ImportEqualsDeclaration)
 			.map(n => <ts.ImportEqualsDeclaration>n)
 			.filter(d => d.moduleReference.kind === ts.SyntaxKind.ExternalModuleReference)
-			.filter(d => {
-				const text = (<ts.ExternalModuleReference>d.moduleReference).expression.getText();
-				if (isESM) {
-					return text.endsWith(`/nls.js'`); // in ESM all imports are relative
-				}
-				return text === '\'vs/nls\'';
-			});
+			.filter(d => (<ts.ExternalModuleReference>d.moduleReference).expression.getText().endsWith(`/nls.js'`));
 
 		// import ... from 'vs/nls';
 		const importDeclarations = imports
 			.filter(n => n.kind === ts.SyntaxKind.ImportDeclaration)
 			.map(n => <ts.ImportDeclaration>n)
 			.filter(d => d.moduleSpecifier.kind === ts.SyntaxKind.StringLiteral)
-			.filter(d => {
-				const text = d.moduleSpecifier.getText();
-				if (isESM) {
-					return text.endsWith(`/nls.js'`); // in ESM all imports are relative
-				}
-				return text === '\'vs/nls\'';
-			})
+			.filter(d => d.moduleSpecifier.getText().endsWith(`/nls.js'`))
 			.filter(d => !!d.importClause && !!d.importClause.namedBindings);
 
 		// `nls.localize(...)` calls
