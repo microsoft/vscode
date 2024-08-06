@@ -234,6 +234,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	private _onDidChangeTaskConfig: Emitter<void> = new Emitter();
 	public onDidChangeTaskConfig: Event<void> = this._onDidChangeTaskConfig.event;
 	public get isReconnected(): boolean { return this._tasksReconnected; }
+	private _onDidChangeTaskProviders = this._register(new Emitter<void>());
+	public onDidChangeTaskProviders = this._onDidChangeTaskProviders.event;
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -680,10 +682,12 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		const handle = AbstractTaskService._nextHandle++;
 		this._providers.set(handle, provider);
 		this._providerTypes.set(handle, type);
+		this._onDidChangeTaskProviders.fire();
 		return {
 			dispose: () => {
 				this._providers.delete(handle);
 				this._providerTypes.delete(handle);
+				this._onDidChangeTaskProviders.fire();
 			}
 		};
 	}
@@ -886,7 +890,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			return Promise.resolve<Task[]>([]);
 		}
 
-		return this._getGroupedTasks(filter, false).then((map) => this.applyFilterToTaskMap(filter, map));
+		return this._getGroupedTasks(filter, true).then((map) => this.applyFilterToTaskMap(filter, map));
 	}
 
 	public taskTypes(): string[] {
