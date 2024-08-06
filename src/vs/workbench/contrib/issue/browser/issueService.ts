@@ -42,11 +42,6 @@ export class BrowserIssueService implements IWorkbenchIssueService {
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) { }
 
-	//TODO @TylerLeonhardt @Tyriar to implement a process explorer for the web
-	async openProcessExplorer(): Promise<void> {
-		console.error('openProcessExplorer is not implemented in web');
-	}
-
 	async openReporter(options: Partial<IssueReporterData>): Promise<void> {
 		// If web reporter setting is false open the old GitHub issue reporter
 		if (!this.configurationService.getValue<boolean>('issueReporter.experimental.webReporter')) {

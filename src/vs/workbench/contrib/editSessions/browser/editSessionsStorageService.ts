@@ -311,7 +311,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 	 * Prompts the user to pick an authentication option for storing and getting edit sessions.
 	 */
 	private async getAccountPreference(reason: 'read' | 'write'): Promise<AuthenticationSession & { providerId: string } | undefined> {
-		const quickpick = this.quickInputService.createQuickPick<ExistingSession | AuthenticationProviderOption | IQuickPickItem>();
+		const quickpick = this.quickInputService.createQuickPick<ExistingSession | AuthenticationProviderOption | IQuickPickItem>({ useSeparators: true });
 		quickpick.ok = false;
 		quickpick.placeholder = reason === 'read' ? localize('choose account read placeholder', "Select an account to restore your working changes from the cloud") : localize('choose account placeholder', "Select an account to store your working changes in the cloud");
 		quickpick.ignoreFocusOut = true;

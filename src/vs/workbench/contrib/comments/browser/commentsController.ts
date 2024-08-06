@@ -46,6 +46,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { URI } from 'vs/base/common/uri';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { threadHasMeaningfulComments } from 'vs/workbench/contrib/comments/browser/commentsModel';
 
 export const ID = 'editor.contrib.review';
 
@@ -869,8 +870,7 @@ export class CommentController implements IEditorContribution {
 		const pendingCommentText = (this._pendingNewCommentCache[uniqueOwner] && this._pendingNewCommentCache[uniqueOwner][thread.threadId])
 			?? continueOnCommentText;
 		const pendingEdits = this._pendingEditsCache[uniqueOwner] && this._pendingEditsCache[uniqueOwner][thread.threadId];
-		const isThreadTemplateOrEmpty = (thread.isTemplate || (!thread.comments || (thread.comments.length === 0)));
-		const shouldReveal = thread.canReply && isThreadTemplateOrEmpty && (!thread.editorId || (thread.editorId === editorId));
+		const shouldReveal = thread.canReply && thread.isTemplate && (!thread.comments || (thread.comments.length === 0)) && (!thread.editorId || (thread.editorId === editorId));
 		await this.displayCommentThread(uniqueOwner, thread, shouldReveal, pendingCommentText, pendingEdits);
 		this._commentInfos.filter(info => info.uniqueOwner === uniqueOwner)[0].threads.push(thread);
 		this.tryUpdateReservedSpace();
@@ -1016,7 +1016,7 @@ export class CommentController implements IEditorContribution {
 	}
 
 	private async openCommentsView(thread: languages.CommentThread) {
-		if (thread.comments && (thread.comments.length > 0)) {
+		if (thread.comments && (thread.comments.length > 0) && threadHasMeaningfulComments(thread)) {
 			const openViewState = this.configurationService.getValue<ICommentsConfiguration>(COMMENTS_SECTION).openView;
 			if (openViewState === 'file') {
 				return this.viewsService.openView(COMMENTS_VIEW_ID);

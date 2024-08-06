@@ -291,7 +291,7 @@ interface InstalledThemesPickerOptions {
 	readonly title?: string;
 	readonly description?: string;
 	readonly toggles?: IQuickInputToggle[];
-	readonly onToggle?: (toggle: IQuickInputToggle, quickInput: IQuickPick<ThemeItem>) => Promise<void>;
+	readonly onToggle?: (toggle: IQuickInputToggle, quickInput: IQuickPick<ThemeItem, { useSeparators: boolean }>) => Promise<void>;
 }
 
 class InstalledThemesPicker {
@@ -343,7 +343,7 @@ class InstalledThemesPicker {
 				const disposables = new DisposableStore();
 
 				const autoFocusIndex = picks.findIndex(p => isItem(p) && p.id === activeItemId);
-				const quickpick = this.quickInputService.createQuickPick<ThemeItem>();
+				const quickpick = this.quickInputService.createQuickPick<ThemeItem>({ useSeparators: true });
 				quickpick.items = picks;
 				quickpick.title = this.options.title;
 				quickpick.description = this.options.description;

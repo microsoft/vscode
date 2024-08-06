@@ -92,18 +92,18 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 	private lastUri?: TestUriWithDocument;
 
 	/** @inheritdoc */
-	public readonly historyVisible = MutableObservableValue.stored(this._register(new StoredValue<boolean>({
+	public readonly historyVisible = this._register(MutableObservableValue.stored(new StoredValue<boolean>({
 		key: 'testHistoryVisibleInPeek',
 		scope: StorageScope.PROFILE,
 		target: StorageTarget.USER,
-	}, this.storageService)), false);
+	}, this.storageService), false));
 
 	/** @inheritdoc */
-	public readonly callStackVisible = MutableObservableValue.stored(this._register(new StoredValue<boolean>({
+	public readonly callStackVisible = this._register(MutableObservableValue.stored(new StoredValue<boolean>({
 		key: 'testCallStackVisible',
 		scope: StorageScope.PROFILE,
 		target: StorageTarget.USER,
-	}, this.storageService)), true);
+	}, this.storageService), true));
 
 	constructor(
 		@IConfigurationService private readonly configuration: IConfigurationService,

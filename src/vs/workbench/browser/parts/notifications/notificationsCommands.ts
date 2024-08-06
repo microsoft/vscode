@@ -312,12 +312,12 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 
 		picker.canSelectMany = true;
 		picker.placeholder = localize('selectSources', "Select sources to enable all notifications from");
-		picker.selectedItems = picker.items.filter(item => (item as INotificationSourceFilter).filter === NotificationsFilter.OFF) as (IQuickPickItem & INotificationSourceFilter)[];
+		picker.selectedItems = picker.items.filter(item => item.filter === NotificationsFilter.OFF);
 
 		picker.show();
 
 		disposables.add(picker.onDidAccept(async () => {
-			for (const item of picker.items as (IQuickPickItem & INotificationSourceFilter)[]) {
+			for (const item of picker.items) {
 				notificationService.setFilter({
 					id: item.id,
 					label: item.label,

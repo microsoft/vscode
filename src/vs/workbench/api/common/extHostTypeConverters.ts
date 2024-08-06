@@ -53,7 +53,7 @@ import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/ed
 import { Dto } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import type * as vscode from 'vscode';
 import * as types from './extHostTypes';
-import { IToolData } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
+import { IToolData, IToolResult } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
 
 export namespace Command {
 
@@ -1891,7 +1891,7 @@ export namespace TestMessage {
 			stackTrace: (message as vscode.TestMessage2).stackTrace?.map(s => ({
 				label: s.label,
 				position: s.position && Position.from(s.position),
-				uri: s.file && URI.revive(s.file).toJSON(),
+				uri: s.uri && URI.revive(s.uri).toJSON(),
 			})),
 		};
 	}
@@ -2693,6 +2693,7 @@ export namespace ChatAgentResult {
 		return {
 			errorDetails: result.errorDetails,
 			metadata: result.metadata,
+			nextQuestion: result.nextQuestion,
 		};
 	}
 }
@@ -2723,6 +2724,24 @@ export namespace ChatAgentUserActionEvent {
 	}
 }
 
+export namespace LanguageModelToolResult {
+	export function from(result: vscode.LanguageModelToolResult): IToolResult {
+		return {
+			...result,
+			string: result.toString(),
+		};
+	}
+
+	export function to(result: IToolResult): vscode.LanguageModelToolResult {
+		const copy: vscode.LanguageModelToolResult = {
+			...result,
+			toString: () => result.string,
+		};
+		delete copy.string;
+
+		return copy;
+	}
+}
 
 export namespace TerminalQuickFix {
 	export function from(quickFix: vscode.TerminalQuickFixTerminalCommand | vscode.TerminalQuickFixOpener | vscode.Command, converter: Command.ICommandsConverter, disposables: DisposableStore): extHostProtocol.ITerminalQuickFixTerminalCommandDto | extHostProtocol.ITerminalQuickFixOpenerDto | extHostProtocol.ICommandDto | undefined {

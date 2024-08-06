@@ -522,7 +522,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 				const notificationService = accessor.get(INotificationService);
 
 				const disposables = new DisposableStore();
-				const quickPick = disposables.add(quickInputService.createQuickPick());
+				const quickPick = disposables.add(quickInputService.createQuickPick({ useSeparators: true }));
 				const profileTemplateQuickPickItems = await that.getProfileTemplatesQuickPickItems();
 
 				const updateQuickPickItems = (value?: string) => {

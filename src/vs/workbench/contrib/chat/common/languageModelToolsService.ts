@@ -27,8 +27,13 @@ interface IToolEntry {
 	impl?: IToolImpl;
 }
 
+export interface IToolResult {
+	[contentType: string]: any;
+	string: string;
+}
+
 export interface IToolImpl {
-	invoke(parameters: any, token: CancellationToken): Promise<string>;
+	invoke(parameters: any, token: CancellationToken): Promise<IToolResult>;
 }
 
 export const ILanguageModelToolsService = createDecorator<ILanguageModelToolsService>('ILanguageModelToolsService');
@@ -44,7 +49,7 @@ export interface ILanguageModelToolsService {
 	registerToolData(toolData: IToolData): IDisposable;
 	registerToolImplementation(name: string, tool: IToolImpl): IDisposable;
 	getTools(): Iterable<Readonly<IToolData>>;
-	invokeTool(name: string, parameters: any, token: CancellationToken): Promise<string>;
+	invokeTool(name: string, parameters: any, token: CancellationToken): Promise<IToolResult>;
 }
 
 export class LanguageModelToolsService implements ILanguageModelToolsService {
@@ -94,7 +99,7 @@ export class LanguageModelToolsService implements ILanguageModelToolsService {
 		return Iterable.map(this._tools.values(), i => i.data);
 	}
 
-	async invokeTool(name: string, parameters: any, token: CancellationToken): Promise<string> {
+	async invokeTool(name: string, parameters: any, token: CancellationToken): Promise<IToolResult> {
 		let tool = this._tools.get(name);
 		if (!tool) {
 			throw new Error(`Tool ${name} was not contributed`);

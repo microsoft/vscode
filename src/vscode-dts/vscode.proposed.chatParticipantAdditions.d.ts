@@ -224,6 +224,14 @@ declare module 'vscode' {
 
 	export type ChatExtendedRequestHandler = (request: ChatRequest, context: ChatContext, response: ChatResponseStream, token: CancellationToken) => ProviderResult<ChatResult | void>;
 
+	export interface ChatResult {
+		nextQuestion?: {
+			prompt: string;
+			participant?: string;
+			command?: string;
+		};
+	}
+
 	export namespace chat {
 		/**
 		 * Create a chat participant with the extended progress type
@@ -237,6 +245,23 @@ declare module 'vscode' {
 		 * The chat extension should not activate if it doesn't support the current version.
 		 */
 		export const _version: 1 | number;
+
+		export function registerChatParticipantDetectionProvider(participantDetectionProvider: ChatParticipantDetectionProvider): Disposable;
+	}
+
+	export interface ChatParticipantMetadata {
+		participant: string;
+		command?: string;
+		description?: string;
+	}
+
+	export interface ChatParticipantDetectionResult {
+		participant: string;
+		command?: string;
+	}
+
+	export interface ChatParticipantDetectionProvider {
+		provideParticipantDetection(chatRequest: ChatRequest, context: ChatContext, options: { participants?: ChatParticipantMetadata[]; location: ChatLocation }, token: CancellationToken): ProviderResult<ChatParticipantDetectionResult>;
 	}
 
 	/*

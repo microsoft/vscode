@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 2
+// version: 3
 // https://github.com/microsoft/vscode/issues/213274
 
 declare module 'vscode' {
@@ -64,6 +64,18 @@ declare module 'vscode' {
 		content2: string | LanguageModelChatMessageFunctionResultPart;
 	}
 
+	export interface LanguageModelToolResult {
+		/**
+		 * The result can contain arbitrary representations of the content. An example might be 'prompt-tsx' to indicate an element that can be rendered with the @vscode/prompt-tsx library.
+		 */
+		[contentType: string]: any;
+
+		/**
+		 * A string representation of the result which can be incorporated back into an LLM prompt without any special handling.
+		 */
+		toString(): string;
+	}
+
 	// Tool registration/invoking between extensions
 
 	export namespace lm {
@@ -79,8 +91,9 @@ declare module 'vscode' {
 
 		/**
 		 * Invoke a tool with the given parameters.
+		 * TODO@API Could request a set of contentTypes to be returned so they don't all need to be computed?
 		 */
-		export function invokeTool(name: string, parameters: Object, token: CancellationToken): Thenable<string>;
+		export function invokeTool(name: string, parameters: Object, token: CancellationToken): Thenable<LanguageModelToolResult>;
 	}
 
 	// Is the same as LanguageModelChatFunction now, but could have more details in the future
@@ -91,6 +104,7 @@ declare module 'vscode' {
 	}
 
 	export interface LanguageModelTool {
-		invoke(parameters: any, token: CancellationToken): Thenable<string>;
+		// TODO@API should it be LanguageModelToolResult | string?
+		invoke(parameters: any, token: CancellationToken): Thenable<LanguageModelToolResult>;
 	}
 }

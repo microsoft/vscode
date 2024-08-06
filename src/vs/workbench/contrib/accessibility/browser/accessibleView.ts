@@ -207,10 +207,16 @@ export class AccessibleView extends Disposable {
 		return this._editorWidget.getPosition() || undefined;
 	}
 
-	setPosition(position: Position, reveal?: boolean): void {
+	setPosition(position: Position, reveal?: boolean, select?: boolean): void {
 		this._editorWidget.setPosition(position);
 		if (reveal) {
 			this._editorWidget.revealPosition(position);
+		}
+		if (select) {
+			const lineLength = this._editorWidget.getModel()?.getLineLength(position.lineNumber) ?? 0;
+			if (lineLength) {
+				this._editorWidget.setSelection({ startLineNumber: position.lineNumber, startColumn: 1, endLineNumber: position.lineNumber, endColumn: lineLength + 1 });
+			}
 		}
 	}
 
@@ -897,12 +903,8 @@ export class AccessibleViewService extends Disposable implements IAccessibleView
 		const lastLine = this._accessibleView?.editorWidget.getModel()?.getLineCount();
 		return lastLine !== undefined && lastLine > 0 ? new Position(lastLine, 1) : undefined;
 	}
-	setPosition(position: Position, reveal?: boolean): void {
-		const editorWidget = this._accessibleView?.editorWidget;
-		editorWidget?.setPosition(position);
-		if (reveal) {
-			editorWidget?.revealLine(position.lineNumber);
-		}
+	setPosition(position: Position, reveal?: boolean, select?: boolean): void {
+		this._accessibleView?.setPosition(position, reveal, select);
 	}
 	getCodeBlockContext(): ICodeBlockActionContext | undefined {
 		return this._accessibleView?.getCodeBlockContext();

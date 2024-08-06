@@ -113,7 +113,7 @@ export class ManageTrustedExtensionsForAccountAction extends Action2 {
 		}
 
 		const disposableStore = new DisposableStore();
-		const quickPick = disposableStore.add(quickInputService.createQuickPick<TrustedExtensionsQuickPickItem>());
+		const quickPick = disposableStore.add(quickInputService.createQuickPick<TrustedExtensionsQuickPickItem>({ useSeparators: true }));
 		quickPick.canSelectMany = true;
 		quickPick.customButton = true;
 		quickPick.customLabel = localize('manageTrustedExtensions.cancel', 'Cancel');

@@ -10,6 +10,7 @@ const event_stream_1 = require("event-stream");
 const File = require("vinyl");
 const sm = require("source-map");
 const path = require("path");
+const sort = require("gulp-sort");
 var CollectStepResult;
 (function (CollectStepResult) {
     CollectStepResult[CollectStepResult["Yes"] = 0] = "Yes";
@@ -44,7 +45,9 @@ function clone(object) {
 function nls(options) {
     let base;
     const input = (0, event_stream_1.through)();
-    const output = input.pipe((0, event_stream_1.through)(function (f) {
+    const output = input
+        .pipe(sort()) // IMPORTANT: to ensure stable NLS metadata generation, we must sort the files because NLS messages are globally extracted and indexed across all files
+        .pipe((0, event_stream_1.through)(function (f) {
         if (!f.sourceMap) {
             return this.emit('error', new Error(`File ${f.relative} does not have sourcemaps.`));
         }

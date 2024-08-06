@@ -215,6 +215,7 @@ function Set-MappedKeyHandlers {
 function Send-Completions {
 	$commandLine = ""
 	$cursorIndex = 0
+	$prefixCursorDelta = 0
 	[Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$commandLine, [ref]$cursorIndex)
 	$completionPrefix = $commandLine
 
@@ -222,34 +223,98 @@ function Send-Completions {
 	$result = "$([char]0x1b)]633;Completions"
 
 	# If there is a space in the input, defer to TabExpansion2 as it's more complicated to
-	# determine what type of completions to use
+	# determine what type of completions to use.
 	# `[` is included here as namespace commands are not included in CompleteCommand(''),
 	# additionally for some reason CompleteVariable('[') causes the prompt to clear and reprint
 	# multiple times
 	if ($completionPrefix.Contains(' ') -or $completionPrefix.Contains('[') -or $PSVersionTable.PSVersion -lt "6.0") {
+
+		# Adjust the completion prefix and cursor index such that tab expansion will be requested
+		# immediately after the last whitespace. This allows the client to perform fuzzy filtering
+		# such that requesting completions in the middle of a word should show the same completions
+		# as at the start. This only happens when the last word does not include special characters:
+		# - `/` and `\`: Completions change when navigating directories.
+		# - `$`: Completions change when variables.
+		$lastWhitespaceIndex = $completionPrefix.LastIndexOf(' ')
+		$lastWord = $completionPrefix.Substring($lastWhitespaceIndex + 1)
+		if ($lastWord -notmatch '[/\\$]') {
+			if ($lastWhitespaceIndex -ne -1 -and $lastWhitespaceIndex -lt $cursorIndex) {
+				$newCursorIndex = $lastWhitespaceIndex + 1
+				$completionPrefix = $completionPrefix.Substring(0, $newCursorIndex)
+				$prefixCursorDelta = $cursorIndex - $newCursorIndex
+				$cursorIndex = $newCursorIndex
+			}
+		}
+		# If it contains `/` or `\`, get completions from the nearest `/` or `\` such that file
+		# completions are consistent regardless of where it was requested
+		elseif ($lastWord -match '[/\\]') {
+			$lastSlashIndex = $completionPrefix.LastIndexOfAny(@('/', '\'))
+			if ($lastSlashIndex -ne -1 && $lastSlashIndex -lt $cursorIndex) {
+				$newCursorIndex = $lastSlashIndex + 1
+				$completionPrefix = $completionPrefix.Substring(0, $newCursorIndex)
+				$prefixCursorDelta = $cursorIndex - $newCursorIndex
+				$cursorIndex = $newCursorIndex
+			}
+		}
+
+		# Get completions using TabExpansion2
 		$completions = TabExpansion2 -inputScript $completionPrefix -cursorColumn $cursorIndex
 		if ($null -ne $completions.CompletionMatches) {
-			$result += ";$($completions.ReplacementIndex);$($completions.ReplacementLength);$($cursorIndex);"
+			$result += ";$($completions.ReplacementIndex);$($completions.ReplacementLength + $prefixCursorDelta);$($cursorIndex - $prefixCursorDelta);"
+			$json = [System.Collections.ArrayList]@($completions.CompletionMatches)
+			# Relative directory completions
 			if ($completions.CompletionMatches.Count -gt 0 -and $completions.CompletionMatches.Where({ $_.ResultType -eq 3 -or $_.ResultType -eq 4 })) {
-				$json = [System.Collections.ArrayList]@($completions.CompletionMatches)
-				# Add . and .. to the completions list
-				$json.Add([System.Management.Automation.CompletionResult]::new(
-					'.', '.', [System.Management.Automation.CompletionResultType]::ProviderContainer, (Get-Location).Path)
-				)
-				$json.Add([System.Management.Automation.CompletionResult]::new(
-					'..', '..', [System.Management.Automation.CompletionResultType]::ProviderContainer, (Split-Path (Get-Location) -Parent))
-				)
-				$mappedCommands = Compress-Completions($json)
-				$result += $mappedCommands | ConvertTo-Json -Compress
-			} else {
-				$mappedCommands = Compress-Completions($completions.CompletionMatches)
-				$result += $mappedCommands | ConvertTo-Json -Compress
+				# Add `../ relative to the top completion
+				$firstCompletion = $completions.CompletionMatches[0]
+				if ($firstCompletion.CompletionText.StartsWith('../')) {
+					if ($completionPrefix -match '(\.\.\/)+') {
+						$parentDir = "$($matches[0])../"
+						$currentPath = Split-Path -Parent $firstCompletion.ToolTip
+						try {
+							$parentDirPath = Split-Path -Parent $currentPath
+							$json.Add([System.Management.Automation.CompletionResult]::new(
+								$parentDir, $parentDir, [System.Management.Automation.CompletionResultType]::ProviderContainer, $parentDirPath)
+							)
+						} catch { }
+					}
+				}
+				# Add `.` and `..` to the completions list for results that only contain files and dirs
+				else {
+					$json.Add([System.Management.Automation.CompletionResult]::new(
+						'.', '.', [System.Management.Automation.CompletionResultType]::ProviderContainer, (Get-Location).Path)
+					)
+					$json.Add([System.Management.Automation.CompletionResult]::new(
+						'..', '..', [System.Management.Automation.CompletionResultType]::ProviderContainer, (Split-Path (Get-Location) -Parent))
+					)
+				}
 			}
+			# Add `-` and `+` as a completion for move backwards in location history. Unfortunately
+			# we don't set the path it will navigate to since the Set-Location stack is not public
+			# API https://github.com/PowerShell/PowerShell/issues/23860
+			if ($completionPrefix -eq "cd -") {
+				$json.Add([System.Management.Automation.CompletionResult]::new('-', '-', [System.Management.Automation.CompletionResultType]::ProviderContainer, "Navigate backwards in location history"))
+			}
+			if ($completionPrefix -eq "cd +") {
+				$json.Add([System.Management.Automation.CompletionResult]::new('+', '+', [System.Management.Automation.CompletionResultType]::ProviderContainer, "Navigate forwards in location history"))
+			}
+			$mappedCommands = Compress-Completions($json)
+			$result += $mappedCommands | ConvertTo-Json -Compress
 		}
 	}
 	# If there is no space, get completions using CompletionCompleters as it gives us more
 	# control and works on the empty string
 	else {
+		# If it contains `/` or `\`, get completions from the nearest `/` or `\` such that file
+		# completions are consistent regardless of where it was requested
+		if ($completionPrefix -match '[/\\]') {
+			$lastSlashIndex = $completionPrefix.LastIndexOfAny(@('/', '\'))
+			if ($lastSlashIndex -ne -1 && $lastSlashIndex -lt $cursorIndex) {
+				$newCursorIndex = $lastSlashIndex + 1
+				$completionPrefix = $completionPrefix.Substring(0, $newCursorIndex)
+				$prefixCursorDelta = $cursorIndex - $newCursorIndex
+				$cursorIndex = $newCursorIndex
+			}
+		}
 		# Note that CompleteCommand isn't included here as it's expensive
 		$completions = $(
 			# Add trailing \ for directories so behavior aligns with TabExpansion2
@@ -260,10 +325,10 @@ function Send-Completions {
 					$_
 				}
 			}
-			([System.Management.Automation.CompletionCompleters]::CompleteVariable($completionPrefix))
+			([System.Management.Automation.CompletionCompleters]::CompleteVariable(''))
 		)
 		if ($null -ne $completions) {
-			$result += ";$($completions.ReplacementIndex);$($completions.ReplacementLength);$($cursorIndex);"
+			$result += ";$($completions.ReplacementIndex);$($completions.ReplacementLength + $prefixCursorDelta);$($cursorIndex - $prefixCursorDelta);"
 			$mappedCommands = Compress-Completions($completions)
 			$result += $mappedCommands | ConvertTo-Json -Compress
 		} else {

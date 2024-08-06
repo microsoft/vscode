@@ -269,7 +269,8 @@ export class QueryBuilder {
 			const providerExists = isAbsolutePath(file);
 			// Special case userdata as we don't have a search provider for it, but it can be searched.
 			if (providerExists) {
-				const searchRoot = this.workspaceContextService.getWorkspaceFolder(file)?.uri ?? file.with({ path: path.dirname(file.fsPath) });
+
+				const searchRoot = this.workspaceContextService.getWorkspaceFolder(file)?.uri ?? this.uriIdentityService.extUri.dirname(file);
 
 				let folderQuery = foldersToSearch.get(searchRoot);
 				if (!folderQuery) {

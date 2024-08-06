@@ -56,7 +56,7 @@ import { IChatProgressResponseContent } from 'vs/workbench/contrib/chat/common/c
 import { ChatAgentVoteDirection, IChatFollowup, IChatProgress, IChatResponseErrorDetails, IChatTask, IChatTaskDto, IChatUserActionEvent } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatRequestVariableValue, IChatVariableData, IChatVariableResolverProgress } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { IChatMessage, IChatResponseFragment, ILanguageModelChatMetadata, ILanguageModelChatSelector, ILanguageModelsChangeEvent } from 'vs/workbench/contrib/chat/common/languageModels';
-import { IToolData, IToolDelta } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
+import { IToolData, IToolDelta, IToolResult } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
 import { DebugConfigurationProviderTriggerKind, IAdapterDescriptor, IConfig, IDebugSessionReplMode, IDebugTestRunReference, IDebugVisualization, IDebugVisualizationContext, IDebugVisualizationTreeItem, MainThreadDebugVisualization } from 'vs/workbench/contrib/debug/common/debug';
 import * as notebookCommon from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellExecutionUpdateType } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
@@ -1244,6 +1244,8 @@ export interface IDynamicChatAgentProps {
 
 export interface MainThreadChatAgentsShape2 extends IDisposable {
 	$registerAgent(handle: number, extension: ExtensionIdentifier, id: string, metadata: IExtensionChatAgentMetadata, dynamicProps: IDynamicChatAgentProps | undefined): void;
+	$registerChatParticipantDetectionProvider(handle: number): void;
+	$unregisterChatParticipantDetectionProvider(handle: number): void;
 	$registerAgentCompletionsProvider(handle: number, id: string, triggerCharacters: string[]): void;
 	$unregisterAgentCompletionsProvider(handle: number, id: string): void;
 	$updateAgent(handle: number, metadataUpdate: IExtensionChatAgentMetadata): void;
@@ -1284,6 +1286,17 @@ export interface ExtHostChatAgentsShape2 {
 	$provideWelcomeMessage(handle: number, location: ChatAgentLocation, token: CancellationToken): Promise<(string | IMarkdownString)[] | undefined>;
 	$provideSampleQuestions(handle: number, location: ChatAgentLocation, token: CancellationToken): Promise<IChatFollowup[] | undefined>;
 	$releaseSession(sessionId: string): void;
+	$detectChatParticipant(handle: number, request: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[] }, options: { participants: IChatParticipantMetadata[]; location: ChatAgentLocation }, token: CancellationToken): Promise<IChatParticipantDetectionResult | null | undefined>;
+}
+export interface IChatParticipantMetadata {
+	participant: string;
+	command?: string;
+	description?: string;
+}
+
+export interface IChatParticipantDetectionResult {
+	participant: string;
+	command?: string;
 }
 
 export type IChatVariableResolverProgressDto =
@@ -1297,7 +1310,7 @@ export interface MainThreadChatVariablesShape extends IDisposable {
 
 export interface MainThreadLanguageModelToolsShape extends IDisposable {
 	$getTools(): Promise<Dto<IToolData>[]>;
-	$invokeTool(name: string, parameters: any, token: CancellationToken): Promise<string>;
+	$invokeTool(name: string, parameters: any, token: CancellationToken): Promise<IToolResult>;
 	$registerTool(id: string): void;
 	$unregisterTool(name: string): void;
 }
@@ -1310,7 +1323,7 @@ export interface ExtHostChatVariablesShape {
 
 export interface ExtHostLanguageModelToolsShape {
 	$acceptToolDelta(delta: IToolDelta): Promise<void>;
-	$invokeTool(id: string, parameters: any, token: CancellationToken): Promise<string>;
+	$invokeTool(id: string, parameters: any, token: CancellationToken): Promise<IToolResult>;
 }
 
 export interface MainThreadUrlsShape extends IDisposable {
@@ -2731,7 +2744,7 @@ export const enum ExtHostTestingResource {
 export interface ExtHostTestingShape {
 	$runControllerTests(req: IStartControllerTests[], token: CancellationToken): Promise<{ error?: string }[]>;
 	$startContinuousRun(req: ICallProfileRunHandler[], token: CancellationToken): Promise<{ error?: string }[]>;
-	$cancelExtensionTestRun(runId: string | undefined): void;
+	$cancelExtensionTestRun(runId: string | undefined, taskId: string | undefined): void;
 	/** Handles a diff of tests, as a result of a subscribeToDiffs() call */
 	$acceptDiff(diff: TestsDiffOp.Serialized[]): void;
 	/** Expands a test item's children, by the given number of levels. */

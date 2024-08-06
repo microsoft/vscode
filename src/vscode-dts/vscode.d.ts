@@ -157,7 +157,7 @@ declare module 'vscode' {
 		 * that the returned object is *not* live and changes to the
 		 * document are not reflected.
 		 *
-		 * @param line A line number in [0, lineCount).
+		 * @param line A line number in `[0, lineCount)`.
 		 * @returns A {@link TextLine line}.
 		 */
 		lineAt(line: number): TextLine;
@@ -4683,7 +4683,7 @@ declare module 'vscode' {
 		/**
 		 * The currently active {@linkcode SignatureHelp}.
 		 *
-		 * The `activeSignatureHelp` has its [`SignatureHelp.activeSignature`] field updated based on
+		 * The `activeSignatureHelp` has its {@linkcode SignatureHelp.activeSignature activeSignature} field updated based on
 		 * the user arrowing through available signatures.
 		 */
 		readonly activeSignatureHelp: SignatureHelp | undefined;
@@ -5356,22 +5356,22 @@ declare module 'vscode' {
 	export class Color {
 
 		/**
-		 * The red component of this color in the range [0-1].
+		 * The red component of this color in the range `[0-1]`.
 		 */
 		readonly red: number;
 
 		/**
-		 * The green component of this color in the range [0-1].
+		 * The green component of this color in the range `[0-1]`.
 		 */
 		readonly green: number;
 
 		/**
-		 * The blue component of this color in the range [0-1].
+		 * The blue component of this color in the range `[0-1]`.
 		 */
 		readonly blue: number;
 
 		/**
-		 * The alpha component of this color in the range [0-1].
+		 * The alpha component of this color in the range `[0-1]`.
 		 */
 		readonly alpha: number;
 
@@ -6279,7 +6279,9 @@ declare module 'vscode' {
 		 * If the language supports Unicode identifiers (e.g. JavaScript), it is preferable
 		 * to provide a word definition that uses exclusion of known separators.
 		 * e.g.: A regex that matches anything except known separators (and dot is allowed to occur in a floating point number):
-		 *   /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g
+		 * ```
+		 * /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g
+		 * ```
 		 */
 		wordPattern?: RegExp;
 		/**
@@ -16880,6 +16882,11 @@ declare module 'vscode' {
 		 * Note: you cannot use this option with any other options that prompt the user like {@link AuthenticationGetSessionOptions.createIfNone createIfNone}.
 		 */
 		silent?: boolean;
+
+		/**
+		 * The account that you would like to get a session for. This is passed down to the Authentication Provider to be used for creating the correct session.
+		 */
+		account?: AuthenticationSessionAccountInformation;
 	}
 
 	/**
@@ -16941,6 +16948,18 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * The options passed in to the {@link AuthenticationProvider.getSessions} and
+	 * {@link AuthenticationProvider.createSession} call.
+	 */
+	export interface AuthenticationProviderSessionOptions {
+		/**
+		 * The account that is being asked about. If this is passed in, the provider should
+		 * attempt to return the sessions that are only related to this account.
+		 */
+		account?: AuthenticationSessionAccountInformation;
+	}
+
+	/**
 	 * A provider for performing authentication to a service.
 	 */
 	export interface AuthenticationProvider {
@@ -16954,9 +16973,10 @@ declare module 'vscode' {
 		 * Get a list of sessions.
 		 * @param scopes An optional list of scopes. If provided, the sessions returned should match
 		 * these permissions, otherwise all sessions should be returned.
+		 * @param options Additional options for getting sessions.
 		 * @returns A promise that resolves to an array of authentication sessions.
 		 */
-		getSessions(scopes?: readonly string[]): Thenable<readonly AuthenticationSession[]>;
+		getSessions(scopes: readonly string[] | undefined, options: AuthenticationProviderSessionOptions): Thenable<AuthenticationSession[]>;
 
 		/**
 		 * Prompts a user to login.
@@ -16969,9 +16989,10 @@ declare module 'vscode' {
 		 * then this should never be called if there is already an existing session matching these
 		 * scopes.
 		 * @param scopes A list of scopes, permissions, that the new session should be created with.
+		 * @param options Additional options for creating a session.
 		 * @returns A promise that resolves to an authentication session.
 		 */
-		createSession(scopes: readonly string[]): Thenable<AuthenticationSession>;
+		createSession(scopes: readonly string[], options: AuthenticationProviderSessionOptions): Thenable<AuthenticationSession>;
 
 		/**
 		 * Removes the session corresponding to session id.
@@ -17033,6 +17054,20 @@ declare module 'vscode' {
 		 * @returns A thenable that resolves to an authentication session if available, or undefined if there are no sessions
 		 */
 		export function getSession(providerId: string, scopes: readonly string[], options?: AuthenticationGetSessionOptions): Thenable<AuthenticationSession | undefined>;
+
+		/**
+		 * Get all accounts that the user is logged in to for the specified provider.
+		 * Use this paired with {@link getSession} in order to get an authentication session for a specific account.
+		 *
+		 * Currently, there are only two authentication providers that are contributed from built in extensions
+		 * to the editor that implement GitHub and Microsoft authentication: their providerId's are 'github' and 'microsoft'.
+		 *
+		 * Note: Getting accounts does not imply that your extension has access to that account or its authentication sessions. You can verify access to the account by calling {@link getSession}.
+		 *
+		 * @param providerId The id of the provider to use
+		 * @returns A thenable that resolves to a readonly array of authentication accounts.
+		 */
+		export function getAccounts(providerId: string): Thenable<readonly AuthenticationSessionAccountInformation[]>;
 
 		/**
 		 * An {@link Event} which fires when the authentication sessions of an authentication provider have
@@ -18618,8 +18653,8 @@ declare module 'vscode' {
 		 * An event that fires whenever feedback for a result is received, e.g. when a user up- or down-votes
 		 * a result.
 		 *
-		 * The passed {@link ChatResultFeedback.result result} is guaranteed to be the same instance that was
-		 * previously returned from this chat participant.
+		 * The passed {@link ChatResultFeedback.result result} is guaranteed to have the same properties as the result that was
+		 * previously returned from this chat participant's handler.
 		 */
 		onDidReceiveFeedback: Event<ChatResultFeedback>;
 
