@@ -121,7 +121,15 @@ flakySuite('Native Modules (all platforms)', () => {
 	test('@vscode/proxy-agent', async () => {
 		const proxyAgent = await import('@vscode/proxy-agent');
 		// This call will load `@vscode/proxy-agent` which is a native module that we want to test on Windows
-		const windowsCerts = await proxyAgent.loadSystemCertificates({ log: console });
+		const windowsCerts = await proxyAgent.loadSystemCertificates({
+			log: {
+				trace: () => { },
+				debug: () => { },
+				info: () => { },
+				warn: () => { },
+				error: () => { }
+			}
+		});
 		assert.ok(windowsCerts.length > 0, testErrorMessage('@vscode/proxy-agent'));
 	});
 });
