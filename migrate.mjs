@@ -8,7 +8,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join, extname, dirname, relative } from 'node:path';
 import { preProcessFile } from 'typescript';
-import { readdir, ensureDir } from './util.mjs';
+import { existsSync, mkdirSync, readdirSync, statSync } from 'fs';
 import { fileURLToPath } from 'node:url';
 
 // @ts-expect-error
@@ -337,6 +337,31 @@ function buffersAreEqual(existingFileContents, fileContents) {
 		fileContents = Buffer.from(fileContents);
 	}
 	return existingFileContents.equals(fileContents);
+}
+
+const ensureDirCache = new Set();
+function ensureDir(dirPath) {
+	if (ensureDirCache.has(dirPath)) {
+		return;
+	}
+	ensureDirCache.add(dirPath);
+	ensureDir(dirname(dirPath));
+	if (!existsSync(dirPath)) {
+		mkdirSync(dirPath);
+	}
+}
+
+function readdir(dirPath, result) {
+	const entries = readdirSync(dirPath);
+	for (const entry of entries) {
+		const entryPath = join(dirPath, entry);
+		const stat = statSync(entryPath);
+		if (stat.isDirectory()) {
+			readdir(join(dirPath, entry), result);
+		} else {
+			result.push(entryPath);
+		}
+	}
 }
 
 migrate(!process.argv.includes('--disable-watch'));
