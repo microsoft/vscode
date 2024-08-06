@@ -64,7 +64,7 @@ export class CSSDevelopmentService implements ICSSDevelopmentService {
 				resolve([]);
 			});
 			process.on('close', () => {
-				const result = chunks.flat().map(path => relative(basePath, path)).filter(Boolean).sort();
+				const result = chunks.flat().map(path => relative(basePath, path).replace(/\\/g, '/')).filter(Boolean).sort();
 				resolve(result);
 				this.logService.info(`[CSS_DEV] DONE, ${result.length} css modules (${Math.round(sw.elapsed())}ms)`);
 			});
