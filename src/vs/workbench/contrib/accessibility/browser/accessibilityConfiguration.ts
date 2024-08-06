@@ -766,9 +766,9 @@ export class DynamicSpeechAccessibilityConfiguration extends Disposable implemen
 					'type': 'string',
 					'enum': ['on', 'off', 'auto'],
 					'enumDescriptions': [
-						localize('accessibility.voice.autoSynthesize.on', "Enable the feature to automatically synthesize a textual response when speech was used as input."),
-						localize('accessibility.voice.autoSynthesize.off', "Disable the feature to automatically synthesize a textual response when speech was used as input."),
-						localize('accessibility.voice.autoSynthesize.auto', "When a screen reader is detected, disable the feature. Otherwise, enable the feature to automatically synthesize a textual response when speech was used as input.")
+						localize('accessibility.voice.autoSynthesize.on', "Enable the feature. When a screen reader is enabled, note that this will disable aria updates."),
+						localize('accessibility.voice.autoSynthesize.off', "Disable the feature."),
+						localize('accessibility.voice.autoSynthesize.auto', "When a screen reader is detected, disable the feature. Otherwise, enable the feature.")
 					],
 					'markdownDescription': localize('autoSynthesize', "Whether a textual response should automatically be read out aloud when speech was used as input. For example in a chat session, a response is automatically synthesized when voice was used as chat request."),
 					'default': this.productService.quality !== 'stable' ? 'auto' : 'off', // TODO@bpasero decide on a default
