@@ -374,7 +374,7 @@ export class QuickInputController extends Disposable {
 				resolve(undefined);
 				return;
 			}
-			const input = this.createQuickPick<T>();
+			const input = this.createQuickPick<T>({ useSeparators: true });
 			let activeItem: T | undefined;
 			const disposables = [
 				input,
@@ -545,9 +545,11 @@ export class QuickInputController extends Disposable {
 
 	backButton = backButton;
 
-	createQuickPick<T extends IQuickPickItem>(): IQuickPick<T> {
+	createQuickPick<T extends IQuickPickItem>(options: { useSeparators: true }): IQuickPick<T, { useSeparators: true }>;
+	createQuickPick<T extends IQuickPickItem>(options?: { useSeparators: boolean }): IQuickPick<T, { useSeparators: false }>;
+	createQuickPick<T extends IQuickPickItem>(options: { useSeparators: boolean } = { useSeparators: false }): IQuickPick<T, { useSeparators: boolean }> {
 		const ui = this.getUI(true);
-		return new QuickPick<T>(ui);
+		return new QuickPick<T, typeof options>(ui);
 	}
 
 	createInputBox(): IInputBox {

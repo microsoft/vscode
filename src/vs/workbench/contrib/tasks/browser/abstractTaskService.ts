@@ -55,7 +55,7 @@ import { getTemplates as getTaskTemplates } from 'vs/workbench/contrib/tasks/com
 import * as TaskConfig from '../common/taskConfiguration';
 import { TerminalTaskSystem } from './terminalTaskSystem';
 
-import { IQuickInputService, IQuickPick, IQuickPickItem, IQuickPickSeparator, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService, IQuickPickItem, IQuickPickSeparator, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { TaskDefinitionRegistry } from 'vs/workbench/contrib/tasks/common/taskDefinitionRegistry';
@@ -234,6 +234,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	private _onDidChangeTaskConfig: Emitter<void> = new Emitter();
 	public onDidChangeTaskConfig: Event<void> = this._onDidChangeTaskConfig.event;
 	public get isReconnected(): boolean { return this._tasksReconnected; }
+	private _onDidChangeTaskProviders = this._register(new Emitter<void>());
+	public onDidChangeTaskProviders = this._onDidChangeTaskProviders.event;
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -680,10 +682,12 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		const handle = AbstractTaskService._nextHandle++;
 		this._providers.set(handle, provider);
 		this._providerTypes.set(handle, type);
+		this._onDidChangeTaskProviders.fire();
 		return {
 			dispose: () => {
 				this._providers.delete(handle);
 				this._providerTypes.delete(handle);
+				this._onDidChangeTaskProviders.fire();
 			}
 		};
 	}
@@ -886,7 +890,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			return Promise.resolve<Task[]>([]);
 		}
 
-		return this._getGroupedTasks(filter, false).then((map) => this.applyFilterToTaskMap(filter, map));
+		return this._getGroupedTasks(filter, true).then((map) => this.applyFilterToTaskMap(filter, map));
 	}
 
 	public taskTypes(): string[] {
@@ -2738,7 +2742,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			entries.push(additionalEntries[0]);
 		}
 
-		const picker: IQuickPick<ITaskQuickPickEntry> = this._quickInputService.createQuickPick();
+		const picker = this._quickInputService.createQuickPick<ITaskQuickPickEntry>({ useSeparators: true });
 		picker.placeholder = placeHolder;
 		picker.matchOnDescription = true;
 		if (name) {

@@ -82,7 +82,6 @@ const isESM = false;
 			developerDeveloperKeybindingsDisposable = registerDeveloperKeybindings(disallowReloadKeybinding);
 		}
 
-		// VSCODE_GLOBALS: NLS
 		globalThis._VSCODE_NLS_MESSAGES = configuration.nls.messages;
 		globalThis._VSCODE_NLS_LANGUAGE = configuration.nls.language;
 		let language = configuration.nls.language || 'en';

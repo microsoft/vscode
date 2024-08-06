@@ -1333,7 +1333,7 @@ class SeparatorRenderer implements ICompressibleTreeRenderer<SCMViewSeparatorEle
 		]);
 		const menu = this.menuService.createMenu(MenuId.SCMChangesSeparator, contextKeyService);
 		templateData.elementDisposables.add(connectPrimaryMenu(menu, (primary, secondary) => {
-			secondary.push(...this.getFilterActions(element.element.repository));
+			secondary.splice(0, 0, ...this.getFilterActions(element.element.repository), new Separator());
 			templateData.toolBar.setActions(primary, secondary, [MenuId.SCMChangesSeparator]);
 		}));
 		templateData.toolBar.context = provider;
@@ -2280,10 +2280,9 @@ class ShowHistoryGraphAction extends Action2 {
 			title: localize('showHistoryGraph', "Show Incoming/Outgoing Changes"),
 			f1: false,
 			toggled: ContextKeyExpr.equals('config.scm.showHistoryGraph', true),
-			menu: {
-				id: Menus.ViewSort,
-				group: '3_other'
-			}
+			menu: [
+				{ id: MenuId.SCMChangesSeparator },
+				{ id: Menus.ViewSort, group: '3_other' }]
 		});
 	}
 

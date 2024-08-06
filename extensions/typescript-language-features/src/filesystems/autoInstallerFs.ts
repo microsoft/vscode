@@ -10,13 +10,14 @@ import { URI } from 'vscode-uri';
 import { Throttler } from '../utils/async';
 import { Disposable } from '../utils/dispose';
 import { MemFs } from './memFs';
+import { Logger } from '../logging/logger';
 
 const TEXT_DECODER = new TextDecoder('utf-8');
 const TEXT_ENCODER = new TextEncoder();
 
 export class AutoInstallerFs extends Disposable implements vscode.FileSystemProvider {
 
-	private readonly memfs = new MemFs();
+	private readonly memfs: MemFs;
 	private readonly packageManager: PackageManager;
 	private readonly _projectCache = new Map</* root */ string, {
 		readonly throttler: Throttler;
@@ -25,10 +26,13 @@ export class AutoInstallerFs extends Disposable implements vscode.FileSystemProv
 	private readonly _emitter = this._register(new vscode.EventEmitter<vscode.FileChangeEvent[]>());
 	readonly onDidChangeFile = this._emitter.event;
 
-	constructor() {
+	constructor(
+		private readonly logger: Logger
+	) {
 		super();
 
-		const memfs = this.memfs;
+		const memfs = new MemFs('auto-installer', logger);
+		this.memfs = memfs;
 		memfs.onDidChangeFile((e) => {
 			this._emitter.fire(e.map(ev => ({
 				type: ev.type,
@@ -75,12 +79,13 @@ export class AutoInstallerFs extends Disposable implements vscode.FileSystemProv
 
 	watch(resource: vscode.Uri): vscode.Disposable {
 		const mapped = URI.file(new MappedUri(resource).path);
-		console.log('watching', mapped);
+		this.logger.trace(`AutoInstallerFs.watch. Original: ${resource.toString()}, Mapped: ${mapped.toString()}`);
 		return this.memfs.watch(mapped);
 	}
 
 	async stat(uri: vscode.Uri): Promise<vscode.FileStat> {
-		// console.log('stat', uri.toString());
+		this.logger.trace(`AutoInstallerFs.stat: ${uri}`);
+
 		const mapped = new MappedUri(uri);
 
 		// TODO: case sensitivity configuration
@@ -102,7 +107,8 @@ export class AutoInstallerFs extends Disposable implements vscode.FileSystemProv
 	}
 
 	async readDirectory(uri: vscode.Uri): Promise<[string, vscode.FileType][]> {
-		// console.log('readDirectory', uri.toString());
+		this.logger.trace(`AutoInstallerFs.readDirectory: ${uri}`);
+
 		const mapped = new MappedUri(uri);
 		await this.ensurePackageContents(mapped);
 
@@ -110,7 +116,8 @@ export class AutoInstallerFs extends Disposable implements vscode.FileSystemProv
 	}
 
 	async readFile(uri: vscode.Uri): Promise<Uint8Array> {
-		// console.log('readFile', uri.toString());
+		this.logger.trace(`AutoInstallerFs.readFile: ${uri}`);
+
 		const mapped = new MappedUri(uri);
 		await this.ensurePackageContents(mapped);
 
@@ -148,7 +155,8 @@ export class AutoInstallerFs extends Disposable implements vscode.FileSystemProv
 		if (!root) {
 			return;
 		}
-		console.log('ensurePackageContents', incomingUri.path, root);
+
+		this.logger.trace(`AutoInstallerFs.ensurePackageContents. Path: ${incomingUri.path}, Root: ${root}`);
 
 		let projectEntry = this._projectCache.get(root);
 		if (!projectEntry) {
@@ -195,9 +203,6 @@ export class AutoInstallerFs extends Disposable implements vscode.FileSystemProv
 		const pkgPath = path.match(/(^.*)\/node_modules/);
 		return pkgPath?.[1];
 	}
-
-	// --- manage file events
-
 }
 
 class MappedUri {

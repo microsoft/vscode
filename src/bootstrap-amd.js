@@ -125,7 +125,6 @@ async function doSetupNLS() {
 				messagesFile = nlsConfig.defaultMessagesFile;
 			}
 
-			// VSCODE_GLOBALS: NLS
 			globalThis._VSCODE_NLS_LANGUAGE = nlsConfig?.resolvedLanguage;
 		} catch (e) {
 			console.error(`Error reading VSCODE_NLS_CONFIG from environment: ${e}`);
@@ -140,7 +139,6 @@ async function doSetupNLS() {
 	}
 
 	try {
-		// VSCODE_GLOBALS: NLS
 		globalThis._VSCODE_NLS_MESSAGES = JSON.parse((await fs.promises.readFile(messagesFile)).toString());
 	} catch (error) {
 		console.error(`Error reading NLS messages file ${messagesFile}: ${error}`);
@@ -157,7 +155,6 @@ async function doSetupNLS() {
 		// Fallback to the default message file to ensure english translation at least
 		if (nlsConfig?.defaultMessagesFile && nlsConfig.defaultMessagesFile !== messagesFile) {
 			try {
-				// VSCODE_GLOBALS: NLS
 				globalThis._VSCODE_NLS_MESSAGES = JSON.parse((await fs.promises.readFile(nlsConfig.defaultMessagesFile)).toString());
 			} catch (error) {
 				console.error(`Error reading default NLS messages file ${nlsConfig.defaultMessagesFile}: ${error}`);

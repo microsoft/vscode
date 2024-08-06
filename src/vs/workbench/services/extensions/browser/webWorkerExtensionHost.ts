@@ -192,7 +192,6 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 						workerUrl: isESM ? FileAccess.asBrowserUri(factoryModuleId).toString(true) : require.toUrl(factoryModuleId),
 						fileRoot: globalThis._VSCODE_FILE_ROOT,
 						nls: {
-							// VSCODE_GLOBALS: NLS
 							messages: globalThis._VSCODE_NLS_MESSAGES,
 							language: globalThis._VSCODE_NLS_LANGUAGE
 						}

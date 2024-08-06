@@ -14,11 +14,20 @@ import { localize } from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { AccessibilityHelpNLS } from 'vs/editor/common/standaloneStrings';
+import { FocusedViewContext, SidebarFocusContext } from 'vs/workbench/common/contextkeys';
+import { BREAKPOINTS_VIEW_ID, CALLSTACK_VIEW_ID, LOADED_SCRIPTS_VIEW_ID, VARIABLES_VIEW_ID, WATCH_VIEW_ID } from 'vs/workbench/contrib/debug/common/debug';
 
 export class RunAndDebugAccessibilityHelp implements IAccessibleViewImplentation {
 	priority = 120;
 	name = 'runAndDebugHelp';
-	when = ContextKeyExpr.equals('activeViewlet', 'workbench.view.debug');
+	when = ContextKeyExpr.or(
+		ContextKeyExpr.and(ContextKeyExpr.equals('activeViewlet', 'workbench.view.debug'), SidebarFocusContext),
+		ContextKeyExpr.equals(FocusedViewContext.key, VARIABLES_VIEW_ID),
+		ContextKeyExpr.equals(FocusedViewContext.key, WATCH_VIEW_ID),
+		ContextKeyExpr.equals(FocusedViewContext.key, CALLSTACK_VIEW_ID),
+		ContextKeyExpr.equals(FocusedViewContext.key, LOADED_SCRIPTS_VIEW_ID),
+		ContextKeyExpr.equals(FocusedViewContext.key, BREAKPOINTS_VIEW_ID)
+	);
 	type: AccessibleViewType = AccessibleViewType.Help;
 	getProvider(accessor: ServicesAccessor) {
 		return new RunAndDebugAccessibilityHelpProvider(accessor.get(ICommandService), accessor.get(IViewsService));

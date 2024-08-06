@@ -229,7 +229,7 @@ export class TaskQuickPick extends Disposable {
 	}
 
 	public async show(placeHolder: string, defaultEntry?: ITaskQuickPickEntry, startAtType?: string, name?: string): Promise<Task | undefined | null> {
-		const picker: IQuickPick<ITaskTwoLevelQuickPickEntry> = this._quickInputService.createQuickPick();
+		const picker = this._quickInputService.createQuickPick<ITaskTwoLevelQuickPickEntry>({ useSeparators: true });
 		picker.placeholder = placeHolder;
 		picker.matchOnDescription = true;
 		picker.ignoreFocusOut = false;
@@ -308,7 +308,7 @@ export class TaskQuickPick extends Disposable {
 
 
 
-	private async _doPickerFirstLevel(picker: IQuickPick<ITaskTwoLevelQuickPickEntry>, taskQuickPickEntries: QuickPickInput<ITaskTwoLevelQuickPickEntry>[]): Promise<Task | ConfiguringTask | string | null | undefined> {
+	private async _doPickerFirstLevel(picker: IQuickPick<ITaskTwoLevelQuickPickEntry, { useSeparators: true }>, taskQuickPickEntries: QuickPickInput<ITaskTwoLevelQuickPickEntry>[]): Promise<Task | ConfiguringTask | string | null | undefined> {
 		picker.items = taskQuickPickEntries;
 		showWithPinnedItems(this._storageService, runTaskStorageKey, picker, true);
 		const firstLevelPickerResult = await new Promise<ITaskTwoLevelQuickPickEntry | undefined | null>(resolve => {
@@ -319,7 +319,7 @@ export class TaskQuickPick extends Disposable {
 		return firstLevelPickerResult?.task;
 	}
 
-	public async doPickerSecondLevel(picker: IQuickPick<ITaskTwoLevelQuickPickEntry>, type: string, name?: string) {
+	public async doPickerSecondLevel(picker: IQuickPick<ITaskTwoLevelQuickPickEntry, { useSeparators: true }>, type: string, name?: string) {
 		picker.busy = true;
 		if (type === SHOW_ALL) {
 			const items = (await this._taskService.tasks()).filter(t => !t.configurationProperties.hide).sort((a, b) => this._sorter.compare(a, b)).map(task => this._createTaskEntry(task));

@@ -10,7 +10,7 @@ import { ErrorNoTelemetry } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Iterable } from 'vs/base/common/iterator';
-import { Disposable, DisposableMap } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableMap, IDisposable } from 'vs/base/common/lifecycle';
 import { revive } from 'vs/base/common/marshalling';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { URI, UriComponents } from 'vs/base/common/uri';
@@ -77,11 +77,26 @@ type ChatProviderInvokedClassification = {
 
 const maxPersistedSessions = 25;
 
+class CancellableRequest implements IDisposable {
+	constructor(
+		public readonly cancellationTokenSource: CancellationTokenSource,
+		public requestId?: string | undefined
+	) { }
+
+	dispose() {
+		this.cancellationTokenSource.dispose();
+	}
+
+	cancel() {
+		this.cancellationTokenSource.cancel();
+	}
+}
+
 export class ChatService extends Disposable implements IChatService {
 	declare _serviceBrand: undefined;
 
 	private readonly _sessionModels = this._register(new DisposableMap<string, ChatModel>());
-	private readonly _pendingRequests = this._register(new DisposableMap<string, CancellationTokenSource>());
+	private readonly _pendingRequests = this._register(new DisposableMap<string, CancellableRequest>());
 	private _persistedSessions: ISerializableChatsData;
 
 	/** Just for empty windows, need to enforce that a chat was deleted, even though other windows still have it */
@@ -581,7 +596,7 @@ export class ChatService extends Disposable implements IChatService {
 
 					let detectedAgent: IChatAgentData | undefined;
 					let detectedCommand: IChatAgentCommand | undefined;
-					if (this.configurationService.getValue('chat.experimental.detectParticipant.enabled') && !agentPart && !commandPart) {
+					if (this.configurationService.getValue('chat.experimental.detectParticipant.enabled') && !agentPart && !commandPart && enableCommandDetection) {
 						// We have no agent or command to scope history with, pass the full history to the participant detection provider
 						const defaultAgentHistory = getHistoryEntriesFromModel(model, defaultAgent.id);
 
@@ -604,6 +619,10 @@ export class ChatService extends Disposable implements IChatService {
 					// Recompute history in case the agent or command changed
 					const history = getHistoryEntriesFromModel(model, agent.id);
 					const requestProps = await prepareChatAgentRequest(agent, command, request /* Reuse the request object if we already created it for participant detection */);
+					const pendingRequest = this._pendingRequests.get(sessionId);
+					if (pendingRequest && !pendingRequest.requestId) {
+						pendingRequest.requestId = requestProps.requestId;
+					}
 					completeResponseCreated();
 					const agentResult = await this.chatAgentService.invokeAgent(agent.id, requestProps, progressCallback, history, token);
 					rawResult = agentResult;
@@ -695,7 +714,7 @@ export class ChatService extends Disposable implements IChatService {
 			}
 		};
 		const rawResponsePromise = sendRequestInternal();
-		this._pendingRequests.set(model.sessionId, source);
+		this._pendingRequests.set(model.sessionId, new CancellableRequest(source));
 		rawResponsePromise.finally(() => {
 			this._pendingRequests.deleteAndDispose(model.sessionId);
 		});
@@ -712,6 +731,12 @@ export class ChatService extends Disposable implements IChatService {
 		}
 
 		await model.waitForInitialization();
+
+		const pendingRequest = this._pendingRequests.get(sessionId);
+		if (pendingRequest?.requestId === requestId) {
+			pendingRequest.cancel();
+			this._pendingRequests.deleteAndDispose(sessionId);
+		}
 
 		model.removeRequest(requestId);
 	}
@@ -733,6 +758,7 @@ export class ChatService extends Disposable implements IChatService {
 		if (request.response && !request.response.isComplete) {
 			const cts = this._pendingRequests.deleteAndLeak(oldOwner.sessionId);
 			if (cts) {
+				cts.requestId = request.id;
 				this._pendingRequests.set(target.sessionId, cts);
 			}
 		}

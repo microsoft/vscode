@@ -116,6 +116,11 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.experimental.variables.terminal', "Enables variables for terminal chat."),
 			default: false
 		},
+		'chat.experimental.detectParticipant.enabled': {
+			type: 'boolean',
+			description: nls.localize('chat.experimental.detectParticipant.enabled', "Enables chat participant autodetection for panel chat."),
+			default: false
+		},
 	}
 });
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(

@@ -89,7 +89,6 @@ function getWorkerBootstrapUrl(label: string, workerScriptUrl: string, workerBas
 	const blob = new Blob([coalesce([
 		`/*${label}*/`,
 		workerBaseUrl ? `globalThis.MonacoEnvironment = { baseUrl: '${workerBaseUrl}' };` : undefined,
-		// VSCODE_GLOBALS: NLS
 		`globalThis._VSCODE_NLS_MESSAGES = ${JSON.stringify(globalThis._VSCODE_NLS_MESSAGES)};`,
 		`globalThis._VSCODE_NLS_LANGUAGE = ${JSON.stringify(globalThis._VSCODE_NLS_LANGUAGE)};`,
 		`globalThis._VSCODE_FILE_ROOT = '${_VSCODE_FILE_ROOT}';`,

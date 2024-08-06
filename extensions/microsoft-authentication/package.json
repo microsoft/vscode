@@ -14,8 +14,7 @@
   ],
   "activationEvents": [],
   "enabledApiProposals": [
-    "idToken",
-    "authGetSessions"
+    "idToken"
   ],
   "capabilities": {
     "virtualWorkspaces": true,
