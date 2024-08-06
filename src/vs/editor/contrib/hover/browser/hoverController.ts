@@ -7,7 +7,7 @@ import { DECREASE_HOVER_VERBOSITY_ACTION_ID, INCREASE_HOVER_VERBOSITY_ACTION_ID,
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ICodeEditor, IEditorMouseEvent, IPartialEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IEditorMouseEvent, IPartialEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution, IScrollEvent } from 'vs/editor/common/editorCommon';
@@ -20,7 +20,6 @@ import { ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
 import { HoverVerbosityAction } from 'vs/editor/common/languages';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { isMousePositionWithinElement } from 'vs/editor/contrib/hover/browser/hoverUtils';
-import { ContentHoverWidget } from 'vs/editor/contrib/hover/browser/contentHoverWidget';
 import { ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHoverController';
 import 'vs/css!./hover';
 import { MarginHoverWidget } from 'vs/editor/contrib/hover/browser/marginHoverWidget';
@@ -161,12 +160,6 @@ export class HoverController extends Disposable implements IEditorContribution {
 	}
 
 	private _isMouseOnMarginHoverWidget(mouseEvent: IPartialEditorMouseEvent): boolean {
-		const target = mouseEvent.target;
-		// TODO: potentially not needed check as we check mouse position below, kept for now
-		const isTargetMarginHoverWidget = target && (target.type === MouseTargetType.OVERLAY_WIDGET && target.detail === MarginHoverWidget.ID);
-		if (isTargetMarginHoverWidget) {
-			return true;
-		}
 		const marginHoverWidgetNode = this._glyphWidget?.getDomNode();
 		if (marginHoverWidgetNode) {
 			return isMousePositionWithinElement(marginHoverWidgetNode, mouseEvent.event.posx, mouseEvent.event.posy);
@@ -175,12 +168,6 @@ export class HoverController extends Disposable implements IEditorContribution {
 	}
 
 	private _isMouseOnContentHoverWidget(mouseEvent: IPartialEditorMouseEvent): boolean {
-		const target = mouseEvent.target;
-		// TODO: potentially not needed check as we check mouse position below, kept for now
-		const isTargetContentHoverWidget = target && (target.type === MouseTargetType.CONTENT_WIDGET && target.detail === ContentHoverWidget.ID);
-		if (isTargetContentHoverWidget) {
-			return true;
-		}
 		const contentWidgetNode = this._contentWidget?.getDomNode();
 		if (contentWidgetNode) {
 			return isMousePositionWithinElement(contentWidgetNode, mouseEvent.event.posx, mouseEvent.event.posy);
