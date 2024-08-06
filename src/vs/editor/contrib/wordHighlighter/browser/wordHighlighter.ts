@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as arrays from 'vs/base/common/arrays';
 import { alert } from 'vs/base/browser/ui/aria/aria';
-import { CancelablePromise, createCancelablePromise, Delayer, first, timeout } from 'vs/base/common/async';
+import { CancelablePromise, createCancelablePromise, Delayer, first } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
@@ -23,7 +22,7 @@ import { CursorChangeReason, ICursorPositionChangedEvent } from 'vs/editor/commo
 import { IDiffEditor, IEditorContribution, IEditorDecorationsCollection } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
-import { DocumentHighlight, DocumentHighlightKind, DocumentHighlightProvider, MultiDocumentHighlightProvider } from 'vs/editor/common/languages';
+import { DocumentHighlight, DocumentHighlightProvider, MultiDocumentHighlightProvider } from 'vs/editor/common/languages';
 import { IModelDeltaDecoration, ITextModel, shouldSynchronizeModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { getHighlightDecorationOptions } from 'vs/editor/contrib/wordHighlighter/browser/highlightDecorations';
@@ -34,8 +33,8 @@ import { Schemas } from 'vs/base/common/network';
 import { ResourceMap } from 'vs/base/common/map';
 import { score } from 'vs/editor/common/languageSelector';
 import { isEqual } from 'vs/base/common/resources';
-// import { TextualMultiDocumentHighlightFeature } from 'vs/editor/contrib/wordHighlighter/browser/textualHighlightProvider';
-// import { registerEditorFeature } from 'vs/editor/common/editorFeatures';
+import { TextualMultiDocumentHighlightFeature } from 'vs/editor/contrib/wordHighlighter/browser/textualHighlightProvider';
+import { registerEditorFeature } from 'vs/editor/common/editorFeatures';
 
 const ctxHasWordHighlights = new RawContextKey<boolean>('hasWordHighlights', false);
 
@@ -44,11 +43,12 @@ export function getOccurrencesAtPosition(registry: LanguageFeatureRegistry<Docum
 
 	// in order of score ask the occurrences provider
 	// until someone response with a good result
-	// (good = none empty array)
+	// (good = non undefined and non null value)
+	// (result of size == 0 is valid, no highlights is a valid/expected result -- not a signal to fall back to other providers)
 	return first<DocumentHighlight[] | null | undefined>(orderedByScore.map(provider => () => {
 		return Promise.resolve(provider.provideDocumentHighlights(model, position, token))
 			.then(undefined, onUnexpectedExternalError);
-	}), arrays.isNonEmptyArray).then(result => {
+	}), (result): result is DocumentHighlight[] => result !== undefined && result !== null).then(result => {
 		if (result) {
 			const map = new ResourceMap<DocumentHighlight[]>();
 			map.set(model.uri, result);
@@ -63,17 +63,17 @@ export function getOccurrencesAcrossMultipleModels(registry: LanguageFeatureRegi
 
 	// in order of score ask the occurrences provider
 	// until someone response with a good result
-	// (good = none empty array)
+	// (good = non undefined and non null ResourceMap)
+	// (result of size == 0 is valid, no highlights is a valid/expected result -- not a signal to fall back to other providers)
 	return first<ResourceMap<DocumentHighlight[]> | null | undefined>(orderedByScore.map(provider => () => {
 		const filteredModels = otherModels.filter(otherModel => {
 			return shouldSynchronizeModel(otherModel);
 		}).filter(otherModel => {
 			return score(provider.selector, otherModel.uri, otherModel.getLanguageId(), true, undefined, undefined) > 0;
 		});
-
 		return Promise.resolve(provider.provideMultiDocumentHighlights(model, position, filteredModels, token))
 			.then(undefined, onUnexpectedExternalError);
-	}), (t: ResourceMap<DocumentHighlight[]> | null | undefined): t is ResourceMap<DocumentHighlight[]> => t instanceof ResourceMap && t.size > 0);
+	}), (result): result is ResourceMap<DocumentHighlight[]> => result !== undefined && result !== null);
 }
 
 interface IOccurenceAtPositionRequest {
@@ -184,76 +184,13 @@ class MultiModelOccurenceRequest extends OccurenceAtPositionRequest {
 	}
 }
 
-class TextualOccurenceRequest extends OccurenceAtPositionRequest {
-
-	private readonly _otherModels: ITextModel[];
-	private readonly _selectionIsEmpty: boolean;
-	private readonly _word: IWordAtPosition | null;
-
-	constructor(model: ITextModel, selection: Selection, word: IWordAtPosition | null, wordSeparators: string, otherModels: ITextModel[]) {
-		super(model, selection, wordSeparators);
-		this._otherModels = otherModels;
-		this._selectionIsEmpty = selection.isEmpty();
-		this._word = word;
-	}
-
-	protected _compute(model: ITextModel, selection: Selection, wordSeparators: string, token: CancellationToken): Promise<ResourceMap<DocumentHighlight[]>> {
-		return timeout(250, token).then(() => {
-			const result = new ResourceMap<DocumentHighlight[]>();
-
-			let wordResult;
-			if (this._word) {
-				wordResult = this._word;
-			} else {
-				wordResult = model.getWordAtPosition(selection.getPosition());
-			}
-
-			if (!wordResult) {
-				return new ResourceMap<DocumentHighlight[]>();
-			}
-
-			const allModels = [model, ...this._otherModels];
-
-			for (const otherModel of allModels) {
-				if (otherModel.isDisposed()) {
-					continue;
-				}
-
-				const matches = otherModel.findMatches(wordResult.word, true, false, true, wordSeparators, false);
-				const highlights = matches.map(m => ({
-					range: m.range,
-					kind: DocumentHighlightKind.Text
-				}));
-
-				if (highlights) {
-					result.set(otherModel.uri, highlights);
-				}
-			}
-			return result;
-		});
-	}
-
-	public override isValid(model: ITextModel, selection: Selection, decorations: IEditorDecorationsCollection): boolean {
-		const currentSelectionIsEmpty = selection.isEmpty();
-		if (this._selectionIsEmpty !== currentSelectionIsEmpty) {
-			return false;
-		}
-		return super.isValid(model, selection, decorations);
-	}
-}
 
 function computeOccurencesAtPosition(registry: LanguageFeatureRegistry<DocumentHighlightProvider>, model: ITextModel, selection: Selection, word: IWordAtPosition | null, wordSeparators: string): IOccurenceAtPositionRequest {
-	if (registry.has(model)) {
-		return new SemanticOccurenceAtPositionRequest(model, selection, wordSeparators, registry);
-	}
-	return new TextualOccurenceRequest(model, selection, word, wordSeparators, []);
+	return new SemanticOccurenceAtPositionRequest(model, selection, wordSeparators, registry);
 }
 
 function computeOccurencesMultiModel(registry: LanguageFeatureRegistry<MultiDocumentHighlightProvider>, model: ITextModel, selection: Selection, word: IWordAtPosition | null, wordSeparators: string, otherModels: ITextModel[]): IOccurenceAtPositionRequest {
-	if (registry.has(model)) {
-		return new MultiModelOccurenceRequest(model, selection, wordSeparators, registry, otherModels);
-	}
-	return new TextualOccurenceRequest(model, selection, word, wordSeparators, otherModels);
+	return new MultiModelOccurenceRequest(model, selection, wordSeparators, registry, otherModels);
 }
 
 registerModelAndPositionCommand('_executeDocumentHighlights', async (accessor, model, position) => {
@@ -734,7 +671,7 @@ class WordHighlighter {
 			// 		1) we have text focus, and a valid query was updated.
 			// 		2) we do not have text focus, and a valid query is cached.
 			// the query will ALWAYS have the correct data for the current highlight request, so it can always be passed to the workerRequest safely
-			if (!WordHighlighter.query.modelInfo || WordHighlighter.query.modelInfo.model.isDisposed()) {
+			if (!WordHighlighter.query || !WordHighlighter.query.modelInfo || WordHighlighter.query.modelInfo.model.isDisposed()) {
 				return;
 			}
 			this.workerRequest = this.computeWithModel(WordHighlighter.query.modelInfo.model, WordHighlighter.query.modelInfo.selection, WordHighlighter.query.word, otherModelsToHighlight);
@@ -973,4 +910,4 @@ registerEditorContribution(WordHighlighterContribution.ID, WordHighlighterContri
 registerEditorAction(NextWordHighlightAction);
 registerEditorAction(PrevWordHighlightAction);
 registerEditorAction(TriggerWordHighlightAction);
-// registerEditorFeature(TextualMultiDocumentHighlightFeature);
+registerEditorFeature(TextualMultiDocumentHighlightFeature);

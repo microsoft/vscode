@@ -1105,6 +1105,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				}
 
 				return uriPromise.then(uri => {
+					extHostLogService.trace(`openTextDocument from ${extension.identifier}`);
 					if (uri.scheme === Schemas.vscodeRemote && !uri.authority) {
 						extHostApiDeprecation.report('workspace.openTextDocument', extension, `A URI of 'vscode-remote' scheme requires an authority.`);
 					}

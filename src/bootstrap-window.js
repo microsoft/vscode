@@ -110,7 +110,7 @@ const isESM = false;
 			// DEV: For each CSS modules that we have we defined an entry in the import map that maps to
 			// DEV: a blob URL that loads the CSS via a dynamic @import-rule.
 			// DEV ---------------------------------------------------------------------------------------
-			if (configuration.cssModules) {
+			if (Array.isArray(configuration.cssModules) && configuration.cssModules.length > 0) {
 				performance.mark('code/willAddCssLoader');
 
 				const style = document.createElement('style');
