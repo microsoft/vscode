@@ -214,6 +214,9 @@ export interface ITerminalConfiguration {
 	smoothScrolling: boolean;
 	ignoreBracketedPasteMode: boolean;
 	rescaleOverlappingGlyphs: boolean;
+	experimental?: {
+		windowsUseConptyDll?: boolean;
+	};
 }
 
 export interface ITerminalFont {

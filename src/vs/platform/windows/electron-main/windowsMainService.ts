@@ -1445,7 +1445,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			userEnv: { ...this.initialUserEnv, ...options.userEnv },
 
 			nls: {
-				// VSCODE_GLOBALS: NLS
 				messages: globalThis._VSCODE_NLS_MESSAGES,
 				language: globalThis._VSCODE_NLS_LANGUAGE
 			},

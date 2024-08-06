@@ -10,11 +10,12 @@ import { ErrorNoTelemetry } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Iterable } from 'vs/base/common/iterator';
-import { Disposable, DisposableMap } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableMap, IDisposable } from 'vs/base/common/lifecycle';
 import { revive } from 'vs/base/common/marshalling';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -22,7 +23,7 @@ import { Progress } from 'vs/platform/progress/common/progress';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ChatAgentLocation, IChatAgent, IChatAgentRequest, IChatAgentResult, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { ChatAgentLocation, IChatAgent, IChatAgentCommand, IChatAgentData, IChatAgentRequest, IChatAgentResult, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { CONTEXT_VOTE_UP_ENABLED } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, ChatWelcomeMessageModel, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatsData, getHistoryEntriesFromModel, updateRanges } from 'vs/workbench/contrib/chat/common/chatModel';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, IParsedChatRequest, chatAgentLeader, chatSubcommandLeader, getPromptText } from 'vs/workbench/contrib/chat/common/chatParserTypes';
@@ -76,11 +77,26 @@ type ChatProviderInvokedClassification = {
 
 const maxPersistedSessions = 25;
 
+class CancellableRequest implements IDisposable {
+	constructor(
+		public readonly cancellationTokenSource: CancellationTokenSource,
+		public requestId?: string | undefined
+	) { }
+
+	dispose() {
+		this.cancellationTokenSource.dispose();
+	}
+
+	cancel() {
+		this.cancellationTokenSource.cancel();
+	}
+}
+
 export class ChatService extends Disposable implements IChatService {
 	declare _serviceBrand: undefined;
 
 	private readonly _sessionModels = this._register(new DisposableMap<string, ChatModel>());
-	private readonly _pendingRequests = this._register(new DisposableMap<string, CancellationTokenSource>());
+	private readonly _pendingRequests = this._register(new DisposableMap<string, CancellableRequest>());
 	private _persistedSessions: ISerializableChatsData;
 
 	/** Just for empty windows, need to enforce that a chat was deleted, even though other windows still have it */
@@ -111,7 +127,8 @@ export class ChatService extends Disposable implements IChatService {
 		@IChatVariablesService private readonly chatVariablesService: IChatVariablesService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IWorkbenchAssignmentService workbenchAssignmentService: IWorkbenchAssignmentService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 
@@ -549,35 +566,64 @@ export class ChatService extends Disposable implements IChatService {
 				let rawResult: IChatAgentResult | null | undefined;
 				let agentOrCommandFollowups: Promise<IChatFollowup[] | undefined> | undefined = undefined;
 
+
 				if (agentPart || (defaultAgent && !commandPart)) {
-					const agent = (agentPart?.agent ?? defaultAgent)!;
-					await this.extensionService.activateByEvent(`onChatParticipant:${agent.id}`);
-					const history = getHistoryEntriesFromModel(model, agentPart?.agent.id);
+					const prepareChatAgentRequest = async (agent: IChatAgentData, command?: IChatAgentCommand, chatRequest?: ChatRequestModel) => {
+						const initVariableData: IChatRequestVariableData = { variables: [] };
+						request = chatRequest ?? model.addRequest(parsedRequest, initVariableData, attempt, agent, command, options?.confirmation);
 
-					const initVariableData: IChatRequestVariableData = { variables: [] };
-					request = model.addRequest(parsedRequest, initVariableData, attempt, agent, agentSlashCommandPart?.command, options?.confirmation);
-					completeResponseCreated();
-					const variableData = await this.chatVariablesService.resolveVariables(parsedRequest, options?.attachedContext, model, progressCallback, token);
-					model.updateRequest(request, variableData);
+						// Variables may have changed if the agent and slash command changed, so resolve them again even if we already had a chatRequest
+						const variableData = await this.chatVariablesService.resolveVariables(parsedRequest, options?.attachedContext, model, progressCallback, token);
+						model.updateRequest(request, variableData);
+						const promptTextResult = getPromptText(request.message);
+						const updatedVariableData = updateRanges(variableData, promptTextResult.diff); // TODO bit of a hack
 
-					const promptTextResult = getPromptText(request.message);
-					const updatedVariableData = updateRanges(variableData, promptTextResult.diff); // TODO bit of a hack
-
-					const requestProps: IChatAgentRequest = {
-						sessionId,
-						requestId: request.id,
-						agentId: agent.id,
-						message: promptTextResult.message,
-						command: agentSlashCommandPart?.command.name,
-						variables: updatedVariableData,
-						enableCommandDetection,
-						attempt,
-						location,
-						locationData: options?.locationData,
-						acceptedConfirmationData: options?.acceptedConfirmationData,
-						rejectedConfirmationData: options?.rejectedConfirmationData,
+						return {
+							sessionId,
+							requestId: request.id,
+							agentId: agent.id,
+							message: promptTextResult.message,
+							command: command?.name,
+							variables: updatedVariableData,
+							enableCommandDetection,
+							attempt,
+							location,
+							locationData: options?.locationData,
+							acceptedConfirmationData: options?.acceptedConfirmationData,
+							rejectedConfirmationData: options?.rejectedConfirmationData,
+						} satisfies IChatAgentRequest;
 					};
 
+					let detectedAgent: IChatAgentData | undefined;
+					let detectedCommand: IChatAgentCommand | undefined;
+					if (this.configurationService.getValue('chat.experimental.detectParticipant.enabled') && !agentPart && !commandPart && enableCommandDetection) {
+						// We have no agent or command to scope history with, pass the full history to the participant detection provider
+						const defaultAgentHistory = getHistoryEntriesFromModel(model, defaultAgent.id);
+
+						// Prepare the request object that we will send to the participant detection provider
+						const chatAgentRequest = await prepareChatAgentRequest(defaultAgent, agentSlashCommandPart?.command);
+
+						const result = await this.chatAgentService.detectAgentOrCommand(chatAgentRequest, defaultAgentHistory, { location }, token);
+						if (result) {
+							// Update the response in the ChatModel to reflect the detected agent and command
+							request.response?.setAgent(result.agent, result.command);
+							detectedAgent = result.agent;
+							detectedCommand = result.command;
+						}
+					}
+
+					const agent = (detectedAgent ?? agentPart?.agent ?? defaultAgent)!;
+					const command = detectedCommand ?? agentSlashCommandPart?.command;
+					await this.extensionService.activateByEvent(`onChatParticipant:${agent.id}`);
+
+					// Recompute history in case the agent or command changed
+					const history = getHistoryEntriesFromModel(model, agent.id);
+					const requestProps = await prepareChatAgentRequest(agent, command, request /* Reuse the request object if we already created it for participant detection */);
+					const pendingRequest = this._pendingRequests.get(sessionId);
+					if (pendingRequest && !pendingRequest.requestId) {
+						pendingRequest.requestId = requestProps.requestId;
+					}
+					completeResponseCreated();
 					const agentResult = await this.chatAgentService.invokeAgent(agent.id, requestProps, progressCallback, history, token);
 					rawResult = agentResult;
 					agentOrCommandFollowups = this.chatAgentService.getFollowups(agent.id, requestProps, agentResult, history, followupsCancelToken);
@@ -668,7 +714,7 @@ export class ChatService extends Disposable implements IChatService {
 			}
 		};
 		const rawResponsePromise = sendRequestInternal();
-		this._pendingRequests.set(model.sessionId, source);
+		this._pendingRequests.set(model.sessionId, new CancellableRequest(source));
 		rawResponsePromise.finally(() => {
 			this._pendingRequests.deleteAndDispose(model.sessionId);
 		});
@@ -685,6 +731,12 @@ export class ChatService extends Disposable implements IChatService {
 		}
 
 		await model.waitForInitialization();
+
+		const pendingRequest = this._pendingRequests.get(sessionId);
+		if (pendingRequest?.requestId === requestId) {
+			pendingRequest.cancel();
+			this._pendingRequests.deleteAndDispose(sessionId);
+		}
 
 		model.removeRequest(requestId);
 	}
@@ -706,6 +758,7 @@ export class ChatService extends Disposable implements IChatService {
 		if (request.response && !request.response.isComplete) {
 			const cts = this._pendingRequests.deleteAndLeak(oldOwner.sessionId);
 			if (cts) {
+				cts.requestId = request.id;
 				this._pendingRequests.set(target.sessionId, cts);
 			}
 		}

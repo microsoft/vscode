@@ -80,7 +80,6 @@ const vscodeResources = [
 // be inlined into the target window file in this order
 // and they depend on each other in this way.
 const windowBootstrapFiles = [
-	'out-build/bootstrap.js',
 	'out-build/vs/loader.js',
 	'out-build/bootstrap-window.js'
 ];
