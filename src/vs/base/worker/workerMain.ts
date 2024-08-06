@@ -127,7 +127,7 @@
 
 	function loadCode(moduleId: string): Promise<SimpleWorkerModule> {
 		if (isESM) {
-			const moduleUrl = new URL(`${globalThis._VSCODE_FILE_ROOT}/${moduleId}.js`, globalThis.location.origin);
+			const moduleUrl = new URL(`${moduleId}.js`, globalThis._VSCODE_FILE_ROOT);
 			return import(moduleUrl.href);
 		} else {
 			return loadAMDLoader().then(() => {

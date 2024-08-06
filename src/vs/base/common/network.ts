@@ -334,13 +334,14 @@ class FileAccessImpl {
 		if (globalThis._VSCODE_FILE_ROOT) {
 			const rootUriOrPath = globalThis._VSCODE_FILE_ROOT;
 
+			// File URL (with scheme)
 			if (/^\w[\w\d+.-]*:\/\//.test(rootUriOrPath)) {
 				return URI.joinPath(URI.parse(rootUriOrPath, true), uriOrModule);
-
-			} else {
-				const modulePath = paths.join(rootUriOrPath, uriOrModule);
-				return URI.file(modulePath);
 			}
+
+			// File Path (no scheme)
+			const modulePath = paths.join(rootUriOrPath, uriOrModule);
+			return URI.file(modulePath);
 		}
 
 		return URI.parse(moduleIdToUrl!.toUrl(uriOrModule));
