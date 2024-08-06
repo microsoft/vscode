@@ -142,6 +142,9 @@ suite('Workbench - TerminalInstance', () => {
 							shellIntegration: {
 								enabled: true
 							},
+							experimental: {
+								windowsUseConptyDll: false
+							}
 						}
 					},
 				})
