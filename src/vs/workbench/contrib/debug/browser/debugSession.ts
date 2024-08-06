@@ -1374,7 +1374,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 					}
 
 					const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
-					if (!focusedStackFrame || !isFrameDeemphasized(focusedStackFrame)) {
+					if (!focusedStackFrame || isFrameDeemphasized(focusedStackFrame)) {
 						// The top stack frame can be deemphesized so try to focus again #68616
 						focus();
 					}

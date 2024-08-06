@@ -64,6 +64,37 @@ registerAction2(class extends Action2 {
 
 registerAction2(class extends Action2 {
 	constructor() {
+		super({
+			id: 'notebook.toggle.diff.renderSideBySide',
+			title: localize('inlineView', "Inline View"),
+			toggled: ContextKeyExpr.equals('config.diffEditor.renderSideBySide', false),
+			precondition: ActiveEditorContext.isEqualTo(NotebookTextDiffEditor.ID),
+			menu: [{
+				id: MenuId.EditorTitle,
+				order: 0,
+				group: '1_diff',
+				when: ActiveEditorContext.isEqualTo(NotebookTextDiffEditor.ID)
+			}]
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const activeEditor = editorService.activeEditorPane;
+		if (activeEditor && activeEditor instanceof NotebookTextDiffEditor) {
+			const diffEditorInput = activeEditor.input as NotebookDiffEditorInput;
+			if (diffEditorInput.resource) {
+				const configurationService = accessor.get(IConfigurationService);
+
+				const oldValue = configurationService.getValue('diffEditor.renderSideBySide');
+				configurationService.updateValue('diffEditor.renderSideBySide', !oldValue);
+			}
+		}
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
 		super(
 			{
 				id: 'notebook.diff.cell.revertMetadata',

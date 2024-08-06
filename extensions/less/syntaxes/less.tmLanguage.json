@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/radium-v/Better-Less/commit/b06a4555c711a6ef0d76cf2b4fc8b929a6ce551a",
+	"version": "https://github.com/radium-v/Better-Less/commit/fb9c21917193746433743a7c971b70230b40bc2b",
 	"name": "Less",
 	"scopeName": "source.css.less",
 	"patterns": [
@@ -39,6 +39,14 @@
 			},
 			"match": "(?i:[-+]?(?:(?:\\d*\\.\\d+(?:[eE](?:[-+]?\\d+))*)|(?:[-+]?\\d+))(deg|grad|rad|turn))\\b",
 			"name": "constant.numeric.less"
+		},
+		"arbitrary-repetition": {
+			"captures": {
+				"1": {
+					"name": "punctuation.definition.arbitrary-repetition.less"
+				}
+			},
+			"match": "\\s*(?:(,))"
 		},
 		"at-charset": {
 			"begin": "\\s*((@)charset\\b)\\s*",
@@ -268,6 +276,9 @@
 					"patterns": [
 						{
 							"include": "#keyframe-name"
+						},
+						{
+							"include": "#arbitrary-repetition"
 						}
 					]
 				}
@@ -700,6 +711,9 @@
 						},
 						{
 							"include": "#less-math"
+						},
+						{
+							"include": "#relative-color"
 						}
 					]
 				}
@@ -718,6 +732,7 @@
 							"name": "support.function.color.less"
 						}
 					},
+					"comment": "rgb(), rgba()",
 					"end": "\\)",
 					"endCaptures": {
 						"0": {
@@ -748,6 +763,9 @@
 									"include": "#comma-delimiter"
 								},
 								{
+									"include": "#value-separator"
+								},
+								{
 									"include": "#percentage-type"
 								},
 								{
@@ -758,12 +776,13 @@
 					]
 				},
 				{
-					"begin": "\\b(hs(l|v)a?|hwb)(?=\\()",
+					"begin": "\\b(hsla|hsl|hwb|oklab|oklch|lab|lch)(?=\\()",
 					"beginCaptures": {
 						"1": {
 							"name": "support.function.color.less"
 						}
 					},
+					"comment": "hsla, hsl, hwb, oklab, oklch, lab, lch",
 					"end": "\\)",
 					"endCaptures": {
 						"0": {
@@ -781,6 +800,9 @@
 							},
 							"end": "(?=\\))",
 							"patterns": [
+								{
+									"include": "#color-values"
+								},
 								{
 									"include": "#less-strings"
 								},
@@ -801,6 +823,47 @@
 								},
 								{
 									"include": "#number-type"
+								},
+								{
+									"include": "#calc-function"
+								},
+								{
+									"include": "#value-separator"
+								}
+							]
+						}
+					]
+				},
+				{
+					"begin": "\\b(light-dark)(?=\\()",
+					"beginCaptures": {
+						"1": {
+							"name": "support.function.color.less"
+						}
+					},
+					"comment": "light-dark()",
+					"end": "\\)",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.definition.group.end.less"
+						}
+					},
+					"name": "meta.function-call.less",
+					"patterns": [
+						{
+							"begin": "\\(",
+							"beginCaptures": {
+								"0": {
+									"name": "punctuation.definition.group.begin.less"
+								}
+							},
+							"end": "(?=\\))",
+							"patterns": [
+								{
+									"include": "#color-values"
+								},
+								{
+									"include": "#comma-delimiter"
 								}
 							]
 						}
@@ -845,6 +908,9 @@
 					},
 					"match": "(#)(\\h{3}|\\h{4}|\\h{6}|\\h{8})\\b",
 					"name": "constant.other.color.rgb-value.less"
+				},
+				{
+					"include": "#relative-color"
 				}
 			]
 		},
@@ -1048,12 +1114,16 @@
 			]
 		},
 		"cubic-bezier-function": {
-			"begin": "\\b(cubic-bezier)(?=\\()",
+			"begin": "\\b(cubic-bezier)(\\()",
 			"beginCaptures": {
-				"0": {
+				"1": {
 					"name": "support.function.timing.less"
+				},
+				"2": {
+					"name": "punctuation.definition.group.begin.less"
 				}
 			},
+			"contentName": "meta.group.less",
 			"end": "\\)",
 			"endCaptures": {
 				"0": {
@@ -1063,24 +1133,22 @@
 			"name": "meta.function-call.less",
 			"patterns": [
 				{
-					"begin": "\\(",
-					"beginCaptures": {
-						"0": {
-							"name": "punctuation.definition.group.begin.less"
-						}
-					},
-					"end": "(?=\\))",
-					"patterns": [
-						{
-							"include": "#var-function"
-						},
-						{
-							"include": "#comma-delimiter"
-						},
-						{
-							"include": "#number-type"
-						}
-					]
+					"include": "#less-functions"
+				},
+				{
+					"include": "#calc-function"
+				},
+				{
+					"include": "#less-variables"
+				},
+				{
+					"include": "#var-function"
+				},
+				{
+					"include": "#comma-delimiter"
+				},
+				{
+					"include": "#number-type"
 				}
 			]
 		},
@@ -1105,13 +1173,13 @@
 					"include": "#frequency-type"
 				},
 				{
+					"include": "#time-type"
+				},
+				{
 					"include": "#length-type"
 				},
 				{
 					"include": "#resolution-type"
-				},
-				{
-					"include": "#time-type"
 				}
 			]
 		},
@@ -1611,6 +1679,15 @@
 				}
 			]
 		},
+		"important": {
+			"captures": {
+				"1": {
+					"name": "punctuation.separator.less"
+				}
+			},
+			"match": "(\\!)\\s*important",
+			"name": "keyword.other.important.less"
+		},
 		"integer-type": {
 			"match": "(?:[-+]?\\d+)",
 			"name": "constant.numeric.less"
@@ -1757,6 +1834,7 @@
 							"name": "support.function.color-definition.less"
 						}
 					},
+					"comment": "argb()",
 					"end": "\\)",
 					"endCaptures": {
 						"0": {
@@ -1782,6 +1860,59 @@
 								},
 								{
 									"include": "#color-values"
+								}
+							]
+						}
+					]
+				},
+				{
+					"begin": "\\b(hsva?)(?=\\()",
+					"beginCaptures": {
+						"1": {
+							"name": "support.function.color.less"
+						}
+					},
+					"comment": "hsva(), hsv()",
+					"end": "\\)",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.definition.group.end.less"
+						}
+					},
+					"name": "meta.function-call.less",
+					"patterns": [
+						{
+							"begin": "\\(",
+							"beginCaptures": {
+								"0": {
+									"name": "punctuation.definition.group.begin.less"
+								}
+							},
+							"end": "(?=\\))",
+							"patterns": [
+								{
+									"include": "#integer-type"
+								},
+								{
+									"include": "#percentage-type"
+								},
+								{
+									"include": "#number-type"
+								},
+								{
+									"include": "#less-strings"
+								},
+								{
+									"include": "#less-variables"
+								},
+								{
+									"include": "#var-function"
+								},
+								{
+									"include": "#calc-function"
+								},
+								{
+									"include": "#comma-delimiter"
 								}
 							]
 						}
@@ -3515,7 +3646,48 @@
 					"name": "support.constant.property-value.less"
 				},
 				{
-					"match": "(?x)\\b(\n  absolute|active|add\n|all(-(petite|small)-caps|-scroll)?\n|alpha(betic)?\n|alternate(-reverse)?\n|always|annotation|antialiased|at\n|auto(hiding-scrollbar)?\n|avoid(-column|-page|-region)?\n|background(-color|-image|-position|-size)?\n|backwards|balance|baseline|below|bevel|bicubic|bidi-override|blink\n|block(-(line-height|start|end))?\n|blur\n|bold(er)?\n|border(-bottom|-left|-right|-top)?-(color|radius|width|style)\n|border-(bottom|top)-(left|right)-radius\n|border-image(-outset|-repeat|-slice|-source|-width)?\n|border(-bottom|-left|-right|-top|-collapse|-spacing|-box)?\n|both|bottom\n|box(-shadow)?\n|break-(all|word|spaces)\n|brightness\n|butt(on)?\n|capitalize\n|cent(er|ral)\n|char(acter-variant)?\n|cjk-ideographic|clip|clone|close-quote\n|closest-(corner|side)\n|col-resize|collapse\n|color(-stop|-burn|-dodge)?\n|column((-count|-gap|-reverse|-rule(-color|-width)?|-width)|s)?\n|common-ligatures|condensed|consider-shifts|contain\n|content(-box|s)?\n|contextual|contrast|cover\n|crisp(-e|E)dges\n|crop\n|cross(hair)?\n|da(rken|shed)\n|default|dense|diagonal-fractions|difference|disabled\n|discard|discretionary-ligatures|disregard-shifts\n|distribute(-all-lines|-letter|-space)?\n|dotted|double|drop-shadow\n|(nwse|nesw|ns|ew|sw|se|nw|ne|w|s|e|n)-resize\n|ease(-in-out|-in|-out)?\n|element|ellipsis|embed|end|EndColorStr|evenodd\n|exclu(de(-ruby)?|sion)\n|expanded\n|(extra|semi|ultra)-(condensed|expanded)\n|farthest-(corner|side)?\n|fill(-box|-opacity)?\n|filter\n|fit-content\n|fixed\n|flat\n|flex((-basis|-end|-grow|-shrink|-start)|box)?\n|flip|flood-color\n|font(-size(-adjust)?|-stretch|-weight)?\n|forwards\n|from(-image)?\n|full-width|gap|geometricPrecision|glyphs|gradient|grayscale\n|grid((-column|-row)?-gap|-height)?\n|groove|hand|hanging|hard-light|height|help|hidden|hide\n|historical-(forms|ligatures)\n|horizontal(-tb)?\n|hue\n|ideograph(-alpha|-numeric|-parenthesis|-space|ic)\n|inactive|include-ruby|infinite|inherit|initial\n|inline(-(block|box|flex(box)?|line-height|table|start|end))?\n|inset|inside\n|inter(-ideograph|-word|sect)\n|invert|isolat(e|ion)|italic\n|jis(04|78|83|90)\n|justify(-all)?\n|keep-all\n|large[r]?\n|last|layout|left|letter-spacing\n|light(e[nr]|ing-color)\n|line(-edge|-height|-through)?\n|linear(-gradient|RGB)?\n|lining-nums|list-item|local|loose|lowercase|lr-tb|ltr\n|lumin(osity|ance)|manual\n|manipulation\n|margin(-bottom|-box|-left|-right|-top)?\n|marker(-offset|s)?\n|match-parent\n|mathematical\n|max-(content|height|lines|size|width)\n|medium|middle\n|min-(content|height|width)\n|miter|mixed|move|multiply|newspaper\n|no-(change|clip|(close|open)-quote|(common|discretionary|historical)-ligatures|contextual|drop|repeat)\n|none|nonzero|normal|not-allowed|nowrap|oblique\n|offset(-after|-before|-end|-start)?\n|oldstyle-nums|opacity|open-quote\n|optimize(Legibility|Precision|Quality|Speed)\n|order|ordinal|ornaments\n|outline(-color|-offset|-width)?\n|outset|outside|over(line|-edge|lay)\n|padding(-bottom|-box|-left|-right|-top|-box)?\n|page|paint(ed)?|paused\n|pan-(x|left|right|y|up|down)\n|perspective-origin\n|petite-caps|pixelated|pointer\n|pinch-zoom\n|pretty\n|pre(-line|-wrap)?\n|preserve(-3d|-breaks|-spaces)?\n|progid:DXImageTransform.Microsoft.(Alpha|Blur|dropshadow|gradient|Shadow)\n|progress\n|proportional-(nums|width)\n|radial-gradient|recto|region|relative\n|repeat(-[xy])?\n|repeating-(linear|radial)-gradient\n|replaced|reset-size|reverse|revert(-layer)?|ridge|right\n|round\n|row(-gap|-resize|-reverse)?\n|rtl|ruby|running|saturat(e|ion)|screen\n|scroll(-position|bar)?\n|separate|sepia\n|scale-down\n|shape-(image-threshold|margin|outside)\n|show\n|sideways(-lr|-rl)?\n|simplified\n|size\n|slashed-zero|slice\n|small(-caps|er)?\n|smooth|snap|solid|soft-light\n|space(-around|-between)?\n|span|sRGB\n|stable\n|stack(ed-fractions)?\n|start(ColorStr)?\n|static\n|step-(end|start)\n|sticky\n|stop-(color|opacity)\n|stretch|strict\n|stroke(-box|-dash(array|offset)|-miterlimit|-opacity|-width)?\n|style(set)?\n|stylistic\n|sub(grid|pixel-antialiased|tract)?\n|super|swash\n|table(-caption|-cell|(-column|-footer|-header|-row)-group|-column|-row)?\n|tabular-nums|tb-rl\n|text((-bottom|-(decoration|emphasis)-color|-indent|-(over|under)-edge|-shadow|-size(-adjust)?|-top)|field)?\n|thi(ck|n)\n|titling-ca(ps|se)\n|to[p]?\n|touch|traditional\n|transform(-origin)?\n|under(-edge|line)?\n|unicase|unset|uppercase|upright\n|use-(glyph-orientation|script)\n|verso\n|vertical(-align|-ideographic|-lr|-rl|-text)?\n|view-box\n|viewport-fill(-opacity)?\n|visibility\n|visible(Fill|Painted|Stroke)?\n|wait|wavy|weight|whitespace|(device-)?width|word-spacing\n|wrap(-reverse)?\n|x{1,2}-(large|small)\n|z-index|zero\n|zoom(-in|-out)?\n|((?xi:arabic-indic|armenian|bengali|cambodian|circle|cjk-decimal|cjk-earthly-branch|cjk-heavenly-stem|decimal-leading-zero|decimal|devanagari|disclosure-closed|disclosure-open|disc|ethiopic-numeric|georgian|gujarati|gurmukhi|hebrew|hiragana-iroha|hiragana|japanese-formal|japanese-informal|kannada|katakana-iroha|katakana|khmer|korean-hangul-formal|korean-hanja-formal|korean-hanja-informal|lao|lower-alpha|lower-armenian|lower-greek|lower-latin|lower-roman|malayalam|mongolian|myanmar|oriya|persian|simp-chinese-formal|simp-chinese-informal|square|tamil|telugu|thai|tibetan|trad-chinese-formal|trad-chinese-informal|upper-alpha|upper-armenian|upper-latin|upper-roman)))\\b",
+					"include": "#cubic-bezier-function"
+				},
+				{
+					"include": "#steps-function"
+				},
+				{
+					"comment": "animation-composition",
+					"match": "\\b(?:replace|add|accumulate)\\b",
+					"name": "support.constant.property-value.less"
+				},
+				{
+					"comment": "animation-direction",
+					"match": "\\b(?:normal|alternate-reverse|alternate|reverse)\\b",
+					"name": "support.constant.property-value.less"
+				},
+				{
+					"comment": "animation-fill-mode",
+					"match": "\\b(?:forwards|backwards|both)\\b",
+					"name": "support.constant.property-value.less"
+				},
+				{
+					"comment": "animation-iteration-count",
+					"match": "\\b(?:infinite)\\b",
+					"name": "support.constant.property-value.less"
+				},
+				{
+					"comment": "animation-play-state",
+					"match": "\\b(?:running|paused)\\b",
+					"name": "support.constant.property-value.less"
+				},
+				{
+					"comment": "animation-range, animation-range-start, animation-range-end",
+					"match": "\\b(?:entry-crossing|exit-crossing|entry|exit)\\b",
+					"name": "support.constant.property-value.less"
+				},
+				{
+					"comment": "animation-timing-function",
+					"match": "\\b(?:linear|ease-in-out|ease-in|ease-out|ease|step-start|step-end)\\b",
+					"name": "support.constant.property-value.less"
+				},
+				{
+					"match": "(?x)\\b(\n  absolute|active|add\n|all(-(petite|small)-caps|-scroll)?\n|alpha(betic)?\n|alternate(-reverse)?\n|always|annotation|antialiased|at\n|auto(hiding-scrollbar)?\n|avoid(-column|-page|-region)?\n|background(-color|-image|-position|-size)?\n|backwards|balance|baseline|below|bevel|bicubic|bidi-override|blink\n|block(-(line-height|start|end))?\n|blur\n|bold(er)?\n|border-top-left-radius\n|border-top-right-radius\n|border-bottom-left-radius\n|border-bottom-right-radius\n|border-end-end-radius\n|border-end-start-radius\n|border-start-end-radius\n|border-start-start-radius\n|border-block-start-color\n|border-block-start-style\n|border-block-start-width\n|border-block-start\n|border-block-end-color\n|border-block-end-style\n|border-block-end-width\n|border-block-end\n|border-block-color\n|border-block-style\n|border-block-width\n|border-block\n|border-inline-start-color\n|border-inline-start-style\n|border-inline-start-width\n|border-inline-start\n|border-inline-end-color\n|border-inline-end-style\n|border-inline-end-width\n|border-inline-end\n|border-inline-color\n|border-inline-style\n|border-inline-width\n|border-inline\n|border-top-color\n|border-top-style\n|border-top-width\n|border-top\n|border-right-color\n|border-right-style\n|border-right-width\n|border-right\n|border-bottom-color\n|border-bottom-style\n|border-bottom-width\n|border-bottom\n|border-left-color\n|border-left-style\n|border-left-width\n|border-left\n|border-image-outset\n|border-image-repeat\n|border-image-slice\n|border-image-source\n|border-image-width\n|border-image\n|border-color\n|border-style\n|border-width\n|border-radius\n|border-collapse\n|border-spacing\n|border\n|both\n|bottom\n|box(-shadow)?\n|break-(all|word|spaces)\n|brightness\n|butt(on)?\n|capitalize\n|cent(er|ral)\n|char(acter-variant)?\n|cjk-ideographic|clip|clone|close-quote\n|closest-(corner|side)\n|col-resize|collapse\n|color(-stop|-burn|-dodge)?\n|column((-count|-gap|-reverse|-rule(-color|-width)?|-width)|s)?\n|common-ligatures|condensed|consider-shifts|contain\n|content(-box|s)?\n|contextual|contrast|cover\n|crisp(-e|E)dges\n|crop\n|cross(hair)?\n|da(rken|shed)\n|default|dense|diagonal-fractions|difference|disabled\n|discard|discretionary-ligatures|disregard-shifts\n|distribute(-all-lines|-letter|-space)?\n|dotted|double|drop-shadow\n|(nwse|nesw|ns|ew|sw|se|nw|ne|w|s|e|n)-resize\n|ease(-in-out|-in|-out)?\n|element|ellipsis|embed|end|EndColorStr|evenodd\n|exclu(de(-ruby)?|sion)\n|expanded\n|(extra|semi|ultra)-(condensed|expanded)\n|farthest-(corner|side)?\n|fill(-box|-opacity)?\n|filter\n|fit-content\n|fixed\n|flat\n|flex((-basis|-end|-grow|-shrink|-start)|box)?\n|flip|flood-color\n|font(-size(-adjust)?|-stretch|-weight)?\n|forwards\n|from(-image)?\n|full-width|gap|geometricPrecision|glyphs|gradient|grayscale\n|grid((-column|-row)?-gap|-height)?\n|groove|hand|hanging|hard-light|height|help|hidden|hide\n|historical-(forms|ligatures)\n|horizontal(-tb)?\n|hue\n|ideograph(-alpha|-numeric|-parenthesis|-space|ic)\n|inactive|include-ruby|infinite|inherit|initial\n|inline(-(block|box|flex(box)?|line-height|table|start|end))?\n|inset|inside\n|inter(-ideograph|-word|sect)\n|invert|isolat(e|ion)|italic\n|jis(04|78|83|90)\n|justify(-all)?\n|keep-all\n|large[r]?\n|last|layout|left|letter-spacing\n|light(e[nr]|ing-color)\n|line(-edge|-height|-through)?\n|linear(-gradient|RGB)?\n|lining-nums|list-item|local|loose|lowercase|lr-tb|ltr\n|lumin(osity|ance)|manual\n|manipulation\n|margin(-bottom|-box|-left|-right|-top)?\n|marker(-offset|s)?\n|match-parent\n|mathematical\n|max-(content|height|lines|size|width)\n|medium|middle\n|min-(content|height|width)\n|miter|mixed|move|multiply|newspaper\n|no-(change|clip|(close|open)-quote|(common|discretionary|historical)-ligatures|contextual|drop|repeat)\n|none|nonzero|normal|not-allowed|nowrap|oblique\n|offset(-after|-before|-end|-start)?\n|oldstyle-nums|opacity|open-quote\n|optimize(Legibility|Precision|Quality|Speed)\n|order|ordinal|ornaments\n|outline(-color|-offset|-width)?\n|outset|outside|over(line|-edge|lay)\n|padding(-bottom|-box|-left|-right|-top|-box)?\n|page|paint(ed)?|paused\n|pan-(x|left|right|y|up|down)\n|perspective-origin\n|petite-caps|pixelated|pointer\n|pinch-zoom\n|pretty\n|pre(-line|-wrap)?\n|preserve(-3d|-breaks|-spaces)?\n|progid:DXImageTransform.Microsoft.(Alpha|Blur|dropshadow|gradient|Shadow)\n|progress\n|proportional-(nums|width)\n|radial-gradient|recto|region|relative\n|repeat(-[xy])?\n|repeating-(linear|radial)-gradient\n|replaced|reset-size|reverse|revert(-layer)?|ridge|right\n|round\n|row(-gap|-resize|-reverse)?\n|rtl|ruby|running|saturat(e|ion)|screen\n|scroll(-position|bar)?\n|separate|sepia\n|scale-down\n|shape-(image-threshold|margin|outside)\n|show\n|sideways(-lr|-rl)?\n|simplified\n|size\n|slashed-zero|slice\n|small(-caps|er)?\n|smooth|snap|solid|soft-light\n|space(-around|-between)?\n|span|sRGB\n|stable\n|stack(ed-fractions)?\n|start(ColorStr)?\n|static\n|step-(end|start)\n|sticky\n|stop-(color|opacity)\n|stretch|strict\n|stroke(-box|-dash(array|offset)|-miterlimit|-opacity|-width)?\n|style(set)?\n|stylistic\n|sub(grid|pixel-antialiased|tract)?\n|super|swash\n|table(-caption|-cell|(-column|-footer|-header|-row)-group|-column|-row)?\n|tabular-nums|tb-rl\n|text((-bottom|-(decoration|emphasis)-color|-indent|-(over|under)-edge|-shadow|-size(-adjust)?|-top)|field)?\n|thi(ck|n)\n|titling-ca(ps|se)\n|to[p]?\n|touch|traditional\n|transform(-origin)?\n|under(-edge|line)?\n|unicase|unset|uppercase|upright\n|use-(glyph-orientation|script)\n|verso\n|vertical(-align|-ideographic|-lr|-rl|-text)?\n|view-box\n|viewport-fill(-opacity)?\n|visibility\n|visible(Fill|Painted|Stroke)?\n|wait|wavy|weight|whitespace|(device-)?width|word-spacing\n|wrap(-reverse)?\n|x{1,2}-(large|small)\n|z-index|zero\n|zoom(-in|-out)?\n|((?xi:arabic-indic|armenian|bengali|cambodian|circle|cjk-decimal|cjk-earthly-branch|cjk-heavenly-stem|decimal-leading-zero|decimal|devanagari|disclosure-closed|disclosure-open|disc|ethiopic-numeric|georgian|gujarati|gurmukhi|hebrew|hiragana-iroha|hiragana|japanese-formal|japanese-informal|kannada|katakana-iroha|katakana|khmer|korean-hangul-formal|korean-hanja-formal|korean-hanja-informal|lao|lower-alpha|lower-armenian|lower-greek|lower-latin|lower-roman|malayalam|mongolian|myanmar|oriya|persian|simp-chinese-formal|simp-chinese-informal|square|tamil|telugu|thai|tibetan|trad-chinese-formal|trad-chinese-informal|upper-alpha|upper-armenian|upper-latin|upper-roman)))\\b",
 					"name": "support.constant.property-value.less"
 				},
 				{
@@ -3566,13 +3738,7 @@
 					"include": "#comma-delimiter"
 				},
 				{
-					"captures": {
-						"1": {
-							"name": "punctuation.separator.less"
-						}
-					},
-					"match": "(\\!)\\s*important",
-					"name": "keyword.other.important.less"
+					"include": "#important"
 				}
 			]
 		},
@@ -3830,6 +3996,18 @@
 				}
 			]
 		},
+		"relative-color": {
+			"patterns": [
+				{
+					"match": "from",
+					"name": "keyword.other.less"
+				},
+				{
+					"match": "\\b[hslawbch]\\b",
+					"name": "keyword.other.less"
+				}
+			]
+		},
 		"resolution-type": {
 			"captures": {
 				"1": {
@@ -3900,6 +4078,41 @@
 							"include": "#filter-function"
 						},
 						{
+							"begin": "\\b(border((-(bottom|top)-(left|right))|((-(start|end)){2}))?-radius|(border-image(?!-)))\\b",
+							"beginCaptures": {
+								"0": {
+									"name": "support.type.property-name.less"
+								}
+							},
+							"comment": "border-radius and border-image properties utilize a slash as a separator",
+							"end": "\\s*(;)|(?=[})])",
+							"endCaptures": {
+								"1": {
+									"name": "punctuation.terminator.rule.less"
+								}
+							},
+							"patterns": [
+								{
+									"begin": "(((\\+_?)?):)(?=[\\s\\t]*)",
+									"beginCaptures": {
+										"1": {
+											"name": "punctuation.separator.key-value.less"
+										}
+									},
+									"contentName": "meta.property-value.less",
+									"end": "(?=\\s*(;)|(?=[})]))",
+									"patterns": [
+										{
+											"include": "#value-separator"
+										},
+										{
+											"include": "#property-values"
+										}
+									]
+								}
+							]
+						},
+						{
 							"captures": {
 								"1": {
 									"name": "keyword.other.custom-property.prefix.less"
@@ -3951,7 +4164,7 @@
 							]
 						},
 						{
-							"begin": "\\banimation(-(delay|direction|duration|fill-mode|iteration-count|name|play-state|timing-function))?\\b",
+							"begin": "\\banimation-timeline\\b",
 							"beginCaptures": {
 								"0": {
 									"name": "support.type.property-name.less"
@@ -3971,47 +4184,91 @@
 											"name": "punctuation.separator.key-value.less"
 										}
 									},
-									"captures": {
+									"contentName": "meta.property-value.less",
+									"end": "(?=\\s*(;)|(?=[})]))",
+									"patterns": [
+										{
+											"include": "#comment-block"
+										},
+										{
+											"include": "#custom-property-name"
+										},
+										{
+											"include": "#scroll-function"
+										},
+										{
+											"include": "#view-function"
+										},
+										{
+											"include": "#property-values"
+										},
+										{
+											"include": "#less-variables"
+										},
+										{
+											"include": "#arbitrary-repetition"
+										},
+										{
+											"include": "#important"
+										}
+									]
+								}
+							]
+						},
+						{
+							"begin": "\\banimation(?:-name)?(?=(?:\\+_?)?:)\\b",
+							"beginCaptures": {
+								"0": {
+									"name": "support.type.property-name.less"
+								}
+							},
+							"end": "\\s*(;)|(?=[})])",
+							"endCaptures": {
+								"1": {
+									"name": "punctuation.terminator.rule.less"
+								}
+							},
+							"patterns": [
+								{
+									"begin": "(((\\+_?)?):)(?=[\\s\\t]*)",
+									"beginCaptures": {
 										"1": {
-											"name": "punctuation.definition.arbitrary-repetition.less"
+											"name": "punctuation.separator.key-value.less"
 										}
 									},
 									"contentName": "meta.property-value.less",
 									"end": "(?=\\s*(;)|(?=[})]))",
 									"patterns": [
 										{
-											"match": "\\b(linear|ease(-in)?(-out)?|step-(start|end)|none|forwards|backwards|both|normal|alternate(-reverse)?|reverse|running|paused)\\b",
-											"name": "support.constant.property-value.less"
+											"include": "#comment-block"
 										},
 										{
-											"include": "#cubic-bezier-function"
+											"include": "#builtin-functions"
 										},
 										{
-											"include": "#steps-function"
+											"include": "#less-functions"
 										},
 										{
-											"include": "#time-type"
+											"include": "#less-variables"
 										},
 										{
-											"include": "#number-type"
+											"include": "#numeric-values"
+										},
+										{
+											"include": "#property-value-constants"
 										},
 										{
 											"match": "-?(?:[_a-zA-Z]|[^\\x{00}-\\x{7F}]|(?:(:?\\\\[0-9a-f]{1,6}(\\r\\n|[\\s\\t\\r\\n\\f])?)|\\\\[^\\r\\n\\f0-9a-f]))(?:[-_a-zA-Z0-9]|[^\\x{00}-\\x{7F}]|(?:(:?\\\\[0-9a-f]{1,6}(\\r\\n|[\\t\\r\\n\\f])?)|\\\\[^\\r\\n\\f0-9a-f]))*",
-											"name": "variable.other.constant.animation-name.less"
+											"name": "variable.other.constant.animation-name.less string.unquoted.less"
 										},
 										{
-											"include": "#literal-string"
+											"include": "#less-math"
 										},
 										{
-											"include": "#property-values"
+											"include": "#arbitrary-repetition"
 										},
 										{
-											"captures": {
-												"1": {
-													"name": "punctuation.definition.arbitrary-repetition.less"
-												}
-											},
-											"match": "\\s*(?:(,))"
+											"include": "#important"
 										}
 									]
 								}
@@ -4038,11 +4295,6 @@
 											"name": "punctuation.separator.key-value.less"
 										}
 									},
-									"captures": {
-										"1": {
-											"name": "punctuation.definition.arbitrary-repetition.less"
-										}
-									},
 									"contentName": "meta.property-value.less",
 									"end": "(?=\\s*(;)|(?=[})]))",
 									"patterns": [
@@ -4059,12 +4311,7 @@
 											"include": "#steps-function"
 										},
 										{
-											"captures": {
-												"1": {
-													"name": "punctuation.definition.arbitrary-repetition.less"
-												}
-											},
-											"match": "\\s*(?:(,))"
+											"include": "#arbitrary-repetition"
 										}
 									]
 								}
@@ -4140,12 +4387,7 @@
 									"name": "support.constant.property-value.less"
 								},
 								{
-									"captures": {
-										"1": {
-											"name": "punctuation.definition.arbitrary-repetition.less"
-										}
-									},
-									"match": "\\s*(?:(,))"
+									"include": "#arbitrary-repetition"
 								}
 							]
 						},
@@ -4189,7 +4431,7 @@
 							]
 						},
 						{
-							"match": "(?x)\\b( accent-height | align-content | align-items | align-self | alignment-baseline | all | animation-timing-function | animation-play-state | animation-name | animation-iteration-count | animation-fill-mode | animation-duration | animation-direction | animation-delay | animation | appearance | ascent | azimuth | backface-visibility | background-size | background-repeat-y | background-repeat-x | background-repeat | background-position-y | background-position-x | background-position | background-origin | background-image | background-color | background-clip | background-blend-mode | background-attachment | background | baseline-shift | begin | bias | blend-mode | border-((top|right|bottom|left|((block|inline)(-(start|end))?))-)?(width|style|color) | border-((top|bottom)-(right|left)|((start|end)-?){1,2})-radius | border-image-(width|source|slice|repeat|outset) | border-(top|right|bottom|left|collapse|image|radius|spacing|((block|inline)(-(start|end))?)) | border | bottom | box-(align|decoration-break|direction|flex|ordinal-group|orient|pack|shadow|sizing) | break-(after|before|inside) | caption-side | clear | clip-path | clip-rule | clip | color(-(interpolation(-filters)?|profile|rendering))? | columns | column-(break-before|count|fill|gap|(rule(-(color|style|width))?)|span|width) | contain(-intrinsic-((((block|inline)-)?size)|height|width))? | content | counter-(increment|reset) | cursor | (c|d|f)(x|y) | direction | display | divisor | dominant-baseline | dur | elevation | empty-cells | enable-background | end | fallback | fill(-(opacity|rule))? | filter | flex(-(align|basis|direction|flow|grow|item-align|line-pack|negative|order|pack|positive|preferred-size|shrink|wrap))? | float | flood-(color|opacity) | font-display | font-family | font-feature-settings | font-kerning | font-language-override | font-size(-adjust)? | font-smoothing | font-stretch | font-style | font-synthesis | font-variant(-(alternates|caps|east-asian|ligatures|numeric|position))? | font-weight | font | fr | ((column|row)-)?gap | glyph-orientation-(horizontal|vertical) | grid-(area|gap) | grid-auto-(columns|flow|rows) | grid-(column|row)(-(end|gap|start))? | grid-template(-(areas|columns|rows))? | height | hyphens | image-(orientation|rendering|resolution) | inset(-(block|inline))?(-(start|end))? | isolation | justify-content | justify-items | justify-self | kerning | left | letter-spacing | lighting-color | line-(box-contain|break|clamp|height) | list-style(-(image|position|type))? | (margin|padding)(-(bottom|left|right|top)|(-(block|inline)?(-(end|start))?))? | marker(-(end|mid|start))? | mask(-(clip||composite|image|origin|position|repeat|size|type))? | (max|min)-(height|width) | mix-blend-mode | nbsp-mode | negative | object-(fit|position) | opacity | operator | order | orphans | outline(-(color|offset|style|width))? | overflow(-((inline|block)|scrolling|wrap|x|y))? | overscroll-behavior(-block|-(inline|x|y))? | pad(ding(-(bottom|left|right|top))?)? | page(-break-(after|before|inside))? | paint-order | pause(-(after|before))? | perspective(-origin(-(x|y))?)? | pitch(-range)? | place-content | place-self | pointer-events | position | prefix | quotes | range | resize | right | rotate | scale | scroll-behavior | shape-(image-threshold|margin|outside|rendering) | size | speak(-as)? | src | stop-(color|opacity) | stroke(-(dash(array|offset)|line(cap|join)|miterlimit|opacity|width))? | suffix | symbols | system | tab-size | table-layout | tap-highlight-color | text-align(-last)? | text-decoration(-(color|line|style))? | text-emphasis(-(color|position|style))? | text-(anchor|fill-color|height|indent|justify|orientation|overflow|rendering|size-adjust|shadow|transform|underline-position|wrap) | top | touch-action | transform(-origin(-(x|y))?) | transform(-style)? | transition(-(delay|duration|property|timing-function))? | translate | unicode-(bidi|range) | user-(drag|select) | vertical-align | visibility | white-space(-collapse)? | widows | width | will-change | word-(break|spacing|wrap) | writing-mode | z-index | zoom )\\b",
+							"match": "(?x)\\b( accent-height | align-content | align-items | align-self | alignment-baseline | all | animation-timing-function | animation-range-start | animation-range-end | animation-range | animation-play-state | animation-name | animation-iteration-count | animation-fill-mode | animation-duration | animation-direction | animation-delay | animation-composition | animation | appearance | ascent | azimuth | backface-visibility | background-size | background-repeat-y | background-repeat-x | background-repeat | background-position-y | background-position-x | background-position | background-origin | background-image | background-color | background-clip | background-blend-mode | background-attachment | background | baseline-shift | begin | bias | blend-mode | border-top-left-radius | border-top-right-radius | border-bottom-left-radius | border-bottom-right-radius | border-end-end-radius | border-end-start-radius | border-start-end-radius | border-start-start-radius | border-block-start-color | border-block-start-style | border-block-start-width | border-block-start | border-block-end-color | border-block-end-style | border-block-end-width | border-block-end | border-block-color | border-block-style | border-block-width | border-block | border-inline-start-color | border-inline-start-style | border-inline-start-width | border-inline-start | border-inline-end-color | border-inline-end-style | border-inline-end-width | border-inline-end | border-inline-color | border-inline-style | border-inline-width | border-inline | border-top-color | border-top-style | border-top-width | border-top | border-right-color | border-right-style | border-right-width | border-right | border-bottom-color | border-bottom-style | border-bottom-width | border-bottom | border-left-color | border-left-style | border-left-width | border-left | border-image-outset | border-image-repeat | border-image-slice | border-image-source | border-image-width | border-image | border-color | border-style | border-width | border-radius | border-collapse | border-spacing | border | bottom | box-(align|decoration-break|direction|flex|ordinal-group|orient|pack|shadow|sizing) | break-(after|before|inside) | caption-side | clear | clip-path | clip-rule | clip | color(-(interpolation(-filters)?|profile|rendering))? | columns | column-(break-before|count|fill|gap|(rule(-(color|style|width))?)|span|width) | contain(-intrinsic-((((block|inline)-)?size)|height|width))? | content | counter-(increment|reset) | cursor | (c|d|f)(x|y) | direction | display | divisor | dominant-baseline | dur | elevation | empty-cells | enable-background | end | fallback | fill(-(opacity|rule))? | filter | flex(-(align|basis|direction|flow|grow|item-align|line-pack|negative|order|pack|positive|preferred-size|shrink|wrap))? | float | flood-(color|opacity) | font-display | font-family | font-feature-settings | font-kerning | font-language-override | font-size(-adjust)? | font-smoothing | font-stretch | font-style | font-synthesis | font-variant(-(alternates|caps|east-asian|ligatures|numeric|position))? | font-weight | font | fr | ((column|row)-)?gap | glyph-orientation-(horizontal|vertical) | grid-(area|gap) | grid-auto-(columns|flow|rows) | grid-(column|row)(-(end|gap|start))? | grid-template(-(areas|columns|rows))? | height | hyphens | image-(orientation|rendering|resolution) | inset(-(block|inline))?(-(start|end))? | isolation | justify-content | justify-items | justify-self | kerning | left | letter-spacing | lighting-color | line-(box-contain|break|clamp|height) | list-style(-(image|position|type))? | (margin|padding)(-(bottom|left|right|top)|(-(block|inline)?(-(end|start))?))? | marker(-(end|mid|start))? | mask(-(clip||composite|image|origin|position|repeat|size|type))? | (max|min)-(height|width) | mix-blend-mode | nbsp-mode | negative | object-(fit|position) | opacity | operator | order | orphans | outline(-(color|offset|style|width))? | overflow(-((inline|block)|scrolling|wrap|x|y))? | overscroll-behavior(-block|-(inline|x|y))? | pad(ding(-(bottom|left|right|top))?)? | page(-break-(after|before|inside))? | paint-order | pause(-(after|before))? | perspective(-origin(-(x|y))?)? | pitch(-range)? | place-content | place-self | pointer-events | position | prefix | quotes | range | resize | right | rotate | scale | scroll-behavior | shape-(image-threshold|margin|outside|rendering) | size | speak(-as)? | src | stop-(color|opacity) | stroke(-(dash(array|offset)|line(cap|join)|miterlimit|opacity|width))? | suffix | symbols | system | tab-size | table-layout | tap-highlight-color | text-align(-last)? | text-decoration(-(color|line|style))? | text-emphasis(-(color|position|style))? | text-(anchor|fill-color|height|indent|justify|orientation|overflow|rendering|size-adjust|shadow|transform|underline-position|wrap) | top | touch-action | transform(-origin(-(x|y))?) | transform(-style)? | transition(-(delay|duration|property|timing-function))? | translate | unicode-(bidi|range) | user-(drag|select) | vertical-align | visibility | white-space(-collapse)? | widows | width | will-change | word-(break|spacing|wrap) | writing-mode | z-index | zoom )\\b",
 							"name": "support.type.property-name.less"
 						},
 						{
@@ -4237,6 +4479,40 @@
 				}
 			]
 		},
+		"scroll-function": {
+			"begin": "\\b(scroll)(\\()",
+			"beginCaptures": {
+				"1": {
+					"name": "support.function.scroll.less"
+				},
+				"2": {
+					"name": "punctuation.definition.group.begin.less"
+				}
+			},
+			"end": "\\)",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.definition.group.end.less"
+				}
+			},
+			"name": "meta.function-call.less",
+			"patterns": [
+				{
+					"match": "root|nearest|self",
+					"name": "support.constant.scroller.less"
+				},
+				{
+					"match": "block|inline|x|y",
+					"name": "support.constant.axis.less"
+				},
+				{
+					"include": "#less-variables"
+				},
+				{
+					"include": "#var-function"
+				}
+			]
+		},
 		"selector": {
 			"patterns": [
 				{
@@ -4257,13 +4533,7 @@
 							"include": "#less-variable-interpolation"
 						},
 						{
-							"captures": {
-								"1": {
-									"name": "punctuation.separator.less"
-								}
-							},
-							"match": "(\\!)\\s*important",
-							"name": "keyword.other.important.less"
+							"include": "#important"
 						}
 					]
 				}
@@ -4405,12 +4675,7 @@
 					]
 				},
 				{
-					"captures": {
-						"1": {
-							"name": "punctuation.definition.arbitrary-repetition.less"
-						}
-					},
-					"match": "\\s*(?:(,))"
+					"include": "#arbitrary-repetition"
 				},
 				{
 					"match": "\\*",
@@ -4579,12 +4844,16 @@
 			]
 		},
 		"steps-function": {
-			"begin": "\\b(steps)(?=\\()",
+			"begin": "\\b(steps)(\\()",
 			"beginCaptures": {
-				"0": {
+				"1": {
 					"name": "support.function.timing.less"
+				},
+				"2": {
+					"name": "punctuation.definition.group.begin.less"
 				}
 			},
+			"contentName": "meta.group.less",
 			"end": "\\)",
 			"endCaptures": {
 				"0": {
@@ -4594,25 +4863,23 @@
 			"name": "meta.function-call.less",
 			"patterns": [
 				{
-					"begin": "\\(",
-					"beginCaptures": {
-						"0": {
-							"name": "punctuation.definition.group.begin.less"
-						}
-					},
-					"end": "(?=\\))",
-					"patterns": [
-						{
-							"include": "#comma-delimiter"
-						},
-						{
-							"include": "#integer-type"
-						},
-						{
-							"match": "(end|middle|start)",
-							"name": "support.keyword.timing-direction.less"
-						}
-					]
+					"match": "jump-start|jump-end|jump-none|jump-both|start|end",
+					"name": "support.constant.step-position.less"
+				},
+				{
+					"include": "#comma-delimiter"
+				},
+				{
+					"include": "#integer-type"
+				},
+				{
+					"include": "#less-variables"
+				},
+				{
+					"include": "#var-function"
+				},
+				{
+					"include": "#calc-function"
 				}
 			]
 		},
@@ -5085,45 +5352,49 @@
 				}
 			]
 		},
+		"value-separator": {
+			"captures": {
+				"1": {
+					"name": "punctuation.separator.less"
+				}
+			},
+			"match": "\\s*(/)\\s*"
+		},
 		"var-function": {
+			"begin": "\\b(var)(?=\\()",
+			"beginCaptures": {
+				"1": {
+					"name": "support.function.var.less"
+				}
+			},
+			"end": "\\)",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.definition.group.end.less"
+				}
+			},
+			"name": "meta.function-call.less",
 			"patterns": [
 				{
-					"begin": "\\b(var)(?=\\()",
+					"begin": "\\(",
 					"beginCaptures": {
-						"1": {
-							"name": "support.function.var.less"
-						}
-					},
-					"end": "\\)",
-					"endCaptures": {
 						"0": {
-							"name": "punctuation.definition.group.end.less"
+							"name": "punctuation.definition.group.begin.less"
 						}
 					},
-					"name": "meta.function-call.less",
+					"end": "(?=\\))",
 					"patterns": [
 						{
-							"begin": "\\(",
-							"beginCaptures": {
-								"0": {
-									"name": "punctuation.definition.group.begin.less"
-								}
-							},
-							"end": "(?=\\))",
-							"patterns": [
-								{
-									"include": "#comma-delimiter"
-								},
-								{
-									"include": "#custom-property-name"
-								},
-								{
-									"include": "#less-variables"
-								},
-								{
-									"include": "#property-values"
-								}
-							]
+							"include": "#comma-delimiter"
+						},
+						{
+							"include": "#custom-property-name"
+						},
+						{
+							"include": "#less-variables"
+						},
+						{
+							"include": "#property-values"
 						}
 					]
 				}
@@ -5132,6 +5403,56 @@
 		"vendor-prefix": {
 			"match": "-(?:webkit|moz(-osx)?|ms|o)-",
 			"name": "support.type.vendor-prefix.less"
+		},
+		"view-function": {
+			"begin": "\\b(view)(?=\\()",
+			"beginCaptures": {
+				"1": {
+					"name": "support.function.view.less"
+				}
+			},
+			"end": "\\)",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.definition.group.end.less"
+				}
+			},
+			"name": "meta.function-call.less",
+			"patterns": [
+				{
+					"begin": "\\(",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.definition.group.begin.less"
+						}
+					},
+					"end": "(?=\\))",
+					"patterns": [
+						{
+							"match": "block|inline|x|y|auto",
+							"name": "support.constant.property-value.less"
+						},
+						{
+							"include": "#length-type"
+						},
+						{
+							"include": "#percentage-type"
+						},
+						{
+							"include": "#less-variables"
+						},
+						{
+							"include": "#var-function"
+						},
+						{
+							"include": "#calc-function"
+						},
+						{
+							"include": "#arbitrary-repetition"
+						}
+					]
+				}
+			]
 		}
 	}
 }

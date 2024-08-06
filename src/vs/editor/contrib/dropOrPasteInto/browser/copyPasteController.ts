@@ -148,12 +148,10 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 			return;
 		}
 
-		if (platform.isWeb) {
-			// Explicitly clear the web resources clipboard.
-			// This is needed because on web, the browser clipboard is faked out using an in-memory store.
-			// This means the resources clipboard is not properly updated when copying from the editor.
-			this._clipboardService.writeResources([]);
-		}
+		// Explicitly clear the clipboard internal state.
+		// This is needed because on web, the browser clipboard is faked out using an in-memory store.
+		// This means the resources clipboard is not properly updated when copying from the editor.
+		this._clipboardService.clearInternalState?.();
 
 		if (!e.clipboardData || !this.isPasteAsEnabled()) {
 			return;

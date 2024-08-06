@@ -72,6 +72,7 @@ export interface CellDiffSingleSideRenderTemplate extends CellDiffCommonRenderTe
 	readonly diffEditorContainer: HTMLElement;
 	readonly diagonalFill: HTMLElement;
 	readonly elementDisposables: DisposableStore;
+	readonly cellHeaderContainer: HTMLElement;
 	readonly sourceEditor: CodeEditorWidget;
 	readonly metadataHeaderContainer: HTMLElement;
 	readonly metadataInfoContainer: HTMLElement;
@@ -85,6 +86,7 @@ export interface CellDiffSideBySideRenderTemplate extends CellDiffCommonRenderTe
 	readonly body: HTMLElement;
 	readonly diffEditorContainer: HTMLElement;
 	readonly elementDisposables: DisposableStore;
+	readonly cellHeaderContainer: HTMLElement;
 	readonly sourceEditor: DiffEditorWidget;
 	readonly editorContainer: HTMLElement;
 	readonly inputToolbarContainer: HTMLElement;
@@ -101,6 +103,7 @@ export interface IDiffElementLayoutInfo {
 	editorHeight: number;
 	editorMargin: number;
 	metadataHeight: number;
+	cellStatusHeight: number;
 	metadataStatusHeight: number;
 	rawOutputHeight: number;
 	outputMetadataHeight: number;

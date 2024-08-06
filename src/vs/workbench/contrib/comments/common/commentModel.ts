@@ -42,6 +42,23 @@ export class CommentNode {
 	hasReply(): boolean {
 		return this.replies && this.replies.length !== 0;
 	}
+
+	private _lastUpdatedAt: string | undefined;
+
+	get lastUpdatedAt(): string {
+		if (this._lastUpdatedAt === undefined) {
+			let updatedAt = this.comment.timestamp || '';
+			if (this.replies.length) {
+				const reply = this.replies[this.replies.length - 1];
+				const replyUpdatedAt = reply.lastUpdatedAt;
+				if (replyUpdatedAt > updatedAt) {
+					updatedAt = replyUpdatedAt;
+				}
+			}
+			this._lastUpdatedAt = updatedAt;
+		}
+		return this._lastUpdatedAt;
+	}
 }
 
 export class ResourceWithCommentThreads {
@@ -70,6 +87,26 @@ export class ResourceWithCommentThreads {
 		commentNodes[0].isRoot = true;
 
 		return commentNodes[0];
+	}
+
+	private _lastUpdatedAt: string | undefined;
+
+	get lastUpdatedAt() {
+		if (this._lastUpdatedAt === undefined) {
+			let updatedAt = '';
+			// Return result without cahcing as we expect data to arrive later
+			if (!this.commentThreads.length) {
+				return updatedAt;
+			}
+			for (const thread of this.commentThreads) {
+				const threadUpdatedAt = thread.lastUpdatedAt;
+				if (threadUpdatedAt && threadUpdatedAt > updatedAt) {
+					updatedAt = threadUpdatedAt;
+				}
+			}
+			this._lastUpdatedAt = updatedAt;
+		}
+		return this._lastUpdatedAt;
 	}
 }
 

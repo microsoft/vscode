@@ -82,7 +82,7 @@ function buildPicker(accessor: ServicesAccessor, {
 		}
 	}
 
-	const quickpick = accessor.get(IQuickInputService).createQuickPick<IQuickPickItem & { profile: ITestRunProfile }>();
+	const quickpick = accessor.get(IQuickInputService).createQuickPick<IQuickPickItem & { profile: ITestRunProfile }>({ useSeparators: true });
 	quickpick.items = items;
 	quickpick.placeholder = placeholder;
 	return quickpick;
