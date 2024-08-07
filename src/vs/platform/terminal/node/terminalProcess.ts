@@ -413,7 +413,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 		if (sanitizedTitle.toLowerCase().startsWith('python')) {
 			this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellType, value: PosixShellType.Python });
-		} else if (sanitizedTitle.toLowerCase().startsWith('julia')) { // TODO: not able to get it set here.
+		} else if (sanitizedTitle.toLowerCase().startsWith('julia')) {
 			this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellType, value: PosixShellType.Julia });
 		} else {
 			//TODO: Make sure Julia gets handled correctly

@@ -95,7 +95,6 @@ export async function getShellFileHistory(accessor: ServicesAccessor, shellType:
 		case PosixShellType.Python:
 			result = await fetchPythonHistory(accessor);
 			break;
-		// Should there by one for Julia, how are they able to insert command into run recent history.
 
 		default: return [];
 	}

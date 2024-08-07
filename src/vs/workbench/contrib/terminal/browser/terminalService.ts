@@ -208,9 +208,6 @@ export class TerminalService extends Disposable implements ITerminalService {
 			}
 			if (instance?.shellType) {
 				this._terminalShellTypeContextKey.set(instance.shellType.toString());
-			} else if (instance?.title.includes('Julia')) {
-				this._terminalShellTypeContextKey.set(PosixShellType.Julia.toString());
-
 			} else if (!instance) {
 				this._terminalShellTypeContextKey.reset();
 			}
