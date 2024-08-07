@@ -43,7 +43,7 @@ async function getDependencies(packageType, buildDir, applicationName, arch) {
         throw new Error('Invalid RPM arch string ' + arch);
     }
     // Get the files for which we want to find dependencies.
-    const nativeModulesPath = path.join(buildDir, 'resources', 'app', 'node_modules.asar.unpacked');
+    const nativeModulesPath = path.join(buildDir, 'resources', 'app', 'node_modules'); // TODO@esm support ASAR
     const findResult = (0, child_process_1.spawnSync)('find', [nativeModulesPath, '-name', '*.node']);
     if (findResult.status) {
         console.error('Error finding files:');
