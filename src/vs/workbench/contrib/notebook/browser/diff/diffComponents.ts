@@ -1596,9 +1596,9 @@ export class ModifiedElement extends AbstractElementRenderer {
 				},
 				getFoldingState: (cell) => cell.cellFoldingState,
 				updateFoldingState: (cell, state) => cell.cellFoldingState = state,
-				unChangedLabel: 'Cell',
-				changedLabel: 'Cell changed',
-				prefix: 'cell',
+				unChangedLabel: 'Input',
+				changedLabel: 'Input changed',
+				prefix: 'input',
 				menuId: MenuId.NotebookDiffCellInputTitle
 			}
 		));
