@@ -160,12 +160,9 @@ export class TextSearchManager {
 		const folderOptions = folderQueries.map(fq => this.getSearchOptionsForFolder(fq));
 		const searchOptions: TextSearchProviderOptions = {
 			folderOptions,
-			maxFileSize: this.query.maxFileSize ?? 50,
+			maxFileSize: this.query.maxFileSize,
 			maxResults: this.query.maxResults ?? DEFAULT_MAX_SEARCH_RESULTS,
-			previewOptions: this.query.previewOptions ?? {
-				matchLines: 1,
-				charsPerLine: 1000
-			},
+			previewOptions: this.query.previewOptions,
 			surroundingContext: this.query.surroundingContext ?? 0,
 		};
 		if ('usePCRE2' in this.query) {

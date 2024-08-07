@@ -47,8 +47,11 @@ interface ISearchPatternBuilder {
 	pattern: ISearchPathPatternBuilder;
 }
 
-export function isISearchPatternBuilder(object: any): object is ISearchPatternBuilder {
-	return 'pattern' in object && (typeof object.pattern === 'string' || Array.isArray(object.pattern)) && (object.uri === undefined || URI.isUri(object.uri));
+export function isISearchPatternBuilder(object: ISearchPatternBuilder | ISearchPathPatternBuilder | undefined): object is ISearchPatternBuilder {
+	if (!object || Array.isArray(object) || typeof object === 'string') {
+		return false;
+	}
+	return true;
 }
 
 /**

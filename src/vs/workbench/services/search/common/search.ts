@@ -313,30 +313,18 @@ interface SearchRangeSetPairing {
 }
 export class TextSearchMatch implements ITextSearchMatch {
 	rangeLocations: SearchRangeSetPairing[] = [];
-	text: string;
-	cellFragment?: string;
-
+	previewText: string;
+	ranges: ISearchRange | ISearchRange[];
+	preview: ITextSearchResultPreview;
 	webviewIndex?: number;
 
-	get ranges(): ISearchRange | ISearchRange[] {
-		return mapArrayOrNot(this.rangeLocations, e => e.sourceRange);
-	}
-
-	get preview(): ITextSearchResultPreview {
-		return { text: this.text, matches: mapArrayOrNot(this.rangeLocations, e => e.previewRange), cellFragment: this.cellFragment };
-	}
-
-	// get preview
 	constructor(text: string, range: ISearchRange | ISearchRange[], previewOptions?: ITextSearchPreviewOptions, webviewIndex?: number) {
-		// this.ranges = range;
 		this.webviewIndex = webviewIndex;
 
 		// Trim preview if this is one match and a single-line match with a preview requested.
 		// Otherwise send the full text, like for replace or for showing multiple previews.
 		// TODO this is fishy.
 		const ranges = Array.isArray(range) ? range : [range];
-
-		// const rangePairs:SearchRangeSetPairing[] = [];
 		if (previewOptions && previewOptions.matchLines === 1 && isSingleLineRangeList(ranges)) {
 			// 1 line preview requested
 			text = getNLines(text, previewOptions.matchLines);
@@ -345,7 +333,6 @@ export class TextSearchMatch implements ITextSearchMatch {
 			let shift = 0;
 			let lastEnd = 0;
 			const leadingChars = Math.floor(previewOptions.charsPerLine / 5);
-			// const matches: ISearchRange[] = [];
 			for (const range of ranges) {
 				const previewStart = Math.max(range.startColumn - leadingChars, 0);
 				const previewEnd = range.startColumn + previewOptions.charsPerLine;
@@ -357,27 +344,29 @@ export class TextSearchMatch implements ITextSearchMatch {
 					result += text.slice(lastEnd, previewEnd);
 				}
 
-				// matches.push(new OneLineRange(0, range.startColumn - shift, range.endColumn - shift));
 				lastEnd = previewEnd;
 				this.rangeLocations.push({
 					sourceRange: range,
-					previewRange: new SearchRange(0, range.startColumn - shift, 0, range.endColumn - shift)
+					previewRange: new OneLineRange(0, range.startColumn - shift, range.endColumn - shift)
 				});
 
 			}
 
-			this.text = result;
+			this.previewText = result;
 		} else {
 			const firstMatchLine = Array.isArray(range) ? range[0].startLineNumber : range.startLineNumber;
 
-			const rangeLocations = mapArrayOrNot(range, r => ({
+			const rangeLocs = mapArrayOrNot(range, r => ({
 				previewRange: new SearchRange(r.startLineNumber - firstMatchLine, r.startColumn, r.endLineNumber - firstMatchLine, r.endColumn),
 				sourceRange: r
 			}));
 
-			this.rangeLocations = Array.isArray(rangeLocations) ? rangeLocations : [rangeLocations];
-			this.text = text;
+			this.rangeLocations = Array.isArray(rangeLocs) ? rangeLocs : [rangeLocs];
+			this.previewText = text;
 		}
+
+		this.ranges = mapArrayOrNot(this.rangeLocations, e => e.sourceRange);
+		this.preview = { text: this.previewText, matches: mapArrayOrNot(this.rangeLocations, e => e.previewRange) };
 	}
 }
 

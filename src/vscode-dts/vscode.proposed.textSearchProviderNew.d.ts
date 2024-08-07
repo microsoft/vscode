@@ -113,7 +113,7 @@ declare module 'vscode' {
 		/**
 		 * Options to specify the size of the result text preview.
 		 */
-		previewOptions: {
+		previewOptions?: {
 			/**
 			 * The maximum number of lines in the preview.
 			 * Only search providers that support multiline search will ever return more than one line in the match.
@@ -131,7 +131,7 @@ declare module 'vscode' {
 		/**
 		 * Exclude files larger than `maxFileSize` in bytes.
 		 */
-		maxFileSize: number;
+		maxFileSize?: number;
 
 		/**
 		 * Number of lines of context to include before and after each match.
