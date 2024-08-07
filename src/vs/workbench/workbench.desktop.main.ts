@@ -144,6 +144,9 @@ import 'vs/workbench/contrib/tags/electron-sandbox/tags.contribution';
 // Performance
 import 'vs/workbench/contrib/performance/electron-sandbox/performance.contribution';
 
+// GPU Status
+import 'vs/workbench/contrib/gpu/electron-sandbox/gpu.contribution';
+
 // Tasks
 import 'vs/workbench/contrib/tasks/electron-sandbox/taskService';
 

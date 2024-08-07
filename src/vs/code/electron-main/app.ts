@@ -121,6 +121,9 @@ import { Lazy } from 'vs/base/common/lazy';
 import { IAuxiliaryWindowsMainService } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindows';
 import { AuxiliaryWindowsMainService } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindowsMainService';
 import { normalizeNFC } from 'vs/base/common/normalization';
+import { IGPUStatusMainService } from 'vs/platform/gpu/common/gpuStatusMain';
+import { GPUStatusMainService } from 'vs/platform/gpu/electron-main/gpuStatusMainService';
+
 /**
  * The main VS Code application. There will only ever be one instance,
  * even if the user starts many instances (e.g. from the command line).
@@ -1097,6 +1100,9 @@ export class CodeApplication extends Disposable {
 		// Proxy Auth
 		services.set(IProxyAuthService, new SyncDescriptor(ProxyAuthService));
 
+		// GPU Status
+		services.set(IGPUStatusMainService, new SyncDescriptor(GPUStatusMainService, undefined, true));
+
 		// Init services that require it
 		await Promises.settled([
 			backupMainService.initialize(),
@@ -1221,6 +1227,10 @@ export class CodeApplication extends Disposable {
 		// Utility Process Worker
 		const utilityProcessWorkerChannel = ProxyChannel.fromService(accessor.get(IUtilityProcessWorkerMainService), disposables);
 		mainProcessElectronServer.registerChannel(ipcUtilityProcessWorkerChannelName, utilityProcessWorkerChannel);
+
+		// GPU Status
+		const gpuStatusMainChannel = ProxyChannel.fromService(accessor.get(IGPUStatusMainService), disposables);
+		mainProcessElectronServer.registerChannel('gpuStatus', gpuStatusMainChannel);
 	}
 
 	private async openFirstWindow(accessor: ServicesAccessor, initialProtocolUrls: IInitialProtocolUrls | undefined): Promise<ICodeWindow[]> {
