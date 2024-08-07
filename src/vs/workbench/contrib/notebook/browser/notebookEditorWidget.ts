@@ -1065,27 +1065,22 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	}
 
 	private _registerNotebookStickyScroll() {
-		this._notebookStickyScroll = this._register(this.instantiationService.createInstance(NotebookStickyScroll, this._notebookStickyScrollContainer, this, this._list));
+		this._notebookStickyScroll = this._register(this.instantiationService.createInstance(NotebookStickyScroll, this._notebookStickyScrollContainer, this, this._list, (sizeDelta) => {
+			if (this.isDisposed) {
+				return;
+			}
 
-		const localDisposableStore = this._register(new DisposableStore());
-
-		this._register(this._notebookStickyScroll.onDidChangeNotebookStickyScroll((sizeDelta) => {
-			const d = localDisposableStore.add(DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this.getDomNode()), () => {
-				if (this.isDisposed) {
-					return;
+			if (this._dimension && this._isVisible) {
+				if (sizeDelta > 0) { // delta > 0 ==> sticky is growing, cell list shrinking
+					this.layout(this._dimension);
+					this.setScrollTop(this.scrollTop + sizeDelta);
+				} else if (sizeDelta < 0) { // delta < 0 ==> sticky is shrinking, cell list growing
+					this.setScrollTop(this.scrollTop + sizeDelta);
+					this.layout(this._dimension);
 				}
+			}
 
-				if (this._dimension && this._isVisible) {
-					if (sizeDelta > 0) { // delta > 0 ==> sticky is growing, cell list shrinking
-						this.layout(this._dimension);
-						this.setScrollTop(this.scrollTop + sizeDelta);
-					} else if (sizeDelta < 0) { // delta < 0 ==> sticky is shrinking, cell list growing
-						this.setScrollTop(this.scrollTop + sizeDelta);
-						this.layout(this._dimension);
-					}
-				}
-				localDisposableStore.delete(d);
-			}));
+			this._onDidScroll.fire();
 		}));
 	}
 
@@ -2098,6 +2093,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 	get scrollTop() {
 		return this._list.scrollTop;
+	}
+
+	get scrollBottom() {
+		return this._list.scrollTop + this._list.getRenderHeight();
 	}
 
 	getAbsoluteTopOfElement(cell: ICellViewModel) {

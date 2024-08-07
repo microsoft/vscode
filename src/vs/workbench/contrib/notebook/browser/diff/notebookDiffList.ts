@@ -82,9 +82,9 @@ export class CellDiffSingleSideRenderer implements IListRenderer<SingleSideDiffE
 
 		const diagonalFill = DOM.append(body, DOM.$('.diagonal-fill'));
 
-		const cellHeaderContainer = DOM.append(diffEditorContainer, DOM.$('.cell-header-container'));
+		const cellHeaderContainer = DOM.append(diffEditorContainer, DOM.$('.input-header-container'));
 		const sourceContainer = DOM.append(diffEditorContainer, DOM.$('.source-container'));
-		const editor = this._buildSourceEditor(sourceContainer);
+		const { editor, editorContainer } = this._buildSourceEditor(sourceContainer);
 
 		const metadataHeaderContainer = DOM.append(diffEditorContainer, DOM.$('.metadata-header-container'));
 		const metadataInfoContainer = DOM.append(diffEditorContainer, DOM.$('.metadata-info-container'));
@@ -101,6 +101,7 @@ export class CellDiffSingleSideRenderer implements IListRenderer<SingleSideDiffE
 		return {
 			body,
 			container,
+			editorContainer,
 			diffEditorContainer,
 			diagonalFill,
 			cellHeaderContainer,
@@ -130,7 +131,7 @@ export class CellDiffSingleSideRenderer implements IListRenderer<SingleSideDiffE
 			overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode()
 		}, {});
 
-		return editor;
+		return { editor, editorContainer };
 	}
 
 	renderElement(element: SingleSideDiffElementViewModel, index: number, templateData: CellDiffSingleSideRenderTemplate, height: number | undefined): void {
@@ -185,7 +186,7 @@ export class CellDiffSideBySideRenderer implements IListRenderer<SideBySideDiffE
 		const diffEditorContainer = DOM.$('.cell-diff-editor-container');
 		DOM.append(body, diffEditorContainer);
 
-		const cellHeaderContainer = DOM.append(diffEditorContainer, DOM.$('.cell-header-container'));
+		const cellHeaderContainer = DOM.append(diffEditorContainer, DOM.$('.input-header-container'));
 		const sourceContainer = DOM.append(diffEditorContainer, DOM.$('.source-container'));
 		const { editor, editorContainer } = this._buildSourceEditor(sourceContainer);
 
@@ -241,10 +242,6 @@ export class CellDiffSideBySideRenderer implements IListRenderer<SideBySideDiffE
 
 		const editor = this.instantiationService.createInstance(DiffEditorWidget, editorContainer, {
 			...fixedDiffEditorOptions,
-			padding: {
-				top: 24,
-				bottom: 12
-			},
 			overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode(),
 			originalEditable: false,
 			ignoreTrimWhitespace: false,
