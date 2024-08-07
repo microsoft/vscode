@@ -1068,7 +1068,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 							const resource = this.toResource(fileData.file);
 							return {
 								...fileData,
-								lineCount: this.bufferSyncSupport.lineCount(resource),
+								fileLineCount: this.bufferSyncSupport.lineCount(resource),
 							};
 						})
 					);
