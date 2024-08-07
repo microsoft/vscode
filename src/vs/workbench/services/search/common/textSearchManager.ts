@@ -119,10 +119,6 @@ export class TextSearchManager {
 	}
 
 	private async doSearch(folderQueries: IFolderQuery<URI>[], onResult: (result: TextSearchResultNew, folderIdx: number) => void, token: CancellationToken): Promise<TextSearchCompleteNew | null | undefined> {
-
-
-
-
 		const folderMappings: TernarySearchTree<URI, FolderQueryInfo> = TernarySearchTree.forUris<FolderQueryInfo>();
 		folderQueries.forEach((fq, i) => {
 			const queryTester = new QueryGlobTester(this.query, fq);
@@ -164,10 +160,13 @@ export class TextSearchManager {
 		const folderOptions = folderQueries.map(fq => this.getSearchOptionsForFolder(fq));
 		const searchOptions: TextSearchProviderOptions = {
 			folderOptions,
-			maxFileSize: this.query.maxFileSize,
+			maxFileSize: this.query.maxFileSize ?? 50,
 			maxResults: this.query.maxResults ?? DEFAULT_MAX_SEARCH_RESULTS,
-			previewOptions: this.query.previewOptions,
-			surroundingContext: this.query.surroundingContext,
+			previewOptions: this.query.previewOptions ?? {
+				matchLines: 1,
+				charsPerLine: 1000
+			},
+			surroundingContext: this.query.surroundingContext ?? 0,
 		};
 		if ('usePCRE2' in this.query) {
 			(<IExtendedExtensionSearchOptions>searchOptions).usePCRE2 = this.query.usePCRE2;

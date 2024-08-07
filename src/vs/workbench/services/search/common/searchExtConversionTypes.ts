@@ -524,7 +524,7 @@ function newToOldTextProviderOptions(options: TextSearchProviderOptions): TextSe
 	} satisfies TextSearchOptions));
 }
 
-function oldToNewTextSearchResult(result: TextSearchResult): TextSearchResultNew {
+export function oldToNewTextSearchResult(result: TextSearchResult): TextSearchResultNew {
 	if (isTextSearchMatch(result)) {
 		const ranges = asArray(result.ranges).map(r => ({ sourceRange: r, previewRange: r }));
 		return new TextSearchMatchNew(result.uri, ranges, result.preview.text);

@@ -90,8 +90,7 @@ export interface IFileQueryBuilderOptions extends ICommonQueryBuilderOptions {
 export interface ITextQueryBuilderOptions extends ICommonQueryBuilderOptions {
 	previewOptions?: ITextSearchPreviewOptions;
 	fileEncoding?: string;
-	beforeContext?: number;
-	afterContext?: number;
+	surroundingContext?: number;
 	isSmartCase?: boolean;
 	notebookSearchConfig?: {
 		includeMarkupInput: boolean;
@@ -130,8 +129,7 @@ export class QueryBuilder {
 			previewOptions: options.previewOptions,
 			maxFileSize: options.maxFileSize,
 			usePCRE2: searchConfig.search.usePCRE2 || fallbackToPCRE || false,
-			beforeContext: options.beforeContext,
-			afterContext: options.afterContext,
+			surroundingContext: options.surroundingContext,
 			userDisabledExcludesAndIgnoreFiles: options.disregardExcludeSettings && options.disregardIgnoreFiles,
 
 		};
