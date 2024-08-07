@@ -19,9 +19,12 @@ import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import { Selection } from 'vs/editor/common/core/selection';
 import { HorizontalPosition } from 'vs/editor/browser/view/renderingContext';
 import { ColorId, ITokenPresentation } from 'vs/editor/common/encodedTokenAttributes';
-import { IVisibleRangeProvider } from 'vs/editor/browser/controller/editContext/textArea/textAreaHandler';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IME } from 'vs/base/common/ime';
+import { IEditorAriaOptions } from 'vs/editor/browser/editorBrowser';
+import { Color } from 'vs/base/common/color';
+import { FontInfo } from 'vs/editor/common/config/fontInfo';
+import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 
 
 export class VisibleTextAreaData {
@@ -321,6 +324,21 @@ export function setAttributes(
 	domNode.setAttribute('aria-autocomplete', options.get(EditorOption.readOnly) ? 'none' : 'both');
 }
 
+export function changeAttributesOnConfigurationChange(
+	domNode: HTMLElement,
+	tabSize: number,
+	textAreaWrapping: boolean,
+	visibleTextArea: VisibleTextAreaData | null,
+	options: IComputedEditorOptions,
+	keybindingService: IKeybindingService
+) {
+	domNode.setAttribute('wrap', textAreaWrapping && !visibleTextArea ? 'on' : 'off');
+	domNode.style.tabSize = `${tabSize * options.get(EditorOption.fontInfo).spaceWidth}px`;
+	domNode.setAttribute('aria-label', getAriaLabel(options, keybindingService));
+	domNode.setAttribute('aria-required', options.get(EditorOption.ariaRequired) ? 'true' : 'false');
+	domNode.setAttribute('tabindex', String(options.get(EditorOption.tabIndex)));
+}
+
 export function ensureReadOnlyAttribute(domNode: HTMLElement, options: IComputedEditorOptions): void {
 	// When someone requests to disable IME, we set the "readonly" attribute on the <textarea>.
 	// This will prevent composition.
@@ -330,4 +348,77 @@ export function ensureReadOnlyAttribute(domNode: HTMLElement, options: IComputed
 	} else {
 		domNode.removeAttribute('readonly');
 	}
+}
+
+export function setAriaOptions(domNode: HTMLElement, options: IEditorAriaOptions): void {
+	if (options.activeDescendant) {
+		domNode.setAttribute('aria-haspopup', 'true');
+		domNode.setAttribute('aria-autocomplete', 'list');
+		domNode.setAttribute('aria-activedescendant', options.activeDescendant);
+	} else {
+		domNode.setAttribute('aria-haspopup', 'false');
+		domNode.setAttribute('aria-autocomplete', 'both');
+		domNode.removeAttribute('aria-activedescendant');
+	}
+	if (options.role) {
+		domNode.setAttribute('role', options.role);
+	}
+}
+
+export function newlinecount(text: string): number {
+	let result = 0;
+	let startIndex = -1;
+	do {
+		startIndex = text.indexOf('\n', startIndex + 1);
+		if (startIndex === -1) {
+			break;
+		}
+		result++;
+	} while (true);
+	return result;
+}
+
+export interface IRenderData {
+	lastRenderPosition: Position | null;
+	top: number;
+	left: number;
+	width: number;
+	height: number;
+	useCover: boolean;
+
+	color?: Color | null;
+	italic?: boolean;
+	bold?: boolean;
+	underline?: boolean;
+	strikethrough?: boolean;
+}
+
+export function measureText(targetDocument: Document, text: string, fontInfo: FontInfo, tabSize: number): number {
+	if (text.length === 0) {
+		return 0;
+	}
+
+	const container = targetDocument.createElement('div');
+	container.style.position = 'absolute';
+	container.style.top = '-50000px';
+	container.style.width = '50000px';
+
+	const regularDomNode = targetDocument.createElement('span');
+	applyFontInfo(regularDomNode, fontInfo);
+	regularDomNode.style.whiteSpace = 'pre'; // just like the textarea
+	regularDomNode.style.tabSize = `${tabSize * fontInfo.spaceWidth}px`; // just like the textarea
+	regularDomNode.append(text);
+	container.appendChild(regularDomNode);
+
+	targetDocument.body.appendChild(container);
+
+	const res = regularDomNode.offsetWidth;
+
+	container.remove();
+
+	return res;
+}
+
+export interface IVisibleRangeProvider {
+	visibleRangeForPosition(position: Position): HorizontalPosition | null;
 }

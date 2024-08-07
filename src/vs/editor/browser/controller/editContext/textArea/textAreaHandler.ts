@@ -33,11 +33,7 @@ import { IME } from 'vs/base/common/ime';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { AbstractEditContext } from 'vs/editor/browser/controller/editContext/editContext';
-import { canUseZeroSizeTextarea, ensureReadOnlyAttribute, getAriaLabel, getScreenReaderContent, setAccessibilityOptions, setAttributes, VisibleTextAreaData } from 'vs/editor/browser/controller/editContext/editContextUtils';
-
-export interface IVisibleRangeProvider {
-	visibleRangeForPosition(position: Position): HorizontalPosition | null;
-}
+import { canUseZeroSizeTextarea, ensureReadOnlyAttribute, getScreenReaderContent, IRenderData, IVisibleRangeProvider, measureText, newlinecount, setAccessibilityOptions, setAriaOptions, setAttributes, VisibleTextAreaData } from 'vs/editor/browser/controller/editContext/editContextUtils';
 
 // TODO: verify all of the code here and check what is needed in the other native edit context code and what is not needed. Do a full port of the code there. Use vscode2 in order to understand what the code is used for and if I need it.
 // TODO: once that is done and the port is done, then check that with NVDA works as expected and voice over as compared to normal code
@@ -122,7 +118,6 @@ export class TextAreaContext extends AbstractEditContext {
 		// TODO: The text area cover is used because otherwise the text area is not detected when it is hidden should be ported too
 		this.textAreaCover = createFastDomNode(document.createElement('div'));
 		this.textAreaCover.setPosition('absolute');
-
 
 		const textAreaInputHost: ITextAreaInputHost = {
 			getDataToCopy: (): ClipboardDataToCopy => {
@@ -336,6 +331,7 @@ export class TextAreaContext extends AbstractEditContext {
 
 	appendTo(overflowGuardContainer: FastDomNode<HTMLElement>): void {
 		overflowGuardContainer.appendChild(this.textArea);
+		// TODO: maybe need to also place the text area cover when this will be needed
 		overflowGuardContainer.appendChild(this.textAreaCover);
 	}
 
@@ -345,10 +341,6 @@ export class TextAreaContext extends AbstractEditContext {
 
 	public override dispose(): void {
 		super.dispose();
-	}
-
-	private _getAriaLabel(options: IComputedEditorOptions): string {
-		return getAriaLabel(options, this._keybindingService);
 	}
 
 	private _setAccessibilityOptions(options: IComputedEditorOptions): void {
@@ -373,12 +365,9 @@ export class TextAreaContext extends AbstractEditContext {
 		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._emptySelectionClipboard = options.get(EditorOption.emptySelectionClipboard);
 		this._copyWithSyntaxHighlighting = options.get(EditorOption.copyWithSyntaxHighlighting);
-		this.textArea.setAttribute('wrap', this._textAreaWrapping && !this._visibleTextArea ? 'on' : 'off');
+
 		const { tabSize } = this._context.viewModel.model.getOptions();
-		this.textArea.domNode.style.tabSize = `${tabSize * this._fontInfo.spaceWidth}px`;
-		this.textArea.setAttribute('aria-label', this._getAriaLabel(options));
-		this.textArea.setAttribute('aria-required', options.get(EditorOption.ariaRequired) ? 'true' : 'false');
-		this.textArea.setAttribute('tabindex', String(options.get(EditorOption.tabIndex)));
+		setAttributes(this.textArea.domNode, tabSize, this._textAreaWrapping, this._visibleTextArea, options, this._keybindingService);
 
 		if (e.hasChanged(EditorOption.domReadOnly) || e.hasChanged(EditorOption.readOnly)) {
 			ensureReadOnlyAttribute(this.textArea.domNode, options);
@@ -444,18 +433,7 @@ export class TextAreaContext extends AbstractEditContext {
 	}
 
 	public setAriaOptions(options: IEditorAriaOptions): void {
-		if (options.activeDescendant) {
-			this.textArea.setAttribute('aria-haspopup', 'true');
-			this.textArea.setAttribute('aria-autocomplete', 'list');
-			this.textArea.setAttribute('aria-activedescendant', options.activeDescendant);
-		} else {
-			this.textArea.setAttribute('aria-haspopup', 'false');
-			this.textArea.setAttribute('aria-autocomplete', 'both');
-			this.textArea.removeAttribute('aria-activedescendant');
-		}
-		if (options.role) {
-			this.textArea.setAttribute('role', options.role);
-		}
+		setAriaOptions(this.textArea.domNode, options);
 	}
 
 	// --- end view API
@@ -484,7 +462,7 @@ export class TextAreaContext extends AbstractEditContext {
 			const endPosition = this._visibleTextArea.endPosition;
 			if (startPosition && endPosition && visibleStart && visibleEnd && visibleEnd.left >= this._scrollLeft && visibleStart.left <= this._scrollLeft + this._contentWidth) {
 				const top = (this._context.viewLayout.getVerticalOffsetForLineNumber(this._primaryCursorPosition.lineNumber) - this._scrollTop);
-				const lineCount = this._newlinecount(this.textArea.domNode.value.substr(0, this.textArea.domNode.selectionStart));
+				const lineCount = newlinecount(this.textArea.domNode.value.substr(0, this.textArea.domNode.selectionStart));
 
 				let scrollLeft = this._visibleTextArea.widthOfHiddenLineTextBefore;
 				let left = (this._contentLeft + visibleStart.left - this._scrollLeft);
@@ -576,7 +554,7 @@ export class TextAreaContext extends AbstractEditContext {
 			// In case the textarea contains a word, we're going to try to align the textarea's cursor
 			// with our cursor by scrolling the textarea as much as possible
 			this.textArea.domNode.scrollLeft = this._primaryCursorVisibleRange.left;
-			const lineCount = this._textAreaInput.textAreaState.newlineCountBeforeSelection ?? this._newlinecount(this.textArea.domNode.value.substr(0, this.textArea.domNode.selectionStart));
+			const lineCount = this._textAreaInput.textAreaState.newlineCountBeforeSelection ?? newlinecount(this.textArea.domNode.value.substr(0, this.textArea.domNode.selectionStart));
 			this.textArea.domNode.scrollTop = lineCount * this._lineHeight;
 			return;
 		}
@@ -589,19 +567,6 @@ export class TextAreaContext extends AbstractEditContext {
 			height: (canUseZeroSizeTextarea ? 0 : 1),
 			useCover: false
 		});
-	}
-
-	private _newlinecount(text: string): number {
-		let result = 0;
-		let startIndex = -1;
-		do {
-			startIndex = text.indexOf('\n', startIndex + 1);
-			if (startIndex === -1) {
-				break;
-			}
-			result++;
-		} while (true);
-		return result;
 	}
 
 	private _renderAtTopLeft(): void {
@@ -654,45 +619,4 @@ export class TextAreaContext extends AbstractEditContext {
 			}
 		}
 	}
-}
-
-interface IRenderData {
-	lastRenderPosition: Position | null;
-	top: number;
-	left: number;
-	width: number;
-	height: number;
-	useCover: boolean;
-
-	color?: Color | null;
-	italic?: boolean;
-	bold?: boolean;
-	underline?: boolean;
-	strikethrough?: boolean;
-}
-
-function measureText(targetDocument: Document, text: string, fontInfo: FontInfo, tabSize: number): number {
-	if (text.length === 0) {
-		return 0;
-	}
-
-	const container = targetDocument.createElement('div');
-	container.style.position = 'absolute';
-	container.style.top = '-50000px';
-	container.style.width = '50000px';
-
-	const regularDomNode = targetDocument.createElement('span');
-	applyFontInfo(regularDomNode, fontInfo);
-	regularDomNode.style.whiteSpace = 'pre'; // just like the textarea
-	regularDomNode.style.tabSize = `${tabSize * fontInfo.spaceWidth}px`; // just like the textarea
-	regularDomNode.append(text);
-	container.appendChild(regularDomNode);
-
-	targetDocument.body.appendChild(container);
-
-	const res = regularDomNode.offsetWidth;
-
-	container.remove();
-
-	return res;
 }
