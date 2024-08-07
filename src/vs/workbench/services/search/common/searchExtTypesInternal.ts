@@ -8,7 +8,7 @@ interface RipgrepSearchOptionsCommon {
 	numThreads?: number;
 }
 
-export type TextSearchProviderOptionsRipgrep = Omit<TextSearchProviderOptions, 'folderOptions'> & {
+export type TextSearchProviderOptionsRipgrep = Omit<Partial<TextSearchProviderOptions>, 'folderOptions'> & {
 	folderOptions: TextSearchProviderFolderOptions;
 };
 

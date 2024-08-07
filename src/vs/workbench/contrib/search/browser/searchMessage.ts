@@ -11,12 +11,13 @@ import Severity from 'vs/base/common/severity';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { SeverityIcon } from 'vs/platform/severityIcon/browser/severityIcon';
-import { TextSearchCompleteMessage, TextSearchCompleteMessageType } from 'vs/workbench/services/search/common/searchExtTypes';
+import { TextSearchCompleteMessageType } from 'vs/workbench/services/search/common/searchExtTypes';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { Schemas } from 'vs/base/common/network';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Link } from 'vs/platform/opener/browser/link';
 import { URI } from 'vs/base/common/uri';
+import { TextSearchCompleteMessage } from 'vs/workbench/services/search/common/searchExtConversionTypes';
 
 export const renderSearchMessage = (
 	message: TextSearchCompleteMessage,

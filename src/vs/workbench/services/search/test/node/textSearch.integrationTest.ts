@@ -291,7 +291,11 @@ flakySuite('TextSearch-integration', function () {
 		const config: ITextQuery = {
 			type: QueryType.Text,
 			folderQueries: [
-				{ folder: URI.file(EXAMPLES_FIXTURES), excludePattern: makeExpression('**/e*.js') },
+				{
+					folder: URI.file(EXAMPLES_FIXTURES), excludePattern: {
+						pattern: makeExpression('**/e*.js')
+					}
+				},
 				{ folder: URI.file(MORE_FIXTURES) }
 			],
 			contentPattern: { pattern: 'e' }
@@ -338,8 +342,7 @@ flakySuite('TextSearch-integration', function () {
 			type: QueryType.Text,
 			folderQueries: ROOT_FOLDER_QUERY,
 			contentPattern: { pattern: 'compiler.typeCheck();' },
-			beforeContext: 1,
-			afterContext: 2
+			surroundingContext: 1,
 		};
 
 		return doSearchTest(config, 4).then(results => {
@@ -349,8 +352,6 @@ flakySuite('TextSearch-integration', function () {
 			// assert.strictEqual((<ITextSearchMatch>results[1].results[0]).preview.text, '        compiler.typeCheck();\n'); // See https://github.com/BurntSushi/ripgrep/issues/1095
 			assert.strictEqual((<ITextSearchContext>results[2].results![0]).lineNumber, 26);
 			assert.strictEqual((<ITextSearchContext>results[2].results![0]).text, '        compiler.emit();');
-			assert.strictEqual((<ITextSearchContext>results[3].results![0]).lineNumber, 27);
-			assert.strictEqual((<ITextSearchContext>results[3].results![0]).text, '');
 		});
 	});
 

@@ -139,8 +139,7 @@ export class LocalFileSearchSimpleWorker implements ILocalFileSearchSimpleWorker
 
 				const bytes = new Uint8Array(contents);
 				const fileResults = getFileResults(bytes, pattern, {
-					afterContext: query.afterContext ?? 0,
-					beforeContext: query.beforeContext ?? 0,
+					surroundingContext: query.surroundingContext ?? 0,
 					previewOptions: query.previewOptions,
 					remainingResultQuota: query.maxResults ? (query.maxResults - resultCount) : 10000,
 				});

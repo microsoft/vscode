@@ -4,15 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ITextSearchResult } from 'vs/workbench/services/search/common/search';
-import { TextSearchPreviewOptions } from 'vs/workbench/services/search/common/searchExtTypes';
 import { Range } from 'vs/editor/common/core/range';
+import { TextSearchPreviewOptions } from 'vs/workbench/services/search/common/searchExtConversionTypes';
 
 export const getFileResults = (
 	bytes: Uint8Array,
 	pattern: RegExp,
 	options: {
-		beforeContext: number;
-		afterContext: number;
+		surroundingContext: number;
 		previewOptions: TextSearchPreviewOptions | undefined;
 		remainingResultQuota: number;
 	}
@@ -71,8 +70,8 @@ export const getFileResults = (
 				endLine++;
 			}
 
-			if (options.beforeContext) {
-				for (let contextLine = Math.max(0, startLine - options.beforeContext); contextLine < startLine; contextLine++) {
+			if (options.surroundingContext) {
+				for (let contextLine = Math.max(0, startLine - options.surroundingContext); contextLine < startLine; contextLine++) {
 					contextLinesNeeded.add(contextLine);
 				}
 			}
@@ -108,8 +107,8 @@ export const getFileResults = (
 			};
 			results.push(match);
 
-			if (options.afterContext) {
-				for (let contextLine = endLine + 1; contextLine <= Math.min(endLine + options.afterContext, lineRanges.length - 1); contextLine++) {
+			if (options.surroundingContext) {
+				for (let contextLine = endLine + 1; contextLine <= Math.min(endLine + options.surroundingContext, lineRanges.length - 1); contextLine++) {
 					contextLinesNeeded.add(contextLine);
 				}
 			}

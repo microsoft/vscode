@@ -11,7 +11,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IFileMatch, IFileQuery, ISearchComplete, ISearchProgressItem, ISearchResultProvider, ISearchService, ITextQuery, SearchProviderType, TextSearchCompleteMessageTypeNew } from 'vs/workbench/services/search/common/search';
+import { IFileMatch, IFileQuery, ISearchComplete, ISearchProgressItem, ISearchResultProvider, ISearchService, ITextQuery, SearchProviderType } from 'vs/workbench/services/search/common/search';
 import { SearchService } from 'vs/workbench/services/search/common/searchService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IWorkerClient, logOnceWebWorkerWarning, SimpleWorkerClient } from 'vs/base/common/worker/simpleWorker';
@@ -27,6 +27,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { localize } from 'vs/nls';
 import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAccess';
 import { revive } from 'vs/base/common/marshalling';
+import { TextSearchCompleteMessageType } from 'vs/workbench/services/search/common/searchExtConversionTypes';
 
 export class RemoteSearchService extends SearchService {
 	constructor(
@@ -133,7 +134,7 @@ export class LocalFileSearchWorkerClient extends Disposable implements ISearchRe
 			return {
 				results: [],
 				messages: [{
-					text: localize('errorSearchText', "Unable to search with Web Worker text searcher"), type: TextSearchCompleteMessageTypeNew.Warning
+					text: localize('errorSearchText', "Unable to search with Web Worker text searcher"), type: TextSearchCompleteMessageType.Warning
 				}],
 			};
 		}
@@ -172,7 +173,7 @@ export class LocalFileSearchWorkerClient extends Disposable implements ISearchRe
 			return {
 				results: [],
 				messages: [{
-					text: localize('errorSearchFile', "Unable to search with Web Worker file searcher"), type: TextSearchCompleteMessageTypeNew.Warning
+					text: localize('errorSearchFile', "Unable to search with Web Worker file searcher"), type: TextSearchCompleteMessageType.Warning
 				}],
 			};
 		}

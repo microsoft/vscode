@@ -13,8 +13,8 @@ import { splitGlobAware } from 'vs/base/common/glob';
 import { createRegExp, escapeRegExpCharacters } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { Progress } from 'vs/platform/progress/common/progress';
-import { IExtendedExtensionSearchOptions, ITextSearchPreviewOptions, SearchError, SearchErrorCode, serializeSearchError, TextSearchMatch } from 'vs/workbench/services/search/common/search';
-import { Range, TextSearchCompleteNew, TextSearchContextNew, TextSearchMatchNew, TextSearchQueryNew, TextSearchResultNew } from 'vs/workbench/services/search/common/searchExtTypes';
+import { DEFAULT_MAX_SEARCH_RESULTS, IExtendedExtensionSearchOptions, ITextSearchPreviewOptions, SearchError, SearchErrorCode, serializeSearchError, TextSearchMatch } from 'vs/workbench/services/search/common/search';
+import { Range, TextSearchCompleteNew, TextSearchContextNew, TextSearchMatchNew, TextSearchProviderOptions, TextSearchQueryNew, TextSearchResultNew } from 'vs/workbench/services/search/common/searchExtTypes';
 import { AST as ReAST, RegExpParser, RegExpVisitor } from 'vscode-regexpp';
 import { rgPath } from '@vscode/ripgrep';
 import { anchorGlob, IOutputChannel, Maybe, rangeToSearchRange, searchRangeToRange } from './ripgrepSearchUtils';
@@ -27,7 +27,27 @@ export class RipgrepTextSearchEngine {
 
 	constructor(private outputChannel: IOutputChannel, private readonly _numThreads?: number | undefined) { }
 
-	provideTextSearchResults(query: TextSearchQueryNew, options: RipgrepTextSearchOptions, progress: Progress<TextSearchResultNew>, token: CancellationToken): Promise<TextSearchCompleteNew> {
+	provideTextSearchResults(query: TextSearchQueryNew, options: TextSearchProviderOptions, progress: Progress<TextSearchResultNew>, token: CancellationToken): Promise<TextSearchCompleteNew> {
+		return Promise.all(options.folderOptions.map(folderOption => {
+			const extendedOptions: RipgrepTextSearchOptions = {
+				folderOptions: folderOption,
+				numThreads: this._numThreads,
+				maxResults: options.maxResults,
+				previewOptions: options.previewOptions,
+				maxFileSize: options.maxFileSize,
+				surroundingContext: options.surroundingContext
+			};
+			return this.provideTextSearchResultsWithRgOptions(query, extendedOptions, progress, token);
+		})).then((e => {
+			const complete: TextSearchCompleteNew = {
+				// todo: get this to actually check
+				limitHit: e.some(complete => !!complete && complete.limitHit)
+			};
+			return complete;
+		}));
+	}
+
+	provideTextSearchResultsWithRgOptions(query: TextSearchQueryNew, options: RipgrepTextSearchOptions, progress: Progress<TextSearchResultNew>, token: CancellationToken): Promise<TextSearchCompleteNew> {
 		this.outputChannel.appendLine(`provideTextSearchResults ${query.pattern}, ${JSON.stringify({
 			...options,
 			...{
@@ -59,7 +79,7 @@ export class RipgrepTextSearchEngine {
 			});
 
 			let gotResult = false;
-			const ripgrepParser = new RipgrepParser(options.maxResults, options.folderOptions.folder, options.previewOptions);
+			const ripgrepParser = new RipgrepParser(options.maxResults ?? DEFAULT_MAX_SEARCH_RESULTS, options.folderOptions.folder, options.previewOptions);
 			ripgrepParser.on('result', (match: TextSearchResultNew) => {
 				gotResult = true;
 				dataWithoutResult = '';

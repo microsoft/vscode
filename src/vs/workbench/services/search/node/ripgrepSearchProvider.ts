@@ -37,9 +37,9 @@ export class RipgrepSearchProvider implements TextSearchProviderNew {
 				// case in point vscode-userdata. In these cases we translate the query to a file, and translate the results back to the frontend scheme.
 				const translatedOptions = { ...extendedOptions, folder: folderOption.folder.with({ scheme: Schemas.file }) };
 				const progressTranslator = new Progress<TextSearchResultNew>(data => progress.report({ ...data, uri: data.uri.with({ scheme: folderOption.folder.scheme }) }));
-				return this.withToken(token, token => engine.provideTextSearchResults(query, translatedOptions, progressTranslator, token));
+				return this.withToken(token, token => engine.provideTextSearchResultsWithRgOptions(query, translatedOptions, progressTranslator, token));
 			} else {
-				return this.withToken(token, token => engine.provideTextSearchResults(query, extendedOptions, progress, token));
+				return this.withToken(token, token => engine.provideTextSearchResultsWithRgOptions(query, extendedOptions, progress, token));
 			}
 		})).then((e => {
 			const complete: TextSearchCompleteNew = {
