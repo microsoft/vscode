@@ -19,6 +19,7 @@ import { getInstanceFromResource } from 'vs/workbench/contrib/terminal/browser/t
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
 import { TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
+import { asArray } from 'vs/base/common/arrays';
 
 export class TerminalGroupService extends Disposable implements ITerminalGroupService {
 	declare _serviceBrand: undefined;
@@ -326,9 +327,9 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		);
 	};
 
-	moveGroup(sources: ITerminalInstance | ITerminalInstance[], target: ITerminalInstance) {
-		const sourcesArray = Array.isArray(sources) ? sources : [sources];
-		const sourceGroups = this._getValidTerminalGroups(sourcesArray);
+	moveGroup(source: ITerminalInstance | ITerminalInstance[], target: ITerminalInstance) {
+		source = asArray(source);
+		const sourceGroups = this._getValidTerminalGroups(source);
 		const targetGroup = this.getGroupForInstance(target);
 		if (!targetGroup || sourceGroups.size === 0) {
 			return;
@@ -337,7 +338,7 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		// The groups are the same, rearrange within the group
 		if (sourceGroups.size === 1 && sourceGroups.has(targetGroup)) {
 			const targetIndex = targetGroup.terminalInstances.indexOf(target);
-			const sortedSources = sourcesArray.sort((a, b) => {
+			const sortedSources = source.sort((a, b) => {
 				return targetGroup.terminalInstances.indexOf(a) - targetGroup.terminalInstances.indexOf(b);
 			});
 			const firstTargetIndex = targetGroup.terminalInstances.indexOf(sortedSources[0]);
@@ -363,10 +364,9 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		this._onDidChangeInstances.fire();
 	}
 
-
-	moveGroupToEnd(sources: ITerminalInstance | ITerminalInstance[]): void {
-		const sourcesArray = Array.isArray(sources) ? sources : [sources];
-		const sourceGroups = this._getValidTerminalGroups(sourcesArray);
+	moveGroupToEnd(source: ITerminalInstance | ITerminalInstance[]): void {
+		source = asArray(source);
+		const sourceGroups = this._getValidTerminalGroups(source);
 		if (sourceGroups.size === 0) {
 			return;
 		}

@@ -15,6 +15,7 @@ import { IShellLaunchConfig, ITerminalTabLayoutInfoById, TerminalLocation } from
 import { TerminalStatus } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import { getWindow } from 'vs/base/browser/dom';
 import { getPartByLocation } from 'vs/workbench/services/views/browser/viewsService';
+import { asArray } from 'vs/base/common/arrays';
 
 const enum Constants {
 	/**
@@ -409,20 +410,20 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 	}
 
 	moveInstance(instances: ITerminalInstance | ITerminalInstance[], index: number, position: 'before' | 'after'): void {
-		const instancesArray = Array.isArray(instances) ? instances : [instances];
-		const hasInvalidInstance = instancesArray.some(instance => !this.terminalInstances.includes(instance));
+		instances = asArray(instances);
+		const hasInvalidInstance = instances.some(instance => !this.terminalInstances.includes(instance));
 		if (hasInvalidInstance) {
 			return;
 		}
 		const insertIndex = position === 'before' ? index : index + 1;
-		this._terminalInstances.splice(insertIndex, 0, ...instancesArray);
-		for (const item of instancesArray) {
+		this._terminalInstances.splice(insertIndex, 0, ...instances);
+		for (const item of instances) {
 			const originSourceGroupIndex = position === 'after' ? this._terminalInstances.indexOf(item) : this._terminalInstances.lastIndexOf(item);
 			this._terminalInstances.splice(originSourceGroupIndex, 1);
 		}
 		if (this._splitPaneContainer) {
-			for (let i = 0; i < instancesArray.length; i++) {
-				const item = instancesArray[i];
+			for (let i = 0; i < instances.length; i++) {
+				const item = instances[i];
 				this._splitPaneContainer.remove(item);
 				this._splitPaneContainer.split(item, index + (position === 'before' ? i : 0));
 			}
