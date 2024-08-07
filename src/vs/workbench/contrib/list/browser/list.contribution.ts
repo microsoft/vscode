@@ -28,9 +28,8 @@ export class ListContext implements IWorkbenchContribution {
 
 registerWorkbenchContribution2(ListContext.ID, ListContext, WorkbenchPhase.BlockStartup);
 
-
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'resizeColumn',
+	id: 'list.resizeColumn',
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: WorkbenchListFocusContextKey,
 	primary: KeyCode.F8,
