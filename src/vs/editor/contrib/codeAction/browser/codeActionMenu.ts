@@ -5,14 +5,14 @@
 
 import 'vs/base/browser/ui/codicons/codiconStyles'; // The codicon symbol styles are defined here and must be loaded
 import { Codicon } from 'vs/base/common/codicons';
-import { HierarchicalKind } from 'vs/base/common/hierarchicalKind';
-import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { ThemeIcon } from 'vs/base/common/themables';
+import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { CodeAction } from 'vs/editor/common/languages';
 import { CodeActionItem, CodeActionKind } from 'vs/editor/contrib/codeAction/common/types';
 import 'vs/editor/contrib/symbolIcons/browser/symbolIcons'; // The codicon symbol colors are defined here and must be loaded to get colors
 import { localize } from 'vs/nls';
 import { ActionListItemKind, IActionListItem } from 'vs/platform/actionWidget/browser/actionList';
+import { HierarchicalKind } from 'vs/base/common/hierarchicalKind';
 
 interface ActionGroup {
 	readonly kind: HierarchicalKind;

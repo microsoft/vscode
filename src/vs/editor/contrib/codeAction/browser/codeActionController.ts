@@ -10,7 +10,6 @@ import { IAction } from 'vs/base/common/actions';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Color } from 'vs/base/common/color';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { HierarchicalKind } from 'vs/base/common/hierarchicalKind';
 import { Lazy } from 'vs/base/common/lazy';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -23,9 +22,7 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 import { ApplyCodeActionReason, applyCodeAction } from 'vs/editor/contrib/codeAction/browser/codeAction';
 import { CodeActionKeybindingResolver } from 'vs/editor/contrib/codeAction/browser/codeActionKeybindingResolver';
 import { toMenuItems } from 'vs/editor/contrib/codeAction/browser/codeActionMenu';
-import { CodeActionModel, CodeActionsState } from 'vs/editor/contrib/codeAction/browser/codeActionModel';
 import { LightBulbWidget } from 'vs/editor/contrib/codeAction/browser/lightBulbWidget';
-import { CodeActionAutoApply, CodeActionFilter, CodeActionItem, CodeActionKind, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/common/types';
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
 import { localize } from 'vs/nls';
 import { IActionListDelegate } from 'vs/platform/actionWidget/browser/actionList';
@@ -39,6 +36,9 @@ import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { editorFindMatchHighlight, editorFindMatchHighlightBorder } from 'vs/platform/theme/common/colorRegistry';
 import { isHighContrast } from 'vs/platform/theme/common/theme';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { CodeActionAutoApply, CodeActionFilter, CodeActionItem, CodeActionKind, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/common/types';
+import { CodeActionModel, CodeActionsState } from 'vs/editor/contrib/codeAction/browser/codeActionModel';
+import { HierarchicalKind } from 'vs/base/common/hierarchicalKind';
 
 interface IActionShowOptions {
 	readonly includeDisabledActions?: boolean;
@@ -336,13 +336,6 @@ export class CodeActionController extends Disposable implements IEditorContribut
 				}
 			}
 		};
-
-		for (const item of actionsToShow) {
-			const hierarchicalKind = new HierarchicalKind(item.action.kind?.toString() ?? '');
-			if (CodeActionKind.QuickFix.contains(hierarchicalKind)) {
-				console.log(item);
-			}
-		}
 
 		this._actionWidgetService.show(
 			'codeActionWidget',
