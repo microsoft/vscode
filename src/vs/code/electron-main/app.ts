@@ -827,7 +827,7 @@ export class CodeApplication extends Disposable {
 
 			const secondSlash = uri.path.indexOf(posix.sep, 1 /* skip over the leading slash */);
 			let authority, path;
-			if (secondSlash === -1) {
+			if (secondSlash !== -1) {
 				authority = uri.path.substring(1, secondSlash);
 				path = uri.path.substring(secondSlash);
 			} else {
@@ -857,6 +857,7 @@ export class CodeApplication extends Disposable {
 
 			return { folderUri: remoteUri };
 		}
+		return undefined;
 	}
 
 	private async handleProtocolUrl(windowsMainService: IWindowsMainService, dialogMainService: IDialogMainService, urlService: IURLService, uri: URI, options?: IOpenURLOptions): Promise<boolean> {
