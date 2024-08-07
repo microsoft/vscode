@@ -67,8 +67,8 @@ export class TableColumnResizeQuickPick extends DisposableStore {
 			quickPick.validationMessage = localize('table.column.resizeValue.invalidType', "Please enter an integer.");
 			quickPick.severity = Severity.Error;
 			return;
-		} else if (percentage < 0 || percentage >= 100) {
-			quickPick.validationMessage = localize('table.column.resizeValue.invalidRange', "Please enter a number between 0 and 100.");
+		} else if (percentage < 0 || percentage > 100) {
+			quickPick.validationMessage = localize('table.column.resizeValue.invalidRange', "Please enter a number greater than 0 and less than or equal to 100.");
 			quickPick.severity = Severity.Error;
 			return;
 		} else {
