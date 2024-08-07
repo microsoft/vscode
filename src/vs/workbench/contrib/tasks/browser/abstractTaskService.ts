@@ -2112,7 +2112,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		try {
 			const customTasks = await this.getWorkspaceTasks();
 			const customTasksKeyValuePairs = Array.from(customTasks);
-			const customTasksPromises = this._getCustomTasks(customTasksKeyValuePairs, filter, result, contributedTasks, waitToActivate);
+			const customTasksPromises = this._getCustomTaskPromises(customTasksKeyValuePairs, filter, result, contributedTasks, waitToActivate);
 
 			await Promise.all(customTasksPromises);
 			if (needsRecentTasksMigration) {
@@ -2134,7 +2134,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			return result;
 		}
 	}
-	private _getCustomTasks(customTasksKeyValuePairs: [string, IWorkspaceFolderTaskResult][], filter: ITaskFilter | undefined, result: TaskMap, contributedTasks: TaskMap, waitToActivate: boolean | undefined) {
+	private _getCustomTaskPromises(customTasksKeyValuePairs: [string, IWorkspaceFolderTaskResult][], filter: ITaskFilter | undefined, result: TaskMap, contributedTasks: TaskMap, waitToActivate: boolean | undefined) {
 		return customTasksKeyValuePairs.map(async ([key, folderTasks]) => {
 			const contributed = contributedTasks.get(key);
 			if (!folderTasks.set) {
