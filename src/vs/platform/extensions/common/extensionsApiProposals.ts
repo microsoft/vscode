@@ -21,9 +21,6 @@ const _allApiProposals = {
 	attributableCoverage: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.attributableCoverage.d.ts',
 	},
-	authGetSessions: {
-		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.authGetSessions.d.ts',
-	},
 	authLearnMore: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.authLearnMore.d.ts',
 	},
@@ -243,7 +240,7 @@ const _allApiProposals = {
 	},
 	lmTools: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.lmTools.d.ts',
-		version: 2
+		version: 3
 	},
 	mappedEditsProvider: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.mappedEditsProvider.d.ts',

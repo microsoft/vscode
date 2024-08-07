@@ -9,6 +9,8 @@ import { URI } from 'vs/base/common/uri';
 import { assertSnapshot } from 'vs/base/test/common/snapshot';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Range } from 'vs/editor/common/core/range';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
@@ -85,6 +87,7 @@ suite('ChatService', () => {
 		instantiationService.stub(IViewsService, new TestExtensionService());
 		instantiationService.stub(IWorkspaceContextService, new TestContextService());
 		instantiationService.stub(IChatSlashCommandService, testDisposables.add(instantiationService.createInstance(ChatSlashCommandService)));
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(IChatService, new MockChatService());
 
 		chatAgentService = instantiationService.createInstance(ChatAgentService);

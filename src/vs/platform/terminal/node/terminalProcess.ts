@@ -153,6 +153,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		this._properties[ProcessPropertyType.InitialCwd] = this._initialCwd;
 		this._properties[ProcessPropertyType.Cwd] = this._initialCwd;
 		const useConpty = this._options.windowsEnableConpty && process.platform === 'win32' && getWindowsBuildNumber() >= 18309;
+		const useConptyDll = useConpty && this._options.windowsUseConptyDll;
 		this._ptyOptions = {
 			name,
 			cwd,
@@ -161,6 +162,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			cols,
 			rows,
 			useConpty,
+			useConptyDll,
 			// This option will force conpty to not redraw the whole viewport on launch
 			conptyInheritCursor: useConpty && !!shellLaunchConfig.initialText
 		};
@@ -211,8 +213,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 				}
 				if (injection.filesToCopy) {
 					for (const f of injection.filesToCopy) {
-						await fs.promises.mkdir(path.dirname(f.dest), { recursive: true });
 						try {
+							await fs.promises.mkdir(path.dirname(f.dest), { recursive: true });
 							await fs.promises.copyFile(f.source, f.dest);
 						} catch {
 							// Swallow error, this should only happen when multiple users are on the same

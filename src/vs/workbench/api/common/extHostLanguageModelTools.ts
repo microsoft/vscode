@@ -9,7 +9,7 @@ import { revive } from 'vs/base/common/marshalling';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ExtHostLanguageModelToolsShape, IMainContext, MainContext, MainThreadLanguageModelToolsShape } from 'vs/workbench/api/common/extHost.protocol';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
-import { IToolData, IToolDelta } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
+import { IToolData, IToolDelta, IToolResult } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
 import type * as vscode from 'vscode';
 
 export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape {
@@ -30,9 +30,10 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 		});
 	}
 
-	async invokeTool(name: string, parameters: any, token: CancellationToken): Promise<string> {
+	async invokeTool(name: string, parameters: any, token: CancellationToken): Promise<vscode.LanguageModelToolResult> {
 		// Making the round trip here because not all tools were necessarily registered in this EH
-		return await this._proxy.$invokeTool(name, parameters, token);
+		const result = await this._proxy.$invokeTool(name, parameters, token);
+		return typeConvert.LanguageModelToolResult.to(result);
 	}
 
 	async $acceptToolDelta(delta: IToolDelta): Promise<void> {
@@ -50,13 +51,14 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			.map(tool => typeConvert.LanguageModelToolDescription.to(tool));
 	}
 
-	async $invokeTool(name: string, parameters: any, token: CancellationToken): Promise<string> {
+	async $invokeTool(name: string, parameters: any, token: CancellationToken): Promise<IToolResult> {
 		const item = this._registeredTools.get(name);
 		if (!item) {
 			throw new Error(`Unknown tool ${name}`);
 		}
 
-		return await item.tool.invoke(parameters, token);
+		const extensionResult = await item.tool.invoke(parameters, token);
+		return typeConvert.LanguageModelToolResult.from(extensionResult);
 	}
 
 	registerTool(extension: IExtensionDescription, name: string, tool: vscode.LanguageModelTool): IDisposable {

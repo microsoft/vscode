@@ -334,6 +334,9 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 		this._register(this._list.onMouseUp(e => {
 			if (e.element) {
+				if (typeof e.index === 'number') {
+					this._list.setFocus([e.index]);
+				}
 				this._onMouseUp.fire({ event: e.browserEvent, target: e.element });
 			}
 		}));

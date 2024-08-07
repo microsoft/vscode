@@ -79,7 +79,6 @@ export function getWorkerBootstrapUrl(scriptPath: string, label: string): string
 	const blob = new Blob([[
 		`/*${label}*/`,
 		`globalThis.MonacoEnvironment = { baseUrl: '${workerBaseUrl}' };`,
-		// VSCODE_GLOBALS: NLS
 		`globalThis._VSCODE_NLS_MESSAGES = ${JSON.stringify(globalThis._VSCODE_NLS_MESSAGES)};`,
 		`globalThis._VSCODE_NLS_LANGUAGE = ${JSON.stringify(globalThis._VSCODE_NLS_LANGUAGE)};`,
 		`const ttPolicy = globalThis.trustedTypes?.createPolicy('defaultWorkerFactory', { createScriptURL: value => value });`,

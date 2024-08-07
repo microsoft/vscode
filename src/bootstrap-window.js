@@ -13,7 +13,7 @@
  * @typedef {any} LoaderConfig
  */
 
-/* eslint-disable no-restricted-globals,  */
+/* eslint-disable no-restricted-globals */
 
 // ESM-comment-begin
 const isESM = false;
@@ -22,23 +22,15 @@ const isESM = false;
 // const isESM = true;
 // ESM-uncomment-end
 
-// Simple module style to support node.js and browser environments
 (function (factory) {
-
-	// Node.js
-	if (typeof exports === 'object') {
-		module.exports = factory();
-	}
-
-	// Browser
-	else {
-		// @ts-ignore
-		globalThis.MonacoBootstrapWindow = factory();
-	}
+	// @ts-ignore
+	globalThis.MonacoBootstrapWindow = factory();
 }(function () {
-	const bootstrapLib = bootstrap();
 	const preloadGlobals = sandboxGlobals();
 	const safeProcess = preloadGlobals.process;
+
+	// increase number of stack frames(from 10, https://github.com/v8/v8/wiki/Stack-Trace-API)
+	Error.stackTraceLimit = 100;
 
 	/**
 	 * @param {string[]} modulePaths
@@ -90,7 +82,6 @@ const isESM = false;
 			developerDeveloperKeybindingsDisposable = registerDeveloperKeybindings(disallowReloadKeybinding);
 		}
 
-		// VSCODE_GLOBALS: NLS
 		globalThis._VSCODE_NLS_MESSAGES = configuration.nls.messages;
 		globalThis._VSCODE_NLS_LANGUAGE = configuration.nls.language;
 		let language = configuration.nls.language || 'en';
@@ -119,7 +110,7 @@ const isESM = false;
 			// DEV: For each CSS modules that we have we defined an entry in the import map that maps to
 			// DEV: a blob URL that loads the CSS via a dynamic @import-rule.
 			// DEV ---------------------------------------------------------------------------------------
-			if (configuration.cssModules) {
+			if (Array.isArray(configuration.cssModules) && configuration.cssModules.length > 0) {
 				performance.mark('code/willAddCssLoader');
 
 				const style = document.createElement('style');
@@ -178,7 +169,7 @@ const isESM = false;
 
 			/** @type {LoaderConfig} */
 			const loaderConfig = {
-				baseUrl: `${bootstrapLib.fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32', scheme: 'vscode-file', fallbackAuthority: 'vscode-app' })}/out`,
+				baseUrl: `${fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32', scheme: 'vscode-file', fallbackAuthority: 'vscode-app' })}/out`,
 				preferScriptTags: true
 			};
 
@@ -317,11 +308,35 @@ const isESM = false;
 	}
 
 	/**
-	 * @return {{ fileUriFromPath: (path: string, config: { isWindows?: boolean, scheme?: string, fallbackAuthority?: string }) => string; }}
+	 * @param {string} path
+	 * @param {{ isWindows?: boolean, scheme?: string, fallbackAuthority?: string }} config
+	 * @returns {string}
 	 */
-	function bootstrap() {
-		// @ts-ignore (defined in bootstrap.js)
-		return window.MonacoBootstrap;
+	function fileUriFromPath(path, config) {
+
+		// Since we are building a URI, we normalize any backslash
+		// to slashes and we ensure that the path begins with a '/'.
+		let pathName = path.replace(/\\/g, '/');
+		if (pathName.length > 0 && pathName.charAt(0) !== '/') {
+			pathName = `/${pathName}`;
+		}
+
+		/** @type {string} */
+		let uri;
+
+		// Windows: in order to support UNC paths (which start with '//')
+		// that have their own authority, we do not use the provided authority
+		// but rather preserve it.
+		if (config.isWindows && pathName.startsWith('//')) {
+			uri = encodeURI(`${config.scheme || 'file'}:${pathName}`);
+		}
+
+		// Otherwise we optionally add the provided authority if specified
+		else {
+			uri = encodeURI(`${config.scheme || 'file'}://${config.fallbackAuthority || ''}${pathName}`);
+		}
+
+		return uri.replace(/#/g, '%23');
 	}
 
 	/**

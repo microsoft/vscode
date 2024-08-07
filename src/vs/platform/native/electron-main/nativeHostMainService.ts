@@ -531,13 +531,17 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 		try {
 			const { default: open } = await import('open');
-			await open(url, {
+			const res = await open(url, {
 				app: {
 					// Use `open.apps` helper to allow cross-platform browser
 					// aliases to be looked up properly. Fallback to the
 					// configured value if not found.
 					name: Object.hasOwn(open.apps, configuredBrowser) ? open.apps[(configuredBrowser as keyof typeof open['apps'])] : configuredBrowser
 				}
+			});
+
+			res.stderr?.on('data', (data: Buffer) => {
+				this.logService.error(`Error openening external URL '${url}' using browser '${configuredBrowser}': ${data.toString()}`);
 			});
 		} catch (error) {
 			this.logService.error(`Unable to open external URL '${url}' using browser '${configuredBrowser}' due to ${error}.`);

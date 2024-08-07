@@ -217,7 +217,7 @@ export async function showRunRecentQuickPick(
 		instantiationService.invokeFunction(showRunRecentQuickPick, instance, terminalInRunCommandPicker, type, fuzzySearchToggle.checked ? 'fuzzy' : 'contiguous', quickPick.value);
 	});
 	const outputProvider = instantiationService.createInstance(TerminalOutputProvider);
-	const quickPick = quickInputService.createQuickPick<Item | IQuickPickItem & { rawLabel: string }>();
+	const quickPick = quickInputService.createQuickPick<Item | IQuickPickItem & { rawLabel: string }>({ useSeparators: true });
 	const originalItems = items;
 	quickPick.items = [...originalItems];
 	quickPick.sortByLabel = false;
