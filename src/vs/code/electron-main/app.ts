@@ -826,7 +826,8 @@ export class CodeApplication extends Disposable {
 			//   To: vscode-remote://wsl+ubuntu/mnt/c/GitDevelopment/monaco
 
 			const secondSlash = uri.path.indexOf(posix.sep, 1 /* skip over the leading slash */);
-			let authority, path;
+			let authority: string;
+			let path: string;
 			if (secondSlash !== -1) {
 				authority = uri.path.substring(1, secondSlash);
 				path = uri.path.substring(secondSlash);
