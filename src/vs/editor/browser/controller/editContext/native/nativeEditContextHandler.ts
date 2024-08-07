@@ -22,7 +22,7 @@ import { ViewConfigurationChangedEvent, ViewCursorStateChangedEvent, ViewDecorat
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import * as dom from 'vs/base/browser/dom';
 import { Selection } from 'vs/editor/common/core/selection';
-import { canUseZeroSizeTextarea, ensureReadOnlyAttribute, getScreenReaderContent, IRenderData, IVisibleRangeProvider, newlinecount, setAccessibilityOptions, setAriaOptions, setAttributes, VisibleTextAreaData } from 'vs/editor/browser/controller/editContext/editContextUtils';
+import { canUseZeroSizeTextarea, ensureReadOnlyAttribute, getHiddenAreaInputHost, getScreenReaderContent, IRenderData, IVisibleRangeProvider, newlinecount, setAccessibilityOptions, setAriaOptions, setAttributes, VisibleTextAreaData } from 'vs/editor/browser/controller/editContext/editContextUtils';
 import { PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
@@ -33,6 +33,10 @@ import * as platform from 'vs/base/common/platform';
 import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 import { Color } from 'vs/base/common/color';
 import { HiddenAreaState } from 'vs/editor/browser/controller/editContext/editContextState';
+import { HiddenAreaInput, IHiddenAreaInputHost } from 'vs/editor/browser/controller/editContext/editContextInput';
+import { NativeAreaWrapper } from 'vs/editor/browser/controller/editContext/native/nativeEditContextWrapper';
+import * as browser from 'vs/base/browser/browser';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 // TODO: use the pagination strategy to render the hidden area
 // TODO: refactor the code
@@ -74,7 +78,7 @@ export class NativeEditContext extends AbstractEditContext {
 
 	// TODO: uncomment when the div cover will be needed
 	// public readonly divCover: FastDomNode<HTMLElement>;
-	private readonly _nativeEditContextInput: NativeEditContextInput | undefined; // actually defined
+	private readonly _hiddenAreaInput: HiddenAreaInput;
 
 	// ---
 	private readonly _domElement = new FastDomNode(document.createElement('div'));
@@ -96,6 +100,7 @@ export class NativeEditContext extends AbstractEditContext {
 		viewController: ViewController,
 		visibleRangeProvider: IVisibleRangeProvider,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super(context);
 
@@ -130,17 +135,15 @@ export class NativeEditContext extends AbstractEditContext {
 
 		ensureReadOnlyAttribute(domNode, options);
 
-		// TODO: need to place all of this code into a separate input class which will use the edit context in order to do the corresponidng logic
-
-		/* Need to do once the native context has been developed
-		const nativeContextAreaWrapper = this._register(new NativeContextAreaWrapper(this.textArea.domNode));
-		this._textAreaInput = this._register(this._instantiationService.createInstance(HiddenAreaInput, textAreaInputHost, textAreaWrapper, platform.OS, {
+		// Make the following work correctly
+		const hiddenAreaInputHost: IHiddenAreaInputHost = getHiddenAreaInputHost(this._context, this._modelSelections, this._selections[0], this._emptySelectionClipboard, this._copyWithSyntaxHighlighting, this._accessibilitySupport, this._accessibilityPageSize);
+		const nativeContextAreaWrapper = this._register(new NativeAreaWrapper(this._domElement.domNode, this._ctx));
+		this._hiddenAreaInput = this._register(this._instantiationService.createInstance(HiddenAreaInput, hiddenAreaInputHost, nativeContextAreaWrapper, platform.OS, {
 			isAndroid: browser.isAndroid,
 			isChrome: browser.isChrome,
 			isFirefox: browser.isFirefox,
 			isSafari: browser.isSafari,
 		}));
-		*/
 
 		this._register(dom.addDisposableListener(domNode, 'focus', () => {
 			this._isFocused = true;

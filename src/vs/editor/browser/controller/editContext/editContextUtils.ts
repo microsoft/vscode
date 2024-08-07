@@ -25,6 +25,7 @@ import { IEditorAriaOptions } from 'vs/editor/browser/editorBrowser';
 import { Color } from 'vs/base/common/color';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
+import { ClipboardDataToCopy, CopyOptions, IHiddenAreaInputHost } from 'vs/editor/browser/controller/editContext/editContextInput';
 
 
 export class VisibleTextAreaData {
@@ -421,4 +422,49 @@ export function measureText(targetDocument: Document, text: string, fontInfo: Fo
 
 export interface IVisibleRangeProvider {
 	visibleRangeForPosition(position: Position): HorizontalPosition | null;
+}
+
+export function getHiddenAreaInputHost(
+	context: ViewContext,
+	modelSelections: Range[],
+	selection: Selection,
+	emptySelectionClipboard: boolean,
+	copyWithSyntaxHighlighting: boolean,
+	accessibilitySupport: AccessibilitySupport,
+	accessibilityPageSize: number
+): IHiddenAreaInputHost {
+	return {
+		getDataToCopy: (): ClipboardDataToCopy => {
+			const rawTextToCopy = context.viewModel.getPlainTextToCopy(modelSelections, emptySelectionClipboard, platform.isWindows);
+			const newLineCharacter = context.viewModel.model.getEOL();
+
+			const isFromEmptySelection = (emptySelectionClipboard && modelSelections.length === 1 && modelSelections[0].isEmpty());
+			const multicursorText = (Array.isArray(rawTextToCopy) ? rawTextToCopy : null);
+			const text = (Array.isArray(rawTextToCopy) ? rawTextToCopy.join(newLineCharacter) : rawTextToCopy);
+
+			let html: string | null | undefined = undefined;
+			let mode: string | null = null;
+			if (CopyOptions.forceCopyWithSyntaxHighlighting || (copyWithSyntaxHighlighting && text.length < 65536)) {
+				const richText = context.viewModel.getRichTextToCopy(modelSelections, emptySelectionClipboard);
+				if (richText) {
+					html = richText.html;
+					mode = richText.mode;
+				}
+			}
+			return {
+				isFromEmptySelection,
+				multicursorText,
+				text,
+				html,
+				mode
+			};
+		},
+		getScreenReaderContent: (): HiddenAreaState => {
+			return getScreenReaderContent(context, selection, accessibilitySupport, accessibilityPageSize);
+		},
+
+		deduceModelPosition: (viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position => {
+			return context.viewModel.deduceModelPositionRelativeToViewPosition(viewAnchorPosition, deltaOffset, lineFeedCnt);
+		}
+	};
 }

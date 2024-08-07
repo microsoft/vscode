@@ -9,8 +9,8 @@ import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import * as platform from 'vs/base/common/platform';
 import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
-import { CopyOptions, ICompositionData, IPasteData, IHiddenAreaInputHost, HiddenAreaInput, ClipboardDataToCopy } from 'vs/editor/browser/controller/editContext/editContextInput';
-import { ITypeData, HiddenAreaState, _debugComposition } from 'vs/editor/browser/controller/editContext/editContextState';
+import { ICompositionData, IPasteData, IHiddenAreaInputHost, HiddenAreaInput } from 'vs/editor/browser/controller/editContext/editContextInput';
+import { ITypeData, _debugComposition } from 'vs/editor/browser/controller/editContext/editContextState';
 import { ViewController } from 'vs/editor/browser/view/viewController';
 import { PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
 import { LineNumbersOverlay } from 'vs/editor/browser/viewParts/lineNumbers/lineNumbers';
@@ -33,8 +33,8 @@ import { IME } from 'vs/base/common/ime';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { AbstractEditContext } from 'vs/editor/browser/controller/editContext/editContext';
-import { canUseZeroSizeTextarea, ensureReadOnlyAttribute, getScreenReaderContent, IRenderData, IVisibleRangeProvider, measureText, newlinecount, setAccessibilityOptions, setAriaOptions, setAttributes, VisibleTextAreaData } from 'vs/editor/browser/controller/editContext/editContextUtils';
-import { TextAreaWrapper } from 'vs/editor/browser/controller/editContext/textArea/textAreaInput';
+import { canUseZeroSizeTextarea, ensureReadOnlyAttribute, getHiddenAreaInputHost, IRenderData, IVisibleRangeProvider, measureText, newlinecount, setAccessibilityOptions, setAriaOptions, setAttributes, VisibleTextAreaData } from 'vs/editor/browser/controller/editContext/editContextUtils';
+import { TextAreaWrapper } from 'vs/editor/browser/controller/editContext/textArea/textAreaWrapper';
 
 // TODO: verify all of the code here and check what is needed in the other native edit context code and what is not needed. Do a full port of the code there. Use vscode2 in order to understand what the code is used for and if I need it.
 // TODO: once that is done and the port is done, then check that with NVDA works as expected and voice over as compared to normal code
@@ -120,41 +120,7 @@ export class TextAreaContext extends AbstractEditContext {
 		this.textAreaCover = createFastDomNode(document.createElement('div'));
 		this.textAreaCover.setPosition('absolute');
 
-		const textAreaInputHost: IHiddenAreaInputHost = {
-			getDataToCopy: (): ClipboardDataToCopy => {
-				const rawTextToCopy = this._context.viewModel.getPlainTextToCopy(this._modelSelections, this._emptySelectionClipboard, platform.isWindows);
-				const newLineCharacter = this._context.viewModel.model.getEOL();
-
-				const isFromEmptySelection = (this._emptySelectionClipboard && this._modelSelections.length === 1 && this._modelSelections[0].isEmpty());
-				const multicursorText = (Array.isArray(rawTextToCopy) ? rawTextToCopy : null);
-				const text = (Array.isArray(rawTextToCopy) ? rawTextToCopy.join(newLineCharacter) : rawTextToCopy);
-
-				let html: string | null | undefined = undefined;
-				let mode: string | null = null;
-				if (CopyOptions.forceCopyWithSyntaxHighlighting || (this._copyWithSyntaxHighlighting && text.length < 65536)) {
-					const richText = this._context.viewModel.getRichTextToCopy(this._modelSelections, this._emptySelectionClipboard);
-					if (richText) {
-						html = richText.html;
-						mode = richText.mode;
-					}
-				}
-				return {
-					isFromEmptySelection,
-					multicursorText,
-					text,
-					html,
-					mode
-				};
-			},
-			getScreenReaderContent: (): HiddenAreaState => {
-				return getScreenReaderContent(this._context, this._selections[0], this._accessibilitySupport, this._accessibilityPageSize);
-			},
-
-			deduceModelPosition: (viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position => {
-				return this._context.viewModel.deduceModelPositionRelativeToViewPosition(viewAnchorPosition, deltaOffset, lineFeedCnt);
-			}
-		};
-
+		const textAreaInputHost: IHiddenAreaInputHost = getHiddenAreaInputHost(this._context, this._modelSelections, this._selections[0], this._emptySelectionClipboard, this._copyWithSyntaxHighlighting, this._accessibilitySupport, this._accessibilityPageSize);
 		const textAreaWrapper = this._register(new TextAreaWrapper(this.textArea.domNode));
 		this._textAreaInput = this._register(this._instantiationService.createInstance(HiddenAreaInput, textAreaInputHost, textAreaWrapper, platform.OS, {
 			isAndroid: browser.isAndroid,
