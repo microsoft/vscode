@@ -73,6 +73,7 @@ export interface CellDiffSingleSideRenderTemplate extends CellDiffCommonRenderTe
 	readonly diagonalFill: HTMLElement;
 	readonly elementDisposables: DisposableStore;
 	readonly cellHeaderContainer: HTMLElement;
+	readonly editorContainer: HTMLElement;
 	readonly sourceEditor: CodeEditorWidget;
 	readonly metadataHeaderContainer: HTMLElement;
 	readonly metadataInfoContainer: HTMLElement;

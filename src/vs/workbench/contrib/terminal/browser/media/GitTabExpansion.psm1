@@ -607,11 +607,23 @@ function ConvertTo-VscodeCompletion {
 		[Parameter(ValueFromPipeline=$true)]
 		$CompletionText,
 		[string]
-		$Type
+		$Type,
+		[string]
+		$CustomIcon
 	)
 
 	Process {
-		$CompletionText | ForEach-Object { [System.Management.Automation.CompletionResult]::new($_, $_, 'DynamicKeyword', "$type $_") }
+		$completionMappings = @{
+			"branch" = "gitBranch"
+			"stash" = "gitStash"
+			"remote" = "remote"
+			"tag" = "tag"
+		}
+		$CompletionText | ForEach-Object {
+			$result = [System.Management.Automation.CompletionResult]::new($_, $_, [System.Management.Automation.CompletionResultType]::DynamicKeyword, "$Type $_")
+			$result | Add-Member -NotePropertyName 'CustomIcon' -NotePropertyValue $completionMappings[$Type]
+			$result
+		}
 	}
 }
 

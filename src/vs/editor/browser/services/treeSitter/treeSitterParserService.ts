@@ -21,6 +21,7 @@ import { Event } from 'vs/base/common/event';
 import { cancelOnDispose } from 'vs/base/common/cancellation';
 
 const EDITOR_EXPERIMENTAL_PREFER_TREESITTER = 'editor.experimental.preferTreeSitter';
+const EDITOR_TREESITTER_TELEMETRY = 'editor.experimental.treeSitterTelemetry';
 const moduleLocationTreeSitter: AppResourcePath = `${nodeModulesPath}/@vscode/tree-sitter-wasm/wasm`;
 const moduleLocationTreeSitterWasm: AppResourcePath = `${moduleLocationTreeSitter}/tree-sitter.wasm`;
 
@@ -322,7 +323,16 @@ export class TreeSitterTextModelService extends Disposable implements ITreeSitte
 	}
 
 	private _getSetting(): string[] {
-		return this._configurationService.getValue<string[]>(EDITOR_EXPERIMENTAL_PREFER_TREESITTER) || [];
+		const setting = this._configurationService.getValue<string[]>(EDITOR_EXPERIMENTAL_PREFER_TREESITTER);
+		if (setting && setting.length > 0) {
+			return setting;
+		} else {
+			const expSetting = this._configurationService.getValue<boolean>(EDITOR_TREESITTER_TELEMETRY);
+			if (expSetting) {
+				return ['typescript'];
+			}
+		}
+		return [];
 	}
 
 	private async _registerModelServiceListeners() {

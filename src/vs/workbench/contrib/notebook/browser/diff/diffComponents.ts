@@ -43,6 +43,7 @@ import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibil
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { DiffNestedCellViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffNestedCellViewModel';
 
 export function getOptimizedNestedCodeEditorWidgetOptions(): ICodeEditorWidgetOptions {
 	return {
@@ -240,6 +241,7 @@ abstract class AbstractElementRenderer extends Disposable {
 	protected _ignoreMetadata: boolean = false;
 	protected _ignoreOutputs: boolean = false;
 	protected _cellHeaderContainer!: HTMLElement;
+	protected _editorContainer!: HTMLElement;
 	protected _cellHeader!: PropertyHeader;
 	protected _metadataHeaderContainer!: HTMLElement;
 	protected _metadataHeader!: PropertyHeader;
@@ -288,7 +290,9 @@ abstract class AbstractElementRenderer extends Disposable {
 		this._isDisposed = false;
 		this._metadataEditorDisposeStore = this._register(new DisposableStore());
 		this._outputEditorDisposeStore = this._register(new DisposableStore());
-		this._register(cell.onDidLayoutChange(e => this.layout(e)));
+		this._register(cell.onDidLayoutChange(e => {
+			this.layout(e);
+		}));
 		this._register(cell.onDidLayoutChange(e => this.updateBorders()));
 		this.init();
 		this.buildBody();
@@ -723,51 +727,54 @@ abstract class AbstractElementRenderer extends Disposable {
 	abstract layout(state: IDiffElementLayoutState): void;
 
 	protected updateEditorOptions(editor: DiffEditorWidget, optionsToUpdate: ('hideUnchangedRegions' | 'renderSideBySide' | 'useInlineViewWhenSpaceIsLimited')[]): IDisposable {
-		if (!optionsToUpdate.length) {
-			return Disposable.None;
-		}
+		return Disposable.None;
+		// if (!optionsToUpdate.length) {
+		// 	return Disposable.None;
+		// }
 
-		const options: {
-			renderSideBySide?: boolean;
-			useInlineViewWhenSpaceIsLimited?: boolean;
-			hideUnchangedRegions?: { enabled: boolean };
-		} = {};
+		// const options: {
+		// 	renderSideBySide?: boolean;
+		// 	useInlineViewWhenSpaceIsLimited?: boolean;
+		// 	hideUnchangedRegions?: { enabled: boolean };
+		// } = {};
 
-		if (optionsToUpdate.includes('renderSideBySide')) {
-			options.renderSideBySide = this.configurationService.getValue<boolean>('diffEditor.renderSideBySide');
-		}
-		if (optionsToUpdate.includes('hideUnchangedRegions')) {
-			const enabled = this.configurationService.getValue<boolean>('diffEditor.hideUnchangedRegions.enabled');
-			options.hideUnchangedRegions = { enabled };
-		}
-		if (optionsToUpdate.includes('useInlineViewWhenSpaceIsLimited')) {
-			options.useInlineViewWhenSpaceIsLimited = this.configurationService.getValue<boolean>('diffEditor.useInlineViewWhenSpaceIsLimited');
-		}
+		// if (optionsToUpdate.includes('renderSideBySide')) {
+		// 	options.renderSideBySide = this.configurationService.getValue<boolean>('diffEditor.renderSideBySide');
+		// }
+		// if (optionsToUpdate.includes('hideUnchangedRegions')) {
+		// 	const enabled = this.configurationService.getValue<boolean>('diffEditor.hideUnchangedRegions.enabled');
+		// 	options.hideUnchangedRegions = { enabled };
+		// }
+		// if (optionsToUpdate.includes('useInlineViewWhenSpaceIsLimited')) {
+		// 	options.useInlineViewWhenSpaceIsLimited = this.configurationService.getValue<boolean>('diffEditor.useInlineViewWhenSpaceIsLimited');
+		// }
 
-		editor.updateOptions(options);
+		// editor.updateOptions(options);
 
-		return this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('diffEditor.hideUnchangedRegions.enabled')) {
-				const enabled = this.configurationService.getValue<boolean>('diffEditor.hideUnchangedRegions.enabled');
-				editor.updateOptions({ hideUnchangedRegions: { enabled } });
-			}
-			if (e.affectsConfiguration('diffEditor.renderSideBySide')) {
-				const renderSideBySide = this.configurationService.getValue<boolean>('diffEditor.renderSideBySide');
-				editor.updateOptions({ renderSideBySide });
-			}
-			if (e.affectsConfiguration('diffEditor.useInlineViewWhenSpaceIsLimited')) {
-				const useInlineViewWhenSpaceIsLimited = this.configurationService.getValue<boolean>('diffEditor.useInlineViewWhenSpaceIsLimited');
-				editor.updateOptions({ useInlineViewWhenSpaceIsLimited });
-			}
-		});
+		// return this.configurationService.onDidChangeConfiguration(e => {
+		// 	if (e.affectsConfiguration('diffEditor.hideUnchangedRegions.enabled')) {
+		// 		const enabled = this.configurationService.getValue<boolean>('diffEditor.hideUnchangedRegions.enabled');
+		// 		editor.updateOptions({ hideUnchangedRegions: { enabled } });
+		// 	}
+		// 	if (e.affectsConfiguration('diffEditor.renderSideBySide')) {
+		// 		const renderSideBySide = this.configurationService.getValue<boolean>('diffEditor.renderSideBySide');
+		// 		editor.updateOptions({ renderSideBySide });
+		// 	}
+		// 	if (e.affectsConfiguration('diffEditor.useInlineViewWhenSpaceIsLimited')) {
+		// 		const useInlineViewWhenSpaceIsLimited = this.configurationService.getValue<boolean>('diffEditor.useInlineViewWhenSpaceIsLimited');
+		// 		editor.updateOptions({ useInlineViewWhenSpaceIsLimited });
+		// 	}
+		// });
 	}
 }
 
 abstract class SingleSideDiffElement extends AbstractElementRenderer {
-
+	protected _editor!: CodeEditorWidget;
 	override readonly cell: SingleSideDiffElementViewModel;
 	override readonly templateData: CellDiffSingleSideRenderTemplate;
-
+	abstract get nestedCellViewModel(): DiffNestedCellViewModel;
+	abstract get changedLabel(): string;
+	abstract get isEditable(): boolean;
 	constructor(
 		notebookEditor: INotebookTextDiffEditor,
 		cell: SingleSideDiffElementViewModel,
@@ -873,6 +880,105 @@ abstract class SingleSideDiffElement extends AbstractElementRenderer {
 		}));
 	}
 
+	override updateSourceEditor(): void {
+		this._cellHeaderContainer = this.templateData.cellHeaderContainer;
+		this._cellHeaderContainer.style.display = 'flex';
+		this._cellHeaderContainer.innerText = '';
+		this._editorContainer = this.templateData.editorContainer;
+		this._editorContainer.classList.add('diff');
+
+		const renderSourceEditor = () => {
+			if (this.cell.cellFoldingState === PropertyFoldingState.Collapsed) {
+				this._editorContainer.style.display = 'none';
+				this.cell.editorHeight = 0;
+				return;
+			}
+
+			const lineCount = this.nestedCellViewModel.textModel.textBuffer.getLineCount();
+			const lineHeight = this.notebookEditor.getLayoutInfo().fontInfo.lineHeight || 17;
+			const editorHeight = lineCount * lineHeight + fixedEditorPadding.top + fixedEditorPadding.bottom;
+
+			this._editorContainer.style.height = `${editorHeight}px`;
+			this._editorContainer.style.display = 'block';
+
+			if (this._editor) {
+				const contentHeight = this._editor.getContentHeight();
+				if (contentHeight >= 0) {
+					this.cell.editorHeight = contentHeight;
+				}
+				return;
+			}
+
+			this._editor = this.templateData.sourceEditor;
+			this._editor.layout(
+				{
+					width: (this.notebookEditor.getLayoutInfo().width - 2 * DIFF_CELL_MARGIN) / 2 - 18,
+					height: editorHeight
+				}
+			);
+			if (this.isEditable) {
+				this._editor.updateOptions({ readOnly: false });
+			}
+			this.cell.editorHeight = editorHeight;
+
+			this._register(this._editor.onDidContentSizeChange((e) => {
+				if (this.cell.cellFoldingState === PropertyFoldingState.Expanded && e.contentHeightChanged && this.cell.layoutInfo.editorHeight !== e.contentHeight) {
+					this.cell.editorHeight = e.contentHeight;
+				}
+			}));
+			this._initializeSourceDiffEditor(this.nestedCellViewModel);
+		};
+
+		this._cellHeader = this._register(this.instantiationService.createInstance(
+			PropertyHeader,
+			this.cell,
+			this._cellHeaderContainer,
+			this.notebookEditor,
+			{
+				updateInfoRendering: () => renderSourceEditor(),
+				checkIfModified: (_) => ({ reason: undefined }),
+				getFoldingState: (cell) => cell.cellFoldingState,
+				updateFoldingState: (cell, state) => cell.cellFoldingState = state,
+				unChangedLabel: 'Input',
+				changedLabel: this.changedLabel,
+				prefix: 'input',
+				menuId: MenuId.NotebookDiffCellInputTitle
+			}
+		));
+		this._cellHeader.buildHeader();
+		renderSourceEditor();
+
+		this._initializeSourceDiffEditor(this.nestedCellViewModel);
+	}
+	protected calculateDiagonalFillHeight() {
+		return this.cell.layoutInfo.cellStatusHeight + this.cell.layoutInfo.editorHeight + this.cell.layoutInfo.editorMargin + this.cell.layoutInfo.metadataStatusHeight + this.cell.layoutInfo.metadataHeight + this.cell.layoutInfo.outputTotalHeight + this.cell.layoutInfo.outputStatusHeight;
+	}
+
+	private async _initializeSourceDiffEditor(modifiedCell: DiffNestedCellViewModel) {
+		const modifiedRef = await this.textModelService.createModelReference(modifiedCell.uri);
+
+		if (this._isDisposed) {
+			return;
+		}
+
+		const modifiedTextModel = modifiedRef.object.textEditorModel;
+		this._register(modifiedRef);
+
+		this._editor!.setModel(modifiedTextModel);
+
+		const editorViewState = this.cell.getSourceEditorViewState() as editorCommon.IDiffEditorViewState | null;
+		if (editorViewState) {
+			this._editor!.restoreViewState(editorViewState);
+		}
+
+		const contentHeight = this._editor!.getContentHeight();
+		this.cell.editorHeight = contentHeight;
+		const height = `${this.calculateDiagonalFillHeight()}px`;
+		if (this._diagonalFill!.style.height !== height) {
+			this._diagonalFill!.style.height = height;
+		}
+	}
+
 	_disposeMetadata() {
 		this.cell.metadataStatusHeight = 0;
 		this.cell.metadataHeight = 0;
@@ -965,7 +1071,6 @@ abstract class SingleSideDiffElement extends AbstractElementRenderer {
 	}
 }
 export class DeletedElement extends SingleSideDiffElement {
-	private _editor!: CodeEditorWidget;
 	constructor(
 		notebookEditor: INotebookTextDiffEditor,
 		cell: SingleSideDiffElementViewModel,
@@ -985,51 +1090,34 @@ export class DeletedElement extends SingleSideDiffElement {
 		super(notebookEditor, cell, templateData, 'left', instantiationService, languageService, modelService, textModelService, contextMenuService, keybindingService, notificationService, menuService, contextKeyService, configurationService);
 	}
 
+	get nestedCellViewModel() {
+		return this.cell.original!;
+	}
+	get changedLabel() {
+		return 'Input deleted';
+	}
+	get isEditable() {
+		return true;
+	}
+
 	styleContainer(container: HTMLElement) {
 		container.classList.remove('inserted');
 		container.classList.add('removed');
 	}
 
-	updateSourceEditor(): void {
-		const originalCell = this.cell.original!;
-		const lineCount = originalCell.textModel.textBuffer.getLineCount();
-		const lineHeight = this.notebookEditor.getLayoutInfo().fontInfo.lineHeight || 17;
-		const editorHeight = lineCount * lineHeight + fixedEditorPadding.top + fixedEditorPadding.bottom;
-
-		this._editor = this.templateData.sourceEditor;
-		this._editor.layout({
-			width: (this.notebookEditor.getLayoutInfo().width - 2 * DIFF_CELL_MARGIN) / 2 - 18,
-			height: editorHeight
-		});
-
-		this.cell.editorHeight = editorHeight;
-
-		this._register(this._editor.onDidContentSizeChange((e) => {
-			if (e.contentHeightChanged && this.cell.layoutInfo.editorHeight !== e.contentHeight) {
-				this.cell.editorHeight = e.contentHeight;
-			}
-		}));
-
-		this.textModelService.createModelReference(originalCell.uri).then(ref => {
-			if (this._isDisposed) {
-				return;
-			}
-
-			this._register(ref);
-
-			const textModel = ref.object.textEditorModel;
-			this._editor.setModel(textModel);
-			this.cell.editorHeight = this._editor.getContentHeight();
-		});
-	}
-
 	layout(state: IDiffElementLayoutState) {
 		DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this._diffEditorContainer), () => {
 			if (state.editorHeight || state.outerWidth) {
+				this._editorContainer.style.height = `${this.cell.layoutInfo.editorHeight}px`;
 				this._editor.layout({
 					width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, false),
 					height: this.cell.layoutInfo.editorHeight
 				});
+			}
+
+			if (state.outerWidth && this._editor) {
+				this._editorContainer.style.height = `${this.cell.layoutInfo.editorHeight}px`;
+				this._editor.layout();
 			}
 
 			if (state.metadataHeight || state.outerWidth) {
@@ -1047,12 +1135,13 @@ export class DeletedElement extends SingleSideDiffElement {
 			}
 
 			if (this._diagonalFill) {
-				this._diagonalFill.style.height = `${this.cell.layoutInfo.totalHeight - 32}px`;
+				this._diagonalFill.style.height = `${this.calculateDiagonalFillHeight()}px`;
 			}
 
 			this.layoutNotebookCell();
 		});
 	}
+
 
 	_buildOutputRendererContainer() {
 		if (!this._outputViewContainer) {
@@ -1117,7 +1206,6 @@ export class DeletedElement extends SingleSideDiffElement {
 }
 
 export class InsertElement extends SingleSideDiffElement {
-	private _editor!: CodeEditorWidget;
 	constructor(
 		notebookEditor: INotebookTextDiffEditor,
 		cell: SingleSideDiffElementViewModel,
@@ -1135,46 +1223,19 @@ export class InsertElement extends SingleSideDiffElement {
 	) {
 		super(notebookEditor, cell, templateData, 'right', instantiationService, languageService, modelService, textModelService, contextMenuService, keybindingService, notificationService, menuService, contextKeyService, configurationService);
 	}
+	get nestedCellViewModel() {
+		return this.cell.modified!;
+	}
+	get changedLabel() {
+		return 'Input inserted';
+	}
+	get isEditable() {
+		return true;
+	}
 
 	styleContainer(container: HTMLElement): void {
 		container.classList.remove('removed');
 		container.classList.add('inserted');
-	}
-
-	updateSourceEditor(): void {
-		const modifiedCell = this.cell.modified!;
-		const lineCount = modifiedCell.textModel.textBuffer.getLineCount();
-		const lineHeight = this.notebookEditor.getLayoutInfo().fontInfo.lineHeight || 17;
-		const editorHeight = lineCount * lineHeight + fixedEditorPadding.top + fixedEditorPadding.bottom;
-
-		this._editor = this.templateData.sourceEditor;
-		this._editor.layout(
-			{
-				width: (this.notebookEditor.getLayoutInfo().width - 2 * DIFF_CELL_MARGIN) / 2 - 18,
-				height: editorHeight
-			}
-		);
-		this._editor.updateOptions({ readOnly: false });
-		this.cell.editorHeight = editorHeight;
-
-		this._register(this._editor.onDidContentSizeChange((e) => {
-			if (e.contentHeightChanged && this.cell.layoutInfo.editorHeight !== e.contentHeight) {
-				this.cell.editorHeight = e.contentHeight;
-			}
-		}));
-
-		this.textModelService.createModelReference(modifiedCell.uri).then(ref => {
-			if (this._isDisposed) {
-				return;
-			}
-
-			this._register(ref);
-
-			const textModel = ref.object.textEditorModel;
-			this._editor.setModel(textModel);
-			this._editor.restoreViewState(this.cell.getSourceEditorViewState() as editorCommon.ICodeEditorViewState);
-			this.cell.editorHeight = this._editor.getContentHeight();
-		});
 	}
 
 	_buildOutputRendererContainer() {
@@ -1229,10 +1290,16 @@ export class InsertElement extends SingleSideDiffElement {
 	layout(state: IDiffElementLayoutState) {
 		DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this._diffEditorContainer), () => {
 			if (state.editorHeight || state.outerWidth) {
+				this._editorContainer.style.height = `${this.cell.layoutInfo.editorHeight}px`;
 				this._editor.layout({
 					width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, false),
 					height: this.cell.layoutInfo.editorHeight
 				});
+			}
+
+			if (state.outerWidth && this._editor) {
+				this._editorContainer.style.height = `${this.cell.layoutInfo.editorHeight}px`;
+				this._editor.layout();
 			}
 
 			if (state.metadataHeight || state.outerWidth) {
@@ -1252,7 +1319,7 @@ export class InsertElement extends SingleSideDiffElement {
 			this.layoutNotebookCell();
 
 			if (this._diagonalFill) {
-				this._diagonalFill.style.height = `${this.cell.layoutInfo.editorHeight + this.cell.layoutInfo.editorMargin + this.cell.layoutInfo.metadataStatusHeight + this.cell.layoutInfo.metadataHeight + this.cell.layoutInfo.outputTotalHeight + this.cell.layoutInfo.outputStatusHeight}px`;
+				this._diagonalFill.style.height = `${this.calculateDiagonalFillHeight()}px`;
 			}
 		});
 	}
@@ -1269,7 +1336,6 @@ export class InsertElement extends SingleSideDiffElement {
 export class ModifiedElement extends AbstractElementRenderer {
 	private _editor?: DiffEditorWidget;
 	private _editorViewStateChanged: boolean;
-	private _editorContainer!: HTMLElement;
 	protected _toolbar!: ToolBar;
 	protected _menu!: IMenu;
 
@@ -1595,9 +1661,9 @@ export class ModifiedElement extends AbstractElementRenderer {
 				},
 				getFoldingState: (cell) => cell.cellFoldingState,
 				updateFoldingState: (cell, state) => cell.cellFoldingState = state,
-				unChangedLabel: 'Cell',
-				changedLabel: 'Cell changed',
-				prefix: 'cell',
+				unChangedLabel: 'Input',
+				changedLabel: 'Input changed',
+				prefix: 'input',
 				menuId: MenuId.NotebookDiffCellInputTitle
 			}
 		));
