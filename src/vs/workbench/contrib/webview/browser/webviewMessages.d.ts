@@ -17,10 +17,6 @@ type KeyEvent = {
 	repeat: boolean;
 }
 
-type WebViewDragEvent = {
-	shiftKey: boolean;
-}
-
 export type FromWebviewMessage = {
 	'onmessage': { message: any; transfer?: ArrayBuffer[] };
 	'did-click-link': { uri: string };
@@ -40,7 +36,6 @@ export type FromWebviewMessage = {
 	'did-keyup': KeyEvent;
 	'did-context-menu': { clientX: number; clientY: number; context: { [key: string]: unknown } };
 	'drag-start': void;
-	'drag': WebViewDragEvent
 };
 
 interface UpdateContentEvent {
