@@ -49,9 +49,7 @@ export abstract class DiffElementViewModelBase extends Disposable {
 	) {
 		super();
 
-		this._register(this.editorEventDispatcher.onDidChangeLayout(e => {
-			this._layoutInfoEmitter.fire({ outerWidth: true });
-		}));
+		this._register(this.editorEventDispatcher.onDidChangeLayout(e => this._layoutInfoEmitter.fire({ outerWidth: true })));
 	}
 
 	abstract layoutChange(): void;
@@ -78,14 +76,13 @@ export class DiffElementPlaceholderViewModel extends DiffElementViewModelBase {
 
 	}
 	get totalHeight() {
-		return 50;
+		return 24;
 	}
-	getHeight(lineHeight: number): number {
+	getHeight(_: number): number {
 		return this.totalHeight;
 	}
 	override layoutChange(): void {
 		//
-		console.log('layout change in placeholder');
 	}
 	showHiddenCells() {
 		this._unfoldHiddenCells.fire();
@@ -222,9 +219,7 @@ export abstract class DiffElementCellViewModelBase extends DiffElementViewModelB
 		this.metadataFoldingState = PropertyFoldingState.Collapsed;
 		this.outputFoldingState = PropertyFoldingState.Collapsed;
 
-		this._register(this.editorEventDispatcher.onDidChangeLayout(e => {
-			this._layoutInfoEmitter.fire({ outerWidth: true });
-		}));
+		this._register(this.editorEventDispatcher.onDidChangeLayout(e => this._layoutInfoEmitter.fire({ outerWidth: true })));
 	}
 
 	layoutChange() {

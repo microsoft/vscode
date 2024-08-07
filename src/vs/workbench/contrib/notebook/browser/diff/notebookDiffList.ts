@@ -102,7 +102,6 @@ export class CellDiffPlaceholderRenderer implements IListRenderer<DiffElementPla
 
 	disposeTemplate(templateData: CellDiffPlaceholderRenderTemplate): void {
 		templateData.container.innerText = '';
-		templateData.elementDisposables.dispose();
 	}
 
 	disposeElement(element: DiffElementPlaceholderViewModel, index: number, templateData: CellDiffPlaceholderRenderTemplate): void {

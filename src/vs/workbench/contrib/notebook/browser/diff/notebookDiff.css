@@ -436,9 +436,6 @@
 	background: var(--vscode-diffEditor-unchangedRegionBackground);
 	color: var(--vscode-diffEditor-unchangedRegionForeground);
 	min-height: 24px;
-
-	/* font-size: 13px;
-	line-height: 14px; */
 }
 
 .notebook-text-diff-editor .cell-placeholder-body div.diff-hidden-cells .center {

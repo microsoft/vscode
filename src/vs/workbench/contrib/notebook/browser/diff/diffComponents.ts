@@ -73,22 +73,14 @@ export class CellDiffPlaceholderElement extends Disposable {
 			localize('hiddenCells', '{0} hidden cells', placeholder.hiddenCells.length);
 		templateData.placeholder.innerText = text;
 
-		const handler = (e: MouseEvent) => {
+		this._register(DOM.addDisposableListener(templateData.placeholder, 'dblclick', (e: MouseEvent) => {
 			if (e.button !== 0) {
 				return;
 			}
 			e.preventDefault();
 			placeholder.showHiddenCells();
-		};
-		templateData.placeholder.addEventListener('dblclick', handler);
-		this._register({
-			dispose: () => {
-				templateData.placeholder.removeEventListener('dblclick', handler);
-			}
-		});
-		this._register(templateData.marginOverlay.onAction(() => {
-			placeholder.showHiddenCells();
 		}));
+		this._register(templateData.marginOverlay.onAction(() => placeholder.showHiddenCells()));
 		templateData.marginOverlay.show();
 	}
 }
@@ -1399,9 +1391,7 @@ export class ModifiedElement extends AbstractElementRenderer {
 	override buildBody(): void {
 		super.buildBody();
 		if (this.cell.unchangedCells) {
-			this._register(this.templateData.marginOverlay.onAction(() => {
-				this.cell.hideUnchangedCells();
-			}));
+			this._register(this.templateData.marginOverlay.onAction(() => this.cell.hideUnchangedCells()));
 			this.templateData.marginOverlay.show();
 		} else {
 			this.templateData.marginOverlay.hide();
@@ -1852,9 +1842,7 @@ export class CollapsedCellOverlayWidget extends Disposable implements IDiffCellM
 
 		this._nodes.root.style.display = 'none';
 		container.appendChild(this._nodes.root);
-		this._register(DOM.addDisposableListener(this._nodes.content.children[0], 'click', () => {
-			this._action.fire();
-		}));
+		this._register(DOM.addDisposableListener(this._nodes.content.children[0], 'click', () => this._action.fire()));
 	}
 	public show() {
 		this._nodes.root.style.display = 'block';
