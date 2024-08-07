@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./textAreaHandler';
-import * as nls from 'vs/nls';
 import * as browser from 'vs/base/browser/browser';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -16,7 +15,7 @@ import { ViewController } from 'vs/editor/browser/view/viewController';
 import { PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
 import { LineNumbersOverlay } from 'vs/editor/browser/viewParts/lineNumbers/lineNumbers';
 import { Margin } from 'vs/editor/browser/viewParts/margin/margin';
-import { RenderLineNumbersType, EditorOption, IComputedEditorOptions, EditorOptions } from 'vs/editor/common/config/editorOptions';
+import { RenderLineNumbersType, EditorOption, IComputedEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -29,13 +28,12 @@ import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibi
 import { IEditorAriaOptions } from 'vs/editor/browser/editorBrowser';
 import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
 import { TokenizationRegistry } from 'vs/editor/common/languages';
-import { ColorId, ITokenPresentation } from 'vs/editor/common/encodedTokenAttributes';
 import { Color } from 'vs/base/common/color';
 import { IME } from 'vs/base/common/ime';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { AbstractEditContext } from 'vs/editor/browser/controller/editContext/editContext';
-import { getScreenReaderContent } from 'vs/editor/browser/controller/editContext/editContextUtils';
+import { canUseZeroSizeTextarea, getAriaLabel, getScreenReaderContent, setAccessibilityOptions, setAttributes, VisibleTextAreaData } from 'vs/editor/browser/controller/editContext/editContextUtils';
 
 export interface IVisibleRangeProvider {
 	visibleRangeForPosition(position: Position): HorizontalPosition | null;
@@ -44,72 +42,6 @@ export interface IVisibleRangeProvider {
 // TODO: verify all of the code here and check what is needed in the other native edit context code and what is not needed. Do a full port of the code there. Use vscode2 in order to understand what the code is used for and if I need it.
 // TODO: once that is done and the port is done, then check that with NVDA works as expected and voice over as compared to normal code
 // TODO: then do IME scenarios.
-
-class VisibleTextAreaData {
-	_visibleTextAreaBrand: void = undefined;
-
-	public startPosition: Position | null = null;
-	public endPosition: Position | null = null;
-
-	public visibleTextareaStart: HorizontalPosition | null = null;
-	public visibleTextareaEnd: HorizontalPosition | null = null;
-
-	/**
-	 * When doing composition, the currently composed text might be split up into
-	 * multiple tokens, then merged again into a single token, etc. Here we attempt
-	 * to keep the presentation of the <textarea> stable by using the previous used
-	 * style if multiple tokens come into play. This avoids flickering.
-	 */
-	private _previousPresentation: ITokenPresentation | null = null;
-
-	constructor(
-		private readonly _context: ViewContext,
-		public readonly modelLineNumber: number,
-		public readonly distanceToModelLineStart: number,
-		public readonly widthOfHiddenLineTextBefore: number,
-		public readonly distanceToModelLineEnd: number,
-	) {
-	}
-
-	// called mainly inside of onCompositionStart and onCompositionUpdate. In order to understand why this is needed, need to first start working with the IME issues, and make the div 0 by 0 pixels before touching this ground.
-	prepareRender(visibleRangeProvider: IVisibleRangeProvider): void {
-		const startModelPosition = new Position(this.modelLineNumber, this.distanceToModelLineStart + 1);
-		const endModelPosition = new Position(this.modelLineNumber, this._context.viewModel.model.getLineMaxColumn(this.modelLineNumber) - this.distanceToModelLineEnd);
-
-		this.startPosition = this._context.viewModel.coordinatesConverter.convertModelPositionToViewPosition(startModelPosition);
-		this.endPosition = this._context.viewModel.coordinatesConverter.convertModelPositionToViewPosition(endModelPosition);
-
-		if (this.startPosition.lineNumber === this.endPosition.lineNumber) {
-			this.visibleTextareaStart = visibleRangeProvider.visibleRangeForPosition(this.startPosition);
-			this.visibleTextareaEnd = visibleRangeProvider.visibleRangeForPosition(this.endPosition);
-		} else {
-			// TODO: what if the view positions are not on the same line?
-			this.visibleTextareaStart = null;
-			this.visibleTextareaEnd = null;
-		}
-	}
-
-	// will need to define the presentation when the IME is used. Currently in my PR I have not touched upon this, when the time comes, need to understand what this is used for and how I should use it.
-	definePresentation(tokenPresentation: ITokenPresentation | null): ITokenPresentation {
-		if (!this._previousPresentation) {
-			// To avoid flickering, once set, always reuse a presentation throughout the entire IME session
-			if (tokenPresentation) {
-				this._previousPresentation = tokenPresentation;
-			} else {
-				this._previousPresentation = {
-					foreground: ColorId.DefaultForeground,
-					italic: false,
-					bold: false,
-					underline: false,
-					strikethrough: false,
-				};
-			}
-		}
-		return this._previousPresentation;
-	}
-}
-
-const canUseZeroSizeTextarea = (browser.isFirefox);
 
 export class TextAreaContext extends AbstractEditContext {
 
@@ -156,15 +88,15 @@ export class TextAreaContext extends AbstractEditContext {
 	) {
 		super(context);
 
-		this._viewController = viewController;
-		this._visibleRangeProvider = visibleRangeProvider;
-		this._scrollLeft = 0;
-		this._scrollTop = 0;
-
 		const options = this._context.configuration.options;
 		const layoutInfo = options.get(EditorOption.layoutInfo);
 
 		this._setAccessibilityOptions(options);
+
+		this._viewController = viewController;
+		this._visibleRangeProvider = visibleRangeProvider;
+		this._scrollLeft = 0;
+		this._scrollTop = 0;
 		this._contentLeft = layoutInfo.contentLeft;
 		this._contentWidth = layoutInfo.contentWidth;
 		this._contentHeight = layoutInfo.height;
@@ -182,20 +114,8 @@ export class TextAreaContext extends AbstractEditContext {
 		this.textArea = createFastDomNode(document.createElement('textarea'));
 		PartFingerprints.write(this.textArea, PartFingerprint.TextArea);
 		this.textArea.setClassName(`inputarea ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`);
-		this.textArea.setAttribute('wrap', this._textAreaWrapping && !this._visibleTextArea ? 'on' : 'off');
 		const { tabSize } = this._context.viewModel.model.getOptions();
-		this.textArea.domNode.style.tabSize = `${tabSize * this._fontInfo.spaceWidth}px`;
-		this.textArea.setAttribute('autocorrect', 'off');
-		this.textArea.setAttribute('autocapitalize', 'off');
-		this.textArea.setAttribute('autocomplete', 'off');
-		this.textArea.setAttribute('spellcheck', 'false');
-		this.textArea.setAttribute('aria-label', this._getAriaLabel(options));
-		this.textArea.setAttribute('aria-required', options.get(EditorOption.ariaRequired) ? 'true' : 'false');
-		this.textArea.setAttribute('tabindex', String(options.get(EditorOption.tabIndex)));
-		this.textArea.setAttribute('role', 'textbox');
-		this.textArea.setAttribute('aria-roledescription', nls.localize('editor', "editor"));
-		this.textArea.setAttribute('aria-multiline', 'true');
-		this.textArea.setAttribute('aria-autocomplete', options.get(EditorOption.readOnly) ? 'none' : 'both');
+		setAttributes(this.textArea.domNode, tabSize, this._textAreaWrapping, this._visibleTextArea, options, this._keybindingService);
 
 		this._ensureReadOnlyAttribute();
 
@@ -427,51 +347,15 @@ export class TextAreaContext extends AbstractEditContext {
 	}
 
 	private _getAriaLabel(options: IComputedEditorOptions): string {
-		const accessibilitySupport = options.get(EditorOption.accessibilitySupport);
-		if (accessibilitySupport === AccessibilitySupport.Disabled) {
-
-			const toggleKeybindingLabel = this._keybindingService.lookupKeybinding('editor.action.toggleScreenReaderAccessibilityMode')?.getAriaLabel();
-			const runCommandKeybindingLabel = this._keybindingService.lookupKeybinding('workbench.action.showCommands')?.getAriaLabel();
-			const keybindingEditorKeybindingLabel = this._keybindingService.lookupKeybinding('workbench.action.openGlobalKeybindings')?.getAriaLabel();
-			const editorNotAccessibleMessage = nls.localize('accessibilityModeOff', "The editor is not accessible at this time.");
-			if (toggleKeybindingLabel) {
-				return nls.localize('accessibilityOffAriaLabel', "{0} To enable screen reader optimized mode, use {1}", editorNotAccessibleMessage, toggleKeybindingLabel);
-			} else if (runCommandKeybindingLabel) {
-				return nls.localize('accessibilityOffAriaLabelNoKb', "{0} To enable screen reader optimized mode, open the quick pick with {1} and run the command Toggle Screen Reader Accessibility Mode, which is currently not triggerable via keyboard.", editorNotAccessibleMessage, runCommandKeybindingLabel);
-			} else if (keybindingEditorKeybindingLabel) {
-				return nls.localize('accessibilityOffAriaLabelNoKbs', "{0} Please assign a keybinding for the command Toggle Screen Reader Accessibility Mode by accessing the keybindings editor with {1} and run it.", editorNotAccessibleMessage, keybindingEditorKeybindingLabel);
-			} else {
-				// SOS
-				return editorNotAccessibleMessage;
-			}
-		}
-		return options.get(EditorOption.ariaLabel);
+		return getAriaLabel(options, this._keybindingService);
 	}
 
 	private _setAccessibilityOptions(options: IComputedEditorOptions): void {
-		this._accessibilitySupport = options.get(EditorOption.accessibilitySupport);
-		const accessibilityPageSize = options.get(EditorOption.accessibilityPageSize);
-		if (this._accessibilitySupport === AccessibilitySupport.Enabled && accessibilityPageSize === EditorOptions.accessibilityPageSize.defaultValue) {
-			// If a screen reader is attached and the default value is not set we should automatically increase the page size to 500 for a better experience
-			this._accessibilityPageSize = 500;
-		} else {
-			this._accessibilityPageSize = accessibilityPageSize;
-		}
-
-		// When wrapping is enabled and a screen reader might be attached,
-		// we will size the textarea to match the width used for wrapping points computation (see `domLineBreaksComputer.ts`).
-		// This is because screen readers will read the text in the textarea and we'd like that the
-		// wrapping points in the textarea match the wrapping points in the editor.
-		const layoutInfo = options.get(EditorOption.layoutInfo);
-		const wrappingColumn = layoutInfo.wrappingColumn;
-		if (wrappingColumn !== -1 && this._accessibilitySupport !== AccessibilitySupport.Disabled) {
-			const fontInfo = options.get(EditorOption.fontInfo);
-			this._textAreaWrapping = true;
-			this._textAreaWidth = Math.round(wrappingColumn * fontInfo.typicalHalfwidthCharacterWidth);
-		} else {
-			this._textAreaWrapping = false;
-			this._textAreaWidth = (canUseZeroSizeTextarea ? 0 : 1);
-		}
+		const { accessibilitySupport, accessibilityPageSize, textAreaWrapping, textAreaWidth } = setAccessibilityOptions(options, canUseZeroSizeTextarea);
+		this._accessibilitySupport = accessibilitySupport;
+		this._accessibilityPageSize = accessibilityPageSize;
+		this._textAreaWrapping = textAreaWrapping;
+		this._textAreaWidth = textAreaWidth;
 	}
 
 	// --- begin event handlers

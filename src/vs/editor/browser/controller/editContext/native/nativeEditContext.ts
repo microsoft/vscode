@@ -12,7 +12,7 @@ import { AbstractEditContext } from 'vs/editor/browser/controller/editContext/ed
 import { IEditorAriaOptions } from 'vs/editor/browser/editorBrowser';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
 import { ViewController } from 'vs/editor/browser/view/viewController';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { EditorOption, IComputedEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { Position } from 'vs/editor/common/core/position';
 import { PositionOffsetTransformer } from 'vs/editor/common/core/positionToOffset';
@@ -23,9 +23,12 @@ import { ViewConfigurationChangedEvent, ViewCursorStateChangedEvent, ViewScrollC
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import * as dom from 'vs/base/browser/dom';
 import { Selection } from 'vs/editor/common/core/selection';
-import { getScreenReaderContent } from 'vs/editor/browser/controller/editContext/editContextUtils';
+import { canUseZeroSizeTextarea, getScreenReaderContent, setAccessibilityOptions, setAttributes, VisibleTextAreaData } from 'vs/editor/browser/controller/editContext/editContextUtils';
 import { TextAreaState } from 'vs/editor/browser/controller/editContext/textArea/textAreaState';
 import { PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
+import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
+import { FontInfo } from 'vs/editor/common/config/fontInfo';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 // TODO: use the pagination strategy to render the hidden area
 // TODO: refactor the code
@@ -33,6 +36,18 @@ import { PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPa
 
 export class NativeEditContext extends AbstractEditContext {
 
+	private _accessibilitySupport!: AccessibilitySupport;
+	private _accessibilityPageSize!: number;
+	private _textAreaWrapping!: boolean;
+	private _textAreaWidth!: number;
+	private _fontInfo: FontInfo;
+
+	/**
+	 * Defined only when the text area is visible (composition case).
+	 */
+	private _visibleTextArea: VisibleTextAreaData | null;
+
+	// ---
 	private readonly _domElement = new FastDomNode(document.createElement('div'));
 	private readonly _ctx: EditContext = this._domElement.domNode.editContext = new EditContext();
 
@@ -51,13 +66,25 @@ export class NativeEditContext extends AbstractEditContext {
 	constructor(
 		context: ViewContext,
 		private readonly _viewController: ViewController,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
 		super(context);
-		const domNode = this._initializeDomNode();
 
 		const options = this._context.configuration.options;
 		const layoutInfo = options.get(EditorOption.layoutInfo);
+
+		this._setAccessibilityOptions(options);
+
 		this._contentLeft = layoutInfo.contentLeft;
+		this._visibleTextArea = null;
+		this._fontInfo = options.get(EditorOption.fontInfo);
+
+		const domNode = this._domElement.domNode;
+		// TODO: Do we need to add a part fingerprint here? Should this be text area or should this be something else other than text area.
+		PartFingerprints.write(this._domElement, PartFingerprint.TextArea);
+		domNode.className = 'native-edit-context';
+		const { tabSize } = this._context.viewModel.model.getOptions();
+		setAttributes(domNode, tabSize, this._textAreaWrapping, this._visibleTextArea, options, this._keybindingService);
 
 		this._register(dom.addDisposableListener(domNode, 'focus', () => {
 			this._isFocused = true;
@@ -125,25 +152,12 @@ export class NativeEditContext extends AbstractEditContext {
 
 	private _decorations: string[] = [];
 
-	private _initializeDomNode(): HTMLElement {
-		const domNode = this._domElement.domNode;
-		// TODO: Do we need to add a part fingerprint here? Should this be text area or should this be something else other than text area.
-		PartFingerprints.write(this._domElement, PartFingerprint.TextArea);
-		domNode.className = 'native-edit-context';
-		// continue from where we set the wrapping option
-		domNode.tabIndex = 0;
-		domNode.role = 'textbox';
-		domNode.ariaMultiLine = 'true';
-		domNode.ariaRequired = 'false';
-		domNode.ariaLabel = 'use Option+F1 to open the accessibility help.';
-		domNode.ariaAutoComplete = 'both';
-		domNode.ariaRoleDescription = 'editor';
-		domNode.style.fontSize = `${this._context.configuration.options.get(EditorOption.fontSize)}px`;
-		domNode.setAttribute('autocorrect', 'off');
-		domNode.setAttribute('autocapitalize', 'off');
-		domNode.setAttribute('autocomplete', 'off');
-		domNode.setAttribute('spellcheck', 'false');
-		return domNode;
+	private _setAccessibilityOptions(options: IComputedEditorOptions): void {
+		const { accessibilitySupport, accessibilityPageSize, textAreaWrapping, textAreaWidth } = setAccessibilityOptions(options, canUseZeroSizeTextarea);
+		this._accessibilitySupport = accessibilitySupport;
+		this._accessibilityPageSize = accessibilityPageSize;
+		this._textAreaWrapping = textAreaWrapping;
+		this._textAreaWidth = textAreaWidth;
 	}
 
 	private _onDidChangeContent() {
