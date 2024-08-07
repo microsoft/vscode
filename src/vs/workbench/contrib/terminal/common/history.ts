@@ -95,7 +95,6 @@ export async function getShellFileHistory(accessor: ServicesAccessor, shellType:
 		case PosixShellType.Python:
 			result = await fetchPythonHistory(accessor);
 			break;
-
 		default: return [];
 	}
 	if (result === undefined) {

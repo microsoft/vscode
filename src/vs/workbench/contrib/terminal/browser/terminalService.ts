@@ -19,7 +19,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { ICreateContributedTerminalProfileOptions, IExtensionTerminalProfile, IPtyHostAttachTarget, IRawTerminalInstanceLayoutInfo, IRawTerminalTabLayoutInfo, IShellLaunchConfig, ITerminalBackend, ITerminalLaunchError, ITerminalLogService, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, PosixShellType, TerminalExitReason, TerminalLocation, TerminalLocationString, TitleEventSource } from 'vs/platform/terminal/common/terminal';
+import { ICreateContributedTerminalProfileOptions, IExtensionTerminalProfile, IPtyHostAttachTarget, IRawTerminalInstanceLayoutInfo, IRawTerminalTabLayoutInfo, IShellLaunchConfig, ITerminalBackend, ITerminalLaunchError, ITerminalLogService, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalExitReason, TerminalLocation, TerminalLocationString, TitleEventSource } from 'vs/platform/terminal/common/terminal';
 import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalStrings';
 import { iconForeground } from 'vs/platform/theme/common/colorRegistry';
 import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
@@ -208,7 +208,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 			}
 			if (instance?.shellType) {
 				this._terminalShellTypeContextKey.set(instance.shellType.toString());
-			} else if (!instance) {
+			} else if (!instance || !(instance.shellType)) {
 				this._terminalShellTypeContextKey.reset();
 			}
 		}));
