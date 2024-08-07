@@ -32,6 +32,11 @@ import { BugIndicatingError } from 'vs/base/common/errors';
 import { IDocumentColorComputerTarget, computeDefaultDocumentColors } from 'vs/editor/common/languages/defaultDocumentColorsComputer';
 import { FindSectionHeaderOptions, SectionHeader, findSectionHeaders } from 'vs/editor/common/services/findSectionHeaders';
 
+// ESM-uncomment-begin
+// // replaces(?) entryPoint#include that is hard to support with esbuild
+// import 'vs/base/common/worker/simpleWorker';
+// ESM-uncomment-end
+
 export interface IMirrorModel extends IMirrorTextModel {
 	readonly uri: URI;
 	readonly version: number;

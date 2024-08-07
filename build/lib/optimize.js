@@ -220,12 +220,28 @@ function optimizeESMTask(opts, cjsOpts) {
         let bundleData;
         const files = [];
         const tasks = [];
-        for (const module of allMentionedModules) {
+        for (const entryPoint of entryPoints) {
             const t1 = performance.now();
-            console.log(`[bundle] STARTING '${module}'...`);
+            console.log(`[bundle] STARTING '${entryPoint.name}'...`);
+            // support for 'dest' via esbuild#in/out
+            // const dest = entryPoint.dest?.replace(/\.[^/.]+$/, '') ?? entryPoint.name;
+            const dest = entryPoint.name;
+            // support for 'preprend' via the esbuild#banner
+            let banner;
+            if (entryPoint.prepend?.length) {
+                let jsBanner = '';
+                const fs = await Promise.resolve().then(() => require('node:fs'));
+                for (const item of entryPoint.prepend) {
+                    const fullpath = path.join(REPO_ROOT_PATH, opts.src, item.path);
+                    const source = await fs.promises.readFile(fullpath, 'utf8');
+                    jsBanner += source + '\n';
+                }
+                banner = { js: jsBanner };
+            }
             const task = esbuild.build({
                 logLevel: 'silent',
                 bundle: true,
+                external: entryPoint.exclude,
                 packages: 'external', // "external all the things", see https://esbuild.github.io/api/#packages
                 platform: 'neutral', // makes esm
                 format: 'esm',
@@ -236,12 +252,18 @@ function optimizeESMTask(opts, cjsOpts) {
                     '.png': 'file',
                     '.sh': 'file',
                 },
-                outdir: path.join(REPO_ROOT_PATH, opts.src, path.dirname(module)),
-                entryPoints: [path.join(REPO_ROOT_PATH, opts.src, `${module}.js`)],
+                banner,
+                entryPoints: [
+                    {
+                        in: path.join(REPO_ROOT_PATH, opts.src, `${entryPoint.name}.js`),
+                        out: dest,
+                    }
+                ],
+                outdir: path.join(REPO_ROOT_PATH, opts.src),
                 write: false, // enables res.outputFiles
                 metafile: true, // enables res.metafile
             }).then(res => {
-                console.log(`[bundle] DONE for '${module}' (${Math.round(performance.now() - t1)}ms)`);
+                console.log(`[bundle] DONE for '${entryPoint.name}' (${Math.round(performance.now() - t1)}ms)`);
                 if (opts.bundleInfo) {
                     // TODO validate that bundleData is correct
                     bundleData ??= { graph: {}, bundles: {} };
@@ -262,10 +284,22 @@ function optimizeESMTask(opts, cjsOpts) {
                 }
                 for (const file of res.outputFiles) {
                     let contents = file.contents;
-                    // 3 TODO this seems to break the build
-                    if (false && file.path.endsWith('.js')) {
-                        const newText = bundle.removeDuplicateTSBoilerplate(file.text, []);
-                        contents = Buffer.from(newText);
+                    if (file.path.endsWith('.js')) {
+                        if (opts.fileContentMapper) {
+                            // UGLY the fileContentMapper is per file but at this point we have all files
+                            // bundled already. So, we call the mapper for the same contents but each file
+                            // that has been included in the bundle...
+                            let newText = file.text;
+                            for (const input of Object.keys(res.metafile.inputs)) {
+                                newText = opts.fileContentMapper(newText, input);
+                            }
+                            contents = Buffer.from(newText);
+                        }
+                        // 3 TODO this seems to break the build
+                        if (false) {
+                            const newText = bundle.removeDuplicateTSBoilerplate(file.text, []);
+                            contents = Buffer.from(newText);
+                        }
                     }
                     files.push(new VinylFile({
                         contents: Buffer.from(contents),
