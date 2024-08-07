@@ -207,7 +207,7 @@ async function createServer() {
 		function massagePath(p) {
 			// TODO@jrieken FISHY but it enables snapshot
 			// in ESM browser tests
-			p = String(p).replace(prefix, rootDir);
+			p = String(p).replace(/\\/g, '/').replace(prefix, rootDir);
 			return p;
 		}
 
