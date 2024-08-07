@@ -2110,8 +2110,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 
 		try {
-			const customTasksPromises = this._getCustomTaskPromises(Array.from(await this.getWorkspaceTasks()), filter, result, contributedTasks, waitToActivate);
-			await Promise.all(customTasksPromises);
+			await Promise.all(this._getCustomTaskPromises(Array.from(await this.getWorkspaceTasks()), filter, result, contributedTasks, waitToActivate));
 			if (needsRecentTasksMigration) {
 				// At this point we have all the tasks and can migrate the recently used tasks.
 				await this._migrateRecentTasks(result.all());
