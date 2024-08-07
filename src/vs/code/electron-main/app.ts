@@ -936,7 +936,8 @@ export class CodeApplication extends Disposable {
 				cli: { ...this.environmentMainService.args },
 				forceNewWindow: true,
 				forceEmpty: true,
-				gotoLineMode: true
+				gotoLineMode: true,
+				remoteAuthority: getRemoteAuthority(uri)
 			}));
 
 			await window?.ready();
