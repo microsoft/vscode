@@ -84,7 +84,7 @@ export class CellDiffPlaceholderRenderer implements IListRenderer<DiffElementPla
 		const elementDisposables = new DisposableStore();
 		const marginOverlay = new CollapsedCellOverlayWidget(body);
 		const contents = DOM.append(body, DOM.$('.contents'));
-		const placeholder = DOM.append(contents, DOM.$('span.text', { title: localize('notebook.diff.hiddenCells.expandAll', 'Double click to unfold') }));
+		const placeholder = DOM.append(contents, DOM.$('span.text', { title: localize('notebook.diff.hiddenCells.expandAll', 'Double click to show') }));
 
 		return {
 			body,
