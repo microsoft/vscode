@@ -7,7 +7,7 @@ import { hookDomPurifyHrefAndSrcSanitizer, basicMarkupHtmlTags } from 'vs/base/b
 import * as dompurify from 'vs/base/browser/dompurify/dompurify';
 import { allowedMarkdownAttr } from 'vs/base/browser/markdownRenderer';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { marked } from 'vs/base/common/marked/marked';
+import * as marked from 'vs/base/common/marked/marked';
 import { Schemas } from 'vs/base/common/network';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { tokenizeToString } from 'vs/editor/common/languages/textToHtmlTokenizer';
@@ -225,9 +225,7 @@ export async function renderMarkdownDocument(
 		return '';
 	};
 
-	return new Promise<string>((resolve, reject) => {
-		marked(text, { highlight, renderer: options?.renderer }, (err, value) => err ? reject(err) : resolve(value));
-	}).then(raw => {
+	return marked.marked(text, { highlight, renderer: options?.renderer, async: true }).then(raw => {
 		if (options?.shouldSanitize ?? true) {
 			return sanitize(raw, options?.allowUnknownProtocols ?? false);
 		} else {

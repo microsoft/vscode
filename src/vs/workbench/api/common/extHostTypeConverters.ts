@@ -367,7 +367,7 @@ export namespace MarkdownString {
 		const resUris: { [href: string]: UriComponents } = Object.create(null);
 		res.uris = resUris;
 
-		const collectUri = (href: string): string => {
+		const collectUri = ({ href }: { href: string }): string => {
 			try {
 				let uri = URI.parse(href, true);
 				uri = uri.with({ query: _uriMassage(uri.query, resUris) });
@@ -379,7 +379,7 @@ export namespace MarkdownString {
 		};
 		const renderer = new marked.Renderer();
 		renderer.link = collectUri;
-		renderer.image = href => typeof href === 'string' ? collectUri(htmlContent.parseHrefAndDimensions(href).href) : '';
+		renderer.image = href => typeof href === 'string' ? collectUri(htmlContent.parseHrefAndDimensions(href)) : '';
 
 		marked(res.value, { renderer });
 

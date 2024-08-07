@@ -6,7 +6,7 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { marked } from 'vs/base/common/marked/marked';
+import * as marked from 'vs/base/common/marked/marked';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -306,14 +306,14 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 		}
 
 		let codeBlockIndex = 0;
-		const renderer = new marked.Renderer();
-		renderer.code = (value, languageId) => {
-			languageId ??= '';
-			this.codeBlockModelCollection.update(this._model.sessionId, model, codeBlockIndex++, { text: value, languageId });
+		const renderer = new marked.marked.Renderer();
+		renderer.code = ({ text, lang }: marked.Tokens.Code) => {
+			lang ??= '';
+			this.codeBlockModelCollection.update(this._model.sessionId, model, codeBlockIndex++, { text, languageId: lang });
 			return '';
 		};
 
-		marked.parse(this.ensureFencedCodeBlocksTerminated(content), { renderer });
+		marked.marked.parse(this.ensureFencedCodeBlocksTerminated(content), { renderer });
 	}
 
 	/**
