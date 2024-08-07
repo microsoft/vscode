@@ -170,6 +170,13 @@ function Set-MappedKeyHandler {
 	}
 }
 
+function Get-KeywordCompletionResult(
+	$Keyword,
+	$Description = $null
+) {
+	[System.Management.Automation.CompletionResult]::new($Keyword, $Keyword, [System.Management.Automation.CompletionResultType]::Keyword, $null -ne $Description ? $Description : $Keyword)
+}
+
 function Set-MappedKeyHandlers {
 	Set-MappedKeyHandler -Chord Ctrl+Spacebar -Sequence 'F12,a'
 	Set-MappedKeyHandler -Chord Alt+Spacebar -Sequence 'F12,b'
@@ -191,8 +198,112 @@ function Set-MappedKeyHandlers {
 			# Get commands, convert to string array to reduce the payload size and send as JSON
 			$commands = @(
 				[System.Management.Automation.CompletionCompleters]::CompleteCommand('')
-				# Keywords aren't included in CompletionCommand
-				[System.Management.Automation.CompletionResult]::new('exit', 'exit', [System.Management.Automation.CompletionResultType]::Keyword, "exit [<exitcode>]")
+				Get-KeywordCompletionResult -Keyword 'begin'
+				Get-KeywordCompletionResult -Keyword 'break'
+				Get-KeywordCompletionResult -Keyword 'catch' -Description "catch [[<error type>][',' <error type>]*] {<statement list>}"
+				Get-KeywordCompletionResult -Keyword 'class' -Description @"
+class <class-name> [: [<base-class>][,<interface-list>]] {
+    [[<attribute>] [hidden] [static] <property-definition> ...]
+    [<class-name>([<constructor-argument-list>])
+      {<constructor-statement-list>} ...]
+    [[<attribute>] [hidden] [static] <method-definition> ...]
+}
+"@
+				Get-KeywordCompletionResult -Keyword 'clean'
+				Get-KeywordCompletionResult -Keyword 'continue'
+				Get-KeywordCompletionResult -Keyword 'data' -Description @"
+data [<variable-name>] [-supportedCommand <cmdlet-name>] {
+    <Permitted content>
+}
+"@
+				Get-KeywordCompletionResult -Keyword 'do' -Description @"
+do {<statement list>} while (<condition>)
+do {<statement list>} until (<condition>)
+"@
+				Get-KeywordCompletionResult -Keyword 'dynamicparam' -Description "dynamicparam {<statement-list>}"
+				Get-KeywordCompletionResult -Keyword 'else' -Description @"
+if (<test1>)
+    {<statement list 1>}
+[elseif (<test2>)
+    {<statement list 2>}]
+[else
+    {<statement list 3>}]
+"@
+				Get-KeywordCompletionResult -Keyword 'elseif' -Description @"
+if (<test1>)
+    {<statement list 1>}
+[elseif (<test2>)
+    {<statement list 2>}]
+[else
+    {<statement list 3>}]
+"@
+				Get-KeywordCompletionResult -Keyword 'end'
+				Get-KeywordCompletionResult -Keyword 'enum' -Description @"
+[[<attribute>]...] [Flag()] enum <enum-name>[ : <underlying-type-name>] {
+    <label 0> [= 1]
+    <label 1> [= 2]
+    <label 2> [= 4]
+    <label 3> [= 8]
+    ...
+}
+"@
+				Get-KeywordCompletionResult -Keyword 'exit' -Description "exit [<exitcode>]"
+				Get-KeywordCompletionResult -Keyword 'filter' -Description "filter [<scope:>]<name> {<statement list>}"
+				Get-KeywordCompletionResult -Keyword 'finally' -Description "finally {<statement list>}"
+				Get-KeywordCompletionResult -Keyword 'for' -Description @"
+for (<Init>; <Condition>; <Repeat>)
+{
+    <Statement list>
+}
+"@
+				Get-KeywordCompletionResult -Keyword 'foreach' -Description "foreach ($<item> in $<collection>){<statement list>}"
+				Get-KeywordCompletionResult -Keyword 'function' -Description @"
+function [<scope:>]<name> [([type]`$parameter1[,[type]`$parameter2])]
+{
+  begin {<statement list>}
+  process {<statement list>}
+  end {<statement list>}
+  clean {<statement list>}
+}
+"@
+				Get-KeywordCompletionResult -Keyword 'hidden'
+				Get-KeywordCompletionResult -Keyword 'if' -Description @"
+if (<test1>)
+	{<statement list 1>}
+[elseif (<test2>)
+	{<statement list 2>}]
+[else
+	{<statement list 3>}]
+"@
+				Get-KeywordCompletionResult -Keyword 'in' -Description "foreach (`$<item> in `$<collection>){<statement list>}"
+				Get-KeywordCompletionResult -Keyword 'param' -Description "param (`$Parameter1)"
+				Get-KeywordCompletionResult -Keyword 'process'
+				Get-KeywordCompletionResult -Keyword 'return' -Description "return [<expression>]"
+				Get-KeywordCompletionResult -Keyword 'static' -Description @"
+class <class-name> [: [<base-class>][,<interface-list>]] {
+    [[<attribute>] [hidden] [static] <property-definition> ...]
+    [<class-name>([<constructor-argument-list>])
+      {<constructor-statement-list>} ...]
+    [[<attribute>] [hidden] [static] <method-definition> ...]
+}
+"@
+				Get-KeywordCompletionResult -Keyword 'switch' -Description @"
+Switch (<test-expression>)
+{
+    <result1-to-be-matched> {<action>}
+    <result2-to-be-matched> {<action>}
+}
+"@
+				Get-KeywordCompletionResult -Keyword 'throw' -Description "throw [<expression>]"
+				Get-KeywordCompletionResult -Keyword 'trap' -Description "trap [[<error type>]] {<statement list>}"
+				Get-KeywordCompletionResult -Keyword 'try' -Description "try {<statement list>}"
+				Get-KeywordCompletionResult -Keyword 'until' -Description "do {<statement list>} until (<condition>)"
+				Get-KeywordCompletionResult -Keyword 'using' -Description @"
+using module <module-name>
+
+using assembly <.NET-assembly-path>
+"@
+				Get-KeywordCompletionResult -Keyword 'while' -Description "while (<condition>){<statement list>}"
 			)
 			$mappedCommands = Compress-Completions($commands)
 			$result = "$([char]0x1b)]633;CompletionsPwshCommands;commands;"
