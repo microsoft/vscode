@@ -33,7 +33,7 @@ import { IME } from 'vs/base/common/ime';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { AbstractEditContext } from 'vs/editor/browser/controller/editContext/editContext';
-import { canUseZeroSizeTextarea, getAriaLabel, getScreenReaderContent, setAccessibilityOptions, setAttributes, VisibleTextAreaData } from 'vs/editor/browser/controller/editContext/editContextUtils';
+import { canUseZeroSizeTextarea, ensureReadOnlyAttribute, getAriaLabel, getScreenReaderContent, setAccessibilityOptions, setAttributes, VisibleTextAreaData } from 'vs/editor/browser/controller/editContext/editContextUtils';
 
 export interface IVisibleRangeProvider {
 	visibleRangeForPosition(position: Position): HorizontalPosition | null;
@@ -117,8 +117,9 @@ export class TextAreaContext extends AbstractEditContext {
 		const { tabSize } = this._context.viewModel.model.getOptions();
 		setAttributes(this.textArea.domNode, tabSize, this._textAreaWrapping, this._visibleTextArea, options, this._keybindingService);
 
-		this._ensureReadOnlyAttribute();
+		ensureReadOnlyAttribute(this.textArea.domNode, options);
 
+		// TODO: The text area cover is used because otherwise the text area is not detected when it is hidden should be ported too
 		this.textAreaCover = createFastDomNode(document.createElement('div'));
 		this.textAreaCover.setPosition('absolute');
 
@@ -329,7 +330,7 @@ export class TextAreaContext extends AbstractEditContext {
 		}));
 
 		this._register(IME.onDidChange(() => {
-			this._ensureReadOnlyAttribute();
+			ensureReadOnlyAttribute(this.textArea.domNode, options);
 		}));
 	}
 
@@ -380,7 +381,7 @@ export class TextAreaContext extends AbstractEditContext {
 		this.textArea.setAttribute('tabindex', String(options.get(EditorOption.tabIndex)));
 
 		if (e.hasChanged(EditorOption.domReadOnly) || e.hasChanged(EditorOption.readOnly)) {
-			this._ensureReadOnlyAttribute();
+			ensureReadOnlyAttribute(this.textArea.domNode, options);
 		}
 
 		if (e.hasChanged(EditorOption.accessibilitySupport)) {
@@ -458,18 +459,6 @@ export class TextAreaContext extends AbstractEditContext {
 	}
 
 	// --- end view API
-
-	private _ensureReadOnlyAttribute(): void {
-		const options = this._context.configuration.options;
-		// When someone requests to disable IME, we set the "readonly" attribute on the <textarea>.
-		// This will prevent composition.
-		const useReadOnly = !IME.enabled || (options.get(EditorOption.domReadOnly) && options.get(EditorOption.readOnly));
-		if (useReadOnly) {
-			this.textArea.setAttribute('readonly', 'true');
-		} else {
-			this.textArea.removeAttribute('readonly');
-		}
-	}
 
 	private _primaryCursorPosition: Position = new Position(1, 1);
 	private _primaryCursorVisibleRange: HorizontalPosition | null = null;

@@ -21,6 +21,7 @@ import { HorizontalPosition } from 'vs/editor/browser/view/renderingContext';
 import { ColorId, ITokenPresentation } from 'vs/editor/common/encodedTokenAttributes';
 import { IVisibleRangeProvider } from 'vs/editor/browser/controller/editContext/textArea/textAreaHandler';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IME } from 'vs/base/common/ime';
 
 
 export class VisibleTextAreaData {
@@ -318,4 +319,15 @@ export function setAttributes(
 	domNode.setAttribute('aria-roledescription', nls.localize('editor', "editor"));
 	domNode.setAttribute('aria-multiline', 'true');
 	domNode.setAttribute('aria-autocomplete', options.get(EditorOption.readOnly) ? 'none' : 'both');
+}
+
+export function ensureReadOnlyAttribute(domNode: HTMLElement, options: IComputedEditorOptions): void {
+	// When someone requests to disable IME, we set the "readonly" attribute on the <textarea>.
+	// This will prevent composition.
+	const useReadOnly = !IME.enabled || (options.get(EditorOption.domReadOnly) && options.get(EditorOption.readOnly));
+	if (useReadOnly) {
+		domNode.setAttribute('readonly', 'true');
+	} else {
+		domNode.removeAttribute('readonly');
+	}
 }

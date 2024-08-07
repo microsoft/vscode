@@ -23,7 +23,7 @@ import { ViewConfigurationChangedEvent, ViewCursorStateChangedEvent, ViewScrollC
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import * as dom from 'vs/base/browser/dom';
 import { Selection } from 'vs/editor/common/core/selection';
-import { canUseZeroSizeTextarea, getScreenReaderContent, setAccessibilityOptions, setAttributes, VisibleTextAreaData } from 'vs/editor/browser/controller/editContext/editContextUtils';
+import { canUseZeroSizeTextarea, ensureReadOnlyAttribute, getScreenReaderContent, setAccessibilityOptions, setAttributes, VisibleTextAreaData } from 'vs/editor/browser/controller/editContext/editContextUtils';
 import { TextAreaState } from 'vs/editor/browser/controller/editContext/textArea/textAreaState';
 import { PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
@@ -85,6 +85,8 @@ export class NativeEditContext extends AbstractEditContext {
 		domNode.className = 'native-edit-context';
 		const { tabSize } = this._context.viewModel.model.getOptions();
 		setAttributes(domNode, tabSize, this._textAreaWrapping, this._visibleTextArea, options, this._keybindingService);
+
+		ensureReadOnlyAttribute(domNode, options);
 
 		this._register(dom.addDisposableListener(domNode, 'focus', () => {
 			this._isFocused = true;
