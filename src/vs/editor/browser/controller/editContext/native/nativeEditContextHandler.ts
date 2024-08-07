@@ -23,7 +23,6 @@ import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import * as dom from 'vs/base/browser/dom';
 import { Selection } from 'vs/editor/common/core/selection';
 import { canUseZeroSizeTextarea, ensureReadOnlyAttribute, getScreenReaderContent, IRenderData, IVisibleRangeProvider, newlinecount, setAccessibilityOptions, setAriaOptions, setAttributes, VisibleTextAreaData } from 'vs/editor/browser/controller/editContext/editContextUtils';
-import { TextAreaState } from 'vs/editor/browser/controller/editContext/textArea/textAreaState';
 import { PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
@@ -33,6 +32,7 @@ import { TokenizationRegistry } from 'vs/editor/common/languages';
 import * as platform from 'vs/base/common/platform';
 import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 import { Color } from 'vs/base/common/color';
+import { HiddenAreaState } from 'vs/editor/browser/controller/editContext/editContextState';
 
 // TODO: use the pagination strategy to render the hidden area
 // TODO: refactor the code
@@ -131,6 +131,16 @@ export class NativeEditContext extends AbstractEditContext {
 		ensureReadOnlyAttribute(domNode, options);
 
 		// TODO: need to place all of this code into a separate input class which will use the edit context in order to do the corresponidng logic
+
+		/* Need to do once the native context has been developed
+		const nativeContextAreaWrapper = this._register(new NativeContextAreaWrapper(this.textArea.domNode));
+		this._textAreaInput = this._register(this._instantiationService.createInstance(HiddenAreaInput, textAreaInputHost, textAreaWrapper, platform.OS, {
+			isAndroid: browser.isAndroid,
+			isChrome: browser.isChrome,
+			isFirefox: browser.isFirefox,
+			isSafari: browser.isSafari,
+		}));
+		*/
 
 		this._register(dom.addDisposableListener(domNode, 'focus', () => {
 			this._isFocused = true;
@@ -555,7 +565,7 @@ export class NativeEditContext extends AbstractEditContext {
 		this._renderHiddenAreaElement(textAreaState, selection);
 	}
 
-	private _hiddenAreaContent(selection: Selection): TextAreaState {
+	private _hiddenAreaContent(selection: Selection): HiddenAreaState {
 		// TODO: Maybe should place into the constructor
 		const options = this._context.configuration.options;
 		const accessibilitySupport = options.get(EditorOption.accessibilitySupport);
@@ -567,7 +577,7 @@ export class NativeEditContext extends AbstractEditContext {
 		return textAreaState;
 	}
 
-	private _updateDocumentSelection(textAreaState: TextAreaState) {
+	private _updateDocumentSelection(textAreaState: HiddenAreaState) {
 		const domNode = this._domElement.domNode;
 		const activeDocument = dom.getActiveWindow().document;
 		const activeDocumentSelection = activeDocument.getSelection();
@@ -583,7 +593,7 @@ export class NativeEditContext extends AbstractEditContext {
 		}
 	}
 
-	private _rerenderHiddenAreaElementOnSelectionChange(textAreaState: TextAreaState, selection: Selection): void {
+	private _rerenderHiddenAreaElementOnSelectionChange(textAreaState: HiddenAreaState, selection: Selection): void {
 		const hiddenAreaContent = textAreaState.value;
 		if (this._previousHiddenAreaValue !== hiddenAreaContent
 			|| this._previousSelection?.startLineNumber !== selection.startLineNumber
@@ -594,7 +604,7 @@ export class NativeEditContext extends AbstractEditContext {
 		this._previousHiddenAreaValue = hiddenAreaContent;
 	}
 
-	private _renderHiddenAreaElement(textAreaState: TextAreaState, selection: Selection): void {
+	private _renderHiddenAreaElement(textAreaState: HiddenAreaState, selection: Selection): void {
 		this._domElement.domNode.textContent = textAreaState.value;
 		this._updateDomNodePosition(selection.startLineNumber);
 	}

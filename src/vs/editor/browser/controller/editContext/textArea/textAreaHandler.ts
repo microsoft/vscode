@@ -9,8 +9,8 @@ import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import * as platform from 'vs/base/common/platform';
 import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
-import { CopyOptions, ICompositionData, IPasteData, ITextAreaInputHost, TextAreaInput, ClipboardDataToCopy, TextAreaWrapper } from 'vs/editor/browser/controller/editContext/textArea/textAreaInput';
-import { ITypeData, TextAreaState, _debugComposition } from 'vs/editor/browser/controller/editContext/textArea/textAreaState';
+import { CopyOptions, ICompositionData, IPasteData, IHiddenAreaInputHost, HiddenAreaInput, ClipboardDataToCopy } from 'vs/editor/browser/controller/editContext/editContextInput';
+import { ITypeData, HiddenAreaState, _debugComposition } from 'vs/editor/browser/controller/editContext/editContextState';
 import { ViewController } from 'vs/editor/browser/view/viewController';
 import { PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
 import { LineNumbersOverlay } from 'vs/editor/browser/viewParts/lineNumbers/lineNumbers';
@@ -34,6 +34,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { AbstractEditContext } from 'vs/editor/browser/controller/editContext/editContext';
 import { canUseZeroSizeTextarea, ensureReadOnlyAttribute, getScreenReaderContent, IRenderData, IVisibleRangeProvider, measureText, newlinecount, setAccessibilityOptions, setAriaOptions, setAttributes, VisibleTextAreaData } from 'vs/editor/browser/controller/editContext/editContextUtils';
+import { TextAreaWrapper } from 'vs/editor/browser/controller/editContext/textArea/textAreaInput';
 
 // TODO: verify all of the code here and check what is needed in the other native edit context code and what is not needed. Do a full port of the code there. Use vscode2 in order to understand what the code is used for and if I need it.
 // TODO: once that is done and the port is done, then check that with NVDA works as expected and voice over as compared to normal code
@@ -73,7 +74,7 @@ export class TextAreaContext extends AbstractEditContext {
 
 	public readonly textArea: FastDomNode<HTMLTextAreaElement>;
 	public readonly textAreaCover: FastDomNode<HTMLElement>;
-	private readonly _textAreaInput: TextAreaInput;
+	private readonly _textAreaInput: HiddenAreaInput;
 
 	constructor(
 		context: ViewContext,
@@ -119,7 +120,7 @@ export class TextAreaContext extends AbstractEditContext {
 		this.textAreaCover = createFastDomNode(document.createElement('div'));
 		this.textAreaCover.setPosition('absolute');
 
-		const textAreaInputHost: ITextAreaInputHost = {
+		const textAreaInputHost: IHiddenAreaInputHost = {
 			getDataToCopy: (): ClipboardDataToCopy => {
 				const rawTextToCopy = this._context.viewModel.getPlainTextToCopy(this._modelSelections, this._emptySelectionClipboard, platform.isWindows);
 				const newLineCharacter = this._context.viewModel.model.getEOL();
@@ -145,7 +146,7 @@ export class TextAreaContext extends AbstractEditContext {
 					mode
 				};
 			},
-			getScreenReaderContent: (): TextAreaState => {
+			getScreenReaderContent: (): HiddenAreaState => {
 				return getScreenReaderContent(this._context, this._selections[0], this._accessibilitySupport, this._accessibilityPageSize);
 			},
 
@@ -155,7 +156,7 @@ export class TextAreaContext extends AbstractEditContext {
 		};
 
 		const textAreaWrapper = this._register(new TextAreaWrapper(this.textArea.domNode));
-		this._textAreaInput = this._register(this._instantiationService.createInstance(TextAreaInput, textAreaInputHost, textAreaWrapper, platform.OS, {
+		this._textAreaInput = this._register(this._instantiationService.createInstance(HiddenAreaInput, textAreaInputHost, textAreaWrapper, platform.OS, {
 			isAndroid: browser.isAndroid,
 			isChrome: browser.isChrome,
 			isFirefox: browser.isFirefox,
@@ -554,7 +555,7 @@ export class TextAreaContext extends AbstractEditContext {
 			// In case the textarea contains a word, we're going to try to align the textarea's cursor
 			// with our cursor by scrolling the textarea as much as possible
 			this.textArea.domNode.scrollLeft = this._primaryCursorVisibleRange.left;
-			const lineCount = this._textAreaInput.textAreaState.newlineCountBeforeSelection ?? newlinecount(this.textArea.domNode.value.substr(0, this.textArea.domNode.selectionStart));
+			const lineCount = this._textAreaInput.hiddenAreaState.newlineCountBeforeSelection ?? newlinecount(this.textArea.domNode.value.substr(0, this.textArea.domNode.selectionStart));
 			this.textArea.domNode.scrollTop = lineCount * this._lineHeight;
 			return;
 		}

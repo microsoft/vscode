@@ -8,8 +8,8 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { ClipboardDataToCopy, IBrowser, ICompleteTextAreaWrapper, ITextAreaInputHost, TextAreaInput } from 'vs/editor/browser/controller/editContext/textArea/textAreaInput';
-import { TextAreaState } from 'vs/editor/browser/controller/editContext/textArea/textAreaState';
+import { ClipboardDataToCopy, IBrowser, ICompleteHiddenAreaWrapper, IHiddenAreaInputHost, HiddenAreaInput } from 'vs/editor/browser/controller/editContext/editContextInput';
+import { HiddenAreaState } from 'vs/editor/browser/controller/editContext/editContextState';
 import { Position } from 'vs/editor/common/core/position';
 import { IRecorded, IRecordedEvent, IRecordedTextareaState } from 'vs/editor/test/browser/controller/imeRecordedTypes';
 import { TestAccessibilityService } from 'vs/platform/accessibility/test/common/testAccessibilityService';
@@ -47,18 +47,18 @@ suite('TextAreaInput', () => {
 
 	async function simulateInteraction(recorded: IRecorded): Promise<OutoingEvent[]> {
 		const disposables = new DisposableStore();
-		const host: ITextAreaInputHost = {
+		const host: IHiddenAreaInputHost = {
 			getDataToCopy: function (): ClipboardDataToCopy {
 				throw new Error('Function not implemented.');
 			},
-			getScreenReaderContent: function (): TextAreaState {
-				return new TextAreaState('', 0, 0, null, undefined);
+			getScreenReaderContent: function (): HiddenAreaState {
+				return new HiddenAreaState('', 0, 0, null, undefined);
 			},
 			deduceModelPosition: function (viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position {
 				throw new Error('Function not implemented.');
 			}
 		};
-		const wrapper = disposables.add(new class extends Disposable implements ICompleteTextAreaWrapper {
+		const wrapper = disposables.add(new class extends Disposable implements ICompleteHiddenAreaWrapper {
 			private _onKeyDown = this._register(new Emitter<KeyboardEvent>());
 			readonly onKeyDown = this._onKeyDown.event;
 
@@ -205,7 +205,7 @@ suite('TextAreaInput', () => {
 
 			public hasFocus(): boolean { return true; }
 		});
-		const input = disposables.add(new TextAreaInput(host, wrapper, recorded.env.OS, recorded.env.browser, new TestAccessibilityService(), new NullLogService()));
+		const input = disposables.add(new HiddenAreaInput(host, wrapper, recorded.env.OS, recorded.env.browser, new TestAccessibilityService(), new NullLogService()));
 
 		wrapper._initialize(recorded.initial);
 		input._initializeFromTest();

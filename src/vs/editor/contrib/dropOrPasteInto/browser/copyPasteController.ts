@@ -13,7 +13,6 @@ import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Mimes } from 'vs/base/common/mime';
 import * as platform from 'vs/base/common/platform';
 import { generateUuid } from 'vs/base/common/uuid';
-import { ClipboardEventUtils } from 'vs/editor/browser/controller/editContext/textArea/textAreaInput';
 import { toExternalVSDataTransfer, toVSDataTransfer } from 'vs/editor/browser/dnd';
 import { ICodeEditor, PastePayload } from 'vs/editor/browser/editorBrowser';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
@@ -37,6 +36,7 @@ import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { PostEditWidgetManager } from './postEditWidget';
 import { CancellationError, isCancellationError } from 'vs/base/common/errors';
+import { ClipboardEventUtils } from 'vs/editor/browser/controller/editContext/editContextInput';
 
 export const changePasteTypeCommandId = 'editor.changePasteType';
 

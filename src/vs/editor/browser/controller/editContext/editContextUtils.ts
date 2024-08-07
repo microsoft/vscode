@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ISimpleModel, PagedScreenReaderStrategy, TextAreaState } from 'vs/editor/browser/controller/editContext/textArea/textAreaState';
+import { ISimpleModel, PagedScreenReaderStrategy, HiddenAreaState } from 'vs/editor/browser/controller/editContext/editContextState';
 import { Position } from 'vs/editor/common/core/position';
 import { getMapForWordSeparators, WordCharacterClass } from 'vs/editor/common/core/wordCharacterClassifier';
 import { IViewModel } from 'vs/editor/common/viewModel';
@@ -133,7 +133,7 @@ export function setAccessibilityOptions(options: IComputedEditorOptions, canUseZ
 }
 
 // TODO: Need to maybe pass in the options object instead of the separate settings
-export function getScreenReaderContent(viewContext: ViewContext, selection: Selection, accessibilitySupport: AccessibilitySupport, accessibilityPageSize: number): TextAreaState {
+export function getScreenReaderContent(viewContext: ViewContext, selection: Selection, accessibilitySupport: AccessibilitySupport, accessibilityPageSize: number): HiddenAreaState {
 
 	const simpleModel: ISimpleModel = {
 		getLineCount: (): number => {
@@ -167,7 +167,7 @@ export function getScreenReaderContent(viewContext: ViewContext, selection: Sele
 			}
 
 			if (textBefore.length > 0) {
-				return new TextAreaState(textBefore, textBefore.length, textBefore.length, Range.fromPositions(position), 0);
+				return new HiddenAreaState(textBefore, textBefore.length, textBefore.length, Range.fromPositions(position), 0);
 			}
 		}
 		// on macOS, write current selection into textarea will allow system text services pick selected text,
@@ -177,7 +177,7 @@ export function getScreenReaderContent(viewContext: ViewContext, selection: Sele
 		const LIMIT_CHARS = 500;
 		if (platform.isMacintosh && !selection.isEmpty() && simpleModel.getValueLengthInRange(selection, EndOfLinePreference.TextDefined) < LIMIT_CHARS) {
 			const text = simpleModel.getValueInRange(selection, EndOfLinePreference.TextDefined);
-			return new TextAreaState(text, 0, text.length, selection, 0);
+			return new HiddenAreaState(text, 0, text.length, selection, 0);
 		}
 
 		// on Safari, document.execCommand('cut') and document.execCommand('copy') will just not work
@@ -185,10 +185,10 @@ export function getScreenReaderContent(viewContext: ViewContext, selection: Sele
 		// is selected in the textarea.
 		if (browser.isSafari && !selection.isEmpty()) {
 			const placeholderText = 'vscode-placeholder';
-			return new TextAreaState(placeholderText, 0, placeholderText.length, null, undefined);
+			return new HiddenAreaState(placeholderText, 0, placeholderText.length, null, undefined);
 		}
 
-		return TextAreaState.EMPTY;
+		return HiddenAreaState.EMPTY;
 	}
 
 	if (browser.isAndroid) {
@@ -200,10 +200,10 @@ export function getScreenReaderContent(viewContext: ViewContext, selection: Sele
 			const position = selection.getStartPosition();
 			const [wordAtPosition, positionOffsetInWord] = getAndroidWordAtPosition(viewModel, position);
 			if (wordAtPosition.length > 0) {
-				return new TextAreaState(wordAtPosition, positionOffsetInWord, positionOffsetInWord, Range.fromPositions(position), 0);
+				return new HiddenAreaState(wordAtPosition, positionOffsetInWord, positionOffsetInWord, Range.fromPositions(position), 0);
 			}
 		}
-		return TextAreaState.EMPTY;
+		return HiddenAreaState.EMPTY;
 	}
 
 	return PagedScreenReaderStrategy.fromEditorSelection(simpleModel, selection, accessibilityPageSize, accessibilitySupport === AccessibilitySupport.Unknown);
