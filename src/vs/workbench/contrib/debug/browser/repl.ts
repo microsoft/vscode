@@ -694,14 +694,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		}));
 
 		this._register(tree.onContextMenu(e => this.onContextMenu(e)));
-
-		this._register(tree.onDidChangeFindOpenState((open) => {
-			if (open) {
-				this.findIsOpen = true;
-			} else {
-				this.findIsOpen = false;
-			}
-		}));
+		this._register(tree.onDidChangeFindOpenState((open) => this.findIsOpen = open));
 
 		let lastSelectedString: string;
 		this._register(tree.onMouseClick(() => {
