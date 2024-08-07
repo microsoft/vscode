@@ -16,7 +16,7 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ITextEditorOptions, IResourceEditorInput, EditorActivation, EditorResolution } from 'vs/platform/editor/common/editor';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { MainThreadTextEditor } from 'vs/workbench/api/browser/mainThreadEditor';
-import { ExtHostContext, ExtHostEditorsShape, IApplyEditsOptions, ITextDocumentShowOptions, ITextEditorConfigurationUpdate, ITextEditorPositionData, IUndoStopOptions, MainThreadTextEditorsShape, TextEditorRevealType } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostContext, ExtHostEditorsShape, IApplyEditsOptions, ITextDocumentShowOptions, ITextEditorConfigurationUpdate, ITextEditorPositionData, IUndoStopOptions, MainThreadTextEditorsShape, SetDecorationsResult, TextEditorRevealType } from 'vs/workbench/api/common/extHost.protocol';
 import { editorGroupToColumn, columnToEditorGroup, EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -75,7 +75,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		this._textEditorsListenersMap = Object.create(null);
 		this._toDispose.dispose();
 		for (const decorationType in this._registeredDecorationTypes) {
-			this._codeEditorService.removeDecorationType(decorationType);
+			// this._codeEditorService.removeDecorationType(decorationType);
 		}
 		this._registeredDecorationTypes = Object.create(null);
 	}
@@ -180,8 +180,9 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		return Promise.resolve(undefined);
 	}
 
-	$trySetDecorations(id: string, modelVersionId: number, key: string, ranges: IDecorationOptions[]): Promise<boolean> {
+	$trySetDecorations(id: string, modelVersionId: number, key: string, ranges: IDecorationOptions[]): Promise<SetDecorationsResult> {
 		key = `${this._instanceId}-${key}`;
+
 		const editor = this._editorLocator.getEditor(id);
 		if (!editor) {
 			return Promise.reject(illegalArgument(`TextEditor(${id})`));
@@ -189,7 +190,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		return Promise.resolve(editor.setDecorations(key, modelVersionId, ranges));
 	}
 
-	$trySetDecorationsFast(id: string, modelVersionId: number, key: string, ranges: number[]): Promise<boolean> {
+	$trySetDecorationsFast(id: string, modelVersionId: number, key: string, ranges: number[]): Promise<SetDecorationsResult> {
 		key = `${this._instanceId}-${key}`;
 		const editor = this._editorLocator.getEditor(id);
 		if (!editor) {

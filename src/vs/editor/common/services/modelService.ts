@@ -12,7 +12,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { DefaultEndOfLine, EndOfLinePreference, EndOfLineSequence, ITextBuffer, ITextBufferFactory, ITextModel, ITextModelCreationOptions } from 'vs/editor/common/model';
 import { TextModel, createTextBuffer } from 'vs/editor/common/model/textModel';
 import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/core/textModelDefaults';
-import { IModelLanguageChangedEvent } from 'vs/editor/common/textModelEvents';
+import { IModelContentChangedEvent, IModelLanguageChangedEvent } from 'vs/editor/common/textModelEvents';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { ILanguageSelection, ILanguageService } from 'vs/editor/common/languages/language';
 import { IModelService } from 'vs/editor/common/services/model';
@@ -24,6 +24,7 @@ import { isEditStackElement } from 'vs/editor/common/model/editStack';
 import { Schemas } from 'vs/base/common/network';
 import { equals } from 'vs/base/common/objects';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { IntervalTimer } from 'vs/base/common/async';
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
@@ -32,20 +33,42 @@ function MODEL_ID(resource: URI): string {
 class ModelData implements IDisposable {
 
 	private readonly _modelEventListeners = new DisposableStore();
+	private readonly _recentModelContentChangeEvents: RecentModelContentChangedEvent[] = [];
 
 	constructor(
 		public readonly model: TextModel,
 		onWillDispose: (model: ITextModel) => void,
-		onDidChangeLanguage: (model: ITextModel, e: IModelLanguageChangedEvent) => void
+		onDidChangeLanguage: (model: ITextModel, e: IModelLanguageChangedEvent) => void,
 	) {
 		this.model = model;
 		this._modelEventListeners.add(model.onWillDispose(() => onWillDispose(model)));
 		this._modelEventListeners.add(model.onDidChangeLanguage((e) => onDidChangeLanguage(model, e)));
+		this._modelEventListeners.add(model.onDidChangeContent((e) => {
+			this._recentModelContentChangeEvents.push(new RecentModelContentChangedEvent(e));
+		}));
 	}
 
 	public dispose(): void {
 		this._modelEventListeners.dispose();
 	}
+
+	public getRecentModelContentChangedEvents(): readonly IModelContentChangedEvent[] {
+		return this._recentModelContentChangeEvents.map(e => e.event);
+	}
+
+	public pruneRecentModelContentChangedEvents(): void {
+		const timeCutOff = Date.now() - 30 * 1000 /* 30 seconds ago */;
+		while (this._recentModelContentChangeEvents.length > 0 && this._recentModelContentChangeEvents[0].time < timeCutOff) {
+			this._recentModelContentChangeEvents.shift();
+		}
+	}
+}
+
+class RecentModelContentChangedEvent {
+	constructor(
+		public readonly event: IModelContentChangedEvent,
+		public readonly time = Date.now()
+	) { }
 }
 
 interface IRawEditorConfig {
@@ -118,6 +141,17 @@ export class ModelService extends Disposable implements IModelService {
 
 		this._register(this._configurationService.onDidChangeConfiguration(e => this._updateModelOptions(e)));
 		this._updateModelOptions(undefined);
+
+		// Clean up recent model content change events
+		const timer = this._register(new IntervalTimer());
+		timer.cancelAndSet(() => {
+			const keys = Object.keys(this._models);
+			for (let i = 0, len = keys.length; i < len; i++) {
+				const modelId = keys[i];
+				const modelData = this._models[modelId];
+				modelData.pruneRecentModelContentChangedEvents();
+			}
+		}, 10 * 1000);
 	}
 
 	private static _readModelOptions(config: IRawConfig, isForSimpleWidget: boolean): ITextModelCreationOptions {
@@ -443,6 +477,14 @@ export class ModelService extends Disposable implements IModelService {
 		}
 
 		return [EditOperation.replaceMove(oldRange, textBuffer.getValueInRange(newRange, EndOfLinePreference.TextDefined))];
+	}
+
+	public getRecentModelContentChangeEvents(model: ITextModel): readonly IModelContentChangedEvent[] {
+		const modelData = this._models[MODEL_ID(model.uri)];
+		if (!modelData) {
+			return [];
+		}
+		return modelData.getRecentModelContentChangedEvents();
 	}
 
 	public createModel(value: string | ITextBufferFactory, languageSelection: ILanguageSelection | null, resource?: URI, isForSimpleWidget: boolean = false): ITextModel {

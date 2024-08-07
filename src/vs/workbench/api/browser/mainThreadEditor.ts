@@ -14,7 +14,7 @@ import { ITextModel, ITextModelUpdateOptions } from 'vs/editor/common/model';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { IModelService } from 'vs/editor/common/services/model';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
-import { IApplyEditsOptions, IEditorPropertiesChangeData, IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate, IUndoStopOptions, TextEditorRevealType } from 'vs/workbench/api/common/extHost.protocol';
+import { IApplyEditsOptions, IEditorPropertiesChangeData, IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate, IUndoStopOptions, SetDecorationsResult, TextEditorRevealType } from 'vs/workbench/api/common/extHost.protocol';
 import { IEditorPane } from 'vs/workbench/common/editor';
 import { equals } from 'vs/base/common/arrays';
 import { CodeEditorStateFlag, EditorState } from 'vs/editor/contrib/editorState/browser/editorState';
@@ -22,6 +22,9 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
 import { MainThreadDocuments } from 'vs/workbench/api/browser/mainThreadDocuments';
 import { ISnippetEdit } from 'vs/editor/contrib/snippet/browser/snippetSession';
+import { IModelContentChange, IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
+import { Position } from 'vs/editor/common/core/position';
+import { splitLines } from 'vs/base/common/strings';
 
 export interface IFocusTracker {
 	onGainedFocus(): void;
@@ -420,34 +423,49 @@ export class MainThreadTextEditor {
 		}
 	}
 
-	public setDecorations(key: string, versionIdCheck: number, ranges: IDecorationOptions[]): boolean {
+	public setDecorations(key: string, versionIdCheck: number, ranges: IDecorationOptions[]): SetDecorationsResult {
 		if (!this._codeEditor) {
-			return false;
+			return { type: 'error' };
 		}
-		if (this._model.getVersionId() !== versionIdCheck) {
-			// throw new Error('Model has changed in the meantime!');
-			// model changed in the meantime
-			return false;
-		}
+		const currentModelVersionId = this._model.getVersionId();
+		const modelChangedInMeantime = currentModelVersionId !== versionIdCheck;
 		this._codeEditor.setDecorationsByType('exthost-api', key, ranges);
-		return true;
+		return (
+			modelChangedInMeantime
+				? { type: 'warn', versionId: currentModelVersionId }
+				: { type: 'ok' }
+		);
 	}
 
-	public setDecorationsFast(key: string, versionIdCheck: number, _ranges: number[]): boolean {
+	public setDecorationsFast(key: string, versionIdCheck: number, _ranges: number[]): SetDecorationsResult {
 		if (!this._codeEditor) {
-			return false;
+			return { type: 'error' };
 		}
-		if (this._model.getVersionId() !== versionIdCheck) {
-			// throw new Error('Model has changed in the meantime!');
-			// model changed in the meantime
-			return false;
-		}
+		const currentModelVersionId = this._model.getVersionId();
+		const modelChangedInMeantime = currentModelVersionId !== versionIdCheck;
 		const ranges: Range[] = [];
 		for (let i = 0, len = Math.floor(_ranges.length / 4); i < len; i++) {
 			ranges[i] = new Range(_ranges[4 * i], _ranges[4 * i + 1], _ranges[4 * i + 2], _ranges[4 * i + 3]);
 		}
 		this._codeEditor.setDecorationsByTypeFast(key, ranges);
-		return true;
+		return (
+			modelChangedInMeantime
+				? { type: 'warn', versionId: currentModelVersionId }
+				: { type: 'ok' }
+		);
+	}
+
+	private _createRangeTransformer(range: Range[], rangeVersionId: number): (rng: Range)Range[] {
+		const recentChangeEvents = this._modelService.getRecentModelContentChangeEvents(this._model);
+		const missedRecentChangeEvent = recentChangeEvents.filter(change => change.versionId > rangeVersionId);
+
+		// const pendingChanges = ;
+		// this._modelService.getRecentModelContentChangeEvents(this._model).
+		// if (this._model.getVersionId() === modelVersionId) {
+		// 	// the model version is still the same
+		// 	return selections;
+		// }
+		// return selections.map(selection => this._model.normalizeSelectionRange(selection));
 	}
 
 	public revealRange(range: IRange, revealType: TextEditorRevealType): void {
@@ -559,4 +577,87 @@ export class MainThreadTextEditor {
 
 		return true;
 	}
+}
+
+interface IRangeTransformer {
+	(range: Range): Range;
+}
+
+type CreateRecentChangesRangeTransformerResult = (
+	{ kind: 'versionTooOld' }
+	| { kind: 'versionUpToDate' }
+	| { kind: 'transformer', value: IRangeTransformer }
+);
+
+function createRecentChangesTransformer(modelService: IModelService, model: ITextModel, versionId: number): CreateRecentChangesRangeTransformerResult {
+	if (model.getVersionId() === versionId) {
+		return { kind: 'versionUpToDate' };
+	}
+	const recentChangeEvents = modelService.getRecentModelContentChangeEvents(model);
+	const missedRecentChangeEvents = recentChangeEvents.filter(change => change.versionId > versionId);
+	if (missedRecentChangeEvents.length === 0) {
+		// versionId is too old and we no longer have these recent changes
+		return { kind: 'versionTooOld' };
+	}
+	const firstChangeEvent = missedRecentChangeEvents[0];
+	if (firstChangeEvent.versionId !== versionId + 1) {
+		// cannot compute transformer because some changes have been dropped
+		return { kind: 'versionTooOld' };
+	}
+	return { kind: 'transformer', value: createRangeTransformer(missedRecentChangeEvents) };
+}
+
+function createRangeTransformer(changes: IModelContentChangedEvent[]): IRangeTransformer {
+	return (range: Range): Range => {
+		// let result = range;
+		let startPosition = range.getStartPosition();
+		let endPosition = range.getEndPosition();
+		for (const change of changes) {
+			for (const innerChange of change.changes) {
+				result = applyEditToRange(result, innerChange);
+			}
+		}
+		return result;
+	};
+}
+
+function applyEditToRange(range: Range, edit: IModelContentChange): Range {
+	// const [startLineNumber, startColumn] = RangeUtils.getLineNumberAndColumnFromOffset(range.startLineNumber, range.startColumn, edit.range.startLineNumber, edit.range.startColumn, edit.text);
+	// const [endLineNumber, endColumn] = RangeUtils.getLineNumberAndColumnFromOffset(range.endLineNumber, range.endColumn, edit.range.endLineNumber, edit.range.endColumn, edit.text);
+	// return new Range(startLineNumber, startColumn, endLineNumber, endColumn);
+}
+
+//function createPositionTransformer(edit: IModelContentChange[]): (position: Position) => Position {
+
+function convertPositionAgainstEdit(position: Position, edit: IModelContentChange) {
+	const lineNumber = position.lineNumber;
+	const column = position.column;
+
+	const editStartLineNumber = edit.range.startLineNumber;
+	const editStartColumn = edit.range.startColumn;
+	const editEndLineNumber = edit.range.endLineNumber;
+	const editEndColumn = edit.range.endColumn;
+
+	if (lineNumber < editStartLineNumber || (lineNumber === editStartLineNumber && column < editStartColumn)) {
+		// Position is before the edit range, no need to adjust
+		return position;
+	}
+
+	if (lineNumber > editEndLineNumber || (lineNumber === editEndLineNumber && column >= editEndColumn)) {
+		// Position is after the edit range, adjust by the difference in length
+		const newLines = splitLines(edit.text);
+		const lineDelta = newLines.length - (editEndLineNumber - editStartLineNumber + 1);
+		const columnDelta = newLines.length > 0 ? newLines[0].length - editEndColumn + column : 0;
+		return new Position(lineNumber + lineDelta, column + columnDelta);
+	}
+
+	if (lineNumber === editStartLineNumber && column >= editStartColumn) {
+		// Position is at the start of the edit range, adjust by the difference in length
+		const newLines = splitLines(edit.text);
+		const columnDelta = newLines.length > 0 ? newLines[0].length - editStartColumn + column : 0;
+		return new Position(lineNumber, column + columnDelta);
+	}
+
+	// Position is inside the edit range, return null to indicate that the position is deleted
+	return null;
 }

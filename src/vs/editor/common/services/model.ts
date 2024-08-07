@@ -9,6 +9,7 @@ import { ITextBufferFactory, ITextModel, ITextModelCreationOptions } from 'vs/ed
 import { ILanguageSelection } from 'vs/editor/common/languages/language';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { DocumentSemanticTokensProvider, DocumentRangeSemanticTokensProvider } from 'vs/editor/common/languages';
+import { IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
 
 export const IModelService = createDecorator<IModelService>('modelService');
 
@@ -21,6 +22,8 @@ export interface IModelService {
 
 	updateModel(model: ITextModel, value: string | ITextBufferFactory): void;
 
+	getRecentModelContentChangeEvents(model: ITextModel): readonly IModelContentChangedEvent[];
+
 	destroyModel(resource: URI): void;
 
 	getModels(): ITextModel[];
@@ -29,9 +32,9 @@ export interface IModelService {
 
 	getModel(resource: URI): ITextModel | null;
 
-	onModelAdded: Event<ITextModel>;
+	readonly onModelAdded: Event<ITextModel>;
 
-	onModelRemoved: Event<ITextModel>;
+	readonly onModelRemoved: Event<ITextModel>;
 
-	onModelLanguageChanged: Event<{ model: ITextModel; oldLanguageId: string }>;
+	readonly onModelLanguageChanged: Event<{ model: ITextModel; oldLanguageId: string }>;
 }

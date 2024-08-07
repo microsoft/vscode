@@ -272,14 +272,16 @@ export interface MainThreadTextEditorsShape extends IDisposable {
 	$tryShowEditor(id: string, position: EditorGroupColumn): Promise<void>;
 	$tryHideEditor(id: string): Promise<void>;
 	$trySetOptions(id: string, options: ITextEditorConfigurationUpdate): Promise<void>;
-	$trySetDecorations(id: string, key: string, ranges: editorCommon.IDecorationOptions[]): Promise<void>;
-	$trySetDecorationsFast(id: string, key: string, ranges: number[]): Promise<void>;
+	$trySetDecorations(id: string, modelVersionId: number, key: string, ranges: editorCommon.IDecorationOptions[]): Promise<SetDecorationsResult>;
+	$trySetDecorationsFast(id: string, modelVersionId: number, key: string, ranges: number[]): Promise<SetDecorationsResult>;
 	$tryRevealRange(id: string, range: IRange, revealType: TextEditorRevealType): Promise<void>;
 	$trySetSelections(id: string, selections: ISelection[]): Promise<void>;
 	$tryApplyEdits(id: string, modelVersionId: number, edits: ISingleEditOperation[], opts: IApplyEditsOptions): Promise<boolean>;
 	$tryInsertSnippet(id: string, modelVersionId: number, template: string, selections: readonly IRange[], opts: IUndoStopOptions): Promise<boolean>;
 	$getDiffInformation(id: string): Promise<IChange[]>;
 }
+
+export type SetDecorationsResult = { type: 'ok' } | { type: 'warn'; versionId: number } | { type: 'error' };
 
 export interface MainThreadTreeViewsShape extends IDisposable {
 	$registerTreeViewDataProvider(treeViewId: string, options: { showCollapseAll: boolean; canSelectMany: boolean; dropMimeTypes: readonly string[]; dragMimeTypes: readonly string[]; hasHandleDrag: boolean; hasHandleDrop: boolean; manuallyManageCheckboxes: boolean }): Promise<void>;
