@@ -124,7 +124,7 @@ suite('TreeSitterParserService', function () {
 
 	test('TextModelTreeSitter race condition: first language is slow to load', async function () {
 		class MockTreeSitterParser extends TreeSitterLanguages {
-			public override async getLanguage(languageId: string): Promise<Parser.Language | undefined> {
+			public override async waitForLanguage(languageId: string): Promise<Parser.Language | undefined> {
 				if (languageId === 'javascript') {
 					await timeout(200);
 				}

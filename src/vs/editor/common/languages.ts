@@ -90,6 +90,7 @@ export interface ITreeSitterTokenizationSupport {
 	name: string;
 }
 
+
 /**
  * @internal
  */

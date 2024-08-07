@@ -3,14 +3,37 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { Parser } from '@vscode/tree-sitter-wasm';
+import { Event } from 'vs/base/common/event';
+import { ITextModel } from 'vs/editor/common/model';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+
+export const EDITOR_EXPERIMENTAL_PREFER_TREESITTER = 'editor.experimental.preferTreeSitter';
 
 export const ITreeSitterParserService = createDecorator<ITreeSitterParserService>('treeSitterParserService');
 
-/**
- * Currently this service just logs telemetry about how long it takes to parse files.
- * Actual API will come later as we add features like syntax highlighting.
- */
 export interface ITreeSitterParserService {
 	readonly _serviceBrand: undefined;
+	getLanguage(languageId: string): Parser.Language | boolean;
+	waitForLanguage(languageId: string): Promise<Parser.Language | undefined>;
+	getTree(textModel: ITextModel): ITreeSitterTree | undefined;
+}
+
+export interface ITreeSitterTree {
+	readonly tree: Parser.Tree | undefined;
+	readonly language: Parser.Language;
+	onDidChangeTree: Event<ITreeChangedEvent | undefined>;
+}
+
+export interface ITreeChangedEvent {
+	readonly ranges: {
+		/**
+		 * The start of the range (inclusive)
+		 */
+		readonly fromLineNumber: number;
+		/**
+		 * The end of the range (inclusive)
+		 */
+		readonly toLineNumber: number;
+	}[];
 }

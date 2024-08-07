@@ -1,0 +1,3 @@
+(identifier) @variable
+
+(comment) @comment

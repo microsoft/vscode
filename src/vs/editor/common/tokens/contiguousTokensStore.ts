@@ -36,6 +36,10 @@ export class ContiguousTokensStore {
 		return this._lineTokens.length > 0;
 	}
 
+	hasTokensAtLine(lineIndex: number): boolean {
+		return lineIndex < this._len && this._lineTokens[lineIndex] !== null;
+	}
+
 	public getTokens(topLevelLanguageId: string, lineIndex: number, lineText: string): LineTokens {
 		let rawLineTokens: Uint32Array | ArrayBuffer | null = null;
 		if (lineIndex < this._len) {
