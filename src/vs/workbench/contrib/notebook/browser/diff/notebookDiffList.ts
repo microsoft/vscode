@@ -84,7 +84,7 @@ export class CellDiffSingleSideRenderer implements IListRenderer<SingleSideDiffE
 
 		const cellHeaderContainer = DOM.append(diffEditorContainer, DOM.$('.input-header-container'));
 		const sourceContainer = DOM.append(diffEditorContainer, DOM.$('.source-container'));
-		const editor = this._buildSourceEditor(sourceContainer);
+		const { editor, editorContainer } = this._buildSourceEditor(sourceContainer);
 
 		const metadataHeaderContainer = DOM.append(diffEditorContainer, DOM.$('.metadata-header-container'));
 		const metadataInfoContainer = DOM.append(diffEditorContainer, DOM.$('.metadata-info-container'));
@@ -101,6 +101,7 @@ export class CellDiffSingleSideRenderer implements IListRenderer<SingleSideDiffE
 		return {
 			body,
 			container,
+			editorContainer,
 			diffEditorContainer,
 			diagonalFill,
 			cellHeaderContainer,
@@ -130,7 +131,7 @@ export class CellDiffSingleSideRenderer implements IListRenderer<SingleSideDiffE
 			overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode()
 		}, {});
 
-		return editor;
+		return { editor, editorContainer };
 	}
 
 	renderElement(element: SingleSideDiffElementViewModel, index: number, templateData: CellDiffSingleSideRenderTemplate, height: number | undefined): void {
