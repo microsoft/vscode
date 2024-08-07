@@ -238,7 +238,7 @@ export class Table<TRow> implements ISpliceable<TRow>, IDisposable {
 	}
 
 	resizeColumn(index: number, percentage: number): void {
-		const size = percentage * this.cachedWidth;
+		const size = Math.round((percentage / 100.00) * this.cachedWidth);
 		this.splitview.resizeView(index, size);
 	}
 
