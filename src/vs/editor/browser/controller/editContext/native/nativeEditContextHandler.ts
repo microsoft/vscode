@@ -22,7 +22,7 @@ import { ViewConfigurationChangedEvent, ViewCursorStateChangedEvent, ViewDecorat
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import * as dom from 'vs/base/browser/dom';
 import { Selection } from 'vs/editor/common/core/selection';
-import { canUseZeroSizeTextarea, ensureReadOnlyAttribute, getScreenReaderContent, IRenderData, newlinecount, setAccessibilityOptions, setAriaOptions, setAttributes, VisibleTextAreaData } from 'vs/editor/browser/controller/editContext/editContextUtils';
+import { canUseZeroSizeTextarea, ensureReadOnlyAttribute, getScreenReaderContent, IRenderData, IVisibleRangeProvider, newlinecount, setAccessibilityOptions, setAriaOptions, setAttributes, VisibleTextAreaData } from 'vs/editor/browser/controller/editContext/editContextUtils';
 import { TextAreaState } from 'vs/editor/browser/controller/editContext/textArea/textAreaState';
 import { PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
@@ -43,6 +43,7 @@ import { Color } from 'vs/base/common/color';
 export class NativeEditContext extends AbstractEditContext {
 
 	private readonly _viewController: ViewController;
+	private readonly _visibleRangeProvider: IVisibleRangeProvider;
 	private _scrollLeft: number;
 	private _scrollTop: number;
 
@@ -71,15 +72,19 @@ export class NativeEditContext extends AbstractEditContext {
 	 */
 	private _lastRenderPosition: Position | null;
 
+	// TODO: uncomment when the div cover will be needed
+	// public readonly divCover: FastDomNode<HTMLElement>;
+	private readonly _nativeEditContextInput: NativeEditContextInput | undefined; // actually defined
+
 	// ---
 	private readonly _domElement = new FastDomNode(document.createElement('div'));
 	private readonly _ctx: EditContext = this._domElement.domNode.editContext = new EditContext();
+	private _editContextState: EditContextState | undefined;
 
+	// Following is probably not needed
 	private _isFocused = false;
 	private _previousSelection: Selection | undefined;
 	private _previousHiddenAreaValue: string | undefined;
-	private _domNodeToRemove: ChildNode | undefined;
-	private _editContextState: EditContextState | undefined;
 
 	// Development variables, remove later
 	private _parent!: HTMLElement;
@@ -89,6 +94,7 @@ export class NativeEditContext extends AbstractEditContext {
 	constructor(
 		context: ViewContext,
 		viewController: ViewController,
+		visibleRangeProvider: IVisibleRangeProvider,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
 		super(context);
@@ -99,6 +105,7 @@ export class NativeEditContext extends AbstractEditContext {
 		this._setAccessibilityOptions(options);
 
 		this._viewController = viewController;
+		this._visibleRangeProvider = visibleRangeProvider;
 		this._scrollLeft = 0;
 		this._scrollTop = 0;
 		this._contentLeft = layoutInfo.contentLeft;

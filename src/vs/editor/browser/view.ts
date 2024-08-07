@@ -57,7 +57,7 @@ import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IColorTheme, getThemeTypeSelector } from 'vs/platform/theme/common/themeService';
 import { AbstractEditContext } from 'vs/editor/browser/controller/editContext/editContext';
-import { NativeEditContext } from 'vs/editor/browser/controller/editContext/native/nativeEditContext';
+import { NativeEditContext } from 'vs/editor/browser/controller/editContext/native/nativeEditContextHandler';
 import { IVisibleRangeProvider } from 'vs/editor/browser/controller/editContext/editContextUtils';
 
 
@@ -130,10 +130,11 @@ export class View extends ViewEventHandler {
 
 		// Keyboard handler
 		const editContext = this._context.configuration.options.get(EditorOption.editContext);
+		const helper = this._createTextAreaHandlerHelper();
 		if (editContext.type === 'native') {
-			this._editContext = this._instantiationService.createInstance(NativeEditContext, this._context, viewController);
+			this._editContext = this._instantiationService.createInstance(NativeEditContext, this._context, viewController, helper);
 		} else {
-			this._editContext = this._instantiationService.createInstance(TextAreaContext, this._context, viewController, this._createTextAreaHandlerHelper());
+			this._editContext = this._instantiationService.createInstance(TextAreaContext, this._context, viewController, helper);
 		}
 		this._viewParts.push(this._editContext);
 
