@@ -74,6 +74,8 @@ const posixShellTypeMap = new Map<string, PosixShellType>([
 	['sh', PosixShellType.Sh],
 	['pwsh', PosixShellType.PowerShell],
 	['python', PosixShellType.Python],
+	// TODO: Julia
+	['julia', PosixShellType.Julia],
 	['zsh', PosixShellType.Zsh]
 ]);
 
@@ -411,7 +413,10 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 		if (sanitizedTitle.toLowerCase().startsWith('python')) {
 			this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellType, value: PosixShellType.Python });
+		} else if (sanitizedTitle.toLowerCase().startsWith('julia')) { // TODO: not able to get it set here.
+			this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellType, value: PosixShellType.Julia });
 		} else {
+			//TODO: Make sure Julia gets handled correctly
 			this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellType, value: posixShellTypeMap.get(sanitizedTitle) });
 		}
 	}
