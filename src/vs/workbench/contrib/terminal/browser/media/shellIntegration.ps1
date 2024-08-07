@@ -344,7 +344,10 @@ function Send-Completions {
 
 function Compress-Completions($completions) {
 	$completions | ForEach-Object {
-		if ($_.CompletionText -eq $_.ToolTip) {
+		if ($_.CustomIcon) {
+			,@($_.CompletionText, $_.ResultType, $_.ToolTip, $_.CustomIcon)
+		}
+		elseif ($_.CompletionText -eq $_.ToolTip) {
 			,@($_.CompletionText, $_.ResultType)
 		} else {
 			,@($_.CompletionText, $_.ResultType, $_.ToolTip)
