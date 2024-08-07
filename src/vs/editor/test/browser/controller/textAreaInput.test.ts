@@ -80,7 +80,7 @@ suite('TextAreaInput', () => {
 			private _onBeforeInput = this._register(new Emitter<InputEvent>());
 			readonly onBeforeInput = this._onBeforeInput.event;
 
-			private _onInput = this._register(new Emitter<InputEvent>());
+			private _onInput = this._register(new Emitter<{ timeStamp: number; type: string; data: string; inputType: string; isComposing: boolean }>());
 			readonly onInput = this._onInput.event;
 
 			readonly onCut = Event.None;
@@ -167,7 +167,13 @@ suite('TextAreaInput', () => {
 					if (event.type === 'beforeinput') {
 						this._onBeforeInput.fire(mockEvent);
 					} else {
-						this._onInput.fire(mockEvent);
+						this._onInput.fire({
+							timeStamp: mockEvent.timeStamp,
+							type: mockEvent.type,
+							data: mockEvent.data ?? '',
+							inputType: mockEvent.inputType,
+							isComposing: mockEvent.isComposing
+						});
 					}
 				} else {
 					throw new Error(`Not Implemented`);

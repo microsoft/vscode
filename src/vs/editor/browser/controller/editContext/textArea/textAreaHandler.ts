@@ -9,8 +9,8 @@ import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import * as platform from 'vs/base/common/platform';
 import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
-import { ICompositionData, IPasteData, IHiddenAreaInputHost, HiddenAreaInput } from 'vs/editor/browser/controller/editContext/editContextInput';
-import { ITypeData, _debugComposition } from 'vs/editor/browser/controller/editContext/editContextState';
+import { ICompositionData, IPasteData, HiddenAreaInput, IHiddenAreaInputHost, ClipboardDataToCopy, CopyOptions } from 'vs/editor/browser/controller/editContext/editContextInput';
+import { HiddenAreaState, ISimpleModel, ITypeData, PagedScreenReaderStrategy, _debugComposition } from 'vs/editor/browser/controller/editContext/editContextState';
 import { ViewController } from 'vs/editor/browser/view/viewController';
 import { PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
 import { LineNumbersOverlay } from 'vs/editor/browser/viewParts/lineNumbers/lineNumbers';
@@ -33,8 +33,9 @@ import { IME } from 'vs/base/common/ime';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { AbstractEditContext } from 'vs/editor/browser/controller/editContext/editContext';
-import { canUseZeroSizeTextarea, ensureReadOnlyAttribute, getHiddenAreaInputHost, IRenderData, IVisibleRangeProvider, measureText, newlinecount, setAccessibilityOptions, setAriaOptions, setAttributes, VisibleTextAreaData } from 'vs/editor/browser/controller/editContext/editContextUtils';
+import { canUseZeroSizeTextarea, ensureReadOnlyAttribute, getAndroidWordAtPosition, getCharacterBeforePosition, getWordBeforePosition, IRenderData, IVisibleRangeProvider, measureText, newlinecount, setAccessibilityOptions, setAriaOptions, setAttributes, VisibleTextAreaData } from 'vs/editor/browser/controller/editContext/editContextUtils';
 import { TextAreaWrapper } from 'vs/editor/browser/controller/editContext/textArea/textAreaWrapper';
+import { EndOfLinePreference } from 'vs/editor/common/model';
 
 // TODO: verify all of the code here and check what is needed in the other native edit context code and what is not needed. Do a full port of the code there. Use vscode2 in order to understand what the code is used for and if I need it.
 // TODO: once that is done and the port is done, then check that with NVDA works as expected and voice over as compared to normal code
@@ -120,7 +121,123 @@ export class TextAreaContext extends AbstractEditContext {
 		this.textAreaCover = createFastDomNode(document.createElement('div'));
 		this.textAreaCover.setPosition('absolute');
 
-		const textAreaInputHost: IHiddenAreaInputHost = getHiddenAreaInputHost(this._context, this._modelSelections, this._selections[0], this._emptySelectionClipboard, this._copyWithSyntaxHighlighting, this._accessibilitySupport, this._accessibilityPageSize);
+		// In fact this simple model limits the methods that can be accessed from the view model of the context
+		// otherwise it is equivalent
+		const simpleModel: ISimpleModel = {
+			getLineCount: (): number => {
+				return this._context.viewModel.getLineCount();
+			},
+			getLineMaxColumn: (lineNumber: number): number => {
+				return this._context.viewModel.getLineMaxColumn(lineNumber);
+			},
+			getValueInRange: (range: Range, eol: EndOfLinePreference): string => {
+				return this._context.viewModel.getValueInRange(range, eol);
+			},
+			getValueLengthInRange: (range: Range, eol: EndOfLinePreference): number => {
+				return this._context.viewModel.getValueLengthInRange(range, eol);
+			},
+			modifyPosition: (position: Position, offset: number): Position => {
+				return this._context.viewModel.modifyPosition(position, offset);
+			}
+		};
+
+		const textAreaInputHost: IHiddenAreaInputHost = {
+			getDataToCopy: (): ClipboardDataToCopy => {
+				const rawTextToCopy = this._context.viewModel.getPlainTextToCopy(this._modelSelections, this._emptySelectionClipboard, platform.isWindows);
+				// Method getEOL returns the end-of-line character of the viewModel
+				const newLineCharacter = this._context.viewModel.model.getEOL();
+
+				// only one selection and this unique selection is empty
+				const isFromEmptySelection = (this._emptySelectionClipboard && this._modelSelections.length === 1 && this._modelSelections[0].isEmpty());
+				const multicursorText = (Array.isArray(rawTextToCopy) ? rawTextToCopy : null);
+				const text = (Array.isArray(rawTextToCopy) ? rawTextToCopy.join(newLineCharacter) : rawTextToCopy);
+
+				let html: string | null | undefined = undefined;
+				let mode: string | null = null;
+				if (CopyOptions.forceCopyWithSyntaxHighlighting || (this._copyWithSyntaxHighlighting && text.length < 65536)) {
+					const richText = this._context.viewModel.getRichTextToCopy(this._modelSelections, this._emptySelectionClipboard);
+					if (richText) {
+						html = richText.html;
+						mode = richText.mode;
+					}
+				}
+				return {
+					isFromEmptySelection,
+					multicursorText,
+					text,
+					html,
+					mode
+				};
+			},
+			getScreenReaderContent: (): HiddenAreaState => {
+				console.log('getScreenReaderContent');
+				if (this._accessibilitySupport === AccessibilitySupport.Disabled) {
+					// We know for a fact that a screen reader is not attached
+					// On OSX, we write the character before the cursor to allow for "long-press" composition
+					// Also on OSX, we write the word before the cursor to allow for the Accessibility Keyboard to give good hints
+					const selection = this._selections[0];
+					if (platform.isMacintosh && selection.isEmpty()) {
+						// main position of the selection
+						const position = selection.getStartPosition();
+
+						// Either get the character or the word before the position
+						let textBefore = getWordBeforePosition(this._context, position);
+						if (textBefore.length === 0) {
+							textBefore = getCharacterBeforePosition(this._context.viewModel, position);
+						}
+
+						// If there is a character or word before the position, the return a text are state
+						if (textBefore.length > 0) {
+							return new HiddenAreaState(textBefore, textBefore.length, textBefore.length, Range.fromPositions(position), 0);
+						}
+					}
+					// on macOS, write current selection into textarea will allow system text services pick selected text,
+					// but we still want to limit the amount of text given Chromium handles very poorly text even of a few
+					// thousand chars
+					// (https://github.com/microsoft/vscode/issues/27799)
+					const LIMIT_CHARS = 500;
+					// We get the range of the text within the selection, and if the number of characters is smaller than 500 then get the corresponding text and return it in a text area state
+					if (platform.isMacintosh && !selection.isEmpty() && simpleModel.getValueLengthInRange(selection, EndOfLinePreference.TextDefined) < LIMIT_CHARS) {
+						const text = simpleModel.getValueInRange(selection, EndOfLinePreference.TextDefined);
+						return new HiddenAreaState(text, 0, text.length, selection, 0);
+					}
+
+					// on Safari, document.execCommand('cut') and document.execCommand('copy') will just not work
+					// if the textarea has no content selected. So if there is an editor selection, ensure something
+					// is selected in the textarea.
+					if (browser.isSafari && !selection.isEmpty()) {
+						const placeholderText = 'vscode-placeholder';
+						// if nothing is selected then we send the placeholder text?
+						return new HiddenAreaState(placeholderText, 0, placeholderText.length, null, undefined);
+					}
+
+					return HiddenAreaState.EMPTY;
+				}
+
+				if (browser.isAndroid) {
+					// when tapping in the editor on a word, Android enters composition mode.
+					// in the `compositionstart` event we cannot clear the textarea, because
+					// it then forgets to ever send a `compositionend`.
+					// we therefore only write the current word in the textarea
+					const selection = this._selections[0];
+					if (selection.isEmpty()) {
+						const position = selection.getStartPosition();
+						const [wordAtPosition, positionOffsetInWord] = getAndroidWordAtPosition(this._context.viewModel, position);
+						if (wordAtPosition.length > 0) {
+							return new HiddenAreaState(wordAtPosition, positionOffsetInWord, positionOffsetInWord, Range.fromPositions(position), 0);
+						}
+					}
+					return HiddenAreaState.EMPTY;
+				}
+
+				return PagedScreenReaderStrategy.fromEditorSelection(simpleModel, this._selections[0], this._accessibilityPageSize, this._accessibilitySupport === AccessibilitySupport.Unknown);
+			},
+
+			deduceModelPosition: (viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position => {
+				return this._context.viewModel.deduceModelPositionRelativeToViewPosition(viewAnchorPosition, deltaOffset, lineFeedCnt);
+			}
+		};
+
 		const textAreaWrapper = this._register(new TextAreaWrapper(this.textArea.domNode));
 		this._textAreaInput = this._register(this._instantiationService.createInstance(HiddenAreaInput, textAreaInputHost, textAreaWrapper, platform.OS, {
 			isAndroid: browser.isAndroid,

@@ -49,7 +49,11 @@ export class HiddenAreaState {
 		public readonly selection: Range | null,
 		/** the visible line count (wrapped, not necessarily matching \n characters) for the text in `value` before `selectionStart` */
 		public readonly newlineCountBeforeSelection: number | undefined,
-	) { }
+	) {
+		console.log('HiddenAreaState');
+		console.log('selectionStart : ', selectionStart);
+		console.log('selectionEnd : ', selectionEnd);
+	}
 
 	public toString(): string {
 		return `[ <${this.value}>, selectionStart: ${this.selectionStart}, selectionEnd: ${this.selectionEnd}]`;
@@ -67,6 +71,8 @@ export class HiddenAreaState {
 				newlineCountBeforeSelection = previousState.newlineCountBeforeSelection;
 			}
 		}
+		console.log('readFromTextArea');
+		console.log('value : ', value);
 		return new HiddenAreaState(value, selectionStart, selectionEnd, null, newlineCountBeforeSelection);
 	}
 
@@ -74,6 +80,7 @@ export class HiddenAreaState {
 		if (this.selectionStart === this.value.length) {
 			return this;
 		}
+		console.log('collapseSelection');
 		return new HiddenAreaState(this.value, this.value.length, this.value.length, null, undefined);
 	}
 
@@ -283,6 +290,7 @@ export class PagedScreenReaderStrategy {
 			text = text.substring(0, LIMIT_CHARS) + String.fromCharCode(8230) + text.substring(text.length - LIMIT_CHARS, text.length);
 		}
 
+		console.log('fromEditorSelection');
 		return new HiddenAreaState(pretext + text + posttext, pretext.length, pretext.length + text.length, selection, pretextRange.endLineNumber - pretextRange.startLineNumber);
 	}
 }

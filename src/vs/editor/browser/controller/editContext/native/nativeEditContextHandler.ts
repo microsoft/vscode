@@ -5,24 +5,16 @@
 
 import 'vs/css!./nativeEditContext';
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { isDefined } from 'vs/base/common/types';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { AbstractEditContext } from 'vs/editor/browser/controller/editContext/editContext';
 import { HorizontalPosition, RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
 import { ViewController } from 'vs/editor/browser/view/viewController';
 import { EditorOption, IComputedEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { Position } from 'vs/editor/common/core/position';
-import { PositionOffsetTransformer } from 'vs/editor/common/core/positionToOffset';
-import { Range } from 'vs/editor/common/core/range';
-import { SingleTextEdit, TextEdit, LineBasedText } from 'vs/editor/common/core/textEdit';
-import { IModelDeltaDecoration } from 'vs/editor/common/model';
-import { ViewConfigurationChangedEvent, ViewCursorStateChangedEvent, ViewDecorationsChangedEvent, ViewFlushedEvent, ViewLinesChangedEvent, ViewLinesDeletedEvent, ViewLinesInsertedEvent, ViewScrollChangedEvent, ViewTokensChangedEvent, ViewZonesChangedEvent } from 'vs/editor/common/viewEvents';
+import { VerticalRevealType, ViewConfigurationChangedEvent, ViewCursorStateChangedEvent, ViewDecorationsChangedEvent, ViewFlushedEvent, ViewLinesChangedEvent, ViewLinesDeletedEvent, ViewLinesInsertedEvent, ViewScrollChangedEvent, ViewZonesChangedEvent } from 'vs/editor/common/viewEvents';
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
-import * as dom from 'vs/base/browser/dom';
 import { Selection } from 'vs/editor/common/core/selection';
-import { canUseZeroSizeTextarea, ensureReadOnlyAttribute, getHiddenAreaInputHost, getScreenReaderContent, IRenderData, IVisibleRangeProvider, newlinecount, setAccessibilityOptions, setAriaOptions, setAttributes, VisibleTextAreaData } from 'vs/editor/browser/controller/editContext/editContextUtils';
+import { canUseZeroSizeTextarea, ensureReadOnlyAttribute, getAndroidWordAtPosition, getCharacterBeforePosition, getWordBeforePosition, IRenderData, IVisibleRangeProvider, measureText, newlinecount, setAccessibilityOptions, setAriaOptions, setAttributes, VisibleTextAreaData } from 'vs/editor/browser/controller/editContext/editContextUtils';
 import { PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
@@ -32,17 +24,20 @@ import { TokenizationRegistry } from 'vs/editor/common/languages';
 import * as platform from 'vs/base/common/platform';
 import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 import { Color } from 'vs/base/common/color';
-import { HiddenAreaState } from 'vs/editor/browser/controller/editContext/editContextState';
-import { HiddenAreaInput, IHiddenAreaInputHost } from 'vs/editor/browser/controller/editContext/editContextInput';
+import { _debugComposition, HiddenAreaState, ISimpleModel, ITypeData, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/editContext/editContextState';
+import { ClipboardDataToCopy, CopyOptions, HiddenAreaInput, ICompositionData, IHiddenAreaInputHost, IPasteData } from 'vs/editor/browser/controller/editContext/editContextInput';
 import { NativeAreaWrapper } from 'vs/editor/browser/controller/editContext/native/nativeEditContextWrapper';
 import * as browser from 'vs/base/browser/browser';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ScrollType } from 'vs/editor/common/editorCommon';
+import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
+import { Range } from 'vs/editor/common/core/range';
+import { IME } from 'vs/base/common/ime';
+import { EndOfLinePreference } from 'vs/editor/common/model';
 
 // TODO: use the pagination strategy to render the hidden area
 // TODO: refactor the code
 // TODO: test accessibility on NVDA with Windows
-
-// add a native edit context input and make it as most similar as possible to the other implementation
 
 export class NativeEditContext extends AbstractEditContext {
 
@@ -77,23 +72,9 @@ export class NativeEditContext extends AbstractEditContext {
 	private _lastRenderPosition: Position | null;
 
 	// TODO: uncomment when the div cover will be needed
+	private readonly _domElement = new FastDomNode(document.createElement('div'));
 	// public readonly divCover: FastDomNode<HTMLElement>;
 	private readonly _hiddenAreaInput: HiddenAreaInput;
-
-	// ---
-	private readonly _domElement = new FastDomNode(document.createElement('div'));
-	private readonly _ctx: EditContext = this._domElement.domNode.editContext = new EditContext();
-	private _editContextState: EditContextState | undefined;
-
-	// Following is probably not needed
-	private _isFocused = false;
-	private _previousSelection: Selection | undefined;
-	private _previousHiddenAreaValue: string | undefined;
-
-	// Development variables, remove later
-	private _parent!: HTMLElement;
-	private _selectionBoundsElement: HTMLElement | undefined;
-	private _controlBoundsElement: HTMLElement | undefined;
 
 	constructor(
 		context: ViewContext,
@@ -135,9 +116,127 @@ export class NativeEditContext extends AbstractEditContext {
 
 		ensureReadOnlyAttribute(domNode, options);
 
-		// Make the following work correctly
-		const hiddenAreaInputHost: IHiddenAreaInputHost = getHiddenAreaInputHost(this._context, this._modelSelections, this._selections[0], this._emptySelectionClipboard, this._copyWithSyntaxHighlighting, this._accessibilitySupport, this._accessibilityPageSize);
-		const nativeContextAreaWrapper = this._register(new NativeAreaWrapper(this._domElement.domNode, this._ctx));
+		// maybe need to uncomment
+		// this.divCover.setPosition('absolute');
+
+		// In fact this simple model limits the methods that can be accessed from the view model of the context
+		// otherwise it is equivalent
+		const simpleModel: ISimpleModel = {
+			getLineCount: (): number => {
+				return this._context.viewModel.getLineCount();
+			},
+			getLineMaxColumn: (lineNumber: number): number => {
+				return this._context.viewModel.getLineMaxColumn(lineNumber);
+			},
+			getValueInRange: (range: Range, eol: EndOfLinePreference): string => {
+				return this._context.viewModel.getValueInRange(range, eol);
+			},
+			getValueLengthInRange: (range: Range, eol: EndOfLinePreference): number => {
+				return this._context.viewModel.getValueLengthInRange(range, eol);
+			},
+			modifyPosition: (position: Position, offset: number): Position => {
+				return this._context.viewModel.modifyPosition(position, offset);
+			}
+		};
+
+		const hiddenAreaInputHost: IHiddenAreaInputHost = {
+			getDataToCopy: (): ClipboardDataToCopy => {
+				const rawTextToCopy = this._context.viewModel.getPlainTextToCopy(this._modelSelections, this._emptySelectionClipboard, platform.isWindows);
+				// Method getEOL returns the end-of-line character of the viewModel
+				const newLineCharacter = this._context.viewModel.model.getEOL();
+
+				// only one selection and this unique selection is empty
+				const isFromEmptySelection = (this._emptySelectionClipboard && this._modelSelections.length === 1 && this._modelSelections[0].isEmpty());
+				const multicursorText = (Array.isArray(rawTextToCopy) ? rawTextToCopy : null);
+				const text = (Array.isArray(rawTextToCopy) ? rawTextToCopy.join(newLineCharacter) : rawTextToCopy);
+
+				let html: string | null | undefined = undefined;
+				let mode: string | null = null;
+				if (CopyOptions.forceCopyWithSyntaxHighlighting || (this._copyWithSyntaxHighlighting && text.length < 65536)) {
+					const richText = this._context.viewModel.getRichTextToCopy(this._modelSelections, this._emptySelectionClipboard);
+					if (richText) {
+						html = richText.html;
+						mode = richText.mode;
+					}
+				}
+				return {
+					isFromEmptySelection,
+					multicursorText,
+					text,
+					html,
+					mode
+				};
+			},
+			getScreenReaderContent: (): HiddenAreaState => {
+				console.log('getScreenReaderContent');
+				if (this._accessibilitySupport === AccessibilitySupport.Disabled) {
+					// We know for a fact that a screen reader is not attached
+					// On OSX, we write the character before the cursor to allow for "long-press" composition
+					// Also on OSX, we write the word before the cursor to allow for the Accessibility Keyboard to give good hints
+					const selection = this._selections[0];
+					if (platform.isMacintosh && selection.isEmpty()) {
+						// main position of the selection
+						const position = selection.getStartPosition();
+
+						// Either get the character or the word before the position
+						let textBefore = getWordBeforePosition(this._context, position);
+						if (textBefore.length === 0) {
+							textBefore = getCharacterBeforePosition(this._context.viewModel, position);
+						}
+
+						// If there is a character or word before the position, the return a text are state
+						if (textBefore.length > 0) {
+							return new HiddenAreaState(textBefore, textBefore.length, textBefore.length, Range.fromPositions(position), 0);
+						}
+					}
+					// on macOS, write current selection into textarea will allow system text services pick selected text,
+					// but we still want to limit the amount of text given Chromium handles very poorly text even of a few
+					// thousand chars
+					// (https://github.com/microsoft/vscode/issues/27799)
+					const LIMIT_CHARS = 500;
+					// We get the range of the text within the selection, and if the number of characters is smaller than 500 then get the corresponding text and return it in a text area state
+					if (platform.isMacintosh && !selection.isEmpty() && simpleModel.getValueLengthInRange(selection, EndOfLinePreference.TextDefined) < LIMIT_CHARS) {
+						const text = simpleModel.getValueInRange(selection, EndOfLinePreference.TextDefined);
+						return new HiddenAreaState(text, 0, text.length, selection, 0);
+					}
+
+					// on Safari, document.execCommand('cut') and document.execCommand('copy') will just not work
+					// if the textarea has no content selected. So if there is an editor selection, ensure something
+					// is selected in the textarea.
+					if (browser.isSafari && !selection.isEmpty()) {
+						const placeholderText = 'vscode-placeholder';
+						// if nothing is selected then we send the placeholder text?
+						return new HiddenAreaState(placeholderText, 0, placeholderText.length, null, undefined);
+					}
+
+					return HiddenAreaState.EMPTY;
+				}
+
+				if (browser.isAndroid) {
+					// when tapping in the editor on a word, Android enters composition mode.
+					// in the `compositionstart` event we cannot clear the textarea, because
+					// it then forgets to ever send a `compositionend`.
+					// we therefore only write the current word in the textarea
+					const selection = this._selections[0];
+					if (selection.isEmpty()) {
+						const position = selection.getStartPosition();
+						const [wordAtPosition, positionOffsetInWord] = getAndroidWordAtPosition(this._context.viewModel, position);
+						if (wordAtPosition.length > 0) {
+							return new HiddenAreaState(wordAtPosition, positionOffsetInWord, positionOffsetInWord, Range.fromPositions(position), 0);
+						}
+					}
+					return HiddenAreaState.EMPTY;
+				}
+
+				return PagedScreenReaderStrategy.fromEditorSelection(simpleModel, this._selections[0], this._accessibilityPageSize, this._accessibilitySupport === AccessibilitySupport.Unknown);
+			},
+
+			deduceModelPosition: (viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position => {
+				return this._context.viewModel.deduceModelPositionRelativeToViewPosition(viewAnchorPosition, deltaOffset, lineFeedCnt);
+			}
+		};
+
+		const nativeContextAreaWrapper = this._register(new NativeAreaWrapper(this._domElement.domNode, this._context));
 		this._hiddenAreaInput = this._register(this._instantiationService.createInstance(HiddenAreaInput, hiddenAreaInputHost, nativeContextAreaWrapper, platform.OS, {
 			isAndroid: browser.isAndroid,
 			isChrome: browser.isChrome,
@@ -145,61 +244,161 @@ export class NativeEditContext extends AbstractEditContext {
 			isSafari: browser.isSafari,
 		}));
 
-		this._register(dom.addDisposableListener(domNode, 'focus', () => {
-			this._isFocused = true;
-			// Is the below correct?
+		this._register(this._hiddenAreaInput.onKeyDown((e: IKeyboardEvent) => {
+			this._viewController.emitKeyDown(e);
+		}));
+
+		this._register(this._hiddenAreaInput.onKeyUp((e: IKeyboardEvent) => {
+			this._viewController.emitKeyUp(e);
+		}));
+
+		this._register(this._hiddenAreaInput.onPaste((e: IPasteData) => {
+			let pasteOnNewLine = false;
+			let multicursorText: string[] | null = null;
+			let mode: string | null = null;
+			if (e.metadata) {
+				pasteOnNewLine = (this._emptySelectionClipboard && !!e.metadata.isFromEmptySelection);
+				multicursorText = (typeof e.metadata.multicursorText !== 'undefined' ? e.metadata.multicursorText : null);
+				mode = e.metadata.mode;
+			}
+			this._viewController.paste(e.text, pasteOnNewLine, multicursorText, mode);
+		}));
+
+		this._register(this._hiddenAreaInput.onCut(() => {
+			this._viewController.cut();
+		}));
+
+		this._register(this._hiddenAreaInput.onType((e: ITypeData) => {
+			if (e.replacePrevCharCnt || e.replaceNextCharCnt || e.positionDelta) {
+				// must be handled through the new command
+				if (_debugComposition) {
+					console.log(` => compositionType: <<${e.text}>>, ${e.replacePrevCharCnt}, ${e.replaceNextCharCnt}, ${e.positionDelta}`);
+				}
+				this._viewController.compositionType(e.text, e.replacePrevCharCnt, e.replaceNextCharCnt, e.positionDelta);
+			} else {
+				if (_debugComposition) {
+					console.log(` => type: <<${e.text}>>`);
+				}
+				this._viewController.type(e.text);
+			}
+		}));
+
+		this._register(this._hiddenAreaInput.onSelectionChangeRequest((modelSelection: Selection) => {
+			this._viewController.setSelection(modelSelection);
+		}));
+
+		this._register(this._hiddenAreaInput.onCompositionStart((e) => {
+
+			const ta = this._domElement.domNode;
+			const modelSelection = this._modelSelections[0];
+
+			const { distanceToModelLineStart, widthOfHiddenTextBefore } = (() => {
+
+				if (ta.textContent === null) {
+					return { distanceToModelLineStart: 0, widthOfHiddenTextBefore: 0 };
+				}
+
+				// Find the text that is on the current line before the selection
+				const textBeforeSelection = ta.textContent.substring(0, 100); // Math.min(ta.selectionStart, ta.selectionEnd)
+				const lineFeedOffset1 = textBeforeSelection.lastIndexOf('\n');
+				const lineTextBeforeSelection = textBeforeSelection.substring(lineFeedOffset1 + 1);
+
+				// We now search to see if we should hide some part of it (if it contains \t)
+				const tabOffset1 = lineTextBeforeSelection.lastIndexOf('\t');
+				const desiredVisibleBeforeCharCount = lineTextBeforeSelection.length - tabOffset1 - 1;
+				const startModelPosition = modelSelection.getStartPosition();
+				const visibleBeforeCharCount = Math.min(startModelPosition.column - 1, desiredVisibleBeforeCharCount);
+				const distanceToModelLineStart = startModelPosition.column - 1 - visibleBeforeCharCount;
+				const hiddenLineTextBefore = lineTextBeforeSelection.substring(0, lineTextBeforeSelection.length - visibleBeforeCharCount);
+				const { tabSize } = this._context.viewModel.model.getOptions();
+				const widthOfHiddenTextBefore = measureText(this._domElement.domNode.ownerDocument, hiddenLineTextBefore, this._fontInfo, tabSize);
+
+				return { distanceToModelLineStart, widthOfHiddenTextBefore };
+			})();
+
+			const { distanceToModelLineEnd } = (() => {
+
+				if (ta.textContent === null) {
+					return { distanceToModelLineEnd: 0 };
+				}
+				// Find the text that is on the current line after the selection
+				const textAfterSelection = ta.textContent.substring(100); // Math.max(ta.selectionStart, ta.selectionEnd)
+				const lineFeedOffset2 = textAfterSelection.indexOf('\n');
+				const lineTextAfterSelection = lineFeedOffset2 === -1 ? textAfterSelection : textAfterSelection.substring(0, lineFeedOffset2);
+
+				const tabOffset2 = lineTextAfterSelection.indexOf('\t');
+				const desiredVisibleAfterCharCount = (tabOffset2 === -1 ? lineTextAfterSelection.length : lineTextAfterSelection.length - tabOffset2 - 1);
+				const endModelPosition = modelSelection.getEndPosition();
+				const visibleAfterCharCount = Math.min(this._context.viewModel.model.getLineMaxColumn(endModelPosition.lineNumber) - endModelPosition.column, desiredVisibleAfterCharCount);
+				const distanceToModelLineEnd = this._context.viewModel.model.getLineMaxColumn(endModelPosition.lineNumber) - endModelPosition.column - visibleAfterCharCount;
+
+				return { distanceToModelLineEnd };
+			})();
+
+			// Scroll to reveal the location in the editor where composition occurs
+			this._context.viewModel.revealRange(
+				'keyboard',
+				true,
+				Range.fromPositions(this._selections[0].getStartPosition()),
+				VerticalRevealType.Simple,
+				ScrollType.Immediate
+			);
+
+			this._visibleTextArea = new VisibleTextAreaData(
+				this._context,
+				modelSelection.startLineNumber,
+				distanceToModelLineStart,
+				widthOfHiddenTextBefore,
+				distanceToModelLineEnd,
+			);
+
+			// We turn off wrapping if the <textarea> becomes visible for composition
+			this._domElement.domNode.setAttribute('wrap', this._textAreaWrapping && !this._visibleTextArea ? 'on' : 'off');
+
+			this._visibleTextArea.prepareRender(this._visibleRangeProvider);
+			this._render();
+
+			// Show the textarea
+			this._domElement.setClassName(`inputarea ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME} ime-input`);
+
+			this._viewController.compositionStart();
+			this._context.viewModel.onCompositionStart();
+		}));
+
+		this._register(this._hiddenAreaInput.onCompositionUpdate((e: ICompositionData) => {
+			if (!this._visibleTextArea) {
+				return;
+			}
+
+			this._visibleTextArea.prepareRender(this._visibleRangeProvider);
+			this._render();
+		}));
+
+		this._register(this._hiddenAreaInput.onCompositionEnd(() => {
+
+			this._visibleTextArea = null;
+
+			// We turn on wrapping as necessary if the <textarea> hides after composition
+			this._domElement.setAttribute('wrap', this._textAreaWrapping && !this._visibleTextArea ? 'on' : 'off');
+
+			this._render();
+
+			this._domElement.setClassName(`inputarea ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`);
+			this._viewController.compositionEnd();
+			this._context.viewModel.onCompositionEnd();
+		}));
+
+		this._register(this._hiddenAreaInput.onFocus(() => {
 			this._context.viewModel.setHasFocus(true);
 		}));
-		this._register(dom.addDisposableListener(domNode, 'blur', () => {
-			this._isFocused = false;
-			// Is the below correct?
+
+		this._register(this._hiddenAreaInput.onBlur(() => {
 			this._context.viewModel.setHasFocus(false);
 		}));
-		let copiedText: string | undefined;
-		this._register(dom.addDisposableListener(domNode, 'copy', () => {
-			if (this._previousSelection) {
-				copiedText = '';
-				const numberOfLinesToCopy = this._previousSelection.endLineNumber - this._previousSelection.startLineNumber;
-				for (let i = 0; i <= numberOfLinesToCopy; i++) {
-					const childElement = this._domElement.domNode.children.item(i);
-					if (!childElement) {
-						continue;
-					}
-					if (i === 0) {
-						const startColumn = this._previousSelection.startColumn;
-						copiedText += childElement.textContent?.substring(startColumn - 1) ?? '';
-					}
-					else if (i === numberOfLinesToCopy) {
-						const endColumn = this._previousSelection.endColumn;
-						copiedText += '\n' + (childElement.textContent?.substring(0, endColumn) ?? '');
-					}
-					else {
-						copiedText += '\n' + (childElement.textContent ?? '');
-					}
-				}
-				console.log('copiedText : ', copiedText);
-			}
+
+		this._register(IME.onDidChange(() => {
+			ensureReadOnlyAttribute(this._domElement.domNode, options);
 		}));
-		this._register(dom.addDisposableListener(domNode, 'keydown', (e) => {
-			if (this._editContextState && copiedText !== undefined && e.metaKey && e.key === 'v') {
-				this._handleTextUpdate(this._editContextState.selection.start, this._editContextState.selection.endExclusive, copiedText, 0, 0);
-				copiedText = undefined;
-			}
-			this._viewController.emitKeyDown(new StandardKeyboardEvent(e));
-		}));
-		this._register(dom.addDisposableListener(domNode, 'keyup', (e) => {
-			this._viewController.emitKeyUp(new StandardKeyboardEvent(e));
-		}));
-		this._register(dom.addDisposableListener(domNode, 'beforeinput', (e) => {
-			if (e.inputType === 'insertParagraph' || e.inputType === 'insertLineBreak') {
-				this._handleEnter(e);
-			}
-		}));
-		this._register(editContextAddDisposableListener(this._ctx, 'textupdate', e => this._handleTextUpdate(e.updateRangeStart, e.updateRangeEnd, e.text)));
-		this._register(editContextAddDisposableListener(this._ctx, 'textformatupdate', e => this._handleTextFormatUpdate(e)));
-		this._register(this._context.viewModel.model.onDidChangeContent(() => this._onDidChangeContent()));
-		this._onDidChangeContent();
-		// TODO - place all the above code into an input class for the native edit context which will use the EditContext where possible
 
 		// --- developer code
 		domNode.addEventListener('focus', () => {
@@ -210,12 +409,8 @@ export class NativeEditContext extends AbstractEditContext {
 		});
 	}
 
-	// TODO: How come we have decorations here but no decorations in the text are handler?
-	private _decorations: string[] = [];
-
 	public override appendTo(overflowGuardContainer: FastDomNode<HTMLElement>): void {
 		overflowGuardContainer.appendChild(this._domElement);
-		this._parent = overflowGuardContainer.domNode;
 	}
 
 	// TODO: requires the native edit context input to be defined
@@ -236,8 +431,6 @@ export class NativeEditContext extends AbstractEditContext {
 	// --- begin event handlers
 
 	public override onConfigurationChanged(e: ViewConfigurationChangedEvent): boolean {
-
-		// same as in the other text are handler file
 		const options = this._context.configuration.options;
 		const layoutInfo = options.get(EditorOption.layoutInfo);
 
@@ -257,37 +450,23 @@ export class NativeEditContext extends AbstractEditContext {
 			ensureReadOnlyAttribute(this._domElement.domNode, options);
 		}
 
-		/**
-		 * TODO: uncomment this when the input will be defined
-
 		if (e.hasChanged(EditorOption.accessibilitySupport)) {
-			this._textAreaInput.writeNativeTextAreaContent('strategy changed');
+			this._hiddenAreaInput.writeNativeTextAreaContent('strategy changed');
 		}
-		 */
 
 		return true;
 	}
 
 	// TODO: modify the following when we will have the input defined
 	override onCursorStateChanged(e: ViewCursorStateChangedEvent): boolean {
-		this._onDidChangeSelection(e);
+		this._selections = e.selections.slice(0);
+		this._modelSelections = e.modelSelections.slice(0);
+		// We must update the <textarea> synchronously, otherwise long press IME on macos breaks.
+		// See https://github.com/microsoft/vscode/issues/165821
+		this._hiddenAreaInput.writeNativeTextAreaContent('selection changed');
 		return true;
 	}
 
-	private _onDidChangeSelection(e: ViewCursorStateChangedEvent) {
-
-		// TODO: may no longer need to rerender the hidden element on selection change because we are sending in a big block of text?
-		// TODO: need to check what text is placed in the text area when selection is changed when the accessibility page size is set to a small value like 5, in order to understand the inner working of the code
-		const selection = e.selections[0];
-		const textAreaState = this._hiddenAreaContent(selection);
-		this._rerenderHiddenAreaElementOnSelectionChange(textAreaState, selection);
-		this._updateDocumentSelection(textAreaState);
-		this._updateDomNodePosition(selection.startLineNumber);
-
-		console.log('onDidChangeSelection');
-		console.log('selection ; ', selection);
-	}
-	// ----
 	public override onDecorationsChanged(e: ViewDecorationsChangedEvent): boolean {
 		// true for inline decorations that can end up relayouting text
 		return true;
@@ -304,14 +483,14 @@ export class NativeEditContext extends AbstractEditContext {
 	public override onLinesInserted(e: ViewLinesInsertedEvent): boolean {
 		return true;
 	}
+
 	// TODO: instead of updating here the dom node position, we should save the scroll left and scroll top and update in the rendering function as done before
 	override onScrollChanged(e: ViewScrollChangedEvent): boolean {
-		if (this._previousSelection?.startLineNumber === undefined) {
-			return false;
-		}
-		this._updateDomNodePosition(this._previousSelection.startLineNumber);
+		this._scrollLeft = e.scrollLeft;
+		this._scrollTop = e.scrollTop;
 		return true;
 	}
+
 	public override onZonesChanged(e: ViewZonesChangedEvent): boolean {
 		return true;
 	}
@@ -321,7 +500,7 @@ export class NativeEditContext extends AbstractEditContext {
 	// --- begin view API
 
 	public override isFocused(): boolean {
-		return this._isFocused;
+		return this._hiddenAreaInput.isFocused();
 	}
 
 	public override focusTextArea(): void {
@@ -347,35 +526,12 @@ export class NativeEditContext extends AbstractEditContext {
 	public prepareRender(ctx: RenderingContext): void {
 		this._primaryCursorPosition = new Position(this._selections[0].positionLineNumber, this._selections[0].positionColumn);
 		this._primaryCursorVisibleRange = ctx.visibleRangeForPosition(this._primaryCursorPosition);
-		// TODO: prepare the render on the visible text area, does this require any change?
 		this._visibleTextArea?.prepareRender(ctx);
-
-		// --- below is new code
-		const selection = this._context.viewModel.getCursorStates()[0].viewState.selection;
-		const linesVisibleRanges = ctx.linesVisibleRangesForRange(selection, true) ?? [];
-		if (linesVisibleRanges.length === 0) { return; }
-
-		const controlBoundingClientRect = this._domElement.domNode.getBoundingClientRect();
-		const controlBounds = new DOMRect(
-			controlBoundingClientRect.left - this._contentLeft + 19, // +19 to align with the text, need to find variable value
-			controlBoundingClientRect.top - 92, // need to find variable value
-			controlBoundingClientRect.width,
-			controlBoundingClientRect.height,
-		);
-		const selectionBounds = controlBounds;
-		this._ctx.updateControlBounds(controlBounds);
-		this._ctx.updateSelectionBounds(selectionBounds);
-		this.updateEditContext();
-
-		// developer code
-		this._renderSelectionBoundsForDevelopment(controlBounds, selectionBounds);
 	}
 
 	public override render(ctx: RestrictedRenderingContext): void {
-
-		// Write the text area content when the input will be defined
-		// this._textAreaInput.writeNativeTextAreaContent('render');
-		// this._render();
+		this._hiddenAreaInput.writeNativeTextAreaContent('render');
+		this._render();
 	}
 
 	private _render(): void {
@@ -557,205 +713,4 @@ export class NativeEditContext extends AbstractEditContext {
 		}
 		*/
 	}
-
-	// --- added new below
-
-	private _onDidChangeContent() {
-		console.log('onDidChangeContent');
-
-		const selection = this._context.viewModel.getCursorStates()[0].viewState.selection;
-		const textAreaState = this._hiddenAreaContent(selection);
-		this._renderHiddenAreaElement(textAreaState, selection);
-	}
-
-	private _hiddenAreaContent(selection: Selection): HiddenAreaState {
-		// TODO: Maybe should place into the constructor
-		const options = this._context.configuration.options;
-		const accessibilitySupport = options.get(EditorOption.accessibilitySupport);
-		// TODO: uncomment this when will be sent to production
-		// const accessibilityPageSize = options.get(EditorOption.accessibilityPageSize);
-		const accessibilityPageSize = 10;
-		const textAreaState = getScreenReaderContent(this._context, selection, accessibilitySupport, accessibilityPageSize);
-		console.log('textAreaState : ', textAreaState);
-		return textAreaState;
-	}
-
-	private _updateDocumentSelection(textAreaState: HiddenAreaState) {
-		const domNode = this._domElement.domNode;
-		const activeDocument = dom.getActiveWindow().document;
-		const activeDocumentSelection = activeDocument.getSelection();
-		if (activeDocumentSelection) {
-			const range = new globalThis.Range();
-			const firstChild = domNode.firstChild;
-			if (firstChild) {
-				range.setStart(firstChild, textAreaState.selectionStart);
-				range.setEnd(firstChild, textAreaState.selectionEnd);
-				activeDocumentSelection.removeAllRanges();
-				activeDocumentSelection.addRange(range);
-			}
-		}
-	}
-
-	private _rerenderHiddenAreaElementOnSelectionChange(textAreaState: HiddenAreaState, selection: Selection): void {
-		const hiddenAreaContent = textAreaState.value;
-		if (this._previousHiddenAreaValue !== hiddenAreaContent
-			|| this._previousSelection?.startLineNumber !== selection.startLineNumber
-			|| this._previousSelection?.endLineNumber !== selection.endLineNumber) {
-			this._renderHiddenAreaElement(textAreaState, selection);
-		}
-		this._previousSelection = selection;
-		this._previousHiddenAreaValue = hiddenAreaContent;
-	}
-
-	private _renderHiddenAreaElement(textAreaState: HiddenAreaState, selection: Selection): void {
-		this._domElement.domNode.textContent = textAreaState.value;
-		this._updateDomNodePosition(selection.startLineNumber);
-	}
-
-	private _handleTextFormatUpdate(e: TextFormatUpdateEvent): void {
-		if (!this._editContextState) {
-			return;
-		}
-		const formats = e.getTextFormats();
-		const decorations: IModelDeltaDecoration[] = formats.map(f => {
-			const r = new OffsetRange(f.rangeStart, f.rangeEnd);
-			const range = this._editContextState!.textPositionTransformer.getRange(r);
-			const doc = new LineBasedText(lineNumber => this._context.viewModel.getLineContent(lineNumber), this._context.viewModel.getLineCount());
-			const viewModelRange = this._editContextState!.viewModelToEditContextText.inverseMapRange(range, doc);
-			const modelRange = this._context.viewModel.coordinatesConverter.convertViewRangeToModelRange(viewModelRange);
-			const classNames = [
-				'underline',
-				`style-${f.underlineStyle.toLowerCase()}`,
-				`thickness-${f.underlineThickness.toLowerCase()}`,
-			];
-			return {
-				range: modelRange,
-				options: {
-					description: 'textFormatDecoration',
-					inlineClassName: classNames.join(' '),
-				}
-			};
-		});
-		this._decorations = this._context.viewModel.model.deltaDecorations(this._decorations, decorations);
-	}
-
-	private _handleEnter(e: InputEvent): void {
-		if (!this._editContextState) {
-			return;
-		}
-		e.preventDefault();
-		this._handleTextUpdate(this._editContextState.selection.start, this._editContextState.selection.endExclusive, '\n');
-	}
-
-	private _handleTextUpdate(updateRangeStart: number, updateRangeEnd: number, text: string, _deleteBefore?: number, _deleteAfter?: number): void {
-		console.log('_handleTextUpdate');
-		console.log('updateRangeStart : ', updateRangeStart);
-		console.log('updateRangeEnd : ', updateRangeEnd);
-		console.log('text : ', text);
-
-		if (!this._editContextState) {
-			return;
-		}
-		const updateRange = new OffsetRange(updateRangeStart, updateRangeEnd);
-		if (!updateRange.equals(this._editContextState.selection)) {
-			const deleteBefore = _deleteBefore !== undefined ? _deleteBefore : this._editContextState.positionOffset - updateRangeStart;
-			const deleteAfter = _deleteAfter !== undefined ? _deleteAfter : updateRangeEnd - this._editContextState.positionOffset;
-			this._viewController.compositionType(text, deleteBefore, deleteAfter, 0);
-		} else {
-			this._viewController.type(text);
-		}
-		this.updateEditContext();
-	}
-
-	private updateEditContext() {
-
-		const selection = this._context.viewModel.getCursorStates()[0].viewState.selection;
-		const doc = new LineBasedText(lineNumber => this._context.viewModel.getLineContent(lineNumber), this._context.viewModel.getLineCount());
-		const docStart = new Position(1, 1);
-		const textStart = new Position(selection.startLineNumber - 2, 1);
-		const textEnd = new Position(selection.endLineNumber + 1, Number.MAX_SAFE_INTEGER);
-		const textEdit = new TextEdit([
-			docStart.isBefore(textStart) ? new SingleTextEdit(Range.fromPositions(docStart, textStart), '') : undefined,
-			textEnd.isBefore(doc.endPositionExclusive) ? new SingleTextEdit(Range.fromPositions(textEnd, doc.endPositionExclusive), '') : undefined
-		].filter(isDefined));
-		const value = textEdit.apply(doc);
-		const selectionStart = textEdit.mapPosition(selection.getStartPosition()) as Position;
-		const selectionEnd = textEdit.mapPosition(selection.getEndPosition()) as Position;
-		const position = textEdit.mapPosition(selection.getPosition()) as Position;
-		const offsetTransformer = new PositionOffsetTransformer(value);
-		const offsetRange = new OffsetRange((offsetTransformer.getOffset(selectionStart)), (offsetTransformer.getOffset(selectionEnd)));
-		const positionOffset = offsetTransformer.getOffset(position);
-		const editContextState = new EditContextState(textEdit, offsetTransformer, positionOffset, offsetRange);
-		this._ctx.updateText(0, Number.MAX_SAFE_INTEGER, value);
-		this._ctx.updateSelection(offsetRange.start, offsetRange.endExclusive);
-		this._editContextState = editContextState;
-
-
-		// Developer code
-		const subContent = value.substring(offsetRange.start, offsetRange.endExclusive);
-		console.log('updateEditContext');
-		console.log('value : ', value);
-		console.log('subcontent : ', subContent);
-	}
-
-	private _renderSelectionBoundsForDevelopment(controlBounds: DOMRect, selectionBounds: DOMRect) {
-		const controlBoundsElement = document.createElement('div');
-		controlBoundsElement.style.position = 'absolute';
-		controlBoundsElement.style.left = `${controlBounds.left}px`;
-		controlBoundsElement.style.top = `${controlBounds.top}px`;
-		controlBoundsElement.style.width = `${controlBounds.width}px`;
-		controlBoundsElement.style.height = `${controlBounds.height}px`;
-		controlBoundsElement.style.background = `blue`;
-		this._controlBoundsElement?.remove();
-		this._controlBoundsElement = controlBoundsElement;
-
-		const selectionBoundsElement = document.createElement('div');
-		selectionBoundsElement.style.position = 'absolute';
-		selectionBoundsElement.style.left = `${selectionBounds.left}px`;
-		selectionBoundsElement.style.top = `${selectionBounds.top}px`;
-		selectionBoundsElement.style.width = `${selectionBounds.width}px`;
-		selectionBoundsElement.style.height = `${selectionBounds.height}px`;
-		selectionBoundsElement.style.background = `green`;
-		this._selectionBoundsElement?.remove();
-		this._selectionBoundsElement = selectionBoundsElement;
-
-		this._parent.appendChild(controlBoundsElement);
-		this._parent.appendChild(selectionBoundsElement);
-
-		console.log('controlBounds : ', controlBounds);
-		console.log('selectionBounds : ', selectionBounds);
-		console.log('controlBoundsElement : ', controlBoundsElement);
-		console.log('selectionBoundsElement : ', selectionBoundsElement);
-		console.log('character bounds : ', this._ctx.characterBounds());
-	}
-
-	override onTokensChanged(e: ViewTokensChangedEvent): boolean {
-		this._domElement.domNode.style.fontSize = `${this._context.configuration.options.get(EditorOption.fontSize)}px`;
-		return true;
-	}
-
-	private _updateDomNodePosition(startLineNumber: number): void {
-		const domNode = this._domElement.domNode;
-		// TODO: should not be adding 15 but doing it for the purpose of the development
-		domNode.style.top = `${this._context.viewLayout.getVerticalOffsetForLineNumber(startLineNumber + 15) - this._context.viewLayout.getCurrentScrollTop()}px`;
-		domNode.style.left = `${this._contentLeft - this._context.viewLayout.getCurrentScrollLeft()}px`;
-	}
-}
-
-function editContextAddDisposableListener<K extends keyof EditContextEventHandlersEventMap>(target: EventTarget, type: K, listener: (this: GlobalEventHandlers, ev: EditContextEventHandlersEventMap[K]) => any, options?: boolean | AddEventListenerOptions): IDisposable {
-	target.addEventListener(type, listener as any, options);
-	return {
-		dispose() {
-			target.removeEventListener(type, listener as any);
-		}
-	};
-}
-
-class EditContextState {
-	constructor(
-		public readonly viewModelToEditContextText: TextEdit,
-		public readonly textPositionTransformer: PositionOffsetTransformer,
-		public readonly positionOffset: number,
-		public readonly selection: OffsetRange,
-	) { }
 }

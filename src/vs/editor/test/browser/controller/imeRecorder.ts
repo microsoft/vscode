@@ -147,7 +147,31 @@ import { mainWindow } from 'vs/base/browser/window';
 			recordEvent(ev);
 		};
 
-		const recordInputEvent = (e: InputEvent): void => {
+		const recordInputEvent = (e: {
+			timeStamp: number;
+			type: string;
+			data: string;
+			inputType: string;
+			isComposing: boolean;
+		}): void => {
+			if (e.type !== 'beforeinput' && e.type !== 'input') {
+				throw new Error(`Not supported!`);
+			}
+			if (originTimeStamp === 0) {
+				originTimeStamp = e.timeStamp;
+			}
+			const ev: IRecordedInputEvent = {
+				timeStamp: e.timeStamp - originTimeStamp,
+				state: readTextareaState(),
+				type: e.type,
+				data: e.data,
+				inputType: e.inputType,
+				isComposing: e.isComposing,
+			};
+			recordEvent(ev);
+		};
+
+		const recordBeforeInputEvent = (e: InputEvent): void => {
 			if (e.type !== 'beforeinput' && e.type !== 'input') {
 				throw new Error(`Not supported!`);
 			}
@@ -171,7 +195,7 @@ import { mainWindow } from 'vs/base/browser/window';
 		wrapper.onCompositionStart(recordCompositionEvent);
 		wrapper.onCompositionUpdate(recordCompositionEvent);
 		wrapper.onCompositionEnd(recordCompositionEvent);
-		wrapper.onBeforeInput(recordInputEvent);
+		wrapper.onBeforeInput(recordBeforeInputEvent);
 		wrapper.onInput(recordInputEvent);
 	}
 

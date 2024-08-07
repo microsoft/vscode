@@ -98,11 +98,17 @@ export interface ICompleteHiddenAreaWrapper extends IHiddenAreaWrapper {
 	readonly onKeyDown: Event<KeyboardEvent>;
 	readonly onKeyPress: Event<KeyboardEvent>;
 	readonly onKeyUp: Event<KeyboardEvent>;
-	readonly onCompositionStart: Event<CompositionEvent>;
+	readonly onCompositionStart: Event<{ data: string }>;
 	readonly onCompositionUpdate: Event<CompositionEvent>;
 	readonly onCompositionEnd: Event<CompositionEvent>;
 	readonly onBeforeInput: Event<InputEvent>;
-	readonly onInput: Event<InputEvent>;
+	readonly onInput: Event<{
+		timeStamp: number;
+		type: string;
+		data: string;
+		inputType: string;
+		isComposing: boolean;
+	}>;
 	readonly onCut: Event<ClipboardEvent>;
 	readonly onCopy: Event<ClipboardEvent>;
 	readonly onPaste: Event<ClipboardEvent>;
@@ -304,6 +310,7 @@ export class HiddenAreaInput extends Disposable {
 			if (_debugComposition) {
 				console.log(`[compositionupdate]`, e);
 			}
+			console.log('onCompositionUpdate');
 			const currentComposition = this._currentComposition;
 			if (!currentComposition) {
 				// should not be possible to receive a 'compositionupdate' without a 'compositionstart'
@@ -331,6 +338,7 @@ export class HiddenAreaInput extends Disposable {
 			if (_debugComposition) {
 				console.log(`[compositionend]`, e);
 			}
+			console.log('onCompositionEnd');
 			const currentComposition = this._currentComposition;
 			if (!currentComposition) {
 				// https://github.com/microsoft/monaco-editor/issues/1663
@@ -359,9 +367,12 @@ export class HiddenAreaInput extends Disposable {
 		}));
 
 		this._register(this._hiddenArea.onInput((e) => {
+			console.log('oninput of hidden area input : ', e);
 			if (_debugComposition) {
 				console.log(`[input]`, e);
 			}
+
+			console.log('onInput');
 
 			// Pretend here we touched the text area, as the `input` event will most likely
 			// result in a `selectionchange` event which we want to ignore
@@ -485,6 +496,7 @@ export class HiddenAreaInput extends Disposable {
 	}
 
 	_initializeFromTest(): void {
+		console.log('_initializeFromTest');
 		this._hasFocus = true;
 		this._hiddenAreaState = HiddenAreaState.readFromTextArea(this._hiddenArea, null);
 	}

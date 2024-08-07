@@ -24,12 +24,20 @@ export class TextAreaWrapper extends Disposable implements ICompleteHiddenAreaWr
 	public readonly onCompositionUpdate = this._register(new DomEmitter(this._actual, 'compositionupdate')).event;
 	public readonly onCompositionEnd = this._register(new DomEmitter(this._actual, 'compositionend')).event;
 	public readonly onBeforeInput = this._register(new DomEmitter(this._actual, 'beforeinput')).event;
-	public readonly onInput = <Event<InputEvent>>this._register(new DomEmitter(this._actual, 'input')).event;
 	public readonly onCut = this._register(new DomEmitter(this._actual, 'cut')).event;
 	public readonly onCopy = this._register(new DomEmitter(this._actual, 'copy')).event;
 	public readonly onPaste = this._register(new DomEmitter(this._actual, 'paste')).event;
 	public readonly onFocus = this._register(new DomEmitter(this._actual, 'focus')).event;
 	public readonly onBlur = this._register(new DomEmitter(this._actual, 'blur')).event;
+
+	private readonly _onInput = this._register(new Emitter<{
+		timeStamp: number;
+		type: string;
+		data: string;
+		inputType: string;
+		isComposing: boolean;
+	}>());
+	public readonly onInput = this._onInput.event;
 
 	public get ownerDocument(): Document {
 		return this._actual.ownerDocument;
@@ -52,6 +60,17 @@ export class TextAreaWrapper extends Disposable implements ICompleteHiddenAreaWr
 		this._register(this.onKeyUp(() => inputLatency.onKeyUp()));
 
 		this._register(dom.addDisposableListener(this._actual, TextAreaSyntethicEvents.Tap, () => this._onSyntheticTap.fire()));
+
+		// sending the correct event
+		this._actual.addEventListener('input', (e) => {
+			this._onInput.fire({
+				timeStamp: e.timeStamp,
+				type: e.type,
+				data: this._actual.value,
+				inputType: (e as InputEvent).inputType,
+				isComposing: (e as InputEvent).isComposing
+			});
+		});
 	}
 
 	public hasFocus(): boolean {
