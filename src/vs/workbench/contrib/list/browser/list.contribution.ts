@@ -3,14 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TableColumnResizeQuickPick } from 'vs/workbench/contrib/list/browser/tableColumnResizeQuickPick';
-import { Table } from 'vs/base/browser/ui/table/tableWidget';
-import { KeyCode } from 'vs/base/common/keyCodes';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { WorkbenchListFocusContextKey, IListService } from 'vs/platform/list/browser/listService';
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
+import { registerAction2 } from 'vs/platform/actions/common/actions';
+import { ListResizeColumnAction } from 'vs/workbench/contrib/list/browser/listResizeColumnAction';
 
 export class ListContext implements IWorkbenchContribution {
 
@@ -27,19 +23,5 @@ export class ListContext implements IWorkbenchContribution {
 }
 
 registerWorkbenchContribution2(ListContext.ID, ListContext, WorkbenchPhase.BlockStartup);
+registerAction2(ListResizeColumnAction);
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'list.resizeColumn',
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: WorkbenchListFocusContextKey,
-	primary: KeyCode.F8,
-	handler: async (accessor) => {
-		const listService = accessor.get(IListService);
-		const instantiationService = accessor.get(IInstantiationService);
-		const widget = listService.lastFocusedList;
-		if (!(widget instanceof Table)) {
-			return;
-		}
-		await instantiationService.createInstance(TableColumnResizeQuickPick, widget).show();
-	}
-});
