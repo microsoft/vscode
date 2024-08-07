@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TreeSitterTokenizationRegistry } from 'vs/editor/common/languages';
 import type { Parser } from '@vscode/tree-sitter-wasm';
 import { AppResourcePath, FileAccess, nodeModulesPath } from 'vs/base/common/network';
 import { EDITOR_EXPERIMENTAL_PREFER_TREESITTER, ITreeChangedEvent, ITreeSitterParserService, ITreeSitterTree } from 'vs/editor/common/services/treeSitterParserService';
@@ -217,7 +216,8 @@ export class TreeSitterLanguages extends Disposable {
 	private _languages: Map<string, Parser.Language> = new Map();
 
 	constructor(private readonly _treeSitterImporter: TreeSitterImporter,
-		private readonly _fileService: IFileService
+		private readonly _fileService: IFileService,
+		private readonly _registeredLanguages: Map<string, string>,
 	) {
 		super();
 	}
@@ -227,7 +227,7 @@ export class TreeSitterLanguages extends Disposable {
 		if (language) {
 			return language;
 		}
-		return !!TreeSitterTokenizationRegistry.get(languageId);
+		return this._registeredLanguages.has(languageId);
 	}
 
 	public async waitForLanguage(languageId: string): Promise<Parser.Language | undefined> {
@@ -243,19 +243,19 @@ export class TreeSitterLanguages extends Disposable {
 	}
 
 	private async _fetchLanguage(languageId: string): Promise<Parser.Language | undefined> {
-		const grammarName = TreeSitterTokenizationRegistry.get(languageId);
+		const grammarName = this._registeredLanguages.get(languageId);
 		const languageLocation = this._getLanguageLocation(languageId);
 		if (!grammarName || !languageLocation) {
 			return undefined;
 		}
-		const wasmPath: AppResourcePath = `${languageLocation}/${grammarName.name}.wasm`;
+		const wasmPath: AppResourcePath = `${languageLocation}/${grammarName}.wasm`;
 		const languageFile = await (this._fileService.readFile(FileAccess.asFileUri(wasmPath)));
 		const Parser = await this._treeSitterImporter.getParserClass();
 		return Parser.Language.load(languageFile.value.buffer);
 	}
 
 	private _getLanguageLocation(languageId: string): AppResourcePath | undefined {
-		const grammarName = TreeSitterTokenizationRegistry.get(languageId);
+		const grammarName = this._registeredLanguages.get(languageId);
 		if (!grammarName) {
 			return undefined;
 		}
@@ -285,7 +285,7 @@ export class TreeSitterTextModelService extends Disposable implements ITreeSitte
 	readonly _serviceBrand: undefined;
 	private _init!: Promise<boolean>;
 	private _textModelTreeSitters: DisposableMap<ITextModel, TextModelTreeSitter> = this._register(new DisposableMap());
-	private _registeredLanguages: DisposableMap<string, IDisposable> = this._register(new DisposableMap());
+	private readonly _registeredLanguages: Map<string, string> = new Map();
 	private readonly _treeSitterImporter: TreeSitterImporter = new TreeSitterImporter();
 	private readonly _treeSitterLanguages: TreeSitterLanguages;
 
@@ -296,7 +296,7 @@ export class TreeSitterTextModelService extends Disposable implements ITreeSitte
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
-		this._treeSitterLanguages = this._register(new TreeSitterLanguages(this._treeSitterImporter, fileService));
+		this._treeSitterLanguages = this._register(new TreeSitterLanguages(this._treeSitterImporter, fileService, this._registeredLanguages));
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(EDITOR_EXPERIMENTAL_PREFER_TREESITTER)) {
 				this._supportedLanguagesChanged();
@@ -393,14 +393,14 @@ export class TreeSitterTextModelService extends Disposable implements ITreeSitte
 	}
 
 	private _addGrammar(languageId: string, grammarName: string) {
-		if (!TreeSitterTokenizationRegistry.get(languageId)) {
-			this._registeredLanguages.set(languageId, TreeSitterTokenizationRegistry.register(languageId, { name: grammarName }));
+		if (!this._registeredLanguages.has(languageId)) {
+			this._registeredLanguages.set(languageId, grammarName);
 		}
 	}
 
 	private _removeGrammar(languageId: string) {
 		if (this._registeredLanguages.has(languageId)) {
-			this._registeredLanguages.deleteAndDispose('typescript');
+			this._registeredLanguages.delete('typescript');
 		}
 	}
 }

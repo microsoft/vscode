@@ -32,8 +32,6 @@ import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { SparseMultilineTokens } from 'vs/editor/common/tokens/sparseMultilineTokens';
 import { SparseTokensStore } from 'vs/editor/common/tokens/sparseTokensStore';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export class TokenizationTextModelPart extends TextModelPart implements ITokenizationTextModelPart {
 	private readonly _semanticTokens: SparseTokensStore = new SparseTokensStore(this._languageService.languageIdCodec);
@@ -57,8 +55,6 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IFileService private readonly _fileService: IFileService,
-		@IThemeService private readonly _themeService: IThemeService,
 		@ITreeSitterParserService private readonly _treeSitterService: ITreeSitterParserService,
 	) {
 		super();
@@ -66,6 +62,11 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 		this._register(this._languageConfigurationService.onDidChange(e => {
 			if (e.affects(this._languageId)) {
 				this._onDidChangeLanguageConfiguration.fire({});
+			}
+		}));
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(EDITOR_EXPERIMENTAL_PREFER_TREESITTER)) {
+				this.createPreferredTokenProvider();
 			}
 		}));
 		this.createPreferredTokenProvider();
@@ -76,7 +77,7 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 	}
 
 	private createTreeSitterTokens(): AbstractTokens {
-		return this._register(new TreeSitterTokens(this._fileService, this._themeService, this._treeSitterService, this._languageService.languageIdCodec, this._textModel, () => this._languageId, this._attachedViews));
+		return this._register(new TreeSitterTokens(this._treeSitterService, this._languageService.languageIdCodec, this._textModel, () => this._languageId, this._attachedViews));
 	}
 
 	private createTokens(useTreeSitter: boolean): void {

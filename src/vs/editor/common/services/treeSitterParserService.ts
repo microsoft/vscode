@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Parser } from '@vscode/tree-sitter-wasm';
-import { Event } from 'vs/base/common/event';
 import { ITextModel } from 'vs/editor/common/model';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
@@ -22,7 +21,6 @@ export interface ITreeSitterParserService {
 export interface ITreeSitterTree {
 	readonly tree: Parser.Tree | undefined;
 	readonly language: Parser.Language;
-	onDidChangeTree: Event<ITreeChangedEvent | undefined>;
 }
 
 export interface ITreeChangedEvent {
