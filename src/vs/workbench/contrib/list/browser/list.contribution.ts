@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ListColumnResizeQuickPick } from 'vs/workbench/contrib/list/browser/listColumnResizeQuickPick';
+import { TableColumnResizeQuickPick } from 'vs/workbench/contrib/list/browser/tableColumnResizeQuickPick';
 import { Table } from 'vs/base/browser/ui/table/tableWidget';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -41,6 +41,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		if (!(widget instanceof Table)) {
 			return;
 		}
-		await instantiationService.createInstance(ListColumnResizeQuickPick, widget).show();
+		await instantiationService.createInstance(TableColumnResizeQuickPick, widget).show();
 	}
 });

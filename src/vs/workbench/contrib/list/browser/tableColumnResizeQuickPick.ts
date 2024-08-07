@@ -13,7 +13,7 @@ interface IColumnResizeQuickPickItem extends IQuickPickItem {
 	index: number;
 }
 
-export class ListColumnResizeQuickPick extends DisposableStore {
+export class TableColumnResizeQuickPick extends DisposableStore {
 
 	constructor(
 		private readonly _table: Table<any>,

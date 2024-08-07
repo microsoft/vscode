@@ -219,6 +219,7 @@ export class Table<TRow> implements ISpliceable<TRow>, IDisposable {
 
 		const renderer = new TableListRenderer(columns, renderers, i => this.splitview.getViewSize(i));
 		this.list = this.disposables.add(new List(user, this.domNode, asListVirtualDelegate(virtualDelegate), [renderer], _options));
+
 		Event.any(...headers.map(h => h.onDidLayout))
 			(([index, size]) => renderer.layoutColumn(index, size), null, this.disposables);
 
