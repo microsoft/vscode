@@ -38,6 +38,12 @@ import { IInteractiveHistoryService } from 'vs/workbench/contrib/interactive/bro
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { getReplView } from 'vs/workbench/contrib/debug/browser/repl';
+import { REPL_VIEW_ID } from 'vs/workbench/contrib/debug/common/debug';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 
 type SerializedNotebookEditorData = { resource: URI; preferredResource: URI; viewType: string; options?: NotebookEditorInputOptions };
 class ReplEditorSerializer implements IEditorSerializer {
@@ -257,3 +263,14 @@ export async function executeReplInput(accessor: ServicesAccessor, editorControl
 		}
 	}
 }
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'list.find.replInputFocus',
+	weight: KeybindingWeight.WorkbenchContrib + 1,
+	when: ContextKeyExpr.equals('view', REPL_VIEW_ID),
+	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyF,
+	secondary: [KeyCode.F3],
+	handler: (accessor) => {
+		getReplView(accessor.get(IViewsService))?.openFind();
+	}
+});

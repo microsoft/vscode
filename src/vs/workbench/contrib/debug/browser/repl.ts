@@ -119,6 +119,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 	private multiSessionRepl: IContextKey<boolean>;
 	private menu: IMenu;
 	private replDataSource: IAsyncDataSource<IDebugSession, IReplElement> | undefined;
+	private findIsOpen: boolean = false;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -346,6 +347,10 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 
 	focusFilter(): void {
 		this.filterWidget.focus();
+	}
+
+	openFind(): void {
+		this.tree?.openFind();
 	}
 
 	private setMode(): void {
@@ -664,7 +669,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 				accessibilityProvider: new ReplAccessibilityProvider(),
 				identityProvider,
 				mouseSupport: false,
-				findWidgetEnabled: false,
+				findWidgetEnabled: true,
 				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IReplElement) => e.toString(true) },
 				horizontalScrolling: !wordWrap,
 				setRowLineHeight: false,
@@ -689,11 +694,23 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		}));
 
 		this._register(tree.onContextMenu(e => this.onContextMenu(e)));
+
+		this._register(tree.onDidChangeFindOpenState((open) => {
+			if (open) {
+				this.findIsOpen = true;
+			} else {
+				this.findIsOpen = false;
+			}
+		}));
+
 		let lastSelectedString: string;
 		this._register(tree.onMouseClick(() => {
+			if (this.findIsOpen) {
+				return;
+			}
 			const selection = dom.getWindow(this.treeContainer).getSelection();
 			if (!selection || selection.type !== 'Range' || lastSelectedString === selection.toString()) {
-				// only focus the input if the user is not currently selecting.
+				// only focus the input if the user is not currently selecting and find isn't open.
 				this.replInput.focus();
 			}
 			lastSelectedString = selection ? selection.toString() : '';
