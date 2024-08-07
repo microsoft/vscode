@@ -1828,7 +1828,11 @@ export class ModifiedElement extends AbstractElementRenderer {
 export class CollapsedCellOverlayWidget extends Disposable implements IDiffCellMarginOverlay {
 	private readonly _nodes = DOM.h('div.diff-hidden-cells', [
 		DOM.h('div.center@content', { style: { display: 'flex' } }, [
-			DOM.$('a', { title: localize('showUnchangedCells', 'Show Unchanged Cells'), role: 'button' },
+			DOM.$('a', {
+				title: localize('showUnchangedCells', 'Show Unchanged Cells'),
+				role: 'button',
+				onclick: () => { this._action.fire(); }
+			},
 				...renderLabelWithIcons('$(unfold)'))]
 		),
 	]);
@@ -1836,13 +1840,12 @@ export class CollapsedCellOverlayWidget extends Disposable implements IDiffCellM
 	private readonly _action = this._register(new Emitter<void>());
 	public readonly onAction = this._action.event;
 	constructor(
-		container: HTMLElement
+		private readonly container: HTMLElement
 	) {
 		super();
 
 		this._nodes.root.style.display = 'none';
 		container.appendChild(this._nodes.root);
-		this._register(DOM.addDisposableListener(this._nodes.content.children[0], 'click', () => this._action.fire()));
 	}
 	public show() {
 		this._nodes.root.style.display = 'block';
@@ -1852,6 +1855,8 @@ export class CollapsedCellOverlayWidget extends Disposable implements IDiffCellM
 	}
 	public override dispose() {
 		this.hide();
+		this.container.removeChild(this._nodes.root);
+		DOM.reset(this._nodes.root);
 		super.dispose();
 	}
 }
@@ -1859,21 +1864,26 @@ export class CollapsedCellOverlayWidget extends Disposable implements IDiffCellM
 export class UnchangedCellOverlayWidget extends Disposable implements IDiffCellMarginOverlay {
 	private readonly _nodes = DOM.h('div.diff-hidden-cells', [
 		DOM.h('div.center@content', { style: { display: 'flex' } }, [
-			DOM.$('a', { title: localize('hideUnchangedCells', 'Hide Unchanged Cells'), role: 'button' },
-				...renderLabelWithIcons('$(fold)'))]
+			DOM.$('a', {
+				title: localize('hideUnchangedCells', 'Hide Unchanged Cells'),
+				role: 'button',
+				onclick: () => { this._action.fire(); }
+			},
+				...renderLabelWithIcons('$(fold)')
+			),
+		]
 		),
 	]);
 
 	private readonly _action = this._register(new Emitter<void>());
 	public readonly onAction = this._action.event;
 	constructor(
-		container: HTMLElement
+		private readonly container: HTMLElement
 	) {
 		super();
 
 		this._nodes.root.style.display = 'none';
 		container.appendChild(this._nodes.root);
-		this._register(DOM.addDisposableListener(this._nodes.content.children[0], 'click', () => this._action.fire()));
 	}
 	public show() {
 		this._nodes.root.style.display = 'block';
@@ -1883,6 +1893,8 @@ export class UnchangedCellOverlayWidget extends Disposable implements IDiffCellM
 	}
 	public override dispose() {
 		this.hide();
+		this.container.removeChild(this._nodes.root);
+		DOM.reset(this._nodes.root);
 		super.dispose();
 	}
 }

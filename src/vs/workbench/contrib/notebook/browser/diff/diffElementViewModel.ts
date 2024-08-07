@@ -76,7 +76,7 @@ export class DiffElementPlaceholderViewModel extends DiffElementViewModelBase {
 
 	}
 	get totalHeight() {
-		return 24;
+		return 50;
 	}
 	getHeight(_: number): number {
 		return this.totalHeight;

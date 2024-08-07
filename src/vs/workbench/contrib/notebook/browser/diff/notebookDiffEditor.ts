@@ -609,7 +609,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		this._diffElementViewModels = viewModels;
 		this.viewModelStore.clear();
 
-		const newViewModel: IDiffElementViewModelBase[] = [];
+		const newViewModels: IDiffElementViewModelBase[] = [];
 		let placeholder: DiffElementPlaceholderViewModel | undefined = undefined;
 		viewModels.forEach((vm, index) => {
 			if (vm.type === 'unchanged') {
@@ -627,16 +627,16 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 				placeholder.hiddenCells.push(vm);
 			} else {
 				if (placeholder) {
-					newViewModel.push(placeholder);
+					newViewModels.push(placeholder);
 					placeholder.hiddenCells[0].unchangedCells = placeholder.hiddenCells.length;
 				}
 				placeholder = undefined;
-				newViewModel.push(vm);
+				newViewModels.push(vm);
 			}
 		});
-		this._list.splice(0, this._list.length, newViewModel);
+		this._list.splice(0, this._list.length, newViewModels);
 		if (this.isOverviewRulerEnabled()) {
-			this._overviewRuler.updateViewModels(newViewModel, this._eventDispatcher);
+			this._overviewRuler.updateViewModels(newViewModels, this._eventDispatcher);
 		}
 	}
 
