@@ -33,16 +33,80 @@ interface ILayoutInfoDelta extends ILayoutInfoDelta0 {
 	recomputeOutput?: boolean;
 }
 
+export type IDiffElementViewModelBase = DiffElementCellViewModelBase | DiffElementPlaceholderViewModel;
+
 export abstract class DiffElementViewModelBase extends Disposable {
+	protected _layoutInfoEmitter = this._register(new Emitter<CellDiffViewModelLayoutChangeEvent>());
+	onDidLayoutChange = this._layoutInfoEmitter.event;
+	constructor(
+		public readonly mainDocumentTextModel: INotebookTextModel,
+		public readonly editorEventDispatcher: NotebookDiffEditorEventDispatcher,
+		public readonly initData: {
+			metadataStatusHeight: number;
+			outputStatusHeight: number;
+			fontInfo: FontInfo | undefined;
+		}
+	) {
+		super();
+
+		this._register(this.editorEventDispatcher.onDidChangeLayout(e => {
+			this._layoutInfoEmitter.fire({ outerWidth: true });
+		}));
+	}
+
+	abstract layoutChange(): void;
+	abstract getHeight(lineHeight: number): number;
+	abstract get totalHeight(): number;
+}
+
+export class DiffElementPlaceholderViewModel extends DiffElementViewModelBase {
+	readonly type: 'placeholder' = 'placeholder';
+	public hiddenCells: DiffElementCellViewModelBase[] = [];
+	protected _unfoldHiddenCells = this._register(new Emitter<void>());
+	onUnfoldHiddenCells = this._unfoldHiddenCells.event;
+
+	constructor(
+		mainDocumentTextModel: INotebookTextModel,
+		editorEventDispatcher: NotebookDiffEditorEventDispatcher,
+		initData: {
+			metadataStatusHeight: number;
+			outputStatusHeight: number;
+			fontInfo: FontInfo | undefined;
+		}
+	) {
+		super(mainDocumentTextModel, editorEventDispatcher, initData);
+
+	}
+	get totalHeight() {
+		return 50;
+	}
+	getHeight(lineHeight: number): number {
+		return this.totalHeight;
+	}
+	override layoutChange(): void {
+		//
+		console.log('layout change in placeholder');
+	}
+	showHiddenCells() {
+		this._unfoldHiddenCells.fire();
+	}
+}
+
+export abstract class DiffElementCellViewModelBase extends DiffElementViewModelBase {
 	public cellFoldingState: PropertyFoldingState;
 	public metadataFoldingState: PropertyFoldingState;
 	public outputFoldingState: PropertyFoldingState;
-	protected _layoutInfoEmitter = this._register(new Emitter<CellDiffViewModelLayoutChangeEvent>());
-	onDidLayoutChange = this._layoutInfoEmitter.event;
 	protected _stateChangeEmitter = this._register(new Emitter<{ renderOutput: boolean }>());
 	onDidStateChange = this._stateChangeEmitter.event;
 	protected _layoutInfo!: IDiffElementLayoutInfo;
 
+	public unchangedCells?: number;
+	private _hideUnchangedCells = this._register(new Emitter<void>());
+	public onHideUnchangedCells = this._hideUnchangedCells.event;
+
+	hideUnchangedCells() {
+		this._hideUnchangedCells.fire();
+	}
 	set rawOutputHeight(height: number) {
 		this._layout({ rawOutputHeight: Math.min(OUTPUT_EDITOR_HEIGHT_MAGIC, height) });
 	}
@@ -115,23 +179,27 @@ export abstract class DiffElementViewModelBase extends Disposable {
 		return this._layoutInfo;
 	}
 
+	get totalHeight() {
+		return this.layoutInfo.totalHeight;
+	}
+
 	private _sourceEditorViewState: editorCommon.ICodeEditorViewState | editorCommon.IDiffEditorViewState | null = null;
 	private _outputEditorViewState: editorCommon.ICodeEditorViewState | editorCommon.IDiffEditorViewState | null = null;
 	private _metadataEditorViewState: editorCommon.ICodeEditorViewState | editorCommon.IDiffEditorViewState | null = null;
 
 	constructor(
-		readonly mainDocumentTextModel: INotebookTextModel,
+		mainDocumentTextModel: INotebookTextModel,
 		readonly original: DiffNestedCellViewModel | undefined,
 		readonly modified: DiffNestedCellViewModel | undefined,
 		readonly type: 'unchanged' | 'insert' | 'delete' | 'modified',
-		readonly editorEventDispatcher: NotebookDiffEditorEventDispatcher,
-		readonly initData: {
+		editorEventDispatcher: NotebookDiffEditorEventDispatcher,
+		initData: {
 			metadataStatusHeight: number;
 			outputStatusHeight: number;
 			fontInfo: FontInfo | undefined;
 		}
 	) {
-		super();
+		super(mainDocumentTextModel, editorEventDispatcher, initData);
 		const editorHeight = this._estimateEditorHeight(initData.fontInfo);
 		const cellStatusHeight = 25;
 		this._layoutInfo = {
@@ -385,7 +453,7 @@ export abstract class DiffElementViewModelBase extends Disposable {
 	}
 }
 
-export class SideBySideDiffElementViewModel extends DiffElementViewModelBase {
+export class SideBySideDiffElementViewModel extends DiffElementCellViewModelBase {
 	get originalDocument() {
 		return this.otherDocumentTextModel;
 	}
@@ -543,7 +611,7 @@ export class SideBySideDiffElementViewModel extends DiffElementViewModelBase {
 	}
 }
 
-export class SingleSideDiffElementViewModel extends DiffElementViewModelBase {
+export class SingleSideDiffElementViewModel extends DiffElementCellViewModelBase {
 	get cellViewModel() {
 		return this.type === 'insert' ? this.modified! : this.original!;
 	}

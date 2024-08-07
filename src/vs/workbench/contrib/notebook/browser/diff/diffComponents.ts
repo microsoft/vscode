@@ -7,8 +7,8 @@ import * as DOM from 'vs/base/browser/dom';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { DiffElementViewModelBase, getFormattedMetadataJSON, getFormattedOutputJSON, OutputComparison, outputEqual, OUTPUT_EDITOR_HEIGHT_MAGIC, PropertyFoldingState, SideBySideDiffElementViewModel, SingleSideDiffElementViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
-import { CellDiffSideBySideRenderTemplate, CellDiffSingleSideRenderTemplate, DiffSide, DIFF_CELL_MARGIN, INotebookTextDiffEditor, NOTEBOOK_DIFF_CELL_INPUT, NOTEBOOK_DIFF_CELL_PROPERTY, NOTEBOOK_DIFF_CELL_PROPERTY_EXPANDED } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
+import { DiffElementCellViewModelBase, getFormattedMetadataJSON, getFormattedOutputJSON, OutputComparison, outputEqual, OUTPUT_EDITOR_HEIGHT_MAGIC, PropertyFoldingState, SideBySideDiffElementViewModel, SingleSideDiffElementViewModel, DiffElementPlaceholderViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
+import { CellDiffSideBySideRenderTemplate, CellDiffSingleSideRenderTemplate, DiffSide, DIFF_CELL_MARGIN, INotebookTextDiffEditor, NOTEBOOK_DIFF_CELL_INPUT, NOTEBOOK_DIFF_CELL_PROPERTY, NOTEBOOK_DIFF_CELL_PROPERTY_EXPANDED, CellDiffPlaceholderRenderTemplate, IDiffCellMarginOverlay } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ILanguageService } from 'vs/editor/common/languages/language';
@@ -31,7 +31,7 @@ import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestCont
 import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { TabCompletionController } from 'vs/workbench/contrib/snippets/browser/tabCompletion';
-import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
+import { renderIcon, renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -44,6 +44,8 @@ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessib
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { DiffNestedCellViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffNestedCellViewModel';
+import { localize } from 'vs/nls';
+import { Emitter } from 'vs/base/common/event';
 
 export function getOptimizedNestedCodeEditorWidgetOptions(): ICodeEditorWidgetOptions {
 	return {
@@ -59,6 +61,37 @@ export function getOptimizedNestedCodeEditorWidgetOptions(): ICodeEditorWidgetOp
 	};
 }
 
+export class CellDiffPlaceholderElement extends Disposable {
+	constructor(
+		placeholder: DiffElementPlaceholderViewModel,
+		templateData: CellDiffPlaceholderRenderTemplate,
+	) {
+		super();
+		templateData.body.classList.remove('left', 'right', 'full');
+		const text = (placeholder.hiddenCells.length === 1) ?
+			localize('hiddenCell', '{0} hidden cell', placeholder.hiddenCells.length) :
+			localize('hiddenCells', '{0} hidden cells', placeholder.hiddenCells.length);
+		templateData.placeholder.innerText = text;
+
+		const handler = (e: MouseEvent) => {
+			if (e.button !== 0) {
+				return;
+			}
+			e.preventDefault();
+			placeholder.showHiddenCells();
+		};
+		templateData.placeholder.addEventListener('dblclick', handler);
+		this._register({
+			dispose: () => {
+				templateData.placeholder.removeEventListener('dblclick', handler);
+			}
+		});
+		this._register(templateData.marginOverlay.onAction(() => {
+			placeholder.showHiddenCells();
+		}));
+		templateData.marginOverlay.show();
+	}
+}
 
 class PropertyHeader extends Disposable {
 	protected _foldingIndicator!: HTMLElement;
@@ -69,14 +102,14 @@ class PropertyHeader extends Disposable {
 	protected _propertyExpanded?: IContextKey<boolean>;
 
 	constructor(
-		readonly cell: DiffElementViewModelBase,
+		readonly cell: DiffElementCellViewModelBase,
 		readonly propertyHeaderContainer: HTMLElement,
 		readonly notebookEditor: INotebookTextDiffEditor,
 		readonly accessor: {
 			updateInfoRendering: (renderOutput: boolean) => void;
-			checkIfModified: (cell: DiffElementViewModelBase) => false | { reason: string | undefined };
-			getFoldingState: (cell: DiffElementViewModelBase) => PropertyFoldingState;
-			updateFoldingState: (cell: DiffElementViewModelBase, newState: PropertyFoldingState) => void;
+			checkIfModified: (cell: DiffElementCellViewModelBase) => false | { reason: string | undefined };
+			getFoldingState: (cell: DiffElementCellViewModelBase) => PropertyFoldingState;
+			updateFoldingState: (cell: DiffElementCellViewModelBase, newState: PropertyFoldingState) => void;
 			unChangedLabel: string;
 			changedLabel: string;
 			prefix: string;
@@ -271,7 +304,7 @@ abstract class AbstractElementRenderer extends Disposable {
 
 	constructor(
 		readonly notebookEditor: INotebookTextDiffEditor,
-		readonly cell: DiffElementViewModelBase,
+		readonly cell: DiffElementCellViewModelBase,
 		readonly templateData: CellDiffSingleSideRenderTemplate | CellDiffSideBySideRenderTemplate,
 		readonly style: 'left' | 'right' | 'full',
 		protected readonly instantiationService: IInstantiationService,
@@ -1363,6 +1396,17 @@ export class ModifiedElement extends AbstractElementRenderer {
 		container.classList.remove('inserted', 'removed');
 	}
 
+	override buildBody(): void {
+		super.buildBody();
+		if (this.cell.unchangedCells) {
+			this._register(this.templateData.marginOverlay.onAction(() => {
+				this.cell.hideUnchangedCells();
+			}));
+			this.templateData.marginOverlay.show();
+		} else {
+			this.templateData.marginOverlay.hide();
+		}
+	}
 	_disposeMetadata() {
 		this.cell.metadataStatusHeight = 0;
 		this.cell.metadataHeight = 0;
@@ -1786,6 +1830,71 @@ export class ModifiedElement extends AbstractElementRenderer {
 			this.cell.saveSpirceEditorViewState(this._editor.saveViewState());
 		}
 
+		super.dispose();
+	}
+}
+
+
+export class CollapsedCellOverlayWidget extends Disposable implements IDiffCellMarginOverlay {
+	private readonly _nodes = DOM.h('div.diff-hidden-cells', [
+		DOM.h('div.center@content', { style: { display: 'flex' } }, [
+			DOM.$('a', { title: localize('showUnchangedCells', 'Show Unchanged Cells'), role: 'button' },
+				...renderLabelWithIcons('$(unfold)'))]
+		),
+	]);
+
+	private readonly _action = this._register(new Emitter<void>());
+	public readonly onAction = this._action.event;
+	constructor(
+		container: HTMLElement
+	) {
+		super();
+
+		this._nodes.root.style.display = 'none';
+		container.appendChild(this._nodes.root);
+		this._register(DOM.addDisposableListener(this._nodes.content.children[0], 'click', () => {
+			this._action.fire();
+		}));
+	}
+	public show() {
+		this._nodes.root.style.display = 'block';
+	}
+	public hide() {
+		this._nodes.root.style.display = 'none';
+	}
+	public override dispose() {
+		this.hide();
+		super.dispose();
+	}
+}
+
+export class UnchangedCellOverlayWidget extends Disposable implements IDiffCellMarginOverlay {
+	private readonly _nodes = DOM.h('div.diff-hidden-cells', [
+		DOM.h('div.center@content', { style: { display: 'flex' } }, [
+			DOM.$('a', { title: localize('hideUnchangedCells', 'Hide Unchanged Cells'), role: 'button' },
+				...renderLabelWithIcons('$(fold)'))]
+		),
+	]);
+
+	private readonly _action = this._register(new Emitter<void>());
+	public readonly onAction = this._action.event;
+	constructor(
+		container: HTMLElement
+	) {
+		super();
+
+		this._nodes.root.style.display = 'none';
+		container.appendChild(this._nodes.root);
+		this._register(DOM.addDisposableListener(this._nodes.content.children[0], 'click', () => this._action.fire()));
+	}
+	public show() {
+		this._nodes.root.style.display = 'block';
+	}
+	public hide() {
+		this._nodes.root.style.display = 'none';
+	}
+	public override dispose() {
+		this.hide();
 		super.dispose();
 	}
 }

@@ -6,7 +6,7 @@
 import * as DOM from 'vs/base/browser/dom';
 import * as nls from 'vs/nls';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { DiffElementViewModelBase, SideBySideDiffElementViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
+import { DiffElementCellViewModelBase, SideBySideDiffElementViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
 import { DiffSide, INotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
 import { ICellOutputViewModel, IInsetRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
@@ -33,7 +33,7 @@ export class OutputElement extends Disposable {
 		private _notebookTextModel: NotebookTextModel,
 		private _notebookService: INotebookService,
 		private _quickInputService: IQuickInputService,
-		private _diffElementViewModel: DiffElementViewModelBase,
+		private _diffElementViewModel: DiffElementCellViewModelBase,
 		private _diffSide: DiffSide,
 		private _nestedCell: DiffNestedCellViewModel,
 		private _outputContainer: HTMLElement,
@@ -228,7 +228,7 @@ export class OutputContainer extends Disposable {
 	constructor(
 		private _editor: INotebookTextDiffEditor,
 		private _notebookTextModel: NotebookTextModel,
-		private _diffElementViewModel: DiffElementViewModelBase,
+		private _diffElementViewModel: DiffElementCellViewModelBase,
 		private _nestedCellViewModel: DiffNestedCellViewModel,
 		private _diffSide: DiffSide,
 		private _outputContainer: HTMLElement,
