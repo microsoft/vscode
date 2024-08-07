@@ -178,7 +178,7 @@ function Set-MappedKeyHandlers {
 
 	# Enable suggestions if the environment variable is set and Windows PowerShell is not being used
 	# as APIs are not available to support this feature
-	if ($env:VSCODE_SUGGEST -eq '1' -and $PSVersionTable.PSVersion -ge "6.0") {
+	if ($env:VSCODE_SUGGEST -eq '1' -and $PSVersionTable.PSVersion -ge "7.0") {
 		Remove-Item Env:VSCODE_SUGGEST
 
 		# VS Code send completions request (may override Ctrl+Spacebar)
