@@ -101,6 +101,11 @@ steps:
       ELECTRON_SKIP_BINARY_DOWNLOAD: 1
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
+      # Avoid using dlopen to load Kerberos on macOS which can cause missing libraries
+      # https://github.com/mongodb-js/kerberos/commit/04044d2814ad1d01e77f1ce87f26b03d86692cf2
+      # flipped the default to support legacy linux distros which shouldn't happen
+      # on macOS.
+      GYP_DEFINES: "kerberos_use_rtld=false"
     displayName: Install dependencies
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
