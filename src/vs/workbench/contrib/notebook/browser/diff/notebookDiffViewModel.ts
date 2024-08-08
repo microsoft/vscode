@@ -32,14 +32,16 @@ export class NotebookDiffViewModel extends Disposable implements INotebookDiffVi
 
 	setViewModel(cellViewModels: DiffElementCellViewModelBase[]) {
 		this.disposables.clear();
-		const newViewModels: IDiffElementViewModelBase[] = [];
+		const oldLength = this._items.length;
+		this._items.splice(0, oldLength);
+
 		let placeholder: DiffElementPlaceholderViewModel | undefined = undefined;
 		cellViewModels.forEach((vm, index) => {
 			if (vm.type === 'unchanged') {
 				if (!placeholder) {
 					vm.displayIconToHideUnmodifiedCells = true;
 					placeholder = new DiffElementPlaceholderViewModel(vm.mainDocumentTextModel, vm.editorEventDispatcher, vm.initData);
-					newViewModels.push(placeholder);
+					this._items.push(placeholder);
 					const placeholderItem = placeholder;
 
 					this.disposables.add(placeholderItem.onUnfoldHiddenCells(() => {
@@ -47,7 +49,7 @@ export class NotebookDiffViewModel extends Disposable implements INotebookDiffVi
 						if (!Array.isArray(hiddenCellViewModels)) {
 							return;
 						}
-						newViewModels.splice(index, 1, ...hiddenCellViewModels);
+						this._items.splice(index, 1, ...hiddenCellViewModels);
 						this._onDidChangeItems.fire({ start: index, deleteCount: 1, elements: hiddenCellViewModels });
 					}));
 					this.disposables.add(vm.onHideUnchangedCells(() => {
@@ -55,7 +57,7 @@ export class NotebookDiffViewModel extends Disposable implements INotebookDiffVi
 						if (!Array.isArray(hiddenCellViewModels)) {
 							return;
 						}
-						newViewModels.splice(index, hiddenCellViewModels.length, placeholderItem);
+						this._items.splice(index, hiddenCellViewModels.length, placeholderItem);
 						this._onDidChangeItems.fire({ start: index, deleteCount: hiddenCellViewModels.length, elements: [placeholderItem] });
 					}));
 				}
@@ -65,12 +67,10 @@ export class NotebookDiffViewModel extends Disposable implements INotebookDiffVi
 				placeholder.hiddenCells.push(vm);
 			} else {
 				placeholder = undefined;
-				newViewModels.push(vm);
+				this._items.push(vm);
 			}
 		});
 
-		const oldLength = this._items.length;
-		this._items.splice(0, oldLength, ...newViewModels);
-		this._onDidChangeItems.fire({ start: 0, deleteCount: oldLength, elements: newViewModels });
+		this._onDidChangeItems.fire({ start: 0, deleteCount: oldLength, elements: this._items });
 	}
 }
