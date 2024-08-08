@@ -23,7 +23,6 @@ export class NativeAreaWrapper extends Disposable implements ICompleteHiddenArea
 	public readonly onKeyDown = this._register(new DomEmitter(this._actual, 'keydown')).event;
 	public readonly onKeyPress = this._register(new DomEmitter(this._actual, 'keypress')).event;
 	public readonly onKeyUp = this._register(new DomEmitter(this._actual, 'keyup')).event;
-	public readonly onBeforeInput = this._register(new DomEmitter(this._actual, 'beforeinput')).event;
 	public readonly onCut = this._register(new DomEmitter(this._actual, 'cut')).event;
 	public readonly onCopy = this._register(new DomEmitter(this._actual, 'copy')).event;
 	public readonly onPaste = this._register(new DomEmitter(this._actual, 'paste')).event;
@@ -40,6 +39,9 @@ export class NativeAreaWrapper extends Disposable implements ICompleteHiddenArea
 
 	private readonly _onCompositionUpdate = this._register(new Emitter<CompositionEvent>());
 	public readonly onCompositionUpdate = this._onCompositionUpdate.event;
+
+	private readonly _onBeforeInput = this._register(new Emitter<InputEvent>());
+	public readonly onBeforeInput = this._onBeforeInput.event;
 
 	private readonly _onInput = this._register(new Emitter<{
 		timeStamp: number;
@@ -100,7 +102,6 @@ export class NativeAreaWrapper extends Disposable implements ICompleteHiddenArea
 			// Should write to the hidden div in order for the text to be read correctly
 
 			this._actual.textContent = this._editContext.text;
-
 			this._onInput.fire({
 				timeStamp: e.timeStamp,
 				type: 'input',
@@ -118,6 +119,22 @@ export class NativeAreaWrapper extends Disposable implements ICompleteHiddenArea
 			this._isComposing = false;
 			console.log('oncompositionend : ', e);
 			// this._onCompositionEnd.fire(e);
+		}));
+		this._register(dom.addDisposableListener(this._actual, 'beforeinput', (e) => {
+			console.log('beforeinput : ', e);
+			if (e.inputType === 'insertParagraph' || e.inputType === 'insertLineBreak') {
+				this._editContext.updateText(this._selectionStart, this._selectionEnd, '\n');
+				this._actual.textContent = this._editContext.text;
+				this._onInput.fire({
+					timeStamp: e.timeStamp,
+					type: e.type,
+					data: '\n',
+					inputType: e.inputType,
+					isComposing: this._isComposing
+				});
+			} else {
+				this._onBeforeInput.fire(e);
+			}
 		}));
 
 		const options = this._viewContext.configuration.options;
