@@ -7,11 +7,11 @@ import * as nls from 'vs/nls';
 
 // Import the effects we need
 import { Color } from 'vs/base/common/color';
-import { darken, ifDefinedThenElse, lighten, registerColor, transparent } from 'vs/platform/theme/common/colorUtils';
+import { registerColor, darken, lighten, transparent, ifDefinedThenElse } from 'vs/platform/theme/common/colorUtils';
 
 // Import the colors we need
-import { activeContrastBorder, contrastBorder, focusBorder, foreground, iconForeground } from 'vs/platform/theme/common/colors/baseColors';
-import { editorFindMatchHighlight, editorFindMatchHighlightBorder, editorWidgetBackground, editorWidgetForeground, widgetShadow } from 'vs/platform/theme/common/colors/editorColors';
+import { foreground, contrastBorder, activeContrastBorder, focusBorder, iconForeground } from 'vs/platform/theme/common/colors/baseColors';
+import { editorWidgetBackground, editorFindMatchHighlightBorder, editorFindMatchHighlight, widgetShadow, editorWidgetForeground } from 'vs/platform/theme/common/colors/editorColors';
 
 
 export const listFocusBackground = registerColor('list.focusBackground',
