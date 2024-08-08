@@ -333,7 +333,7 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 					codeBlockState = undefined;
 				}
 			} else {
-				const match = line.match(/^(\s*)(`{3,}|~{3,}|)/);
+				const match = line.match(/^(\s*)(`{3,}|~{3,})/);
 				if (match) {
 					codeBlockState = { delimiter: match[2], indent: match[1] };
 				}

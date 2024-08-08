@@ -58,6 +58,7 @@ type ChatProviderInvokedEvent = {
 	slashCommand: string | undefined;
 	location: ChatAgentLocation;
 	citations: number;
+	numCodeBlocks: number;
 };
 
 type ChatProviderInvokedClassification = {
@@ -71,6 +72,7 @@ type ChatProviderInvokedClassification = {
 	slashCommand?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of slashCommand used.' };
 	location: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The location at which chat request was made.' };
 	citations: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of public code citations that were returned with the response.' };
+	numCodeBlocks: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of code blocks in the response.' };
 	owner: 'roblourens';
 	comment: 'Provides insight into the performance of Chat agents.';
 };
@@ -556,7 +558,8 @@ export class ChatService extends Disposable implements IChatService {
 					slashCommand: agentSlashCommandPart ? agentSlashCommandPart.command.name : commandPart?.slashCommand.command,
 					chatSessionId: model.sessionId,
 					location,
-					citations: request?.response?.codeCitations.length ?? 0
+					citations: request?.response?.codeCitations.length ?? 0,
+					numCodeBlocks: getCodeBlocks(request.response?.response.toString() ?? '').length
 				});
 
 				model.cancelRequest(request);
@@ -674,7 +677,8 @@ export class ChatService extends Disposable implements IChatService {
 						slashCommand: commandForTelemetry,
 						chatSessionId: model.sessionId,
 						location,
-						citations: request.response?.codeCitations.length ?? 0
+						citations: request.response?.codeCitations.length ?? 0,
+						numCodeBlocks: getCodeBlocks(request.response?.response.toString() ?? '').length
 					});
 					model.setResponse(request, rawResult);
 					completeResponseCreated();
@@ -700,7 +704,8 @@ export class ChatService extends Disposable implements IChatService {
 					slashCommand: agentSlashCommandPart ? agentSlashCommandPart.command.name : commandPart?.slashCommand.command,
 					chatSessionId: model.sessionId,
 					location,
-					citations: 0
+					citations: 0,
+					numCodeBlocks: 0
 				});
 				this.logService.error(`Error while handling chat request: ${toErrorMessage(err, true)}`);
 				if (request) {
@@ -840,4 +845,27 @@ export class ChatService extends Disposable implements IChatService {
 		this.storageService.store(globalChatKey, JSON.stringify(existingRaw), StorageScope.PROFILE, StorageTarget.MACHINE);
 		this.trace('transferChatSession', `Transferred session ${model.sessionId} to workspace ${toWorkspace.toString()}`);
 	}
+}
+
+function getCodeBlocks(text: string): string[] {
+	const lines = text.split('\n');
+	const codeBlockLanguages: string[] = [];
+
+	let codeBlockState: undefined | { readonly delimiter: string; readonly languageId: string };
+	for (let i = 0; i < lines.length; i++) {
+		const line = lines[i];
+
+		if (codeBlockState) {
+			if (new RegExp(`^\\s*${codeBlockState.delimiter}\\s*$`).test(line)) {
+				codeBlockLanguages.push(codeBlockState.languageId);
+				codeBlockState = undefined;
+			}
+		} else {
+			const match = line.match(/^(\s*)(`{3,}|~{3,})(\w*)/);
+			if (match) {
+				codeBlockState = { delimiter: match[2], languageId: match[3] };
+			}
+		}
+	}
+	return codeBlockLanguages;
 }
