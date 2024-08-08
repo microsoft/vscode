@@ -102,6 +102,12 @@ export class NativeAreaWrapper extends Disposable implements ICompleteHiddenArea
 			// Should write to the hidden div in order for the text to be read correctly
 
 			this._actual.textContent = this._editContext.text;
+			// need to update the end selection because the selection is updated here
+			const newSelectionPos = this._selectionStart + (e.text.length);
+			this._selectionStart = newSelectionPos;
+			this._selectionEnd = newSelectionPos;
+			this._editContext.updateSelection(this._selectionStart, this._selectionEnd);
+
 			this._onInput.fire({
 				timeStamp: e.timeStamp,
 				type: 'input',

@@ -38,8 +38,6 @@ import { EndOfLinePreference } from 'vs/editor/common/model';
 import * as dom from 'vs/base/browser/dom';
 
 // TODO
-// Am not able to hit Enter in order for the new line to be added?
-// Am not able to select some text and replace with some other text? However adding text directly through insertion appears to work?
 // Am not able to copy paste the code?
 // Position the div correctly
 // Test IME, consider adding the test cover
