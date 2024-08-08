@@ -1795,7 +1795,7 @@ export class ModifiedElement extends AbstractElementRenderer {
 				if (this._metadataEditorContainer) {
 					this._metadataEditorContainer.style.height = `${this.cell.layoutInfo.metadataHeight}px`;
 					this._metadataEditor?.layout({
-						width: this._editor!.getViewWidth(),
+						width: this._editor?.getViewWidth() || this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, true),
 						height: this.cell.layoutInfo.metadataHeight
 					});
 				}
