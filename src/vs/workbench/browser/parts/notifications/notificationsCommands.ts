@@ -311,13 +311,13 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 		}));
 
 		picker.canSelectMany = true;
-		picker.placeholder = localize('selectSources', "Select sources to enable notifications for");
-		picker.selectedItems = picker.items.filter(item => (item as INotificationSourceFilter).filter === NotificationsFilter.OFF) as (IQuickPickItem & INotificationSourceFilter)[];
+		picker.placeholder = localize('selectSources', "Select sources to enable all notifications from");
+		picker.selectedItems = picker.items.filter(item => item.filter === NotificationsFilter.OFF);
 
 		picker.show();
 
 		disposables.add(picker.onDidAccept(async () => {
-			for (const item of picker.items as (IQuickPickItem & INotificationSourceFilter)[]) {
+			for (const item of picker.items) {
 				notificationService.setFilter({
 					id: item.id,
 					label: item.label,
@@ -354,7 +354,7 @@ type NotificationActionMetricsClassification = {
 	id: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the action that was run from a notification.' };
 	actionLabel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The label of the action that was run from a notification.' };
 	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The source of the notification where an action was run.' };
-	silent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the notification where an action was run is silent or not.' };
+	silent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the notification where an action was run is silent or not.' };
 	owner: 'bpasero';
 	comment: 'Tracks when actions are fired from notifcations and how they were fired.';
 };

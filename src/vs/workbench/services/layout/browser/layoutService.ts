@@ -70,7 +70,12 @@ export const enum EditorActionsLocation {
 export const enum Position {
 	LEFT,
 	RIGHT,
-	BOTTOM
+	BOTTOM,
+	TOP
+}
+
+export function isHorizontal(position: Position): boolean {
+	return position === Position.BOTTOM || position === Position.TOP;
 }
 
 export const enum PanelOpensMaximizedOptions {
@@ -86,6 +91,7 @@ export function positionToString(position: Position): string {
 		case Position.LEFT: return 'left';
 		case Position.RIGHT: return 'right';
 		case Position.BOTTOM: return 'bottom';
+		case Position.TOP: return 'top';
 		default: return 'bottom';
 	}
 }
@@ -93,7 +99,8 @@ export function positionToString(position: Position): string {
 const positionsByString: { [key: string]: Position } = {
 	[positionToString(Position.LEFT)]: Position.LEFT,
 	[positionToString(Position.RIGHT)]: Position.RIGHT,
-	[positionToString(Position.BOTTOM)]: Position.BOTTOM
+	[positionToString(Position.BOTTOM)]: Position.BOTTOM,
+	[positionToString(Position.TOP)]: Position.TOP
 };
 
 export function positionFromString(str: string): Position {
@@ -311,18 +318,24 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	getVisibleNeighborPart(part: Parts, direction: Direction): Parts | undefined;
 }
 
-export function shouldShowCustomTitleBar(configurationService: IConfigurationService, window: Window, menuBarToggled?: boolean): boolean {
+export function shouldShowCustomTitleBar(configurationService: IConfigurationService, window: Window, menuBarToggled?: boolean, zenModeActive?: boolean): boolean {
 
 	if (!hasCustomTitlebar(configurationService)) {
 		return false;
 	}
 
+	if (zenModeActive) {
+		return !configurationService.getValue<boolean>(ZenModeSettings.FULLSCREEN);
+	}
+
 	const inFullscreen = isFullscreen(window);
 	const nativeTitleBarEnabled = hasNativeTitlebar(configurationService);
 
-	const showCustomTitleBar = configurationService.getValue<CustomTitleBarVisibility>(TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY);
-	if (showCustomTitleBar === CustomTitleBarVisibility.NEVER && nativeTitleBarEnabled || showCustomTitleBar === CustomTitleBarVisibility.WINDOWED && inFullscreen) {
-		return false;
+	if (!isWeb) {
+		const showCustomTitleBar = configurationService.getValue<CustomTitleBarVisibility>(TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY);
+		if (showCustomTitleBar === CustomTitleBarVisibility.NEVER && nativeTitleBarEnabled || showCustomTitleBar === CustomTitleBarVisibility.WINDOWED && inFullscreen) {
+			return false;
+		}
 	}
 
 	if (!isTitleBarEmpty(configurationService)) {

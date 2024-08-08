@@ -341,7 +341,7 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 			collapseUnchangedRegions: boolean;
 		}, {
 			owner: 'hediet';
-			editorVisibleTimeMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Indicates the time the diff editor was visible to the user' };
+			editorVisibleTimeMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Indicates the time the diff editor was visible to the user' };
 			languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Indicates for which language the diff editor was shown' };
 			collapseUnchangedRegions: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Indicates whether unchanged regions were collapsed' };
 			comment: 'This event gives insight about how long the diff editor was visible to the user.';

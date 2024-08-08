@@ -41,9 +41,23 @@ function registerGlobalHotReloadHandler() {
 		g.$hotReload_applyNewExports = args => {
 			const args2 = { config: { mode: undefined }, ...args };
 
+			const results: AcceptNewExportsHandler[] = [];
 			for (const h of hotReloadHandlers!) {
 				const result = h(args2);
-				if (result) { return result; }
+				if (result) {
+					results.push(result);
+				}
+			}
+			if (results.length > 0) {
+				return newExports => {
+					let result = false;
+					for (const r of results) {
+						if (r(newExports)) {
+							result = true;
+						}
+					}
+					return result;
+				};
 			}
 			return undefined;
 		};

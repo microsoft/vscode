@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as glob from 'vs/base/common/glob';
-import { distinct, firstOrDefault, flatten, insert } from 'vs/base/common/arrays';
+import { distinct, firstOrDefault, insert } from 'vs/base/common/arrays';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { basename, extname, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
@@ -339,7 +339,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 	 * Returns all editors as an array. Possible to contain duplicates
 	 */
 	private get _registeredEditors(): RegisteredEditors {
-		return flatten(Array.from(this._flattenedEditors.values()));
+		return Array.from(this._flattenedEditors.values()).flat();
 	}
 
 	updateUserAssociations(globPattern: string, editorID: string): void {
@@ -716,7 +716,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		const editorPicks = this.mapEditorsToQuickPickEntry(resource, showDefaultPicker);
 
 		// Create the editor picker
-		const editorPicker = this.quickInputService.createQuickPick<IQuickPickItem>();
+		const editorPicker = this.quickInputService.createQuickPick<IQuickPickItem>({ useSeparators: true });
 		const placeHolderMessage = showDefaultPicker ?
 			localize('promptOpenWith.updateDefaultPlaceHolder', "Select new default editor for '{0}'", `*${extname(resource)}`) :
 			localize('promptOpenWith.placeHolder', "Select editor for '{0}'", basename(resource));

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { isWindows } from 'vs/base/common/platform';
 import { flakySuite } from 'vs/base/test/common/testUtils';
 
@@ -19,7 +19,7 @@ flakySuite('Native Modules (all platforms)', () => {
 	});
 
 	test('native-is-elevated', async () => {
-		const isElevated = await import('native-is-elevated');
+		const isElevated = (await import('native-is-elevated')).default;
 		assert.ok(typeof isElevated === 'function', testErrorMessage('native-is-elevated '));
 
 		const result = isElevated();
@@ -56,7 +56,12 @@ flakySuite('Native Modules (all platforms)', () => {
 	});
 
 	test('@vscode/sqlite3', async () => {
+		// ESM-comment-begin
 		const sqlite3 = await import('@vscode/sqlite3');
+		// ESM-comment-end
+		// ESM-uncomment-begin
+		// const { default: sqlite3 } = await import('@vscode/sqlite3');
+		// ESM-uncomment-end
 		assert.ok(typeof sqlite3.Database === 'function', testErrorMessage('@vscode/sqlite3'));
 	});
 
@@ -113,21 +118,18 @@ flakySuite('Native Modules (all platforms)', () => {
 		assert.ok(typeof result === 'string' || typeof result === 'undefined', testErrorMessage('@vscode/windows-registry'));
 	});
 
-	test('@vscode/windows-ca-certs', async () => {
-		// @ts-ignore we do not directly depend on this module anymore
-		// but indirectly from our dependency to `@vscode/proxy-agent`
-		// we still want to ensure this module can work properly.
-		const windowsCerts = await import('@vscode/windows-ca-certs');
-		const store = new windowsCerts.Crypt32();
-		assert.ok(windowsCerts, testErrorMessage('@vscode/windows-ca-certs'));
-		let certCount = 0;
-		try {
-			while (store.next()) {
-				certCount++;
+	test('@vscode/proxy-agent', async () => {
+		const proxyAgent = await import('@vscode/proxy-agent');
+		// This call will load `@vscode/proxy-agent` which is a native module that we want to test on Windows
+		const windowsCerts = await proxyAgent.loadSystemCertificates({
+			log: {
+				trace: () => { },
+				debug: () => { },
+				info: () => { },
+				warn: () => { },
+				error: () => { }
 			}
-		} finally {
-			store.done();
-		}
-		assert(certCount > 0);
+		});
+		assert.ok(windowsCerts.length > 0, testErrorMessage('@vscode/proxy-agent'));
 	});
 });

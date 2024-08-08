@@ -14,6 +14,7 @@ import { createSingleCallFunction } from 'vs/base/common/functional';
 export class ExtensionHostProfiler {
 
 	constructor(
+		private readonly _host: string,
 		private readonly _port: number,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IV8InspectProfilingService private readonly _profilingService: IV8InspectProfilingService,
@@ -22,7 +23,7 @@ export class ExtensionHostProfiler {
 
 	public async start(): Promise<ProfileSession> {
 
-		const id = await this._profilingService.startProfiling({ port: this._port });
+		const id = await this._profilingService.startProfiling({ host: this._host, port: this._port });
 
 		return {
 			stop: createSingleCallFunction(async () => {

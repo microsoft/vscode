@@ -24,7 +24,7 @@ suite('vscode API - globalState / workspaceState', () => {
 			let res = state.get('state.test.get', 'default');
 			assert.strictEqual(res, 'default');
 
-			await state.update('state.test.get', 'testvalue');
+			state.update('state.test.get', 'testvalue');
 
 			keys = state.keys();
 			assert.strictEqual(keys.length, 1);
@@ -33,7 +33,7 @@ suite('vscode API - globalState / workspaceState', () => {
 			res = state.get('state.test.get', 'default');
 			assert.strictEqual(res, 'testvalue');
 
-			await state.update('state.test.get', undefined);
+			state.update('state.test.get', undefined);
 
 			keys = state.keys();
 			assert.strictEqual(keys.length, 0, `Unexpected keys: ${JSON.stringify(keys)}`);

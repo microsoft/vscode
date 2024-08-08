@@ -20,6 +20,7 @@ export interface IExtensionHostManager {
 	readonly friendyName: string;
 	readonly onDidExit: Event<[number, string | null]>;
 	readonly onDidChangeResponsiveState: Event<ResponsiveState>;
+	disconnect(): Promise<void>;
 	dispose(): void;
 	ready(): Promise<void>;
 	representsRunningLocation(runningLocation: ExtensionRunningLocation): boolean;
@@ -28,7 +29,7 @@ export interface IExtensionHostManager {
 	activate(extension: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<boolean>;
 	activateByEvent(activationEvent: string, activationKind: ActivationKind): Promise<void>;
 	activationEventIsDone(activationEvent: string): boolean;
-	getInspectPort(tryEnableInspector: boolean): Promise<number>;
+	getInspectPort(tryEnableInspector: boolean): Promise<{ port: number; host: string } | undefined>;
 	resolveAuthority(remoteAuthority: string, resolveAttempt: number): Promise<IResolveAuthorityResult>;
 	/**
 	 * Returns `null` if no resolver for `remoteAuthority` is found.

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ModifierKeyEmitter } from 'vs/base/browser/dom';
+import { isHTMLElement, ModifierKeyEmitter } from 'vs/base/browser/dom';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
@@ -358,7 +358,7 @@ export class InlayHintsController implements IEditorContribution {
 
 	private _installContextMenu(): IDisposable {
 		return this._editor.onContextMenu(async e => {
-			if (!(e.event.target instanceof HTMLElement)) {
+			if (!(isHTMLElement(e.event.target))) {
 				return;
 			}
 			const part = this._getInlayHintLabelPart(e);

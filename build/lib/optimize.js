@@ -21,6 +21,7 @@ const bundle = require("./bundle");
 const i18n_1 = require("./i18n");
 const stats_1 = require("./stats");
 const util = require("./util");
+const postcss_1 = require("./postcss");
 const REPO_ROOT_PATH = path.join(__dirname, '../..');
 function log(prefix, message) {
     fancyLog(ansiColors.cyan('[' + prefix + ']'), message);
@@ -52,7 +53,7 @@ function loaderPlugin(src, base, amdModuleId) {
 function loader(src, bundledFileHeader, bundleLoader, externalLoaderInfo) {
     let loaderStream = gulp.src(`${src}/vs/loader.js`, { base: `${src}` });
     if (bundleLoader) {
-        loaderStream = es.merge(loaderStream, loaderPlugin(`${src}/vs/css.js`, `${src}`, 'vs/css'), loaderPlugin(`${src}/vs/nls.js`, `${src}`, 'vs/nls'));
+        loaderStream = es.merge(loaderStream, loaderPlugin(`${src}/vs/css.js`, `${src}`, 'vs/css'));
     }
     const files = [];
     const order = (f) => {
@@ -62,10 +63,7 @@ function loader(src, bundledFileHeader, bundleLoader, externalLoaderInfo) {
         if (f.path.endsWith('css.js')) {
             return 1;
         }
-        if (f.path.endsWith('nls.js')) {
-            return 2;
-        }
-        return 3;
+        return 2;
     };
     return (loaderStream
         .pipe(es.through(function (data) {
@@ -191,6 +189,7 @@ function optimizeAMDTask(opts) {
         includeContent: true
     }))
         .pipe(opts.languages && opts.languages.length ? (0, i18n_1.processNlsFiles)({
+        out: opts.src,
         fileHeader: bundledFileHeader,
         languages: opts.languages
     }) : es.through());
@@ -242,7 +241,6 @@ function minifyTask(src, sourceMapBaseUrl) {
     const sourceMappingURL = sourceMapBaseUrl ? ((f) => `${sourceMapBaseUrl}/${f.relative}.map`) : undefined;
     return cb => {
         const cssnano = require('cssnano');
-        const postcss = require('gulp-postcss');
         const sourcemaps = require('gulp-sourcemaps');
         const svgmin = require('gulp-svgmin');
         const jsFilter = filter('**/*.js', { restore: true });
@@ -271,7 +269,7 @@ function minifyTask(src, sourceMapBaseUrl) {
                     cb(undefined, f);
                 }
             }, cb);
-        }), jsFilter.restore, cssFilter, postcss([cssnano({ preset: 'default' })]), cssFilter.restore, svgFilter, svgmin(), svgFilter.restore, sourcemaps.mapSources((sourcePath) => {
+        }), jsFilter.restore, cssFilter, (0, postcss_1.gulpPostcss)([cssnano({ preset: 'default' })]), cssFilter.restore, svgFilter, svgmin(), svgFilter.restore, sourcemaps.mapSources((sourcePath) => {
             if (sourcePath === 'bootstrap-fork.js') {
                 return 'bootstrap-fork.orig.js';
             }

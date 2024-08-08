@@ -10,7 +10,6 @@ import { IShellLaunchConfig, ITerminalBackend, ITerminalBackendRegistry, ITermin
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { URI } from 'vs/base/common/uri';
 import { Emitter, Event } from 'vs/base/common/event';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
@@ -22,7 +21,6 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 	declare _serviceBrand: undefined;
 	private _terminalShellTypeContextKey: IContextKey<string>;
 	private _terminalInRunCommandPicker: IContextKey<boolean>;
-	private _configHelper: TerminalConfigHelper;
 	private _backendRegistration = new Map<string | undefined, { promise: Promise<void>; resolve: () => void }>();
 
 	private readonly _onDidCreateInstance = this._register(new Emitter<ITerminalInstance>());
@@ -31,14 +29,13 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@IWorkbenchEnvironmentService readonly _environmentService: IWorkbenchEnvironmentService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
 		this._terminalShellTypeContextKey = TerminalContextKeys.shellType.bindTo(this._contextKeyService);
 		this._terminalInRunCommandPicker = TerminalContextKeys.inTerminalRunCommandPicker.bindTo(this._contextKeyService);
-		this._configHelper = _instantiationService.createInstance(TerminalConfigHelper);
 
-		for (const remoteAuthority of [undefined, _environmentService.remoteAuthority]) {
+		for (const remoteAuthority of [undefined, environmentService.remoteAuthority]) {
 			const { promise, resolve } = promiseWithResolvers<void>();
 			this._backendRegistration.set(remoteAuthority, { promise, resolve });
 		}
@@ -51,7 +48,6 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 		const instance = this._instantiationService.createInstance(TerminalInstance,
 			this._terminalShellTypeContextKey,
 			this._terminalInRunCommandPicker,
-			this._configHelper,
 			shellLaunchConfig
 		);
 		instance.target = target;

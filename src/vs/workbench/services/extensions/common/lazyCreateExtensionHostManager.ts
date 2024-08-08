@@ -90,6 +90,9 @@ export class LazyCreateExtensionHostManager extends Disposable implements IExten
 			await this._actual.ready();
 		}
 	}
+	public async disconnect(): Promise<void> {
+		await this._actual?.disconnect();
+	}
 	public representsRunningLocation(runningLocation: ExtensionRunningLocation): boolean {
 		return this._extensionHost.runningLocation.equals(runningLocation);
 	}
@@ -137,12 +140,9 @@ export class LazyCreateExtensionHostManager extends Disposable implements IExten
 		}
 		return true;
 	}
-	public async getInspectPort(tryEnableInspector: boolean): Promise<number> {
+	public async getInspectPort(tryEnableInspector: boolean): Promise<{ port: number; host: string } | undefined> {
 		await this._startCalled.wait();
-		if (this._actual) {
-			return this._actual.getInspectPort(tryEnableInspector);
-		}
-		return 0;
+		return this._actual?.getInspectPort(tryEnableInspector);
 	}
 	public async resolveAuthority(remoteAuthority: string, resolveAttempt: number): Promise<IResolveAuthorityResult> {
 		await this._startCalled.wait();

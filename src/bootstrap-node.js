@@ -6,12 +6,48 @@
 //@ts-check
 'use strict';
 
+// ESM-comment-begin
+const path = require('path');
+const fs = require('fs');
+const Module = require('module');
+
+const isESM = false;
+// ESM-comment-end
+// ESM-uncomment-begin
+// import * as path from 'path';
+// import * as fs from 'fs';
+// import { fileURLToPath } from 'url';
+// import { createRequire } from 'node:module';
+//
+// const require = createRequire(import.meta.url);
+// const Module = require('module');
+// const isESM = true;
+// const module = { exports: {} };
+// const __dirname = path.dirname(fileURLToPath(import.meta.url));
+// ESM-uncomment-end
+
+// increase number of stack frames(from 10, https://github.com/v8/v8/wiki/Stack-Trace-API)
+Error.stackTraceLimit = 100;
+
+if (!process.env['VSCODE_HANDLES_SIGPIPE']) {
+	// Workaround for Electron not installing a handler to ignore SIGPIPE
+	// (https://github.com/electron/electron/issues/13254)
+	let didLogAboutSIGPIPE = false;
+	process.on('SIGPIPE', () => {
+		// See https://github.com/microsoft/vscode-remote-release/issues/6543
+		// In certain situations, the console itself can be in a broken pipe state
+		// so logging SIGPIPE to the console will cause an infinite async loop
+		if (!didLogAboutSIGPIPE) {
+			didLogAboutSIGPIPE = true;
+			console.error(new Error(`Unexpected SIGPIPE`));
+		}
+	});
+}
+
 // Setup current working directory in all our node & electron processes
 // - Windows: call `process.chdir()` to always set application folder as cwd
 // -  all OS: store the `process.cwd()` inside `VSCODE_CWD` for consistent lookups
 function setupCurrentWorkingDirectory() {
-	const path = require('path');
-
 	try {
 
 		// Store the `process.cwd()` inside `VSCODE_CWD`
@@ -38,36 +74,41 @@ setupCurrentWorkingDirectory();
  *
  * @param {string} injectPath
  */
-exports.injectNodeModuleLookupPath = function (injectPath) {
+module.exports.injectNodeModuleLookupPath = function (injectPath) {
 	if (!injectPath) {
 		throw new Error('Missing injectPath');
 	}
 
-	const Module = require('module');
-	const path = require('path');
+	const Module = require('node:module');
+	if (isESM) {
+		// register a loader hook
+		// ESM-uncomment-begin
+		// Module.register('./loader-lookup-path.mjs', { parentURL: import.meta.url, data: injectPath });
+		// ESM-uncomment-end
+	} else {
+		const nodeModulesPath = path.join(__dirname, '../node_modules');
 
-	const nodeModulesPath = path.join(__dirname, '../node_modules');
+		// @ts-ignore
+		const originalResolveLookupPaths = Module._resolveLookupPaths;
 
-	// @ts-ignore
-	const originalResolveLookupPaths = Module._resolveLookupPaths;
-
-	// @ts-ignore
-	Module._resolveLookupPaths = function (moduleName, parent) {
-		const paths = originalResolveLookupPaths(moduleName, parent);
-		if (Array.isArray(paths)) {
-			for (let i = 0, len = paths.length; i < len; i++) {
-				if (paths[i] === nodeModulesPath) {
-					paths.splice(i, 0, injectPath);
-					break;
+		// @ts-ignore
+		Module._resolveLookupPaths = function (moduleName, parent) {
+			const paths = originalResolveLookupPaths(moduleName, parent);
+			if (Array.isArray(paths)) {
+				for (let i = 0, len = paths.length; i < len; i++) {
+					if (paths[i] === nodeModulesPath) {
+						paths.splice(i, 0, injectPath);
+						break;
+					}
 				}
 			}
-		}
 
-		return paths;
-	};
+			return paths;
+		};
+	}
 };
 
-exports.removeGlobalNodeModuleLookupPaths = function () {
+module.exports.removeGlobalNodeModuleLookupPaths = function () {
 	const Module = require('module');
 	// @ts-ignore
 	const globalPaths = Module.globalPaths;
@@ -95,10 +136,7 @@ exports.removeGlobalNodeModuleLookupPaths = function () {
  * @param {Partial<import('./vs/base/common/product').IProductConfiguration>} product
  * @returns {{ portableDataPath: string; isPortable: boolean; }}
  */
-exports.configurePortable = function (product) {
-	const fs = require('fs');
-	const path = require('path');
-
+module.exports.configurePortable = function (product) {
 	const appRoot = path.dirname(__dirname);
 
 	/**
@@ -158,3 +196,75 @@ exports.configurePortable = function (product) {
 		isPortable
 	};
 };
+
+/**
+ * Helper to enable ASAR support.
+ */
+module.exports.enableASARSupport = function () {
+	const NODE_MODULES_PATH = path.join(__dirname, '../node_modules');
+	const NODE_MODULES_ASAR_PATH = `${NODE_MODULES_PATH}.asar`;
+
+	// @ts-ignore
+	const originalResolveLookupPaths = Module._resolveLookupPaths;
+
+	// @ts-ignore
+	Module._resolveLookupPaths = function (request, parent) {
+		const paths = originalResolveLookupPaths(request, parent);
+		if (Array.isArray(paths)) {
+			for (let i = 0, len = paths.length; i < len; i++) {
+				if (paths[i] === NODE_MODULES_PATH) {
+					paths.splice(i, 0, NODE_MODULES_ASAR_PATH);
+					break;
+				}
+			}
+		}
+
+		return paths;
+	};
+};
+
+/**
+ * Helper to convert a file path to a URI.
+ *
+ * TODO@bpasero check for removal once ESM has landed.
+ *
+ * @param {string} path
+ * @param {{ isWindows?: boolean, scheme?: string, fallbackAuthority?: string }} config
+ * @returns {string}
+ */
+module.exports.fileUriFromPath = function (path, config) {
+
+	// Since we are building a URI, we normalize any backslash
+	// to slashes and we ensure that the path begins with a '/'.
+	let pathName = path.replace(/\\/g, '/');
+	if (pathName.length > 0 && pathName.charAt(0) !== '/') {
+		pathName = `/${pathName}`;
+	}
+
+	/** @type {string} */
+	let uri;
+
+	// Windows: in order to support UNC paths (which start with '//')
+	// that have their own authority, we do not use the provided authority
+	// but rather preserve it.
+	if (config.isWindows && pathName.startsWith('//')) {
+		uri = encodeURI(`${config.scheme || 'file'}:${pathName}`);
+	}
+
+	// Otherwise we optionally add the provided authority if specified
+	else {
+		uri = encodeURI(`${config.scheme || 'file'}://${config.fallbackAuthority || ''}${pathName}`);
+	}
+
+	return uri.replace(/#/g, '%23');
+};
+
+//#endregion
+
+// ESM-uncomment-begin
+// export const injectNodeModuleLookupPath = module.exports.injectNodeModuleLookupPath;
+// export const removeGlobalNodeModuleLookupPaths = module.exports.removeGlobalNodeModuleLookupPaths;
+// export const configurePortable = module.exports.configurePortable;
+// export const enableASARSupport = module.exports.enableASARSupport;
+// export const fileUriFromPath = module.exports.fileUriFromPath;
+// ESM-uncomment-end

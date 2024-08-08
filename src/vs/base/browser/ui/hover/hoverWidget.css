@@ -122,6 +122,7 @@
 .monaco-hover .hover-row.status-bar .actions {
 	display: flex;
 	padding: 0px 8px;
+	width: 100%;
 }
 
 .monaco-hover .hover-row.status-bar .actions .action-container {
@@ -131,6 +132,11 @@
 
 .monaco-hover .hover-row.status-bar .actions .action-container .action .icon {
 	padding-right: 4px;
+}
+
+.monaco-hover .hover-row.status-bar .actions .action-container a {
+	color: var(--vscode-textLink-foreground);
+	text-decoration: var(--text-link-decoration);
 }
 
 .monaco-hover .markdown-hover .hover-contents .codicon {
@@ -168,6 +174,10 @@
 .monaco-hover .markdown-hover .hover-contents:not(.code-hover-contents):not(.html-hover-contents) span {
 	margin-bottom: 4px;
 	display: inline-block;
+}
+
+.monaco-hover .markdown-hover .hover-contents:not(.code-hover-contents):not(.html-hover-contents) span.codicon {
+	margin-bottom: 2px;
 }
 
 .monaco-hover-content .action-container a {

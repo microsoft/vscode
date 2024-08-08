@@ -67,7 +67,7 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 
 	private readonly _serverRootPath: string;
 
-	private shutdownTimer: NodeJS.Timer | undefined;
+	private shutdownTimer: NodeJS.Timeout | undefined;
 
 	constructor(
 		private readonly _socketServer: SocketServer<RemoteAgentConnectionContext>,
@@ -505,6 +505,7 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 				this._extHostConnections[reconnectionToken] = con;
 				this._allReconnectionTokens.add(reconnectionToken);
 				con.onClose(() => {
+					con.dispose();
 					delete this._extHostConnections[reconnectionToken];
 					this._onDidCloseExtHostConnection();
 				});
@@ -695,7 +696,7 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 	let didLogAboutSIGPIPE = false;
 	process.on('SIGPIPE', () => {
 		// See https://github.com/microsoft/vscode-remote-release/issues/6543
-		// We would normally install a SIGPIPE listener in bootstrap.js
+		// We would normally install a SIGPIPE listener in bootstrap-node.js
 		// But in certain situations, the console itself can be in a broken pipe state
 		// so logging SIGPIPE to the console will cause an infinite async loop
 		if (!didLogAboutSIGPIPE) {

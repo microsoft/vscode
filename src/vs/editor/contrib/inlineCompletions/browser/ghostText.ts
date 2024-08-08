@@ -72,7 +72,7 @@ export class GhostTextPart {
 	) {
 	}
 
-	readonly lines = splitLines(this.text);;
+	readonly lines = splitLines(this.text);
 
 	equals(other: GhostTextPart): boolean {
 		return this.column === other.column &&

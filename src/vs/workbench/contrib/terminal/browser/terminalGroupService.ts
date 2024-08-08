@@ -19,6 +19,7 @@ import { getInstanceFromResource } from 'vs/workbench/contrib/terminal/browser/t
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
 import { TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
+import { asArray } from 'vs/base/common/arrays';
 
 export class TerminalGroupService extends Disposable implements ITerminalGroupService {
 	declare _serviceBrand: undefined;
@@ -136,25 +137,28 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		pane?.terminalTabbedView?.focusHover();
 	}
 
+	async focusInstance(_: ITerminalInstance): Promise<void> {
+		return this.showPanel(true);
+	}
+
 	async focusActiveInstance(): Promise<void> {
 		return this.showPanel(true);
 	}
 
 	createGroup(slcOrInstance?: IShellLaunchConfig | ITerminalInstance): ITerminalGroup {
 		const group = this._instantiationService.createInstance(TerminalGroup, this._container, slcOrInstance);
-		// TODO: Move panel orientation change into this file so it's not fired many times
-		group.onPanelOrientationChanged((orientation) => this._onDidChangePanelOrientation.fire(orientation));
 		this.groups.push(group);
-		group.addDisposable(group.onDidDisposeInstance(this._onDidDisposeInstance.fire, this._onDidDisposeInstance));
-		group.addDisposable(group.onDidFocusInstance(this._onDidFocusInstance.fire, this._onDidFocusInstance));
+		group.addDisposable(Event.forward(group.onPanelOrientationChanged, this._onDidChangePanelOrientation));
+		group.addDisposable(Event.forward(group.onDidDisposeInstance, this._onDidDisposeInstance));
+		group.addDisposable(Event.forward(group.onDidFocusInstance, this._onDidFocusInstance));
+		group.addDisposable(Event.forward(group.onDidChangeInstanceCapability, this._onDidChangeInstanceCapability));
+		group.addDisposable(Event.forward(group.onInstancesChanged, this._onDidChangeInstances));
+		group.addDisposable(Event.forward(group.onDisposed, this._onDidDisposeGroup));
 		group.addDisposable(group.onDidChangeActiveInstance(e => {
 			if (group === this.activeGroup) {
 				this._onDidChangeActiveInstance.fire(e);
 			}
 		}));
-		group.addDisposable(group.onDidChangeInstanceCapability(this._onDidChangeInstanceCapability.fire, this._onDidChangeInstanceCapability));
-		group.addDisposable(group.onInstancesChanged(this._onDidChangeInstances.fire, this._onDidChangeInstances));
-		group.addDisposable(group.onDisposed(this._onDidDisposeGroup.fire, this._onDidDisposeGroup));
 		if (group.terminalInstances.length > 0) {
 			this._onDidChangeInstances.fire();
 		}
@@ -315,40 +319,66 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		this.setActiveGroupByIndex(newIndex);
 	}
 
-	moveGroup(source: ITerminalInstance, target: ITerminalInstance) {
-		const sourceGroup = this.getGroupForInstance(source);
-		const targetGroup = this.getGroupForInstance(target);
+	private _getValidTerminalGroups = (sources: ITerminalInstance[]): Set<ITerminalGroup> => {
+		return new Set(
+			sources
+				.map(source => this.getGroupForInstance(source))
+				.filter((group) => group !== undefined)
+		);
+	};
 
-		// Something went wrong
-		if (!sourceGroup || !targetGroup) {
+	moveGroup(source: ITerminalInstance | ITerminalInstance[], target: ITerminalInstance) {
+		source = asArray(source);
+		const sourceGroups = this._getValidTerminalGroups(source);
+		const targetGroup = this.getGroupForInstance(target);
+		if (!targetGroup || sourceGroups.size === 0) {
 			return;
 		}
 
 		// The groups are the same, rearrange within the group
-		if (sourceGroup === targetGroup) {
-			const index = sourceGroup.terminalInstances.indexOf(target);
-			if (index !== -1) {
-				sourceGroup.moveInstance(source, index);
-			}
+		if (sourceGroups.size === 1 && sourceGroups.has(targetGroup)) {
+			const targetIndex = targetGroup.terminalInstances.indexOf(target);
+			const sortedSources = source.sort((a, b) => {
+				return targetGroup.terminalInstances.indexOf(a) - targetGroup.terminalInstances.indexOf(b);
+			});
+			const firstTargetIndex = targetGroup.terminalInstances.indexOf(sortedSources[0]);
+			const position: 'before' | 'after' = firstTargetIndex < targetIndex ? 'after' : 'before';
+			targetGroup.moveInstance(sortedSources, targetIndex, position);
+			this._onDidChangeInstances.fire();
 			return;
 		}
 
 		// The groups differ, rearrange groups
-		const sourceGroupIndex = this.groups.indexOf(sourceGroup);
 		const targetGroupIndex = this.groups.indexOf(targetGroup);
-		this.groups.splice(sourceGroupIndex, 1);
-		this.groups.splice(targetGroupIndex, 0, sourceGroup);
+		const sortedSourceGroups = Array.from(sourceGroups).sort((a, b) => {
+			return this.groups.indexOf(a) - this.groups.indexOf(b);
+		});
+		const firstSourceGroupIndex = this.groups.indexOf(sortedSourceGroups[0]);
+		const position: 'before' | 'after' = firstSourceGroupIndex < targetGroupIndex ? 'after' : 'before';
+		const insertIndex = position === 'after' ? targetGroupIndex + 1 : targetGroupIndex;
+		this.groups.splice(insertIndex, 0, ...sortedSourceGroups);
+		for (const sourceGroup of sortedSourceGroups) {
+			const originSourceGroupIndex = position === 'after' ? this.groups.indexOf(sourceGroup) : this.groups.lastIndexOf(sourceGroup);
+			this.groups.splice(originSourceGroupIndex, 1);
+		}
 		this._onDidChangeInstances.fire();
 	}
 
-	moveGroupToEnd(source: ITerminalInstance): void {
-		const sourceGroup = this.getGroupForInstance(source);
-		if (!sourceGroup) {
+	moveGroupToEnd(source: ITerminalInstance | ITerminalInstance[]): void {
+		source = asArray(source);
+		const sourceGroups = this._getValidTerminalGroups(source);
+		if (sourceGroups.size === 0) {
 			return;
 		}
-		const sourceGroupIndex = this.groups.indexOf(sourceGroup);
-		this.groups.splice(sourceGroupIndex, 1);
-		this.groups.push(sourceGroup);
+		const lastInstanceIndex = this.groups.length - 1;
+		const sortedSourceGroups = Array.from(sourceGroups).sort((a, b) => {
+			return this.groups.indexOf(a) - this.groups.indexOf(b);
+		});
+		this.groups.splice(lastInstanceIndex + 1, 0, ...sortedSourceGroups);
+		for (const sourceGroup of sortedSourceGroups) {
+			const sourceGroupIndex = this.groups.indexOf(sourceGroup);
+			this.groups.splice(sourceGroupIndex, 1);
+		}
 		this._onDidChangeInstances.fire();
 	}
 
@@ -368,7 +398,7 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 
 		// Rearrange within the target group
 		const index = targetGroup.terminalInstances.indexOf(target) + (side === 'after' ? 1 : 0);
-		targetGroup.moveInstance(source, index);
+		targetGroup.moveInstance(source, index, side);
 	}
 
 	unsplitInstance(instance: ITerminalInstance) {
@@ -391,7 +421,7 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 					break;
 				}
 			}
-			if (!differentGroups) {
+			if (!differentGroups && group.terminalInstances.length === instances.length) {
 				return;
 			}
 		}

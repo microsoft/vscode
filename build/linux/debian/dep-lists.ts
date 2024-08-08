@@ -31,6 +31,7 @@ export const referenceGeneratedDepsByArch = {
 		'libc6 (>= 2.16)',
 		'libc6 (>= 2.17)',
 		'libc6 (>= 2.2.5)',
+		'libc6 (>= 2.25)',
 		'libc6 (>= 2.28)',
 		'libcairo2 (>= 1.6.0)',
 		'libcurl3-gnutls | libcurl3-nss | libcurl4 | libcurl3',
@@ -57,8 +58,7 @@ export const referenceGeneratedDepsByArch = {
 		'libxkbcommon0 (>= 0.5.0)',
 		'libxkbfile1 (>= 1:1.1.0)',
 		'libxrandr2',
-		'xdg-utils (>= 1.0.2)',
-		'zlib1g (>= 1:1.2.3.4)'
+		'xdg-utils (>= 1.0.2)'
 	],
 	'armhf': [
 		'ca-certificates',
@@ -68,6 +68,7 @@ export const referenceGeneratedDepsByArch = {
 		'libatspi2.0-0 (>= 2.9.90)',
 		'libc6 (>= 2.16)',
 		'libc6 (>= 2.17)',
+		'libc6 (>= 2.25)',
 		'libc6 (>= 2.28)',
 		'libc6 (>= 2.4)',
 		'libc6 (>= 2.9)',
@@ -109,6 +110,7 @@ export const referenceGeneratedDepsByArch = {
 		'libatk1.0-0 (>= 2.2.0)',
 		'libatspi2.0-0 (>= 2.9.90)',
 		'libc6 (>= 2.17)',
+		'libc6 (>= 2.25)',
 		'libc6 (>= 2.28)',
 		'libcairo2 (>= 1.6.0)',
 		'libcurl3-gnutls | libcurl3-nss | libcurl4 | libcurl3',

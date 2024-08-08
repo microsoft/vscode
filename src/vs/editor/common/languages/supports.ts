@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
+import { IViewLineTokens, LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
+import { ILanguageIdCodec } from 'vs/editor/common/languages';
 
 export function createScopedLineTokens(context: LineTokens, offset: number): ScopedLineTokens {
 	const tokenCount = context.getCount();
@@ -34,6 +35,7 @@ export function createScopedLineTokens(context: LineTokens, offset: number): Sco
 export class ScopedLineTokens {
 	_scopedLineTokensBrand: void = undefined;
 
+	public readonly languageIdCodec: ILanguageIdCodec;
 	public readonly languageId: string;
 	private readonly _actual: LineTokens;
 	private readonly _firstTokenIndex: number;
@@ -55,11 +57,16 @@ export class ScopedLineTokens {
 		this._lastTokenIndex = lastTokenIndex;
 		this.firstCharOffset = firstCharOffset;
 		this._lastCharOffset = lastCharOffset;
+		this.languageIdCodec = actual.languageIdCodec;
 	}
 
 	public getLineContent(): string {
 		const actualLineContent = this._actual.getLineContent();
 		return actualLineContent.substring(this.firstCharOffset, this._lastCharOffset);
+	}
+
+	public getLineLength(): number {
+		return this._lastCharOffset - this.firstCharOffset;
 	}
 
 	public getActualLineContentBefore(offset: number): string {
@@ -77,6 +84,10 @@ export class ScopedLineTokens {
 
 	public getStandardTokenType(tokenIndex: number): StandardTokenType {
 		return this._actual.getStandardTokenType(tokenIndex + this._firstTokenIndex);
+	}
+
+	public toIViewLineTokens(): IViewLineTokens {
+		return this._actual.sliceAndInflate(this.firstCharOffset, this._lastCharOffset, 0);
 	}
 }
 

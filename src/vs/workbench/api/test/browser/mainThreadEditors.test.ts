@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { Event } from 'vs/base/common/event';
 import { DisposableStore, IReference, ImmortalReference } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
@@ -16,12 +16,10 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextSnapshot } from 'vs/editor/common/model';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import { LanguageService } from 'vs/editor/common/services/languageService';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ModelService } from 'vs/editor/common/services/modelService';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { TestCodeEditorService } from 'vs/editor/test/browser/editorTestServices';
-import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -48,6 +46,7 @@ import { BulkEditService } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditS
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { LabelService } from 'vs/workbench/services/label/common/labelService';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
@@ -56,6 +55,10 @@ import { ICopyOperation, ICreateFileOperation, ICreateOperation, IDeleteOperatio
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { TestEditorGroupsService, TestEditorService, TestEnvironmentService, TestFileService, TestLifecycleService, TestWorkingCopyService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestContextService, TestTextResourcePropertiesService } from 'vs/workbench/test/common/workbenchTestServices';
+import { ILanguageService } from 'vs/editor/common/languages/language';
+import { LanguageService } from 'vs/editor/common/services/languageService';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 
 suite('MainThreadEditors', () => {
 
@@ -79,19 +82,11 @@ suite('MainThreadEditors', () => {
 		createdResources.clear();
 		deletedResources.clear();
 
-
 		const configService = new TestConfigurationService();
 		const dialogService = new TestDialogService();
 		const notificationService = new TestNotificationService();
 		const undoRedoService = new UndoRedoService(dialogService, notificationService);
 		const themeService = new TestThemeService();
-		modelService = new ModelService(
-			configService,
-			new TestTextResourcePropertiesService(configService),
-			undoRedoService,
-			disposables.add(new LanguageService()),
-			new TestLanguageConfigurationService(),
-		);
 
 		const services = new ServiceCollection();
 		services.set(IBulkEditService, new SyncDescriptor(BulkEditService));
@@ -177,7 +172,17 @@ suite('MainThreadEditors', () => {
 			}
 		});
 
+		services.set(ILanguageService, disposables.add(new LanguageService()));
+		services.set(ILanguageConfigurationService, new TestLanguageConfigurationService());
+
 		const instaService = new InstantiationService(services);
+
+		modelService = new ModelService(
+			configService,
+			new TestTextResourcePropertiesService(configService),
+			undoRedoService,
+			instaService
+		);
 
 		bulkEdits = instaService.createInstance(MainThreadBulkEdits, SingleProxyRPCProtocol(null));
 	});
@@ -204,7 +209,7 @@ suite('MainThreadEditors', () => {
 		// Act as if the user edited the model
 		model.applyEdits([EditOperation.insert(new Position(0, 0), 'something')]);
 
-		return bulkEdits.$tryApplyWorkspaceEdit({ edits: [workspaceResourceEdit] }).then((result) => {
+		return bulkEdits.$tryApplyWorkspaceEdit(new SerializableObjectWithBuffers({ edits: [workspaceResourceEdit] })).then((result) => {
 			assert.strictEqual(result, false);
 		});
 	});
@@ -230,11 +235,11 @@ suite('MainThreadEditors', () => {
 			}
 		};
 
-		const p1 = bulkEdits.$tryApplyWorkspaceEdit({ edits: [workspaceResourceEdit1] }).then((result) => {
+		const p1 = bulkEdits.$tryApplyWorkspaceEdit(new SerializableObjectWithBuffers({ edits: [workspaceResourceEdit1] })).then((result) => {
 			// first edit request succeeds
 			assert.strictEqual(result, true);
 		});
-		const p2 = bulkEdits.$tryApplyWorkspaceEdit({ edits: [workspaceResourceEdit2] }).then((result) => {
+		const p2 = bulkEdits.$tryApplyWorkspaceEdit(new SerializableObjectWithBuffers({ edits: [workspaceResourceEdit2] })).then((result) => {
 			// second edit request fails
 			assert.strictEqual(result, false);
 		});
@@ -242,13 +247,13 @@ suite('MainThreadEditors', () => {
 	});
 
 	test(`applyWorkspaceEdit with only resource edit`, () => {
-		return bulkEdits.$tryApplyWorkspaceEdit({
+		return bulkEdits.$tryApplyWorkspaceEdit(new SerializableObjectWithBuffers({
 			edits: [
 				{ oldResource: resource, newResource: resource, options: undefined },
 				{ oldResource: undefined, newResource: resource, options: undefined },
 				{ oldResource: resource, newResource: undefined, options: undefined }
 			]
-		}).then((result) => {
+		})).then((result) => {
 			assert.strictEqual(result, true);
 			assert.strictEqual(movedResources.get(resource), resource);
 			assert.strictEqual(createdResources.has(resource), true);

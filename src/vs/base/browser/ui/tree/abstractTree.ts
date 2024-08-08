@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDragAndDropData } from 'vs/base/browser/dnd';
-import { $, append, clearNode, createStyleSheet, getWindow, h, hasParentWithClass, isActiveElement, asCssValueWithDefault, isKeyboardEvent } from 'vs/base/browser/dom';
+import { $, append, clearNode, createStyleSheet, getWindow, h, hasParentWithClass, isActiveElement, asCssValueWithDefault, isKeyboardEvent, addDisposableListener } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -64,7 +64,7 @@ class TreeNodeListDragAndDrop<T, TFilterData, TRef> implements IListDragAndDrop<
 
 	private autoExpandNode: ITreeNode<T, TFilterData> | undefined;
 	private autoExpandDisposable: IDisposable = Disposable.None;
-	private disposables = new DisposableStore();
+	private readonly disposables = new DisposableStore();
 
 	constructor(private modelProvider: () => ITreeModel<T, TFilterData, TRef>, private dnd: ITreeDragAndDrop<T>) { }
 
@@ -796,7 +796,7 @@ class FindWidget<T, TFilterData> extends Disposable {
 		super();
 
 		container.appendChild(this.elements.root);
-		this._register(toDisposable(() => container.removeChild(this.elements.root)));
+		this._register(toDisposable(() => this.elements.root.remove()));
 
 		const styles = options?.styles ?? unthemedFindWidgetStyles;
 
@@ -1561,7 +1561,7 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 	private readonly _rootDomNode: HTMLElement;
 	private _previousState: StickyScrollState<T, TFilterData, TRef> | undefined;
 	private _previousElements: HTMLElement[] = [];
-	private _previousStateDisposables: DisposableStore = new DisposableStore();
+	private readonly _previousStateDisposables: DisposableStore = new DisposableStore();
 
 	private stickyScrollFocus: StickyScrollFocus<T, TFilterData, TRef>;
 	readonly onDidChangeHasFocus: Event<boolean>;
@@ -1807,9 +1807,8 @@ class StickyScrollFocus<T, TFilterData, TRef> extends Disposable {
 	) {
 		super();
 
-		this.container.addEventListener('focus', () => this.onFocus());
-		this.container.addEventListener('blur', () => this.onBlur());
-
+		this._register(addDisposableListener(this.container, 'focus', () => this.onFocus()));
+		this._register(addDisposableListener(this.container, 'blur', () => this.onBlur()));
 		this._register(this.view.onDidFocus(() => this.toggleStickyScrollFocused(false)));
 		this._register(this.view.onKeyDown((e) => this.onKeyDown(e)));
 		this._register(this.view.onMouseDown((e) => this.onMouseDown(e)));
@@ -2295,7 +2294,7 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 			this.tree.setFocus([location]);
 			this.tree.toggleCollapsed(location, recursive);
 
-			if (expandOnlyOnTwistieClick && onTwistie) {
+			if (onTwistie) {
 				// Do not set this before calling a handler on the super class, because it will reject it as handled
 				e.browserEvent.isHandledByList = true;
 				return;
@@ -2772,9 +2771,20 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		}
 
 		// Sticky Scroll Background
-		if (styles.listBackground) {
-			content.push(`.monaco-list${suffix} .monaco-scrollable-element .monaco-tree-sticky-container { background-color: ${styles.listBackground}; }`);
-			content.push(`.monaco-list${suffix} .monaco-scrollable-element .monaco-tree-sticky-container .monaco-tree-sticky-row { background-color: ${styles.listBackground}; }`);
+		const stickyScrollBackground = styles.treeStickyScrollBackground ?? styles.listBackground;
+		if (stickyScrollBackground) {
+			content.push(`.monaco-list${suffix} .monaco-scrollable-element .monaco-tree-sticky-container { background-color: ${stickyScrollBackground}; }`);
+			content.push(`.monaco-list${suffix} .monaco-scrollable-element .monaco-tree-sticky-container .monaco-tree-sticky-row { background-color: ${stickyScrollBackground}; }`);
+		}
+
+		// Sticky Scroll Border
+		if (styles.treeStickyScrollBorder) {
+			content.push(`.monaco-list${suffix} .monaco-scrollable-element .monaco-tree-sticky-container { border-bottom: 1px solid ${styles.treeStickyScrollBorder}; }`);
+		}
+
+		// Sticky Scroll Shadow
+		if (styles.treeStickyScrollShadow) {
+			content.push(`.monaco-list${suffix} .monaco-scrollable-element .monaco-tree-sticky-container .monaco-tree-sticky-container-shadow { box-shadow: ${styles.treeStickyScrollShadow} 0 6px 6px -6px inset; height: 3px; }`);
 		}
 
 		// Sticky Scroll Focus

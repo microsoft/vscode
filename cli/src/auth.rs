@@ -287,7 +287,7 @@ impl StorageImplementation for ThreadKeyringStorage {
 
 #[derive(Default)]
 struct KeyringStorage {
-	// keywring storage can be split into multiple entries due to entry length limits
+	// keyring storage can be split into multiple entries due to entry length limits
 	// on Windows https://github.com/microsoft/vscode-cli/issues/358
 	entries: Vec<keyring::Entry>,
 }
@@ -480,6 +480,7 @@ impl Auth {
 		&self,
 		provider: Option<AuthProvider>,
 		access_token: Option<String>,
+		refresh_token: Option<String>,
 	) -> Result<StoredCredential, AnyError> {
 		let provider = match provider {
 			Some(p) => p,
@@ -490,8 +491,12 @@ impl Auth {
 			Some(t) => StoredCredential {
 				provider,
 				access_token: t,
-				refresh_token: None,
-				expires_at: None,
+				// if a refresh token is given, assume it's valid now but refresh it
+				// soon in order to get the real expiry time.
+				expires_at: refresh_token
+					.as_ref()
+					.map(|_| Utc::now() + chrono::Duration::minutes(5)),
+				refresh_token,
 			},
 			None => self.do_device_code_flow_with_provider(provider).await?,
 		};

@@ -75,9 +75,9 @@ export class ExtensionsAutoProfiler implements IWorkbenchContribution {
 			return;
 		}
 
-		const port = await event.getInspectPort(true);
+		const listener = await event.getInspectListener(true);
 
-		if (!port) {
+		if (!listener) {
 			return;
 		}
 
@@ -95,7 +95,7 @@ export class ExtensionsAutoProfiler implements IWorkbenchContribution {
 
 			let session: ProfileSession;
 			try {
-				session = await this._instantiationService.createInstance(ExtensionHostProfiler, port).start();
+				session = await this._instantiationService.createInstance(ExtensionHostProfiler, listener.host, listener.port).start();
 
 			} catch (err) {
 				this._session = undefined;
@@ -190,7 +190,7 @@ export class ExtensionsAutoProfiler implements IWorkbenchContribution {
 			owner: 'jrieken';
 			comment: 'Profiling data that was collected while the extension host was unresponsive';
 			sessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Identifier of a profiling session' };
-			duration: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Duration for which the extension host was unresponsive' };
+			duration: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Duration for which the extension host was unresponsive' };
 			data: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Extensions ids and core parts that were active while the extension host was frozen' };
 			id: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Top extensions id that took most of the duration' };
 		};

@@ -14,7 +14,7 @@ import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewM
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { executingStateIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { MutableDisposable } from 'vs/base/common/lifecycle';
 
 export class FoldedCellHint extends CellContentPart {
@@ -49,7 +49,13 @@ export class FoldedCellHint extends CellContentPart {
 			const idx = this._notebookEditor.getViewModel().getCellIndex(element);
 			const length = this._notebookEditor.getViewModel().getFoldedLength(idx);
 
-			DOM.reset(this._container, this.getRunFoldedSectionButton({ start: idx, end: idx + length }), this.getHiddenCellsLabel(length), this.getHiddenCellHintButton(element));
+			const runSectionButton = this.getRunFoldedSectionButton({ start: idx, end: idx + length + 1 });
+			if (!runSectionButton) {
+				DOM.reset(this._container, this.getHiddenCellsLabel(length), this.getHiddenCellHintButton(element));
+			} else {
+				DOM.reset(this._container, runSectionButton, this.getHiddenCellsLabel(length), this.getHiddenCellHintButton(element));
+			}
+
 			DOM.show(this._container);
 
 			const foldHintTop = element.layoutInfo.previewHeight;
@@ -83,9 +89,15 @@ export class FoldedCellHint extends CellContentPart {
 		return expandIcon;
 	}
 
-	private getRunFoldedSectionButton(range: ICellRange): HTMLElement {
+	private getRunFoldedSectionButton(range: ICellRange): HTMLElement | undefined {
 		const runAllContainer = DOM.$('span.folded-cell-run-section-button');
 		const cells = this._notebookEditor.getCellsInRange(range);
+
+		// Check if any cells are code cells, if not, we won't show the run button
+		const hasCodeCells = cells.some(cell => cell.cellKind === CellKind.Code);
+		if (!hasCodeCells) {
+			return undefined;
+		}
 
 		const isRunning = cells.some(cell => {
 			const cellExecution = this._notebookExecutionStateService.getCellExecution(cell.uri);

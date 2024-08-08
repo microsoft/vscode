@@ -5,7 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import * as nls from 'vs/nls';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableMap, DisposableStore } from 'vs/base/common/lifecycle';
 import * as languages from 'vs/editor/common/languages';
 import { Emitter } from 'vs/base/common/event';
 import { ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
@@ -30,7 +30,7 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 	private _onDidResize = new Emitter<dom.Dimension>();
 	onDidResize = this._onDidResize.event;
 
-	private _commentDisposable = new Map<CommentNode<T>, IDisposable>();
+	private _commentDisposable = new DisposableMap<CommentNode<T>, DisposableStore>();
 	private _markdownRenderer: MarkdownRenderer;
 
 	get length() {
@@ -70,7 +70,13 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 		this._commentsElement.focus();
 	}
 
-	display() {
+	ensureFocusIntoNewEditingComment() {
+		if (this._commentElements.length === 1 && this._commentElements[0].isEditing) {
+			this._commentElements[0].setFocus(true);
+		}
+	}
+
+	async display() {
 		this._commentsElement = dom.append(this.container, dom.$('div.comments-container'));
 		this._commentsElement.setAttribute('role', 'presentation');
 		this._commentsElement.tabIndex = 0;
@@ -90,6 +96,7 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 			}
 		}));
 
+		this._commentDisposable.clearAndDisposeAll();
 		this._commentElements = [];
 		if (this._commentThread.comments) {
 			for (const comment of this._commentThread.comments) {
@@ -98,7 +105,7 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 				this._commentElements.push(newCommentNode);
 				this._commentsElement.appendChild(newCommentNode.domNode);
 				if (comment.mode === languages.CommentMode.Editing) {
-					newCommentNode.switchToEditMode();
+					await newCommentNode.switchToEditMode();
 				}
 			}
 		}
@@ -156,7 +163,7 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 		return;
 	}
 
-	updateCommentThread(commentThread: languages.CommentThread<T>, preserveFocus: boolean) {
+	async updateCommentThread(commentThread: languages.CommentThread<T>, preserveFocus: boolean) {
 		const oldCommentsLen = this._commentElements.length;
 		const newCommentsLen = commentThread.comments ? commentThread.comments.length : 0;
 
@@ -177,11 +184,10 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 		// del removed elements
 		for (let i = commentElementsToDel.length - 1; i >= 0; i--) {
 			const commentToDelete = commentElementsToDel[i];
-			this._commentDisposable.get(commentToDelete)?.dispose();
-			this._commentDisposable.delete(commentToDelete);
+			this._commentDisposable.deleteAndDispose(commentToDelete);
 
 			this._commentElements.splice(commentElementsToDelIndex[i], 1);
-			this._commentsElement.removeChild(commentToDelete.domNode);
+			commentToDelete.domNode.remove();
 		}
 
 
@@ -207,7 +213,7 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 				}
 
 				if (currentComment.mode === languages.CommentMode.Editing) {
-					newElement.switchToEditMode();
+					await newElement.switchToEditMode();
 					newCommentsInEditMode.push(newElement);
 				}
 			}
@@ -267,10 +273,12 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 			this._parentCommentThreadWidget,
 			this._markdownRenderer) as unknown as CommentNode<T>;
 
-		this._register(newCommentNode);
-		this._commentDisposable.set(newCommentNode, newCommentNode.onDidClick(clickedNode =>
+		const disposables: DisposableStore = new DisposableStore();
+		disposables.add(newCommentNode.onDidClick(clickedNode =>
 			this._setFocusedComment(this._commentElements.findIndex(commentNode => commentNode.comment.uniqueIdInThread === clickedNode.comment.uniqueIdInThread))
 		));
+		disposables.add(newCommentNode);
+		this._commentDisposable.set(newCommentNode, disposables);
 
 		return newCommentNode;
 	}
@@ -283,6 +291,6 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 			this._resizeObserver = null;
 		}
 
-		this._commentDisposable.forEach(v => v.dispose());
+		this._commentDisposable.dispose();
 	}
 }

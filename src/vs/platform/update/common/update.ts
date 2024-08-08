@@ -76,12 +76,12 @@ export const State = {
 	Uninitialized: { type: StateType.Uninitialized } as Uninitialized,
 	Disabled: (reason: DisablementReason) => ({ type: StateType.Disabled, reason }) as Disabled,
 	Idle: (updateType: UpdateType, error?: string) => ({ type: StateType.Idle, updateType, error }) as Idle,
-	CheckingForUpdates: (explicit: boolean) => ({ type: StateType.CheckingForUpdates, explicit } as CheckingForUpdates),
-	AvailableForDownload: (update: IUpdate) => ({ type: StateType.AvailableForDownload, update } as AvailableForDownload),
+	CheckingForUpdates: (explicit: boolean): CheckingForUpdates => ({ type: StateType.CheckingForUpdates, explicit }),
+	AvailableForDownload: (update: IUpdate): AvailableForDownload => ({ type: StateType.AvailableForDownload, update }),
 	Downloading: { type: StateType.Downloading } as Downloading,
-	Downloaded: (update: IUpdate) => ({ type: StateType.Downloaded, update } as Downloaded),
-	Updating: (update: IUpdate) => ({ type: StateType.Updating, update } as Updating),
-	Ready: (update: IUpdate) => ({ type: StateType.Ready, update } as Ready),
+	Downloaded: (update: IUpdate): Downloaded => ({ type: StateType.Downloaded, update }),
+	Updating: (update: IUpdate): Updating => ({ type: StateType.Updating, update }),
+	Ready: (update: IUpdate): Ready => ({ type: StateType.Ready, update }),
 };
 
 export interface IAutoUpdater extends Event.NodeEventEmitter {

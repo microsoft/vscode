@@ -32,7 +32,7 @@ import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userData
 type IncompatibleSyncSourceClassification = {
 	owner: 'sandy081';
 	comment: 'Information about the sync resource that is incompatible';
-	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'settings sync resource. eg., settings, keybindings...' };
+	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'settings sync resource. eg., settings, keybindings...' };
 };
 
 export function isRemoteUserData(thing: any): thing is IRemoteUserData {
@@ -592,7 +592,7 @@ export abstract class AbstractSynchroniser extends Disposable implements IUserDa
 		return { syncResource: this.resource, profile: this.syncResource.profile, remoteUserData, lastSyncUserData, resourcePreviews, isLastSyncFromCurrentMachine: isRemoteDataFromCurrentMachine };
 	}
 
-	async getLastSyncUserData<T = IRemoteUserData & { [key: string]: any }>(): Promise<T | null> {
+	async getLastSyncUserData(): Promise<IRemoteUserData | null> {
 		let storedLastSyncUserDataStateContent = this.getStoredLastSyncUserDataStateContent();
 		if (!storedLastSyncUserDataStateContent) {
 			storedLastSyncUserDataStateContent = await this.migrateLastSyncUserData();
@@ -664,7 +664,7 @@ export abstract class AbstractSynchroniser extends Disposable implements IUserDa
 		return {
 			...lastSyncUserDataState,
 			syncData,
-		} as T;
+		};
 	}
 
 	protected async updateLastSyncUserData(lastSyncRemoteUserData: IRemoteUserData, additionalProps: IStringDictionary<any> = {}): Promise<void> {

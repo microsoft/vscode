@@ -123,6 +123,10 @@ export class AuthenticationContribution extends Disposable implements IWorkbench
 		this._register(codeExchangeProxyCommand);
 		this._register(extensionFeature);
 
+		// Clear the placeholder menu item if there are already providers registered.
+		if (_authenticationService.getProviderIds().length) {
+			this._clearPlaceholderMenuItem();
+		}
 		this._registerHandlers();
 		this._registerAuthenticationExtentionPointHandler();
 		this._registerEnvContributedAuthenticationProviders();
@@ -172,8 +176,7 @@ export class AuthenticationContribution extends Disposable implements IWorkbench
 
 	private _registerHandlers(): void {
 		this._register(this._authenticationService.onDidRegisterAuthenticationProvider(_e => {
-			this._placeholderMenuItem?.dispose();
-			this._placeholderMenuItem = undefined;
+			this._clearPlaceholderMenuItem();
 		}));
 		this._register(this._authenticationService.onDidUnregisterAuthenticationProvider(_e => {
 			if (!this._authenticationService.getProviderIds().length) {
@@ -191,6 +194,11 @@ export class AuthenticationContribution extends Disposable implements IWorkbench
 	private _registerActions(): void {
 		this._register(registerAction2(SignOutOfAccountAction));
 		this._register(registerAction2(ManageTrustedExtensionsForAccountAction));
+	}
+
+	private _clearPlaceholderMenuItem(): void {
+		this._placeholderMenuItem?.dispose();
+		this._placeholderMenuItem = undefined;
 	}
 }
 

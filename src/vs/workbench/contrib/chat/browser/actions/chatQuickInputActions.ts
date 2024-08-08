@@ -12,13 +12,14 @@ import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/act
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
-import { IQuickChatService, IQuickChatOpenOptions } from 'vs/workbench/contrib/chat/browser/chat';
-import { CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { IQuickChatOpenOptions, IQuickChatService } from 'vs/workbench/contrib/chat/browser/chat';
+import { CONTEXT_CHAT_ENABLED } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
 
 export const ASK_QUICK_QUESTION_ACTION_ID = 'workbench.action.quickchat.toggle';
 export function registerQuickChatActions() {
 	registerAction2(QuickChatGlobalAction);
+	registerAction2(AskQuickChatAction);
 
 	registerAction2(class OpenInChatViewAction extends Action2 {
 		constructor() {
@@ -94,6 +95,7 @@ export function registerQuickChatActions() {
 			controller.focus();
 		}
 	});
+
 }
 
 class QuickChatGlobalAction extends Action2 {
@@ -101,7 +103,7 @@ class QuickChatGlobalAction extends Action2 {
 		super({
 			id: ASK_QUICK_QUESTION_ACTION_ID,
 			title: localize2('quickChat', 'Quick Chat'),
-			precondition: CONTEXT_PROVIDER_EXISTS,
+			precondition: CONTEXT_CHAT_ENABLED,
 			icon: Codicon.commentDiscussion,
 			f1: false,
 			category: CHAT_CATEGORY,
@@ -153,35 +155,25 @@ class QuickChatGlobalAction extends Action2 {
 		if (options?.query) {
 			options.selection = new Selection(1, options.query.length + 1, 1, options.query.length + 1);
 		}
-		quickChatService.toggle(undefined, options);
+		quickChatService.toggle(options);
 	}
 }
 
-/**
- * Returns a provider specific action that will open the quick chat for that provider.
- * This is used to include the provider label in the action title so it shows up in
- * the command palette.
- * @param id The id of the provider
- * @param label The label of the provider
- * @returns An action that will open the quick chat for this provider
- */
-export function getQuickChatActionForProvider(id: string, label: string) {
-	return class AskQuickChatAction extends Action2 {
-		constructor() {
-			super({
-				id: `workbench.action.openQuickChat.${id}`,
-				category: CHAT_CATEGORY,
-				title: localize2('interactiveSession.open', "Open Quick Chat ({0})", label),
-				f1: true
-			});
-		}
+class AskQuickChatAction extends Action2 {
+	constructor() {
+		super({
+			id: `workbench.action.openQuickChat`,
+			category: CHAT_CATEGORY,
+			title: localize2('interactiveSession.open', "Open Quick Chat"),
+			f1: true
+		});
+	}
 
-		override run(accessor: ServicesAccessor, query?: string): void {
-			const quickChatService = accessor.get(IQuickChatService);
-			quickChatService.toggle(id, query ? {
-				query,
-				selection: new Selection(1, query.length + 1, 1, query.length + 1)
-			} : undefined);
-		}
-	};
+	override run(accessor: ServicesAccessor, query?: string): void {
+		const quickChatService = accessor.get(IQuickChatService);
+		quickChatService.toggle(query ? {
+			query,
+			selection: new Selection(1, query.length + 1, 1, query.length + 1)
+		} : undefined);
+	}
 }

@@ -13,6 +13,7 @@ import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebo
 import { TextDocumentSaveReason, WorkspaceEdit as WorksapceEditConverter } from 'vs/workbench/api/common/extHostTypeConverters';
 import { WorkspaceEdit } from 'vs/workbench/api/common/extHostTypes';
 import { SaveReason } from 'vs/workbench/common/editor';
+import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { NotebookDocumentWillSaveEvent } from 'vscode';
 
 interface IExtensionListener<E> {
@@ -90,6 +91,6 @@ export class ExtHostNotebookDocumentSaveParticipant implements ExtHostNotebookDo
 			dto.edits = dto.edits.concat(edits);
 		}
 
-		return this._mainThreadBulkEdits.$tryApplyWorkspaceEdit(dto);
+		return this._mainThreadBulkEdits.$tryApplyWorkspaceEdit(new SerializableObjectWithBuffers(dto));
 	}
 }

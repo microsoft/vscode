@@ -21,6 +21,9 @@ class ToggleScreenReaderMode extends Action2 {
 		super({
 			id: 'editor.action.toggleScreenReaderAccessibilityMode',
 			title: nls.localize2('toggleScreenReaderMode', "Toggle Screen Reader Accessibility Mode"),
+			metadata: {
+				description: nls.localize2('toggleScreenReaderModeDescription', "Toggles an optimized mode for usage with screen readers, braille devices, and other assistive technologies."),
+			},
 			f1: true,
 			keybinding: [{
 				primary: KeyMod.CtrlCmd | KeyCode.KeyE,

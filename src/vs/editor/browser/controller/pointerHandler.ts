@@ -33,7 +33,7 @@ export class PointerEventHandler extends MouseHandler {
 		this._lastPointerType = 'mouse';
 
 		this._register(dom.addDisposableListener(this.viewHelper.linesContentDomNode, 'pointerdown', (e: any) => {
-			const pointerType = <any>e.pointerType;
+			const pointerType = e.pointerType;
 			if (pointerType === 'mouse') {
 				this._lastPointerType = 'mouse';
 				return;

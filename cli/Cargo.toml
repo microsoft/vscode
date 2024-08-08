@@ -35,12 +35,12 @@ chrono = { version = "0.4.26", features = ["serde", "std", "clock"], default-fea
 gethostname = "0.4.3"
 libc = "0.2.144"
 tunnels = { git = "https://github.com/microsoft/dev-tunnels", rev = "8cae9b2a24c65c6c1958f5a0e77d72b23b5c6c30", default-features = false, features = ["connections"] }
-keyring = { version = "2.0.3", default-features = false, features = ["linux-secret-service-rt-tokio-crypto-openssl"] }
+keyring = { version = "2.0.3", default-features = false, features = ["linux-secret-service-rt-tokio-crypto-openssl", "platform-windows", "platform-macos", "linux-keyutils"] }
 dialoguer = "0.10.4"
 hyper = { version = "0.14.26", features = ["server", "http1", "runtime"] }
 indicatif = "0.17.4"
 tempfile = "3.5.0"
-clap_lex = "0.5.0"
+clap_lex = "0.7.0"
 url = "2.3.1"
 async-trait = "0.1.68"
 log = "0.4.18"

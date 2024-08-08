@@ -245,8 +245,9 @@ export class DecorationsService implements IDecorationsService {
 
 	declare _serviceBrand: undefined;
 
-	private readonly _onDidChangeDecorationsDelayed = new DebounceEmitter<URI | URI[]>({ merge: all => all.flat() });
-	private readonly _onDidChangeDecorations = new Emitter<IResourceDecorationChangeEvent>();
+	private readonly _store = new DisposableStore();
+	private readonly _onDidChangeDecorationsDelayed = this._store.add(new DebounceEmitter<URI | URI[]>({ merge: all => all.flat() }));
+	private readonly _onDidChangeDecorations = this._store.add(new Emitter<IResourceDecorationChangeEvent>());
 
 	onDidChangeDecorations: Event<IResourceDecorationChangeEvent> = this._onDidChangeDecorations.event;
 
@@ -261,12 +262,11 @@ export class DecorationsService implements IDecorationsService {
 		this._decorationStyles = new DecorationStyles(themeService);
 		this._data = TernarySearchTree.forUris(key => uriIdentityService.extUri.ignorePathCasing(key));
 
-		this._onDidChangeDecorationsDelayed.event(event => { this._onDidChangeDecorations.fire(new FileDecorationChangeEvent(event)); });
+		this._store.add(this._onDidChangeDecorationsDelayed.event(event => { this._onDidChangeDecorations.fire(new FileDecorationChangeEvent(event)); }));
 	}
 
 	dispose(): void {
-		this._onDidChangeDecorations.dispose();
-		this._onDidChangeDecorationsDelayed.dispose();
+		this._store.dispose();
 		this._data.clear();
 	}
 

@@ -62,7 +62,16 @@ const CORE_TYPES = [
     'EventTarget',
     'BroadcastChannel',
     'performance',
-    'Blob'
+    'Blob',
+    'crypto',
+    'File',
+    'fetch',
+    'RequestInit',
+    'Headers',
+    'Response',
+    '__global',
+    'PerformanceMark',
+    'PerformanceObserver',
 ];
 // Types that are defined in a common layer but are known to be only
 // available in native environments should not be allowed in browser
@@ -161,6 +170,20 @@ const RULES = [
         disallowedTypes: NATIVE_TYPES,
         disallowedDefinitions: [
             'lib.dom.d.ts', // no DOM
+            '@types/node' // no node.js
+        ]
+    },
+    // Common: vs/base/parts/sandbox/electron-sandbox/preload.js
+    {
+        target: '**/vs/base/parts/sandbox/electron-sandbox/preload.js',
+        allowedTypes: [
+            ...CORE_TYPES,
+            // Safe access to a very small subset of node.js
+            'process',
+            'NodeJS'
+        ],
+        disallowedTypes: NATIVE_TYPES,
+        disallowedDefinitions: [
             '@types/node' // no node.js
         ]
     },

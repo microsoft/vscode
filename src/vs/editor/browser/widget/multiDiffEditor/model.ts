@@ -3,37 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
+import { Event, IValueWithChangeEvent } from 'vs/base/common/event';
+import { RefCounted } from 'vs/editor/browser/widget/diffEditor/utils';
 import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ITextModel } from 'vs/editor/common/model';
 import { ContextKeyValue } from 'vs/platform/contextkey/common/contextkey';
 
 export interface IMultiDiffEditorModel {
-	readonly documents: readonly LazyPromise<IDocumentDiffItem>[];
-	readonly onDidChange: Event<void>;
+	readonly documents: IValueWithChangeEvent<readonly RefCounted<IDocumentDiffItem>[]>;
 	readonly contextKeys?: Record<string, ContextKeyValue>;
-}
-
-export interface LazyPromise<T> {
-	request(): Promise<T>;
-	readonly value: T | undefined;
-	readonly onHasValueDidChange: Event<void>;
-}
-
-export class ConstLazyPromise<T> implements LazyPromise<T> {
-	public readonly onHasValueDidChange = Event.None;
-
-	constructor(
-		private readonly _value: T
-	) { }
-
-	public request(): Promise<T> {
-		return Promise.resolve(this._value);
-	}
-
-	public get value(): T {
-		return this._value;
-	}
 }
 
 export interface IDocumentDiffItem {

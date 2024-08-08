@@ -26,8 +26,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { showWithPinnedItems } from 'vs/platform/quickinput/browser/quickPickPin';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
-import { AccessibleViewProviderId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { AccessibleViewProviderId, IAccessibleViewService } from 'vs/platform/accessibility/browser/accessibleView';
 
 export async function showRunRecentQuickPick(
 	accessor: ServicesAccessor,
@@ -218,7 +217,7 @@ export async function showRunRecentQuickPick(
 		instantiationService.invokeFunction(showRunRecentQuickPick, instance, terminalInRunCommandPicker, type, fuzzySearchToggle.checked ? 'fuzzy' : 'contiguous', quickPick.value);
 	});
 	const outputProvider = instantiationService.createInstance(TerminalOutputProvider);
-	const quickPick = quickInputService.createQuickPick<Item | IQuickPickItem & { rawLabel: string }>();
+	const quickPick = quickInputService.createQuickPick<Item | IQuickPickItem & { rawLabel: string }>({ useSeparators: true });
 	const originalItems = items;
 	quickPick.items = [...originalItems];
 	quickPick.sortByLabel = false;
@@ -270,6 +269,9 @@ export async function showRunRecentQuickPick(
 			return;
 		}
 		const [item] = quickPick.activeItems;
+		if (!item) {
+			return;
+		}
 		if ('command' in item && item.command && item.command.marker) {
 			if (!terminalScrollStateSaved) {
 				xterm.markTracker.saveScrollState();

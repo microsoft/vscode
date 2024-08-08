@@ -149,7 +149,7 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 		return result;
 	}
 
-	async updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>, profileLocation?: URI): Promise<ILocalExtension> {
+	async updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>, profileLocation: URI): Promise<ILocalExtension> {
 		// unset if false
 		if (metadata.isMachineScoped === false) {
 			metadata.isMachineScoped = undefined;
@@ -160,9 +160,9 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 		if (metadata.pinned === false) {
 			metadata.pinned = undefined;
 		}
-		const updatedExtension = await this.webExtensionsScannerService.updateMetadata(local, metadata, profileLocation ?? this.userDataProfileService.currentProfile.extensionsResource);
+		const updatedExtension = await this.webExtensionsScannerService.updateMetadata(local, metadata, profileLocation);
 		const updatedLocalExtension = toLocalExtension(updatedExtension);
-		this._onDidUpdateExtensionMetadata.fire(updatedLocalExtension);
+		this._onDidUpdateExtensionMetadata.fire({ local: updatedLocalExtension, profileLocation });
 		return updatedLocalExtension;
 	}
 
@@ -199,7 +199,6 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 	}
 
 	zip(extension: ILocalExtension): Promise<URI> { throw new Error('unsupported'); }
-	unzip(zipLocation: URI): Promise<IExtensionIdentifier> { throw new Error('unsupported'); }
 	getManifest(vsix: URI): Promise<IExtensionManifest> { throw new Error('unsupported'); }
 	download(): Promise<URI> { throw new Error('unsupported'); }
 	reinstallFromGallery(): Promise<ILocalExtension> { throw new Error('unsupported'); }
@@ -227,7 +226,7 @@ function toLocalExtension(extension: IExtension): ILocalExtension {
 		isMachineScoped: !!metadata.isMachineScoped,
 		isApplicationScoped: !!metadata.isApplicationScoped,
 		publisherId: metadata.publisherId || null,
-		publisherDisplayName: metadata.publisherDisplayName || null,
+		publisherDisplayName: metadata.publisherDisplayName,
 		installedTimestamp: metadata.installedTimestamp,
 		isPreReleaseVersion: !!metadata.isPreReleaseVersion,
 		hasPreReleaseVersion: !!metadata.hasPreReleaseVersion,
@@ -258,7 +257,7 @@ class InstallExtensionTask extends AbstractExtensionTask<ILocalExtension> implem
 	get operation() { return isUndefined(this.options.operation) ? this._operation : this.options.operation; }
 
 	constructor(
-		manifest: IExtensionManifest,
+		readonly manifest: IExtensionManifest,
 		private readonly extension: URI | IGalleryExtension,
 		readonly options: InstallExtensionTaskOptions,
 		private readonly webExtensionsScannerService: IWebExtensionsScannerService,
@@ -306,7 +305,7 @@ class UninstallExtensionTask extends AbstractExtensionTask<void> implements IUni
 
 	constructor(
 		readonly extension: ILocalExtension,
-		private readonly options: UninstallExtensionTaskOptions,
+		readonly options: UninstallExtensionTaskOptions,
 		private readonly webExtensionsScannerService: IWebExtensionsScannerService,
 	) {
 		super();

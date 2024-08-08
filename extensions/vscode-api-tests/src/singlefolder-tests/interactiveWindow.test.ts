@@ -127,6 +127,9 @@ async function addCellAndRun(code: string, notebook: vscode.NotebookDocument) {
 });
 
 function lastCellIsVisible(notebookEditor: vscode.NotebookEditor) {
+	if (!notebookEditor.visibleRanges.length) {
+		return false;
+	}
 	const lastVisibleCell = notebookEditor.visibleRanges[notebookEditor.visibleRanges.length - 1].end;
 	return notebookEditor.notebook.cellCount === lastVisibleCell;
 }

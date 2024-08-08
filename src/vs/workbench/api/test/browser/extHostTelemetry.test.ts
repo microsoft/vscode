@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ExtensionIdentifier, IExtensionDescription, TargetPlatform } from 'vs/platform/extensions/common/extensions';
@@ -44,7 +44,8 @@ suite('ExtHostTelemetry', function () {
 		firstSessionDate: '2020-01-01T00:00:00.000Z',
 		sessionId: 'test',
 		machineId: 'test',
-		sqmId: 'test'
+		sqmId: 'test',
+		devDeviceId: 'test'
 	};
 
 	const mockRemote = {
@@ -63,7 +64,8 @@ suite('ExtHostTelemetry', function () {
 		publisher: 'vscode',
 		version: '1.0.0',
 		engines: { vscode: '*' },
-		extensionLocation: URI.parse('fake')
+		extensionLocation: URI.parse('fake'),
+		enabledApiProposals: undefined,
 	};
 
 	const createExtHostTelemetry = () => {

@@ -14,7 +14,7 @@ import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import { assertIsDefined } from 'vs/base/common/types';
 import 'vs/css!./parameterHints';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { EDITOR_FONT_DEFAULTS, EditorOption } from 'vs/editor/common/config/editorOptions';
 import * as languages from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IMarkdownRenderResult, MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
@@ -26,6 +26,8 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { listHighlightForeground, registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { ThemeIcon } from 'vs/base/common/themables';
+import { StopWatch } from 'vs/base/common/stopwatch';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 const $ = dom.$;
 
@@ -61,6 +63,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IOpenerService openerService: IOpenerService,
 		@ILanguageService languageService: ILanguageService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -123,9 +126,13 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 			if (!this.domNodes) {
 				return;
 			}
+
 			const fontInfo = this.editor.getOption(EditorOption.fontInfo);
-			this.domNodes.element.style.fontSize = `${fontInfo.fontSize}px`;
-			this.domNodes.element.style.lineHeight = `${fontInfo.lineHeight / fontInfo.fontSize}`;
+			const element = this.domNodes.element;
+			element.style.fontSize = `${fontInfo.fontSize}px`;
+			element.style.lineHeight = `${fontInfo.lineHeight / fontInfo.fontSize}`;
+			element.style.setProperty('--vscode-parameterHintsWidget-editorFontFamily', fontInfo.fontFamily);
+			element.style.setProperty('--vscode-parameterHintsWidget-editorFontFamilyDefault', EDITOR_FONT_DEFAULTS.fontFamily);
 		};
 
 		updateFont();
@@ -200,10 +207,6 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		}
 
 		const code = dom.append(this.domNodes.signature, $('.code'));
-		const fontInfo = this.editor.getOption(EditorOption.fontInfo);
-		code.style.fontSize = `${fontInfo.fontSize}px`;
-		code.style.fontFamily = fontInfo.fontFamily;
-
 		const hasParameters = signature.parameters.length > 0;
 		const activeParameterIndex = signature.activeParameter ?? hints.activeParameter;
 
@@ -272,12 +275,30 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 	}
 
 	private renderMarkdownDocs(markdown: IMarkdownString | undefined): IMarkdownRenderResult {
+		const stopWatch = new StopWatch();
 		const renderedContents = this.renderDisposeables.add(this.markdownRenderer.render(markdown, {
 			asyncRenderCallback: () => {
 				this.domNodes?.scrollbar.scanDomNode();
 			}
 		}));
 		renderedContents.element.classList.add('markdown-docs');
+
+		type RenderMarkdownPerformanceClassification = {
+			owner: 'donjayamanne';
+			comment: 'Measure the time taken to render markdown for parameter hints';
+			renderDuration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Time in ms to render the markdown' };
+		};
+
+		type RenderMarkdownPerformanceEvent = {
+			renderDuration: number;
+		};
+		const renderDuration = stopWatch.elapsed();
+		if (renderDuration > 300) {
+			this.telemetryService.publicLog2<RenderMarkdownPerformanceEvent, RenderMarkdownPerformanceClassification>('parameterHints.parseMarkdown', {
+				renderDuration
+			});
+		}
+
 		return renderedContents;
 	}
 
@@ -366,4 +387,4 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 	}
 }
 
-registerColor('editorHoverWidget.highlightForeground', { dark: listHighlightForeground, light: listHighlightForeground, hcDark: listHighlightForeground, hcLight: listHighlightForeground }, nls.localize('editorHoverWidgetHighlightForeground', 'Foreground color of the active item in the parameter hint.'));
+registerColor('editorHoverWidget.highlightForeground', listHighlightForeground, nls.localize('editorHoverWidgetHighlightForeground', 'Foreground color of the active item in the parameter hint.'));

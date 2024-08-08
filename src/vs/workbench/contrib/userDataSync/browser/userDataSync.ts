@@ -50,7 +50,7 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ctxIsMergeResultEditor, ctxMergeBaseUri } from 'vs/workbench/contrib/mergeEditor/common/mergeEditor';
-import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
+import { IWorkbenchIssueService } from 'vs/workbench/contrib/issue/common/issue';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { ILocalizedString } from 'vs/platform/action/common/action';
 import { isWeb } from 'vs/base/common/platform';
@@ -60,8 +60,8 @@ type ConfigureSyncQuickPickItem = { id: SyncResource; label: string; description
 type SyncConflictsClassification = {
 	owner: 'sandy081';
 	comment: 'Response information when conflict happens during settings sync';
-	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'settings sync resource. eg., settings, keybindings...' };
-	action?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'action taken while resolving conflicts. Eg: acceptLocal, acceptRemote' };
+	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'settings sync resource. eg., settings, keybindings...' };
+	action?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'action taken while resolving conflicts. Eg: acceptLocal, acceptRemote' };
 };
 
 const turnOffSyncCommand = { id: 'workbench.userDataSync.actions.turnOff', title: localize2('stop sync', 'Turn Off') };
@@ -730,15 +730,15 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					f1: true,
 					precondition: when,
 					menu: [{
-						group: '3_settings_sync',
+						group: '3_configuration',
 						id: MenuId.GlobalActivity,
 						when,
-						order: 1
+						order: 2
 					}, {
-						group: '3_settings_sync',
+						group: '3_configuration',
 						id: MenuId.MenubarPreferencesMenu,
 						when,
-						order: 1
+						order: 2
 					}, {
 						group: '1_settings',
 						id: MenuId.AccountsContext,
@@ -762,7 +762,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					title: localize('turnin on sync', "Turning on Settings Sync..."),
 					precondition: ContextKeyExpr.false(),
 					menu: [{
-						group: '3_settings_sync',
+						group: '3_configuration',
 						id: MenuId.GlobalActivity,
 						when,
 						order: 2
@@ -809,7 +809,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					id: 'workbench.userData.actions.signin',
 					title: localize('sign in global', "Sign in to Sync Settings"),
 					menu: {
-						group: '3_settings_sync',
+						group: '3_configuration',
 						id: MenuId.GlobalActivity,
 						when,
 						order: 2
@@ -838,7 +838,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		return localize2('resolveConflicts_global', "Show Conflicts ({0})", this.getConflictsCount());
 	}
 
-	private conflictsActionDisposable = this._register(new MutableDisposable());
+	private readonly conflictsActionDisposable = this._register(new MutableDisposable());
 	private registerShowConflictsAction(): void {
 		this.conflictsActionDisposable.value = undefined;
 		const that = this;
@@ -851,12 +851,12 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					f1: true,
 					precondition: CONTEXT_HAS_CONFLICTS,
 					menu: [{
-						group: '3_settings_sync',
+						group: '3_configuration',
 						id: MenuId.GlobalActivity,
 						when: CONTEXT_HAS_CONFLICTS,
 						order: 2
 					}, {
-						group: '3_settings_sync',
+						group: '3_configuration',
 						id: MenuId.MenubarPreferencesMenu,
 						when: CONTEXT_HAS_CONFLICTS,
 						order: 2
@@ -881,13 +881,13 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					menu: [
 						{
 							id: MenuId.GlobalActivity,
-							group: '3_settings_sync',
+							group: '3_configuration',
 							when,
 							order: 2
 						},
 						{
 							id: MenuId.MenubarPreferencesMenu,
-							group: '3_settings_sync',
+							group: '3_configuration',
 							when,
 							order: 2,
 						},
@@ -904,7 +904,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					const quickInputService = accessor.get(IQuickInputService);
 					const commandService = accessor.get(ICommandService);
 					const disposables = new DisposableStore();
-					const quickPick = quickInputService.createQuickPick();
+					const quickPick = quickInputService.createQuickPick({ useSeparators: true });
 					disposables.add(quickPick);
 					const items: Array<QuickPickItem> = [];
 					if (that.userDataSyncService.conflicts.length) {

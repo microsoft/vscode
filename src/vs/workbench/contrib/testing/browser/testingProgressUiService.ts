@@ -4,20 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { autorun } from 'vs/base/common/observable';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
+import { ExplorerTestCoverageBars } from 'vs/workbench/contrib/testing/browser/testCoverageBars';
 import { AutoOpenTesting, getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
 import { Testing } from 'vs/workbench/contrib/testing/common/constants';
+import { ITestCoverageService } from 'vs/workbench/contrib/testing/common/testCoverageService';
 import { isFailedState } from 'vs/workbench/contrib/testing/common/testingStates';
 import { ITestResult, LiveTestResult, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { TestResultState } from 'vs/workbench/contrib/testing/common/testTypes';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 
 /** Workbench contribution that triggers updates in the TestingProgressUi service */
 export class TestingProgressTrigger extends Disposable {
 	constructor(
 		@ITestResultService resultService: ITestResultService,
+		@ITestCoverageService testCoverageService: ITestCoverageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IViewsService private readonly viewsService: IViewsService,
 	) {
@@ -28,10 +32,22 @@ export class TestingProgressTrigger extends Disposable {
 				this.attachAutoOpenForNewResults(e.started);
 			}
 		}));
+
+		const barContributionRegistration = autorun(reader => {
+			const hasCoverage = !!testCoverageService.selected.read(reader);
+			if (!hasCoverage) {
+				return;
+			}
+
+			barContributionRegistration.dispose();
+			ExplorerTestCoverageBars.register();
+		});
+
+		this._register(barContributionRegistration);
 	}
 
 	private attachAutoOpenForNewResults(result: LiveTestResult) {
-		if (result.request.isUiTriggered === false) {
+		if (result.request.preserveFocus === true) {
 			return;
 		}
 

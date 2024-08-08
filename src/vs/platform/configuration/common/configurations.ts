@@ -11,7 +11,7 @@ import { equals } from 'vs/base/common/objects';
 import { isEmptyObject } from 'vs/base/common/types';
 import { ConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
 import { Extensions, IConfigurationRegistry, IRegisteredConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
-import { ILogService } from 'vs/platform/log/common/log';
+import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IPolicyService, PolicyDefinition, PolicyName, PolicyValue } from 'vs/platform/policy/common/policy';
 import { Registry } from 'vs/platform/registry/common/platform';
 
@@ -20,9 +20,13 @@ export class DefaultConfiguration extends Disposable {
 	private readonly _onDidChangeConfiguration = this._register(new Emitter<{ defaults: ConfigurationModel; properties: string[] }>());
 	readonly onDidChangeConfiguration = this._onDidChangeConfiguration.event;
 
-	private _configurationModel = new ConfigurationModel();
+	private _configurationModel = ConfigurationModel.createEmptyModel(this.logService);
 	get configurationModel(): ConfigurationModel {
 		return this._configurationModel;
+	}
+
+	constructor(private readonly logService: ILogService) {
+		super();
 	}
 
 	async initialize(): Promise<ConfigurationModel> {
@@ -46,7 +50,7 @@ export class DefaultConfiguration extends Disposable {
 	}
 
 	private resetConfigurationModel(): void {
-		this._configurationModel = new ConfigurationModel();
+		this._configurationModel = ConfigurationModel.createEmptyModel(this.logService);
 		const properties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
 		this.updateConfigurationModel(Object.keys(properties), properties);
 	}
@@ -57,9 +61,9 @@ export class DefaultConfiguration extends Disposable {
 			const defaultOverrideValue = configurationDefaultsOverrides[key];
 			const propertySchema = configurationProperties[key];
 			if (defaultOverrideValue !== undefined) {
-				this._configurationModel.addValue(key, defaultOverrideValue);
+				this._configurationModel.setValue(key, defaultOverrideValue);
 			} else if (propertySchema) {
-				this._configurationModel.addValue(key, propertySchema.default);
+				this._configurationModel.setValue(key, propertySchema.default);
 			} else {
 				this._configurationModel.removeValue(key);
 			}
@@ -76,7 +80,7 @@ export interface IPolicyConfiguration {
 
 export class NullPolicyConfiguration implements IPolicyConfiguration {
 	readonly onDidChangeConfiguration = Event.None;
-	readonly configurationModel = new ConfigurationModel();
+	readonly configurationModel = ConfigurationModel.createEmptyModel(new NullLogService());
 	async initialize() { return this.configurationModel; }
 }
 
@@ -85,7 +89,7 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 	private readonly _onDidChangeConfiguration = this._register(new Emitter<ConfigurationModel>());
 	readonly onDidChangeConfiguration = this._onDidChangeConfiguration.event;
 
-	private _configurationModel = new ConfigurationModel();
+	private _configurationModel = ConfigurationModel.createEmptyModel(this.logService);
 	get configurationModel() { return this._configurationModel; }
 
 	constructor(
@@ -164,7 +168,7 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 		if (changed.length) {
 			this.logService.trace('PolicyConfiguration#changed', changed);
 			const old = this._configurationModel;
-			this._configurationModel = new ConfigurationModel();
+			this._configurationModel = ConfigurationModel.createEmptyModel(this.logService);
 			for (const key of old.keys) {
 				this._configurationModel.setValue(key, old.getValue(key));
 			}

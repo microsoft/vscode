@@ -4,59 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ArrayQueue, CompareResult } from 'vs/base/common/arrays';
-import { BugIndicatingError, onUnexpectedError } from 'vs/base/common/errors';
+import { onUnexpectedError } from 'vs/base/common/errors';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, autorunOpts, observableFromEvent } from 'vs/base/common/observable';
+import { IObservable, autorunOpts } from 'vs/base/common/observable';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-
-export class ReentrancyBarrier {
-	private _isActive = false;
-
-	public get isActive() {
-		return this._isActive;
-	}
-
-	public makeExclusive<TFunction extends Function>(fn: TFunction): TFunction {
-		return ((...args: any[]) => {
-			if (this._isActive) {
-				return;
-			}
-			this._isActive = true;
-			try {
-				return fn(...args);
-			} finally {
-				this._isActive = false;
-			}
-		}) as any;
-	}
-
-	public runExclusively(fn: () => void): void {
-		if (this._isActive) {
-			return;
-		}
-		this._isActive = true;
-		try {
-			fn();
-		} finally {
-			this._isActive = false;
-		}
-	}
-
-	public runExclusivelyOrThrow(fn: () => void): void {
-		if (this._isActive) {
-			throw new BugIndicatingError();
-		}
-		this._isActive = true;
-		try {
-			fn();
-		} finally {
-			this._isActive = false;
-		}
-	}
-}
 
 export function setStyle(
 	element: HTMLElement,
@@ -150,7 +103,7 @@ export function setFields<T extends {}>(obj: T, fields: Partial<T>): T {
 }
 
 export function deepMerge<T extends {}>(source1: T, source2: Partial<T>): T {
-	const result = {} as T;
+	const result = {} as any as T;
 	for (const key in source1) {
 		result[key] = source1[key];
 	}
@@ -202,13 +155,3 @@ export class PersistentStore<T> {
 	}
 }
 
-export function observableConfigValue<T>(key: string, defaultValue: T, configurationService: IConfigurationService): IObservable<T> {
-	return observableFromEvent(
-		(handleChange) => configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(key)) {
-				handleChange(e);
-			}
-		}),
-		() => configurationService.getValue<T>(key) ?? defaultValue,
-	);
-}

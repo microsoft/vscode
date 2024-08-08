@@ -44,6 +44,7 @@ export class ApiRepositoryState implements RepositoryState {
 	get mergeChanges(): Change[] { return this._repository.mergeGroup.resourceStates.map(r => new ApiChange(r)); }
 	get indexChanges(): Change[] { return this._repository.indexGroup.resourceStates.map(r => new ApiChange(r)); }
 	get workingTreeChanges(): Change[] { return this._repository.workingTreeGroup.resourceStates.map(r => new ApiChange(r)); }
+	get untrackedChanges(): Change[] { return this._repository.untrackedGroup.resourceStates.map(r => new ApiChange(r)); }
 
 	readonly onDidChange: Event<void> = this._repository.onDidRunGitStatus;
 
@@ -160,10 +161,6 @@ export class ApiRepository implements Repository {
 		return this.repository.diffBetween(ref1, ref2, path);
 	}
 
-	getDiff(): Promise<string[]> {
-		return this.repository.getDiff();
-	}
-
 	hashObject(data: string): Promise<string> {
 		return this.repository.hashObject(data);
 	}
@@ -194,6 +191,10 @@ export class ApiRepository implements Repository {
 
 	getRefs(query: RefQuery, cancellationToken?: CancellationToken): Promise<Ref[]> {
 		return this.repository.getRefs(query, cancellationToken);
+	}
+
+	checkIgnore(paths: string[]): Promise<Set<string>> {
+		return this.repository.checkIgnore(paths);
 	}
 
 	getMergeBase(ref1: string, ref2: string): Promise<string | undefined> {
@@ -321,6 +322,10 @@ export class ApiImpl implements API {
 	}
 
 	async openRepository(root: Uri): Promise<Repository | null> {
+		if (root.scheme !== 'file') {
+			return null;
+		}
+
 		await this._model.openRepository(root.fsPath);
 		return this.getRepository(root) || null;
 	}

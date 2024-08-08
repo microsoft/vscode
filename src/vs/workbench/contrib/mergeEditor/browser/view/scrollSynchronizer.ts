@@ -8,7 +8,7 @@ import { autorunWithStore, IObservable } from 'vs/base/common/observable';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { DocumentLineRangeMap } from 'vs/workbench/contrib/mergeEditor/browser/model/mapping';
-import { ReentrancyBarrier } from 'vs/workbench/contrib/mergeEditor/browser/utils';
+import { ReentrancyBarrier } from '../../../../../base/common/controlFlow';
 import { BaseCodeEditorView } from 'vs/workbench/contrib/mergeEditor/browser/view/editors/baseCodeEditorView';
 import { IMergeEditorLayout } from 'vs/workbench/contrib/mergeEditor/browser/view/mergeEditor';
 import { MergeEditorViewModel } from 'vs/workbench/contrib/mergeEditor/browser/view/viewModel';
@@ -62,7 +62,7 @@ export class ScrollSynchronizer extends Disposable {
 
 		this._store.add(
 			this.input1View.editor.onDidScrollChange(
-				this.reentrancyBarrier.makeExclusive((c) => {
+				this.reentrancyBarrier.makeExclusiveOrSkip((c) => {
 					if (c.scrollTopChanged) {
 						handleInput1OnScroll();
 					}
@@ -77,7 +77,7 @@ export class ScrollSynchronizer extends Disposable {
 
 		this._store.add(
 			this.input2View.editor.onDidScrollChange(
-				this.reentrancyBarrier.makeExclusive((c) => {
+				this.reentrancyBarrier.makeExclusiveOrSkip((c) => {
 					if (!this.model) {
 						return;
 					}
@@ -112,7 +112,7 @@ export class ScrollSynchronizer extends Disposable {
 		);
 		this._store.add(
 			this.inputResultView.editor.onDidScrollChange(
-				this.reentrancyBarrier.makeExclusive((c) => {
+				this.reentrancyBarrier.makeExclusiveOrSkip((c) => {
 					if (c.scrollTopChanged) {
 						if (this.shouldAlignResult) {
 							this.input1View.editor.setScrollTop(c.scrollTop, ScrollType.Immediate);
@@ -146,7 +146,7 @@ export class ScrollSynchronizer extends Disposable {
 				const baseView = this.baseView.read(reader);
 				if (baseView) {
 					store.add(baseView.editor.onDidScrollChange(
-						this.reentrancyBarrier.makeExclusive((c) => {
+						this.reentrancyBarrier.makeExclusiveOrSkip((c) => {
 							if (c.scrollTopChanged) {
 								if (!this.model) {
 									return;

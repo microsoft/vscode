@@ -8,6 +8,7 @@ import { MainContext, MainThreadBulkEditsShape } from 'vs/workbench/api/common/e
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { WorkspaceEdit } from 'vs/workbench/api/common/extHostTypeConverters';
+import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import type * as vscode from 'vscode';
 
 export class ExtHostBulkEdits {
@@ -28,7 +29,7 @@ export class ExtHostBulkEdits {
 	}
 
 	applyWorkspaceEdit(edit: vscode.WorkspaceEdit, extension: IExtensionDescription, metadata: vscode.WorkspaceEditMetadata | undefined): Promise<boolean> {
-		const dto = WorkspaceEdit.from(edit, this._versionInformationProvider);
+		const dto = new SerializableObjectWithBuffers(WorkspaceEdit.from(edit, this._versionInformationProvider));
 		return this._proxy.$tryApplyWorkspaceEdit(dto, undefined, metadata?.isRefactoring ?? false);
 	}
 }

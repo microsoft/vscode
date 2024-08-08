@@ -54,7 +54,7 @@ import { IFilesConfigurationService } from 'vs/workbench/services/filesConfigura
 import { Event } from 'vs/base/common/event';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IAddressProvider, IAddress } from 'vs/platform/remote/common/remoteAgentConnection';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroupsService, IEditorPart } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { AuthInfo } from 'vs/base/parts/sandbox/electron-sandbox/electronTypes';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -89,8 +89,6 @@ export class NativeWindow extends BaseWindow {
 	private pendingFoldersToAdd: URI[] = [];
 
 	private isDocumentedEdited = false;
-
-	private readonly mainPartEditorService: IEditorService;
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
@@ -132,8 +130,6 @@ export class NativeWindow extends BaseWindow {
 		@IHostService hostService: IHostService
 	) {
 		super(mainWindow, undefined, hostService, nativeEnvironmentService);
-
-		this.mainPartEditorService = editorService.createScoped('main', this._store);
 
 		this.registerListeners();
 		this.create();
@@ -196,6 +192,21 @@ export class NativeWindow extends BaseWindow {
 			}
 		});
 
+		// Shared Process crash reported from main
+		ipcRenderer.on('vscode:reportSharedProcessCrash', (event: unknown, error: string) => {
+			this.notificationService.prompt(
+				Severity.Error,
+				localize('sharedProcessCrash', "A shared background process terminated unexpectedly. Please restart the application to recover."),
+				[{
+					label: localize('restart', "Restart"),
+					run: () => this.nativeHostService.relaunch()
+				}],
+				{
+					priority: NotificationPriority.URGENT
+				}
+			);
+		});
+
 		// Support openFiles event for existing and new files
 		ipcRenderer.on('vscode:openFiles', (event: unknown, request: IOpenFileRequest) => { this.onOpenFiles(request); });
 
@@ -236,7 +247,7 @@ export class NativeWindow extends BaseWindow {
 			);
 		});
 
-		ipcRenderer.on('vscode:showTranslatedBuildWarning', (event: unknown, message: string) => {
+		ipcRenderer.on('vscode:showTranslatedBuildWarning', () => {
 			this.notificationService.prompt(
 				Severity.Warning,
 				localize("runningTranslated", "You are running an emulated version of {0}. For better performance download the native arm64 version of {0} build for your machine.", this.productService.nameLong),
@@ -248,13 +259,30 @@ export class NativeWindow extends BaseWindow {
 						const insidersURL = 'https://code.visualstudio.com/docs/?dv=osx&build=insiders';
 						this.openerService.open(quality === 'stable' ? stableURL : insidersURL);
 					}
-				}]
+				}],
+				{
+					priority: NotificationPriority.URGENT
+				}
+			);
+		});
+
+		ipcRenderer.on('vscode:showArgvParseWarning', (event: unknown, message: string) => {
+			this.notificationService.prompt(
+				Severity.Warning,
+				localize("showArgvParseWarning", "The runtime arguments file 'argv.json' contains errors. Please correct them and restart."),
+				[{
+					label: localize('showArgvParseWarningAction', "Open File"),
+					run: () => this.editorService.openEditor({ resource: this.nativeEnvironmentService.argvResource })
+				}],
+				{
+					priority: NotificationPriority.URGENT
+				}
 			);
 		});
 
 		// Fullscreen Events
-		ipcRenderer.on('vscode:enterFullScreen', async () => { setFullscreen(true, mainWindow); });
-		ipcRenderer.on('vscode:leaveFullScreen', async () => { setFullscreen(false, mainWindow); });
+		ipcRenderer.on('vscode:enterFullScreen', () => setFullscreen(true, mainWindow));
+		ipcRenderer.on('vscode:leaveFullScreen', () => setFullscreen(false, mainWindow));
 
 		// Proxy Login Dialog
 		ipcRenderer.on('vscode:openProxyAuthenticationDialog', async (event: unknown, payload: { authInfo: AuthInfo; username?: string; password?: string; replyChannel: string }) => {
@@ -331,7 +359,7 @@ export class NativeWindow extends BaseWindow {
 		// Allow to update security settings around protocol handlers
 		ipcRenderer.on('vscode:disablePromptForProtocolHandling', (event: unknown, kind: 'local' | 'remote') => {
 			const setting = kind === 'local' ? 'security.promptForLocalFileProtocolHandling' : 'security.promptForRemoteFileProtocolHandling';
-			this.configurationService.updateValue(setting, false, ConfigurationTarget.USER_LOCAL);
+			this.configurationService.updateValue(setting, false);
 		});
 
 		// Window Zoom
@@ -345,9 +373,11 @@ export class NativeWindow extends BaseWindow {
 
 		this._register(onDidChangeZoomLevel(targetWindowId => this.handleOnDidChangeZoomLevel(targetWindowId)));
 
-		this._register(this.editorGroupService.onDidCreateAuxiliaryEditorPart(({ instantiationService, disposables, part }) => {
-			this.createWindowZoomStatusEntry(instantiationService, part.windowId, disposables);
-		}));
+		for (const part of this.editorGroupService.parts) {
+			this.createWindowZoomStatusEntry(part);
+		}
+
+		this._register(this.editorGroupService.onDidCreateAuxiliaryEditorPart(part => this.createWindowZoomStatusEntry(part)));
 
 		// Listen to visible editor changes (debounced in case a new editor opens immediately after)
 		this._register(Event.debounce(this.editorService.onDidVisibleEditorsChange, () => undefined, 0, undefined, undefined, undefined, this._store)(() => this.maybeCloseWindow()));
@@ -358,26 +388,13 @@ export class NativeWindow extends BaseWindow {
 			this.trackClosedWaitFiles(filesToWait.waitMarkerFileUri, coalesce(filesToWait.paths.map(path => path.fileUri)));
 		}
 
-		// macOS OS integration
+		// macOS OS integration: represented file name
 		if (isMacintosh) {
-			const updateRepresentedFilename = (editorService: IEditorService, targetWindowId: number | undefined) => {
-				const file = EditorResourceAccessor.getOriginalUri(editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY, filterByScheme: Schemas.file });
+			for (const part of this.editorGroupService.parts) {
+				this.handleRepresentedFilename(part);
+			}
 
-				// Represented Filename
-				this.nativeHostService.setRepresentedFilename(file?.fsPath ?? '', { targetWindowId });
-
-				// Custom title menu (main window only currently)
-				if (typeof targetWindowId !== 'number') {
-					this.provideCustomTitleContextMenu(file?.fsPath);
-				}
-			};
-
-			this._register(this.mainPartEditorService.onDidActiveEditorChange(() => updateRepresentedFilename(this.mainPartEditorService, undefined)));
-
-			this._register(this.editorGroupService.onDidCreateAuxiliaryEditorPart(({ part, disposables }) => {
-				const auxiliaryEditorService = this.editorService.createScoped(part, disposables);
-				disposables.add(auxiliaryEditorService.onDidActiveEditorChange(() => updateRepresentedFilename(auxiliaryEditorService, part.windowId)));
-			}));
+			this._register(this.editorGroupService.onDidCreateAuxiliaryEditorPart(part => this.handleRepresentedFilename(part)));
 		}
 
 		// Maximize/Restore on doubleclick (for macOS custom title)
@@ -422,6 +439,26 @@ export class NativeWindow extends BaseWindow {
 		this._register(this.lifecycleService.onBeforeShutdown(e => this.onBeforeShutdown(e)));
 		this._register(this.lifecycleService.onBeforeShutdownError(e => this.onBeforeShutdownError(e)));
 		this._register(this.lifecycleService.onWillShutdown(e => this.onWillShutdown(e)));
+	}
+
+	private handleRepresentedFilename(part: IEditorPart): void {
+		const disposables = new DisposableStore();
+		Event.once(part.onWillDispose)(() => disposables.dispose());
+
+		const scopedEditorService = this.editorGroupService.getScopedInstantiationService(part).invokeFunction(accessor => accessor.get(IEditorService));
+		disposables.add(scopedEditorService.onDidActiveEditorChange(() => this.updateRepresentedFilename(scopedEditorService, part.windowId)));
+	}
+
+	private updateRepresentedFilename(editorService: IEditorService, targetWindowId: number): void {
+		const file = EditorResourceAccessor.getOriginalUri(editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY, filterByScheme: Schemas.file });
+
+		// Represented Filename
+		this.nativeHostService.setRepresentedFilename(file?.fsPath ?? '', { targetWindowId });
+
+		// Custom title menu (main window only currently)
+		if (targetWindowId === mainWindow.vscodeWindowId) {
+			this.provideCustomTitleContextMenu(file?.fsPath);
+		}
 	}
 
 	//#region Window Lifecycle
@@ -614,8 +651,8 @@ export class NativeWindow extends BaseWindow {
 		// Clear old menu
 		this.customTitleContextMenuDisposable.clear();
 
-		// Provide new menu if a file is opened and we are on a custom title
-		if (!filePath || !hasNativeTitlebar(this.configurationService)) {
+		// Only provide a menu when we have a file path and custom titlebar
+		if (!filePath || hasNativeTitlebar(this.configurationService)) {
 			return;
 		}
 
@@ -661,11 +698,6 @@ export class NativeWindow extends BaseWindow {
 
 		// Touchbar menu (if enabled)
 		this.updateTouchbarMenu();
-
-		// Zoom status
-		for (const { window, disposables } of getWindows()) {
-			this.createWindowZoomStatusEntry(this.instantiationService, window.vscodeWindowId, disposables);
-		}
 
 		// Smoke Test Driver
 		if (this.environmentService.enableSmokeTestDriver) {
@@ -862,7 +894,7 @@ export class NativeWindow extends BaseWindow {
 		// Handle external open() calls
 		this.openerService.setDefaultExternalOpener({
 			openExternal: async (href: string) => {
-				const success = await this.nativeHostService.openExternal(href);
+				const success = await this.nativeHostService.openExternal(href, this.configurationService.getValue<string>('workbench.externalBrowser'));
 				if (!success) {
 					const fileCandidate = URI.parse(href);
 					if (fileCandidate.scheme === Schemas.file) {
@@ -1073,11 +1105,15 @@ export class NativeWindow extends BaseWindow {
 		}
 	}
 
-	private createWindowZoomStatusEntry(instantiationService: IInstantiationService, targetWindowId: number, disposables: DisposableStore): void {
-		this.mapWindowIdToZoomStatusEntry.set(targetWindowId, disposables.add(instantiationService.createInstance(ZoomStatusEntry)));
-		disposables.add(toDisposable(() => this.mapWindowIdToZoomStatusEntry.delete(targetWindowId)));
+	private createWindowZoomStatusEntry(part: IEditorPart): void {
+		const disposables = new DisposableStore();
+		Event.once(part.onWillDispose)(() => disposables.dispose());
 
-		this.updateWindowZoomStatusEntry(targetWindowId);
+		const scopedInstantiationService = this.editorGroupService.getScopedInstantiationService(part);
+		this.mapWindowIdToZoomStatusEntry.set(part.windowId, disposables.add(scopedInstantiationService.createInstance(ZoomStatusEntry)));
+		disposables.add(toDisposable(() => this.mapWindowIdToZoomStatusEntry.delete(part.windowId)));
+
+		this.updateWindowZoomStatusEntry(part.windowId);
 	}
 
 	private updateWindowZoomStatusEntry(targetWindowId: number): void {
@@ -1145,7 +1181,7 @@ class ZoomStatusEntry extends Disposable {
 	updateZoomEntry(visibleOrText: false | string, targetWindowId: number): void {
 		if (typeof visibleOrText === 'string') {
 			if (!this.disposable.value) {
-				this.createZoomEntry(targetWindowId, visibleOrText);
+				this.createZoomEntry(visibleOrText);
 			}
 
 			this.updateZoomLevelLabel(targetWindowId);
@@ -1154,7 +1190,7 @@ class ZoomStatusEntry extends Disposable {
 		}
 	}
 
-	private createZoomEntry(targetWindowId: number, visibleOrText: string) {
+	private createZoomEntry(visibleOrText: string): void {
 		const disposables = new DisposableStore();
 		this.disposable.value = disposables;
 

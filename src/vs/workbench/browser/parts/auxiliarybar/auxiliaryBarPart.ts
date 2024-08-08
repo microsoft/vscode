@@ -35,6 +35,7 @@ import { $ } from 'vs/base/browser/dom';
 import { HiddenItemStrategy, WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { ActionViewItem, IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { CompositeMenuActions } from 'vs/workbench/browser/actions';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 
@@ -70,7 +71,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 		return Math.max(width, 300);
 	}
 
-	readonly priority: LayoutPriority = LayoutPriority.Low;
+	readonly priority = LayoutPriority.Low;
 
 	constructor(
 		@INotificationService notificationService: INotificationService,
@@ -78,6 +79,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IKeybindingService keybindingService: IKeybindingService,
+		@IHoverService hoverService: IHoverService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
@@ -104,6 +106,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 			contextMenuService,
 			layoutService,
 			keybindingService,
+			hoverService,
 			instantiationService,
 			themeService,
 			viewDescriptorService,
@@ -188,10 +191,9 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 			actions.push(viewsSubmenuAction);
 		}
 
-		const activityBarPositionMenu = this.menuService.createMenu(MenuId.ActivityBarPositionMenu, this.contextKeyService);
+		const activityBarPositionMenu = this.menuService.getMenuActions(MenuId.ActivityBarPositionMenu, this.contextKeyService, { shouldForwardArgs: true, renderShortTitle: true });
 		const positionActions: IAction[] = [];
-		createAndFillInContextMenuActions(activityBarPositionMenu, { shouldForwardArgs: true, renderShortTitle: true }, { primary: [], secondary: positionActions });
-		activityBarPositionMenu.dispose();
+		createAndFillInContextMenuActions(activityBarPositionMenu, { primary: [], secondary: positionActions });
 
 		actions.push(...[
 			new Separator(),
@@ -236,13 +238,6 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 
 		headerArea.appendChild(globalHeaderContainer);
 		return headerArea;
-	}
-
-	protected override getToolbarWidth(): number {
-		if (this.getCompositeBarPosition() === CompositeBarPosition.TOP) {
-			return 22;
-		}
-		return super.getToolbarWidth();
 	}
 
 	private headerActionViewItemProvider(action: IAction, options: IActionViewItemOptions): IActionViewItem | undefined {
