@@ -5,7 +5,7 @@
 
 import { TreeSitterTokenizationRegistry } from 'vs/editor/common/languages';
 import type { Parser } from '@vscode/tree-sitter-wasm';
-import { AppResourcePath, FileAccess, nodeModulesPath } from 'vs/base/common/network';
+import { AppResourcePath, FileAccess, nodeModulesAsarUnpackedPath, nodeModulesPath } from 'vs/base/common/network';
 import { ITreeSitterParserService } from 'vs/editor/common/services/treeSitterParserService';
 import { IModelService } from 'vs/editor/common/services/model';
 import { Disposable, DisposableMap, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
@@ -19,11 +19,18 @@ import { setTimeout0 } from 'vs/base/common/platform';
 import { importAMDNodeModule } from 'vs/amdX';
 import { Event } from 'vs/base/common/event';
 import { cancelOnDispose } from 'vs/base/common/cancellation';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { canASAR } from 'vs/base/common/amd';
 
 const EDITOR_EXPERIMENTAL_PREFER_TREESITTER = 'editor.experimental.preferTreeSitter';
 const EDITOR_TREESITTER_TELEMETRY = 'editor.experimental.treeSitterTelemetry';
-const moduleLocationTreeSitter: AppResourcePath = `${nodeModulesPath}/@vscode/tree-sitter-wasm/wasm`;
-const moduleLocationTreeSitterWasm: AppResourcePath = `${moduleLocationTreeSitter}/tree-sitter.wasm`;
+const MODULE_LOCATION_SUBPATH = `@vscode/tree-sitter-wasm/wasm`;
+const FILENAME_TREESITTER_WASM = `tree-sitter.wasm`;
+
+function getModuleLocation(environmentService: IEnvironmentService): AppResourcePath {
+	return `${(canASAR && environmentService.isBuilt) ? nodeModulesAsarUnpackedPath : nodeModulesPath}/${MODULE_LOCATION_SUBPATH}`;
+}
+
 
 export class TextModelTreeSitter extends Disposable {
 	private _treeSitterTree: TreeSitterTree | undefined;
@@ -196,7 +203,8 @@ export class TreeSitterLanguages extends Disposable {
 	private _languages: Map<string, Parser.Language> = new Map();
 
 	constructor(private readonly _treeSitterImporter: TreeSitterImporter,
-		private readonly _fileService: IFileService
+		private readonly _fileService: IFileService,
+		private readonly _environmentService: IEnvironmentService
 	) {
 		super();
 	}
@@ -230,7 +238,7 @@ export class TreeSitterLanguages extends Disposable {
 		if (!grammarName) {
 			return undefined;
 		}
-		return moduleLocationTreeSitter;
+		return getModuleLocation(this._environmentService);
 	}
 }
 
@@ -265,9 +273,10 @@ export class TreeSitterTextModelService extends Disposable implements ITreeSitte
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILogService private readonly _logService: ILogService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IEnvironmentService private readonly _environmentService: IEnvironmentService
 	) {
 		super();
-		this._treeSitterParser = this._register(new TreeSitterLanguages(this._treeSitterImporter, fileService));
+		this._treeSitterParser = this._register(new TreeSitterLanguages(this._treeSitterImporter, fileService, this._environmentService));
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(EDITOR_EXPERIMENTAL_PREFER_TREESITTER)) {
 				this._supportedLanguagesChanged();
@@ -278,9 +287,10 @@ export class TreeSitterTextModelService extends Disposable implements ITreeSitte
 
 	private async _doInitParser() {
 		const Parser = await this._treeSitterImporter.getParserClass();
+		const environmentService = this._environmentService;
 		await Parser.init({
 			locateFile(_file: string, _folder: string) {
-				return FileAccess.asBrowserUri(moduleLocationTreeSitterWasm).toString(true);
+				return FileAccess.asBrowserUri(`${getModuleLocation(environmentService)}/${FILENAME_TREESITTER_WASM}`).toString(true);
 			}
 		});
 		return true;
