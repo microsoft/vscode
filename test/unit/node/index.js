@@ -17,6 +17,7 @@ const minimatch = require('minimatch');
 const coverage = require('../coverage');
 const minimist = require('minimist');
 const { takeSnapshotAndCountClasses } = require('../analyzeSnapshot');
+const bootstrapNode = require('../../../src/bootstrap-node');
 
 /**
  * @type {{ build: boolean; run: string; runGlob: string; coverage: boolean; help: boolean; coverageFormats: string | string[]; coveragePath: string; }}
@@ -84,6 +85,13 @@ function main() {
 	globalThis._VSCODE_PRODUCT_JSON = require(`${REPO_ROOT}/product.json`);
 	globalThis._VSCODE_PACKAGE_JSON = require(`${REPO_ROOT}/package.json`);
 
+	if (args.build) {
+		// when running from `out-build`, ensure to load the default
+		// messages file, because all `nls.localize` calls have their
+		// english values removed and replaced by an index.
+		globalThis._VSCODE_NLS_MESSAGES = require(`../../../${out}/nls.messages.json`);
+	}
+
 	// Test file operations that are common across platforms. Used for test infra, namely snapshot tests
 	Object.assign(globalThis, {
 		__analyzeSnapshotInTests: takeSnapshotAndCountClasses,
@@ -98,41 +106,9 @@ function main() {
 		console.error(e.stack || e);
 	});
 
-	/**
-	 * @param {string} path
-	 * @param {{ isWindows?: boolean, scheme?: string, fallbackAuthority?: string }} config
-	 * @returns {string}
-	 */
-	function fileUriFromPath(path, config) {
-
-		// Since we are building a URI, we normalize any backslash
-		// to slashes and we ensure that the path begins with a '/'.
-		let pathName = path.replace(/\\/g, '/');
-		if (pathName.length > 0 && pathName.charAt(0) !== '/') {
-			pathName = `/${pathName}`;
-		}
-
-		/** @type {string} */
-		let uri;
-
-		// Windows: in order to support UNC paths (which start with '//')
-		// that have their own authority, we do not use the provided authority
-		// but rather preserve it.
-		if (config.isWindows && pathName.startsWith('//')) {
-			uri = encodeURI(`${config.scheme || 'file'}:${pathName}`);
-		}
-
-		// Otherwise we optionally add the provided authority if specified
-		else {
-			uri = encodeURI(`${config.scheme || 'file'}://${config.fallbackAuthority || ''}${pathName}`);
-		}
-
-		return uri.replace(/#/g, '%23');
-	}
-
 	const loaderConfig = {
 		nodeRequire: require,
-		baseUrl: fileUriFromPath(src, { isWindows: process.platform === 'win32' }),
+		baseUrl: bootstrapNode.fileUriFromPath(src, { isWindows: process.platform === 'win32' }),
 		catchError: true
 	};
 

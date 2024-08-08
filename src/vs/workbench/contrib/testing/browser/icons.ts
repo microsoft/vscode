@@ -71,8 +71,10 @@ registerThemingParticipant((theme, collector) => {
 	}
 
 	collector.addRule(`
-		.monaco-editor ${ThemeIcon.asCSSSelector(testingRunIcon)},
-		.monaco-editor ${ThemeIcon.asCSSSelector(testingRunAllIcon)} {
+		.monaco-editor .glyph-margin-widgets ${ThemeIcon.asCSSSelector(testingRunIcon)},
+		.monaco-editor .glyph-margin-widgets ${ThemeIcon.asCSSSelector(testingRunAllIcon)},
+		.monaco-editor .glyph-margin-widgets ${ThemeIcon.asCSSSelector(testingDebugIcon)},
+		.monaco-editor .glyph-margin-widgets ${ThemeIcon.asCSSSelector(testingDebugAllIcon)} {
 			color: ${theme.getColor(testingColorRunAction)};
 		}
 	`);

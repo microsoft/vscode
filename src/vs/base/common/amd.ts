@@ -5,9 +5,11 @@
 
 // ESM-comment-begin
 export const isESM = false;
+export const canASAR = true;
 // ESM-comment-end
 // ESM-uncomment-begin
 // export const isESM = true;
+// export const canASAR = false; // TODO@esm: ASAR disabled in ESM
 // ESM-uncomment-end
 
 export const enum LoaderEventType {

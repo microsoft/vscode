@@ -465,9 +465,8 @@ export class CallStackView extends ViewPane {
 		const secondary: IAction[] = [];
 		const result = { primary, secondary };
 		const contextKeyService = this.contextKeyService.createOverlay(overlay);
-		const menu = this.menuService.createMenu(MenuId.DebugCallStackContext, contextKeyService);
-		createAndFillInContextMenuActions(menu, { arg: getContextForContributedActions(element), shouldForwardArgs: true }, result, 'inline');
-		menu.dispose();
+		const menu = this.menuService.getMenuActions(MenuId.DebugCallStackContext, contextKeyService, { arg: getContextForContributedActions(element), shouldForwardArgs: true });
+		createAndFillInContextMenuActions(menu, result, 'inline');
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
 			getActions: () => result.secondary,

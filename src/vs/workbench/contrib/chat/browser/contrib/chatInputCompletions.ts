@@ -13,6 +13,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { localize } from 'vs/nls';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
@@ -39,7 +40,7 @@ class SlashCommandCompletions extends Disposable {
 			triggerCharacters: ['/'],
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, _token: CancellationToken) => {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
-				if (!widget || !widget.viewModel || (widget.location !== ChatAgentLocation.Panel && widget.location !== ChatAgentLocation.Notebook) /* TODO@jrieken - enable when agents are adopted*/) {
+				if (!widget || !widget.viewModel) {
 					return null;
 				}
 
@@ -55,7 +56,7 @@ class SlashCommandCompletions extends Disposable {
 					return;
 				}
 
-				const slashCommands = this.chatSlashCommandService.getCommands();
+				const slashCommands = this.chatSlashCommandService.getCommands(widget.location);
 				if (!slashCommands) {
 					return null;
 				}
@@ -95,7 +96,7 @@ class AgentCompletions extends Disposable {
 			triggerCharacters: ['@'],
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, _token: CancellationToken) => {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
-				if (!widget || !widget.viewModel || (widget.location !== ChatAgentLocation.Panel && widget.location !== ChatAgentLocation.Notebook) /* TODO@jrieken - enable when agents are adopted*/) {
+				if (!widget || !widget.viewModel) {
 					return null;
 				}
 
@@ -139,7 +140,7 @@ class AgentCompletions extends Disposable {
 			triggerCharacters: ['/'],
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken) => {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
-				if (!widget || !widget.viewModel || widget.location !== ChatAgentLocation.Panel /* TODO@jrieken - enable when agents are adopted*/) {
+				if (!widget || !widget.viewModel) {
 					return;
 				}
 
@@ -191,7 +192,7 @@ class AgentCompletions extends Disposable {
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken) => {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
 				const viewModel = widget?.viewModel;
-				if (!widget || !viewModel || widget.location !== ChatAgentLocation.Panel /* TODO@jrieken - enable when agents are adopted*/) {
+				if (!widget || !viewModel) {
 					return;
 				}
 
@@ -209,7 +210,7 @@ class AgentCompletions extends Disposable {
 				const getFilterText = (agent: IChatAgentData, command: string) => {
 					// This is hacking the filter algorithm to make @terminal /explain match worse than @workspace /explain by making its match index later in the string.
 					// When I type `/exp`, the workspace one should be sorted over the terminal one.
-					const dummyPrefix = agent.id === 'github.copilot.terminal' ? `0000` : ``;
+					const dummyPrefix = agent.id === 'github.copilot.terminalPanel' ? `0000` : ``;
 					return `${chatSubcommandLeader}${dummyPrefix}${agent.name}.${command}`;
 				};
 
@@ -238,7 +239,7 @@ class AgentCompletions extends Disposable {
 						agents.flatMap(agent => agent.slashCommands.map((c, i) => {
 							const { label: agentLabel, isDupe } = this.getAgentCompletionDetails(agent);
 							const withSlash = `${chatSubcommandLeader}${c.name}`;
-							return {
+							const item: CompletionItem = {
 								label: { label: withSlash, description: agentLabel, detail: isDupe ? ` (${agent.publisherDisplayName})` : undefined },
 								filterText: getFilterText(agent, c.name),
 								commitCharacters: [' '],
@@ -248,7 +249,16 @@ class AgentCompletions extends Disposable {
 								kind: CompletionItemKind.Text, // The icons are disabled here anyway
 								sortText: `${chatSubcommandLeader}${agent.name}${c.name}`,
 								command: { id: AssignSelectedAgentAction.ID, title: AssignSelectedAgentAction.ID, arguments: [{ agent, widget } satisfies AssignSelectedAgentActionArgs] },
-							} satisfies CompletionItem;
+							};
+
+							if (agent.isDefault) {
+								// default agent isn't mentioned nor inserted
+								item.label = withSlash;
+								item.insertText = `${withSlash} `;
+								item.detail = c.description;
+							}
+
+							return item;
 						})))
 				};
 			}
@@ -304,11 +314,11 @@ class BuiltinDynamicCompletions extends Disposable {
 			triggerCharacters: [chatVariableLeader],
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, _token: CancellationToken) => {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
-				if (!widget || !widget.supportsFileReferences || widget.location !== ChatAgentLocation.Panel /* TODO@jrieken - enable when agents are adopted*/) {
+				if (!widget || !widget.supportsFileReferences) {
 					return null;
 				}
 
-				const range = computeCompletionRanges(model, position, BuiltinDynamicCompletions.VariableNameDef);
+				const range = computeCompletionRanges(model, position, BuiltinDynamicCompletions.VariableNameDef, true);
 				if (!range) {
 					return null;
 				}
@@ -334,11 +344,18 @@ class BuiltinDynamicCompletions extends Disposable {
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(BuiltinDynamicCompletions, LifecyclePhase.Eventually);
 
-function computeCompletionRanges(model: ITextModel, position: Position, reg: RegExp): { insert: Range; replace: Range; varWord: IWordAtPosition | null } | undefined {
+function computeCompletionRanges(model: ITextModel, position: Position, reg: RegExp, onlyOnWordStart = false): { insert: Range; replace: Range; varWord: IWordAtPosition | null } | undefined {
 	const varWord = getWordAtText(position.column, reg, model.getLineContent(position.lineNumber), 0);
 	if (!varWord && model.getWordUntilPosition(position).word) {
 		// inside a "normal" word
 		return;
+	}
+	if (varWord && onlyOnWordStart) {
+		const wordBefore = model.getWordUntilPosition({ lineNumber: position.lineNumber, column: varWord.startColumn });
+		if (wordBefore.word) {
+			// inside a word
+			return;
+		}
 	}
 
 	let insert: Range;
@@ -361,6 +378,7 @@ class VariableCompletions extends Disposable {
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IChatVariablesService private readonly chatVariablesService: IChatVariablesService,
+		@IConfigurationService configService: IConfigurationService,
 	) {
 		super();
 
@@ -369,12 +387,21 @@ class VariableCompletions extends Disposable {
 			triggerCharacters: [chatVariableLeader],
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, _token: CancellationToken) => {
 
+				const locations = new Set<ChatAgentLocation>();
+				locations.add(ChatAgentLocation.Panel);
+
+				for (const value of Object.values(ChatAgentLocation)) {
+					if (typeof value === 'string' && configService.getValue<boolean>(`chat.experimental.variables.${value}`)) {
+						locations.add(value);
+					}
+				}
+
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
-				if (!widget || widget.location !== ChatAgentLocation.Panel /* TODO@jrieken - enable when agents are adopted*/) {
+				if (!widget || !locations.has(widget.location)) {
 					return null;
 				}
 
-				const range = computeCompletionRanges(model, position, VariableCompletions.VariableNameDef);
+				const range = computeCompletionRanges(model, position, VariableCompletions.VariableNameDef, true);
 				if (!range) {
 					return null;
 				}
@@ -383,7 +410,7 @@ class VariableCompletions extends Disposable {
 				const slowSupported = usedAgent ? usedAgent.agent.metadata.supportsSlowVariables : true;
 
 				const usedVariables = widget.parsedInput.parts.filter((p): p is ChatRequestVariablePart => p instanceof ChatRequestVariablePart);
-				const variableItems = Array.from(this.chatVariablesService.getVariables())
+				const variableItems = Array.from(this.chatVariablesService.getVariables(widget.location))
 					// This doesn't look at dynamic variables like `file`, where multiple makes sense.
 					.filter(v => !usedVariables.some(usedVar => usedVar.variableName === v.name))
 					.filter(v => !v.isSlow || slowSupported)

@@ -16,6 +16,7 @@
 	"typescript.tsserver.pluginPaths": "Additional paths to discover TypeScript Language Service plugins.",
 	"typescript.tsserver.pluginPaths.item": "Either an absolute or relative path. Relative path will be resolved against workspace folder(s).",
 	"typescript.tsserver.trace": "Enables tracing of messages sent to the TS server. This trace can be used to diagnose TS Server issues. The trace may contain file paths, source code, and other potentially sensitive information from your project.",
+	"typescript.tsserver.enableRegionDiagnostics": "Enables region-based diagnostics in TypeScript. Requires using TypeScript 5.6+ in the workspace.",
 	"typescript.validate.enable": "Enable/disable TypeScript validation.",
 	"typescript.format.enable": "Enable/disable default TypeScript formatter.",
 	"javascript.format.enable": "Enable/disable default JavaScript formatter.",

@@ -7,8 +7,8 @@ import { IAction } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { localize } from 'vs/nls';
-import { IAccessibleViewService, AccessibleViewProviderId, AccessibleViewType } from 'vs/platform/accessibility/browser/accessibleView';
-import { IAccessibleViewImplentation, alertAccessibleViewFocusChange } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
+import { IAccessibleViewService, AccessibleViewProviderId, AccessibleViewType, AccessibleContentProvider } from 'vs/platform/accessibility/browser/accessibleView';
+import { IAccessibleViewImplentation } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
 import { IAccessibilitySignalService, AccessibilitySignal } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -35,11 +35,9 @@ export class NotificationAccessibleView implements IAccessibleViewImplentation {
 			}
 			commandService.executeCommand('notifications.showList');
 			let notificationIndex: number | undefined;
-			let length: number | undefined;
 			const list = listService.lastFocusedList;
 			if (list instanceof WorkbenchList) {
 				notificationIndex = list.indexOf(notification);
-				length = list.length;
 			}
 			if (notificationIndex === undefined) {
 				return;
@@ -54,45 +52,48 @@ export class NotificationAccessibleView implements IAccessibleViewImplentation {
 					} catch { }
 				}
 			}
-			const message = notification.message.original.toString();
-			if (!message) {
+
+			function getContentForNotification(): string | undefined {
+				const notification = getNotificationFromContext(listService);
+				const message = notification?.message.original.toString();
+				if (!notification) {
+					return;
+				}
+				return notification.source ? localize('notification.accessibleViewSrc', '{0} Source: {1}', message, notification.source) : localize('notification.accessibleView', '{0}', message);
+			}
+			const content = getContentForNotification();
+			if (!content) {
 				return;
 			}
 			notification.onDidClose(() => accessibleViewService.next());
-			return {
-				id: AccessibleViewProviderId.Notification,
-				provideContent: () => {
-					return notification.source ? localize('notification.accessibleViewSrc', '{0} Source: {1}', message, notification.source) : localize('notification.accessibleView', '{0}', message);
-				},
-				onClose(): void {
-					focusList();
-				},
-				next(): void {
+			return new AccessibleContentProvider(
+				AccessibleViewProviderId.Notification,
+				{ type: AccessibleViewType.View },
+				() => content,
+				() => focusList(),
+				'accessibility.verbosity.notification',
+				undefined,
+				getActionsFromNotification(notification, accessibilitySignalService),
+				() => {
 					if (!list) {
 						return;
 					}
 					focusList();
 					list.focusNext();
-					alertAccessibleViewFocusChange(notificationIndex, length, 'next');
-					getProvider();
+					return getContentForNotification();
 				},
-				previous(): void {
+				() => {
 					if (!list) {
 						return;
 					}
 					focusList();
 					list.focusPrevious();
-					alertAccessibleViewFocusChange(notificationIndex, length, 'previous');
-					getProvider();
+					return getContentForNotification();
 				},
-				verbositySettingKey: 'accessibility.verbosity.notification',
-				options: { type: AccessibleViewType.View },
-				actions: getActionsFromNotification(notification, accessibilitySignalService)
-			};
+			);
 		}
 		return getProvider();
 	}
-	dispose() { }
 }
 
 

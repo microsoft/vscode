@@ -36,7 +36,6 @@ import { countWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 import { ProgressingEditsOptions } from 'vs/workbench/contrib/inlineChat/browser/inlineChatStrategies';
 import { InlineChatWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
 import { asProgressiveEdit, performAsyncTextEdit } from 'vs/workbench/contrib/inlineChat/browser/utils';
-import { MENU_INLINE_CHAT_WIDGET } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { insertCell, runDeleteAction } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
 import { CTX_NOTEBOOK_CELL_CHAT_FOCUSED, CTX_NOTEBOOK_CHAT_HAS_ACTIVE_REQUEST, CTX_NOTEBOOK_CHAT_OUTER_FOCUS_POSITION, CTX_NOTEBOOK_CHAT_USER_DID_EDIT, MENU_CELL_CHAT_WIDGET_STATUS } from 'vs/workbench/contrib/notebook/browser/controller/chat/notebookChatContext';
 import { ICellViewModel, INotebookEditor, INotebookEditorContribution, INotebookViewZone } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -412,7 +411,19 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 
 		const inlineChatWidget = this._widgetDisposableStore.add(this._instantiationService.createInstance(
 			InlineChatWidget,
-			ChatAgentLocation.Notebook,
+			{
+				location: ChatAgentLocation.Notebook,
+				resolveData: () => {
+					const sessionInputUri = this.getSessionInputUri();
+					if (!sessionInputUri) {
+						return undefined;
+					}
+					return {
+						type: ChatAgentLocation.Notebook,
+						sessionInputUri
+					};
+				}
+			},
 			{
 				statusMenuId: MENU_CELL_CHAT_WIDGET_STATUS,
 				chatWidgetViewOptions: {
@@ -423,8 +434,7 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 						}
 					},
 					menus: {
-						telemetrySource: 'notebook-generate-cell',
-						inputSideToolbar: MENU_INLINE_CHAT_WIDGET,
+						telemetrySource: 'notebook-generate-cell'
 					}
 				}
 			}
@@ -471,6 +481,10 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 
 			this._sessionCtor = createCancelablePromise<void>(async token => {
 				await this._startSession(token);
+				assertType(this._model.value);
+				const model = this._model.value;
+				this._widget?.inlineChatWidget.setChatModel(model);
+
 				if (fakeParentEditor.hasModel()) {
 
 					if (this._widget) {
@@ -547,9 +561,6 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 		await this._sessionCtor;
 		assertType(this._model.value);
 		assertType(this._strategy);
-
-		const model = this._model.value;
-		this._widget.inlineChatWidget.setChatModel(model);
 
 		const lastInput = this._widget.inlineChatWidget.value;
 		this._historyUpdate(lastInput);
@@ -666,7 +677,6 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 			store.dispose();
 
 			this._ctxHasActiveRequest.set(false);
-			this._widget.inlineChatWidget.updateProgress(false);
 			this._widget.inlineChatWidget.updateInfo('');
 			this._widget.inlineChatWidget.updateToolbar(true);
 		}

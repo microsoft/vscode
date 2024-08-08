@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { constants as FSConstants } from 'fs';
-import { open, FileHandle } from 'fs/promises';
+import { constants as FSConstants, promises as FSPromises } from 'fs';
 import { createInterface as readLines } from 'readline';
 import * as Platform from 'vs/base/common/platform';
 
@@ -22,10 +21,10 @@ export async function getOSReleaseInfo(errorLogger: (error: any) => void): Promi
 	// Extract release information on linux based systems
 	// using the identifiers specified in
 	// https://www.freedesktop.org/software/systemd/man/os-release.html
-	let handle: FileHandle | undefined;
+	let handle: FSPromises.FileHandle | undefined;
 	for (const filePath of ['/etc/os-release', '/usr/lib/os-release', '/etc/lsb-release']) {
 		try {
-			handle = await open(filePath, FSConstants.R_OK);
+			handle = await FSPromises.open(filePath, FSConstants.R_OK);
 			break;
 		} catch (err) { }
 	}

@@ -8,7 +8,7 @@ import { findLast } from 'vs/base/common/arraysFind';
 import { BugIndicatingError, onUnexpectedError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
 import { toDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, ITransaction, autorun, autorunWithStore, derived, observableFromEvent, observableValue, recomputeInitiallyAndOnChange, subtransaction, transaction } from 'vs/base/common/observable';
+import { IObservable, ITransaction, autorun, autorunWithStore, derived, disposableObservableValue, observableFromEvent, observableValue, recomputeInitiallyAndOnChange, subtransaction, transaction } from 'vs/base/common/observable';
 import { derivedDisposable } from 'vs/base/common/observableInternal/derived';
 import 'vs/css!./style';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
@@ -26,7 +26,8 @@ import { HideUnchangedRegionsFeature } from 'vs/editor/browser/widget/diffEditor
 import { MovedBlocksLinesFeature } from 'vs/editor/browser/widget/diffEditor/features/movedBlocksLinesFeature';
 import { OverviewRulerFeature } from 'vs/editor/browser/widget/diffEditor/features/overviewRulerFeature';
 import { RevertButtonsFeature } from 'vs/editor/browser/widget/diffEditor/features/revertButtonsFeature';
-import { CSSStyle, ObservableElementSizeObserver, applyStyle, applyViewZones, readHotReloadableExport, translatePosition } from 'vs/editor/browser/widget/diffEditor/utils';
+import { CSSStyle, ObservableElementSizeObserver, RefCounted, applyStyle, applyViewZones, translatePosition } from 'vs/editor/browser/widget/diffEditor/utils';
+import { readHotReloadableExport } from 'vs/base/common/hotReloadHelpers';
 import { bindContextKey } from 'vs/platform/observable/common/platformObservableUtils';
 import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IDimension } from 'vs/editor/common/core/dimension';
@@ -61,8 +62,8 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 		h('div.editor.modified@modified', { style: { position: 'absolute', height: '100%', } }),
 		h('div.accessibleDiffViewer@accessibleDiffViewer', { style: { position: 'absolute', height: '100%' } }),
 	]);
-	private readonly _diffModel = observableValue<DiffEditorViewModel | undefined>(this, undefined);
-	private _shouldDisposeDiffModel = false;
+	private readonly _diffModelSrc = this._register(disposableObservableValue<RefCounted<DiffEditorViewModel> | undefined>(this, undefined));
+	private readonly _diffModel = derived<DiffEditorViewModel | undefined>(this, reader => this._diffModelSrc.read(reader)?.object);
 	public readonly onDidChangeModel = Event.fromObservableLight(this._diffModel);
 
 	public get onDidContentSizeChange() { return this._editors.onDidContentSizeChange; }
@@ -317,12 +318,6 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 			}
 		}));
 
-		this._register(toDisposable(() => {
-			if (this._shouldDisposeDiffModel) {
-				this._diffModel.get()?.dispose();
-			}
-		}));
-
 		this._register(autorunWithStore((reader, store) => {
 			store.add(new (readHotReloadableExport(RevertButtonsFeature, reader))(this._editors, this._diffModel, this._options, this));
 		}));
@@ -336,6 +331,10 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 					this.setModel(null);
 				}));
 			}
+		}));
+
+		this._register(autorun(reader => {
+			this._options.setModel(this._diffModel.read(reader));
 		}));
 	}
 
@@ -386,8 +385,13 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 		} else {
 			gutterLeft = 0;
 
+			const shouldHideOriginalLineNumbers = this._options.inlineViewHideOriginalLineNumbers.read(reader);
 			originalLeft = gutterWidth;
-			originalWidth = Math.max(5, this._editors.original.getLayoutInfo().decorationsLeft);
+			if (shouldHideOriginalLineNumbers) {
+				originalWidth = 0;
+			} else {
+				originalWidth = Math.max(5, this._editors.originalObs.layoutInfoDecorationsLeft.read(reader));
+			}
 
 			modifiedLeft = gutterWidth + originalWidth;
 			modifiedWidth = fullWidth - modifiedLeft - overviewRulerPartWidth;
@@ -473,30 +477,36 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 
 	override getModel(): IDiffEditorModel | null { return this._diffModel.get()?.model ?? null; }
 
-	override setModel(model: IDiffEditorModel | null | IDiffEditorViewModel, tx?: ITransaction): void {
-		if (!model && this._diffModel.get()) {
+	override setModel(model: IDiffEditorModel | null | IDiffEditorViewModel): void {
+		const vm = !model ? null
+			: ('model' in model) ? RefCounted.create(model).createNewRef(this)
+				: RefCounted.create(this.createViewModel(model), this);
+		this.setDiffModel(vm);
+	}
+
+	setDiffModel(viewModel: RefCounted<IDiffEditorViewModel> | null, tx?: ITransaction): void {
+		const currentModel = this._diffModel.get();
+
+		if (!viewModel && currentModel) {
 			// Transitioning from a model to no-model
 			this._accessibleDiffViewer.get().close();
 		}
 
-		const vm = model ? ('model' in model) ? { model, shouldDispose: false } : { model: this.createViewModel(model), shouldDispose: true } : undefined;
-
-		if (this._diffModel.get() !== vm?.model) {
+		if (this._diffModel.get() !== viewModel?.object) {
 			subtransaction(tx, tx => {
+				const vm = viewModel?.object;
 				/** @description DiffEditorWidget.setModel */
 				observableFromEvent.batchEventsGlobally(tx, () => {
-					this._editors.original.setModel(vm ? vm.model.model.original : null);
-					this._editors.modified.setModel(vm ? vm.model.model.modified : null);
+					this._editors.original.setModel(vm ? vm.model.original : null);
+					this._editors.modified.setModel(vm ? vm.model.modified : null);
 				});
-				const prevValue = this._diffModel.get();
-				const shouldDispose = this._shouldDisposeDiffModel;
-
-				this._shouldDisposeDiffModel = vm?.shouldDispose ?? false;
-				this._diffModel.set(vm?.model as (DiffEditorViewModel | undefined), tx);
-
-				if (shouldDispose) {
-					prevValue?.dispose();
-				}
+				const prevValueRef = this._diffModelSrc.get()?.createNewRef(this);
+				this._diffModelSrc.set(viewModel?.createNewRef(this) as RefCounted<DiffEditorViewModel> | undefined, tx);
+				setTimeout(() => {
+					// async, so that this runs after the transaction finished.
+					// TODO: use the transaction to schedule disposal
+					prevValueRef?.dispose();
+				}, 0);
 			});
 		}
 	}

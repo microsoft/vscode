@@ -8,7 +8,7 @@ import { request } from 'vs/base/parts/request/browser/request';
 import { IRequestContext, IRequestOptions } from 'vs/base/parts/request/common/request';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILoggerService } from 'vs/platform/log/common/log';
-import { AbstractRequestService, IRequestService } from 'vs/platform/request/common/request';
+import { AbstractRequestService, AuthInfo, Credentials, IRequestService } from 'vs/platform/request/common/request';
 
 /**
  * This service exposes the `request` API, while using the global
@@ -33,6 +33,14 @@ export class RequestService extends AbstractRequestService implements IRequestSe
 	}
 
 	async resolveProxy(url: string): Promise<string | undefined> {
+		return undefined; // not implemented in the web
+	}
+
+	async lookupAuthorization(authInfo: AuthInfo): Promise<Credentials | undefined> {
+		return undefined; // not implemented in the web
+	}
+
+	async lookupKerberosAuthorization(url: string): Promise<string | undefined> {
 		return undefined; // not implemented in the web
 	}
 

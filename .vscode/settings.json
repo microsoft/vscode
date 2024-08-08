@@ -40,8 +40,6 @@
 		"**/Cargo.lock": true,
 		"src/vs/workbench/workbench.web.main.css": true,
 		"src/vs/workbench/workbench.desktop.main.css": true,
-		"src/vs/workbench/workbench.desktop.main.nls.js": true,
-		"src/vs/workbench/workbench.web.main.nls.js": true,
 		"build/**/*.js": true,
 		"out/**": true,
 		"out-build/**": true,
@@ -162,8 +160,7 @@
 		"@xterm/headless",
 		"node-pty",
 		"vscode-notebook-renderer",
-		"src/vs/workbench/workbench.web.main.ts",
-		"src/vs/workbench/api/common/extHostTypes.ts"
+		"src/vs/workbench/workbench.web.main.ts"
 	],
 	"[github-issues]": {
 		"editor.wordWrap": "on"

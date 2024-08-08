@@ -133,6 +133,7 @@ export interface IPresentationOptionsConfig {
 
 	/**
 	 * Controls whether the terminal that the task runs in is closed when the task completes.
+	 * Note that if the terminal process exits with a non-zero exit code, it will not close.
 	 */
 	close?: boolean;
 }

@@ -149,24 +149,24 @@ suite('ChatModel', () => {
 
 		model2.acceptResponseProgress(request1, { content: new MarkdownString('Hello'), kind: 'markdownContent' });
 
-		assert.strictEqual(request1.response.response.asString(), 'Hello');
+		assert.strictEqual(request1.response.response.toString(), 'Hello');
 	});
 });
 
 suite('Response', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('mergeable markdown', async () => {
-		const response = new Response([]);
+		const response = store.add(new Response([]));
 		response.updateContent({ content: new MarkdownString('markdown1'), kind: 'markdownContent' });
 		response.updateContent({ content: new MarkdownString('markdown2'), kind: 'markdownContent' });
 		await assertSnapshot(response.value);
 
-		assert.strictEqual(response.asString(), 'markdown1markdown2');
+		assert.strictEqual(response.toString(), 'markdown1markdown2');
 	});
 
 	test('not mergeable markdown', async () => {
-		const response = new Response([]);
+		const response = store.add(new Response([]));
 		const md1 = new MarkdownString('markdown1');
 		md1.supportHtml = true;
 		response.updateContent({ content: md1, kind: 'markdownContent' });
@@ -175,7 +175,7 @@ suite('Response', () => {
 	});
 
 	test('inline reference', async () => {
-		const response = new Response([]);
+		const response = store.add(new Response([]));
 		response.updateContent({ content: new MarkdownString('text before'), kind: 'markdownContent' });
 		response.updateContent({ inlineReference: URI.parse('https://microsoft.com'), kind: 'inlineReference' });
 		response.updateContent({ content: new MarkdownString('text after'), kind: 'markdownContent' });

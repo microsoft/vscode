@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+// version: 2
+
 declare module 'vscode' {
 
 	/**
@@ -27,6 +29,22 @@ declare module 'vscode' {
 		Editor = 4
 	}
 
+	export class ChatRequestEditorData {
+		//TODO@API should be the editor
+		document: TextDocument;
+		selection: Selection;
+		wholeRange: Range;
+
+		constructor(document: TextDocument, selection: Selection, wholeRange: Range);
+	}
+
+	export class ChatRequestNotebookData {
+		//TODO@API should be the editor
+		readonly cell: TextDocument;
+
+		constructor(cell: TextDocument);
+	}
+
 	export interface ChatRequest {
 		/**
 		 * The attempt number of the request. The first request has attempt number 0.
@@ -40,8 +58,16 @@ declare module 'vscode' {
 
 		/**
 		 * The location at which the chat is happening. This will always be one of the supported values
+		 *
+		 * @deprecated
 		 */
 		readonly location: ChatLocation;
+
+		/**
+		 * Information that is specific to the location at which chat is happening, e.g within a document, notebook,
+		 * or terminal. Will be `undefined` for the chat panel.
+		 */
+		readonly location2: ChatRequestEditorData | ChatRequestNotebookData | undefined;
 	}
 
 	export interface ChatParticipant {

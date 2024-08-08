@@ -32,7 +32,6 @@ import { IRange, Range } from 'vs/editor/common/core/range';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { NewSymbolName, NewSymbolNameTag, NewSymbolNameTriggerKind, ProviderResult } from 'vs/editor/common/languages';
 import * as nls from 'vs/nls';
-import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -55,8 +54,8 @@ const _sticky = false
 	;
 
 
-export const CONTEXT_RENAME_INPUT_VISIBLE = new RawContextKey<boolean>('renameInputVisible', false, localize('renameInputVisible', "Whether the rename input widget is visible"));
-export const CONTEXT_RENAME_INPUT_FOCUSED = new RawContextKey<boolean>('renameInputFocused', false, localize('renameInputFocused', "Whether the rename input widget is focused"));
+export const CONTEXT_RENAME_INPUT_VISIBLE = new RawContextKey<boolean>('renameInputVisible', false, nls.localize('renameInputVisible', "Whether the rename input widget is visible"));
+export const CONTEXT_RENAME_INPUT_FOCUSED = new RawContextKey<boolean>('renameInputFocused', false, nls.localize('renameInputFocused', "Whether the rename input widget is focused"));
 
 /**
  * "Source" of the new name:
@@ -311,7 +310,7 @@ export class RenameWidget implements IRenameWidget, IContentWidget, IDisposable 
 
 	beforeRender(): IDimension | null {
 		const [accept, preview] = this._acceptKeybindings;
-		this._label!.innerText = localize({ key: 'label', comment: ['placeholders are keybindings, e.g "F2 to Rename, Shift+F2 to Preview"'] }, "{0} to Rename, {1} to Preview", this._keybindingService.lookupKeybinding(accept)?.getLabel(), this._keybindingService.lookupKeybinding(preview)?.getLabel());
+		this._label!.innerText = nls.localize({ key: 'label', comment: ['placeholders are keybindings, e.g "F2 to Rename, Shift+F2 to Preview"'] }, "{0} to Rename, {1} to Preview", this._keybindingService.lookupKeybinding(accept)?.getLabel(), this._keybindingService.lookupKeybinding(preview)?.getLabel());
 
 		this._domNode!.style.minWidth = `200px`; // to prevent from widening when candidates come in
 
@@ -750,7 +749,7 @@ class RenameCandidateListView {
 		this._listContainer.style.height = `${height}px`;
 		this._listContainer.style.width = `${width}px`;
 
-		aria.status(localize('renameSuggestionsReceivedAria', "Received {0} rename suggestions", candidates.length));
+		aria.status(nls.localize('renameSuggestionsReceivedAria', "Received {0} rename suggestions", candidates.length));
 	}
 
 	public clearCandidates(): void {
@@ -924,7 +923,7 @@ class InputWithButton implements IDisposable {
 			this._inputNode.className = 'rename-input';
 			this._inputNode.type = 'text';
 			this._inputNode.style.border = 'none';
-			this._inputNode.setAttribute('aria-label', localize('renameAriaLabel', "Rename input. Type new name and press Enter to commit."));
+			this._inputNode.setAttribute('aria-label', nls.localize('renameAriaLabel', "Rename input. Type new name and press Enter to commit."));
 
 			this._domNode.appendChild(this._inputNode);
 

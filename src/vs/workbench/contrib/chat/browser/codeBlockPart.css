@@ -147,3 +147,17 @@
 .interactive-result-code-block.compare .message A > CODE {
 	color: var(--vscode-textLink-foreground);
 }
+
+.interactive-result-code-block.compare .interactive-result-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 0 3px;
+	box-sizing: border-box;
+	border-bottom: solid 1px var(--vscode-chat-requestBorder);
+}
+
+.interactive-result-code-block.compare.no-diff .interactive-result-header,
+.interactive-result-code-block.compare.no-diff .interactive-result-editor {
+	display: none;
+}

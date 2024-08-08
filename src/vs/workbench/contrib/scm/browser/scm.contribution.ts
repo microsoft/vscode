@@ -32,9 +32,11 @@ import { Context as SuggestContext } from 'vs/editor/contrib/suggest/browser/sug
 import { MANAGE_TRUST_COMMAND_ID, WorkspaceTrustContext } from 'vs/workbench/contrib/workspace/common/workspace';
 import { IQuickDiffService } from 'vs/workbench/contrib/scm/common/quickDiff';
 import { QuickDiffService } from 'vs/workbench/contrib/scm/common/quickDiffService';
-import { getActiveElement } from 'vs/base/browser/dom';
+import { getActiveElement, isActiveElement } from 'vs/base/browser/dom';
 import { SCMWorkingSetController } from 'vs/workbench/contrib/scm/browser/workingSet';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
+import { IListService, WorkbenchList } from 'vs/platform/list/browser/listService';
+import { isSCMRepository } from 'vs/workbench/contrib/scm/browser/util';
 
 ModesRegistry.registerLanguage({
 	id: 'scminput',
@@ -349,6 +351,16 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			],
 			description: localize('scm.workingSets.default', "Controls the default working set to use when switching to a source control history item group that does not have a working set."),
 			default: 'current'
+		},
+		'scm.showHistoryGraph': {
+			type: 'boolean',
+			description: localize('scm.showHistoryGraph', "Controls whether to render incoming/outgoing changes using a graph in the Source Control view."),
+			default: true
+		},
+		'scm.compactFolders': {
+			type: 'boolean',
+			description: localize('scm.compactFolders', "Controls whether the Source Control view should render folders in a compact form. In such a form, single child folders will be compressed in a combined tree element."),
+			default: true
 		}
 	}
 });
@@ -453,12 +465,35 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyMod.Alt | KeyCode.UpArrow
 });
 
-CommandsRegistry.registerCommand('scm.openInIntegratedTerminal', async (accessor, provider: ISCMProvider) => {
-	if (!provider || !provider.rootUri) {
+CommandsRegistry.registerCommand('scm.openInIntegratedTerminal', async (accessor, ...providers: ISCMProvider[]) => {
+	if (!providers || providers.length === 0) {
 		return;
 	}
 
 	const commandService = accessor.get(ICommandService);
+	const listService = accessor.get(IListService);
+
+	let provider = providers.length === 1 ? providers[0] : undefined;
+
+	if (!provider) {
+		const list = listService.lastFocusedList;
+		const element = list?.getHTMLElement();
+
+		if (list instanceof WorkbenchList && element && isActiveElement(element)) {
+			const [index] = list.getFocus();
+			const focusedElement = list.element(index);
+
+			// Source Control Repositories
+			if (isSCMRepository(focusedElement)) {
+				provider = focusedElement.provider;
+			}
+		}
+	}
+
+	if (!provider?.rootUri) {
+		return;
+	}
+
 	await commandService.executeCommand('openInIntegratedTerminal', provider.rootUri);
 });
 

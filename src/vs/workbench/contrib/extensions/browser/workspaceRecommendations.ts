@@ -55,6 +55,8 @@ export class WorkspaceRecommendations extends ExtensionRecommendations {
 			this._register(this.fileService.watch(this.uriIdentityService.extUri.joinPath(folder.uri, WORKSPACE_EXTENSIONS_FOLDER)));
 		}
 
+		this._register(this.contextService.onDidChangeWorkspaceFolders(() => this.onDidChangeWorkspaceExtensionsScheduler.schedule()));
+
 		this._register(this.fileService.onDidFilesChange(e => {
 			if (this.contextService.getWorkspace().folders.some(folder =>
 				e.affects(this.uriIdentityService.extUri.joinPath(folder.uri, WORKSPACE_EXTENSIONS_FOLDER), FileChangeType.ADDED, FileChangeType.DELETED))

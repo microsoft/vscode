@@ -13,7 +13,7 @@ import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/bro
 import { GoFilter, IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { CLOSE_EDITOR_COMMAND_ID, MOVE_ACTIVE_EDITOR_COMMAND_ID, ActiveEditorMoveCopyArguments, SPLIT_EDITOR_LEFT, SPLIT_EDITOR_RIGHT, SPLIT_EDITOR_UP, SPLIT_EDITOR_DOWN, splitEditor, LAYOUT_EDITOR_GROUPS_COMMAND_ID, UNPIN_EDITOR_COMMAND_ID, COPY_ACTIVE_EDITOR_COMMAND_ID, SPLIT_EDITOR, resolveCommandsContext, getCommandsContext, TOGGLE_MAXIMIZE_EDITOR_GROUP, MOVE_EDITOR_INTO_NEW_WINDOW_COMMAND_ID, COPY_EDITOR_INTO_NEW_WINDOW_COMMAND_ID, MOVE_EDITOR_GROUP_INTO_NEW_WINDOW_COMMAND_ID, COPY_EDITOR_GROUP_INTO_NEW_WINDOW_COMMAND_ID, NEW_EMPTY_EDITOR_WINDOW_COMMAND_ID as NEW_EMPTY_EDITOR_WINDOW_COMMAND_ID, resolveEditorsContext, getEditorsContext } from 'vs/workbench/browser/parts/editor/editorCommands';
+import { CLOSE_EDITOR_COMMAND_ID, MOVE_ACTIVE_EDITOR_COMMAND_ID, ActiveEditorMoveCopyArguments, SPLIT_EDITOR_LEFT, SPLIT_EDITOR_RIGHT, SPLIT_EDITOR_UP, SPLIT_EDITOR_DOWN, splitEditor, LAYOUT_EDITOR_GROUPS_COMMAND_ID, UNPIN_EDITOR_COMMAND_ID, COPY_ACTIVE_EDITOR_COMMAND_ID, SPLIT_EDITOR, TOGGLE_MAXIMIZE_EDITOR_GROUP, MOVE_EDITOR_INTO_NEW_WINDOW_COMMAND_ID, COPY_EDITOR_INTO_NEW_WINDOW_COMMAND_ID, MOVE_EDITOR_GROUP_INTO_NEW_WINDOW_COMMAND_ID, COPY_EDITOR_GROUP_INTO_NEW_WINDOW_COMMAND_ID, NEW_EMPTY_EDITOR_WINDOW_COMMAND_ID as NEW_EMPTY_EDITOR_WINDOW_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { IEditorGroupsService, IEditorGroup, GroupsArrangement, GroupLocation, GroupDirection, preferredSideBySideGroupDirection, IFindGroupScope, GroupOrientation, EditorGroupLayout, GroupsOrder, MergeGroupMode } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -34,9 +34,11 @@ import { IKeybindingRule, KeybindingWeight } from 'vs/platform/keybinding/common
 import { ILogService } from 'vs/platform/log/common/log';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { ActiveEditorAvailableEditorIdsContext, ActiveEditorContext, ActiveEditorGroupEmptyContext, AuxiliaryBarVisibleContext, EditorPartMaximizedEditorGroupContext, EditorPartMultipleEditorGroupsContext, IsAuxiliaryWindowFocusedContext, MultipleEditorGroupsContext, SideBarVisibleContext } from 'vs/workbench/common/contextkeys';
-import { URI } from 'vs/base/common/uri';
 import { getActiveDocument } from 'vs/base/browser/dom';
 import { ICommandActionTitle } from 'vs/platform/action/common/action';
+import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { resolveCommandsContext } from 'vs/workbench/browser/parts/editor/editorCommandsContext';
+import { IListService } from 'vs/platform/list/browser/listService';
 
 class ExecuteCommandAction extends Action2 {
 
@@ -61,12 +63,14 @@ abstract class AbstractSplitEditorAction extends Action2 {
 		return preferredSideBySideGroupDirection(configurationService);
 	}
 
-	override async run(accessor: ServicesAccessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext): Promise<void> {
-		const editorGroupService = accessor.get(IEditorGroupsService);
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
+		const editorGroupsService = accessor.get(IEditorGroupsService);
 		const configurationService = accessor.get(IConfigurationService);
 
-		const commandContext = getCommandsContext(accessor, resourceOrContext, context);
-		splitEditor(editorGroupService, this.getDirection(configurationService), commandContext ? [commandContext] : undefined);
+		const direction = this.getDirection(configurationService);
+		const commandContext = resolveCommandsContext(args, accessor.get(IEditorService), editorGroupsService, accessor.get(IListService));
+
+		splitEditor(editorGroupsService, direction, commandContext);
 	}
 }
 
@@ -564,6 +568,8 @@ abstract class AbstractCloseAllAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const editorService = accessor.get(IEditorService);
+		const logService = accessor.get(ILogService);
+		const progressService = accessor.get(IProgressService);
 		const editorGroupService = accessor.get(IEditorGroupsService);
 		const filesConfigurationService = accessor.get(IFilesConfigurationService);
 		const fileDialogService = accessor.get(IFileDialogService);
@@ -636,7 +642,7 @@ abstract class AbstractCloseAllAction extends Action2 {
 				case ConfirmResult.CANCEL:
 					return;
 				case ConfirmResult.DONT_SAVE:
-					await editorService.revert(editors, { soft: true });
+					await this.revertEditors(editorService, logService, progressService, editors);
 					break;
 				case ConfirmResult.SAVE:
 					await editorService.save(editors, { reason: SaveReason.EXPLICIT });
@@ -656,7 +662,7 @@ abstract class AbstractCloseAllAction extends Action2 {
 					case ConfirmResult.CANCEL:
 						return;
 					case ConfirmResult.DONT_SAVE:
-						await editorService.revert(editors, { soft: true });
+						await this.revertEditors(editorService, logService, progressService, editors);
 						break;
 					case ConfirmResult.SAVE:
 						await editorService.save(editors, { reason: SaveReason.EXPLICIT });
@@ -684,6 +690,33 @@ abstract class AbstractCloseAllAction extends Action2 {
 		// sure to bring up another confirm dialog for those editors
 		// specifically.
 		return this.doCloseAll(editorGroupService);
+	}
+
+	private revertEditors(editorService: IEditorService, logService: ILogService, progressService: IProgressService, editors: IEditorIdentifier[]): Promise<void> {
+		return progressService.withProgress({
+			location: ProgressLocation.Window, 	// use window progress to not be too annoying about this operation
+			delay: 800,							// delay so that it only appears when operation takes a long time
+			title: localize('reverting', "Reverting Editors..."),
+		}, () => this.doRevertEditors(editorService, logService, editors));
+	}
+
+	private async doRevertEditors(editorService: IEditorService, logService: ILogService, editors: IEditorIdentifier[]): Promise<void> {
+		try {
+			// We first attempt to revert all editors with `soft: false`, to ensure that
+			// working copies revert to their state on disk. Even though we close editors,
+			// it is possible that other parties hold a reference to the working copy
+			// and expect it to be in a certain state after the editor is closed without
+			// saving.
+			await editorService.revert(editors);
+		} catch (error) {
+			logService.error(error);
+
+			// if that fails, since we are about to close the editor, we accept that
+			// the editor cannot be reverted and instead do a soft revert that just
+			// enables us to close the editor. With this, a user can always close a
+			// dirty editor even when reverting fails.
+			await editorService.revert(editors, { soft: true });
+		}
 	}
 
 	private async revealEditorsToConfirm(editors: ReadonlyArray<IEditorIdentifier>, editorGroupService: IEditorGroupsService): Promise<void> {
@@ -1139,11 +1172,13 @@ export class ToggleMaximizeEditorGroupAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext): Promise<void> {
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 		const editorGroupsService = accessor.get(IEditorGroupsService);
 
-		const { group } = resolveCommandsContext(editorGroupsService, getCommandsContext(accessor, resourceOrContext, context));
-		editorGroupsService.toggleMaximizeGroup(group);
+		const resolvedContext = resolveCommandsContext(args, accessor.get(IEditorService), editorGroupsService, accessor.get(IListService));
+		if (resolvedContext.groupedEditors.length) {
+			editorGroupsService.toggleMaximizeGroup(resolvedContext.groupedEditors[0].group);
+		}
 	}
 }
 
@@ -2508,21 +2543,24 @@ abstract class BaseMoveCopyEditorToNewWindowAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext) {
+	override async run(accessor: ServicesAccessor, ...args: unknown[]) {
 		const editorGroupService = accessor.get(IEditorGroupsService);
-		const editorsContext = resolveEditorsContext(getEditorsContext(accessor, resourceOrContext, context));
-		if (editorsContext.length === 0) {
+		const resolvedContext = resolveCommandsContext(args, accessor.get(IEditorService), editorGroupService, accessor.get(IListService));
+		if (!resolvedContext.groupedEditors.length) {
 			return;
 		}
 
 		const auxiliaryEditorPart = await editorGroupService.createAuxiliaryEditorPart();
 
-		const sourceGroup = editorsContext[0].group; // only single group supported for move/copy for now
-		const sourceEditors = editorsContext.filter(({ group }) => group === sourceGroup);
+		// only single group supported for move/copy for now
+		const { group, editors } = resolvedContext.groupedEditors[0];
+		const options = { preserveFocus: resolvedContext.preserveFocus };
+		const editorsWithOptions = editors.map(editor => ({ editor, options }));
+
 		if (this.move) {
-			sourceGroup.moveEditors(sourceEditors, auxiliaryEditorPart.activeGroup);
+			group.moveEditors(editorsWithOptions, auxiliaryEditorPart.activeGroup);
 		} else {
-			sourceGroup.copyEditors(sourceEditors, auxiliaryEditorPart.activeGroup);
+			group.copyEditors(editorsWithOptions, auxiliaryEditorPart.activeGroup);
 		}
 
 		auxiliaryEditorPart.activeGroup.focus();

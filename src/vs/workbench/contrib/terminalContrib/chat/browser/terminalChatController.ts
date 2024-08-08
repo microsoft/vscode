@@ -206,6 +206,9 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 
 	async acceptInput(): Promise<IChatResponseModel | undefined> {
 		assertType(this._chatWidget);
+		if (!this._model.value) {
+			await this.reveal();
+		}
 		assertType(this._model.value);
 		const lastInput = this._chatWidget.value.inlineChatWidget.value;
 		if (!lastInput) {
@@ -227,7 +230,6 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 			if (response) {
 				store.add(response.onDidChange(async () => {
 					responseContent += response.response.value;
-					this._chatWidget?.value.inlineChatWidget.updateProgress(true);
 					if (response.isCanceled) {
 						this._requestActiveContextKey.set(false);
 						responsePromise.complete(undefined);
@@ -243,7 +245,6 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 						this._responseContainsCodeBlockContextKey.set(!!firstCodeBlock);
 						this._responseContainsMulitpleCodeBlocksContextKey.set(!!secondCodeBlock);
 						this._chatWidget?.value.inlineChatWidget.updateToolbar(true);
-						this._chatWidget?.value.inlineChatWidget.updateProgress(false);
 						responsePromise.complete(response);
 					}
 				}));
@@ -276,7 +277,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 	}
 
 	hasFocus(): boolean {
-		return !!this._chatWidget?.rawValue?.hasFocus() ?? false;
+		return this._chatWidget?.rawValue?.hasFocus() ?? false;
 	}
 
 	populateHistory(up: boolean) {
@@ -318,6 +319,11 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		this._sessionCtor = undefined;
 		this._activeRequestCts?.cancel();
 		this._requestActiveContextKey.set(false);
+		const model = this._chatWidget?.value.inlineChatWidget.getChatModel();
+		if (!model?.sessionId) {
+			return;
+		}
+		this._chatService.cancelCurrentRequestForSession(model?.sessionId);
 	}
 
 	async acceptCommand(shouldExecute: boolean): Promise<void> {

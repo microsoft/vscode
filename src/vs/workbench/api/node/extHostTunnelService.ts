@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
 import { exec } from 'child_process';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Emitter } from 'vs/base/common/event';
@@ -243,8 +244,8 @@ export class NodeExtHostTunnelService extends ExtHostTunnelService {
 		let tcp: string = '';
 		let tcp6: string = '';
 		try {
-			tcp = await pfs.Promises.readFile('/proc/net/tcp', 'utf8');
-			tcp6 = await pfs.Promises.readFile('/proc/net/tcp6', 'utf8');
+			tcp = await fs.promises.readFile('/proc/net/tcp', 'utf8');
+			tcp6 = await fs.promises.readFile('/proc/net/tcp6', 'utf8');
 		} catch (e) {
 			// File reading error. No additional handling needed.
 		}
@@ -265,10 +266,10 @@ export class NodeExtHostTunnelService extends ExtHostTunnelService {
 			try {
 				const pid: number = Number(childName);
 				const childUri = resources.joinPath(URI.file('/proc'), childName);
-				const childStat = await pfs.Promises.stat(childUri.fsPath);
+				const childStat = await fs.promises.stat(childUri.fsPath);
 				if (childStat.isDirectory() && !isNaN(pid)) {
-					const cwd = await pfs.Promises.readlink(resources.joinPath(childUri, 'cwd').fsPath);
-					const cmd = await pfs.Promises.readFile(resources.joinPath(childUri, 'cmdline').fsPath, 'utf8');
+					const cwd = await fs.promises.readlink(resources.joinPath(childUri, 'cwd').fsPath);
+					const cmd = await fs.promises.readFile(resources.joinPath(childUri, 'cmdline').fsPath, 'utf8');
 					processes.push({ pid, cwd, cmd });
 				}
 			} catch (e) {

@@ -45,6 +45,7 @@ import { isDefined } from 'vs/base/common/types';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 const TRIGGERED_BREAKPOINT_MAX_DELAY = 1500;
 
@@ -84,7 +85,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 	private readonly _onDidProgressEnd = new Emitter<DebugProtocol.ProgressEndEvent>();
 	private readonly _onDidInvalidMemory = new Emitter<DebugProtocol.MemoryEvent>();
 
-	private readonly _onDidChangeREPLElements = new Emitter<void>();
+	private readonly _onDidChangeREPLElements = new Emitter<IReplElement | undefined>();
 
 	private _name: string | undefined;
 	private readonly _onDidChangeName = new Emitter<string>();
@@ -117,6 +118,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 		@ILogService private readonly logService: ILogService,
 		@ITestService private readonly testService: ITestService,
 		@ITestResultService testResultService: ITestResultService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 	) {
 		this._options = options || {};
 		this.parentSession = this._options.parentSession;
@@ -128,7 +130,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 
 		const toDispose = this.globalDisposables;
 		const replListener = toDispose.add(new MutableDisposable());
-		replListener.value = this.repl.onDidChangeElements(() => this._onDidChangeREPLElements.fire());
+		replListener.value = this.repl.onDidChangeElements((e) => this._onDidChangeREPLElements.fire(e));
 		if (lifecycleService) {
 			toDispose.add(lifecycleService.onWillShutdown(() => {
 				this.shutdown();
@@ -176,7 +178,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 				// remove its parent, if it's still running
 				if (!this.hasSeparateRepl() && this.raw?.isInShutdown === false) {
 					this.repl = this.repl.clone();
-					replListener.value = this.repl.onDidChangeElements(() => this._onDidChangeREPLElements.fire());
+					replListener.value = this.repl.onDidChangeElements((e) => this._onDidChangeREPLElements.fire(e));
 					this.parentSession = undefined;
 				}
 			}));
@@ -238,7 +240,9 @@ export class DebugSession implements IDebugSession, IDisposable {
 
 	get autoExpandLazyVariables(): boolean {
 		// This tiny helper avoids converting the entire debug model to use service injection
-		return this.configurationService.getValue<IDebugConfiguration>('debug').autoExpandLazyVariables;
+		const screenReaderOptimized = this.accessibilityService.isScreenReaderOptimized();
+		const value = this.configurationService.getValue<IDebugConfiguration>('debug').autoExpandLazyVariables;
+		return value === 'auto' && screenReaderOptimized || value === 'on';
 	}
 
 	setConfiguration(configuration: { resolved: IConfig; unresolved: IConfig | undefined }) {
@@ -291,7 +295,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 		return this._onDidEndAdapter.event;
 	}
 
-	get onDidChangeReplElements(): Event<void> {
+	get onDidChangeReplElements(): Event<IReplElement | undefined> {
 		return this._onDidChangeREPLElements.event;
 	}
 
@@ -685,12 +689,12 @@ export class DebugSession implements IDebugSession, IDisposable {
 		return this.raw.variables({ variablesReference, filter, start, count }, token);
 	}
 
-	evaluate(expression: string, frameId: number, context?: string): Promise<DebugProtocol.EvaluateResponse | undefined> {
+	evaluate(expression: string, frameId: number, context?: string, location?: { line: number; column: number; source: DebugProtocol.Source }): Promise<DebugProtocol.EvaluateResponse | undefined> {
 		if (!this.raw) {
 			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'evaluate'));
 		}
 
-		return this.raw.evaluate({ expression, frameId, context });
+		return this.raw.evaluate({ expression, frameId, context, line: location?.line, column: location?.column, source: location?.source });
 	}
 
 	async restartFrame(frameId: number, threadId: number): Promise<void> {
@@ -1370,7 +1374,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 					}
 
 					const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
-					if (!focusedStackFrame || !isFrameDeemphasized(focusedStackFrame)) {
+					if (!focusedStackFrame || isFrameDeemphasized(focusedStackFrame)) {
 						// The top stack frame can be deemphesized so try to focus again #68616
 						focus();
 					}
