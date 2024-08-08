@@ -122,6 +122,11 @@ export class HiddenAreaState {
 	}
 
 	public static deduceInput(previousState: HiddenAreaState, currentState: HiddenAreaState, couldBeEmojiInput: boolean): ITypeData {
+
+		console.log('deduceInput');
+		console.log('previousState : ', previousState);
+		console.log('currentState : ', currentState);
+
 		if (!previousState) {
 			// This is the EMPTY state
 			return {

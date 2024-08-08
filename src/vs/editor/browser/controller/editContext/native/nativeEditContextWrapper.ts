@@ -67,6 +67,9 @@ export class NativeAreaWrapper extends Disposable implements ICompleteHiddenArea
 	private _contentLeft: number;
 	private _isComposing: boolean = false;
 
+	private _selectionEnd: number = 0;
+	private _selectionStart: number = 0;
+
 	constructor(
 		private readonly _actual: HTMLDivElement,
 		private readonly _viewContext: ViewContext
@@ -169,16 +172,40 @@ export class NativeAreaWrapper extends Disposable implements ICompleteHiddenArea
 
 		console.log('getSelectionStart');
 
-		// return this._actual.selectionDirection === 'backward' ? this._actual.selectionEnd : this._actual.selectionStart;
-		return 0;
+		/*
+		const activeDocument = dom.getActiveWindow().document;
+		const activeDocumentSelection = activeDocument.getSelection();
+		console.log('activeDocumentSelection : ', activeDocumentSelection);
+		const activeDocumentRange = activeDocumentSelection?.getRangeAt(0);
+		console.log('activeDocumentRange : ', activeDocumentRange);
+		if (!activeDocumentRange) {
+			return 0;
+		}
+		return activeDocumentSelection?.direction === 'backward' ? activeDocumentRange.endOffset : activeDocumentRange.startOffset;
+		*/
+
+		// need to check direction maybe?
+		return this._selectionStart;
 	}
 
 	public getSelectionEnd(): number {
 
 		console.log('getSelectionEnd');
 
-		// return this._actual.selectionDirection === 'backward' ? this._actual.selectionStart : this._actual.selectionEnd;
-		return 0;
+		/*
+		const activeDocument = dom.getActiveWindow().document;
+		const activeDocumentSelection = activeDocument.getSelection();
+		console.log('activeDocumentSelection : ', activeDocumentSelection);
+		const activeDocumentRange = activeDocumentSelection?.getRangeAt(0);
+		console.log('activeDocumentRange : ', activeDocumentRange);
+		if (!activeDocumentRange) {
+			return 0;
+		}
+		return activeDocumentSelection?.direction === 'backward' ? activeDocumentRange.startOffset : activeDocumentRange.endOffset;
+		*/
+
+		// need to check direction maybe?
+		return this._selectionEnd;
 	}
 
 	public setSelectionRange(reason: string, selectionStart: number, selectionEnd: number): void {
@@ -189,6 +216,9 @@ export class NativeAreaWrapper extends Disposable implements ICompleteHiddenArea
 
 		this._updateBounds();
 		this._updateDocumentSelection(selectionStart, selectionEnd);
+
+		this._selectionStart = selectionStart;
+		this._selectionEnd = selectionEnd;
 
 		// ---
 
@@ -217,8 +247,6 @@ export class NativeAreaWrapper extends Disposable implements ICompleteHiddenArea
 			}
 			return;
 		}
-
-		// console.log('reason: ' + reason + ', setSelectionRange: ' + selectionStart + ' -> ' + selectionEnd);
 
 		if (currentIsFocused) {
 			// No need to focus, only need to change the selection range

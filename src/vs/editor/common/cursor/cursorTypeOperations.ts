@@ -66,7 +66,16 @@ export class TypeOperations {
 	}
 
 	public static compositionType(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], text: string, replacePrevCharCnt: number, replaceNextCharCnt: number, positionDelta: number): EditOperationResult {
-		return CompositionOperation.getEdits(prevEditOperationType, config, model, selections, text, replacePrevCharCnt, replaceNextCharCnt, positionDelta);
+		console.log('compositionType');
+		console.log('model.getValue', model.getValue());
+		console.log('selections', selections);
+		console.log('text', text);
+		console.log('replacePrevCharCnt', replacePrevCharCnt);
+		console.log('replaceNextCharCnt', replaceNextCharCnt);
+		console.log('positionDelta', positionDelta);
+		const edits = CompositionOperation.getEdits(prevEditOperationType, config, model, selections, text, replacePrevCharCnt, replaceNextCharCnt, positionDelta);
+		console.log('edits', edits);
+		return edits;
 	}
 
 	/**

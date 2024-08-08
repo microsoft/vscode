@@ -722,6 +722,7 @@ export class CompositionOperation {
 	}
 
 	private static _compositionType(model: ITextModel, selection: Selection, text: string, replacePrevCharCnt: number, replaceNextCharCnt: number, positionDelta: number): ICommand | null {
+		console.log('_compositionType');
 		if (!selection.isEmpty()) {
 			// looks like https://github.com/microsoft/vscode/issues/2773
 			// where a cursor operation occurred before a canceled composition
@@ -729,6 +730,7 @@ export class CompositionOperation {
 			return null;
 		}
 		const pos = selection.getPosition();
+		// But we do not remove the replacePrevCharCnt characters from the beginning of the text, but on this specific line only
 		const startColumn = Math.max(1, pos.column - replacePrevCharCnt);
 		const endColumn = Math.min(model.getLineMaxColumn(pos.lineNumber), pos.column + replaceNextCharCnt);
 		const range = new Range(pos.lineNumber, startColumn, pos.lineNumber, endColumn);
