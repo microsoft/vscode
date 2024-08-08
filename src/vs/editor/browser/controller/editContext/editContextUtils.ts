@@ -21,7 +21,6 @@ import { Color } from 'vs/base/common/color';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 
-
 export class VisibleTextAreaData {
 	_visibleTextAreaBrand: void = undefined;
 

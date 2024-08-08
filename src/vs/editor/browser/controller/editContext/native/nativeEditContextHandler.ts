@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./nativeEditContext';
+import 'vs/css!./nativeEditContextHandler';
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { AbstractEditContext } from 'vs/editor/browser/controller/editContext/editContext';

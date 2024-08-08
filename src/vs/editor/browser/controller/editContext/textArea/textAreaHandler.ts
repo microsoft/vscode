@@ -449,7 +449,6 @@ export class TextAreaContext extends AbstractEditContext {
 		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._emptySelectionClipboard = options.get(EditorOption.emptySelectionClipboard);
 		this._copyWithSyntaxHighlighting = options.get(EditorOption.copyWithSyntaxHighlighting);
-
 		const { tabSize } = this._context.viewModel.model.getOptions();
 		setAttributes(this.textArea.domNode, tabSize, this._textAreaWrapping, this._visibleTextArea, options, this._keybindingService);
 

@@ -34,7 +34,6 @@ export interface ITypeData {
 	positionDelta: number;
 }
 
-
 export class HiddenAreaState {
 
 	public static readonly EMPTY = new HiddenAreaState('', 0, 0, null, undefined);

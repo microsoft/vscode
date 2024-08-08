@@ -371,7 +371,6 @@ export class HiddenAreaInput extends Disposable {
 			if (_debugComposition) {
 				console.log(`[input]`, e);
 			}
-
 			console.log('onInput');
 
 			// Pretend here we touched the text area, as the `input` event will most likely
