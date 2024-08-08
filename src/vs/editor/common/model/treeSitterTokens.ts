@@ -25,7 +25,6 @@ export class TreeSitterTokens extends AbstractTokens {
 		super(languageIdCodec, textModel, languageId, attachedViews);
 
 		this._initialize();
-		this._register(this._textModel.onDidChangeLanguage(() => this._initialize()));
 	}
 
 	private _initialize() {
@@ -59,6 +58,7 @@ export class TreeSitterTokens extends AbstractTokens {
 				],
 			});
 		}
+		this._initialize();
 	}
 
 	public override handleDidChangeAttached(): void {

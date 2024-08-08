@@ -120,7 +120,7 @@ class TreeSitterTokenizationSupport extends Disposable implements ITreeSitterTok
 	}
 
 	captureAtPosition(lineNumber: number, column: number, textModel: ITextModel): any {
-		const captures = this._captureAtRange(lineNumber, column, column + 1, textModel);
+		const captures = this._captureAtRange(lineNumber, column - 1, column, textModel);
 		return captures;
 	}
 
