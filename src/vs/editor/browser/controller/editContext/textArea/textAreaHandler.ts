@@ -37,10 +37,6 @@ import { canUseZeroSizeTextarea, ensureReadOnlyAttribute, getAndroidWordAtPositi
 import { TextAreaWrapper } from 'vs/editor/browser/controller/editContext/textArea/textAreaWrapper';
 import { EndOfLinePreference } from 'vs/editor/common/model';
 
-// TODO: verify all of the code here and check what is needed in the other native edit context code and what is not needed. Do a full port of the code there. Use vscode2 in order to understand what the code is used for and if I need it.
-// TODO: once that is done and the port is done, then check that with NVDA works as expected and voice over as compared to normal code
-// TODO: then do IME scenarios.
-
 export class TextAreaContext extends AbstractEditContext {
 
 	private readonly _viewController: ViewController;

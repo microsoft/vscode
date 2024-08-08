@@ -367,11 +367,10 @@ export class HiddenAreaInput extends Disposable {
 		}));
 
 		this._register(this._hiddenArea.onInput((e) => {
-			console.log('oninput of hidden area input : ', e);
+			console.log('onInput of hidden area input : ', e);
 			if (_debugComposition) {
 				console.log(`[input]`, e);
 			}
-			console.log('onInput');
 
 			// Pretend here we touched the text area, as the `input` event will most likely
 			// result in a `selectionchange` event which we want to ignore
@@ -383,6 +382,8 @@ export class HiddenAreaInput extends Disposable {
 
 			const newState = HiddenAreaState.readFromTextArea(this._hiddenArea, this._hiddenAreaState);
 			const typeInput = HiddenAreaState.deduceInput(this._hiddenAreaState, newState, /*couldBeEmojiInput*/this._OS === OperatingSystem.Macintosh);
+			console.log('newState : ', newState);
+			console.log('typeInput : ', typeInput);
 
 			if (typeInput.replacePrevCharCnt === 0 && typeInput.text.length === 1) {
 				// one character was typed
@@ -637,6 +638,7 @@ export class HiddenAreaInput extends Disposable {
 	}
 
 	private _setAndWriteTextAreaState(reason: string, hiddenAreaState: HiddenAreaState): void {
+		console.log('_setAndWriteTextAreaState');
 		if (!this._hasFocus) {
 			hiddenAreaState = hiddenAreaState.collapseSelection();
 		}
@@ -646,6 +648,7 @@ export class HiddenAreaInput extends Disposable {
 	}
 
 	public writeNativeTextAreaContent(reason: string): void {
+		console.log('writeNativeTextAreaContent');
 		if ((!this._accessibilityService.isScreenReaderOptimized() && reason === 'render') || this._currentComposition) {
 			// Do not write to the text on render unless a screen reader is being used #192278
 			// Do not write to the text area when doing composition

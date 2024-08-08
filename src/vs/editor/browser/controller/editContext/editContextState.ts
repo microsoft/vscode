@@ -52,6 +52,7 @@ export class HiddenAreaState {
 		console.log('HiddenAreaState');
 		console.log('selectionStart : ', selectionStart);
 		console.log('selectionEnd : ', selectionEnd);
+		console.log('value : ', value);
 	}
 
 	public toString(): string {
@@ -84,6 +85,7 @@ export class HiddenAreaState {
 	}
 
 	public writeToTextArea(reason: string, textArea: IHiddenAreaWrapper, select: boolean): void {
+		console.log('writeToTextArea');
 		if (_debugComposition) {
 			console.log(`writeToTextArea ${reason}: ${this.toString()}`);
 		}
@@ -290,6 +292,15 @@ export class PagedScreenReaderStrategy {
 		}
 
 		console.log('fromEditorSelection');
+		const numberOfLines = model.getLineCount();
+		const lengthOfLastLine = model.getLineMaxColumn(numberOfLines);
+		const fullRange = new Range(1, 1, numberOfLines, lengthOfLastLine);
+		console.log('full value : ', model.getValueInRange(fullRange, EndOfLinePreference.LF));
+		console.log('pretextRange : ', pretextRange);
+		console.log('selection : ', selection);
+		console.log('pretext : ', pretext);
+		console.log('text : ', text);
+		console.log('posttext : ', posttext);
 		return new HiddenAreaState(pretext + text + posttext, pretext.length, pretext.length + text.length, selection, pretextRange.endLineNumber - pretextRange.startLineNumber);
 	}
 }
