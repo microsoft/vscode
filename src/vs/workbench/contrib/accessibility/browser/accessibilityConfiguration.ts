@@ -763,9 +763,15 @@ export class DynamicSpeechAccessibilityConfiguration extends Disposable implemen
 					'enumItemLabels': languagesSorted.map(key => languages[key].name)
 				},
 				[AccessibilityVoiceSettingId.AutoSynthesize]: {
-					'type': 'boolean',
+					'type': 'string',
+					'enum': ['on', 'off', 'auto'],
+					'enumDescriptions': [
+						localize('accessibility.voice.autoSynthesize.on', "Enable the feature. When a screen reader is enabled, note that this will disable aria updates."),
+						localize('accessibility.voice.autoSynthesize.off', "Disable the feature."),
+						localize('accessibility.voice.autoSynthesize.auto', "When a screen reader is detected, disable the feature. Otherwise, enable the feature.")
+					],
 					'markdownDescription': localize('autoSynthesize', "Whether a textual response should automatically be read out aloud when speech was used as input. For example in a chat session, a response is automatically synthesized when voice was used as chat request."),
-					'default': this.productService.quality !== 'stable', // TODO@bpasero decide on a default
+					'default': this.productService.quality !== 'stable' ? 'auto' : 'off', // TODO@bpasero decide on a default
 					'tags': ['accessibility']
 				}
 			}
@@ -858,6 +864,22 @@ function getVolumeFromConfig(accessor: (key: string) => any): string | undefined
 function getDebouncePositionChangesFromConfig(accessor: (key: string) => any): number | undefined {
 	return accessor('accessibility.signalOptions.debouncePositionChanges') || accessor('accessibility.signalOptions')?.debouncePositionChanges || accessor('accessibility.signals.debouncePositionChanges') || accessor('audioCues.debouncePositionChanges');
 }
+
+Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMigration)
+	.registerConfigurationMigrations([{
+		key: AccessibilityVoiceSettingId.AutoSynthesize,
+		migrateFn: (value: boolean) => {
+			let newValue: string | undefined;
+			if (value === true) {
+				newValue = 'on';
+			} else if (value === false) {
+				newValue = 'off';
+			}
+			return [
+				[AccessibilityVoiceSettingId.AutoSynthesize, { value: newValue }],
+			];
+		}
+	}]);
 
 Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMigration)
 	.registerConfigurationMigrations([{

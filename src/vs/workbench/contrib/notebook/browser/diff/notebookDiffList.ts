@@ -123,6 +123,7 @@ export class CellDiffSingleSideRenderer implements IListRenderer<SingleSideDiffE
 
 		const editor = this.instantiationService.createInstance(CodeEditorWidget, editorContainer, {
 			...fixedEditorOptions,
+			glyphMargin: false,
 			dimension: {
 				width: (this.notebookEditor.getLayoutInfo().width - 2 * DIFF_CELL_MARGIN) / 2 - 18,
 				height: 0

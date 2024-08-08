@@ -890,7 +890,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			return Promise.resolve<Task[]>([]);
 		}
 
-		return this._getGroupedTasks(filter, true).then((map) => this.applyFilterToTaskMap(filter, map));
+		return this._getGroupedTasks(filter, true, true).then((map) => this.applyFilterToTaskMap(filter, map));
 	}
 
 	public taskTypes(): string[] {
@@ -2023,7 +2023,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return !definition || !definition.when || this._contextKeyService.contextMatchesRules(definition.when);
 	}
 
-	private async _getGroupedTasks(filter?: ITaskFilter, waitToActivate?: boolean): Promise<TaskMap> {
+	private async _getGroupedTasks(filter?: ITaskFilter, waitToActivate?: boolean, knownOnlyOrTrusted?: boolean): Promise<TaskMap> {
 		await this._waitForAllSupportedExecutions;
 		const type = filter?.type;
 		const needsRecentTasksMigration = this._needsRecentTasksMigration();
@@ -2110,123 +2110,12 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 
 		try {
-			const customTasks = await this.getWorkspaceTasks();
-			const customTasksKeyValuePairs = Array.from(customTasks);
-			const customTasksPromises = customTasksKeyValuePairs.map(async ([key, folderTasks]) => {
-				const contributed = contributedTasks.get(key);
-				if (!folderTasks.set) {
-					if (contributed) {
-						result.add(key, ...contributed);
-					}
-					return;
-				}
-
-				if (this._contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
-					result.add(key, ...folderTasks.set.tasks);
-				} else {
-					const configurations = folderTasks.configurations;
-					const legacyTaskConfigurations = folderTasks.set ? this._getLegacyTaskConfigurations(folderTasks.set) : undefined;
-					const customTasksToDelete: Task[] = [];
-					if (configurations || legacyTaskConfigurations) {
-						const unUsedConfigurations: Set<string> = new Set<string>();
-						if (configurations) {
-							Object.keys(configurations.byIdentifier).forEach(key => unUsedConfigurations.add(key));
-						}
-						for (const task of contributed) {
-							if (!ContributedTask.is(task)) {
-								continue;
-							}
-							if (configurations) {
-								const configuringTask = configurations.byIdentifier[task.defines._key];
-								if (configuringTask) {
-									unUsedConfigurations.delete(task.defines._key);
-									result.add(key, TaskConfig.createCustomTask(task, configuringTask));
-								} else {
-									result.add(key, task);
-								}
-							} else if (legacyTaskConfigurations) {
-								const configuringTask = legacyTaskConfigurations[task.defines._key];
-								if (configuringTask) {
-									result.add(key, TaskConfig.createCustomTask(task, configuringTask));
-									customTasksToDelete.push(configuringTask);
-								} else {
-									result.add(key, task);
-								}
-							} else {
-								result.add(key, task);
-							}
-						}
-						if (customTasksToDelete.length > 0) {
-							const toDelete = customTasksToDelete.reduce<IStringDictionary<boolean>>((map, task) => {
-								map[task._id] = true;
-								return map;
-							}, Object.create(null));
-							for (const task of folderTasks.set.tasks) {
-								if (toDelete[task._id]) {
-									continue;
-								}
-								result.add(key, task);
-							}
-						} else {
-							result.add(key, ...folderTasks.set.tasks);
-						}
-
-						const unUsedConfigurationsAsArray = Array.from(unUsedConfigurations);
-
-						const unUsedConfigurationPromises = unUsedConfigurationsAsArray.map(async (value) => {
-							const configuringTask = configurations!.byIdentifier[value];
-							if (type && (type !== configuringTask.configures.type)) {
-								return;
-							}
-
-							let requiredTaskProviderUnavailable: boolean = false;
-
-							for (const [handle, provider] of this._providers) {
-								const providerType = this._providerTypes.get(handle);
-								if (configuringTask.type === providerType) {
-									if (providerType && !this._isTaskProviderEnabled(providerType)) {
-										requiredTaskProviderUnavailable = true;
-										continue;
-									}
-
-									try {
-										const resolvedTask = await provider.resolveTask(configuringTask);
-										if (resolvedTask && (resolvedTask._id === configuringTask._id)) {
-											result.add(key, TaskConfig.createCustomTask(resolvedTask, configuringTask));
-											return;
-										}
-									} catch (error) {
-										// Ignore errors. The task could not be provided by any of the providers.
-									}
-								}
-							}
-
-							if (requiredTaskProviderUnavailable) {
-								this._log(nls.localize(
-									'TaskService.providerUnavailable',
-									'Warning: {0} tasks are unavailable in the current environment.',
-									configuringTask.configures.type
-								));
-							} else {
-								this._log(nls.localize(
-									'TaskService.noConfiguration',
-									'Error: The {0} task detection didn\'t contribute a task for the following configuration:\n{1}\nThe task will be ignored.',
-									configuringTask.configures.type,
-									JSON.stringify(configuringTask._source.config.element, undefined, 4)
-								));
-								this._showOutput();
-							}
-						});
-
-						await Promise.all(unUsedConfigurationPromises);
-					} else {
-						result.add(key, ...folderTasks.set.tasks);
-						result.add(key, ...contributed);
-					}
-				}
-			});
-
-			await Promise.all(customTasksPromises);
+			let tasks: [string, IWorkspaceFolderTaskResult][] = [];
+			// prevent workspace trust dialog from being shown in unexpected cases #224881
+			if (!knownOnlyOrTrusted || this._workspaceTrustManagementService.isWorkspaceTrusted()) {
+				tasks = Array.from(await this.getWorkspaceTasks());
+			}
+			await Promise.all(this._getCustomTaskPromises(tasks, filter, result, contributedTasks, waitToActivate));
 			if (needsRecentTasksMigration) {
 				// At this point we have all the tasks and can migrate the recently used tasks.
 				await this._migrateRecentTasks(result.all());
@@ -2245,6 +2134,120 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 			return result;
 		}
+	}
+	private _getCustomTaskPromises(customTasksKeyValuePairs: [string, IWorkspaceFolderTaskResult][], filter: ITaskFilter | undefined, result: TaskMap, contributedTasks: TaskMap, waitToActivate: boolean | undefined) {
+		return customTasksKeyValuePairs.map(async ([key, folderTasks]) => {
+			const contributed = contributedTasks.get(key);
+			if (!folderTasks.set) {
+				if (contributed) {
+					result.add(key, ...contributed);
+				}
+				return;
+			}
+
+			if (this._contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
+				result.add(key, ...folderTasks.set.tasks);
+			} else {
+				const configurations = folderTasks.configurations;
+				const legacyTaskConfigurations = folderTasks.set ? this._getLegacyTaskConfigurations(folderTasks.set) : undefined;
+				const customTasksToDelete: Task[] = [];
+				if (configurations || legacyTaskConfigurations) {
+					const unUsedConfigurations: Set<string> = new Set<string>();
+					if (configurations) {
+						Object.keys(configurations.byIdentifier).forEach(key => unUsedConfigurations.add(key));
+					}
+					for (const task of contributed) {
+						if (!ContributedTask.is(task)) {
+							continue;
+						}
+						if (configurations) {
+							const configuringTask = configurations.byIdentifier[task.defines._key];
+							if (configuringTask) {
+								unUsedConfigurations.delete(task.defines._key);
+								result.add(key, TaskConfig.createCustomTask(task, configuringTask));
+							} else {
+								result.add(key, task);
+							}
+						} else if (legacyTaskConfigurations) {
+							const configuringTask = legacyTaskConfigurations[task.defines._key];
+							if (configuringTask) {
+								result.add(key, TaskConfig.createCustomTask(task, configuringTask));
+								customTasksToDelete.push(configuringTask);
+							} else {
+								result.add(key, task);
+							}
+						} else {
+							result.add(key, task);
+						}
+					}
+					if (customTasksToDelete.length > 0) {
+						const toDelete = customTasksToDelete.reduce<IStringDictionary<boolean>>((map, task) => {
+							map[task._id] = true;
+							return map;
+						}, Object.create(null));
+						for (const task of folderTasks.set.tasks) {
+							if (toDelete[task._id]) {
+								continue;
+							}
+							result.add(key, task);
+						}
+					} else {
+						result.add(key, ...folderTasks.set.tasks);
+					}
+
+					const unUsedConfigurationsAsArray = Array.from(unUsedConfigurations);
+
+					const unUsedConfigurationPromises = unUsedConfigurationsAsArray.map(async (value) => {
+						const configuringTask = configurations!.byIdentifier[value];
+						if (filter?.type && (filter.type !== configuringTask.configures.type)) {
+							return;
+						}
+
+						let requiredTaskProviderUnavailable: boolean = false;
+
+						for (const [handle, provider] of this._providers) {
+							const providerType = this._providerTypes.get(handle);
+							if (configuringTask.type === providerType) {
+								if (providerType && !this._isTaskProviderEnabled(providerType)) {
+									requiredTaskProviderUnavailable = true;
+									continue;
+								}
+
+								try {
+									const resolvedTask = await provider.resolveTask(configuringTask);
+									if (resolvedTask && (resolvedTask._id === configuringTask._id)) {
+										result.add(key, TaskConfig.createCustomTask(resolvedTask, configuringTask));
+										return;
+									}
+								} catch (error) {
+									// Ignore errors. The task could not be provided by any of the providers.
+								}
+							}
+						}
+						if (requiredTaskProviderUnavailable) {
+							this._log(nls.localize(
+								'TaskService.providerUnavailable',
+								'Warning: {0} tasks are unavailable in the current environment.',
+								configuringTask.configures.type
+							));
+						} else if (!waitToActivate) {
+							this._log(nls.localize(
+								'TaskService.noConfiguration',
+								'Error: The {0} task detection didn\'t contribute a task for the following configuration:\n{1}\nThe task will be ignored.',
+								configuringTask.configures.type,
+								JSON.stringify(configuringTask._source.config.element, undefined, 4)
+							));
+							this._showOutput();
+						}
+					});
+
+					await Promise.all(unUsedConfigurationPromises);
+				} else {
+					result.add(key, ...folderTasks.set.tasks);
+					result.add(key, ...contributed);
+				}
+			}
+		});
 	}
 
 	private _getLegacyTaskConfigurations(workspaceTasks: ITaskSet): IStringDictionary<CustomTask> | undefined {
