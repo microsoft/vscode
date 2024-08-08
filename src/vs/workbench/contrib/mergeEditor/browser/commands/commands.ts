@@ -590,49 +590,27 @@ export class AcceptAllCombination extends MergeEditorAction2 {
 	}
 
 	override async runWithMergeEditor(context: MergeEditorAction2Args, accessor: ServicesAccessor, ...args: any[]) {
-		console.log('runWithMergeEditor2');
-		// const { input, inputModel, editorIdentifier, viewModel } = context;
 		const { viewModel } = context;
 		const modifiedBaseRanges = viewModel.model.modifiedBaseRanges.get();
-		const model = viewModel.model;
-		// const activeModifiedBaseRange = viewModel.activeModifiedBaseRange.get()
-		console.log(model.input1.title);
-		console.log(model.input2.title);
-		console.log(modifiedBaseRanges.length);
-		console.log(modifiedBaseRanges.filter(i => i.canBeCombined).length);
-		let index = 1;
 		for (const m of modifiedBaseRanges.filter(i => i.canBeCombined)) {
-			console.log(`======= begin ${index} ======`);
-			// if (m.canBeCombined) {
-			console.log('can be combined', m);
 			const actions = new ActionsSource(viewModel, m);
 			const item1 = actions.itemsInput1;
 			const item2 = actions.itemsInput2;
 			const actualItem1 = item1.get().filter(i => i.type === IContentWidgetActionType.ACCEPT_BOTH);
+			for (const item of actualItem1) {
+				if (item.action) {
+					await item.action();
+				}
+			}
 			const actualItem2 = item2.get().filter(i => i.type === IContentWidgetActionType.ACCEPT_BOTH);
-			console.log('======= actualItem1 ======', actualItem1.length);
-			for (const item of item1.get().filter(i => i.type === IContentWidgetActionType.ACCEPT_BOTH)) {
-				console.log(item);
-				if (item.action) {
-					console.log(`exec actualItem1 ${index}`);
-					await item.action();
-				}
-			}
-			console.log('======= actualItem2 ======', actualItem2.length);
 			for (const item of actualItem2) {
-				console.log(item);
 				if (item.action) {
-					console.log(`exec actualItem2 ${index}`);
 					await item.action();
 				}
 			}
-			console.log(`======= end ${index} ======`);
-			// }
-
-			index++;
 		}
 
-		return;
+		return { success: true };
 
 	}
 }
