@@ -5,7 +5,8 @@
 
 import * as assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { toISCMHistoryItemViewModelArray } from 'vs/workbench/contrib/scm/browser/scmHistory';
+import { ColorIdentifier } from 'vs/platform/theme/common/colorUtils';
+import { colorRegistry, historyItemGroupBase, historyItemGroupLocal, historyItemGroupRemote, toISCMHistoryItemViewModelArray } from 'vs/workbench/contrib/scm/browser/scmHistory';
 import { ISCMHistoryItem } from 'vs/workbench/contrib/scm/common/history';
 
 suite('toISCMHistoryItemViewModelArray', () => {
@@ -61,39 +62,39 @@ suite('toISCMHistoryItemViewModelArray', () => {
 
 		assert.strictEqual(viewModels[0].outputSwimlanes.length, 1);
 		assert.strictEqual(viewModels[0].outputSwimlanes[0].id, 'b');
-		assert.strictEqual(viewModels[0].outputSwimlanes[0].color, 0);
+		assert.strictEqual(viewModels[0].outputSwimlanes[0].color, colorRegistry[0]);
 
 		// node b
 		assert.strictEqual(viewModels[1].inputSwimlanes.length, 1);
 		assert.strictEqual(viewModels[1].inputSwimlanes[0].id, 'b');
-		assert.strictEqual(viewModels[1].inputSwimlanes[0].color, 0);
+		assert.strictEqual(viewModels[1].inputSwimlanes[0].color, colorRegistry[0]);
 
 		assert.strictEqual(viewModels[1].outputSwimlanes.length, 1);
 		assert.strictEqual(viewModels[1].outputSwimlanes[0].id, 'c');
-		assert.strictEqual(viewModels[1].outputSwimlanes[0].color, 0);
+		assert.strictEqual(viewModels[1].outputSwimlanes[0].color, colorRegistry[0]);
 
 		// node c
 		assert.strictEqual(viewModels[2].inputSwimlanes.length, 1);
 		assert.strictEqual(viewModels[2].inputSwimlanes[0].id, 'c');
-		assert.strictEqual(viewModels[2].inputSwimlanes[0].color, 0);
+		assert.strictEqual(viewModels[2].inputSwimlanes[0].color, colorRegistry[0]);
 
 		assert.strictEqual(viewModels[2].outputSwimlanes.length, 1);
 		assert.strictEqual(viewModels[2].outputSwimlanes[0].id, 'd');
-		assert.strictEqual(viewModels[2].outputSwimlanes[0].color, 0);
+		assert.strictEqual(viewModels[2].outputSwimlanes[0].color, colorRegistry[0]);
 
 		// node d
 		assert.strictEqual(viewModels[3].inputSwimlanes.length, 1);
 		assert.strictEqual(viewModels[3].inputSwimlanes[0].id, 'd');
-		assert.strictEqual(viewModels[3].inputSwimlanes[0].color, 0);
+		assert.strictEqual(viewModels[3].inputSwimlanes[0].color, colorRegistry[0]);
 
 		assert.strictEqual(viewModels[3].outputSwimlanes.length, 1);
 		assert.strictEqual(viewModels[3].outputSwimlanes[0].id, 'e');
-		assert.strictEqual(viewModels[3].outputSwimlanes[0].color, 0);
+		assert.strictEqual(viewModels[3].outputSwimlanes[0].color, colorRegistry[0]);
 
 		// node e
 		assert.strictEqual(viewModels[4].inputSwimlanes.length, 1);
 		assert.strictEqual(viewModels[4].inputSwimlanes[0].id, 'e');
-		assert.strictEqual(viewModels[4].inputSwimlanes[0].color, 0);
+		assert.strictEqual(viewModels[4].inputSwimlanes[0].color, colorRegistry[0]);
 
 		assert.strictEqual(viewModels[4].outputSwimlanes.length, 0);
 	});
@@ -125,50 +126,50 @@ suite('toISCMHistoryItemViewModelArray', () => {
 
 		assert.strictEqual(viewModels[0].outputSwimlanes.length, 1);
 		assert.strictEqual(viewModels[0].outputSwimlanes[0].id, 'b');
-		assert.strictEqual(viewModels[0].outputSwimlanes[0].color, 0);
+		assert.strictEqual(viewModels[0].outputSwimlanes[0].color, colorRegistry[0]);
 
 		// node b
 		assert.strictEqual(viewModels[1].inputSwimlanes.length, 1);
 		assert.strictEqual(viewModels[1].inputSwimlanes[0].id, 'b');
-		assert.strictEqual(viewModels[1].inputSwimlanes[0].color, 0);
+		assert.strictEqual(viewModels[1].inputSwimlanes[0].color, colorRegistry[0]);
 
 		assert.strictEqual(viewModels[1].outputSwimlanes.length, 2);
 		assert.strictEqual(viewModels[1].outputSwimlanes[0].id, 'c');
-		assert.strictEqual(viewModels[1].outputSwimlanes[0].color, 0);
+		assert.strictEqual(viewModels[1].outputSwimlanes[0].color, colorRegistry[0]);
 		assert.strictEqual(viewModels[1].outputSwimlanes[1].id, 'd');
-		assert.strictEqual(viewModels[1].outputSwimlanes[1].color, 1);
+		assert.strictEqual(viewModels[1].outputSwimlanes[1].color, colorRegistry[1]);
 
 		// node d
 		assert.strictEqual(viewModels[2].inputSwimlanes.length, 2);
 		assert.strictEqual(viewModels[2].inputSwimlanes[0].id, 'c');
-		assert.strictEqual(viewModels[2].inputSwimlanes[0].color, 0);
+		assert.strictEqual(viewModels[2].inputSwimlanes[0].color, colorRegistry[0]);
 		assert.strictEqual(viewModels[2].inputSwimlanes[1].id, 'd');
-		assert.strictEqual(viewModels[2].inputSwimlanes[1].color, 1);
+		assert.strictEqual(viewModels[2].inputSwimlanes[1].color, colorRegistry[1]);
 
 		assert.strictEqual(viewModels[2].outputSwimlanes.length, 2);
 		assert.strictEqual(viewModels[2].outputSwimlanes[0].id, 'c');
-		assert.strictEqual(viewModels[2].outputSwimlanes[0].color, 0);
+		assert.strictEqual(viewModels[2].outputSwimlanes[0].color, colorRegistry[0]);
 		assert.strictEqual(viewModels[2].outputSwimlanes[1].id, 'c');
-		assert.strictEqual(viewModels[2].outputSwimlanes[1].color, 1);
+		assert.strictEqual(viewModels[2].outputSwimlanes[1].color, colorRegistry[1]);
 
 		// node c
 		assert.strictEqual(viewModels[3].inputSwimlanes.length, 2);
 		assert.strictEqual(viewModels[3].inputSwimlanes[0].id, 'c');
-		assert.strictEqual(viewModels[3].inputSwimlanes[0].color, 0);
+		assert.strictEqual(viewModels[3].inputSwimlanes[0].color, colorRegistry[0]);
 		assert.strictEqual(viewModels[3].inputSwimlanes[1].id, 'c');
-		assert.strictEqual(viewModels[3].inputSwimlanes[1].color, 1);
+		assert.strictEqual(viewModels[3].inputSwimlanes[1].color, colorRegistry[1]);
 
 		assert.strictEqual(viewModels[3].outputSwimlanes.length, 1);
 		assert.strictEqual(viewModels[3].outputSwimlanes[0].id, 'e');
-		assert.strictEqual(viewModels[3].outputSwimlanes[0].color, 0);
+		assert.strictEqual(viewModels[3].outputSwimlanes[0].color, colorRegistry[0]);
 
 		// node e
 		assert.strictEqual(viewModels[4].inputSwimlanes.length, 1);
 		assert.strictEqual(viewModels[4].inputSwimlanes[0].id, 'e');
-		assert.strictEqual(viewModels[4].inputSwimlanes[0].color, 0);
+		assert.strictEqual(viewModels[4].inputSwimlanes[0].color, colorRegistry[0]);
 		assert.strictEqual(viewModels[4].outputSwimlanes.length, 1);
 		assert.strictEqual(viewModels[4].outputSwimlanes[0].id, 'f');
-		assert.strictEqual(viewModels[4].outputSwimlanes[0].color, 0);
+		assert.strictEqual(viewModels[4].outputSwimlanes[0].color, colorRegistry[0]);
 	});
 
 	/**
@@ -200,72 +201,72 @@ suite('toISCMHistoryItemViewModelArray', () => {
 
 		assert.strictEqual(viewModels[0].outputSwimlanes.length, 2);
 		assert.strictEqual(viewModels[0].outputSwimlanes[0].id, 'b');
-		assert.strictEqual(viewModels[0].outputSwimlanes[0].color, 0);
+		assert.strictEqual(viewModels[0].outputSwimlanes[0].color, colorRegistry[0]);
 		assert.strictEqual(viewModels[0].outputSwimlanes[1].id, 'c');
-		assert.strictEqual(viewModels[0].outputSwimlanes[1].color, 1);
+		assert.strictEqual(viewModels[0].outputSwimlanes[1].color, colorRegistry[1]);
 
 		// node c
 		assert.strictEqual(viewModels[1].inputSwimlanes.length, 2);
 		assert.strictEqual(viewModels[1].inputSwimlanes[0].id, 'b');
-		assert.strictEqual(viewModels[1].inputSwimlanes[0].color, 0);
+		assert.strictEqual(viewModels[1].inputSwimlanes[0].color, colorRegistry[0]);
 		assert.strictEqual(viewModels[1].inputSwimlanes[1].id, 'c');
-		assert.strictEqual(viewModels[1].inputSwimlanes[1].color, 1);
+		assert.strictEqual(viewModels[1].inputSwimlanes[1].color, colorRegistry[1]);
 
 		assert.strictEqual(viewModels[1].outputSwimlanes.length, 2);
 		assert.strictEqual(viewModels[1].outputSwimlanes[0].id, 'b');
-		assert.strictEqual(viewModels[1].outputSwimlanes[0].color, 0);
+		assert.strictEqual(viewModels[1].outputSwimlanes[0].color, colorRegistry[0]);
 		assert.strictEqual(viewModels[1].outputSwimlanes[1].id, 'd');
-		assert.strictEqual(viewModels[1].outputSwimlanes[1].color, 1);
+		assert.strictEqual(viewModels[1].outputSwimlanes[1].color, colorRegistry[1]);
 
 		// node b
 		assert.strictEqual(viewModels[2].inputSwimlanes.length, 2);
 		assert.strictEqual(viewModels[2].inputSwimlanes[0].id, 'b');
-		assert.strictEqual(viewModels[2].inputSwimlanes[0].color, 0);
+		assert.strictEqual(viewModels[2].inputSwimlanes[0].color, colorRegistry[0]);
 		assert.strictEqual(viewModels[2].inputSwimlanes[1].id, 'd');
-		assert.strictEqual(viewModels[2].inputSwimlanes[1].color, 1);
+		assert.strictEqual(viewModels[2].inputSwimlanes[1].color, colorRegistry[1]);
 
 		assert.strictEqual(viewModels[2].outputSwimlanes.length, 2);
 		assert.strictEqual(viewModels[2].outputSwimlanes[0].id, 'e');
-		assert.strictEqual(viewModels[2].outputSwimlanes[0].color, 0);
+		assert.strictEqual(viewModels[2].outputSwimlanes[0].color, colorRegistry[0]);
 		assert.strictEqual(viewModels[2].outputSwimlanes[1].id, 'd');
-		assert.strictEqual(viewModels[2].outputSwimlanes[1].color, 1);
+		assert.strictEqual(viewModels[2].outputSwimlanes[1].color, colorRegistry[1]);
 
 		// node e
 		assert.strictEqual(viewModels[3].inputSwimlanes.length, 2);
 		assert.strictEqual(viewModels[3].inputSwimlanes[0].id, 'e');
-		assert.strictEqual(viewModels[3].inputSwimlanes[0].color, 0);
+		assert.strictEqual(viewModels[3].inputSwimlanes[0].color, colorRegistry[0]);
 		assert.strictEqual(viewModels[3].inputSwimlanes[1].id, 'd');
-		assert.strictEqual(viewModels[3].inputSwimlanes[1].color, 1);
+		assert.strictEqual(viewModels[3].inputSwimlanes[1].color, colorRegistry[1]);
 
 		assert.strictEqual(viewModels[3].outputSwimlanes.length, 2);
 		assert.strictEqual(viewModels[3].outputSwimlanes[0].id, 'f');
-		assert.strictEqual(viewModels[3].outputSwimlanes[0].color, 0);
+		assert.strictEqual(viewModels[3].outputSwimlanes[0].color, colorRegistry[0]);
 		assert.strictEqual(viewModels[3].outputSwimlanes[1].id, 'd');
-		assert.strictEqual(viewModels[3].outputSwimlanes[1].color, 1);
+		assert.strictEqual(viewModels[3].outputSwimlanes[1].color, colorRegistry[1]);
 
 		// node f
 		assert.strictEqual(viewModels[4].inputSwimlanes.length, 2);
 		assert.strictEqual(viewModels[4].inputSwimlanes[0].id, 'f');
-		assert.strictEqual(viewModels[4].inputSwimlanes[0].color, 0);
+		assert.strictEqual(viewModels[4].inputSwimlanes[0].color, colorRegistry[0]);
 		assert.strictEqual(viewModels[4].inputSwimlanes[1].id, 'd');
-		assert.strictEqual(viewModels[4].inputSwimlanes[1].color, 1);
+		assert.strictEqual(viewModels[4].inputSwimlanes[1].color, colorRegistry[1]);
 
 		assert.strictEqual(viewModels[4].outputSwimlanes.length, 2);
 		assert.strictEqual(viewModels[4].outputSwimlanes[0].id, 'd');
-		assert.strictEqual(viewModels[4].outputSwimlanes[0].color, 0);
+		assert.strictEqual(viewModels[4].outputSwimlanes[0].color, colorRegistry[0]);
 		assert.strictEqual(viewModels[4].outputSwimlanes[1].id, 'd');
-		assert.strictEqual(viewModels[4].outputSwimlanes[1].color, 1);
+		assert.strictEqual(viewModels[4].outputSwimlanes[1].color, colorRegistry[1]);
 
 		// node d
 		assert.strictEqual(viewModels[5].inputSwimlanes.length, 2);
 		assert.strictEqual(viewModels[5].inputSwimlanes[0].id, 'd');
-		assert.strictEqual(viewModels[5].inputSwimlanes[0].color, 0);
+		assert.strictEqual(viewModels[5].inputSwimlanes[0].color, colorRegistry[0]);
 		assert.strictEqual(viewModels[5].inputSwimlanes[1].id, 'd');
-		assert.strictEqual(viewModels[5].inputSwimlanes[1].color, 1);
+		assert.strictEqual(viewModels[5].inputSwimlanes[1].color, colorRegistry[1]);
 
 		assert.strictEqual(viewModels[5].outputSwimlanes.length, 1);
 		assert.strictEqual(viewModels[5].outputSwimlanes[0].id, 'g');
-		assert.strictEqual(viewModels[5].outputSwimlanes[0].color, 0);
+		assert.strictEqual(viewModels[5].outputSwimlanes[0].color, colorRegistry[0]);
 	});
 
 	/**
@@ -298,74 +299,74 @@ suite('toISCMHistoryItemViewModelArray', () => {
 
 		assert.strictEqual(viewModels[0].outputSwimlanes.length, 2);
 		assert.strictEqual(viewModels[0].outputSwimlanes[0].id, 'b');
-		assert.strictEqual(viewModels[0].outputSwimlanes[0].color, 0);
+		assert.strictEqual(viewModels[0].outputSwimlanes[0].color, colorRegistry[0]);
 		assert.strictEqual(viewModels[0].outputSwimlanes[1].id, 'c');
-		assert.strictEqual(viewModels[0].outputSwimlanes[1].color, 1);
+		assert.strictEqual(viewModels[0].outputSwimlanes[1].color, colorRegistry[1]);
 
 		// node c
 		assert.strictEqual(viewModels[1].inputSwimlanes.length, 2);
 		assert.strictEqual(viewModels[1].inputSwimlanes[0].id, 'b');
-		assert.strictEqual(viewModels[1].inputSwimlanes[0].color, 0);
+		assert.strictEqual(viewModels[1].inputSwimlanes[0].color, colorRegistry[0]);
 		assert.strictEqual(viewModels[1].inputSwimlanes[1].id, 'c');
-		assert.strictEqual(viewModels[1].inputSwimlanes[1].color, 1);
+		assert.strictEqual(viewModels[1].inputSwimlanes[1].color, colorRegistry[1]);
 
 		assert.strictEqual(viewModels[1].outputSwimlanes.length, 2);
 		assert.strictEqual(viewModels[1].outputSwimlanes[0].id, 'b');
-		assert.strictEqual(viewModels[1].outputSwimlanes[0].color, 0);
+		assert.strictEqual(viewModels[1].outputSwimlanes[0].color, colorRegistry[0]);
 		assert.strictEqual(viewModels[1].outputSwimlanes[1].id, 'b');
-		assert.strictEqual(viewModels[1].outputSwimlanes[1].color, 1);
+		assert.strictEqual(viewModels[1].outputSwimlanes[1].color, colorRegistry[1]);
 
 		// node b
 		assert.strictEqual(viewModels[2].inputSwimlanes.length, 2);
 		assert.strictEqual(viewModels[2].inputSwimlanes[0].id, 'b');
-		assert.strictEqual(viewModels[2].inputSwimlanes[0].color, 0);
+		assert.strictEqual(viewModels[2].inputSwimlanes[0].color, colorRegistry[0]);
 		assert.strictEqual(viewModels[2].inputSwimlanes[1].id, 'b');
-		assert.strictEqual(viewModels[2].inputSwimlanes[1].color, 1);
+		assert.strictEqual(viewModels[2].inputSwimlanes[1].color, colorRegistry[1]);
 
 		assert.strictEqual(viewModels[2].outputSwimlanes.length, 2);
 		assert.strictEqual(viewModels[2].outputSwimlanes[0].id, 'd');
-		assert.strictEqual(viewModels[2].outputSwimlanes[0].color, 0);
+		assert.strictEqual(viewModels[2].outputSwimlanes[0].color, colorRegistry[0]);
 		assert.strictEqual(viewModels[2].outputSwimlanes[1].id, 'e');
-		assert.strictEqual(viewModels[2].outputSwimlanes[1].color, 2);
+		assert.strictEqual(viewModels[2].outputSwimlanes[1].color, colorRegistry[2]);
 
 		// node e
 		assert.strictEqual(viewModels[3].inputSwimlanes.length, 2);
 		assert.strictEqual(viewModels[3].inputSwimlanes[0].id, 'd');
-		assert.strictEqual(viewModels[3].inputSwimlanes[0].color, 0);
+		assert.strictEqual(viewModels[3].inputSwimlanes[0].color, colorRegistry[0]);
 		assert.strictEqual(viewModels[3].inputSwimlanes[1].id, 'e');
-		assert.strictEqual(viewModels[3].inputSwimlanes[1].color, 2);
+		assert.strictEqual(viewModels[3].inputSwimlanes[1].color, colorRegistry[2]);
 
 		assert.strictEqual(viewModels[3].outputSwimlanes.length, 2);
 		assert.strictEqual(viewModels[3].outputSwimlanes[0].id, 'd');
-		assert.strictEqual(viewModels[3].outputSwimlanes[0].color, 0);
+		assert.strictEqual(viewModels[3].outputSwimlanes[0].color, colorRegistry[0]);
 		assert.strictEqual(viewModels[3].outputSwimlanes[1].id, 'f');
-		assert.strictEqual(viewModels[3].outputSwimlanes[1].color, 2);
+		assert.strictEqual(viewModels[3].outputSwimlanes[1].color, colorRegistry[2]);
 
 		// node f
 		assert.strictEqual(viewModels[4].inputSwimlanes.length, 2);
 		assert.strictEqual(viewModels[4].inputSwimlanes[0].id, 'd');
-		assert.strictEqual(viewModels[4].inputSwimlanes[0].color, 0);
+		assert.strictEqual(viewModels[4].inputSwimlanes[0].color, colorRegistry[0]);
 		assert.strictEqual(viewModels[4].inputSwimlanes[1].id, 'f');
-		assert.strictEqual(viewModels[4].inputSwimlanes[1].color, 2);
+		assert.strictEqual(viewModels[4].inputSwimlanes[1].color, colorRegistry[2]);
 
 		assert.strictEqual(viewModels[4].outputSwimlanes.length, 2);
 		assert.strictEqual(viewModels[4].outputSwimlanes[0].id, 'd');
-		assert.strictEqual(viewModels[4].outputSwimlanes[0].color, 0);
+		assert.strictEqual(viewModels[4].outputSwimlanes[0].color, colorRegistry[0]);
 		assert.strictEqual(viewModels[4].outputSwimlanes[1].id, 'g');
-		assert.strictEqual(viewModels[4].outputSwimlanes[1].color, 2);
+		assert.strictEqual(viewModels[4].outputSwimlanes[1].color, colorRegistry[2]);
 
 		// node d
 		assert.strictEqual(viewModels[5].inputSwimlanes.length, 2);
 		assert.strictEqual(viewModels[5].inputSwimlanes[0].id, 'd');
-		assert.strictEqual(viewModels[5].inputSwimlanes[0].color, 0);
+		assert.strictEqual(viewModels[5].inputSwimlanes[0].color, colorRegistry[0]);
 		assert.strictEqual(viewModels[5].inputSwimlanes[1].id, 'g');
-		assert.strictEqual(viewModels[5].inputSwimlanes[1].color, 2);
+		assert.strictEqual(viewModels[5].inputSwimlanes[1].color, colorRegistry[2]);
 
 		assert.strictEqual(viewModels[5].outputSwimlanes.length, 2);
 		assert.strictEqual(viewModels[5].outputSwimlanes[0].id, 'h');
-		assert.strictEqual(viewModels[5].outputSwimlanes[0].color, 0);
+		assert.strictEqual(viewModels[5].outputSwimlanes[0].color, colorRegistry[0]);
 		assert.strictEqual(viewModels[5].outputSwimlanes[1].id, 'g');
-		assert.strictEqual(viewModels[5].outputSwimlanes[1].color, 2);
+		assert.strictEqual(viewModels[5].outputSwimlanes[1].color, colorRegistry[2]);
 	});
 
 
@@ -404,100 +405,188 @@ suite('toISCMHistoryItemViewModelArray', () => {
 
 		assert.strictEqual(viewModels[0].outputSwimlanes.length, 2);
 		assert.strictEqual(viewModels[0].outputSwimlanes[0].id, 'b');
-		assert.strictEqual(viewModels[0].outputSwimlanes[0].color, 0);
+		assert.strictEqual(viewModels[0].outputSwimlanes[0].color, colorRegistry[0]);
 		assert.strictEqual(viewModels[0].outputSwimlanes[1].id, 'c');
-		assert.strictEqual(viewModels[0].outputSwimlanes[1].color, 1);
+		assert.strictEqual(viewModels[0].outputSwimlanes[1].color, colorRegistry[1]);
 
 		// node c
 		assert.strictEqual(viewModels[1].inputSwimlanes.length, 2);
 		assert.strictEqual(viewModels[1].inputSwimlanes[0].id, 'b');
-		assert.strictEqual(viewModels[1].inputSwimlanes[0].color, 0);
+		assert.strictEqual(viewModels[1].inputSwimlanes[0].color, colorRegistry[0]);
 		assert.strictEqual(viewModels[1].inputSwimlanes[1].id, 'c');
-		assert.strictEqual(viewModels[1].inputSwimlanes[1].color, 1);
+		assert.strictEqual(viewModels[1].inputSwimlanes[1].color, colorRegistry[1]);
 
 		assert.strictEqual(viewModels[1].outputSwimlanes.length, 2);
 		assert.strictEqual(viewModels[1].outputSwimlanes[0].id, 'b');
-		assert.strictEqual(viewModels[1].outputSwimlanes[0].color, 0);
+		assert.strictEqual(viewModels[1].outputSwimlanes[0].color, colorRegistry[0]);
 		assert.strictEqual(viewModels[1].outputSwimlanes[1].id, 'd');
-		assert.strictEqual(viewModels[1].outputSwimlanes[1].color, 1);
+		assert.strictEqual(viewModels[1].outputSwimlanes[1].color, colorRegistry[1]);
 
 		// node b
 		assert.strictEqual(viewModels[2].inputSwimlanes.length, 2);
 		assert.strictEqual(viewModels[2].inputSwimlanes[0].id, 'b');
-		assert.strictEqual(viewModels[2].inputSwimlanes[0].color, 0);
+		assert.strictEqual(viewModels[2].inputSwimlanes[0].color, colorRegistry[0]);
 		assert.strictEqual(viewModels[2].inputSwimlanes[1].id, 'd');
-		assert.strictEqual(viewModels[2].inputSwimlanes[1].color, 1);
+		assert.strictEqual(viewModels[2].inputSwimlanes[1].color, colorRegistry[1]);
 
 		assert.strictEqual(viewModels[2].outputSwimlanes.length, 3);
 		assert.strictEqual(viewModels[2].outputSwimlanes[0].id, 'e');
-		assert.strictEqual(viewModels[2].outputSwimlanes[0].color, 0);
+		assert.strictEqual(viewModels[2].outputSwimlanes[0].color, colorRegistry[0]);
 		assert.strictEqual(viewModels[2].outputSwimlanes[1].id, 'd');
-		assert.strictEqual(viewModels[2].outputSwimlanes[1].color, 1);
+		assert.strictEqual(viewModels[2].outputSwimlanes[1].color, colorRegistry[1]);
 		assert.strictEqual(viewModels[2].outputSwimlanes[2].id, 'f');
-		assert.strictEqual(viewModels[2].outputSwimlanes[2].color, 2);
+		assert.strictEqual(viewModels[2].outputSwimlanes[2].color, colorRegistry[2]);
 
 		// node f
 		assert.strictEqual(viewModels[3].inputSwimlanes.length, 3);
 		assert.strictEqual(viewModels[3].inputSwimlanes[0].id, 'e');
-		assert.strictEqual(viewModels[3].inputSwimlanes[0].color, 0);
+		assert.strictEqual(viewModels[3].inputSwimlanes[0].color, colorRegistry[0]);
 		assert.strictEqual(viewModels[3].inputSwimlanes[1].id, 'd');
-		assert.strictEqual(viewModels[3].inputSwimlanes[1].color, 1);
+		assert.strictEqual(viewModels[3].inputSwimlanes[1].color, colorRegistry[1]);
 		assert.strictEqual(viewModels[3].inputSwimlanes[2].id, 'f');
-		assert.strictEqual(viewModels[3].inputSwimlanes[2].color, 2);
+		assert.strictEqual(viewModels[3].inputSwimlanes[2].color, colorRegistry[2]);
 
 		assert.strictEqual(viewModels[3].outputSwimlanes.length, 3);
 		assert.strictEqual(viewModels[3].outputSwimlanes[0].id, 'e');
-		assert.strictEqual(viewModels[3].outputSwimlanes[0].color, 0);
+		assert.strictEqual(viewModels[3].outputSwimlanes[0].color, colorRegistry[0]);
 		assert.strictEqual(viewModels[3].outputSwimlanes[1].id, 'd');
-		assert.strictEqual(viewModels[3].outputSwimlanes[1].color, 1);
+		assert.strictEqual(viewModels[3].outputSwimlanes[1].color, colorRegistry[1]);
 		assert.strictEqual(viewModels[3].outputSwimlanes[2].id, 'g');
-		assert.strictEqual(viewModels[3].outputSwimlanes[2].color, 2);
+		assert.strictEqual(viewModels[3].outputSwimlanes[2].color, colorRegistry[2]);
 
 		// node e
 		assert.strictEqual(viewModels[4].inputSwimlanes.length, 3);
 		assert.strictEqual(viewModels[4].inputSwimlanes[0].id, 'e');
-		assert.strictEqual(viewModels[4].inputSwimlanes[0].color, 0);
+		assert.strictEqual(viewModels[4].inputSwimlanes[0].color, colorRegistry[0]);
 		assert.strictEqual(viewModels[4].inputSwimlanes[1].id, 'd');
-		assert.strictEqual(viewModels[4].inputSwimlanes[1].color, 1);
+		assert.strictEqual(viewModels[4].inputSwimlanes[1].color, colorRegistry[1]);
 		assert.strictEqual(viewModels[4].inputSwimlanes[2].id, 'g');
-		assert.strictEqual(viewModels[4].inputSwimlanes[2].color, 2);
+		assert.strictEqual(viewModels[4].inputSwimlanes[2].color, colorRegistry[2]);
 
 		assert.strictEqual(viewModels[4].outputSwimlanes.length, 3);
 		assert.strictEqual(viewModels[4].outputSwimlanes[0].id, 'g');
-		assert.strictEqual(viewModels[4].outputSwimlanes[0].color, 0);
+		assert.strictEqual(viewModels[4].outputSwimlanes[0].color, colorRegistry[0]);
 		assert.strictEqual(viewModels[4].outputSwimlanes[1].id, 'd');
-		assert.strictEqual(viewModels[4].outputSwimlanes[1].color, 1);
+		assert.strictEqual(viewModels[4].outputSwimlanes[1].color, colorRegistry[1]);
 		assert.strictEqual(viewModels[4].outputSwimlanes[2].id, 'g');
-		assert.strictEqual(viewModels[4].outputSwimlanes[2].color, 2);
+		assert.strictEqual(viewModels[4].outputSwimlanes[2].color, colorRegistry[2]);
 
 		// node d
 		assert.strictEqual(viewModels[5].inputSwimlanes.length, 3);
 		assert.strictEqual(viewModels[5].inputSwimlanes[0].id, 'g');
-		assert.strictEqual(viewModels[5].inputSwimlanes[0].color, 0);
+		assert.strictEqual(viewModels[5].inputSwimlanes[0].color, colorRegistry[0]);
 		assert.strictEqual(viewModels[5].inputSwimlanes[1].id, 'd');
-		assert.strictEqual(viewModels[5].inputSwimlanes[1].color, 1);
+		assert.strictEqual(viewModels[5].inputSwimlanes[1].color, colorRegistry[1]);
 		assert.strictEqual(viewModels[5].inputSwimlanes[2].id, 'g');
-		assert.strictEqual(viewModels[5].inputSwimlanes[2].color, 2);
+		assert.strictEqual(viewModels[5].inputSwimlanes[2].color, colorRegistry[2]);
 
 		assert.strictEqual(viewModels[5].outputSwimlanes.length, 3);
 		assert.strictEqual(viewModels[5].outputSwimlanes[0].id, 'g');
-		assert.strictEqual(viewModels[5].outputSwimlanes[0].color, 0);
+		assert.strictEqual(viewModels[5].outputSwimlanes[0].color, colorRegistry[0]);
 		assert.strictEqual(viewModels[5].outputSwimlanes[1].id, 'g');
-		assert.strictEqual(viewModels[5].outputSwimlanes[1].color, 1);
+		assert.strictEqual(viewModels[5].outputSwimlanes[1].color, colorRegistry[1]);
 		assert.strictEqual(viewModels[5].outputSwimlanes[2].id, 'g');
-		assert.strictEqual(viewModels[5].outputSwimlanes[2].color, 2);
+		assert.strictEqual(viewModels[5].outputSwimlanes[2].color, colorRegistry[2]);
 
 		// node g
 		assert.strictEqual(viewModels[6].inputSwimlanes.length, 3);
 		assert.strictEqual(viewModels[6].inputSwimlanes[0].id, 'g');
-		assert.strictEqual(viewModels[6].inputSwimlanes[0].color, 0);
+		assert.strictEqual(viewModels[6].inputSwimlanes[0].color, colorRegistry[0]);
 		assert.strictEqual(viewModels[6].inputSwimlanes[1].id, 'g');
-		assert.strictEqual(viewModels[6].inputSwimlanes[1].color, 1);
+		assert.strictEqual(viewModels[6].inputSwimlanes[1].color, colorRegistry[1]);
 		assert.strictEqual(viewModels[6].inputSwimlanes[2].id, 'g');
-		assert.strictEqual(viewModels[6].inputSwimlanes[2].color, 2);
+		assert.strictEqual(viewModels[6].inputSwimlanes[2].color, colorRegistry[2]);
 
 		assert.strictEqual(viewModels[6].outputSwimlanes.length, 1);
 		assert.strictEqual(viewModels[6].outputSwimlanes[0].id, 'h');
-		assert.strictEqual(viewModels[6].outputSwimlanes[0].color, 0);
+		assert.strictEqual(viewModels[6].outputSwimlanes[0].color, colorRegistry[0]);
+	});
+
+	/**
+	 * 	* a(b) [topic]
+	 * 	* b(c)
+	 * 	* c(d) [origin/topic]
+	 * 	* d(e)
+	 * 	* e(f,g)
+	 * 	|\
+	 * 	| * g(h) [origin/main]
+	 */
+	test('graph with color map', () => {
+		const models = [
+			{ id: 'a', parentIds: ['b'], labels: [{ title: 'topic' }] },
+			{ id: 'b', parentIds: ['c'] },
+			{ id: 'c', parentIds: ['d'], labels: [{ title: 'origin/topic' }] },
+			{ id: 'd', parentIds: ['e'] },
+			{ id: 'e', parentIds: ['f', 'g'] },
+			{ id: 'g', parentIds: ['h'], labels: [{ title: 'origin/main' }] }
+		] as ISCMHistoryItem[];
+
+		const colorMap = new Map<string, ColorIdentifier>([
+			['topic', historyItemGroupLocal],
+			['origin/topic', historyItemGroupRemote],
+			['origin/main', historyItemGroupBase],
+		]);
+
+		const viewModels = toISCMHistoryItemViewModelArray(models, colorMap);
+
+		assert.strictEqual(viewModels.length, 6);
+
+		// node a
+		assert.strictEqual(viewModels[0].inputSwimlanes.length, 0);
+
+		assert.strictEqual(viewModels[0].outputSwimlanes.length, 1);
+		assert.strictEqual(viewModels[0].outputSwimlanes[0].id, 'b');
+		assert.strictEqual(viewModels[0].outputSwimlanes[0].color, historyItemGroupLocal);
+
+		// node b
+		assert.strictEqual(viewModels[1].inputSwimlanes.length, 1);
+		assert.strictEqual(viewModels[1].inputSwimlanes[0].id, 'b');
+		assert.strictEqual(viewModels[1].inputSwimlanes[0].color, historyItemGroupLocal);
+
+		assert.strictEqual(viewModels[1].outputSwimlanes.length, 1);
+		assert.strictEqual(viewModels[1].outputSwimlanes[0].id, 'c');
+		assert.strictEqual(viewModels[1].outputSwimlanes[0].color, historyItemGroupLocal);
+
+		// node c
+		assert.strictEqual(viewModels[2].inputSwimlanes.length, 1);
+		assert.strictEqual(viewModels[2].inputSwimlanes[0].id, 'c');
+		assert.strictEqual(viewModels[2].inputSwimlanes[0].color, historyItemGroupLocal);
+
+		assert.strictEqual(viewModels[2].outputSwimlanes.length, 1);
+		assert.strictEqual(viewModels[2].outputSwimlanes[0].id, 'd');
+		assert.strictEqual(viewModels[2].outputSwimlanes[0].color, historyItemGroupRemote);
+
+		// node d
+		assert.strictEqual(viewModels[3].inputSwimlanes.length, 1);
+		assert.strictEqual(viewModels[3].inputSwimlanes[0].id, 'd');
+		assert.strictEqual(viewModels[3].inputSwimlanes[0].color, historyItemGroupRemote);
+
+		assert.strictEqual(viewModels[3].outputSwimlanes.length, 1);
+		assert.strictEqual(viewModels[3].outputSwimlanes[0].id, 'e');
+		assert.strictEqual(viewModels[3].outputSwimlanes[0].color, historyItemGroupRemote);
+
+		// node e
+		assert.strictEqual(viewModels[4].inputSwimlanes.length, 1);
+		assert.strictEqual(viewModels[4].inputSwimlanes[0].id, 'e');
+		assert.strictEqual(viewModels[4].inputSwimlanes[0].color, historyItemGroupRemote);
+
+		assert.strictEqual(viewModels[4].outputSwimlanes.length, 2);
+		assert.strictEqual(viewModels[4].outputSwimlanes[0].id, 'f');
+		assert.strictEqual(viewModels[4].outputSwimlanes[0].color, historyItemGroupRemote);
+		assert.strictEqual(viewModels[4].outputSwimlanes[1].id, 'g');
+		assert.strictEqual(viewModels[4].outputSwimlanes[1].color, historyItemGroupBase);
+
+		// node g
+		assert.strictEqual(viewModels[5].inputSwimlanes.length, 2);
+		assert.strictEqual(viewModels[5].inputSwimlanes[0].id, 'f');
+		assert.strictEqual(viewModels[5].inputSwimlanes[0].color, historyItemGroupRemote);
+		assert.strictEqual(viewModels[5].inputSwimlanes[1].id, 'g');
+		assert.strictEqual(viewModels[5].inputSwimlanes[1].color, historyItemGroupBase);
+
+		assert.strictEqual(viewModels[5].outputSwimlanes.length, 2);
+		assert.strictEqual(viewModels[5].outputSwimlanes[0].id, 'f');
+		assert.strictEqual(viewModels[5].outputSwimlanes[0].color, historyItemGroupRemote);
+		assert.strictEqual(viewModels[5].outputSwimlanes[1].id, 'h');
+		assert.strictEqual(viewModels[5].outputSwimlanes[1].color, historyItemGroupBase);
 	});
 });

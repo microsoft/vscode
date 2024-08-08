@@ -71,13 +71,19 @@ pub async fn serve_web(ctx: CommandContext, mut args: ServeWebArgs) -> Result<i3
 
 	let platform: crate::update_service::Platform = PreReqChecker::new().verify().await?;
 	if !args.without_connection_token {
-		// Ensure there's a defined connection token, since if multiple server versions
-		// are excuted, they will need to have a single shared token.
-		let token_path = ctx.paths.root().join("serve-web-token");
-		let token = mint_connection_token(&token_path, args.connection_token.clone())
-			.map_err(CodeError::CouldNotCreateConnectionTokenFile)?;
-		args.connection_token = Some(token);
-		args.connection_token_file = Some(token_path.to_string_lossy().to_string());
+		if let Some(p) = args.connection_token_file.as_deref() {
+			let token = fs::read_to_string(PathBuf::from(p))
+				.map_err(CodeError::CouldNotReadConnectionTokenFile)?;
+			args.connection_token = Some(token.trim().to_string());
+		} else {
+			// Ensure there's a defined connection token, since if multiple server versions
+			// are executed, they will need to have a single shared token.
+			let token_path = ctx.paths.root().join("serve-web-token");
+			let token = mint_connection_token(&token_path, args.connection_token.clone())
+				.map_err(CodeError::CouldNotCreateConnectionTokenFile)?;
+			args.connection_token = Some(token);
+			args.connection_token_file = Some(token_path.to_string_lossy().to_string());
+		}
 	}
 
 	let cm = ConnectionManager::new(&ctx, platform, args.clone());

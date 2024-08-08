@@ -217,7 +217,7 @@ export class Settings2EditorModel extends AbstractSettingsModel implements ISett
 	private readonly _onDidChangeGroups: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChangeGroups: Event<void> = this._onDidChangeGroups.event;
 
-	private additionalGroups: ISettingsGroup[] | undefined;
+	private additionalGroups: ISettingsGroup[] = [];
 	private dirty = false;
 
 	constructor(
@@ -245,11 +245,8 @@ export class Settings2EditorModel extends AbstractSettingsModel implements ISett
 
 	get settingsGroups(): ISettingsGroup[] {
 		const groups = this._defaultSettings.getSettingsGroups(this.dirty);
-		if (this.additionalGroups?.length) {
-			groups.push(...this.additionalGroups);
-		}
 		this.dirty = false;
-		return groups;
+		return [...groups, ...this.additionalGroups];
 	}
 
 	/** For programmatically added groups outside of registered configurations */
@@ -463,14 +460,21 @@ export class DefaultSettings extends Disposable {
 	private _contentWithoutMostCommonlyUsed: string | undefined;
 	private _settingsByName = new Map<string, ISetting>();
 
-	readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
+	private readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
 	constructor(
 		private _mostCommonlyUsedSettingsKeys: string[],
 		readonly target: ConfigurationTarget,
+		readonly configurationService: IConfigurationService
 	) {
 		super();
+		this._register(configurationService.onDidChangeConfiguration(e => {
+			if (e.source === ConfigurationTarget.DEFAULT) {
+				this.reset();
+				this._onDidChange.fire();
+			}
+		}));
 	}
 
 	getContent(forceUpdate = false): string {
@@ -503,10 +507,16 @@ export class DefaultSettings extends Disposable {
 		this._contentWithoutMostCommonlyUsed = this.toContent(this._allSettingsGroups, 1);
 	}
 
+	private reset(): void {
+		this._content = undefined;
+		this._contentWithoutMostCommonlyUsed = undefined;
+		this._allSettingsGroups = undefined;
+	}
+
 	private parse(): ISettingsGroup[] {
 		const settingsGroups = this.getRegisteredGroups();
 		this.initAllSettingsMap(settingsGroups);
-		const mostCommonlyUsed = this.getMostCommonlyUsedSettings(settingsGroups);
+		const mostCommonlyUsed = this.getMostCommonlyUsedSettings();
 		return [mostCommonlyUsed, ...settingsGroups];
 	}
 
@@ -539,11 +549,11 @@ export class DefaultSettings extends Disposable {
 		}
 	}
 
-	private getMostCommonlyUsedSettings(allSettingsGroups: ISettingsGroup[]): ISettingsGroup {
+	private getMostCommonlyUsedSettings(): ISettingsGroup {
 		const settings = coalesce(this._mostCommonlyUsedSettingsKeys.map(key => {
 			const setting = this._settingsByName.get(key);
 			if (setting) {
-				return <ISetting>{
+				return {
 					description: setting.description,
 					key: setting.key,
 					value: setting.value,
@@ -556,12 +566,12 @@ export class DefaultSettings extends Disposable {
 					enum: setting.enum,
 					enumDescriptions: setting.enumDescriptions,
 					descriptionRanges: []
-				};
+				} satisfies ISetting;
 			}
 			return null;
 		}));
 
-		return <ISettingsGroup>{
+		return {
 			id: 'mostCommonlyUsed',
 			range: nullRange,
 			title: nls.localize('commonlyUsed', "Commonly Used"),
@@ -571,7 +581,7 @@ export class DefaultSettings extends Disposable {
 					settings
 				}
 			]
-		};
+		} satisfies ISettingsGroup;
 	}
 
 	private parseConfig(config: IConfigurationNode, result: ISettingsGroup[], configurations: IConfigurationNode[], settingsGroup?: ISettingsGroup, seenSettings?: { [key: string]: boolean }): ISettingsGroup[] {
@@ -1125,9 +1135,15 @@ export class DefaultRawSettingsEditorModel extends Disposable {
 
 	private _content: string | null = null;
 
+	private readonly _onDidContentChanged = this._register(new Emitter<void>());
+	readonly onDidContentChanged = this._onDidContentChanged.event;
+
 	constructor(private defaultSettings: DefaultSettings) {
 		super();
-		this._register(defaultSettings.onDidChange(() => this._content = null));
+		this._register(defaultSettings.onDidChange(() => {
+			this._content = null;
+			this._onDidContentChanged.fire();
+		}));
 	}
 
 	get content(): string {

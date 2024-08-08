@@ -14,7 +14,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { Codicon } from 'vs/base/common/codicons';
-import { IssueSource } from 'vs/platform/issue/common/issue';
+import { IssueSource } from 'vs/workbench/contrib/issue/common/issue';
 import { IProductService } from 'vs/platform/product/common/productService';
 
 export class IssueQuickAccess extends PickerQuickAccessProvider<IPickerQuickAccessItem> {
@@ -65,13 +65,8 @@ export class IssueQuickAccess extends PickerQuickAccessProvider<IPickerQuickAcce
 		issuePicksConst.push({ type: 'separator', label: localize('extensions', "Extensions") });
 
 
-		// creates menu from contributed
-		const menu = this.menuService.createMenu(MenuId.IssueReporter, this.contextKeyService);
-
-		// render menu and dispose
-		const actions = menu.getActions({ renderShortTitle: true }).flatMap(entry => entry[1]);
-
-		menu.dispose();
+		// gets menu actions from contributed
+		const actions = this.menuService.getMenuActions(MenuId.IssueReporter, this.contextKeyService, { renderShortTitle: true }).flatMap(entry => entry[1]);
 
 		// create picks from contributed menu
 		actions.forEach(action => {

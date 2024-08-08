@@ -30,7 +30,6 @@ import { MarshalledCommentThread } from 'vs/workbench/common/comments';
 import { revealCommentThread } from 'vs/workbench/contrib/comments/browser/commentsController';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { CommentThreadRevealOptions } from 'vs/editor/common/languages';
 
 export class MainThreadCommentThread<T> implements languages.CommentThread<T> {
 	private _input?: languages.CommentInput;
@@ -70,13 +69,13 @@ export class MainThreadCommentThread<T> implements languages.CommentThread<T> {
 	private readonly _onDidChangeLabel = new Emitter<string | undefined>();
 	readonly onDidChangeLabel: Event<string | undefined> = this._onDidChangeLabel.event;
 
-	private _comments: languages.Comment[] | undefined;
+	private _comments: ReadonlyArray<languages.Comment> | undefined;
 
-	public get comments(): languages.Comment[] | undefined {
+	public get comments(): ReadonlyArray<languages.Comment> | undefined {
 		return this._comments;
 	}
 
-	public set comments(newComments: languages.Comment[] | undefined) {
+	public set comments(newComments: ReadonlyArray<languages.Comment> | undefined) {
 		this._comments = newComments;
 		this._onDidChangeComments.fire(this._comments);
 	}
@@ -205,12 +204,16 @@ export class MainThreadCommentThread<T> implements languages.CommentThread<T> {
 		if (modified('range')) { this._range = changes.range!; }
 		if (modified('label')) { this._label = changes.label; }
 		if (modified('contextValue')) { this._contextValue = changes.contextValue === null ? undefined : changes.contextValue; }
-		if (modified('comments')) { this._comments = changes.comments; }
+		if (modified('comments')) { this.comments = changes.comments; }
 		if (modified('collapseState')) { this.initialCollapsibleState = changes.collapseState; }
 		if (modified('canReply')) { this.canReply = changes.canReply!; }
 		if (modified('state')) { this.state = changes.state!; }
 		if (modified('applicability')) { this.applicability = changes.applicability!; }
 		if (modified('isTemplate')) { this._isTemplate = changes.isTemplate!; }
+	}
+
+	hasComments(): boolean {
+		return !!this.comments && this.comments.length > 0;
 	}
 
 	dispose() {
@@ -643,7 +646,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		provider.updateCommentingRanges(resourceHints);
 	}
 
-	async $revealCommentThread(handle: number, commentThreadHandle: number, options: CommentThreadRevealOptions): Promise<void> {
+	async $revealCommentThread(handle: number, commentThreadHandle: number, commentUniqueIdInThread: number, options: languages.CommentThreadRevealOptions): Promise<void> {
 		const provider = this._commentControllers.get(handle);
 
 		if (!provider) {
@@ -655,7 +658,24 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 			return Promise.resolve();
 		}
 
-		revealCommentThread(this._commentService, this._editorService, this._uriIdentityService, thread, undefined, options.focusReply, undefined, options.preserveFocus);
+		const comment = thread.comments?.find(comment => comment.uniqueIdInThread === commentUniqueIdInThread);
+
+		revealCommentThread(this._commentService, this._editorService, this._uriIdentityService, thread, comment, options.focusReply, undefined, options.preserveFocus);
+	}
+
+	async $hideCommentThread(handle: number, commentThreadHandle: number): Promise<void> {
+		const provider = this._commentControllers.get(handle);
+
+		if (!provider) {
+			return Promise.resolve();
+		}
+
+		const thread = provider.getAllComments().find(thread => thread.commentThreadHandle === commentThreadHandle);
+		if (!thread || !thread.isDocumentCommentThread()) {
+			return Promise.resolve();
+		}
+
+		thread.collapsibleState = languages.CommentThreadCollapsibleState.Collapsed;
 	}
 
 	private registerView(commentsViewAlreadyRegistered: boolean) {

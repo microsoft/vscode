@@ -7,7 +7,6 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
 import { EditorExtensions, IEditorFactoryRegistry, IEditorSerializer, IUntypedEditorInput } from 'vs/workbench/common/editor';
-// is one contrib allowed to import from another?
 import { parse } from 'vs/base/common/marshalling';
 import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';

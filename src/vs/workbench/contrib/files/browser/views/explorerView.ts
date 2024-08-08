@@ -660,7 +660,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		this.setContextKeys(stat);
 
 		if (stat) {
-			const enableTrash = this.configurationService.getValue<IFilesConfiguration>().files.enableTrash;
+			const enableTrash = Boolean(this.configurationService.getValue<IFilesConfiguration>().files?.enableTrash);
 			const hasCapability = this.fileService.hasCapability(stat.resource, FileSystemProviderCapabilities.Trash);
 			this.resourceMoveableToTrash.set(enableTrash && hasCapability);
 		} else {

@@ -20,8 +20,8 @@ import { NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/no
 import { INotebookKernel, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { IEditorGroupsService, IEditorPart } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { Event } from 'vs/base/common/event';
 
 class ImplictKernelSelector implements IDisposable {
 
@@ -340,28 +340,26 @@ export class NotebookEditorStatusContribution extends Disposable implements IWor
 	static readonly ID = 'notebook.contrib.editorStatus';
 
 	constructor(
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IEditorService editorService: IEditorService
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
 	) {
 		super();
 
-		// Main Editor Status
-		const mainInstantiationService = instantiationService.createChild(new ServiceCollection(
-			[IEditorService, editorService.createScoped('main', this._store)]
-		));
-		this._register(mainInstantiationService.createInstance(KernelStatus));
-		this._register(mainInstantiationService.createInstance(ActiveCellStatus));
-		this._register(mainInstantiationService.createInstance(NotebookIndentationStatus));
+		for (const part of editorGroupService.parts) {
+			this.createNotebookStatus(part);
+		}
 
-		// Auxiliary Editor Status
-		this._register(editorGroupService.onDidCreateAuxiliaryEditorPart(({ part, instantiationService, disposables }) => {
-			disposables.add(instantiationService.createInstance(KernelStatus));
-			disposables.add(instantiationService.createInstance(ActiveCellStatus));
-			disposables.add(instantiationService.createInstance(NotebookIndentationStatus));
-		}));
+		this._register(editorGroupService.onDidCreateAuxiliaryEditorPart(part => this.createNotebookStatus(part)));
+	}
+
+	private createNotebookStatus(part: IEditorPart): void {
+		const disposables = new DisposableStore();
+		Event.once(part.onWillDispose)(() => disposables.dispose());
+
+		const scopedInstantiationService = this.editorGroupService.getScopedInstantiationService(part);
+		disposables.add(scopedInstantiationService.createInstance(KernelStatus));
+		disposables.add(scopedInstantiationService.createInstance(ActiveCellStatus));
+		disposables.add(scopedInstantiationService.createInstance(NotebookIndentationStatus));
 	}
 }
-
 
 registerWorkbenchContribution2(NotebookEditorStatusContribution.ID, NotebookEditorStatusContribution, WorkbenchPhase.AfterRestored);

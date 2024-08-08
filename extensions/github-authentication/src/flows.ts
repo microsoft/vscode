@@ -173,6 +173,8 @@ const allFlows: IFlow[] = [
 				]);
 				if (existingLogin) {
 					searchParams.append('login', existingLogin);
+				} else {
+					searchParams.append('prompt', 'select_account');
 				}
 
 				// The extra toString, parse is apparently needed for env.openExternal
@@ -240,6 +242,8 @@ const allFlows: IFlow[] = [
 				]);
 				if (existingLogin) {
 					searchParams.append('login', existingLogin);
+				} else {
+					searchParams.append('prompt', 'select_account');
 				}
 
 				const loginUrl = baseUri.with({

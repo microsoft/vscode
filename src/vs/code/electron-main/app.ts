@@ -25,7 +25,7 @@ import { getDelayedChannel, ProxyChannel, StaticRouter } from 'vs/base/parts/ipc
 import { Server as ElectronIPCServer } from 'vs/base/parts/ipc/electron-main/ipc.electron';
 import { Client as MessagePortClient } from 'vs/base/parts/ipc/electron-main/ipc.mp';
 import { Server as NodeIPCServer } from 'vs/base/parts/ipc/node/ipc.net';
-import { ProxyAuthHandler } from 'vs/code/electron-main/auth';
+import { IProxyAuthService, ProxyAuthService } from 'vs/platform/native/electron-main/auth';
 import { localize } from 'vs/nls';
 import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
 import { BackupMainService } from 'vs/platform/backup/electron-main/backupMainService';
@@ -51,7 +51,7 @@ import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemPro
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IIssueMainService, IProcessMainService } from 'vs/platform/issue/common/issue';
+import { IProcessMainService, IIssueMainService } from 'vs/platform/issue/common/issue';
 import { IssueMainService } from 'vs/platform/issue/electron-main/issueMainService';
 import { ProcessMainService } from 'vs/platform/issue/electron-main/processMainService';
 import { IKeyboardLayoutMainService, KeyboardLayoutMainService } from 'vs/platform/keyboardLayout/electron-main/keyboardLayoutMainService';
@@ -586,7 +586,7 @@ export class CodeApplication extends Disposable {
 		const appInstantiationService = await this.initServices(machineId, sqmId, devDeviceId, sharedProcessReady);
 
 		// Auth Handler
-		this._register(appInstantiationService.createInstance(ProxyAuthHandler));
+		appInstantiationService.invokeFunction(accessor => accessor.get(IProxyAuthService));
 
 		// Transient profiles handler
 		this._register(appInstantiationService.createInstance(UserDataProfilesHandler));
@@ -826,34 +826,38 @@ export class CodeApplication extends Disposable {
 			//   To: vscode-remote://wsl+ubuntu/mnt/c/GitDevelopment/monaco
 
 			const secondSlash = uri.path.indexOf(posix.sep, 1 /* skip over the leading slash */);
+			let authority: string;
+			let path: string;
 			if (secondSlash !== -1) {
-				const authority = uri.path.substring(1, secondSlash);
-				const path = uri.path.substring(secondSlash);
-
-				let query = uri.query;
-				const params = new URLSearchParams(uri.query);
-				if (params.get('windowId') === '_blank') {
-					// Make sure to unset any `windowId=_blank` here
-					// https://github.com/microsoft/vscode/issues/191902
-					params.delete('windowId');
-					query = params.toString();
-				}
-
-				const remoteUri = URI.from({ scheme: Schemas.vscodeRemote, authority, path, query, fragment: uri.fragment });
-
-				if (hasWorkspaceFileExtension(path)) {
-					return { workspaceUri: remoteUri };
-				}
-
-				if (/:[\d]+$/.test(path)) {
-					// path with :line:column syntax
-					return { fileUri: remoteUri };
-				}
-
-				return { folderUri: remoteUri };
+				authority = uri.path.substring(1, secondSlash);
+				path = uri.path.substring(secondSlash);
+			} else {
+				authority = uri.path.substring(1);
+				path = '/';
 			}
-		}
 
+			let query = uri.query;
+			const params = new URLSearchParams(uri.query);
+			if (params.get('windowId') === '_blank') {
+				// Make sure to unset any `windowId=_blank` here
+				// https://github.com/microsoft/vscode/issues/191902
+				params.delete('windowId');
+				query = params.toString();
+			}
+
+			const remoteUri = URI.from({ scheme: Schemas.vscodeRemote, authority, path, query, fragment: uri.fragment });
+
+			if (hasWorkspaceFileExtension(path)) {
+				return { workspaceUri: remoteUri };
+			}
+
+			if (/:[\d]+$/.test(path)) {
+				// path with :line:column syntax
+				return { fileUri: remoteUri };
+			}
+
+			return { folderUri: remoteUri };
+		}
 		return undefined;
 	}
 
@@ -1093,6 +1097,9 @@ export class CodeApplication extends Disposable {
 
 		// Utility Process Worker
 		services.set(IUtilityProcessWorkerMainService, new SyncDescriptor(UtilityProcessWorkerMainService, undefined, true));
+
+		// Proxy Auth
+		services.set(IProxyAuthService, new SyncDescriptor(ProxyAuthService));
 
 		// Init services that require it
 		await Promises.settled([

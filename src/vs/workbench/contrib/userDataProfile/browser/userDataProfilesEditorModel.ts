@@ -10,7 +10,7 @@ import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DidChangeProfilesEvent, isUserDataProfile, IUserDataProfile, IUserDataProfilesService, ProfileResourceType, ProfileResourceTypeFlags, toUserDataProfile, UseDefaultProfileFlags } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { IProfileResourceChildTreeItem, IUserDataProfileImportExportService, IUserDataProfileManagementService, IUserDataProfileService, IUserDataProfileTemplate } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IProfileResourceChildTreeItem, IProfileTemplateInfo, IUserDataProfileImportExportService, IUserDataProfileManagementService, IUserDataProfileService, IUserDataProfileTemplate } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { equals } from 'vs/base/common/objects';
@@ -34,6 +34,8 @@ import { SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { CONFIG_NEW_WINDOW_PROFILE } from 'vs/workbench/common/configuration';
+import { ResourceMap } from 'vs/base/common/map';
+import { getErrorMessage } from 'vs/base/common/errors';
 
 export type ChangeEvent = {
 	readonly name?: boolean;
@@ -42,6 +44,7 @@ export type ChangeEvent = {
 	readonly active?: boolean;
 	readonly message?: boolean;
 	readonly copyFrom?: boolean;
+	readonly copyFromInfo?: boolean;
 	readonly copyFlags?: boolean;
 	readonly preview?: boolean;
 	readonly disabled?: boolean;
@@ -173,10 +176,10 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 
 	validate(): void {
 		if (!this.name) {
-			this.message = localize('profileNameRequired', "Profile name is required.");
+			this.message = localize('name required', "Profile name is required and must be a non-empty value.");
 			return;
 		}
-		if (this.name !== this.getInitialName() && this.userDataProfilesService.profiles.some(p => p.name === this.name)) {
+		if (this.shouldValidateName() && this.name !== this.getInitialName() && this.userDataProfilesService.profiles.some(p => p.name === this.name)) {
 			this.message = localize('profileExists', "Profile with name {0} already exists.", this.name);
 			return;
 		}
@@ -268,6 +271,10 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 		return '';
 	}
 
+	shouldValidateName(): boolean {
+		return true;
+	}
+
 	save(): void {
 		this.saveScheduler.schedule();
 	}
@@ -305,7 +312,6 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 	}
 
 	abstract readonly titleButtons: [Action[], Action[]];
-	abstract readonly titleActions: [IAction[], IAction[]];
 	abstract readonly actions: [IAction[], IAction[]];
 
 	protected abstract doSave(): Promise<void>;
@@ -318,7 +324,6 @@ export class UserDataProfileElement extends AbstractUserDataProfileElement {
 	constructor(
 		private _profile: IUserDataProfile,
 		readonly titleButtons: [Action[], Action[]],
-		readonly titleActions: [IAction[], IAction[]],
 		readonly actions: [IAction[], IAction[]],
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -391,14 +396,19 @@ const USER_DATA_PROFILE_TEMPLATE_PREVIEW_SCHEME = 'userdataprofiletemplateprevie
 
 export class NewProfileElement extends AbstractUserDataProfileElement {
 
+	private _copyFromTemplates = new ResourceMap<string>();
+	get copyFromTemplates(): ResourceMap<string> { return this._copyFromTemplates; }
+
 	private templatePromise: CancelablePromise<void> | undefined;
 	private template: IUserDataProfileTemplate | null = null;
+
+	private defaultName: string;
+	private defaultIcon: string | undefined;
 
 	constructor(
 		name: string,
 		copyFrom: URI | IUserDataProfile | undefined,
 		readonly titleButtons: [Action[], Action[]],
-		readonly titleActions: [IAction[], IAction[]],
 		readonly actions: [IAction[], IAction[]],
 		@IFileService private readonly fileService: IFileService,
 		@IUserDataProfileImportExportService private readonly userDataProfileImportExportService: IUserDataProfileImportExportService,
@@ -417,6 +427,7 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 			commandService,
 			instantiationService,
 		);
+		this.defaultName = name;
 		this._copyFrom = copyFrom;
 		this._copyFlags = this.getCopyFlagsFrom(copyFrom);
 		this.initialize();
@@ -473,35 +484,51 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 			if (this.copyFrom instanceof URI) {
 				await this.resolveTemplate(this.copyFrom);
 				if (this.template) {
-					this.name = this.template.name ?? '';
-					this.icon = this.template.icon;
+					this.copyFromTemplates.set(this.copyFrom, this.template.name);
+					if (this.defaultName === this.name) {
+						this.name = this.defaultName = this.template.name ?? '';
+					}
+					if (this.defaultIcon === this.icon) {
+						this.icon = this.defaultIcon = this.template.icon;
+					}
 					this.setCopyFlag(ProfileResourceType.Settings, !!this.template.settings);
 					this.setCopyFlag(ProfileResourceType.Keybindings, !!this.template.keybindings);
 					this.setCopyFlag(ProfileResourceType.Tasks, !!this.template.tasks);
 					this.setCopyFlag(ProfileResourceType.Snippets, !!this.template.snippets);
 					this.setCopyFlag(ProfileResourceType.Extensions, !!this.template.extensions);
+					this._onDidChange.fire({ copyFromInfo: true });
 				}
 				return;
 			}
 
 			if (isUserDataProfile(this.copyFrom)) {
-				this.name = `${this.copyFrom.name} (Copy)`;
-				this.icon = this.copyFrom.icon;
+				if (this.defaultName === this.name) {
+					this.name = this.defaultName = localize('copy from', "{0} (Copy)", this.copyFrom.name);
+				}
+				if (this.defaultIcon === this.icon) {
+					this.icon = this.defaultIcon = this.copyFrom.icon;
+				}
 				this.setCopyFlag(ProfileResourceType.Settings, true);
 				this.setCopyFlag(ProfileResourceType.Keybindings, true);
 				this.setCopyFlag(ProfileResourceType.Tasks, true);
 				this.setCopyFlag(ProfileResourceType.Snippets, true);
 				this.setCopyFlag(ProfileResourceType.Extensions, true);
+				this._onDidChange.fire({ copyFromInfo: true });
 				return;
 			}
 
-			this.name = localize('untitled', "Untitled");
-			this.icon = undefined;
+			if (this.defaultName === this.name) {
+				this.name = this.defaultName = localize('untitled', "Untitled");
+			}
+			if (this.defaultIcon === this.icon) {
+				this.icon = this.defaultIcon = undefined;
+			}
 			this.setCopyFlag(ProfileResourceType.Settings, false);
 			this.setCopyFlag(ProfileResourceType.Keybindings, false);
 			this.setCopyFlag(ProfileResourceType.Tasks, false);
 			this.setCopyFlag(ProfileResourceType.Snippets, false);
 			this.setCopyFlag(ProfileResourceType.Extensions, false);
+			this._onDidChange.fire({ copyFromInfo: true });
 		} finally {
 			this.disabled = false;
 		}
@@ -552,8 +579,8 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 		if (isUserDataProfile(this.copyFrom)) {
 			return this.copyFrom.name;
 		}
-		if (this.template) {
-			return this.template.name;
+		if (this.copyFrom instanceof URI) {
+			return this.copyFromTemplates.get(this.copyFrom);
 		}
 		return undefined;
 	}
@@ -615,6 +642,10 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 		return [];
 	}
 
+	override shouldValidateName(): boolean {
+		return !this.copyFrom;
+	}
+
 	override getInitialName(): string {
 		return this.previewProfile?.name ?? '';
 	}
@@ -665,6 +696,9 @@ export class UserDataProfilesEditorModel extends EditorModel {
 	private _onDidChange = this._register(new Emitter<AbstractUserDataProfileElement | undefined>());
 	readonly onDidChange = this._onDidChange.event;
 
+	private _templates: IProfileTemplateInfo[] | undefined;
+	get templates(): readonly IProfileTemplateInfo[] { return this._templates ?? []; }
+
 	constructor(
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
@@ -706,6 +740,11 @@ export class UserDataProfilesEditorModel extends EditorModel {
 		if (changed) {
 			this._onDidChange.fire(undefined);
 		}
+	}
+
+	override async resolve(): Promise<void> {
+		await super.resolve();
+		this._templates = await this.userDataProfileManagementService.getBuiltinProfileTemplates();
 	}
 
 	private createProfileElement(profile: IUserDataProfile): [UserDataProfileElement, DisposableStore] {
@@ -758,33 +797,21 @@ export class UserDataProfilesEditorModel extends EditorModel {
 			() => profileElement.toggleNewWindowProfile()
 		));
 
-		const titlePrimaryActions: IAction[] = [];
-		titlePrimaryActions.push(newWindowAction);
-		const titleSecondaryActions: IAction[] = [];
-		titleSecondaryActions.push(copyFromProfileAction);
-		titleSecondaryActions.push(exportAction);
-		if (!profile.isDefault) {
-			titleSecondaryActions.push(new Separator());
-			titleSecondaryActions.push(deleteAction);
-		}
-
 		const primaryActions: IAction[] = [];
 		primaryActions.push(newWindowAction);
+		if (!profile.isDefault) {
+			primaryActions.push(deleteAction);
+		}
 		const secondaryActions: IAction[] = [];
 		secondaryActions.push(activateAction);
 		secondaryActions.push(useAsNewWindowProfileAction);
 		secondaryActions.push(new Separator());
 		secondaryActions.push(copyFromProfileAction);
 		secondaryActions.push(exportAction);
-		if (!profile.isDefault) {
-			secondaryActions.push(new Separator());
-			secondaryActions.push(deleteAction);
-		}
 
 		const profileElement = disposables.add(this.instantiationService.createInstance(UserDataProfileElement,
 			profile,
 			[[], []],
-			[titlePrimaryActions, titleSecondaryActions],
 			[primaryActions, secondaryActions]
 		));
 
@@ -815,6 +842,16 @@ export class UserDataProfilesEditorModel extends EditorModel {
 			}
 			this.revert();
 		}
+
+		if (copyFrom instanceof URI) {
+			try {
+				await this.userDataProfileImportExportService.resolveProfileTemplate(copyFrom);
+			} catch (error) {
+				this.dialogService.error(getErrorMessage(error));
+				return;
+			}
+		}
+
 		if (!this.newProfileElement) {
 			const disposables = new DisposableStore();
 			const cancellationTokenSource = new CancellationTokenSource();
@@ -844,9 +881,16 @@ export class UserDataProfilesEditorModel extends EditorModel {
 				copyFrom ? '' : localize('untitled', "Untitled"),
 				copyFrom,
 				[[createAction], [cancelAction, previewProfileAction]],
-				[[], []],
 				[[cancelAction], []],
 			));
+			const updateCreateActionLabel = () => {
+				if (this.newProfileElement?.copyFrom && this.userDataProfilesService.profiles.some(p => p.name === this.newProfileElement?.name)) {
+					createAction.label = localize('replace', "Replace");
+				} else {
+					createAction.label = localize('create', "Create");
+				}
+			};
+			updateCreateActionLabel();
 			disposables.add(this.newProfileElement.onDidChange(e => {
 				if (e.preview) {
 					previewProfileAction.checked = !!this.newProfileElement?.previewProfile;
@@ -854,6 +898,13 @@ export class UserDataProfilesEditorModel extends EditorModel {
 				if (e.disabled || e.message) {
 					previewProfileAction.enabled = createAction.enabled = !this.newProfileElement?.disabled && !this.newProfileElement?.message;
 				}
+				if (e.name || e.copyFrom) {
+					updateCreateActionLabel();
+				}
+			}));
+			disposables.add(this.userDataProfilesService.onDidChangeProfiles((e) => {
+				updateCreateActionLabel();
+				this.newProfileElement?.validate();
 			}));
 			this._profiles.push([this.newProfileElement, disposables]);
 			this._onDidChange.fire(this.newProfileElement);
@@ -978,7 +1029,12 @@ export class UserDataProfilesEditorModel extends EditorModel {
 
 		if (profile && !profile.isTransient && this.newProfileElement) {
 			this.removeNewProfile();
-			this.onDidChangeProfiles({ added: [profile], removed: [], updated: [], all: this.userDataProfilesService.profiles });
+			const existing = this._profiles.find(([p]) => p.name === profile.name);
+			if (existing) {
+				this._onDidChange.fire(existing[0]);
+			} else {
+				this.onDidChangeProfiles({ added: [profile], removed: [], updated: [], all: this.userDataProfilesService.profiles });
+			}
 		}
 
 		return profile;

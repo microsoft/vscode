@@ -499,6 +499,7 @@ export interface INotebookEditor {
 	readonly isDisposed: boolean;
 	readonly activeKernel: INotebookKernel | undefined;
 	readonly scrollTop: number;
+	readonly scrollBottom: number;
 	readonly scopedContextKeyService: IContextKeyService;
 	readonly activeCodeEditor: ICodeEditor | undefined;
 	readonly codeEditors: [ICellViewModel, ICodeEditor][];

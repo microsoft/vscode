@@ -16,12 +16,28 @@ import { Registry } from 'vs/platform/registry/common/platform';
 
 export const IRequestService = createDecorator<IRequestService>('requestService');
 
+export interface AuthInfo {
+	isProxy: boolean;
+	scheme: string;
+	host: string;
+	port: number;
+	realm: string;
+	attempt: number;
+}
+
+export interface Credentials {
+	username: string;
+	password: string;
+}
+
 export interface IRequestService {
 	readonly _serviceBrand: undefined;
 
 	request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext>;
 
 	resolveProxy(url: string): Promise<string | undefined>;
+	lookupAuthorization(authInfo: AuthInfo): Promise<Credentials | undefined>;
+	lookupKerberosAuthorization(url: string): Promise<string | undefined>;
 	loadCertificates(): Promise<string[]>;
 }
 
@@ -80,6 +96,8 @@ export abstract class AbstractRequestService extends Disposable implements IRequ
 
 	abstract request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext>;
 	abstract resolveProxy(url: string): Promise<string | undefined>;
+	abstract lookupAuthorization(authInfo: AuthInfo): Promise<Credentials | undefined>;
+	abstract lookupKerberosAuthorization(url: string): Promise<string | undefined>;
 	abstract loadCertificates(): Promise<string[]>;
 }
 

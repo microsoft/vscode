@@ -6,10 +6,7 @@
 'use strict';
 
 const gulp = require('gulp');
-const merge = require('gulp-merge-json');
 const fs = require('fs');
-const os = require('os');
-const cp = require('child_process');
 const path = require('path');
 const es = require('event-stream');
 const vfs = require('vinyl-fs');
@@ -18,9 +15,11 @@ const replace = require('gulp-replace');
 const filter = require('gulp-filter');
 const util = require('./lib/util');
 const { getVersion } = require('./lib/getVersion');
+const { readISODate } = require('./lib/date');
 const task = require('./lib/task');
 const buildfile = require('../src/buildfile');
 const optimize = require('./lib/optimize');
+const { inlineMeta } = require('./lib/inlineMeta');
 const root = path.dirname(__dirname);
 const commit = getVersion(root);
 const packageJson = require('../package.json');
@@ -66,6 +65,7 @@ const vscodeResources = [
 	'out-build/vs/workbench/contrib/externalTerminal/**/*.scpt',
 	'out-build/vs/workbench/contrib/terminal/browser/media/fish_xdg_data/fish/vendor_conf.d/*.fish',
 	'out-build/vs/workbench/contrib/terminal/browser/media/*.ps1',
+	'out-build/vs/workbench/contrib/terminal/browser/media/*.psm1',
 	'out-build/vs/workbench/contrib/terminal/browser/media/*.sh',
 	'out-build/vs/workbench/contrib/terminal/browser/media/*.zsh',
 	'out-build/vs/workbench/contrib/webview/browser/pre/*.js',
@@ -80,9 +80,14 @@ const vscodeResources = [
 // be inlined into the target window file in this order
 // and they depend on each other in this way.
 const windowBootstrapFiles = [
-	'out-build/bootstrap.js',
 	'out-build/vs/loader.js',
 	'out-build/bootstrap-window.js'
+];
+
+const commonJSEntryPoints = [
+	'out-build/main.js',
+	'out-build/cli.js',
+	'out-build/bootstrap-fork.js'
 ];
 
 const optimizeVSCodeTask = task.define('optimize-vscode', task.series(
@@ -103,19 +108,16 @@ const optimizeVSCodeTask = task.define('optimize-vscode', task.series(
 			},
 			commonJS: {
 				src: 'out-build',
-				entryPoints: [
-					'out-build/main.js',
-					'out-build/cli.js',
-					'out-build/bootstrap-fork.js',
-				],
+				entryPoints: commonJSEntryPoints,
 				platform: 'node',
 				external: [
 					'electron',
 					'minimist',
 					'original-fs',
-					// TODO: we cannot inline `product.json` because
+					// We cannot inline `product.json` from here because
 					// it is being changed during build time at a later
 					// point in time (such as `checksums`)
+					// We have a manual step to inline these later.
 					'../product.json',
 					'../package.json',
 				]
@@ -247,14 +249,21 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 			packageJsonUpdates.desktopName = `${product.applicationName}-url-handler.desktop`;
 		}
 
+		let packageJsonContents;
 		const packageJsonStream = gulp.src(['package.json'], { base: '.' })
-			.pipe(json(packageJsonUpdates));
+			.pipe(json(packageJsonUpdates))
+			.pipe(es.through(function (file) {
+				packageJsonContents = file.contents.toString();
+				this.emit('data', file);
+			}));
 
-		const date = new Date().toISOString();
-		const productJsonUpdate = { commit, date, checksums, version };
-
+		let productJsonContents;
 		const productJsonStream = gulp.src(['product.json'], { base: '.' })
-			.pipe(json(productJsonUpdate));
+			.pipe(json({ commit, date: readISODate('out-build'), checksums, version }))
+			.pipe(es.through(function (file) {
+				productJsonContents = file.contents.toString();
+				this.emit('data', file);
+			}));
 
 		const license = gulp.src([product.licenseFileName, 'ThirdPartyNotices.txt', 'licenses/**'], { base: '.', allowEmpty: true });
 
@@ -279,10 +288,13 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 				'**/*.node',
 				'**/@vscode/ripgrep/bin/*',
 				'**/node-pty/build/Release/*',
+				'**/node-pty/build/Release/conpty/*',
 				'**/node-pty/lib/worker/conoutSocketWorker.js',
 				'**/node-pty/lib/shared/conout.js',
 				'**/*.wasm',
 				'**/@vscode/vsce-sign/bin/*',
+			], [
+				'**/*.mk',
 			], 'node_modules.asar'));
 
 		let all = es.merge(
@@ -386,6 +398,12 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 				.pipe(replace('@@APPNAME@@', product.applicationName))
 				.pipe(rename('bin/' + product.applicationName)));
 		}
+
+		result = inlineMeta(result, {
+			targetPaths: commonJSEntryPoints,
+			packageJsonFn: () => packageJsonContents,
+			productJsonFn: () => productJsonContents
+		});
 
 		return result.pipe(vfs.dest(destination));
 	};

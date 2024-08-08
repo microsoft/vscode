@@ -34,7 +34,7 @@ import { ChatAccessibilityService } from 'vs/workbench/contrib/chat/browser/chat
 import { ChatEditor, IChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatEditor';
 import { ChatEditorInput, ChatEditorInputSerializer } from 'vs/workbench/contrib/chat/browser/chatEditorInput';
 import { agentSlashCommandToMarkdown, agentToMarkdown } from 'vs/workbench/contrib/chat/browser/chatMarkdownDecorationsRenderer';
-import { ChatExtensionPointHandler } from 'vs/workbench/contrib/chat/browser/chatParticipantContributions';
+import { ChatCompatibilityNotifier, ChatExtensionPointHandler } from 'vs/workbench/contrib/chat/browser/chatParticipantContributions';
 import { QuickChatService } from 'vs/workbench/contrib/chat/browser/chatQuick';
 import { ChatResponseAccessibleView } from 'vs/workbench/contrib/chat/browser/chatResponseAccessibleView';
 import { ChatVariablesService } from 'vs/workbench/contrib/chat/browser/chatVariables';
@@ -104,7 +104,7 @@ configurationRegistry.registerConfiguration({
 		'chat.experimental.variables.editor': {
 			type: 'boolean',
 			description: nls.localize('chat.experimental.variables.editor', "Enables variables for editor chat."),
-			default: false
+			default: true
 		},
 		'chat.experimental.variables.notebook': {
 			type: 'boolean',
@@ -114,6 +114,11 @@ configurationRegistry.registerConfiguration({
 		'chat.experimental.variables.terminal': {
 			type: 'boolean',
 			description: nls.localize('chat.experimental.variables.terminal', "Enables variables for terminal chat."),
+			default: false
+		},
+		'chat.experimental.detectParticipant.enabled': {
+			type: 'boolean',
+			description: nls.localize('chat.experimental.detectParticipant.enabled', "Enables chat participant autodetection for panel chat."),
 			default: false
 		},
 	}
@@ -228,7 +233,7 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 				}
 
 				const variables = [
-					...chatVariablesService.getVariables(),
+					...chatVariablesService.getVariables(ChatAgentLocation.Panel),
 					{ name: 'file', description: nls.localize('file', "Choose a file in the workspace") }
 				];
 				const variableText = variables
@@ -255,7 +260,8 @@ registerWorkbenchContribution2(ChatResolverContribution.ID, ChatResolverContribu
 workbenchContributionsRegistry.registerWorkbenchContribution(ChatSlashStaticSlashCommandsContribution, LifecyclePhase.Eventually);
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(ChatEditorInput.TypeID, ChatEditorInputSerializer);
 registerWorkbenchContribution2(ChatExtensionPointHandler.ID, ChatExtensionPointHandler, WorkbenchPhase.BlockStartup);
-registerWorkbenchContribution2(LanguageModelToolsExtensionPointHandler.ID, LanguageModelToolsExtensionPointHandler, WorkbenchPhase.Eventually);
+registerWorkbenchContribution2(ChatCompatibilityNotifier.ID, ChatCompatibilityNotifier, WorkbenchPhase.Eventually);
+registerWorkbenchContribution2(LanguageModelToolsExtensionPointHandler.ID, LanguageModelToolsExtensionPointHandler, WorkbenchPhase.BlockRestore);
 
 registerChatActions();
 registerChatCopyActions();

@@ -78,11 +78,11 @@ function buildPicker(accessor: ServicesAccessor, {
 		pushItems(profileService.getControllerProfiles(onlyForTest.controllerId).filter(p => canUseProfileWithTest(p, onlyForTest)));
 	} else {
 		for (const { profiles, controller } of profileService.all()) {
-			pushItems(profiles, controller.label.value);
+			pushItems(profiles, controller.label.get());
 		}
 	}
 
-	const quickpick = accessor.get(IQuickInputService).createQuickPick<IQuickPickItem & { profile: ITestRunProfile }>();
+	const quickpick = accessor.get(IQuickInputService).createQuickPick<IQuickPickItem & { profile: ITestRunProfile }>({ useSeparators: true });
 	quickpick.items = items;
 	quickpick.placeholder = placeholder;
 	return quickpick;

@@ -351,9 +351,9 @@ export function createDisconnectMenuItemAction(action: MenuItemAction, disposabl
 	const instantiationService = accessor.get(IInstantiationService);
 	const contextMenuService = accessor.get(IContextMenuService);
 
-	const menu = menuService.createMenu(MenuId.DebugToolBarStop, contextKeyService);
+	const menu = menuService.getMenuActions(MenuId.DebugToolBarStop, contextKeyService, { shouldForwardArgs: true });
 	const secondary: IAction[] = [];
-	createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, secondary);
+	createAndFillInActionBarActions(menu, secondary);
 
 	if (!secondary.length) {
 		return undefined;
