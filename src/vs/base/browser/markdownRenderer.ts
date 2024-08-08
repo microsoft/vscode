@@ -573,8 +573,8 @@ function createRenderer(): marked.Renderer {
 	renderer.html = (_: marked.Tokens.HTML): string => {
 		return '';
 	};
-	renderer.heading = ({ text }: marked.Tokens.Heading): string => {
-		return text + '\n';
+	renderer.heading = function ({ tokens }: marked.Tokens.Heading): string {
+		return this.parser.parseInline(tokens) + '\n';
 	};
 	renderer.hr = (): string => {
 		return '';
