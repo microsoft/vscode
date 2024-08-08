@@ -142,3 +142,16 @@ export const DIFF_CELL_MARGIN = 16;
 export const NOTEBOOK_DIFF_CELL_INPUT = new RawContextKey<boolean>('notebookDiffCellInputChanged', false);
 export const NOTEBOOK_DIFF_CELL_PROPERTY = new RawContextKey<boolean>('notebookDiffCellPropertyChanged', false);
 export const NOTEBOOK_DIFF_CELL_PROPERTY_EXPANDED = new RawContextKey<boolean>('notebookDiffCellPropertyExpanded', false);
+
+export interface INotebookDiffViewModelUpdateEvent {
+	readonly start: number;
+	readonly deleteCount: number;
+	readonly elements: readonly IDiffElementViewModelBase[];
+}
+
+export interface INotebookDiffViewModel {
+	readonly items: readonly IDiffElementViewModelBase[];
+	onDidChangeItems: Event<INotebookDiffViewModelUpdateEvent>;
+	setViewModel(cellViewModels: DiffElementCellViewModelBase[]): void;
+	clear(): void;
+}

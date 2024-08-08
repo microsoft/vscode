@@ -20,7 +20,7 @@ export class NotebookDiffOverviewRuler extends Themable {
 	private readonly _domNode: FastDomNode<HTMLCanvasElement>;
 	private readonly _overviewViewportDomElement: FastDomNode<HTMLElement>;
 
-	private _diffElementViewModels: IDiffElementViewModelBase[] = [];
+	private _diffElementViewModels: readonly IDiffElementViewModelBase[] = [];
 	private _lanes = 2;
 
 	private _insertColor: Color | null;
@@ -94,7 +94,7 @@ export class NotebookDiffOverviewRuler extends Themable {
 		this._layoutNow();
 	}
 
-	updateViewModels(elements: IDiffElementViewModelBase[], eventDispatcher: NotebookDiffEditorEventDispatcher | undefined) {
+	updateViewModels(elements: readonly IDiffElementViewModelBase[], eventDispatcher: NotebookDiffEditorEventDispatcher | undefined) {
 		this._disposables.clear();
 
 		this._diffElementViewModels = elements;

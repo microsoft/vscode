@@ -97,7 +97,7 @@ export abstract class DiffElementCellViewModelBase extends DiffElementViewModelB
 	onDidStateChange = this._stateChangeEmitter.event;
 	protected _layoutInfo!: IDiffElementLayoutInfo;
 
-	public unchangedCells?: number;
+	public displayIconToHideUnmodifiedCells?: boolean;
 	private _hideUnchangedCells = this._register(new Emitter<void>());
 	public onHideUnchangedCells = this._hideUnchangedCells.event;
 

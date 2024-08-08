@@ -1390,7 +1390,7 @@ export class ModifiedElement extends AbstractElementRenderer {
 
 	override buildBody(): void {
 		super.buildBody();
-		if (this.cell.unchangedCells) {
+		if (this.cell.displayIconToHideUnmodifiedCells) {
 			this._register(this.templateData.marginOverlay.onAction(() => this.cell.hideUnchangedCells()));
 			this.templateData.marginOverlay.show();
 		} else {
