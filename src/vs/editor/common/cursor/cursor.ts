@@ -723,14 +723,14 @@ class AutoClosedAction {
 	}
 }
 
-interface IExecContext {
+export interface IExecContext {
 	readonly model: ITextModel;
 	readonly selectionsBefore: Selection[];
 	readonly trackedRanges: string[];
 	readonly trackedRangesDirection: SelectionDirection[];
 }
 
-interface ICommandData {
+export interface ICommandData {
 	operations: IIdentifiedSingleEditOperation[];
 	hadTrackedEditOperation: boolean;
 }

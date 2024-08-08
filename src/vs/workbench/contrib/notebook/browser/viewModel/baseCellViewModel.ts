@@ -351,6 +351,9 @@ export abstract class BaseCellViewModel extends Disposable {
 		this._editorViewStates = this._textEditor.saveViewState();
 	}
 
+	//! todo@Yoyokrazy update view state --> update cursor
+	//! get and save view states need to be public
+
 	private saveTransientState() {
 		if (!this._textEditor || !this._textEditor.hasModel()) {
 			return;
@@ -510,12 +513,24 @@ export abstract class BaseCellViewModel extends Disposable {
 
 	setSelections(selections: Selection[]) {
 		if (selections.length) {
-			this._textEditor?.setSelections(selections);
+			if (this._textEditor) {
+				this._textEditor?.setSelections(selections);
+			} else if (this._editorViewStates) {
+				this._editorViewStates.cursorState = selections.map(selection => {
+					return {
+						inSelectionMode: !selection.isEmpty(),
+						selectionStart: selection.getStartPosition(),
+						position: selection.getEndPosition(),
+					};
+				});
+			}
 		}
 	}
 
 	getSelections() {
-		return this._textEditor?.getSelections() || [];
+		return this._textEditor?.getSelections()
+			?? this._editorViewStates?.cursorState.map(state => new Selection(state.selectionStart.lineNumber, state.selectionStart.column, state.position.lineNumber, state.position.column))
+			?? [];
 	}
 
 	getSelectionsStartPosition(): IPosition[] | undefined {
