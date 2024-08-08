@@ -894,11 +894,12 @@ class FilterReplAction extends EditorAction {
 			id: 'repl.action.find',
 			label: localize('repl.action.find', "Debug Console: Focus Find"),
 			alias: 'Debug Console: Focus Find',
-			precondition: CONTEXT_IN_DEBUG_REPL,
+			precondition: ContextKeyExpr.or(CONTEXT_IN_DEBUG_REPL, ContextKeyExpr.equals('focusedView', 'workbench.panel.repl.view')),
 			kbOpts: {
-				kbExpr: EditorContextKeys.textInputFocus,
+				kbExpr: ContextKeyExpr.or(CONTEXT_IN_DEBUG_REPL, ContextKeyExpr.equals('focusedView', 'workbench.panel.repl.view')),
 				primary: KeyMod.CtrlCmd | KeyCode.KeyF,
-				weight: KeybindingWeight.EditorContrib
+				// override the editor's find
+				weight: KeybindingWeight.EditorContrib + 10
 			}
 		});
 	}
