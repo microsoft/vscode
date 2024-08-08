@@ -16,7 +16,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import { SemanticTokensLegend, SemanticTokens } from 'vs/editor/common/languages';
+import { SemanticTokensLegend, SemanticTokens, TreeSitterTokenizationRegistry } from 'vs/editor/common/languages';
 import { FontStyle, ColorId, StandardTokenType, TokenMetadata } from 'vs/editor/common/encodedTokenAttributes';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -424,6 +424,15 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 				$('td.tiw-metadata-key', undefined, 'tree-sitter scopes' as string),
 				$('td.tiw-metadata-value.tiw-metadata-scopes', undefined, ...scopes),
 			));
+
+			const tokenizationSupport = TreeSitterTokenizationRegistry.get(this._model.getLanguageId());
+			const captures = tokenizationSupport?.captureAtPosition(position.lineNumber, position.column, this._model);
+			if (captures && captures.length > 0) {
+				dom.append(tbody, $('tr', undefined,
+					$('td.tiw-metadata-key', undefined, 'foreground'),
+					$('td.tiw-metadata-value', undefined, captures[0].name),
+				));
+			}
 		}
 	}
 

@@ -73,7 +73,7 @@ class TreeSitterTokenizationFeature extends Disposable implements ITreeSitterTok
 	}
 }
 
-export class TreeSitterTokenizationSupport extends Disposable implements ITreeSitterTokenizationSupport {
+class TreeSitterTokenizationSupport extends Disposable implements ITreeSitterTokenizationSupport {
 	private _query: Parser.Query | undefined;
 	private readonly _tokensChangedDisposable: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
 	private readonly _onDidChangeTokens: Emitter<IModelTokensChangedEvent> = new Emitter();
@@ -119,6 +119,20 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 		}
 	}
 
+	captureAtPosition(lineNumber: number, column: number, textModel: ITextModel): any {
+		const captures = this._captureAtRange(lineNumber, column, column + 1, textModel);
+		return captures;
+	}
+
+	private _captureAtRange(lineNumber: number, columnStart: number, columnEnd: number, textModel: ITextModel): Parser.QueryCapture[] {
+		const tree = this._getTree(textModel);
+		const query = this._ensureQuery(textModel);
+		if (!tree?.tree || !query) {
+			return [];
+		}
+		return query.captures(tree.tree.rootNode, { startPosition: { row: lineNumber - 1, column: columnStart }, endPosition: { row: lineNumber - 1, column: columnEnd } });
+	}
+
 	/**
 	 * Gets the tokens for a given line.
 	 * Each token takes 2 elements in the array. The first element is the offset of the end of the token *in the line, not in the document*, and the second element is the metadata.
@@ -127,14 +141,9 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 	 * @returns
 	 */
 	public tokenizeEncoded(lineNumber: number, textModel: ITextModel): Uint32Array {
-		const tree = this._getTree(textModel);
-		const query = this._ensureQuery(textModel);
-		if (!tree?.tree || !query) {
-			return new Uint32Array([0, 0]);
-		}
-
 		const lineLength = textModel.getLineMaxColumn(lineNumber);
-		const captures = query.captures(tree.tree.rootNode, { startPosition: { row: lineNumber - 1, column: 0 }, endPosition: { row: lineNumber - 1, column: lineLength } });
+		const captures = this._captureAtRange(lineNumber, 0, lineLength, textModel);
+
 		if (captures.length === 0 && lineLength > 0) {
 			// No captures, but we always want to return at least one token for each line
 			return new Uint32Array([lineLength, 0]);
