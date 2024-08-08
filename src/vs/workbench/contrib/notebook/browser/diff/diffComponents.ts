@@ -773,7 +773,6 @@ abstract class SingleSideDiffElement extends AbstractElementRenderer {
 	override readonly cell: SingleSideDiffElementViewModel;
 	override readonly templateData: CellDiffSingleSideRenderTemplate;
 	abstract get nestedCellViewModel(): DiffNestedCellViewModel;
-	abstract get changedLabel(): string;
 	abstract get isEditable(): boolean;
 	constructor(
 		notebookEditor: INotebookTextDiffEditor,
@@ -940,7 +939,7 @@ abstract class SingleSideDiffElement extends AbstractElementRenderer {
 				getFoldingState: (cell) => cell.cellFoldingState,
 				updateFoldingState: (cell, state) => cell.cellFoldingState = state,
 				unChangedLabel: 'Input',
-				changedLabel: this.changedLabel,
+				changedLabel: 'Input',
 				prefix: 'input',
 				menuId: MenuId.NotebookDiffCellInputTitle
 			}
@@ -1093,9 +1092,6 @@ export class DeletedElement extends SingleSideDiffElement {
 	get nestedCellViewModel() {
 		return this.cell.original!;
 	}
-	get changedLabel() {
-		return 'Input deleted';
-	}
 	get isEditable() {
 		return true;
 	}
@@ -1225,9 +1221,6 @@ export class InsertElement extends SingleSideDiffElement {
 	}
 	get nestedCellViewModel() {
 		return this.cell.modified!;
-	}
-	get changedLabel() {
-		return 'Input inserted';
 	}
 	get isEditable() {
 		return true;
