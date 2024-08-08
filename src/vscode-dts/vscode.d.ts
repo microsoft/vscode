@@ -11799,15 +11799,15 @@ declare module 'vscode' {
 			/**
 			 * If true, then the element will be selected.
 			 */
-			select?: boolean;
+			readonly select?: boolean;
 			/**
 			 * If true, then the element will be focused.
 			 */
-			focus?: boolean;
+			readonly focus?: boolean;
 			/**
 			 * If true, then the element will be expanded. If a number is passed, then up to that number of levels of children will be expanded
 			 */
-			expand?: boolean | number;
+			readonly expand?: boolean | number;
 		}): Thenable<void>;
 	}
 
