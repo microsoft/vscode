@@ -152,7 +152,6 @@ export class WindowsShellHelper extends Disposable implements IWindowsShellHelpe
 			case 'debian.exe':
 			case 'opensuse-42.exe':
 			case 'sles-12.exe':
-
 				return WindowsShellType.Wsl;
 			default:
 				if (executable.match(/python(\d(\.\d{0,2})?)?\.exe/)) {
