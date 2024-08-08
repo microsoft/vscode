@@ -136,7 +136,6 @@ export const enum PosixShellType {
 	Ksh = 'ksh',
 	Zsh = 'zsh',
 	Python = 'python',
-	// TODO: Julia
 	Julia = 'julia'
 }
 export const enum WindowsShellType {
