@@ -65,7 +65,7 @@ const defaultMarkedRenderers = Object.freeze({
 	},
 
 	paragraph(this: marked.Renderer, { tokens }: marked.Tokens.Paragraph): string {
-		return `<p>${this.parser.parseInline(tokens)}</p>\n`;
+		return `<p>${this.parser.parseInline(tokens)}</p>`;
 	},
 
 	link(this: marked.Renderer, { href, title, tokens }: marked.Tokens.Link): string {

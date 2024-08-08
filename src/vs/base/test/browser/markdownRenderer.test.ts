@@ -31,7 +31,7 @@ suite('MarkdownRenderer', () => {
 		test('Should not render images with unknown schemes', () => {
 			const markdown = { value: `![image](no-such://example.com/cat.gif)` };
 			const result: HTMLElement = store.add(renderMarkdown(markdown)).element;
-			assert.strictEqual(result.innerHTML, '<p><img alt="image"></p>\n');
+			assert.strictEqual(result.innerHTML, '<p><img alt="image"></p>');
 		});
 	});
 
@@ -39,28 +39,28 @@ suite('MarkdownRenderer', () => {
 		test('image rendering conforms to default', () => {
 			const markdown = { value: `![image](http://example.com/cat.gif 'caption')` };
 			const result: HTMLElement = store.add(renderMarkdown(markdown)).element;
-			assertNodeEquals(result, '<div><p><img title="caption" alt="image" src="http://example.com/cat.gif"></p>\n</div>');
+			assertNodeEquals(result, '<div><p><img title="caption" alt="image" src="http://example.com/cat.gif"></p></div>');
 		});
 
 		test('image rendering conforms to default without title', () => {
 			const markdown = { value: `![image](http://example.com/cat.gif)` };
 			const result: HTMLElement = store.add(renderMarkdown(markdown)).element;
-			assertNodeEquals(result, '<div><p><img alt="image" src="http://example.com/cat.gif"></p>\n</div>');
+			assertNodeEquals(result, '<div><p><img alt="image" src="http://example.com/cat.gif"></p></div>');
 		});
 
 		test('image width from title params', () => {
 			const result: HTMLElement = store.add(renderMarkdown({ value: `![image](http://example.com/cat.gif|width=100px 'caption')` })).element;
-			assertNodeEquals(result, `<div><p><img width="100" title="caption" alt="image" src="http://example.com/cat.gif"></p>\n</div>`);
+			assertNodeEquals(result, `<div><p><img width="100" title="caption" alt="image" src="http://example.com/cat.gif"></p></div>`);
 		});
 
 		test('image height from title params', () => {
 			const result: HTMLElement = store.add(renderMarkdown({ value: `![image](http://example.com/cat.gif|height=100 'caption')` })).element;
-			assertNodeEquals(result, `<div><p><img height="100" title="caption" alt="image" src="http://example.com/cat.gif"></p>\n</div>`);
+			assertNodeEquals(result, `<div><p><img height="100" title="caption" alt="image" src="http://example.com/cat.gif"></p></div>`);
 		});
 
 		test('image width and height from title params', () => {
 			const result: HTMLElement = store.add(renderMarkdown({ value: `![image](http://example.com/cat.gif|height=200,width=100 'caption')` })).element;
-			assertNodeEquals(result, `<div><p><img height="200" width="100" title="caption" alt="image" src="http://example.com/cat.gif"></p>\n</div>`);
+			assertNodeEquals(result, `<div><p><img height="200" width="100" title="caption" alt="image" src="http://example.com/cat.gif"></p></div>`);
 		});
 
 		test('image with file uri should render as same origin uri', () => {
@@ -68,7 +68,7 @@ suite('MarkdownRenderer', () => {
 				return;
 			}
 			const result: HTMLElement = store.add(renderMarkdown({ value: `![image](file:///images/cat.gif)` })).element;
-			assertNodeEquals(result, '<div><p><img src="vscode-file://vscode-app/images/cat.gif" alt="image"></p>\n</div>');
+			assertNodeEquals(result, '<div><p><img src="vscode-file://vscode-app/images/cat.gif" alt="image"></p></div>');
 		});
 	});
 
@@ -142,7 +142,7 @@ suite('MarkdownRenderer', () => {
 			mds.appendText('$(zap) $(not a theme icon) $(add)');
 
 			const result: HTMLElement = store.add(renderMarkdown(mds)).element;
-			assert.strictEqual(result.innerHTML, `<p>$(zap)&nbsp;$(not&nbsp;a&nbsp;theme&nbsp;icon)&nbsp;$(add)</p>\n`);
+			assert.strictEqual(result.innerHTML, `<p>$(zap)&nbsp;$(not&nbsp;a&nbsp;theme&nbsp;icon)&nbsp;$(add)</p>`);
 		});
 
 		test('render appendMarkdown', () => {
@@ -150,7 +150,7 @@ suite('MarkdownRenderer', () => {
 			mds.appendMarkdown('$(zap) $(not a theme icon) $(add)');
 
 			const result: HTMLElement = store.add(renderMarkdown(mds)).element;
-			assert.strictEqual(result.innerHTML, `<p><span class="codicon codicon-zap"></span> $(not a theme icon) <span class="codicon codicon-add"></span></p>\n`);
+			assert.strictEqual(result.innerHTML, `<p><span class="codicon codicon-zap"></span> $(not a theme icon) <span class="codicon codicon-add"></span></p>`);
 		});
 
 		test('render appendMarkdown with escaped icon', () => {
@@ -158,7 +158,7 @@ suite('MarkdownRenderer', () => {
 			mds.appendMarkdown('\\$(zap) $(not a theme icon) $(add)');
 
 			const result: HTMLElement = store.add(renderMarkdown(mds)).element;
-			assert.strictEqual(result.innerHTML, `<p>$(zap) $(not a theme icon) <span class="codicon codicon-add"></span></p>\n`);
+			assert.strictEqual(result.innerHTML, `<p>$(zap) $(not a theme icon) <span class="codicon codicon-add"></span></p>`);
 		});
 
 		test('render icon in link', () => {
@@ -166,7 +166,7 @@ suite('MarkdownRenderer', () => {
 			mds.appendMarkdown(`[$(zap)-link](#link)`);
 
 			const result: HTMLElement = store.add(renderMarkdown(mds)).element;
-			assert.strictEqual(result.innerHTML, `<p><a data-href="#link" href="" title="#link" draggable="false"><span class="codicon codicon-zap"></span>-link</a></p>\n`);
+			assert.strictEqual(result.innerHTML, `<p><a data-href="#link" href="" title="#link" draggable="false"><span class="codicon codicon-zap"></span>-link</a></p>`);
 		});
 
 		test('render icon in table', () => {
@@ -197,7 +197,7 @@ suite('MarkdownRenderer', () => {
 			mds.appendMarkdown(`<a>$(sync)</a>`);
 
 			const result: HTMLElement = store.add(renderMarkdown(mds)).element;
-			assert.strictEqual(result.innerHTML, `<p><span class="codicon codicon-sync"></span></p>\n`);
+			assert.strictEqual(result.innerHTML, `<p><span class="codicon codicon-sync"></span></p>`);
 		});
 	});
 
@@ -208,7 +208,7 @@ suite('MarkdownRenderer', () => {
 			mds.appendText('$(zap) $(not a theme icon) $(add)');
 
 			const result: HTMLElement = store.add(renderMarkdown(mds)).element;
-			assert.strictEqual(result.innerHTML, `<p>$(zap)&nbsp;$(not&nbsp;a&nbsp;theme&nbsp;icon)&nbsp;$(add)</p>\n`);
+			assert.strictEqual(result.innerHTML, `<p>$(zap)&nbsp;$(not&nbsp;a&nbsp;theme&nbsp;icon)&nbsp;$(add)</p>`);
 		});
 
 		test('render appendMarkdown with escaped icon', () => {
@@ -216,7 +216,7 @@ suite('MarkdownRenderer', () => {
 			mds.appendMarkdown('\\$(zap) $(not a theme icon) $(add)');
 
 			const result: HTMLElement = store.add(renderMarkdown(mds)).element;
-			assert.strictEqual(result.innerHTML, `<p>$(zap) $(not a theme icon) $(add)</p>\n`);
+			assert.strictEqual(result.innerHTML, `<p>$(zap) $(not a theme icon) $(add)</p>`);
 		});
 	});
 
@@ -243,7 +243,7 @@ suite('MarkdownRenderer', () => {
 		});
 
 		const result: HTMLElement = store.add(renderMarkdown(md)).element;
-		assert.strictEqual(result.innerHTML, `<p>command1 command2</p>\n`);
+		assert.strictEqual(result.innerHTML, `<p>command1 command2</p>`);
 	});
 
 	test('Should render command links in trusted strings', () => {
@@ -253,7 +253,7 @@ suite('MarkdownRenderer', () => {
 		});
 
 		const result: HTMLElement = store.add(renderMarkdown(md)).element;
-		assert.strictEqual(result.innerHTML, `<p><a data-href="command:doFoo" href="" title="command:doFoo" draggable="false">command1</a> <a data-href="command:doFoo" href="">command2</a></p>\n`);
+		assert.strictEqual(result.innerHTML, `<p><a data-href="command:doFoo" href="" title="command:doFoo" draggable="false">command1</a> <a data-href="command:doFoo" href="">command2</a></p>`);
 	});
 
 	suite('PlaintextMarkdownRender', () => {
@@ -279,7 +279,7 @@ suite('MarkdownRenderer', () => {
 			mds.appendMarkdown('a<b>b</b>c');
 
 			const result = store.add(renderMarkdown(mds)).element;
-			assert.strictEqual(result.innerHTML, `<p>abc</p>\n`);
+			assert.strictEqual(result.innerHTML, `<p>abc</p>`);
 		});
 
 		test('Renders html when supportHtml=true', () => {
@@ -287,7 +287,7 @@ suite('MarkdownRenderer', () => {
 			mds.appendMarkdown('a<b>b</b>c');
 
 			const result = store.add(renderMarkdown(mds)).element;
-			assert.strictEqual(result.innerHTML, `<p>a<b>b</b>c</p>\n`);
+			assert.strictEqual(result.innerHTML, `<p>a<b>b</b>c</p>`);
 		});
 
 		test('Should not include scripts even when supportHtml=true', () => {
@@ -295,7 +295,7 @@ suite('MarkdownRenderer', () => {
 			mds.appendMarkdown('a<b onclick="alert(1)">b</b><script>alert(2)</script>c');
 
 			const result = store.add(renderMarkdown(mds)).element;
-			assert.strictEqual(result.innerHTML, `<p>a<b>b</b>c</p>\n`);
+			assert.strictEqual(result.innerHTML, `<p>a<b>b</b>c</p>`);
 		});
 
 		test('Should not render html appended as text', () => {
@@ -303,7 +303,7 @@ suite('MarkdownRenderer', () => {
 			mds.appendText('a<b>b</b>c');
 
 			const result = store.add(renderMarkdown(mds)).element;
-			assert.strictEqual(result.innerHTML, `<p>a&lt;b&gt;b&lt;/b&gt;c</p>\n`);
+			assert.strictEqual(result.innerHTML, `<p>a&lt;b&gt;b&lt;/b&gt;c</p>`);
 		});
 
 		test('Should render html images', () => {
