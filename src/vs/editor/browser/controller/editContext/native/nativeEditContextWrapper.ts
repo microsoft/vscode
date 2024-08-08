@@ -23,8 +23,13 @@ export class NativeAreaWrapper extends Disposable implements ICompleteHiddenArea
 	public readonly onKeyDown = this._register(new DomEmitter(this._actual, 'keydown')).event;
 	public readonly onKeyPress = this._register(new DomEmitter(this._actual, 'keypress')).event;
 	public readonly onKeyUp = this._register(new DomEmitter(this._actual, 'keyup')).event;
-	public readonly onCut = this._register(new DomEmitter(this._actual, 'cut')).event;
 	public readonly onCopy = this._register(new DomEmitter(this._actual, 'copy')).event;
+
+	// paste event for some reason not fired on the dom node, even if content editable set to true
+	// On the link https://w3c.github.io/edit-context/#update-the-editcontext, says we should handle copy paste from the before input, but the before input does not fire this event either?
+	// Using the beforeinput event on the document.getRootNode() does not work either
+	// Temporary solution is to fire on paste on the corresponding keydown event but then we are not firing the correct event, just the text in the clipboard
+	public readonly onCut = this._register(new DomEmitter(this._actual, 'cut')).event;
 	public readonly onPaste = this._register(new DomEmitter(this._actual, 'paste')).event;
 	public readonly onFocus = this._register(new DomEmitter(this._actual, 'focus')).event;
 	public readonly onBlur = this._register(new DomEmitter(this._actual, 'blur')).event;

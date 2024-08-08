@@ -410,6 +410,7 @@ export class HiddenAreaInput extends Disposable {
 		// --- Clipboard operations
 
 		this._register(this._hiddenArea.onCut((e) => {
+			console.log('onCut of hidden area input : ', e);
 			// Pretend here we touched the text area, as the `cut` event will most likely
 			// result in a `selectionchange` event which we want to ignore
 			this._hiddenArea.setIgnoreSelectionChangeTime('received cut event');
@@ -419,10 +420,12 @@ export class HiddenAreaInput extends Disposable {
 		}));
 
 		this._register(this._hiddenArea.onCopy((e) => {
+			console.log('onCopy of hidden area input : ', e);
 			this._ensureClipboardGetsEditorSelection(e);
 		}));
 
 		this._register(this._hiddenArea.onPaste((e) => {
+			console.log('onPaste of hidden area input : ', e);
 			// Pretend here we touched the text area, as the `paste` event will most likely
 			// result in a `selectionchange` event which we want to ignore
 			this._hiddenArea.setIgnoreSelectionChangeTime('received paste event');
@@ -672,6 +675,9 @@ export class HiddenAreaInput extends Disposable {
 			(this._browser.isFirefox ? dataToCopy.text.replace(/\r\n/g, '\n') : dataToCopy.text),
 			storedMetadata
 		);
+
+		console.log('_ensureClipboardGetsEditorSelection');
+		console.log('dataToCopy : ', dataToCopy);
 
 		e.preventDefault();
 		if (e.clipboardData) {
