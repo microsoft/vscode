@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CompareResult } from 'vs/base/common/arrays';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
@@ -18,6 +19,7 @@ import { IStorageService, StorageScope } from '../../../../../platform/storage/c
 import { IEditorIdentifier, IResourceMergeEditorInput } from '../../../../common/editor.js';
 import { MergeEditorInput, MergeEditorInputData } from '../mergeEditorInput.js';
 import { IMergeEditorInputModel } from '../mergeEditorInputModel.js';
+import { ActionsSource, IContentWidgetActionType } from 'vs/workbench/contrib/mergeEditor/browser/view/conflictActions';
 import { MergeEditor } from '../view/mergeEditor.js';
 import { MergeEditorViewModel } from '../view/viewModel.js';
 import { ctxIsMergeEditor, ctxMergeEditorLayout, ctxMergeEditorShowBase, ctxMergeEditorShowBaseAtTop, ctxMergeEditorShowNonConflictingChanges, StorageCloseWithConflicts } from '../../common/mergeEditor.js';
@@ -574,6 +576,64 @@ export class ResetCloseWithConflictsChoice extends Action2 {
 	}
 	run(accessor: ServicesAccessor): void {
 		accessor.get(IStorageService).remove(StorageCloseWithConflicts, StorageScope.PROFILE);
+	}
+}
+
+export class AcceptAllCombination extends MergeEditorAction2 {
+	constructor() {
+		super({
+			id: 'mergeEditor.acceptAllCombination',
+			category: mergeEditorCategory,
+			title: localize2('mergeEditor.acceptAllCombination', "Accept All Combination"),
+			f1: true,
+		});
+	}
+
+	override async runWithMergeEditor(context: MergeEditorAction2Args, accessor: ServicesAccessor, ...args: any[]) {
+		console.log('runWithMergeEditor2');
+		// const { input, inputModel, editorIdentifier, viewModel } = context;
+		const { viewModel } = context;
+		const modifiedBaseRanges = viewModel.model.modifiedBaseRanges.get();
+		const model = viewModel.model;
+		// const activeModifiedBaseRange = viewModel.activeModifiedBaseRange.get()
+		console.log(model.input1.title);
+		console.log(model.input2.title);
+		console.log(modifiedBaseRanges.length);
+		console.log(modifiedBaseRanges.filter(i => i.canBeCombined).length);
+		let index = 1;
+		for (const m of modifiedBaseRanges.filter(i => i.canBeCombined)) {
+			console.log(`======= begin ${index} ======`);
+			// if (m.canBeCombined) {
+			console.log('can be combined', m);
+			const actions = new ActionsSource(viewModel, m);
+			const item1 = actions.itemsInput1;
+			const item2 = actions.itemsInput2;
+			const actualItem1 = item1.get().filter(i => i.type === IContentWidgetActionType.ACCEPT_BOTH);
+			const actualItem2 = item2.get().filter(i => i.type === IContentWidgetActionType.ACCEPT_BOTH);
+			console.log('======= actualItem1 ======', actualItem1.length);
+			for (const item of item1.get().filter(i => i.type === IContentWidgetActionType.ACCEPT_BOTH)) {
+				console.log(item);
+				if (item.action) {
+					console.log(`exec actualItem1 ${index}`);
+					await item.action();
+				}
+			}
+			console.log('======= actualItem2 ======', actualItem2.length);
+			for (const item of actualItem2) {
+				console.log(item);
+				if (item.action) {
+					console.log(`exec actualItem2 ${index}`);
+					await item.action();
+				}
+			}
+			console.log(`======= end ${index} ======`);
+			// }
+
+			index++;
+		}
+
+		return;
+
 	}
 }
 
