@@ -230,6 +230,174 @@ suite('Notebook Diff ViewModel', () => {
 		);
 	});
 
+
+	test('Ensure placeholder positions are as expected', async function () {
+		await withTestNotebook(
+			[
+				['# header 1', 'markdown', CellKind.Markup, [], {}],
+				['# header 2', 'markdown', CellKind.Markup, [], {}],
+			],
+			(editor, viewModel, ds) => {
+				const unmodified1 = ds.add(new SideBySideDiffElementViewModel(
+					viewModel.notebookDocument,
+					viewModel.notebookDocument,
+					ds.add(createDiffNestedViewModel(viewModel.cellAt(0)!.model)),
+					ds.add(createDiffNestedViewModel(viewModel.cellAt(0)!.model)),
+					'unchanged',
+					ds.add(new NotebookDiffEditorEventDispatcher()),
+					initData));
+
+				const unmodified2 = ds.add(new SideBySideDiffElementViewModel(
+					viewModel.notebookDocument,
+					viewModel.notebookDocument,
+					ds.add(createDiffNestedViewModel(viewModel.cellAt(0)!.model)),
+					ds.add(createDiffNestedViewModel(viewModel.cellAt(0)!.model)),
+					'unchanged',
+					ds.add(new NotebookDiffEditorEventDispatcher()),
+					initData));
+
+				const modified1 = ds.add(new SideBySideDiffElementViewModel(
+					viewModel.notebookDocument,
+					viewModel.notebookDocument,
+					ds.add(createDiffNestedViewModel(viewModel.cellAt(0)!.model)),
+					ds.add(createDiffNestedViewModel(viewModel.cellAt(1)!.model)),
+					'modified',
+					ds.add(new NotebookDiffEditorEventDispatcher()),
+					initData));
+
+				const modified2 = ds.add(new SideBySideDiffElementViewModel(
+					viewModel.notebookDocument,
+					viewModel.notebookDocument,
+					ds.add(createDiffNestedViewModel(viewModel.cellAt(0)!.model)),
+					ds.add(createDiffNestedViewModel(viewModel.cellAt(1)!.model)),
+					'modified',
+					ds.add(new NotebookDiffEditorEventDispatcher()),
+					initData));
+
+				const unmodified3 = ds.add(new SideBySideDiffElementViewModel(
+					viewModel.notebookDocument,
+					viewModel.notebookDocument,
+					ds.add(createDiffNestedViewModel(viewModel.cellAt(0)!.model)),
+					ds.add(createDiffNestedViewModel(viewModel.cellAt(0)!.model)),
+					'unchanged',
+					ds.add(new NotebookDiffEditorEventDispatcher()),
+					initData));
+
+				const unmodified4 = ds.add(new SideBySideDiffElementViewModel(
+					viewModel.notebookDocument,
+					viewModel.notebookDocument,
+					ds.add(createDiffNestedViewModel(viewModel.cellAt(0)!.model)),
+					ds.add(createDiffNestedViewModel(viewModel.cellAt(0)!.model)),
+					'unchanged',
+					ds.add(new NotebookDiffEditorEventDispatcher()),
+					initData));
+
+				const unmodified5 = ds.add(new SideBySideDiffElementViewModel(
+					viewModel.notebookDocument,
+					viewModel.notebookDocument,
+					ds.add(createDiffNestedViewModel(viewModel.cellAt(0)!.model)),
+					ds.add(createDiffNestedViewModel(viewModel.cellAt(0)!.model)),
+					'unchanged',
+					ds.add(new NotebookDiffEditorEventDispatcher()),
+					initData));
+
+				const unmodified6 = ds.add(new SideBySideDiffElementViewModel(
+					viewModel.notebookDocument,
+					viewModel.notebookDocument,
+					ds.add(createDiffNestedViewModel(viewModel.cellAt(0)!.model)),
+					ds.add(createDiffNestedViewModel(viewModel.cellAt(0)!.model)),
+					'unchanged',
+					ds.add(new NotebookDiffEditorEventDispatcher()),
+					initData));
+
+				const modified3 = ds.add(new SideBySideDiffElementViewModel(
+					viewModel.notebookDocument,
+					viewModel.notebookDocument,
+					ds.add(createDiffNestedViewModel(viewModel.cellAt(0)!.model)),
+					ds.add(createDiffNestedViewModel(viewModel.cellAt(1)!.model)),
+					'modified',
+					ds.add(new NotebookDiffEditorEventDispatcher()),
+					initData));
+
+				const unmodified7 = ds.add(new SideBySideDiffElementViewModel(
+					viewModel.notebookDocument,
+					viewModel.notebookDocument,
+					ds.add(createDiffNestedViewModel(viewModel.cellAt(0)!.model)),
+					ds.add(createDiffNestedViewModel(viewModel.cellAt(0)!.model)),
+					'unchanged',
+					ds.add(new NotebookDiffEditorEventDispatcher()),
+					initData));
+
+				const diffViewModel = ds.add(new NotebookDiffViewModel());
+				diffViewModel.setViewModel([unmodified1, unmodified2, modified1, modified2, unmodified3, unmodified4, unmodified5, unmodified6, modified3, unmodified7]);
+
+				// Default state
+				assert.strictEqual(diffViewModel.items.length, 6);
+				assert.ok(diffViewModel.items[0] instanceof DiffElementPlaceholderViewModel);
+				assert.deepStrictEqual(diffViewModel.items[1], modified1);
+				assert.deepStrictEqual(diffViewModel.items[2], modified2);
+				assert.ok(diffViewModel.items[3] instanceof DiffElementPlaceholderViewModel);
+				assert.deepStrictEqual(diffViewModel.items[4], modified3);
+				assert.ok(diffViewModel.items[5] instanceof DiffElementPlaceholderViewModel);
+
+				// Expand first collapsed section.
+				let eventArgs: INotebookDiffViewModelUpdateEvent | undefined = undefined;
+				ds.add(diffViewModel.onDidChangeItems(e => eventArgs = e));
+				diffViewModel.items[0].showHiddenCells();
+
+				assert.strictEqual(diffViewModel.items.length, 7);
+				assert.deepStrictEqual(diffViewModel.items[0], unmodified1);
+				assert.deepStrictEqual(diffViewModel.items[1], unmodified2);
+				assert.deepStrictEqual(diffViewModel.items[2], modified1);
+				assert.deepStrictEqual(diffViewModel.items[3], modified2);
+				assert.ok(diffViewModel.items[4] instanceof DiffElementPlaceholderViewModel);
+				assert.deepStrictEqual(diffViewModel.items[5], modified3);
+				assert.ok(diffViewModel.items[6] instanceof DiffElementPlaceholderViewModel);
+				assert.deepStrictEqual(eventArgs, { start: 0, deleteCount: 1, elements: [unmodified1, unmodified2] });
+
+				// Collapse the 1st two cells
+				(diffViewModel.items[0] as SideBySideDiffElementViewModel).hideUnchangedCells();
+
+				assert.strictEqual(diffViewModel.items.length, 6);
+				assert.ok((diffViewModel.items[0] as any) instanceof DiffElementPlaceholderViewModel);
+				assert.deepStrictEqual(diffViewModel.items[1], modified1);
+				assert.deepStrictEqual(diffViewModel.items[2], modified2);
+				assert.ok((diffViewModel.items[3] as any) instanceof DiffElementPlaceholderViewModel);
+				assert.deepStrictEqual(diffViewModel.items[4], modified3);
+				assert.ok((diffViewModel.items[5] as any) instanceof DiffElementPlaceholderViewModel);
+				assert.deepStrictEqual(eventArgs, { start: 0, deleteCount: 2, elements: [diffViewModel.items[0]] });
+
+
+				// Expand second collapsed section.
+				(diffViewModel.items[3] as any).showHiddenCells();
+
+				assert.strictEqual(diffViewModel.items.length, 9);
+				assert.ok((diffViewModel.items[0] as any) instanceof DiffElementPlaceholderViewModel);
+				assert.deepStrictEqual(diffViewModel.items[1], modified1);
+				assert.deepStrictEqual(diffViewModel.items[2], modified2);
+				assert.deepStrictEqual(diffViewModel.items[3], unmodified3);
+				assert.deepStrictEqual(diffViewModel.items[4], unmodified4);
+				assert.deepStrictEqual(diffViewModel.items[5], unmodified5);
+				assert.deepStrictEqual(diffViewModel.items[6], unmodified6);
+				assert.deepStrictEqual(diffViewModel.items[7], modified3);
+				assert.ok((diffViewModel.items[8] as any) instanceof DiffElementPlaceholderViewModel);
+				assert.deepStrictEqual(eventArgs, { start: 3, deleteCount: 1, elements: [unmodified3, unmodified4, unmodified5, unmodified6] });
+
+				// Collapse the 2nd section
+				(diffViewModel.items[3] as SideBySideDiffElementViewModel).hideUnchangedCells();
+
+				assert.strictEqual(diffViewModel.items.length, 6);
+				assert.ok((diffViewModel.items[0] as any) instanceof DiffElementPlaceholderViewModel);
+				assert.deepStrictEqual(diffViewModel.items[1], modified1);
+				assert.deepStrictEqual(diffViewModel.items[2], modified2);
+				assert.ok((diffViewModel.items[3] as any) instanceof DiffElementPlaceholderViewModel);
+				assert.deepStrictEqual(diffViewModel.items[4], modified3);
+				assert.ok((diffViewModel.items[5] as any) instanceof DiffElementPlaceholderViewModel);
+				assert.deepStrictEqual(eventArgs, { start: 3, deleteCount: 4, elements: [diffViewModel.items[3]] });
+			}
+		);
+	});
+
 	function createDiffNestedViewModel(cellTextModel: NotebookCellTextModel) {
 		return new DiffNestedCellViewModel(cellTextModel, instantiationService.get<INotebookService>(INotebookService));
 	}

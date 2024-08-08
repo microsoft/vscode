@@ -49,16 +49,18 @@ export class NotebookDiffViewModel extends Disposable implements INotebookDiffVi
 						if (!Array.isArray(hiddenCellViewModels)) {
 							return;
 						}
-						this._items.splice(index, 1, ...hiddenCellViewModels);
-						this._onDidChangeItems.fire({ start: index, deleteCount: 1, elements: hiddenCellViewModels });
+						const start = this._items.indexOf(placeholderItem);
+						this._items.splice(start, 1, ...hiddenCellViewModels);
+						this._onDidChangeItems.fire({ start, deleteCount: 1, elements: hiddenCellViewModels });
 					}));
 					this.disposables.add(vm.onHideUnchangedCells(() => {
 						const hiddenCellViewModels = this.placeholderAndRelatedCells.get(placeholderItem);
 						if (!Array.isArray(hiddenCellViewModels)) {
 							return;
 						}
-						this._items.splice(index, hiddenCellViewModels.length, placeholderItem);
-						this._onDidChangeItems.fire({ start: index, deleteCount: hiddenCellViewModels.length, elements: [placeholderItem] });
+						const start = this._items.indexOf(vm);
+						this._items.splice(start, hiddenCellViewModels.length, placeholderItem);
+						this._onDidChangeItems.fire({ start, deleteCount: hiddenCellViewModels.length, elements: [placeholderItem] });
 					}));
 				}
 				const hiddenCellViewModels = this.placeholderAndRelatedCells.get(placeholder) || [];
