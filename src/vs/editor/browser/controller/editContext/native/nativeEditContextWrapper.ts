@@ -199,19 +199,6 @@ export class NativeAreaWrapper extends Disposable implements ICompleteHiddenArea
 	public getSelectionStart(): number {
 
 		console.log('getSelectionStart');
-
-		/*
-		const activeDocument = dom.getActiveWindow().document;
-		const activeDocumentSelection = activeDocument.getSelection();
-		console.log('activeDocumentSelection : ', activeDocumentSelection);
-		const activeDocumentRange = activeDocumentSelection?.getRangeAt(0);
-		console.log('activeDocumentRange : ', activeDocumentRange);
-		if (!activeDocumentRange) {
-			return 0;
-		}
-		return activeDocumentSelection?.direction === 'backward' ? activeDocumentRange.endOffset : activeDocumentRange.startOffset;
-		*/
-
 		// need to check direction maybe?
 		return this._selectionStart;
 	}
@@ -219,19 +206,6 @@ export class NativeAreaWrapper extends Disposable implements ICompleteHiddenArea
 	public getSelectionEnd(): number {
 
 		console.log('getSelectionEnd');
-
-		/*
-		const activeDocument = dom.getActiveWindow().document;
-		const activeDocumentSelection = activeDocument.getSelection();
-		console.log('activeDocumentSelection : ', activeDocumentSelection);
-		const activeDocumentRange = activeDocumentSelection?.getRangeAt(0);
-		console.log('activeDocumentRange : ', activeDocumentRange);
-		if (!activeDocumentRange) {
-			return 0;
-		}
-		return activeDocumentSelection?.direction === 'backward' ? activeDocumentRange.startOffset : activeDocumentRange.endOffset;
-		*/
-
 		// need to check direction maybe?
 		return this._selectionEnd;
 	}

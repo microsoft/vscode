@@ -31,14 +31,13 @@ import { NativeAreaWrapper } from 'vs/editor/browser/controller/editContext/nati
 import * as browser from 'vs/base/browser/browser';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ScrollType } from 'vs/editor/common/editorCommon';
-import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
 import { Range } from 'vs/editor/common/core/range';
 import { IME } from 'vs/base/common/ime';
 import { EndOfLinePreference } from 'vs/editor/common/model';
 import * as dom from 'vs/base/browser/dom';
 
 // TODO
-// Am not able to copy paste the code?
+// Am not able to copy paste the code? Issues remain
 // Position the div correctly
 // Test IME, consider adding the test cover
 
@@ -382,7 +381,7 @@ export class NativeEditContext extends AbstractEditContext {
 			this._render();
 
 			// Show the textarea
-			this._domElement.setClassName(`inputarea ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME} ime-input`);
+			this._domElement.setClassName('native-edit-context ime-input');
 
 			this._viewController.compositionStart();
 			this._context.viewModel.onCompositionStart();
@@ -406,7 +405,7 @@ export class NativeEditContext extends AbstractEditContext {
 
 			this._render();
 
-			this._domElement.setClassName(`inputarea ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`);
+			this._domElement.setClassName('native-edit-context');
 			this._viewController.compositionEnd();
 			this._context.viewModel.onCompositionEnd();
 		}));

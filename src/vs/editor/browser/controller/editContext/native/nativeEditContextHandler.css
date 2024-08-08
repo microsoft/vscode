@@ -3,23 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-editor .native-edit-context {
-	position : absolute;
-	z-index : 100;
-	background : white;
-	font-family : Menlo, Monaco, "Courier New", monospace;
-	line-height : 18px;
-	letter-spacing : 0px;
-	color : black;
-	white-space : pre-wrap;
-	display : table;
-	tab-size: 4;
-	text-wrap: nowrap;
-}
-
-/**
- * Later will need to use the following CSS when I make the div 0px by 0px. Currently it is visible for developmen purposes.
- * Transitioning to a hidden div, will require some additional work and some additional changes in order to make it work.
 
 .monaco-editor .native-edit-context {
 	min-width: 0;
@@ -34,11 +17,34 @@
 	color: transparent;
 	background-color: transparent;
 	z-index: -10;
+	white-space: pre-wrap;
+	text-wrap: nowrap;
 }
+
+
+/** the issues is that the text is wrapped whereas it should not be */
+/** then there is also a y position offset which will maybe be fixed when hiding the div */
+/*
+.monaco-editor .native-edit-context {
+	min-width: 0;
+	min-height: 0;
+	margin: 0;
+	padding: 0;
+	position: absolute;
+	outline: none !important;
+	resize: none;
+	border: none;
+	overflow: visible;
+	color: rgb(32, 32, 32);
+	background-color: white;
+	z-index: 100;
+	white-space: pre-wrap;
+	text-wrap: nowrap;
+}
+*/
 
 .monaco-editor .native-edit-context.ime-input {
 	z-index: 10;
 	caret-color: var(--vscode-editorCursor-foreground);
 	color: var(--vscode-editor-foreground);
 }
- */
