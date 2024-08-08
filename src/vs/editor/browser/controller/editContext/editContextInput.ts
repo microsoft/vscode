@@ -94,7 +94,7 @@ export interface ICompositionStartEvent {
 	data: string;
 }
 
-export interface ICompleteHiddenAreaWrapper extends IHiddenAreaWrapper {
+export interface ICompleteHiddenAreaWrapper extends IHiddenAreaWrapper, IDisposable {
 	readonly onKeyDown: Event<KeyboardEvent>;
 	readonly onKeyPress: Event<KeyboardEvent>;
 	readonly onKeyUp: Event<KeyboardEvent>;

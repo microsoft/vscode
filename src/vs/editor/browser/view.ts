@@ -13,7 +13,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { IPointerHandlerHelper } from 'vs/editor/browser/controller/mouseHandler';
 import { PointerHandlerLastRenderData } from 'vs/editor/browser/controller/mouseTarget';
 import { PointerHandler } from 'vs/editor/browser/controller/pointerHandler';
-import { TextAreaContext } from 'vs/editor/browser/controller/editContext/textArea/textAreaHandler';
+import { TextAreaHandler } from 'vs/editor/browser/controller/editContext/textArea/textAreaHandler';
 import { IContentWidget, IContentWidgetPosition, IEditorAriaOptions, IGlyphMarginWidget, IGlyphMarginWidgetPosition, IMouseTarget, IOverlayWidget, IOverlayWidgetPosition, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBrowser';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
 import { ICommandDelegate, ViewController } from 'vs/editor/browser/view/viewController';
@@ -134,7 +134,7 @@ export class View extends ViewEventHandler {
 		if (editContext.type === 'native') {
 			this._editContext = this._instantiationService.createInstance(NativeEditContext, this._context, viewController, helper);
 		} else {
-			this._editContext = this._instantiationService.createInstance(TextAreaContext, this._context, viewController, helper);
+			this._editContext = this._instantiationService.createInstance(TextAreaHandler, this._context, viewController, helper);
 		}
 		this._viewParts.push(this._editContext);
 
