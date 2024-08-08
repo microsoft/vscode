@@ -80,7 +80,6 @@ const vscodeResources = [
 // be inlined into the target window file in this order
 // and they depend on each other in this way.
 const windowBootstrapFiles = [
-	'out-build/bootstrap.js',
 	'out-build/vs/loader.js',
 	'out-build/bootstrap-window.js'
 ];
@@ -289,6 +288,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 				'**/*.node',
 				'**/@vscode/ripgrep/bin/*',
 				'**/node-pty/build/Release/*',
+				'**/node-pty/build/Release/conpty/*',
 				'**/node-pty/lib/worker/conoutSocketWorker.js',
 				'**/node-pty/lib/shared/conout.js',
 				'**/*.wasm',

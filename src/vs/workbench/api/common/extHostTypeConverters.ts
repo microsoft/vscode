@@ -53,7 +53,7 @@ import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/ed
 import { Dto } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import type * as vscode from 'vscode';
 import * as types from './extHostTypes';
-import { IToolData } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
+import { IToolData, IToolResult } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
 
 export namespace Command {
 
@@ -367,7 +367,7 @@ export namespace MarkdownString {
 		const resUris: { [href: string]: UriComponents } = Object.create(null);
 		res.uris = resUris;
 
-		const collectUri = (href: string): string => {
+		const collectUri = ({ href }: { href: string }): string => {
 			try {
 				let uri = URI.parse(href, true);
 				uri = uri.with({ query: _uriMassage(uri.query, resUris) });
@@ -379,7 +379,7 @@ export namespace MarkdownString {
 		};
 		const renderer = new marked.Renderer();
 		renderer.link = collectUri;
-		renderer.image = href => typeof href === 'string' ? collectUri(htmlContent.parseHrefAndDimensions(href).href) : '';
+		renderer.image = href => typeof href === 'string' ? collectUri(htmlContent.parseHrefAndDimensions(href)) : '';
 
 		marked(res.value, { renderer });
 
@@ -787,7 +787,7 @@ export namespace SymbolTag {
 
 export namespace WorkspaceSymbol {
 	export function from(info: vscode.SymbolInformation): search.IWorkspaceSymbol {
-		return <search.IWorkspaceSymbol>{
+		return {
 			name: info.name,
 			kind: SymbolKind.from(info.kind),
 			tags: info.tags && info.tags.map(SymbolTag.from),
@@ -966,7 +966,7 @@ export namespace Hover {
 
 export namespace EvaluatableExpression {
 	export function from(expression: vscode.EvaluatableExpression): languages.EvaluatableExpression {
-		return <languages.EvaluatableExpression>{
+		return {
 			range: Range.from(expression.range),
 			expression: expression.expression
 		};
@@ -980,24 +980,24 @@ export namespace EvaluatableExpression {
 export namespace InlineValue {
 	export function from(inlineValue: vscode.InlineValue): languages.InlineValue {
 		if (inlineValue instanceof types.InlineValueText) {
-			return <languages.InlineValueText>{
+			return {
 				type: 'text',
 				range: Range.from(inlineValue.range),
 				text: inlineValue.text
-			};
+			} satisfies languages.InlineValueText;
 		} else if (inlineValue instanceof types.InlineValueVariableLookup) {
-			return <languages.InlineValueVariableLookup>{
+			return {
 				type: 'variable',
 				range: Range.from(inlineValue.range),
 				variableName: inlineValue.variableName,
 				caseSensitiveLookup: inlineValue.caseSensitiveLookup
-			};
+			} satisfies languages.InlineValueVariableLookup;
 		} else if (inlineValue instanceof types.InlineValueEvaluatableExpression) {
-			return <languages.InlineValueExpression>{
+			return {
 				type: 'expression',
 				range: Range.from(inlineValue.range),
 				expression: inlineValue.expression
-			};
+			} satisfies languages.InlineValueExpression;
 		} else {
 			throw new Error(`Unknown 'InlineValue' type`);
 		}
@@ -1006,28 +1006,28 @@ export namespace InlineValue {
 	export function to(inlineValue: languages.InlineValue): vscode.InlineValue {
 		switch (inlineValue.type) {
 			case 'text':
-				return <vscode.InlineValueText>{
+				return {
 					range: Range.to(inlineValue.range),
 					text: inlineValue.text
-				};
+				} satisfies vscode.InlineValueText;
 			case 'variable':
-				return <vscode.InlineValueVariableLookup>{
+				return {
 					range: Range.to(inlineValue.range),
 					variableName: inlineValue.variableName,
 					caseSensitiveLookup: inlineValue.caseSensitiveLookup
-				};
+				} satisfies vscode.InlineValueVariableLookup;
 			case 'expression':
-				return <vscode.InlineValueEvaluatableExpression>{
+				return {
 					range: Range.to(inlineValue.range),
 					expression: inlineValue.expression
-				};
+				} satisfies vscode.InlineValueEvaluatableExpression;
 		}
 	}
 }
 
 export namespace InlineValueContext {
 	export function from(inlineValueContext: vscode.InlineValueContext): extHostProtocol.IInlineValueContextDto {
-		return <extHostProtocol.IInlineValueContextDto>{
+		return {
 			frameId: inlineValueContext.frameId,
 			stoppedLocation: Range.from(inlineValueContext.stoppedLocation)
 		};
@@ -1891,7 +1891,7 @@ export namespace TestMessage {
 			stackTrace: (message as vscode.TestMessage2).stackTrace?.map(s => ({
 				label: s.label,
 				position: s.position && Position.from(s.position),
-				uri: s.file && URI.revive(s.file).toJSON(),
+				uri: s.uri && URI.revive(s.uri).toJSON(),
 			})),
 		};
 	}
@@ -2616,16 +2616,19 @@ export namespace ChatResponsePart {
 
 export namespace ChatAgentRequest {
 	export function to(request: IChatAgentRequest, location2: vscode.ChatRequestEditorData | vscode.ChatRequestNotebookData | undefined): vscode.ChatRequest {
+		const requestedTools = request.variables.variables.filter(v => v.isTool).map(tool => tool.id);
+		const variablesWithoutTools = request.variables.variables.filter(v => !v.isTool);
 		return {
 			prompt: request.message,
 			command: request.command,
 			attempt: request.attempt ?? 0,
 			enableCommandDetection: request.enableCommandDetection ?? true,
-			references: request.variables.variables.map(ChatAgentValueReference.to),
+			references: variablesWithoutTools.map(ChatAgentValueReference.to),
 			location: ChatLocation.to(request.location),
 			acceptedConfirmationData: request.acceptedConfirmationData,
 			rejectedConfirmationData: request.rejectedConfirmationData,
-			location2
+			location2,
+			requestedTools
 		};
 	}
 }
@@ -2690,6 +2693,7 @@ export namespace ChatAgentResult {
 		return {
 			errorDetails: result.errorDetails,
 			metadata: result.metadata,
+			nextQuestion: result.nextQuestion,
 		};
 	}
 }
@@ -2720,6 +2724,24 @@ export namespace ChatAgentUserActionEvent {
 	}
 }
 
+export namespace LanguageModelToolResult {
+	export function from(result: vscode.LanguageModelToolResult): IToolResult {
+		return {
+			...result,
+			string: result.toString(),
+		};
+	}
+
+	export function to(result: IToolResult): vscode.LanguageModelToolResult {
+		const copy: vscode.LanguageModelToolResult = {
+			...result,
+			toString: () => result.string,
+		};
+		delete copy.string;
+
+		return copy;
+	}
+}
 
 export namespace TerminalQuickFix {
 	export function from(quickFix: vscode.TerminalQuickFixTerminalCommand | vscode.TerminalQuickFixOpener | vscode.Command, converter: Command.ICommandsConverter, disposables: DisposableStore): extHostProtocol.ITerminalQuickFixTerminalCommandDto | extHostProtocol.ITerminalQuickFixOpenerDto | extHostProtocol.ICommandDto | undefined {

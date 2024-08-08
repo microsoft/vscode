@@ -471,9 +471,16 @@ export class ExtensionEditor extends EditorPane {
 		const currentOptions: IExtensionEditorOptions | undefined = this.options;
 		super.setOptions(options);
 		this.updatePreReleaseVersionContext();
+
 		if (this.input && this.template && currentOptions?.showPreReleaseVersion !== options?.showPreReleaseVersion) {
 			this.render((this.input as ExtensionsInput).extension, this.template, !!options?.preserveFocus);
+			return;
 		}
+
+		if (options?.tab) {
+			this.template?.navbar.switch(options.tab);
+		}
+
 	}
 
 	private updatePreReleaseVersionContext(): void {

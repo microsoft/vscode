@@ -94,6 +94,9 @@ import { TerminalResizeDebouncer } from 'vs/workbench/contrib/terminal/browser/t
 // HACK: This file should not depend on terminalContrib
 // eslint-disable-next-line local/code-import-patterns
 import { TerminalAccessibilityCommandId } from 'vs/workbench/contrib/terminalContrib/accessibility/common/terminal.accessibility';
+import { openContextMenu } from 'vs/workbench/contrib/terminal/browser/terminalContextMenu';
+import type { IMenu } from 'vs/platform/actions/common/actions';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 
 const enum Constants {
 	/**
@@ -354,6 +357,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		private readonly _terminalInRunCommandPicker: IContextKey<boolean>,
 		private _shellLaunchConfig: IShellLaunchConfig,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
 		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
@@ -1156,6 +1160,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	override dispose(reason?: TerminalExitReason): void {
+		if (this.shellLaunchConfig.type === 'Task' && reason === TerminalExitReason.Process && this._exitCode !== 0 && !this.shellLaunchConfig.waitOnExit) {
+			return;
+		}
 		if (this.isDisposed) {
 			return;
 		}
@@ -1599,7 +1606,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				}
 			});
 		} else {
-			this.dispose(TerminalExitReason.Process);
 			if (exitMessage) {
 				const failedDuringLaunch = this._processManager.processState === ProcessState.KilledDuringLaunch;
 				if (failedDuringLaunch || this._terminalConfigurationService.config.showExitAlert) {
@@ -1615,6 +1621,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					this._logService.warn(exitMessage);
 				}
 			}
+			this.dispose(TerminalExitReason.Process);
 		}
 
 		// First onExit to consumers, this can happen after the terminal has already been disposed.
@@ -1633,7 +1640,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			id: TerminalStatus.ShellIntegrationAttentionNeeded,
 			severity: Severity.Warning,
 			icon: Codicon.warning,
-			tooltip: (`${exitMessage} ` ?? '') + nls.localize('launchFailed.exitCodeOnlyShellIntegration', 'Disabling shell integration in user settings might help.'),
+			tooltip: `${exitMessage} ` + nls.localize('launchFailed.exitCodeOnlyShellIntegration', 'Disabling shell integration in user settings might help.'),
 			hoverActions: [{
 				commandId: TerminalCommandId.ShellIntegrationLearnMore,
 				label: nls.localize('shellIntegration.learnMore', "Learn more about shell integration"),
@@ -2257,7 +2264,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const showAllColorsItem = { label: 'Reset to default' };
 		items.push(showAllColorsItem);
 
-		const quickPick = this._quickInputService.createQuickPick();
+		const quickPick = this._quickInputService.createQuickPick({ useSeparators: true });
 		quickPick.items = items;
 		quickPick.matchOnDescription = true;
 		quickPick.placeholder = nls.localize('changeColor', 'Select a color for the terminal');
@@ -2289,6 +2296,66 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	setParentContextKeyService(parentContextKeyService: IContextKeyService): void {
 		this._scopedContextKeyService.updateParent(parentContextKeyService);
+	}
+
+	async handleMouseEvent(event: MouseEvent, contextMenu: IMenu): Promise<{ cancelContextMenu: boolean } | void> {
+		// Don't handle mouse event if it was on the scroll bar
+		if (dom.isHTMLElement(event.target) && event.target.classList.contains('scrollbar')) {
+			return { cancelContextMenu: true };
+		}
+
+		// Middle click
+		if (event.which === 2) {
+			switch (this._terminalConfigurationService.config.middleClickBehavior) {
+				case 'paste':
+					this.paste();
+					break;
+				case 'default':
+				default:
+					// Drop selection and focus terminal on Linux to enable middle button paste
+					// when click occurs on the selection itself.
+					this.focus();
+					break;
+			}
+			return;
+		}
+
+		// Right click
+		if (event.which === 3) {
+			const rightClickBehavior = this._terminalConfigurationService.config.rightClickBehavior;
+			if (rightClickBehavior === 'nothing') {
+				if (!event.shiftKey) {
+					return { cancelContextMenu: true };
+				}
+				return;
+			}
+			else if (rightClickBehavior === 'copyPaste' || rightClickBehavior === 'paste') {
+				// copyPaste: Shift+right click should open context menu
+				if (rightClickBehavior === 'copyPaste' && event.shiftKey) {
+					openContextMenu(dom.getActiveWindow(), event, this, contextMenu, this._contextMenuService);
+					return;
+				}
+
+				if (rightClickBehavior === 'copyPaste' && this.hasSelection()) {
+					await this.copySelection();
+					this.clearSelection();
+				} else {
+					if (BrowserFeatures.clipboard.readText) {
+						this.paste();
+					} else {
+						this._notificationService.info(`This browser doesn't support the clipboard.readText API needed to trigger a paste, try ${isMacintosh ? '⌘' : 'Ctrl'}+V instead.`);
+					}
+				}
+				// Clear selection after all click event bubbling is finished on Mac to prevent
+				// right-click selecting a word which is seemed cannot be disabled. There is a
+				// flicker when pasting but this appears to give the best experience if the
+				// setting is enabled.
+				if (isMacintosh) {
+					setTimeout(() => this.clearSelection(), 0);
+				}
+				return { cancelContextMenu: true };
+			}
+		}
 	}
 }
 

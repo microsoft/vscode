@@ -20,6 +20,7 @@ import { ContentHoverComputer } from 'vs/editor/contrib/hover/browser/contentHov
 import { HoverResult } from 'vs/editor/contrib/hover/browser/contentHoverTypes';
 import { Emitter } from 'vs/base/common/event';
 import { RenderedContentHover } from 'vs/editor/contrib/hover/browser/contentHoverRendered';
+import { isMousePositionWithinElement } from 'vs/editor/contrib/hover/browser/hoverUtils';
 
 export class ContentHoverController extends Disposable implements IHoverWidget {
 
@@ -69,10 +70,14 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 			const messages = (result.hasLoadingMessage ? this._addLoadingMessage(result.value) : result.value);
 			this._withResult(new HoverResult(this._computer.anchor, messages, result.isComplete));
 		}));
-		this._register(dom.addStandardDisposableListener(this._contentHoverWidget.getDomNode(), 'keydown', (e) => {
+		const contentHoverWidgetNode = this._contentHoverWidget.getDomNode();
+		this._register(dom.addStandardDisposableListener(contentHoverWidgetNode, 'keydown', (e) => {
 			if (e.equals(KeyCode.Escape)) {
 				this.hide();
 			}
+		}));
+		this._register(dom.addStandardDisposableListener(contentHoverWidgetNode, 'mouseleave', (e) => {
+			this._onMouseLeave(e);
 		}));
 		this._register(TokenizationRegistry.onDidChange(() => {
 			if (this._contentHoverWidget.position && this._currentResult) {
@@ -281,6 +286,14 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 		return anchorCandidates;
 	}
 
+	private _onMouseLeave(e: MouseEvent): void {
+		const editorDomNode = this._editor.getDomNode();
+		const isMousePositionOutsideOfEditor = !editorDomNode || !isMousePositionWithinElement(editorDomNode, e.x, e.y);
+		if (isMousePositionOutsideOfEditor) {
+			this.hide();
+		}
+	}
+
 	public startShowingAtRange(range: Range, mode: HoverStartMode, source: HoverStartSource, focus: boolean): void {
 		this._startShowingOrUpdateHover(new HoverRangeAnchor(0, range, undefined, undefined), mode, source, focus, null);
 	}
@@ -361,6 +374,10 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 		this._computer.anchor = null;
 		this._hoverOperation.cancel();
 		this._setCurrentResult(null);
+	}
+
+	public getDomNode(): HTMLElement {
+		return this._contentHoverWidget.getDomNode();
 	}
 
 	public get isColorPickerVisible(): boolean {

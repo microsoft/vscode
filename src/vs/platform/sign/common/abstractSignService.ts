@@ -36,7 +36,7 @@ export abstract class AbstractSignService implements ISignService {
 				};
 			}
 		} catch (e) {
-			// ignore errors silently
+			console.error(e);
 		}
 		return { id: '', data: value };
 	}
@@ -54,7 +54,7 @@ export abstract class AbstractSignService implements ISignService {
 		try {
 			return (validator.validate(value) === 'ok');
 		} catch (e) {
-			// ignore errors silently
+			console.error(e);
 			return false;
 		} finally {
 			validator.dispose?.();
@@ -65,7 +65,7 @@ export abstract class AbstractSignService implements ISignService {
 		try {
 			return await this.signValue(value);
 		} catch (e) {
-			// ignore errors silently
+			console.error(e);
 		}
 		return value;
 	}

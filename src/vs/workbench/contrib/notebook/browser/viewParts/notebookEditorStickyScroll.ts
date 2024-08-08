@@ -106,6 +106,8 @@ export class NotebookStickyScroll extends Disposable {
 	readonly onDidChangeNotebookStickyScroll: Event<number> = this._onDidChangeNotebookStickyScroll.event;
 	private notebookCellOutlineReference?: IReference<NotebookCellOutlineDataSource>;
 
+	private readonly _layoutDisposableStore = this._register(new DisposableStore());
+
 	getDomNode(): HTMLElement {
 		return this.domNode;
 	}
@@ -143,6 +145,7 @@ export class NotebookStickyScroll extends Disposable {
 		private readonly domNode: HTMLElement,
 		private readonly notebookEditor: INotebookEditor,
 		private readonly notebookCellList: INotebookCellList,
+		private readonly layoutFn: (delta: number) => void,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
@@ -269,8 +272,16 @@ export class NotebookStickyScroll extends Disposable {
 		const sizeDelta = this.getCurrentStickyHeight() - oldStickyHeight;
 		if (sizeDelta !== 0) {
 			this._onDidChangeNotebookStickyScroll.fire(sizeDelta);
+
+			const d = this._layoutDisposableStore.add(DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this.getDomNode()), () => {
+				this.layoutFn(sizeDelta);
+				this.updateDisplay();
+
+				this._layoutDisposableStore.delete(d);
+			}));
+		} else {
+			this.updateDisplay();
 		}
-		this.updateDisplay();
 	}
 
 	private updateDisplay() {

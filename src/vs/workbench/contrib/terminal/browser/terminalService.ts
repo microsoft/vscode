@@ -823,7 +823,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 
 		if (target && side) {
 			const index = group.terminalInstances.indexOf(target) + (side === 'after' ? 1 : 0);
-			group.moveInstance(source, index);
+			group.moveInstance(source, index, side);
 		}
 
 		// Fire events
@@ -1081,7 +1081,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 		} else {
 			const group = this._terminalGroupService.getGroupForInstance(parent);
 			if (!group) {
-				throw new Error(`Cannot split a terminal without a group ${parent}`);
+				throw new Error(`Cannot split a terminal without a group (instanceId: ${parent.instanceId}, title: ${parent.title})`);
 			}
 			shellLaunchConfig.parentTerminalId = parent.instanceId;
 			instance = group.split(shellLaunchConfig);

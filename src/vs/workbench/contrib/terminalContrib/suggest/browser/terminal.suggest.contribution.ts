@@ -166,7 +166,6 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 				this._instance.focus();
 				this._instance.sendText(text, false);
 			}));
-			this.add(this._instance.onDidSendText(() => this._addon.value?.hideSuggestWidget()));
 		}
 	}
 }
@@ -250,7 +249,8 @@ registerActiveInstanceAction({
 	keybinding: {
 		primary: KeyCode.Enter,
 		// Enter is bound to other workbench keybindings that this needs to beat
-		weight: KeybindingWeight.WorkbenchContrib + 1
+		weight: KeybindingWeight.WorkbenchContrib + 1,
+		when: ContextKeyExpr.notEquals(`config.${TerminalSuggestSettingId.RunOnEnter}`, 'ignore'),
 	},
 	run: (activeInstance) => TerminalSuggestContribution.get(activeInstance)?.addon?.acceptSelectedSuggestion(undefined, true)
 });

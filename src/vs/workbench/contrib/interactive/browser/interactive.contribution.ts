@@ -23,11 +23,10 @@ import { Context as SuggestContext } from 'vs/editor/contrib/suggest/browser/sug
 import { localize, localize2 } from 'vs/nls';
 import { ILocalizedString } from 'vs/platform/action/common/action';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { EditorActivation, IResourceEditorInput } from 'vs/platform/editor/common/editor';
+import { EditorActivation, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -138,17 +137,25 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 			{
 				createEditorInput: ({ resource, options }) => {
 					const data = CellUri.parse(resource);
-					let cellOptions: IResourceEditorInput | undefined;
-					let IwResource = resource;
+					let cellOptions: ITextResourceEditorInput | undefined;
+					let iwResource = resource;
 
 					if (data) {
 						cellOptions = { resource, options };
-						IwResource = data.notebook;
+						iwResource = data.notebook;
 					}
 
-					const notebookOptions = { ...options, cellOptions } as INotebookEditorOptions;
+					const notebookOptions: INotebookEditorOptions | undefined = {
+						...options,
+						cellOptions,
+						cellRevealType: undefined,
+						cellSelections: undefined,
+						isReadOnly: undefined,
+						viewState: undefined,
+						indexedCellOptions: undefined
+					};
 
-					const editorInput = createEditor(IwResource, this.instantiationService);
+					const editorInput = createEditor(iwResource, this.instantiationService);
 					return {
 						editor: editorInput,
 						options: notebookOptions
@@ -159,13 +166,21 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 						throw new Error('Interactive window editors must have a resource name');
 					}
 					const data = CellUri.parse(resource);
-					let cellOptions: IResourceEditorInput | undefined;
+					let cellOptions: ITextResourceEditorInput | undefined;
 
 					if (data) {
 						cellOptions = { resource, options };
 					}
 
-					const notebookOptions = { ...options, cellOptions } as INotebookEditorOptions;
+					const notebookOptions: INotebookEditorOptions = {
+						...options,
+						cellOptions,
+						cellRevealType: undefined,
+						cellSelections: undefined,
+						isReadOnly: undefined,
+						viewState: undefined,
+						indexedCellOptions: undefined
+					};
 
 					const editorInput = createEditor(resource, this.instantiationService);
 					return {
@@ -429,25 +444,6 @@ registerAction2(class extends Action2 {
 		// Extensions must retain references to these URIs to manipulate the interactive editor
 		logService.debug('New interactive window opened. Notebook editor id', editorControl?.notebookEditor?.getId());
 		return { notebookUri, inputUri, notebookEditorId: editorControl?.notebookEditor?.getId() };
-	}
-});
-
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'interactive.configure',
-			title: localize2('interactive.configExecute', 'Configure input box behavior'),
-			category: interactiveWindowCategory,
-			f1: false,
-			icon: icons.configIcon,
-			menu: {
-				id: MenuId.InteractiveInputConfig
-			}
-		});
-	}
-
-	override run(accessor: ServicesAccessor, ...args: any[]): void {
-		accessor.get(ICommandService).executeCommand('workbench.action.openSettings', '@tag:replExecute');
 	}
 });
 

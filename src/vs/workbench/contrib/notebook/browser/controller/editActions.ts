@@ -634,10 +634,8 @@ registerAction2(class CommentSelectedCellsAction extends NotebookMultiCellAction
 			keybinding: {
 				when: ContextKeyExpr.and(
 					NOTEBOOK_EDITOR_FOCUSED,
-					NOTEBOOK_CELL_LIST_FOCUSED,
-					ContextKeyExpr.not(InputFocusedContextKey),
 					NOTEBOOK_EDITOR_EDITABLE,
-					NOTEBOOK_CELL_EDITABLE
+					ContextKeyExpr.not(InputFocusedContextKey),
 				),
 				primary: KeyMod.CtrlCmd | KeyCode.Slash,
 				weight: KeybindingWeight.WorkbenchContrib
@@ -657,6 +655,7 @@ registerAction2(class CommentSelectedCellsAction extends NotebookMultiCellAction
 			}
 		});
 
+
 		selectedCellEditors.forEach(editor => {
 			if (!editor.hasModel()) {
 				return;
@@ -666,6 +665,8 @@ registerAction2(class CommentSelectedCellsAction extends NotebookMultiCellAction
 			const commands: ICommand[] = [];
 			const modelOptions = model.getOptions();
 			const commentsOptions = editor.getOption(EditorOption.comments);
+
+			const selection = editor.getSelection();
 
 			commands.push(new LineCommentCommand(
 				languageConfigurationService,
@@ -680,6 +681,8 @@ registerAction2(class CommentSelectedCellsAction extends NotebookMultiCellAction
 			editor.pushUndoStop();
 			editor.executeCommands(COMMENT_SELECTED_CELLS_ID, commands);
 			editor.pushUndoStop();
+
+			editor.setSelection(selection);
 		});
 	}
 
