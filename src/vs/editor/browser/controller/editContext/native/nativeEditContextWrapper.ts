@@ -94,6 +94,10 @@ export class NativeAreaWrapper extends Disposable implements ICompleteHiddenArea
 			console.log('e.text : ', e.text);
 			console.log('this._editContext.text : ', this._editContext.text);
 
+			// Should write to the hidden div in order for the text to be read correctly
+
+			this._actual.textContent = this._editContext.text;
+
 			this._onInput.fire({
 				timeStamp: e.timeStamp,
 				type: 'input',

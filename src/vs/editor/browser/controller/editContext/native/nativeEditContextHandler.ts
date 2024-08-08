@@ -35,9 +35,10 @@ import { Range } from 'vs/editor/common/core/range';
 import { IME } from 'vs/base/common/ime';
 import { EndOfLinePreference } from 'vs/editor/common/model';
 
-// TODO: use the pagination strategy to render the hidden area
-// TODO: refactor the code
-// TODO: test accessibility on NVDA with Windows
+// TODO
+// 1. Make typing correct
+// 2. Position the div correctly
+// 3. Test IME, consider adding the test cover
 
 export class NativeEditContext extends AbstractEditContext {
 
