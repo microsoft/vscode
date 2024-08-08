@@ -145,7 +145,6 @@ export const enum WindowsShellType {
 	Wsl = 'wsl',
 	GitBash = 'gitbash',
 	Python = 'python',
-	// TODO: Julia
 	Julia = 'julia'
 }
 export type TerminalShellType = PosixShellType | WindowsShellType;

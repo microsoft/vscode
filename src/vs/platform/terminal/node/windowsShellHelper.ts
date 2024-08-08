@@ -143,6 +143,8 @@ export class WindowsShellHelper extends Disposable implements IWindowsShellHelpe
 			case 'bash.exe':
 			case 'git-cmd.exe':
 				return WindowsShellType.GitBash;
+			case 'julia.exe:':
+				return WindowsShellType.Julia;
 			case 'wsl.exe':
 			case 'ubuntu.exe':
 			case 'ubuntu1804.exe':
@@ -150,7 +152,6 @@ export class WindowsShellHelper extends Disposable implements IWindowsShellHelpe
 			case 'debian.exe':
 			case 'opensuse-42.exe':
 			case 'sles-12.exe':
-				// TODO: Julia executable
 
 				return WindowsShellType.Wsl;
 			default:
