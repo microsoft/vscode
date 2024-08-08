@@ -13,7 +13,6 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { IPointerHandlerHelper } from 'vs/editor/browser/controller/mouseHandler';
 import { PointerHandlerLastRenderData } from 'vs/editor/browser/controller/mouseTarget';
 import { PointerHandler } from 'vs/editor/browser/controller/pointerHandler';
-import { TextAreaHandler } from 'vs/editor/browser/controller/editContext/textArea/textAreaHandler';
 import { IContentWidget, IContentWidgetPosition, IEditorAriaOptions, IGlyphMarginWidget, IGlyphMarginWidgetPosition, IMouseTarget, IOverlayWidget, IOverlayWidgetPosition, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBrowser';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
 import { ICommandDelegate, ViewController } from 'vs/editor/browser/view/viewController';
@@ -58,7 +57,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IColorTheme, getThemeTypeSelector } from 'vs/platform/theme/common/themeService';
 import { AbstractEditContext } from 'vs/editor/browser/controller/editContext/editContext';
 import { NativeEditContext } from 'vs/editor/browser/controller/editContext/native/nativeEditContextHandler';
-import { IVisibleRangeProvider } from 'vs/editor/browser/controller/editContext/editContextUtils';
+import { IVisibleRangeProvider, TextAreaHandler } from 'vs/editor/browser/controller/editContext/textArea/textAreaHandler';
 
 
 export interface IContentWidgetData {

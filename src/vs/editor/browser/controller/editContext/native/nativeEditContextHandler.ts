@@ -3,43 +3,113 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as dom from 'vs/base/browser/dom';
 import 'vs/css!./nativeEditContextHandler';
+import * as nls from 'vs/nls';
+import * as browser from 'vs/base/browser/browser';
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { AbstractEditContext } from 'vs/editor/browser/controller/editContext/editContext';
-import { HorizontalPosition, RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
+import * as platform from 'vs/base/common/platform';
+import * as strings from 'vs/base/common/strings';
+import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
+import { CopyOptions, ICompositionData, IPasteData, ClipboardDataToCopy, IHiddenAreaInputHost, HiddenAreaInput } from 'vs/editor/browser/controller/editContext/editContextInput';
+import { ISimpleModel, ITypeData, PagedScreenReaderStrategy, HiddenAreaState, _debugComposition } from 'vs/editor/browser/controller/editContext/editContextState';
 import { ViewController } from 'vs/editor/browser/view/viewController';
-import { EditorOption, IComputedEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { Position } from 'vs/editor/common/core/position';
-import * as viewEvents from 'vs/editor/common/viewEvents';
-
-import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
-import { Selection } from 'vs/editor/common/core/selection';
-import { canUseZeroSizeTextarea, ensureReadOnlyAttribute, getAndroidWordAtPosition, getCharacterBeforePosition, getWordBeforePosition, IRenderData, IVisibleRangeProvider, measureText, newlinecount, setAccessibilityOptions, setAriaOptions, setAttributes, VisibleTextAreaData } from 'vs/editor/browser/controller/editContext/editContextUtils';
 import { PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
-import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
+import { EditorOption, EditorOptions, IComputedEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { WordCharacterClass, getMapForWordSeparators } from 'vs/editor/common/core/wordCharacterClassifier';
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
+import { ScrollType } from 'vs/editor/common/editorCommon';
+import { EndOfLinePreference } from 'vs/editor/common/model';
+import { RenderingContext, RestrictedRenderingContext, HorizontalPosition } from 'vs/editor/browser/view/renderingContext';
+import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
+import * as viewEvents from 'vs/editor/common/viewEvents';
+import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { IEditorAriaOptions } from 'vs/editor/browser/editorBrowser';
 import { TokenizationRegistry } from 'vs/editor/common/languages';
-import * as platform from 'vs/base/common/platform';
-import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
+import { ColorId, ITokenPresentation } from 'vs/editor/common/encodedTokenAttributes';
 import { Color } from 'vs/base/common/color';
-import { _debugComposition, HiddenAreaState, ISimpleModel, ITypeData, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/editContext/editContextState';
-import { ClipboardDataToCopy, CopyOptions, HiddenAreaInput, ICompositionData, IHiddenAreaInputHost, IPasteData } from 'vs/editor/browser/controller/editContext/editContextInput';
-import { NativeAreaWrapper } from 'vs/editor/browser/controller/editContext/native/nativeEditContextWrapper';
-import * as browser from 'vs/base/browser/browser';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ScrollType } from 'vs/editor/common/editorCommon';
-import { Range } from 'vs/editor/common/core/range';
 import { IME } from 'vs/base/common/ime';
-import { EndOfLinePreference } from 'vs/editor/common/model';
-import * as dom from 'vs/base/browser/dom';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { AbstractEditContext } from 'vs/editor/browser/controller/editContext/editContext';
+import { NativeAreaWrapper } from 'vs/editor/browser/controller/editContext/native/nativeEditContextWrapper';
 
 // TODO
 // Am not able to copy paste the code? Issues remain
 // Position the div correctly
 // Test IME, consider adding the test cover
+
+export interface IVisibleRangeProvider {
+	visibleRangeForPosition(position: Position): HorizontalPosition | null;
+}
+
+class VisibleTextAreaData {
+	_visibleTextAreaBrand: void = undefined;
+
+	public startPosition: Position | null = null;
+	public endPosition: Position | null = null;
+
+	public visibleTextareaStart: HorizontalPosition | null = null;
+	public visibleTextareaEnd: HorizontalPosition | null = null;
+
+	/**
+	 * When doing composition, the currently composed text might be split up into
+	 * multiple tokens, then merged again into a single token, etc. Here we attempt
+	 * to keep the presentation of the <textarea> stable by using the previous used
+	 * style if multiple tokens come into play. This avoids flickering.
+	 */
+	private _previousPresentation: ITokenPresentation | null = null;
+
+	constructor(
+		private readonly _context: ViewContext,
+		public readonly modelLineNumber: number,
+		public readonly distanceToModelLineStart: number,
+		public readonly widthOfHiddenLineTextBefore: number,
+		public readonly distanceToModelLineEnd: number,
+	) {
+	}
+
+	prepareRender(visibleRangeProvider: IVisibleRangeProvider): void {
+		const startModelPosition = new Position(this.modelLineNumber, this.distanceToModelLineStart + 1);
+		const endModelPosition = new Position(this.modelLineNumber, this._context.viewModel.model.getLineMaxColumn(this.modelLineNumber) - this.distanceToModelLineEnd);
+
+		this.startPosition = this._context.viewModel.coordinatesConverter.convertModelPositionToViewPosition(startModelPosition);
+		this.endPosition = this._context.viewModel.coordinatesConverter.convertModelPositionToViewPosition(endModelPosition);
+
+		if (this.startPosition.lineNumber === this.endPosition.lineNumber) {
+			this.visibleTextareaStart = visibleRangeProvider.visibleRangeForPosition(this.startPosition);
+			this.visibleTextareaEnd = visibleRangeProvider.visibleRangeForPosition(this.endPosition);
+		} else {
+			// TODO: what if the view positions are not on the same line?
+			this.visibleTextareaStart = null;
+			this.visibleTextareaEnd = null;
+		}
+	}
+
+	definePresentation(tokenPresentation: ITokenPresentation | null): ITokenPresentation {
+		if (!this._previousPresentation) {
+			// To avoid flickering, once set, always reuse a presentation throughout the entire IME session
+			if (tokenPresentation) {
+				this._previousPresentation = tokenPresentation;
+			} else {
+				this._previousPresentation = {
+					foreground: ColorId.DefaultForeground,
+					italic: false,
+					bold: false,
+					underline: false,
+					strikethrough: false,
+				};
+			}
+		}
+		return this._previousPresentation;
+	}
+}
+
+const canUseZeroSizeTextarea = (browser.isFirefox);
 
 export class NativeEditContext extends AbstractEditContext {
 
@@ -73,7 +143,6 @@ export class NativeEditContext extends AbstractEditContext {
 	 */
 	private _lastRenderPosition: Position | null;
 
-	// TODO: uncomment when the div cover will be needed
 	// public readonly divCover: FastDomNode<HTMLElement>;
 	private readonly _domElement = new FastDomNode(document.createElement('div'));
 	private readonly _hiddenAreaInput: HiddenAreaInput;
@@ -87,15 +156,15 @@ export class NativeEditContext extends AbstractEditContext {
 	) {
 		super(context);
 
-		const options = this._context.configuration.options;
-		const layoutInfo = options.get(EditorOption.layoutInfo);
-
-		this._setAccessibilityOptions(options);
-
 		this._viewController = viewController;
 		this._visibleRangeProvider = visibleRangeProvider;
 		this._scrollLeft = 0;
 		this._scrollTop = 0;
+
+		const options = this._context.configuration.options;
+		const layoutInfo = options.get(EditorOption.layoutInfo);
+
+		this._setAccessibilityOptions(options);
 		this._contentLeft = layoutInfo.contentLeft;
 		this._contentWidth = layoutInfo.contentWidth;
 		this._contentHeight = layoutInfo.height;
@@ -112,17 +181,26 @@ export class NativeEditContext extends AbstractEditContext {
 		// TODO: Do we need to add a part fingerprint here? Should this be text area or should this be something else other than text area.
 		PartFingerprints.write(this._domElement, PartFingerprint.TextArea);
 		this._domElement.setClassName('native-edit-context');
+		this._domElement.setAttribute('wrap', this._textAreaWrapping && !this._visibleTextArea ? 'on' : 'off');
 		const { tabSize } = this._context.viewModel.model.getOptions();
-		setAttributes(this._domElement.domNode, tabSize, this._textAreaWrapping, this._visibleTextArea, options, this._keybindingService);
+		this._domElement.domNode.style.tabSize = `${tabSize * this._fontInfo.spaceWidth}px`;
+		this._domElement.setAttribute('autocorrect', 'off');
+		this._domElement.setAttribute('autocapitalize', 'off');
+		this._domElement.setAttribute('autocomplete', 'off');
+		this._domElement.setAttribute('spellcheck', 'false');
+		this._domElement.setAttribute('aria-label', this._getAriaLabel(options));
+		this._domElement.setAttribute('aria-required', options.get(EditorOption.ariaRequired) ? 'true' : 'false');
+		this._domElement.setAttribute('tabindex', String(options.get(EditorOption.tabIndex)));
+		this._domElement.setAttribute('role', 'textbox');
+		this._domElement.setAttribute('aria-roledescription', nls.localize('editor', "editor"));
+		this._domElement.setAttribute('aria-multiline', 'true');
+		this._domElement.setAttribute('aria-autocomplete', options.get(EditorOption.readOnly) ? 'none' : 'both');
 
-		ensureReadOnlyAttribute(this._domElement.domNode, options);
+		this._ensureReadOnlyAttribute();
 
-		// maybe need to uncomment
-		// this.divCover = createFastDomNode(document.createElement('div'));
-		// this.divCover.setPosition('absolute');
+		// this.textAreaCover = createFastDomNode(document.createElement('div'));
+		// this.textAreaCover.setPosition('absolute');
 
-		// In fact this simple model limits the methods that can be accessed from the view model of the context
-		// otherwise it is equivalent
 		const simpleModel: ISimpleModel = {
 			getLineCount: (): number => {
 				return this._context.viewModel.getLineCount();
@@ -144,10 +222,8 @@ export class NativeEditContext extends AbstractEditContext {
 		const hiddenAreaInputHost: IHiddenAreaInputHost = {
 			getDataToCopy: (): ClipboardDataToCopy => {
 				const rawTextToCopy = this._context.viewModel.getPlainTextToCopy(this._modelSelections, this._emptySelectionClipboard, platform.isWindows);
-				// Method getEOL returns the end-of-line character of the viewModel
 				const newLineCharacter = this._context.viewModel.model.getEOL();
 
-				// only one selection and this unique selection is empty
 				const isFromEmptySelection = (this._emptySelectionClipboard && this._modelSelections.length === 1 && this._modelSelections[0].isEmpty());
 				const multicursorText = (Array.isArray(rawTextToCopy) ? rawTextToCopy : null);
 				const text = (Array.isArray(rawTextToCopy) ? rawTextToCopy.join(newLineCharacter) : rawTextToCopy);
@@ -177,16 +253,13 @@ export class NativeEditContext extends AbstractEditContext {
 					// Also on OSX, we write the word before the cursor to allow for the Accessibility Keyboard to give good hints
 					const selection = this._selections[0];
 					if (platform.isMacintosh && selection.isEmpty()) {
-						// main position of the selection
 						const position = selection.getStartPosition();
 
-						// Either get the character or the word before the position
-						let textBefore = getWordBeforePosition(this._context, position);
+						let textBefore = this._getWordBeforePosition(position);
 						if (textBefore.length === 0) {
-							textBefore = getCharacterBeforePosition(this._context.viewModel, position);
+							textBefore = this._getCharacterBeforePosition(position);
 						}
 
-						// If there is a character or word before the position, the return a text are state
 						if (textBefore.length > 0) {
 							console.log('1st hidden area state');
 							return new HiddenAreaState(textBefore, textBefore.length, textBefore.length, Range.fromPositions(position), 0);
@@ -197,7 +270,6 @@ export class NativeEditContext extends AbstractEditContext {
 					// thousand chars
 					// (https://github.com/microsoft/vscode/issues/27799)
 					const LIMIT_CHARS = 500;
-					// We get the range of the text within the selection, and if the number of characters is smaller than 500 then get the corresponding text and return it in a text area state
 					if (platform.isMacintosh && !selection.isEmpty() && simpleModel.getValueLengthInRange(selection, EndOfLinePreference.TextDefined) < LIMIT_CHARS) {
 						const text = simpleModel.getValueInRange(selection, EndOfLinePreference.TextDefined);
 						console.log('2nd hidden area state');
@@ -209,7 +281,6 @@ export class NativeEditContext extends AbstractEditContext {
 					// is selected in the textarea.
 					if (browser.isSafari && !selection.isEmpty()) {
 						const placeholderText = 'vscode-placeholder';
-						// if nothing is selected then we send the placeholder text?
 						console.log('3rd hidden area state');
 						return new HiddenAreaState(placeholderText, 0, placeholderText.length, null, undefined);
 					}
@@ -226,7 +297,7 @@ export class NativeEditContext extends AbstractEditContext {
 					const selection = this._selections[0];
 					if (selection.isEmpty()) {
 						const position = selection.getStartPosition();
-						const [wordAtPosition, positionOffsetInWord] = getAndroidWordAtPosition(this._context.viewModel, position);
+						const [wordAtPosition, positionOffsetInWord] = this._getAndroidWordAtPosition(position);
 						if (wordAtPosition.length > 0) {
 							console.log('5th hidden area state');
 							return new HiddenAreaState(wordAtPosition, positionOffsetInWord, positionOffsetInWord, Range.fromPositions(position), 0);
@@ -301,6 +372,25 @@ export class NativeEditContext extends AbstractEditContext {
 		}));
 
 		this._register(this._hiddenAreaInput.onCompositionStart((e) => {
+
+			// The textarea might contain some content when composition starts.
+			//
+			// When we make the textarea visible, it always has a height of 1 line,
+			// so we don't need to worry too much about content on lines above or below
+			// the selection.
+			//
+			// However, the text on the current line needs to be made visible because
+			// some IME methods allow to move to other glyphs on the current line
+			// (by pressing arrow keys).
+			//
+			// (1) The textarea might contain only some parts of the current line,
+			// like the word before the selection. Also, the content inside the textarea
+			// can grow or shrink as composition occurs. We therefore anchor the textarea
+			// in terms of distance to a certain line start and line end.
+			//
+			// (2) Also, we should not make \t characters visible, because their rendering
+			// inside the <textarea> will not align nicely with our rendering. We therefore
+			// will hide (if necessary) some of the leading text on the current line.
 
 			const ta = this._domElement.domNode;
 			const modelSelection = this._modelSelections[0];
@@ -419,7 +509,7 @@ export class NativeEditContext extends AbstractEditContext {
 		}));
 
 		this._register(IME.onDidChange(() => {
-			ensureReadOnlyAttribute(this._domElement.domNode, options);
+			this._ensureReadOnlyAttribute();
 		}));
 
 		// --- developer code
@@ -435,7 +525,6 @@ export class NativeEditContext extends AbstractEditContext {
 		overflowGuardContainer.appendChild(this._domElement);
 	}
 
-	// TODO: requires the native edit context input to be defined
 	public writeScreenReaderContent(reason: string): void {
 		this._hiddenAreaInput.writeNativeTextAreaContent(reason);
 	}
@@ -444,12 +533,122 @@ export class NativeEditContext extends AbstractEditContext {
 		super.dispose();
 	}
 
+	private _getAndroidWordAtPosition(position: Position): [string, number] {
+		const ANDROID_WORD_SEPARATORS = '`~!@#$%^&*()-=+[{]}\\|;:",.<>/?';
+		const lineContent = this._context.viewModel.getLineContent(position.lineNumber);
+		const wordSeparators = getMapForWordSeparators(ANDROID_WORD_SEPARATORS, []);
+
+		let goingLeft = true;
+		let startColumn = position.column;
+		let goingRight = true;
+		let endColumn = position.column;
+		let distance = 0;
+		while (distance < 50 && (goingLeft || goingRight)) {
+			if (goingLeft && startColumn <= 1) {
+				goingLeft = false;
+			}
+			if (goingLeft) {
+				const charCode = lineContent.charCodeAt(startColumn - 2);
+				const charClass = wordSeparators.get(charCode);
+				if (charClass !== WordCharacterClass.Regular) {
+					goingLeft = false;
+				} else {
+					startColumn--;
+				}
+			}
+			if (goingRight && endColumn > lineContent.length) {
+				goingRight = false;
+			}
+			if (goingRight) {
+				const charCode = lineContent.charCodeAt(endColumn - 1);
+				const charClass = wordSeparators.get(charCode);
+				if (charClass !== WordCharacterClass.Regular) {
+					goingRight = false;
+				} else {
+					endColumn++;
+				}
+			}
+			distance++;
+		}
+
+		return [lineContent.substring(startColumn - 1, endColumn - 1), position.column - startColumn];
+	}
+
+	private _getWordBeforePosition(position: Position): string {
+		const lineContent = this._context.viewModel.getLineContent(position.lineNumber);
+		const wordSeparators = getMapForWordSeparators(this._context.configuration.options.get(EditorOption.wordSeparators), []);
+
+		let column = position.column;
+		let distance = 0;
+		while (column > 1) {
+			const charCode = lineContent.charCodeAt(column - 2);
+			const charClass = wordSeparators.get(charCode);
+			if (charClass !== WordCharacterClass.Regular || distance > 50) {
+				return lineContent.substring(column - 1, position.column - 1);
+			}
+			distance++;
+			column--;
+		}
+		return lineContent.substring(0, position.column - 1);
+	}
+
+	private _getCharacterBeforePosition(position: Position): string {
+		if (position.column > 1) {
+			const lineContent = this._context.viewModel.getLineContent(position.lineNumber);
+			const charBefore = lineContent.charAt(position.column - 2);
+			if (!strings.isHighSurrogate(charBefore.charCodeAt(0))) {
+				return charBefore;
+			}
+		}
+		return '';
+	}
+
+	private _getAriaLabel(options: IComputedEditorOptions): string {
+		const accessibilitySupport = options.get(EditorOption.accessibilitySupport);
+		if (accessibilitySupport === AccessibilitySupport.Disabled) {
+
+			const toggleKeybindingLabel = this._keybindingService.lookupKeybinding('editor.action.toggleScreenReaderAccessibilityMode')?.getAriaLabel();
+			const runCommandKeybindingLabel = this._keybindingService.lookupKeybinding('workbench.action.showCommands')?.getAriaLabel();
+			const keybindingEditorKeybindingLabel = this._keybindingService.lookupKeybinding('workbench.action.openGlobalKeybindings')?.getAriaLabel();
+			const editorNotAccessibleMessage = nls.localize('accessibilityModeOff', "The editor is not accessible at this time.");
+			if (toggleKeybindingLabel) {
+				return nls.localize('accessibilityOffAriaLabel', "{0} To enable screen reader optimized mode, use {1}", editorNotAccessibleMessage, toggleKeybindingLabel);
+			} else if (runCommandKeybindingLabel) {
+				return nls.localize('accessibilityOffAriaLabelNoKb', "{0} To enable screen reader optimized mode, open the quick pick with {1} and run the command Toggle Screen Reader Accessibility Mode, which is currently not triggerable via keyboard.", editorNotAccessibleMessage, runCommandKeybindingLabel);
+			} else if (keybindingEditorKeybindingLabel) {
+				return nls.localize('accessibilityOffAriaLabelNoKbs', "{0} Please assign a keybinding for the command Toggle Screen Reader Accessibility Mode by accessing the keybindings editor with {1} and run it.", editorNotAccessibleMessage, keybindingEditorKeybindingLabel);
+			} else {
+				// SOS
+				return editorNotAccessibleMessage;
+			}
+		}
+		return options.get(EditorOption.ariaLabel);
+	}
+
 	private _setAccessibilityOptions(options: IComputedEditorOptions): void {
-		const { accessibilitySupport, accessibilityPageSize, textAreaWrapping, textAreaWidth } = setAccessibilityOptions(options, canUseZeroSizeTextarea);
-		this._accessibilitySupport = accessibilitySupport;
-		this._accessibilityPageSize = accessibilityPageSize;
-		this._textAreaWrapping = textAreaWrapping;
-		this._textAreaWidth = textAreaWidth;
+		this._accessibilitySupport = options.get(EditorOption.accessibilitySupport);
+		const accessibilityPageSize = options.get(EditorOption.accessibilityPageSize);
+		if (this._accessibilitySupport === AccessibilitySupport.Enabled && accessibilityPageSize === EditorOptions.accessibilityPageSize.defaultValue) {
+			// If a screen reader is attached and the default value is not set we should automatically increase the page size to 500 for a better experience
+			this._accessibilityPageSize = 500;
+		} else {
+			this._accessibilityPageSize = accessibilityPageSize;
+		}
+
+		// When wrapping is enabled and a screen reader might be attached,
+		// we will size the textarea to match the width used for wrapping points computation (see `domLineBreaksComputer.ts`).
+		// This is because screen readers will read the text in the textarea and we'd like that the
+		// wrapping points in the textarea match the wrapping points in the editor.
+		const layoutInfo = options.get(EditorOption.layoutInfo);
+		const wrappingColumn = layoutInfo.wrappingColumn;
+		if (wrappingColumn !== -1 && this._accessibilitySupport !== AccessibilitySupport.Disabled) {
+			const fontInfo = options.get(EditorOption.fontInfo);
+			this._textAreaWrapping = true;
+			this._textAreaWidth = Math.round(wrappingColumn * fontInfo.typicalHalfwidthCharacterWidth);
+		} else {
+			this._textAreaWrapping = false;
+			this._textAreaWidth = (canUseZeroSizeTextarea ? 0 : 1);
+		}
 	}
 
 	// --- begin event handlers
@@ -466,11 +665,15 @@ export class NativeEditContext extends AbstractEditContext {
 		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._emptySelectionClipboard = options.get(EditorOption.emptySelectionClipboard);
 		this._copyWithSyntaxHighlighting = options.get(EditorOption.copyWithSyntaxHighlighting);
+		this._domElement.setAttribute('wrap', this._textAreaWrapping && !this._visibleTextArea ? 'on' : 'off');
 		const { tabSize } = this._context.viewModel.model.getOptions();
-		setAttributes(this._domElement.domNode, tabSize, this._textAreaWrapping, this._visibleTextArea, options, this._keybindingService);
+		this._domElement.domNode.style.tabSize = `${tabSize * this._fontInfo.spaceWidth}px`;
+		this._domElement.setAttribute('aria-label', this._getAriaLabel(options));
+		this._domElement.setAttribute('aria-required', options.get(EditorOption.ariaRequired) ? 'true' : 'false');
+		this._domElement.setAttribute('tabindex', String(options.get(EditorOption.tabIndex)));
 
 		if (e.hasChanged(EditorOption.domReadOnly) || e.hasChanged(EditorOption.readOnly)) {
-			ensureReadOnlyAttribute(this._domElement.domNode, options);
+			this._ensureReadOnlyAttribute();
 		}
 
 		if (e.hasChanged(EditorOption.accessibilitySupport)) {
@@ -503,7 +706,6 @@ export class NativeEditContext extends AbstractEditContext {
 	public override onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
 		return true;
 	}
-	// TODO: instead of updating here the dom node position, we should save the scroll left and scroll top and update in the rendering function as done before
 	public override onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		this._scrollLeft = e.scrollLeft;
 		this._scrollTop = e.scrollTop;
@@ -525,7 +727,6 @@ export class NativeEditContext extends AbstractEditContext {
 		this._hiddenAreaInput.focusTextArea();
 	}
 
-	// TODO: once the input will be defined
 	public refreshFocusState(): void {
 		this._hiddenAreaInput.refreshFocusState();
 	}
@@ -535,10 +736,33 @@ export class NativeEditContext extends AbstractEditContext {
 	}
 
 	public setAriaOptions(options: IEditorAriaOptions): void {
-		setAriaOptions(this._domElement.domNode, options);
+		if (options.activeDescendant) {
+			this._domElement.setAttribute('aria-haspopup', 'true');
+			this._domElement.setAttribute('aria-autocomplete', 'list');
+			this._domElement.setAttribute('aria-activedescendant', options.activeDescendant);
+		} else {
+			this._domElement.setAttribute('aria-haspopup', 'false');
+			this._domElement.setAttribute('aria-autocomplete', 'both');
+			this._domElement.removeAttribute('aria-activedescendant');
+		}
+		if (options.role) {
+			this._domElement.setAttribute('role', options.role);
+		}
 	}
 
 	// --- end view API
+
+	private _ensureReadOnlyAttribute(): void {
+		const options = this._context.configuration.options;
+		// When someone requests to disable IME, we set the "readonly" attribute on the <textarea>.
+		// This will prevent composition.
+		const useReadOnly = !IME.enabled || (options.get(EditorOption.domReadOnly) && options.get(EditorOption.readOnly));
+		if (useReadOnly) {
+			this._domElement.setAttribute('readonly', 'true');
+		} else {
+			this._domElement.removeAttribute('readonly');
+		}
+	}
 
 	private _primaryCursorPosition: Position = new Position(1, 1);
 	private _primaryCursorVisibleRange: HorizontalPosition | null = null;
@@ -574,7 +798,7 @@ export class NativeEditContext extends AbstractEditContext {
 				if (!activeDocumentRange) {
 					return;
 				}
-				const lineCount = newlinecount(textContent.substring(0, activeDocumentRange.startOffset));
+				const lineCount = this._newlinecount(textContent.substring(0, activeDocumentRange.startOffset));
 
 				let scrollLeft = this._visibleTextArea.widthOfHiddenLineTextBefore;
 				let left = (this._contentLeft + visibleStart.left - this._scrollLeft);
@@ -672,7 +896,7 @@ export class NativeEditContext extends AbstractEditContext {
 			if (!activeDocumentRange) {
 				return;
 			}
-			const lineCount = this._hiddenAreaInput.hiddenAreaState.newlineCountBeforeSelection ?? newlinecount(this._domElement.domNode.textContent!.substring(0, activeDocumentRange.startOffset));
+			const lineCount = this._hiddenAreaInput.hiddenAreaState.newlineCountBeforeSelection ?? this._newlinecount(this._domElement.domNode.textContent!.substring(0, activeDocumentRange.startOffset));
 			this._domElement.domNode.scrollTop = lineCount * this._lineHeight;
 			return;
 		}
@@ -685,6 +909,19 @@ export class NativeEditContext extends AbstractEditContext {
 			height: (canUseZeroSizeTextarea ? 0 : 1),
 			useCover: false
 		});
+	}
+
+	private _newlinecount(text: string): number {
+		let result = 0;
+		let startIndex = -1;
+		do {
+			startIndex = text.indexOf('\n', startIndex + 1);
+			if (startIndex === -1) {
+				break;
+			}
+			result++;
+		} while (true);
+		return result;
 	}
 
 	private _renderAtTopLeft(): void {
@@ -703,23 +940,22 @@ export class NativeEditContext extends AbstractEditContext {
 	private _doRender(renderData: IRenderData): void {
 		this._lastRenderPosition = renderData.lastRenderPosition;
 
-		applyFontInfo(this._domElement, this._fontInfo);
-		this._domElement.setTop(renderData.top);
-		this._domElement.setLeft(renderData.left);
-		this._domElement.setWidth(renderData.width);
-		this._domElement.setHeight(renderData.height);
+		const ha = this._domElement;
+		applyFontInfo(ha, this._fontInfo);
+		ha.setTop(renderData.top);
+		ha.setLeft(renderData.left);
+		ha.setWidth(renderData.width);
+		ha.setHeight(renderData.height);
 
-		this._domElement.setColor(renderData.color ? Color.Format.CSS.formatHex(renderData.color) : '');
-		this._domElement.setFontStyle(renderData.italic ? 'italic' : '');
+		ha.setColor(renderData.color ? Color.Format.CSS.formatHex(renderData.color) : '');
+		ha.setFontStyle(renderData.italic ? 'italic' : '');
 		if (renderData.bold) {
 			// fontWeight is also set by `applyFontInfo`, so only overwrite it if necessary
-			this._domElement.setFontWeight('bold');
+			ha.setFontWeight('bold');
 		}
-		this._domElement.setTextDecoration(`${renderData.underline ? ' underline' : ''}${renderData.strikethrough ? ' line-through' : ''}`);
+		ha.setTextDecoration(`${renderData.underline ? ' underline' : ''}${renderData.strikethrough ? ' line-through' : ''}`);
 
 		/*
-		TODO: Do we need the text area cover?
-
 		const tac = this.textAreaCover;
 		const options = this._context.configuration.options;
 
@@ -727,6 +963,8 @@ export class NativeEditContext extends AbstractEditContext {
 		tac.setLeft(renderData.useCover ? renderData.left : 0);
 		tac.setWidth(renderData.useCover ? renderData.width : 0);
 		tac.setHeight(renderData.useCover ? renderData.height : 0);
+
+		const options = this._context.configuration.options;
 
 		if (options.get(EditorOption.glyphMargin)) {
 			tac.setClassName('monaco-editor-background textAreaCover ' + Margin.OUTER_CLASS_NAME);
@@ -739,4 +977,45 @@ export class NativeEditContext extends AbstractEditContext {
 		}
 		*/
 	}
+}
+
+interface IRenderData {
+	lastRenderPosition: Position | null;
+	top: number;
+	left: number;
+	width: number;
+	height: number;
+	useCover: boolean;
+
+	color?: Color | null;
+	italic?: boolean;
+	bold?: boolean;
+	underline?: boolean;
+	strikethrough?: boolean;
+}
+
+function measureText(targetDocument: Document, text: string, fontInfo: FontInfo, tabSize: number): number {
+	if (text.length === 0) {
+		return 0;
+	}
+
+	const container = targetDocument.createElement('div');
+	container.style.position = 'absolute';
+	container.style.top = '-50000px';
+	container.style.width = '50000px';
+
+	const regularDomNode = targetDocument.createElement('span');
+	applyFontInfo(regularDomNode, fontInfo);
+	regularDomNode.style.whiteSpace = 'pre'; // just like the textarea
+	regularDomNode.style.tabSize = `${tabSize * fontInfo.spaceWidth}px`; // just like the textarea
+	regularDomNode.append(text);
+	container.appendChild(regularDomNode);
+
+	targetDocument.body.appendChild(container);
+
+	const res = regularDomNode.offsetWidth;
+
+	container.remove();
+
+	return res;
 }
