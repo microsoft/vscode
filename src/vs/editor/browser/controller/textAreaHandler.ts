@@ -68,6 +68,7 @@ class VisibleTextAreaData {
 	) {
 	}
 
+	// called mainly inside of onCompositionStart and onCompositionUpdate. In order to understand why this is needed, need to first start working with the IME issues, and make the div 0 by 0 pixels before touching this ground.
 	prepareRender(visibleRangeProvider: IVisibleRangeProvider): void {
 		const startModelPosition = new Position(this.modelLineNumber, this.distanceToModelLineStart + 1);
 		const endModelPosition = new Position(this.modelLineNumber, this._context.viewModel.model.getLineMaxColumn(this.modelLineNumber) - this.distanceToModelLineEnd);
@@ -85,6 +86,7 @@ class VisibleTextAreaData {
 		}
 	}
 
+	// This is data relative to the visible text area, also presumably will be needed when working with IME.
 	definePresentation(tokenPresentation: ITokenPresentation | null): ITokenPresentation {
 		if (!this._previousPresentation) {
 			// To avoid flickering, once set, always reuse a presentation throughout the entire IME session
@@ -251,6 +253,7 @@ export class TextAreaHandler extends ViewPart {
 				};
 			},
 			getScreenReaderContent: (): TextAreaState => {
+				console.log('getScreenReaderContent');
 				if (this._accessibilitySupport === AccessibilitySupport.Disabled) {
 					// We know for a fact that a screen reader is not attached
 					// On OSX, we write the character before the cursor to allow for "long-press" composition

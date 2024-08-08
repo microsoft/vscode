@@ -650,7 +650,9 @@ export class TextAreaInput extends Disposable {
 		}
 		this._logService.trace(`writeTextAreaState(reason: ${reason})`);
 		// Here we are getting the screen reader content
-		this._setAndWriteTextAreaState(reason, this._host.getScreenReaderContent());
+		const screenReaderContent = this._host.getScreenReaderContent();
+		console.log('screenReaderContent : ', screenReaderContent);
+		this._setAndWriteTextAreaState(reason, screenReaderContent);
 	}
 
 	private _ensureClipboardGetsEditorSelection(e: ClipboardEvent): void {
