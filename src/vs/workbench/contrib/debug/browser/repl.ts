@@ -74,6 +74,7 @@ import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/ac
 import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
+import { Codicon } from 'vs/base/common/codicons';
 
 const $ = dom.$;
 
@@ -887,25 +888,36 @@ class AcceptReplInputAction extends EditorAction {
 	}
 }
 
-class FilterReplAction extends EditorAction {
+class FilterReplAction extends ViewAction<Repl> {
 
 	constructor() {
 		super({
+			viewId: REPL_VIEW_ID,
 			id: 'repl.action.find',
-			label: localize('repl.action.find', "Debug Console: Focus Find"),
-			alias: 'Debug Console: Focus Find',
+			title: localize('repl.action.find', "Debug Console: Focus Find"),
 			precondition: ContextKeyExpr.or(CONTEXT_IN_DEBUG_REPL, ContextKeyExpr.equals('focusedView', 'workbench.panel.repl.view')),
-			kbOpts: {
-				kbExpr: ContextKeyExpr.or(CONTEXT_IN_DEBUG_REPL, ContextKeyExpr.equals('focusedView', 'workbench.panel.repl.view')),
+			keybinding: [{
+				when: ContextKeyExpr.or(CONTEXT_IN_DEBUG_REPL, ContextKeyExpr.equals('focusedView', 'workbench.panel.repl.view')),
 				primary: KeyMod.CtrlCmd | KeyCode.KeyF,
 				// override the editor's find
 				weight: KeybindingWeight.EditorContrib + 10
-			}
+			}],
+			icon: Codicon.search,
+			menu: [{
+				id: MenuId.ViewTitle,
+				group: 'navigation',
+				when: ContextKeyExpr.equals('view', REPL_VIEW_ID),
+				order: 10
+			}, {
+				id: MenuId.DebugConsoleContext,
+				group: 'z_commands',
+				order: 20
+			}],
 		});
 	}
 
-	run(accessor: ServicesAccessor, editor: ICodeEditor): void | Promise<void> {
-		getReplView(accessor.get(IViewsService))?.openFind();
+	runInView(accessor: ServicesAccessor, view: Repl): void | Promise<void> {
+		view.openFind();
 	}
 }
 
@@ -931,7 +943,7 @@ class ReplCopyAllAction extends EditorAction {
 
 registerEditorAction(AcceptReplInputAction);
 registerEditorAction(ReplCopyAllAction);
-registerEditorAction(FilterReplAction);
+registerAction2(FilterReplAction);
 
 class SelectReplActionViewItem extends FocusSessionActionViewItem {
 
