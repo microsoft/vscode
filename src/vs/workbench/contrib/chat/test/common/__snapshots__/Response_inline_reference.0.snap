@@ -2,6 +2,7 @@
   {
     content: {
       value: "text before",
+      plainTextValue: "text before",
       isTrusted: false,
       supportThemeIcons: false,
       supportHtml: false
@@ -15,6 +16,7 @@
   {
     content: {
       value: "text after",
+      plainTextValue: "text after",
       isTrusted: false,
       supportThemeIcons: false,
       supportHtml: false
