@@ -99,7 +99,7 @@ export class Marker {
 	private _lines: string[] | undefined;
 	get lines(): string[] {
 		if (!this._lines) {
-			const plainTextMessage = isMarkdownString(this.marker.message) ? (this.marker.message.plainTextValue || '') : this.marker.message
+			const plainTextMessage = isMarkdownString(this.marker.message) ? (this.marker.message.plainTextValue || '') : this.marker.message;
 			this._lines = splitLines(plainTextMessage);
 		}
 		return this._lines;

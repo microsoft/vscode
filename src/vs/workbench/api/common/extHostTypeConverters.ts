@@ -421,10 +421,10 @@ export namespace MarkdownString {
 
 	export function toStrict(value: string | htmlContent.IMarkdownString | undefined): string | vscode.MarkdownString {
 		if (!value) {
-			return ''
+			return '';
 		}
 		if (htmlContent.isMarkdownString(value)) {
-			return to(value)
+			return to(value);
 		}
 		return value;
 	}
