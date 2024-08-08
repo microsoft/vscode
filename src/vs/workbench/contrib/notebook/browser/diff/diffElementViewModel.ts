@@ -76,7 +76,7 @@ export class DiffElementPlaceholderViewModel extends DiffElementViewModelBase {
 
 	}
 	get totalHeight() {
-		return 50;
+		return 24 + (2 * DIFF_CELL_MARGIN);
 	}
 	getHeight(_: number): number {
 		return this.totalHeight;
