@@ -476,7 +476,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 					"${include}": [
 						"${TypeScriptCommonProperties}",
 						"${TypeScriptServerEnvCommonProperties}"
-					],
+					]
 				}
 			*/
 			this.logTelemetry('tsserver.error', {
