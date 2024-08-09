@@ -10,9 +10,10 @@
  */
 
 (function (global, factory) {
-	typeof define === 'function' && define.amd ? define(['exports'], factory) :
-	(global = typeof globalThis !== 'undefined' ? globalThis : global || self, factory(global.marked = {}));
-  })(this, (function (exports) {
+	typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports) :
+		typeof define === 'function' && define.amd ? define(['exports'], factory) :
+			(global = typeof globalThis !== 'undefined' ? globalThis : global || self, factory(global.marked = {}));
+})(this, (function (exports) {
 	'use strict';
 
 	/**
