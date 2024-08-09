@@ -399,6 +399,9 @@ export class SubmenuEntryActionViewItem extends DropdownMenuActionViewItem {
 
 		container.classList.add('menu-entry');
 		const action = <SubmenuItemAction>this._action;
+		if (action.item.highlightFunction) {
+			this.element.style.backgroundColor = action.item.highlightFunction(action) ? 'var(--vscode-inputOption-activeBackground)' : '';
+		}
 		const { icon } = action.item;
 		if (icon && !ThemeIcon.isThemeIcon(icon)) {
 			this.element.classList.add('icon');
