@@ -8,7 +8,7 @@ import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { URI } from 'vs/base/common/uri';
 import { DisposableStore, IReference } from 'vs/base/common/lifecycle';
 import { ITextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { marked } from 'vs/base/common/marked/marked';
+import { marked, Tokens } from 'vs/base/common/marked/marked';
 import { isEqual } from 'vs/base/common/resources';
 import { requireToContent } from 'vs/workbench/contrib/welcomeWalkthrough/common/walkThroughContentProvider';
 import { Dimension } from 'vs/base/browser/dom';
@@ -116,13 +116,13 @@ export class WalkThroughInput extends EditorInput {
 					const snippets: Promise<IReference<ITextEditorModel>>[] = [];
 					let i = 0;
 					const renderer = new marked.Renderer();
-					renderer.code = (code, lang) => {
+					renderer.code = ({ lang }: Tokens.Code) => {
 						i++;
 						const resource = this.options.resource.with({ scheme: Schemas.walkThroughSnippet, fragment: `${i}.${lang}` });
 						snippets.push(this.textModelResolverService.createModelReference(resource));
 						return `<div id="snippet-${resource.fragment}" class="walkThroughEditorContainer" ></div>`;
 					};
-					content = marked(content, { renderer });
+					content = marked(content, { async: false, renderer });
 
 					return Promise.all(snippets)
 						.then(refs => new WalkThroughModel(content, refs));

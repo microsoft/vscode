@@ -9,7 +9,7 @@ import { disposableTimeout, timeout } from 'vs/base/common/async';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { matchesScheme, Schemas } from 'vs/base/common/network';
+import { Schemas } from 'vs/base/common/network';
 import { extUri, isEqual } from 'vs/base/common/resources';
 import { isDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
@@ -223,13 +223,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._codeBlockModelCollection = this._register(instantiationService.createInstance(CodeBlockModelCollection));
 
 		this._register(codeEditorService.registerCodeEditorOpenHandler(async (input: ITextResourceEditorInput, _source: ICodeEditor | null, _sideBySide?: boolean): Promise<ICodeEditor | null> => {
-			let resource = input.resource;
-
-			// if trying to open backing documents, actually open the real chat code block doc
-			if (matchesScheme(resource, Schemas.vscodeCopilotBackingChatCodeBlock)) {
-				resource = resource.with({ scheme: Schemas.vscodeChatCodeBlock });
-			}
-
+			const resource = input.resource;
 			if (resource.scheme !== Schemas.vscodeChatCodeBlock) {
 				return null;
 			}

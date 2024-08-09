@@ -7,7 +7,7 @@ import { DECREASE_HOVER_VERBOSITY_ACTION_ID, INCREASE_HOVER_VERBOSITY_ACTION_ID,
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ICodeEditor, IEditorMouseEvent, IPartialEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IEditorMouseEvent, IPartialEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution, IScrollEvent } from 'vs/editor/common/editorCommon';
@@ -19,7 +19,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
 import { HoverVerbosityAction } from 'vs/editor/common/languages';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { ContentHoverWidget } from 'vs/editor/contrib/hover/browser/contentHoverWidget';
+import { isMousePositionWithinElement } from 'vs/editor/contrib/hover/browser/hoverUtils';
 import { ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHoverController';
 import 'vs/css!./hover';
 import { MarginHoverWidget } from 'vs/editor/contrib/hover/browser/marginHoverWidget';
@@ -149,30 +149,25 @@ export class HoverController extends Disposable implements IEditorContribution {
 	}
 
 	private _shouldNotHideCurrentHoverWidget(mouseEvent: IPartialEditorMouseEvent): boolean {
-		if (
-			this._isMouseOnContentHoverWidget(mouseEvent)
+		return this._isMouseOnContentHoverWidget(mouseEvent)
 			|| this._isMouseOnMarginHoverWidget(mouseEvent)
-			|| this._isContentWidgetResizing()
-		) {
-			return true;
+			|| this._isContentWidgetResizing();
+	}
+
+	private _isMouseOnMarginHoverWidget(mouseEvent: IPartialEditorMouseEvent): boolean {
+		const marginHoverWidgetNode = this._glyphWidget?.getDomNode();
+		if (marginHoverWidgetNode) {
+			return isMousePositionWithinElement(marginHoverWidgetNode, mouseEvent.event.posx, mouseEvent.event.posy);
 		}
 		return false;
 	}
 
-	private _isMouseOnMarginHoverWidget(mouseEvent: IPartialEditorMouseEvent): boolean {
-		const target = mouseEvent.target;
-		if (!target) {
-			return false;
-		}
-		return target.type === MouseTargetType.OVERLAY_WIDGET && target.detail === MarginHoverWidget.ID;
-	}
-
 	private _isMouseOnContentHoverWidget(mouseEvent: IPartialEditorMouseEvent): boolean {
-		const target = mouseEvent.target;
-		if (!target) {
-			return false;
+		const contentWidgetNode = this._contentWidget?.getDomNode();
+		if (contentWidgetNode) {
+			return isMousePositionWithinElement(contentWidgetNode, mouseEvent.event.posx, mouseEvent.event.posy);
 		}
-		return target.type === MouseTargetType.CONTENT_WIDGET && target.detail === ContentHoverWidget.ID;
+		return false;
 	}
 
 	private _onEditorMouseUp(): void {
@@ -200,35 +195,30 @@ export class HoverController extends Disposable implements IEditorContribution {
 
 		const isHoverSticky = this._hoverSettings.sticky;
 
-		const isMouseOnStickyMarginHoverWidget = (mouseEvent: IEditorMouseEvent, isHoverSticky: boolean) => {
+		const isMouseOnStickyMarginHoverWidget = (mouseEvent: IEditorMouseEvent, isHoverSticky: boolean): boolean => {
 			const isMouseOnMarginHoverWidget = this._isMouseOnMarginHoverWidget(mouseEvent);
 			return isHoverSticky && isMouseOnMarginHoverWidget;
 		};
-		const isMouseOnStickyContentHoverWidget = (mouseEvent: IEditorMouseEvent, isHoverSticky: boolean) => {
+		const isMouseOnStickyContentHoverWidget = (mouseEvent: IEditorMouseEvent, isHoverSticky: boolean): boolean => {
 			const isMouseOnContentHoverWidget = this._isMouseOnContentHoverWidget(mouseEvent);
 			return isHoverSticky && isMouseOnContentHoverWidget;
 		};
-		const isMouseOnColorPicker = (mouseEvent: IEditorMouseEvent) => {
+		const isMouseOnColorPicker = (mouseEvent: IEditorMouseEvent): boolean => {
 			const isMouseOnContentHoverWidget = this._isMouseOnContentHoverWidget(mouseEvent);
-			const isColorPickerVisible = this._contentWidget?.isColorPickerVisible;
+			const isColorPickerVisible = this._contentWidget?.isColorPickerVisible ?? false;
 			return isMouseOnContentHoverWidget && isColorPickerVisible;
 		};
 		// TODO@aiday-mar verify if the following is necessary code
-		const isTextSelectedWithinContentHoverWidget = (mouseEvent: IEditorMouseEvent, sticky: boolean) => {
-			return sticky
+		const isTextSelectedWithinContentHoverWidget = (mouseEvent: IEditorMouseEvent, sticky: boolean): boolean => {
+			return (sticky
 				&& this._contentWidget?.containsNode(mouseEvent.event.browserEvent.view?.document.activeElement)
-				&& !mouseEvent.event.browserEvent.view?.getSelection()?.isCollapsed;
+				&& !mouseEvent.event.browserEvent.view?.getSelection()?.isCollapsed) ?? false;
 		};
 
-		if (
-			isMouseOnStickyMarginHoverWidget(mouseEvent, isHoverSticky)
+		return isMouseOnStickyMarginHoverWidget(mouseEvent, isHoverSticky)
 			|| isMouseOnStickyContentHoverWidget(mouseEvent, isHoverSticky)
 			|| isMouseOnColorPicker(mouseEvent)
-			|| isTextSelectedWithinContentHoverWidget(mouseEvent, isHoverSticky)
-		) {
-			return true;
-		}
-		return false;
+			|| isTextSelectedWithinContentHoverWidget(mouseEvent, isHoverSticky);
 	}
 
 	private _onEditorMouseMove(mouseEvent: IEditorMouseEvent): void {

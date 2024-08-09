@@ -7,7 +7,6 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
 import { EditorExtensions, IEditorFactoryRegistry, IEditorSerializer, IUntypedEditorInput } from 'vs/workbench/common/editor';
-// is one contrib allowed to import from another?
 import { parse } from 'vs/base/common/marshalling';
 import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
@@ -24,7 +23,6 @@ import { IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common
 import { IWorkingCopyEditorHandler, IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
 import { extname, isEqual } from 'vs/base/common/resources';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-// eslint-disable-next-line local/code-translation-remind
 import { localize2 } from 'vs/nls';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';

@@ -483,6 +483,7 @@ export interface INotebookEditor {
 	readonly onDidFocusWidget: Event<void>;
 	readonly onDidBlurWidget: Event<void>;
 	readonly onDidScroll: Event<void>;
+	readonly onDidChangeLayout: Event<void>;
 	readonly onDidChangeActiveCell: Event<void>;
 	readonly onDidChangeActiveKernel: Event<void>;
 	readonly onMouseUp: Event<INotebookEditorMouseEvent>;
@@ -499,6 +500,7 @@ export interface INotebookEditor {
 	readonly isDisposed: boolean;
 	readonly activeKernel: INotebookKernel | undefined;
 	readonly scrollTop: number;
+	readonly scrollBottom: number;
 	readonly scopedContextKeyService: IContextKeyService;
 	readonly activeCodeEditor: ICodeEditor | undefined;
 	readonly codeEditors: [ICellViewModel, ICodeEditor][];
