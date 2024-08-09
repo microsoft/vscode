@@ -35,7 +35,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { TestWorkspace, Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
-import { TestContextService, TestMarkerService, TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices';
+import { TestContextService, TestMarkerService, TestStorageService, TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IWorkingCopyBackup, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -160,7 +160,8 @@ suite('WorkingCopyBackupTracker (native)', function () {
 			disposables.add(new UriIdentityService(disposables.add(new TestFileService()))),
 			disposables.add(new TestFileService()),
 			new TestMarkerService(),
-			new TestTextResourceConfigurationService(configurationService)
+			new TestTextResourceConfigurationService(configurationService),
+			disposables.add(new TestStorageService())
 		)));
 
 		const part = await createEditorPart(instantiationService, disposables);
