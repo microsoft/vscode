@@ -422,6 +422,25 @@ const GoModulesToLookFor = [
 	'github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/'
 ];
 
+const CppModulesToLookFor = [
+	'azure-security-attestation',
+	'azure-messaging-eventhubs-checkpointstore-blob',
+	'azure-messaging-eventhubs',
+	'azure-identity',
+	'azure-security-keyvault-administration',
+	'azure-security-keyvault-certificates',
+	'azure-security-keyvault-keys',
+	'azure-security-keyvault-secrets',
+	'azure-core-amqp',
+	'azure-core',
+	'azure-core-tracing-opentelemetry',
+	'azure-storage-blobs',
+	'azure-storage-files-datalake',
+	'azure-storage-files-shares',
+	'azure-storage-queues',
+	'azure-storage-common'
+];
+
 
 export class WorkspaceTagsService implements IWorkspaceTagsService {
 	declare readonly _serviceBrand: undefined;
@@ -1156,7 +1175,26 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			"workspace.go.mod.github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/windowsesu/armwindowsesu" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.go.mod.github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/windowsiot/armwindowsiot" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.go.mod.github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/workloadmonitor/armworkloadmonitor" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.go.mod.github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/workloads/armworkloads" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+			"workspace.go.mod.github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/workloads/armworkloads" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.cpp.azure-security-attestation" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.cpp.azure-messaging-eventhubs-checkpointstore-blob" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.cpp.azure-messaging-eventhubs" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.cpp.azure-identity" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.cpp.azure-security-keyvault-administration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.cpp.azure-security-keyvault-certificates" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.cpp.azure-security-keyvault-keys" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.cpp.azure-security-keyvault-secrets" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.cpp.azure-core-amqp" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.cpp.azure-core" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.cpp.azure-core-tracing-opentelemetry" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.cpp.azure-storage-blobs" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.cpp.azure-storage-files-datalake" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.cpp.azure-storage-files-shares" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.cpp.azure-storage-queues" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.cpp.azure-storage-common" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.cpp.fetch.azure-sdk-for-cpp" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.cpp.fetch.azure-sdk-for-cpp.beta" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.cpp.vcpkg-config.azure-sdk-for-cpp.beta" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 		}
 	*/
 	private async resolveWorkspaceTags(): Promise<Tags> {
@@ -1231,6 +1269,10 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			tags['workspace.py.pyproject'] = nameSet.has('pyproject.toml');
 
 			tags['workspace.go.mod'] = nameSet.has('go.mod');
+
+			tags['workspace.cpp.cmakelists'] = nameSet.has('cmakelists.txt');
+			tags['workspace.cpp.vcpkg'] = nameSet.has('vcpkg.json');
+			tags['workspace.cpp.vcpkg-config'] = nameSet.has('vcpkg-configuration.json');
 
 			const mainActivity = nameSet.has('mainactivity.cs') || nameSet.has('mainactivity.fs');
 			const appDelegate = nameSet.has('appdelegate.cs') || nameSet.has('appdelegate.fs');
@@ -1392,6 +1434,137 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 				}
 			});
 
+			const cMakeListsPromises = getFilePromises('cmakelists.txt', this.fileService, this.textFileService, content => {
+				try {
+					// separate file content into lines
+					const lines: string[] = content.value.split('\n');
+					// iterate over lines
+					for (let i = 0; i < lines.length; i++) {
+						const line = lines[i].trim();
+						if (line === '') {
+							continue;
+						}
+						// If Find Package line is found, get the package name
+						else if (line.startsWith('find_package(')) {
+							// collect entire find package statement
+							let findPackageLine: string = line + ' ';
+							while (!lines[i].includes(')') && i < lines.length) {
+								i++;
+								findPackageLine += lines[i].trim() + ' ';
+							}
+							// parse package name from find package statement
+							const packageName: string = findPackageLine.split('(')[1].trim().split(' ')[0].trim().replace('-cpp', '').replace(')', '');
+							// if package name is in list of packages to look for, add tag
+							for (const module of CppModulesToLookFor) {
+								if (packageName.startsWith(module)) {
+									tags['workspace.cpp.' + packageName] = true;
+								}
+							}
+						}
+						// if Target Link Libraries line is found, get the package name
+						else if (line.startsWith('target_link_libraries(')) {
+							// collect entire target link libraries statement
+							let targetLinkLibrariesLine: string = line + ' ';
+							while (!lines[i].includes(')') && i < lines.length) {
+								i++;
+								targetLinkLibrariesLine += lines[i].trim() + ' ';
+							}
+							// separate target link libraries statement into parts and check parts for package names
+							const lineParts: string[] = targetLinkLibrariesLine.split(' ');
+							for (let j = 0; j < lineParts.length; j++) {
+								const linePart: string = lineParts[j].trim();
+								if (linePart.startsWith('Azure::')) {
+									const packageName: string = linePart.split('::')[1].trim().replace(')', '');
+									for (const module of CppModulesToLookFor) {
+										if (packageName.startsWith(module)) {
+											tags['workspace.cpp.' + packageName] = true;
+										}
+									}
+								}
+							}
+						}
+						// if Fetch Content line is found, check if Azure SDK for C++ is being fetched
+						else if (line.startsWith('FetchContent_Declare(')) {
+							// collect entire fetch content declare statement
+							let fetchContentDeclareLine: string = line + ' ';
+							while (!lines[i].includes(')') || i >= lines.length) {
+								i++;
+								fetchContentDeclareLine += lines[i].trim() + ' ';
+							}
+							// check if fetch content declare statement contains Azure SDK for C++
+							if (fetchContentDeclareLine.includes('azure-sdk-for-cpp')) {
+								tags['workspace.cpp.fetch.azure-sdk-for-cpp'] = true;
+								// check if fetch content declare statement targets beta tag
+								if (fetchContentDeclareLine.includes('beta')) {
+									tags['workspace.cpp.fetch.azure-sdk-for-cpp.beta'] = true;
+								}
+							}
+						}
+					}
+				}
+				catch (e) {
+					// Ignore errors when resolving file or parsing file contents
+				}
+			});
+
+			const vcpkgJsonPromises = getFilePromises('vcpkg.json', this.fileService, this.textFileService, content => {
+				try {
+					// separate file content into lines
+					const lines: string[] = content.value.split('\n');
+					// iterate over lines
+					for (let i = 0; i < lines.length; i++) {
+						const line = lines[i].trim();
+						if (line === '') {
+							continue;
+						}
+						// if dependencies line is found, get the package names
+						else if (line.startsWith('"dependencies": [')) {
+							// collect entire dependencies statement
+							let dependenciesLine: string = line + ' ';
+							while (!lines[i].includes(']') && i < lines.length) {
+								i++;
+								dependenciesLine += lines[i].trim() + ' ';
+							}
+							// separate dependencies statement into parts and check parts for package names
+							const lineParts: string[] = dependenciesLine.split(' ');
+							for (let j = 0; j < lineParts.length; j++) {
+								const linePart: string = lineParts[j].trim();
+								if (linePart.startsWith('"')) {
+									const packageName: string = linePart.split('"')[1].trim().replace('-cpp', '');
+									for (const module of CppModulesToLookFor) {
+										if (packageName.startsWith(module)) {
+											tags['workspace.cpp.' + packageName] = true;
+										}
+									}
+								}
+							}
+						}
+					}
+				} catch (e) {
+					// Ignore errors when resolving file or parsing file contents
+				}
+			});
+
+			const vcpkgConfigJsonPromises = getFilePromises('vcpkg-configuration.json', this.fileService, this.textFileService, content => {
+				try {
+					// separate file content into lines
+					const lines: string[] = content.value.split('\n');
+					// iterate over lines
+					for (let i = 0; i < lines.length; i++) {
+						const line = lines[i].trim();
+						if (line === '') {
+							continue;
+						}
+						// if line starts with "repositories", check if using Azure SDK for C++ beta registry and add tag
+						else if (line.startsWith('"repository"') && line.includes('https://github.com/Azure/azure-sdk-vcpkg-betas')) {
+							tags['workspace.cpp.vcpkg-config.azure-sdk-for-cpp.beta'] = true;
+						}
+					}
+				} catch (e) {
+					// Ignore errors when resolving file or parsing file contents
+				}
+			});
+
 			const pomPromises = getFilePromises('pom.xml', this.fileService, this.textFileService, content => {
 				try {
 					let dependenciesContent;
@@ -1432,7 +1605,7 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 				});
 			});
 
-			return Promise.all([...packageJsonPromises, ...requirementsTxtPromises, ...pipfilePromises, ...pomPromises, ...gradlePromises, ...androidPromises, ...goModPromises]).then(() => tags);
+			return Promise.all([...packageJsonPromises, ...requirementsTxtPromises, ...pipfilePromises, ...pomPromises, ...gradlePromises, ...androidPromises, ...goModPromises, ...cMakeListsPromises, ...vcpkgJsonPromises, ...vcpkgConfigJsonPromises]).then(() => tags);
 		});
 	}
 
