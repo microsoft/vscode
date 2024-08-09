@@ -19,6 +19,7 @@ import { isNumber } from 'vs/base/common/types';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { compare } from 'vs/base/common/strings';
 import { groupBy } from 'vs/base/common/arrays';
+import { extractSelection } from 'vs/platform/opener/common/opener';
 
 export interface IWorkspaceSymbol {
 	name: string;
@@ -157,6 +158,28 @@ export interface IFilterAndRange {
 }
 
 export function extractRangeFromFilter(filter: string, unless?: string[]): IFilterAndRange | undefined {
+	if (filter.startsWith('file:///')) {
+		const { uri, selection } = extractSelection(URI.parse(filter));
+		let range: IRange;
+		if (selection) {
+			const { startLineNumber, startColumn, endLineNumber, endColumn } = selection;
+			range = {
+				startLineNumber,
+				startColumn,
+				endLineNumber: endLineNumber ?? startLineNumber,
+				endColumn: endColumn ?? startColumn
+			};
+		} else {
+			range = {
+				startLineNumber: 1,
+				startColumn: 1,
+				endLineNumber: 1,
+				endColumn: 1
+			};
+		}
+		return { filter: uri.fsPath, range };
+	}
+
 	// Ignore when the unless character not the first character or is before the line colon pattern
 	if (!filter || unless?.some(value => {
 		const unlessCharPos = filter.indexOf(value);
