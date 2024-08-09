@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TextAreaWrapper } from 'vs/editor/browser/controller/editContext/hiddenTextAreaWrapper';
+import { TextAreaWrapper } from 'vs/editor/browser/controller/hiddenArea/hiddenTextAreaWrapper';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { EndOfLinePreference } from 'vs/editor/common/model';
@@ -13,8 +13,8 @@ import * as platform from 'vs/base/common/platform';
 import { mainWindow } from 'vs/base/browser/window';
 import { TestAccessibilityService } from 'vs/platform/accessibility/test/common/testAccessibilityService';
 import { NullLogService } from 'vs/platform/log/common/log';
-import { HiddenAreaState, ISimpleModel, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/editContext/hiddenAreaState';
-import { HiddenAreaInput, IHiddenAreaInputHost } from 'vs/editor/browser/controller/editContext/hiddenAreaInput';
+import { HiddenAreaState, ISimpleModel, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/hiddenArea/hiddenAreaState';
+import { HiddenAreaInput, IHiddenAreaInputHost } from 'vs/editor/browser/controller/hiddenArea/hiddenAreaInput';
 import { createFastDomNode } from 'vs/base/browser/fastDomNode';
 
 // To run this test, open imeTester.html

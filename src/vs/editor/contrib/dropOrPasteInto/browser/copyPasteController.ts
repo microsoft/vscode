@@ -36,7 +36,7 @@ import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { PostEditWidgetManager } from './postEditWidget';
 import { CancellationError, isCancellationError } from 'vs/base/common/errors';
-import { ClipboardEventUtils } from 'vs/editor/browser/controller/editContext/hiddenAreaInput';
+import { ClipboardEventUtils } from 'vs/editor/browser/controller/hiddenArea/hiddenAreaInput';
 
 export const changePasteTypeCommandId = 'editor.changePasteType';
 

@@ -55,11 +55,10 @@ import { IViewModel } from 'vs/editor/common/viewModel';
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IColorTheme, getThemeTypeSelector } from 'vs/platform/theme/common/themeService';
-import { AbstractEditContext } from 'vs/editor/browser/controller/editContext/abstractEditContext';
-import { ICompleteHiddenAreaWrapper } from 'vs/editor/browser/controller/editContext/hiddenAreaInput';
-import { DivWrapper } from 'vs/editor/browser/controller/editContext/hiddenDivWrapper';
-import { TextAreaWrapper } from 'vs/editor/browser/controller/editContext/hiddenTextAreaWrapper';
-import { HiddenAreaHandler, IVisibleRangeProvider } from 'vs/editor/browser/controller/editContext/hiddenAreaHandler';
+import { ICompleteHiddenAreaWrapper } from 'vs/editor/browser/controller/hiddenArea/hiddenAreaInput';
+import { DivWrapper } from 'vs/editor/browser/controller/hiddenArea/hiddenDivWrapper';
+import { TextAreaWrapper } from 'vs/editor/browser/controller/hiddenArea/hiddenTextAreaWrapper';
+import { HiddenAreaHandler, IVisibleRangeProvider } from 'vs/editor/browser/controller/hiddenArea/hiddenAreaHandler';
 
 
 export interface IContentWidgetData {
@@ -94,7 +93,7 @@ export class View extends ViewEventHandler {
 	private readonly _viewCursors: ViewCursors;
 	private readonly _viewParts: ViewPart[];
 
-	private readonly _editContext: AbstractEditContext;
+	private readonly _editContext: HiddenAreaHandler;
 	private readonly _pointerHandler: PointerHandler;
 
 	// Dom nodes
