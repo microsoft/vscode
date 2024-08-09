@@ -165,7 +165,10 @@ export class CodeApplication extends Disposable {
 
 		const isUrlFromWebview = (requestingUrl: string | undefined) => requestingUrl?.startsWith(`${Schemas.vscodeWebview}://`);
 
+		const allowedPermissions = new Set(['pointerLock']);
+
 		const allowedPermissionsInWebview = new Set([
+			...allowedPermissions,
 			'clipboard-read',
 			'clipboard-sanitized-write',
 		]);
@@ -174,16 +177,14 @@ export class CodeApplication extends Disposable {
 			if (isUrlFromWebview(details.requestingUrl)) {
 				return callback(allowedPermissionsInWebview.has(permission));
 			}
-
-			return callback(false);
+			return callback(allowedPermissions.has(permission));
 		});
 
 		session.defaultSession.setPermissionCheckHandler((_webContents, permission, _origin, details) => {
 			if (isUrlFromWebview(details.requestingUrl)) {
 				return allowedPermissionsInWebview.has(permission);
 			}
-
-			return false;
+			return allowedPermissions.has(permission);
 		});
 
 		//#endregion
