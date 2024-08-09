@@ -20,9 +20,9 @@ import { BracketPairsTextModelPart } from 'vs/editor/common/model/bracketPairsTe
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { TextModelPart } from 'vs/editor/common/model/textModelPart';
 import { DefaultBackgroundTokenizer, TokenizerWithStateStoreAndTextModel, TrackingTokenizationStateStore } from 'vs/editor/common/model/textModelTokens';
-import { AbstractTokens, AttachedViews } from 'vs/editor/common/model/tokens';
+import { AbstractTokens, AttachedViewHandler, AttachedViews } from 'vs/editor/common/model/tokens';
 import { TreeSitterTokens } from 'vs/editor/common/model/treeSitterTokens';
-import { EDITOR_EXPERIMENTAL_PREFER_TREESITTER, ITreeSitterParserService } from 'vs/editor/common/services/treeSitterParserService';
+import { ITreeSitterParserService } from 'vs/editor/common/services/treeSitterParserService';
 import { IModelContentChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelTokensChangedEvent } from 'vs/editor/common/textModelEvents';
 import { BackgroundTokenizationState, ITokenizationTextModelPart } from 'vs/editor/common/tokenizationTextModelPart';
 import { ContiguousMultilineTokens } from 'vs/editor/common/tokens/contiguousMultilineTokens';
@@ -31,7 +31,6 @@ import { ContiguousTokensStore } from 'vs/editor/common/tokens/contiguousTokensS
 import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { SparseMultilineTokens } from 'vs/editor/common/tokens/sparseMultilineTokens';
 import { SparseTokensStore } from 'vs/editor/common/tokens/sparseTokensStore';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class TokenizationTextModelPart extends TextModelPart implements ITokenizationTextModelPart {
 	private readonly _semanticTokens: SparseTokensStore = new SparseTokensStore(this._languageService.languageIdCodec);
@@ -54,7 +53,6 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 		private readonly _attachedViews: AttachedViews,
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITreeSitterParserService private readonly _treeSitterService: ITreeSitterParserService,
 	) {
 		super();
@@ -64,10 +62,12 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 				this._onDidChangeLanguageConfiguration.fire({});
 			}
 		}));
-		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(EDITOR_EXPERIMENTAL_PREFER_TREESITTER)) {
-				this.createPreferredTokenProvider();
-			}
+
+		// We just look at registry changes to determine whether to use tree sitter.
+		// This means that removing a language from the setting will not cause a switch to textmate and will require a reload.
+		// Adding a language to the setting will not need a reload, however.
+		this._register(TreeSitterTokenizationRegistry.onDidChange(() => {
+			this.createPreferredTokenProvider();
 		}));
 		this.createPreferredTokenProvider();
 	}
@@ -77,7 +77,7 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 	}
 
 	private createTreeSitterTokens(): AbstractTokens {
-		return this._register(new TreeSitterTokens(this._treeSitterService, this._languageService.languageIdCodec, this._textModel, () => this._languageId, this._attachedViews));
+		return this._register(new TreeSitterTokens(this._treeSitterService, this._languageService.languageIdCodec, this._textModel, () => this._languageId));
 	}
 
 	private createTokens(useTreeSitter: boolean): void {
@@ -93,17 +93,12 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 	}
 
 	private createPreferredTokenProvider() {
-		const preferTreeSitter: string[] = this._configurationService.getValue<string[] | undefined>(EDITOR_EXPERIMENTAL_PREFER_TREESITTER) ?? [];
-		if ((preferTreeSitter.includes(this._languageId) && TreeSitterTokenizationRegistry.get(this._languageId))) {
-			if (this.tokens instanceof TreeSitterTokens) {
-				this.tokens.resetTokenization(true);
-			} else {
+		if (TreeSitterTokenizationRegistry.get(this._languageId)) {
+			if (!(this.tokens instanceof TreeSitterTokens)) {
 				this.createTokens(true);
 			}
 		} else {
-			if (this.tokens instanceof GrammarTokens) {
-				this.tokens.resetTokenization(true);
-			} else {
+			if (!(this.tokens instanceof GrammarTokens)) {
 				this.createTokens(false);
 			}
 		}
@@ -379,7 +374,7 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 	// #endregion
 }
 
-class GrammarTokens extends AbstractTokens {
+class GrammarTokens extends AbstractTokens<ITokenizationSupport> {
 	private _tokenizer: TokenizerWithStateStoreAndTextModel | null = null;
 	private _defaultBackgroundTokenizer: DefaultBackgroundTokenizer | null = null;
 	private readonly _backgroundTokenizer = this._register(new MutableDisposable<IBackgroundTokenizer>());
@@ -396,7 +391,19 @@ class GrammarTokens extends AbstractTokens {
 		getLanguageId: () => string,
 		attachedViews: AttachedViews,
 	) {
-		super(languageIdCodec, textModel, getLanguageId, attachedViews);
+		super(languageIdCodec, textModel, getLanguageId, TokenizationRegistry);
+		this._register(attachedViews.onDidChangeVisibleRanges(({ view, state }) => {
+			if (state) {
+				let existing = this._attachedViewStates.get(view);
+				if (!existing) {
+					existing = new AttachedViewHandler(() => this.refreshRanges(existing!.lineRanges));
+					this._attachedViewStates.set(view, existing);
+				}
+				existing.handleStateChange(state);
+			} else {
+				this._attachedViewStates.deleteAndDispose(view);
+			}
+		}));
 		this.resetTokenization();
 	}
 
@@ -543,7 +550,7 @@ class GrammarTokens extends AbstractTokens {
 		this.refreshRanges(ranges);
 	}
 
-	protected refreshRanges(ranges: readonly LineRange[]): void {
+	private refreshRanges(ranges: readonly LineRange[]): void {
 		for (const range of ranges) {
 			this.refreshRange(range.startLineNumber, range.endLineNumberExclusive - 1);
 		}

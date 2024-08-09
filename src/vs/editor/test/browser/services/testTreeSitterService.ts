@@ -4,18 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Parser } from '@vscode/tree-sitter-wasm';
+import { Event } from 'vs/base/common/event';
 import { ITextModel } from 'vs/editor/common/model';
-import { ITreeSitterParserService, ITreeSitterTree } from 'vs/editor/common/services/treeSitterParserService';
+import { ITreeSitterParserService, ITreeSitterParseResult } from 'vs/editor/common/services/treeSitterParserService';
 
 export class TestTreeSitterParserService implements ITreeSitterParserService {
+	onDidAddLanguage: Event<{ id: string; language: Parser.Language }> = Event.None;
 	_serviceBrand: undefined;
-	getLanguage(languageId: string): Parser.Language | boolean {
+	getLanguage(languageId: string): Parser.Language | undefined {
 		throw new Error('Method not implemented.');
 	}
 	waitForLanguage(languageId: string): Promise<Parser.Language | undefined> {
 		throw new Error('Method not implemented.');
 	}
-	getTree(textModel: ITextModel): ITreeSitterTree | undefined {
+	getParseResult(textModel: ITextModel): ITreeSitterParseResult | undefined {
 		throw new Error('Method not implemented.');
 	}
 

@@ -10,7 +10,7 @@ import { Disposable, DisposableMap } from 'vs/base/common/lifecycle';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 import { IPosition } from 'vs/editor/common/core/position';
 import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
-import { ILanguageIdCodec, TokenizationRegistry } from 'vs/editor/common/languages';
+import { ILanguageIdCodec, ITokenizationRegistry, ITokenizationSupport, ITreeSitterTokenizationSupport } from 'vs/editor/common/languages';
 import { IAttachedView } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { IModelContentChangedEvent, IModelTokensChangedEvent } from 'vs/editor/common/textModelEvents';
@@ -88,7 +88,7 @@ export class AttachedViewHandler extends Disposable {
 	}
 }
 
-export abstract class AbstractTokens extends Disposable {
+export abstract class AbstractTokens<TSupport = ITokenizationSupport | ITreeSitterTokenizationSupport> extends Disposable {
 	protected _backgroundTokenizationState = BackgroundTokenizationState.InProgress;
 	public get backgroundTokenizationState(): BackgroundTokenizationState {
 		return this._backgroundTokenizationState;
@@ -108,29 +108,16 @@ export abstract class AbstractTokens extends Disposable {
 		protected readonly _languageIdCodec: ILanguageIdCodec,
 		protected readonly _textModel: TextModel,
 		protected getLanguageId: () => string,
-		attachedViews: AttachedViews,
+		tokenizationRegistry: ITokenizationRegistry<TSupport>
 	) {
 		super();
 
-		this._register(TokenizationRegistry.onDidChange((e) => {
+		this._register(tokenizationRegistry.onDidChange((e) => {
 			const languageId = this.getLanguageId();
 			if (e.changedLanguages.indexOf(languageId) === -1) {
 				return;
 			}
 			this.resetTokenization();
-		}));
-
-		this._register(attachedViews.onDidChangeVisibleRanges(({ view, state }) => {
-			if (state) {
-				let existing = this._attachedViewStates.get(view);
-				if (!existing) {
-					existing = new AttachedViewHandler(() => this.refreshRanges(existing!.lineRanges));
-					this._attachedViewStates.set(view, existing);
-				}
-				existing.handleStateChange(state);
-			} else {
-				this._attachedViewStates.deleteAndDispose(view);
-			}
 		}));
 	}
 
@@ -139,8 +126,6 @@ export abstract class AbstractTokens extends Disposable {
 	public abstract handleDidChangeAttached(): void;
 
 	public abstract handleDidChangeContent(e: IModelContentChangedEvent): void;
-
-	protected abstract refreshRanges(ranges: readonly LineRange[]): void;
 
 	public abstract forceTokenization(lineNumber: number): void;
 

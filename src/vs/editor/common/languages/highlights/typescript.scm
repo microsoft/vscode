@@ -1,6 +1,18 @@
 ; Order matters! Place higher precedence first.
 ; Adapted from https://github.com/zed-industries/zed/blob/main/crates/languages/src/typescript/highlights.scm
 
+; Language constants
+
+[
+  (true)
+  (false)
+  (null)
+  (undefined)
+] @constant.language
+
+(namespace_import
+  "*" @constant.language)
+
 ; Keywords
 
 [
@@ -29,6 +41,7 @@
   "from"
   "if"
   "import"
+  "require"
   "return"
   "satisfies"
   "switch"
@@ -240,16 +253,6 @@
 
 (this) @variable.language
 (super) @variable.language
-
-[
-  (true)
-  (false)
-  (null)
-  (undefined)
-] @constant.language
-
-(namespace_import
-  "*" @constant.language)
 
 (comment) @comment
 

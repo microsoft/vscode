@@ -247,7 +247,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 	private _beginCompute(position: Position): void {
 		const grammar = this._textMateService.createTokenizer(this._model.getLanguageId());
 		const semanticTokens = this._computeSemanticTokens(position);
-		const tree = this._treeSitterService.getTree(this._model);
+		const tree = this._treeSitterService.getParseResult(this._model);
 
 		dom.clearNode(this._domNode);
 		this._domNode.appendChild(document.createTextNode(nls.localize('inspectTMScopesWidget.loading', "Loading...")));

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Parser } from '@vscode/tree-sitter-wasm';
+import { Event } from 'vs/base/common/event';
 import { ITextModel } from 'vs/editor/common/model';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
@@ -13,25 +14,12 @@ export const ITreeSitterParserService = createDecorator<ITreeSitterParserService
 
 export interface ITreeSitterParserService {
 	readonly _serviceBrand: undefined;
-	getLanguage(languageId: string): Parser.Language | boolean;
-	waitForLanguage(languageId: string): Promise<Parser.Language | undefined>;
-	getTree(textModel: ITextModel): ITreeSitterTree | undefined;
+	onDidAddLanguage: Event<{ id: string; language: Parser.Language }>;
+	getLanguage(languageId: string): Parser.Language | undefined;
+	getParseResult(textModel: ITextModel): ITreeSitterParseResult | undefined;
 }
 
-export interface ITreeSitterTree {
+export interface ITreeSitterParseResult {
 	readonly tree: Parser.Tree | undefined;
 	readonly language: Parser.Language;
-}
-
-export interface ITreeChangedEvent {
-	readonly ranges: {
-		/**
-		 * The start of the range (inclusive)
-		 */
-		readonly fromLineNumber: number;
-		/**
-		 * The end of the range (inclusive)
-		 */
-		readonly toLineNumber: number;
-	}[];
 }

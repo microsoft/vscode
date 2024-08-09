@@ -87,7 +87,7 @@ export class EncodedTokenizationResult {
  * @internal
  */
 export interface ITreeSitterTokenizationSupport {
-	tokenizeEncoded(lineNumber: number, textModel: model.ITextModel): Uint32Array;
+	tokenizeEncoded(lineNumber: number, textModel: model.ITextModel): Uint32Array | undefined;
 	captureAtPosition(lineNumber: number, column: number, textModel: model.ITextModel): any;
 }
 

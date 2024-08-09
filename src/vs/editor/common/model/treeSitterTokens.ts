@@ -9,41 +9,39 @@ import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { ITreeSitterParserService } from 'vs/editor/common/services/treeSitterParserService';
 import { IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
-import { AbstractTokens, AttachedViews } from 'vs/editor/common/model/tokens';
-import { LineRange } from 'vs/editor/common/core/lineRange';
+import { AbstractTokens } from 'vs/editor/common/model/tokens';
 import { IPosition } from 'vs/editor/common/core/position';
 
-export class TreeSitterTokens extends AbstractTokens {
-	private _textModelTokens!: ITreeSitterTokenizationSupport | null;
+export class TreeSitterTokens extends AbstractTokens<ITreeSitterTokenizationSupport> {
+	private _tokenizationSupport: ITreeSitterTokenizationSupport | null = null;
 	private _lastLanguageId: string | undefined;
 
 	constructor(private readonly _treeSitterService: ITreeSitterParserService,
 		languageIdCodec: ILanguageIdCodec,
 		textModel: TextModel,
-		languageId: () => string,
-		attachedViews: AttachedViews) {
-		super(languageIdCodec, textModel, languageId, attachedViews);
+		languageId: () => string) {
+		super(languageIdCodec, textModel, languageId, TreeSitterTokenizationRegistry);
 
 		this._initialize();
 	}
 
 	private _initialize() {
 		const newLanguage = this.getLanguageId();
-		if (!this._textModelTokens || this._lastLanguageId !== newLanguage) {
-			const support = TreeSitterTokenizationRegistry.get(newLanguage);
-			if (!support) {
-				return;
-			}
+		if (!this._tokenizationSupport || this._lastLanguageId !== newLanguage) {
 			this._lastLanguageId = newLanguage;
-			this._textModelTokens = TreeSitterTokenizationRegistry.get(newLanguage);
+			this._tokenizationSupport = TreeSitterTokenizationRegistry.get(newLanguage);
 		}
 	}
 
 	public getLineTokens(lineNumber: number): LineTokens {
-		if (this._textModelTokens) {
-			return new LineTokens(this._textModelTokens.tokenizeEncoded(lineNumber, this._textModel), this._textModel.getLineContent(lineNumber), this._languageIdCodec);
+		const content = this._textModel.getLineContent(lineNumber);
+		if (this._tokenizationSupport) {
+			const rawTokens = this._tokenizationSupport.tokenizeEncoded(lineNumber, this._textModel);
+			if (rawTokens) {
+				return new LineTokens(rawTokens, content, this._languageIdCodec);
+			}
 		}
-		return LineTokens.createEmpty('', this._languageIdCodec);
+		return LineTokens.createEmpty(content, this._languageIdCodec);
 	}
 
 	public resetTokenization(fireTokenChangeEvent: boolean = true): void {
@@ -71,9 +69,6 @@ export class TreeSitterTokens extends AbstractTokens {
 			this.resetTokenization(false);
 		}
 	}
-	protected override refreshRanges(ranges: readonly LineRange[]): void {
-		// TODO @alexr00 implement
-	}
 
 	public override forceTokenization(lineNumber: number): void {
 		// TODO @alexr00 implement
@@ -99,8 +94,7 @@ export class TreeSitterTokens extends AbstractTokens {
 	}
 	public override get hasTokens(): boolean {
 		// TODO @alexr00 once we have a token store, implement properly
-		const hasTree = this._treeSitterService.getTree(this._textModel) !== undefined;
+		const hasTree = this._treeSitterService.getParseResult(this._textModel) !== undefined;
 		return hasTree;
 	}
-
 }
