@@ -16,6 +16,8 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { Extensions, IExtensionFeatureMarkdownRenderer, IExtensionFeaturesRegistry, IRenderedData } from 'vs/workbench/services/extensionManagement/common/extensionFeatures';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { Mutable } from 'vs/base/common/types';
+import { IFileService } from 'vs/platform/files/common/files';
+import { parse } from 'vs/base/common/jsonc';
 
 export class ExtensionsProposedApi {
 
@@ -26,6 +28,7 @@ export class ExtensionsProposedApi {
 	constructor(
 		@ILogService private readonly _logService: ILogService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
+		@IFileService private readonly fileService: IFileService,
 		@IProductService productService: IProductService
 	) {
 
@@ -55,13 +58,13 @@ export class ExtensionsProposedApi {
 		}
 	}
 
-	updateEnabledApiProposals(extensions: IExtensionDescription[]): void {
+	async updateEnabledApiProposals(extensions: IExtensionDescription[]): Promise<void> {
 		for (const extension of extensions) {
-			this.doUpdateEnabledApiProposals(extension);
+			await this.doUpdateEnabledApiProposals(extension);
 		}
 	}
 
-	private doUpdateEnabledApiProposals(extension: Mutable<IExtensionDescription>): void {
+	private async doUpdateEnabledApiProposals(extension: Mutable<IExtensionDescription>): Promise<void> {
 
 		const key = ExtensionIdentifier.toKey(extension.identifier);
 
@@ -105,6 +108,16 @@ export class ExtensionsProposedApi {
 			// proposed API usage is not restricted and allowed just like the extension
 			// has declared it
 			return;
+		}
+
+		if (await this.fileService.exists(this._environmentService.argvResource)) {
+			const argvContent = await this.fileService.readFile(this._environmentService.argvResource);
+			const argvJSON = parse(argvContent.value.toString());
+			const enableProposedApi = argvJSON['enable-proposed-api'];
+			if (Array.isArray(enableProposedApi) && enableProposedApi.includes(key)) {
+				// allow proposed API for this extension because it is listed in --enable-proposed-api
+				return;
+			}
 		}
 
 		if (!extension.isBuiltin && isNonEmptyArray(extension.enabledApiProposals)) {
