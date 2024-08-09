@@ -6,7 +6,7 @@
 import { CharCode } from 'vs/base/common/charCode';
 import { BugIndicatingError, onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { MutableDisposable } from 'vs/base/common/lifecycle';
+import { DisposableMap, MutableDisposable } from 'vs/base/common/lifecycle';
 import { countEOL } from 'vs/editor/common/core/eolCounter';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 import { IPosition, Position } from 'vs/editor/common/core/position';
@@ -16,6 +16,7 @@ import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
 import { IBackgroundTokenizationStore, IBackgroundTokenizer, ILanguageIdCodec, IState, ITokenizationSupport, TokenizationRegistry } from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ILanguageConfigurationService, LanguageConfigurationServiceChangeEvent, ResolvedLanguageConfiguration } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { IAttachedView } from 'vs/editor/common/model';
 import { BracketPairsTextModelPart } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsImpl';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { TextModelPart } from 'vs/editor/common/model/textModelPart';
@@ -333,7 +334,7 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 	// #endregion
 }
 
-class GrammarTokens extends AbstractTokens<ITokenizationSupport> {
+class GrammarTokens extends AbstractTokens {
 	private _tokenizer: TokenizerWithStateStoreAndTextModel | null = null;
 	private _defaultBackgroundTokenizer: DefaultBackgroundTokenizer | null = null;
 	private readonly _backgroundTokenizer = this._register(new MutableDisposable<IBackgroundTokenizer>());
@@ -344,13 +345,26 @@ class GrammarTokens extends AbstractTokens<ITokenizationSupport> {
 
 	private readonly _debugBackgroundTokenizer = this._register(new MutableDisposable<IBackgroundTokenizer>());
 
+	private readonly _attachedViewStates = this._register(new DisposableMap<IAttachedView, AttachedViewHandler>());
+
 	constructor(
 		languageIdCodec: ILanguageIdCodec,
 		textModel: TextModel,
 		getLanguageId: () => string,
 		attachedViews: AttachedViews,
 	) {
-		super(languageIdCodec, textModel, getLanguageId, TokenizationRegistry);
+		super(languageIdCodec, textModel, getLanguageId);
+
+		this._register(TokenizationRegistry.onDidChange((e) => {
+			const languageId = this.getLanguageId();
+			if (e.changedLanguages.indexOf(languageId) === -1) {
+				return;
+			}
+			this.resetTokenization();
+		}));
+
+		this.resetTokenization();
+
 		this._register(attachedViews.onDidChangeVisibleRanges(({ view, state }) => {
 			if (state) {
 				let existing = this._attachedViewStates.get(view);
@@ -363,7 +377,6 @@ class GrammarTokens extends AbstractTokens<ITokenizationSupport> {
 				this._attachedViewStates.deleteAndDispose(view);
 			}
 		}));
-		this.resetTokenization();
 	}
 
 	public resetTokenization(fireTokenChangeEvent: boolean = true): void {

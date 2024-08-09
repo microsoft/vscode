@@ -6,11 +6,11 @@
 import { equals } from 'vs/base/common/arrays';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableMap } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 import { IPosition } from 'vs/editor/common/core/position';
 import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
-import { ILanguageIdCodec, ITokenizationRegistry, ITokenizationSupport, ITreeSitterTokenizationSupport } from 'vs/editor/common/languages';
+import { ILanguageIdCodec } from 'vs/editor/common/languages';
 import { IAttachedView } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { IModelContentChangedEvent, IModelTokensChangedEvent } from 'vs/editor/common/textModelEvents';
@@ -88,7 +88,7 @@ export class AttachedViewHandler extends Disposable {
 	}
 }
 
-export abstract class AbstractTokens<TSupport = ITokenizationSupport | ITreeSitterTokenizationSupport> extends Disposable {
+export abstract class AbstractTokens extends Disposable {
 	protected _backgroundTokenizationState = BackgroundTokenizationState.InProgress;
 	public get backgroundTokenizationState(): BackgroundTokenizationState {
 		return this._backgroundTokenizationState;
@@ -102,23 +102,12 @@ export abstract class AbstractTokens<TSupport = ITokenizationSupport | ITreeSitt
 	/** @internal, should not be exposed by the text model! */
 	public readonly onDidChangeTokens: Event<IModelTokensChangedEvent> = this._onDidChangeTokens.event;
 
-	protected readonly _attachedViewStates = this._register(new DisposableMap<IAttachedView, AttachedViewHandler>());
-
 	constructor(
 		protected readonly _languageIdCodec: ILanguageIdCodec,
 		protected readonly _textModel: TextModel,
 		protected getLanguageId: () => string,
-		tokenizationRegistry: ITokenizationRegistry<TSupport>
 	) {
 		super();
-
-		this._register(tokenizationRegistry.onDidChange((e) => {
-			const languageId = this.getLanguageId();
-			if (e.changedLanguages.indexOf(languageId) === -1) {
-				return;
-			}
-			this.resetTokenization();
-		}));
 	}
 
 	public abstract resetTokenization(fireTokenChangeEvent?: boolean): void;
