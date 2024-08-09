@@ -664,7 +664,7 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	override run(accessor: ServicesAccessor) {
+	override run(accessor: ServicesAccessor, openInEditor: boolean = true) {
 		const themeService = accessor.get(IWorkbenchThemeService);
 
 		const theme = themeService.getColorTheme();
@@ -677,7 +677,9 @@ registerAction2(class extends Action2 {
 			if (color) {
 				resultingColors[colorId] = Color.Format.CSS.formatHexA(color, true);
 			} else {
-				inherited.push(colorId);
+				if (openInEditor) {
+					inherited.push(colorId);
+				}
 			}
 		}
 		const nullDefaults = [];
@@ -698,6 +700,9 @@ registerAction2(class extends Action2 {
 			colors: resultingColors,
 			tokenColors: theme.tokenColors.filter(t => !!t.scope)
 		}, null, '\t');
+		if (!openInEditor) {
+			return contents;
+		}
 		contents = contents.replace(/\"__/g, '//"');
 
 		const editorService = accessor.get(IEditorService);
