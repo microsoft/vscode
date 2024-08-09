@@ -13,7 +13,7 @@ import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/ac
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellEditType, CellUri, ICellEditOperation, NotebookCellExecutionState, NotebookCellInternalMetadata, NotebookExecutionState, NotebookTextModelWillAddRemoveEvent } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellUri, ICellEditOperation, NotebookCellExecutionProgress, NotebookCellExecutionState, NotebookCellInternalMetadata, NotebookExecutionState, NotebookTextModelWillAddRemoveEvent } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellExecutionUpdateType, INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { ICellExecuteUpdate, ICellExecutionComplete, ICellExecutionStateChangedEvent, ICellExecutionStateUpdate, IExecutionStateChangedEvent, IFailedCellInfo, INotebookCellExecution, INotebookExecution, INotebookExecutionStateService, INotebookFailStateChangedEvent, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
@@ -416,6 +416,22 @@ function updateToEdit(update: ICellExecuteUpdate, cellHandle: number): ICellEdit
 			handle: cellHandle,
 			internalMetadata: newInternalMetadata
 		};
+	} else if (update.editType === CellExecutionUpdateType.ExecutionProgress) {
+		const newInternalMetadata: Partial<NotebookCellInternalMetadata> = {};
+		if (typeof update.increment !== 'undefined') {
+			newInternalMetadata.increment = update.increment;
+		}
+		if (typeof update.progress !== 'undefined') {
+			newInternalMetadata.progress = update.progress;
+		}
+		if (typeof update.total !== 'undefined') {
+			newInternalMetadata.total = update.total;
+		}
+		return {
+			editType: CellEditType.PartialInternalMetadata,
+			handle: cellHandle,
+			internalMetadata: newInternalMetadata
+		};
 	}
 
 	throw new Error('Unknown cell update type');
@@ -445,6 +461,15 @@ class CellExecution extends Disposable implements INotebookCellExecution {
 	private _isPaused = false;
 	get isPaused() {
 		return this._isPaused;
+	}
+
+	private _progress: NotebookCellExecutionProgress = {
+		total: undefined,
+		increment: undefined,
+		progress: undefined
+	};
+	get progress() {
+		return this._progress;
 	}
 
 	constructor(
@@ -502,6 +527,13 @@ class CellExecution extends Disposable implements INotebookCellExecution {
 			this._isPaused = (lastIsPausedUpdate as ICellExecutionStateUpdate).isPaused!;
 		}
 
+		updates.map(u => {
+			if (u.editType === CellExecutionUpdateType.ExecutionProgress) {
+				Object.assign(this._progress, u as NotebookCellExecutionProgress);
+				console.log('update ExecutionProgress', this._progress);
+			}
+		});
+
 		const cellModel = this._notebookModel.cells.find(c => c.handle === this.cellHandle);
 		if (!cellModel) {
 			this._logService.debug(`CellExecution#update, updating cell not in notebook: ${this._notebookModel.uri.toString()}, ${this.cellHandle}`);
@@ -510,7 +542,7 @@ class CellExecution extends Disposable implements INotebookCellExecution {
 			this._applyExecutionEdits(edits);
 		}
 
-		if (updates.some(u => u.editType === CellExecutionUpdateType.ExecutionState)) {
+		if (updates.some(u => u.editType === CellExecutionUpdateType.ExecutionState || u.editType === CellExecutionUpdateType.ExecutionProgress)) {
 			this._onDidUpdate.fire();
 		}
 	}
