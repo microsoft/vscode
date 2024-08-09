@@ -56,13 +56,13 @@ export class ColorContribution extends Disposable implements IEditorContribution
 			return;
 		}
 
-		const contentHoverController = this._editor.getContribution<ContentHoverController>(ContentHoverController.ID);
-		if (!contentHoverController) {
+		const hoverController = this._editor.getContribution<ContentHoverController>(ContentHoverController.ID);
+		if (!hoverController) {
 			return;
 		}
-		if (!contentHoverController.isColorPickerVisible) {
+		if (!hoverController.isColorPickerVisible) {
 			const range = new Range(target.range.startLineNumber, target.range.startColumn + 1, target.range.endLineNumber, target.range.endColumn + 1);
-			contentHoverController.showContentHover(range, HoverStartMode.Immediate, HoverStartSource.Mouse, false, true);
+			hoverController.showContentHover(range, HoverStartMode.Immediate, HoverStartSource.Mouse, false, true);
 		}
 	}
 }

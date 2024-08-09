@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { localize } from 'vs/nls';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHoverController';
 import { AccessibleViewType, AccessibleViewProviderId, AccessibleContentProvider, IAccessibleViewContentProvider, IAccessibleViewOptions } from 'vs/platform/accessibility/browser/accessibleView';
 import { IAccessibleViewImplentation } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
@@ -20,7 +21,6 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { labelForHoverVerbosityAction } from 'vs/editor/contrib/hover/browser/markdownHoverParticipant';
-import { ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHoverController';
 
 namespace HoverAccessibilityHelpNLS {
 	export const increaseVerbosity = localize('increaseVerbosity', '- The focused hover part verbosity level can be increased with the Increase Hover Verbosity command.', `<keybinding:${INCREASE_HOVER_VERBOSITY_ACTION_ID}>`);
@@ -40,17 +40,12 @@ export class HoverAccessibleView implements IAccessibleViewImplentation {
 		if (!codeEditor) {
 			throw new Error('No active or focused code editor');
 		}
-		const contentHoverController = ContentHoverController.get(codeEditor);
-		if (!contentHoverController) {
+		const hoverController = ContentHoverController.get(codeEditor);
+		if (!hoverController) {
 			return;
 		}
 		const keybindingService = accessor.get(IKeybindingService);
-		this._provider = accessor.get(IInstantiationService).createInstance(HoverAccessibleViewProvider, keybindingService, codeEditor, contentHoverController);
-		return this._provider;
-	}
-
-	dispose(): void {
-		this._provider?.dispose();
+		return accessor.get(IInstantiationService).createInstance(HoverAccessibleViewProvider, keybindingService, codeEditor, hoverController);
 	}
 }
 
@@ -67,15 +62,11 @@ export class HoverAccessibilityHelp implements IAccessibleViewImplentation {
 		if (!codeEditor) {
 			throw new Error('No active or focused code editor');
 		}
-		const contentHoverController = ContentHoverController.get(codeEditor);
-		if (!contentHoverController) {
+		const hoverController = ContentHoverController.get(codeEditor);
+		if (!hoverController) {
 			return;
 		}
 		return accessor.get(IInstantiationService).createInstance(HoverAccessibilityHelpProvider, hoverController);
-	}
-
-	dispose(): void {
-		this._provider?.dispose();
 	}
 }
 
