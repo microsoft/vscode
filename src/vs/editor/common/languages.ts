@@ -87,8 +87,7 @@ export class EncodedTokenizationResult {
  * @internal
  */
 export interface ITreeSitterTokenizationSupport {
-	tokenizeEncoded(lineNumber: number, textModel: model.ITextModel): Uint32Array | undefined;
-	captureAtPosition(lineNumber: number, column: number, textModel: model.ITextModel): any;
+	name: string;
 }
 
 /**
@@ -2122,10 +2121,10 @@ export interface ILazyTokenizationSupport<TSupport> {
 /**
  * @internal
  */
-export class LazyTokenizationSupport<TSupport = ITokenizationSupport> implements IDisposable, ILazyTokenizationSupport<TSupport> {
-	private _tokenizationSupport: Promise<TSupport & IDisposable | null> | null = null;
+export class LazyTokenizationSupport implements IDisposable, ILazyTokenizationSupport<ITokenizationSupport> {
+	private _tokenizationSupport: Promise<ITokenizationSupport & IDisposable | null> | null = null;
 
-	constructor(private readonly createSupport: () => Promise<TSupport & IDisposable | null>) {
+	constructor(private readonly createSupport: () => Promise<ITokenizationSupport & IDisposable | null>) {
 	}
 
 	dispose(): void {
@@ -2138,7 +2137,7 @@ export class LazyTokenizationSupport<TSupport = ITokenizationSupport> implements
 		}
 	}
 
-	get tokenizationSupport(): Promise<TSupport | null> {
+	get tokenizationSupport(): Promise<ITokenizationSupport | null> {
 		if (!this._tokenizationSupport) {
 			this._tokenizationSupport = this.createSupport();
 		}
