@@ -99,7 +99,14 @@ export class MouseHandler extends ViewEventHandler {
 
 			if (!this._mouseLeaveMonitor) {
 				this._mouseLeaveMonitor = dom.addDisposableListener(this.viewHelper.viewDomNode.ownerDocument, 'mousemove', (e) => {
-					if (!this.viewHelper.viewDomNode.contains(e.target as Node | null)) {
+					const viewRoot = this.viewHelper.viewDomNode.getRootNode() as ShadowRoot | Document;
+					const viewRootIsShadowRoot = viewRoot instanceof ShadowRoot;
+					// Get root node of viewDomNode so we can check if we are inside Shadow DOM
+					// The `mousemove` event doesn't work as expected inside Shadow DOM because events are retargeted.
+					// When the editor is within a Shadow DOM, `e.target` will point to the Web Component itself,
+					// which will cause `this.viewHelper.viewDomNode.contains(e.target)` to always return `false`.
+					// To work around this, we don't trigger `this._onMouseLeave` if viewRoot is a shadow root.
+					if (!this.viewHelper.viewDomNode.contains(e.target as Node | null) && !viewRootIsShadowRoot) {
 						// went outside the editor!
 						this._onMouseLeave(new EditorMouseEvent(e, false, this.viewHelper.viewDomNode));
 					}
