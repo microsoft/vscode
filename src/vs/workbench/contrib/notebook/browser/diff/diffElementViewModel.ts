@@ -449,7 +449,9 @@ export class SideBySideDiffElementViewModel extends DiffElementViewModelBase {
 				const modifiedMedataRaw = Object.assign({}, this.modified.metadata);
 				const originalCellMetadata = this.original.metadata;
 				for (const key of cellMetadataKeys) {
-					modifiedMedataRaw[key] = originalCellMetadata[key];
+					if (key in originalCellMetadata) {
+						modifiedMedataRaw[key] = originalCellMetadata[key];
+					}
 				}
 
 				this.modified.textModel.metadata = modifiedMedataRaw;
