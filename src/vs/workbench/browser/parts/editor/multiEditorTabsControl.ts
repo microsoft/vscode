@@ -759,6 +759,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			oldOptions.hasIcons !== newOptions.hasIcons ||
 			oldOptions.highlightModifiedTabs !== newOptions.highlightModifiedTabs ||
 			oldOptions.wrapTabs !== newOptions.wrapTabs ||
+			oldOptions.showTabIndex !== newOptions.showTabIndex ||
 			!equals(oldOptions.decorations, newOptions.decorations)
 		) {
 			this.redraw();
@@ -1600,7 +1601,8 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			forceLabel = true;
 			fileDecorationBadges = false; // not enough space when sticky tabs are compact
 		} else {
-			name = tabLabel.name;
+
+			name = options.showTabIndex ? localize("tabIndexDisplay", "{0}: {1}", (tabIndex + 1), tabLabel.name) : tabLabel.name;
 			description = tabLabel.description || '';
 		}
 
