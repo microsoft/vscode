@@ -3,12 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'mocha';
 import * as assert from 'assert';
-import { getFoldingRanges } from '../modes/htmlFolding';
-import { TextDocument, getLanguageModes } from '../modes/languageModes';
-import { ClientCapabilities } from 'vscode-css-languageservice';
-import { getNodeFileFS } from '../node/nodeFs';
+import 'mocha';
+import { URI } from 'vscode-uri';
+import { getTestService } from './shared';
 
 interface ExpectedIndentRange {
 	startLine: number;
@@ -17,13 +15,18 @@ interface ExpectedIndentRange {
 }
 
 async function assertRanges(lines: string[], expected: ExpectedIndentRange[], message?: string, nRanges?: number): Promise<void> {
-	const document = TextDocument.create('test://foo/bar.html', 'html', 1, lines.join('\n'));
-	const workspace = {
-		settings: {},
-		folders: [{ name: 'foo', uri: 'test://foo' }]
-	};
-	const languageModes = getLanguageModes({ css: true, javascript: true }, workspace, ClientCapabilities.LATEST, getNodeFileFS());
-	const actual = await getFoldingRanges(languageModes, document, nRanges, null);
+	const { languageService, document } = await getTestService({
+		content: lines.join('\n'),
+		clientCapabilities: nRanges ? {
+			textDocument: {
+				foldingRange: {
+					rangeLimit: nRanges,
+				},
+			},
+		} : undefined,
+	});
+	const actual = await languageService.getFoldingRanges(URI.parse(document.uri));
+	assert(!!actual);
 
 	let actualRanges = [];
 	for (let i = 0; i < actual.length; i++) {
@@ -50,7 +53,7 @@ suite('HTML Folding', () => {
 			/*6*/'</head>',
 			/*7*/'</html>',
 		];
-		await await assertRanges(input, [r(0, 6), r(1, 5), r(2, 4), r(3, 4)]);
+		await assertRanges(input, [r(0, 6), r(1, 5), r(2, 4), r(3, 3)]);
 	});
 
 	test('Embedded JavaScript - multiple areas', async () => {
@@ -71,7 +74,7 @@ suite('HTML Folding', () => {
 			/*13*/'</head>',
 			/*14*/'</html>',
 		];
-		await assertRanges(input, [r(0, 13), r(1, 12), r(2, 6), r(3, 6), r(8, 11), r(9, 11), r(9, 11)]);
+		await assertRanges(input, [r(0, 13), r(1, 12), r(2, 6), r(3, 5), r(5, 5), r(8, 11), r(9, 10), r(9, 10)]);
 	});
 
 	test('Embedded JavaScript - incomplete', async () => {
@@ -161,21 +164,20 @@ suite('HTML Folding', () => {
 		await assertRanges(input, [r(0, 9), r(1, 8), r(2, 7), r(3, 7, 'region'), r(4, 6, 'region')]);
 	});
 
-
-	// test('Embedded JavaScript - multi line comment', async () => {
-	// 	const input = [
-	// 		/* 0*/'<html>',
-	// 		/* 1*/'<head>',
-	// 		/* 2*/'<script>',
-	// 		/* 3*/'  /*',
-	// 		/* 4*/'   * Hello',
-	// 		/* 5*/'   */',
-	// 		/* 6*/'</script>',
-	// 		/* 7*/'</head>',
-	// 		/* 8*/'</html>',
-	// 	];
-	// 	await assertRanges(input, [r(0, 7), r(1, 6), r(2, 5), r(3, 5, 'comment')]);
-	// });
+	test('Embedded JavaScript - multi line comment', async () => {
+		const input = [
+			/* 0*/'<html>',
+			/* 1*/'<head>',
+			/* 2*/'<script>',
+			/* 3*/'  /*',
+			/* 4*/'   * Hello',
+			/* 5*/'   */',
+			/* 6*/'</script>',
+			/* 7*/'</head>',
+			/* 8*/'</html>',
+		];
+		await assertRanges(input, [r(0, 7), r(1, 6), r(2, 5), r(3, 5, 'comment')]);
+	});
 
 	test('Test limit', async () => {
 		const input = [

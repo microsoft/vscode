@@ -6,16 +6,15 @@
 
 import {
 	languages, ExtensionContext, Position, TextDocument, Range, CompletionItem, CompletionItemKind, SnippetString, workspace, extensions,
-	Disposable, FormattingOptions, CancellationToken, ProviderResult, TextEdit, CompletionContext, CompletionList, SemanticTokensLegend,
-	DocumentSemanticTokensProvider, DocumentRangeSemanticTokensProvider, SemanticTokens, window, commands, OutputChannel, l10n
+	Disposable, FormattingOptions, CancellationToken, ProviderResult, TextEdit, CompletionContext, CompletionList,
+	window, commands, OutputChannel, l10n
 } from 'vscode';
 import {
 	LanguageClientOptions, RequestType, DocumentRangeFormattingParams,
-	DocumentRangeFormattingRequest, ProvideCompletionItemsSignature, TextDocumentIdentifier, RequestType0, Range as LspRange, Position as LspPosition, NotificationType, BaseLanguageClient
+	DocumentRangeFormattingRequest, ProvideCompletionItemsSignature, NotificationType, BaseLanguageClient
 } from 'vscode-languageclient';
-import { FileSystemProvider, serveFileSystemRequests } from './requests';
 import { getCustomDataSource } from './customData';
-import { activateAutoInsertion } from './autoInsertion';
+import { activateAutoInsertion, activateServerSys as serveFileSystemRequests } from '@volar/vscode';
 import { getLanguageParticipants, LanguageParticipants } from './languageParticipants';
 
 namespace CustomDataChangedNotification {
@@ -24,37 +23,6 @@ namespace CustomDataChangedNotification {
 
 namespace CustomDataContent {
 	export const type: RequestType<string, string, any> = new RequestType('html/customDataContent');
-}
-
-interface AutoInsertParams {
-	/**
-	 * The auto insert kind
-	 */
-	kind: 'autoQuote' | 'autoClose';
-	/**
-	 * The text document.
-	 */
-	textDocument: TextDocumentIdentifier;
-	/**
-	 * The position inside the text document.
-	 */
-	position: LspPosition;
-}
-
-namespace AutoInsertRequest {
-	export const type: RequestType<AutoInsertParams, string, any> = new RequestType('html/autoInsert');
-}
-
-// experimental: semantic tokens
-interface SemanticTokenParams {
-	textDocument: TextDocumentIdentifier;
-	ranges?: LspRange[];
-}
-namespace SemanticTokenRequest {
-	export const type: RequestType<SemanticTokenParams, number[] | null, any> = new RequestType('html/semanticTokens');
-}
-namespace SemanticTokenLegendRequest {
-	export const type: RequestType0<{ types: string[]; modifiers: string[] } | null, any> = new RequestType0('html/semanticTokenLegend');
 }
 
 namespace SettingIds {
@@ -77,7 +45,6 @@ export const languageServerDescription = l10n.t('HTML Language Server');
 
 export interface Runtime {
 	TextDecoder: { new(encoding?: string): { decode(buffer: ArrayBuffer): string } };
-	fileFs?: FileSystemProvider;
 	telemetry?: TelemetryReporter;
 	readonly timer: {
 		setTimeout(callback: (...args: any[]) => void, ms: number, ...args: any[]): Disposable;
@@ -196,7 +163,7 @@ async function startClientWithParticipants(languageParticipants: LanguagePartici
 
 	await client.start();
 
-	toDispose.push(serveFileSystemRequests(client, runtime));
+	toDispose.push(serveFileSystemRequests(client));
 
 	const customDataSource = getCustomDataSource(runtime, toDispose);
 
@@ -207,16 +174,7 @@ async function startClientWithParticipants(languageParticipants: LanguagePartici
 	toDispose.push(client.onRequest(CustomDataContent.type, customDataSource.getContent));
 
 
-	const insertRequestor = (kind: 'autoQuote' | 'autoClose', document: TextDocument, position: Position): Promise<string> => {
-		const param: AutoInsertParams = {
-			kind,
-			textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(document),
-			position: client.code2ProtocolConverter.asPosition(position)
-		};
-		return client.sendRequest(AutoInsertRequest.type, param);
-	};
-
-	const disposable = activateAutoInsertion(insertRequestor, languageParticipants, runtime);
+	const disposable = activateAutoInsertion(languageParticipants.documentSelector, client);
 	toDispose.push(disposable);
 
 	const disposable2 = client.onTelemetry(e => {
@@ -228,31 +186,6 @@ async function startClientWithParticipants(languageParticipants: LanguagePartici
 	updateFormatterRegistration();
 	toDispose.push({ dispose: () => rangeFormatting && rangeFormatting.dispose() });
 	toDispose.push(workspace.onDidChangeConfiguration(e => e.affectsConfiguration(SettingIds.formatEnable) && updateFormatterRegistration()));
-
-	client.sendRequest(SemanticTokenLegendRequest.type).then(legend => {
-		if (legend) {
-			const provider: DocumentSemanticTokensProvider & DocumentRangeSemanticTokensProvider = {
-				provideDocumentSemanticTokens(doc) {
-					const params: SemanticTokenParams = {
-						textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(doc),
-					};
-					return client.sendRequest(SemanticTokenRequest.type, params).then(data => {
-						return data && new SemanticTokens(new Uint32Array(data));
-					});
-				},
-				provideDocumentRangeSemanticTokens(doc, range) {
-					const params: SemanticTokenParams = {
-						textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(doc),
-						ranges: [client.code2ProtocolConverter.asRange(range)]
-					};
-					return client.sendRequest(SemanticTokenRequest.type, params).then(data => {
-						return data && new SemanticTokens(new Uint32Array(data));
-					});
-				}
-			};
-			toDispose.push(languages.registerDocumentSemanticTokensProvider(documentSelector, provider, new SemanticTokensLegend(legend.types, legend.modifiers)));
-		}
-	});
 
 	function updateFormatterRegistration() {
 		const formatEnabled = workspace.getConfiguration().get(SettingIds.formatEnable);

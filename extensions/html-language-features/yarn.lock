@@ -102,6 +102,81 @@
   dependencies:
     undici-types "~5.26.4"
 
+"@volar/language-core@2.4.0-alpha.17":
+  version "2.4.0-alpha.17"
+  resolved "https://registry.yarnpkg.com/@volar/language-core/-/language-core-2.4.0-alpha.17.tgz#a87b9ec8bf0c7f1f19362514ffe589da60172a96"
+  integrity sha512-FF9g89QZUVJpgZvrNpA+v5Sgo7MdUjeA1celxCe4nFTpfp4P/FUdZ1lgeYy7ZS5r13oC4Ei6HqWpfLN7PFM60w==
+  dependencies:
+    "@volar/source-map" "2.4.0-alpha.17"
+
+"@volar/language-server@2.4.0-alpha.17", "@volar/language-server@~2.4.0-alpha.17":
+  version "2.4.0-alpha.17"
+  resolved "https://registry.yarnpkg.com/@volar/language-server/-/language-server-2.4.0-alpha.17.tgz#94d842dfc50d5ebe89640f9b53c2e0b4aed2ff77"
+  integrity sha512-K+ffVR484Zzq9tTeoRxwtvGzvhR8qCpKhcgsPkCPeCh904yr1zxkMX728fhTePB9nZtKpI0jDuqdQA+338Gl1Q==
+  dependencies:
+    "@volar/language-core" "2.4.0-alpha.17"
+    "@volar/language-service" "2.4.0-alpha.17"
+    "@volar/snapshot-document" "2.4.0-alpha.17"
+    "@volar/typescript" "2.4.0-alpha.17"
+    path-browserify "^1.0.1"
+    request-light "^0.7.0"
+    vscode-languageserver "^9.0.1"
+    vscode-languageserver-protocol "^3.17.5"
+    vscode-languageserver-textdocument "^1.0.11"
+    vscode-uri "^3.0.8"
+
+"@volar/language-service@2.4.0-alpha.17":
+  version "2.4.0-alpha.17"
+  resolved "https://registry.yarnpkg.com/@volar/language-service/-/language-service-2.4.0-alpha.17.tgz#22666141969835447273328566706dae6b305b17"
+  integrity sha512-rq+O/Nf7krrq611khGOH6+f9c5i7vQiDPXOLuGks2bBWjPUqaN7dR8agMm+9BTlAj0IItArKqUncYr5mYU78kQ==
+  dependencies:
+    "@volar/language-core" "2.4.0-alpha.17"
+    vscode-languageserver-protocol "^3.17.5"
+    vscode-languageserver-textdocument "^1.0.11"
+    vscode-uri "^3.0.8"
+
+"@volar/snapshot-document@2.4.0-alpha.17":
+  version "2.4.0-alpha.17"
+  resolved "https://registry.yarnpkg.com/@volar/snapshot-document/-/snapshot-document-2.4.0-alpha.17.tgz#276da13bd98917a8f04de124ad72b81c3f1a5a62"
+  integrity sha512-7h8cf8r+gKU0EEn68pulM1yER1iFshQR/fVT0Bw7T7cbRLe7afnaXbU+jg9yKoEUuJ/B8GU3a/5IBLofY6ZqVg==
+  dependencies:
+    vscode-languageserver-protocol "^3.17.5"
+    vscode-languageserver-textdocument "^1.0.11"
+
+"@volar/source-map@2.4.0-alpha.17":
+  version "2.4.0-alpha.17"
+  resolved "https://registry.yarnpkg.com/@volar/source-map/-/source-map-2.4.0-alpha.17.tgz#633d7e87ba792a010ba8135f9537c5ecb90cd486"
+  integrity sha512-6LOuR2nIloQCSNMNcUPRPLjL5CInIE1pYZ8lifOCSxQRiz8GcWaOm34kAvdm7pzPQqMRHBBnV/Ihkdt/w7oWAQ==
+
+"@volar/test-utils@~2.4.0-alpha.17":
+  version "2.4.0-alpha.17"
+  resolved "https://registry.yarnpkg.com/@volar/test-utils/-/test-utils-2.4.0-alpha.17.tgz#85446cfc835f5a3cafd9ba033ba58da10d86a968"
+  integrity sha512-efBuUphNoYL8U6rRtOM6/hO+14nL+B/2zmmqhrC+yj6UwDEg7K16ZYd6tWa405XzQz5kwUifX/GRsSGOKjWcDg==
+  dependencies:
+    "@volar/language-core" "2.4.0-alpha.17"
+    "@volar/language-server" "2.4.0-alpha.17"
+    vscode-languageserver-textdocument "^1.0.11"
+    vscode-uri "^3.0.8"
+
+"@volar/typescript@2.4.0-alpha.17":
+  version "2.4.0-alpha.17"
+  resolved "https://registry.yarnpkg.com/@volar/typescript/-/typescript-2.4.0-alpha.17.tgz#4c7c0e90e6db024c7792042061ef6141edda44cf"
+  integrity sha512-oJlz5xJd0O1Xe/I7AV3kPpV6gXlcyxfpMcj/w4/wGY5AxFHxyy5i7VhaE/BVk99zsT6M2KxcZyUSsL55RlNXlQ==
+  dependencies:
+    "@volar/language-core" "2.4.0-alpha.17"
+    path-browserify "^1.0.1"
+    vscode-uri "^3.0.8"
+
+"@volar/vscode@~2.4.0-alpha.17":
+  version "2.4.0-alpha.17"
+  resolved "https://registry.yarnpkg.com/@volar/vscode/-/vscode-2.4.0-alpha.17.tgz#4ff86868b117b6d1ae306f20769c523d2b326cce"
+  integrity sha512-pvof2f55xmiUYH7AbPQP3qdi3ylMF0/Z0DLPjbXmLbnaxFCXdLPBoOPqb5hgfHmuasG+BN/Gtv0cwwOebYojRA==
+  dependencies:
+    "@volar/language-server" "2.4.0-alpha.17"
+    path-browserify "^1.0.1"
+    vscode-languageclient "^9.0.1"
+    vscode-nls "^5.2.0"
+
 "@vscode/extension-telemetry@^0.9.0":
   version "0.9.0"
   resolved "https://registry.yarnpkg.com/@vscode/extension-telemetry/-/extension-telemetry-0.9.0.tgz#8c6c61e253ff304f46045f04edd60059b144417a"
@@ -123,65 +198,78 @@ brace-expansion@^2.0.1:
   dependencies:
     balanced-match "^1.0.0"
 
-lru-cache@^6.0.0:
-  version "6.0.0"
-  resolved "https://registry.yarnpkg.com/lru-cache/-/lru-cache-6.0.0.tgz#6d6fe6570ebd96aaf90fcad1dafa3b2566db3a94"
-  integrity sha512-Jo6dJ04CmSjuznwJSS3pUeWmd/H0ffTlkXXgwZi+eq1UCmqQwCh+eLsYOYCwY991i2Fah4h1BEMCx4qThGbsiA==
-  dependencies:
-    yallist "^4.0.0"
-
-minimatch@^9.0.3:
-  version "9.0.3"
-  resolved "https://registry.yarnpkg.com/minimatch/-/minimatch-9.0.3.tgz#a6e00c3de44c3a542bfaae70abfc22420a6da825"
-  integrity sha512-RHiac9mvaRw0x3AYRgDC1CxAP7HTcNrrECeA8YYJeWnpo+2Q5CegtZjaotWTWxDG3UeGA1coE05iH1mPjT/2mg==
+minimatch@^5.1.0:
+  version "5.1.6"
+  resolved "https://registry.yarnpkg.com/minimatch/-/minimatch-5.1.6.tgz#1cfcb8cf5522ea69952cd2af95ae09477f122a96"
+  integrity sha512-lKwV/1brpG6mBUFHtb7NUmtABCb2WZZmm2wNiOA5hAb8VdCS4B3dtMWyvcoViccwAW/COERjXLt0zP1zXUN26g==
   dependencies:
     brace-expansion "^2.0.1"
 
-semver@^7.6.0:
-  version "7.6.0"
-  resolved "https://registry.yarnpkg.com/semver/-/semver-7.6.0.tgz#1a46a4db4bffcccd97b743b5005c8325f23d4e2d"
-  integrity sha512-EnwXhrlwXMk9gKu5/flx5sv/an57AkRplG3hTK68W7FRDN+k+OWBj65M7719OkA82XLBxrcX0KSHj+X5COhOVg==
-  dependencies:
-    lru-cache "^6.0.0"
+path-browserify@^1.0.1:
+  version "1.0.1"
+  resolved "https://registry.yarnpkg.com/path-browserify/-/path-browserify-1.0.1.tgz#d98454a9c3753d5790860f16f68867b9e46be1fd"
+  integrity sha512-b7uo2UCUOYZcnF/3ID0lulOJi/bafxa1xPe7ZPsammBSpjSWQkjNxlt635YGS2MiR9GjvuXCtz2emr3jbsz98g==
+
+request-light@^0.7.0:
+  version "0.7.0"
+  resolved "https://registry.yarnpkg.com/request-light/-/request-light-0.7.0.tgz#885628bb2f8040c26401ebf258ec51c4ae98ac2a"
+  integrity sha512-lMbBMrDoxgsyO+yB3sDcrDuX85yYt7sS8BfQd11jtbW/z5ZWgLZRcEGLsLoYw7I0WSUGQBs8CC8ScIxkTX1+6Q==
+
+semver@^7.3.7:
+  version "7.6.2"
+  resolved "https://registry.yarnpkg.com/semver/-/semver-7.6.2.tgz#1e3b34759f896e8f14d6134732ce798aeb0c6e13"
+  integrity sha512-FNAIBWCx9qcRhoHcgcJ0gvU7SN1lYU2ZXuSfl04bSC5OpvDHFyJCjdNHomPXxjQlCBU67YW64PzY7/VIEH7F2w==
 
 undici-types@~5.26.4:
   version "5.26.5"
   resolved "https://registry.yarnpkg.com/undici-types/-/undici-types-5.26.5.tgz#bcd539893d00b56e964fd2657a4866b221a65617"
   integrity sha512-JlCMO+ehdEIKqlFxk6IfVoAUVmgz7cU7zD/h9XZ0qzeosSHmUJVOzSQvvYSYWXkFXC+IfLKSIffhv0sVZup6pA==
 
-vscode-jsonrpc@9.0.0-next.4:
-  version "9.0.0-next.4"
-  resolved "https://registry.yarnpkg.com/vscode-jsonrpc/-/vscode-jsonrpc-9.0.0-next.4.tgz#ba403ddb3b82ca578179963dbe08e120a935f50d"
-  integrity sha512-zSVIr58lJSMYKIsZ5P7GtBbv1eEx25eNyOf0NmEzxmn1GhUNJAVAb5hkA1poKUwj1FRMwN6CeyWxZypmr8SsQQ==
+vscode-jsonrpc@8.2.0:
+  version "8.2.0"
+  resolved "https://registry.yarnpkg.com/vscode-jsonrpc/-/vscode-jsonrpc-8.2.0.tgz#f43dfa35fb51e763d17cd94dcca0c9458f35abf9"
+  integrity sha512-C+r0eKJUIfiDIfwJhria30+TYWPtuHJXHtI7J0YlOmKAo7ogxP20T0zxB7HZQIFhIyvoBPwWskjxrvAtfjyZfA==
 
-vscode-languageclient@^10.0.0-next.8:
-  version "10.0.0-next.8"
-  resolved "https://registry.yarnpkg.com/vscode-languageclient/-/vscode-languageclient-10.0.0-next.8.tgz#5afa0ced3b2ac68d31cc1c48edc4f289744542a0"
-  integrity sha512-D9inIHgqKayO9Tv0MeLb3XIL76yTuWmKdHqcGZKzjtQrMGJgASJDYWTapu+yAjEpDp0gmVOaCYyIlLB86ncDoQ==
+vscode-languageclient@^9.0.1:
+  version "9.0.1"
+  resolved "https://registry.yarnpkg.com/vscode-languageclient/-/vscode-languageclient-9.0.1.tgz#cdfe20267726c8d4db839dc1e9d1816e1296e854"
+  integrity sha512-JZiimVdvimEuHh5olxhxkht09m3JzUGwggb5eRUkzzJhZ2KjCN0nh55VfiED9oez9DyF8/fz1g1iBV3h+0Z2EA==
   dependencies:
-    minimatch "^9.0.3"
-    semver "^7.6.0"
-    vscode-languageserver-protocol "3.17.6-next.6"
+    minimatch "^5.1.0"
+    semver "^7.3.7"
+    vscode-languageserver-protocol "3.17.5"
 
-vscode-languageserver-protocol@3.17.6-next.6:
-  version "3.17.6-next.6"
-  resolved "https://registry.yarnpkg.com/vscode-languageserver-protocol/-/vscode-languageserver-protocol-3.17.6-next.6.tgz#8863a4dc8b395a8c31106ffdc945a00f9163b68b"
-  integrity sha512-naxM9kc/phpl0kAFNVPejMUWUtzFXdPYY/BtQTYtfbBbHf8sceHOrKkmf6yynZRu1A4oFtRZNqV3wyFRTWqUHw==
+vscode-languageserver-protocol@3.17.5, vscode-languageserver-protocol@^3.17.5:
+  version "3.17.5"
+  resolved "https://registry.yarnpkg.com/vscode-languageserver-protocol/-/vscode-languageserver-protocol-3.17.5.tgz#864a8b8f390835572f4e13bd9f8313d0e3ac4bea"
+  integrity sha512-mb1bvRJN8SVznADSGWM9u/b07H7Ecg0I3OgXDuLdn307rl/J3A9YD6/eYOssqhecL27hK1IPZAsaqh00i/Jljg==
   dependencies:
-    vscode-jsonrpc "9.0.0-next.4"
-    vscode-languageserver-types "3.17.6-next.4"
+    vscode-jsonrpc "8.2.0"
+    vscode-languageserver-types "3.17.5"
 
-vscode-languageserver-types@3.17.6-next.4:
-  version "3.17.6-next.4"
-  resolved "https://registry.yarnpkg.com/vscode-languageserver-types/-/vscode-languageserver-types-3.17.6-next.4.tgz#6670939eb98f00aa7b05021dc3dd7fe9aa4453ea"
-  integrity sha512-SeJTpH/S14EbxOAVaOUoGVqPToqpRTld5QO5Ghig3AlbFJTFF9Wu7srHMfa85L0SX1RYAuuCSFKJVVCxDIk1/Q==
+vscode-languageserver-textdocument@^1.0.11:
+  version "1.0.11"
+  resolved "https://registry.yarnpkg.com/vscode-languageserver-textdocument/-/vscode-languageserver-textdocument-1.0.11.tgz#0822a000e7d4dc083312580d7575fe9e3ba2e2bf"
+  integrity sha512-X+8T3GoiwTVlJbicx/sIAF+yuJAqz8VvwJyoMVhwEMoEKE/fkDmrqUgDMyBECcM2A2frVZIUj5HI/ErRXCfOeA==
+
+vscode-languageserver-types@3.17.5:
+  version "3.17.5"
+  resolved "https://registry.yarnpkg.com/vscode-languageserver-types/-/vscode-languageserver-types-3.17.5.tgz#3273676f0cf2eab40b3f44d085acbb7f08a39d8a"
+  integrity sha512-Ld1VelNuX9pdF39h2Hgaeb5hEZM2Z3jUrrMgWQAu82jMtZp7p3vJT3BzToKtZI7NgQssZje5o0zryOrhQvzQAg==
+
+vscode-languageserver@^9.0.1:
+  version "9.0.1"
+  resolved "https://registry.yarnpkg.com/vscode-languageserver/-/vscode-languageserver-9.0.1.tgz#500aef82097eb94df90d008678b0b6b5f474015b"
+  integrity sha512-woByF3PDpkHFUreUa7Hos7+pUWdeWMXRd26+ZX2A8cFx6v/JPTtd4/uN0/jB6XQHYaOlHbio03NTHCqrgG5n7g==
+  dependencies:
+    vscode-languageserver-protocol "3.17.5"
+
+vscode-nls@^5.2.0:
+  version "5.2.0"
+  resolved "https://registry.yarnpkg.com/vscode-nls/-/vscode-nls-5.2.0.tgz#3cb6893dd9bd695244d8a024bdf746eea665cc3f"
+  integrity sha512-RAaHx7B14ZU04EU31pT+rKz2/zSl7xMsfIZuo8pd+KZO6PXtQmpevpq3vxvWNcrGbdmhM/rr5Uw5Mz+NBfhVng==
 
 vscode-uri@^3.0.8:
   version "3.0.8"
   resolved "https://registry.yarnpkg.com/vscode-uri/-/vscode-uri-3.0.8.tgz#1770938d3e72588659a172d0fd4642780083ff9f"
   integrity sha512-AyFQ0EVmsOZOlAnxoFOGOq1SQDWAB7C6aqMGS23svWAllfOaxbuFvcT8D1i8z3Gyn8fraVeZNNmN6e9bxxXkKw==
-
-yallist@^4.0.0:
-  version "4.0.0"
-  resolved "https://registry.yarnpkg.com/yallist/-/yallist-4.0.0.tgz#9bb92790d9c0effec63be73519e11a35019a3a72"
-  integrity sha512-3wdGidZyq5PB084XLES5TpOSRA3wjXAlIWMhum2kRcv/41Sn2emQ0dycQW4uZXLejwKvg6EsvbdlVL+FYEct7A==
