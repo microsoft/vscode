@@ -136,13 +136,13 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 				// make an response from the ChatResponseModel
 				if (response.isCanceled) {
 					// error: cancelled
-					inlineResponse = new ErrorResponse(new CancellationError());
+					inlineResponse = new ErrorResponse(response, new CancellationError());
 				} else if (response.result?.errorDetails) {
 					// error: "real" error
-					inlineResponse = new ErrorResponse(new Error(response.result.errorDetails.message));
+					inlineResponse = new ErrorResponse(response, new Error(response.result.errorDetails.message));
 				} else if (response.response.value.length === 0) {
 					// epmty response
-					inlineResponse = new EmptyResponse();
+					inlineResponse = new EmptyResponse(response);
 				} else {
 					inlineResponse = this._instaService.createInstance(
 						ReplyResponse,
