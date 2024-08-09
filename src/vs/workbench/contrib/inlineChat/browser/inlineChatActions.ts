@@ -343,7 +343,7 @@ export class RerunAction extends AbstractInlineChatAction {
 
 		const lastRequest = model?.getRequests().at(-1);
 		if (lastRequest) {
-			await chatService.resendRequest(lastRequest, { noCommandDetection: false, attempt: lastRequest.attempt + 1, location: ctrl.chatWidget.location });
+			await chatService.resendRequest(lastRequest, { noCommandDetection: false, attempt: lastRequest.attempt + 1, location: ctrl.chatWidget.location, locationData: ctrl.chatWidget.getLocationData() });
 		}
 	}
 }
