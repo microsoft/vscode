@@ -145,8 +145,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		return result;
 	}
 
-
-
 	private static _convertNotebookRegistrationData(extension: IExtensionDescription, registration: vscode.NotebookRegistrationData | undefined): INotebookContributionData | undefined {
 		if (!registration) {
 			return;
