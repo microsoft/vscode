@@ -10,7 +10,7 @@ import { EndOfLinePreference } from 'vs/editor/common/model';
 
 export const _debugComposition = false;
 
-export interface ITextAreaWrapper {
+export interface IHiddenAreaWrapper {
 	getValue(): string;
 	setValue(reason: string, value: string): void;
 
@@ -34,9 +34,9 @@ export interface ITypeData {
 	positionDelta: number;
 }
 
-export class TextAreaState {
+export class HiddenAreaState {
 
-	public static readonly EMPTY = new TextAreaState('', 0, 0, null, undefined);
+	public static readonly EMPTY = new HiddenAreaState('', 0, 0, null, undefined);
 
 	constructor(
 		public readonly value: string,
@@ -48,13 +48,18 @@ export class TextAreaState {
 		public readonly selection: Range | null,
 		/** the visible line count (wrapped, not necessarily matching \n characters) for the text in `value` before `selectionStart` */
 		public readonly newlineCountBeforeSelection: number | undefined,
-	) { }
+	) {
+		console.log('HiddenAreaState');
+		console.log('selectionStart : ', selectionStart);
+		console.log('selectionEnd : ', selectionEnd);
+		console.log('value : ', value);
+	}
 
 	public toString(): string {
 		return `[ <${this.value}>, selectionStart: ${this.selectionStart}, selectionEnd: ${this.selectionEnd}]`;
 	}
 
-	public static readFromTextArea(textArea: ITextAreaWrapper, previousState: TextAreaState | null): TextAreaState {
+	public static readFromTextArea(textArea: IHiddenAreaWrapper, previousState: HiddenAreaState | null): HiddenAreaState {
 		const value = textArea.getValue();
 		const selectionStart = textArea.getSelectionStart();
 		const selectionEnd = textArea.getSelectionEnd();
@@ -66,17 +71,21 @@ export class TextAreaState {
 				newlineCountBeforeSelection = previousState.newlineCountBeforeSelection;
 			}
 		}
-		return new TextAreaState(value, selectionStart, selectionEnd, null, newlineCountBeforeSelection);
+		console.log('readFromTextArea');
+		console.log('value : ', value);
+		return new HiddenAreaState(value, selectionStart, selectionEnd, null, newlineCountBeforeSelection);
 	}
 
-	public collapseSelection(): TextAreaState {
+	public collapseSelection(): HiddenAreaState {
 		if (this.selectionStart === this.value.length) {
 			return this;
 		}
-		return new TextAreaState(this.value, this.value.length, this.value.length, null, undefined);
+		console.log('collapseSelection');
+		return new HiddenAreaState(this.value, this.value.length, this.value.length, null, undefined);
 	}
 
-	public writeToTextArea(reason: string, textArea: ITextAreaWrapper, select: boolean): void {
+	public writeToTextArea(reason: string, textArea: IHiddenAreaWrapper, select: boolean): void {
+		console.log('writeToTextArea');
 		if (_debugComposition) {
 			console.log(`writeToTextArea ${reason}: ${this.toString()}`);
 		}
@@ -112,7 +121,12 @@ export class TextAreaState {
 		return [anchor, signum * deltaText.length, lineFeedCnt];
 	}
 
-	public static deduceInput(previousState: TextAreaState, currentState: TextAreaState, couldBeEmojiInput: boolean): ITypeData {
+	public static deduceInput(previousState: HiddenAreaState, currentState: HiddenAreaState, couldBeEmojiInput: boolean): ITypeData {
+
+		console.log('deduceInput');
+		console.log('previousState : ', previousState);
+		console.log('currentState : ', currentState);
+
 		if (!previousState) {
 			// This is the EMPTY state
 			return {
@@ -176,7 +190,7 @@ export class TextAreaState {
 		};
 	}
 
-	public static deduceAndroidCompositionInput(previousState: TextAreaState, currentState: TextAreaState): ITypeData {
+	public static deduceAndroidCompositionInput(previousState: HiddenAreaState, currentState: HiddenAreaState): ITypeData {
 		if (!previousState) {
 			// This is the EMPTY state
 			return {
@@ -237,7 +251,7 @@ export class PagedScreenReaderStrategy {
 		return new Range(startLineNumber, 1, endLineNumber + 1, 1);
 	}
 
-	public static fromEditorSelection(model: ISimpleModel, selection: Range, linesPerPage: number, trimLongText: boolean): TextAreaState {
+	public static fromEditorSelection(model: ISimpleModel, selection: Range, linesPerPage: number, trimLongText: boolean): HiddenAreaState {
 		// Chromium handles very poorly text even of a few thousand chars
 		// Cut text to avoid stalling the entire UI
 		const LIMIT_CHARS = 500;
@@ -282,6 +296,16 @@ export class PagedScreenReaderStrategy {
 			text = text.substring(0, LIMIT_CHARS) + String.fromCharCode(8230) + text.substring(text.length - LIMIT_CHARS, text.length);
 		}
 
-		return new TextAreaState(pretext + text + posttext, pretext.length, pretext.length + text.length, selection, pretextRange.endLineNumber - pretextRange.startLineNumber);
+		console.log('fromEditorSelection');
+		const numberOfLines = model.getLineCount();
+		const lengthOfLastLine = model.getLineMaxColumn(numberOfLines);
+		const fullRange = new Range(1, 1, numberOfLines, lengthOfLastLine);
+		console.log('full value : ', model.getValueInRange(fullRange, EndOfLinePreference.LF));
+		console.log('pretextRange : ', pretextRange);
+		console.log('selection : ', selection);
+		console.log('pretext : ', pretext);
+		console.log('text : ', text);
+		console.log('posttext : ', posttext);
+		return new HiddenAreaState(pretext + text + posttext, pretext.length, pretext.length + text.length, selection, pretextRange.endLineNumber - pretextRange.startLineNumber);
 	}
 }

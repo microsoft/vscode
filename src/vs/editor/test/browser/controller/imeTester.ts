@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITextAreaInputHost, TextAreaInput, TextAreaWrapper } from 'vs/editor/browser/controller/textAreaInput';
-import { ISimpleModel, PagedScreenReaderStrategy, TextAreaState } from 'vs/editor/browser/controller/textAreaState';
+import { TextAreaWrapper } from 'vs/editor/browser/controller/hiddenArea/hiddenTextAreaWrapper';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { EndOfLinePreference } from 'vs/editor/common/model';
@@ -14,6 +13,9 @@ import * as platform from 'vs/base/common/platform';
 import { mainWindow } from 'vs/base/browser/window';
 import { TestAccessibilityService } from 'vs/platform/accessibility/test/common/testAccessibilityService';
 import { NullLogService } from 'vs/platform/log/common/log';
+import { HiddenAreaState, ISimpleModel, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/hiddenArea/hiddenAreaState';
+import { HiddenAreaInput, IHiddenAreaInputHost } from 'vs/editor/browser/controller/hiddenArea/hiddenAreaInput';
+import { createFastDomNode } from 'vs/base/browser/fastDomNode';
 
 // To run this test, open imeTester.html
 
@@ -97,14 +99,14 @@ function doCreateTest(description: string, inputStr: string, expectedStr: string
 	container.appendChild(startBtn);
 
 
-	const input = document.createElement('textarea');
+	const input = createFastDomNode(document.createElement('textarea'));
 	input.setAttribute('rows', '10');
 	input.setAttribute('cols', '40');
-	container.appendChild(input);
+	container.appendChild(input.domNode);
 
 	const model = new SingleLineTestModel('some  text');
 
-	const textAreaInputHost: ITextAreaInputHost = {
+	const textAreaInputHost: IHiddenAreaInputHost = {
 		getDataToCopy: () => {
 			return {
 				isFromEmptySelection: false,
@@ -114,7 +116,7 @@ function doCreateTest(description: string, inputStr: string, expectedStr: string
 				mode: null
 			};
 		},
-		getScreenReaderContent: (): TextAreaState => {
+		getScreenReaderContent: (): HiddenAreaState => {
 			const selection = new Range(1, 1 + cursorOffset, 1, 1 + cursorOffset + cursorLength);
 
 			return PagedScreenReaderStrategy.fromEditorSelection(model, selection, 10, true);
@@ -124,7 +126,7 @@ function doCreateTest(description: string, inputStr: string, expectedStr: string
 		}
 	};
 
-	const handler = new TextAreaInput(textAreaInputHost, new TextAreaWrapper(input), platform.OS, {
+	const handler = new HiddenAreaInput(textAreaInputHost, new TextAreaWrapper(input), platform.OS, {
 		isAndroid: browser.isAndroid,
 		isFirefox: browser.isFirefox,
 		isChrome: browser.isChrome,
@@ -182,7 +184,7 @@ function doCreateTest(description: string, inputStr: string, expectedStr: string
 
 	startBtn.onclick = function () {
 		updateModelAndPosition('some  text', 5, 0);
-		input.focus();
+		input.domNode.focus();
 	};
 
 	return container;

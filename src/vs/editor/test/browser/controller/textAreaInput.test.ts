@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { ClipboardDataToCopy, IBrowser, ICompleteTextAreaWrapper, ITextAreaInputHost, TextAreaInput } from 'vs/editor/browser/controller/textAreaInput';
-import { TextAreaState } from 'vs/editor/browser/controller/textAreaState';
+import { ClipboardDataToCopy, IBrowser, ICompleteHiddenAreaWrapper, IHiddenAreaInputHost, HiddenAreaInput } from 'vs/editor/browser/controller/hiddenArea/hiddenAreaInput';
+import { HiddenAreaState } from 'vs/editor/browser/controller/hiddenArea/hiddenAreaState';
 import { Position } from 'vs/editor/common/core/position';
 import { IRecorded, IRecordedEvent, IRecordedTextareaState } from 'vs/editor/test/browser/controller/imeRecordedTypes';
 import { TestAccessibilityService } from 'vs/platform/accessibility/test/common/testAccessibilityService';
@@ -47,18 +48,22 @@ suite('TextAreaInput', () => {
 
 	async function simulateInteraction(recorded: IRecorded): Promise<OutoingEvent[]> {
 		const disposables = new DisposableStore();
-		const host: ITextAreaInputHost = {
+		const host: IHiddenAreaInputHost = {
 			getDataToCopy: function (): ClipboardDataToCopy {
 				throw new Error('Function not implemented.');
 			},
-			getScreenReaderContent: function (): TextAreaState {
-				return new TextAreaState('', 0, 0, null, undefined);
+			getScreenReaderContent: function (): HiddenAreaState {
+				return new HiddenAreaState('', 0, 0, null, undefined);
 			},
 			deduceModelPosition: function (viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position {
 				throw new Error('Function not implemented.');
 			}
 		};
-		const wrapper = disposables.add(new class extends Disposable implements ICompleteTextAreaWrapper {
+		const wrapper = disposables.add(new class extends Disposable implements ICompleteHiddenAreaWrapper {
+
+			public readonly className: string = 'test';
+			public readonly actual = createFastDomNode(document.createElement('div'));
+
 			private _onKeyDown = this._register(new Emitter<KeyboardEvent>());
 			readonly onKeyDown = this._onKeyDown.event;
 
@@ -80,7 +85,7 @@ suite('TextAreaInput', () => {
 			private _onBeforeInput = this._register(new Emitter<InputEvent>());
 			readonly onBeforeInput = this._onBeforeInput.event;
 
-			private _onInput = this._register(new Emitter<InputEvent>());
+			private _onInput = this._register(new Emitter<{ timeStamp: number; type: string; data: string; inputType: string; isComposing: boolean }>());
 			readonly onInput = this._onInput.event;
 
 			readonly onCut = Event.None;
@@ -167,7 +172,13 @@ suite('TextAreaInput', () => {
 					if (event.type === 'beforeinput') {
 						this._onBeforeInput.fire(mockEvent);
 					} else {
-						this._onInput.fire(mockEvent);
+						this._onInput.fire({
+							timeStamp: mockEvent.timeStamp,
+							type: mockEvent.type,
+							data: mockEvent.data ?? '',
+							inputType: mockEvent.inputType,
+							isComposing: mockEvent.isComposing
+						});
 					}
 				} else {
 					throw new Error(`Not Implemented`);
@@ -205,7 +216,7 @@ suite('TextAreaInput', () => {
 
 			public hasFocus(): boolean { return true; }
 		});
-		const input = disposables.add(new TextAreaInput(host, wrapper, recorded.env.OS, recorded.env.browser, new TestAccessibilityService(), new NullLogService()));
+		const input = disposables.add(new HiddenAreaInput(host, wrapper, recorded.env.OS, recorded.env.browser, new TestAccessibilityService(), new NullLogService()));
 
 		wrapper._initialize(recorded.initial);
 		input._initializeFromTest();
