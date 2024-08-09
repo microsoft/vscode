@@ -237,7 +237,9 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 			this.filter.filterQuery = this.filterWidget.getFilterText();
 			if (this.tree) {
 				this.tree.refilter();
-				revealLastElement(this.tree);
+				if (!this.findIsOpen || this.filterWidget.hasFocus()) {
+					revealLastElement(this.tree);
+				}
 			}
 		}));
 	}
