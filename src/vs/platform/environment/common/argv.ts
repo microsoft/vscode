@@ -34,6 +34,7 @@ export interface NativeParsedArgs {
 	wait?: boolean;
 	waitMarkerFilePath?: string;
 	diff?: boolean;
+	'use-editor'?: string;
 	merge?: boolean;
 	add?: boolean;
 	goto?: boolean;
