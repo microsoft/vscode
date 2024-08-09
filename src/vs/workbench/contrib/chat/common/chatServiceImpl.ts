@@ -571,7 +571,7 @@ export class ChatService extends Disposable implements IChatService {
 
 
 				if (agentPart || (defaultAgent && !commandPart)) {
-					const prepareChatAgentRequest = async (agent: IChatAgentData, command?: IChatAgentCommand, chatRequest?: ChatRequestModel) => {
+					const prepareChatAgentRequest = async (agent: IChatAgentData, command?: IChatAgentCommand, enableCommandDetection?: boolean, chatRequest?: ChatRequestModel) => {
 						const initVariableData: IChatRequestVariableData = { variables: [] };
 						request = chatRequest ?? model.addRequest(parsedRequest, initVariableData, attempt, agent, command, options?.confirmation);
 
@@ -604,7 +604,7 @@ export class ChatService extends Disposable implements IChatService {
 						const defaultAgentHistory = getHistoryEntriesFromModel(model, defaultAgent.id);
 
 						// Prepare the request object that we will send to the participant detection provider
-						const chatAgentRequest = await prepareChatAgentRequest(defaultAgent, agentSlashCommandPart?.command);
+						const chatAgentRequest = await prepareChatAgentRequest(defaultAgent, agentSlashCommandPart?.command, enableCommandDetection);
 
 						const result = await this.chatAgentService.detectAgentOrCommand(chatAgentRequest, defaultAgentHistory, { location }, token);
 						if (result) {
@@ -621,7 +621,7 @@ export class ChatService extends Disposable implements IChatService {
 
 					// Recompute history in case the agent or command changed
 					const history = getHistoryEntriesFromModel(model, agent.id);
-					const requestProps = await prepareChatAgentRequest(agent, command, request /* Reuse the request object if we already created it for participant detection */);
+					const requestProps = await prepareChatAgentRequest(agent, command, !detectedAgent && enableCommandDetection, request /* Reuse the request object if we already created it for participant detection */);
 					const pendingRequest = this._pendingRequests.get(sessionId);
 					if (pendingRequest && !pendingRequest.requestId) {
 						pendingRequest.requestId = requestProps.requestId;
