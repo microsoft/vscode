@@ -4458,7 +4458,7 @@ function primitiveSet<T extends string | boolean>(value: unknown, defaultValue: 
  */
 export interface ISuggestOptions {
 	/**
-	 * Overwrite word ends on accept. Default to false.
+	 * Overwrite word ends on accept. Default to 'insert'.
 	 */
 	insertMode?: 'insert' | 'replace';
 	/**
@@ -4466,19 +4466,19 @@ export interface ISuggestOptions {
 	 */
 	filterGraceful?: boolean;
 	/**
-	 * Prevent quick suggestions when a snippet is active. Defaults to true.
+	 * Prevent quick suggestions when a snippet is active. Defaults to false.
 	 */
 	snippetsPreventQuickSuggestions?: boolean;
 	/**
-	 * Favors words that appear close to the cursor.
+	 * Favors words that appear close to the cursor. Defaults to false.
 	 */
 	localityBonus?: boolean;
 	/**
-	 * Enable using global storage for remembering suggestions.
+	 * Enable using global storage for remembering suggestions. Defaults to false.
 	 */
 	shareSuggestSelections?: boolean;
 	/**
-	 * Select suggestions when triggered via quick suggest or trigger characters
+	 * Select suggestions when triggered via quick suggest or trigger characters. Defaults to 'always'.
 	 */
 	selectionMode?: 'always' | 'never' | 'whenTriggerCharacter' | 'whenQuickSuggestion';
 	/**
@@ -4486,15 +4486,15 @@ export interface ISuggestOptions {
 	 */
 	showIcons?: boolean;
 	/**
-	 * Enable or disable the suggest status bar.
+	 * Enable or disable the suggest status bar. Defaults to false.
 	 */
 	showStatusBar?: boolean;
 	/**
-	 * Enable or disable the rendering of the suggestion preview.
+	 * Enable or disable the rendering of the suggestion preview. Defaults to false.
 	 */
 	preview?: boolean;
 	/**
-	 * Configures the mode of the preview.
+	 * Configures the mode of the preview. Defaults to 'subwordSmart'.
 	*/
 	previewMode?: 'prefix' | 'subword' | 'subwordSmart';
 	/**
@@ -4502,119 +4502,119 @@ export interface ISuggestOptions {
 	 */
 	showInlineDetails?: boolean;
 	/**
-	 * Show method-suggestions.
+	 * Show method-suggestions. Defaults to true.
 	 */
 	showMethods?: boolean;
 	/**
-	 * Show function-suggestions.
+	 * Show function-suggestions. Defaults to true.
 	 */
 	showFunctions?: boolean;
 	/**
-	 * Show constructor-suggestions.
+	 * Show constructor-suggestions. Defaults to true.
 	 */
 	showConstructors?: boolean;
 	/**
-	 * Show deprecated-suggestions.
+	 * Show deprecated-suggestions. Defaults to true.
 	 */
 	showDeprecated?: boolean;
 	/**
-	 * Controls whether suggestions allow matches in the middle of the word instead of only at the beginning
+	 * Controls whether suggestions allow matches in the middle of the word instead of only at the beginning. Defaults to true.
 	 */
 	matchOnWordStartOnly?: boolean;
 	/**
-	 * Show field-suggestions.
+	 * Show field-suggestions. Defaults to true.
 	 */
 	showFields?: boolean;
 	/**
-	 * Show variable-suggestions.
+	 * Show variable-suggestions. Defaults to true.
 	 */
 	showVariables?: boolean;
 	/**
-	 * Show class-suggestions.
+	 * Show class-suggestions. Defaults to true.
 	 */
 	showClasses?: boolean;
 	/**
-	 * Show struct-suggestions.
+	 * Show struct-suggestions. Defaults to true.
 	 */
 	showStructs?: boolean;
 	/**
-	 * Show interface-suggestions.
+	 * Show interface-suggestions. Defaults to true.
 	 */
 	showInterfaces?: boolean;
 	/**
-	 * Show module-suggestions.
+	 * Show module-suggestions. Defaults to true.
 	 */
 	showModules?: boolean;
 	/**
-	 * Show property-suggestions.
+	 * Show property-suggestions. Defaults to true.
 	 */
 	showProperties?: boolean;
 	/**
-	 * Show event-suggestions.
+	 * Show event-suggestions. Defaults to true.
 	 */
 	showEvents?: boolean;
 	/**
-	 * Show operator-suggestions.
+	 * Show operator-suggestions. Defaults to true.
 	 */
 	showOperators?: boolean;
 	/**
-	 * Show unit-suggestions.
+	 * Show unit-suggestions. Defaults to true.
 	 */
 	showUnits?: boolean;
 	/**
-	 * Show value-suggestions.
+	 * Show value-suggestions. Defaults to true.
 	 */
 	showValues?: boolean;
 	/**
-	 * Show constant-suggestions.
+	 * Show constant-suggestions. Defaults to true.
 	 */
 	showConstants?: boolean;
 	/**
-	 * Show enum-suggestions.
+	 * Show enum-suggestions. Defaults to true.
 	 */
 	showEnums?: boolean;
 	/**
-	 * Show enumMember-suggestions.
+	 * Show enumMember-suggestions. Defaults to true.
 	 */
 	showEnumMembers?: boolean;
 	/**
-	 * Show keyword-suggestions.
+	 * Show keyword-suggestions. Defaults to true.
 	 */
 	showKeywords?: boolean;
 	/**
-	 * Show text-suggestions.
+	 * Show text-suggestions. Defaults to true.
 	 */
 	showWords?: boolean;
 	/**
-	 * Show color-suggestions.
+	 * Show color-suggestions. Defaults to true.
 	 */
 	showColors?: boolean;
 	/**
-	 * Show file-suggestions.
+	 * Show file-suggestions. Defaults to true.
 	 */
 	showFiles?: boolean;
 	/**
-	 * Show reference-suggestions.
+	 * Show reference-suggestions. Defaults to true.
 	 */
 	showReferences?: boolean;
 	/**
-	 * Show folder-suggestions.
+	 * Show folder-suggestions. Defaults to true.
 	 */
 	showFolders?: boolean;
 	/**
-	 * Show typeParameter-suggestions.
+	 * Show typeParameter-suggestions. Defaults to true.
 	 */
 	showTypeParameters?: boolean;
 	/**
-	 * Show issue-suggestions.
+	 * Show issue-suggestions. Defaults to true.
 	 */
 	showIssues?: boolean;
 	/**
-	 * Show user-suggestions.
+	 * Show user-suggestions. Defaults to true.
 	 */
 	showUsers?: boolean;
 	/**
-	 * Show snippet-suggestions.
+	 * Show snippet-suggestions. Defaults to true.
 	 */
 	showSnippets?: boolean;
 }
