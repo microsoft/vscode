@@ -6,6 +6,11 @@
 import { AbstractSignService, IVsdaValidator } from 'vs/platform/sign/common/abstractSignService';
 import { ISignService } from 'vs/platform/sign/common/sign';
 
+// ESM-uncomment-begin
+// import { createRequire } from 'node:module';
+// const require = createRequire(import.meta.url);
+// ESM-uncomment-end
+
 declare module vsda {
 	// the signer is a native module that for historical reasons uses a lower case class name
 	// eslint-disable-next-line @typescript-eslint/naming-convention
@@ -30,8 +35,6 @@ export class SignService extends AbstractSignService implements ISignService {
 
 	private async vsda(): Promise<typeof vsda> {
 		// ESM-uncomment-begin
-		// const { createRequire } = await import('node:module');
-		// const require = createRequire(import.meta.url);
 		// return require('vsda');
 		// ESM-uncomment-end
 
