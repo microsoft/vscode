@@ -7,7 +7,7 @@ import { Table } from 'vs/base/browser/ui/table/tableWidget';
 import { Disposable } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import { localize } from 'vs/nls';
-import { IQuickInputService, IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 
 interface IColumnResizeQuickPickItem extends IQuickPickItem {
 	index: number;
@@ -22,59 +22,41 @@ export class TableColumnResizeQuickPick extends Disposable {
 	}
 
 	async show(): Promise<void> {
-		const quickPick = this._quickInputService.createQuickPick<IColumnResizeQuickPickItem>();
 		const items: IColumnResizeQuickPickItem[] = [];
 		this._table.getColumnLabels().forEach((label, index) => {
 			if (label) {
 				items.push({ label, index });
 			}
 		});
-		quickPick.items = items;
-		quickPick.placeholder = localize('table.column.selection', "Select the column to resize, type to filter.");
-		quickPick.sortByLabel = false;
-		quickPick.canSelectMany = false;
-		quickPick.show();
-		this._register(quickPick.onDidAccept(() => {
-			const index = quickPick.selectedItems?.[0].index;
-			if (index !== undefined) {
-				this._selectColumn(quickPick, index);
-			}
-		}));
-		this._register(quickPick.onDidHide(() => {
-			quickPick.dispose();
-			this.dispose();
-		}));
-	}
-
-	private _selectColumn(quickPick: IQuickPick<IColumnResizeQuickPickItem>, index: number): void {
-		quickPick.items = [];
-		quickPick.placeholder = localize('table.column.resizeValue', "Please enter a width in percentage for the column.");
-		quickPick.show();
-		this._register(quickPick.onDidAccept(() => {
-			const percentage = Number.parseInt(quickPick.value);
-			if (!isNaN(percentage)) {
-				this._table.resizeColumn(index, percentage);
-				quickPick.hide();
-				return;
-			}
-		}));
-		this._register(quickPick.onDidChangeValue(() => this._validateColumnResizeValue(quickPick)));
-	}
-
-	private _validateColumnResizeValue(quickPick: IQuickPick<IColumnResizeQuickPickItem>): number | undefined {
-		const percentage = Number.parseInt(quickPick.value);
-		if (quickPick.value && !Number.isInteger(percentage)) {
-			quickPick.validationMessage = localize('table.column.resizeValue.invalidType', "Please enter an integer.");
-			quickPick.severity = Severity.Error;
+		const column = await this._quickInputService.pick<IColumnResizeQuickPickItem>(items, { placeHolder: localize('table.column.selection', "Select the column to resize, type to filter.") });
+		if (!column) {
 			return;
-		} else if (percentage < 0 || percentage > 100) {
-			quickPick.validationMessage = localize('table.column.resizeValue.invalidRange', "Please enter a number greater than 0 and less than or equal to 100.");
-			quickPick.severity = Severity.Error;
-			return;
-		} else {
-			quickPick.validationMessage = undefined;
-			quickPick.severity = Severity.Info;
-			return percentage;
 		}
+		const value = await this._quickInputService.input({
+			placeHolder: localize('table.column.resizeValue.placeHolder', "i.e. 20, 60, 100..."),
+			prompt: localize('table.column.resizeValue.prompt', "Please enter a width in percentage for the '{0}' column.", column.label),
+			validateInput: (input: string) => this._validateColumnResizeValue(input)
+		});
+		const percentageValue = value ? Number.parseInt(value) : undefined;
+		if (!percentageValue || Number.isNaN(percentageValue)) {
+			return;
+		}
+		this._table.resizeColumn(column.index, percentageValue);
+	}
+
+	private async _validateColumnResizeValue(input: string): Promise<string | { content: string; severity: Severity } | null | undefined> {
+		const percentage = Number.parseInt(input);
+		if (input && !Number.isInteger(percentage)) {
+			return {
+				content: localize('table.column.resizeValue.invalidType', "Please enter an integer."),
+				severity: Severity.Error
+			};
+		} else if (percentage < 0 || percentage > 100) {
+			return {
+				content: localize('table.column.resizeValue.invalidRange', "Please enter a number greater than 0 and less than or equal to 100."),
+				severity: Severity.Error
+			};
+		}
+		return null;
 	}
 }
