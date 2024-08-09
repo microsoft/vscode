@@ -237,9 +237,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 			this.filter.filterQuery = this.filterWidget.getFilterText();
 			if (this.tree) {
 				this.tree.refilter();
-				if (!this.findIsOpen || this.filterWidget.hasFocus()) {
-					revealLastElement(this.tree);
-				}
+				revealLastElement(this.tree);
 			}
 		}));
 	}
@@ -681,6 +679,10 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 			});
 
 		this._register(tree.onDidChangeContentHeight(() => {
+			if (this.findIsOpen && !this.replInput.hasTextFocus()) {
+				// Focus is in the find widget, don't scroll to the bottom
+				return;
+			}
 			if (tree.scrollHeight !== this.previousTreeScrollHeight) {
 				// Due to rounding, the scrollTop + renderHeight will not exactly match the scrollHeight.
 				// Consider the tree to be scrolled all the way down if it is within 2px of the bottom.
