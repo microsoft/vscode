@@ -362,21 +362,27 @@ function removeAllDuplicateTSBoilerplate(destFiles: IConcatFile[]): IConcatFile[
 	return destFiles;
 }
 
-export function removeDuplicateTSBoilerplate(source: string, SEEN_BOILERPLATE: boolean[] = []): string {
+export function removeAllTSBoilerplate(source: string) {
+	const seen = new Array<boolean>(BOILERPLATE.length).fill(true, 0, 10);
+	return removeDuplicateTSBoilerplate(source, seen);
+}
 
-	// Taken from typescript compiler => emitFiles
-	const BOILERPLATE = [
-		{ start: /^var __extends/, end: /^}\)\(\);$/ },
-		{ start: /^var __assign/, end: /^};$/ },
-		{ start: /^var __decorate/, end: /^};$/ },
-		{ start: /^var __metadata/, end: /^};$/ },
-		{ start: /^var __param/, end: /^};$/ },
-		{ start: /^var __awaiter/, end: /^};$/ },
-		{ start: /^var __generator/, end: /^};$/ },
-		{ start: /^var __createBinding/, end: /^}\)\);$/ },
-		{ start: /^var __setModuleDefault/, end: /^}\);$/ },
-		{ start: /^var __importStar/, end: /^};$/ },
-	];
+// Taken from typescript compiler => emitFiles
+const BOILERPLATE = [
+	{ start: /^var __extends/, end: /^}\)\(\);$/ },
+	{ start: /^var __assign/, end: /^};$/ },
+	{ start: /^var __decorate/, end: /^};$/ },
+	{ start: /^var __metadata/, end: /^};$/ },
+	{ start: /^var __param/, end: /^};$/ },
+	{ start: /^var __awaiter/, end: /^};$/ },
+	{ start: /^var __generator/, end: /^};$/ },
+	{ start: /^var __createBinding/, end: /^}\)\);$/ },
+	{ start: /^var __setModuleDefault/, end: /^}\);$/ },
+	{ start: /^var __importStar/, end: /^};$/ },
+];
+
+function removeDuplicateTSBoilerplate(source: string, SEEN_BOILERPLATE: boolean[] = []): string {
+
 
 	const lines = source.split(/\r\n|\n|\r/);
 	const newLines: string[] = [];

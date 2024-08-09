@@ -17,6 +17,7 @@ import { Language, processNlsFiles } from './i18n';
 import { createStatsStream } from './stats';
 import * as util from './util';
 import { gulpPostcss } from './postcss';
+import type { Plugin } from 'esbuild';
 
 const REPO_ROOT_PATH = path.join(__dirname, '../..');
 
@@ -316,18 +317,32 @@ function optimizeESMTask(opts: IOptimizeAMDTaskOpts, cjsOpts?: IOptimizeCommonJS
 			const dest = entryPoint.dest?.replace(/\.[^/.]+$/, '') ?? entryPoint.name;
 			// const dest = entryPoint.name;
 
+			// boilerplate massage
+			const banner = { js: '' };
+			const fs = await import('node:fs');
+			const tslibPath = path.join(require.resolve('tslib'), '../tslib.es6.js');
+			banner.js += await fs.promises.readFile(tslibPath, 'utf-8');
+
+			const boilerplateTrimmer: Plugin = {
+				name: 'boilerplate-trimmer',
+				setup(build) {
+					build.onLoad({ filter: /\.js$/ }, async args => {
+						const contents = await fs.promises.readFile(args.path, 'utf-8');
+						const newContents = bundle.removeAllTSBoilerplate(contents);
+						return { contents: newContents };
+					});
+				}
+			};
+
 			// support for 'preprend' via the esbuild#banner
-			let banner: { [type: string]: string } | undefined;
 			if (entryPoint.prepend?.length) {
-				let jsBanner = '';
-				const fs = await import('node:fs');
 				for (const item of entryPoint.prepend) {
 					const fullpath = path.join(REPO_ROOT_PATH, opts.src, item.path);
 					const source = await fs.promises.readFile(fullpath, 'utf8');
-					jsBanner += source + '\n';
+					banner.js += source + '\n';
 				}
-				banner = { js: jsBanner };
 			}
+
 
 			const task = esbuild.build({
 				logLevel: 'silent',
@@ -336,6 +351,7 @@ function optimizeESMTask(opts: IOptimizeAMDTaskOpts, cjsOpts?: IOptimizeCommonJS
 				packages: 'external', // "external all the things", see https://esbuild.github.io/api/#packages
 				platform: 'neutral', // makes esm
 				format: 'esm',
+				plugins: [boilerplateTrimmer],
 				target: ['es2023'],
 				loader: {
 					'.ttf': 'file',
@@ -393,12 +409,6 @@ function optimizeESMTask(opts: IOptimizeAMDTaskOpts, cjsOpts?: IOptimizeCommonJS
 							for (const input of Object.keys(res.metafile.inputs)) {
 								newText = opts.fileContentMapper(newText, input);
 							}
-							contents = Buffer.from(newText);
-						}
-
-						// 3 TODO this seems to break the build
-						if (false) {
-							const newText = bundle.removeDuplicateTSBoilerplate(file.text, []);
 							contents = Buffer.from(newText);
 						}
 					}
