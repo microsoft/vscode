@@ -10,6 +10,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
 
 
 const setupIcon = registerIcon('getting-started-setup', Codicon.zap, localize('getting-started-setup-icon', "Icon used for the setup category of welcome page"));
@@ -353,7 +354,110 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 			]
 		}
 	},
-
+	{
+		id: 'SetupScreenReader',
+		title: localize('gettingStarted.setupScreenReader.title', "Get Started with VS Code using a Screen Reader"),
+		description: localize('gettingStarted.setupScreenReader.description', "Learn the tools and shortcuts that make VS Code accessible"),
+		isFeatured: true,
+		icon: setupIcon,
+		when: CONTEXT_ACCESSIBILITY_MODE_ENABLED.key,
+		next: 'SetupScreenReaderExtended',
+		content: {
+			type: 'steps',
+			steps: [
+				{
+					id: 'accessibilityHelp',
+					title: localize('gettingStarted.accessibilityHelp.title', "Use the accessibility help dialog to learn about features"),
+					description: localize('gettingStarted.accessibilityHelp.description.interpolated', "The accessibility help dialog provides information about features, what to expect, and the commands/keybindings that operate them.\n They exist for the editor, terminal, notebooks, chat, comments, and debug views and can be opened with the Open Accessibility Help command.\n{0}", Button(localize('openAccessibilityHelp', "Open Accessibility Help"), 'command:editor.action.accessibilityHelp')),
+					media: {
+						type: 'svg', altText: 'VS Code extension marketplace with featured language extensions', path: 'extensions-web.svg'
+					},
+				},
+			]
+		}
+	},
+	{
+		id: 'SetupScreenReaderExtended',
+		title: localize('gettingStarted.setupScreenReaderExtended.title', "Get Started with VS Code using a Screen Reader"),
+		description: localize('gettingStarted.setupScreenReaderExtended.description', "Customize your editor, learn the basics, and start coding"),
+		isFeatured: true,
+		icon: setupIcon,
+		when: CONTEXT_ACCESSIBILITY_MODE_ENABLED.key,
+		content: {
+			type: 'steps',
+			steps: [
+				{
+					id: 'extensionsWeb',
+					title: localize('gettingStarted.extensions.title', "Code with extensions"),
+					description: localize('gettingStarted.extensionsWeb.description.interpolated', "Extensions are VS Code's power-ups. A growing number are becoming available in the web.\n{0}", Button(localize('browsePopularWeb', "Browse Popular Web Extensions"), 'command:workbench.extensions.action.showPopularExtensions')),
+					when: 'workspacePlatform == \'webworker\'',
+					media: {
+						type: 'svg', altText: 'VS Code extension marketplace with featured language extensions', path: 'extensions-web.svg'
+					},
+				},
+				{
+					id: 'findLanguageExtensions',
+					title: localize('gettingStarted.findLanguageExts.title', "Rich support for all your languages"),
+					description: localize('gettingStarted.findLanguageExts.description.interpolated', "Code smarter with syntax highlighting, code completion, linting and debugging. While many languages are built-in, many more can be added as extensions.\n{0}", Button(localize('browseLangExts', "Browse Language Extensions"), 'command:workbench.extensions.action.showLanguageExtensions')),
+					when: 'workspacePlatform != \'webworker\'',
+					media: {
+						type: 'svg', altText: 'Language extensions', path: 'languages.svg'
+					},
+				},
+				{
+					id: 'settings',
+					title: localize('gettingStarted.settings.title', "Tune your settings"),
+					description: localize('gettingStarted.settings.description.interpolated', "Customize every aspect of VS Code and your extensions to your liking. Commonly used settings are listed first to get you started.\n{0}", Button(localize('tweakSettings', "Open Settings"), 'command:toSide:workbench.action.openSettings')),
+					media: {
+						type: 'svg', altText: 'VS Code Settings', path: 'settings.svg'
+					},
+				},
+				{
+					id: 'settingsSync',
+					title: localize('gettingStarted.settingsSync.title', "Sync settings across devices"),
+					description: localize('gettingStarted.settingsSync.description.interpolated', "Keep your essential customizations backed up and updated across all your devices.\n{0}", Button(localize('enableSync', "Backup and Sync Settings"), 'command:workbench.userDataSync.actions.turnOn')),
+					when: 'syncStatus != uninitialized',
+					completionEvents: ['onEvent:sync-enabled'],
+					media: {
+						type: 'svg', altText: 'The "Turn on Sync" entry in the settings gear menu.', path: 'settingsSync.svg'
+					},
+				},
+				{
+					id: 'commandPaletteTask',
+					title: localize('gettingStarted.commandPalette.title', "Unlock productivity with the Command Palette "),
+					description: localize('gettingStarted.commandPalette.description.interpolated', "Run commands without reaching for your mouse to accomplish any task in VS Code.\n{0}", Button(localize('commandPalette', "Open Command Palette"), 'command:workbench.action.showCommands')),
+					media: { type: 'svg', altText: 'Command Palette overlay for searching and executing commands.', path: 'commandPalette.svg' },
+				},
+				{
+					id: 'pickAFolderTask-Mac',
+					title: localize('gettingStarted.setup.OpenFolder.title', "Open up your code"),
+					description: localize('gettingStarted.setup.OpenFolder.description.interpolated', "You're all set to start coding. Open a project folder to get your files into VS Code.\n{0}", Button(localize('pickFolder', "Pick a Folder"), 'command:workbench.action.files.openFileFolder')),
+					when: 'isMac && workspaceFolderCount == 0',
+					media: {
+						type: 'svg', altText: 'Explorer view showing buttons for opening folder and cloning repository.', path: 'openFolder.svg'
+					}
+				},
+				{
+					id: 'pickAFolderTask-Other',
+					title: localize('gettingStarted.setup.OpenFolder.title', "Open up your code"),
+					description: localize('gettingStarted.setup.OpenFolder.description.interpolated', "You're all set to start coding. Open a project folder to get your files into VS Code.\n{0}", Button(localize('pickFolder', "Pick a Folder"), 'command:workbench.action.files.openFolder')),
+					when: '!isMac && workspaceFolderCount == 0',
+					media: {
+						type: 'svg', altText: 'Explorer view showing buttons for opening folder and cloning repository.', path: 'openFolder.svg'
+					}
+				},
+				{
+					id: 'quickOpen',
+					title: localize('gettingStarted.quickOpen.title', "Quickly navigate between your files"),
+					description: localize('gettingStarted.quickOpen.description.interpolated', "Navigate between files in an instant with one keystroke. Tip: Open multiple files by pressing the right arrow key.\n{0}", Button(localize('quickOpen', "Quick Open a File"), 'command:toSide:workbench.action.quickOpen')),
+					when: 'workspaceFolderCount != 0',
+					media: {
+						type: 'svg', altText: 'Go to file in quick search.', path: 'search.svg'
+					}
+				},
+			]
+		}
+	},
 	{
 		id: 'Beginner',
 		isFeatured: false,
