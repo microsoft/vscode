@@ -49,8 +49,6 @@ export async function resolveElectronConfiguration(options: LaunchOptions): Prom
 		args.push('--disable-dev-shm-usage');
 		// Refs https://github.com/microsoft/vscode/issues/192206
 		args.push('--disable-gpu');
-		args.push('--no-sandbox');
-		args.push('--disable-gpu-sandbox');
 	}
 
 	if (process.platform === 'darwin') {
