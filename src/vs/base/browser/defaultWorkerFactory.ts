@@ -5,7 +5,7 @@
 
 import { createTrustedTypesPolicy } from 'vs/base/browser/trustedTypes';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { COI } from 'vs/base/common/network';
+import { AppResourcePath, COI, FileAccess } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { IWorker, IWorkerCallback, IWorkerFactory, logOnceWebWorkerWarning } from 'vs/base/common/worker/simpleWorker';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -189,14 +189,21 @@ export class DefaultWorkerFactory implements IWorkerFactory {
 		this._webWorkerFailedBeforeError = false;
 	}
 
-	public create(moduleId: string, onMessageCallback: IWorkerCallback, onErrorCallback: (err: any) => void): IWorker {
+	public create(modules: { moduleId: string; esmModuleId: string }, onMessageCallback: IWorkerCallback, onErrorCallback: (err: any) => void): IWorker {
 		const workerId = (++DefaultWorkerFactory.LAST_WORKER_ID);
 
 		if (this._webWorkerFailedBeforeError) {
 			throw this._webWorkerFailedBeforeError;
 		}
 
-		return new WebWorker(this.workerMainLocation, moduleId, workerId, this._label || 'anonymous' + workerId, onMessageCallback, (err) => {
+		let workerMainLocation = this.workerMainLocation;
+		const moduleId = modules.moduleId;
+
+		if (isESM) {
+			workerMainLocation = FileAccess.asBrowserUri(modules.esmModuleId + '.esm.js' as AppResourcePath);
+		}
+
+		return new WebWorker(workerMainLocation, moduleId, workerId, this._label || 'anonymous' + workerId, onMessageCallback, (err) => {
 			logOnceWebWorkerWarning(err);
 			this._webWorkerFailedBeforeError = err;
 			onErrorCallback(err);

@@ -24,7 +24,7 @@ export interface IWorkerCallback {
 }
 
 export interface IWorkerFactory {
-	create(moduleId: string, callback: IWorkerCallback, onErrorCallback: (err: any) => void): IWorker;
+	create(modules: { moduleId: string; esmModuleId: string }, callback: IWorkerCallback, onErrorCallback: (err: any) => void): IWorker;
 }
 
 let webWorkerWarningLogged = false;
@@ -278,7 +278,7 @@ export class SimpleWorkerClient<W extends object, H extends object> extends Disp
 		let lazyProxyReject: ((err: any) => void) | null = null;
 
 		this._worker = this._register(workerFactory.create(
-			'vs/base/common/worker/simpleWorker',
+			{ moduleId: 'vs/base/common/worker/simpleWorker', esmModuleId: moduleId },
 			(msg: Message) => {
 				this._protocol.handleMessage(msg);
 			},
