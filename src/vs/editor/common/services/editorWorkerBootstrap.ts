@@ -7,6 +7,15 @@ import { SimpleWorkerServer } from 'vs/base/common/worker/simpleWorker';
 import { EditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';
 import { IEditorWorkerHost } from 'vs/editor/common/services/editorWorkerHost';
 
+type MessageEvent = {
+	data: any;
+};
+
+declare const globalThis: {
+	postMessage: (message: any) => void;
+	onmessage: (event: MessageEvent) => void;
+};
+
 let initialized = false;
 
 export function initialize(factory: any) {
@@ -34,7 +43,7 @@ globalThis.onmessage = (e: MessageEvent) => {
 type CreateFunction<C, D, R = any> = (ctx: C, data: D) => R;
 
 export function bootstrapSimpleEditorWorker<C, D, R>(createFn: CreateFunction<C, D, R>) {
-	self.onmessage = () => {
+	globalThis.onmessage = () => {
 		initialize((ctx: C, createData: D) => {
 			return createFn.call(self, ctx, createData);
 		});

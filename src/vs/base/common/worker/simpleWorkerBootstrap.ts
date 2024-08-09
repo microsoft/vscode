@@ -5,6 +5,15 @@
 
 import { IRequestHandlerFactory, SimpleWorkerServer } from 'vs/base/common/worker/simpleWorker';
 
+type MessageEvent = {
+	data: any;
+};
+
+declare const globalThis: {
+	postMessage: (message: any) => void;
+	onmessage: (event: MessageEvent) => void;
+};
+
 let initialized = false;
 
 function initialize<H extends object>(factory: IRequestHandlerFactory<H>) {
