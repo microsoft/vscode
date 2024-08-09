@@ -63,7 +63,7 @@ export class TableColumnResizeQuickPick extends Disposable {
 
 	private _validateColumnResizeValue(quickPick: IQuickPick<IColumnResizeQuickPickItem>): number | undefined {
 		const percentage = Number.parseInt(quickPick.value);
-		if (!Number.isInteger(percentage)) {
+		if (quickPick.value && !Number.isInteger(percentage)) {
 			quickPick.validationMessage = localize('table.column.resizeValue.invalidType', "Please enter an integer.");
 			quickPick.severity = Severity.Error;
 			return;
