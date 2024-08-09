@@ -26,7 +26,7 @@ import { IFileService, IFileStatWithPartialMetadata } from 'vs/platform/files/co
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IProgress, IProgressService, IProgressStep, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { minimapFindMatch, overviewRulerFindMatchForeground } from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
@@ -2025,8 +2025,7 @@ export class SearchModel extends Disposable {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
-		@INotebookSearchService private readonly notebookSearchService: INotebookSearchService,
-		@IProgressService private readonly progressService: IProgressService,
+		@INotebookSearchService private readonly notebookSearchService: INotebookSearchService
 	) {
 		super();
 		this._searchResult = this.instantiationService.createInstance(SearchResult, this);
@@ -2084,18 +2083,14 @@ export class SearchModel extends Disposable {
 		}
 	}
 
-	private async doAISearchWithModal(searchQuery: IAITextQuery, searchInstanceID: string, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete> {
+	private async doAISearch(searchQuery: IAITextQuery, searchInstanceID: string, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete> {
 		const promise = this.searchService.aiTextSearch(
 			searchQuery,
 			token, async (p: ISearchProgressItem) => {
 				this.onSearchProgress(p, searchInstanceID, false, true);
 				onProgress?.(p);
 			});
-		return this.progressService.withProgress<ISearchComplete>({
-			location: ProgressLocation.Notification,
-			type: 'syncing',
-			title: 'Searching for AI results...',
-		}, async (_) => promise);
+		return promise;
 	}
 
 	aiSearch(query: IAITextQuery, onProgress?: (result: ISearchProgressItem) => void, callerToken?: CancellationToken): Promise<ISearchComplete> {
@@ -2103,7 +2098,7 @@ export class SearchModel extends Disposable {
 		const searchInstanceID = Date.now().toString();
 		const tokenSource = this.currentAICancelTokenSource = new CancellationTokenSource(callerToken);
 		const start = Date.now();
-		const asyncAIResults = this.doAISearchWithModal(query,
+		const asyncAIResults = this.doAISearch(query,
 			searchInstanceID,
 			this.currentAICancelTokenSource.token, async (p: ISearchProgressItem) => {
 				this.onSearchProgress(p, searchInstanceID, false, true);

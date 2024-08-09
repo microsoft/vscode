@@ -419,7 +419,13 @@ export interface TextSearchProvider {
 	 */
 	provideTextSearchResults(query: TextSearchQuery, options: TextSearchOptions, progress: IProgress<TextSearchResult>, token: CancellationToken): ProviderResult<TextSearchComplete>;
 }
-
+export type TextSearchResultWithProgress = TextSearchResult | TextSearchProgress;
+export interface TextSearchProgress {
+	/**
+	 * Text that is used for progress. Once another progress message comes, this will be marked as complete.
+	 */
+	text: string;
+}
 export interface AITextSearchProvider {
 	/**
 	 * Provide results that match the given text pattern.
@@ -428,7 +434,7 @@ export interface AITextSearchProvider {
 	 * @param progress A progress callback that must be invoked for all results.
 	 * @param token A cancellation token.
 	 */
-	provideAITextSearchResults(query: string, options: AITextSearchOptions, progress: IProgress<TextSearchResult>, token: CancellationToken): ProviderResult<TextSearchComplete>;
+	provideAITextSearchResults(query: string, options: AITextSearchOptions, progress: IProgress<TextSearchResultWithProgress>, token: CancellationToken): ProviderResult<TextSearchComplete>;
 }
 
 /**

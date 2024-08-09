@@ -193,6 +193,8 @@ export interface IFileMatch<U extends UriComponents = URI> {
 
 export type IRawFileMatch2 = IFileMatch<UriComponents>;
 
+export type IRawTextResultProgress = IRawFileMatch2 | IUserFacingProgress;
+
 export interface ITextSearchPreviewOptions {
 	matchLines: number;
 	charsPerLine: number;
@@ -234,7 +236,15 @@ export interface IProgressMessage {
 	message: string;
 }
 
-export type ISearchProgressItem = IFileMatch | IProgressMessage;
+export interface IUserFacingProgress {
+	text: string;
+}
+
+export function isUserFacingProgress(p: any): p is IUserFacingProgress {
+	return !!(p as IUserFacingProgress).text;
+}
+
+export type ISearchProgressItem = IFileMatch | IProgressMessage | IUserFacingProgress;
 
 export function isFileMatch(p: ISearchProgressItem): p is IFileMatch {
 	return !!(<IFileMatch>p).resource;

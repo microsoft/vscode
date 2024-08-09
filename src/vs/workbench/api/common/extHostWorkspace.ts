@@ -29,7 +29,7 @@ import { GlobPattern } from 'vs/workbench/api/common/extHostTypeConverters';
 import { Range } from 'vs/workbench/api/common/extHostTypes';
 import { IURITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
 import { IFileQueryBuilderOptions, ITextQueryBuilderOptions } from 'vs/workbench/services/search/common/queryBuilder';
-import { IRawFileMatch2, ITextSearchResult, resultIsMatch } from 'vs/workbench/services/search/common/search';
+import { IRawTextResultProgress, isUserFacingProgress, ITextSearchResult, resultIsMatch } from 'vs/workbench/services/search/common/search';
 import * as vscode from 'vscode';
 import { ExtHostWorkspaceShape, IRelativePatternDto, IWorkspaceData, MainContext, MainThreadMessageOptions, MainThreadMessageServiceShape, MainThreadWorkspaceShape } from './extHost.protocol';
 import { revive } from 'vs/base/common/marshalling';
@@ -191,7 +191,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 	private readonly _extHostFileSystemInfo: IExtHostFileSystemInfo;
 	private readonly _uriTransformerService: IURITransformerService;
 
-	private readonly _activeSearchCallbacks: ((match: IRawFileMatch2) => any)[] = [];
+	private readonly _activeSearchCallbacks: ((match: IRawTextResultProgress) => any)[] = [];
 
 	private _trusted: boolean = false;
 
@@ -560,6 +560,10 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 			if (isCanceled) {
 				return;
 			}
+			if (isUserFacingProgress(p)) {
+				// findTextInFiles does not need to know about progress items
+				return;
+			}
 
 			const uri = URI.revive(p.resource);
 			p.results!.forEach(rawResult => {
@@ -606,7 +610,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		}
 	}
 
-	$handleTextSearchResult(result: IRawFileMatch2, requestId: number): void {
+	$handleTextSearchResult(result: IRawTextResultProgress, requestId: number): void {
 		this._activeSearchCallbacks[requestId]?.(result);
 	}
 
