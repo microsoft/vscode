@@ -11,7 +11,6 @@ import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config
 import { IEditorContribution, IScrollEvent } from 'vs/editor/common/editorCommon';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IHoverWidget } from 'vs/editor/contrib/hover/browser/hoverTypes';
-import { InlineSuggestionHintsContentWidget } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsHintsWidget';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { isMousePositionWithinElement } from 'vs/editor/contrib/hover/browser/hoverUtils';
 import 'vs/css!./hover';
@@ -90,6 +89,7 @@ export class MarginHoverController extends Disposable implements IEditorContribu
 			this._listenersStore.add(this._editor.onMouseMove((e: IEditorMouseEvent) => this._onEditorMouseMove(e)));
 			this._listenersStore.add(this._editor.onKeyDown((e: IKeyboardEvent) => this._onKeyDown(e)));
 		}
+
 		this._listenersStore.add(this._editor.onMouseLeave((e) => this._onEditorMouseLeave(e)));
 		this._listenersStore.add(this._editor.onDidChangeModel(() => {
 			this._cancelScheduler();
@@ -207,9 +207,6 @@ export class MarginHoverController extends Disposable implements IEditorContribu
 
 	private _hideWidgets(): void {
 		if (_sticky) {
-			return;
-		}
-		if (InlineSuggestionHintsContentWidget.dropDownVisible) {
 			return;
 		}
 		this._glyphWidget?.hide();
