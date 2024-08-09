@@ -952,6 +952,24 @@ export class FileSorter implements ITreeSorter<ExplorerItem> {
 				}
 
 				break;
+			case 'filesFirstWhenNested':
+				if (statA.parent?.isRoot && statA.isDirectory && !statB.isDirectory) {
+					return -1;
+				}
+
+				if (statA.parent?.isRoot && !statA.isDirectory && statB.isDirectory) {
+					return 1;
+				}
+
+				if (!statA.parent?.isRoot && statB.isDirectory && !statA.isDirectory) {
+					return -1;
+				}
+
+				if (!statA.parent?.isRoot && statA.isDirectory && !statB.isDirectory) {
+					return 1;
+				}
+
+				break;
 
 			case 'mixed':
 				break; // not sorting when "mixed" is on
