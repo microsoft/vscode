@@ -155,6 +155,12 @@ class CachedPublicClientApplication implements ICachedPublicClientApplication {
 		}
 	};
 
+	/**
+	 * We keep track of the last time an account was removed so we can recreate the PCA if we detect that an account was removed.
+	 * This is due to MSAL-node not providing a way to detect when an account is removed from the cache. An internal issue has been
+	 * filed to track this. If MSAL-node ever provides a way to detect this or handle this better in the Persistant Cache Plugin,
+	 * we can remove this logic.
+	 */
 	private _lastCreated: Date;
 
 	constructor(
