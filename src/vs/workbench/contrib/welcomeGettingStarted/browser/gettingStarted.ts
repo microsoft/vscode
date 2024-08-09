@@ -527,6 +527,7 @@ export class GettingStartedPage extends EditorPane {
 		});
 
 		if (this.currentMediaType !== stepToExpand.media.type) {
+			this.mediaDisposables.clear();
 
 			this.currentMediaType = stepToExpand.media.type;
 
