@@ -58,6 +58,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 		private readonly completionContext: CompletionContext,
 		public readonly metadata: any | undefined,
 		client: ITypeScriptServiceClient,
+		defaultCommitCharacters: readonly string[] | undefined,
 	) {
 		const label = tsEntry.name || (tsEntry.insertText ?? '');
 		super(label, MyCompletionItem.convertKind(tsEntry.kind));
@@ -93,7 +94,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 		this.useCodeSnippet = completionContext.completeFunctionCalls && (this.kind === vscode.CompletionItemKind.Function || this.kind === vscode.CompletionItemKind.Method);
 
 		this.range = this.getRangeFromReplacementSpan(tsEntry, completionContext);
-		this.commitCharacters = MyCompletionItem.getCommitCharacters(completionContext, tsEntry);
+		this.commitCharacters = MyCompletionItem.getCommitCharacters(completionContext, tsEntry, defaultCommitCharacters);
 		this.insertText = isSnippet && tsEntry.insertText ? new vscode.SnippetString(tsEntry.insertText) : tsEntry.insertText;
 		this.filterText = tsEntry.filterText || this.getFilterText(completionContext.line, tsEntry.insertText);
 
@@ -500,7 +501,22 @@ class MyCompletionItem extends vscode.CompletionItem {
 		}
 	}
 
-	private static getCommitCharacters(context: CompletionContext, entry: Proto.CompletionEntry): string[] | undefined {
+	private static getCommitCharacters(
+		context: CompletionContext,
+		entry: Proto.CompletionEntry,
+		defaultCommitCharacters: readonly string[] | undefined): string[] | undefined {
+		// @ts-expect-error until TS 5.6
+		let commitCharacters = entry.commitCharacters ?? defaultCommitCharacters;
+		if (commitCharacters) {
+			if (context.enableCallCompletions
+				&& !context.isNewIdentifierLocation
+				&& entry.kind !== PConst.Kind.warning
+				&& entry.kind !== PConst.Kind.string) {
+				commitCharacters.push('(');
+			}
+			return commitCharacters;
+		}
+
 		if (entry.kind === PConst.Kind.warning || entry.kind === PConst.Kind.string) { // Ambient JS word based suggestion, strings
 			return undefined;
 		}
@@ -509,7 +525,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 			return undefined;
 		}
 
-		const commitCharacters: string[] = ['.', ',', ';'];
+		commitCharacters = ['.', ',', ';'];
 		if (context.enableCallCompletions) {
 			commitCharacters.push('(');
 		}
@@ -744,6 +760,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 		let response: ServerResponse.Response<Proto.CompletionInfoResponse> | undefined;
 		let duration: number | undefined;
 		let optionalReplacementRange: vscode.Range | undefined;
+		let defaultCommitCharacters: string[] | undefined;
 		if (this.client.apiVersion.gte(API.v300)) {
 			const startTime = Date.now();
 			try {
@@ -769,6 +786,8 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 			isIncomplete = !!response.body.isIncomplete || (response.metadata as any)?.isIncomplete;
 			entries = response.body.entries;
 			metadata = response.metadata;
+			// @ts-expect-error until TS 5.6
+			defaultCommitCharacters = response.body.defaultCommitCharacters;
 
 			if (response.body.optionalReplacementSpan) {
 				optionalReplacementRange = typeConverters.Range.fromTextSpan(response.body.optionalReplacementSpan);
@@ -799,7 +818,14 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 		const items: MyCompletionItem[] = [];
 		for (const entry of entries) {
 			if (!shouldExcludeCompletionEntry(entry, completionConfiguration)) {
-				const item = new MyCompletionItem(position, document, entry, completionContext, metadata, this.client);
+				const item = new MyCompletionItem(
+					position,
+					document,
+					entry,
+					completionContext,
+					metadata,
+					this.client,
+					defaultCommitCharacters);
 				item.command = {
 					command: ApplyCompletionCommand.ID,
 					title: '',

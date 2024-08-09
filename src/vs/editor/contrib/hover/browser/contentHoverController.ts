@@ -30,6 +30,7 @@ import { TokenizationRegistry } from 'vs/editor/common/languages';
 const _sticky = false
 	// || Boolean("true") // done "weirdly" so that a lint warning prevents you from pushing this
 	;
+import { isMousePositionWithinElement } from 'vs/editor/contrib/hover/browser/hoverUtils';
 
 export class ContentHoverController extends Disposable implements IEditorContribution {
 
@@ -523,8 +524,25 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 		return anchorCandidates;
 	}
 
+	private _onMouseLeave(e: MouseEvent): void {
+		const editorDomNode = this._editor.getDomNode();
+		const isMousePositionOutsideOfEditor = !editorDomNode || !isMousePositionWithinElement(editorDomNode, e.x, e.y);
+		if (isMousePositionOutsideOfEditor) {
+			this.hide();
+		}
+	}
+
+	private _onMouseLeave(e: MouseEvent): void {
+		const editorDomNode = this._editor.getDomNode();
+		const isMousePositionOutsideOfEditor = !editorDomNode || !isMousePositionWithinElement(editorDomNode, e.x, e.y);
+		if (isMousePositionOutsideOfEditor) {
+			this.hide();
+		}
+	}
+
 	public showContentHover(range: Range, mode: HoverStartMode, source: HoverStartSource, focus: boolean, activatedByColorDecoratorClick: boolean = false): void {
 		this._activatedByDecoratorClick = activatedByColorDecoratorClick;
+
 		this._startShowingOrUpdateHover(new HoverRangeAnchor(0, range, undefined, undefined), mode, source, focus, null);
 	}
 
@@ -604,6 +622,10 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 		this._computer.anchor = null;
 		this._hoverOperation.cancel();
 		this._setCurrentResult(null);
+	}
+
+	public getDomNode(): HTMLElement {
+		return this._contentHoverWidget.getDomNode();
 	}
 
 	public get isColorPickerVisible(): boolean {

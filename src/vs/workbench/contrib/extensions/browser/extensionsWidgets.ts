@@ -561,7 +561,18 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 					}, focus);
 				},
 				placement: 'element'
-			}, this.options.target, { markdown: () => Promise.resolve(this.getHoverMarkdown()), markdownNotSupportedFallback: undefined });
+			},
+				this.options.target,
+				{
+					markdown: () => Promise.resolve(this.getHoverMarkdown()),
+					markdownNotSupportedFallback: undefined
+				},
+				{
+					appearance: {
+						showHoverHint: true
+					}
+				}
+			);
 		}
 	}
 
@@ -641,7 +652,7 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 		const runtimeState = this.extension.runtimeState;
 		const recommendationMessage = this.getRecommendationMessage(this.extension);
 
-		if (extensionRuntimeStatus || extensionStatus || runtimeState || recommendationMessage || preReleaseMessage) {
+		if (extensionRuntimeStatus || extensionStatus.length || runtimeState || recommendationMessage || preReleaseMessage) {
 
 			markdown.appendMarkdown(`---`);
 			markdown.appendText(`\n`);
@@ -667,11 +678,11 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 				}
 			}
 
-			if (extensionStatus) {
-				if (extensionStatus.icon) {
-					markdown.appendMarkdown(`$(${extensionStatus.icon.id})&nbsp;`);
+			for (const status of extensionStatus) {
+				if (status.icon) {
+					markdown.appendMarkdown(`$(${status.icon.id})&nbsp;`);
 				}
-				markdown.appendMarkdown(extensionStatus.message.value);
+				markdown.appendMarkdown(status.message.value);
 				if (this.extension.enablementState === EnablementState.DisabledByExtensionDependency && this.extension.local) {
 					markdown.appendMarkdown(`&nbsp;[${localize('dependencies', "Show Dependencies")}](${URI.parse(`command:extension.open?${encodeURIComponent(JSON.stringify([this.extension.identifier.id, ExtensionEditorTab.Dependencies]))}`)})`);
 				}
@@ -756,12 +767,18 @@ export class ExtensionStatusWidget extends ExtensionWidget {
 		const disposables = new DisposableStore();
 		this.renderDisposables.value = disposables;
 		const extensionStatus = this.extensionStatusAction.status;
-		if (extensionStatus) {
+		if (extensionStatus.length) {
 			const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
-			if (extensionStatus.icon) {
-				markdown.appendMarkdown(`$(${extensionStatus.icon.id})&nbsp;`);
+			for (let i = 0; i < extensionStatus.length; i++) {
+				const status = extensionStatus[i];
+				if (status.icon) {
+					markdown.appendMarkdown(`$(${status.icon.id})&nbsp;`);
+				}
+				markdown.appendMarkdown(status.message.value);
+				if (i < extensionStatus.length - 1) {
+					markdown.appendText(`\n`);
+				}
 			}
-			markdown.appendMarkdown(extensionStatus.message.value);
 			const rendered = disposables.add(renderMarkdown(markdown, {
 				actionHandler: {
 					callback: (content) => {

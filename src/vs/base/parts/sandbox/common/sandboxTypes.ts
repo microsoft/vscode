@@ -53,4 +53,26 @@ export interface ISandboxConfiguration {
 	 * Location of V8 code cache.
 	 */
 	codeCachePath?: string;
+
+	/**
+	 * NLS support
+	 */
+	nls: {
+
+		/**
+		 * All NLS messages produced by `localize` and `localize2` calls
+		 * under `src/vs`.
+		 */
+		messages: string[];
+
+		/**
+		 * The actual language of the NLS messages (e.g. 'en', de' or 'pt-br').
+		 */
+		language: string | undefined;
+	};
+
+	/**
+	 * DEV time only! All css-modules that we have.
+	 */
+	cssModules?: string[];
 }

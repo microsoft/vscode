@@ -19,7 +19,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { IWordWrapTransientState, readTransientState, writeTransientState } from 'vs/workbench/contrib/codeEditor/browser/toggleWordWrap';
 import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
-import { CellEditState, CellFocusMode, CursorAtBoundary, CursorAtLineBoundary, IEditableCellViewModel, INotebookCellDecorationOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CellFocusMode, CellLayoutChangeEvent, CursorAtBoundary, CursorAtLineBoundary, IEditableCellViewModel, INotebookCellDecorationOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookOptionsChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
 import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
@@ -158,6 +158,16 @@ export abstract class BaseCellViewModel extends Disposable {
 		this._onDidChangeState.fire({ outputCollapsedChanged: true });
 	}
 
+	protected _commentHeight = 0;
+
+	set commentHeight(height: number) {
+		if (this._commentHeight === height) {
+			return;
+		}
+		this._commentHeight = height;
+		this.layoutChange({ commentHeight: true }, 'BaseCellViewModel#commentHeight');
+	}
+
 	private _isDisposed = false;
 
 	constructor(
@@ -204,7 +214,7 @@ export abstract class BaseCellViewModel extends Disposable {
 	abstract updateOptions(e: NotebookOptionsChangeEvent): void;
 	abstract getHeight(lineHeight: number): number;
 	abstract onDeselect(): void;
-	abstract layoutChange(change: any): void;
+	abstract layoutChange(change: CellLayoutChangeEvent, source?: string): void;
 
 	assertTextModelAttached(): boolean {
 		if (this.textModel && this._textEditor && this._textEditor.getModel() === this.textModel) {

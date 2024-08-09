@@ -110,6 +110,10 @@
 	line-height: 22px;
 }
 
+.scm-view .monaco-list-row .monaco-icon-label-container {
+	height: 22px;
+}
+
 .scm-view .monaco-list-row .history,
 .scm-view .monaco-list-row .history-item-group,
 .scm-view .monaco-list-row .resource-group {
@@ -219,7 +223,9 @@
 }
 
 .scm-view .monaco-list-row.focused .separator-container .label-name,
-.scm-view .monaco-list-row.selected .separator-container .label-name {
+.scm-view .monaco-list-row.selected .separator-container .label-name,
+.scm-view .monaco-list-row.focused .separator-container .action-label::before,
+.scm-view .monaco-list-row.selected .separator-container .action-label::before {
 	color: var(--vscode-foreground);
 }
 
@@ -492,22 +498,6 @@
 	margin-top: 1px;
 }
 
-.scm-view .scm-editor-placeholder {
-	position: absolute;
-	pointer-events: none;
-	z-index: 1;
-	padding: 2px 6px;
-	box-sizing: border-box;
-	overflow: hidden;
-	white-space: nowrap;
-	text-overflow: ellipsis;
-	color: var(--vscode-input-placeholderForeground);
-}
-
-.scm-view .scm-editor-placeholder.hidden {
-	display: none;
-}
-
 .scm-view .scm-editor-container .monaco-editor-background,
 .scm-view .scm-editor-container .monaco-editor,
 .scm-view .scm-editor-container .monaco-editor .margin,
@@ -522,6 +512,10 @@
 	color: var(--vscode-input-foreground);
 }
 
+.scm-view .scm-editor-container .placeholder-text.mtk1 {
+	color: var(--vscode-input-placeholderForeground);
+}
+
 /* Repositories */
 
 .scm-repositories-view .scm-provider {
@@ -531,4 +525,27 @@
 
 .scm-repositories-view .scm-provider > .label > .name {
 	font-weight: normal;
+}
+
+/* History item hover */
+
+.monaco-hover.history-item-hover p:first-child {
+	margin-top: 4px;
+}
+
+.monaco-hover.history-item-hover p:last-child {
+	margin-bottom: 4px;
+}
+
+.monaco-hover.history-item-hover hr {
+	margin-top: 4px;
+	margin-bottom: 4px;
+}
+
+.monaco-hover.history-item-hover hr + p {
+	margin: 4px 0;
+}
+
+.monaco-hover.history-item-hover .markdown-hover .hover-contents:not(.code-hover-contents):not(.html-hover-contents) span:not(.codicon) {
+	margin-bottom: 0 !important;
 }

@@ -413,6 +413,10 @@ export class URI implements UriComponents {
 			return result;
 		}
 	}
+
+	[Symbol.for('debug.description')]() {
+		return `URI(${this.toString()})`;
+	}
 }
 
 export interface UriComponents {

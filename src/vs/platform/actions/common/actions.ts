@@ -60,6 +60,7 @@ export class MenuId {
 	static readonly DebugWatchContext = new MenuId('DebugWatchContext');
 	static readonly DebugToolBar = new MenuId('DebugToolBar');
 	static readonly DebugToolBarStop = new MenuId('DebugToolBarStop');
+	static readonly DebugCallStackToolbar = new MenuId('DebugCallStackToolbar');
 	static readonly EditorContext = new MenuId('EditorContext');
 	static readonly SimpleEditorContext = new MenuId('SimpleEditorContext');
 	static readonly EditorContent = new MenuId('EditorContent');
@@ -112,6 +113,7 @@ export class MenuId {
 	static readonly ProblemsPanelContext = new MenuId('ProblemsPanelContext');
 	static readonly SCMInputBox = new MenuId('SCMInputBox');
 	static readonly SCMChangesSeparator = new MenuId('SCMChangesSeparator');
+	static readonly SCMChangesContext = new MenuId('SCMChangesContext');
 	static readonly SCMIncomingChanges = new MenuId('SCMIncomingChanges');
 	static readonly SCMIncomingChangesContext = new MenuId('SCMIncomingChangesContext');
 	static readonly SCMIncomingChangesSetting = new MenuId('SCMIncomingChangesSetting');
@@ -138,10 +140,12 @@ export class MenuId {
 	static readonly StickyScrollContext = new MenuId('StickyScrollContext');
 	static readonly TestItem = new MenuId('TestItem');
 	static readonly TestItemGutter = new MenuId('TestItemGutter');
+	static readonly TestProfilesContext = new MenuId('TestProfilesContext');
 	static readonly TestMessageContext = new MenuId('TestMessageContext');
 	static readonly TestMessageContent = new MenuId('TestMessageContent');
 	static readonly TestPeekElement = new MenuId('TestPeekElement');
 	static readonly TestPeekTitle = new MenuId('TestPeekTitle');
+	static readonly TestCallStack = new MenuId('TestCallStack');
 	static readonly TouchBarContext = new MenuId('TouchBarContext');
 	static readonly TitleBarContext = new MenuId('TitleBarContext');
 	static readonly TitleBarTitleContext = new MenuId('TitleBarTitleContext');
@@ -274,6 +278,11 @@ export interface IMenu extends IDisposable {
 	getActions(options?: IMenuActionOptions): [string, Array<MenuItemAction | SubmenuItemAction>][];
 }
 
+export interface IMenuData {
+	contexts: ReadonlySet<string>;
+	actions: [string, Array<MenuItemAction | SubmenuItemAction>][];
+}
+
 export const IMenuService = createDecorator<IMenuService>('menuService');
 
 export interface IMenuCreateOptions {
@@ -286,12 +295,24 @@ export interface IMenuService {
 	readonly _serviceBrand: undefined;
 
 	/**
+	 * Consider using getMenuActions if you don't need to listen to events.
+	 *
 	 * Create a new menu for the given menu identifier. A menu sends events when it's entries
 	 * have changed (placement, enablement, checked-state). By default it does not send events for
 	 * submenu entries. That is more expensive and must be explicitly enabled with the
 	 * `emitEventsForSubmenuChanges` flag.
 	 */
 	createMenu(id: MenuId, contextKeyService: IContextKeyService, options?: IMenuCreateOptions): IMenu;
+
+	/**
+	 * Creates a new menu, gets the actions, and then disposes of the menu.
+	 */
+	getMenuActions(id: MenuId, contextKeyService: IContextKeyService, options?: IMenuActionOptions): [string, Array<MenuItemAction | SubmenuItemAction>][];
+
+	/**
+	 * Gets the names of the contexts that this menu listens on.
+	 */
+	getMenuContexts(id: MenuId): ReadonlySet<string>;
 
 	/**
 	 * Reset **all** menu item hidden states.

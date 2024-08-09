@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { createStringDataTransferItem, IReadonlyVSDataTransfer, VSDataTransfer } from 'vs/base/common/dataTransfer';
@@ -321,7 +320,9 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 			selector: selector,
 			provideMultiDocumentHighlights: (model: ITextModel, position: EditorPosition, otherModels: ITextModel[], token: CancellationToken): Promise<Map<URI, languages.DocumentHighlight[]> | undefined> => {
 				return this._proxy.$provideMultiDocumentHighlights(handle, model.uri, position, otherModels.map(model => model.uri), token).then(dto => {
-					if (isFalsyOrEmpty(dto)) {
+					// dto should be non-null + non-undefined
+					// dto length of 0 is valid, just no highlights, pass this through.
+					if (dto === undefined || dto === null) {
 						return undefined;
 					}
 					const result = new ResourceMap<languages.DocumentHighlight[]>();
@@ -1001,8 +1002,8 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 
 	// --- mapped edits
 
-	$registerMappedEditsProvider(handle: number, selector: IDocumentFilterDto[]): void {
-		const provider = new MainThreadMappedEditsProvider(handle, this._proxy, this._uriIdentService);
+	$registerMappedEditsProvider(handle: number, selector: IDocumentFilterDto[], displayName: string): void {
+		const provider = new MainThreadMappedEditsProvider(displayName, handle, this._proxy, this._uriIdentService);
 		this._registrations.set(handle, this._languageFeaturesService.mappedEditsProvider.register(selector, provider));
 	}
 }
@@ -1241,6 +1242,7 @@ export class MainThreadDocumentRangeSemanticTokensProvider implements languages.
 export class MainThreadMappedEditsProvider implements languages.MappedEditsProvider {
 
 	constructor(
+		public readonly displayName: string,
 		private readonly _handle: number,
 		private readonly _proxy: ExtHostLanguageFeaturesShape,
 		private readonly _uriService: IUriIdentityService,

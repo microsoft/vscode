@@ -15,15 +15,16 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IsLinuxContext, IsWindowsContext } from 'vs/platform/contextkey/common/contextkeys';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { clearChatEditor } from 'vs/workbench/contrib/chat/browser/actions/chatClear';
 import { CHAT_VIEW_ID, IChatWidgetService, showChatView } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatEditor';
 import { ChatEditorInput } from 'vs/workbench/contrib/chat/browser/chatEditorInput';
 import { ChatViewPane } from 'vs/workbench/contrib/chat/browser/chatViewPane';
-import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_INPUT_CURSOR_AT_TOP, CONTEXT_CHAT_LOCATION, CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_INPUT_CURSOR_AT_TOP, CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatDetail, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { IChatWidgetHistoryService } from 'vs/workbench/contrib/chat/common/chatWidgetHistoryService';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ACTIVE_GROUP, IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 
@@ -156,7 +157,8 @@ class ChatHistoryAction extends Action2 {
 		picker.items = getPicks();
 		store.add(picker.onDidTriggerItemButton(context => {
 			if (context.button === openInEditorButton) {
-				editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: <IChatEditorOptions>{ target: { sessionId: context.item.chat.sessionId }, pinned: true } }, ACTIVE_GROUP);
+				const options: IChatEditorOptions = { target: { sessionId: context.item.chat.sessionId }, pinned: true };
+				editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options }, ACTIVE_GROUP);
 				picker.hide();
 			} else if (context.button === deleteButton) {
 				chatService.removeHistoryEntry(context.item.chat.sessionId);
@@ -228,8 +230,26 @@ export function registerChatActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor, ...args: any[]) {
+			const editorGroupsService = accessor.get(IEditorGroupsService);
+			const viewsService = accessor.get(IViewsService);
+
 			const chatService = accessor.get(IChatService);
 			chatService.clearAllHistoryEntries();
+
+			const chatView = viewsService.getViewWithId(CHAT_VIEW_ID) as ChatViewPane | undefined;
+			if (chatView) {
+				chatView.widget.clear();
+			}
+
+			// Clear all chat editors. Have to go this route because the chat editor may be in the background and
+			// not have a ChatEditorInput.
+			editorGroupsService.groups.forEach(group => {
+				group.editors.forEach(editor => {
+					if (editor instanceof ChatEditorInput) {
+						clearChatEditor(accessor, editor);
+					}
+				});
+			});
 		}
 	});
 
@@ -238,7 +258,7 @@ export function registerChatActions() {
 			super({
 				id: 'chat.action.focus',
 				title: localize2('actions.interactiveSession.focus', 'Focus Chat List'),
-				precondition: ContextKeyExpr.and(CONTEXT_IN_CHAT_INPUT, CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Panel)),
+				precondition: ContextKeyExpr.and(CONTEXT_IN_CHAT_INPUT),
 				category: CHAT_CATEGORY,
 				keybinding: [
 					// On mac, require that the cursor is at the top of the input, to avoid stealing cmd+up to move the cursor to the top
@@ -290,6 +310,6 @@ export function stringifyItem(item: IChatRequestViewModel | IChatResponseViewMod
 	if (isRequestVM(item)) {
 		return (includeName ? `${item.username}: ` : '') + item.messageText;
 	} else {
-		return (includeName ? `${item.username}: ` : '') + item.response.asString();
+		return (includeName ? `${item.username}: ` : '') + item.response.toString();
 	}
 }

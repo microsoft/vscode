@@ -14,7 +14,7 @@ import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import { assertIsDefined } from 'vs/base/common/types';
 import 'vs/css!./parameterHints';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { EDITOR_FONT_DEFAULTS, EditorOption } from 'vs/editor/common/config/editorOptions';
 import * as languages from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IMarkdownRenderResult, MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
@@ -126,9 +126,13 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 			if (!this.domNodes) {
 				return;
 			}
+
 			const fontInfo = this.editor.getOption(EditorOption.fontInfo);
-			this.domNodes.element.style.fontSize = `${fontInfo.fontSize}px`;
-			this.domNodes.element.style.lineHeight = `${fontInfo.lineHeight / fontInfo.fontSize}`;
+			const element = this.domNodes.element;
+			element.style.fontSize = `${fontInfo.fontSize}px`;
+			element.style.lineHeight = `${fontInfo.lineHeight / fontInfo.fontSize}`;
+			element.style.setProperty('--vscode-parameterHintsWidget-editorFontFamily', fontInfo.fontFamily);
+			element.style.setProperty('--vscode-parameterHintsWidget-editorFontFamilyDefault', EDITOR_FONT_DEFAULTS.fontFamily);
 		};
 
 		updateFont();
@@ -203,10 +207,6 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		}
 
 		const code = dom.append(this.domNodes.signature, $('.code'));
-		const fontInfo = this.editor.getOption(EditorOption.fontInfo);
-		code.style.fontSize = `${fontInfo.fontSize}px`;
-		code.style.fontFamily = fontInfo.fontFamily;
-
 		const hasParameters = signature.parameters.length > 0;
 		const activeParameterIndex = signature.activeParameter ?? hints.activeParameter;
 

@@ -348,7 +348,7 @@ class EmptyTextEditorHintContentWidget implements IContentWidget {
 				id: ChangeLanguageAction.ID,
 				from: 'hint'
 			});
-			await this.commandService.executeCommand(ChangeLanguageAction.ID, { from: 'hint' });
+			await this.commandService.executeCommand(ChangeLanguageAction.ID);
 			this.editor.focus();
 		};
 

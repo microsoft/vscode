@@ -22,8 +22,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { editorForeground, resolveColorValue } from 'vs/platform/theme/common/colorRegistry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { CommentFormActions } from 'vs/workbench/contrib/comments/browser/commentFormActions';
 import { CommentMenus } from 'vs/workbench/contrib/comments/browser/commentMenus';
 import { ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
@@ -63,7 +61,6 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 		focus: boolean,
 		private _actionRunDelegate: (() => void) | null,
 		@ICommentService private commentService: ICommentService,
-		@IThemeService private themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IHoverService private hoverService: IHoverService,
@@ -121,7 +118,7 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 			this.expandReplyArea();
 		} else if (hasExistingComments) {
 			this.createReplyButton(this.commentEditor, this.form);
-		} else if (focus && (!this._commentThread.comments || this._commentThread.comments.length === 0)) {
+		} else if (focus && (this._commentThread.comments && this._commentThread.comments.length === 0)) {
 			this.expandReplyArea();
 		}
 		this._error = dom.append(this.form, dom.$('.validation-error.hidden'));
@@ -213,32 +210,12 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 	}
 
 	setCommentEditorDecorations() {
-		const model = this.commentEditor.getModel();
-		if (model) {
-			const valueLength = model.getValueLength();
-			const hasExistingComments = this._commentThread.comments && this._commentThread.comments.length > 0;
-			const placeholder = valueLength > 0
-				? ''
-				: hasExistingComments
-					? (this._commentOptions?.placeHolder || nls.localize('reply', "Reply..."))
-					: (this._commentOptions?.placeHolder || nls.localize('newComment', "Type a new comment"));
-			const decorations = [{
-				range: {
-					startLineNumber: 0,
-					endLineNumber: 0,
-					startColumn: 0,
-					endColumn: 1
-				},
-				renderOptions: {
-					after: {
-						contentText: placeholder,
-						color: `${resolveColorValue(editorForeground, this.themeService.getColorTheme())?.transparent(0.4)}`
-					}
-				}
-			}];
+		const hasExistingComments = this._commentThread.comments && this._commentThread.comments.length > 0;
+		const placeholder = hasExistingComments
+			? (this._commentOptions?.placeHolder || nls.localize('reply', "Reply..."))
+			: (this._commentOptions?.placeHolder || nls.localize('newComment', "Type a new comment"));
 
-			this.commentEditor.setDecorationsByType('review-zone-widget', COMMENTEDITOR_DECORATION_KEY, decorations);
-		}
+		this.commentEditor.updateOptions({ placeholder });
 	}
 
 	private createTextModelListener(commentEditor: ICodeEditor, commentForm: HTMLElement) {

@@ -12,7 +12,7 @@ import { isWeb, platform } from 'vs/base/common/platform';
 import { arch } from 'vs/base/common/process';
 import { isBoolean } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { IHeaders, IRequestContext, IRequestOptions } from 'vs/base/parts/request/common/request';
+import { IHeaders, IRequestContext, IRequestOptions, isOfflineError } from 'vs/base/parts/request/common/request';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { getTargetPlatform, IExtensionGalleryService, IExtensionIdentifier, IExtensionInfo, IGalleryExtension, IGalleryExtensionAsset, IGalleryExtensionAssets, IGalleryExtensionVersion, InstallOperation, IQueryOptions, IExtensionsControlManifest, isNotWebExtensionInWebTargetPlatform, isTargetPlatformCompatible, ITranslation, SortBy, SortOrder, StatisticType, toTargetPlatform, WEB_EXTENSION_TAG, IExtensionQueryOptions, IDeprecationInfo, ISearchPrefferedResults, ExtensionGalleryError, ExtensionGalleryErrorCode, IProductVersion } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -214,6 +214,7 @@ const PropertyType = {
 	WebExtension: 'Microsoft.VisualStudio.Code.WebExtension',
 	SponsorLink: 'Microsoft.VisualStudio.Code.SponsorLink',
 	SupportLink: 'Microsoft.VisualStudio.Services.Links.Support',
+	ExecutesCode: 'Microsoft.VisualStudio.Code.ExecutesCode',
 };
 
 interface ICriterium {
@@ -431,6 +432,11 @@ function isPreReleaseVersion(version: IRawGalleryExtensionVersion): boolean {
 	return values.length > 0 && values[0].value === 'true';
 }
 
+function executesCode(version: IRawGalleryExtensionVersion): boolean | undefined {
+	const values = version.properties ? version.properties.filter(p => p.key === PropertyType.ExecutesCode) : [];
+	return values.length > 0 ? values[0].value === 'true' : undefined;
+}
+
 function getEnabledApiProposals(version: IRawGalleryExtensionVersion): string[] {
 	const values = version.properties ? version.properties.filter(p => p.key === PropertyType.EnabledApiProposals) : [];
 	const value = (values.length > 0 && values[0].value) || '';
@@ -558,7 +564,8 @@ function toExtension(galleryExtension: IRawGalleryExtension, version: IRawGaller
 			enabledApiProposals: getEnabledApiProposals(version),
 			localizedLanguages: getLocalizedLanguages(version),
 			targetPlatform: getTargetPlatformForExtensionVersion(version),
-			isPreReleaseVersion: isPreReleaseVersion(version)
+			isPreReleaseVersion: isPreReleaseVersion(version),
+			executesCode: executesCode(version)
 		},
 		hasPreReleaseVersion: isPreReleaseVersion(latestVersion),
 		hasReleaseVersion: true,
@@ -598,7 +605,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 	private readonly extensionsGallerySearchUrl: string | undefined;
 	private readonly extensionsControlUrl: string | undefined;
 
-	private readonly commonHeadersPromise: Promise<IStringDictionary<string>>;
+	private readonly commonHeadersPromise: Promise<IHeaders>;
 	private readonly extensionsEnabledWithApiProposalVersion: string[];
 
 	constructor(
@@ -1022,9 +1029,9 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 				return {
 					galleryExtensions,
 					total,
-					context: {
+					context: context.res.headers['activityid'] ? {
 						[ACTIVITY_HEADER_NAME]: context.res.headers['activityid']
-					}
+					} : {}
 				};
 			}
 			return { galleryExtensions: [], total };
@@ -1035,7 +1042,11 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 				throw e;
 			} else {
 				const errorMessage = getErrorMessage(e);
-				errorCode = errorMessage.startsWith('XHR timeout') ? ExtensionGalleryErrorCode.Timeout : ExtensionGalleryErrorCode.Failed;
+				errorCode = isOfflineError(e)
+					? ExtensionGalleryErrorCode.Offline
+					: errorMessage.startsWith('XHR timeout')
+						? ExtensionGalleryErrorCode.Timeout
+						: ExtensionGalleryErrorCode.Failed;
 				throw new ExtensionGalleryError(errorMessage, errorCode);
 			}
 		} finally {

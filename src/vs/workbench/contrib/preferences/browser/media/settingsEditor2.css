@@ -162,8 +162,14 @@
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-item-extension-toggle .setting-item-extension-toggle-button {
-	display: block;
+	display: inline-block;
 	width: fit-content;
+}
+
+.settings-editor > .settings-body .settings-tree-container .setting-item-extension-toggle .setting-item-extension-dismiss-button {
+	display: inline-block;
+	width: fit-content;
+	margin-left: 8px;
 }
 
 .settings-editor.no-results > .settings-body .settings-toc-container,

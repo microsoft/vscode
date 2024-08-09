@@ -160,7 +160,6 @@ steps:
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
       displayName: Build server
-      condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'arm64'))
 
     - powershell: |
         . build/azure-pipelines/win32/exec.ps1
@@ -171,7 +170,6 @@ steps:
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
       displayName: Build server (web)
-      condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'arm64'))
 
   - ${{ if or(eq(parameters.VSCODE_RUN_UNIT_TESTS, true), eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
     - template: product-build-win32-test.yml@self
@@ -312,7 +310,7 @@ steps:
           sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-win32-$(VSCODE_ARCH)
           sbomPackageName: "VS Code Windows $(VSCODE_ARCH) Server"
           sbomPackageVersion: $(Build.SourceVersion)
-        condition: and(succeededOrFailed(), ne(variables['SERVER_PATH'], ''), ne(variables['VSCODE_ARCH'], 'arm64'))
+        condition: and(succeededOrFailed(), ne(variables['SERVER_PATH'], ''))
         displayName: Publish server archive
 
       - task: 1ES.PublishPipelineArtifact@1
@@ -322,7 +320,7 @@ steps:
           sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-win32-$(VSCODE_ARCH)-web
           sbomPackageName: "VS Code Windows $(VSCODE_ARCH) Web"
           sbomPackageVersion: $(Build.SourceVersion)
-        condition: and(succeededOrFailed(), ne(variables['WEB_PATH'], ''), ne(variables['VSCODE_ARCH'], 'arm64'))
+        condition: and(succeededOrFailed(), ne(variables['WEB_PATH'], ''))
         displayName: Publish web server archive
 
       - task: 1ES.PublishPipelineArtifact@1

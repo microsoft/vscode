@@ -10,7 +10,7 @@ import { EncodingMode, TextFileEditorModelState, snapshotToString, isTextFileEdi
 import { createFileEditorInput, workbenchInstantiationService, TestServiceAccessor, TestReadonlyTextFileEditorModel, getLastResolvedFileStat } from 'vs/workbench/test/browser/workbenchTestServices';
 import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from 'vs/base/test/common/utils';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
-import { FileOperationResult, FileOperationError } from 'vs/platform/files/common/files';
+import { FileOperationResult, FileOperationError, NotModifiedSinceFileOperationError } from 'vs/platform/files/common/files';
 import { DeferredPromise, timeout } from 'vs/base/common/async';
 import { assertIsDefined } from 'vs/base/common/types';
 import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
@@ -359,9 +359,7 @@ suite('Files - TextFileEditorModel', () => {
 
 		model.setLanguageId(languageId);
 
-		await deferredPromise.p;
-
-		assert.strictEqual(model.getEncoding(), UTF16be);
+		await deferredPromise.p; // this asserts that the model was reloaded due to the language change
 	});
 
 	test('create with language', async function () {
@@ -606,6 +604,22 @@ suite('Files - TextFileEditorModel', () => {
 
 		assert.ok(model);
 		assert.strictEqual(getLastModifiedTime(model), mtime);
+	});
+
+	test('stat.readonly and stat.locked can change when decreased mtime is ignored', async function () {
+		const model: TextFileEditorModel = disposables.add(instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined));
+
+		await model.resolve();
+
+		const stat = assertIsDefined(getLastResolvedFileStat(model));
+		accessor.textFileService.setReadStreamErrorOnce(new NotModifiedSinceFileOperationError('error', { ...stat, mtime: stat.mtime - 1, readonly: !stat.readonly, locked: !stat.locked }));
+
+		await model.resolve();
+
+		assert.ok(model);
+		assert.strictEqual(getLastModifiedTime(model), stat.mtime, 'mtime should not decrease');
+		assert.notStrictEqual(getLastResolvedFileStat(model)?.readonly, stat.readonly, 'readonly should have changed despite simultaneous attempt to decrease mtime');
+		assert.notStrictEqual(getLastResolvedFileStat(model)?.locked, stat.locked, 'locked should have changed despite simultaneous attempt to decrease mtime');
 	});
 
 	test('Resolve error is handled gracefully if model already exists', async function () {

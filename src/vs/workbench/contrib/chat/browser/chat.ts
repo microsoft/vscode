@@ -13,7 +13,7 @@ import { MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ChatViewPane } from 'vs/workbench/contrib/chat/browser/chatViewPane';
-import { IChatWidgetContrib } from 'vs/workbench/contrib/chat/browser/chatWidget';
+import { IChatViewState, IChatWidgetContrib } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { ICodeBlockActionContext } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatRequestVariableEntry, IChatResponseModel } from 'vs/workbench/contrib/chat/common/chatModel';
@@ -34,7 +34,6 @@ export interface IChatWidgetService {
 	readonly lastFocusedWidget: IChatWidget | undefined;
 
 	getWidgetByInputUri(uri: URI): IChatWidget | undefined;
-
 	getWidgetBySessionId(sessionId: string): IChatWidget | undefined;
 }
 
@@ -140,8 +139,9 @@ export interface IChatWidget {
 	readonly onDidAcceptInput: Event<void>;
 	readonly onDidHide: Event<void>;
 	readonly onDidSubmitAgent: Event<{ agent: IChatAgentData; slashCommand?: IChatAgentCommand }>;
+	readonly onDidChangeAgent: Event<{ agent: IChatAgentData; slashCommand?: IChatAgentCommand }>;
 	readonly onDidChangeParsedInput: Event<void>;
-	readonly onDidDeleteContext: Event<IChatRequestVariableEntry>;
+	readonly onDidChangeContext: Event<{ removed?: IChatRequestVariableEntry[]; added?: IChatRequestVariableEntry[] }>;
 	readonly location: ChatAgentLocation;
 	readonly viewContext: IChatWidgetViewContext;
 	readonly viewModel: IChatViewModel | undefined;
@@ -154,7 +154,7 @@ export interface IChatWidget {
 	getContrib<T extends IChatWidgetContrib>(id: string): T | undefined;
 	reveal(item: ChatTreeItem): void;
 	focus(item: ChatTreeItem): void;
-	moveFocus(item: ChatTreeItem, type: 'next' | 'previous'): void;
+	getSibling(item: ChatTreeItem, type: 'next' | 'previous'): ChatTreeItem | undefined;
 	getFocus(): ChatTreeItem | undefined;
 	setInput(query?: string): void;
 	getInput(): string;
@@ -172,10 +172,7 @@ export interface IChatWidget {
 	getLastFocusedFileTreeForResponse(response: IChatResponseViewModel): IChatFileTreeInfo | undefined;
 	setContext(overwrite: boolean, ...context: IChatRequestVariableEntry[]): void;
 	clear(): void;
-}
-
-export interface IChatViewPane {
-	clear(): void;
+	getViewState(): IChatViewState;
 }
 
 

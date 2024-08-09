@@ -6,7 +6,7 @@
 import { Barrier } from 'vs/base/common/async';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
-import { observableValue } from 'vs/base/common/observable';
+import { derived, observableValue, observableValueOpts } from 'vs/base/common/observable';
 import { IDisposable, DisposableStore, combinedDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { ISCMService, ISCMRepository, ISCMProvider, ISCMResource, ISCMResourceGroup, ISCMResourceDecorations, IInputValidation, ISCMViewService, InputValidationType, ISCMActionButtonDescriptor } from 'vs/workbench/contrib/scm/common/scm';
 import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures, SCMRawResourceSplices, SCMGroupFeatures, MainContext, SCMHistoryItemGroupDto, SCMHistoryItemDto } from '../common/extHost.protocol';
@@ -27,7 +27,6 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { Schemas } from 'vs/base/common/network';
 import { ITextModel } from 'vs/editor/common/model';
-import { ILogService } from 'vs/platform/log/common/log';
 
 function getIconFromIconDto(iconDto?: UriComponents | { light: UriComponents; dark: UriComponents } | ThemeIcon): URI | { light: URI; dark: URI } | ThemeIcon | undefined {
 	if (iconDto === undefined) {
@@ -161,24 +160,20 @@ class MainThreadSCMResource implements ISCMResource {
 }
 
 class MainThreadSCMHistoryProvider implements ISCMHistoryProvider {
+	readonly currentHistoryItemGroupId = derived<string | undefined>(this, reader => this.currentHistoryItemGroup.read(reader)?.id);
+	readonly currentHistoryItemGroupName = derived<string | undefined>(this, reader => this.currentHistoryItemGroup.read(reader)?.name);
 
-	private _onDidChangeCurrentHistoryItemGroup = new Emitter<void>();
-	readonly onDidChangeCurrentHistoryItemGroup = this._onDidChangeCurrentHistoryItemGroup.event;
-
-	private _currentHistoryItemGroup: ISCMHistoryItemGroup | undefined;
-	get currentHistoryItemGroup(): ISCMHistoryItemGroup | undefined { return this._currentHistoryItemGroup; }
-	set currentHistoryItemGroup(historyItemGroup: ISCMHistoryItemGroup | undefined) {
-		this._currentHistoryItemGroup = historyItemGroup;
-		this._onDidChangeCurrentHistoryItemGroup.fire();
-	}
-
-	private readonly _currentHistoryItemGroupObs = observableValue<ISCMHistoryItemGroup | undefined>(this, undefined);
-	get currentHistoryItemGroupObs() { return this._currentHistoryItemGroupObs; }
+	private readonly _currentHistoryItemGroup = observableValueOpts<ISCMHistoryItemGroup | undefined>({ owner: this, equalsFn: () => false }, undefined);
+	get currentHistoryItemGroup() { return this._currentHistoryItemGroup; }
 
 	constructor(private readonly proxy: ExtHostSCMShape, private readonly handle: number) { }
 
 	async resolveHistoryItemGroupCommonAncestor(historyItemGroupId1: string, historyItemGroupId2: string | undefined): Promise<{ id: string; ahead: number; behind: number } | undefined> {
 		return this.proxy.$resolveHistoryItemGroupCommonAncestor(this.handle, historyItemGroupId1, historyItemGroupId2, CancellationToken.None);
+	}
+
+	async resolveHistoryItemGroupCommonAncestor2(historyItemGroupIds: string[]): Promise<string | undefined> {
+		return this.proxy.$resolveHistoryItemGroupCommonAncestor2(this.handle, historyItemGroupIds, CancellationToken.None);
 	}
 
 	async provideHistoryItems(historyItemGroupId: string, options: ISCMHistoryOptions): Promise<ISCMHistoryItem[] | undefined> {
@@ -207,7 +202,7 @@ class MainThreadSCMHistoryProvider implements ISCMHistoryProvider {
 	}
 
 	$onDidChangeCurrentHistoryItemGroup(historyItemGroup: ISCMHistoryItemGroup | undefined): void {
-		this._currentHistoryItemGroupObs.set(historyItemGroup, undefined);
+		this._currentHistoryItemGroup.set(historyItemGroup, undefined);
 	}
 }
 
@@ -245,7 +240,6 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 	get inputBoxTextModel(): ITextModel { return this._inputBoxTextModel; }
 	get contextValue(): string { return this._providerId; }
 
-	get historyProvider(): ISCMHistoryProvider | undefined { return this._historyProvider; }
 	get acceptInputCommand(): Command | undefined { return this.features.acceptInputCommand; }
 	get actionButton(): ISCMActionButtonDescriptor | undefined { return this.features.actionButton ?? undefined; }
 
@@ -261,18 +255,14 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 	private readonly _commitTemplate = observableValue<string>(this, '');
 	get commitTemplate() { return this._commitTemplate; }
 
-	private readonly _onDidChangeHistoryProvider = new Emitter<void>();
-	readonly onDidChangeHistoryProvider: Event<void> = this._onDidChangeHistoryProvider.event;
-
 	private readonly _onDidChange = new Emitter<void>();
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
 	private _quickDiff: IDisposable | undefined;
 	public readonly isSCM: boolean = true;
 
-	private _historyProvider: ISCMHistoryProvider | undefined;
-	private readonly _historyProviderObs = observableValue<MainThreadSCMHistoryProvider | undefined>(this, undefined);
-	get historyProviderObs() { return this._historyProviderObs; }
+	private readonly _historyProvider = observableValue<MainThreadSCMHistoryProvider | undefined>(this, undefined);
+	get historyProvider() { return this._historyProvider; }
 
 	constructor(
 		private readonly proxy: ExtHostSCMShape,
@@ -283,8 +273,7 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 		private readonly _inputBoxTextModel: ITextModel,
 		private readonly _quickDiffService: IQuickDiffService,
 		private readonly _uriIdentService: IUriIdentityService,
-		private readonly _workspaceContextService: IWorkspaceContextService,
-		private readonly _logService: ILogService
+		private readonly _workspaceContextService: IWorkspaceContextService
 	) {
 		if (_rootUri) {
 			const folder = this._workspaceContextService.getWorkspaceFolder(_rootUri);
@@ -309,7 +298,6 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 		}
 
 		if (typeof features.statusBarCommands !== 'undefined') {
-			this._logService.trace(`MainThreadSCMProvider#updateSourceControl (${this._id}): ${features.statusBarCommands.map(c => c.title).join(', ')}`);
 			this._statusBarCommands.set(features.statusBarCommands, undefined);
 		}
 
@@ -325,17 +313,11 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 			this._quickDiff = undefined;
 		}
 
-		if (features.hasHistoryProvider && !this._historyProvider) {
+		if (features.hasHistoryProvider && !this.historyProvider.get()) {
 			const historyProvider = new MainThreadSCMHistoryProvider(this.proxy, this.handle);
-			this._historyProviderObs.set(historyProvider, undefined);
-
-			this._historyProvider = historyProvider;
-			this._onDidChangeHistoryProvider.fire();
-		} else if (features.hasHistoryProvider === false && this._historyProvider) {
-			this._historyProviderObs.set(undefined, undefined);
-
-			this._historyProvider = undefined;
-			this._onDidChangeHistoryProvider.fire();
+			this._historyProvider.set(historyProvider, undefined);
+		} else if (features.hasHistoryProvider === false && this.historyProvider.get()) {
+			this._historyProvider.set(undefined, undefined);
 		}
 	}
 
@@ -452,12 +434,11 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 	}
 
 	$onDidChangeHistoryProviderCurrentHistoryItemGroup(currentHistoryItemGroup?: SCMHistoryItemGroupDto): void {
-		if (!this._historyProvider) {
+		if (!this.historyProvider.get()) {
 			return;
 		}
 
-		this._historyProvider.currentHistoryItemGroup = currentHistoryItemGroup ?? undefined;
-		this._historyProviderObs.get()?.$onDidChangeCurrentHistoryItemGroup(currentHistoryItemGroup);
+		this._historyProvider.get()?.$onDidChangeCurrentHistoryItemGroup(currentHistoryItemGroup);
 	}
 
 	toJSON(): any {
@@ -490,8 +471,7 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@IQuickDiffService private readonly quickDiffService: IQuickDiffService,
 		@IUriIdentityService private readonly _uriIdentService: IUriIdentityService,
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@ILogService private readonly logService: ILogService
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostSCM);
 
@@ -512,7 +492,7 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		this._repositoryBarriers.set(handle, new Barrier());
 
 		const inputBoxTextModelRef = await this.textModelService.createModelReference(URI.revive(inputBoxDocumentUri));
-		const provider = new MainThreadSCMProvider(this._proxy, handle, id, label, rootUri ? URI.revive(rootUri) : undefined, inputBoxTextModelRef.object.textEditorModel, this.quickDiffService, this._uriIdentService, this.workspaceContextService, this.logService);
+		const provider = new MainThreadSCMProvider(this._proxy, handle, id, label, rootUri ? URI.revive(rootUri) : undefined, inputBoxTextModelRef.object.textEditorModel, this.quickDiffService, this._uriIdentService, this.workspaceContextService);
 		const repository = this.scmService.registerSCMProvider(provider);
 		this._repositories.set(handle, repository);
 

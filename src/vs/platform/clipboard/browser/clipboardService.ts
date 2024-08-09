@@ -15,6 +15,13 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { ILogService } from 'vs/platform/log/common/log';
 
+/**
+ * Custom mime type used for storing a list of uris in the clipboard.
+ *
+ * Requires support for custom web clipboards https://github.com/w3c/clipboard-apis/pull/175
+ */
+const vscodeResourcesMime = 'application/vnd.code.resources';
+
 export class BrowserClipboardService extends Disposable implements IClipboardService {
 
 	declare readonly _serviceBrand: undefined;
@@ -34,7 +41,7 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 		// and not in the clipboard, we have to invalidate
 		// that state when the user copies other data.
 		this._register(Event.runAndSubscribe(onDidRegisterWindow, ({ window, disposables }) => {
-			disposables.add(addDisposableListener(window.document, 'copy', () => this.clearResources()));
+			disposables.add(addDisposableListener(window.document, 'copy', () => this.clearResourcesState()));
 		}, { window: mainWindow, disposables: this._store }));
 	}
 
@@ -86,7 +93,7 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 	async writeText(text: string, type?: string): Promise<void> {
 
 		// Clear resources given we are writing text
-		this.writeResources([]);
+		this.clearResourcesState();
 
 		// With type: only in-memory is supported
 		if (type) {
@@ -172,8 +179,28 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 	private static readonly MAX_RESOURCE_STATE_SOURCE_LENGTH = 1000;
 
 	async writeResources(resources: URI[]): Promise<void> {
+		// Guard access to navigator.clipboard with try/catch
+		// as we have seen DOMExceptions in certain browsers
+		// due to security policies.
+		try {
+			await getActiveWindow().navigator.clipboard.write([
+				new ClipboardItem({
+					[`web ${vscodeResourcesMime}`]: new Blob([
+						JSON.stringify(resources.map(x => x.toJSON()))
+					], {
+						type: vscodeResourcesMime
+					})
+				})
+			]);
+
+			// Continue to write to the in-memory clipboard as well.
+			// This is needed because some browsers allow the paste but then can't read the custom resources.
+		} catch (error) {
+			// Noop
+		}
+
 		if (resources.length === 0) {
-			this.clearResources();
+			this.clearResourcesState();
 		} else {
 			this.resources = resources;
 			this.resourcesStateHash = await this.computeResourcesStateHash();
@@ -181,9 +208,25 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 	}
 
 	async readResources(): Promise<URI[]> {
+		// Guard access to navigator.clipboard with try/catch
+		// as we have seen DOMExceptions in certain browsers
+		// due to security policies.
+		try {
+			const items = await getActiveWindow().navigator.clipboard.read();
+			for (const item of items) {
+				if (item.types.includes(`web ${vscodeResourcesMime}`)) {
+					const blob = await item.getType(`web ${vscodeResourcesMime}`);
+					const resources = (JSON.parse(await blob.text()) as URI[]).map(x => URI.from(x));
+					return resources;
+				}
+			}
+		} catch (error) {
+			// Noop
+		}
+
 		const resourcesStateHash = await this.computeResourcesStateHash();
 		if (this.resourcesStateHash !== resourcesStateHash) {
-			this.clearResources(); // state mismatch, resources no longer valid
+			this.clearResourcesState(); // state mismatch, resources no longer valid
 		}
 
 		return this.resources;
@@ -204,10 +247,28 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 	}
 
 	async hasResources(): Promise<boolean> {
+		// Guard access to navigator.clipboard with try/catch
+		// as we have seen DOMExceptions in certain browsers
+		// due to security policies.
+		try {
+			const items = await getActiveWindow().navigator.clipboard.read();
+			for (const item of items) {
+				if (item.types.includes(`web ${vscodeResourcesMime}`)) {
+					return true;
+				}
+			}
+		} catch (error) {
+			// Noop
+		}
+
 		return this.resources.length > 0;
 	}
 
-	private clearResources(): void {
+	public clearInternalState(): void {
+		this.clearResourcesState();
+	}
+
+	private clearResourcesState(): void {
 		this.resources = [];
 		this.resourcesStateHash = undefined;
 	}

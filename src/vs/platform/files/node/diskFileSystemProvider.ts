@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Stats } from 'fs';
+import { Stats, promises } from 'fs';
 import { Barrier, retry } from 'vs/base/common/async';
 import { ResourceMap } from 'vs/base/common/map';
 import { VSBuffer } from 'vs/base/common/buffer';
@@ -203,7 +203,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 
 			const filePath = this.toFilePath(resource);
 
-			return await Promises.readFile(filePath);
+			return await promises.readFile(filePath);
 		} catch (error) {
 			throw this.toFileSystemProviderError(error);
 		} finally {
@@ -354,7 +354,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 				try {
 					const { stat } = await SymlinkSupport.stat(filePath);
 					if (!(stat.mode & 0o200 /* File mode indicating writable by owner */)) {
-						await Promises.chmod(filePath, stat.mode | 0o200);
+						await promises.chmod(filePath, stat.mode | 0o200);
 					}
 				} catch (error) {
 					if (error.code !== 'ENOENT') {
@@ -373,7 +373,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 						// by first truncating the file and then writing with r+ flag. This helps to save hidden files on Windows
 						// (see https://github.com/microsoft/vscode/issues/931) and prevent removing alternate data streams
 						// (see https://github.com/microsoft/vscode/issues/6363)
-						await Promises.truncate(filePath, 0);
+						await promises.truncate(filePath, 0);
 
 						// After a successful truncate() the flag can be set to 'r+' which will not truncate.
 						flags = 'r+';
@@ -595,7 +595,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 
 	async mkdir(resource: URI): Promise<void> {
 		try {
-			await Promises.mkdir(this.toFilePath(resource));
+			await promises.mkdir(this.toFilePath(resource));
 		} catch (error) {
 			throw this.toFileSystemProviderError(error);
 		}
@@ -613,7 +613,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 				await Promises.rm(filePath, RimRafMode.MOVE, rmMoveToPath);
 			} else {
 				try {
-					await Promises.unlink(filePath);
+					await promises.unlink(filePath);
 				} catch (unlinkError) {
 
 					// `fs.unlink` will throw when used on directories
@@ -631,7 +631,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 						}
 
 						if (isDirectory) {
-							await Promises.rmdir(filePath);
+							await promises.rmdir(filePath);
 						} else {
 							throw unlinkError;
 						}
@@ -778,10 +778,10 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 			locks.add(await this.createResourceLock(to));
 
 			if (mkdir) {
-				await Promises.mkdir(dirname(toFilePath), { recursive: true });
+				await promises.mkdir(dirname(toFilePath), { recursive: true });
 			}
 
-			await Promises.copyFile(fromFilePath, toFilePath);
+			await promises.copyFile(fromFilePath, toFilePath);
 		} catch (error) {
 			if (error.code === 'ENOENT' && !mkdir) {
 				return this.doCloneFile(from, to, true);

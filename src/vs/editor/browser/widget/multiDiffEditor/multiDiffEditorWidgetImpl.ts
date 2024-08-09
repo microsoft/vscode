@@ -31,6 +31,7 @@ import { DiffEditorItemTemplate, TemplateData } from './diffEditorItemTemplate';
 import { DocumentDiffItemViewModel, MultiDiffEditorViewModel } from './multiDiffEditorViewModel';
 import { ObjectPool } from './objectPool';
 import { localize } from 'vs/nls';
+import { IDocumentDiffItem } from 'vs/editor/browser/widget/multiDiffEditor/model';
 
 export class MultiDiffEditorWidgetImpl extends Disposable {
 	private readonly _scrollableElements = h('div.scrollContent', [
@@ -263,6 +264,14 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		});
 	}
 
+	public findDocumentDiffItem(resource: URI): IDocumentDiffItem | undefined {
+		const item = this._viewItems.get().find(v =>
+			v.viewModel.diffEditorViewModel.model.modified.uri.toString() === resource.toString()
+			|| v.viewModel.diffEditorViewModel.model.original.uri.toString() === resource.toString()
+		);
+		return item?.viewModel.documentDiffItem;
+	}
+
 	public tryGetCodeEditor(resource: URI): { diffEditor: IDiffEditor; editor: ICodeEditor } | undefined {
 		const item = this._viewItems.get().find(v =>
 			v.viewModel.diffEditorViewModel.model.modified.uri.toString() === resource.toString()
@@ -272,6 +281,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		if (!editor) {
 			return undefined;
 		}
+
 		if (item.viewModel.diffEditorViewModel.model.modified.uri.toString() === resource.toString()) {
 			return { diffEditor: editor, editor: editor.getModifiedEditor() };
 		} else {
@@ -396,7 +406,7 @@ class VirtualizedViewItem extends Disposable {
 	}
 
 	public override toString(): string {
-		return `VirtualViewItem(${this.viewModel.entry.value!.modified?.uri.toString()})`;
+		return `VirtualViewItem(${this.viewModel.documentDiffItem.modified?.uri.toString()})`;
 	}
 
 	public getKey(): string {

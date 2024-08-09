@@ -15,13 +15,11 @@ import { ICommentService } from 'vs/workbench/contrib/comments/browser/commentSe
 import { CommentThreadWidget } from 'vs/workbench/contrib/comments/browser/commentThreadWidget';
 import { ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellContentPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
-import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
-import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 
 export class CellComments extends CellContentPart {
 	private readonly _commentThreadWidget: MutableDisposable<CommentThreadWidget<ICellRange>>;
-	private currentElement: CodeCellViewModel | undefined;
+	private currentElement: ICellViewModel | undefined;
 	private readonly _commentThreadDisposables = this._register(new DisposableStore());
 
 	constructor(
@@ -49,7 +47,7 @@ export class CellComments extends CellContentPart {
 			return;
 		}
 
-		this.currentElement = element as CodeCellViewModel;
+		this.currentElement = element;
 		await this._updateThread();
 	}
 
@@ -83,7 +81,7 @@ export class CellComments extends CellContentPart {
 		this._applyTheme();
 
 		this._commentThreadDisposables.add(this._commentThreadWidget.value.onDidResize(() => {
-			if (this.currentElement?.cellKind === CellKind.Code && this._commentThreadWidget.value) {
+			if (this.currentElement && this._commentThreadWidget.value) {
 				this.currentElement.commentHeight = this._calculateCommentThreadHeight(this._commentThreadWidget.value.getDimensions().height);
 			}
 		}));
@@ -100,8 +98,7 @@ export class CellComments extends CellContentPart {
 		const info = await this._getCommentThreadForCell(this.currentElement);
 		if (!this._commentThreadWidget.value && info) {
 			await this._createCommentTheadWidget(info.owner, info.thread);
-			const layoutInfo = (this.currentElement as CodeCellViewModel).layoutInfo;
-			this.container.style.top = `${layoutInfo.outputContainerOffset + layoutInfo.outputTotalHeight}px`;
+			this.container.style.top = `${this.currentElement.layoutInfo.commentOffset}px`;
 			this.currentElement.commentHeight = this._calculateCommentThreadHeight(this._commentThreadWidget.value!.getDimensions().height);
 			return;
 		}
@@ -111,10 +108,6 @@ export class CellComments extends CellContentPart {
 				this._commentThreadDisposables.clear();
 				this._commentThreadWidget.value = undefined;
 				this.currentElement.commentHeight = 0;
-				return;
-			}
-			if (this._commentThreadWidget.value.commentThread === info.thread) {
-				this.currentElement.commentHeight = this._calculateCommentThreadHeight(this._commentThreadWidget.value.getDimensions().height);
 				return;
 			}
 
@@ -139,8 +132,11 @@ export class CellComments extends CellContentPart {
 	private async _getCommentThreadForCell(element: ICellViewModel): Promise<{ thread: languages.CommentThread<ICellRange>; owner: string } | null> {
 		if (this.notebookEditor.hasModel()) {
 			const commentInfos = coalesce(await this.commentService.getNotebookComments(element.uri));
-			if (commentInfos.length && commentInfos[0].threads.length) {
-				return { owner: commentInfos[0].uniqueOwner, thread: commentInfos[0].threads[0] };
+			for (const commentInfo of commentInfos) {
+				for (const thread of commentInfo.threads) {
+					// For now, only one thread per cell is supported.
+					return { owner: commentInfo.uniqueOwner, thread };
+				}
 			}
 		}
 
@@ -154,23 +150,19 @@ export class CellComments extends CellContentPart {
 	}
 
 	override didRenderCell(element: ICellViewModel): void {
-		if (element.cellKind === CellKind.Code) {
-			this.initialize(element);
-			this._bindListeners();
-		}
-
+		this.initialize(element);
+		this._bindListeners();
 	}
 
 	override prepareLayout(): void {
-		if (this.currentElement?.cellKind === CellKind.Code && this._commentThreadWidget.value) {
+		if (this.currentElement && this._commentThreadWidget.value) {
 			this.currentElement.commentHeight = this._calculateCommentThreadHeight(this._commentThreadWidget.value.getDimensions().height);
 		}
 	}
 
 	override updateInternalLayoutNow(element: ICellViewModel): void {
-		if (this.currentElement?.cellKind === CellKind.Code && this._commentThreadWidget.value) {
-			const layoutInfo = (element as CodeCellViewModel).layoutInfo;
-			this.container.style.top = `${layoutInfo.outputContainerOffset + layoutInfo.outputTotalHeight}px`;
+		if (this.currentElement && this._commentThreadWidget.value) {
+			this.container.style.top = `${element.layoutInfo.commentOffset}px`;
 		}
 	}
 }

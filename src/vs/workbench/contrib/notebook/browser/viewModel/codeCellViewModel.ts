@@ -80,16 +80,6 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		return this._chatHeight;
 	}
 
-	private _commentHeight = 0;
-
-	set commentHeight(height: number) {
-		if (this._commentHeight === height) {
-			return;
-		}
-		this._commentHeight = height;
-		this.layoutChange({ commentHeight: true }, 'CodeCellViewModel#commentHeight');
-	}
-
 	private _hoveringOutput: boolean = false;
 	public get outputIsHovered(): boolean {
 		return this._hoveringOutput;
@@ -193,6 +183,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 				: 0,
 			chatHeight: 0,
 			statusBarHeight: 0,
+			commentOffset: 0,
 			commentHeight: 0,
 			outputContainerOffset: 0,
 			outputTotalHeight: 0,
@@ -289,11 +280,12 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 				editorHeight,
 				editorWidth,
 				statusBarHeight,
-				commentHeight,
 				outputContainerOffset,
 				outputTotalHeight,
 				outputShowMoreContainerHeight,
 				outputShowMoreContainerOffset,
+				commentOffset: outputContainerOffset + outputTotalHeight,
+				commentHeight,
 				totalHeight,
 				codeIndicatorHeight,
 				outputIndicatorHeight,
@@ -330,11 +322,12 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 				editorWidth,
 				chatHeight: chatHeight,
 				statusBarHeight: 0,
-				commentHeight,
 				outputContainerOffset,
 				outputTotalHeight,
 				outputShowMoreContainerHeight,
 				outputShowMoreContainerOffset,
+				commentOffset: outputContainerOffset + outputTotalHeight,
+				commentHeight,
 				totalHeight,
 				codeIndicatorHeight,
 				outputIndicatorHeight,
@@ -359,22 +352,9 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		super.restoreEditorViewState(editorViewStates);
 		if (totalHeight !== undefined && this._layoutInfo.layoutState !== CellLayoutState.Measured) {
 			this._layoutInfo = {
-				fontInfo: this._layoutInfo.fontInfo,
-				chatHeight: this._layoutInfo.chatHeight,
-				editorHeight: this._layoutInfo.editorHeight,
-				editorWidth: this._layoutInfo.editorWidth,
-				statusBarHeight: this.layoutInfo.statusBarHeight,
-				commentHeight: this.layoutInfo.commentHeight,
-				outputContainerOffset: this._layoutInfo.outputContainerOffset,
-				outputTotalHeight: this._layoutInfo.outputTotalHeight,
-				outputShowMoreContainerHeight: this._layoutInfo.outputShowMoreContainerHeight,
-				outputShowMoreContainerOffset: this._layoutInfo.outputShowMoreContainerOffset,
+				...this._layoutInfo,
 				totalHeight: totalHeight,
-				codeIndicatorHeight: this._layoutInfo.codeIndicatorHeight,
-				outputIndicatorHeight: this._layoutInfo.outputIndicatorHeight,
-				bottomToolbarOffset: this._layoutInfo.bottomToolbarOffset,
 				layoutState: CellLayoutState.FromCache,
-				estimatedHasHorizontalScrolling: this._layoutInfo.estimatedHasHorizontalScrolling
 			};
 		}
 	}
@@ -464,7 +444,14 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		}
 
 		this._ensureOutputsTop();
-		if (height < 28 && this._outputViewModels[index].hasMultiMimeType()) {
+
+		if (index === 0 || height > 0) {
+			this._outputViewModels[index].setVisible(true);
+		} else if (height === 0) {
+			this._outputViewModels[index].setVisible(false);
+		}
+
+		if (this._outputViewModels[index].visible.get() && height < 28) {
 			height = 28;
 		}
 

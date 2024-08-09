@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
 import { app, BrowserWindow, WebContents, shell } from 'electron';
-import { Promises } from 'vs/base/node/pfs';
 import { addUNCHostToAllowlist } from 'vs/base/node/unc';
 import { hostname, release, arch } from 'os';
 import { coalesce, distinct } from 'vs/base/common/arrays';
@@ -1057,7 +1057,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		path = sanitizeFilePath(normalize(path), cwd());
 
 		try {
-			const pathStat = await Promises.stat(path);
+			const pathStat = await fs.promises.stat(path);
 
 			// File
 			if (pathStat.isFile()) {
@@ -1443,6 +1443,11 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			remoteAuthority: options.remoteAuthority,
 			workspace: options.workspace,
 			userEnv: { ...this.initialUserEnv, ...options.userEnv },
+
+			nls: {
+				messages: globalThis._VSCODE_NLS_MESSAGES,
+				language: globalThis._VSCODE_NLS_LANGUAGE
+			},
 
 			filesToOpenOrCreate: options.filesToOpen?.filesToOpenOrCreate,
 			filesToDiff: options.filesToOpen?.filesToDiff,
