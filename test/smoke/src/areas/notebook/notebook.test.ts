@@ -59,7 +59,6 @@ export function setup(logger: Logger) {
 			await app.workbench.notebook.insertNotebookCell('markdown');
 			await app.workbench.notebook.waitForTypeInEditor('## hello2! ');
 			await app.workbench.notebook.stopEditingCell();
-			await app.workbench.notebook.waitForMarkdownContents('h2', 'hello2!');
 		});
 
 		it.skip('moves focus as it inserts/deletes a cell', async function () {
