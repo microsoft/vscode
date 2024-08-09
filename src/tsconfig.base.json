@@ -6,6 +6,7 @@
 		"noImplicitReturns": true,
 		"noImplicitOverride": true,
 		"noUnusedLocals": true,
+		"noUncheckedSideEffectImports": true,
 		"allowUnreachableCode": false,
 		"strict": true,
 		"exactOptionalPropertyTypes": false,
