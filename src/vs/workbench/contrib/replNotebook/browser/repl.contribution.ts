@@ -106,16 +106,16 @@ export class ReplDocumentContribution extends Disposable implements IWorkbenchCo
 		super();
 
 		editorResolverService.registerEditor(
-			`*.replNotebook`,
+			`*`,
 			{
 				id: 'repl',
 				label: 'repl Editor',
-				priority: RegisteredEditorPriority.option
+				priority: RegisteredEditorPriority.builtin
 			},
 			{
-				canSupportResource: uri =>
-					(uri.scheme === Schemas.untitled && extname(uri) === '.replNotebook') ||
-					(uri.scheme === Schemas.vscodeNotebookCell && extname(uri) === '.replNotebook'),
+				// We want to support all notebook types which could have any file extension,
+				// so we just check if the resource corresponds to a notebook
+				canSupportResource: uri => notebookService.getNotebookTextModel(uri) !== undefined,
 				singlePerResource: true
 			},
 			{

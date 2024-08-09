@@ -205,7 +205,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		return assertIsDefined(document?.apiNotebook);
 	}
 
-
 	async showNotebookDocument(notebook: vscode.NotebookDocument, options?: vscode.NotebookDocumentShowOptions): Promise<vscode.NotebookEditor> {
 
 		let resolvedOptions: INotebookDocumentShowOptions;

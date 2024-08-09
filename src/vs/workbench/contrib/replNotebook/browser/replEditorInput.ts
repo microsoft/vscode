@@ -54,6 +54,10 @@ export class ReplEditorInput extends NotebookEditorInput {
 		return ReplEditorInput.ID;
 	}
 
+	override get editorId(): string | undefined {
+		return 'repl';
+	}
+
 	override getName() {
 		return 'REPL';
 	}
