@@ -64,6 +64,7 @@ export interface IChatAgentData {
 	when?: string;
 	extensionId: ExtensionIdentifier;
 	extensionPublisherId: string;
+	extensionIsPublished: boolean;
 	/** This is the extension publisher id, or, in the case of a dynamically registered participant (remote agent), whatever publisher name we have for it */
 	publisherDisplayName?: string;
 	extensionDisplayName: string;
@@ -462,6 +463,7 @@ export class MergedChatAgent implements IChatAgent {
 	get description(): string { return this.data.description ?? ''; }
 	get extensionId(): ExtensionIdentifier { return this.data.extensionId; }
 	get extensionPublisherId(): string { return this.data.extensionPublisherId; }
+	get extensionIsPublished(): boolean { return this.data.extensionIsPublished; }
 	get extensionPublisherDisplayName() { return this.data.publisherDisplayName; }
 	get extensionDisplayName(): string { return this.data.extensionDisplayName; }
 	get isDefault(): boolean | undefined { return this.data.isDefault; }
