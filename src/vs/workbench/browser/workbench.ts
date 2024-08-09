@@ -50,6 +50,7 @@ import { AccessibilityProgressSignalScheduler } from 'vs/platform/accessibilityS
 import { setProgressAcccessibilitySignalScheduler } from 'vs/base/browser/ui/progressbar/progressAccessibilitySignal';
 import { AccessibleViewRegistry } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
 import { NotificationAccessibleView } from 'vs/workbench/browser/parts/notifications/notificationAccessibleView';
+import { isESM } from 'vs/base/common/amd';
 
 export interface IWorkbenchOptions {
 
