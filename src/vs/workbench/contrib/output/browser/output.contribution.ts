@@ -538,6 +538,13 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: true,
 			scope: ConfigurationScope.WINDOW,
 			tags: ['output']
+		},
+		'output.showQuietly': {
+			type: 'boolean',
+			description: nls.localize('output.showQuietly', "When an extension requests an output channel to be shown, use a silent notification instead of activating Output view."),
+			default: false,
+			scope: ConfigurationScope.WINDOW,
+			tags: ['output']
 		}
 	}
 });
