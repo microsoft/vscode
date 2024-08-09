@@ -551,7 +551,10 @@ export class InlayHintsController implements IEditorContribution {
 				let tooLong = false;
 				const over = currentLineInfo.totalLen - InlayHintsController._MAX_LABEL_LEN;
 				if (over > 0) {
-					textlabel = textlabel.slice(0, -over) + '…';
+					// avoid replacing a single character with an ellipsis
+					if (over > 1) {
+						textlabel = textlabel.slice(0, -over) + '…';
+					}
 					tooLong = true;
 				}
 
