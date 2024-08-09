@@ -102,8 +102,8 @@ const isESM = false;
 				options.beforeRequire(configuration);
 			}
 
-			const fileRoot = `${configuration.appRoot}/out`;
-			globalThis._VSCODE_FILE_ROOT = fileRoot;
+			const baseUrl = new URL(`${fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32', scheme: 'vscode-file', fallbackAuthority: 'vscode-app' })}/out/`);
+			globalThis._VSCODE_FILE_ROOT = baseUrl.toString();
 
 			// DEV ---------------------------------------------------------------------------------------
 			// DEV: This is for development and enables loading CSS via import-statements via import-maps.
@@ -123,7 +123,6 @@ const isESM = false;
 					style.textContent += `@import url(${url});\n`;
 				};
 
-				const baseUrl = new URL(`vscode-file://vscode-app${fileRoot}/`);
 				/**
 				 * @type { { imports: Record<string, string> }}
 				 */
@@ -154,13 +153,13 @@ const isESM = false;
 					const cssModule = modulePath.replace('vs/css!', '');
 					const link = document.createElement('link');
 					link.rel = 'stylesheet';
-					link.href = `${configuration.appRoot}/out/${cssModule}.css`;
+					link.href = new URL(`${cssModule}.css`, baseUrl).href;
 					document.head.appendChild(link);
 					return Promise.resolve();
 
 				} else {
 					// ESM/JS module loading
-					return import(`${configuration.appRoot}/out/${modulePath}.js`);
+					return import(new URL(`${modulePath}.js`, baseUrl).href);
 				}
 			}));
 
