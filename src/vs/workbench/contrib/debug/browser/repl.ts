@@ -86,7 +86,6 @@ const DECORATION_KEY = 'replinputdecoration';
 function revealLastElement(tree: WorkbenchAsyncDataTree<any, any, any>) {
 	tree.scrollTop = tree.scrollHeight - tree.renderHeight;
 	// tree.scrollTop = 1e6;
-	console.log('revealing last element');
 }
 
 const sessionsToIgnore = new Set<IDebugSession>();
