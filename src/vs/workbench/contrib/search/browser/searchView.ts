@@ -143,7 +143,7 @@ export class SearchView extends ViewPane {
 	private currentSelectedFileMatch: FileMatch | undefined;
 
 	private delayedRefresh: Delayer<void>;
-	private changedWhileHidden: boolean = false;
+	private changedWhileHidden: boolean;
 
 	private searchWithoutFolderMessageElement: HTMLElement | undefined;
 
@@ -256,7 +256,7 @@ export class SearchView extends ViewPane {
 			}
 		}));
 
-		this.viewModel = this._register(this.searchViewModelWorkbenchService.searchModel);
+		this.viewModel = this.searchViewModelWorkbenchService.searchModel;
 		this.queryBuilder = this.instantiationService.createInstance(QueryBuilder);
 		this.memento = new Memento(this.id, storageService);
 		this.viewletState = this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
@@ -299,6 +299,8 @@ export class SearchView extends ViewPane {
 				this.searchWidget.prependReplaceHistory(restoredHistory.replace);
 			}
 		}));
+
+		this.changedWhileHidden = this.hasSearchResults();
 	}
 
 	get isTreeLayoutViewVisible(): boolean {
