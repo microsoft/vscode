@@ -13,7 +13,7 @@ import { MarkerHoverParticipant } from 'vs/editor/contrib/hover/browser/markerHo
 import 'vs/css!./hover';
 import { AccessibleViewRegistry } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
 import { ExtHoverAccessibleView, HoverAccessibilityHelp, HoverAccessibleView } from 'vs/editor/contrib/hover/browser/hoverAccessibleViews';
-import { ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHoverController';
+import { ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHoverController2';
 import { MarginHoverController } from 'vs/editor/contrib/hover/browser/marginHoverController';
 
 registerEditorContribution(ContentHoverController.ID, ContentHoverController, EditorContributionInstantiation.BeforeFirstInteraction);

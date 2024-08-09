@@ -62,7 +62,7 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { deepClone } from 'vs/base/common/objects';
 import { ReplEditorInput } from 'vs/workbench/contrib/replNotebook/browser/replEditorInput';
 import { MarginHoverController } from 'vs/editor/contrib/hover/browser/marginHoverController';
-import { ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHoverController';
+import { ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHoverController2';
 
 const DECORATION_KEY = 'interactiveInputDecoration';
 const INTERACTIVE_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'InteractiveEditorViewState';

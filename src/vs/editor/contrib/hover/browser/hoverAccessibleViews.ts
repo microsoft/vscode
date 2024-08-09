@@ -20,7 +20,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { labelForHoverVerbosityAction } from 'vs/editor/contrib/hover/browser/markdownHoverParticipant';
-import { ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHoverController';
+import { ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHoverController2';
 
 namespace HoverAccessibilityHelpNLS {
 	export const increaseVerbosity = localize('increaseVerbosity', '- The focused hover part verbosity level can be increased with the Increase Hover Verbosity command.', `<keybinding:${INCREASE_HOVER_VERBOSITY_ACTION_ID}>`);

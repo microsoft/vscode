@@ -17,7 +17,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { HoverVerbosityAction } from 'vs/editor/common/languages';
 import * as nls from 'vs/nls';
 import 'vs/css!./hover';
-import { ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHoverController';
+import { ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHoverController2';
 
 enum HoverFocusBehavior {
 	NoAutoFocus = 'noAutoFocus',

@@ -115,7 +115,7 @@ import { IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/
 import { fromNow } from 'vs/base/common/date';
 import { equals } from 'vs/base/common/arrays';
 import { observableConfigValue } from 'vs/platform/observable/common/platformObservableUtils';
-import { ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHoverController';
+import { ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHoverController2';
 import { MarginHoverController } from 'vs/editor/contrib/hover/browser/marginHoverController';
 
 // type SCMResourceTreeNode = IResourceNode<ISCMResource, ISCMResourceGroup>;
