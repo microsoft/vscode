@@ -195,9 +195,17 @@ export async function moveCellRange(context: INotebookCellActionContext, directi
 		return;
 	}
 
-	const selections = editor.getSelections();
-	const modelRanges = expandCellRangesWithHiddenCells(editor, selections);
-	const range = modelRanges[0];
+	let range: ICellRange | undefined = undefined;
+
+	if (context.cell) {
+		const idx = editor.getCellIndex(context.cell);
+		range = { start: idx, end: idx + 1 };
+	} else {
+		const selections = editor.getSelections();
+		const modelRanges = expandCellRangesWithHiddenCells(editor, selections);
+		range = modelRanges[0];
+	}
+
 	if (!range || range.start === range.end) {
 		return;
 	}
