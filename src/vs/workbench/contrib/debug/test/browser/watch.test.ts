@@ -10,7 +10,7 @@ import { createMockDebugModel } from 'vs/workbench/contrib/debug/test/browser/mo
 
 // Expressions
 
-function assertWatchExpressions(watchExpressions: Expression[], expectedName: string) {
+function assertWatchExpressions(watchExpressions: readonly Expression[], expectedName: string) {
 	assert.strictEqual(watchExpressions.length, 2);
 	watchExpressions.forEach(we => {
 		assert.strictEqual(we.available, false);
