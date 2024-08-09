@@ -230,5 +230,9 @@
   },
   "optionalDependencies": {
     "windows-foreground-love": "0.5.0"
+  },
+  "volta": {
+    "node": "18.18.2",
+    "yarn": "1.22.19"
   }
 }
