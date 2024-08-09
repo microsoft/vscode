@@ -1848,12 +1848,15 @@ export class CollapsedCellOverlayWidget extends Disposable implements IDiffCellM
 		this._nodes.root.style.display = 'none';
 		container.appendChild(this._nodes.root);
 	}
+
 	public show() {
 		this._nodes.root.style.display = 'block';
 	}
+
 	public hide() {
 		this._nodes.root.style.display = 'none';
 	}
+
 	public override dispose() {
 		this.hide();
 		this.container.removeChild(this._nodes.root);
@@ -1886,9 +1889,11 @@ export class UnchangedCellOverlayWidget extends Disposable implements IDiffCellM
 		this._nodes.root.style.display = 'none';
 		container.appendChild(this._nodes.root);
 	}
+
 	public show() {
 		this._nodes.root.style.display = 'block';
 	}
+
 	public hide() {
 		this._nodes.root.style.display = 'none';
 	}

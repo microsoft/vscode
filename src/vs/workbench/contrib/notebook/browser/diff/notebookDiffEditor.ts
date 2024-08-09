@@ -95,7 +95,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	private _overviewRulerContainer!: HTMLElement;
 	private _overviewRuler!: NotebookDiffOverviewRuler;
 	private _dimension: DOM.Dimension | null = null;
-	private _diffElementViewModels: INotebookDiffViewModel = this._register(new NotebookDiffViewModel());
+	private notebookDiffViewModel: INotebookDiffViewModel = this._register(new NotebookDiffViewModel());
 	private _list!: NotebookTextDiffList;
 	private _modifiedWebview: BackLayerWebView<IDiffCellInfo> | null = null;
 	private _originalWebview: BackLayerWebView<IDiffCellInfo> | null = null;
@@ -333,10 +333,10 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		);
 
 		this._register(this._list);
-		this._register(this._diffElementViewModels.onDidChangeItems(e => {
+		this._register(this.notebookDiffViewModel.onDidChangeItems(e => {
 			this._list.splice(e.start, e.deleteCount, e.elements);
 			if (this.isOverviewRulerEnabled()) {
-				this._overviewRuler.updateViewModels(this._diffElementViewModels.items, this._eventDispatcher);
+				this._overviewRuler.updateViewModels(this.notebookDiffViewModel.items, this._eventDispatcher);
 			}
 		}));
 
@@ -568,10 +568,10 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		NotebookTextDiffEditor.prettyChanges(this._model, diffResult.cellsDiff);
 		const { viewModels, firstChangeIndex } = NotebookTextDiffEditor.computeDiff(this.instantiationService, this.configurationService, this._model, this._eventDispatcher!, diffResult, this.fontInfo);
 
-		if (!this._diffElementViewModels.isEqual(viewModels)) {
+		if (!this.notebookDiffViewModel.isEqual(viewModels)) {
 			this._originalWebview?.removeInsets([...this._originalWebview?.insetMapping.keys()]);
 			this._modifiedWebview?.removeInsets([...this._modifiedWebview?.insetMapping.keys()]);
-			this._diffElementViewModels.setViewModel(viewModels);
+			this.notebookDiffViewModel.setViewModel(viewModels);
 		}
 
 		if (this._revealFirst && firstChangeIndex !== -1 && firstChangeIndex < this._list.length) {
@@ -819,7 +819,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 		// find the index of previous change
 		let prevChangeIndex = currFocus - 1;
-		const currentViewModels = this._diffElementViewModels.items;
+		const currentViewModels = this.notebookDiffViewModel.items;
 		while (prevChangeIndex >= 0) {
 			const vm = currentViewModels[prevChangeIndex];
 			if (vm.type !== 'unchanged') {
@@ -851,7 +851,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 		// find the index of next change
 		let nextChangeIndex = currFocus + 1;
-		const currentViewModels = this._diffElementViewModels.items;
+		const currentViewModels = this.notebookDiffViewModel.items;
 		while (nextChangeIndex < currentViewModels.length) {
 			const vm = currentViewModels[nextChangeIndex];
 			if (vm.type !== 'unchanged') {
@@ -979,7 +979,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		this._modifiedResourceDisposableStore.clear();
 		this._list?.splice(0, this._list?.length || 0);
 		this._model = null;
-		this._diffElementViewModels.clear();
+		this.notebookDiffViewModel.clear();
 	}
 
 	deltaCellOutputContainerClassNames(diffSide: DiffSide, cellId: string, added: string[], removed: string[]) {
