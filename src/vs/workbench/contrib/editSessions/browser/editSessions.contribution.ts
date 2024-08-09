@@ -960,7 +960,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 	}
 
 	private async pickContinueEditSessionDestination(): Promise<string | undefined> {
-		const quickPick = this.quickInputService.createQuickPick<ContinueEditSessionItem>();
+		const quickPick = this.quickInputService.createQuickPick<ContinueEditSessionItem>({ useSeparators: true });
 
 		const workspaceContext = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER
 			? this.contextService.getWorkspace().folders[0].name

@@ -15,7 +15,7 @@ import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentW
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { PositionAffinity } from 'vs/editor/common/model';
-import { InlineEditWidget } from 'vs/editor/contrib/inlineEdit/browser/inlineEditController';
+import { GhostTextWidget } from 'vs/editor/contrib/inlineEdit/browser/ghostTextWidget';
 import { MenuEntryActionViewItem, createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuWorkbenchToolBarOptions, WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
@@ -27,12 +27,12 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export class InlineEditHintsWidget extends Disposable {
-	private readonly alwaysShowToolbar = observableFromEvent(this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineEdit).showToolbar === 'always');
+	private readonly alwaysShowToolbar = observableFromEvent(this, this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineEdit).showToolbar === 'always');
 
 	private sessionPosition: Position | undefined = undefined;
 
 	private readonly position = derived(this, reader => {
-		const ghostText = this.model.read(reader)?.widget.model.ghostText.read(reader);
+		const ghostText = this.model.read(reader)?.model.ghostText.read(reader);
 
 		if (!this.alwaysShowToolbar.read(reader) || !ghostText || ghostText.parts.length === 0) {
 			this.sessionPosition = undefined;
@@ -51,7 +51,7 @@ export class InlineEditHintsWidget extends Disposable {
 
 	constructor(
 		private readonly editor: ICodeEditor,
-		private readonly model: IObservable<InlineEditWidget | undefined>,
+		private readonly model: IObservable<GhostTextWidget | undefined>,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();

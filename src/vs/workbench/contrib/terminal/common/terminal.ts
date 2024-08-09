@@ -208,14 +208,15 @@ export interface ITerminalConfiguration {
 	autoReplies: { [key: string]: string };
 	shellIntegration?: {
 		enabled: boolean;
-		decorationsEnabled: boolean;
-		// TODO: Legacy - remove soon
-		suggestEnabled: boolean;
+		decorationsEnabled: 'both' | 'gutter' | 'overviewRuler' | 'never';
 	};
 	enableImages: boolean;
 	smoothScrolling: boolean;
 	ignoreBracketedPasteMode: boolean;
 	rescaleOverlappingGlyphs: boolean;
+	experimental?: {
+		windowsUseConptyDll?: boolean;
+	};
 }
 
 export interface ITerminalFont {

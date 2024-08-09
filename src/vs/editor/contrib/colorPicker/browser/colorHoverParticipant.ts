@@ -6,6 +6,7 @@
 import { AsyncIterableObject } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Color, RGBA } from 'vs/base/common/color';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { IModelDecoration, ITextModel } from 'vs/editor/common/model';
@@ -16,7 +17,6 @@ import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/browser/colorPic
 import { HoverAnchor, HoverAnchorType, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { HoverColorPicker, StandaloneColorPicker } from 'vs/editor/contrib/colorPicker/browser/colorPickerWidget';
 
 export interface IColorHover {

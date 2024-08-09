@@ -388,11 +388,8 @@ class VoiceChatSessions {
 		if (!response) {
 			return;
 		}
-
-		if (
-			!this.accessibilityService.isScreenReaderOptimized() && // do not auto synthesize when screen reader is active
-			this.configurationService.getValue<boolean>(AccessibilityVoiceSettingId.AutoSynthesize) === true
-		) {
+		const autoSynthesize = this.configurationService.getValue<'on' | 'off' | 'auto'>(AccessibilityVoiceSettingId.AutoSynthesize);
+		if (autoSynthesize === 'on' || autoSynthesize === 'auto' && !this.accessibilityService.isScreenReaderOptimized()) {
 			let context: IVoiceChatSessionController | 'focused';
 			if (controller.context === 'inline') {
 				// TODO@bpasero this is ugly, but the lightweight inline chat turns into
@@ -805,7 +802,7 @@ class ChatSynthesizerSessions {
 		let totalOffset = 0;
 		let complete = false;
 		do {
-			const responseLength = response.response.asString().length;
+			const responseLength = response.response.toString().length;
 			const { chunk, offset } = this.parseNextChatResponseChunk(response, totalOffset);
 			totalOffset = offset;
 			complete = response.isComplete;
@@ -818,7 +815,7 @@ class ChatSynthesizerSessions {
 				return;
 			}
 
-			if (!complete && responseLength === response.response.asString().length) {
+			if (!complete && responseLength === response.response.toString().length) {
 				await raceCancellation(Event.toPromise(response.onDidChange), token); // wait for the response to change
 			}
 		} while (!token.isCancellationRequested && !complete);
@@ -827,7 +824,7 @@ class ChatSynthesizerSessions {
 	private parseNextChatResponseChunk(response: IChatResponseModel, offset: number): { readonly chunk: string | undefined; readonly offset: number } {
 		let chunk: string | undefined = undefined;
 
-		const text = response.response.asString();
+		const text = response.response.toString();
 
 		if (response.isComplete) {
 			chunk = text.substring(offset);

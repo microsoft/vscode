@@ -10,7 +10,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ActiveEditorContext } from 'vs/workbench/common/contextkeys';
-import { DiffElementViewModelBase, SideBySideDiffElementViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
+import { DiffElementCellViewModelBase, SideBySideDiffElementViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
 import { INotebookTextDiffEditor, NOTEBOOK_DIFF_CELL_INPUT, NOTEBOOK_DIFF_CELL_PROPERTY, NOTEBOOK_DIFF_CELL_PROPERTY_EXPANDED } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
 import { NotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditor';
 import { NotebookDiffEditorInput } from 'vs/workbench/contrib/notebook/common/notebookDiffEditorInput';
@@ -64,6 +64,37 @@ registerAction2(class extends Action2 {
 
 registerAction2(class extends Action2 {
 	constructor() {
+		super({
+			id: 'notebook.toggle.diff.renderSideBySide',
+			title: localize('inlineView', "Inline View"),
+			toggled: ContextKeyExpr.equals('config.diffEditor.renderSideBySide', false),
+			precondition: ActiveEditorContext.isEqualTo(NotebookTextDiffEditor.ID),
+			menu: [{
+				id: MenuId.EditorTitle,
+				order: 0,
+				group: '1_diff',
+				when: ActiveEditorContext.isEqualTo(NotebookTextDiffEditor.ID)
+			}]
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const activeEditor = editorService.activeEditorPane;
+		if (activeEditor && activeEditor instanceof NotebookTextDiffEditor) {
+			const diffEditorInput = activeEditor.input as NotebookDiffEditorInput;
+			if (diffEditorInput.resource) {
+				const configurationService = accessor.get(IConfigurationService);
+
+				const oldValue = configurationService.getValue('diffEditor.renderSideBySide');
+				configurationService.updateValue('diffEditor.renderSideBySide', !oldValue);
+			}
+		}
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
 		super(
 			{
 				id: 'notebook.diff.cell.revertMetadata',
@@ -78,7 +109,7 @@ registerAction2(class extends Action2 {
 			}
 		);
 	}
-	run(accessor: ServicesAccessor, context?: { cell: DiffElementViewModelBase }) {
+	run(accessor: ServicesAccessor, context?: { cell: DiffElementCellViewModelBase }) {
 		if (!context) {
 			return;
 		}
@@ -133,7 +164,7 @@ registerAction2(class extends Action2 {
 			}
 		);
 	}
-	run(accessor: ServicesAccessor, context?: { cell: DiffElementViewModelBase }) {
+	run(accessor: ServicesAccessor, context?: { cell: DiffElementCellViewModelBase }) {
 		if (!context) {
 			return;
 		}
@@ -158,7 +189,7 @@ registerAction2(class extends Action2 {
 			}
 		);
 	}
-	run(accessor: ServicesAccessor, context?: { cell: DiffElementViewModelBase }) {
+	run(accessor: ServicesAccessor, context?: { cell: DiffElementCellViewModelBase }) {
 		if (!context) {
 			return;
 		}
@@ -199,7 +230,7 @@ registerAction2(class extends Action2 {
 			}
 		);
 	}
-	run(accessor: ServicesAccessor, context?: { cell: DiffElementViewModelBase }) {
+	run(accessor: ServicesAccessor, context?: { cell: DiffElementCellViewModelBase }) {
 		if (!context) {
 			return;
 		}

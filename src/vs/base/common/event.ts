@@ -616,6 +616,25 @@ export namespace Event {
 	}
 
 	/**
+	 * A convenience function for forwarding an event to another emitter which
+	 * improves readability.
+	 *
+	 * This is similar to {@link Relay} but allows instantiating and forwarding
+	 * on a single line and also allows for multiple source events.
+	 * @param from The event to forward.
+	 * @param to The emitter to forward the event to.
+	 * @example
+	 * Event.forward(event, emitter);
+	 * // equivalent to
+	 * event(e => emitter.fire(e));
+	 * // equivalent to
+	 * event(emitter.fire, emitter);
+	 */
+	export function forward<T>(from: Event<T>, to: Emitter<T>): IDisposable {
+		return from(e => to.fire(e));
+	}
+
+	/**
 	 * Adds a listener to an event and calls the listener immediately with undefined as the event object.
 	 *
 	 * @example
@@ -642,6 +661,9 @@ export namespace Event {
 			const options: EmitterOptions = {
 				onWillAddFirstListener: () => {
 					_observable.addObserver(this);
+
+					// Communicate to the observable that we received its current value and would like to be notified about future changes.
+					this._observable.reportChanges();
 				},
 				onDidRemoveLastListener: () => {
 					_observable.removeObserver(this);
@@ -831,13 +853,15 @@ export function setGlobalLeakWarningThreshold(n: number): IDisposable {
 
 class LeakageMonitor {
 
+	private static _idPool = 1;
+
 	private _stacks: Map<string, number> | undefined;
 	private _warnCountdown: number = 0;
 
 	constructor(
 		private readonly _errorHandler: (err: Error) => void,
 		readonly threshold: number,
-		readonly name: string = Math.random().toString(18).slice(2, 5),
+		readonly name: string = (LeakageMonitor._idPool++).toString(16).padStart(3, '0')
 	) { }
 
 	dispose(): void {

@@ -143,6 +143,14 @@
 		},
 		{
 			"files": [
+				"src/**/*.ts"
+			],
+			"rules": {
+				"local/code-no-static-self-ref": "warn"
+			}
+		},
+		{
+			"files": [
 				"src/vs/**/*.test.ts"
 			],
 			"rules": {
@@ -666,6 +674,7 @@
 							"vscode-regexpp",
 							"vscode-textmate",
 							"worker_threads",
+							"@xterm/addon-clipboard",
 							"@xterm/addon-image",
 							"@xterm/addon-search",
 							"@xterm/addon-serialize",
@@ -746,7 +755,8 @@
 							"vs/base/~",
 							"vs/base/parts/*/~",
 							"vs/platform/*/~",
-							"vs/editor/~"
+							"vs/editor/~",
+							"@vscode/tree-sitter-wasm" // node module allowed even in /common/
 						]
 					},
 					{
@@ -1015,11 +1025,7 @@
 						]
 					},
 					{
-						"target": "src/vs/workbench/{workbench.desktop.main.nls.js,workbench.web.main.nls.js}",
-						"restrictions": []
-					},
-					{
-						"target": "src/vs/{loader.d.ts,css.ts,css.build.ts,monaco.d.ts,nls.ts,nls.build.ts,nls.mock.ts}",
+						"target": "src/vs/{loader.d.ts,css.ts,css.build.ts,monaco.d.ts,nls.ts}",
 						"restrictions": []
 					},
 					{
@@ -1027,7 +1033,7 @@
 						"restrictions": []
 					},
 					{
-						"target": "src/{bootstrap-amd.js,bootstrap-fork.js,bootstrap-node.js,bootstrap-window.js,bootstrap.js,cli.js,main.js,server-cli.js,server-main.js}",
+						"target": "src/{bootstrap-amd.js,bootstrap-fork.js,bootstrap-node.js,bootstrap-window.js,cli.js,main.js,server-cli.js,server-main.js}",
 						"restrictions": []
 					}
 				]
@@ -1093,7 +1099,9 @@
 				"local/code-no-runtime-import": [
 					"error",
 					{
-						"src/vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads.ts": ["**/*"]
+						"src/vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads.ts": [
+							"**/*"
+						]
 					}
 				]
 			}

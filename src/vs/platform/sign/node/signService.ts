@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { importAMDNodeModule } from 'vs/amdX';
 import { AbstractSignService, IVsdaValidator } from 'vs/platform/sign/common/abstractSignService';
 import { ISignService } from 'vs/platform/sign/common/sign';
 
@@ -29,6 +30,6 @@ export class SignService extends AbstractSignService implements ISignService {
 	}
 
 	private vsda(): Promise<typeof vsda> {
-		return new Promise((resolve, reject) => require(['vsda'], resolve, reject));
+		return importAMDNodeModule('vsda', 'index.js');
 	}
 }

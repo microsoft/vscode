@@ -13,8 +13,8 @@
 	width: 100%;
 	border: 1px solid var(--vscode-editorWidget-border) !important;
 	border-radius: 2px;
-	background-color: var(--vscode-editorWidget-background);
-	color: var(--vscode-editorWidget-foreground);
+	background-color: var(--vscode-editorActionList-background);
+	color: var(--vscode-editorActionList-foreground);
 }
 
 .context-view-block {
@@ -62,8 +62,8 @@
 }
 
 .action-widget .monaco-list .monaco-list-row.action.focused:not(.option-disabled) {
-	background-color: var(--vscode-quickInputList-focusBackground) !important;
-	color: var(--vscode-quickInputList-focusForeground);
+	background-color: var(--vscode-editorActionList-focusBackground) !important;
+	color: var(--vscode-editorActionList-focusForeground);
 	outline: 1px solid var(--vscode-menu-selectionBorder, transparent);
 	outline-offset: -1px;
 }

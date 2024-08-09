@@ -77,7 +77,7 @@ export async function pickSnippet(accessor: ServicesAccessor, languageIdOrSnippe
 		return result;
 	};
 
-	const picker = quickInputService.createQuickPick<ISnippetPick>();
+	const picker = quickInputService.createQuickPick<ISnippetPick>({ useSeparators: true });
 	picker.placeholder = nls.localize('pick.placeholder', "Select a snippet");
 	picker.matchOnDetail = true;
 	picker.ignoreFocusOut = false;

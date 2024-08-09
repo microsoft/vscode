@@ -569,10 +569,6 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		this.tree.resort(this.getDataNode(element), recursive);
 	}
 
-	hasElement(element: TInput | T): boolean {
-		return this.tree.hasElement(this.getDataNode(element));
-	}
-
 	hasNode(element: TInput | T): boolean {
 		return element === this.root.element || this.nodes.has(element as T);
 	}
@@ -694,6 +690,8 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	}
 
 	openFind(): void {
+		// Until #212077, set to filter so behavior is consistent with filter widget
+		this.tree.findMode = TreeFindMode.Filter;
 		this.tree.openFind();
 	}
 

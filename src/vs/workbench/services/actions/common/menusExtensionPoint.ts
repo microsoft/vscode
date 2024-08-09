@@ -15,7 +15,6 @@ import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { index } from 'vs/base/common/arrays';
 import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
-import { ApiProposalName } from 'vs/workbench/services/extensions/common/extensionsApiProposals';
 import { ILocalizedString } from 'vs/platform/action/common/action';
 import { IExtensionFeatureTableRenderer, IExtensionFeaturesRegistry, IRenderedData, IRowData, ITableData, Extensions as ExtensionFeaturesExtensions } from 'vs/workbench/services/extensionManagement/common/extensionFeatures';
 import { IExtensionManifest, IKeyBinding } from 'vs/platform/extensions/common/extensions';
@@ -25,6 +24,7 @@ import { platform } from 'vs/base/common/process';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { ApiProposalName } from 'vs/platform/extensions/common/extensionsApiProposals';
 
 interface IAPIMenu {
 	readonly key: string;
@@ -170,6 +170,18 @@ const apiMenus: IAPIMenu[] = [
 		proposed: 'contribSourceControlInputBoxMenu'
 	},
 	{
+		key: 'scm/historyItemChanges/title',
+		id: MenuId.SCMChangesSeparator,
+		description: localize('menus.historyItemChanges', "The Source Control incoming/outgoing changes title menu"),
+		proposed: 'contribSourceControlHistoryItemChangesMenu'
+	},
+	{
+		key: 'scm/historyItem/context',
+		id: MenuId.SCMChangesContext,
+		description: localize('menus.historyItemContext', "The Source Control history item context menu"),
+		proposed: 'contribSourceControlHistoryItemChangesMenu'
+	},
+	{
 		key: 'scm/incomingChanges',
 		id: MenuId.SCMIncomingChanges,
 		description: localize('menus.incomingChanges', "The Source Control incoming changes menu"),
@@ -237,6 +249,12 @@ const apiMenus: IAPIMenu[] = [
 		key: 'view/title',
 		id: MenuId.ViewTitle,
 		description: localize('view.viewTitle', "The contributed view title menu")
+	},
+	{
+		key: 'viewContainer/title',
+		id: MenuId.ViewContainerTitle,
+		description: localize('view.containerTitle', "The contributed view container title menu"),
+		proposed: 'contribViewContainerTitle'
 	},
 	{
 		key: 'view/item/context',
@@ -342,6 +360,11 @@ const apiMenus: IAPIMenu[] = [
 		key: 'testing/item/gutter',
 		id: MenuId.TestItemGutter,
 		description: localize('testing.item.gutter.title', "The menu for a gutter decoration for a test item"),
+	},
+	{
+		key: 'testing/profiles/context',
+		id: MenuId.TestProfilesContext,
+		description: localize('testing.profiles.context.title', "The menu for configuring testing profiles."),
 	},
 	{
 		key: 'testing/item/result',
@@ -1022,6 +1045,12 @@ menusExtensionPoint.setHandler(extensions => {
 					} else {
 						item.group = menuItem.group;
 					}
+				}
+
+				if (menu.id === MenuId.ViewContainerTitle && !menuItem.when?.includes('viewContainer == workbench.view.debug')) {
+					// Not a perfect check but enough to communicate that this proposed extension point is currently only for the debug view container
+					collector.error(localize('viewContainerTitle.when', "The {0} menu contribution must check {1} in its {2} clause.", '`viewContainer/title`', '`viewContainer == workbench.view.debug`', '"when"'));
+					continue;
 				}
 
 				item.when = ContextKeyExpr.deserialize(menuItem.when);

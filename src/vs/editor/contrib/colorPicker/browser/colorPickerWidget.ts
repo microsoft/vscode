@@ -27,7 +27,6 @@ import { getColorPresentations } from 'vs/editor/contrib/colorPicker/browser/col
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IColorHover } from 'vs/editor/contrib/colorPicker/browser/colorHoverParticipant';
-import { Dimension } from 'vs/base/browser/dom';
 
 const $ = dom.$;
 
@@ -526,6 +525,7 @@ export class InsertButton extends Disposable {
 class HoverColorPickerWidget extends Widget implements IEditorHoverColorPickerWidget {
 
 	private static readonly ID = 'editor.contrib.hoverColorPickerWidget';
+	private readonly _domNode: HTMLElement;
 
 	body: HoverColorPickerBody;
 	header: ColorPickerHeader;
@@ -541,6 +541,7 @@ class HoverColorPickerWidget extends Widget implements IEditorHoverColorPickerWi
 		this.header = this._register(new ColorPickerHeader(element, this.model, themeService));
 		this.body = this._register(new HoverColorPickerBody(element, this.model, this.pixelRatio));
 	}
+
 
 	getId(): string {
 		return HoverColorPickerWidget.ID;
@@ -571,8 +572,8 @@ export class StandaloneColorPickerWidget extends Widget implements IEditorHoverC
 
 		this._register(PixelRatio.getInstance(dom.getWindow(container)).onDidChange(() => this.layout()));
 
-		const element = $('.colorpicker-widget');
-		container.appendChild(element);
+		this._domNode = $('.colorpicker-widget');
+		container.appendChild(this._domNode);
 
 		this.header = this._register(new StandaloneColorPickerHeader(element, this.model, themeService));
 		this.body = this._register(new StandaloneColorPickerBody(element, this.model, foundInEditor, this.pixelRatio));
@@ -600,6 +601,10 @@ export class StandaloneColorPickerWidget extends Widget implements IEditorHoverC
 
 	layout(): void {
 		this.body.layout();
+	}
+
+	get domNode(): HTMLElement {
+		return this._domNode;
 	}
 }
 
@@ -660,7 +665,7 @@ export abstract class AbstractColorPicker extends Disposable {
 			return;
 		}
 		const minimumHeight = editor.getOption(EditorOption.lineHeight) + 8;
-		context.setMinimumDimensions(new Dimension(302, minimumHeight));
+		context.setMinimumDimensions(new dom.Dimension(302, minimumHeight));
 	}
 }
 
@@ -759,3 +764,4 @@ export class HoverColorPicker extends AbstractColorPicker {
 		}));
 	}
 }
+

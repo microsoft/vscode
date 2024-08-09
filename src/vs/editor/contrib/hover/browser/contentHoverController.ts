@@ -5,37 +5,31 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { TokenizationRegistry } from 'vs/editor/common/languages';
 import { HoverOperation, HoverStartMode, HoverStartSource } from 'vs/editor/contrib/hover/browser/hoverOperation';
-import { HoverAnchor, HoverParticipantRegistry, HoverRangeAnchor, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, IHoverWidget } from 'vs/editor/contrib/hover/browser/hoverTypes';
+import { HoverAnchor, HoverParticipantRegistry, HoverRangeAnchor, IEditorHoverContext, IEditorHoverParticipant, IHoverPart, IHoverWidget } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { MarkdownHoverParticipant } from 'vs/editor/contrib/hover/browser/markdownHoverParticipant';
-import { InlayHintsHover } from 'vs/editor/contrib/inlayHints/browser/inlayHintsHover';
 import { HoverVerbosityAction } from 'vs/editor/common/standalone/standaloneEnums';
 import { ContentHoverWidget } from 'vs/editor/contrib/hover/browser/contentHoverWidget';
 import { ContentHoverComputer } from 'vs/editor/contrib/hover/browser/contentHoverComputer';
-import { ContentHoverVisibleData, HoverResult } from 'vs/editor/contrib/hover/browser/contentHoverTypes';
-import { EditorHoverStatusBar } from 'vs/editor/contrib/hover/browser/contentHoverStatusBar';
+import { HoverResult } from 'vs/editor/contrib/hover/browser/contentHoverTypes';
 import { Emitter } from 'vs/base/common/event';
-import { ColorHoverParticipant } from 'vs/editor/contrib/colorPicker/browser/colorHoverParticipant';
+import { RenderedContentHover } from 'vs/editor/contrib/hover/browser/contentHoverRendered';
+import { isMousePositionWithinElement } from 'vs/editor/contrib/hover/browser/hoverUtils';
 
 export class ContentHoverController extends Disposable implements IHoverWidget {
 
 	private _currentResult: HoverResult | null = null;
+	private _renderedContentHover: RenderedContentHover | undefined;
 
 	private readonly _computer: ContentHoverComputer;
 	private readonly _contentHoverWidget: ContentHoverWidget;
 	private readonly _participants: IEditorHoverParticipant[];
-	// TODO@aiday-mar make array of participants, dispatch between them
-	private readonly _markdownHoverParticipant: MarkdownHoverParticipant | undefined;
-	private readonly _colorHoverParticipant: ColorHoverParticipant | undefined;
 	private readonly _hoverOperation: HoverOperation<IHoverPart>;
 
 	private readonly _onContentsChanged = this._register(new Emitter<void>());
@@ -48,34 +42,23 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 	) {
 		super();
 		this._contentHoverWidget = this._register(this._instantiationService.createInstance(ContentHoverWidget, this._editor));
-		const initializedParticipants = this._initializeHoverParticipants();
-		this._participants = initializedParticipants.participants;
-		this._markdownHoverParticipant = initializedParticipants.markdownHoverParticipant;
-		this._colorHoverParticipant = initializedParticipants.colorHoverParticipant;
+		this._participants = this._initializeHoverParticipants();
 		this._computer = new ContentHoverComputer(this._editor, this._participants);
 		this._hoverOperation = this._register(new HoverOperation(this._editor, this._computer));
 		this._registerListeners();
 	}
 
-	private _initializeHoverParticipants(): { participants: IEditorHoverParticipant[]; markdownHoverParticipant: MarkdownHoverParticipant | undefined; colorHoverParticipant: ColorHoverParticipant | undefined } {
+	private _initializeHoverParticipants(): IEditorHoverParticipant[] {
 		const participants: IEditorHoverParticipant[] = [];
-		let markdownHoverParticipant: MarkdownHoverParticipant | undefined;
-		let colorHoverParticipant: ColorHoverParticipant | undefined;
 		for (const participant of HoverParticipantRegistry.getAll()) {
 			const participantInstance = this._instantiationService.createInstance(participant, this._editor);
-			if (participantInstance instanceof MarkdownHoverParticipant && !(participantInstance instanceof InlayHintsHover)) {
-				markdownHoverParticipant = participantInstance;
-			}
-			if (participantInstance instanceof ColorHoverParticipant) {
-				colorHoverParticipant = participantInstance;
-			}
 			participants.push(participantInstance);
 		}
 		participants.sort((p1, p2) => p1.hoverOrdinal - p2.hoverOrdinal);
 		this._register(this._contentHoverWidget.onDidResize(() => {
 			this._participants.forEach(participant => participant.handleResize?.());
 		}));
-		return { participants, markdownHoverParticipant, colorHoverParticipant };
+		return participants;
 	}
 
 	private _registerListeners(): void {
@@ -87,10 +70,14 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 			const messages = (result.hasLoadingMessage ? this._addLoadingMessage(result.value) : result.value);
 			this._withResult(new HoverResult(this._computer.anchor, messages, result.isComplete));
 		}));
-		this._register(dom.addStandardDisposableListener(this._contentHoverWidget.getDomNode(), 'keydown', (e) => {
+		const contentHoverWidgetNode = this._contentHoverWidget.getDomNode();
+		this._register(dom.addStandardDisposableListener(contentHoverWidgetNode, 'keydown', (e) => {
 			if (e.equals(KeyCode.Escape)) {
 				this.hide();
 			}
+		}));
+		this._register(dom.addStandardDisposableListener(contentHoverWidgetNode, 'mouseleave', (e) => {
+			this._onMouseLeave(e);
 		}));
 		this._register(TokenizationRegistry.onDidChange(() => {
 			if (this._contentHoverWidget.position && this._currentResult) {
@@ -177,9 +164,9 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 		}
 		this._currentResult = currentHoverResult;
 		if (this._currentResult) {
-			this._showHover(this._currentResult.anchor, this._currentResult.hoverParts);
+			this._showHover(this._currentResult);
 		} else {
-			this._contentHoverWidget.hide();
+			this._hideHover();
 		}
 	}
 
@@ -221,18 +208,21 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 		this._setCurrentResult(hoverResult);
 	}
 
-	private _showHover(anchor: HoverAnchor, hoverParts: IHoverPart[]): void {
-		const fragment = document.createDocumentFragment();
-		const disposables = this._renderHoverPartsInFragment(fragment, hoverParts);
-		const fragmentHasContent = fragment.hasChildNodes();
-		if (fragmentHasContent) {
-			this._doShowHover(fragment, hoverParts, anchor, disposables);
+	private _showHover(hoverResult: HoverResult): void {
+		const context = this._getHoverContext();
+		this._renderedContentHover = new RenderedContentHover(this._editor, hoverResult, this._participants, this._computer, context, this._keybindingService);
+		if (this._renderedContentHover.domNodeHasChildren) {
+			this._contentHoverWidget.show(this._renderedContentHover);
 		} else {
-			disposables.dispose();
+			this._renderedContentHover.dispose();
 		}
 	}
 
-	private _getHoverContext(fragment: DocumentFragment, statusBar: EditorHoverStatusBar): IEditorHoverRenderContext {
+	private _hideHover(): void {
+		this._contentHoverWidget.hide();
+	}
+
+	private _getHoverContext(): IEditorHoverContext {
 		const hide = () => {
 			this.hide();
 		};
@@ -243,122 +233,9 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 		const setMinimumDimensions = (dimensions: dom.Dimension) => {
 			this._contentHoverWidget.setMinimumDimensions(dimensions);
 		};
-		const context: IEditorHoverRenderContext = { fragment, statusBar, hide, onContentsChanged, setMinimumDimensions };
-		return context;
+		return { hide, onContentsChanged, setMinimumDimensions };
 	}
 
-	private _renderHoverPartsInFragment(fragment: DocumentFragment, hoverParts: IHoverPart[]): DisposableStore {
-		const disposables = new DisposableStore();
-		const statusBar = new EditorHoverStatusBar(this._keybindingService);
-		const context = this._getHoverContext(fragment, statusBar);
-		disposables.add(this._renderHoverPartsUsingContext(context, hoverParts));
-		disposables.add(this._renderStatusBar(fragment, statusBar));
-		return disposables;
-	}
-
-	private _renderHoverPartsUsingContext(context: IEditorHoverRenderContext, hoverParts: IHoverPart[]): IDisposable {
-		const disposables = new DisposableStore();
-		for (const participant of this._participants) {
-			const hoverPartsForParticipant = hoverParts.filter(hoverPart => hoverPart.owner === participant);
-			const hasHoverPartsForParticipant = hoverPartsForParticipant.length > 0;
-			if (!hasHoverPartsForParticipant) {
-				continue;
-			}
-			disposables.add(participant.renderHoverParts(context, hoverPartsForParticipant));
-		}
-		return disposables;
-	}
-
-	private _renderStatusBar(fragment: DocumentFragment, statusBar: EditorHoverStatusBar): IDisposable {
-		if (!statusBar.hasContent) {
-			return Disposable.None;
-		}
-		fragment.appendChild(statusBar.hoverElement);
-		return statusBar;
-	}
-
-	private _doShowHover(fragment: DocumentFragment, hoverParts: IHoverPart[], anchor: HoverAnchor, disposables: DisposableStore): void {
-		const { showAtPosition, showAtSecondaryPosition, highlightRange } = ContentHoverController.computeHoverRanges(this._editor, anchor.range, hoverParts);
-		this._addEditorDecorations(highlightRange, disposables);
-		const initialMousePosX = anchor.initialMousePosX;
-		const initialMousePosY = anchor.initialMousePosY;
-		const preferAbove = this._editor.getOption(EditorOption.hover).above;
-		const stoleFocus = this._computer.shouldFocus;
-		const hoverSource = this._computer.source;
-		const isBeforeContent = hoverParts.some(m => m.isBeforeContent);
-
-		const contentHoverVisibleData = new ContentHoverVisibleData(
-			initialMousePosX,
-			initialMousePosY,
-			showAtPosition,
-			showAtSecondaryPosition,
-			preferAbove,
-			stoleFocus,
-			hoverSource,
-			isBeforeContent,
-			disposables
-		);
-		this._contentHoverWidget.showAt(fragment, contentHoverVisibleData);
-	}
-
-	private _addEditorDecorations(highlightRange: Range | undefined, disposables: DisposableStore) {
-		if (!highlightRange) {
-			return;
-		}
-		const highlightDecoration = this._editor.createDecorationsCollection();
-		highlightDecoration.set([{
-			range: highlightRange,
-			options: ContentHoverController._DECORATION_OPTIONS
-		}]);
-		disposables.add(toDisposable(() => {
-			highlightDecoration.clear();
-		}));
-	}
-
-	private static readonly _DECORATION_OPTIONS = ModelDecorationOptions.register({
-		description: 'content-hover-highlight',
-		className: 'hoverHighlight'
-	});
-
-	public static computeHoverRanges(editor: ICodeEditor, anchorRange: Range, hoverParts: IHoverPart[]) {
-
-		let startColumnBoundary = 1;
-		if (editor.hasModel()) {
-			// Ensure the range is on the current view line
-			const viewModel = editor._getViewModel();
-			const coordinatesConverter = viewModel.coordinatesConverter;
-			const anchorViewRange = coordinatesConverter.convertModelRangeToViewRange(anchorRange);
-			const anchorViewRangeStart = new Position(anchorViewRange.startLineNumber, viewModel.getLineMinColumn(anchorViewRange.startLineNumber));
-			startColumnBoundary = coordinatesConverter.convertViewPositionToModelPosition(anchorViewRangeStart).column;
-		}
-
-		// The anchor range is always on a single line
-		const anchorLineNumber = anchorRange.startLineNumber;
-		let renderStartColumn = anchorRange.startColumn;
-		let highlightRange = hoverParts[0].range;
-		let forceShowAtRange = null;
-
-		for (const hoverPart of hoverParts) {
-			highlightRange = Range.plusRange(highlightRange, hoverPart.range);
-			const hoverRangeIsWithinAnchorLine = hoverPart.range.startLineNumber === anchorLineNumber && hoverPart.range.endLineNumber === anchorLineNumber;
-			if (hoverRangeIsWithinAnchorLine) {
-				// this message has a range that is completely sitting on the line of the anchor
-				renderStartColumn = Math.max(Math.min(renderStartColumn, hoverPart.range.startColumn), startColumnBoundary);
-			}
-			if (hoverPart.forceShowAtRange) {
-				forceShowAtRange = hoverPart.range;
-			}
-		}
-
-		const showAtPosition = forceShowAtRange ? forceShowAtRange.getStartPosition() : new Position(anchorLineNumber, anchorRange.startColumn);
-		const showAtSecondaryPosition = forceShowAtRange ? forceShowAtRange.getStartPosition() : new Position(anchorLineNumber, renderStartColumn);
-
-		return {
-			showAtPosition,
-			showAtSecondaryPosition,
-			highlightRange
-		};
-	}
 
 	public showsOrWillShow(mouseEvent: IEditorMouseEvent): boolean {
 		const isContentWidgetResizing = this._contentHoverWidget.isResizing;
@@ -409,24 +286,16 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 		return anchorCandidates;
 	}
 
+	private _onMouseLeave(e: MouseEvent): void {
+		const editorDomNode = this._editor.getDomNode();
+		const isMousePositionOutsideOfEditor = !editorDomNode || !isMousePositionWithinElement(editorDomNode, e.x, e.y);
+		if (isMousePositionOutsideOfEditor) {
+			this.hide();
+		}
+	}
+
 	public startShowingAtRange(range: Range, mode: HoverStartMode, source: HoverStartSource, focus: boolean): void {
 		this._startShowingOrUpdateHover(new HoverRangeAnchor(0, range, undefined, undefined), mode, source, focus, null);
-	}
-
-	public async updateMarkdownHoverVerbosityLevel(action: HoverVerbosityAction, index?: number, focus?: boolean): Promise<void> {
-		this._markdownHoverParticipant?.updateMarkdownHoverVerbosityLevel(action, index, focus);
-	}
-
-	public focusedMarkdownHoverIndex(): number {
-		return this._markdownHoverParticipant?.focusedMarkdownHoverIndex() ?? -1;
-	}
-
-	public markdownHoverContentAtIndex(index: number): string {
-		return this._markdownHoverParticipant?.markdownHoverContentAtIndex(index) ?? '';
-	}
-
-	public doesMarkdownHoverAtIndexSupportVerbosityAction(index: number, action: HoverVerbosityAction): boolean {
-		return this._markdownHoverParticipant?.doesMarkdownHoverAtIndexSupportVerbosityAction(index, action) ?? false;
 	}
 
 	public getWidgetContent(): string | undefined {
@@ -437,12 +306,36 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 		return node.textContent;
 	}
 
+	public async updateHoverVerbosityLevel(action: HoverVerbosityAction, index: number, focus?: boolean): Promise<void> {
+		this._renderedContentHover?.updateHoverVerbosityLevel(action, index, focus);
+	}
+
+	public doesHoverAtIndexSupportVerbosityAction(index: number, action: HoverVerbosityAction): boolean {
+		return this._renderedContentHover?.doesHoverAtIndexSupportVerbosityAction(index, action) ?? false;
+	}
+
+	public getAccessibleWidgetContent(): string | undefined {
+		return this._renderedContentHover?.getAccessibleWidgetContent();
+	}
+
+	public getAccessibleWidgetContentAtIndex(index: number): string | undefined {
+		return this._renderedContentHover?.getAccessibleWidgetContentAtIndex(index);
+	}
+
+	public focusedHoverPartIndex(): number {
+		return this._renderedContentHover?.focusedHoverPartIndex ?? -1;
+	}
+
 	public containsNode(node: Node | null | undefined): boolean {
 		return (node ? this._contentHoverWidget.getDomNode().contains(node) : false);
 	}
 
 	public focus(): void {
 		this._contentHoverWidget.focus();
+	}
+
+	public focusHoverPartWithIndex(index: number): void {
+		this._renderedContentHover?.focusHoverPartWithIndex(index);
 	}
 
 	public scrollUp(): void {
@@ -483,8 +376,12 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 		this._setCurrentResult(null);
 	}
 
+	public getDomNode(): HTMLElement {
+		return this._contentHoverWidget.getDomNode();
+	}
+
 	public get isColorPickerVisible(): boolean {
-		return this._colorHoverParticipant?.isColorPickerVisible() ?? false;
+		return this._renderedContentHover?.isColorPickerVisible() ?? false;
 	}
 
 	public get isVisibleFromKeyboard(): boolean {

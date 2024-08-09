@@ -12,7 +12,7 @@ import { getZoomLevel } from 'vs/base/browser/browser';
 import { FileKind } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ILanguageService } from 'vs/editor/common/languages/language';
-import { IQuickInputService, IQuickInputButton, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService, IQuickInputButton, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -253,11 +253,17 @@ abstract class BaseSwitchWindow extends Action2 {
 			readonly windowId: number;
 		}
 
-		const picks: Array<IWindowPickItem> = [];
+		function isWindowPickItem(candidate: unknown): candidate is IWindowPickItem {
+			const windowPickItem = candidate as IWindowPickItem | undefined;
+
+			return typeof windowPickItem?.windowId === 'number';
+		}
+
+		const picks: Array<QuickPickInput<IWindowPickItem>> = [];
 		for (const window of mainWindows) {
 			const auxiliaryWindows = mapMainWindowToAuxiliaryWindows.get(window.id);
 			if (mapMainWindowToAuxiliaryWindows.size > 0) {
-				picks.push({ type: 'separator', payload: -1, label: auxiliaryWindows ? localize('windowGroup', "window group") : undefined } as unknown as IWindowPickItem);
+				picks.push({ type: 'separator', label: auxiliaryWindows ? localize('windowGroup', "window group") : undefined });
 			}
 
 			const resource = window.filename ? URI.file(window.filename) : isSingleFolderWorkspaceIdentifier(window.workspace) ? window.workspace.uri : isWorkspaceIdentifier(window.workspace) ? window.workspace.configPath : undefined;
@@ -286,13 +292,27 @@ abstract class BaseSwitchWindow extends Action2 {
 			}
 		}
 
-		const placeHolder = localize('switchWindowPlaceHolder', "Select a window to switch to");
-		const autoFocusIndex = (picks.indexOf(picks.filter(pick => pick.windowId === currentWindowId)[0]) + 1) % picks.length;
-
 		const pick = await quickInputService.pick(picks, {
 			contextKey: 'inWindowsPicker',
-			activeItem: picks[autoFocusIndex],
-			placeHolder,
+			activeItem: (() => {
+				for (let i = 0; i < picks.length; i++) {
+					const pick = picks[i];
+					if (isWindowPickItem(pick) && pick.windowId === currentWindowId) {
+						let nextPick = picks[i + 1]; // try to select next window unless it's a separator
+						if (isWindowPickItem(nextPick)) {
+							return nextPick;
+						}
+
+						nextPick = picks[i + 2]; // otherwise try to select the next window after the separator
+						if (isWindowPickItem(nextPick)) {
+							return nextPick;
+						}
+					}
+				}
+
+				return undefined;
+			})(),
+			placeHolder: localize('switchWindowPlaceHolder', "Select a window to switch to"),
 			quickNavigate: this.isQuickNavigate() ? { keybindings: keybindingService.lookupKeybindings(this.desc.id) } : undefined,
 			hideInput: this.isQuickNavigate(),
 			onDidTriggerItemButton: async context => {

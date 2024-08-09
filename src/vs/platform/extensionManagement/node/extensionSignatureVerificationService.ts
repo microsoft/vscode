@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { importAMDNodeModule } from 'vs/amdX';
 import { getErrorMessage } from 'vs/base/common/errors';
 import { IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { TargetPlatform } from 'vs/platform/extensions/common/extensions';
@@ -95,14 +96,7 @@ export class ExtensionSignatureVerificationService implements IExtensionSignatur
 
 	private vsceSign(): Promise<typeof vsceSign> {
 		if (!this.moduleLoadingPromise) {
-			this.moduleLoadingPromise = new Promise(
-				(resolve, reject) => require(
-					['@vscode/vsce-sign'],
-					async (obj) => {
-						const instance = <typeof vsceSign>obj;
-
-						return resolve(instance);
-					}, reject));
+			this.moduleLoadingPromise = importAMDNodeModule('@vscode/vsce-sign', 'src/main.js');
 		}
 
 		return this.moduleLoadingPromise;

@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
 import * as os from 'os';
 import * as cp from 'child_process';
-import { Promises } from 'vs/base/node/pfs';
 import * as path from 'path';
 
 let hasWSLFeaturePromise: Promise<boolean> | undefined;
@@ -26,14 +26,18 @@ async function testWSLFeatureInstalled(): Promise<boolean> {
 		const wslExePath = getWSLExecutablePath();
 		if (wslExePath) {
 			return new Promise<boolean>(s => {
-				cp.execFile(wslExePath, ['--status'], err => s(!err));
+				try {
+					cp.execFile(wslExePath, ['--status'], err => s(!err));
+				} catch (e) {
+					s(false);
+				}
 			});
 		}
 	} else {
 		const dllPath = getLxssManagerDllPath();
 		if (dllPath) {
 			try {
-				if ((await Promises.stat(dllPath)).isFile()) {
+				if ((await fs.promises.stat(dllPath)).isFile()) {
 					return true;
 				}
 			} catch (e) {

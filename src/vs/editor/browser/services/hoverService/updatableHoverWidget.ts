@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isHTMLElement } from 'vs/base/browser/dom';
-import type { IHoverWidget, IUpdatableHoverContent, IUpdatableHoverOptions } from 'vs/base/browser/ui/hover/hover';
+import type { IHoverWidget, IManagedHoverContent, IManagedHoverOptions } from 'vs/base/browser/ui/hover/hover';
 import type { IHoverDelegate, IHoverDelegateOptions, IHoverDelegateTarget } from 'vs/base/browser/ui/hover/hoverDelegate';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
@@ -13,9 +13,9 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { isFunction, isString } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
 
-type IUpdatableHoverResolvedContent = IMarkdownString | string | HTMLElement | undefined;
+type IManagedHoverResolvedContent = IMarkdownString | string | HTMLElement | undefined;
 
-export class UpdatableHoverWidget implements IDisposable {
+export class ManagedHoverWidget implements IDisposable {
 
 	private _hoverWidget: IHoverWidget | undefined;
 	private _cancellationTokenSource: CancellationTokenSource | undefined;
@@ -23,7 +23,7 @@ export class UpdatableHoverWidget implements IDisposable {
 	constructor(private hoverDelegate: IHoverDelegate, private target: IHoverDelegateTarget | HTMLElement, private fadeInAnimation: boolean) {
 	}
 
-	async update(content: IUpdatableHoverContent, focus?: boolean, options?: IUpdatableHoverOptions): Promise<void> {
+	async update(content: IManagedHoverContent, focus?: boolean, options?: IManagedHoverOptions): Promise<void> {
 		if (this._cancellationTokenSource) {
 			// there's an computation ongoing, cancel it
 			this._cancellationTokenSource.dispose(true);
@@ -64,21 +64,24 @@ export class UpdatableHoverWidget implements IDisposable {
 		this.show(resolvedContent, focus, options);
 	}
 
-	private show(content: IUpdatableHoverResolvedContent, focus?: boolean, options?: IUpdatableHoverOptions): void {
+	private show(content: IManagedHoverResolvedContent, focus?: boolean, options?: IManagedHoverOptions): void {
 		const oldHoverWidget = this._hoverWidget;
 
 		if (this.hasContent(content)) {
 			const hoverOptions: IHoverDelegateOptions = {
 				content,
 				target: this.target,
+				actions: options?.actions,
+				linkHandler: options?.linkHandler,
+				trapFocus: options?.trapFocus,
 				appearance: {
 					showPointer: this.hoverDelegate.placement === 'element',
 					skipFadeInAnimation: !this.fadeInAnimation || !!oldHoverWidget, // do not fade in if the hover is already showing
+					showHoverHint: options?.appearance?.showHoverHint,
 				},
 				position: {
 					hoverPosition: HoverPosition.BELOW,
 				},
-				...options
 			};
 
 			this._hoverWidget = this.hoverDelegate.showHover(hoverOptions, focus);
@@ -86,7 +89,7 @@ export class UpdatableHoverWidget implements IDisposable {
 		oldHoverWidget?.dispose();
 	}
 
-	private hasContent(content: IUpdatableHoverResolvedContent): content is NonNullable<IUpdatableHoverResolvedContent> {
+	private hasContent(content: IManagedHoverResolvedContent): content is NonNullable<IManagedHoverResolvedContent> {
 		if (!content) {
 			return false;
 		}
