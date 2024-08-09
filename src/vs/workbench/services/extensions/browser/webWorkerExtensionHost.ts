@@ -189,7 +189,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 					type: event.data.type,
 					data: {
 						baseUrl,
-						workerUrl: isESM ? FileAccess.asBrowserUri(factoryModuleId).toString(true) : require.toUrl(factoryModuleId),
+						workerUrl: isESM ? FileAccess.asBrowserUri('vs/workbench/api/worker/extensionHostWorker.esm.js').toString(true) : require.toUrl(factoryModuleId),
 						fileRoot: globalThis._VSCODE_FILE_ROOT,
 						nls: {
 							messages: globalThis._VSCODE_NLS_MESSAGES,
