@@ -12,7 +12,7 @@ import { CommandExecutor } from 'vs/editor/common/cursor/cursor';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { TrackedRangeStickiness } from 'vs/editor/common/model';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { IModelService } from 'vs/editor/common/services/model';
 import { LineCommentCommand, Type } from 'vs/editor/contrib/comment/browser/lineCommentCommand';
@@ -40,7 +40,6 @@ import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/not
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
-import { TextModel } from 'vs/editor/common/model/textModel';
 
 const CLEAR_ALL_CELLS_OUTPUTS_COMMAND_ID = 'notebook.clearAllCellsOutputs';
 const EDIT_CELL_COMMAND_ID = 'notebook.cell.edit';
@@ -648,21 +647,12 @@ registerAction2(class CommentSelectedCellsAction extends NotebookMultiCellAction
 		const languageConfigurationService = accessor.get(ILanguageConfigurationService);
 
 		context.selectedCells.forEach(async cellViewModel => {
-			const cellTextModel = cellViewModel.model;
-			if (!cellTextModel) {
-				return;
-			}
-			const textBuffer = cellTextModel.textBuffer;
-
-			let textModel: ITextModel | TextModel | undefined = cellTextModel.textModel;
-			if (!textModel) {
-				textModel = await cellViewModel.resolveTextModel();
-			}
+			const textModel = await cellViewModel.resolveTextModel();
 
 			const commentsOptions = cellViewModel.commentOptions;
 			const cellCommentCommand = new LineCommentCommand(
 				languageConfigurationService,
-				new Selection(1, 1, textBuffer.getLineCount(), textBuffer.getLineLength(textBuffer.getLineCount())), // comment the entire cell
+				new Selection(1, 1, textModel.getLineCount(), textModel.getLineMaxColumn(textModel.getLineCount())), // comment the entire cell
 				textModel.getOptions().tabSize,
 				Type.Toggle,
 				commentsOptions.insertSpace ?? true,

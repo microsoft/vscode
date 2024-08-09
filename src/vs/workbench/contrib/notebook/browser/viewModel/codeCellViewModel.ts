@@ -24,7 +24,6 @@ import { CellKind, INotebookFindOptions, NotebookCellOutputsSplice } from 'vs/wo
 import { ICellExecutionError, ICellExecutionStateChangedEvent } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { BaseCellViewModel } from './baseCellViewModel';
-import { IEditorCommentsOptions } from 'vs/editor/common/config/editorOptions';
 
 export const outputDisplayLimit = 500;
 
@@ -138,16 +137,6 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 
 	readonly excecutionError = observableValue<ICellExecutionError | undefined>('excecutionError', undefined);
 
-	private _commentOptions: IEditorCommentsOptions;
-	public get commentOptions(): IEditorCommentsOptions {
-		return this._commentOptions;
-	}
-
-	public set commentOptions(newOptions: IEditorCommentsOptions) {
-		this._commentOptions = newOptions;
-		this._onDidChangeState.fire({ contentChanged: true });
-	}
-
 	constructor(
 		viewType: string,
 		model: NotebookCellTextModel,
@@ -207,14 +196,6 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			layoutState: CellLayoutState.Uninitialized,
 			estimatedHasHorizontalScrolling: false
 		};
-
-		this._commentOptions = configurationService.getValue<IEditorCommentsOptions>('editor.comments');
-		this._register(configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('editor.comments')) {
-				this._commentOptions = configurationService.getValue<IEditorCommentsOptions>('editor.comments');
-				this._onDidChangeState.fire({ contentChanged: true });
-			}
-		}));
 	}
 
 	updateExecutionState(e: ICellExecutionStateChangedEvent) {
