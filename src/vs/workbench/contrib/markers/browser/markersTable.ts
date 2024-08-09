@@ -157,8 +157,8 @@ class MarkerCodeColumnRenderer implements ITableRenderer<MarkerTableItem, IMarke
 				codeLinkLabel.set(element.marker.code.value, element.codeMatches);
 
 				templateData.codeLink.link = {
-					href: element.marker.code.target.toString(),
-					title: element.marker.code.target.toString(),
+					href: element.marker.code.target.toString(true),
+					title: element.marker.code.target.toString(true),
 					label: codeLinkLabel.element,
 				};
 			}
