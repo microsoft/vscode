@@ -13,7 +13,7 @@ import { EventEmitter } from 'events';
 import * as iconv from '@vscode/iconv-lite-umd';
 import * as filetype from 'file-type';
 import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter, Versions, isWindows, pathEquals, isMacintosh, isDescendant } from './util';
-import { CancellationError, CancellationToken, ConfigurationChangeEvent, LogOutputChannel, Progress, Uri, workspace } from 'vscode';
+import { CancellationError, CancellationToken, ConfigurationChangeEvent, LogOutputChannel, l10n, Progress, Uri, workspace, window } from 'vscode';
 import { detectEncoding } from './encoding';
 import { Ref, RefType, Branch, Remote, ForcePushMode, GitErrorCodes, LogOptions, Change, Status, CommitOptions, RefQuery, InitOptions } from './api/git';
 import * as byline from 'byline';
@@ -1761,6 +1761,64 @@ export class Repository {
 	async deleteBranch(name: string, force?: boolean): Promise<void> {
 		const args = ['branch', force ? '-D' : '-d', name];
 		await this.exec(args);
+	}
+
+	async fetchPruneAndDelete(): Promise<void> {
+		const fetchPruneOutput = await this.exec(['fetch', '--prune']);
+		const { exitCode, stderr } = fetchPruneOutput;
+
+		if (exitCode) {
+			throw new GitError({
+				message: 'Could not fetch.',
+				exitCode
+			});
+		}
+
+		// The outputs of the fetch prune is at stderr
+		if (!stderr) {
+			throw new GitError({
+				message: 'Could not find pruned branches to delete.',
+			});
+		}
+
+		const branchRegex = /->\s*(\S+)/;
+		// [
+		// 	'From github.com:username/some-repo',
+		// 	' - [deleted]         (none)     -> origin/foo',
+		// 	' - [deleted]         (none)     -> origin/bar',
+		// 	''
+		// ]
+		const branches: string[] = stderr.split('\n')
+			// [
+			// 	'origin/foo',
+			// 	'origin/bar',
+			// ]
+			// TODO: origin is hardcoded
+			.map((el) => el.match(branchRegex)?.[1]?.replace('origin/', '') ?? '')
+			// The origin branch name to run `git branch -d <name>`
+			// [
+			// 	'foo',
+			// 	'bar',
+			// ]
+			.filter(Boolean);
+
+		for (const branch of branches) {
+			try {
+				await this.deleteBranch(branch);
+			} catch (error) {
+				if (error.gitErrorCode !== GitErrorCodes.BranchNotFullyMerged) {
+					throw error;
+				}
+
+				const message = l10n.t(`The branch "${branch}" is not fully merged. Delete anyway?`);
+				const yes = l10n.t('Delete Branch');
+
+				const pick = await window.showWarningMessage(message, { modal: true }, yes);
+				if (pick === yes) {
+					await this.deleteBranch(branch, true);
+				}
+			}
+		}
 	}
 
 	async renameBranch(name: string): Promise<void> {

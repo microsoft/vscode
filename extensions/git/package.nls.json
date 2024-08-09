@@ -65,6 +65,7 @@
 	"command.branch": "Create Branch...",
 	"command.branchFrom": "Create Branch From...",
 	"command.deleteBranch": "Delete Branch...",
+	"command.fetchPruneAndDelete": "Fetch (Prune) & Delete...",
 	"command.renameBranch": "Rename Branch...",
 	"command.cherryPick": "Cherry Pick...",
 	"command.merge": "Merge...",
