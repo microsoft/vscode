@@ -5,9 +5,7 @@
 
 import { TableColumnResizeQuickPick } from 'vs/workbench/contrib/list/browser/tableColumnResizeQuickPick';
 import { Table } from 'vs/base/browser/ui/table/tableWidget';
-import { KeyCode } from 'vs/base/common/keyCodes';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IListService, WorkbenchListFocusContextKey } from 'vs/platform/list/browser/listService';
 import { Action2 } from 'vs/platform/actions/common/actions';
 import { localize } from 'vs/nls';
@@ -18,11 +16,6 @@ export class ListResizeColumnAction extends Action2 {
 			id: 'list.resizeColumn',
 			title: { value: localize('list.resizeColumn', "Resize Column"), original: 'Resize Column' },
 			category: { value: localize('list', "List"), original: 'List' },
-			keybinding: {
-				primary: KeyCode.F8,
-				weight: KeybindingWeight.WorkbenchContrib,
-				when: WorkbenchListFocusContextKey
-			},
 			precondition: WorkbenchListFocusContextKey,
 			f1: true
 		});
