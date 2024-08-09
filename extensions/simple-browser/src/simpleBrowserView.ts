@@ -15,7 +15,7 @@ export interface ShowOptions {
 export class SimpleBrowserView extends Disposable {
 
 	public static readonly viewType = 'simpleBrowser.view';
-	private static readonly title = vscode.l10n.t("Simple Browser");
+	public static readonly title = vscode.l10n.t("Simple Browser");
 
 	private static getWebviewLocalResourceRoots(extensionUri: vscode.Uri): readonly vscode.Uri[] {
 		return [
