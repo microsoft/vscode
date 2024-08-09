@@ -47,15 +47,9 @@ export class TableColumnResizeQuickPick extends Disposable {
 	private async _validateColumnResizeValue(input: string): Promise<string | { content: string; severity: Severity } | null | undefined> {
 		const percentage = Number.parseInt(input);
 		if (input && !Number.isInteger(percentage)) {
-			return {
-				content: localize('table.column.resizeValue.invalidType', "Please enter an integer."),
-				severity: Severity.Error
-			};
+			return localize('table.column.resizeValue.invalidType', "Please enter an integer.");
 		} else if (percentage < 0 || percentage > 100) {
-			return {
-				content: localize('table.column.resizeValue.invalidRange', "Please enter a number greater than 0 and less than or equal to 100."),
-				severity: Severity.Error
-			};
+			return localize('table.column.resizeValue.invalidRange', "Please enter a number greater than 0 and less than or equal to 100.");
 		}
 		return null;
 	}
