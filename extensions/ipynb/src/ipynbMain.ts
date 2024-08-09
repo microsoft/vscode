@@ -103,8 +103,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(vscode.commands.registerCommand('ipynb.newRepl', async () => {
 		const uri = vscode.Uri.from({ scheme: 'untitled', path: '/repl.ipynb' });
-		const doc = await vscode.workspace.openNotebookDocument(uri);
-		await vscode.window.showNotebookDocument(doc, { preserveFocus: true, viewColumn: vscode.ViewColumn.Beside, asRepl: true });
+		await vscode.window.showNotebookDocument(uri, { preserveFocus: true, viewColumn: vscode.ViewColumn.Beside, asRepl: true });
 	}));
 
 	context.subscriptions.push(vscode.commands.registerCommand('ipynb.openIpynbInNotebookEditor', async (uri: vscode.Uri) => {

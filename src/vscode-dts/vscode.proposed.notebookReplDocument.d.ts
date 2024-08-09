@@ -12,4 +12,9 @@ declare module 'vscode' {
 		 */
 		readonly asRepl?: boolean;
 	}
+
+	export namespace window {
+		export function showNotebookDocument(document: NotebookDocument, options?: NotebookDocumentShowOptions): Thenable<NotebookEditor>;
+
+	}
 }
