@@ -40,7 +40,7 @@ import { IStateService } from 'vs/platform/state/node/state';
 import { IAddFoldersRequest, INativeOpenFileRequest, INativeWindowConfiguration, IOpenEmptyWindowOptions, IPath, IPathsToWaitFor, isFileToOpen, isFolderToOpen, isWorkspaceToOpen, IWindowOpenable, IWindowSettings } from 'vs/platform/window/common/window';
 import { CodeWindow } from 'vs/platform/windows/electron-main/windowImpl';
 import { IOpenConfiguration, IOpenEmptyConfiguration, IWindowsCountChangedEvent, IWindowsMainService, OpenContext, getLastFocused } from 'vs/platform/windows/electron-main/windows';
-import { findWindowOnExtensionDevelopmentPath, findWindowOnFile, findWindowOnWorkspaceOrFolder } from 'vs/platform/windows/electron-main/windowsFinder';
+import { findWindowOnExtensionDevelopmentPath, findWindowOnFile } from 'vs/platform/windows/electron-main/windowsFinder';
 import { IWindowState, WindowsStateHandler } from 'vs/platform/windows/electron-main/windowsStateHandler';
 import { IRecent } from 'vs/platform/workspaces/common/workspaces';
 import { hasWorkspaceFileExtension, IAnyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
@@ -555,7 +555,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		if (allWorkspacesToOpen.length > 0) {
 
 			// Check for existing instances
-			const windowsOnWorkspace = coalesce(allWorkspacesToOpen.map(workspaceToOpen => findWindowOnWorkspaceOrFolder(this.getWindows(), workspaceToOpen.workspace.configPath)));
+			const windowsOnWorkspace = coalesce(await Promise.all(allWorkspacesToOpen.map(workspaceToOpen => this.workspacesManagementMainService.findWindowLocalWorkspace(this.getWindows(), workspaceToOpen.workspace.configPath))));
 			if (windowsOnWorkspace.length > 0) {
 				const windowOnWorkspace = windowsOnWorkspace[0];
 				const filesToOpenInWindow = isEqualAuthority(filesToOpen?.remoteAuthority, windowOnWorkspace.remoteAuthority) ? filesToOpen : undefined;
@@ -587,7 +587,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		if (allFoldersToOpen.length > 0) {
 
 			// Check for existing instances
-			const windowsOnFolderPath = coalesce(allFoldersToOpen.map(folderToOpen => findWindowOnWorkspaceOrFolder(this.getWindows(), folderToOpen.workspace.uri)));
+			const windowsOnFolderPath = coalesce(await Promise.all(allFoldersToOpen.map(folderToOpen => this.workspacesManagementMainService.findWindowLocalWorkspace(this.getWindows(), folderToOpen.workspace.uri))));
 			if (windowsOnFolderPath.length > 0) {
 				const windowOnFolderPath = windowsOnFolderPath[0];
 				const filesToOpenInWindow = isEqualAuthority(filesToOpen?.remoteAuthority, windowOnFolderPath.remoteAuthority) ? filesToOpen : undefined;
@@ -1338,32 +1338,32 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		// - a workspace or folder that is already opened
 		// - a workspace or file that has a different authority as the extension development.
 
-		cliArgs = cliArgs.filter(path => {
+		cliArgs = (await Promise.all(cliArgs.map(async (path) => {
 			const uri = URI.file(path);
-			if (!!findWindowOnWorkspaceOrFolder(this.getWindows(), uri)) {
-				return false;
+			if (!!(await this.workspacesManagementMainService.findWindowLocalWorkspace(this.getWindows(), uri))) {
+				return '';
 			}
 
-			return isEqualAuthority(getRemoteAuthority(uri), remoteAuthority);
-		});
+			return isEqualAuthority(getRemoteAuthority(uri), remoteAuthority) ? path : '';
+		}))).filter((cliArg) => cliArg !== '');
 
-		folderUris = folderUris.filter(folderUriStr => {
+		folderUris = (await Promise.all(folderUris.map(async (folderUriStr) => {
 			const folderUri = this.cliArgToUri(folderUriStr);
-			if (folderUri && !!findWindowOnWorkspaceOrFolder(this.getWindows(), folderUri)) {
-				return false;
+			if (!folderUri || !!this.workspacesManagementMainService.findWindowLocalWorkspace(this.getWindows(), folderUri)) {
+				return '';
 			}
 
-			return folderUri ? isEqualAuthority(getRemoteAuthority(folderUri), remoteAuthority) : false;
-		});
+			return isEqualAuthority(getRemoteAuthority(folderUri), remoteAuthority) ? folderUriStr : '';
+		}))).filter((folderUriStr) => folderUriStr !== '');
 
-		fileUris = fileUris.filter(fileUriStr => {
+		fileUris = (await Promise.all(fileUris.map(async (fileUriStr) => {
 			const fileUri = this.cliArgToUri(fileUriStr);
-			if (fileUri && !!findWindowOnWorkspaceOrFolder(this.getWindows(), fileUri)) {
-				return false;
+			if (!fileUri || !!this.workspacesManagementMainService.findWindowLocalWorkspace(this.getWindows(), fileUri)) {
+				return '';
 			}
 
-			return fileUri ? isEqualAuthority(getRemoteAuthority(fileUri), remoteAuthority) : false;
-		});
+			return isEqualAuthority(getRemoteAuthority(fileUri), remoteAuthority) ? fileUriStr : '';
+		}))).filter((fileUriStr) => fileUriStr !== '');
 
 		openConfig.cli._ = cliArgs;
 		openConfig.cli['folder-uri'] = folderUris;
@@ -1555,6 +1555,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		if (window.isReady) {
 			this.lifecycleMainService.unload(window, UnloadReason.LOAD).then(async veto => {
 				if (!veto) {
+					window = assertIsDefined(window);
 					await this.doOpenInBrowserWindow(window, configuration, options, defaultProfile);
 				}
 			});

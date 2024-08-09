@@ -41,13 +41,22 @@ export async function findWindowOnFile(windows: ICodeWindow[], fileUri: URI, loc
 	return undefined;
 }
 
-export function findWindowOnWorkspaceOrFolder(windows: ICodeWindow[], folderOrWorkspaceConfigUri: URI): ICodeWindow | undefined {
+export async function findWindowOnWorkspaceOrFolder(windows: ICodeWindow[], folderOrWorkspaceConfigUri: URI, localWorkspaceResolver: (workspace: IWorkspaceIdentifier) => Promise<IResolvedWorkspace | undefined>): Promise<ICodeWindow | undefined> {
 
 	for (const window of windows) {
 
 		// check for workspace config path
-		if (isWorkspaceIdentifier(window.openedWorkspace) && extUriBiasedIgnorePathCase.isEqual(window.openedWorkspace.configPath, folderOrWorkspaceConfigUri)) {
-			return window;
+		if (isWorkspaceIdentifier(window.openedWorkspace)) {
+			if (extUriBiasedIgnorePathCase.isEqual(window.openedWorkspace.configPath, folderOrWorkspaceConfigUri)) {
+				return window;
+			}
+
+			const resolvedWorkspace = await localWorkspaceResolver(window.openedWorkspace);
+
+			// resolved workspace: folders are known and can be compared with
+			if (resolvedWorkspace?.folders.some(folder => extUriBiasedIgnorePathCase.isEqualOrParent(folderOrWorkspaceConfigUri, folder.uri))) {
+				return window;
+			}
 		}
 
 		// check for folder path
