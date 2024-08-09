@@ -168,11 +168,15 @@ export async function nodeRequest(options: NodeRequestOptions, token: Cancellati
 		const req = rawRequest(opts, (res: http.IncomingMessage) => {
 			const followRedirects: number = isNumber(options.followRedirects) ? options.followRedirects : 3;
 			if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && followRedirects > 0 && res.headers['location']) {
-				nodeRequest({
+				const newRequest = {
 					...options,
 					url: res.headers['location'],
 					followRedirects: followRedirects - 1
-				}, token).then(resolve, reject);
+				};
+				if (res.statusCode === 303) {
+					newRequest.type = 'GET';
+				}
+				nodeRequest(newRequest, token).then(resolve, reject);
 			} else {
 				let stream: streams.ReadableStreamEvents<Uint8Array> = res;
 
