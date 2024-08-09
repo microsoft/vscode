@@ -24,6 +24,7 @@ import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { CompletionItem } from './suggest';
 import { canExpandCompletionItem } from './suggestWidgetDetails';
+import { isMarkdownString } from 'vs/base/common/htmlContent';
 
 export function getAriaId(index: number): string {
 	return `suggest-aria-id:${index}`;
@@ -203,6 +204,14 @@ export class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTe
 			data.icon.className = 'icon hide';
 			data.iconContainer.className = '';
 			data.iconContainer.classList.add('suggest-icon', ...ThemeIcon.asClassNameArray(CompletionItemKinds.toIcon(completion.kind)));
+
+			if (isMarkdownString(completion.documentation) && completion.documentation.supportThemeIcons) {
+				const themeIcon = ThemeIcon.fromString(completion.documentation.value);
+				if (themeIcon) {
+					data.iconContainer.className = '';
+					data.iconContainer.classList.add('suggest-icon', ...ThemeIcon.asClassNameArray(themeIcon));
+				}
+			}
 		}
 
 		if (completion.tags && completion.tags.indexOf(CompletionItemTag.Deprecated) >= 0) {
