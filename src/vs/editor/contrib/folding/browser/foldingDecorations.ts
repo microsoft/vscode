@@ -13,6 +13,7 @@ import { editorSelectionBackground, iconForeground, registerColor, transparent }
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { ThemeIcon } from 'vs/base/common/themables';
+import { MarkerSeverity } from 'vs/platform/markers/common/markers';
 
 const foldBackground = registerColor('editor.foldBackground', { light: transparent(editorSelectionBackground, 0.3), dark: transparent(editorSelectionBackground, 0.3), hcDark: null, hcLight: null }, localize('foldBackgroundBackground', "Background color behind folded ranges. The color must not be opaque so as not to hide underlying decorations."), true);
 registerColor('editor.foldPlaceholderForeground', { light: '#808080', dark: '#808080', hcDark: null, hcLight: null }, localize('collapsedTextColor', "Color of the collapsed text after the first line of a folded range."));
@@ -39,6 +40,24 @@ export class FoldingDecorationProvider implements IDecorationProvider {
 		firstLineDecorationClassName: ThemeIcon.asClassName(foldingCollapsedIcon),
 	});
 
+	private static readonly COLLAPSED_VISUAL_ERROR_DECORATION = ModelDecorationOptions.register({
+		description: 'folding-collapsed-visual-error-decoration',
+		stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges,
+		afterContentClassName: 'inline-folded',
+		isWholeLine: true,
+		firstLineDecorationClassName: ThemeIcon.asClassName(foldingCollapsedIcon),
+		glyphMarginClassName: 'squiggly-error'
+	});
+
+	private static readonly COLLAPSED_VISUAL_WARNING_DECORATION = ModelDecorationOptions.register({
+		description: 'folding-collapsed-visual-warning-decoration',
+		stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges,
+		afterContentClassName: 'inline-folded',
+		isWholeLine: true,
+		firstLineDecorationClassName: ThemeIcon.asClassName(foldingCollapsedIcon),
+		glyphMarginClassName: 'squiggly-warning'
+	});
+
 	private static readonly COLLAPSED_HIGHLIGHTED_VISUAL_DECORATION = ModelDecorationOptions.register({
 		description: 'folding-collapsed-highlighted-visual-decoration',
 		stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges,
@@ -50,6 +69,28 @@ export class FoldingDecorationProvider implements IDecorationProvider {
 		firstLineDecorationClassName: ThemeIcon.asClassName(foldingCollapsedIcon)
 	});
 
+	private static readonly COLLAPSED_HIGHLIGHTED_VISUAL_ERROR_DECORATION = ModelDecorationOptions.register({
+		description: 'folding-collapsed-highlighted-visual-error-decoration',
+		stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges,
+		afterContentClassName: 'inline-folded',
+		className: 'folded-background',
+		minimap: foldedBackgroundMinimap,
+		isWholeLine: true,
+		firstLineDecorationClassName: ThemeIcon.asClassName(foldingCollapsedIcon),
+		glyphMarginClassName: 'squiggly-error'
+	});
+
+	private static readonly COLLAPSED_HIGHLIGHTED_VISUAL_WARNING_DECORATION = ModelDecorationOptions.register({
+		description: 'folding-collapsed-highlighted-visual-warning-decoration',
+		stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges,
+		afterContentClassName: 'inline-folded',
+		className: 'folded-background',
+		minimap: foldedBackgroundMinimap,
+		isWholeLine: true,
+		firstLineDecorationClassName: ThemeIcon.asClassName(foldingCollapsedIcon),
+		glyphMarginClassName: 'squiggly-warning'
+	});
+
 	private static readonly MANUALLY_COLLAPSED_VISUAL_DECORATION = ModelDecorationOptions.register({
 		description: 'folding-manually-collapsed-visual-decoration',
 		stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges,
@@ -57,6 +98,24 @@ export class FoldingDecorationProvider implements IDecorationProvider {
 		isWholeLine: true,
 		linesDecorationsTooltip: collapsed,
 		firstLineDecorationClassName: ThemeIcon.asClassName(foldingManualCollapsedIcon)
+	});
+
+	private static readonly MANUALLY_COLLAPSED_VISUAL_ERROR_DECORATION = ModelDecorationOptions.register({
+		description: 'folding-manually-collapsed-visual-error-decoration',
+		stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges,
+		afterContentClassName: 'inline-folded',
+		isWholeLine: true,
+		firstLineDecorationClassName: ThemeIcon.asClassName(foldingManualCollapsedIcon),
+		glyphMarginClassName: 'squiggly-error'
+	});
+
+	private static readonly MANUALLY_COLLAPSED_VISUAL_WARNING_DECORATION = ModelDecorationOptions.register({
+		description: 'folding-manually-collapsed-visual-warning-decoration',
+		stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges,
+		afterContentClassName: 'inline-folded',
+		isWholeLine: true,
+		firstLineDecorationClassName: ThemeIcon.asClassName(foldingManualCollapsedIcon),
+		glyphMarginClassName: 'squiggly-warning'
 	});
 
 	private static readonly MANUALLY_COLLAPSED_HIGHLIGHTED_VISUAL_DECORATION = ModelDecorationOptions.register({
@@ -70,12 +129,50 @@ export class FoldingDecorationProvider implements IDecorationProvider {
 		firstLineDecorationClassName: ThemeIcon.asClassName(foldingManualCollapsedIcon)
 	});
 
+	private static readonly MANUALLY_COLLAPSED_HIGHLIGHTED_VISUAL_ERROR_DECORATION = ModelDecorationOptions.register({
+		description: 'folding-manually-collapsed-highlighted-visual-error-decoration',
+		stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges,
+		afterContentClassName: 'inline-folded',
+		className: 'folded-background',
+		minimap: foldedBackgroundMinimap,
+		isWholeLine: true,
+		firstLineDecorationClassName: ThemeIcon.asClassName(foldingManualCollapsedIcon),
+		glyphMarginClassName: 'squiggly-error'
+	});
+
+	private static readonly MANUALLY_COLLAPSED_HIGHLIGHTED_VISUAL_WARNING_DECORATION = ModelDecorationOptions.register({
+		description: 'folding-manually-collapsed-highlighted-visual-warning-decoration',
+		stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges,
+		afterContentClassName: 'inline-folded',
+		className: 'folded-background',
+		minimap: foldedBackgroundMinimap,
+		isWholeLine: true,
+		firstLineDecorationClassName: ThemeIcon.asClassName(foldingManualCollapsedIcon),
+		glyphMarginClassName: 'squiggly-warning'
+	});
+
 	private static readonly NO_CONTROLS_COLLAPSED_RANGE_DECORATION = ModelDecorationOptions.register({
 		description: 'folding-no-controls-range-decoration',
 		stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges,
 		afterContentClassName: 'inline-folded',
 		isWholeLine: true,
 		linesDecorationsTooltip: collapsed,
+	});
+
+	private static readonly NO_CONTROLS_COLLAPSED_RANGE_ERROR_DECORATION = ModelDecorationOptions.register({
+		description: 'folding-no-controls-range-error-decoration',
+		stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges,
+		afterContentClassName: 'inline-folded',
+		isWholeLine: true,
+		glyphMarginClassName: 'squiggly-error'
+	});
+
+	private static readonly NO_CONTROLS_COLLAPSED_RANGE_WARNING_DECORATION = ModelDecorationOptions.register({
+		description: 'folding-no-controls-range-warning-decoration',
+		stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges,
+		afterContentClassName: 'inline-folded',
+		isWholeLine: true,
+		glyphMarginClassName: 'squiggly-warning'
 	});
 
 	private static readonly NO_CONTROLS_COLLAPSED_HIGHLIGHTED_RANGE_DECORATION = ModelDecorationOptions.register({
@@ -86,6 +183,26 @@ export class FoldingDecorationProvider implements IDecorationProvider {
 		minimap: foldedBackgroundMinimap,
 		isWholeLine: true,
 		linesDecorationsTooltip: collapsed,
+	});
+
+	private static readonly NO_CONTROLS_COLLAPSED_HIGHLIGHTED_RANGE_ERROR_DECORATION = ModelDecorationOptions.register({
+		description: 'folding-no-controls-range-error-decoration',
+		stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges,
+		afterContentClassName: 'inline-folded',
+		className: 'folded-background',
+		minimap: foldedBackgroundMinimap,
+		isWholeLine: true,
+		glyphMarginClassName: 'squiggly-error'
+	});
+
+	private static readonly NO_CONTROLS_COLLAPSED_HIGHLIGHTED_RANGE_WARNING_DECORATION = ModelDecorationOptions.register({
+		description: 'folding-no-controls-range-decoration',
+		stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges,
+		afterContentClassName: 'inline-folded',
+		className: 'folded-background',
+		minimap: foldedBackgroundMinimap,
+		isWholeLine: true,
+		glyphMarginClassName: 'squiggly-warning'
 	});
 
 	private static readonly EXPANDED_VISUAL_DECORATION = ModelDecorationOptions.register({
@@ -138,20 +255,50 @@ export class FoldingDecorationProvider implements IDecorationProvider {
 	constructor(private readonly editor: ICodeEditor) {
 	}
 
-	getDecorationOption(isCollapsed: boolean, isHidden: boolean, isManual: boolean): IModelDecorationOptions {
+	getDecorationOption(isCollapsed: boolean, isHidden: boolean, isManual: boolean, markerSeverity?: MarkerSeverity): IModelDecorationOptions {
 		if (isHidden) { // is inside another collapsed region
 			return FoldingDecorationProvider.HIDDEN_RANGE_DECORATION;
 		}
 		if (this.showFoldingControls === 'never') {
 			if (isCollapsed) {
-				return this.showFoldingHighlights ? FoldingDecorationProvider.NO_CONTROLS_COLLAPSED_HIGHLIGHTED_RANGE_DECORATION : FoldingDecorationProvider.NO_CONTROLS_COLLAPSED_RANGE_DECORATION;
+				switch (markerSeverity) {
+					case MarkerSeverity.Error:
+						return this.showFoldingHighlights ? FoldingDecorationProvider.NO_CONTROLS_COLLAPSED_HIGHLIGHTED_RANGE_ERROR_DECORATION : FoldingDecorationProvider.NO_CONTROLS_COLLAPSED_RANGE_ERROR_DECORATION;
+
+					case MarkerSeverity.Warning:
+						return this.showFoldingHighlights ? FoldingDecorationProvider.NO_CONTROLS_COLLAPSED_HIGHLIGHTED_RANGE_WARNING_DECORATION : FoldingDecorationProvider.NO_CONTROLS_COLLAPSED_RANGE_WARNING_DECORATION;
+
+					default:
+						return this.showFoldingHighlights ? FoldingDecorationProvider.NO_CONTROLS_COLLAPSED_HIGHLIGHTED_RANGE_DECORATION : FoldingDecorationProvider.NO_CONTROLS_COLLAPSED_RANGE_DECORATION;
+				}
 			}
 			return FoldingDecorationProvider.NO_CONTROLS_EXPANDED_RANGE_DECORATION;
 		}
 		if (isCollapsed) {
-			return isManual ?
-				(this.showFoldingHighlights ? FoldingDecorationProvider.MANUALLY_COLLAPSED_HIGHLIGHTED_VISUAL_DECORATION : FoldingDecorationProvider.MANUALLY_COLLAPSED_VISUAL_DECORATION)
-				: (this.showFoldingHighlights ? FoldingDecorationProvider.COLLAPSED_HIGHLIGHTED_VISUAL_DECORATION : FoldingDecorationProvider.COLLAPSED_VISUAL_DECORATION);
+			if (isManual) {
+				switch (markerSeverity) {
+					case MarkerSeverity.Error:
+						return this.showFoldingHighlights ? FoldingDecorationProvider.MANUALLY_COLLAPSED_HIGHLIGHTED_VISUAL_ERROR_DECORATION : FoldingDecorationProvider.MANUALLY_COLLAPSED_VISUAL_ERROR_DECORATION;
+
+					case MarkerSeverity.Warning:
+						return this.showFoldingHighlights ? FoldingDecorationProvider.MANUALLY_COLLAPSED_HIGHLIGHTED_VISUAL_WARNING_DECORATION : FoldingDecorationProvider.MANUALLY_COLLAPSED_VISUAL_WARNING_DECORATION;
+
+					default:
+						return this.showFoldingHighlights ? FoldingDecorationProvider.MANUALLY_COLLAPSED_HIGHLIGHTED_VISUAL_DECORATION : FoldingDecorationProvider.MANUALLY_COLLAPSED_VISUAL_DECORATION;
+				}
+			}
+			else {
+				switch (markerSeverity) {
+					case MarkerSeverity.Error:
+						return this.showFoldingHighlights ? FoldingDecorationProvider.COLLAPSED_HIGHLIGHTED_VISUAL_ERROR_DECORATION : FoldingDecorationProvider.COLLAPSED_VISUAL_ERROR_DECORATION;
+
+					case MarkerSeverity.Warning:
+						return this.showFoldingHighlights ? FoldingDecorationProvider.COLLAPSED_HIGHLIGHTED_VISUAL_WARNING_DECORATION : FoldingDecorationProvider.COLLAPSED_VISUAL_WARNING_DECORATION;
+
+					default:
+						return this.showFoldingHighlights ? FoldingDecorationProvider.COLLAPSED_HIGHLIGHTED_VISUAL_DECORATION : FoldingDecorationProvider.COLLAPSED_VISUAL_DECORATION;
+				}
+			}
 		} else if (this.showFoldingControls === 'mouseover') {
 			return isManual ? FoldingDecorationProvider.MANUALLY_EXPANDED_AUTO_HIDE_VISUAL_DECORATION : FoldingDecorationProvider.EXPANDED_AUTO_HIDE_VISUAL_DECORATION;
 		} else {
