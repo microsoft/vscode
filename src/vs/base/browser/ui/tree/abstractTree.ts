@@ -1145,7 +1145,7 @@ class FindController<T, TFilterData> implements IDisposable {
 		const noMatches = this.filter.totalCount > 0 && this.filter.matchCount === 0;
 
 		if (this.pattern && noMatches) {
-			alert(localize('replFindNoResults', "No results found"));
+			alert(localize('replFindNoResults', "No results"));
 			if (this.tree.options.showNotFoundMessage ?? true) {
 				this.widget?.showMessage({ type: MessageType.WARNING, content: localize('not found', "No elements found.") });
 			} else {
