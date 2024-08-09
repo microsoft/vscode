@@ -156,7 +156,6 @@ export class Table<TRow> implements ISpliceable<TRow>, IDisposable {
 	private splitview: SplitView;
 	private list: List<TRow>;
 	private styleElement: HTMLStyleElement;
-	private columns: ITableColumn<TRow, TCell>[] = [];
 	protected readonly disposables = new DisposableStore();
 
 	private cachedWidth: number = 0;
@@ -194,12 +193,11 @@ export class Table<TRow> implements ISpliceable<TRow>, IDisposable {
 		user: string,
 		container: HTMLElement,
 		private virtualDelegate: ITableVirtualDelegate<TRow>,
-		columns: ITableColumn<TRow, TCell>[],
+		private columns: ITableColumn<TRow, TCell>[],
 		renderers: ITableRenderer<TCell, unknown>[],
 		_options?: ITableOptions<TRow>
 	) {
 		this.domNode = append(container, $(`.monaco-table.${this.domId}`));
-		this.columns = columns;
 
 		const headers = columns.map((c, i) => this.disposables.add(new ColumnHeader(c, i)));
 		const descriptor: ISplitViewDescriptor = {
