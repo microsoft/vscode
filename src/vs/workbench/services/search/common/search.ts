@@ -430,6 +430,7 @@ export interface ISearchConfigurationProperties {
 		singleClickBehaviour: 'default' | 'peekDefinition';
 		reusePriorSearchConfiguration: boolean;
 		defaultNumberOfContextLines: number | null;
+		focusResults: boolean;
 		experimental: {};
 	};
 	sortOrder: SearchSortOrder;
