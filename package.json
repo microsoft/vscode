@@ -66,6 +66,7 @@
     "perf": "node scripts/code-perf.js",
     "update-build-ts-version": "yarn add typescript@next && tsc -p ./build/tsconfig.build.json"
   },
+  "packageManager": "yarn@1.22.22",
   "dependencies": {
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
