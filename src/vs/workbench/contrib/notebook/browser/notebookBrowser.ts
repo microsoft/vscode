@@ -271,6 +271,7 @@ export interface ICellViewModel extends IGenericCellViewModel {
 	hasModel(): this is IEditableCellViewModel;
 	resolveTextModel(): Promise<ITextModel>;
 	getSelections(): Selection[];
+	setSelections(selections: Selection[]): void;
 	getSelectionsStartPosition(): IPosition[] | undefined;
 	getCellDecorations(): INotebookCellDecorationOptions[];
 	getCellStatusBarItems(): INotebookCellStatusBarItem[];
