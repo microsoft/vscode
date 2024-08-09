@@ -63,8 +63,8 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 		this.#proxy = proxy;
 		this.#commands = commands;
 
-		if (id && extension) {
-			this._entryId = asStatusBarItemIdentifier(extension.identifier, id);
+		if (extension) {
+			this._entryId = id ? asStatusBarItemIdentifier(extension.identifier, id) : extension.identifier.value;
 			// if new item already exists mark it as visible and copy properties
 			// this can only happen when an item was contributed by an extension
 			const item = staticItems.get(this._entryId);
