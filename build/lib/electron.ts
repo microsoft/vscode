@@ -198,9 +198,9 @@ export const config = {
 	linuxExecutableName: product.applicationName,
 	winIcon: 'resources/win32/code.ico',
 	token: process.env['GITHUB_TOKEN'],
-	repo: product.electronRepository || undefined,
+	repo: undefined,
 	validateChecksum: true,
-	checksumFile: path.join(root, 'build', 'checksums', 'electron.txt'),
+	checksumFile: path.join(root, 'build', 'checksums', 'electron-oss.txt'),
 };
 
 function getElectron(arch: string): () => NodeJS.ReadWriteStream {
