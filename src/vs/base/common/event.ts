@@ -112,6 +112,36 @@ export namespace Event {
 	}
 
 	/**
+	 * Given an event, returns another event which only fires once, and only when the condition is met.
+	 *
+	 * @param event The event source for the new event.
+	 */
+	export function onceIf<T>(event: Event<T>, condition: (e: T) => boolean): Event<T> {
+		return (listener, thisArgs = null, disposables?) => {
+			// we need this, in case the event fires during the listener call
+			let didFire = false;
+			let result: IDisposable | undefined = undefined;
+			result = event(e => {
+				if (didFire || !condition(e)) {
+					return;
+				} else if (result) {
+					result.dispose();
+				} else {
+					didFire = true;
+				}
+
+				return listener.call(thisArgs, e);
+			}, null, disposables);
+
+			if (didFire) {
+				result.dispose();
+			}
+
+			return result;
+		};
+	}
+
+	/**
 	 * Maps an event of one type into an event of another type using a mapping function, similar to how
 	 * `Array.prototype.map` works.
 	 *
