@@ -162,6 +162,10 @@ export class GlyphMarginWidgets extends ViewPart {
 		super.dispose();
 	}
 
+	override disposeDomNodes(): void {
+		this.domNode.domNode.remove();
+	}
+
 	public getWidgets(): IWidgetData[] {
 		return Object.values(this._widgets);
 	}

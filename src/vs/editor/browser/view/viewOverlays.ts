@@ -63,6 +63,10 @@ export class ViewOverlays extends ViewPart implements IVisibleLinesHost<ViewOver
 		this._dynamicOverlays = [];
 	}
 
+	override disposeDomNodes(): void {
+		this.domNode.domNode.remove();
+	}
+
 	public getDomNode(): FastDomNode<HTMLElement> {
 		return this.domNode;
 	}

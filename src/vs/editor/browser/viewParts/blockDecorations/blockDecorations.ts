@@ -55,6 +55,10 @@ export class BlockDecorations extends ViewPart {
 		super.dispose();
 	}
 
+	public override disposeDomNodes(): void {
+		this.domNode.domNode.remove();
+	}
+
 	// --- begin event handlers
 
 	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {

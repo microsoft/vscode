@@ -67,6 +67,10 @@ export class ViewOverlayWidgets extends ViewPart {
 		this._widgets = {};
 	}
 
+	public override disposeDomNodes(): void {
+		this._domNode.domNode.remove();
+	}
+
 	public getDomNode(): FastDomNode<HTMLElement> {
 		return this._domNode;
 	}

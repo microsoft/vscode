@@ -12,6 +12,7 @@ export abstract class ViewPart extends ViewEventHandler {
 
 	_context: ViewContext;
 
+
 	constructor(context: ViewContext) {
 		super();
 		this._context = context;
@@ -25,6 +26,19 @@ export abstract class ViewPart extends ViewEventHandler {
 
 	public abstract prepareRender(ctx: RenderingContext): void;
 	public abstract render(ctx: RestrictedRenderingContext): void;
+
+
+	/**
+	 * Dispose dom nodes to reduce the impact of detached
+	 * dom node memory leaks. E.g when a memory leak occurs
+	 * in a child component of the editor (e.g. Minimap,
+	 * GlyphMarginWidgets,...) the editor dom (linked to
+	 * the child dom) should not be leaked as well.
+	 *
+	 * See also https://github.com/microsoft/vscode/pull/221499
+	 *
+	 */
+	public abstract disposeDomNodes(): void;
 }
 
 export const enum PartFingerprint {

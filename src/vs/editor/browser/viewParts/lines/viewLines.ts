@@ -169,6 +169,10 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		super.dispose();
 	}
 
+	public override disposeDomNodes(): void {
+		this.domNode.domNode.remove();
+	}
+
 	public getDomNode(): FastDomNode<HTMLElement> {
 		return this.domNode;
 	}
