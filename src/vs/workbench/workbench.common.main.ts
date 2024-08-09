@@ -398,4 +398,7 @@ import 'vs/workbench/contrib/accountEntitlements/browser/accountsEntitlements.co
 
 // Synchronized Scrolling
 import 'vs/workbench/contrib/scrollLocking/browser/scrollLocking.contribution';
+
+// Extension Menu
+import 'vs/workbench/contrib/extensions/common/extensionsMenu.contribution';
 //#endregion
