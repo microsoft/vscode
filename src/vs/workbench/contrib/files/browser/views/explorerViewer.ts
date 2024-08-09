@@ -879,11 +879,29 @@ export class FileSorter implements ITreeSorter<ExplorerItem> {
 		}
 
 		const sortOrder = this.explorerService.sortOrderConfiguration.sortOrder;
+		const customOrder = this.explorerService.customOrder;
 		const lexicographicOptions = this.explorerService.sortOrderConfiguration.lexicographicOptions;
 		const reverse = this.explorerService.sortOrderConfiguration.reverse;
 		if (reverse) {
 			[statA, statB] = [statB, statA];
 		}
+
+		// Override sort if a custom order is defined
+		const isStatACustom = customOrder.includes(statA.name);
+		const isStatBCustom = customOrder.includes(statB.name);
+
+		if (isStatACustom && !isStatBCustom) {
+			return -1;
+		}
+
+		if (isStatBCustom && !isStatACustom) {
+			return 1;
+		}
+
+		if (isStatACustom && isStatBCustom) {
+			return customOrder.indexOf(statA.name) < customOrder.indexOf(statB.name) ? -1 : 1;
+		}
+
 
 		let compareFileNames;
 		let compareFileExtensions;

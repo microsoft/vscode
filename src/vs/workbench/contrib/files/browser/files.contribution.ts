@@ -521,6 +521,14 @@ configurationRegistry.registerConfiguration({
 			],
 			'markdownDescription': nls.localize('sortOrder', "Controls the property-based sorting of files and folders in the Explorer. When `#explorer.fileNesting.enabled#` is enabled, also controls sorting of nested files.")
 		},
+		'explorer.customOrder': {
+			'type': 'array',
+			'items': {
+				'type': 'string'
+			},
+			'default': [],
+			'markdownDescription': nls.localize('customOrder', "Files and folders matching the list will be displayed first, while the rest will be sorted by `#explorer.sortOrder#`.")
+		},
 		'explorer.sortOrderLexicographicOptions': {
 			'type': 'string',
 			'enum': [LexicographicOptions.Default, LexicographicOptions.Upper, LexicographicOptions.Lower, LexicographicOptions.Unicode],
