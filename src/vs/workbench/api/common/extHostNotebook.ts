@@ -206,11 +206,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 	}
 
 
-	async showNotebookDocument(notebookOrUri: vscode.NotebookDocument | URI, options?: vscode.NotebookDocumentShowOptions): Promise<vscode.NotebookEditor> {
-
-		if (URI.isUri(notebookOrUri)) {
-			notebookOrUri = await this.openNotebookDocument(notebookOrUri);
-		}
+	async showNotebookDocument(notebook: vscode.NotebookDocument, options?: vscode.NotebookDocumentShowOptions): Promise<vscode.NotebookEditor> {
 
 		let resolvedOptions: INotebookDocumentShowOptions;
 		if (typeof options === 'object') {
@@ -226,7 +222,16 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 			};
 		}
 
-		const editorId = await this._notebookEditorsProxy.$tryShowNotebookDocument(notebookOrUri.uri, notebookOrUri.notebookType, resolvedOptions);
+		if (options?.asRepl) {
+			for (const editor of this._editors.values()) {
+				if (editor.notebookData.uri.toString() === notebook.uri.toString()) {
+					throw new Error(`Cannot open "${notebook.uri.toString()}" as REPL because it is already opened in another editor.`);
+				}
+			}
+		}
+
+		const viewType = options?.asRepl ? 'repl' : notebook.notebookType;
+		const editorId = await this._notebookEditorsProxy.$tryShowNotebookDocument(notebook.uri, viewType, resolvedOptions);
 		const editor = editorId && this._editors.get(editorId)?.apiEditor;
 
 		if (editor) {
@@ -234,9 +239,9 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		}
 
 		if (editorId) {
-			throw new Error(`Could NOT open editor for "${notebookOrUri.uri.toString()}" because another editor opened in the meantime.`);
+			throw new Error(`Could NOT open editor for "${notebook.uri.toString()}" because another editor opened in the meantime.`);
 		} else {
-			throw new Error(`Could NOT open editor for "${notebookOrUri.uri.toString()}".`);
+			throw new Error(`Could NOT open editor for "${notebook.uri.toString()}".`);
 		}
 	}
 

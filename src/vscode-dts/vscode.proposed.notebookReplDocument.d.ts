@@ -5,13 +5,6 @@
 
 declare module 'vscode' {
 
-	export interface NotebookDocument {
-		/**
-		 * If the notebook document is loaded in a REPL view.
-		 */
-		readonly isRepl: boolean;
-	}
-
 	export interface NotebookDocumentShowOptions {
 		/**
 		 * The notebook should be opened in a repl editor.

@@ -110,7 +110,7 @@ export class ReplDocumentContribution extends Disposable implements IWorkbenchCo
 			{
 				id: 'repl',
 				label: 'repl Editor',
-				priority: RegisteredEditorPriority.option
+				priority: RegisteredEditorPriority.exclusive
 			},
 			{
 				canSupportResource: uri =>
