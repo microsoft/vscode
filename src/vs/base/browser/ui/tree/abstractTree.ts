@@ -1154,7 +1154,7 @@ class FindController<T, TFilterData> implements IDisposable {
 		} else {
 			this.widget?.clearMessage();
 			if (this.pattern) {
-				alert(localize('result count', "{0} results", this.filter.matchCount));
+				alert(localize('replFindResults', "{0} results", this.filter.matchCount));
 			}
 		}
 	}
