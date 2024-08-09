@@ -671,6 +671,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	isWindowMaximized(targetWindow: Window) { return false; }
 	updateWindowMaximizedState(targetWindow: Window, maximized: boolean): void { }
 	getVisibleNeighborPart(part: Parts, direction: Direction): Parts | undefined { return undefined; }
+	resetBottomPane(): void { }
 	focus() { }
 }
 

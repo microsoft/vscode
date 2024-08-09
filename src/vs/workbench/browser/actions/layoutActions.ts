@@ -1188,6 +1188,28 @@ registerAction2(class extends Action2 {
 	}
 });
 
+// --- Reset Bottom Pane Size
+
+registerAction2(class extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.resetBottomPane',
+			title: localize2('resetBottomPane', 'Reset Bottom Pane Size'),
+			category: Categories.View,
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyL)
+			},
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		return accessor.get(IWorkbenchLayoutService).resetBottomPane();
+	}
+});
+
 // --- Resize View
 
 abstract class BaseResizeViewAction extends Action2 {
