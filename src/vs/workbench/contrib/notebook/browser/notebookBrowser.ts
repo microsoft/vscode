@@ -772,7 +772,6 @@ export interface INotebookEditorPane extends IEditorPaneWithSelection {
 
 export interface IBaseCellEditorOptions extends IDisposable {
 	readonly value: IEditorOptions;
-	// readonly commentsValue: IEditorCommentsOptions;
 	readonly onDidChange: Event<void>;
 }
 
