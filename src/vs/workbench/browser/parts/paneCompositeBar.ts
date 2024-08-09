@@ -258,8 +258,8 @@ export class PaneCompositeBar extends Disposable {
 		}
 	}
 
-	create(parent: HTMLElement): HTMLElement {
-		return this.compositeBar.create(parent);
+	create(parent: HTMLElement, draggable = true): HTMLElement {
+		return this.compositeBar.create(parent, draggable);
 	}
 
 	private getCompositeActions(compositeId: string): { activityAction: ViewContainerActivityAction; pinnedAction: ToggleCompositePinnedAction; badgeAction: ToggleCompositeBadgeAction } {
