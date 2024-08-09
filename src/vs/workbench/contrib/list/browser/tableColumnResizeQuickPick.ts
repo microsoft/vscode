@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Table } from 'vs/base/browser/ui/table/tableWidget';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import { localize } from 'vs/nls';
 import { IQuickInputService, IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
@@ -13,7 +13,7 @@ interface IColumnResizeQuickPickItem extends IQuickPickItem {
 	index: number;
 }
 
-export class TableColumnResizeQuickPick extends DisposableStore {
+export class TableColumnResizeQuickPick extends Disposable {
 	constructor(
 		private readonly _table: Table<any>,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
@@ -34,13 +34,13 @@ export class TableColumnResizeQuickPick extends DisposableStore {
 		quickPick.sortByLabel = false;
 		quickPick.canSelectMany = false;
 		quickPick.show();
-		this.add(quickPick.onDidAccept(() => {
+		this._register(quickPick.onDidAccept(() => {
 			const index = quickPick.selectedItems?.[0].index;
 			if (index !== undefined) {
 				this._selectColumn(quickPick, index);
 			}
 		}));
-		this.add(quickPick.onDidHide(() => {
+		this._register(quickPick.onDidHide(() => {
 			quickPick.dispose();
 			this.dispose();
 		}));
@@ -50,7 +50,7 @@ export class TableColumnResizeQuickPick extends DisposableStore {
 		quickPick.items = [];
 		quickPick.placeholder = localize('table.column.resizeValue', "Please enter a width in percentage for the column.");
 		quickPick.show();
-		this.add(quickPick.onDidAccept(() => {
+		this._register(quickPick.onDidAccept(() => {
 			const percentage = Number.parseInt(quickPick.value);
 			if (!isNaN(percentage)) {
 				this._table.resizeColumn(index, percentage);
@@ -58,7 +58,7 @@ export class TableColumnResizeQuickPick extends DisposableStore {
 				return;
 			}
 		}));
-		this.add(quickPick.onDidChangeValue(() => this._validateColumnResizeValue(quickPick)));
+		this._register(quickPick.onDidChangeValue(() => this._validateColumnResizeValue(quickPick)));
 	}
 
 	private _validateColumnResizeValue(quickPick: IQuickPick<IColumnResizeQuickPickItem>): number | undefined {
