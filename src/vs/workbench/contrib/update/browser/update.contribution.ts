@@ -178,8 +178,9 @@ class DownloadAction extends Action2 {
 			precondition: ContextKeyExpr.and(IsWebContext, DOWNLOAD_URL), // Only show when running in a web browser and a download url is available
 			f1: true,
 			menu: [{
-				id: MenuId.StatusBarWindowIndicatorMenu,
-				when: ContextKeyExpr.and(IsWebContext, DOWNLOAD_URL)
+				id: MenuId.StatusBarRemoteIndicatorMenu,
+				when: ContextKeyExpr.and(IsWebContext, DOWNLOAD_URL),
+				group: 'z-general_10',
 			}]
 		});
 	}
