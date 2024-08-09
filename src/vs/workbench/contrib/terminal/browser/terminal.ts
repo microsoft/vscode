@@ -1018,7 +1018,7 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	/**
 	 * Sets or triggers a quick pick to change the icon of this terminal.
 	 */
-	changeIcon(icon?: TerminalIcon): Promise<TerminalIcon | undefined>;
+	changeIcon(icon?: TerminalIcon, changeIcon?: 'inline-tab' | 'other'): Promise<TerminalIcon | undefined>;
 
 	/**
 	 * Sets or triggers a quick pick to change the color of the associated terminal tab icon.

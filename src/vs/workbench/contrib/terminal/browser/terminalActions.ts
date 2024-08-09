@@ -821,13 +821,14 @@ export function registerTerminalActions() {
 		f1: false,
 		precondition: sharedWhenClause.terminalAvailable_and_singularSelection,
 		run: async (c, accessor, args) => {
+			const eventSource = c.groupService.lastAccessedMenu === 'inline-tab' ? 'inline-tab' : 'other';
 			let icon: TerminalIcon | undefined;
 			if (c.groupService.lastAccessedMenu === 'inline-tab') {
-				getResourceOrActiveInstance(c, args)?.changeIcon();
+				getResourceOrActiveInstance(c, args)?.changeIcon(undefined, eventSource);
 				return;
 			}
 			for (const terminal of getSelectedInstances(accessor) ?? []) {
-				icon = await terminal.changeIcon(icon);
+				icon = await terminal.changeIcon(icon, eventSource);
 			}
 		}
 	});
