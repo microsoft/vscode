@@ -211,6 +211,7 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 	private _previewContainer!: HTMLElement;
 	private _messageContainer!: HTMLElement;
 	private _dim = new dom.Dimension(0, 0);
+	private _isClosing = false; // whether or not a dispose is already in progress
 
 	constructor(
 		editor: ICodeEditor,
@@ -231,7 +232,12 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 		this.create();
 	}
 
+	get isClosing() {
+		return this._isClosing;
+	}
+
 	override dispose(): void {
+		this._isClosing = true;
 		this.setModel(undefined);
 		this._callOnDispose.dispose();
 		this._disposeOnNewModel.dispose();
