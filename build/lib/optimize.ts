@@ -213,7 +213,7 @@ const DEFAULT_FILE_HEADER = [
 
 function optimizeAMDTask(opts: IOptimizeAMDTaskOpts): NodeJS.ReadWriteStream {
 	const src = opts.src;
-	const entryPoints = opts.entryPoints;
+	const entryPoints = opts.entryPoints.filter(d => d.target !== 'esm');
 	const resources = opts.resources;
 	const loaderConfig = opts.loaderConfig;
 	const bundledFileHeader = opts.header || DEFAULT_FILE_HEADER;
@@ -283,7 +283,7 @@ function optimizeESMTask(opts: IOptimizeAMDTaskOpts, cjsOpts?: IOptimizeCommonJS
 	const bundlesStream = es.through(); // this stream will contain the bundled files
 	const bundleInfoStream = es.through(); // this stream will contain bundleInfo.json
 
-	const entryPoints = opts.entryPoints;
+	const entryPoints = opts.entryPoints.filter(d => d.target !== 'amd');
 	if (cjsOpts) {
 		cjsOpts.entryPoints.forEach(entryPoint => entryPoints.push({ name: path.parse(entryPoint).name }));
 	}
@@ -313,8 +313,8 @@ function optimizeESMTask(opts: IOptimizeAMDTaskOpts, cjsOpts?: IOptimizeCommonJS
 			console.log(`[bundle] STARTING '${entryPoint.name}'...`);
 
 			// support for 'dest' via esbuild#in/out
-			// const dest = entryPoint.dest?.replace(/\.[^/.]+$/, '') ?? entryPoint.name;
-			const dest = entryPoint.name;
+			const dest = entryPoint.dest?.replace(/\.[^/.]+$/, '') ?? entryPoint.name;
+			// const dest = entryPoint.name;
 
 			// support for 'preprend' via the esbuild#banner
 			let banner: { [type: string]: string } | undefined;
