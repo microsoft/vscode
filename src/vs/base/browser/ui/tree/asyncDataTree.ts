@@ -677,6 +677,10 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		this.tree.collapseAll();
 	}
 
+	expandAllFolders(): void {
+		this.tree.expandAll();
+	}
+
 	isCollapsible(element: T): boolean {
 		return this.tree.isCollapsible(this.getDataNode(element));
 	}

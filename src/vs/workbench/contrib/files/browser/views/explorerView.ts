@@ -885,6 +885,19 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		this.tree.collapseAll();
 	}
 
+	expandAllFolders(): void {
+		if (this.explorerService.isEditable(undefined)) {
+			this.tree.domFocus();
+		}
+
+		const treeInput = this.tree.getInput();
+		if (Array.isArray(treeInput)) {
+			treeInput.forEach(folder => folder.children.forEach(child => this.tree.expand(child, true)));
+		}
+
+		this.tree.expandAllFolders();
+	}
+
 	previousCompressedStat(): void {
 		const focused = this.tree.getFocus();
 		if (!focused.length) {
@@ -1071,6 +1084,35 @@ registerAction2(class extends Action2 {
 		if (view !== null) {
 			const explorerView = view as ExplorerView;
 			explorerView.collapseAll();
+		}
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.files.action.expandExplorerFolders',
+			title: nls.localize2('expandExplorerFolders', "Expand Folders in Explorer"),
+			f1: true,
+			icon: Codicon.expandAll,
+			menu: {
+				id: MenuId.ViewTitle,
+				group: 'navigation',
+				when: ContextKeyExpr.equals('view', VIEW_ID),
+				order: 40
+			},
+			metadata: {
+				description: nls.localize2('expandExplorerFoldersMetadata', "Expands all folders in the Explorer.")
+			}
+		});
+	}
+
+	run(accessor: ServicesAccessor) {
+		const viewsService = accessor.get(IViewsService);
+		const view = viewsService.getViewWithId(VIEW_ID);
+		if (view !== null) {
+			const explorerView = view as ExplorerView;
+			explorerView.expandAllFolders();
 		}
 	}
 });
