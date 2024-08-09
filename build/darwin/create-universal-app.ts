@@ -31,13 +31,15 @@ async function main(buildDir?: string) {
 		'**/Credits.rtf',
 	];
 
+	const canAsar = false; // TODO@esm ASAR disabled in ESM
+
 	await makeUniversalApp({
 		x64AppPath,
 		arm64AppPath,
-		asarPath: asarRelativePath,
+		asarPath: canAsar ? asarRelativePath : undefined,
 		outAppPath,
 		force: true,
-		mergeASARs: true,
+		mergeASARs: canAsar,
 		x64ArchFiles: '*/kerberos.node',
 		filesToSkipComparison: (file: string) => {
 			for (const expected of filesToSkip) {

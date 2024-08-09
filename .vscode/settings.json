@@ -50,6 +50,7 @@
 		"test/smoke/out/**": true,
 		"test/automation/out/**": true,
 		"test/integration/browser/out/**": true,
+		"src2/**": true,
 	},
 	"files.readonlyExclude": {
 		"build/builtin/*.js": true,

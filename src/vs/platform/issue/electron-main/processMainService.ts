@@ -15,6 +15,7 @@ import { IDiagnosticsService, isRemoteDiagnosticError, PerformanceInfo, SystemIn
 import { IDiagnosticsMainService } from 'vs/platform/diagnostics/electron-main/diagnosticsMainService';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
+import { ICSSDevelopmentService } from 'vs/platform/environment/node/cssDevService';
 import { IProcessMainService, ProcessExplorerData, ProcessExplorerWindowConfiguration } from 'vs/platform/issue/common/issue';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
@@ -57,6 +58,7 @@ export class ProcessMainService implements IProcessMainService {
 		@IProtocolMainService private readonly protocolMainService: IProtocolMainService,
 		@IProductService private readonly productService: IProductService,
 		@IStateService private readonly stateService: IStateService,
+		@ICSSDevelopmentService private readonly cssDevelopmentService: ICSSDevelopmentService
 	) {
 		this.registerListeners();
 	}
@@ -147,6 +149,12 @@ export class ProcessMainService implements IProcessMainService {
 					alwaysOnTop: true
 				}, 'process-explorer');
 
+				// DEV: list all CSS modules and send them the new window
+				let cssModules: string[] | undefined;
+				if (this.cssDevelopmentService) {
+					cssModules = await this.cssDevelopmentService.getCssModules();
+				}
+
 				// Store into config object URL
 				processExplorerWindowConfigUrl.update({
 					appRoot: this.environmentMainService.appRoot,
@@ -157,7 +165,8 @@ export class ProcessMainService implements IProcessMainService {
 					nls: {
 						messages: globalThis._VSCODE_NLS_MESSAGES,
 						language: globalThis._VSCODE_NLS_LANGUAGE
-					}
+					},
+					cssModules
 				});
 
 				this.processExplorerWindow.loadURL(

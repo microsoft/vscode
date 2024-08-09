@@ -22,7 +22,7 @@ function makeCompileBuildTask(disableMangle) {
 		util.buildWebNodePaths('out-build'),
 		date.writeISODate('out-build'),
 		compilation.compileApiProposalNamesTask,
-		compilation.compileTask('src', 'out-build', true, { disableMangle }),
+		compilation.compileTask('src2', 'out-build', true, { disableMangle: true }), // DO NOT merge to main!!
 		optimize.optimizeLoaderTask('out-build', 'out-build', true)
 	);
 }

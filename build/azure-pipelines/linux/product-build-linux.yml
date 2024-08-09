@@ -255,6 +255,9 @@ steps:
         displayName: Check GLIBC and GLIBCXX dependencies in server archive
 
   - ${{ else }}:
+    - script: node migrate.mjs --disable-watch
+      displayName: Migrate to ESM
+
     - script: yarn gulp "transpile-client-swc" "transpile-extensions"
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"

@@ -72,6 +72,7 @@ import { massageMessageBoxOptions } from 'vs/platform/dialogs/common/dialogs';
 import { SaveStrategy, StateService } from 'vs/platform/state/node/stateService';
 import { FileUserDataProvider } from 'vs/platform/userData/common/fileUserDataProvider';
 import { addUNCHostToAllowlist, getUNCHost } from 'vs/base/node/unc';
+import { CSSDevelopmentService, ICSSDevelopmentService } from 'vs/platform/environment/node/cssDevService';
 
 /**
  * The main VS Code entry point.
@@ -173,6 +174,9 @@ class CodeMain {
 		const bufferLogger = new BufferLogger(loggerService.getLogLevel());
 		const logService = disposables.add(new LogService(bufferLogger, [new ConsoleMainLogger(loggerService.getLogLevel())]));
 		services.set(ILogService, logService);
+
+		// Window-Dev Service
+		services.set(ICSSDevelopmentService, new SyncDescriptor(CSSDevelopmentService, undefined, true));
 
 		// Files
 		const fileService = new FileService(logService);

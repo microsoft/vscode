@@ -74,6 +74,8 @@ async function main() {
 		openSystemBrowser = true;
 	}
 
+	serverArgs.push('--esm');
+
 	serverArgs.push('--sourcesPath', APP_ROOT);
 
 	serverArgs.push(...process.argv.slice(2).filter(v => !v.startsWith('--playground') && v !== '--no-playground'));

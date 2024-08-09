@@ -98,6 +98,9 @@ steps:
     - script: node build/azure-pipelines/distro/mixin-quality
       displayName: Mixin distro quality
 
+  - script: node migrate.mjs --disable-watch
+    displayName: Migrate to ESM
+
   - template: common/install-builtin-extensions.yml@self
 
   - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:

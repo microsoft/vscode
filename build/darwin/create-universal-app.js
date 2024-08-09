@@ -26,13 +26,14 @@ async function main(buildDir) {
         '**/CodeResources',
         '**/Credits.rtf',
     ];
+    const canAsar = false; // TODO@esm ASAR disabled in ESM
     await (0, vscode_universal_bundler_1.makeUniversalApp)({
         x64AppPath,
         arm64AppPath,
-        asarPath: asarRelativePath,
+        asarPath: canAsar ? asarRelativePath : undefined,
         outAppPath,
         force: true,
-        mergeASARs: true,
+        mergeASARs: canAsar,
         x64ArchFiles: '*/kerberos.node',
         filesToSkipComparison: (file) => {
             for (const expected of filesToSkip) {

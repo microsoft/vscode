@@ -22,6 +22,7 @@ import { IIPCObjectUrl, IProtocolMainService } from 'vs/platform/protocol/electr
 import { zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
 import { ICodeWindow, IWindowState } from 'vs/platform/window/electron-main/window';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
+import { ICSSDevelopmentService } from 'vs/platform/environment/node/cssDevService';
 
 interface IBrowserWindowOptions {
 	backgroundColor: string | undefined;
@@ -49,6 +50,7 @@ export class IssueMainService implements IIssueMainService {
 		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService,
 		@IProtocolMainService private readonly protocolMainService: IProtocolMainService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
+		@ICSSDevelopmentService private readonly cssDevelopmentService: ICSSDevelopmentService,
 	) { }
 
 	//#region Used by renderer
@@ -69,6 +71,13 @@ export class IssueMainService implements IIssueMainService {
 					alwaysOnTop: false
 				}, 'issue-reporter');
 
+
+				// DEV: list all CSS modules and send them the new window
+				let cssModules: string[] | undefined;
+				if (this.cssDevelopmentService) {
+					cssModules = await this.cssDevelopmentService.getCssModules();
+				}
+
 				// Store into config object URL
 				issueReporterWindowConfigUrl.update({
 					appRoot: this.environmentMainService.appRoot,
@@ -85,7 +94,8 @@ export class IssueMainService implements IIssueMainService {
 					nls: {
 						messages: globalThis._VSCODE_NLS_MESSAGES,
 						language: globalThis._VSCODE_NLS_LANGUAGE
-					}
+					},
+					cssModules
 				});
 
 				this.issueReporterWindow.loadURL(

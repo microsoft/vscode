@@ -15,6 +15,8 @@
 				;
 				script-src
 					'self'
+					blob:
+					'nonce-0c6a828f1297'
 				;
 				style-src
 					'self'
@@ -28,6 +30,7 @@
 					'self'
 				;
 		">
+		<link rel="stylesheet" href="./processExplorerMain.css">
 	</head>
 
 	<body aria-label="">
@@ -35,5 +38,5 @@
 	</body>
 
 	<!-- Startup (do not modify order of script tags!) -->
-	<script src="processExplorer.js"></script>
+	<script src="./processExplorer.js" type="module"></script>
 </html>
