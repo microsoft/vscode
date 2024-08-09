@@ -117,28 +117,7 @@ export namespace Event {
 	 * @param event The event source for the new event.
 	 */
 	export function onceIf<T>(event: Event<T>, condition: (e: T) => boolean): Event<T> {
-		return (listener, thisArgs = null, disposables?) => {
-			// we need this, in case the event fires during the listener call
-			let didFire = false;
-			let result: IDisposable | undefined = undefined;
-			result = event(e => {
-				if (didFire || !condition(e)) {
-					return;
-				} else if (result) {
-					result.dispose();
-				} else {
-					didFire = true;
-				}
-
-				return listener.call(thisArgs, e);
-			}, null, disposables);
-
-			if (didFire) {
-				result.dispose();
-			}
-
-			return result;
-		};
+		return Event.once(Event.filter(event, condition));
 	}
 
 	/**
