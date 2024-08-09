@@ -17,7 +17,7 @@ import { FileEditorInput } from 'vs/workbench/contrib/files/browser/editors/file
 import { BinaryFileEditor } from 'vs/workbench/contrib/files/browser/editors/binaryFileEditor';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { isNative, isWeb, isWindows } from 'vs/base/common/platform';
+import { isLinux, isNative, isWeb, isWindows } from 'vs/base/common/platform';
 import { ExplorerViewletViewsContribution } from 'vs/workbench/contrib/files/browser/explorerViewlet';
 import { IEditorPaneRegistry, EditorPaneDescriptor } from 'vs/workbench/browser/editor';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -248,7 +248,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'files.insertFinalNewline': {
 			'type': 'boolean',
-			'default': false,
+			'default': (isLinux ? true : false),
 			'description': nls.localize('insertFinalNewline', "When enabled, insert a final new line at the end of the file when saving it."),
 			'scope': ConfigurationScope.LANGUAGE_OVERRIDABLE
 		},
