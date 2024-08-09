@@ -322,6 +322,7 @@ export class CodeCell extends Disposable {
 			if (e.contentHeightChanged) {
 				if (this.viewCell.layoutInfo.editorHeight !== e.contentHeight) {
 					this.onCellEditorHeightChange(e.contentHeight);
+					this.adjustEditorPosition();
 				}
 			}
 		}));
