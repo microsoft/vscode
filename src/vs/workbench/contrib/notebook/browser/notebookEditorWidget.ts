@@ -101,6 +101,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { PixelRatio } from 'vs/base/browser/pixelRatio';
 import { PreventDefaultContextMenuItemsContextKeyName } from 'vs/workbench/contrib/webview/browser/webview.contribution';
 import { NotebookAccessibilityProvider } from 'vs/workbench/contrib/notebook/browser/notebookAccessibilityProvider';
+import { NotebookHorizontalTracker } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookHorizontalTracker';
 
 const $ = DOM.$;
 
@@ -150,6 +151,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	readonly onDidChangeDecorations: Event<void> = this._onDidChangeDecorations.event;
 	private readonly _onDidScroll = this._register(new Emitter<void>());
 	readonly onDidScroll: Event<void> = this._onDidScroll.event;
+	private readonly _onDidChangeLayout = this._register(new Emitter<void>());
+	readonly onDidChangeLayout: Event<void> = this._onDidChangeLayout.event;
 	private readonly _onDidChangeActiveCell = this._register(new Emitter<void>());
 	readonly onDidChangeActiveCell: Event<void> = this._onDidChangeActiveCell.event;
 	private readonly _onDidChangeFocus = this._register(new Emitter<void>());
@@ -323,6 +326,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			this._notebookOptions,
 			eventDispatcher,
 			language => this.getBaseCellEditorOptions(language));
+		this._register(this._viewContext.eventDispatcher.onDidChangeLayout(() => {
+			this._onDidChangeLayout.fire();
+		}));
 		this._register(this._viewContext.eventDispatcher.onDidChangeCellState(e => {
 			this._onDidChangeCellState.fire(e);
 		}));
@@ -609,6 +615,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._notebookOverviewRulerContainer.classList.add('notebook-overview-ruler-container');
 		this._list.scrollableElement.appendChild(this._notebookOverviewRulerContainer);
 		this._registerNotebookOverviewRuler();
+
+		this._register(this.instantiationService.createInstance(NotebookHorizontalTracker, this, this._list.scrollableElement));
 
 		this._overflowContainer = document.createElement('div');
 		this._overflowContainer.classList.add('notebook-overflow-widget-container', 'monaco-editor');
