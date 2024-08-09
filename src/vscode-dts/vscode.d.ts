@@ -3890,6 +3890,11 @@ declare module 'vscode' {
 		 * Signal to the editor that this edit is a refactoring.
 		 */
 		isRefactoring?: boolean;
+
+		/**
+		 * Signal to the editor that a preview should be shown even if no edits need to be confirmed.
+		 */
+		showPreview?: boolean;
 	}
 
 	/**
