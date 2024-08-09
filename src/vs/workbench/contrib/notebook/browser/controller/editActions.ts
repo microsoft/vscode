@@ -659,14 +659,14 @@ registerAction2(class CommentSelectedCellsAction extends NotebookMultiCellAction
 				textModel = await cell.resolveTextModel();
 			}
 
-			// ! todo: need to store comment options on the model refer to https://github.com/microsoft/vscode/issues/108675
+			const commentsOptions = cell.commentOptions;
 			const cellCommentCommand = new LineCommentCommand(
 				languageConfigurationService,
 				new Selection(1, 1, textBuffer.getLineCount(), textBuffer.getLineLength(textBuffer.getLineCount())), // comment the entire cell
 				textModel.getOptions().tabSize,
 				Type.Toggle,
-				false, // commentsOptions.insertSpace,
-				false, // commentsOptions.ignoreEmptyLines,
+				commentsOptions.insertSpace ?? true,
+				commentsOptions.ignoreEmptyLines ?? true,
 				false
 			);
 

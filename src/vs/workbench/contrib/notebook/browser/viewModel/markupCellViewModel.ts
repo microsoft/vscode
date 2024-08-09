@@ -17,6 +17,7 @@ import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { NotebookOptionsChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { NotebookCellStateChangedEvent, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
+import { IEditorCommentsOptions } from 'vs/editor/common/config/editorOptions';
 
 export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewModel {
 
@@ -111,6 +112,16 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 		this._onDidChangeState.fire({ cellIsHoveredChanged: true });
 	}
 
+	private _commentOptions: IEditorCommentsOptions;
+	public get commentOptions(): IEditorCommentsOptions {
+		return this._commentOptions;
+	}
+
+	public set commentOptions(newOptions: IEditorCommentsOptions) {
+		this._commentOptions = newOptions;
+		this._onDidChangeState.fire({ contentChanged: true });
+	}
+
 	constructor(
 		viewType: string,
 		model: NotebookCellTextModel,
@@ -142,6 +153,14 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 			foldHintHeight: 0,
 			statusBarHeight: 0
 		};
+
+		this._commentOptions = configurationService.getValue<IEditorCommentsOptions>('editor.comments');
+		this._register(configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('editor.comments')) {
+				this._commentOptions = configurationService.getValue<IEditorCommentsOptions>('editor.comments');
+				this._onDidChangeState.fire({ contentChanged: true });
+			}
+		}));
 
 		this._register(this.onDidChangeState(e => {
 			this.viewContext.eventDispatcher.emit([new NotebookCellStateChangedEvent(e, this.model)]);
