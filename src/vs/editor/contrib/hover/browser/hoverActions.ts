@@ -95,7 +95,7 @@ export class ShowOrFocusHoverAction extends EditorAction {
 
 		const accessibilitySupportEnabled = editor.getOption(EditorOption.accessibilitySupport) === AccessibilitySupport.Enabled;
 
-		if (controller.isVisible) {
+		if (controller.isHoverVisible) {
 			if (focusOption !== HoverFocusBehavior.NoAutoFocus) {
 				controller.focus();
 			} else {

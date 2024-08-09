@@ -93,7 +93,7 @@ abstract class BaseHoverAccessibleViewProvider extends Disposable implements IAc
 		}
 		this._hoverController.shouldKeepOpenOnEditorMouseMoveOrLeave = true;
 		this._focusedHoverPartIndex = this._hoverController.focusedHoverPartIndex();
-		this._register(this._hoverController.onContentsChanged(() => {
+		this._register(this._hoverController.onHoverContentsChanged(() => {
 			this._onDidChangeContent.fire();
 		}));
 	}

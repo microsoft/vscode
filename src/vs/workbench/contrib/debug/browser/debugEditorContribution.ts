@@ -375,8 +375,8 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			return;
 		}
 
-		const contentHoverController = this.editor.getContribution<ContentHoverController>(ContentHoverController.ID);
-		contentHoverController?.hide();
+		const hoverController = this.editor.getContribution<ContentHoverController>(ContentHoverController.ID);
+		hoverController?.hide();
 
 		this.editor.updateOptions({ hover: { enabled: false } });
 		this.defaultHoverLockout.value = {
@@ -389,12 +389,12 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	}
 
 	private showEditorHover(position: Position, focus: boolean) {
-		const contentHoverController = this.editor.getContribution<ContentHoverController>(ContentHoverController.ID);
+		const hoverController = this.editor.getContribution<ContentHoverController>(ContentHoverController.ID);
 		const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
 		// enable the editor hover, otherwise the content controller will see it
 		// as disabled and hide it on the first mouse move (#193149)
 		this.defaultHoverLockout.clear();
-		contentHoverController?.showContentHover(range, HoverStartMode.Immediate, HoverStartSource.Mouse, focus);
+		hoverController?.showContentHover(range, HoverStartMode.Immediate, HoverStartSource.Mouse, focus);
 	}
 
 	private async onFocusStackFrame(sf: IStackFrame | undefined): Promise<void> {
