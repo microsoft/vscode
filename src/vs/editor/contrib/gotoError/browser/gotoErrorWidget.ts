@@ -9,6 +9,7 @@ import { IAction } from 'vs/base/common/actions';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
+import { isMarkdownString } from 'vs/base/common/htmlContent';
 import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { basename } from 'vs/base/common/resources';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
@@ -103,7 +104,8 @@ class MessageWidget {
 			}
 		}
 
-		const lines = splitLines(message);
+		const plainTextMessage = isMarkdownString(message) ? (message.plainTextValue || '') : message;
+		const lines = splitLines(plainTextMessage);
 		this._lines = lines.length;
 		this._longestLineLength = 0;
 		for (const line of lines) {

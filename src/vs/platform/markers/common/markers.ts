@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
+import { isMarkdownString, type IMarkdownString } from 'vs/base/common/htmlContent';
 import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
@@ -89,7 +90,7 @@ export namespace MarkerSeverity {
 export interface IMarkerData {
 	code?: string | { value: string; target: URI };
 	severity: MarkerSeverity;
-	message: string;
+	message: string | IMarkdownString;
 	source?: string;
 	startLineNumber: number;
 	startColumn: number;
@@ -110,7 +111,7 @@ export interface IMarker {
 	resource: URI;
 	severity: MarkerSeverity;
 	code?: string | { value: string; target: URI };
-	message: string;
+	message: string | IMarkdownString;
 	source?: string;
 	startLineNumber: number;
 	startColumn: number;
@@ -159,7 +160,8 @@ export namespace IMarkerData {
 		// Modifed to not include the message as part of the marker key to work around
 		// https://github.com/microsoft/vscode/issues/77475
 		if (markerData.message && useMessage) {
-			result.push(markerData.message.replace('¦', '\\¦'));
+			const value = isMarkdownString(markerData.message) ? (markerData.message.plainTextValue || '') : markerData.message;
+			result.push(value.replace('¦', '\\¦'));
 		} else {
 			result.push(emptyString);
 		}

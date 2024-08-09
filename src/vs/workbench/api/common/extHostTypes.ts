@@ -1164,14 +1164,14 @@ export class DiagnosticRelatedInformation {
 export class Diagnostic {
 
 	range: Range;
-	message: string;
+	message: string | vscode.MarkdownString;
 	severity: DiagnosticSeverity;
 	source?: string;
 	code?: string | number;
 	relatedInformation?: DiagnosticRelatedInformation[];
 	tags?: DiagnosticTag[];
 
-	constructor(range: Range, message: string, severity: DiagnosticSeverity = DiagnosticSeverity.Error) {
+	constructor(range: Range, message: string | vscode.MarkdownString, severity: DiagnosticSeverity = DiagnosticSeverity.Error) {
 		if (!Range.isRange(range)) {
 			throw new TypeError('range must be set');
 		}
@@ -1587,6 +1587,14 @@ export class MarkdownString implements vscode.MarkdownString {
 	}
 	set value(value: string) {
 		this.#delegate.value = value;
+	}
+
+	get plainTextValue(): string | undefined {
+		return this.#delegate.plainTextValue;
+	}
+
+	set plainTextValue(value: string | undefined) {
+		this.#delegate.plainTextValue = value;
 	}
 
 	get isTrusted(): boolean | MarkdownStringTrustedOptions | undefined {

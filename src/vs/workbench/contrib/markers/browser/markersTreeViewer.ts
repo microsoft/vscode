@@ -365,7 +365,7 @@ class MarkerWidget extends Disposable {
 		const viewState = this.markersViewModel.getViewModel(element);
 		const multiline = !viewState || viewState.multiline;
 		const lineMatches = filterData && filterData.lineMatches || [];
-		this.messageAndDetailsContainerHover.update(element.marker.message);
+		this.messageAndDetailsContainerHover.update(element.marker.message.toString());
 
 		const lineElements: HTMLElement[] = [];
 		for (let index = 0; index < (multiline ? lines.length : 1); index++) {

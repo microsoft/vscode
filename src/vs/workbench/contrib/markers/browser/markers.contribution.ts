@@ -379,7 +379,7 @@ registerAction2(class extends ViewAction<IMarkersView> {
 		const clipboardService = serviceAccessor.get(IClipboardService);
 		const element = markersView.getFocusElement();
 		if (element instanceof Marker) {
-			await clipboardService.writeText(element.marker.message);
+			await clipboardService.writeText(element.marker.message.toString());
 		}
 	}
 });
