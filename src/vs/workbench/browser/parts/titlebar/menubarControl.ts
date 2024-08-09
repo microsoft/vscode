@@ -381,6 +381,7 @@ export class CustomMenubarControl extends MenubarControl {
 	private visible: boolean = true;
 	private actionRunner: IActionRunner;
 	private readonly webNavigationMenu = this._register(this.menuService.createMenu(MenuId.MenubarHomeMenu, this.contextKeyService));
+	private static singleInstance: CustomMenubarControl | undefined = undefined;
 
 	private readonly _onVisibilityChange: Emitter<boolean>;
 	private readonly _onFocusStateChange: Emitter<boolean>;
@@ -402,6 +403,12 @@ export class CustomMenubarControl extends MenubarControl {
 		@IHostService hostService: IHostService,
 		@ICommandService commandService: ICommandService
 	) {
+		// If there is a previous instance that has not been destroyed, you need to destroy it first and then record the initialization of the new instance.
+		if (CustomMenubarControl.singleInstance) {
+			CustomMenubarControl.singleInstance.dispose();
+			CustomMenubarControl.singleInstance = undefined;
+		}
+
 		super(menuService, workspacesService, contextKeyService, keybindingService, configurationService, labelService, updateService, storageService, notificationService, preferencesService, environmentService, accessibilityService, hostService, commandService);
 
 		this._onVisibilityChange = this._register(new Emitter<boolean>());
@@ -419,6 +426,8 @@ export class CustomMenubarControl extends MenubarControl {
 		this.registerListeners();
 
 		this.registerActions();
+
+		CustomMenubarControl.singleInstance = this;
 	}
 
 	protected doUpdateMenubar(firstTime: boolean): void {
