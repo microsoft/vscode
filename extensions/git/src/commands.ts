@@ -1752,6 +1752,28 @@ export class CommandCenter {
 		textEditor.selections = selectionsBeforeRevert;
 	}
 
+	@command('git.copyOriginalLinesOfCurrentRange', { diff: true })
+	async copyOriginalLinesOfCurrentRange(changes: LineChange[]): Promise<void> {
+		const textEditor = window.activeTextEditor;
+
+		if (!textEditor || textEditor.document.uri.scheme !== 'file' || textEditor.selections.length !== 1) {
+			return;
+		}
+
+		const selection = textEditor.selections[0];
+
+		const change = changes.find(change => change.modifiedStartLineNumber <= (selection.start.line + 1) && (selection.end.line + 1) <= change.modifiedEndLineNumber);
+
+		if (!change) {
+			return;
+		}
+
+		const originalUri = toGitUri(textEditor.document.uri, '~');
+		const originalDocument = await workspace.openTextDocument(originalUri);
+		const originalText = originalDocument.getText(new Range(change.originalStartLineNumber - 1, 0, change.originalEndLineNumber, 0));
+		env.clipboard.writeText(originalText);
+	}
+
 	private async _revertChanges(textEditor: TextEditor, changes: LineChange[]): Promise<void> {
 		const modifiedDocument = textEditor.document;
 		const modifiedUri = modifiedDocument.uri;
