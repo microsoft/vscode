@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+
 export interface ILineRange {
 	startLineNumber: number;
 	endLineNumber: number;
@@ -243,6 +244,18 @@ export class FoldingRegions {
 			res[i] = `[${foldSourceAbbr[this.getSource(i)]}${this.isCollapsed(i) ? '+' : '-'}] ${this.getStartLineNumber(i)}/${this.getEndLineNumber(i)}`;
 		}
 		return res.join(', ');
+	}
+
+	public getCollapsedRanges(): [number, number][] {
+		const res: [number, number][] = [];
+		for (let i = 0; i < this.length; i++) {
+			if (!this.isCollapsed(i)) {
+				continue;
+			}
+
+			res.push([this.getStartLineNumber(i), this.getEndLineNumber(i)]);
+		}
+		return res;
 	}
 
 	public toFoldRange(index: number): FoldRange {
