@@ -30,12 +30,6 @@ interface IHoverSettings {
 
 interface IHoverState {
 	mouseDown: boolean;
-	activatedByDecoratorClick: boolean;
-}
-
-const enum HoverWidgetType {
-	Content,
-	Glyph,
 }
 
 export class MarginHoverController extends Disposable implements IEditorContribution {
@@ -47,14 +41,12 @@ export class MarginHoverController extends Disposable implements IEditorContribu
 	private readonly _listenersStore = new DisposableStore();
 
 	private _glyphWidget: MarginHoverWidget | undefined;
-
 	private _mouseMoveEvent: IEditorMouseEvent | undefined;
 	private _reactToEditorMouseMoveRunner: RunOnceScheduler;
 
 	private _hoverSettings!: IHoverSettings;
 	private _hoverState: IHoverState = {
-		mouseDown: false,
-		activatedByDecoratorClick: false
+		mouseDown: false
 	};
 
 	constructor(
@@ -98,7 +90,6 @@ export class MarginHoverController extends Disposable implements IEditorContribu
 			this._listenersStore.add(this._editor.onMouseMove((e: IEditorMouseEvent) => this._onEditorMouseMove(e)));
 			this._listenersStore.add(this._editor.onKeyDown((e: IKeyboardEvent) => this._onKeyDown(e)));
 		}
-
 		this._listenersStore.add(this._editor.onMouseLeave((e) => this._onEditorMouseLeave(e)));
 		this._listenersStore.add(this._editor.onDidChangeModel(() => {
 			this._cancelScheduler();
@@ -124,14 +115,11 @@ export class MarginHoverController extends Disposable implements IEditorContribu
 	}
 
 	private _onEditorMouseDown(mouseEvent: IEditorMouseEvent): void {
-
 		this._hoverState.mouseDown = true;
-
 		const shouldNotHideCurrentHoverWidget = this._isMouseOnMarginHoverWidget(mouseEvent);
 		if (shouldNotHideCurrentHoverWidget) {
 			return;
 		}
-
 		this._hideWidgets();
 	}
 
@@ -153,7 +141,6 @@ export class MarginHoverController extends Disposable implements IEditorContribu
 		}
 
 		this._cancelScheduler();
-
 		const shouldNotHideCurrentHoverWidget = this._isMouseOnMarginHoverWidget(mouseEvent);
 		if (shouldNotHideCurrentHoverWidget) {
 			return;
@@ -189,33 +176,7 @@ export class MarginHoverController extends Disposable implements IEditorContribu
 		if (!mouseEvent) {
 			return;
 		}
-
-		const target = mouseEvent.target;
-		const mouseOnDecorator = target.element?.classList.contains('colorpicker-color-decoration');
-		const decoratorActivatedOn = this._editor.getOption(EditorOption.colorDecoratorsActivatedOn);
-
-		const enabled = this._hoverSettings.enabled;
-		const activatedByDecoratorClick = this._hoverState.activatedByDecoratorClick;
-		if (
-			(
-				mouseOnDecorator && (
-					(decoratorActivatedOn === 'click' && !activatedByDecoratorClick) ||
-					(decoratorActivatedOn === 'hover' && !enabled && !_sticky) ||
-					(decoratorActivatedOn === 'clickAndHover' && !enabled && !activatedByDecoratorClick))
-			) || (
-				!mouseOnDecorator && !enabled && !activatedByDecoratorClick
-			)
-		) {
-			this._hideWidgets();
-			return;
-		}
-
-		const contentHoverShowsOrWillShow = this._tryShowHoverWidget(mouseEvent, HoverWidgetType.Content);
-		if (contentHoverShowsOrWillShow) {
-			return;
-		}
-
-		const glyphWidgetShowsOrWillShow = this._tryShowHoverWidget(mouseEvent, HoverWidgetType.Glyph);
+		const glyphWidgetShowsOrWillShow = this._tryShowHoverWidget(mouseEvent);
 		if (glyphWidgetShowsOrWillShow) {
 			return;
 		}
@@ -225,7 +186,7 @@ export class MarginHoverController extends Disposable implements IEditorContribu
 		this._hideWidgets();
 	}
 
-	private _tryShowHoverWidget(mouseEvent: IEditorMouseEvent, hoverWidgetType: HoverWidgetType): boolean {
+	private _tryShowHoverWidget(mouseEvent: IEditorMouseEvent): boolean {
 		const glyphWidget: IHoverWidget = this._getOrCreateGlyphWidget();
 		return glyphWidget.showsOrWillShow(mouseEvent);
 	}
@@ -234,7 +195,6 @@ export class MarginHoverController extends Disposable implements IEditorContribu
 		if (!this._editor.hasModel()) {
 			return;
 		}
-
 		if (e.keyCode === KeyCode.Ctrl
 			|| e.keyCode === KeyCode.Alt
 			|| e.keyCode === KeyCode.Meta
@@ -242,7 +202,6 @@ export class MarginHoverController extends Disposable implements IEditorContribu
 			// Do not hide hover when a modifier key is pressed
 			return;
 		}
-
 		this._hideWidgets();
 	}
 
@@ -253,7 +212,6 @@ export class MarginHoverController extends Disposable implements IEditorContribu
 		if (InlineSuggestionHintsContentWidget.dropDownVisible) {
 			return;
 		}
-		this._hoverState.activatedByDecoratorClick = false;
 		this._glyphWidget?.hide();
 	}
 

@@ -60,9 +60,9 @@ import { EXECUTE_REPL_COMMAND_ID, REPL_EDITOR_ID } from 'vs/workbench/contrib/no
 import 'vs/css!./interactiveEditor';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { deepClone } from 'vs/base/common/objects';
-import { ReplEditorInput } from 'vs/workbench/contrib/replNotebook/browser/replEditorInput';
 import { MarginHoverController } from 'vs/editor/contrib/hover/browser/marginHoverController';
 import { ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHoverController2';
+import { ReplEditorInput } from 'vs/workbench/contrib/replNotebook/browser/replEditorInput';
 
 const DECORATION_KEY = 'interactiveInputDecoration';
 const INTERACTIVE_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'InteractiveEditorViewState';
