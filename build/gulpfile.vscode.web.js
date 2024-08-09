@@ -34,7 +34,6 @@ const vscodeWebResourceIncludes = [
 
 	// Workbench
 	'out-build/vs/{base,platform,editor,workbench}/**/*.{svg,png,jpg,mp3}',
-	'out-build/vs/code/browser/workbench/*.html',
 	'out-build/vs/base/browser/ui/codicons/codicon/**/*.ttf',
 	'out-build/vs/**/markdown.css',
 
@@ -43,7 +42,9 @@ const vscodeWebResourceIncludes = [
 
 	// Webview
 	'out-build/vs/workbench/contrib/webview/browser/pre/*.js',
-	'out-build/vs/workbench/contrib/webview/browser/pre/*.html',
+	'out-build/vs/workbench/contrib/webview/browser/pre/index.html',
+	'out-build/vs/workbench/contrib/webview/browser/pre/index-no-csp.html',
+	'out-build/vs/workbench/contrib/webview/browser/pre/fake.html',
 
 	// Extension Worker
 	'out-build/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html',
@@ -189,7 +190,8 @@ function packageTask(sourceFolderName, destinationFolderName) {
 		const src = gulp.src(sourceFolderName + '/**', { base: '.' })
 			.pipe(rename(function (path) { path.dirname = path.dirname.replace(new RegExp('^' + sourceFolderName), 'out'); }));
 
-		const extensions = gulp.src('.build/web/extensions/**', { base: '.build/web', dot: true });
+		const extensions = gulp.src('.build/web/extensions/**', { base: '.build/web', dot: true })
+			.pipe(filter(['**', '!**/*.{html,htm}'], { dot: true }));
 
 		const sources = es.merge(src, extensions)
 			.pipe(filter(['**', '!**/*.js.map'], { dot: true }));
