@@ -543,7 +543,7 @@ impl ConnectionManager {
 			args,
 			base_path,
 			log: ctx.log.clone(),
-			cache: DownloadCache::new(ctx.paths.web_server_storage()),
+			cache: DownloadCache::load(ctx.paths.web_server_storage()),
 			update_service: UpdateService::new(
 				ctx.log.clone(),
 				Arc::new(ReqwestSimpleHttp::with_client(ctx.http.clone())),
@@ -571,6 +571,7 @@ impl ConnectionManager {
 	pub async fn get_latest_release(&self) -> Result<Release, CodeError> {
 		let mut latest = self.latest_version.lock().await;
 		let now = Instant::now();
+		let target_kind = TargetKind::Web;
 		if let Some((checked_at, release)) = &*latest {
 			if checked_at.elapsed() < Duration::from_secs(RELEASE_CACHE_SECS) {
 				return Ok(release.clone());
@@ -585,7 +586,7 @@ impl ConnectionManager {
 
 		let release = self
 			.update_service
-			.get_latest_commit(self.platform, TargetKind::Web, quality)
+			.get_latest_commit(self.platform, target_kind, quality)
 			.await
 			.map_err(|e| CodeError::UpdateCheckFailed(e.to_string()));
 
@@ -593,6 +594,25 @@ impl ConnectionManager {
 		if let (Err(e), Some((_, previous))) = (&release, &*latest) {
 			warning!(self.log, "error getting latest release, using stale: {}", e);
 			return Ok(previous.clone());
+		}
+
+		// If the update service is unavailable and we have cached data, use that
+		if let Err(e) = &release {
+			warning!(self.log, "error getting latest release: {}", e);
+			if let Some(latest_commit) = self.cache.get().first() {
+				warning!(self.log, "using latest release available from cache");
+				let release = Release {
+					name: String::from("0.0.0"), // Version information not stored on cache
+					commit: latest_commit.clone(),
+					platform: self.platform,
+					target: target_kind,
+					quality
+				};
+
+				*latest = Some((now, release.clone()));
+
+				return Ok(release)
+			}
 		}
 
 		let release = release?;
