@@ -7,6 +7,7 @@ import 'vs/css!./emptyTextEditorHint';
 import * as dom from 'vs/base/browser/dom';
 import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
+import { KeyCode } from 'vs/base/common/keyCodes';
 import { localize } from 'vs/nls';
 import { ChangeLanguageAction } from 'vs/workbench/browser/parts/editor/editorStatus';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -65,6 +66,14 @@ export class EmptyTextEditorHintContribution implements IEditorContribution {
 		@IContextMenuService private readonly contextMenuService: IContextMenuService
 	) {
 		this.toDispose = [];
+		this.toDispose.push(this.editor.onKeyDown((e) => {
+			const shouldRenderHint = this._shouldRenderHint();
+			if (shouldRenderHint && e.keyCode === KeyCode.Tab && e.shiftKey) {
+				e.stopPropagation();
+				e.preventDefault();
+				this.textHintContentWidget?.firstHintStatement?.focus();
+			}
+		}));
 		this.toDispose.push(this.editor.onDidChangeModel(() => this.update()));
 		this.toDispose.push(this.editor.onDidChangeModelLanguage(() => this.update()));
 		this.toDispose.push(this.editor.onDidChangeModelContent(() => this.update()));
@@ -171,6 +180,7 @@ class EmptyTextEditorHintContentWidget implements IContentWidget {
 	private readonly toDispose: DisposableStore;
 	private isVisible = false;
 	private ariaLabel: string = '';
+	public firstHintStatement: HTMLElement | undefined;
 
 	constructor(
 		private readonly editor: ICodeEditor,
@@ -395,12 +405,24 @@ class EmptyTextEditorHintContentWidget implements IContentWidget {
 		const keybindingsLookup = [ChangeLanguageAction.ID, ApplyFileSnippetAction.Id, 'welcome.showNewFileEntries'];
 		const keybindingLabels = keybindingsLookup.map((id) => this.keybindingService.lookupKeybinding(id)?.getLabel() ?? id);
 		const ariaLabel = localize('defaultHintAriaLabel', 'Execute {0} to select a language, execute {1} to fill with template, or execute {2} to open a different editor and get started. Start typing to dismiss.', ...keybindingLabels);
-		for (const anchor of hintElement.querySelectorAll('a')) {
+		this.firstHintStatement = hintElement.querySelectorAll('a')[0];
+		hintElement.querySelectorAll('a').forEach((anchor, index) => {
 			anchor.style.cursor = 'pointer';
+			anchor.tabIndex = 0;
 			const id = keybindingsLookup.shift();
 			const title = id && this.keybindingService.lookupKeybinding(id)?.getLabel();
 			hintHandler.disposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), anchor, title ?? ''));
-		}
+			hintHandler.disposables.add(dom.addStandardDisposableListener(anchor, 'keydown', (event) => {
+				if (event.keyCode === KeyCode.Enter) {
+					event.stopPropagation();
+					event.preventDefault();
+					hintHandler.callback(String(index), event);
+				}
+				else if (event.keyCode === KeyCode.Escape) {
+					this.editor.focus();
+				}
+			}));
+		});
 
 		return { hintElement, ariaLabel };
 	}
