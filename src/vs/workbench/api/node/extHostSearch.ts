@@ -161,7 +161,7 @@ export class NativeExtHostSearch extends ExtHostSearch implements IDisposable {
 		return super.$clearCache(cacheKey);
 	}
 
-	protected override createTextSearchManager(query: ITextQuery, provider: vscode.TextSearchProvider): TextSearchManager {
+	protected override createTextSearchManager(query: ITextQuery, provider: vscode.TextSearchProviderNew): TextSearchManager {
 		return new NativeTextSearchManager(query, provider, undefined, 'textSearchProvider');
 	}
 }

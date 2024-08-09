@@ -17,11 +17,9 @@ import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { Event } from 'vs/base/common/event';
 import * as paths from 'vs/base/common/path';
 import { isCancellationError } from 'vs/base/common/errors';
-import { TextSearchCompleteMessageType } from 'vs/workbench/services/search/common/searchExtTypes';
+import { GlobPattern, TextSearchCompleteMessageType } from 'vs/workbench/services/search/common/searchExtTypes';
 import { isThenable } from 'vs/base/common/async';
 import { ResourceSet } from 'vs/base/common/map';
-
-export { TextSearchCompleteMessageType };
 
 export const VIEWLET_ID = 'workbench.view.search';
 export const PANEL_ID = 'workbench.panel.search';
@@ -67,10 +65,15 @@ export interface ISearchResultProvider {
 	clearCache(cacheKey: string): Promise<void>;
 }
 
+export interface ExcludeGlobPattern<U extends UriComponents = URI> {
+	folder?: U;
+	pattern: glob.IExpression;
+}
+
 export interface IFolderQuery<U extends UriComponents = URI> {
 	folder: U;
 	folderName?: string;
-	excludePattern?: glob.IExpression;
+	excludePattern?: ExcludeGlobPattern<U>;
 	includePattern?: glob.IExpression;
 	fileEncoding?: string;
 	disregardIgnoreFiles?: boolean;
@@ -120,8 +123,7 @@ export interface ITextQueryProps<U extends UriComponents> extends ICommonQueryPr
 	previewOptions?: ITextSearchPreviewOptions;
 	maxFileSize?: number;
 	usePCRE2?: boolean;
-	afterContext?: number;
-	beforeContext?: number;
+	surroundingContext?: number;
 
 	userDisabledExcludesAndIgnoreFiles?: boolean;
 }
@@ -132,8 +134,7 @@ export interface IAITextQueryProps<U extends UriComponents> extends ICommonQuery
 
 	previewOptions?: ITextSearchPreviewOptions;
 	maxFileSize?: number;
-	afterContext?: number;
-	beforeContext?: number;
+	surroundingContext?: number;
 
 	userDisabledExcludesAndIgnoreFiles?: boolean;
 }
@@ -306,19 +307,36 @@ export class FileMatch implements IFileMatch {
 	}
 }
 
+interface SearchRangeSetPairing {
+	sourceRange: ISearchRange;
+	previewRange: ISearchRange;
+}
 export class TextSearchMatch implements ITextSearchMatch {
-	ranges: ISearchRange | ISearchRange[];
-	preview: ITextSearchResultPreview;
+	rangeLocations: SearchRangeSetPairing[] = [];
+	text: string;
+	cellFragment?: string;
+
 	webviewIndex?: number;
 
+	get ranges(): ISearchRange | ISearchRange[] {
+		return mapArrayOrNot(this.rangeLocations, e => e.sourceRange);
+	}
+
+	get preview(): ITextSearchResultPreview {
+		return { text: this.text, matches: mapArrayOrNot(this.rangeLocations, e => e.previewRange), cellFragment: this.cellFragment };
+	}
+
+	// get preview
 	constructor(text: string, range: ISearchRange | ISearchRange[], previewOptions?: ITextSearchPreviewOptions, webviewIndex?: number) {
-		this.ranges = range;
+		// this.ranges = range;
 		this.webviewIndex = webviewIndex;
 
 		// Trim preview if this is one match and a single-line match with a preview requested.
 		// Otherwise send the full text, like for replace or for showing multiple previews.
 		// TODO this is fishy.
 		const ranges = Array.isArray(range) ? range : [range];
+
+		// const rangePairs:SearchRangeSetPairing[] = [];
 		if (previewOptions && previewOptions.matchLines === 1 && isSingleLineRangeList(ranges)) {
 			// 1 line preview requested
 			text = getNLines(text, previewOptions.matchLines);
@@ -327,7 +345,7 @@ export class TextSearchMatch implements ITextSearchMatch {
 			let shift = 0;
 			let lastEnd = 0;
 			const leadingChars = Math.floor(previewOptions.charsPerLine / 5);
-			const matches: ISearchRange[] = [];
+			// const matches: ISearchRange[] = [];
 			for (const range of ranges) {
 				const previewStart = Math.max(range.startColumn - leadingChars, 0);
 				const previewEnd = range.startColumn + previewOptions.charsPerLine;
@@ -339,21 +357,30 @@ export class TextSearchMatch implements ITextSearchMatch {
 					result += text.slice(lastEnd, previewEnd);
 				}
 
-				matches.push(new OneLineRange(0, range.startColumn - shift, range.endColumn - shift));
+				// matches.push(new OneLineRange(0, range.startColumn - shift, range.endColumn - shift));
 				lastEnd = previewEnd;
+				this.rangeLocations.push({
+					sourceRange: range,
+					previewRange: new SearchRange(0, range.startColumn - shift, 0, range.endColumn - shift)
+				});
+
 			}
 
-			this.preview = { text: result, matches: Array.isArray(this.ranges) ? matches : matches[0] };
+			this.text = result;
 		} else {
 			const firstMatchLine = Array.isArray(range) ? range[0].startLineNumber : range.startLineNumber;
 
-			this.preview = {
-				text,
-				matches: mapArrayOrNot(range, r => new SearchRange(r.startLineNumber - firstMatchLine, r.startColumn, r.endLineNumber - firstMatchLine, r.endColumn))
-			};
+			const rangeLocations = mapArrayOrNot(range, r => ({
+				previewRange: new SearchRange(r.startLineNumber - firstMatchLine, r.startColumn, r.endLineNumber - firstMatchLine, r.endColumn),
+				sourceRange: r
+			}));
+
+			this.rangeLocations = Array.isArray(rangeLocations) ? rangeLocations : [rangeLocations];
+			this.text = text;
 		}
 	}
 }
+
 
 function isSingleLineRangeList(ranges: ISearchRange[]): boolean {
 	const line = ranges[0].startLineNumber;
@@ -675,9 +702,10 @@ export class QueryGlobTester {
 	private _parsedIncludeExpression: glob.ParsedExpression | null = null;
 
 	constructor(config: ISearchQuery, folderQuery: IFolderQuery) {
+		// todo: try to incorporate folderQuery.excludePattern.folder if available
 		this._excludeExpression = {
 			...(config.excludePattern || {}),
-			...(folderQuery.excludePattern || {})
+			...(folderQuery.excludePattern?.pattern || {})
 		};
 		this._parsedExcludeExpression = glob.parse(this._excludeExpression);
 
@@ -799,4 +827,14 @@ function listToMap(list: string[]) {
 		map[key] = true;
 	}
 	return map;
+}
+
+export function excludeToGlobPattern(baseUri: URI | undefined, patterns: string[]): GlobPattern[] {
+	return patterns.map(pattern => {
+		return baseUri ?
+			{
+				baseUri: baseUri,
+				pattern: pattern
+			} : pattern;
+	});
 }
