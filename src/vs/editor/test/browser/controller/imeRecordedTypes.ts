@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { OperatingSystem } from 'vs/base/common/platform';
-import { IBrowser } from 'vs/editor/browser/controller/editContext/editContextInput';
+import { IBrowser } from 'vs/editor/browser/controller/editContext/hiddenAreaInput';
 
 export interface IRecordedTextareaState {
 	selectionDirection: 'forward' | 'backward' | 'none';

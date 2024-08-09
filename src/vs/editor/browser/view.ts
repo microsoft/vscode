@@ -55,11 +55,11 @@ import { IViewModel } from 'vs/editor/common/viewModel';
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IColorTheme, getThemeTypeSelector } from 'vs/platform/theme/common/themeService';
-import { AbstractEditContext } from 'vs/editor/browser/controller/editContext/editContext/editContext';
-import { ICompleteHiddenAreaWrapper } from 'vs/editor/browser/controller/editContext/editContextInput';
-import { NativeAreaWrapper } from 'vs/editor/browser/controller/editContext/nativeEditContextWrapper';
-import { TextAreaWrapper } from 'vs/editor/browser/controller/editContext/textAreaWrapper';
-import { HiddenAreaHandler, IVisibleRangeProvider } from 'vs/editor/browser/controller/editContext/editContextHandler';
+import { AbstractEditContext } from 'vs/editor/browser/controller/editContext/abstractEditContext';
+import { ICompleteHiddenAreaWrapper } from 'vs/editor/browser/controller/editContext/hiddenAreaInput';
+import { DivWrapper } from 'vs/editor/browser/controller/editContext/hiddenDivWrapper';
+import { TextAreaWrapper } from 'vs/editor/browser/controller/editContext/hiddenTextAreaWrapper';
+import { HiddenAreaHandler, IVisibleRangeProvider } from 'vs/editor/browser/controller/editContext/hiddenAreaHandler';
 
 
 export interface IContentWidgetData {
@@ -134,7 +134,7 @@ export class View extends ViewEventHandler {
 		const helper = this._createTextAreaHandlerHelper();
 		let wrapper: ICompleteHiddenAreaWrapper;
 		if (editContext.type === 'native') {
-			wrapper = new NativeAreaWrapper(this._context);
+			wrapper = new DivWrapper(this._context);
 		} else {
 			wrapper = new TextAreaWrapper(createFastDomNode(document.createElement('textarea')));
 		}

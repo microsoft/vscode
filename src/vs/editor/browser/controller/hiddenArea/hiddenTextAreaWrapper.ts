@@ -9,7 +9,7 @@ import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { inputLatency } from 'vs/base/browser/performance';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ICompleteHiddenAreaWrapper } from 'vs/editor/browser/controller/editContext/editContextInput';
+import { ICompleteHiddenAreaWrapper } from 'vs/editor/browser/controller/hiddenArea/hiddenAreaInput';
 
 export namespace TextAreaSyntethicEvents {
 	export const Tap = '-monaco-textarea-synthetic-tap';

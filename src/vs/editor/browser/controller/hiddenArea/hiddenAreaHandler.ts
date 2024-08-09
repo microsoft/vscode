@@ -11,10 +11,10 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import * as platform from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
-import { CopyOptions, ICompositionData, IPasteData, ClipboardDataToCopy, IHiddenAreaInputHost, HiddenAreaInput, ICompleteHiddenAreaWrapper } from 'vs/editor/browser/controller/editContext/editContextInput';
-import { ISimpleModel, ITypeData, PagedScreenReaderStrategy, HiddenAreaState, _debugComposition } from 'vs/editor/browser/controller/editContext/editContextState';
+import { CopyOptions, ICompositionData, IPasteData, ClipboardDataToCopy, IHiddenAreaInputHost, HiddenAreaInput, ICompleteHiddenAreaWrapper } from 'vs/editor/browser/controller/hiddenArea/hiddenAreaInput';
+import { ISimpleModel, ITypeData, PagedScreenReaderStrategy, HiddenAreaState, _debugComposition } from 'vs/editor/browser/controller/hiddenArea/hiddenAreaState';
 import { ViewController } from 'vs/editor/browser/view/viewController';
-import { PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
+import { PartFingerprint, PartFingerprints, ViewPart } from 'vs/editor/browser/view/viewPart';
 import { LineNumbersOverlay } from 'vs/editor/browser/viewParts/lineNumbers/lineNumbers';
 import { Margin } from 'vs/editor/browser/viewParts/margin/margin';
 import { RenderLineNumbersType, EditorOption, IComputedEditorOptions, EditorOptions } from 'vs/editor/common/config/editorOptions';
@@ -37,7 +37,6 @@ import { Color } from 'vs/base/common/color';
 import { IME } from 'vs/base/common/ime';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { AbstractEditContext } from 'vs/editor/browser/controller/editContext/editContext';
 
 // TODO
 // Am not able to copy paste the code? Issues remain
@@ -112,7 +111,7 @@ class VisibleTextAreaData {
 
 const canUseZeroSizeTextarea = (browser.isFirefox);
 
-export class HiddenAreaHandler extends AbstractEditContext {
+export class HiddenAreaHandler extends ViewPart {
 
 	private readonly _viewController: ViewController;
 	private readonly _visibleRangeProvider: IVisibleRangeProvider;
@@ -158,7 +157,6 @@ export class HiddenAreaHandler extends AbstractEditContext {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super(context);
-
 		this._wrapper = this._register(wrapper);
 		this._domElement = wrapper.actual;
 		this._viewController = viewController;

@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-declare class EditContext extends EventTarget {
+type DOMString = string;
+
+export declare class EditContext extends EventTarget {
 	constructor(options?: EditContextInit);
 
 	updateText(rangeStart: number, rangeEnd: number, text: string): void;

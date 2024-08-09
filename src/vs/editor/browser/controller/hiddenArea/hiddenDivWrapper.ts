@@ -8,17 +8,18 @@ import * as dom from 'vs/base/browser/dom';
 import { inputLatency } from 'vs/base/browser/performance';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { ICompleteHiddenAreaWrapper } from 'vs/editor/browser/controller/editContext/editContextInput';
+import { ICompleteHiddenAreaWrapper } from 'vs/editor/browser/controller/hiddenArea/hiddenAreaInput';
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { createFastDomNode, FastDomNode } from 'vs/base/browser/fastDomNode';
+import { EditContext, EditContextEventHandlersEventMap, TextFormatUpdateEvent } from 'vs/editor/browser/controller/hiddenArea/editContext';
 
 export namespace NativeAreaSyntethicEvents {
 	export const Tap = '-monaco-textarea-synthetic-tap';
 }
 
-export class NativeAreaWrapper extends Disposable implements ICompleteHiddenAreaWrapper {
+export class DivWrapper extends Disposable implements ICompleteHiddenAreaWrapper {
 
 	public readonly className: string = 'native-edit-context';
 
@@ -83,8 +84,8 @@ export class NativeAreaWrapper extends Disposable implements ICompleteHiddenArea
 
 	private _ignoreSelectionChangeTime: number;
 
-	private _selectionBoundsElement: HTMLElement | undefined;
-	private _controlBoundsElement: HTMLElement | undefined;
+	// private _selectionBoundsElement: HTMLElement | undefined;
+	// private _controlBoundsElement: HTMLElement | undefined;
 
 	// ---
 	public readonly actual: FastDomNode<HTMLDivElement>;
@@ -408,19 +409,9 @@ export class NativeAreaWrapper extends Disposable implements ICompleteHiddenArea
 		this._editContext.updateSelection(selectionStart, selectionEnd);
 	}
 
-	private _updateDomNodePosition(startLineNumber: number): void {
-
-		console.log('_updateDomNodePosition');
-
-		// TODO: should not be adding 15 but doing it for the purpose of the development
-		this._actual.style.top = `${this._viewContext.viewLayout.getVerticalOffsetForLineNumber(startLineNumber + 15) - this._viewContext.viewLayout.getCurrentScrollTop()}px`;
-		this._actual.style.left = `${this._contentLeft - this._viewContext.viewLayout.getCurrentScrollLeft()}px`;
-	}
-
+	/*
 	private _renderSelectionBoundsForDevelopment(controlBounds: DOMRect, selectionBounds: DOMRect) {
-
 		console.log('_renderSelectionBoundsForDevelopment');
-
 		const controlBoundsElement = document.createElement('div');
 		controlBoundsElement.style.position = 'absolute';
 		controlBoundsElement.style.left = `${controlBounds.left}px`;
@@ -449,6 +440,7 @@ export class NativeAreaWrapper extends Disposable implements ICompleteHiddenArea
 		console.log('controlBoundsElement : ', controlBoundsElement);
 		console.log('selectionBoundsElement : ', selectionBoundsElement);
 	}
+	*/
 }
 
 function editContextAddDisposableListener<K extends keyof EditContextEventHandlersEventMap>(target: EventTarget, type: K, listener: (this: GlobalEventHandlers, ev: EditContextEventHandlersEventMap[K]) => any, options?: boolean | AddEventListenerOptions): IDisposable {

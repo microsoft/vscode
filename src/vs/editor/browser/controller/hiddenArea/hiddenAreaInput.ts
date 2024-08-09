@@ -14,7 +14,7 @@ import { Disposable, IDisposable, MutableDisposable } from 'vs/base/common/lifec
 import { Mimes } from 'vs/base/common/mime';
 import { OperatingSystem } from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
-import { _debugComposition, HiddenAreaState, IHiddenAreaWrapper, ITypeData } from 'vs/editor/browser/controller/editContext/editContextState';
+import { _debugComposition, HiddenAreaState, IHiddenAreaWrapper, ITypeData } from 'vs/editor/browser/controller/hiddenArea/hiddenAreaState';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
