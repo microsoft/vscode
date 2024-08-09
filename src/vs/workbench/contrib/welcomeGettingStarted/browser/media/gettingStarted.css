@@ -606,6 +606,7 @@
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .index-list.getting-started .button-link {
 	margin: 0;
+	user-select: none;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .index-list.getting-started .see-all-walkthroughs {
@@ -919,6 +920,7 @@
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer a:not(.hide-category-button) {
 	color: var(--vscode-textLink-foreground);
+	user-select: none;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .button-link {
@@ -956,6 +958,7 @@
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer button.button-link  {
 	border: inherit;
+	user-select: none;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories .progress-bar-outer {
