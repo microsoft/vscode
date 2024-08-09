@@ -19,7 +19,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { ICreateContributedTerminalProfileOptions, IExtensionTerminalProfile, IPtyHostAttachTarget, IRawTerminalInstanceLayoutInfo, IRawTerminalTabLayoutInfo, IShellLaunchConfig, ITerminalBackend, ITerminalLaunchError, ITerminalLogService, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalExitReason, TerminalLocation, TerminalLocationString, TitleEventSource } from 'vs/platform/terminal/common/terminal';
+import { ICreateContributedTerminalProfileOptions, IExtensionTerminalProfile, IPtyHostAttachTarget, IRawTerminalInstanceLayoutInfo, IRawTerminalTabLayoutInfo, IShellLaunchConfig, ITerminalBackend, ITerminalBackendRegistry, ITerminalLaunchError, ITerminalLogService, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalExitReason, TerminalExtensions, TerminalLocation, TerminalLocationString, TitleEventSource } from 'vs/platform/terminal/common/terminal';
 import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalStrings';
 import { iconForeground } from 'vs/platform/theme/common/colorRegistry';
 import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
@@ -53,6 +53,7 @@ import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilitie
 import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
 import { mark } from 'vs/base/common/performance';
 import { DetachedTerminal } from 'vs/workbench/contrib/terminal/browser/detachedTerminal';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { ITerminalCapabilityImplMap, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { createInstanceCapabilityEventMultiplexer } from 'vs/workbench/contrib/terminal/browser/terminalEvents';
 import { mainWindow } from 'vs/base/browser/window';
@@ -216,7 +217,14 @@ export class TerminalService extends Disposable implements ITerminalService {
 		this._handleInstanceContextKeys();
 		this._terminalShellTypeContextKey = TerminalContextKeys.shellType.bindTo(this._contextKeyService);
 		this._processSupportContextKey = TerminalContextKeys.processSupported.bindTo(this._contextKeyService);
-		this._processSupportContextKey.set(!isWeb || this._remoteAgentService.getConnection() !== null);
+
+		const backendRegistry = Registry.as<ITerminalBackendRegistry>(TerminalExtensions.Backend);
+		this._processSupportContextKey.set(backendRegistry.getTerminalBackend(_remoteAgentService.getConnection()?.remoteAuthority) !== undefined);
+		this._register(backendRegistry.onDidChangeBackends((e) => {
+			if (e.affects(_remoteAgentService.getConnection()?.remoteAuthority)) {
+				this.registerProcessSupport(backendRegistry.getTerminalBackend(_remoteAgentService.getConnection()?.remoteAuthority) !== undefined);
+			}
+		}));
 		this._terminalHasBeenCreated = TerminalContextKeys.terminalHasBeenCreated.bindTo(this._contextKeyService);
 		this._terminalCountContextKey = TerminalContextKeys.count.bindTo(this._contextKeyService);
 		this._terminalEditorActive = TerminalContextKeys.terminalEditorActive.bindTo(this._contextKeyService);
@@ -880,7 +888,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 	}
 
 	registerProcessSupport(isSupported: boolean): void {
-		if (!isSupported) {
+		if (!isSupported || this._processSupportContextKey.get()) {
 			return;
 		}
 		this._processSupportContextKey.set(isSupported);
