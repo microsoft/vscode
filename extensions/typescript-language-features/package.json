@@ -1074,6 +1074,104 @@
           "description": "%typescript.preferences.renameMatchingJsxTags%",
           "scope": "language-overridable"
         },
+        "typescript.preferences.organizeImports.presets": {
+          "type": "string",
+          "description": "%typescript.preferences.organizeImports.presets%",
+          "enum": [
+            "auto",
+            "eslint sort-imports",
+            "eslint plugin-simple-import-sort",
+            "dprint"
+          ],
+          "enumDescriptions": [
+            "%typescript.preferences.organizeImports.presets.auto%",
+            "%typescript.preferences.organizeImports.presets.eslintSortImports%",
+            "%typescript.preferences.organizeImports.presets.eslintPluginSimpleImportSort%",
+            "%typescript.preferences.organizeImports.presets.dprint%"
+          ],
+          "default": "auto"
+        },
+        "typescript.preferences.organizeImports": {
+          "type": "object",
+          "description": "%typescript.preferences.organizeImports%",
+          "properties": {
+            "presets": {
+              "type": "string",
+              "description": "%typescript.preferences.organizeImports.presets%",
+              "enum": [
+                "auto",
+                "eslint sort-imports",
+                "eslint plugin-simple-import-sort",
+                "dprint"
+              ],
+              "enumDescriptions": [
+                "%typescript.preferences.organizeImports.presets.auto%",
+                "%typescript.preferences.organizeImports.presets.eslintSortImports%",
+                "%typescript.preferences.organizeImports.presets.eslintPluginSimpleImportSort%",
+                "%typescript.preferences.organizeImports.presets.dprint%"
+              ],
+              "default": "auto"
+            },
+            "caseSensitivity": {
+              "type": "string",
+              "enum": [
+                "auto",
+                "caseInsensitive",
+                "caseSensitive"
+              ],
+              "enumDescriptions": [
+                "%typescript.preferences.organizeImports.caseSensitivity.auto%",
+                "%typescript.preferences.organizeImports.caseSensitivity.insensitive",
+                "%typescript.preferences.organizeImports.caseSensitivity.sensitive%"
+              ],
+              "default": "auto"
+            },
+            "typeOrder": {
+              "type": "string",
+              "enum": [
+                "auto",
+                "last",
+                "inline",
+                "first"
+              ],
+              "default": "auto"
+            },
+            "unicodeCollation": {
+              "type": "string",
+              "enum": [
+                "ordinal",
+                "unicode"
+              ],
+              "enumDescriptions": [
+                "%typescript.preferences.organizeImports.unicodeCollation.ordinal%",
+                "%typescript.preferences.organizeImports.unicodeCollation.unicode%"
+              ],
+              "default": "ordinal"
+            },
+            "locale": {
+              "type": "string",
+              "description": "%typescript.preferences.organizeImports.locale%"
+            },
+            "numericCollation": {
+              "type": "boolean",
+              "description": "%typescript.preferences.organizeImports.numericCollation%"
+            },
+            "accentCollation":{
+              "type": "boolean",
+              "description": "%typescript.preferences.organizeImports.accentCollation%"
+            },
+            "caseFirst": {
+              "type": "string",
+              "description": "%typescript.preferences.organizeImports.caseFirst%",
+              "enum": [
+                "default",
+                "upper",
+                "lower"
+              ],
+              "default": "default"
+            }
+          }
+        },
         "typescript.updateImportsOnFileMove.enabled": {
           "type": "string",
           "enum": [
