@@ -2511,6 +2511,8 @@
 	exports.setOptions = setOptions;
 	exports.use = use;
 	exports.walkTokens = walkTokens;
+
+	Object.defineProperty(exports, '__esModule', { value: true });
 }));
 
 // ESM-uncomment-begin
