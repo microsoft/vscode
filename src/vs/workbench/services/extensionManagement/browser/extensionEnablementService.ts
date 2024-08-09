@@ -41,7 +41,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 	public readonly onEnablementChanged: Event<readonly IExtension[]> = this._onEnablementChanged.event;
 
 	protected readonly extensionsManager: ExtensionsManager;
-	private readonly storageManger: StorageManager;
+	private readonly storageManager: StorageManager;
 
 	constructor(
 		@IStorageService storageService: IStorageService,
@@ -63,7 +63,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
-		this.storageManger = this._register(new StorageManager(storageService));
+		this.storageManager = this._register(new StorageManager(storageService));
 
 		const uninstallDisposable = this._register(Event.filter(extensionManagementService.onDidUninstallExtension, e => !e.error)(({ identifier }) => this._reset(identifier)));
 		let isDisposed = false;
@@ -610,11 +610,11 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		if (!this.hasWorkspace) {
 			return [];
 		}
-		return this.storageManger.get(storageId, StorageScope.WORKSPACE);
+		return this.storageManager.get(storageId, StorageScope.WORKSPACE);
 	}
 
 	private _setExtensions(storageId: string, extensions: IExtensionIdentifier[]): void {
-		this.storageManger.set(storageId, extensions, StorageScope.WORKSPACE);
+		this.storageManager.set(storageId, extensions, StorageScope.WORKSPACE);
 	}
 
 	private async _onDidChangeGloballyDisabledExtensions(extensionIdentifiers: ReadonlyArray<IExtensionIdentifier>, source?: string): Promise<void> {
