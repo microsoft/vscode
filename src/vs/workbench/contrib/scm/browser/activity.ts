@@ -218,6 +218,7 @@ export class SCMActiveResourceContextKeyController extends Disposable implements
 
 		const activeResourceHasChangesContextKey = new RawContextKey<boolean>('scmActiveResourceHasChanges', false, localize('scmActiveResourceHasChanges', "Whether the active resource has changes"));
 		const activeResourceRepositoryContextKey = new RawContextKey<string | undefined>('scmActiveResourceRepository', undefined, localize('scmActiveResourceRepository', "The active resource's repository"));
+		const activeResourceGroupMembershipsContextKey = new RawContextKey<string[]>('scmActiveResourceGroupMemberships', [], localize('scmActiveResourceGroupMemberships', "The active resource's group memberships"));
 
 		this._store.add(autorunWithStore((reader, store) => {
 			for (const repository of this._repositories.read(reader)) {
@@ -240,8 +241,15 @@ export class SCMActiveResourceContextKeyController extends Disposable implements
 			onDidChange: this._onDidRepositoryChange.event
 		};
 
+		const groupMembershipsContextKeyProvider: IEditorGroupContextKeyProvider<string[]> = {
+			contextKey: activeResourceGroupMembershipsContextKey,
+			getGroupContextKeyValue: (group) => this._getEditorGroupMemberships(group.activeEditor),
+			onDidChange: this._onDidRepositoryChange.event
+		};
+
 		this._store.add(editorGroupsService.registerContextKeyProvider(hasChangesContextKeyProvider));
 		this._store.add(editorGroupsService.registerContextKeyProvider(repositoryContextKeyProvider));
+		this._store.add(editorGroupsService.registerContextKeyProvider(groupMembershipsContextKeyProvider));
 	}
 
 	private _getEditorHasChanges(activeEditor: EditorInput | null): boolean {
@@ -270,6 +278,25 @@ export class SCMActiveResourceContextKeyController extends Disposable implements
 
 		const activeResourceRepository = this.scmService.getRepository(activeResource);
 		return activeResourceRepository?.id;
+	}
+
+	private _getEditorGroupMemberships(activeEditor: EditorInput | null): string[] {
+		const activeResource = EditorResourceAccessor.getOriginalUri(activeEditor);
+		if (!activeResource) {
+			return [];
+		}
+
+		const activeResourceRepository = this.scmService.getRepository(activeResource);
+		const groupMemberships: string[] = [];
+		for (const resourceGroup of activeResourceRepository?.provider.groups ?? []) {
+			if (resourceGroup.resources
+				.some(scmResource =>
+					this.uriIdentityService.extUri.isEqual(activeResource, scmResource.sourceUri))) {
+				groupMemberships.push(resourceGroup.id);
+			}
+		}
+
+		return groupMemberships;
 	}
 
 	override dispose(): void {
