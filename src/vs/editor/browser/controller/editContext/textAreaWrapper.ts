@@ -5,7 +5,7 @@
 
 import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
-import { DomEmitter } from 'vs/base/browser/event';
+import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { inputLatency } from 'vs/base/browser/performance';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -17,18 +17,43 @@ export namespace TextAreaSyntethicEvents {
 
 export class TextAreaWrapper extends Disposable implements ICompleteHiddenAreaWrapper {
 
-	public readonly onKeyDown = this._register(new DomEmitter(this._actual, 'keydown')).event;
-	public readonly onKeyPress = this._register(new DomEmitter(this._actual, 'keypress')).event;
-	public readonly onKeyUp = this._register(new DomEmitter(this._actual, 'keyup')).event;
-	public readonly onCompositionStart = this._register(new DomEmitter(this._actual, 'compositionstart')).event;
-	public readonly onCompositionUpdate = this._register(new DomEmitter(this._actual, 'compositionupdate')).event;
-	public readonly onCompositionEnd = this._register(new DomEmitter(this._actual, 'compositionend')).event;
-	public readonly onBeforeInput = this._register(new DomEmitter(this._actual, 'beforeinput')).event;
-	public readonly onCut = this._register(new DomEmitter(this._actual, 'cut')).event;
-	public readonly onCopy = this._register(new DomEmitter(this._actual, 'copy')).event;
-	public readonly onPaste = this._register(new DomEmitter(this._actual, 'paste')).event;
-	public readonly onFocus = this._register(new DomEmitter(this._actual, 'focus')).event;
-	public readonly onBlur = this._register(new DomEmitter(this._actual, 'blur')).event;
+	public readonly className: string = 'inputarea';
+
+	private readonly _onKeyDown = this._register(new Emitter<KeyboardEvent>());
+	public readonly onKeyDown = this._onKeyDown.event;
+
+	private readonly _onKeyPress = this._register(new Emitter<KeyboardEvent>());
+	public readonly onKeyPress = this._onKeyPress.event;
+
+	private readonly _onKeyUp = this._register(new Emitter<KeyboardEvent>());
+	public readonly onKeyUp = this._onKeyUp.event;
+
+	private readonly _onCompositionStart = this._register(new Emitter<CompositionEvent>());
+	public readonly onCompositionStart = this._onCompositionStart.event;
+
+	private readonly _onCompositionEnd = this._register(new Emitter<CompositionEvent>());
+	public readonly onCompositionEnd = this._onCompositionEnd.event;
+
+	private readonly _onCompositionUpdate = this._register(new Emitter<CompositionEvent>());
+	public readonly onCompositionUpdate = this._onCompositionUpdate.event;
+
+	private readonly _onBeforeInput = this._register(new Emitter<InputEvent>());
+	public readonly onBeforeInput = this._onBeforeInput.event;
+
+	private readonly _onCut = this._register(new Emitter<ClipboardEvent>());
+	public readonly onCut = this._onCut.event;
+
+	private readonly _onCopy = this._register(new Emitter<ClipboardEvent>());
+	public readonly onCopy = this._onCopy.event;
+
+	private readonly _onPaste = this._register(new Emitter<ClipboardEvent>());
+	public readonly onPaste = this._onPaste.event;
+
+	private readonly _onFocus = this._register(new Emitter<FocusEvent>());
+	public readonly onFocus = this._onFocus.event;
+
+	private readonly _onBlur = this._register(new Emitter<FocusEvent>());
+	public readonly onBlur = this._onBlur.event;
 
 	private readonly _onInput = this._register(new Emitter<{
 		timeStamp: number;
@@ -47,11 +72,13 @@ export class TextAreaWrapper extends Disposable implements ICompleteHiddenAreaWr
 	public readonly onSyntheticTap: Event<void> = this._onSyntheticTap.event;
 
 	private _ignoreSelectionChangeTime: number;
+	private _actual: HTMLTextAreaElement;
 
 	constructor(
-		private readonly _actual: HTMLTextAreaElement
+		public readonly actual: FastDomNode<HTMLTextAreaElement>
 	) {
 		super();
+		this._actual = this.actual.domNode;
 		this._ignoreSelectionChangeTime = 0;
 
 		this._register(this.onKeyDown(() => inputLatency.onKeyDown()));
@@ -71,6 +98,54 @@ export class TextAreaWrapper extends Disposable implements ICompleteHiddenAreaWr
 				isComposing: (e as InputEvent).isComposing
 			});
 		});
+
+		this._register(dom.addDisposableListener(this._actual, 'keydown', (e) => {
+			this._onKeyDown.fire(e);
+		}));
+
+		this._register(dom.addDisposableListener(this._actual, 'keypress', (e) => {
+			this._onKeyPress.fire(e);
+		}));
+
+		this._register(dom.addDisposableListener(this._actual, 'keyup', (e) => {
+			this._onKeyUp.fire(e);
+		}));
+
+		this._register(dom.addDisposableListener(this._actual, 'compositionstart', (e) => {
+			this._onCompositionStart.fire(e);
+		}));
+
+		this._register(dom.addDisposableListener(this._actual, 'compositionend', (e) => {
+			this._onCompositionEnd.fire(e);
+		}));
+
+		this._register(dom.addDisposableListener(this._actual, 'compositionupdate', (e) => {
+			this._onCompositionUpdate.fire(e);
+		}));
+
+		this._register(dom.addDisposableListener(this._actual, 'beforeinput', (e) => {
+			this._onBeforeInput.fire(e);
+		}));
+
+		this._register(dom.addDisposableListener(this._actual, 'cut', (e) => {
+			this._onCut.fire(e);
+		}));
+
+		this._register(dom.addDisposableListener(this._actual, 'copy', (e) => {
+			this._onCopy.fire(e);
+		}));
+
+		this._register(dom.addDisposableListener(this._actual, 'paste', (e) => {
+			this._onPaste.fire(e);
+		}));
+
+		this._register(dom.addDisposableListener(this._actual, 'focus', (e) => {
+			this._onFocus.fire(e);
+		}));
+
+		this._register(dom.addDisposableListener(this._actual, 'blur', (e) => {
+			this._onBlur.fire(e);
+		}));
 	}
 
 	public hasFocus(): boolean {

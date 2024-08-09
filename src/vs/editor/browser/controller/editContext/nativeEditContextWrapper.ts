@@ -5,7 +5,6 @@
 
 import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
-import { DomEmitter } from 'vs/base/browser/event';
 import { inputLatency } from 'vs/base/browser/performance';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
@@ -13,6 +12,7 @@ import { ICompleteHiddenAreaWrapper } from 'vs/editor/browser/controller/editCon
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
+import { createFastDomNode, FastDomNode } from 'vs/base/browser/fastDomNode';
 
 export namespace NativeAreaSyntethicEvents {
 	export const Tap = '-monaco-textarea-synthetic-tap';
@@ -20,19 +20,36 @@ export namespace NativeAreaSyntethicEvents {
 
 export class NativeAreaWrapper extends Disposable implements ICompleteHiddenAreaWrapper {
 
-	public readonly onKeyDown = this._register(new DomEmitter(this._actual, 'keydown')).event;
-	public readonly onKeyPress = this._register(new DomEmitter(this._actual, 'keypress')).event;
-	public readonly onKeyUp = this._register(new DomEmitter(this._actual, 'keyup')).event;
-	public readonly onCopy = this._register(new DomEmitter(this._actual, 'copy')).event;
+	public readonly className: string = 'native-edit-context';
+
+	private readonly _onKeyDown = this._register(new Emitter<KeyboardEvent>());
+	public readonly onKeyDown = this._onKeyDown.event;
+
+	private readonly _onKeyPress = this._register(new Emitter<KeyboardEvent>());
+	public readonly onKeyPress = this._onKeyPress.event;
+
+	private readonly _onKeyUp = this._register(new Emitter<KeyboardEvent>());
+	public readonly onKeyUp = this._onKeyUp.event;
+
+	private readonly _onCopy = this._register(new Emitter<ClipboardEvent>());
+	public readonly onCopy = this._onCopy.event;
 
 	// paste event for some reason not fired on the dom node, even if content editable set to true
 	// On the link https://w3c.github.io/edit-context/#update-the-editcontext, says we should handle copy paste from the before input, but the before input does not fire this event either?
 	// Using the beforeinput event on the document.getRootNode() does not work either
 	// Temporary solution is to fire on paste on the corresponding keydown event but then we are not firing the correct event, just the text in the clipboard
-	public readonly onCut = this._register(new DomEmitter(this._actual, 'cut')).event;
-	public readonly onPaste = this._register(new DomEmitter(this._actual, 'paste')).event;
-	public readonly onFocus = this._register(new DomEmitter(this._actual, 'focus')).event;
-	public readonly onBlur = this._register(new DomEmitter(this._actual, 'blur')).event;
+
+	private readonly _onCut = this._register(new Emitter<ClipboardEvent>());
+	public readonly onCut = this._onCut.event;
+
+	private readonly _onPaste = this._register(new Emitter<ClipboardEvent>());
+	public readonly onPaste = this._onPaste.event;
+
+	private readonly _onFocus = this._register(new Emitter<FocusEvent>());
+	public readonly onFocus = this._onFocus.event;
+
+	private readonly _onBlur = this._register(new Emitter<FocusEvent>());
+	public readonly onBlur = this._onBlur.event;
 
 	// The listeners which will be fired through the edit context
 
@@ -70,7 +87,9 @@ export class NativeAreaWrapper extends Disposable implements ICompleteHiddenArea
 	private _controlBoundsElement: HTMLElement | undefined;
 
 	// ---
-	private readonly _editContext: EditContext = this._actual.editContext = new EditContext();
+	public readonly actual: FastDomNode<HTMLDivElement>;
+	private readonly _actual: HTMLDivElement;
+	private readonly _editContext: EditContext;
 	private _contentLeft: number;
 	private _isComposing: boolean = false;
 
@@ -78,10 +97,12 @@ export class NativeAreaWrapper extends Disposable implements ICompleteHiddenArea
 	private _selectionStart: number = 0;
 
 	constructor(
-		private readonly _actual: HTMLDivElement,
 		private readonly _viewContext: ViewContext
 	) {
 		super();
+		this.actual = createFastDomNode(document.createElement('div'));
+		this._actual = this.actual.domNode;
+		this._editContext = this._actual.editContext = new EditContext();
 		this._ignoreSelectionChangeTime = 0;
 
 		this._register(this.onKeyDown(() => inputLatency.onKeyDown()));
@@ -146,6 +167,43 @@ export class NativeAreaWrapper extends Disposable implements ICompleteHiddenArea
 			} else {
 				this._onBeforeInput.fire(e);
 			}
+		}));
+
+		this._register(dom.addDisposableListener(this._actual, 'keydown', (e) => {
+			this._onKeyDown.fire(e);
+		}));
+
+		this._register(dom.addDisposableListener(this._actual, 'keypress', (e) => {
+			this._onKeyPress.fire(e);
+		}));
+
+		this._register(dom.addDisposableListener(this._actual, 'keyup', (e) => {
+			this._onKeyUp.fire(e);
+		}));
+
+		this._register(dom.addDisposableListener(this._actual, 'copy', (e) => {
+			this._onCopy.fire(e);
+		}));
+
+		// paste event for some reason not fired on the dom node, even if content editable set to true
+		// On the link https://w3c.github.io/edit-context/#update-the-editcontext, says we should handle copy paste from the before input, but the before input does not fire this event either?
+		// Using the beforeinput event on the document.getRootNode() does not work either
+		// Temporary solution is to fire on paste on the corresponding keydown event but then we are not firing the correct event, just the text in the clipboard
+
+		this._register(dom.addDisposableListener(this._actual, 'cut', (e) => {
+			this._onCut.fire(e);
+		}));
+
+		this._register(dom.addDisposableListener(this._actual, 'paste', (e) => {
+			this._onPaste.fire(e);
+		}));
+
+		this._register(dom.addDisposableListener(this._actual, 'focus', (e) => {
+			this._onFocus.fire(e);
+		}));
+
+		this._register(dom.addDisposableListener(this._actual, 'blur', (e) => {
+			this._onBlur.fire(e);
 		}));
 
 		const options = this._viewContext.configuration.options;

@@ -3,19 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TextAreaWrapper } from 'vs/editor/browser/controller/editContext/textArea/textAreaWrapper';
+import { TextAreaWrapper } from 'vs/editor/browser/controller/editContext/textAreaWrapper';
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { IRecorded, IRecordedCompositionEvent, IRecordedEvent, IRecordedInputEvent, IRecordedKeyboardEvent, IRecordedTextareaState } from 'vs/editor/test/browser/controller/imeRecordedTypes';
 import * as browser from 'vs/base/browser/browser';
 import * as platform from 'vs/base/common/platform';
 import { mainWindow } from 'vs/base/browser/window';
+import { createFastDomNode, FastDomNode } from 'vs/base/browser/fastDomNode';
 
 (() => {
 
 	const startButton = <HTMLButtonElement>mainWindow.document.getElementById('startRecording')!;
 	const endButton = <HTMLButtonElement>mainWindow.document.getElementById('endRecording')!;
 
-	let inputarea: HTMLTextAreaElement;
+	let inputarea: FastDomNode<HTMLTextAreaElement>;
 	const disposables = new DisposableStore();
 	let originTimeStamp = 0;
 	let recorded: IRecorded = {
@@ -27,10 +28,10 @@ import { mainWindow } from 'vs/base/browser/window';
 
 	const readTextareaState = (): IRecordedTextareaState => {
 		return {
-			selectionDirection: inputarea.selectionDirection,
-			selectionEnd: inputarea.selectionEnd,
-			selectionStart: inputarea.selectionStart,
-			value: inputarea.value,
+			selectionDirection: inputarea.domNode.selectionDirection,
+			selectionEnd: inputarea.domNode.selectionEnd,
+			selectionStart: inputarea.domNode.selectionStart,
+			value: inputarea.domNode.value,
 		};
 	};
 
@@ -90,11 +91,11 @@ import { mainWindow } from 'vs/base/browser/window';
 	}
 
 	function startTest() {
-		inputarea = document.createElement('textarea');
-		mainWindow.document.body.appendChild(inputarea);
-		inputarea.focus();
+		inputarea = createFastDomNode(document.createElement('textarea'));
+		mainWindow.document.body.appendChild(inputarea.domNode);
+		inputarea.domNode.focus();
 		disposables.add(toDisposable(() => {
-			inputarea.remove();
+			inputarea.domNode.remove();
 		}));
 		const wrapper = disposables.add(new TextAreaWrapper(inputarea));
 

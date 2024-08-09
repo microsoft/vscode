@@ -55,9 +55,11 @@ import { IViewModel } from 'vs/editor/common/viewModel';
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IColorTheme, getThemeTypeSelector } from 'vs/platform/theme/common/themeService';
-import { AbstractEditContext } from 'vs/editor/browser/controller/editContext/editContext';
-import { NativeEditContext } from 'vs/editor/browser/controller/editContext/native/nativeEditContextHandler';
-import { IVisibleRangeProvider, TextAreaHandler } from 'vs/editor/browser/controller/editContext/textArea/textAreaHandler';
+import { AbstractEditContext } from 'vs/editor/browser/controller/editContext/editContext/editContext';
+import { ICompleteHiddenAreaWrapper } from 'vs/editor/browser/controller/editContext/editContextInput';
+import { NativeAreaWrapper } from 'vs/editor/browser/controller/editContext/nativeEditContextWrapper';
+import { TextAreaWrapper } from 'vs/editor/browser/controller/editContext/textAreaWrapper';
+import { HiddenAreaHandler, IVisibleRangeProvider } from 'vs/editor/browser/controller/editContext/editContextHandler';
 
 
 export interface IContentWidgetData {
@@ -130,11 +132,13 @@ export class View extends ViewEventHandler {
 		// Keyboard handler
 		const editContext = this._context.configuration.options.get(EditorOption.editContext);
 		const helper = this._createTextAreaHandlerHelper();
+		let wrapper: ICompleteHiddenAreaWrapper;
 		if (editContext.type === 'native') {
-			this._editContext = this._instantiationService.createInstance(NativeEditContext, this._context, viewController, helper);
+			wrapper = new NativeAreaWrapper(this._context);
 		} else {
-			this._editContext = this._instantiationService.createInstance(TextAreaHandler, this._context, viewController, helper);
+			wrapper = new TextAreaWrapper(createFastDomNode(document.createElement('textarea')));
 		}
+		this._editContext = this._instantiationService.createInstance(HiddenAreaHandler, wrapper, this._context, viewController, helper);
 		this._viewParts.push(this._editContext);
 
 		// These two dom nodes must be constructed up front, since references are needed in the layout provider (scrolling & co.)

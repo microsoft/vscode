@@ -3,6 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.monaco-editor .inputarea {
+	min-width: 0;
+	min-height: 0;
+	margin: 0;
+	padding: 0;
+	position: absolute;
+	outline: none !important;
+	resize: none;
+	border: none;
+	overflow: hidden;
+	color: transparent;
+	background-color: transparent;
+	z-index: -10;
+}
 
 .monaco-editor .native-edit-context {
 	min-width: 0;
@@ -21,10 +35,24 @@
 	text-wrap: nowrap;
 }
 
-
-/** the issues is that the text is wrapped whereas it should not be */
-/** then there is also a y position offset which will maybe be fixed when hiding the div */
 /*
+.monaco-editor .inputarea {
+	min-width: 0;
+	min-height: 0;
+	margin: 0;
+	padding: 0;
+	position: absolute;
+	outline: none !important;
+	resize: none;
+	border: none;
+	overflow: visible;
+	color: black;
+	background-color: white;
+	z-index: 100;
+	width: 200px !important;
+	height: 200px !important;
+}
+
 .monaco-editor .native-edit-context {
 	min-width: 0;
 	min-height: 0;
@@ -42,7 +70,7 @@
 	text-wrap: nowrap;
 }
 */
-
+.monaco-editor .inputarea.ime-input,
 .monaco-editor .native-edit-context.ime-input {
 	z-index: 10;
 	caret-color: var(--vscode-editorCursor-foreground);

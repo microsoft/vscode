@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TextAreaWrapper } from 'vs/editor/browser/controller/editContext/textArea/textAreaWrapper';
+import { TextAreaWrapper } from 'vs/editor/browser/controller/editContext/textAreaWrapper';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { EndOfLinePreference } from 'vs/editor/common/model';
@@ -15,6 +15,7 @@ import { TestAccessibilityService } from 'vs/platform/accessibility/test/common/
 import { NullLogService } from 'vs/platform/log/common/log';
 import { HiddenAreaState, ISimpleModel, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/editContext/editContextState';
 import { HiddenAreaInput, IHiddenAreaInputHost } from 'vs/editor/browser/controller/editContext/editContextInput';
+import { createFastDomNode } from 'vs/base/browser/fastDomNode';
 
 // To run this test, open imeTester.html
 
@@ -98,10 +99,10 @@ function doCreateTest(description: string, inputStr: string, expectedStr: string
 	container.appendChild(startBtn);
 
 
-	const input = document.createElement('textarea');
+	const input = createFastDomNode(document.createElement('textarea'));
 	input.setAttribute('rows', '10');
 	input.setAttribute('cols', '40');
-	container.appendChild(input);
+	container.appendChild(input.domNode);
 
 	const model = new SingleLineTestModel('some  text');
 
@@ -183,7 +184,7 @@ function doCreateTest(description: string, inputStr: string, expectedStr: string
 
 	startBtn.onclick = function () {
 		updateModelAndPosition('some  text', 5, 0);
-		input.focus();
+		input.domNode.focus();
 	};
 
 	return container;

@@ -3,20 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import 'vs/css!./nativeEditContextHandler';
+import 'vs/css!./editContext';
 import * as nls from 'vs/nls';
 import * as browser from 'vs/base/browser/browser';
-import { FastDomNode } from 'vs/base/browser/fastDomNode';
+import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import * as platform from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
-import { CopyOptions, ICompositionData, IPasteData, ClipboardDataToCopy, IHiddenAreaInputHost, HiddenAreaInput } from 'vs/editor/browser/controller/editContext/editContextInput';
+import { CopyOptions, ICompositionData, IPasteData, ClipboardDataToCopy, IHiddenAreaInputHost, HiddenAreaInput, ICompleteHiddenAreaWrapper } from 'vs/editor/browser/controller/editContext/editContextInput';
 import { ISimpleModel, ITypeData, PagedScreenReaderStrategy, HiddenAreaState, _debugComposition } from 'vs/editor/browser/controller/editContext/editContextState';
 import { ViewController } from 'vs/editor/browser/view/viewController';
 import { PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
-import { EditorOption, EditorOptions, IComputedEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { LineNumbersOverlay } from 'vs/editor/browser/viewParts/lineNumbers/lineNumbers';
+import { Margin } from 'vs/editor/browser/viewParts/margin/margin';
+import { RenderLineNumbersType, EditorOption, IComputedEditorOptions, EditorOptions } from 'vs/editor/common/config/editorOptions';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { WordCharacterClass, getMapForWordSeparators } from 'vs/editor/common/core/wordCharacterClassifier';
 import { Position } from 'vs/editor/common/core/position';
@@ -29,6 +30,7 @@ import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import * as viewEvents from 'vs/editor/common/viewEvents';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { IEditorAriaOptions } from 'vs/editor/browser/editorBrowser';
+import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
 import { TokenizationRegistry } from 'vs/editor/common/languages';
 import { ColorId, ITokenPresentation } from 'vs/editor/common/encodedTokenAttributes';
 import { Color } from 'vs/base/common/color';
@@ -36,7 +38,6 @@ import { IME } from 'vs/base/common/ime';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { AbstractEditContext } from 'vs/editor/browser/controller/editContext/editContext';
-import { NativeAreaWrapper } from 'vs/editor/browser/controller/editContext/native/nativeEditContextWrapper';
 
 // TODO
 // Am not able to copy paste the code? Issues remain
@@ -111,7 +112,7 @@ class VisibleTextAreaData {
 
 const canUseZeroSizeTextarea = (browser.isFirefox);
 
-export class NativeEditContext extends AbstractEditContext {
+export class HiddenAreaHandler extends AbstractEditContext {
 
 	private readonly _viewController: ViewController;
 	private readonly _visibleRangeProvider: IVisibleRangeProvider;
@@ -143,11 +144,13 @@ export class NativeEditContext extends AbstractEditContext {
 	 */
 	private _lastRenderPosition: Position | null;
 
-	// public readonly divCover: FastDomNode<HTMLElement>;
-	private readonly _domElement = new FastDomNode(document.createElement('div'));
+	public readonly domAreaCover: FastDomNode<HTMLElement>;
+	private readonly _domElement: FastDomNode<HTMLElement>;
+	private readonly _wrapper: ICompleteHiddenAreaWrapper;
 	private readonly _hiddenAreaInput: HiddenAreaInput;
 
 	constructor(
+		wrapper: ICompleteHiddenAreaWrapper,
 		context: ViewContext,
 		viewController: ViewController,
 		visibleRangeProvider: IVisibleRangeProvider,
@@ -156,6 +159,8 @@ export class NativeEditContext extends AbstractEditContext {
 	) {
 		super(context);
 
+		this._wrapper = this._register(wrapper);
+		this._domElement = wrapper.actual;
 		this._viewController = viewController;
 		this._visibleRangeProvider = visibleRangeProvider;
 		this._scrollLeft = 0;
@@ -178,9 +183,8 @@ export class NativeEditContext extends AbstractEditContext {
 		this._modelSelections = [new Selection(1, 1, 1, 1)];
 		this._lastRenderPosition = null;
 
-		// TODO: Do we need to add a part fingerprint here? Should this be text area or should this be something else other than text area.
 		PartFingerprints.write(this._domElement, PartFingerprint.TextArea);
-		this._domElement.setClassName('native-edit-context');
+		this._domElement.setClassName(`${this._wrapper.className} ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`);
 		this._domElement.setAttribute('wrap', this._textAreaWrapping && !this._visibleTextArea ? 'on' : 'off');
 		const { tabSize } = this._context.viewModel.model.getOptions();
 		this._domElement.domNode.style.tabSize = `${tabSize * this._fontInfo.spaceWidth}px`;
@@ -198,8 +202,8 @@ export class NativeEditContext extends AbstractEditContext {
 
 		this._ensureReadOnlyAttribute();
 
-		// this.textAreaCover = createFastDomNode(document.createElement('div'));
-		// this.textAreaCover.setPosition('absolute');
+		this.domAreaCover = createFastDomNode(document.createElement('div'));
+		this.domAreaCover.setPosition('absolute');
 
 		const simpleModel: ISimpleModel = {
 			getLineCount: (): number => {
@@ -315,8 +319,7 @@ export class NativeEditContext extends AbstractEditContext {
 			}
 		};
 
-		const nativeContextAreaWrapper = this._register(new NativeAreaWrapper(this._domElement.domNode, this._context));
-		this._hiddenAreaInput = this._register(this._instantiationService.createInstance(HiddenAreaInput, hiddenAreaInputHost, nativeContextAreaWrapper, platform.OS, {
+		this._hiddenAreaInput = this._register(this._instantiationService.createInstance(HiddenAreaInput, hiddenAreaInputHost, this._wrapper, platform.OS, {
 			isAndroid: browser.isAndroid,
 			isChrome: browser.isChrome,
 			isFirefox: browser.isFirefox,
@@ -392,21 +395,11 @@ export class NativeEditContext extends AbstractEditContext {
 			// inside the <textarea> will not align nicely with our rendering. We therefore
 			// will hide (if necessary) some of the leading text on the current line.
 
-			const ta = this._domElement.domNode;
 			const modelSelection = this._modelSelections[0];
 
 			const { distanceToModelLineStart, widthOfHiddenTextBefore } = (() => {
-				if (ta.textContent === null) {
-					return { distanceToModelLineStart: 0, widthOfHiddenTextBefore: 0 };
-				}
 				// Find the text that is on the current line before the selection
-				const activeDocument = dom.getActiveWindow().document;
-				const activeDocumentSelection = activeDocument.getSelection();
-				const activeDocumentRange = activeDocumentSelection?.getRangeAt(0);
-				if (!activeDocumentRange) {
-					return { distanceToModelLineStart: 0, widthOfHiddenTextBefore: 0 };
-				}
-				const textBeforeSelection = ta.textContent.substring(0, Math.min(activeDocumentRange.startOffset, activeDocumentRange.endOffset));
+				const textBeforeSelection = this._wrapper.getValue().substring(0, Math.min(this._wrapper.getSelectionStart(), this._wrapper.getSelectionEnd()));
 				const lineFeedOffset1 = textBeforeSelection.lastIndexOf('\n');
 				const lineTextBeforeSelection = textBeforeSelection.substring(lineFeedOffset1 + 1);
 
@@ -424,17 +417,8 @@ export class NativeEditContext extends AbstractEditContext {
 			})();
 
 			const { distanceToModelLineEnd } = (() => {
-				if (ta.textContent === null) {
-					return { distanceToModelLineEnd: 0 };
-				}
-				const activeDocument = dom.getActiveWindow().document;
-				const activeDocumentSelection = activeDocument.getSelection();
-				const activeDocumentRange = activeDocumentSelection?.getRangeAt(0);
-				if (!activeDocumentRange) {
-					return { distanceToModelLineEnd: 0 };
-				}
 				// Find the text that is on the current line after the selection
-				const textAfterSelection = ta.textContent.substring(Math.max(activeDocumentRange.startOffset, activeDocumentRange.endOffset));
+				const textAfterSelection = this._wrapper.getValue().substring(Math.max(this._wrapper.getSelectionStart(), this._wrapper.getSelectionEnd()));
 				const lineFeedOffset2 = textAfterSelection.indexOf('\n');
 				const lineTextAfterSelection = lineFeedOffset2 === -1 ? textAfterSelection : textAfterSelection.substring(0, lineFeedOffset2);
 
@@ -465,13 +449,13 @@ export class NativeEditContext extends AbstractEditContext {
 			);
 
 			// We turn off wrapping if the <textarea> becomes visible for composition
-			this._domElement.domNode.setAttribute('wrap', this._textAreaWrapping && !this._visibleTextArea ? 'on' : 'off');
+			this._domElement.setAttribute('wrap', this._textAreaWrapping && !this._visibleTextArea ? 'on' : 'off');
 
 			this._visibleTextArea.prepareRender(this._visibleRangeProvider);
 			this._render();
 
 			// Show the textarea
-			this._domElement.setClassName('native-edit-context ime-input');
+			this._domElement.setClassName(`${this._wrapper.className} ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME} ime-input`);
 
 			this._viewController.compositionStart();
 			this._context.viewModel.onCompositionStart();
@@ -495,7 +479,7 @@ export class NativeEditContext extends AbstractEditContext {
 
 			this._render();
 
-			this._domElement.setClassName('native-edit-context');
+			this._domElement.setClassName(`${this._wrapper.className} ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`);
 			this._viewController.compositionEnd();
 			this._context.viewModel.onCompositionEnd();
 		}));
@@ -523,6 +507,7 @@ export class NativeEditContext extends AbstractEditContext {
 
 	appendTo(overflowGuardContainer: FastDomNode<HTMLElement>): void {
 		overflowGuardContainer.appendChild(this._domElement);
+		overflowGuardContainer.appendChild(this.domAreaCover);
 	}
 
 	public writeScreenReaderContent(reason: string): void {
@@ -788,17 +773,7 @@ export class NativeEditContext extends AbstractEditContext {
 			const endPosition = this._visibleTextArea.endPosition;
 			if (startPosition && endPosition && visibleStart && visibleEnd && visibleEnd.left >= this._scrollLeft && visibleStart.left <= this._scrollLeft + this._contentWidth) {
 				const top = (this._context.viewLayout.getVerticalOffsetForLineNumber(this._primaryCursorPosition.lineNumber) - this._scrollTop);
-				const textContent = this._domElement.domNode.textContent;
-				if (textContent === null) {
-					return;
-				}
-				const activeDocument = dom.getActiveWindow().document;
-				const activeDocumentSelection = activeDocument.getSelection();
-				const activeDocumentRange = activeDocumentSelection?.getRangeAt(0);
-				if (!activeDocumentRange) {
-					return;
-				}
-				const lineCount = this._newlinecount(textContent.substring(0, activeDocumentRange.startOffset));
+				const lineCount = this._newlinecount(this._wrapper.getValue().substring(0, this._wrapper.getSelectionStart()));
 
 				let scrollLeft = this._visibleTextArea.widthOfHiddenLineTextBefore;
 				let left = (this._contentLeft + visibleStart.left - this._scrollLeft);
@@ -890,13 +865,7 @@ export class NativeEditContext extends AbstractEditContext {
 			// In case the textarea contains a word, we're going to try to align the textarea's cursor
 			// with our cursor by scrolling the textarea as much as possible
 			this._domElement.domNode.scrollLeft = this._primaryCursorVisibleRange.left;
-			const activeDocument = dom.getActiveWindow().document;
-			const activeDocumentSelection = activeDocument.getSelection();
-			const activeDocumentRange = activeDocumentSelection?.getRangeAt(0);
-			if (!activeDocumentRange) {
-				return;
-			}
-			const lineCount = this._hiddenAreaInput.hiddenAreaState.newlineCountBeforeSelection ?? this._newlinecount(this._domElement.domNode.textContent!.substring(0, activeDocumentRange.startOffset));
+			const lineCount = this._hiddenAreaInput.hiddenAreaState.newlineCountBeforeSelection ?? this._newlinecount(this._wrapper.getValue().substring(0, this._wrapper.getSelectionStart()));
 			this._domElement.domNode.scrollTop = lineCount * this._lineHeight;
 			return;
 		}
@@ -941,6 +910,7 @@ export class NativeEditContext extends AbstractEditContext {
 		this._lastRenderPosition = renderData.lastRenderPosition;
 
 		const ha = this._domElement;
+		const hac = this.domAreaCover;
 		applyFontInfo(ha, this._fontInfo);
 		ha.setTop(renderData.top);
 		ha.setLeft(renderData.left);
@@ -955,27 +925,22 @@ export class NativeEditContext extends AbstractEditContext {
 		}
 		ha.setTextDecoration(`${renderData.underline ? ' underline' : ''}${renderData.strikethrough ? ' line-through' : ''}`);
 
-		/*
-		const tac = this.textAreaCover;
-		const options = this._context.configuration.options;
-
-		tac.setTop(renderData.useCover ? renderData.top : 0);
-		tac.setLeft(renderData.useCover ? renderData.left : 0);
-		tac.setWidth(renderData.useCover ? renderData.width : 0);
-		tac.setHeight(renderData.useCover ? renderData.height : 0);
+		hac.setTop(renderData.useCover ? renderData.top : 0);
+		hac.setLeft(renderData.useCover ? renderData.left : 0);
+		hac.setWidth(renderData.useCover ? renderData.width : 0);
+		hac.setHeight(renderData.useCover ? renderData.height : 0);
 
 		const options = this._context.configuration.options;
 
 		if (options.get(EditorOption.glyphMargin)) {
-			tac.setClassName('monaco-editor-background textAreaCover ' + Margin.OUTER_CLASS_NAME);
+			hac.setClassName('monaco-editor-background textAreaCover ' + Margin.OUTER_CLASS_NAME);
 		} else {
 			if (options.get(EditorOption.lineNumbers).renderType !== RenderLineNumbersType.Off) {
-				tac.setClassName('monaco-editor-background textAreaCover ' + LineNumbersOverlay.CLASS_NAME);
+				hac.setClassName('monaco-editor-background textAreaCover ' + LineNumbersOverlay.CLASS_NAME);
 			} else {
-				tac.setClassName('monaco-editor-background textAreaCover');
+				hac.setClassName('monaco-editor-background textAreaCover');
 			}
 		}
-		*/
 	}
 }
 

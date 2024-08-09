@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { OperatingSystem } from 'vs/base/common/platform';
@@ -59,6 +60,10 @@ suite('TextAreaInput', () => {
 			}
 		};
 		const wrapper = disposables.add(new class extends Disposable implements ICompleteHiddenAreaWrapper {
+
+			public readonly className: string = 'test';
+			public readonly actual = createFastDomNode(document.createElement('div'));
+
 			private _onKeyDown = this._register(new Emitter<KeyboardEvent>());
 			readonly onKeyDown = this._onKeyDown.event;
 

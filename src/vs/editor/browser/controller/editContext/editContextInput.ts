@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
+import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { inputLatency } from 'vs/base/browser/performance';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -95,6 +96,9 @@ export interface ICompositionStartEvent {
 }
 
 export interface ICompleteHiddenAreaWrapper extends IHiddenAreaWrapper, IDisposable {
+
+	readonly actual: FastDomNode<HTMLElement>;
+
 	readonly onKeyDown: Event<KeyboardEvent>;
 	readonly onKeyPress: Event<KeyboardEvent>;
 	readonly onKeyUp: Event<KeyboardEvent>;
@@ -123,6 +127,8 @@ export interface ICompleteHiddenAreaWrapper extends IHiddenAreaWrapper, IDisposa
 	resetSelectionChangeTime(): void;
 
 	hasFocus(): boolean;
+
+	readonly className: string;
 }
 
 export interface IBrowser {
