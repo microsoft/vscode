@@ -690,8 +690,6 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	}
 
 	openFind(): void {
-		// Until #212077, set to filter so behavior is consistent with filter widget
-		this.tree.findMode = TreeFindMode.Filter;
 		this.tree.openFind();
 	}
 
