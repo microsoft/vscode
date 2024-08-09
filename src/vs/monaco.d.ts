@@ -4569,6 +4569,10 @@ declare namespace monaco.editor {
 		 * Font family for inline suggestions.
 		 */
 		fontFamily?: string | 'default';
+		/**
+		 * Controls how indentation interacts with the full acceptance of inline suggest.
+		 */
+		suppressIndentationAcceptance?: boolean;
 	}
 
 	export interface IInlineEditOptions {

@@ -10,6 +10,8 @@ import { InlineCompletionsModel } from 'vs/editor/contrib/inlineCompletions/brow
 import { RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 export class InlineCompletionContextKeys extends Disposable {
 	public static readonly inlineSuggestionVisible = new RawContextKey<boolean>('inlineSuggestionVisible', false, localize('inlineSuggestionVisible', "Whether an inline suggestion is visible"));
@@ -25,6 +27,7 @@ export class InlineCompletionContextKeys extends Disposable {
 	constructor(
 		private readonly contextKeyService: IContextKeyService,
 		private readonly model: IObservable<InlineCompletionsModel | undefined>,
+		private readonly editor: ICodeEditor,
 	) {
 		super();
 
@@ -44,6 +47,7 @@ export class InlineCompletionContextKeys extends Disposable {
 		this._register(autorun(reader => {
 			/** @description update context key: inlineCompletionSuggestsIndentation, inlineCompletionSuggestsIndentationLessThanTabSize */
 			const model = this.model.read(reader);
+			if(!this.editor.getOption(EditorOption.inlineSuggest).suppressIndentationAcceptance) return;
 
 			let startsWithIndentation = false;
 			let startsWithIndentationLessThanTabSize = true;

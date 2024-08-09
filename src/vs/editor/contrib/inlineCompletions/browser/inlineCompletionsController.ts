@@ -130,7 +130,7 @@ export class InlineCompletionsController extends Disposable {
 	) {
 		super();
 
-		this._register(new InlineCompletionContextKeys(this._contextKeyService, this.model));
+		this._register(new InlineCompletionContextKeys(this._contextKeyService, this.model, this.editor));
 
 		this._register(reactToChange(this._editorObs.onDidType, (_value, _changes) => {
 			if (this._enabled.get()) {
