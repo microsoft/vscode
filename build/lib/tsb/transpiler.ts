@@ -341,6 +341,9 @@ export class SwcTranspiler implements ITranspiler {
 			options = SwcTranspiler._swcrcCommonJS;
 		}
 
+		// TODO enable sourcemaps only on demand
+		options.sourceMaps = true;
+
 		this._jobs.push(swc.transform(tsSrc, options).then(output => {
 
 			// check if output of a DTS-files isn't just "empty" and iff so
