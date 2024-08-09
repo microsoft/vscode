@@ -567,9 +567,8 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 		NotebookTextDiffEditor.prettyChanges(this._model, diffResult.cellsDiff);
 		const { viewModels, firstChangeIndex } = NotebookTextDiffEditor.computeDiff(this.instantiationService, this.configurationService, this._model, this._eventDispatcher!, diffResult, this.fontInfo);
-		const isSame = this._isViewModelTheSame(viewModels);
 
-		if (!isSame) {
+		if (!this._diffElementViewModels.isEqual(viewModels)) {
 			this._originalWebview?.removeInsets([...this._originalWebview?.insetMapping.keys()]);
 			this._modifiedWebview?.removeInsets([...this._modifiedWebview?.insetMapping.keys()]);
 			this._diffElementViewModels.setViewModel(viewModels);
@@ -585,33 +584,6 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			this._list.setFocus(selections);
 		}
 	}
-
-	private _isViewModelTheSame(viewModels: IDiffElementViewModelBase[]) {
-		let isSame = true;
-		const currentViewModels = this._diffElementViewModels.items;
-		if (currentViewModels.length === viewModels.length) {
-			for (let i = 0; i < viewModels.length; i++) {
-				const a = currentViewModels[i];
-				const b = viewModels[i];
-				if (a.type === 'placeholder' || b.type === 'placeholder') {
-					if (a.type !== b.type) {
-						isSame = false;
-						break;
-					}
-				} else if (a.original?.textModel.getHashValue() !== b.original?.textModel.getHashValue()
-					|| a.modified?.textModel.getHashValue() !== b.modified?.textModel.getHashValue()) {
-					isSame = false;
-					break;
-
-				}
-			}
-		} else {
-			isSame = false;
-		}
-
-		return isSame;
-	}
-
 
 	/**
 	 * making sure that swapping cells are always translated to `insert+delete`.

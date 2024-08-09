@@ -18,14 +18,16 @@ export class NotebookDiffViewModel extends Disposable implements INotebookDiffVi
 	public readonly onDidChangeItems = this._onDidChangeItems.event;
 	private readonly disposables = this._register(new DisposableStore());
 
+	private originalCellViewModels: DiffElementCellViewModelBase[] = [];
 	override dispose() {
 		this.clear();
 		super.dispose();
 	}
 	clear() {
-		dispose(Array.from(this.placeholderAndRelatedCells.values()).flat());
 		dispose(Array.from(this.placeholderAndRelatedCells.keys()));
 		this.placeholderAndRelatedCells.clear();
+		dispose(this.originalCellViewModels);
+		this.originalCellViewModels = [];
 		dispose(this._items);
 		this._items.splice(0, this._items.length);
 	}
@@ -36,6 +38,7 @@ export class NotebookDiffViewModel extends Disposable implements INotebookDiffVi
 		this._items.splice(0, oldLength);
 
 		let placeholder: DiffElementPlaceholderViewModel | undefined = undefined;
+		this.originalCellViewModels = cellViewModels;
 		cellViewModels.forEach((vm, index) => {
 			if (vm.type === 'unchanged') {
 				if (!placeholder) {
@@ -74,5 +77,20 @@ export class NotebookDiffViewModel extends Disposable implements INotebookDiffVi
 		});
 
 		this._onDidChangeItems.fire({ start: 0, deleteCount: oldLength, elements: this._items });
+	}
+	public isEqual(viewModels: DiffElementCellViewModelBase[]) {
+		if (this.originalCellViewModels.length !== viewModels.length) {
+			return false;
+		}
+		for (let i = 0; i < viewModels.length; i++) {
+			const a = this.originalCellViewModels[i];
+			const b = viewModels[i];
+			if (a.original?.textModel.getHashValue() !== b.original?.textModel.getHashValue()
+				|| a.modified?.textModel.getHashValue() !== b.modified?.textModel.getHashValue()) {
+				return false;
+			}
+		}
+
+		return true;
 	}
 }

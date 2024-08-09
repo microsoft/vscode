@@ -152,6 +152,7 @@ export interface INotebookDiffViewModelUpdateEvent {
 export interface INotebookDiffViewModel {
 	readonly items: readonly IDiffElementViewModelBase[];
 	onDidChangeItems: Event<INotebookDiffViewModelUpdateEvent>;
+	isEqual(viewModels: DiffElementCellViewModelBase[]): boolean;
 	setViewModel(cellViewModels: DiffElementCellViewModelBase[]): void;
 	clear(): void;
 }
