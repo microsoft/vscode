@@ -743,11 +743,11 @@ export class NotebookService extends Disposable implements INotebookService {
 
 	// --- notebook documents: create, destory, retrieve, enumerate
 
-	createNotebookTextModel(viewType: string, uri: URI, data: NotebookData, transientOptions: TransientOptions): NotebookTextModel {
+	createNotebookTextModel(viewType: string, repl: boolean, uri: URI, data: NotebookData, transientOptions: TransientOptions): NotebookTextModel {
 		if (this._models.has(uri)) {
 			throw new Error(`notebook for ${uri} already exists`);
 		}
-		const notebookModel = this._instantiationService.createInstance(NotebookTextModel, viewType, uri, data.cells, data.metadata, transientOptions);
+		const notebookModel = this._instantiationService.createInstance(NotebookTextModel, viewType, repl, uri, data.cells, data.metadata, transientOptions);
 		const modelData = new ModelData(notebookModel, this._onWillDisposeDocument.bind(this));
 		this._models.set(uri, modelData);
 		this._notebookDocumentService.addNotebookDocument(modelData);

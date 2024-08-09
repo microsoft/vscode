@@ -1082,7 +1082,7 @@ export interface MainThreadNotebookEditorsShape extends IDisposable {
 }
 
 export interface MainThreadNotebookDocumentsShape extends IDisposable {
-	$tryCreateNotebook(options: { viewType: string; content?: NotebookDataDto }): Promise<UriComponents>;
+	$tryCreateNotebook(options: { notebookType: string; content?: NotebookDataDto; repl?: boolean }): Promise<UriComponents>;
 	$tryOpenNotebook(uriComponents: UriComponents): Promise<UriComponents>;
 	$trySaveNotebook(uri: UriComponents): Promise<boolean>;
 }
@@ -2547,6 +2547,7 @@ export interface INotebookModelAddedData {
 	versionId: number;
 	cells: NotebookCellDto[];
 	viewType: string;
+	repl: boolean;
 	metadata?: notebookCommon.NotebookDocumentMetadata;
 }
 

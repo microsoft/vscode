@@ -74,6 +74,7 @@ suite('NotebookCell#Document', function () {
 			addedDocuments: [{
 				uri: notebookUri,
 				viewType: 'test',
+				repl: false,
 				versionId: 0,
 				cells: [{
 					handle: 0,

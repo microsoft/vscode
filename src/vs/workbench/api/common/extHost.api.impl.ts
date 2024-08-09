@@ -1129,13 +1129,15 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			get notebookDocuments(): vscode.NotebookDocument[] {
 				return extHostNotebook.notebookDocuments.map(d => d.apiNotebook);
 			},
-			async openNotebookDocument(uriOrType?: URI | string, content?: vscode.NotebookData) {
+			async openNotebookDocument(arg1: URI | string | vscode.OpenNotebookOptions, content?: vscode.NotebookData) {
 				let uri: URI;
-				if (URI.isUri(uriOrType)) {
-					uri = uriOrType;
-					await extHostNotebook.openNotebookDocument(uriOrType);
-				} else if (typeof uriOrType === 'string') {
-					uri = URI.revive(await extHostNotebook.createNotebookDocument({ viewType: uriOrType, content }));
+				if (URI.isUri(arg1)) {
+					uri = arg1;
+					await extHostNotebook.openNotebookDocument(arg1);
+				} else if (typeof arg1 === 'object') {
+					uri = URI.revive(await extHostNotebook.createNotebookDocument(arg1));
+				} else if (typeof arg1 === 'string') {
+					uri = URI.revive(await extHostNotebook.createNotebookDocument({ notebookType: arg1, content }));
 				} else {
 					throw new Error('Invalid arguments');
 				}

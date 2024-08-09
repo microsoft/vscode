@@ -101,6 +101,12 @@ export function activate(context: vscode.ExtensionContext) {
 		await vscode.window.showNotebookDocument(doc);
 	}));
 
+	context.subscriptions.push(vscode.commands.registerCommand('ipynb.newRepl', async () => {
+		const doc = await vscode.workspace.openNotebookDocument({ notebookType: 'jupyter-notebook', content: new vscode.NotebookData([cell]), repl: true });
+		await vscode.window.showNotebookDocument(doc);
+		// kernel picker should open unless one is already selected, that will indicate the language for the input box
+	}));
+
 	context.subscriptions.push(vscode.commands.registerCommand('ipynb.openIpynbInNotebookEditor', async (uri: vscode.Uri) => {
 		if (vscode.window.activeTextEditor?.document.uri.toString() === uri.toString()) {
 			await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
