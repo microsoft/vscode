@@ -39,7 +39,7 @@ export class ShowNextInlineEditAction extends EditorAction {
 		});
 	}
 
-	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
+	public async run(accessor: ServicesAccessor | null, editor: ICodeEditor): Promise<void> {
 		const controller = InlineEditsController.get(editor);
 		controller?.model.get()?.next();
 	}
@@ -59,7 +59,7 @@ export class ShowPreviousInlineEditAction extends EditorAction {
 		});
 	}
 
-	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
+	public async run(accessor: ServicesAccessor | null, editor: ICodeEditor): Promise<void> {
 		const controller = InlineEditsController.get(editor);
 		controller?.model.get()?.previous();
 	}
@@ -74,7 +74,7 @@ export class TriggerInlineEditAction extends EditorAction {
 		});
 	}
 
-	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
+	public async run(accessor: ServicesAccessor | null, editor: ICodeEditor): Promise<void> {
 		const controller = InlineEditsController.get(editor);
 		await asyncTransaction(async tx => {
 			/** @description triggerExplicitly from command */
@@ -104,7 +104,7 @@ export class AcceptInlineEdit extends EditorAction {
 		});
 	}
 
-	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
+	public async run(accessor: ServicesAccessor | null, editor: ICodeEditor): Promise<void> {
 		if (editor instanceof EmbeddedCodeEditorWidget) {
 			editor = editor.getParentEditor();
 		}
@@ -176,7 +176,7 @@ export class HideInlineEdit extends EditorAction {
 		});
 	}
 
-	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
+	public async run(accessor: ServicesAccessor | null, editor: ICodeEditor): Promise<void> {
 		const controller = InlineEditsController.get(editor);
 		transaction(tx => {
 			controller?.model.get()?.stop(tx);

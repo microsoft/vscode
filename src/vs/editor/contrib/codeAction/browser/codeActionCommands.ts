@@ -98,7 +98,7 @@ export class CodeActionCommand extends EditorCommand {
 		});
 	}
 
-	public runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor, userArgs: any) {
+	public runEditorCommand(_accessor: ServicesAccessor | null, editor: ICodeEditor, userArgs: any) {
 		const args = CodeActionCommandArgs.fromUser(userArgs, {
 			kind: HierarchicalKind.Empty,
 			apply: CodeActionAutoApply.IfSingle,

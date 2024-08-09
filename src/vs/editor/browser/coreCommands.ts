@@ -1961,7 +1961,7 @@ function registerCommand<T extends Command>(command: T): T {
 export namespace CoreEditingCommands {
 
 	export abstract class CoreEditingCommand extends EditorCommand {
-		public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: unknown): void {
+		public runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: unknown): void {
 			const viewModel = editor._getViewModel();
 			if (!viewModel) {
 				// the editor has no view => has no cursors

@@ -532,8 +532,8 @@ class AcceptBreakpointWidgetInputAction extends EditorCommand {
 		});
 	}
 
-	runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		accessor.get(IPrivateBreakpointWidgetService).close(true);
+	runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor): void {
+		accessor?.get(IPrivateBreakpointWidgetService).close(true);
 	}
 }
 
@@ -552,14 +552,14 @@ class CloseBreakpointWidgetCommand extends EditorCommand {
 		});
 	}
 
-	runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+	runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: any): void {
 		const debugContribution = editor.getContribution<IBreakpointEditorContribution>(BREAKPOINT_EDITOR_CONTRIBUTION_ID);
 		if (debugContribution) {
 			// if focus is in outer editor we need to use the debug contribution to close
 			return debugContribution.closeBreakpointWidget();
 		}
 
-		accessor.get(IPrivateBreakpointWidgetService).close(false);
+		accessor?.get(IPrivateBreakpointWidgetService).close(false);
 	}
 }
 
