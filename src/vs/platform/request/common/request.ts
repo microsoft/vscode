@@ -168,6 +168,12 @@ function registerProxyConfigurations(scope: ConfigurationScope): void {
 				description: localize('strictSSL', "Controls whether the proxy server certificate should be verified against the list of supplied CAs."),
 				restricted: true
 			},
+			'http.noProxy': {
+				type: 'array',
+				default: [],
+				description: localize('noProxy', "List of hosts which should not use a proxy and are queried directly."),
+				restricted: true
+			},
 			'http.proxyKerberosServicePrincipal': {
 				type: 'string',
 				markdownDescription: localize('proxyKerberosServicePrincipal', "Overrides the principal service name for Kerberos authentication with the HTTP proxy. A default based on the proxy hostname is used when this is not set."),

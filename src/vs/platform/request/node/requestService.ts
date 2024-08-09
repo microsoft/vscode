@@ -25,6 +25,7 @@ interface IHTTPConfiguration {
 	proxy?: string;
 	proxyStrictSSL?: boolean;
 	proxyAuthorization?: string;
+	noProxy?: string[];
 }
 
 export interface IRawRequestFunction {
@@ -48,6 +49,7 @@ export class RequestService extends AbstractRequestService implements IRequestSe
 
 	private proxyUrl?: string;
 	private strictSSL: boolean | undefined;
+	private noProxy: string[] = [];
 	private authorization?: string;
 	private shellEnvErrorLogged?: boolean;
 
@@ -72,10 +74,11 @@ export class RequestService extends AbstractRequestService implements IRequestSe
 		this.proxyUrl = config?.proxy;
 		this.strictSSL = !!config?.proxyStrictSSL;
 		this.authorization = config?.proxyAuthorization;
+		this.noProxy = config?.noProxy || [];
 	}
 
 	async request(options: NodeRequestOptions, token: CancellationToken): Promise<IRequestContext> {
-		const { proxyUrl, strictSSL } = this;
+		const { proxyUrl, strictSSL, noProxy } = this;
 
 		let shellEnv: typeof process.env | undefined = undefined;
 		try {
@@ -91,7 +94,7 @@ export class RequestService extends AbstractRequestService implements IRequestSe
 			...process.env,
 			...shellEnv
 		};
-		const agent = options.agent ? options.agent : await getProxyAgent(options.url || '', env, { proxyUrl, strictSSL });
+		const agent = options.agent ? options.agent : await getProxyAgent(options.url || '', env, { proxyUrl, strictSSL, noProxy });
 
 		options.agent = agent;
 		options.strictSSL = strictSSL;
