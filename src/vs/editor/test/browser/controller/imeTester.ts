@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITextAreaInputHost, TextAreaInput, TextAreaWrapper } from 'vs/editor/browser/controller/textAreaInput';
-import { ISimpleModel, PagedScreenReaderStrategy, TextAreaState } from 'vs/editor/browser/controller/textAreaState';
+import { ITextAreaInputHost, TextAreaInput, TextAreaWrapper } from 'vs/editor/browser/controller/editContext/textArea/textAreaInput';
+import { ISimpleModel, PagedScreenReaderStrategy, TextAreaState } from 'vs/editor/browser/controller/editContext/textArea/textAreaState';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { EndOfLinePreference } from 'vs/editor/common/model';

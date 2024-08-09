@@ -744,6 +744,11 @@ export interface IEditorOptions {
 	dropIntoEditor?: IDropIntoEditorOptions;
 
 	/**
+	 * Controls the edit context that is used
+	 */
+	editContext?: IEditContextOptions;
+
+	/**
 	 * Controls support for changing how content is pasted into the editor.
 	 */
 	pasteAs?: IPasteAsOptions;
@@ -5218,6 +5223,56 @@ class EditorDropIntoEditor extends BaseEditorOption<EditorOption.dropIntoEditor,
 
 //#endregion
 
+//#region editContext
+
+export interface IEditContextOptions {
+	/**
+	 * Controls the type of edit context that is used
+	 */
+	type?: 'native' | 'textarea';
+}
+
+/**
+ * @internal
+ */
+export type EditContextOptions = Readonly<Required<IEditContextOptions>>;
+
+class EditContextOption extends BaseEditorOption<EditorOption.editContext, IEditContextOptions, EditContextOptions> {
+	constructor() {
+		const defaults: EditContextOptions = { type: 'textarea' };
+		super(
+			EditorOption.editContext, 'editContext', defaults,
+			{
+				'editor.editContext.type': {
+					type: 'string',
+					markdownDescription: nls.localize('editContext.type', "Controls the type of the edit context that is used."),
+					enum: [
+						'native',
+						'textarea'
+					],
+					enumDescriptions: [
+						nls.localize('editContext.type.native', "Use the native edit context."),
+						nls.localize('editContext.type.textarea', "Use the text area approach."),
+					],
+					default: 'textarea',
+				},
+			}
+		);
+	}
+
+	public validate(_input: any): EditContextOptions {
+		if (!_input || typeof _input !== 'object') {
+			return this.defaultValue;
+		}
+		const input = _input as IEditContextOptions;
+		return {
+			type: input.type ?? 'textarea'
+		};
+	}
+}
+
+//#endregion
+
 //#region pasteAs
 
 /**
@@ -5352,6 +5407,7 @@ export const enum EditorOption {
 	domReadOnly,
 	dragAndDrop,
 	dropIntoEditor,
+	editContext,
 	emptySelectionClipboard,
 	experimentalWhitespaceRendering,
 	extraEditorClassName,
@@ -5722,6 +5778,7 @@ export const EditorOptions = {
 	)),
 	emptySelectionClipboard: register(new EditorEmptySelectionClipboard()),
 	dropIntoEditor: register(new EditorDropIntoEditor()),
+	editContext: register(new EditContextOption()),
 	stickyScroll: register(new EditorStickyScroll()),
 	experimentalWhitespaceRendering: register(new EditorStringEnumOption(
 		EditorOption.experimentalWhitespaceRendering, 'experimentalWhitespaceRendering',

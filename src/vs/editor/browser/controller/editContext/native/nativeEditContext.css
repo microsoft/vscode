@@ -1,0 +1,18 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-editor #native-edit-context {
+	position : absolute;
+	z-index : 100;
+	background : white;
+	font-family : Menlo, Monaco, "Courier New", monospace;
+	line-height : 18px;
+	letter-spacing : 0px;
+	color : black;
+	white-space : pre-wrap;
+	display : table;
+	tab-size: 4;
+	text-wrap: nowrap;
+}
