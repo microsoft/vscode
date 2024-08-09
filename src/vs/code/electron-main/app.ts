@@ -358,6 +358,11 @@ export class CodeApplication extends Disposable {
 		// We handle uncaught exceptions here to prevent electron from opening a dialog to the user
 		setUnexpectedErrorHandler(error => this.onUnexpectedError(error));
 		process.on('uncaughtException', error => {
+			// Don't process the exception if exit is happening as it can cause the main process to
+			// hang while awaiting an IPC reply.
+			if (this.lifecycleMainService.quitRequested) {
+				return undefined;
+			}
 			if (!isSigPipeError(error)) {
 				onUnexpectedError(error);
 			}
