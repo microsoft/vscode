@@ -26,7 +26,7 @@ import { ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { getColorPresentations } from 'vs/editor/contrib/colorPicker/browser/color';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IColorHover } from 'vs/editor/contrib/colorPicker/browser/colorHoverParticipant';
+import { ColorHover, IColorHover } from 'vs/editor/contrib/colorPicker/browser/colorHoverParticipant';
 
 const $ = dom.$;
 
@@ -142,14 +142,16 @@ class CloseButton extends Disposable {
 
 export abstract class AbstractColorPickerBody extends Disposable {
 
-	protected abstract _domNode: HTMLElement;
-	protected abstract _saturationBox: SaturationBox;
-	protected abstract _hueStrip: Strip;
-	protected abstract _opacityStrip: Strip;
+	protected readonly _domNode: HTMLElement;
+	protected abstract readonly _saturationBox: SaturationBox;
+	protected abstract readonly _hueStrip: Strip;
+	protected abstract readonly _opacityStrip: Strip;
 
-	constructor(protected readonly model: ColorPickerModel) {
+	constructor(container: HTMLElement, protected readonly model: ColorPickerModel) {
 		super();
 
+		this._domNode = $('.colorpicker-body');
+		dom.append(container, this._domNode);
 	}
 
 	protected flushColor(): void {
@@ -198,15 +200,13 @@ export abstract class AbstractColorPickerBody extends Disposable {
 
 class HoverColorPickerBody extends AbstractColorPickerBody {
 
-	protected _domNode = $('.colorpicker-body');
 	protected _saturationBox = new SaturationBox(this._domNode, this.model, this.pixelRatio);
 	protected _opacityStrip = new OpacityStrip(this._domNode, this.model, ColorPickerType.Hover);
 	protected _hueStrip = new HueStrip(this._domNode, this.model, ColorPickerType.Hover);
 
 	constructor(container: HTMLElement, model: ColorPickerModel, private pixelRatio: number) {
-		super(model);
+		super(container, model);
 
-		dom.append(container, this._domNode);
 		this._register(this._saturationBox);
 		this._register(this._saturationBox.onDidChange(this.onDidSaturationValueChange, this));
 		this._register(this._saturationBox.onColorFlushed(this.flushColor, this));
@@ -223,7 +223,6 @@ class HoverColorPickerBody extends AbstractColorPickerBody {
 
 class StandaloneColorPickerBody extends AbstractColorPickerBody {
 
-	protected _domNode = $('.colorpicker-body');
 	protected _saturationBox = new SaturationBox(this._domNode, this.model, this.pixelRatio);
 	protected _opacityStrip = new OpacityStrip(this._domNode, this.model, ColorPickerType.Standalone);
 	protected _hueStrip = new HueStrip(this._domNode, this.model, ColorPickerType.Standalone);
@@ -231,7 +230,7 @@ class StandaloneColorPickerBody extends AbstractColorPickerBody {
 	private _insertButton = this._register(new InsertButton(this._domNode, this.foundInEditor));
 
 	constructor(container: HTMLElement, model: ColorPickerModel, private foundInEditor: boolean, private pixelRatio: number) {
-		super(model);
+		super(container, model);
 
 		dom.append(container, this._domNode);
 		this._register(this._saturationBox);
@@ -507,11 +506,7 @@ export class InsertButton extends Disposable {
 		super();
 		this._button = dom.append(container, document.createElement('button'));
 		this._button.classList.add('insert-button');
-		if (foundInEditor) {
-			this._button.textContent = 'Replace';
-		} else {
-			this._button.textContent = 'Insert';
-		}
+		this._button.textContent = foundInEditor ? 'Replace' : 'Insert';
 		this._register(dom.addDisposableListener(this._button, dom.EventType.CLICK, () => {
 			this._onClicked.fire();
 		}));
@@ -525,23 +520,21 @@ export class InsertButton extends Disposable {
 class HoverColorPickerWidget extends Widget implements IEditorHoverColorPickerWidget {
 
 	private static readonly ID = 'editor.contrib.hoverColorPickerWidget';
-	private readonly _domNode: HTMLElement;
+
+	public readonly domNode: HTMLElement;
 
 	body: HoverColorPickerBody;
-	header: ColorPickerHeader;
 
 	constructor(container: Node, readonly model: ColorPickerModel, private pixelRatio: number, themeService: IThemeService) {
 		super();
 
+		this.domNode = $('.colorpicker-widget');
+		container.appendChild(this.domNode);
+
+		this.body = this._register(new HoverColorPickerBody(this.domNode, this.model, this.pixelRatio));
 		this._register(PixelRatio.getInstance(dom.getWindow(container)).onDidChange(() => this.layout()));
-
-		const element = $('.colorpicker-widget');
-		container.appendChild(element);
-
-		this.header = this._register(new ColorPickerHeader(element, this.model, themeService));
-		this.body = this._register(new HoverColorPickerBody(element, this.model, this.pixelRatio));
+		this._register(new ColorPickerHeader(this.domNode, this.model, themeService));
 	}
-
 
 	getId(): string {
 		return HoverColorPickerWidget.ID;
@@ -564,8 +557,9 @@ export class StandaloneColorPickerWidget extends Widget implements IEditorHoverC
 	private readonly _onClose = new Emitter<void>();
 	readonly onClose: Event<void> = this._onClose.event;
 
+	private readonly _domNode: HTMLElement;
+
 	body: StandaloneColorPickerBody;
-	header: StandaloneColorPickerHeader;
 
 	constructor(container: Node, foundInEditor: boolean, readonly model: ColorPickerModel, private pixelRatio: number, themeService: IThemeService) {
 		super();
@@ -575,22 +569,20 @@ export class StandaloneColorPickerWidget extends Widget implements IEditorHoverC
 		this._domNode = $('.colorpicker-widget');
 		container.appendChild(this._domNode);
 
-		this.header = this._register(new StandaloneColorPickerHeader(element, this.model, themeService));
-		this.body = this._register(new StandaloneColorPickerBody(element, this.model, foundInEditor, this.pixelRatio));
+		const header = this._register(new StandaloneColorPickerHeader(this._domNode, this.model, themeService));
+		this.body = this._register(new StandaloneColorPickerBody(this._domNode, this.model, foundInEditor, this.pixelRatio));
 
 		const saturationBoxWidth = this.body.saturationBox.domNode.clientWidth;
 		const widthOfOriginalColorBox = this.body.domNode.clientWidth - saturationBoxWidth - StandaloneColorPickerWidget.CLOSE_BUTTON_WIDTH - StandaloneColorPickerWidget.PADDING;
-		const pickedColorNode = this.header.pickedColorNode;
+		const pickedColorNode = header.pickedColorNode;
 		pickedColorNode.style.width = saturationBoxWidth + StandaloneColorPickerWidget.PADDING + 'px';
-		const originalColorNode = this.header.originalColorNode;
+		const originalColorNode = header.originalColorNode;
 		originalColorNode.style.width = widthOfOriginalColorBox + 'px';
 
-		const closeButton = this.header.closeButton;
-		const insertButton = this.body.insertButton;
-		this._register(insertButton.onClicked(() => {
+		this._register(this.body.insertButton.onClicked(() => {
 			this._onInsert.fire();
 		}));
-		this._register(closeButton.onClicked(() => {
+		this._register(header.closeButton.onClicked(() => {
 			this._onClose.fire();
 		}));
 	}
@@ -724,18 +716,25 @@ export class StandaloneColorPicker extends AbstractColorPicker {
 
 export class HoverColorPicker extends AbstractColorPicker {
 
+	public color: ColorHover;
+
 	private _colorPicker: HoverColorPickerWidget;
 
 	constructor(
 		editor: IActiveCodeEditor,
-		colorHover: IColorHover,
+		colorHover: ColorHover,
 		context: IEditorHoverRenderContext,
 		themeService: IThemeService,
 	) {
 		super(editor, colorHover, context);
 		const model = colorHover.model;
 		const pixelRatio = editor.getOption(EditorOption.pixelRatio);
+		this.color = colorHover;
 		this._colorPicker = this._register(new HoverColorPickerWidget(context.fragment, model, pixelRatio, themeService));
+	}
+
+	public get domNode(): HTMLElement {
+		return this._colorPicker.domNode;
 	}
 
 	public layout(): void {

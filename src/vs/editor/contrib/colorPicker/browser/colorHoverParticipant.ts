@@ -6,7 +6,6 @@
 import { AsyncIterableObject } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Color, RGBA } from 'vs/base/common/color';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { IModelDecoration, ITextModel } from 'vs/editor/common/model';
@@ -14,10 +13,11 @@ import { DocumentColorProvider, IColorInformation } from 'vs/editor/common/langu
 import { getColorPresentations, getColors } from 'vs/editor/contrib/colorPicker/browser/color';
 import { ColorDetector } from 'vs/editor/contrib/colorPicker/browser/colorDetector';
 import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/browser/colorPickerModel';
-import { HoverAnchor, HoverAnchorType, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
+import { HoverAnchor, HoverAnchorType, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, IRenderedHoverPart, IRenderedHoverParts, RenderedHoverParts } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 import { HoverColorPicker, StandaloneColorPicker } from 'vs/editor/contrib/colorPicker/browser/colorPickerWidget';
+import * as nls from 'vs/nls';
 
 export interface IColorHover {
 	readonly range: Range;
@@ -95,12 +95,22 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 		return [];
 	}
 
-	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: ColorHover[]): IDisposable {
+	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: ColorHover[]): IRenderedHoverParts<ColorHover> {
 		if (hoverParts.length === 0 || !this._editor.hasModel()) {
-			return Disposable.None;
+			return new RenderedHoverParts([]);
 		}
 		this._colorPicker = new HoverColorPicker(this._editor, hoverParts[0], context, this._themeService);
-		return this._colorPicker;
+		const colorPicker = this._colorPicker;
+		const renderedHoverPart: IRenderedHoverPart<ColorHover> = {
+			hoverPart: colorPicker.color,
+			hoverElement: colorPicker.domNode,
+			dispose() { colorPicker.dispose(); }
+		};
+		return new RenderedHoverParts([renderedHoverPart]);
+	}
+
+	public getAccessibleContent(hoverPart: ColorHover): string {
+		return nls.localize('hoverAccessibilityColorParticipant', 'There is a color picker here.');
 	}
 
 	public handleResize(): void {
