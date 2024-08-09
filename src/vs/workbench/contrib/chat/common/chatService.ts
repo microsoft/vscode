@@ -179,6 +179,27 @@ export interface IChatConfirmation {
 	kind: 'confirmation';
 }
 
+export interface IChatConfirmationAwaitable {
+	title: string;
+	message: string;
+	buttons: string[];
+	confirmed: DeferredPromise<string>;
+	isUsed?: boolean;
+	kind: 'confirmationAwaitable';
+}
+
+export interface IChatTaskInvocation {
+	confirmation?: {
+		confirmTitle: string;
+		confirmMessage: string;
+		buttons: string[];
+		confirmed: DeferredPromise<string>;
+		isUsed?: boolean;
+	};
+	name: string;
+	kind: 'taskInvocation';
+}
+
 export type IChatProgress =
 	| IChatMarkdownContent
 	| IChatAgentMarkdownContentWithVulnerability
@@ -194,7 +215,8 @@ export type IChatProgress =
 	| IChatCommandButton
 	| IChatWarningMessage
 	| IChatTextEdit
-	| IChatConfirmation;
+	| IChatConfirmation
+	| IChatConfirmationAwaitable;
 
 export interface IChatFollowup {
 	kind: 'reply';

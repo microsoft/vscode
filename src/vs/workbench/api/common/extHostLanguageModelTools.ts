@@ -7,10 +7,15 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { revive } from 'vs/base/common/marshalling';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { ExtHostLanguageModelToolsShape, IMainContext, MainContext, MainThreadLanguageModelToolsShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostLanguageModelToolsShape, ILanguageModelToolInvocationContext, IMainContext, MainContext, MainThreadLanguageModelToolsShape } from 'vs/workbench/api/common/extHost.protocol';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
 import { IToolData, IToolDelta, IToolResult } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
 import type * as vscode from 'vscode';
+
+export interface IToolInvocationContext {
+	sessionId: string;
+	participantId: string;
+}
 
 export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape {
 	/** A map of tools that were registered in this EH */
@@ -30,9 +35,9 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 		});
 	}
 
-	async invokeTool(name: string, parameters: any, token: CancellationToken): Promise<vscode.LanguageModelToolResult> {
+	async invokeTool(name: string, parameters: any, context: ILanguageModelToolInvocationContext, token: CancellationToken): Promise<vscode.LanguageModelToolResult> {
 		// Making the round trip here because not all tools were necessarily registered in this EH
-		const result = await this._proxy.$invokeTool(name, parameters, token);
+		const result = await this._proxy.$invokeTool(name, parameters, context, token);
 		return typeConvert.LanguageModelToolResult.to(result);
 	}
 
@@ -56,6 +61,13 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 		if (!item) {
 			throw new Error(`Unknown tool ${name}`);
 		}
+
+		// Some participant in extHostChatAgents calls invokeTool, goes to extHostLMTools
+		// mainThreadLMTools invokes the tool, which calls back to extHostLMTools
+		// The tool requests permission
+		// The tool in extHostLMTools calls for permission back to mainThreadLMTools
+		// And back to extHostLMTools, and back to the participant in extHostChatAgents
+		// Is there a tool call ID to identify the call?
 
 		const extensionResult = await item.tool.invoke(parameters, token);
 		return typeConvert.LanguageModelToolResult.from(extensionResult);

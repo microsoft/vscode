@@ -21,6 +21,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { ExtHostChatAgentsShape2, IChatAgentCompletionItem, IChatAgentHistoryEntryDto, IChatProgressDto, IExtensionChatAgentMetadata, IMainContext, MainContext, MainThreadChatAgentsShape2 } from 'vs/workbench/api/common/extHost.protocol';
 import { CommandsConverter, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
+import { ExtHostLanguageModelTools } from 'vs/workbench/api/common/extHostLanguageModelTools';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import { ChatAgentLocation, IChatAgentRequest, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
@@ -280,7 +281,8 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		mainContext: IMainContext,
 		private readonly _logService: ILogService,
 		private readonly _commands: ExtHostCommands,
-		private readonly _documents: ExtHostDocuments
+		private readonly _documents: ExtHostDocuments,
+		private readonly _tools: ExtHostLanguageModelTools
 	) {
 		super();
 		this._proxy = mainContext.getProxy(MainContext.MainThreadChatAgents2);
@@ -377,9 +379,17 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 
 			stream = new ChatAgentResponseStream(agent.extension, request, this._proxy, this._commands.converter, sessionDisposables);
 
+			const invokeTool = async (name: string, parameters: Object, token: vscode.CancellationToken): Promise<vscode.LanguageModelToolResult> => {
+				const context = {
+					participantId: agent.id,
+					sessionId: request.sessionId,
+				};
+				return this._tools.invokeTool(name, parameters, context, token);
+			};
+
 			const task = agent.invoke(
 				typeConvert.ChatAgentRequest.to(request, location),
-				{ history },
+				{ history, invokeTool },
 				stream.apiObject,
 				token
 			);

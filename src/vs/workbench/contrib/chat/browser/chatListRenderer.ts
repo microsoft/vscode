@@ -43,7 +43,7 @@ import { ChatAgentHover, getChatAgentHoverOptions } from 'vs/workbench/contrib/c
 import { ChatAttachmentsContentPart } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatAttachmentsContentPart';
 import { ChatCodeCitationContentPart } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatCodeCitationContentPart';
 import { ChatCommandButtonContentPart } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatCommandContentPart';
-import { ChatConfirmationContentPart } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatConfirmationContentPart';
+import { ChatAwaitableConfirmationContentPart, ChatConfirmationContentPart } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatConfirmationContentPart';
 import { IChatContentPart, IChatContentPartRenderContext } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatContentParts';
 import { ChatMarkdownContentPart, EditorPool } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatMarkdownContentPart';
 import { ChatProgressContentPart } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatProgressContentPart';
@@ -61,7 +61,7 @@ import { ChatAgentLocation, IChatAgentMetadata } from 'vs/workbench/contrib/chat
 import { CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING, CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_DETECTED_AGENT_COMMAND, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatRequestVariableEntry, IChatTextEditGroup } from 'vs/workbench/contrib/chat/common/chatModel';
 import { chatSubcommandLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { ChatAgentVoteDirection, IChatConfirmation, IChatContentReference, IChatFollowup, IChatTask, IChatTreeData } from 'vs/workbench/contrib/chat/common/chatService';
+import { ChatAgentVoteDirection, IChatConfirmation, IChatConfirmationAwaitable, IChatContentReference, IChatFollowup, IChatTask, IChatTreeData } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatCodeCitations, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatWelcomeMessageViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { getNWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 import { annotateSpecialMarkdownContent } from '../common/annotations';
@@ -767,6 +767,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return this.renderTextEdit(context, content, templateData);
 		} else if (content.kind === 'confirmation') {
 			return this.renderConfirmation(context, content, templateData);
+		} else if (content.kind === 'confirmationAwaitable') {
+			return this.renderConfirmationAwaitable(context, content, templateData);
 		} else if (content.kind === 'warning') {
 			return this.instantiationService.createInstance(ChatWarningContentPart, 'warning', content.content, this.renderer);
 		} else if (content.kind === 'markdownContent') {
@@ -840,6 +842,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private renderConfirmation(context: IChatContentPartRenderContext, confirmation: IChatConfirmation, templateData: IChatListItemTemplate): IChatContentPart {
 		const part = this.instantiationService.createInstance(ChatConfirmationContentPart, confirmation, context);
+		part.addDisposable(part.onDidChangeHeight(() => this.updateItemHeight(templateData)));
+		return part;
+	}
+
+	private renderConfirmationAwaitable(context: IChatContentPartRenderContext, confirmation: IChatConfirmationAwaitable, templateData: IChatListItemTemplate): IChatContentPart {
+		const part = this.instantiationService.createInstance(ChatAwaitableConfirmationContentPart, confirmation, context);
 		part.addDisposable(part.onDidChangeHeight(() => this.updateItemHeight(templateData)));
 		return part;
 	}

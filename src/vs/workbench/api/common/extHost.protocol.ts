@@ -53,7 +53,7 @@ import { IRevealOptions, ITreeItem, IViewBadge } from 'vs/workbench/common/views
 import { CallHierarchyItem } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import { ChatAgentLocation, IChatAgentMetadata, IChatAgentRequest, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatProgressResponseContent } from 'vs/workbench/contrib/chat/common/chatModel';
-import { ChatAgentVoteDirection, IChatFollowup, IChatProgress, IChatResponseErrorDetails, IChatTask, IChatTaskDto, IChatUserActionEvent } from 'vs/workbench/contrib/chat/common/chatService';
+import { ChatAgentVoteDirection, IChatConfirmationAwaitable, IChatFollowup, IChatProgress, IChatResponseErrorDetails, IChatTask, IChatTaskDto, IChatUserActionEvent } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatRequestVariableValue, IChatVariableData, IChatVariableResolverProgress } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { IChatMessage, IChatResponseFragment, ILanguageModelChatMetadata, ILanguageModelChatSelector, ILanguageModelsChangeEvent } from 'vs/workbench/contrib/chat/common/languageModels';
 import { IToolData, IToolDelta, IToolResult } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
@@ -1268,8 +1268,9 @@ export interface IChatAgentCompletionItem {
 }
 
 export type IChatContentProgressDto =
-	| Dto<Exclude<IChatProgressResponseContent, IChatTask>>
-	| IChatTaskDto;
+	| Dto<Exclude<IChatProgressResponseContent, IChatTask | IChatConfirmationAwaitable>>
+	| IChatTaskDto
+	| { kind: 'confirmationAwaitable' };
 
 export type IChatAgentHistoryEntryDto = {
 	request: IChatAgentRequest;
@@ -1308,9 +1309,14 @@ export interface MainThreadChatVariablesShape extends IDisposable {
 	$unregisterVariable(handle: number): void;
 }
 
+export interface ILanguageModelToolInvocationContext {
+	participantId: string;
+	sessionId: string;
+}
+
 export interface MainThreadLanguageModelToolsShape extends IDisposable {
 	$getTools(): Promise<Dto<IToolData>[]>;
-	$invokeTool(name: string, parameters: any, token: CancellationToken): Promise<IToolResult>;
+	$invokeTool(name: string, parameters: any, context: ILanguageModelToolInvocationContext, token: CancellationToken): Promise<IToolResult>;
 	$registerTool(id: string): void;
 	$unregisterTool(name: string): void;
 }

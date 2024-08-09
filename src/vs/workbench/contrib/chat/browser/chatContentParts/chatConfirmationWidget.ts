@@ -16,7 +16,7 @@ import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 export interface IChatConfirmationButton {
 	label: string;
 	isSecondary?: boolean;
-	data: any;
+	data?: any;
 }
 
 export class ChatConfirmationWidget extends Disposable {

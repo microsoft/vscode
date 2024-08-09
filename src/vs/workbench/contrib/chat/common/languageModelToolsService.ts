@@ -43,6 +43,11 @@ export interface IToolDelta {
 	removed?: string;
 }
 
+// export interface ILanguageModelToolContext {
+// 	getPermission(title: string, message: string): Thenable<boolean>;
+// 	progress(message: string): void;
+// }
+
 export interface ILanguageModelToolsService {
 	_serviceBrand: undefined;
 	onDidChangeTools: Event<IToolDelta>;

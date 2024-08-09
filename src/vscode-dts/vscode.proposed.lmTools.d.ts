@@ -88,12 +88,6 @@ declare module 'vscode' {
 		 * A list of all available tools.
 		 */
 		export const tools: ReadonlyArray<LanguageModelToolDescription>;
-
-		/**
-		 * Invoke a tool with the given parameters.
-		 * TODO@API Could request a set of contentTypes to be returned so they don't all need to be computed?
-		 */
-		export function invokeTool(name: string, parameters: Object, token: CancellationToken): Thenable<LanguageModelToolResult>;
 	}
 
 	// Is the same as LanguageModelChatFunction now, but could have more details in the future
@@ -106,5 +100,13 @@ declare module 'vscode' {
 	export interface LanguageModelTool {
 		// TODO@API should it be LanguageModelToolResult | string?
 		invoke(parameters: any, token: CancellationToken): Thenable<LanguageModelToolResult>;
+	}
+
+	export interface ChatContext {
+		/**
+		 * Invoke a tool with the given parameters.
+		 * TODO@API Could request a set of contentTypes to be returned so they don't all need to be computed?
+		 */
+		invokeTool?(name: string, parameters: Object, token: CancellationToken): Thenable<LanguageModelToolResult>;
 	}
 }
