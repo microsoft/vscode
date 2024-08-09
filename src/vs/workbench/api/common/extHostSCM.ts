@@ -396,6 +396,17 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 		this._proxy.$updateGroupLabel(this._sourceControlHandle, this.handle, label);
 	}
 
+	private _contextValue: string = '';
+	get contextValue(): string {
+		checkProposedApiEnabled(this._extension, 'scmResourceGroupState');
+		return this._contextValue;
+	}
+	set contextValue(contextValue: string) {
+		checkProposedApiEnabled(this._extension, 'scmResourceGroupState');
+		this._contextValue = contextValue;
+		this._proxy.$updateGroupContextValue(this._sourceControlHandle, this.handle, contextValue);
+	}
+
 	private _hideWhenEmpty: boolean | undefined = undefined;
 	get hideWhenEmpty(): boolean | undefined { return this._hideWhenEmpty; }
 	set hideWhenEmpty(hideWhenEmpty: boolean | undefined) {
@@ -712,7 +723,7 @@ class ExtHostSourceControl implements vscode.SourceControl {
 
 	@debounce(100)
 	eventuallyAddResourceGroups(): void {
-		const groups: [number /*handle*/, string /*id*/, string /*label*/, SCMGroupFeatures, /*multiDiffEditorEnableViewChanges*/ boolean][] = [];
+		const groups: [number /*handle*/, string /*id*/, string /*label*/, SCMGroupFeatures, /*multiDiffEditorEnableViewChanges*/ boolean, string /*contextKey*/][] = [];
 		const splices: SCMRawResourceSplices[] = [];
 
 		for (const [group, disposable] of this.createdResourceGroups) {
@@ -730,7 +741,7 @@ class ExtHostSourceControl implements vscode.SourceControl {
 				this.#proxy.$unregisterGroup(this.handle, group.handle);
 			});
 
-			groups.push([group.handle, group.id, group.label, group.features, group.multiDiffEditorEnableViewChanges]);
+			groups.push([group.handle, group.id, group.label, group.features, group.multiDiffEditorEnableViewChanges, group.contextValue]);
 
 			const snapshot = group._takeResourceStateSnapshot();
 
