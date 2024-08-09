@@ -38,7 +38,7 @@ export class TableColumnResizeQuickPick extends Disposable {
 			validateInput: (input: string) => this._validateColumnResizeValue(input)
 		});
 		const percentageValue = value ? Number.parseInt(value) : undefined;
-		if (!percentageValue || Number.isNaN(percentageValue)) {
+		if (!percentageValue) {
 			return;
 		}
 		this._table.resizeColumn(column.index, percentageValue);
