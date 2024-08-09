@@ -184,7 +184,7 @@ export function runDeleteAction(editor: IActiveNotebookEditor, cell: ICellViewMo
 	}
 }
 
-export async function moveCellRange(context: INotebookCellActionContext, direction: 'up' | 'down'): Promise<void> {
+export async function moveCellRange(context: INotebookActionContext, direction: 'up' | 'down'): Promise<void> {
 	if (!context.notebookEditor.hasModel()) {
 		return;
 	}
