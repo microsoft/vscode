@@ -5,16 +5,14 @@
 
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Mimes } from 'vs/base/common/mime';
-import { Range, IRange } from 'vs/editor/common/core/range';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ISelection, Selection, SelectionDirection } from 'vs/editor/common/core/selection';
-import { ICommandData, IExecContext } from 'vs/editor/common/cursor/cursor';
-import { ICommand, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
+import { Selection } from 'vs/editor/common/core/selection';
+import { CommandExecutor } from 'vs/editor/common/cursor/cursor';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { IIdentifiedSingleEditOperation, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { IModelService } from 'vs/editor/common/services/model';
 import { LineCommentCommand, Type } from 'vs/editor/contrib/comment/browser/lineCommentCommand';
@@ -42,7 +40,6 @@ import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/not
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { TextModel } from 'vs/editor/common/model/textModel';
 
 const CLEAR_ALL_CELLS_OUTPUTS_COMMAND_ID = 'notebook.clearAllCellsOutputs';
@@ -652,19 +649,15 @@ registerAction2(class CommentSelectedCellsAction extends NotebookMultiCellAction
 
 		context.selectedCells.forEach(async cell => {
 			const cellTextModel = cell.model;
-			let textModel: ITextModel | TextModel | undefined = cellTextModel.textModel;
 			if (!cellTextModel) {
 				return;
 			}
+			const textBuffer = cellTextModel.textBuffer;
 
+			let textModel: ITextModel | TextModel | undefined = cellTextModel.textModel;
 			if (!textModel) {
 				textModel = await cell.resolveTextModel();
 			}
-
-			const cellEditorSelections = cell.getSelections();
-
-
-			const textBuffer = cellTextModel.textBuffer;
 
 			// ! todo: need to store comment options on the model refer to https://github.com/microsoft/vscode/issues/108675
 			const cellCommentCommand = new LineCommentCommand(
@@ -678,123 +671,20 @@ registerAction2(class CommentSelectedCellsAction extends NotebookMultiCellAction
 			);
 
 			// store any selections that are in the cell, allows them to be shifted by comments and preserved
-			const initialTrackedRangesIDs: string[] = [];
-			const initialTrackedRangesDirections: SelectionDirection[] = [];
-			cellEditorSelections.forEach(selection => {
-				initialTrackedRangesIDs.push(textModel._setTrackedRange(null, selection, TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges));
-				initialTrackedRangesDirections.push(selection.getDirection());
+			const cellEditorSelections = cell.getSelections();
+			const initialTrackedRangesIDs: string[] = cellEditorSelections.map(selection => {
+				return textModel._setTrackedRange(null, selection, TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges);
 			});
 
-			// duplicate range IDs
-			const tempTrackedRanges = initialTrackedRangesIDs.slice();
+			CommandExecutor.executeCommands(textModel, cellEditorSelections, [cellCommentCommand]);
 
-			const ctx: IExecContext = {
-				model: textModel,
-				selectionsBefore: [], // don't need, as we are always applying to the entire cell. no need to track this
-				trackedRanges: initialTrackedRangesIDs,
-				trackedRangesDirection: initialTrackedRangesDirections
-			};
-
-			const commandResults: ICommandData = this.getLineCommentEditOperationBuilder(cellCommentCommand, ctx);
-
-			if (commandResults.operations.length) {
-				const selectionsAfter = ctx.model.pushEditOperations(ctx.selectionsBefore, commandResults.operations, (): Selection[] => {
-					// get tracked ranges after edits have been applied
-					const newTrackedRanges = tempTrackedRanges.map(i => {
-						return ctx.model._getTrackedRange(i);
-					});
-					// convert to ranges & return
-					return newTrackedRanges.filter(r => !!r).map((range,) => {
-						return new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);
-					});
-				});
-				cell.setSelections(selectionsAfter ?? []);
-			}
+			const newTrackedSelections = initialTrackedRangesIDs.map(i => {
+				return textModel._getTrackedRange(i);
+			}).filter(r => !!r).map((range,) => {
+				return new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);
+			});
+			cell.setSelections(newTrackedSelections ?? []);
 		}); // end of cells forEach
-
-	}
-
-	private getLineCommentEditOperationBuilder(command: ICommand, ctx: IExecContext): ICommandData {
-		// This method acts as a transaction, if the command fails
-		// everything it has done is ignored
-		const operations: IIdentifiedSingleEditOperation[] = [];
-		let operationMinor = 0;
-
-		const addEditOperation = (range: IRange, text: string | null, forceMoveMarkers: boolean = false) => {
-			if (Range.isEmpty(range) && text === '') {
-				// This command wants to add a no-op => no thank you
-				return;
-			}
-			operations.push({
-				identifier: {
-					major: 0,
-					minor: operationMinor++
-				},
-				range: range,
-				text: text,
-				forceMoveMarkers: forceMoveMarkers,
-				isAutoWhitespaceEdit: command.insertsAutoWhitespace
-			});
-		};
-
-		let hadTrackedEditOperation = false;
-		const addTrackedEditOperation = (selection: IRange, text: string | null, forceMoveMarkers?: boolean) => {
-			hadTrackedEditOperation = true;
-			addEditOperation(selection, text, forceMoveMarkers);
-		};
-
-		const trackSelection = (_selection: ISelection, trackPreviousOnEmpty?: boolean) => {
-			const selection = Selection.liftSelection(_selection);
-			let stickiness: TrackedRangeStickiness;
-			if (selection.isEmpty()) {
-				if (typeof trackPreviousOnEmpty === 'boolean') {
-					if (trackPreviousOnEmpty) {
-						stickiness = TrackedRangeStickiness.GrowsOnlyWhenTypingBefore;
-					} else {
-						stickiness = TrackedRangeStickiness.GrowsOnlyWhenTypingAfter;
-					}
-				} else {
-					// Try to lock it with surrounding text
-					const maxLineColumn = ctx.model.getLineMaxColumn(selection.startLineNumber);
-					if (selection.startColumn === maxLineColumn) {
-						stickiness = TrackedRangeStickiness.GrowsOnlyWhenTypingBefore;
-					} else {
-						stickiness = TrackedRangeStickiness.GrowsOnlyWhenTypingAfter;
-					}
-				}
-			} else {
-				stickiness = TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges;
-			}
-
-			const l = ctx.trackedRanges.length;
-			const id = ctx.model._setTrackedRange(null, selection, stickiness);
-			ctx.trackedRanges[l] = id;
-			ctx.trackedRangesDirection[l] = selection.getDirection();
-			return l.toString();
-		};
-
-		const editOperationBuilder: IEditOperationBuilder = {
-			addEditOperation: addEditOperation,
-			addTrackedEditOperation: addTrackedEditOperation,
-			trackSelection: trackSelection
-		};
-
-		try {
-			command.getEditOperations(ctx.model, editOperationBuilder);
-		} catch (e) {
-			// TODO@Alex use notification service if this should be user facing
-			// e.friendlyMessage = nls.localize('corrupt.commands', "Unexpected exception while executing command.");
-			onUnexpectedError(e);
-			return {
-				operations: [],
-				hadTrackedEditOperation: false
-			};
-		}
-
-		return {
-			operations: operations,
-			hadTrackedEditOperation: hadTrackedEditOperation
-		};
 	}
 
 });
