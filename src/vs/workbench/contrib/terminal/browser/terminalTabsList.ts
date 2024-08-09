@@ -328,7 +328,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 
 		template.element.classList.toggle('has-text', hasText);
 		template.element.classList.toggle('is-active', this._terminalGroupService.activeInstance === instance);
-
+		template.element.setAttribute('id', `terminal-tab-instance-${instance.instanceId}`);
 		let prefix: string = '';
 		if (group.terminalInstances.length > 1) {
 			const terminalIndex = group.terminalInstances.indexOf(instance);
