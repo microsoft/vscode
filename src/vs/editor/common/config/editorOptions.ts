@@ -2934,6 +2934,12 @@ export interface IEditorInlayHintsOptions {
 	fontFamily?: string;
 
 	/**
+	 * Debounce delay in milliseconds for when inlay hints will update after you stop typing.
+	 * Defaults to 1250ms.
+	 */
+	typingDebounceDelay?: number;
+
+  /**
 	 * Enables the padding around the inlay hint.
 	 * Defaults to false.
 	 */
@@ -2948,7 +2954,8 @@ export type EditorInlayHintsOptions = Readonly<Required<IEditorInlayHintsOptions
 class EditorInlayHints extends BaseEditorOption<EditorOption.inlayHints, IEditorInlayHintsOptions, EditorInlayHintsOptions> {
 
 	constructor() {
-		const defaults: EditorInlayHintsOptions = { enabled: 'on', fontSize: 0, fontFamily: '', padding: false };
+		const defaults: EditorInlayHintsOptions = { enabled: 'on', fontSize: 0, fontFamily: '', padding: false, typingDebounceDelay: 1250 };
+
 		super(
 			EditorOption.inlayHints, 'inlayHints', defaults,
 			{
@@ -2974,6 +2981,13 @@ class EditorInlayHints extends BaseEditorOption<EditorOption.inlayHints, IEditor
 					default: defaults.fontFamily,
 					markdownDescription: nls.localize('inlayHints.fontFamily', "Controls font family of inlay hints in the editor. When set to empty, the {0} is used.", '`#editor.fontFamily#`')
 				},
+				'editor.inlayHints.typingDebounceDelay': {
+					type: 'number',
+					minimum: 0,
+					maximum: 3000,
+					default: defaults.typingDebounceDelay,
+					markdownDescription: nls.localize('inlayHints.typingDebounceDelay', "Debounce delay in milliseconds for when inlay hints will update after you stop typing.")
+				},
 				'editor.inlayHints.padding': {
 					type: 'boolean',
 					default: defaults.padding,
@@ -2995,6 +3009,7 @@ class EditorInlayHints extends BaseEditorOption<EditorOption.inlayHints, IEditor
 			enabled: stringSet<'on' | 'off' | 'offUnlessPressed' | 'onUnlessPressed'>(input.enabled, this.defaultValue.enabled, ['on', 'off', 'offUnlessPressed', 'onUnlessPressed']),
 			fontSize: EditorIntOption.clampedInt(input.fontSize, this.defaultValue.fontSize, 0, 100),
 			fontFamily: EditorStringOption.string(input.fontFamily, this.defaultValue.fontFamily),
+			typingDebounceDelay: EditorIntOption.clampedInt(input.typingDebounceDelay, this.defaultValue.typingDebounceDelay, 0, 3000),
 			padding: boolean(input.padding, this.defaultValue.padding)
 		};
 	}
