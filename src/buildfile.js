@@ -24,17 +24,19 @@ function createModuleDescription(name, exclude) {
 
 /**
  * @param {string} name
+ * @param {boolean?} noEsmSuffix
  */
-function createEditorWorkerModuleDescription(name) {
+function createEditorWorkerModuleDescription(name, noEsmSuffix) {
 	const amdVariant = createModuleDescription(name, ['vs/base/common/worker/simpleWorker', 'vs/editor/common/services/editorSimpleWorker']);
 
 	// markAsAMD
 	amdVariant.target = 'amd';
 
-	const esmVariant = { ...amdVariant };
+	const esmVariant = { ...amdVariant, dest: undefined };
 	esmVariant.target = 'esm';
-	esmVariant.name = `${esmVariant.name}.esm`;
-	delete esmVariant.dest;
+	if (!noEsmSuffix) {
+		esmVariant.name = `${esmVariant.name}.esm`;
+	}
 
 	return [amdVariant, esmVariant];
 }
@@ -69,8 +71,8 @@ exports.workerLocalFileSearch = createEditorWorkerModuleDescription('vs/workbenc
 exports.workerProfileAnalysis = createEditorWorkerModuleDescription('vs/platform/profiling/electron-sandbox/profileAnalysisWorker');
 
 exports.workbenchDesktop = [
-	...createEditorWorkerModuleDescription('vs/workbench/contrib/output/common/outputLinkComputer'),
-	...createEditorWorkerModuleDescription('vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker'),
+	...createEditorWorkerModuleDescription('vs/workbench/contrib/output/common/outputLinkComputer', true),
+	...createEditorWorkerModuleDescription('vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker', true),
 	createModuleDescription('vs/workbench/contrib/debug/node/telemetryApp'),
 	createModuleDescription('vs/platform/files/node/watcher/watcherMain'),
 	createModuleDescription('vs/platform/terminal/node/ptyHostMain'),
@@ -79,8 +81,8 @@ exports.workbenchDesktop = [
 ];
 
 exports.workbenchWeb = [
-	...createEditorWorkerModuleDescription('vs/workbench/contrib/output/common/outputLinkComputer'),
-	...createEditorWorkerModuleDescription('vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker'),
+	...createEditorWorkerModuleDescription('vs/workbench/contrib/output/common/outputLinkComputer', true),
+	...createEditorWorkerModuleDescription('vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker', true),
 	createModuleDescription('vs/code/browser/workbench/workbench', ['vs/workbench/workbench.web.main'])
 ];
 
