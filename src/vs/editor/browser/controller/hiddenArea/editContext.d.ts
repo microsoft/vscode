@@ -5,7 +5,7 @@
 
 type DOMString = string;
 
-export declare class EditContext extends EventTarget {
+declare class EditContext extends EventTarget {
 	constructor(options?: EditContextInit);
 
 	updateText(rangeStart: number, rangeEnd: number, text: string): void;

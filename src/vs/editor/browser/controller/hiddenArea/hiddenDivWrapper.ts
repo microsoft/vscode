@@ -13,7 +13,6 @@ import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { createFastDomNode, FastDomNode } from 'vs/base/browser/fastDomNode';
-import { EditContext, EditContextEventHandlersEventMap, TextFormatUpdateEvent } from 'vs/editor/browser/controller/hiddenArea/editContext';
 
 export namespace NativeAreaSyntethicEvents {
 	export const Tap = '-monaco-textarea-synthetic-tap';
