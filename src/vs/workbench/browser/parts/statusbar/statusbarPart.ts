@@ -597,7 +597,14 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 
 				/* Status bar focus outline */
 				.monaco-workbench .part.statusbar:focus {
-					outline-color: ${statusBarFocusColor};
+					outline: 0;
+					border: 1px solid ${statusBarFocusColor};
+					-webkit-border-bottom-right-radius: 10px;
+					-webkit-border-bottom-left-radius: 10px;
+					-moz-border-radius-bottomright: 10px;
+					-moz-border-radius-bottomleft: 10px;
+					border-bottom-right-radius: 10px;
+					border-bottom-left-radius: 10px;
 				}
 
 				/* Status bar item focus outline */
