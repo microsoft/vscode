@@ -138,6 +138,8 @@ export class ResultCodeEditorView extends CodeEditorView {
 		const textModel = model.resultTextModel;
 		const result = new Array<IModelDeltaDecoration>();
 
+		const showOnlyConflictingChangesInOverviewRulers = this.showOnlyConflictingChangesInOverviewRulers.read(reader);
+
 		const baseRangeWithStoreAndTouchingDiffs = join(
 			model.modifiedBaseRanges.read(reader),
 			model.baseResultDiffs.read(reader),
@@ -189,7 +191,7 @@ export class ResultCodeEditorView extends CodeEditorView {
 							position: MinimapPosition.Gutter,
 							color: { id: isHandled ? handledConflictMinimapOverViewRulerColor : unhandledConflictMinimapOverViewRulerColor },
 						},
-						overviewRuler: modifiedBaseRange.isConflicting ? {
+						overviewRuler: (modifiedBaseRange.isConflicting || !showOnlyConflictingChangesInOverviewRulers) ? {
 							position: OverviewRulerLane.Center,
 							color: { id: isHandled ? handledConflictMinimapOverViewRulerColor : unhandledConflictMinimapOverViewRulerColor },
 						} : undefined
