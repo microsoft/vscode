@@ -135,9 +135,11 @@
 }
 
 .quick-input-message {
-	margin-top: -1px;
+	position: absolute;
+	margin-top: 24px;
 	padding: 5px;
 	overflow-wrap: break-word;
+	width: calc(100% - 17px);
 }
 
 .quick-input-message > .codicon {
