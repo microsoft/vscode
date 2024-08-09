@@ -647,8 +647,8 @@ registerAction2(class CommentSelectedCellsAction extends NotebookMultiCellAction
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCommandContext): Promise<void> {
 		const languageConfigurationService = accessor.get(ILanguageConfigurationService);
 
-		context.selectedCells.forEach(async cell => {
-			const cellTextModel = cell.model;
+		context.selectedCells.forEach(async cellViewModel => {
+			const cellTextModel = cellViewModel.model;
 			if (!cellTextModel) {
 				return;
 			}
@@ -656,10 +656,10 @@ registerAction2(class CommentSelectedCellsAction extends NotebookMultiCellAction
 
 			let textModel: ITextModel | TextModel | undefined = cellTextModel.textModel;
 			if (!textModel) {
-				textModel = await cell.resolveTextModel();
+				textModel = await cellViewModel.resolveTextModel();
 			}
 
-			const commentsOptions = cell.commentOptions;
+			const commentsOptions = cellViewModel.commentOptions;
 			const cellCommentCommand = new LineCommentCommand(
 				languageConfigurationService,
 				new Selection(1, 1, textBuffer.getLineCount(), textBuffer.getLineLength(textBuffer.getLineCount())), // comment the entire cell
@@ -671,7 +671,7 @@ registerAction2(class CommentSelectedCellsAction extends NotebookMultiCellAction
 			);
 
 			// store any selections that are in the cell, allows them to be shifted by comments and preserved
-			const cellEditorSelections = cell.getSelections();
+			const cellEditorSelections = cellViewModel.getSelections();
 			const initialTrackedRangesIDs: string[] = cellEditorSelections.map(selection => {
 				return textModel._setTrackedRange(null, selection, TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges);
 			});
@@ -683,7 +683,7 @@ registerAction2(class CommentSelectedCellsAction extends NotebookMultiCellAction
 			}).filter(r => !!r).map((range,) => {
 				return new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);
 			});
-			cell.setSelections(newTrackedSelections ?? []);
+			cellViewModel.setSelections(newTrackedSelections ?? []);
 		}); // end of cells forEach
 	}
 
