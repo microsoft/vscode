@@ -353,6 +353,8 @@
 
 .cell-comment-container.review-widget {
 	border-left: 1px solid var(--vscode-peekView-border); border-right: 1px solid var(--vscode-peekView-border);
+	/* Restore text-wrap to default value to avoid inheriting nowrap from monaco-list. */
+	text-wrap: initial;
 }
 
 .cell-comment-container.review-widget > .head {
