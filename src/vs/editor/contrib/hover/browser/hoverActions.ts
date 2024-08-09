@@ -14,7 +14,7 @@ import { GotoDefinitionAtPositionEditorContribution } from 'vs/editor/contrib/go
 import { HoverStartMode, HoverStartSource } from 'vs/editor/contrib/hover/browser/hoverOperation';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { HoverController } from 'vs/editor/contrib/hover/browser/hoverController';
+import { ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHoverController2';
 import { HoverVerbosityAction } from 'vs/editor/common/languages';
 import * as nls from 'vs/nls';
 import 'vs/css!./hover';
@@ -74,7 +74,7 @@ export class ShowOrFocusHoverAction extends EditorAction {
 			return;
 		}
 
-		const controller = HoverController.get(editor);
+		const controller = ContentHoverController.get(editor);
 		if (!controller) {
 			return;
 		}
@@ -128,7 +128,7 @@ export class ShowDefinitionPreviewHoverAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const controller = HoverController.get(editor);
+		const controller = ContentHoverController.get(editor);
 		if (!controller) {
 			return;
 		}
@@ -176,7 +176,7 @@ export class ScrollUpHoverAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const controller = HoverController.get(editor);
+		const controller = ContentHoverController.get(editor);
 		if (!controller) {
 			return;
 		}
@@ -209,7 +209,7 @@ export class ScrollDownHoverAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const controller = HoverController.get(editor);
+		const controller = ContentHoverController.get(editor);
 		if (!controller) {
 			return;
 		}
@@ -242,7 +242,7 @@ export class ScrollLeftHoverAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const controller = HoverController.get(editor);
+		const controller = ContentHoverController.get(editor);
 		if (!controller) {
 			return;
 		}
@@ -275,7 +275,7 @@ export class ScrollRightHoverAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const controller = HoverController.get(editor);
+		const controller = ContentHoverController.get(editor);
 		if (!controller) {
 			return;
 		}
@@ -309,7 +309,7 @@ export class PageUpHoverAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const controller = HoverController.get(editor);
+		const controller = ContentHoverController.get(editor);
 		if (!controller) {
 			return;
 		}
@@ -343,7 +343,7 @@ export class PageDownHoverAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const controller = HoverController.get(editor);
+		const controller = ContentHoverController.get(editor);
 		if (!controller) {
 			return;
 		}
@@ -377,7 +377,7 @@ export class GoToTopHoverAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const controller = HoverController.get(editor);
+		const controller = ContentHoverController.get(editor);
 		if (!controller) {
 			return;
 		}
@@ -412,7 +412,7 @@ export class GoToBottomHoverAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const controller = HoverController.get(editor);
+		const controller = ContentHoverController.get(editor);
 		if (!controller) {
 			return;
 		}
@@ -432,7 +432,7 @@ export class IncreaseHoverVerbosityLevel extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor, args?: { index: number; focus: boolean }): void {
-		const hoverController = HoverController.get(editor);
+		const hoverController = ContentHoverController.get(editor);
 		if (!hoverController) {
 			return;
 		}
@@ -453,11 +453,11 @@ export class DecreaseHoverVerbosityLevel extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor, args?: { index: number; focus: boolean }): void {
-		const hoverController = HoverController.get(editor);
+		const hoverController = ContentHoverController.get(editor);
 		if (!hoverController) {
 			return;
 		}
 		const index = args?.index !== undefined ? args.index : hoverController.focusedHoverPartIndex();
-		HoverController.get(editor)?.updateHoverVerbosityLevel(HoverVerbosityAction.Decrease, index, args?.focus);
+		ContentHoverController.get(editor)?.updateHoverVerbosityLevel(HoverVerbosityAction.Decrease, index, args?.focus);
 	}
 }

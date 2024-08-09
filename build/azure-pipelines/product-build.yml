@@ -316,17 +316,21 @@ extends:
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                       VSCODE_BUILD_WIN32_ARM64: ${{ parameters.VSCODE_BUILD_WIN32_ARM64 }}
 
-      - stage: CustomSDL
-        dependsOn: []
-        pool:
-          name: 1es-windows-2019-x64
-          os: windows
-        jobs:
-          - job: WindowsSDL
-            variables:
-              - group: 'API Scan'
-            steps:
-              - template: build/azure-pipelines/sdl-scan.yml@self
+      - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_COMPILE_ONLY, false)) }}:
+        - stage: CustomSDL
+          dependsOn: []
+          pool:
+            name: 1es-windows-2019-x64
+            os: windows
+          jobs:
+            - job: WindowsSDL
+              variables:
+                - group: 'API Scan'
+              steps:
+                - template: build/azure-pipelines/win32/sdl-scan-win32.yml@self
+                  parameters:
+                    VSCODE_ARCH: x64
+                    VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
 
       - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_WINDOWS'], true)) }}:
         - stage: Windows

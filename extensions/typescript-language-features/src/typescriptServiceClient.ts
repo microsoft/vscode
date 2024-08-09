@@ -30,6 +30,7 @@ import { TypeScriptVersionManager } from './tsServer/versionManager';
 import { ITypeScriptVersionProvider, TypeScriptVersion } from './tsServer/versionProvider';
 import { ClientCapabilities, ClientCapability, ExecConfig, ITypeScriptServiceClient, ServerResponse, TypeScriptRequests } from './typescriptService';
 import { Disposable, DisposableStore, disposeAll } from './utils/dispose';
+import { hash } from './utils/hash';
 import { isWeb, isWebAndHasSharedArrayBuffers } from './utils/platform';
 
 
@@ -424,22 +425,33 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this.serverState = new ServerState.Running(handle, apiVersion, undefined, true);
 		this.lastStart = Date.now();
 
-		const hasGlobalPlugins = this.pluginManager.plugins.length > 0;
+
+		/* __GDPR__FRAGMENT__
+			"TypeScriptServerEnvCommonProperties" : {
+				"hasGlobalPlugins": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"globalPluginNameHashes": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
+		const typeScriptServerEnvCommonProperties = {
+			hasGlobalPlugins: this.pluginManager.plugins.length > 0,
+			globalPluginNameHashes: JSON.stringify(this.pluginManager.plugins.map(plugin => hash(plugin.name))),
+		};
+
 		/* __GDPR__
 			"tsserver.spawned" : {
 				"owner": "mjbvz",
 				"${include}": [
-					"${TypeScriptCommonProperties}"
+					"${TypeScriptCommonProperties}",
+					"${TypeScriptServerEnvCommonProperties}"
 				],
 				"localTypeScriptVersion": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"typeScriptVersionSource": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"hasGlobalPlugins": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				"typeScriptVersionSource": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 			}
 		*/
 		this.logTelemetry('tsserver.spawned', {
+			...typeScriptServerEnvCommonProperties,
 			localTypeScriptVersion: this.versionProvider.localVersion ? this.versionProvider.localVersion.displayName : '',
 			typeScriptVersionSource: version.source,
-			hasGlobalPlugins,
 		});
 
 		handle.onError((err: Error) => {
@@ -462,12 +474,14 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				"tsserver.error" : {
 					"owner": "mjbvz",
 					"${include}": [
-						"${TypeScriptCommonProperties}"
-					],
-					"hasGlobalPlugins": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						"${TypeScriptCommonProperties}",
+						"${TypeScriptServerEnvCommonProperties}"
+					]
 				}
 			*/
-			this.logTelemetry('tsserver.error', { hasGlobalPlugins });
+			this.logTelemetry('tsserver.error', {
+				...typeScriptServerEnvCommonProperties
+			});
 			this.serviceExited(false, apiVersion);
 		});
 
@@ -481,17 +495,17 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				"tsserver.exitWithCode" : {
 					"owner": "mjbvz",
 					"${include}": [
-						"${TypeScriptCommonProperties}"
+						"${TypeScriptCommonProperties}",
+						"${TypeScriptServerEnvCommonProperties}"
 					],
 					"code" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-					"signal" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-					"hasGlobalPlugins": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					"signal" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 				}
 			*/
 			this.logTelemetry('tsserver.exitWithCode', {
+				...typeScriptServerEnvCommonProperties,
 				code: code ?? undefined,
 				signal: signal ?? undefined,
-				hasGlobalPlugins,
 			});
 
 			if (this.token !== mytoken) {
@@ -1068,7 +1082,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 							const resource = this.toResource(fileData.file);
 							return {
 								...fileData,
-								lineCount: this.bufferSyncSupport.lineCount(resource),
+								fileLineCount: this.bufferSyncSupport.lineCount(resource),
 							};
 						})
 					);
@@ -1194,6 +1208,8 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				break;
 			}
 		}
+
+		// Add plugin data here
 		if (telemetryData.telemetryEventName === 'projectInfo') {
 			if (this.serverState.type === ServerState.Type.Running) {
 				this.serverState.updateTsserverVersion(properties['version']);

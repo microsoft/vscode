@@ -668,7 +668,11 @@ class TerminalTabsDragAndDrop extends Disposable implements IListDragAndDrop<ITe
 			for (const uri of resources) {
 				const instance = this._terminalService.getInstanceFromResource(uri);
 				if (instance) {
-					sourceInstances = [instance];
+					if (Array.isArray(sourceInstances)) {
+						sourceInstances.push(instance);
+					} else {
+						sourceInstances = [instance];
+					}
 					this._terminalService.moveToTerminalView(instance);
 				} else if (this._primaryBackend) {
 					const terminalIdentifier = parseTerminalUri(uri);
@@ -712,19 +716,13 @@ class TerminalTabsDragAndDrop extends Disposable implements IListDragAndDrop<ITe
 		}
 
 		if (!targetInstance) {
-			this._terminalGroupService.moveGroupToEnd(sourceInstances[0]);
+			this._terminalGroupService.moveGroupToEnd(sourceInstances);
 			this._terminalService.setActiveInstance(sourceInstances[0]);
 			return;
 		}
 
-		let focused = false;
-		for (const instance of sourceInstances) {
-			this._terminalGroupService.moveGroup(instance, targetInstance);
-			if (!focused) {
-				this._terminalService.setActiveInstance(instance);
-				focused = true;
-			}
-		}
+		this._terminalGroupService.moveGroup(sourceInstances, targetInstance);
+		this._terminalService.setActiveInstance(sourceInstances[0]);
 	}
 
 	private async _handleExternalDrop(instance: ITerminalInstance | undefined, e: DragEvent) {

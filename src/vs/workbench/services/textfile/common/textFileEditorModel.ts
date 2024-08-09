@@ -1104,8 +1104,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		this.logService.info(`Adjusting encoding based on configured language override to '${encoding}' for ${this.resource.toString(true)}.`);
 
-		// Re-open with new encoding
-		return this.setEncodingInternal(encoding, EncodingMode.Decode);
+		// Force resolve to pick up the new encoding
+		return this.forceResolveFromFile();
 	}
 
 	private hasEncodingSetExplicitly: boolean = false;

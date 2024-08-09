@@ -11,7 +11,7 @@ import { IAction } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { marked } from 'vs/base/common/marked/marked';
+import * as marked from 'vs/base/common/marked/marked';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
@@ -392,7 +392,7 @@ export class AccessibleView extends Disposable {
 			// Symbols haven't been provided and we cannot parse this language
 			return;
 		}
-		const markdownTokens: marked.TokensList | undefined = marked.lexer(this._currentContent);
+		const markdownTokens: marked.TokensList | undefined = marked.marked.lexer(this._currentContent);
 		if (!markdownTokens) {
 			return;
 		}
@@ -448,12 +448,12 @@ export class AccessibleView extends Disposable {
 						label = token.text;
 						break;
 					case 'list': {
-						const firstItem = token.items?.[0];
+						const firstItem = (token as marked.Tokens.List).items[0];
 						if (!firstItem) {
 							break;
 						}
 						firstListItem = `- ${firstItem.text}`;
-						label = token.items?.map(i => i.text).join(', ');
+						label = (token as marked.Tokens.List).items.map(i => i.text).join(', ');
 						break;
 					}
 				}

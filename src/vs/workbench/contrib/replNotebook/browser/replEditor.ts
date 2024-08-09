@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/interactive';
-// eslint-disable-next-line local/code-translation-remind
 import * as nls from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -61,7 +60,8 @@ import { EXECUTE_REPL_COMMAND_ID, REPL_EDITOR_ID } from 'vs/workbench/contrib/no
 import 'vs/css!./interactiveEditor';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { deepClone } from 'vs/base/common/objects';
-import { HoverController } from 'vs/editor/contrib/hover/browser/hoverController';
+import { MarginHoverController } from 'vs/editor/contrib/hover/browser/marginHoverController';
+import { ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHoverController2';
 import { ReplEditorInput } from 'vs/workbench/contrib/replNotebook/browser/replEditorInput';
 
 const DECORATION_KEY = 'interactiveInputDecoration';
@@ -378,7 +378,8 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 			cellEditorContributions: EditorExtensionsRegistry.getSomeEditorContributions([
 				SelectionClipboardContributionID,
 				ContextMenuController.ID,
-				HoverController.ID,
+				ContentHoverController.ID,
+				MarginHoverController.ID,
 				MarkerController.ID
 			]),
 			options: this._notebookOptions,
@@ -396,7 +397,8 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 					ParameterHintsController.ID,
 					SnippetController2.ID,
 					TabCompletionController.ID,
-					HoverController.ID,
+					ContentHoverController.ID,
+					MarginHoverController.ID,
 					MarkerController.ID
 				])
 			}
