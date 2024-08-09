@@ -18,6 +18,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IEditorIdentifier, IResourceMergeEditorInput } from 'vs/workbench/common/editor';
 import { MergeEditorInput, MergeEditorInputData } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
 import { IMergeEditorInputModel } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInputModel';
+import { ActionsSource, IContentWidgetActionType } from 'vs/workbench/contrib/mergeEditor/browser/view/conflictActions';
 import { MergeEditor } from 'vs/workbench/contrib/mergeEditor/browser/view/mergeEditor';
 import { MergeEditorViewModel } from 'vs/workbench/contrib/mergeEditor/browser/view/viewModel';
 import { ctxIsMergeEditor, ctxMergeEditorLayout, ctxMergeEditorShowBase, ctxMergeEditorShowBaseAtTop, ctxMergeEditorShowNonConflictingChanges, StorageCloseWithConflicts } from 'vs/workbench/contrib/mergeEditor/common/mergeEditor';
@@ -574,6 +575,42 @@ export class ResetCloseWithConflictsChoice extends Action2 {
 	}
 	run(accessor: ServicesAccessor): void {
 		accessor.get(IStorageService).remove(StorageCloseWithConflicts, StorageScope.PROFILE);
+	}
+}
+
+export class AcceptAllCombination extends MergeEditorAction2 {
+	constructor() {
+		super({
+			id: 'mergeEditor.acceptAllCombination',
+			category: mergeEditorCategory,
+			title: localize2('mergeEditor.acceptAllCombination', "Accept All Combination"),
+			f1: true,
+		});
+	}
+
+	override async runWithMergeEditor(context: MergeEditorAction2Args, accessor: ServicesAccessor, ...args: any[]) {
+		const { viewModel } = context;
+		const modifiedBaseRanges = viewModel.model.modifiedBaseRanges.get();
+		for (const m of modifiedBaseRanges.filter(i => i.canBeCombined)) {
+			const actions = new ActionsSource(viewModel, m);
+			const item1 = actions.itemsInput1;
+			const item2 = actions.itemsInput2;
+			const actualItem1 = item1.get().filter(i => i.type === IContentWidgetActionType.ACCEPT_BOTH);
+			for (const item of actualItem1) {
+				if (item.action) {
+					await item.action();
+				}
+			}
+			const actualItem2 = item2.get().filter(i => i.type === IContentWidgetActionType.ACCEPT_BOTH);
+			for (const item of actualItem2) {
+				if (item.action) {
+					await item.action();
+				}
+			}
+		}
+
+		return { success: true };
+
 	}
 }
 

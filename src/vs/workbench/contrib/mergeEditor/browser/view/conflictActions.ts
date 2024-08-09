@@ -129,7 +129,7 @@ export class ActionsSource {
 								);
 								model.telemetry.reportAcceptInvoked(inputNumber, state.includesInput(otherInputNumber));
 							});
-						}, localize('acceptTooltip', "Accept {0} in the result document.", inputData.title))
+						}, localize('acceptTooltip', "Accept {0} in the result document.", inputData.title), IContentWidgetActionType.ACCEPT)
 					);
 
 					if (modifiedBaseRange.canBeCombined) {
@@ -150,7 +150,7 @@ export class ActionsSource {
 									);
 									model.telemetry.reportSmartCombinationInvoked(state.includesInput(otherInputNumber));
 								});
-							}, localize('acceptBothTooltip', "Accept an automatic combination of both sides in the result document.")),
+							}, localize('acceptBothTooltip', "Accept an automatic combination of both sides in the result document."), IContentWidgetActionType.ACCEPT_BOTH),
 						);
 					}
 				} else {
@@ -165,7 +165,7 @@ export class ActionsSource {
 								);
 								model.telemetry.reportAcceptInvoked(inputNumber, state.includesInput(otherInputNumber));
 							});
-						}, localize('appendTooltip', "Append {0} to the result document.", inputData.title))
+						}, localize('appendTooltip', "Append {0} to the result document.", inputData.title), IContentWidgetActionType.APPEND)
 					);
 
 					if (modifiedBaseRange.canBeCombined) {
@@ -180,7 +180,7 @@ export class ActionsSource {
 									);
 									model.telemetry.reportSmartCombinationInvoked(state.includesInput(otherInputNumber));
 								});
-							}, localize('acceptBothTooltip', "Accept an automatic combination of both sides in the result document.")),
+							}, localize('acceptBothTooltip', "Accept an automatic combination of both sides in the result document."), IContentWidgetActionType.ACCEPT_BOTH),
 						);
 					}
 				}
@@ -194,7 +194,8 @@ export class ActionsSource {
 									model.setInputHandled(modifiedBaseRange, inputNumber, true, tx);
 								});
 							},
-							localize('markAsHandledTooltip', "Don't take this side of the conflict.")
+							localize('markAsHandledTooltip', "Don't take this side of the conflict."),
+							IContentWidgetActionType.IGNORE,
 						)
 					);
 				}
@@ -251,6 +252,7 @@ export class ActionsSource {
 			stateToggles.push(
 				command(
 					localize('remove', 'Remove {0}', model.input1.title),
+
 					async () => {
 						transaction((tx) => {
 							model.setState(
@@ -262,7 +264,8 @@ export class ActionsSource {
 							model.telemetry.reportRemoveInvoked(1, state.includesInput(2));
 						});
 					},
-					localize('removeTooltip', 'Remove {0} from the result document.', model.input1.title)
+					localize('removeTooltip', 'Remove {0} from the result document.', model.input1.title),
+					IContentWidgetActionType.REMOVE,
 				)
 			);
 		}
@@ -281,7 +284,8 @@ export class ActionsSource {
 							model.telemetry.reportRemoveInvoked(2, state.includesInput(1));
 						});
 					},
-					localize('removeTooltip', 'Remove {0} from the result document.', model.input2.title)
+					localize('removeTooltip', 'Remove {0} from the result document.', model.input2.title),
+					IContentWidgetActionType.REMOVE,
 				)
 			);
 		}
@@ -297,6 +301,7 @@ export class ActionsSource {
 			result.push(
 				command(
 					localize('resetToBase', 'Reset to base'),
+
 					async () => {
 						transaction((tx) => {
 							model.setState(
@@ -308,7 +313,8 @@ export class ActionsSource {
 							model.telemetry.reportResetToBaseInvoked();
 						});
 					},
-					localize('resetToBaseTooltip', 'Reset this conflict to the common ancestor of both the right and left changes.')
+					localize('resetToBaseTooltip', 'Reset this conflict to the common ancestor of both the right and left changes.'),
+					IContentWidgetActionType.RESET_TO_BASE,
 				)
 			);
 		}
@@ -325,16 +331,27 @@ export class ActionsSource {
 	});
 }
 
-function command(title: string, action: () => Promise<void>, tooltip?: string): IContentWidgetAction {
+function command(title: string, action: () => Promise<void>, tooltip?: string, type?: IContentWidgetActionType,): IContentWidgetAction {
 	return {
 		text: title,
+		type,
 		action,
 		tooltip,
 	};
 }
 
+export const enum IContentWidgetActionType {
+	IGNORE,
+	REMOVE,
+	APPEND,
+	RESET_TO_BASE,
+	ACCEPT,
+	ACCEPT_BOTH
+}
+
 export interface IContentWidgetAction {
 	text: string;
+	type?: IContentWidgetActionType;
 	tooltip?: string;
 	action?: () => Promise<void>;
 }
