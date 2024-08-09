@@ -13,7 +13,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { IPointerHandlerHelper } from 'vs/editor/browser/controller/mouseHandler';
 import { PointerHandlerLastRenderData } from 'vs/editor/browser/controller/mouseTarget';
 import { PointerHandler } from 'vs/editor/browser/controller/pointerHandler';
-import { IVisibleRangeProvider, TextAreaHandler } from 'vs/editor/browser/controller/textAreaHandler';
+import { IVisibleRangeProvider } from 'vs/editor/browser/controller/editContext/textArea/textAreaHandler';
 import { IContentWidget, IContentWidgetPosition, IEditorAriaOptions, IGlyphMarginWidget, IGlyphMarginWidgetPosition, IMouseTarget, IOverlayWidget, IOverlayWidgetPosition, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBrowser';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
 import { ICommandDelegate, ViewController } from 'vs/editor/browser/view/viewController';
@@ -56,6 +56,8 @@ import { IViewModel } from 'vs/editor/common/viewModel';
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IColorTheme, getThemeTypeSelector } from 'vs/platform/theme/common/themeService';
+import { AbstractEditContext } from 'vs/editor/browser/controller/editContext/editContext';
+import { EditContextImpl } from 'vs/editor/browser/controller/editContext/impl';
 
 
 export interface IContentWidgetData {
@@ -90,7 +92,7 @@ export class View extends ViewEventHandler {
 	private readonly _viewCursors: ViewCursors;
 	private readonly _viewParts: ViewPart[];
 
-	private readonly _textAreaHandler: TextAreaHandler;
+	private readonly _textAreaHandler: AbstractEditContext;
 	private readonly _pointerHandler: PointerHandler;
 
 	// Dom nodes
@@ -126,7 +128,7 @@ export class View extends ViewEventHandler {
 		this._viewParts = [];
 
 		// Keyboard handler
-		this._textAreaHandler = this._instantiationService.createInstance(TextAreaHandler, this._context, viewController, this._createTextAreaHandlerHelper());
+		this._textAreaHandler = this._instantiationService.createInstance(EditContextImpl, this._context, viewController, this._createTextAreaHandlerHelper());
 		this._viewParts.push(this._textAreaHandler);
 
 		// These two dom nodes must be constructed up front, since references are needed in the layout provider (scrolling & co.)
@@ -222,8 +224,7 @@ export class View extends ViewEventHandler {
 		this._overflowGuardContainer.appendChild(margin.getDomNode());
 		this._overflowGuardContainer.appendChild(this._scrollbar.getDomNode());
 		this._overflowGuardContainer.appendChild(scrollDecoration.getDomNode());
-		this._overflowGuardContainer.appendChild(this._textAreaHandler.textArea);
-		this._overflowGuardContainer.appendChild(this._textAreaHandler.textAreaCover);
+		this._textAreaHandler.appendTo(this._overflowGuardContainer);
 		this._overflowGuardContainer.appendChild(this._overlayWidgets.getDomNode());
 		this._overflowGuardContainer.appendChild(minimap.getDomNode());
 		this._overflowGuardContainer.appendChild(blockOutline.domNode);
@@ -286,12 +287,14 @@ export class View extends ViewEventHandler {
 			},
 
 			dispatchTextAreaEvent: (event: CustomEvent) => {
-				this._textAreaHandler.textArea.domNode.dispatchEvent(event);
+				// TODO
+				// this._textAreaHandler.textArea.domNode.dispatchEvent(event);
 			},
 
 			getLastRenderData: (): PointerHandlerLastRenderData => {
 				const lastViewCursorsRenderData = this._viewCursors.getLastRenderData() || [];
-				const lastTextareaPosition = this._textAreaHandler.getLastRenderData();
+				// TODO
+				const lastTextareaPosition = null; // this._textAreaHandler.getLastRenderData();
 				return new PointerHandlerLastRenderData(lastViewCursorsRenderData, lastTextareaPosition);
 			},
 			renderNow: (): void => {

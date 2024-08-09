@@ -109,3 +109,33 @@
 	text-decoration: line-through;
 	text-decoration-color: var(--vscode-editor-foreground, inherit);
 }
+
+
+.underline {
+	text-decoration: underline;
+	text-decoration-color: var(--vscode-editor-foreground, inherit);
+
+	&.style-solid {
+		text-decoration-style: solid;
+	}
+
+	&.style-dotted {
+		text-decoration-style: dotted;
+	}
+
+	&.style-dashed {
+		text-decoration-style: dashed;
+	}
+
+	&.style-wavy, &.style-squiggle {
+		text-decoration-style: wavy;
+	}
+
+	&.thickness-thin {
+		text-decoration-thickness: thin;
+	}
+
+	&.thickness-thick {
+		text-decoration-thickness: thick;
+	}
+}

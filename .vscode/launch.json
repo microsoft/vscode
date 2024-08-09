@@ -352,7 +352,10 @@
 			"presentation": {
 				"group": "0_vscode",
 				"order": 3
-			}
+			},
+			"vscode-diagnostic-tools.debuggerScripts": [
+				"${workspaceFolder}/scripts/hot-reload-injected-script.js"
+			]
 		},
 		{
 			"type": "node",
