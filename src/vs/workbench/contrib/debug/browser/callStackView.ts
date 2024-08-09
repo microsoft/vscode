@@ -17,6 +17,7 @@ import { Action, IAction } from 'vs/base/common/actions';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
 import { Event } from 'vs/base/common/event';
+import { URI } from 'vs/base/common/uri';
 import { createMatches, FuzzyScore, IMatch } from 'vs/base/common/filters';
 import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { posix } from 'vs/base/common/path';
@@ -160,6 +161,7 @@ export class CallStackView extends ViewPane {
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService,
+		@ILabelService private readonly labelService: ILabelService,
 		@IMenuService private readonly menuService: IMenuService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
@@ -229,6 +231,7 @@ export class CallStackView extends ViewPane {
 		this.element.classList.add('debug-pane');
 		container.classList.add('debug-call-stack');
 		const treeContainer = renderViewTree(container);
+		const labelFormatter = (x: URI) => this.labelService.getUriLabel(x);
 
 		this.dataSource = new CallStackDataSource(this.debugService);
 		this.tree = <WorkbenchCompressibleAsyncDataTree<IDebugModel, CallStackItem, FuzzyScore>>this.instantiationService.createInstance(WorkbenchCompressibleAsyncDataTree, 'CallStackView', treeContainer, new CallStackDelegate(), new CallStackCompressionDelegate(this.debugService), [
@@ -262,7 +265,9 @@ export class CallStackView extends ViewPane {
 					if (e instanceof Thread) {
 						return `${e.name} ${e.stateLabel}`;
 					}
-					if (e instanceof StackFrame || typeof e === 'string') {
+					if (e instanceof StackFrame) {
+						return e.toString(labelFormatter);
+					} if (typeof e === 'string') {
 						return e;
 					}
 					if (e instanceof ThreadAndSessionIds) {
