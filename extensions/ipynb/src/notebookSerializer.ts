@@ -78,11 +78,11 @@ export class NotebookSerializer implements vscode.NotebookSerializer {
 		return data;
 	}
 
-	public serializeNotebook(data: vscode.NotebookData, _token: vscode.CancellationToken): Uint8Array {
-		return new TextEncoder().encode(this.serializeNotebookToString(data));
+	public async serializeNotebook(data: vscode.NotebookData, _token: vscode.CancellationToken): Promise<Uint8Array> {
+		return new TextEncoder().encode(await this.serializeNotebookToString(data));
 	}
 
-	public serializeNotebookToString(data: vscode.NotebookData): string {
+	public async serializeNotebookToString(data: vscode.NotebookData): Promise<string> {
 		const notebookContent = getNotebookMetadata(data);
 		// use the preferred language from document metadata or the first cell language as the notebook preferred cell language
 		const preferredCellLanguage = notebookContent.metadata?.language_info?.name ?? data.cells.find(cell => cell.kind === vscode.NotebookCellKind.Code)?.languageId;
@@ -94,8 +94,45 @@ export class NotebookSerializer implements vscode.NotebookSerializer {
 		const indentAmount = data.metadata && 'indentAmount' in data.metadata && typeof data.metadata.indentAmount === 'string' ?
 			data.metadata.indentAmount :
 			' ';
+
+		const startTime = performance.now();
+
+		// Your existing code here
+
 		// ipynb always ends with a trailing new line (we add this so that SCMs do not show unnecessary changes, resulting from a missing trailing new line).
-		return JSON.stringify(sortObjectPropertiesRecursively(notebookContent), undefined, indentAmount) + '\n';
+		const orderedObject = sortObjectPropertiesRecursively(notebookContent);
+		console.log(`Sort object - Elapsed time: ${performance.now() - startTime} milliseconds`);
+
+		const stringified = JSON.stringify(orderedObject, undefined, indentAmount) + '\n';
+		console.log(`JSON.stringify'd - Elapsed time: ${performance.now() - startTime} milliseconds`);
+
+		let result = '{\n';
+		let outerFirst = true;
+		for (const key of Object.keys(orderedObject)) {
+			if (!outerFirst) {
+				result += ',\n';
+			}
+			outerFirst = false;
+			if (key === 'cells') {
+				result += `${indentAmount}"${key}": [\n`;
+				let first = true;
+				for (const cell of orderedObject[key]) {
+					if (!first) {
+						result += ',\n';
+					}
+					first = false;
+					result += `${indentAmount}${indentAmount}${JSON.stringify(cell, undefined, indentAmount)}`;
+					await new Promise(resolve => setTimeout(resolve, 0));
+				}
+				result += `${indentAmount}]`;
+			} else {
+				result += `${indentAmount}"${key}": ${JSON.stringify(orderedObject[key], undefined, indentAmount)}`;
+			}
+		}
+		result += '}';
+		console.log(`iter stringified - Elapsed time: ${performance.now() - startTime} milliseconds`);
+
+		return result;
 	}
 }
 
