@@ -60,8 +60,9 @@ import { INTERACTIVE_WINDOW_EDITOR_ID } from 'vs/workbench/contrib/notebook/comm
 import 'vs/css!./interactiveEditor';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { deepClone } from 'vs/base/common/objects';
-import { HoverController } from 'vs/editor/contrib/hover/browser/hoverController';
 import { ReplInputHintContentWidget } from 'vs/workbench/contrib/interactive/browser/replInputHintContentWidget';
+import { ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHoverController';
+import { MarginHoverController } from 'vs/editor/contrib/hover/browser/marginHoverController';
 
 const DECORATION_KEY = 'interactiveInputDecoration';
 const INTERACTIVE_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'InteractiveEditorViewState';
@@ -382,7 +383,8 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 			cellEditorContributions: EditorExtensionsRegistry.getSomeEditorContributions([
 				SelectionClipboardContributionID,
 				ContextMenuController.ID,
-				HoverController.ID,
+				ContentHoverController.ID,
+				MarginHoverController.ID,
 				MarkerController.ID
 			]),
 			options: this._notebookOptions,
@@ -400,7 +402,8 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 					ParameterHintsController.ID,
 					SnippetController2.ID,
 					TabCompletionController.ID,
-					HoverController.ID,
+					ContentHoverController.ID,
+					MarginHoverController.ID,
 					MarkerController.ID
 				])
 			}

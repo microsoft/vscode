@@ -104,7 +104,6 @@ import { MarkdownString } from 'vs/base/common/htmlContent';
 import type { IHoverOptions, IManagedHover, IManagedHoverTooltipMarkdownString } from 'vs/base/browser/ui/hover/hover';
 import { IHoverService, WorkbenchHoverDelegate } from 'vs/platform/hover/browser/hover';
 import { OpenScmGroupAction } from 'vs/workbench/contrib/multiDiffEditor/browser/scmMultiDiffSourceResolver';
-import { HoverController } from 'vs/editor/contrib/hover/browser/hoverController';
 import { ITextModel } from 'vs/editor/common/model';
 import { autorun } from 'vs/base/common/observable';
 import { createInstantHoverDelegate, getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
@@ -116,6 +115,8 @@ import { IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/
 import { fromNow } from 'vs/base/common/date';
 import { equals } from 'vs/base/common/arrays';
 import { observableConfigValue } from 'vs/platform/observable/common/platformObservableUtils';
+import { ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHoverController';
+import { MarginHoverController } from 'vs/editor/contrib/hover/browser/marginHoverController';
 
 // type SCMResourceTreeNode = IResourceNode<ISCMResource, ISCMResourceGroup>;
 // type SCMHistoryItemChangeResourceTreeNode = IResourceNode<SCMHistoryItemChangeTreeElement, SCMHistoryItemTreeElement>;
@@ -2776,7 +2777,8 @@ class SCMInputWidget {
 				DropIntoEditorController.ID,
 				EditorDictation.ID,
 				FormatOnType.ID,
-				HoverController.ID,
+				ContentHoverController.ID,
+				MarginHoverController.ID,
 				InlineCompletionsController.ID,
 				LinkDetector.ID,
 				MenuPreventer.ID,
