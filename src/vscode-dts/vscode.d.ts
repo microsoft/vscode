@@ -6726,6 +6726,7 @@ declare module 'vscode' {
 
 		/**
 		 * The range to which this diagnostic applies.
+		 * When empty, the range of the {@link TextDocument.getWordRangeAtPosition current word} is used instead.
 		 */
 		range: Range;
 
