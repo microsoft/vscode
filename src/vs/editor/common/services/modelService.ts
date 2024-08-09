@@ -6,6 +6,7 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
+import { Lazy } from 'vs/base/common/lazy';
 import { URI } from 'vs/base/common/uri';
 import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
@@ -79,6 +80,11 @@ class DisposedModelInfo {
 	) { }
 }
 
+interface IModelVersionInfo {
+	versionId: number;
+	sha1: string;
+}
+
 export class ModelService extends Disposable implements IModelService {
 
 	public static MAX_MEMORY_FOR_CLOSED_FILES_UNDO_STACK = 20 * 1024 * 1024;
@@ -102,6 +108,7 @@ export class ModelService extends Disposable implements IModelService {
 	private readonly _models: { [modelId: string]: ModelData };
 	private readonly _disposedModels: Map<string, DisposedModelInfo>;
 	private _disposedModelsHeapSize: number;
+	private readonly _modelVersions: Map<string, IModelVersionInfo>;
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -114,6 +121,7 @@ export class ModelService extends Disposable implements IModelService {
 		this._models = {};
 		this._disposedModels = new Map<string, DisposedModelInfo>();
 		this._disposedModelsHeapSize = 0;
+		this._modelVersions = new Map<string, IModelVersionInfo>();
 
 		this._register(this._configurationService.onDidChangeConfiguration(e => this._updateModelOptions(e)));
 		this._updateModelOptions(undefined);
@@ -319,15 +327,12 @@ export class ModelService extends Disposable implements IModelService {
 			options,
 			resource
 		);
+		const lazySHA1 = this._getLazySHA1(this._getSHA1Computer(), model);
+		let restoredFromDisposedModel = false;
 		if (resource && this._disposedModels.has(MODEL_ID(resource))) {
 			const disposedModelData = this._removeDisposedModel(resource)!;
 			const elements = this._undoRedoService.getElements(resource);
-			const sha1Computer = this._getSHA1Computer();
-			const sha1IsEqual = (
-				sha1Computer.canComputeSHA1(model)
-					? sha1Computer.computeSHA1(model) === disposedModelData.sha1
-					: false
-			);
+			const sha1IsEqual = lazySHA1.value ? lazySHA1.value === disposedModelData.sha1 : false;
 			if (sha1IsEqual || disposedModelData.sharesUndoRedoStack) {
 				for (const element of elements.past) {
 					if (isEditStackElement(element) && element.matchesResource(resource)) {
@@ -344,11 +349,25 @@ export class ModelService extends Disposable implements IModelService {
 					model._overwriteVersionId(disposedModelData.versionId);
 					model._overwriteAlternativeVersionId(disposedModelData.alternativeVersionId);
 					model._overwriteInitialUndoRedoSnapshot(disposedModelData.initialUndoRedoSnapshot);
+					restoredFromDisposedModel = true;
 				}
 			} else {
 				if (disposedModelData.initialUndoRedoSnapshot !== null) {
 					this._undoRedoService.restoreSnapshot(disposedModelData.initialUndoRedoSnapshot);
 				}
+			}
+		}
+		// If the model version wasn't restored from the previously disposed model,
+		// then check if we had this document opened before and use that version.
+		if (resource && !restoredFromDisposedModel) {
+			const versionInfo = this._modelVersions.get(MODEL_ID(resource));
+			if (versionInfo !== undefined) {
+				let versionId = versionInfo.versionId;
+				if (!lazySHA1.value || versionInfo.sha1 !== lazySHA1.value) {
+					versionId += 1;
+				}
+				model._overwriteVersionId(versionId);
+				model._overwriteAlternativeVersionId(versionId);
 			}
 		}
 		const modelId = MODEL_ID(model.uri);
@@ -525,7 +544,7 @@ export class ModelService extends Disposable implements IModelService {
 		}
 
 		const maxMemory = ModelService.MAX_MEMORY_FOR_CLOSED_FILES_UNDO_STACK;
-		const sha1Computer = this._getSHA1Computer();
+		const lazySHA1 = this._getLazySHA1(this._getSHA1Computer(), model);
 		if (!maintainUndoRedoStack) {
 			if (!sharesUndoRedoStack) {
 				const initialUndoRedoSnapshot = modelData.model.getInitialUndoRedoSnapshot();
@@ -533,7 +552,7 @@ export class ModelService extends Disposable implements IModelService {
 					this._undoRedoService.restoreSnapshot(initialUndoRedoSnapshot);
 				}
 			}
-		} else if (!sharesUndoRedoStack && (heapSize > maxMemory || !sha1Computer.canComputeSHA1(model))) {
+		} else if (!sharesUndoRedoStack && (heapSize > maxMemory || !lazySHA1.value)) {
 			// the undo stack for this file would never fit in the configured memory or the file is very large, so don't bother with it.
 			const initialUndoRedoSnapshot = modelData.model.getInitialUndoRedoSnapshot();
 			if (initialUndoRedoSnapshot !== null) {
@@ -543,7 +562,11 @@ export class ModelService extends Disposable implements IModelService {
 			this._ensureDisposedModelsHeapSize(maxMemory - heapSize);
 			// We only invalidate the elements, but they remain in the undo-redo service.
 			this._undoRedoService.setElementsValidFlag(model.uri, false, (element) => (isEditStackElement(element) && element.matchesResource(model.uri)));
-			this._insertDisposedModel(new DisposedModelInfo(model.uri, modelData.model.getInitialUndoRedoSnapshot(), Date.now(), sharesUndoRedoStack, heapSize, sha1Computer.computeSHA1(model), model.getVersionId(), model.getAlternativeVersionId()));
+			this._insertDisposedModel(new DisposedModelInfo(model.uri, modelData.model.getInitialUndoRedoSnapshot(), Date.now(), sharesUndoRedoStack, heapSize, lazySHA1.value, model.getVersionId(), model.getAlternativeVersionId()));
+		}
+		// Remember the last version id for models that support undo/redo.
+		if (this._schemaShouldMaintainUndoRedoElements(model.uri)) {
+			this._modelVersions.set(MODEL_ID(model.uri), { versionId: model.getVersionId(), sha1: lazySHA1.value });
 		}
 
 		delete this._models[modelId];
@@ -566,6 +589,10 @@ export class ModelService extends Disposable implements IModelService {
 
 	protected _getSHA1Computer(): ITextModelSHA1Computer {
 		return new DefaultModelSHA1Computer();
+	}
+
+	private _getLazySHA1(computer: ITextModelSHA1Computer, model: ITextModel): Lazy<string> {
+		return new Lazy<string>(() => computer.canComputeSHA1(model) ? computer.computeSHA1(model) : '');
 	}
 }
 
