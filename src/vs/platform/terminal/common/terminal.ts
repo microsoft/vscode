@@ -134,6 +134,7 @@ export const enum PosixShellType {
 	Sh = 'sh',
 	Csh = 'csh',
 	Ksh = 'ksh',
+	NuShell = 'nu',
 	Zsh = 'zsh',
 	Python = 'python',
 	Julia = 'julia'
@@ -144,6 +145,7 @@ export const enum WindowsShellType {
 	Wsl = 'wsl',
 	GitBash = 'gitbash',
 	Python = 'python',
+	NuShell = 'nu',
 	Julia = 'julia'
 }
 export type TerminalShellType = PosixShellType | WindowsShellType;
