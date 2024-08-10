@@ -14,6 +14,7 @@ import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { FileType } from 'vs/platform/files/common/files';
 import { ILoggerResource, LogLevel } from 'vs/platform/log/common/log';
 import { PolicyDefinition, PolicyValue } from 'vs/platform/policy/common/policy';
+import product from 'vs/platform/product/common/product';
 import { IPartsSplash } from 'vs/platform/theme/common/themeService';
 import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IAnyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
@@ -226,7 +227,7 @@ export const DEFAULT_CUSTOM_TITLEBAR_HEIGHT = 35; // includes space for command 
 
 export function useWindowControlsOverlay(configurationService: IConfigurationService): boolean {
 	if (isWeb) {
-		return false; // only supported on a desktop Windows instance
+		return false; // only supported on a desktop instances
 	}
 
 	if (hasNativeTitlebar(configurationService)) {
@@ -234,7 +235,12 @@ export function useWindowControlsOverlay(configurationService: IConfigurationSer
 	}
 
 	if (isLinux) {
-		return configurationService.getValue('window.experimental.controlOverlay') === true;
+		const setting = configurationService.getValue('window.experimental.controlOverlay');
+		if (typeof setting === 'boolean') {
+			return setting;
+		}
+
+		return product.quality !== 'stable'; // disable by default in stable for now (TODO@bpasero TODO@benibenj flip when custom title is default)
 	}
 
 	// Default to true.
