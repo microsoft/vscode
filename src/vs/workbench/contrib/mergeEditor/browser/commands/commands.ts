@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { transaction } from 'vs/base/common/observable';
 import { basename } from '../../../../../base/common/resources.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../../nls.js';
@@ -18,7 +19,7 @@ import { IStorageService, StorageScope } from '../../../../../platform/storage/c
 import { IEditorIdentifier, IResourceMergeEditorInput } from '../../../../common/editor.js';
 import { MergeEditorInput, MergeEditorInputData } from '../mergeEditorInput.js';
 import { IMergeEditorInputModel } from '../mergeEditorInputModel.js';
-import { ActionsSource, IContentWidgetActionType } from 'vs/workbench/contrib/mergeEditor/browser/view/conflictActions';
+import { ModifiedBaseRangeStateKind } from 'vs/workbench/contrib/mergeEditor/browser/model/modifiedBaseRange';
 import { MergeEditor } from '../view/mergeEditor.js';
 import { MergeEditorViewModel } from '../view/viewModel.js';
 import { ctxIsMergeEditor, ctxMergeEditorLayout, ctxMergeEditorShowBase, ctxMergeEditorShowBaseAtTop, ctxMergeEditorShowNonConflictingChanges, StorageCloseWithConflicts } from '../../common/mergeEditor.js';
@@ -588,27 +589,26 @@ export class AcceptAllCombination extends MergeEditorAction2 {
 		});
 	}
 
-	override async runWithMergeEditor(context: MergeEditorAction2Args, accessor: ServicesAccessor, ...args: any[]) {
+	override runWithMergeEditor(context: MergeEditorAction2Args, accessor: ServicesAccessor, ...args: any[]) {
 		const { viewModel } = context;
 		const modifiedBaseRanges = viewModel.model.modifiedBaseRanges.get();
-		for (const m of modifiedBaseRanges.filter(i => i.canBeCombined)) {
-			const actions = new ActionsSource(viewModel, m);
-			const item1 = actions.itemsInput1;
-			const item2 = actions.itemsInput2;
-			const actualItem1 = item1.get().filter(i => i.type === IContentWidgetActionType.ACCEPT_BOTH);
-			for (const item of actualItem1) {
-				if (item.action) {
-					await item.action();
+		const model = viewModel.model;
+		transaction((tx) => {
+			for (const m of modifiedBaseRanges) {
+				const state = model.getState(m).get();
+				if (state.kind !== ModifiedBaseRangeStateKind.unrecognized && !state.isInputIncluded(1) && (!state.isInputIncluded(2) || !viewModel.shouldUseAppendInsteadOfAccept.get()) && m.canBeCombined) {
+					model.setState(
+						m,
+						state
+							.withInputValue(1, true)
+							.withInputValue(2, true, true),
+						true,
+						tx
+					);
+					model.telemetry.reportSmartCombinationInvoked(state.includesInput(2));
 				}
 			}
-			const actualItem2 = item2.get().filter(i => i.type === IContentWidgetActionType.ACCEPT_BOTH);
-			for (const item of actualItem2) {
-				if (item.action) {
-					await item.action();
-				}
-			}
-		}
-
+		});
 		return { success: true };
 
 	}
