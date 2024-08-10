@@ -240,7 +240,7 @@ import product from 'vs/platform/product/common/product';
 				'type': 'boolean',
 				'included': isLinux,
 				'markdownDescription': localize('window.experimentalControlOverlay', "Show the native window controls when {0} is set to `custom`.", '`#window.titleBarStyle#`'),
-				'default': product.quality !== 'stable', // disable by default in stable for now (TODO@bpasero TODO@benibenj flip when custom title is default)
+				'default': product.quality !== 'stable', // TODO@bpasero disable by default in stable for now (TODO@bpasero TODO@benibenj flip when custom title is default)
 			},
 			'window.customTitleBarVisibility': {
 				'type': 'string',

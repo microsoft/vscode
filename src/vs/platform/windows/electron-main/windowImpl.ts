@@ -366,7 +366,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 			this.stateService.setItem((CodeWindow.windowControlHeightStateStorageKey), options.height);
 		}
 
-		// Windows: window control overlay (WCO)
+		// Windows/Linux: window control overlay (WCO)
 		if (this.hasWindowControlOverlay) {
 			win.setTitleBarOverlay({
 				color: options.backgroundColor?.trim() === '' ? undefined : options.backgroundColor,

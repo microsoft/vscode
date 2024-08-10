@@ -227,8 +227,8 @@ export function getTitleBarStyle(configurationService: IConfigurationService): T
 export const DEFAULT_CUSTOM_TITLEBAR_HEIGHT = 35; // includes space for command center
 
 export function useWindowControlsOverlay(configurationService: IConfigurationService): boolean {
-	if (isWeb) {
-		return false; // only supported on a desktop instances
+	if (isMacintosh || isWeb) {
+		return false; // only supported on a Windows/Linux desktop instances
 	}
 
 	if (hasNativeTitlebar(configurationService)) {
