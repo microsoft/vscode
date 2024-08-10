@@ -49,7 +49,7 @@ export const CONTEXT_ACTIVE_OUTPUT_LEVEL = new RawContextKey<string>('activeLogO
 
 export const CONTEXT_ACTIVE_OUTPUT_LEVEL_IS_DEFAULT = new RawContextKey<boolean>('activeLogOutput.levelIsDefault', false);
 
-export const CONTEXT_OUTPUT_SCROLL_LOCK = new RawContextKey<boolean>(`outputView.scrollLock`, false);
+export const CONTEXT_OUTPUT_SCROLL_LOCK = new RawContextKey<boolean>(`outputView.scrollLock`, true);
 
 export const IOutputService = createDecorator<IOutputService>('outputService');
 

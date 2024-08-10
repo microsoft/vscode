@@ -28,7 +28,7 @@ const OUTPUT_ACTIVE_CHANNEL_KEY = 'output.activechannel';
 
 class OutputChannel extends Disposable implements IOutputChannel {
 
-	scrollLock: boolean = false;
+	scrollLock: boolean = true;
 	readonly model: IOutputChannelModel;
 	readonly id: string;
 	readonly label: string;
