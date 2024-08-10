@@ -13,6 +13,8 @@ const log = require("fancy-log");
 const ansiColors = require("ansi-colors");
 const crypto = require("crypto");
 const through2 = require("through2");
+const undici = require("undici");
+const process = require("process");
 function fetchUrls(urls, options) {
     if (options === undefined) {
         options = {};
@@ -43,6 +45,10 @@ async function fetchUrl(url, options, retries = 10, retryDelay = 1000) {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 30 * 1000);
         try {
+            if (process.env.https_proxy) {
+                const dispatcher = new undici.ProxyAgent({ uri: process.env.https_proxy });
+                undici.setGlobalDispatcher(dispatcher);
+            }
             const response = await fetch(url, {
                 ...options.nodeFetchOptions,
                 signal: controller.signal /* Typings issue with lib.dom.d.ts */
