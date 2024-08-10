@@ -161,6 +161,7 @@ export interface IWindowSettings {
 	readonly clickThroughInactive: boolean;
 	readonly newWindowProfile: string;
 	readonly density: IDensitySettings;
+	readonly experimentalControlOverlay?: boolean;
 }
 
 export interface IDensitySettings {
@@ -235,7 +236,7 @@ export function useWindowControlsOverlay(configurationService: IConfigurationSer
 	}
 
 	if (isLinux) {
-		const setting = configurationService.getValue('window.experimental.controlOverlay');
+		const setting = configurationService.getValue('window.experimentalControlOverlay');
 		if (typeof setting === 'boolean') {
 			return setting;
 		}

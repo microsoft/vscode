@@ -236,7 +236,7 @@ import product from 'vs/platform/product/common/product';
 				'scope': ConfigurationScope.APPLICATION,
 				'description': localize('titleBarStyle', "Adjust the appearance of the window title bar to be native by the OS or custom. On Linux and Windows, this setting also affects the application and context menu appearances. Changes require a full restart to apply."),
 			},
-			'window.experimental.controlOverlay': {
+			'window.experimentalControlOverlay': {
 				'type': 'boolean',
 				'included': isLinux,
 				'default': product.quality !== 'stable', // disable by default in stable for now (TODO@bpasero TODO@benibenj flip when custom title is default)
