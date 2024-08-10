@@ -484,8 +484,7 @@ export class SettingsEditor2 extends EditorPane {
 
 		const target: SettingsTarget | undefined = options.folderUri ?? recoveredViewState?.settingsTarget ?? <SettingsTarget | undefined>options.target;
 		if (target) {
-			this.settingsTargetsWidget.settingsTarget = target;
-			this.viewState.settingsTarget = target;
+			this.settingsTargetsWidget.updateTarget(target);
 		}
 	}
 
