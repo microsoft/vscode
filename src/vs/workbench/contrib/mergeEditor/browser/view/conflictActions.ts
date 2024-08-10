@@ -252,7 +252,6 @@ export class ActionsSource {
 			stateToggles.push(
 				command(
 					localize('remove', 'Remove {0}', model.input1.title),
-
 					async () => {
 						transaction((tx) => {
 							model.setState(
@@ -299,7 +298,6 @@ export class ActionsSource {
 			result.push(
 				command(
 					localize('resetToBase', 'Reset to base'),
-
 					async () => {
 						transaction((tx) => {
 							model.setState(
@@ -335,7 +333,6 @@ function command(title: string, action: () => Promise<void>, tooltip?: string): 
 		tooltip,
 	};
 }
-
 
 export interface IContentWidgetAction {
 	text: string;
