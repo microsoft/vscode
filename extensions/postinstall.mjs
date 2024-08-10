@@ -14,12 +14,21 @@ function processRoot() {
 		'lib',
 		'package.json',
 	]);
+
+	let index = 0;
+    	const totalFiles = fs.readdirSync(root).length;
+
 	for (const name of fs.readdirSync(root)) {
 		if (!toKeep.has(name)) {
 			const filePath = path.join(root, name);
 			console.log(`Removed ${filePath}`);
 			fs.rmSync(filePath, { recursive: true });
+
 		}
+		index++;
+		console.log(`Progress: ${(index / totalFiles * 100).toFixed(2)}%`);
+
+
 	}
 }
 
@@ -30,7 +39,8 @@ function processLib() {
 	]);
 
 	const libRoot = path.join(root, 'lib');
-
+	
+    	let index = 0;
 	for (const name of fs.readdirSync(libRoot)) {
 		if (name === 'lib.d.ts' || name.match(/^lib\..*\.d\.ts$/) || name === 'protocol.d.ts') {
 			continue;
@@ -48,6 +58,10 @@ function processLib() {
 				console.warn(e);
 			}
 		}
+		index++;
+		console.log(`Progress: ${(index / totalFiles * 100).toFixed(2)}%`);
+
+
 	}
 }
 
