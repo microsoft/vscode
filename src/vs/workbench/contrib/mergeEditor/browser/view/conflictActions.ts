@@ -130,7 +130,7 @@ export class ActionsSource {
 								);
 								model.telemetry.reportAcceptInvoked(inputNumber, state.includesInput(otherInputNumber));
 							});
-						}, localize('acceptTooltip', "Accept {0} in the result document.", inputData.title), IContentWidgetActionType.ACCEPT)
+						}, localize('acceptTooltip', "Accept {0} in the result document.", inputData.title))
 					);
 
 					if (modifiedBaseRange.canBeCombined) {
@@ -151,7 +151,7 @@ export class ActionsSource {
 									);
 									model.telemetry.reportSmartCombinationInvoked(state.includesInput(otherInputNumber));
 								});
-							}, localize('acceptBothTooltip', "Accept an automatic combination of both sides in the result document."), IContentWidgetActionType.ACCEPT_BOTH),
+							}, localize('acceptBothTooltip', "Accept an automatic combination of both sides in the result document.")),
 						);
 					}
 				} else {
@@ -166,7 +166,7 @@ export class ActionsSource {
 								);
 								model.telemetry.reportAcceptInvoked(inputNumber, state.includesInput(otherInputNumber));
 							});
-						}, localize('appendTooltip', "Append {0} to the result document.", inputData.title), IContentWidgetActionType.APPEND)
+						}, localize('appendTooltip', "Append {0} to the result document.", inputData.title))
 					);
 
 					if (modifiedBaseRange.canBeCombined) {
@@ -181,7 +181,7 @@ export class ActionsSource {
 									);
 									model.telemetry.reportSmartCombinationInvoked(state.includesInput(otherInputNumber));
 								});
-							}, localize('acceptBothTooltip', "Accept an automatic combination of both sides in the result document."), IContentWidgetActionType.ACCEPT_BOTH),
+							}, localize('acceptBothTooltip', "Accept an automatic combination of both sides in the result document.")),
 						);
 					}
 				}
@@ -195,8 +195,7 @@ export class ActionsSource {
 									model.setInputHandled(modifiedBaseRange, inputNumber, true, tx);
 								});
 							},
-							localize('markAsHandledTooltip', "Don't take this side of the conflict."),
-							IContentWidgetActionType.IGNORE,
+							localize('markAsHandledTooltip', "Don't take this side of the conflict.")
 						)
 					);
 				}
@@ -265,8 +264,7 @@ export class ActionsSource {
 							model.telemetry.reportRemoveInvoked(1, state.includesInput(2));
 						});
 					},
-					localize('removeTooltip', 'Remove {0} from the result document.', model.input1.title),
-					IContentWidgetActionType.REMOVE,
+					localize('removeTooltip', 'Remove {0} from the result document.', model.input1.title)
 				)
 			);
 		}
@@ -285,8 +283,7 @@ export class ActionsSource {
 							model.telemetry.reportRemoveInvoked(2, state.includesInput(1));
 						});
 					},
-					localize('removeTooltip', 'Remove {0} from the result document.', model.input2.title),
-					IContentWidgetActionType.REMOVE,
+					localize('removeTooltip', 'Remove {0} from the result document.', model.input2.title)
 				)
 			);
 		}
@@ -314,8 +311,7 @@ export class ActionsSource {
 							model.telemetry.reportResetToBaseInvoked();
 						});
 					},
-					localize('resetToBaseTooltip', 'Reset this conflict to the common ancestor of both the right and left changes.'),
-					IContentWidgetActionType.RESET_TO_BASE,
+					localize('resetToBaseTooltip', 'Reset this conflict to the common ancestor of both the right and left changes.')
 				)
 			);
 		}
@@ -332,27 +328,17 @@ export class ActionsSource {
 	});
 }
 
-function command(title: string, action: () => Promise<void>, tooltip?: string, type?: IContentWidgetActionType,): IContentWidgetAction {
+function command(title: string, action: () => Promise<void>, tooltip?: string): IContentWidgetAction {
 	return {
 		text: title,
-		type,
 		action,
 		tooltip,
 	};
 }
 
-export const enum IContentWidgetActionType {
-	IGNORE,
-	REMOVE,
-	APPEND,
-	RESET_TO_BASE,
-	ACCEPT,
-	ACCEPT_BOTH
-}
 
 export interface IContentWidgetAction {
 	text: string;
-	type?: IContentWidgetActionType;
 	tooltip?: string;
 	action?: () => Promise<void>;
 }
