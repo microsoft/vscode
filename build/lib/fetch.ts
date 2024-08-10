@@ -9,6 +9,8 @@ import * as log from 'fancy-log';
 import * as ansiColors from 'ansi-colors';
 import * as crypto from 'crypto';
 import * as through2 from 'through2';
+import * as undici from 'undici';
+import * as process from 'process';
 import { Stream } from 'stream';
 
 export interface IFetchOptions {
@@ -52,6 +54,10 @@ export async function fetchUrl(url: string, options: IFetchOptions, retries = 10
 		const controller = new AbortController();
 		const timeout = setTimeout(() => controller.abort(), 30 * 1000);
 		try {
+			if (process.env.https_proxy) {
+				const dispatcher = new undici.ProxyAgent({ uri: process.env.https_proxy });
+				undici.setGlobalDispatcher(dispatcher);
+			}
 			const response = await fetch(url, {
 				...options.nodeFetchOptions,
 				signal: controller.signal as any /* Typings issue with lib.dom.d.ts */
