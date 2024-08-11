@@ -68,6 +68,7 @@ export interface IToolQuickPickItem extends IQuickPickItem {
 	kind: 'tool';
 	id: string;
 	name?: string;
+	icon?: ThemeIcon;
 }
 
 export interface IStaticVariableQuickPickItem extends IQuickPickItem {
@@ -240,6 +241,7 @@ class AttachContextAction extends Action2 {
 					name: pick.label,
 					fullName: pick.label,
 					value: undefined,
+					icon: pick.icon,
 					isTool: true
 				});
 			} else {
@@ -314,6 +316,7 @@ class AttachContextAction extends Action2 {
 					kind: 'tool',
 					label: tool.displayName ?? tool.name,
 					id: tool.name,
+					icon: ThemeIcon.isThemeIcon(tool.icon) ? tool.icon : undefined // TODO need to support icon path?
 				};
 				if (ThemeIcon.isThemeIcon(tool.icon)) {
 					item.iconClass = ThemeIcon.asClassName(tool.icon);

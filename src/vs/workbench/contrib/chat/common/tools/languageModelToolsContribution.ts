@@ -120,7 +120,7 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 						};
 					}
 
-					const tool = {
+					const tool: IToolData = {
 						...rawTool,
 						icon
 					};
