@@ -7473,10 +7473,10 @@ node-html-parser@^6.1.1:
     css-select "^5.1.0"
     he "1.2.0"
 
-node-pty@1.1.0-beta20:
-  version "1.1.0-beta20"
-  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-1.1.0-beta20.tgz#bd723d3a36c5770d244d847e123da4a004fd0fa2"
-  integrity sha512-tCOLI5dEhoV75CVaT9pLuZjdx5asJ2DPEA3QtHE9sNYUf6ELXfy0SrlUzFilYcDzkhidBDrPWY26SdmlTaEjyw==
+node-pty@1.1.0-beta21:
+  version "1.1.0-beta21"
+  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-1.1.0-beta21.tgz#d75c1dfe4ff2c173459c974df72e91a4eae6dc52"
+  integrity sha512-FYpnY9g8qMQLTpqyeY9NVli6YfCWwvG6v6gmaDBbPjlc1VMp/+Zivq0SStDrRr1aciGnFCZzpL0BzdMnmbDnAw==
   dependencies:
     node-addon-api "^7.1.0"
 
