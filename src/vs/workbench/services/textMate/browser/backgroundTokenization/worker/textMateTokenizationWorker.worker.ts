@@ -11,6 +11,7 @@ import { ICreateGrammarResult, TMGrammarFactory } from 'vs/workbench/services/te
 import { IValidEmbeddedLanguagesMap, IValidGrammarDefinition, IValidTokenTypeMap } from 'vs/workbench/services/textMate/common/TMScopeRegistry';
 import type { IOnigLib, IRawTheme, StackDiff } from 'vscode-textmate';
 import { TextMateWorkerTokenizer } from './textMateWorkerTokenizer';
+import { importAMDNodeModule } from 'vs/amdX';
 
 /**
  * Defines the worker entry point. Must be exported and named `create`.
@@ -27,8 +28,6 @@ export interface ITextMateWorkerHost {
 
 export interface ICreateData {
 	grammarDefinitions: IValidGrammarDefinitionDTO[];
-	textmateMainUri: string;
-	onigurumaMainUri: string;
 	onigurumaWASMUri: string;
 }
 
@@ -78,9 +77,8 @@ export class TextMateTokenizationWorker {
 	}
 
 	private async _loadTMGrammarFactory(grammarDefinitions: IValidGrammarDefinition[]): Promise<TMGrammarFactory> {
-		const uri = this._createData.textmateMainUri;
-		const vscodeTextmate = await import(uri);
-		const vscodeOniguruma = await import(this._createData.onigurumaMainUri);
+		const vscodeTextmate = await importAMDNodeModule<typeof import('vscode-textmate')>('vscode-textmate', 'release/main.js');
+		const vscodeOniguruma = await importAMDNodeModule<typeof import('vscode-oniguruma')>('vscode-oniguruma', 'release/main.js');
 		const response = await fetch(this._createData.onigurumaWASMUri);
 
 		// Using the response directly only works if the server sets the MIME type 'application/wasm'.
