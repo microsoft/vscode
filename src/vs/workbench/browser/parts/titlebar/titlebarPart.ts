@@ -182,10 +182,12 @@ export class BrowserTitleService extends MultiWindowParts<BrowserTitlebarPart> i
 	private variables: ITitleVariable[] = [];
 
 	registerVariables(variables: ITitleVariable[]): void {
-		this.variables.push(...variables);
+		const unregisteredVariables = variables.filter(v => !this.variables.some(v2 => v2.contextKey === v.contextKey));
+
+		this.variables.push(...unregisteredVariables);
 
 		for (const part of this.parts) {
-			part.registerVariables(variables);
+			part.registerVariables(unregisteredVariables);
 		}
 	}
 
