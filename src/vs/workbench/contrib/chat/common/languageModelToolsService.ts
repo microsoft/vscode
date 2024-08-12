@@ -27,13 +27,41 @@ interface IToolEntry {
 	impl?: IToolImpl;
 }
 
+/**
+ * Found in {@link IToolInvokation.result} as `{ [IsTsxElementToken]: true }`
+ * when the tool returns something that looks like a prompt-tsx element.
+ */
+export const IsTsxElementToken = '$$isTSXElement';
+
+export interface IToolPromptContext {
+	tokenBudget: number;
+	endpoint: { modelMaxPromptTokens: number };
+}
+
+export interface IToolsTsxPromptElement {
+	render(...args: any): IToolTsxPromptPiece | Promise<IToolTsxPromptPiece>;
+}
+
+export interface IToolTsxPromptPiece {
+	ctor: string | { new(props: any, ...args: any[]): IToolsTsxPromptElement } | { [IsTsxElementToken]: number | string };
+	props: any;
+	children: (number | string | IToolTsxPromptPiece | undefined)[];
+}
+
+export interface IToolInvokation {
+	id: string;
+	result: IToolResult;
+	asString: string;
+}
+
 export interface IToolResult {
 	[contentType: string]: any;
-	string: string;
 }
 
 export interface IToolImpl {
-	invoke(parameters: any, token: CancellationToken): Promise<IToolResult>;
+	invoke(parameters: any, token: CancellationToken): Promise<IToolInvokation>;
+	render(callerId: string, invokationId: string, objectIdOrContentType: number | string, context: IToolPromptContext, token: CancellationToken | undefined): Promise<IToolTsxPromptPiece>;
+	free(invokationId: string): void;
 }
 
 export const ILanguageModelToolsService = createDecorator<ILanguageModelToolsService>('ILanguageModelToolsService');
@@ -49,7 +77,10 @@ export interface ILanguageModelToolsService {
 	registerToolData(toolData: IToolData): IDisposable;
 	registerToolImplementation(name: string, tool: IToolImpl): IDisposable;
 	getTools(): Iterable<Readonly<IToolData>>;
-	invokeTool(name: string, parameters: any, token: CancellationToken): Promise<IToolResult>;
+	invokeTool(name: string, parameters: any, token: CancellationToken): Promise<IToolInvokation>;
+	invokeToolRender(callerId: string, invokationId: string, objectIdOrContentType: number | string, context: IToolPromptContext, token: CancellationToken | undefined, countTokens: (input: string, token: CancellationToken | undefined) => Promise<number>): Promise<IToolTsxPromptPiece>;
+	invokeToolCountTokens(callerId: string, input: string, token: CancellationToken | undefined): Promise<number>;
+	freeToolInvokation(invokationId: string): void;
 }
 
 export class LanguageModelToolsService implements ILanguageModelToolsService {
@@ -58,6 +89,8 @@ export class LanguageModelToolsService implements ILanguageModelToolsService {
 	private _onDidChangeTools = new Emitter<IToolDelta>();
 	readonly onDidChangeTools = this._onDidChangeTools.event;
 
+	private readonly _toolInvokations = new Map<string, IToolEntry>();
+	private readonly _toolTokenCounters = new Map<string, (input: string, token: CancellationToken | undefined) => Promise<number>>();
 	private _tools = new Map<string, IToolEntry>();
 
 	constructor(
@@ -99,7 +132,7 @@ export class LanguageModelToolsService implements ILanguageModelToolsService {
 		return Iterable.map(this._tools.values(), i => i.data);
 	}
 
-	async invokeTool(name: string, parameters: any, token: CancellationToken): Promise<IToolResult> {
+	async invokeTool(name: string, parameters: any, token: CancellationToken): Promise<IToolInvokation> {
 		let tool = this._tools.get(name);
 		if (!tool) {
 			throw new Error(`Tool ${name} was not contributed`);
@@ -115,6 +148,31 @@ export class LanguageModelToolsService implements ILanguageModelToolsService {
 			}
 		}
 
-		return tool.impl.invoke(parameters, token);
+		const result = await tool.impl.invoke(parameters, token);
+		this._toolInvokations.set(result.id, tool);
+		return result;
+	}
+
+	async invokeToolRender(callerId: string, invokationId: string, objectIdOrContentType: number | string, context: IToolPromptContext, token: CancellationToken | undefined, countTokens: (input: string, token: CancellationToken | undefined) => Promise<number>): Promise<IToolTsxPromptPiece> {
+		const tool = this._toolInvokations.get(invokationId);
+		if (!tool?.impl) {
+			throw new Error(`Unknown invokation ${invokationId}`);
+		}
+
+		this._toolTokenCounters.set(callerId, countTokens);
+		try {
+			return await tool.impl.render(callerId, invokationId, objectIdOrContentType, context, token);
+		} finally {
+			this._toolTokenCounters.delete(callerId);
+		}
+	}
+
+	async invokeToolCountTokens(callerId: string, input: string, token: CancellationToken | undefined): Promise<number> {
+		return this._toolTokenCounters.get(callerId)?.(input, token) || 0;
+	}
+
+	freeToolInvokation(invokationId: string): void {
+		this._toolInvokations.get(invokationId)?.impl?.free(invokationId);
+		this._toolInvokations.delete(invokationId);
 	}
 }

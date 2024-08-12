@@ -41,6 +41,7 @@ import { IViewBadge } from 'vs/workbench/common/views';
 import { ChatAgentLocation, IChatAgentRequest, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatRequestVariableEntry } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatAgentDetection, IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatProgressMessage, IChatTaskDto, IChatTaskResult, IChatTextEdit, IChatTreeData, IChatUserActionEvent, IChatWarningMessage } from 'vs/workbench/contrib/chat/common/chatService';
+import { IToolData, IToolInvokation, IToolTsxPromptPiece, IsTsxElementToken } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
 import * as chatProvider from 'vs/workbench/contrib/chat/common/languageModels';
 import { DebugTreeItemCollapsibleState, IDebugVisualizationTreeItem } from 'vs/workbench/contrib/debug/common/debug';
 import * as notebooks from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -53,7 +54,6 @@ import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/ed
 import { Dto } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import type * as vscode from 'vscode';
 import * as types from './extHostTypes';
-import { IToolData, IToolResult } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
 
 export namespace Command {
 
@@ -2730,17 +2730,33 @@ export namespace ChatAgentUserActionEvent {
 }
 
 export namespace LanguageModelToolResult {
-	export function from(result: vscode.LanguageModelToolResult): IToolResult {
+	export function isPromptPieceLike(value: unknown): value is IToolTsxPromptPiece {
+		return !!value && value.hasOwnProperty('ctor') && value.hasOwnProperty('props') && Array.isArray((value as any).children);
+	}
+
+	export function from(invokationId: string, result: vscode.LanguageModelToolResult): IToolInvokation {
+		const obj = Object.create(null);
+		for (const [key, value] of Object.entries(result)) {
+			if (isPromptPieceLike(value)) {
+				obj[key] = { ctor: { [IsTsxElementToken]: key }, props: value.props, children: value.children } satisfies IToolTsxPromptPiece;
+			} else {
+				obj[key] = value;
+			}
+		}
+
 		return {
-			...result,
-			string: result.toString(),
+			result: obj,
+			asString: result.toString(),
+			id: invokationId,
 		};
 	}
 
-	export function to(result: IToolResult): vscode.LanguageModelToolResult {
-		const copy: vscode.LanguageModelToolResult = {
-			...result,
-			toString: () => result.string,
+	export function to(result: IToolInvokation, dispose: () => void): vscode.LanguageModelToolResult & vscode.Disposable {
+		// todo: should this be a Map or at least null-prototype to avoid prototype footguns?
+		const copy: vscode.LanguageModelToolResult & vscode.Disposable = {
+			...result.result,
+			dispose,
+			toString: () => result.asString,
 		};
 		delete copy.string;
 
