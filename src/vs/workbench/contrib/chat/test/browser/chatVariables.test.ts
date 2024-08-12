@@ -16,6 +16,7 @@ import { ChatAgentService, IChatAgentService } from 'vs/workbench/contrib/chat/c
 import { ChatRequestParser } from 'vs/workbench/contrib/chat/common/chatRequestParser';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
+import { ILanguageModelToolsService } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
 import { MockChatWidgetService } from 'vs/workbench/contrib/chat/test/browser/mockChatWidget';
 import { MockChatService } from 'vs/workbench/contrib/chat/test/common/mockChatService';
 import { MockLanguageModelToolsService } from 'vs/workbench/contrib/chat/test/common/mockLanguageModelToolsService';
@@ -38,6 +39,7 @@ suite('ChatVariables', function () {
 		instantiationService.stub(IChatVariablesService, service);
 		instantiationService.stub(IChatService, new MockChatService());
 		instantiationService.stub(IContextKeyService, new MockContextKeyService());
+		instantiationService.stub(ILanguageModelToolsService, new MockLanguageModelToolsService());
 		instantiationService.stub(IChatAgentService, instantiationService.createInstance(ChatAgentService));
 	});
 
