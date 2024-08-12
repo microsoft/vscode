@@ -6,6 +6,21 @@
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ensureNonNullable } from 'vs/editor/browser/view/gpu/gpuUtils';
 
+const $rasterizedGlyph: IRasterizedGlyph = {
+	source: null!,
+	boundingBox: {
+		left: 0,
+		bottom: 0,
+		right: 0,
+		top: 0,
+	},
+	originOffset: {
+		x: 0,
+		y: 0,
+	}
+};
+const $bbox = $rasterizedGlyph.boundingBox;
+
 export class GlyphRasterizer extends Disposable {
 	private _canvas: OffscreenCanvas;
 	// A temporary context that glyphs are drawn to before being transfered to the atlas.
@@ -28,6 +43,10 @@ export class GlyphRasterizer extends Disposable {
 
 	// TODO: Support drawing multiple fonts and sizes
 	// TODO: Should pull in the font size from config instead of random dom node
+	/**
+	 * Rasterizes a glyph. Note that the returned object is reused across different glyphs and
+	 * therefore is only safe for synchronous access.
+	 */
 	public rasterizeGlyph(chars: string, fg: string): IRasterizedGlyph {
 		this._ctx.clearRect(0, 0, this._canvas.width, this._canvas.height);
 
@@ -40,8 +59,7 @@ export class GlyphRasterizer extends Disposable {
 		this._ctx.fillText(chars, originX, originY);
 
 		const imageData = this._ctx.getImageData(0, 0, this._canvas.width, this._canvas.height);
-		// TODO: Hot path: Reuse object
-		const boundingBox = this._findGlyphBoundingBox(imageData);
+		this._findGlyphBoundingBox(imageData, $rasterizedGlyph.boundingBox);
 		// const offset = {
 		// 	x: textMetrics.actualBoundingBoxLeft,
 		// 	y: textMetrics.actualBoundingBoxAscent
@@ -53,14 +71,10 @@ export class GlyphRasterizer extends Disposable {
 		// 	yInt: Math.ceil(textMetrics.actualBoundingBoxDescent + textMetrics.actualBoundingBoxAscent),
 		// };
 		// console.log(`${chars}_${fg}`, textMetrics, boundingBox, originX, originY, { width: boundingBox.right - boundingBox.left, height: boundingBox.bottom - boundingBox.top });
-		const result: IRasterizedGlyph = {
-			source: this._canvas,
-			boundingBox,
-			originOffset: {
-				x: boundingBox.left - originX,
-				y: boundingBox.top - originY
-			}
-		};
+		$rasterizedGlyph.source = this._canvas;
+		$rasterizedGlyph.originOffset.x = $bbox.left - originX;
+		$rasterizedGlyph.originOffset.y = $bbox.top - originY;
+
 		// const result2: IRasterizedGlyph = {
 		// 	source: this._canvas,
 		// 	boundingBox: {
@@ -96,20 +110,12 @@ export class GlyphRasterizer extends Disposable {
 		// 	debugger;
 		// }
 
-		return result;
+		return $rasterizedGlyph;
 	}
 
 	// TODO: Does this even need to happen when measure text is used?
 	// TODO: Pass back origin offset
-	private _findGlyphBoundingBox(imageData: ImageData): IBoundingBox {
-
-		// TODO: Hot path: Reuse object
-		const boundingBox = {
-			left: 0,
-			top: 0,
-			right: 0,
-			bottom: 0
-		};
+	private _findGlyphBoundingBox(imageData: ImageData, outBoundingBox: IBoundingBox) {
 		// TODO: This could be optimized to be aware of the font size padding on all sides
 		const height = this._canvas.height;
 		const width = this._canvas.width;
@@ -118,7 +124,7 @@ export class GlyphRasterizer extends Disposable {
 			for (let x = 0; x < width; x++) {
 				const alphaOffset = y * width * 4 + x * 4 + 3;
 				if (imageData.data[alphaOffset] !== 0) {
-					boundingBox.top = y;
+					outBoundingBox.top = y;
 					found = true;
 					break;
 				}
@@ -127,13 +133,13 @@ export class GlyphRasterizer extends Disposable {
 				break;
 			}
 		}
-		boundingBox.left = 0;
+		outBoundingBox.left = 0;
 		found = false;
 		for (let x = 0; x < width; x++) {
 			for (let y = 0; y < height; y++) {
 				const alphaOffset = y * width * 4 + x * 4 + 3;
 				if (imageData.data[alphaOffset] !== 0) {
-					boundingBox.left = x;
+					outBoundingBox.left = x;
 					found = true;
 					break;
 				}
@@ -142,13 +148,13 @@ export class GlyphRasterizer extends Disposable {
 				break;
 			}
 		}
-		boundingBox.right = width;
+		outBoundingBox.right = width;
 		found = false;
-		for (let x = width - 1; x >= boundingBox.left; x--) {
+		for (let x = width - 1; x >= outBoundingBox.left; x--) {
 			for (let y = 0; y < height; y++) {
 				const alphaOffset = y * width * 4 + x * 4 + 3;
 				if (imageData.data[alphaOffset] !== 0) {
-					boundingBox.right = x;
+					outBoundingBox.right = x;
 					found = true;
 					break;
 				}
@@ -157,13 +163,13 @@ export class GlyphRasterizer extends Disposable {
 				break;
 			}
 		}
-		boundingBox.bottom = boundingBox.top;
+		outBoundingBox.bottom = outBoundingBox.top;
 		found = false;
 		for (let y = height - 1; y >= 0; y--) {
 			for (let x = 0; x < width; x++) {
 				const alphaOffset = y * width * 4 + x * 4 + 3;
 				if (imageData.data[alphaOffset] !== 0) {
-					boundingBox.bottom = y;
+					outBoundingBox.bottom = y;
 					found = true;
 					break;
 				}
@@ -172,7 +178,6 @@ export class GlyphRasterizer extends Disposable {
 				break;
 			}
 		}
-		return boundingBox;
 	}
 }
 
@@ -185,6 +190,9 @@ export interface IBoundingBox {
 
 export interface IRasterizedGlyph {
 	source: CanvasImageSource;
+	/**
+	 * The bounding box of the glyph within {@link source}.
+	 */
 	boundingBox: IBoundingBox;
 	originOffset: { x: number; y: number };
 }
