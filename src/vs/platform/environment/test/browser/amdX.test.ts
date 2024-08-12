@@ -10,18 +10,6 @@ import { isESM } from 'vs/base/common/amd';
 
 suite('Modules Loading in ESM', () => {
 
-	test.skip('@microsoft/1ds-core-js', async () => {
-		//TODO@esm this cannot be resolved in ESM because the module is not self-contained
-		const module = await importAMDNodeModule<typeof import('@microsoft/1ds-core-js')>('@microsoft/1ds-core-js', 'dist/ms.core.js');
-		assert.ok(typeof module.AppInsightsCore === 'function');
-	});
-
-	test.skip('@microsoft/1ds-post-js', async () => {
-		//TODO@esm this cannot be resolved in ESM because the module is not self-contained
-		const module = await importAMDNodeModule<typeof import('@microsoft/1ds-post-js')>('@microsoft/1ds-post-js', 'dist/ms.post.js');
-		assert.ok(typeof module.PostChannel === 'function');
-	});
-
 	test('@vscode/iconv-lite-umd', async () => {
 		const module = await importAMDNodeModule<typeof import('@vscode/iconv-lite-umd')>('@vscode/iconv-lite-umd', 'lib/iconv-lite-umd.js');
 		assert.ok(typeof module.getDecoder === 'function');
