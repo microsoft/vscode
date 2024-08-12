@@ -290,13 +290,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				if (typeof options?.forceNewSession === 'object' && options.forceNewSession.learnMore) {
 					checkProposedApiEnabled(extension, 'authLearnMore');
 				}
-				if (options?.account) {
-					checkProposedApiEnabled(extension, 'authGetSessions');
-				}
 				return extHostAuthentication.getSession(extension, providerId, scopes, options as any);
 			},
 			getAccounts(providerId: string) {
-				checkProposedApiEnabled(extension, 'authGetSessions');
 				return extHostAuthentication.getAccounts(providerId);
 			},
 			// TODO: remove this after GHPR and Codespaces move off of it
@@ -747,15 +743,12 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return _asExtensionEvent(extHostTerminalService.onDidExecuteTerminalCommand)(listener, thisArg, disposables);
 			},
 			onDidChangeTerminalShellIntegration(listener, thisArg?, disposables?) {
-				checkProposedApiEnabled(extension, 'terminalShellIntegration');
 				return _asExtensionEvent(extHostTerminalShellIntegration.onDidChangeTerminalShellIntegration)(listener, thisArg, disposables);
 			},
 			onDidStartTerminalShellExecution(listener, thisArg?, disposables?) {
-				checkProposedApiEnabled(extension, 'terminalShellIntegration');
 				return _asExtensionEvent(extHostTerminalShellIntegration.onDidStartTerminalShellExecution)(listener, thisArg, disposables);
 			},
 			onDidEndTerminalShellExecution(listener, thisArg?, disposables?) {
-				checkProposedApiEnabled(extension, 'terminalShellIntegration');
 				return _asExtensionEvent(extHostTerminalShellIntegration.onDidEndTerminalShellExecution)(listener, thisArg, disposables);
 			},
 			get state() {
@@ -1109,6 +1102,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				}
 
 				return uriPromise.then(uri => {
+					extHostLogService.trace(`openTextDocument from ${extension.identifier}`);
 					if (uri.scheme === Schemas.vscodeRemote && !uri.authority) {
 						extHostApiDeprecation.report('workspace.openTextDocument', extension, `A URI of 'vscode-remote' scheme requires an authority.`);
 					}

@@ -661,6 +661,9 @@ export namespace Event {
 			const options: EmitterOptions = {
 				onWillAddFirstListener: () => {
 					_observable.addObserver(this);
+
+					// Communicate to the observable that we received its current value and would like to be notified about future changes.
+					this._observable.reportChanges();
 				},
 				onDidRemoveLastListener: () => {
 					_observable.removeObserver(this);

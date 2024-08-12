@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/RedCMD/YAML-Syntax-Highlighter/commit/60e2e6e24c63d5a703cb04577678a2e416edd956",
+	"version": "https://github.com/RedCMD/YAML-Syntax-Highlighter/commit/d4dca9f38a654ebbb13c1b72b7881e3c5864a778",
 	"name": "YAML 1.2",
 	"scopeName": "source.yaml.1.2",
 	"comment": "https://yaml.org/spec/1.2.2",
@@ -37,6 +37,7 @@
 					]
 				},
 				{
+					"comment": "For when YAML is embedded inside a Markdown code-block",
 					"begin": "\\G",
 					"while": "\\G",
 					"name": "meta.stream.yaml",
@@ -633,7 +634,8 @@
 		},
 		"block-map-value": {
 			"comment": "https://yaml.org/spec/1.2.2/#rule-c-l-block-map-implicit-value",
-			"begin": ":(?=[\r\n\t ])",
+			"//": "Assumming 3rd party preprocessing variables `{{...}}` turn into valid map-keys when inside a block-mapping",
+			"begin": ":(?=[\r\n\t ])|(?<=}})(?=[\t ]++#|[\t ]*+$)",
 			"while": "\\G(?![?:!\"'0-9A-Za-z$()+./;<=\\\\^_~\\[{\\x{85}\\x{A0}-\\x{D7FF}\\x{E000}-\\x{FFFD}\\x{010000}-\\x{10FFFF}&&[^\\x{FEFF}]]|-[^\r\n\t ])",
 			"beginCaptures": {
 				"0": {

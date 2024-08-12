@@ -13,7 +13,7 @@ import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiati
 import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { RuntimeExtensionsEditor, StartExtensionHostProfileAction, StopExtensionHostProfileAction, CONTEXT_PROFILE_SESSION_STATE, CONTEXT_EXTENSION_HOST_PROFILE_RECORDED, SaveExtensionHostProfileAction, IExtensionHostProfileService } from 'vs/workbench/contrib/extensions/electron-sandbox/runtimeExtensionsEditor';
-import { DebugExtensionHostAction } from 'vs/workbench/contrib/extensions/electron-sandbox/debugExtensionHostAction';
+import { DebugExtensionHostAction, DebugExtensionsContribution } from 'vs/workbench/contrib/extensions/electron-sandbox/debugExtensionHostAction';
 import { IEditorSerializer, IEditorFactoryRegistry, EditorExtensions } from 'vs/workbench/common/editor';
 import { ActiveEditorContext } from 'vs/workbench/common/contextkeys';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
@@ -75,6 +75,7 @@ const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(Workbench
 workbenchRegistry.registerWorkbenchContribution(ExtensionsContributions, LifecyclePhase.Restored);
 workbenchRegistry.registerWorkbenchContribution(ExtensionsAutoProfiler, LifecyclePhase.Eventually);
 workbenchRegistry.registerWorkbenchContribution(RemoteExtensionsInitializerContribution, LifecyclePhase.Restored);
+workbenchRegistry.registerWorkbenchContribution(DebugExtensionsContribution, LifecyclePhase.Restored);
 // Register Commands
 
 CommandsRegistry.registerCommand(DebugExtensionHostAction.ID, (accessor: ServicesAccessor, ...args) => {
@@ -107,6 +108,15 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	},
 	group: 'navigation',
 	when: ActiveEditorContext.isEqualTo(RuntimeExtensionsEditor.ID)
+});
+
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+	command: {
+		id: DebugExtensionHostAction.ID,
+		title: localize('debugExtensionHost', "Debug Extensions In New Window"),
+		category: localize('developer', "Developer"),
+		icon: Codicon.debugStart
+	},
 });
 
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, {

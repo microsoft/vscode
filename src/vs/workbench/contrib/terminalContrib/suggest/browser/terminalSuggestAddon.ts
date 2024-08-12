@@ -40,13 +40,15 @@ export const enum VSCodeSuggestOscPt {
 export type CompressedPwshCompletion = [
 	completionText: string,
 	resultType: number,
-	toolTip: string
+	toolTip?: string,
+	customIcon?: string
 ];
 
 export type PwshCompletion = {
 	CompletionText: string;
 	ResultType: number;
 	ToolTip?: string;
+	CustomIcon?: string;
 };
 
 
@@ -136,6 +138,10 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	readonly onBell = this._onBell.event;
 	private readonly _onAcceptedCompletion = this._register(new Emitter<string>());
 	readonly onAcceptedCompletion = this._onAcceptedCompletion.event;
+	private readonly _onDidRequestCompletions = this._register(new Emitter<void>());
+	readonly onDidRequestCompletions = this._onDidRequestCompletions.event;
+	private readonly _onDidReceiveCompletions = this._register(new Emitter<void>());
+	readonly onDidReceiveCompletions = this._onDidReceiveCompletions.event;
 
 	constructor(
 		private readonly _cachedPwshCommands: Set<SimpleCompletionItem>,
@@ -209,6 +215,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		// completions being requested again right after accepting a completion
 		if (this._lastUserDataTimestamp > this._lastAcceptedCompletionTimestamp) {
 			this._onAcceptedCompletion.fire(SuggestAddon.requestCompletionsSequence);
+			this._onDidRequestCompletions.fire();
 		}
 	}
 
@@ -327,6 +334,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	private _replacementLength: number = 0;
 
 	private _handleCompletionsSequence(terminal: Terminal, data: string, command: string, args: string[]): void {
+		this._onDidReceiveCompletions.fire();
+
 		// Nothing to handle if the terminal is not attached
 		if (!terminal.element || !this._enableWidget || !this._promptInputModel) {
 			return;
@@ -495,25 +504,20 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	}
 
 	private _handleCompletionModel(model: SimpleCompletionModel): void {
-		if (model.items.length === 0 || !this._terminal?.element || !this._promptInputModel) {
+		if (!this._terminal?.element) {
+			return;
+		}
+		const suggestWidget = this._ensureSuggestWidget(this._terminal);
+		suggestWidget.setCompletionModel(model);
+		if (model.items.length === 0 || !this._promptInputModel) {
 			return;
 		}
 		this._model = model;
-		const suggestWidget = this._ensureSuggestWidget(this._terminal);
 		const dimensions = this._getTerminalDimensions();
 		if (!dimensions.width || !dimensions.height) {
 			return;
 		}
-		// TODO: What do frozen and auto do?
 		const xtermBox = this._screen!.getBoundingClientRect();
-		// this._initialPromptInputState = {
-		// 	value: this._promptInputModel.value,
-		// 	prefix: this._promptInputModel.prefix,
-		// 	suffix: this._promptInputModel.suffix,
-		// 	cursorIndex: this._promptInputModel.cursorIndex,
-		// 	ghostTextIndex: this._promptInputModel.ghostTextIndex
-		// };
-		suggestWidget.setCompletionModel(model);
 		suggestWidget.showSuggestions(0, false, false, {
 			left: xtermBox.left + this._terminal.buffer.active.cursorX * dimensions.width,
 			top: xtermBox.top + this._terminal.buffer.active.cursorY * dimensions.height,
@@ -711,12 +715,14 @@ export function parseCompletionsFromShell(rawCompletions: PwshCompletion | PwshC
 				CompletionText: e[0],
 				ResultType: e[1],
 				ToolTip: e[2],
+				CustomIcon: e[3],
 			}));
 		} else if (Array.isArray(rawCompletions[0])) {
 			typedRawCompletions = (rawCompletions as CompressedPwshCompletion[]).map(e => ({
 				CompletionText: e[0],
 				ResultType: e[1],
 				ToolTip: e[2],
+				CustomIcon: e[3],
 			}));
 		} else {
 			typedRawCompletions = rawCompletions as PwshCompletion[];
@@ -748,7 +754,7 @@ function rawCompletionToSimpleCompletionItem(rawCompletion: PwshCompletion): Sim
 	// Pwsh gives executables a result type of 2, but we want to treat them as files wrt the sorting
 	// and file extension score boost. An example of where this improves the experience is typing
 	// `git`, `git.exe` should appear at the top and beat `git-lfs.exe`. Keep the same icon though.
-	const icon = getIcon(rawCompletion.ResultType, detail);
+	const icon = getIcon(rawCompletion.ResultType, rawCompletion.CustomIcon);
 	const isExecutable = rawCompletion.ResultType === 2 && rawCompletion.CompletionText.match(/\.[a-z0-9]{2,4}$/i);
 	if (isExecutable) {
 		rawCompletion.ResultType = 3;
@@ -764,20 +770,11 @@ function rawCompletionToSimpleCompletionItem(rawCompletion: PwshCompletion): Sim
 	});
 }
 
-function getIcon(resultType: number, tooltip: string): ThemeIcon {
-	// Assume anything with type DynamicKeyword is a git branch
-	if (resultType === 13) {
-		if (tooltip.startsWith('branch ')) {
-			return Codicon.gitBranch;
-		}
-		if (tooltip.startsWith('tag ')) {
-			return Codicon.tag;
-		}
-		if (tooltip.startsWith('remote ')) {
-			return Codicon.remote;
-		}
-		if (tooltip.startsWith('stash ')) {
-			return Codicon.gitStash;
+function getIcon(resultType: number, customIconId?: string): ThemeIcon {
+	if (customIconId) {
+		const icon: ThemeIcon | undefined = customIconId in Codicon ? (Codicon as { [id: string]: ThemeIcon | undefined })[customIconId] : Codicon.symbolText;
+		if (icon) {
+			return icon;
 		}
 	}
 	return pwshTypeToIconMap[resultType] ?? Codicon.symbolText;

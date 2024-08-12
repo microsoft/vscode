@@ -10,7 +10,7 @@ import { createSingleCallFunction } from 'vs/base/common/functional';
 import * as htmlContent from 'vs/base/common/htmlContent';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ResourceMap, ResourceSet } from 'vs/base/common/map';
-import { marked } from 'vs/base/common/marked/marked';
+import * as marked from 'vs/base/common/marked/marked';
 import { parse, revive } from 'vs/base/common/marshalling';
 import { Mimes } from 'vs/base/common/mime';
 import { cloneAndChange } from 'vs/base/common/objects';
@@ -53,7 +53,7 @@ import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/ed
 import { Dto } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import type * as vscode from 'vscode';
 import * as types from './extHostTypes';
-import { IToolData } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
+import { IToolData, IToolResult } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
 
 export namespace Command {
 
@@ -367,7 +367,7 @@ export namespace MarkdownString {
 		const resUris: { [href: string]: UriComponents } = Object.create(null);
 		res.uris = resUris;
 
-		const collectUri = (href: string): string => {
+		const collectUri = ({ href }: { href: string }): string => {
 			try {
 				let uri = URI.parse(href, true);
 				uri = uri.with({ query: _uriMassage(uri.query, resUris) });
@@ -377,11 +377,16 @@ export namespace MarkdownString {
 			}
 			return '';
 		};
-		const renderer = new marked.Renderer();
-		renderer.link = collectUri;
-		renderer.image = href => typeof href === 'string' ? collectUri(htmlContent.parseHrefAndDimensions(href).href) : '';
 
-		marked(res.value, { renderer });
+		marked.marked.walkTokens(marked.marked.lexer(res.value), token => {
+			if (token.type === 'link') {
+				collectUri({ href: token.href });
+			} else if (token.type === 'image') {
+				if (typeof token.href === 'string') {
+					collectUri(htmlContent.parseHrefAndDimensions(token.href));
+				}
+			}
+		});
 
 		return res;
 	}
@@ -2724,6 +2729,24 @@ export namespace ChatAgentUserActionEvent {
 	}
 }
 
+export namespace LanguageModelToolResult {
+	export function from(result: vscode.LanguageModelToolResult): IToolResult {
+		return {
+			...result,
+			string: result.toString(),
+		};
+	}
+
+	export function to(result: IToolResult): vscode.LanguageModelToolResult {
+		const copy: vscode.LanguageModelToolResult = {
+			...result,
+			toString: () => result.string,
+		};
+		delete copy.string;
+
+		return copy;
+	}
+}
 
 export namespace TerminalQuickFix {
 	export function from(quickFix: vscode.TerminalQuickFixTerminalCommand | vscode.TerminalQuickFixOpener | vscode.Command, converter: Command.ICommandsConverter, disposables: DisposableStore): extHostProtocol.ITerminalQuickFixTerminalCommandDto | extHostProtocol.ITerminalQuickFixOpenerDto | extHostProtocol.ICommandDto | undefined {

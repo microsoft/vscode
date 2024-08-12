@@ -206,6 +206,9 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 
 	async acceptInput(): Promise<IChatResponseModel | undefined> {
 		assertType(this._chatWidget);
+		if (!this._model.value) {
+			await this.reveal();
+		}
 		assertType(this._model.value);
 		const lastInput = this._chatWidget.value.inlineChatWidget.value;
 		if (!lastInput) {

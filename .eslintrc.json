@@ -1033,7 +1033,7 @@
 						"restrictions": []
 					},
 					{
-						"target": "src/{bootstrap-amd.js,bootstrap-fork.js,bootstrap-node.js,bootstrap-window.js,bootstrap.js,cli.js,main.js,server-cli.js,server-main.js}",
+						"target": "src/{bootstrap-amd.js,bootstrap-fork.js,bootstrap-node.js,bootstrap-window.js,cli.js,main.js,server-cli.js,server-main.js}",
 						"restrictions": []
 					}
 				]

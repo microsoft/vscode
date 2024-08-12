@@ -10,7 +10,7 @@ import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { AutoOpenBarrier, Promises, disposableTimeout, timeout } from 'vs/base/common/async';
+import { AutoOpenBarrier, Barrier, Promises, disposableTimeout, timeout } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
 import { debounce } from 'vs/base/common/decorators';
 import { ErrorNoTelemetry, onUnexpectedError } from 'vs/base/common/errors';
@@ -198,6 +198,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _lineDataEventAddon: LineDataEventAddon | undefined;
 	private readonly _scopedContextKeyService: IContextKeyService;
 	private _resizeDebouncer?: TerminalResizeDebouncer;
+	private _pauseInputEventBarrier: Barrier | undefined;
+	pauseInputEvents(barrier: Barrier): void {
+		this._pauseInputEventBarrier = barrier;
+	}
 
 	readonly capabilities = this._register(new TerminalCapabilityStoreMultiplexer());
 	readonly statusList: ITerminalStatusList;
@@ -806,6 +810,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		this._register(this._processManager.onProcessData(e => this._onProcessData(e)));
 		this._register(xterm.raw.onData(async data => {
+			await this._pauseInputEventBarrier?.wait();
 			await this._processManager.write(data);
 			this._onDidInputData.fire(data);
 		}));
@@ -1160,7 +1165,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	override dispose(reason?: TerminalExitReason): void {
-		if (this.shellLaunchConfig.type === 'Task' && reason === TerminalExitReason.Process && this._exitCode !== 0) {
+		if (this.shellLaunchConfig.type === 'Task' && reason === TerminalExitReason.Process && this._exitCode !== 0 && !this.shellLaunchConfig.waitOnExit) {
 			return;
 		}
 		if (this.isDisposed) {
@@ -1606,7 +1611,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				}
 			});
 		} else {
-			this.dispose(TerminalExitReason.Process);
 			if (exitMessage) {
 				const failedDuringLaunch = this._processManager.processState === ProcessState.KilledDuringLaunch;
 				if (failedDuringLaunch || this._terminalConfigurationService.config.showExitAlert) {
@@ -1622,6 +1626,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					this._logService.warn(exitMessage);
 				}
 			}
+			this.dispose(TerminalExitReason.Process);
 		}
 
 		// First onExit to consumers, this can happen after the terminal has already been disposed.
@@ -2264,7 +2269,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const showAllColorsItem = { label: 'Reset to default' };
 		items.push(showAllColorsItem);
 
-		const quickPick = this._quickInputService.createQuickPick();
+		const quickPick = this._quickInputService.createQuickPick({ useSeparators: true });
 		quickPick.items = items;
 		quickPick.matchOnDescription = true;
 		quickPick.placeholder = nls.localize('changeColor', 'Select a color for the terminal');

@@ -93,7 +93,7 @@ class ChatAgentResponseStream {
 					};
 
 					Promise.all([progressReporterPromise, task?.(progressReporter)]).then(([handle, res]) => {
-						if (handle !== undefined && res !== undefined) {
+						if (handle !== undefined) {
 							this._proxy.$handleProgressChunk(this._request.requestId, typeConvert.ChatTaskResult.from(res), handle);
 						}
 					});

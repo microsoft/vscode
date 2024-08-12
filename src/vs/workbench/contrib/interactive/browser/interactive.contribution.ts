@@ -23,7 +23,6 @@ import { Context as SuggestContext } from 'vs/editor/contrib/suggest/browser/sug
 import { localize, localize2 } from 'vs/nls';
 import { ILocalizedString } from 'vs/platform/action/common/action';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -451,25 +450,6 @@ registerAction2(class extends Action2 {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'interactive.configure',
-			title: localize2('interactive.configExecute', 'Configure input box behavior'),
-			category: interactiveWindowCategory,
-			f1: false,
-			icon: icons.configIcon,
-			menu: {
-				id: MenuId.InteractiveInputConfig
-			}
-		});
-	}
-
-	override run(accessor: ServicesAccessor, ...args: any[]): void {
-		accessor.get(ICommandService).executeCommand('workbench.action.openSettings', '@tag:replExecute');
-	}
-});
-
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
 			id: 'interactive.execute',
 			title: localize2('interactive.execute', 'Execute Code'),
 			category: interactiveWindowCategory,
@@ -542,7 +522,7 @@ registerAction2(class extends Action2 {
 		}
 
 		if (editorControl && isReplEditor) {
-			executeReplInput(accessor, editorControl);
+			executeReplInput(bulkEditService, historyService, notebookEditorService, editorControl);
 		}
 
 		if (editorControl && editorControl.notebookEditor && editorControl.codeEditor) {

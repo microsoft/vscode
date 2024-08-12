@@ -2023,8 +2023,8 @@ export class TestTerminalGroupService implements ITerminalGroupService {
 	onDidChangeInstances = Event.None;
 	createGroup(instance?: any): ITerminalGroup { throw new Error('Method not implemented.'); }
 	getGroupForInstance(instance: ITerminalInstance): ITerminalGroup | undefined { throw new Error('Method not implemented.'); }
-	moveGroup(source: ITerminalInstance, target: ITerminalInstance): void { throw new Error('Method not implemented.'); }
-	moveGroupToEnd(source: ITerminalInstance): void { throw new Error('Method not implemented.'); }
+	moveGroup(source: ITerminalInstance | ITerminalInstance[], target: ITerminalInstance): void { throw new Error('Method not implemented.'); }
+	moveGroupToEnd(source: ITerminalInstance | ITerminalInstance[]): void { throw new Error('Method not implemented.'); }
 	moveInstance(source: ITerminalInstance, target: ITerminalInstance, side: 'before' | 'after'): void { throw new Error('Method not implemented.'); }
 	unsplitInstance(instance: ITerminalInstance): void { throw new Error('Method not implemented.'); }
 	joinInstances(instances: ITerminalInstance[]): void { throw new Error('Method not implemented.'); }
@@ -2108,7 +2108,7 @@ export class TestQuickInputService implements IQuickInputService {
 
 	async input(options?: IInputOptions, token?: CancellationToken): Promise<string> { return options ? 'resolved' + options.prompt : 'resolved'; }
 
-	createQuickPick<T extends IQuickPickItem>(): IQuickPick<T> { throw new Error('not implemented.'); }
+	createQuickPick<T extends IQuickPickItem>(): IQuickPick<T, { useSeparators: boolean }> { throw new Error('not implemented.'); }
 	createInputBox(): IInputBox { throw new Error('not implemented.'); }
 	createQuickWidget(): IQuickWidget { throw new Error('Method not implemented.'); }
 	focus(): void { throw new Error('not implemented.'); }
