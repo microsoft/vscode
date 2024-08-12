@@ -91,7 +91,7 @@ declare module 'vscode' {
 		 * Invoke a tool with the given parameters.
 		 * TODO@API Could request a set of contentTypes to be returned so they don't all need to be computed?
 		 */
-		export function invokeTool(name: string, parameters: Object, token: CancellationToken): Thenable<LanguageModelToolResult>;
+		export function invokeTool(id: string, parameters: Object, token: CancellationToken): Thenable<LanguageModelToolResult>;
 	}
 
 	export type JSONSchema = object;

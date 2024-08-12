@@ -22,7 +22,7 @@ import { IChatWidget, IChatWidgetService } from 'vs/workbench/contrib/chat/brows
 import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
 import { SelectAndInsertFileAction } from 'vs/workbench/contrib/chat/browser/contrib/chatDynamicVariables';
 import { ChatAgentLocation, getFullyQualifiedId, IChatAgentData, IChatAgentNameService, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestTextPart, ChatRequestVariablePart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
+import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestVariablePart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatSlashCommandService } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { ILanguageModelToolsService } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
@@ -428,9 +428,11 @@ class VariableCompletions extends Disposable {
 						};
 					});
 
+				const usedTools = widget.parsedInput.parts.filter((p): p is ChatRequestToolPart => p instanceof ChatRequestToolPart);
+				const usedToolNames = new Set(usedTools.map(v => v.toolName));
 				const toolItems = Array.from(toolsService.getTools())
 					.filter(t => t.canBeInvokedManually)
-					.filter(t => !usedVariableNames.has(t.name ?? ''))
+					.filter(t => !usedToolNames.has(t.name ?? ''))
 					.map((t): CompletionItem => {
 						const withLeader = `${chatVariableLeader}${t.name}`;
 						return {
@@ -438,7 +440,7 @@ class VariableCompletions extends Disposable {
 							range,
 							insertText: withLeader + ' ',
 							detail: t.userDescription,
-							kind: CompletionItemKind.Text, // The icons are disabled here anyway
+							kind: CompletionItemKind.Text,
 							sortText: 'z'
 						};
 					});

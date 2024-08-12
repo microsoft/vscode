@@ -117,19 +117,19 @@ export class LanguageModelToolsService implements ILanguageModelToolsService {
 		return undefined;
 	}
 
-	async invokeTool(name: string, parameters: any, token: CancellationToken): Promise<IToolResult> {
-		let tool = this._tools.get(name);
+	async invokeTool(id: string, parameters: any, token: CancellationToken): Promise<IToolResult> {
+		let tool = this._tools.get(id);
 		if (!tool) {
-			throw new Error(`Tool ${name} was not contributed`);
+			throw new Error(`Tool ${id} was not contributed`);
 		}
 
 		if (!tool.impl) {
-			await this._extensionService.activateByEvent(`onLanguageModelTool:${name}`);
+			await this._extensionService.activateByEvent(`onLanguageModelTool:${id}`);
 
 			// Extension should activate and register the tool implementation
-			tool = this._tools.get(name);
+			tool = this._tools.get(id);
 			if (!tool?.impl) {
-				throw new Error(`Tool ${name} does not have an implementation registered.`);
+				throw new Error(`Tool ${id} does not have an implementation registered.`);
 			}
 		}
 

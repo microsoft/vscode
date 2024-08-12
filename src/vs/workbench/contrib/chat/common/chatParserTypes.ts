@@ -167,7 +167,14 @@ export function reviveParsedChatRequest(serialized: IParsedChatRequest): IParsed
 					part.editorRange,
 					(part as ChatRequestVariablePart).variableName,
 					(part as ChatRequestVariablePart).variableArg,
-					(part as ChatRequestVariablePart).variableName || '',
+					(part as ChatRequestVariablePart).variableId || '',
+				);
+			} else if (part.kind === ChatRequestToolPart.Kind) {
+				return new ChatRequestToolPart(
+					new OffsetRange(part.range.start, part.range.endExclusive),
+					part.editorRange,
+					(part as ChatRequestToolPart).toolName,
+					(part as ChatRequestToolPart).toolId
 				);
 			} else if (part.kind === ChatRequestAgentPart.Kind) {
 				let agent = (part as ChatRequestAgentPart).agent;

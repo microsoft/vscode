@@ -30,9 +30,9 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 		});
 	}
 
-	async invokeTool(name: string, parameters: any, token: CancellationToken): Promise<vscode.LanguageModelToolResult> {
+	async invokeTool(id: string, parameters: any, token: CancellationToken): Promise<vscode.LanguageModelToolResult> {
 		// Making the round trip here because not all tools were necessarily registered in this EH
-		const result = await this._proxy.$invokeTool(name, parameters, token);
+		const result = await this._proxy.$invokeTool(id, parameters, token);
 		return typeConvert.LanguageModelToolResult.to(result);
 	}
 

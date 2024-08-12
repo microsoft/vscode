@@ -7,7 +7,7 @@ import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ChatAgentLocation, IChatAgentData, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestTextPart, ChatRequestVariablePart, IParsedChatRequest, IParsedChatRequestPart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
+import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestVariablePart, IParsedChatRequest, IParsedChatRequestPart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatSlashCommandService } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 import { IChatVariablesService, IDynamicVariable } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { ILanguageModelToolsService } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
@@ -139,7 +139,7 @@ export class ChatRequestParser {
 		return new ChatRequestAgentPart(agentRange, agentEditorRange, agent);
 	}
 
-	private tryToParseVariable(message: string, offset: number, position: IPosition, parts: ReadonlyArray<IParsedChatRequestPart>): ChatRequestAgentPart | ChatRequestVariablePart | undefined {
+	private tryToParseVariable(message: string, offset: number, position: IPosition, parts: ReadonlyArray<IParsedChatRequestPart>): ChatRequestAgentPart | ChatRequestVariablePart | ChatRequestToolPart | undefined {
 		const nextVariableMatch = message.match(variableReg);
 		if (!nextVariableMatch) {
 			return;
@@ -160,7 +160,7 @@ export class ChatRequestParser {
 
 		const tool = this.toolsService.getToolByName(name);
 		if (tool && tool.canBeInvokedManually) {
-			return new ChatRequestVariablePart(varRange, varEditorRange, name, variableArg, tool.id);
+			return new ChatRequestToolPart(varRange, varEditorRange, name, tool.id);
 		}
 
 		return;
