@@ -5,39 +5,32 @@
 
 declare module 'vscode' {
 
-	export interface NotebookDocumentCreationOptions {
-		/**
-		 * The notebook type that should be used.
-		 */
-		readonly notebookType: string;
-
-		/**
-		 * The initial contents of the notebook.
-		 */
-		readonly content?: NotebookData;
-
+	export interface ReplDocumentCreationOptions {
 		/**
 		 * The resource for the notebook.
 		 */
-		readonly untitledResource?: Uri;
+		readonly resource?: Uri;
 
 		/**
-		 * The notebook should be opened in a repl editor.
-		 * This should only be done if the notebook is not already shown in another editor.
+		 * The title for the editor.
 		 */
-		readonly repl?: boolean;
+		readonly title?: string;
+
+		/**
+		 * The initial kernel for the notebook.
+		 */
+		readonly controller?: NotebookController;
 	}
 
 	export namespace workspace {
 		/**
-		 * Open an untitled notebook. The editor will prompt the user for a file
-		 * path when the document is to be saved.
+		 * Open a notebook document to be used in a repl editor.
 		 *
 		 * @see {@link workspace.openNotebookDocument}
 		 * @param options Options to configure how the notebook is opened if it is not already.
 		 * @returns A promise that resolves to a {@link NotebookDocument notebook}.
 		 */
-		export function openNotebookDocument(options: NotebookDocumentCreationOptions): Thenable<NotebookDocument>;
+		export function openReplDocument(notebookType: string, options?: ReplDocumentCreationOptions): Thenable<NotebookDocument>;
 	}
 
 	export interface NotebookDocument {
