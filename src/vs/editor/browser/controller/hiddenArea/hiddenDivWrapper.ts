@@ -142,12 +142,12 @@ export class DivWrapper extends Disposable implements ICompleteHiddenAreaWrapper
 				isComposing: this._isComposing
 			});
 		}));
-		this._register(editContextAddDisposableListener(this._editContext, 'oncompositionstart', e => {
+		this._register(editContextAddDisposableListener(this._editContext, 'compositionstart', e => {
 			this._isComposing = true;
 			console.log('oncompositionstart : ', e);
 			// this._onCompositionStart.fire(e);
 		}));
-		this._register(editContextAddDisposableListener(this._editContext, 'oncompositionend', e => {
+		this._register(editContextAddDisposableListener(this._editContext, 'compositionend', e => {
 			this._isComposing = false;
 			console.log('oncompositionend : ', e);
 			// this._onCompositionEnd.fire(e);
