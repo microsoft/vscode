@@ -9,7 +9,7 @@ declare module 'vscode' {
 		/**
 		 * The notebook type that should be used.
 		 */
-		readonly notebookType: string;
+		readonly controller?: NotebookController;
 
 		/**
 		 * The initial contents of the notebook.
@@ -17,15 +17,10 @@ declare module 'vscode' {
 		readonly content?: NotebookData;
 
 		/**
-		 * The resource for the notebook.
-		 */
-		readonly untitledResource?: Uri;
-
-		/**
 		 * The notebook should be opened in a repl editor.
 		 * This should only be done if the notebook is not already shown in another editor.
 		 */
-		readonly repl?: boolean;
+		readonly repl: boolean;
 	}
 
 	export namespace workspace {
@@ -37,7 +32,7 @@ declare module 'vscode' {
 		 * @param options Options to configure how the notebook is opened if it is not already.
 		 * @returns A promise that resolves to a {@link NotebookDocument notebook}.
 		 */
-		export function openNotebookDocument(options: NotebookDocumentCreationOptions): Thenable<NotebookDocument>;
+		export function openNotebookDocument(notebookType: string, options: NotebookDocumentCreationOptions): Thenable<NotebookDocument>;
 	}
 
 	export interface NotebookDocument {
