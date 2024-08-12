@@ -136,10 +136,11 @@ export class DivWrapper extends Disposable implements ICompleteHiddenAreaWrapper
 			this._selectionEnd = newSelectionPos;
 			this._editContext.updateSelection(this._selectionStart, this._selectionEnd);
 
+			const data = e.text.replace(/[^\S\r\n]/gm, ' ');
 			this._onInput.fire({
 				timeStamp: e.timeStamp,
 				type: 'input',
-				data: e.text,
+				data: data,
 				inputType: 'insertText',
 				isComposing: this._isComposing
 			});
