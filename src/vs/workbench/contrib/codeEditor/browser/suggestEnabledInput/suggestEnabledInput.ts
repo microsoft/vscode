@@ -3,42 +3,41 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./suggestEnabledInput';
 import { $, Dimension, append } from 'vs/base/browser/dom';
+import { DEFAULT_FONT_FAMILY } from 'vs/base/browser/fonts';
+import { IHistoryNavigationWidget } from 'vs/base/browser/history';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Emitter, Event } from 'vs/base/common/event';
+import { HistoryNavigator } from 'vs/base/common/history';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { mixin } from 'vs/base/common/objects';
 import { isMacintosh } from 'vs/base/common/platform';
 import { URI as uri } from 'vs/base/common/uri';
+import 'vs/css!./suggestEnabledInput';
+import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
+import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { ITextModel } from 'vs/editor/common/model';
+import { ensureValidWordDefinition, getWordAtText } from 'vs/editor/common/core/wordHelper';
 import * as languages from 'vs/editor/common/languages';
+import { ITextModel } from 'vs/editor/common/model';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ContextMenuController } from 'vs/editor/contrib/contextmenu/browser/contextmenu';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ColorIdentifier, asCssVariable, asCssVariableWithDefault, editorSelectionBackground, inputBackground, inputBorder, inputForeground, inputPlaceholderForeground, selectionBackground } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
-import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
-import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
-import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
-import { DEFAULT_FONT_FAMILY } from 'vs/base/browser/fonts';
-import { HistoryNavigator } from 'vs/base/common/history';
-import { registerAndCreateHistoryNavigationContext, IHistoryNavigationContext } from 'vs/platform/history/browser/contextScopedHistoryWidget';
-import { IHistoryNavigationWidget } from 'vs/base/browser/history';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
-import { ensureValidWordDefinition, getWordAtText } from 'vs/editor/common/core/wordHelper';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IHistoryNavigationContext, registerAndCreateHistoryNavigationContext } from 'vs/platform/history/browser/contextScopedHistoryWidget';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { ColorIdentifier, asCssVariable, asCssVariableWithDefault, inputBackground, inputBorder, inputForeground, inputPlaceholderForeground } from 'vs/platform/theme/common/colorRegistry';
+import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
+import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
+import { getSimpleEditorOptions, setupSimpleEditorSelectionStyling } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 
 export interface SuggestResultsProvider {
 	/**
@@ -462,34 +461,7 @@ export class ContextScopedSuggestEnabledInputWithHistory extends SuggestEnabledI
 	}
 }
 
-// Override styles in selections.ts
-registerThemingParticipant((theme, collector) => {
-	const selectionBackgroundColor = theme.getColor(selectionBackground);
-
-	if (selectionBackgroundColor) {
-		// Override inactive selection bg
-		const inputBackgroundColor = theme.getColor(inputBackground);
-		if (inputBackgroundColor) {
-			collector.addRule(`.suggest-input-container .monaco-editor .selected-text { background-color: ${inputBackgroundColor.transparent(0.4)}; }`);
-		}
-
-		// Override selected fg
-		const inputForegroundColor = theme.getColor(inputForeground);
-		if (inputForegroundColor) {
-			collector.addRule(`.suggest-input-container .monaco-editor .view-line span.inline-selected-text { color: ${inputForegroundColor}; }`);
-		}
-
-		const backgroundColor = theme.getColor(inputBackground);
-		if (backgroundColor) {
-			collector.addRule(`.suggest-input-container .monaco-editor-background { background-color: ${backgroundColor}; } `);
-		}
-		collector.addRule(`.suggest-input-container .monaco-editor .focused .selected-text { background-color: ${selectionBackgroundColor}; }`);
-	} else {
-		// Use editor selection color if theme has not set a selection background color
-		collector.addRule(`.suggest-input-container .monaco-editor .focused .selected-text { background-color: ${theme.getColor(editorSelectionBackground)}; }`);
-	}
-});
-
+setupSimpleEditorSelectionStyling('.suggest-input-container');
 
 function getSuggestEnabledInputOptions(ariaLabel?: string): IEditorOptions {
 	return {

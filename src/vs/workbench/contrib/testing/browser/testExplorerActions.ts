@@ -465,7 +465,7 @@ function selectContinuousRunProfiles(
 		}
 	}
 
-	const quickpick = quickInputService.createQuickPick<IQuickPickItem & { profile: ITestRunProfile }>();
+	const quickpick = quickInputService.createQuickPick<IQuickPickItem & { profile: ITestRunProfile }>({ useSeparators: true });
 	quickpick.title = localize('testing.selectContinuousProfiles', 'Select profiles to run when files change:');
 	quickpick.canSelectMany = true;
 	quickpick.items = qpItems;

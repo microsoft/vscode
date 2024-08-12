@@ -405,7 +405,7 @@
 	border-color: var(--vscode-focusBorder);
 }
 
-.interactive-session .interactive-input-and-execute-toolbar .monaco-editor .mtk1 {
+.interactive-input-and-execute-toolbar .monaco-editor .mtk1 {
 	color: var(--vscode-input-foreground);
 }
 

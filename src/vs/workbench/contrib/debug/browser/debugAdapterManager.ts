@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { RunOnceScheduler } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
@@ -88,8 +89,13 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 		this._register(this.onDidDebuggersExtPointRead(() => {
 			this.debugExtensionsAvailable.set(this.debuggers.length > 0);
 		}));
-		this._register(tasksService.onDidChangeTaskConfig(() => {
-			this.updateTaskLabels();
+
+		// generous debounce since this will end up calling `resolveTask` internally
+		const updateTaskScheduler = this._register(new RunOnceScheduler(() => this.updateTaskLabels(), 5000));
+
+		this._register(Event.any(tasksService.onDidChangeTaskConfig, tasksService.onDidChangeTaskProviders)(() => {
+			updateTaskScheduler.cancel();
+			updateTaskScheduler.schedule();
 		}));
 		this.lifecycleService.when(LifecyclePhase.Eventually)
 			.then(() => this.debugExtensionsAvailable.set(this.debuggers.length > 0)); // If no extensions with a debugger contribution are loaded
@@ -98,7 +104,7 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 			this.usedDebugTypes.add(s.configuration.type);
 		}));
 
-		this.updateTaskLabels();
+		updateTaskScheduler.schedule();
 	}
 
 	private registerListeners(): void {

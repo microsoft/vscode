@@ -91,8 +91,9 @@ export class ChatMarkdownRenderer extends MarkdownRenderer {
 		const store = new DisposableStore();
 		result.element.querySelectorAll('a').forEach((element) => {
 			if (element.title) {
-				store.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), element, element.title));
+				const title = element.title;
 				element.title = '';
+				store.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), element, title));
 			}
 		});
 

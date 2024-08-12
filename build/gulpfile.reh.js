@@ -41,6 +41,7 @@ const REMOTE_FOLDER = path.join(REPO_ROOT, 'remote');
 
 const BUILD_TARGETS = [
 	{ platform: 'win32', arch: 'x64' },
+	{ platform: 'win32', arch: 'arm64' },
 	{ platform: 'darwin', arch: 'x64' },
 	{ platform: 'darwin', arch: 'arm64' },
 	{ platform: 'linux', arch: 'x64' },

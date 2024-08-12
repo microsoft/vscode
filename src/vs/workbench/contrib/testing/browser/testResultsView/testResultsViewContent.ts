@@ -74,6 +74,7 @@ class MessageStackFrame extends CustomStackFrame {
 	}
 
 	public override render(container: HTMLElement): IDisposable {
+		this.message.style.visibility = 'visible';
 		container.appendChild(this.message);
 		return toDisposable(() => this.message.remove());
 	}
@@ -320,7 +321,13 @@ export class TestResultsViewContent extends Disposable {
 	}
 
 	private async prepareTopFrame(subject: InspectSubject, callFrames: ITestMessageStackFrame[]) {
+		// ensure the messageContainer is in the DOM so renderers can calculate the
+		// dimensions before it's rendered in the list.
+		this.messageContainer.style.visibility = 'hidden';
+		this.stackContainer.appendChild(this.messageContainer);
+
 		const topFrame = this.currentTopFrame = this.instantiationService.createInstance(MessageStackFrame, this.messageContainer, this.followupWidget, subject);
+
 		topFrame.showHeader.set(callFrames.length > 0, undefined);
 
 		const provider = await findAsync(this.contentProviders, p => p.update(subject));

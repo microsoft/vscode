@@ -8,13 +8,11 @@
 
 // ESM-comment-begin
 const performance = require('./vs/base/common/performance');
-const bootstrap = require('./bootstrap');
 const bootstrapNode = require('./bootstrap-node');
 const bootstrapAmd = require('./bootstrap-amd');
 // ESM-comment-end
 // ESM-uncomment-begin
 // import * as performance from './vs/base/common/performance.js';
-// import * as bootstrap from './bootstrap.js';
 // import * as bootstrapNode from './bootstrap-node.js';
 // import * as bootstrapAmd from './bootstrap-amd.js';
 // ESM-uncomment-end
@@ -28,7 +26,7 @@ configureCrashReporter();
 bootstrapNode.removeGlobalNodeModuleLookupPaths();
 
 // Enable ASAR in our forked processes
-bootstrap.enableASARSupport();
+bootstrapNode.enableASARSupport();
 
 if (process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH']) {
 	bootstrapNode.injectNodeModuleLookupPath(process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH']);

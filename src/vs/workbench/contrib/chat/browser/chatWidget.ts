@@ -9,7 +9,7 @@ import { disposableTimeout, timeout } from 'vs/base/common/async';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { matchesScheme, Schemas } from 'vs/base/common/network';
+import { Schemas } from 'vs/base/common/network';
 import { extUri, isEqual } from 'vs/base/common/resources';
 import { isDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
@@ -26,7 +26,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ChatTreeItem, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewOptions } from 'vs/workbench/contrib/chat/browser/chat';
+import { ChatTreeItem, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewOptions, IChatListItemRendererOptions } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatAccessibilityProvider } from 'vs/workbench/contrib/chat/browser/chatAccessibilityProvider';
 import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
 import { ChatListDelegate, ChatListItemRenderer, IChatRendererDelegate } from 'vs/workbench/contrib/chat/browser/chatListRenderer';
@@ -40,7 +40,6 @@ import { IChatFollowup, IChatLocationData, IChatService } from 'vs/workbench/con
 import { IChatSlashCommandService } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 import { ChatViewModel, IChatResponseViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { CodeBlockModelCollection } from 'vs/workbench/contrib/chat/common/codeBlockModelCollection';
-import { IChatListItemRendererOptions } from './chat';
 
 const $ = dom.$;
 
@@ -224,13 +223,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._codeBlockModelCollection = this._register(instantiationService.createInstance(CodeBlockModelCollection));
 
 		this._register(codeEditorService.registerCodeEditorOpenHandler(async (input: ITextResourceEditorInput, _source: ICodeEditor | null, _sideBySide?: boolean): Promise<ICodeEditor | null> => {
-			let resource = input.resource;
-
-			// if trying to open backing documents, actually open the real chat code block doc
-			if (matchesScheme(resource, Schemas.vscodeCopilotBackingChatCodeBlock)) {
-				resource = resource.with({ scheme: Schemas.vscodeChatCodeBlock });
-			}
-
+			const resource = input.resource;
 			if (resource.scheme !== Schemas.vscodeChatCodeBlock) {
 				return null;
 			}
@@ -267,6 +260,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 			return null;
 		}));
+	}
+	getLocationData(): IChatLocationData | undefined {
+		return this._location.resolveData?.();
 	}
 
 	private _lastSelectedAgent: IChatAgentData | undefined;
@@ -481,7 +477,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._register(this.renderer.onDidClickRerunWithAgentOrCommandDetection(item => {
 			const request = this.chatService.getSession(item.sessionId)?.getRequests().find(candidate => candidate.id === item.requestId);
 			if (request) {
-				this.chatService.resendRequest(request, { noCommandDetection: true, attempt: request.attempt, location: this.location }).catch(e => this.logService.error('FAILED to rerun request', e));
+				this.chatService.resendRequest(request, {
+					noCommandDetection: true, attempt: request.attempt + 1, location: this.location, locationData: this._location.resolveData?.(),
+				}).catch(e => this.logService.error('FAILED to rerun request', e));
 			}
 		}));
 
