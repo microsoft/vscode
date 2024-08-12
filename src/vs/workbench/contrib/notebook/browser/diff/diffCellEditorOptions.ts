@@ -7,7 +7,11 @@ import { IDiffEditorConstructionOptions } from 'vs/editor/browser/editorBrowser'
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 
 export const fixedEditorPadding = {
-	top: 12,
+	/**
+	 * Do not leave at 12, when at 12 and we have whitespace and only one line,
+	 * then there's not enough space for the button `Show Whitespace Differences`
+	 */
+	top: 24,
 	bottom: 12
 };
 

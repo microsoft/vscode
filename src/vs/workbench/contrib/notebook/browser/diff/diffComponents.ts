@@ -8,7 +8,7 @@ import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecyc
 import { Schemas } from 'vs/base/common/network';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { DiffElementCellViewModelBase, getFormattedMetadataJSON, getFormattedOutputJSON, OutputComparison, outputEqual, OUTPUT_EDITOR_HEIGHT_MAGIC, PropertyFoldingState, SideBySideDiffElementViewModel, SingleSideDiffElementViewModel, DiffElementPlaceholderViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
-import { CellDiffSideBySideRenderTemplate, CellDiffSingleSideRenderTemplate, DiffSide, DIFF_CELL_MARGIN, INotebookTextDiffEditor, NOTEBOOK_DIFF_CELL_INPUT, NOTEBOOK_DIFF_CELL_PROPERTY, NOTEBOOK_DIFF_CELL_PROPERTY_EXPANDED, CellDiffPlaceholderRenderTemplate, IDiffCellMarginOverlay } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
+import { CellDiffSideBySideRenderTemplate, CellDiffSingleSideRenderTemplate, DiffSide, DIFF_CELL_MARGIN, INotebookTextDiffEditor, NOTEBOOK_DIFF_CELL_INPUT, NOTEBOOK_DIFF_CELL_PROPERTY, NOTEBOOK_DIFF_CELL_PROPERTY_EXPANDED, CellDiffPlaceholderRenderTemplate, IDiffCellMarginOverlay, NOTEBOOK_DIFF_CELL_IGNORE_WHITESPACE } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ILanguageService } from 'vs/editor/common/languages/language';
@@ -46,6 +46,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { DiffNestedCellViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffNestedCellViewModel';
 import { localize } from 'vs/nls';
 import { Emitter } from 'vs/base/common/event';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 
 export function getOptimizedNestedCodeEditorWidgetOptions(): ICodeEditorWidgetOptions {
 	return {
@@ -309,6 +310,7 @@ abstract class AbstractElementRenderer extends Disposable {
 		protected readonly menuService: IMenuService,
 		protected readonly contextKeyService: IContextKeyService,
 		protected readonly configurationService: IConfigurationService,
+		protected readonly textConfigurationService: ITextResourceConfigurationService
 	) {
 		super();
 		// init
@@ -751,8 +753,22 @@ abstract class AbstractElementRenderer extends Disposable {
 	abstract updateSourceEditor(): void;
 	abstract layout(state: IDiffElementLayoutState): void;
 
-	protected updateEditorOptions(editor: DiffEditorWidget, optionsToUpdate: ('hideUnchangedRegions' | 'renderSideBySide' | 'useInlineViewWhenSpaceIsLimited')[]): IDisposable {
-		return Disposable.None;
+	protected updateEditorOptions(editor: DiffEditorWidget, optionsToUpdate: ('hideUnchangedRegions' | 'renderSideBySide' | 'useInlineViewWhenSpaceIsLimited' | 'ignoreTrimWhitespace')[]): IDisposable {
+		const uri = editor.getModel()?.modified.uri || editor.getModel()?.original.uri;
+		if (!uri || !optionsToUpdate.includes('ignoreTrimWhitespace')) {
+			return Disposable.None;
+		}
+		const ignoreTrimWhitespace = this.textConfigurationService.getValue<boolean>(uri, 'diffEditor.ignoreTrimWhitespace');
+		editor.updateOptions({ ignoreTrimWhitespace });
+
+		return this.textConfigurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(uri, 'diffEditor') &&
+				e.affectedKeys.has('diffEditor.ignoreTrimWhitespace')) {
+				const ignoreTrimWhitespace = this.textConfigurationService.getValue<boolean>(uri, 'diffEditor.ignoreTrimWhitespace');
+				editor.updateOptions({ ignoreTrimWhitespace });
+			}
+		});
+
 		// if (!optionsToUpdate.length) {
 		// 	return Disposable.None;
 		// }
@@ -814,6 +830,7 @@ abstract class SingleSideDiffElement extends AbstractElementRenderer {
 		menuService: IMenuService,
 		contextKeyService: IContextKeyService,
 		configurationService: IConfigurationService,
+		textConfigurationService: ITextResourceConfigurationService
 	) {
 		super(
 			notebookEditor,
@@ -830,6 +847,7 @@ abstract class SingleSideDiffElement extends AbstractElementRenderer {
 			menuService,
 			contextKeyService,
 			configurationService,
+			textConfigurationService
 		);
 		this.cell = cell;
 		this.templateData = templateData;
@@ -1107,9 +1125,9 @@ export class DeletedElement extends SingleSideDiffElement {
 		@IMenuService menuService: IMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService configurationService: IConfigurationService,
-
+		@ITextResourceConfigurationService textConfigurationService: ITextResourceConfigurationService,
 	) {
-		super(notebookEditor, cell, templateData, 'left', instantiationService, languageService, modelService, textModelService, contextMenuService, keybindingService, notificationService, menuService, contextKeyService, configurationService);
+		super(notebookEditor, cell, templateData, 'left', instantiationService, languageService, modelService, textModelService, contextMenuService, keybindingService, notificationService, menuService, contextKeyService, configurationService, textConfigurationService);
 	}
 
 	get nestedCellViewModel() {
@@ -1239,8 +1257,9 @@ export class InsertElement extends SingleSideDiffElement {
 		@IMenuService menuService: IMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@ITextResourceConfigurationService textConfigurationService: ITextResourceConfigurationService,
 	) {
-		super(notebookEditor, cell, templateData, 'right', instantiationService, languageService, modelService, textModelService, contextMenuService, keybindingService, notificationService, menuService, contextKeyService, configurationService);
+		super(notebookEditor, cell, templateData, 'right', instantiationService, languageService, modelService, textModelService, contextMenuService, keybindingService, notificationService, menuService, contextKeyService, configurationService, textConfigurationService);
 	}
 	get nestedCellViewModel() {
 		return this.cell.modified!;
@@ -1372,8 +1391,9 @@ export class ModifiedElement extends AbstractElementRenderer {
 		@IMenuService menuService: IMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@ITextResourceConfigurationService textConfigurationService: ITextResourceConfigurationService,
 	) {
-		super(notebookEditor, cell, templateData, 'full', instantiationService, languageService, modelService, textModelService, contextMenuService, keybindingService, notificationService, menuService, contextKeyService, configurationService);
+		super(notebookEditor, cell, templateData, 'full', instantiationService, languageService, modelService, textModelService, contextMenuService, keybindingService, notificationService, menuService, contextKeyService, configurationService, textConfigurationService);
 		this.cell = cell;
 		this.templateData = templateData;
 		this._editorViewStateChanged = false;
@@ -1700,6 +1720,10 @@ export class ModifiedElement extends AbstractElementRenderer {
 		const inputChanged = NOTEBOOK_DIFF_CELL_INPUT.bindTo(scopedContextKeyService);
 		inputChanged.set(this.cell.modified.textModel.getValue() !== this.cell.original.textModel.getValue());
 
+		const ignoreWhitespace = NOTEBOOK_DIFF_CELL_IGNORE_WHITESPACE.bindTo(scopedContextKeyService);
+		const ignore = this.textConfigurationService.getValue<boolean>(this.cell.modified.uri, 'diffEditor.ignoreTrimWhitespace');
+		ignoreWhitespace.set(ignore);
+
 		this._toolbar = this.templateData.toolbar;
 
 		this._toolbar.context = {
@@ -1709,6 +1733,9 @@ export class ModifiedElement extends AbstractElementRenderer {
 		const actions: IAction[] = [];
 
 		const refreshToolbar = () => {
+			const ignore = this.textConfigurationService.getValue<boolean>(this.cell.modified.uri, 'diffEditor.ignoreTrimWhitespace');
+			ignoreWhitespace.set(ignore);
+
 			const hasChanges = this.cell.modified.textModel.getValue() !== this.cell.original.textModel.getValue();
 			inputChanged.set(hasChanges);
 
@@ -1725,6 +1752,12 @@ export class ModifiedElement extends AbstractElementRenderer {
 		};
 
 		this._register(this.cell.modified.textModel.onDidChangeContent(() => refreshToolbar()));
+		this._register(this.textConfigurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(this.cell.modified.uri, 'diffEditor') &&
+				e.affectedKeys.has('diffEditor.ignoreTrimWhitespace')) {
+				refreshToolbar();
+			}
+		}));
 		refreshToolbar();
 	}
 
@@ -1746,7 +1779,7 @@ export class ModifiedElement extends AbstractElementRenderer {
 
 		this._editor!.setModel({
 			original: textModel,
-			modified: modifiedTextModel
+			modified: modifiedTextModel,
 		});
 
 		const handleViewStateChange = () => {
@@ -1759,7 +1792,7 @@ export class ModifiedElement extends AbstractElementRenderer {
 			}
 		};
 
-		this._register(this.updateEditorOptions(this._editor!, ['hideUnchangedRegions', 'renderSideBySide', 'useInlineViewWhenSpaceIsLimited']));
+		this._register(this.updateEditorOptions(this._editor!, ['hideUnchangedRegions', 'renderSideBySide', 'useInlineViewWhenSpaceIsLimited', 'ignoreTrimWhitespace']));
 		this._register(this._editor!.getOriginalEditor().onDidChangeCursorSelection(handleViewStateChange));
 		this._register(this._editor!.getOriginalEditor().onDidScrollChange(handleScrollChange));
 		this._register(this._editor!.getModifiedEditor().onDidChangeCursorSelection(handleViewStateChange));
