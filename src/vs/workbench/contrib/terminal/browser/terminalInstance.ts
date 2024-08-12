@@ -2269,12 +2269,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const showAllColorsItem = { label: 'Reset to default' };
 		items.push(showAllColorsItem);
 
+		const disposables: IDisposable[] = [];
 		const quickPick = this._quickInputService.createQuickPick({ useSeparators: true });
+		disposables.push(quickPick);
 		quickPick.items = items;
 		quickPick.matchOnDescription = true;
 		quickPick.placeholder = nls.localize('changeColor', 'Select a color for the terminal');
 		quickPick.show();
-		const disposables: IDisposable[] = [];
 		const result = await new Promise<IQuickPickItem | undefined>(r => {
 			disposables.push(quickPick.onDidHide(() => r(undefined)));
 			disposables.push(quickPick.onDidAccept(() => r(quickPick.selectedItems[0])));
