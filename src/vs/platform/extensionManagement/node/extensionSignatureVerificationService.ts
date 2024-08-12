@@ -112,7 +112,8 @@ export class ExtensionSignatureVerificationService implements IExtensionSignatur
 		// ESM-uncomment-end
 
 		// ESM-comment-begin
-		return import('@vscode/vsce-sign');
+		const { importAMDNodeModule } = await import('vs/amdX');
+		return importAMDNodeModule('@vscode/vsce-sign', 'src/main.js');
 		// ESM-comment-end
 	}
 
