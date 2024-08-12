@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDragAndDropData } from 'vs/base/browser/dnd';
-import { $, append, clearNode, createStyleSheet, getWindow, h, hasParentWithClass, isActiveElement, asCssValueWithDefault, isKeyboardEvent } from 'vs/base/browser/dom';
+import { $, append, clearNode, createStyleSheet, getWindow, h, hasParentWithClass, isActiveElement, asCssValueWithDefault, isKeyboardEvent, addDisposableListener } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -36,6 +36,7 @@ import { localize } from 'vs/nls';
 import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
 import { createInstantHoverDelegate, getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { autorun, constObservable } from 'vs/base/common/observable';
+import { alert } from 'vs/base/browser/ui/aria/aria';
 
 class TreeElementsDragAndDropData<T, TFilterData, TContext> extends ElementsDragAndDropData<T, TContext> {
 
@@ -1144,6 +1145,7 @@ class FindController<T, TFilterData> implements IDisposable {
 		const noMatches = this.filter.totalCount > 0 && this.filter.matchCount === 0;
 
 		if (this.pattern && noMatches) {
+			alert(localize('replFindNoResults', "No results"));
 			if (this.tree.options.showNotFoundMessage ?? true) {
 				this.widget?.showMessage({ type: MessageType.WARNING, content: localize('not found', "No elements found.") });
 			} else {
@@ -1151,6 +1153,9 @@ class FindController<T, TFilterData> implements IDisposable {
 			}
 		} else {
 			this.widget?.clearMessage();
+			if (this.pattern) {
+				alert(localize('replFindResults', "{0} results", this.filter.matchCount));
+			}
 		}
 	}
 
@@ -1807,9 +1812,8 @@ class StickyScrollFocus<T, TFilterData, TRef> extends Disposable {
 	) {
 		super();
 
-		this.container.addEventListener('focus', () => this.onFocus());
-		this.container.addEventListener('blur', () => this.onBlur());
-
+		this._register(addDisposableListener(this.container, 'focus', () => this.onFocus()));
+		this._register(addDisposableListener(this.container, 'blur', () => this.onBlur()));
 		this._register(this.view.onDidFocus(() => this.toggleStickyScrollFocused(false)));
 		this._register(this.view.onKeyDown((e) => this.onKeyDown(e)));
 		this._register(this.view.onMouseDown((e) => this.onMouseDown(e)));

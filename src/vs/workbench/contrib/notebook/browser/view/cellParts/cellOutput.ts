@@ -381,7 +381,7 @@ class CellOutputElement extends Disposable {
 			});
 		}
 
-		const picker = this.quickInputService.createQuickPick();
+		const picker = this.quickInputService.createQuickPick({ useSeparators: true });
 		picker.items = [
 			...items,
 			{ type: 'separator' },

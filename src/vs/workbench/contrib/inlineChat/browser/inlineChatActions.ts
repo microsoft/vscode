@@ -29,6 +29,7 @@ import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
+import { CONTEXT_IN_CHAT_INPUT } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 
 CommandsRegistry.registerCommandAlias('interactiveEditor.start', 'inlineChat.start');
 CommandsRegistry.registerCommandAlias('interactive.acceptChanges', ACTION_ACCEPT_CHANGES);
@@ -342,7 +343,7 @@ export class RerunAction extends AbstractInlineChatAction {
 
 		const lastRequest = model?.getRequests().at(-1);
 		if (lastRequest) {
-			await chatService.resendRequest(lastRequest, { noCommandDetection: false, attempt: lastRequest.attempt + 1, location: ctrl.chatWidget.location });
+			await chatService.resendRequest(lastRequest, { noCommandDetection: false, attempt: lastRequest.attempt + 1, location: ctrl.chatWidget.location, locationData: ctrl.chatWidget.getLocationData() });
 		}
 	}
 }
@@ -504,6 +505,7 @@ export class ViewInChatAction extends AbstractInlineChatAction {
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
+				when: CONTEXT_IN_CHAT_INPUT
 			}
 		});
 	}

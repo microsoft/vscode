@@ -26,9 +26,9 @@
 		]
 	},
 	"include": [
-		"./bootstrap.js",
 		"./bootstrap-amd.js",
 		"./bootstrap-fork.js",
+		"./bootstrap-meta.js",
 		"./bootstrap-node.js",
 		"./bootstrap-window.js",
 		"./cli.js",

@@ -136,7 +136,7 @@ abstract class KernelPickerStrategyBase implements IKernelPickerStrategy {
 			return true;
 		}
 
-		const quickPick = this._quickInputService.createQuickPick<KernelQuickPickItem>();
+		const quickPick = this._quickInputService.createQuickPick<KernelQuickPickItem>({ useSeparators: true });
 		const quickPickItems = this._getKernelPickerQuickPickItems(notebook, matchResult, this._notebookKernelService, scopedContextKeyService);
 
 		if (quickPickItems.length === 1 && supportAutoRun(quickPickItems[0]) && !skipAutoRun) {
@@ -339,7 +339,7 @@ abstract class KernelPickerStrategyBase implements IKernelPickerStrategy {
 
 	private async _showInstallKernelExtensionRecommendation(
 		notebookTextModel: NotebookTextModel,
-		quickPick: IQuickPick<KernelQuickPickItem>,
+		quickPick: IQuickPick<KernelQuickPickItem, { useSeparators: true }>,
 		extensionWorkbenchService: IExtensionsWorkbenchService,
 		token: CancellationToken
 	) {
@@ -519,7 +519,7 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 	private async displaySelectAnotherQuickPick(editor: IActiveNotebookEditor, kernelListEmpty: boolean): Promise<boolean> {
 		const notebook: NotebookTextModel = editor.textModel;
 		const disposables = new DisposableStore();
-		const quickPick = this._quickInputService.createQuickPick<KernelQuickPickItem>();
+		const quickPick = this._quickInputService.createQuickPick<KernelQuickPickItem>({ useSeparators: true });
 		const quickPickItem = await new Promise<KernelQuickPickItem | IQuickInputButton | undefined>(resolve => {
 			// select from kernel sources
 			quickPick.title = kernelListEmpty ? localize('select', "Select Kernel") : localize('selectAnotherKernel', "Select Another Kernel");
@@ -699,7 +699,7 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 
 	private async _selectOneKernel(notebook: NotebookTextModel, source: string, kernels: INotebookKernel[]) {
 		const quickPickItems: QuickPickInput<KernelPick>[] = kernels.map(kernel => toKernelQuickPick(kernel, undefined));
-		const quickPick = this._quickInputService.createQuickPick<KernelQuickPickItem>();
+		const quickPick = this._quickInputService.createQuickPick<KernelQuickPickItem>({ useSeparators: true });
 		quickPick.items = quickPickItems;
 		quickPick.canSelectMany = false;
 

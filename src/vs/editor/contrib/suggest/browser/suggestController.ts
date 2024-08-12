@@ -509,15 +509,14 @@ export class SuggestController implements IEditorContribution {
 
 		// clear only now - after all tasks are done
 		Promise.all(tasks).finally(() => {
-			this._reportSuggestionAcceptedTelemetry(item, model, isResolved, _commandExectionDuration, _additionalEditsAppliedAsync);
+			this._reportSuggestionAcceptedTelemetry(item, model, isResolved, _commandExectionDuration, _additionalEditsAppliedAsync, event.index);
 
 			this.model.clear();
 			cts.dispose();
 		});
 	}
 
-	private _reportSuggestionAcceptedTelemetry(item: CompletionItem, model: ITextModel, itemResolved: boolean, commandExectionDuration: number, additionalEditsAppliedAsync: number) {
-
+	private _reportSuggestionAcceptedTelemetry(item: CompletionItem, model: ITextModel, itemResolved: boolean, commandExectionDuration: number, additionalEditsAppliedAsync: number, index: number): void {
 		if (Math.floor(Math.random() * 100) === 0) {
 			// throttle telemetry event because accepting completions happens a lot
 			return;
@@ -529,6 +528,8 @@ export class SuggestController implements IEditorContribution {
 			resolveInfo: number; resolveDuration: number;
 			commandDuration: number;
 			additionalEditsAsync: number;
+			index: number;
+			label: string;
 		};
 		type AcceptedSuggestionClassification = {
 			owner: 'jrieken';
@@ -543,6 +544,8 @@ export class SuggestController implements IEditorContribution {
 			resolveDuration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How long resolving took to finish' };
 			commandDuration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How long a completion item command took' };
 			additionalEditsAsync: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Info about asynchronously applying additional edits' };
+			index: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The order of the completion item in the list.' };
+			label: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The label of the completion item.' };
 		};
 
 		this._telemetryService.publicLog2<AcceptedSuggestion, AcceptedSuggestionClassification>('suggest.acceptedSuggestion', {
@@ -555,7 +558,9 @@ export class SuggestController implements IEditorContribution {
 			resolveInfo: !item.provider.resolveCompletionItem ? -1 : itemResolved ? 1 : 0,
 			resolveDuration: item.resolveDuration,
 			commandDuration: commandExectionDuration,
-			additionalEditsAsync: additionalEditsAppliedAsync
+			additionalEditsAsync: additionalEditsAppliedAsync,
+			index,
+			label: item.textLabel
 		});
 	}
 

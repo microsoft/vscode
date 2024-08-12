@@ -15,12 +15,12 @@ import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWriteFileOptions, IFileStatWithMetadata } from 'vs/platform/files/common/files';
-import { ILogService } from 'vs/platform/log/common/log';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IRevertOptions, ISaveOptions, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { ICellDto2, INotebookEditorModel, INotebookLoadOptions, IResolvedNotebookEditorModel, NotebookCellsChangeType, NotebookData, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookLoggingService } from 'vs/workbench/contrib/notebook/common/notebookLoggingService';
 import { INotebookSerializer, INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IFileWorkingCopyModelConfiguration, SnapshotContext } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
@@ -199,7 +199,7 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 		private readonly _notebookService: INotebookService,
 		private readonly _configurationService: IConfigurationService,
 		private readonly _telemetryService: ITelemetryService,
-		private readonly _logService: ILogService
+		private readonly _notebookLogService: INotebookLoggingService,
 	) {
 		super();
 
@@ -247,7 +247,7 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 				let serializer = this._notebookService.tryGetDataProviderSync(this.notebookModel.viewType)?.serializer;
 
 				if (!serializer) {
-					this._logService.warn('No serializer found for notebook model, checking if provider still needs to be resolved');
+					this._notebookLogService.info('WorkingCopyModel', 'No serializer found for notebook model, checking if provider still needs to be resolved');
 					serializer = await this.getNotebookSerializer();
 				}
 
@@ -342,6 +342,8 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
+
+		this._notebookLogService.info('WorkingCopyModel', 'Notebook content updated from file system - ' + this._notebookModel.uri.toString());
 		this._notebookModel.reset(data.cells, data.metadata, serializer.options);
 	}
 
@@ -370,7 +372,7 @@ export class NotebookFileWorkingCopyModelFactory implements IStoredFileWorkingCo
 		@INotebookService private readonly _notebookService: INotebookService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@ILogService private readonly _logService: ILogService
+		@INotebookLoggingService private readonly _notebookLogService: INotebookLoggingService
 	) { }
 
 	async createModel(resource: URI, stream: VSBufferReadableStream, token: CancellationToken): Promise<NotebookFileWorkingCopyModel> {
@@ -388,7 +390,7 @@ export class NotebookFileWorkingCopyModelFactory implements IStoredFileWorkingCo
 		}
 
 		const notebookModel = this._notebookService.createNotebookTextModel(info.viewType, resource, data, info.serializer.options);
-		return new NotebookFileWorkingCopyModel(notebookModel, this._notebookService, this._configurationService, this._telemetryService, this._logService);
+		return new NotebookFileWorkingCopyModel(notebookModel, this._notebookService, this._configurationService, this._telemetryService, this._notebookLogService);
 	}
 }
 

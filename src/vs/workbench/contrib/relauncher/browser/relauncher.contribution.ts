@@ -29,6 +29,7 @@ interface IConfiguration extends IWindowsConfiguration {
 	window: IWindowSettings;
 	workbench?: { enableExperiments?: boolean };
 	_extensionsGallery?: { enablePPE?: boolean };
+	accessibility?: { verbosity?: { debug?: boolean } };
 }
 
 export class SettingsChangeRelauncher extends Disposable implements IWorkbenchContribution {
@@ -38,24 +39,28 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		'window.nativeTabs',
 		'window.nativeFullScreen',
 		'window.clickThroughInactive',
+		'window.experimentalControlOverlay',
 		'update.mode',
 		'editor.accessibilitySupport',
 		'security.workspace.trust.enabled',
 		'workbench.enableExperiments',
 		'_extensionsGallery.enablePPE',
-		'security.restrictUNCAccess'
+		'security.restrictUNCAccess',
+		'accessibility.verbosity.debug'
 	];
 
 	private readonly titleBarStyle = new ChangeObserver<TitlebarStyle>('string');
 	private readonly nativeTabs = new ChangeObserver('boolean');
 	private readonly nativeFullScreen = new ChangeObserver('boolean');
 	private readonly clickThroughInactive = new ChangeObserver('boolean');
+	private readonly linuxWindowControlOverlay = new ChangeObserver('boolean');
 	private readonly updateMode = new ChangeObserver('string');
 	private accessibilitySupport: 'on' | 'off' | 'auto' | undefined;
 	private readonly workspaceTrustEnabled = new ChangeObserver('boolean');
 	private readonly experimentsEnabled = new ChangeObserver('boolean');
 	private readonly enablePPEExtensionsGallery = new ChangeObserver('boolean');
 	private readonly restrictUNCAccess = new ChangeObserver('boolean');
+	private readonly accessibilityVerbosityDebug = new ChangeObserver('boolean');
 
 	constructor(
 		@IHostService private readonly hostService: IHostService,
@@ -96,6 +101,9 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 			// macOS: Click through (accept first mouse)
 			processChanged(isMacintosh && this.clickThroughInactive.handleChange(config.window?.clickThroughInactive));
 
+			// Linux: WCO
+			processChanged(isLinux && this.linuxWindowControlOverlay.handleChange(config.window?.experimentalControlOverlay));
+
 			// Update mode
 			processChanged(this.updateMode.handleChange(config.update?.mode));
 
@@ -112,6 +120,9 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 
 			// UNC host access restrictions
 			processChanged(this.restrictUNCAccess.handleChange(config?.security?.restrictUNCAccess));
+
+			// Debug accessibility verbosity
+			processChanged(this.accessibilityVerbosityDebug.handleChange(config?.accessibility?.verbosity?.debug));
 		}
 
 		// Experiments

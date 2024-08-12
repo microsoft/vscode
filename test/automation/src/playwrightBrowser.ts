@@ -72,10 +72,11 @@ async function launchServer(options: LaunchOptions) {
 	logger.log(`Storing log files into '${serverLogsPath}'`);
 
 	logger.log(`Command line: '${serverLocation}' ${args.join(' ')}`);
+	const shell: boolean = (process.platform === 'win32');
 	const serverProcess = spawn(
 		serverLocation,
 		args,
-		{ env }
+		{ env, shell }
 	);
 
 	logger.log(`Started server for browser smoke tests (pid: ${serverProcess.pid})`);

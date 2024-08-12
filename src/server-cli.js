@@ -6,14 +6,29 @@
 // @ts-check
 'use strict';
 
+// Keep bootstrap-amd.js from redefining 'fs'.
+// TODO@esm this needs to be revisited in ESM
+delete process.env['ELECTRON_RUN_AS_NODE'];
+
+// ESM-comment-begin
 const path = require('path');
-const product = require('./bootstrap-meta').product;
+const bootstrapNode = require('./bootstrap-node');
+const bootstrapAmd = require('./bootstrap-amd');
 const { resolveNLSConfiguration } = require('./vs/base/node/nls');
+const product = require('./bootstrap-meta').product;
+// ESM-comment-end
+// ESM-uncomment-begin
+// import * as path from 'path';
+// import { fileURLToPath } from 'url';
+// import * as bootstrapNode from './bootstrap-node.js';
+// import * as bootstrapAmd from './bootstrap-amd.js';
+// import { resolveNLSConfiguration } from './vs/base/node/nls.js';
+// import { product } from './bootstrap-meta.js';
+//
+// const __dirname = path.dirname(fileURLToPath(import.meta.url));
+// ESM-uncomment-end
 
 async function start() {
-
-	// Keep bootstrap-amd.js from redefining 'fs'.
-	delete process.env['ELECTRON_RUN_AS_NODE'];
 
 	// NLS
 	const nlsConfiguration = await resolveNLSConfiguration({ userLocale: 'en', osLocale: 'en', commit: product.commit, userDataPath: '', nlsMetadataPath: __dirname });
@@ -23,11 +38,11 @@ async function start() {
 		// When running out of sources, we need to load node modules from remote/node_modules,
 		// which are compiled against nodejs, not electron
 		process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH'] = process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH'] || path.join(__dirname, '..', 'remote', 'node_modules');
-		require('./bootstrap-node').injectNodeModuleLookupPath(process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH']);
+		bootstrapNode.injectNodeModuleLookupPath(process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH']);
 	} else {
 		delete process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH'];
 	}
-	require('./bootstrap-amd').load('vs/server/node/server.cli');
+	bootstrapAmd.load('vs/server/node/server.cli');
 }
 
 start();

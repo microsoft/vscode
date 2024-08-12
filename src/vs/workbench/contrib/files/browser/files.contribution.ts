@@ -533,6 +533,11 @@ configurationRegistry.registerConfiguration({
 			],
 			'description': nls.localize('sortOrderLexicographicOptions', "Controls the lexicographic sorting of file and folder names in the Explorer.")
 		},
+		'explorer.sortOrderReverse': {
+			'type': 'boolean',
+			'description': nls.localize('sortOrderReverse', "Controls whether the file and folder sort order, should be reversed."),
+			'default': false,
+		},
 		'explorer.decorations.colors': {
 			type: 'boolean',
 			description: nls.localize('explorer.decorations.colors', "Controls whether file decorations should use colors."),
@@ -553,6 +558,11 @@ configurationRegistry.registerConfiguration({
 			],
 			description: nls.localize('explorer.incrementalNaming', "Controls which naming strategy to use when giving a new name to a duplicated Explorer item on paste."),
 			default: 'simple'
+		},
+		'explorer.autoOpenDroppedFile': {
+			'type': 'boolean',
+			'description': nls.localize('autoOpenDroppedFile', "Controls whether the Explorer should automatically open a file when it is dropped into the explorer"),
+			'default': true
 		},
 		'explorer.compactFolders': {
 			'type': 'boolean',

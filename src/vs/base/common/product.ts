@@ -191,7 +191,6 @@ export interface IProductConfiguration {
 	readonly commonlyUsedSettings?: string[];
 	readonly aiGeneratedWorkspaceTrust?: IAiGeneratedWorkspaceTrust;
 	readonly gitHubEntitlement?: IGitHubEntitlement;
-	readonly chatWelcomeView?: IChatWelcomeView;
 	readonly chatParticipantRegistry?: string;
 }
 
@@ -208,6 +207,7 @@ export interface IExtensionRecommendations {
 
 export interface ISettingsEditorOpenCondition {
 	readonly prerelease?: boolean | string;
+	readonly descriptionOverride?: string;
 }
 
 export interface IExtensionRecommendationCondition {
@@ -305,10 +305,4 @@ export interface IGitHubEntitlement {
 	enablementKey: string;
 	confirmationMessage: string;
 	confirmationAction: string;
-}
-
-export interface IChatWelcomeView {
-	welcomeViewId: string;
-	welcomeViewTitle: string;
-	welcomeViewContent: string;
 }
