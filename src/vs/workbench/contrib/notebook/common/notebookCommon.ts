@@ -784,7 +784,7 @@ export interface INotebookLoadOptions {
 
 export type NotebookEditorModelCreationOptions = {
 	limits?: IFileReadLimits;
-	scratchpad?: boolean;
+	repl?: boolean;
 };
 
 export interface IResolvedNotebookEditorModel extends INotebookEditorModel {

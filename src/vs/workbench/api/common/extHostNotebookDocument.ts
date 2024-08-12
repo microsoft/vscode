@@ -161,6 +161,7 @@ export class ExtHostNotebookDocument {
 	private readonly _cells: ExtHostCell[] = [];
 
 	private readonly _notebookType: string;
+	private readonly _isRepl: boolean;
 
 	private _notebook: vscode.NotebookDocument | undefined;
 	private _metadata: Record<string, any>;
@@ -173,12 +174,13 @@ export class ExtHostNotebookDocument {
 		private readonly _textDocumentsAndEditors: ExtHostDocumentsAndEditors,
 		private readonly _textDocuments: ExtHostDocuments,
 		readonly uri: URI,
-		data: extHostProtocol.INotebookModelAddedData
+		data: extHostProtocol.INotebookModelAddedData,
 	) {
 		this._notebookType = data.viewType;
 		this._metadata = Object.freeze(data.metadata ?? Object.create(null));
 		this._spliceNotebookCells([[0, 0, data.cells]], true /* init -> no event*/, undefined);
 		this._versionId = data.versionId;
+		this._isRepl = !!data.isRepl;
 	}
 
 	dispose() {
@@ -196,6 +198,7 @@ export class ExtHostNotebookDocument {
 				get uri() { return that.uri; },
 				get version() { return that._versionId; },
 				get notebookType() { return that._notebookType; },
+				get isRepl() { return that._isRepl; },
 				get isDirty() { return that._isDirty; },
 				get isUntitled() { return that.uri.scheme === Schemas.untitled; },
 				get isClosed() { return that._disposed; },

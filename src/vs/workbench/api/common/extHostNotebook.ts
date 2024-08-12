@@ -185,10 +185,12 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		});
 	}
 
-	async createNotebookDocument(options: { viewType: string; content?: vscode.NotebookData }): Promise<URI> {
+	async createNotebookDocument(options: { notebookType: string; content?: vscode.NotebookData; resource?: UriComponents; repl?: boolean }): Promise<URI> {
 		const canonicalUri = await this._notebookDocumentsProxy.$tryCreateNotebook({
-			viewType: options.viewType,
-			content: options.content && typeConverters.NotebookData.from(options.content)
+			viewType: options.notebookType,
+			content: options.content && typeConverters.NotebookData.from(options.content),
+			resouce: options.resource ? URI.revive(options.resource) : undefined,
+			repl: options.repl
 		});
 		return URI.revive(canonicalUri);
 	}
@@ -205,7 +207,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 
 	async showNotebookDocument(notebookOrUri: vscode.NotebookDocument | URI, options?: vscode.NotebookDocumentShowOptions): Promise<vscode.NotebookEditor> {
 		if (URI.isUri(notebookOrUri)) {
-			notebookOrUri = await this.openNotebookDocument(notebookOrUri, options?.asRepl);
+			notebookOrUri = await this.openNotebookDocument(notebookOrUri);
 		}
 
 		let resolvedOptions: INotebookDocumentShowOptions;
@@ -222,7 +224,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 			};
 		}
 
-		if (options?.asRepl) {
+		if (!!notebookOrUri.isRepl) {
 			for (const editor of this._editors.values()) {
 				if (editor.notebookData.uri.toString() === notebookOrUri.uri.toString()) {
 					throw new Error(`Cannot open "${notebookOrUri.uri.toString()}" as REPL because it is already opened in another editor.`);
@@ -230,7 +232,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 			}
 		}
 
-		const viewType = options?.asRepl ? 'repl' : notebookOrUri.notebookType;
+		const viewType = !!notebookOrUri.isRepl ? 'repl' : notebookOrUri.notebookType;
 		const editorId = await this._notebookEditorsProxy.$tryShowNotebookDocument(notebookOrUri.uri, viewType, resolvedOptions);
 		const editor = editorId && this._editors.get(editorId)?.apiEditor;
 

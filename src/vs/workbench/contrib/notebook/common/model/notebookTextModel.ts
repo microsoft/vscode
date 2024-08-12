@@ -221,6 +221,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 	constructor(
 		readonly viewType: string,
+		readonly isRepl: boolean,
 		readonly uri: URI,
 		cells: ICellDto2[],
 		metadata: NotebookDocumentMetadata,

@@ -11,7 +11,8 @@
   },
   "enabledApiProposals": [
     "documentPaste",
-    "diffContentOptions"
+    "diffContentOptions",
+    "notebookReplDocument"
   ],
   "activationEvents": [
     "onNotebook:jupyter-notebook",

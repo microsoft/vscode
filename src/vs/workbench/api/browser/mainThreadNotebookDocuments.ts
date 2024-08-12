@@ -125,8 +125,9 @@ export class MainThreadNotebookDocuments implements MainThreadNotebookDocumentsS
 		}
 	}
 
-	async $tryCreateNotebook(options: { viewType: string; content?: NotebookDataDto }): Promise<UriComponents> {
-		const ref = await this._notebookEditorModelResolverService.resolve({ untitledResource: undefined }, options.viewType);
+	async $tryCreateNotebook(options: { viewType: string; content?: NotebookDataDto; uri?: UriComponents; repl?: boolean }): Promise<UriComponents> {
+		const resource = { untitledResource: options.uri ? URI.revive(options.uri) : undefined };
+		const ref = await this._notebookEditorModelResolverService.resolve(resource, options.viewType, { repl: options.repl });
 
 		// untitled notebooks are disposed when they get saved. we should not hold a reference
 		// to such a disposed notebook and therefore dispose the reference as well
@@ -147,7 +148,7 @@ export class MainThreadNotebookDocuments implements MainThreadNotebookDocumentsS
 
 	async $tryOpenNotebook(uriComponents: UriComponents, repl?: boolean): Promise<URI> {
 		const uri = URI.revive(uriComponents);
-		const ref = await this._notebookEditorModelResolverService.resolve(uri, undefined, { scratchpad: repl });
+		const ref = await this._notebookEditorModelResolverService.resolve(uri, undefined, { repl });
 
 		if (uriComponents.scheme === 'untitled') {
 			// untitled notebooks are disposed when they get saved. we should not hold a reference

@@ -223,6 +223,7 @@ export class MainThreadNotebooksAndEditors {
 	private static _asModelAddData(e: NotebookTextModel): INotebookModelAddedData {
 		return {
 			viewType: e.viewType,
+			isRepl: e.isRepl,
 			uri: e.uri,
 			metadata: e.metadata,
 			versionId: e.versionId,

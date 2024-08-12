@@ -47,6 +47,7 @@ suite('NotebookFileWorkingCopyModel', function () {
 
 		const notebook = instantiationService.createInstance(NotebookTextModel,
 			'notebook',
+			false,
 			URI.file('test'),
 			[{ cellKind: CellKind.Code, language: 'foo', mime: 'foo', source: 'foo', outputs: [{ outputId: 'id', outputs: [{ mime: Mimes.text, data: VSBuffer.fromString('Hello Out') }] }] }],
 			{},
@@ -105,6 +106,7 @@ suite('NotebookFileWorkingCopyModel', function () {
 
 		const notebook = instantiationService.createInstance(NotebookTextModel,
 			'notebook',
+			false,
 			URI.file('test'),
 			[{ cellKind: CellKind.Code, language: 'foo', mime: 'foo', source: 'foo', outputs: [] }],
 			{ foo: 123, bar: 456 },
@@ -166,6 +168,7 @@ suite('NotebookFileWorkingCopyModel', function () {
 
 		const notebook = instantiationService.createInstance(NotebookTextModel,
 			'notebook',
+			false,
 			URI.file('test'),
 			[{ cellKind: CellKind.Code, language: 'foo', mime: 'foo', source: 'foo', outputs: [], metadata: { foo: 123, bar: 456 } }],
 			{},
@@ -227,6 +230,7 @@ suite('NotebookFileWorkingCopyModel', function () {
 		const largeOutput: IOutputDto = { outputId: '123', outputs: [{ mime: Mimes.text, data: VSBuffer.fromString('a'.repeat(outputLimit + 1)) }] };
 		const notebook = instantiationService.createInstance(NotebookTextModel,
 			'notebook',
+			false,
 			URI.file('test'),
 			[{ cellKind: CellKind.Code, language: 'foo', mime: 'foo', source: 'foo', outputs: [largeOutput], metadata: { foo: 123, bar: 456 } }],
 			{},
@@ -268,6 +272,7 @@ suite('NotebookFileWorkingCopyModel', function () {
 	test('Notebook model will not return a save delegate if the serializer has not been retreived', async function () {
 		const notebook = instantiationService.createInstance(NotebookTextModel,
 			'notebook',
+			false,
 			URI.file('test'),
 			[{ cellKind: CellKind.Code, language: 'foo', mime: 'foo', source: 'foo', outputs: [], metadata: { foo: 123, bar: 456 } }],
 			{},

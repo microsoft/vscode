@@ -369,6 +369,7 @@ export class NotebookFileWorkingCopyModelFactory implements IStoredFileWorkingCo
 
 	constructor(
 		private readonly _viewType: string,
+		private readonly _isRepl: boolean,
 		@INotebookService private readonly _notebookService: INotebookService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
@@ -389,7 +390,7 @@ export class NotebookFileWorkingCopyModelFactory implements IStoredFileWorkingCo
 			throw new CancellationError();
 		}
 
-		const notebookModel = this._notebookService.createNotebookTextModel(info.viewType, resource, data, info.serializer.options);
+		const notebookModel = this._notebookService.createNotebookTextModel(info.viewType, this._isRepl, resource, data, info.serializer.options);
 		return new NotebookFileWorkingCopyModel(notebookModel, this._notebookService, this._configurationService, this._telemetryService, this._notebookLogService);
 	}
 }

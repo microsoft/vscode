@@ -12,7 +12,7 @@ import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { CellEditType, CellKind, NotebookSetting, NotebookWorkingCopyTypeIdentifier, REPL_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellKind, NotebookWorkingCopyTypeIdentifier, REPL_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookEditorInputOptions } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { ReplEditor } from 'vs/workbench/contrib/replNotebook/browser/replEditor';
 import { ReplEditorInput } from 'vs/workbench/contrib/replNotebook/browser/replEditorInput';
@@ -33,7 +33,6 @@ import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/
 import { IInteractiveHistoryService } from 'vs/workbench/contrib/interactive/browser/interactiveHistoryService';
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { getReplView } from 'vs/workbench/contrib/debug/browser/repl';
@@ -95,8 +94,7 @@ export class ReplDocumentContribution extends Disposable implements IWorkbenchCo
 		@INotebookService notebookService: INotebookService,
 		@IEditorResolverService editorResolverService: IEditorResolverService,
 		@INotebookEditorModelResolverService private readonly notebookEditorModelResolverService: INotebookEditorModelResolverService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
 
@@ -115,8 +113,7 @@ export class ReplDocumentContribution extends Disposable implements IWorkbenchCo
 			},
 			{
 				createUntitledEditorInput: async ({ resource, options }) => {
-					const scratchpad = this.configurationService.getValue<boolean>(NotebookSetting.InteractiveWindowPromptToSave) !== true;
-					const ref = await this.notebookEditorModelResolverService.resolve({ untitledResource: resource }, 'jupyter-notebook', { scratchpad });
+					const ref = await this.notebookEditorModelResolverService.resolve({ untitledResource: resource }, 'jupyter-notebook', { repl: true });
 
 					// untitled notebooks are disposed when they get saved. we should not hold a reference
 					// to such a disposed notebook and therefore dispose the reference as well
