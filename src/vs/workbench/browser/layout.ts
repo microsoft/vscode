@@ -634,7 +634,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// Layout Initialization State
 		const initialEditorsState = this.getInitialEditorsState();
 		if (initialEditorsState) {
-			this.logService.info('Initial editor state', initialEditorsState);
+			this.logService.trace('Initial editor state', initialEditorsState);
 		}
 		const initialLayoutState: ILayoutInitializationState = {
 			layout: {
