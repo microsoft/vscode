@@ -388,8 +388,6 @@ class CodeActionOnSaveParticipant extends Disposable implements ITextFileSavePar
 		});
 	}
 
-
-
 	private async applyOnSaveActions(model: ITextModel, codeActionsOnSave: readonly HierarchicalKind[], excludes: readonly HierarchicalKind[], progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
 
 		const getActionProgress = new class implements IProgress<CodeActionProvider> {
