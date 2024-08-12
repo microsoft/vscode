@@ -373,6 +373,62 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 						type: 'svg', altText: 'VS Code extension marketplace with featured language extensions', path: 'extensions-web.svg'
 					},
 				},
+				{
+					id: 'accessibleView',
+					title: localize('gettingStarted.accessibleView.title', "Use the accessibility view to inspect content line by line, character by character"),
+					description: localize('gettingStarted.accessibleView.description.interpolated', "The accessible view is available for the terminal, hovers, notifications, comments, notebook output, chat responses, inline completions, and debug console output.\n It can be opened with the Open Accessible View command.\n{0}", Button(localize('openAccessibleView', "Open Accessible View"), 'command:editor.action.accessibleView')),
+					media: {
+						type: 'svg', altText: 'VS Code extension marketplace with featured language extensions', path: 'extensions-web.svg'
+					},
+				},
+				{
+					id: 'verbositySettings',
+					title: localize('gettingStarted.verbositySettings.title', "Control the verbosity of aria labels"),
+					description: localize('gettingStarted.verbositySettings.description.interpolated', "Verbosity settings exist for features around the workbench so that once a user is familiar with a feature, they can reduce the noise of its aria labels. For example, features for which an accessibility help dialog exists will indicate how to open the dialog until the verbosity setting for that feature has been disabled.\n These and other accessibility settinggs can be configured by running the Open Accessibility Settings command.\n{0}", Button(localize('openVerbositySettings', "Open Accessibility Settings"), 'command:workbench.action.openAccessibilitySettings')),
+					media: {
+						type: 'svg', altText: 'VS Code extension marketplace with featured language extensions', path: 'extensions-web.svg'
+					},
+				},
+				{
+					id: 'accessibilitySignals',
+					title: localize('gettingStarted.accessibilitySignals.title', "Fine tune which accessibility signals you want to receive via audio or braille device"),
+					description: localize('gettingStarted.accessibilitySignals.description.interpolated', "Accessibility sounds and announcements are played around the workbench for different events.\n These can be discovered and configured using the List Signal Sounds and List Signal Announcements commands.\n{0}\n{1}", Button(localize('listSignalSounds', "List Signal Sounds"), 'command:signals.sounds.help'), Button(localize('listSignalAnnouncements', "List Signal Announcements"), 'command:signals.announcements.help')),
+					media: {
+						type: 'svg', altText: 'VS Code extension marketplace with featured language extensions', path: 'extensions-web.svg'
+					},
+				},
+				{
+					id: 'hover',
+					title: localize('gettingStarted.hover.title', "Access the hover in the editor to get more information on a variable or symbol"),
+					description: localize('gettingStarted.hover.description.interpolated', "While focus is in the editor on a variable or symbol, a hover can be can be focused with the Show or Open Hover command.\n{0}", Button(localize('showOrFocusHover', "Show or Focus Hover"), 'command:editor.action.showHover')),
+					media: {
+						type: 'svg', altText: 'VS Code extension marketplace with featured language extensions', path: 'extensions-web.svg'
+					},
+				},
+				{
+					id: 'goToSymbol',
+					title: localize('gettingStarted.goToSymbol.title', "Navigate to symbols in a file"),
+					description: localize('gettingStarted.goToSymbol.description.interpolated', "The Go to Symbol command is useful for navigating between important landmarks in a document.\n{0}", Button(localize('openGoToSymbol', "Go to Symbol"), 'command:editor.action.goToSymbol')),
+					media: {
+						type: 'svg', altText: 'VS Code extension marketplace with featured language extensions', path: 'extensions-web.svg'
+					},
+				},
+				{
+					id: 'codeFolding',
+					title: localize('gettingStarted.codeFolding.title', "Use code folding to collapse blocks of code and navigate between folding ranges as points of interest in an editor."),
+					description: localize('gettingStarted.codeFolding.description.interpolated', "Fold a code section with the Fold command.\n{0}\n Navigate to the previous or next folding range section with the commands Go to Next/Previous Folding Range\n{1}\n{2}\n", Button(localize('fold', "Fold"), 'command:editor.fold'), Button(localize('goToNextFoldingRange', "Go to Next Folding Range"), 'command:editor.gotoNextFold'), Button(localize('goToPreviousFoldingRange', "Go to Previous Folding Range"), 'command:editor.gotoPreviousFold')),
+					media: {
+						type: 'svg', altText: 'VS Code extension marketplace with featured language extensions', path: 'extensions-web.svg'
+					},
+				},
+				{
+					id: 'intellisense',
+					title: localize('gettingStarted.intellisense.title', "Use Intellisense, also called inline suggestions, to complete code as you type"),
+					description: localize('gettingStarted.intellisense.description.interpolated', "Intellisense is available for the editor, terminal, and debug console.\n It can be opened with the Open Intellisense command.\n{0}", Button(localize('openIntellisense', "Open Intellisense"), 'command:editor.action.triggerSuggest')),
+					media: {
+						type: 'svg', altText: 'VS Code extension marketplace with featured language extensions', path: 'extensions-web.svg'
+					},
+				}
 			]
 		}
 	},
