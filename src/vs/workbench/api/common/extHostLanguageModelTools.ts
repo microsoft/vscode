@@ -25,7 +25,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 
 		this._proxy.$getTools().then(tools => {
 			for (const tool of tools) {
-				this._allTools.set(tool.name, revive(tool));
+				this._allTools.set(tool.id, revive(tool));
 			}
 		});
 	}
@@ -38,7 +38,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 
 	async $acceptToolDelta(delta: IToolDelta): Promise<void> {
 		if (delta.added) {
-			this._allTools.set(delta.added.name, delta.added);
+			this._allTools.set(delta.added.id, delta.added);
 		}
 
 		if (delta.removed) {

@@ -10,6 +10,7 @@ import { ChatAgentLocation, IChatAgentData, IChatAgentService } from 'vs/workben
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestTextPart, ChatRequestVariablePart, IParsedChatRequest, IParsedChatRequestPart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatSlashCommandService } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 import { IChatVariablesService, IDynamicVariable } from 'vs/workbench/contrib/chat/common/chatVariables';
+import { ILanguageModelToolsService } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
 
 const agentReg = /^@([\w_\-\.]+)(?=(\s|$|\b))/i; // An @-agent
 const variableReg = /^#([\w_\-]+)(:\d+)?(?=(\s|$|\b))/i; // A #-variable with an optional numeric : arg (@response:2)
@@ -24,7 +25,8 @@ export class ChatRequestParser {
 	constructor(
 		@IChatAgentService private readonly agentService: IChatAgentService,
 		@IChatVariablesService private readonly variableService: IChatVariablesService,
-		@IChatSlashCommandService private readonly slashCommandService: IChatSlashCommandService
+		@IChatSlashCommandService private readonly slashCommandService: IChatSlashCommandService,
+		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
 	) { }
 
 	parseChatRequest(sessionId: string, message: string, location: ChatAgentLocation = ChatAgentLocation.Panel, context?: IChatParserContext): IParsedChatRequest {
@@ -154,6 +156,11 @@ export class ChatRequestParser {
 		const variable = this.variableService.getVariable(name);
 		if (variable && (!variable.isSlow || allowSlow)) {
 			return new ChatRequestVariablePart(varRange, varEditorRange, name, variableArg, variable.id);
+		}
+
+		const tool = this.toolsService.getToolByName(name);
+		if (tool && tool.canBeInvokedManually) {
+			return new ChatRequestVariablePart(varRange, varEditorRange, name, variableArg, tool.id);
 		}
 
 		return;

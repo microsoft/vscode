@@ -25,6 +25,7 @@ import { ChatAgentLocation, getFullyQualifiedId, IChatAgentData, IChatAgentNameS
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestTextPart, ChatRequestVariablePart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatSlashCommandService } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
+import { ILanguageModelToolsService } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 class SlashCommandCompletions extends Disposable {
@@ -379,6 +380,7 @@ class VariableCompletions extends Disposable {
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IChatVariablesService private readonly chatVariablesService: IChatVariablesService,
 		@IConfigurationService configService: IConfigurationService,
+		@ILanguageModelToolsService toolsService: ILanguageModelToolsService
 	) {
 		super();
 
@@ -386,7 +388,6 @@ class VariableCompletions extends Disposable {
 			_debugDisplayName: 'chatVariables',
 			triggerCharacters: [chatVariableLeader],
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, _token: CancellationToken) => {
-
 				const locations = new Set<ChatAgentLocation>();
 				locations.add(ChatAgentLocation.Panel);
 
@@ -410,9 +411,10 @@ class VariableCompletions extends Disposable {
 				const slowSupported = usedAgent ? usedAgent.agent.metadata.supportsSlowVariables : true;
 
 				const usedVariables = widget.parsedInput.parts.filter((p): p is ChatRequestVariablePart => p instanceof ChatRequestVariablePart);
+				const usedVariableNames = new Set(usedVariables.map(v => v.variableName));
 				const variableItems = Array.from(this.chatVariablesService.getVariables(widget.location))
 					// This doesn't look at dynamic variables like `file`, where multiple makes sense.
-					.filter(v => !usedVariables.some(usedVar => usedVar.variableName === v.name))
+					.filter(v => !usedVariableNames.has(v.name))
 					.filter(v => !v.isSlow || slowSupported)
 					.map((v): CompletionItem => {
 						const withLeader = `${chatVariableLeader}${v.name}`;
@@ -426,8 +428,23 @@ class VariableCompletions extends Disposable {
 						};
 					});
 
+				const toolItems = Array.from(toolsService.getTools())
+					.filter(t => t.canBeInvokedManually)
+					.filter(t => !usedVariableNames.has(t.name ?? ''))
+					.map((t): CompletionItem => {
+						const withLeader = `${chatVariableLeader}${t.name}`;
+						return {
+							label: withLeader,
+							range,
+							insertText: withLeader + ' ',
+							detail: t.userDescription,
+							kind: CompletionItemKind.Text, // The icons are disabled here anyway
+							sortText: 'z'
+						};
+					});
+
 				return {
-					suggestions: variableItems
+					suggestions: [...variableItems, ...toolItems]
 				};
 			}
 		}));

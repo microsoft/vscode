@@ -67,6 +67,23 @@ export class ChatRequestVariablePart implements IParsedChatRequestPart {
 }
 
 /**
+ * An invocation of a tool
+ */
+export class ChatRequestToolPart implements IParsedChatRequestPart {
+	static readonly Kind = 'tool';
+	readonly kind = ChatRequestToolPart.Kind;
+	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly toolName: string, readonly toolId: string) { }
+
+	get text(): string {
+		return `${chatVariableLeader}${this.toolName}`;
+	}
+
+	get promptText(): string {
+		return this.text;
+	}
+}
+
+/**
  * An invocation of an agent that can be resolved by the agent service
  */
 export class ChatRequestAgentPart implements IParsedChatRequestPart {

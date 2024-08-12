@@ -434,8 +434,13 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			// REQUEST turn
 			const varsWithoutTools = h.request.variables.variables
 				.filter(v => !v.isTool)
-				.map(typeConvert.ChatAgentValueReference.to);
-			res.push(new extHostTypes.ChatRequestTurn(h.request.message, h.request.command, varsWithoutTools, h.request.agentId));
+				.map(typeConvert.ChatPromptReference.to);
+			const toolReferences = h.request.variables.variables
+				.filter(v => v.isTool)
+				.map(typeConvert.ChatLanguageModelToolReference.to);
+			const turn = new extHostTypes.ChatRequestTurn(h.request.message, h.request.command, varsWithoutTools, h.request.agentId);
+			turn.toolReferences = toolReferences;
+			res.push(turn);
 
 			// RESPONSE turn
 			const parts = coalesce(h.response.map(r => typeConvert.ChatResponsePart.toContent(r, this._commands.converter)));
