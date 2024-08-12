@@ -316,6 +316,8 @@ class WordHighlighter {
 		if (this.occurrencesHighlight === 'off') {
 			return;
 		}
+
+		this.runDelayer.cancel();
 		this._run();
 	}
 
@@ -887,7 +889,7 @@ class TriggerWordHighlightAction extends EditorAction {
 			id: 'editor.action.wordHighlight.trigger',
 			label: nls.localize('wordHighlight.trigger.label', "Trigger Symbol Highlight"),
 			alias: 'Trigger Symbol Highlight',
-			precondition: ctxHasWordHighlights.toNegated(),
+			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: 0,
