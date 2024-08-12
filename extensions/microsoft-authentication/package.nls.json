@@ -3,6 +3,7 @@
 	"description": "Microsoft authentication provider",
 	"signIn": "Sign In",
 	"signOut": "Sign Out",
+	"useMsal.description": "Use the Microsoft Authentication Library (MSAL) to sign in with a Microsoft account.",
 	"microsoft-sovereign-cloud.environment.description": {
 		"message": "The Sovereign Cloud to use for authentication. If you select `custom`, you must also set the `#microsoft-sovereign-cloud.customEnvironment#` setting.",
 		"comment": [

@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.93.0",
-  "distro": "f89267a3624018b4cc47e0f11a5430e2ac1642f0",
+  "distro": "0f583d589f6051015e7af0b7586a31e3529be6f0",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -99,7 +99,7 @@
     "native-is-elevated": "0.7.0",
     "native-keymap": "^3.3.5",
     "native-watchdog": "^1.4.1",
-    "node-pty": "1.1.0-beta19",
+    "node-pty": "1.1.0-beta20",
     "open": "^8.4.2",
     "tas-client-umd": "0.2.0",
     "v8-inspect-profiler": "^0.1.1",
@@ -150,7 +150,7 @@
     "cssnano": "^6.0.3",
     "debounce": "^1.0.0",
     "deemon": "^1.8.0",
-    "electron": "30.1.2",
+    "electron": "30.3.1",
     "eslint": "8.36.0",
     "eslint-plugin-header": "3.1.1",
     "eslint-plugin-jsdoc": "^46.5.0",
