@@ -274,10 +274,10 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 			}));
 
 			disposables.add(quickPick.onDidHide(_ => {
-				disposables.dispose();
 				if (!quickPick.selectedItems[0]) {
 					reject('User did not consent to account access');
 				}
+				disposables.dispose();
 			}));
 
 			quickPick.show();
