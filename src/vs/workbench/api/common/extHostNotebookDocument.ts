@@ -174,7 +174,7 @@ export class ExtHostNotebookDocument {
 		private readonly _textDocumentsAndEditors: ExtHostDocumentsAndEditors,
 		private readonly _textDocuments: ExtHostDocuments,
 		readonly uri: URI,
-		data: extHostProtocol.INotebookModelAddedData,
+		data: extHostProtocol.INotebookModelAddedData
 	) {
 		this._notebookType = data.viewType;
 		this._metadata = Object.freeze(data.metadata ?? Object.create(null));

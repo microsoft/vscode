@@ -146,9 +146,9 @@ export class MainThreadNotebookDocuments implements MainThreadNotebookDocumentsS
 		return ref.object.resource;
 	}
 
-	async $tryOpenNotebook(uriComponents: UriComponents, repl?: boolean): Promise<URI> {
+	async $tryOpenNotebook(uriComponents: UriComponents): Promise<URI> {
 		const uri = URI.revive(uriComponents);
-		const ref = await this._notebookEditorModelResolverService.resolve(uri, undefined, { repl });
+		const ref = await this._notebookEditorModelResolverService.resolve(uri, undefined);
 
 		if (uriComponents.scheme === 'untitled') {
 			// untitled notebooks are disposed when they get saved. we should not hold a reference

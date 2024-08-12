@@ -1090,7 +1090,7 @@ export interface NotebookCreationOptions {
 
 export interface MainThreadNotebookDocumentsShape extends IDisposable {
 	$tryCreateNotebook(options: NotebookCreationOptions): Promise<UriComponents>;
-	$tryOpenNotebook(uriComponents: UriComponents, repl?: boolean): Promise<UriComponents>;
+	$tryOpenNotebook(uriComponents: UriComponents): Promise<UriComponents>;
 	$trySaveNotebook(uri: UriComponents): Promise<boolean>;
 }
 

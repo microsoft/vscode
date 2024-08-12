@@ -195,12 +195,12 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		return URI.revive(canonicalUri);
 	}
 
-	async openNotebookDocument(uri: URI, repl?: boolean): Promise<vscode.NotebookDocument> {
+	async openNotebookDocument(uri: URI): Promise<vscode.NotebookDocument> {
 		const cached = this._documents.get(uri);
 		if (cached) {
 			return cached.apiNotebook;
 		}
-		const canonicalUri = await this._notebookDocumentsProxy.$tryOpenNotebook(uri, repl);
+		const canonicalUri = await this._notebookDocumentsProxy.$tryOpenNotebook(uri);
 		const document = this._documents.get(URI.revive(canonicalUri));
 		return assertIsDefined(document?.apiNotebook);
 	}
@@ -222,14 +222,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 			resolvedOptions = {
 				preserveFocus: false
 			};
-		}
-
-		if (!!notebookOrUri.isRepl) {
-			for (const editor of this._editors.values()) {
-				if (editor.notebookData.uri.toString() === notebookOrUri.uri.toString()) {
-					throw new Error(`Cannot open "${notebookOrUri.uri.toString()}" as REPL because it is already opened in another editor.`);
-				}
-			}
 		}
 
 		const viewType = !!notebookOrUri.isRepl ? 'repl' : notebookOrUri.notebookType;

@@ -292,8 +292,8 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		this._sideLoadedListener.dispose();
 
 		if (!this.editorModelReference) {
-			const scratchpad = this.capabilities & EditorInputCapabilities.Scratchpad ? true : false;
-			const ref = await this._notebookModelResolverService.resolve(this.resource, this.viewType, { limits: this.ensureLimits(_options), repl: scratchpad });
+			const repl = this.editorId === 'repl';
+			const ref = await this._notebookModelResolverService.resolve(this.resource, this.viewType, { limits: this.ensureLimits(_options), repl });
 			if (this.editorModelReference) {
 				// Re-entrant, double resolve happened. Dispose the addition references and proceed
 				// with the truth.
