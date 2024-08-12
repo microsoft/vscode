@@ -11,8 +11,7 @@
   },
   "enabledApiProposals": [
     "documentPaste",
-    "diffContentOptions",
-    "notebookReplDocument"
+    "diffContentOptions"
   ],
   "activationEvents": [
     "onNotebook:jupyter-notebook",
@@ -68,11 +67,6 @@
         "command": "notebook.cellOutput.openInTextEditor",
         "title": "%openCellOutput.title%",
         "category": "Notebook"
-      },
-      {
-        "command": "ipynb.newRepl",
-        "title": "new REPL",
-        "category": "Create"
       }
     ],
     "notebooks": [
