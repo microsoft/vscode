@@ -527,7 +527,7 @@ export class InlineChatController implements IEditorContribution {
 	}
 
 
-	private async [State.SHOW_REQUEST](): Promise<State.SHOW_RESPONSE | State.CANCEL | State.PAUSE | State.ACCEPT | State.WAIT_FOR_INPUT> {
+	private async [State.SHOW_REQUEST](): Promise<State.SHOW_RESPONSE | State.CANCEL | State.PAUSE | State.ACCEPT> {
 		assertType(this._session);
 		assertType(this._session.chatModel.requestInProgress);
 
@@ -554,7 +554,7 @@ export class InlineChatController implements IEditorContribution {
 		const progressiveEditsClock = StopWatch.create();
 		const progressiveEditsQueue = new Queue();
 
-		let next: State.SHOW_RESPONSE | State.SHOW_REQUEST | State.CANCEL | State.PAUSE | State.ACCEPT | State.WAIT_FOR_INPUT = State.SHOW_RESPONSE;
+		let next: State.SHOW_RESPONSE | State.SHOW_REQUEST | State.CANCEL | State.PAUSE | State.ACCEPT = State.SHOW_RESPONSE;
 		store.add(Event.once(this._messages.event)(message => {
 			this._log('state=_makeRequest) message received', message);
 			this._chatService.cancelCurrentRequestForSession(chatModel.sessionId);
