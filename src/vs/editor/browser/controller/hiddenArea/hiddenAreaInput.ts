@@ -103,8 +103,8 @@ export interface ICompleteHiddenAreaWrapper extends IHiddenAreaWrapper, IDisposa
 	readonly onKeyPress: Event<KeyboardEvent>;
 	readonly onKeyUp: Event<KeyboardEvent>;
 	readonly onCompositionStart: Event<{ data: string }>;
-	readonly onCompositionUpdate: Event<CompositionEvent>;
-	readonly onCompositionEnd: Event<CompositionEvent>;
+	readonly onCompositionUpdate: Event<{ data: string }>;
+	readonly onCompositionEnd: Event<{ data: string }>;
 	readonly onBeforeInput: Event<InputEvent>;
 	readonly onInput: Event<{
 		timeStamp: number;
@@ -271,6 +271,7 @@ export class HiddenAreaInput extends Disposable {
 		}));
 
 		this._register(this._hiddenArea.onCompositionStart((e) => {
+			console.log('onCompositionStart');
 			if (_debugComposition) {
 				console.log(`[compositionstart]`, e);
 			}
@@ -279,9 +280,11 @@ export class HiddenAreaInput extends Disposable {
 			if (this._currentComposition) {
 				// simply reset the composition context
 				this._currentComposition = currentComposition;
+				console.log('this._currentComposition : ', this._currentComposition);
 				return;
 			}
 			this._currentComposition = currentComposition;
+			console.log('this._currentComposition : ', this._currentComposition);
 
 			if (
 				this._OS === OperatingSystem.Macintosh
@@ -330,14 +333,16 @@ export class HiddenAreaInput extends Disposable {
 				const newState = HiddenAreaState.readFromTextArea(this._hiddenArea, this._hiddenAreaState);
 				const typeInput = HiddenAreaState.deduceAndroidCompositionInput(this._hiddenAreaState, newState);
 				this._hiddenAreaState = newState;
+				console.log('setting this._hiddenAreaState in onCompositionUpdate for android: ', this._hiddenAreaState);
 				this._onType.fire(typeInput);
-				this._onCompositionUpdate.fire(e);
+				this._onCompositionUpdate.fire({ data: e.data });
 				return;
 			}
 			const typeInput = currentComposition.handleCompositionUpdate(e.data);
 			this._hiddenAreaState = HiddenAreaState.readFromTextArea(this._hiddenArea, this._hiddenAreaState);
+			console.log('setting this._hiddenAreaState in onCompositionUpdate: ', this._hiddenAreaState);
 			this._onType.fire(typeInput);
-			this._onCompositionUpdate.fire(e);
+			this._onCompositionUpdate.fire({ data: e.data });
 		}));
 
 		this._register(this._hiddenArea.onCompositionEnd((e) => {
@@ -352,6 +357,7 @@ export class HiddenAreaInput extends Disposable {
 				return;
 			}
 			this._currentComposition = null;
+			console.log('this._currentComposition : ', this._currentComposition);
 
 			if (this._browser.isAndroid) {
 				// On Android, the data sent with the composition update event is unusable.
@@ -361,6 +367,7 @@ export class HiddenAreaInput extends Disposable {
 				const newState = HiddenAreaState.readFromTextArea(this._hiddenArea, this._hiddenAreaState);
 				const typeInput = HiddenAreaState.deduceAndroidCompositionInput(this._hiddenAreaState, newState);
 				this._hiddenAreaState = newState;
+				console.log('setting this._hiddenAreaState in onCompositionEnd for android: ', this._hiddenAreaState);
 				this._onType.fire(typeInput);
 				this._onCompositionEnd.fire();
 				return;
@@ -368,6 +375,7 @@ export class HiddenAreaInput extends Disposable {
 
 			const typeInput = currentComposition.handleCompositionUpdate(e.data);
 			this._hiddenAreaState = HiddenAreaState.readFromTextArea(this._hiddenArea, this._hiddenAreaState);
+			console.log('setting this._hiddenAreaState in onCompositionEnd: ', this._hiddenAreaState);
 			this._onType.fire(typeInput);
 			this._onCompositionEnd.fire();
 		}));
@@ -387,6 +395,7 @@ export class HiddenAreaInput extends Disposable {
 			}
 
 			const newState = HiddenAreaState.readFromTextArea(this._hiddenArea, this._hiddenAreaState);
+			console.log('this._hiddenAreaState : ', this._hiddenAreaState);
 			const typeInput = HiddenAreaState.deduceInput(this._hiddenAreaState, newState, /*couldBeEmojiInput*/this._OS === OperatingSystem.Macintosh);
 			console.log('newState : ', newState);
 			console.log('typeInput : ', typeInput);
@@ -403,6 +412,7 @@ export class HiddenAreaInput extends Disposable {
 			}
 
 			this._hiddenAreaState = newState;
+			console.log('setting this._hiddenAreaState in onInput : ', this._hiddenAreaState);
 			if (
 				typeInput.text !== ''
 				|| typeInput.replacePrevCharCnt !== 0
@@ -478,6 +488,8 @@ export class HiddenAreaInput extends Disposable {
 
 				// Clear the flag to be able to write to the textarea
 				this._currentComposition = null;
+				console.log('onBlur of hidden area input : ', this._currentComposition);
+				console.log('this._currentComposition : ', this._currentComposition);
 
 				// Clear the textarea to avoid an unwanted cursor type
 				this.writeNativeTextAreaContent('blurWithoutCompositionEnd');
@@ -494,6 +506,8 @@ export class HiddenAreaInput extends Disposable {
 
 				// Clear the flag to be able to write to the textarea
 				this._currentComposition = null;
+				console.log('onSyntheticTap of hidden area input');
+				console.log('this._currentComposition : ', this._currentComposition);
 
 				// Clear the textarea to avoid an unwanted cursor type
 				this.writeNativeTextAreaContent('tapWithoutCompositionEnd');
@@ -654,10 +668,13 @@ export class HiddenAreaInput extends Disposable {
 
 		hiddenAreaState.writeToTextArea(reason, this._hiddenArea, this._hasFocus);
 		this._hiddenAreaState = hiddenAreaState;
+		console.log('setting this._hiddenAreaState in _setAndWriteTextAreaState : ', this._hiddenAreaState);
 	}
 
 	public writeNativeTextAreaContent(reason: string): void {
 		console.log('writeNativeTextAreaContent');
+		console.log('reason : ', reason);
+		console.log('this._currentComposition : ', this._currentComposition);
 		if ((!this._accessibilityService.isScreenReaderOptimized() && reason === 'render') || this._currentComposition) {
 			// Do not write to the text on render unless a screen reader is being used #192278
 			// Do not write to the text area when doing composition

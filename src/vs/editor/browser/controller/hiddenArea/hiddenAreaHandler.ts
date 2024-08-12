@@ -309,6 +309,7 @@ export class HiddenAreaHandler extends ViewPart {
 					return HiddenAreaState.EMPTY;
 				}
 
+				console.log('7th hidden area state');
 				return PagedScreenReaderStrategy.fromEditorSelection(simpleModel, this._selections[0], this._accessibilityPageSize, this._accessibilitySupport === AccessibilitySupport.Unknown);
 			},
 

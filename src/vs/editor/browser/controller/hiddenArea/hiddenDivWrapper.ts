@@ -56,10 +56,10 @@ export class DivWrapper extends Disposable implements ICompleteHiddenAreaWrapper
 	private readonly _onCompositionStart = this._register(new Emitter<{ data: string }>());
 	public readonly onCompositionStart = this._onCompositionStart.event;
 
-	private readonly _onCompositionEnd = this._register(new Emitter<CompositionEvent>());
+	private readonly _onCompositionEnd = this._register(new Emitter<{ data: string }>());
 	public readonly onCompositionEnd = this._onCompositionEnd.event;
 
-	private readonly _onCompositionUpdate = this._register(new Emitter<CompositionEvent>());
+	private readonly _onCompositionUpdate = this._register(new Emitter<{ data: string }>());
 	public readonly onCompositionUpdate = this._onCompositionUpdate.event;
 
 	private readonly _onBeforeInput = this._register(new Emitter<InputEvent>());
@@ -124,10 +124,7 @@ export class DivWrapper extends Disposable implements ICompleteHiddenAreaWrapper
 			console.log('e.updateRangeEnd : ', e.updateRangeEnd);
 			console.log('e.text : ', e.text);
 			console.log('this._editContext.text : ', this._editContext.text);
-			console.log('this._selectionStart : ', this._selectionStart);
-
 			// Should write to the hidden div in order for the text to be read correctly
-
 			this._actual.textContent = this._editContext.text;
 			// need to update the end selection because the selection is updated here
 			const newSelectionPos = e.updateRangeStart + (e.text.length);
@@ -137,23 +134,31 @@ export class DivWrapper extends Disposable implements ICompleteHiddenAreaWrapper
 			this._editContext.updateSelection(this._selectionStart, this._selectionEnd);
 
 			const data = e.text.replace(/[^\S\r\n]/gm, ' ');
-			this._onInput.fire({
-				timeStamp: e.timeStamp,
-				type: 'input',
-				data: data,
-				inputType: 'insertText',
-				isComposing: this._isComposing
-			});
+			if (this._isComposing) {
+				this._onCompositionUpdate.fire({ data });
+			} else {
+				this._onInput.fire({
+					timeStamp: e.timeStamp,
+					type: 'input',
+					data: data,
+					inputType: 'insertText',
+					isComposing: this._isComposing
+				});
+			}
 		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'compositionstart', e => {
 			this._isComposing = true;
 			console.log('oncompositionstart : ', e);
-			// this._onCompositionStart.fire(e);
+			if ('data' in e && typeof e.data === 'string') {
+				this._onCompositionStart.fire({ data: e.data });
+			}
 		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'compositionend', e => {
 			this._isComposing = false;
 			console.log('oncompositionend : ', e);
-			// this._onCompositionEnd.fire(e);
+			if ('data' in e && typeof e.data === 'string') {
+				this._onCompositionStart.fire({ data: e.data });
+			}
 		}));
 		this._register(dom.addDisposableListener(this._actual, 'beforeinput', (e) => {
 			console.log('beforeinput : ', e);
@@ -395,6 +400,8 @@ export class DivWrapper extends Disposable implements ICompleteHiddenAreaWrapper
 	private _updateDocumentSelection(selectionStart: number, selectionEnd: number) {
 
 		console.log('_updateDocumentSelection');
+		console.log('selectionStart : ', selectionStart);
+		console.log('selectionEnd : ', selectionEnd);
 
 		const activeDocument = dom.getActiveWindow().document;
 		const activeDocumentSelection = activeDocument.getSelection();
