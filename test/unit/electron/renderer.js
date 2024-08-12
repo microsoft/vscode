@@ -158,9 +158,8 @@ function loadTestModules(opts) {
 	if (opts.run) {
 		const files = Array.isArray(opts.run) ? opts.run : [opts.run];
 		const modules = files.map(file => {
-			file = file.replace(/^src/, 'out');
-			file = file.replace(/\.ts$/, '.js');
-			return path.relative(_out, file).replace(/\.js$/, '');
+			file = file.replace(/^src[\\/]/, '');
+			return file.replace(/\.[jt]s$/, '');
 		});
 		return loadModules(modules);
 	}
