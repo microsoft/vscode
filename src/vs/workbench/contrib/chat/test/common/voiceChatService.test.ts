@@ -36,6 +36,19 @@ suite('VoiceChat', () => {
 		constructor(readonly id: string, readonly slashCommands: IChatAgentCommand[]) {
 			this.name = id;
 		}
+		fullName?: string | undefined;
+		description?: string | undefined;
+		when?: string | undefined;
+		publisherDisplayName?: string | undefined;
+		isDefault?: boolean | undefined;
+		isDynamic?: boolean | undefined;
+		disambiguation: { categoryName: string; description: string; examples: string[] }[] = [];
+		provideFollowups?(request: IChatAgentRequest, result: IChatAgentResult, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatFollowup[]> {
+			throw new Error('Method not implemented.');
+		}
+		provideSampleQuestions?(location: ChatAgentLocation, token: CancellationToken): ProviderResult<IChatFollowup[] | undefined> {
+			throw new Error('Method not implemented.');
+		}
 		invoke(request: IChatAgentRequest, progress: (part: IChatProgress) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult> { throw new Error('Method not implemented.'); }
 		provideWelcomeMessage?(location: ChatAgentLocation, token: CancellationToken): ProviderResult<(string | IMarkdownString)[] | undefined> { throw new Error('Method not implemented.'); }
 		metadata = {};
