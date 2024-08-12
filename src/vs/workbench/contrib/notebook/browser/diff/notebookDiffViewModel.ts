@@ -24,6 +24,7 @@ export class NotebookDiffViewModel extends Disposable implements INotebookDiffVi
 		super.dispose();
 	}
 	clear() {
+		this.disposables.clear();
 		dispose(Array.from(this.placeholderAndRelatedCells.keys()));
 		this.placeholderAndRelatedCells.clear();
 		dispose(this.originalCellViewModels);
@@ -33,7 +34,7 @@ export class NotebookDiffViewModel extends Disposable implements INotebookDiffVi
 	}
 
 	setViewModel(cellViewModels: DiffElementCellViewModelBase[]) {
-		this.disposables.clear();
+		this.clear();
 		const oldLength = this._items.length;
 		this._items.splice(0, oldLength);
 
