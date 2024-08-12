@@ -50,7 +50,6 @@ export class TextureAtlasShelfAllocator implements ITextureAtlasAllocator {
 		// Draw glyph
 		const glyphWidth = rasterizedGlyph.boundingBox.right - rasterizedGlyph.boundingBox.left + 1;
 		const glyphHeight = rasterizedGlyph.boundingBox.bottom - rasterizedGlyph.boundingBox.top + 1;
-		// TODO: Prefer putImageData as it doesn't do blending or scaling
 		this._ctx.drawImage(
 			rasterizedGlyph.source,
 			// source
@@ -87,7 +86,6 @@ export class TextureAtlasShelfAllocator implements ITextureAtlasAllocator {
 	}
 
 	public getUsagePreview(): Promise<Blob> {
-		// TODO: This is specific to the simple shelf allocator
 		const w = this._canvas.width;
 		const h = this._canvas.height;
 		const canvas = new OffscreenCanvas(w, h);
@@ -401,7 +399,6 @@ export class TextureAtlasSlabAllocator implements ITextureAtlasAllocator {
 	}
 
 	public getUsagePreview(): Promise<Blob> {
-		// TODO: This is specific to the simple shelf allocator
 		const w = this._canvas.width;
 		const h = this._canvas.height;
 		const canvas = new OffscreenCanvas(w, h);

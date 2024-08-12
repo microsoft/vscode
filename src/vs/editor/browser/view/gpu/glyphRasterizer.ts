@@ -189,7 +189,7 @@ export interface IBoundingBox {
 }
 
 export interface IRasterizedGlyph {
-	source: CanvasImageSource;
+	source: OffscreenCanvas;
 	/**
 	 * The bounding box of the glyph within {@link source}.
 	 */
