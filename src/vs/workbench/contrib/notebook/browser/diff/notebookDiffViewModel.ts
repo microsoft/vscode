@@ -34,8 +34,8 @@ export class NotebookDiffViewModel extends Disposable implements INotebookDiffVi
 	}
 
 	setViewModel(cellViewModels: DiffElementCellViewModelBase[]) {
-		this.clear();
 		const oldLength = this._items.length;
+		this.clear();
 		this._items.splice(0, oldLength);
 
 		let placeholder: DiffElementPlaceholderViewModel | undefined = undefined;
