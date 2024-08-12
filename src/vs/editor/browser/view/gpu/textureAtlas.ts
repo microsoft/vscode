@@ -5,7 +5,7 @@
 
 import { getActiveWindow } from 'vs/base/browser/dom';
 import { Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { GlyphRasterizer } from 'vs/editor/browser/view/gpu/glyphRasterizer';
 import { IdleTaskQueue } from 'vs/editor/browser/view/gpu/taskQueue';
 import { TextureAtlasPage } from 'vs/editor/browser/view/gpu/textureAtlasPage';
@@ -53,7 +53,7 @@ export class TextureAtlas extends Disposable {
 	private readonly _glyphRasterizer: GlyphRasterizer;
 
 	private _colorMap!: string[];
-	private _warmUpTask?: IdleTaskQueue;
+	private readonly _warmUpTask: MutableDisposable<IdleTaskQueue> = new MutableDisposable();
 
 	public get source(): OffscreenCanvas {
 		return this._page.source;
@@ -108,13 +108,12 @@ export class TextureAtlas extends Disposable {
 	 * is distrubuted over multiple idle callbacks to avoid blocking the main thread.
 	 */
 	private _warmUpAtlas(): void {
-		// TODO: Clean up on dispose
-		this._warmUpTask?.clear();
-		this._warmUpTask = new IdleTaskQueue();
+		this._warmUpTask.value?.clear();
+		const taskQueue = this._warmUpTask.value = new IdleTaskQueue();
 		// Warm up using roughly the larger glyphs first to help optimize atlas allocation
 		// A-Z
 		for (let code = 65; code <= 90; code++) {
-			this._warmUpTask.enqueue(() => {
+			taskQueue.enqueue(() => {
 				for (const tokenFg of this._colorMap.keys()) {
 					this.getGlyph(String.fromCharCode(code), tokenFg);
 				}
@@ -122,7 +121,7 @@ export class TextureAtlas extends Disposable {
 		}
 		// a-z
 		for (let code = 97; code <= 122; code++) {
-			this._warmUpTask.enqueue(() => {
+			taskQueue.enqueue(() => {
 				for (const tokenFg of this._colorMap.keys()) {
 					this.getGlyph(String.fromCharCode(code), tokenFg);
 				}
@@ -130,7 +129,7 @@ export class TextureAtlas extends Disposable {
 		}
 		// Remaining ascii
 		for (let code = 33; code <= 126; code++) {
-			this._warmUpTask.enqueue(() => {
+			taskQueue.enqueue(() => {
 				for (const tokenFg of this._colorMap.keys()) {
 					this.getGlyph(String.fromCharCode(code), tokenFg);
 				}

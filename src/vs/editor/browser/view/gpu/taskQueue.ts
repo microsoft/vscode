@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getActiveWindow } from 'vs/base/browser/dom';
+import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 
 /**
  * Copyright (c) 2022 The xterm.js authors. All rights reserved.
@@ -35,10 +36,15 @@ interface ITaskDeadline {
 }
 type CallbackWithDeadline = (deadline: ITaskDeadline) => void;
 
-abstract class TaskQueue implements ITaskQueue {
+abstract class TaskQueue extends Disposable implements ITaskQueue {
 	private _tasks: (() => boolean | void)[] = [];
 	private _idleCallback?: number;
 	private _i = 0;
+
+	constructor() {
+		super();
+		this._register(toDisposable(() => this.clear()));
+	}
 
 	protected abstract _requestCallback(callback: CallbackWithDeadline): number;
 	protected abstract _cancelCallback(identifier: number): void;
