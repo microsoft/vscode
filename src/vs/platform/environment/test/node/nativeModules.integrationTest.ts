@@ -39,12 +39,27 @@ flakySuite('Native Modules (all platforms)', () => {
 		assert.ok(typeof watchDog.start === 'function', testErrorMessage('native-watchdog'));
 	});
 
-	(process.type === 'renderer' ? test.skip /* TODO@electron module is not context aware yet and thus cannot load in Electron renderer used by tests */ : test)('node-pty', async () => {
+	test('@vscode/sudo-prompt', async () => {
+		const prompt = await import('@vscode/sudo-prompt');
+		assert.ok(typeof prompt.exec === 'function', testErrorMessage('@vscode/sudo-prompt'));
+	});
+
+	test('@vscode/policy-watcher', async () => {
+		const watcher = await import('@vscode/policy-watcher');
+		assert.ok(typeof watcher.createWatcher === 'function', testErrorMessage('@vscode/policy-watcher'));
+	});
+
+	test('node-pty', async () => {
 		const nodePty = await import('node-pty');
 		assert.ok(typeof nodePty.spawn === 'function', testErrorMessage('node-pty'));
 	});
 
-	(process.type === 'renderer' ? test.skip /* TODO@electron module is not context aware yet and thus cannot load in Electron renderer used by tests */ : test)('@vscode/spdlog', async () => {
+	test('open', async () => {
+		const { default: open } = await import('open');
+		assert.ok(typeof open === 'function', testErrorMessage('open'));
+	});
+
+	test('@vscode/spdlog', async () => {
 		const spdlog = await import('@vscode/spdlog');
 		assert.ok(typeof spdlog.createRotatingLogger === 'function', testErrorMessage('@vscode/spdlog'));
 		assert.ok(typeof spdlog.version === 'number', testErrorMessage('@vscode/spdlog'));
@@ -55,6 +70,21 @@ flakySuite('Native Modules (all platforms)', () => {
 		assert.ok(typeof parcelWatcher.subscribe === 'function', testErrorMessage('@parcel/watcher'));
 	});
 
+	test('@vscode/deviceid', async () => {
+		const deviceIdPackage = await import('@vscode/deviceid');
+		assert.ok(typeof deviceIdPackage.getDeviceId === 'function', testErrorMessage('@vscode/deviceid'));
+	});
+
+	test('@vscode/ripgrep', async () => {
+		const ripgrep = await import('@vscode/ripgrep');
+		assert.ok(typeof ripgrep.rgPath === 'string', testErrorMessage('@vscode/ripgrep'));
+	});
+
+	test('vscode-regexpp', async () => {
+		const regexpp = await import('vscode-regexpp');
+		assert.ok(typeof regexpp.RegExpParser === 'function', testErrorMessage('vscode-regexpp'));
+	});
+
 	test('@vscode/sqlite3', async () => {
 		// ESM-comment-begin
 		const sqlite3 = await import('@vscode/sqlite3');
@@ -63,6 +93,26 @@ flakySuite('Native Modules (all platforms)', () => {
 		// const { default: sqlite3 } = await import('@vscode/sqlite3');
 		// ESM-uncomment-end
 		assert.ok(typeof sqlite3.Database === 'function', testErrorMessage('@vscode/sqlite3'));
+	});
+
+	test('http-proxy-agent', async () => {
+		// ESM-comment-begin
+		const mod = await import('http-proxy-agent');
+		// ESM-comment-end
+		// ESM-uncomment-begin
+		// const mod = (await import('http-proxy-agent')).default;
+		// ESM-uncomment-end
+		assert.ok(typeof mod.HttpProxyAgent === 'function', testErrorMessage('http-proxy-agent'));
+	});
+
+	test('https-proxy-agent', async () => {
+		// ESM-comment-begin
+		const mod = await import('https-proxy-agent');
+		// ESM-comment-end
+		// ESM-uncomment-begin
+		// const mod = (await import('https-proxy-agent')).default;
+		// ESM-uncomment-end
+		assert.ok(typeof mod.HttpsProxyAgent === 'function', testErrorMessage('https-proxy-agent'));
 	});
 
 	test('vsda', async () => {
@@ -77,11 +127,26 @@ flakySuite('Native Modules (all platforms)', () => {
 			}
 		}
 	});
+
+	test('@vscode/proxy-agent', async () => {
+		const proxyAgent = await import('@vscode/proxy-agent');
+		// This call will load `@vscode/proxy-agent` which is a native module that we want to test on Windows
+		const windowsCerts = await proxyAgent.loadSystemCertificates({
+			log: {
+				trace: () => { },
+				debug: () => { },
+				info: () => { },
+				warn: () => { },
+				error: () => { }
+			}
+		});
+		assert.ok(windowsCerts.length > 0, testErrorMessage('@vscode/proxy-agent'));
+	});
 });
 
 (!isWindows ? suite.skip : suite)('Native Modules (Windows)', () => {
 
-	(process.type === 'renderer' ? test.skip /* TODO@electron module is not context aware yet and thus cannot load in Electron renderer used by tests */ : test)('@vscode/windows-mutex', async () => {
+	test('@vscode/windows-mutex', async () => {
 		const mutex = await import('@vscode/windows-mutex');
 		assert.ok(mutex && typeof mutex.isActive === 'function', testErrorMessage('@vscode/windows-mutex'));
 		assert.ok(typeof mutex.isActive === 'function', testErrorMessage('@vscode/windows-mutex'));
@@ -116,20 +181,5 @@ flakySuite('Native Modules (all platforms)', () => {
 
 		const result = windowsRegistry.GetStringRegKey('HKEY_LOCAL_MACHINE', 'SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion', 'EditionID');
 		assert.ok(typeof result === 'string' || typeof result === 'undefined', testErrorMessage('@vscode/windows-registry'));
-	});
-
-	test('@vscode/proxy-agent', async () => {
-		const proxyAgent = await import('@vscode/proxy-agent');
-		// This call will load `@vscode/proxy-agent` which is a native module that we want to test on Windows
-		const windowsCerts = await proxyAgent.loadSystemCertificates({
-			log: {
-				trace: () => { },
-				debug: () => { },
-				info: () => { },
-				warn: () => { },
-				error: () => { }
-			}
-		});
-		assert.ok(windowsCerts.length > 0, testErrorMessage('@vscode/proxy-agent'));
 	});
 });
