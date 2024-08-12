@@ -148,6 +148,8 @@ variables:
     value: microsoft/vscode-distro
   - name: skipComponentGovernanceDetection
     value: true
+  - name: ComponentDetection.Timeout
+    value: 600
   - name: Codeql.SkipTaskAutoInjection
     value: true
   - name: ARTIFACT_PREFIX
