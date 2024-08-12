@@ -124,12 +124,14 @@ export class DivWrapper extends Disposable implements ICompleteHiddenAreaWrapper
 			console.log('e.updateRangeEnd : ', e.updateRangeEnd);
 			console.log('e.text : ', e.text);
 			console.log('this._editContext.text : ', this._editContext.text);
+			console.log('this._selectionStart : ', this._selectionStart);
 
 			// Should write to the hidden div in order for the text to be read correctly
 
 			this._actual.textContent = this._editContext.text;
 			// need to update the end selection because the selection is updated here
-			const newSelectionPos = this._selectionStart + (e.text.length);
+			const newSelectionPos = e.updateRangeStart + (e.text.length);
+			console.log('newSelectionPos : ', newSelectionPos);
 			this._selectionStart = newSelectionPos;
 			this._selectionEnd = newSelectionPos;
 			this._editContext.updateSelection(this._selectionStart, this._selectionEnd);
@@ -256,14 +258,14 @@ export class DivWrapper extends Disposable implements ICompleteHiddenAreaWrapper
 
 	public getSelectionStart(): number {
 
-		console.log('getSelectionStart');
+		console.log('getSelectionStart: ', this._selectionStart);
 		// need to check direction maybe?
 		return this._selectionStart;
 	}
 
 	public getSelectionEnd(): number {
 
-		console.log('getSelectionEnd');
+		console.log('getSelectionEnd : ', this._selectionEnd);
 		// need to check direction maybe?
 		return this._selectionEnd;
 	}
