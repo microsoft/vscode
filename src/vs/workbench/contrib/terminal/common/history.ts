@@ -83,7 +83,7 @@ export async function getShellFileHistory(accessor: ServicesAccessor, shellType:
 		case PosixShellType.Bash:
 			result = await fetchBashHistory(accessor);
 			break;
-		case GeneralShellType.PowerShell: // WindowsShellType.PowerShell has the same value
+		case GeneralShellType.PowerShell:
 			result = await fetchPwshHistory(accessor);
 			break;
 		case PosixShellType.Zsh:
