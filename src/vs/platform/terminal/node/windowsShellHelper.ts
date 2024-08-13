@@ -145,6 +145,8 @@ export class WindowsShellHelper extends Disposable implements IWindowsShellHelpe
 				return WindowsShellType.GitBash;
 			case 'julia.exe:':
 				return WindowsShellType.Julia;
+			case 'nu.exe':
+				return WindowsShellType.NuShell;
 			case 'wsl.exe':
 			case 'ubuntu.exe':
 			case 'ubuntu1804.exe':
