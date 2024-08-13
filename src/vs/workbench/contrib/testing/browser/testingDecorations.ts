@@ -1068,17 +1068,18 @@ class MultiRunTestDecoration extends RunTestDecoration implements ITestDecoratio
 
 	private async pickAndRun(testItems: IMultiRunTest[]) {
 		const doPick = <T extends IQuickPickItem>(items: T[], title: string) => new Promise<T | undefined>(resolve => {
-			const pick = this.quickInputService.createQuickPick<T>();
+			const disposables = new DisposableStore();
+			const pick = disposables.add(this.quickInputService.createQuickPick<T>());
 			pick.placeholder = title;
 			pick.items = items;
-			pick.onDidHide(() => {
+			disposables.add(pick.onDidHide(() => {
 				resolve(undefined);
-				pick.dispose();
-			});
-			pick.onDidAccept(() => {
+				disposables.dispose();
+			}));
+			disposables.add(pick.onDidAccept(() => {
 				resolve(pick.selectedItems[0]);
-				pick.dispose();
-			});
+				disposables.dispose();
+			}));
 			pick.show();
 		});
 

@@ -14,10 +14,12 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 export interface IToolData {
-	name: string;
+	id: string;
+	name?: string;
 	icon?: { dark: URI; light?: URI } | ThemeIcon;
 	displayName?: string;
-	description: string;
+	userDescription?: string;
+	modelDescription: string;
 	parametersSchema?: IJSONSchema;
 	canBeInvokedManually?: boolean;
 }
@@ -49,6 +51,8 @@ export interface ILanguageModelToolsService {
 	registerToolData(toolData: IToolData): IDisposable;
 	registerToolImplementation(name: string, tool: IToolImpl): IDisposable;
 	getTools(): Iterable<Readonly<IToolData>>;
+	getTool(id: string): IToolData | undefined;
+	getToolByName(name: string): IToolData | undefined;
 	invokeTool(name: string, parameters: any, token: CancellationToken): Promise<IToolResult>;
 }
 
@@ -65,16 +69,16 @@ export class LanguageModelToolsService implements ILanguageModelToolsService {
 	) { }
 
 	registerToolData(toolData: IToolData): IDisposable {
-		if (this._tools.has(toolData.name)) {
-			throw new Error(`Tool "${toolData.name}" is already registered.`);
+		if (this._tools.has(toolData.id)) {
+			throw new Error(`Tool "${toolData.id}" is already registered.`);
 		}
 
-		this._tools.set(toolData.name, { data: toolData });
+		this._tools.set(toolData.id, { data: toolData });
 		this._onDidChangeTools.fire({ added: toolData });
 
 		return toDisposable(() => {
-			this._tools.delete(toolData.name);
-			this._onDidChangeTools.fire({ removed: toolData.name });
+			this._tools.delete(toolData.id);
+			this._onDidChangeTools.fire({ removed: toolData.id });
 		});
 
 	}
@@ -99,19 +103,33 @@ export class LanguageModelToolsService implements ILanguageModelToolsService {
 		return Iterable.map(this._tools.values(), i => i.data);
 	}
 
-	async invokeTool(name: string, parameters: any, token: CancellationToken): Promise<IToolResult> {
-		let tool = this._tools.get(name);
+	getTool(id: string): IToolData | undefined {
+		const entry = this._tools.get(id);
+		return entry?.data;
+	}
+
+	getToolByName(name: string): IToolData | undefined {
+		for (const entry of this._tools.values()) {
+			if (entry.data.name === name) {
+				return entry.data;
+			}
+		}
+		return undefined;
+	}
+
+	async invokeTool(id: string, parameters: any, token: CancellationToken): Promise<IToolResult> {
+		let tool = this._tools.get(id);
 		if (!tool) {
-			throw new Error(`Tool ${name} was not contributed`);
+			throw new Error(`Tool ${id} was not contributed`);
 		}
 
 		if (!tool.impl) {
-			await this._extensionService.activateByEvent(`onLanguageModelTool:${name}`);
+			await this._extensionService.activateByEvent(`onLanguageModelTool:${id}`);
 
 			// Extension should activate and register the tool implementation
-			tool = this._tools.get(name);
+			tool = this._tools.get(id);
 			if (!tool?.impl) {
-				throw new Error(`Tool ${name} does not have an implementation registered.`);
+				throw new Error(`Tool ${id} does not have an implementation registered.`);
 			}
 		}
 
