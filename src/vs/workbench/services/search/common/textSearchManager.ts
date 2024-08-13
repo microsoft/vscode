@@ -11,7 +11,7 @@ import { Schemas } from 'vs/base/common/network';
 import * as path from 'vs/base/common/path';
 import * as resources from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { DEFAULT_MAX_SEARCH_RESULTS, hasSiblingPromiseFn, IAITextQuery, IExtendedExtensionSearchOptions, IFileMatch, IFolderQuery, IPatternInfo, ISearchCompleteStats, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchResult, ITextSearchStats, QueryGlobTester, QueryType, resolvePatternsForProvider } from 'vs/workbench/services/search/common/search';
+import { DEFAULT_MAX_SEARCH_RESULTS, excludeToGlobPattern, hasSiblingPromiseFn, IAITextQuery, IExtendedExtensionSearchOptions, IFileMatch, IFolderQuery, IPatternInfo, ISearchCompleteStats, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchResult, ITextSearchStats, QueryGlobTester, QueryType, resolvePatternsForProvider } from 'vs/workbench/services/search/common/search';
 import { AITextSearchProvider, Range, TextSearchComplete, TextSearchMatch, TextSearchOptions, TextSearchProvider, TextSearchQuery, TextSearchResult } from 'vs/workbench/services/search/common/searchExtTypes';
 
 export interface IFileUtils {
@@ -198,11 +198,11 @@ export class TextSearchManager {
 
 	private getSearchOptionsForFolder(fq: IFolderQuery<URI>): TextSearchOptions {
 		const includes = resolvePatternsForProvider(this.query.includePattern, fq.includePattern);
-		const excludes = resolvePatternsForProvider(this.query.excludePattern, fq.excludePattern);
+		const excludes = excludeToGlobPattern(fq.excludePattern?.folder, resolvePatternsForProvider(this.query.excludePattern, fq.excludePattern?.pattern));
 
 		const options = {
 			folder: URI.from(fq.folder),
-			excludes,
+			excludes: excludes.map(e => typeof (e) === 'string' ? e : e.pattern),
 			includes,
 			useIgnoreFiles: !fq.disregardIgnoreFiles,
 			useGlobalIgnoreFiles: !fq.disregardGlobalIgnoreFiles,
@@ -212,8 +212,8 @@ export class TextSearchManager {
 			maxFileSize: this.query.maxFileSize,
 			maxResults: this.query.maxResults ?? DEFAULT_MAX_SEARCH_RESULTS,
 			previewOptions: this.query.previewOptions,
-			afterContext: this.query.afterContext,
-			beforeContext: this.query.beforeContext
+			afterContext: this.query.surroundingContext,
+			beforeContext: this.query.surroundingContext,
 		};
 		if ('usePCRE2' in this.query) {
 			(<IExtendedExtensionSearchOptions>options).usePCRE2 = this.query.usePCRE2;
