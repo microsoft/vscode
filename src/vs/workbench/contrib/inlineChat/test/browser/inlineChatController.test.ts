@@ -37,10 +37,6 @@ import { InlineChatController, InlineChatRunOptions, State } from 'vs/workbench/
 import { Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { CTX_INLINE_CHAT_USER_DID_EDIT, EditMode, InlineChatConfigKeys } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { TestViewsService, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { IInlineChatSavingService } from '../../browser/inlineChatSavingService';
-import { IInlineChatSessionService } from '../../browser/inlineChatSessionService';
-import { InlineChatSessionServiceImpl } from '../../browser/inlineChatSessionServiceImpl';
-import { TestWorkerService } from './testWorkerService';
 import { IExtensionService, nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { IChatProgress, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { ChatService } from 'vs/workbench/contrib/chat/common/chatServiceImpl';
@@ -63,6 +59,12 @@ import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/se
 import { RerunAction } from 'vs/workbench/contrib/inlineChat/browser/inlineChatActions';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { assertType } from 'vs/base/common/types';
+import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
+import { NullWorkbenchAssignmentService } from 'vs/workbench/services/assignment/test/common/nullAssignmentService';
+import { IInlineChatSavingService } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSavingService';
+import { IInlineChatSessionService } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSessionService';
+import { InlineChatSessionServiceImpl } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSessionServiceImpl';
+import { TestWorkerService } from 'vs/workbench/contrib/inlineChat/test/browser/testWorkerService';
 
 suite('InteractiveChatController', function () {
 
@@ -76,7 +78,8 @@ suite('InteractiveChatController', function () {
 		isDefault: true,
 		locations: [ChatAgentLocation.Editor],
 		metadata: {},
-		slashCommands: []
+		slashCommands: [],
+		disambiguation: [],
 	};
 
 	class TestController extends InlineChatController {
@@ -196,7 +199,8 @@ suite('InteractiveChatController', function () {
 			}],
 			[INotebookEditorService, new class extends mock<INotebookEditorService>() {
 				override listNotebookEditors() { return []; }
-			}]
+			}],
+			[IWorkbenchAssignmentService, new NullWorkbenchAssignmentService()]
 		);
 
 		instaService = store.add((store.add(workbenchInstantiationService(undefined, store))).createChild(serviceCollection));
@@ -765,6 +769,7 @@ suite('InteractiveChatController', function () {
 		const p = ctrl.awaitStates([...TestController.INIT_SEQUENCE, State.SHOW_REQUEST]);
 		ctrl.run({ message: 'Hello-', autoSend: true });
 		assert.strictEqual(await p, undefined);
+		await timeout(10);
 		assert.deepStrictEqual(attempts, [0]);
 
 		// RERUN (cancel, undo, redo)
@@ -803,6 +808,7 @@ suite('InteractiveChatController', function () {
 		// REQUEST 1
 		const p = ctrl.awaitStates([...TestController.INIT_SEQUENCE, State.SHOW_REQUEST]);
 		ctrl.run({ message: 'Hello', autoSend: true });
+		await timeout(10);
 		assert.strictEqual(await p, undefined);
 
 		assertType(progress);

@@ -4107,7 +4107,7 @@ export class TestMessageStackFrame {
 	 */
 	constructor(
 		public label: string,
-		public file?: vscode.Uri,
+		public uri?: vscode.Uri,
 		public position?: Position,
 	) { }
 }
@@ -4496,6 +4496,8 @@ export class ChatResponseTextEditPart {
 }
 
 export class ChatRequestTurn implements vscode.ChatRequestTurn {
+	toolReferences?: vscode.ChatLanguageModelToolReference[];
+
 	constructor(
 		readonly prompt: string,
 		readonly command: string | undefined,

@@ -8,10 +8,12 @@ import { ExtHostContext, MainThreadQuickOpenShape, ExtHostQuickOpenShape, Transf
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { URI } from 'vs/base/common/uri';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 interface QuickInputSession {
 	input: IQuickInput;
 	handlesToItems: Map<number, TransferQuickPickItem>;
+	store: DisposableStore;
 }
 
 function reviveIconPathUris(iconPath: { dark: URI; light?: URI | undefined }) {
@@ -40,6 +42,9 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 	}
 
 	public dispose(): void {
+		for (const [_id, session] of this.sessions) {
+			session.store.dispose();
+		}
 	}
 
 	$show(instance: number, options: IPickOptions<TransferQuickPickItem>, token: CancellationToken): Promise<number | number[] | undefined> {
@@ -121,38 +126,40 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 		const sessionId = params.id;
 		let session = this.sessions.get(sessionId);
 		if (!session) {
-
+			const store = new DisposableStore();
 			const input = params.type === 'quickPick' ? this._quickInputService.createQuickPick() : this._quickInputService.createInputBox();
-			input.onDidAccept(() => {
+			store.add(input);
+			store.add(input.onDidAccept(() => {
 				this._proxy.$onDidAccept(sessionId);
-			});
-			input.onDidTriggerButton(button => {
+			}));
+			store.add(input.onDidTriggerButton(button => {
 				this._proxy.$onDidTriggerButton(sessionId, (button as TransferQuickInputButton).handle);
-			});
-			input.onDidChangeValue(value => {
+			}));
+			store.add(input.onDidChangeValue(value => {
 				this._proxy.$onDidChangeValue(sessionId, value);
-			});
-			input.onDidHide(() => {
+			}));
+			store.add(input.onDidHide(() => {
 				this._proxy.$onDidHide(sessionId);
-			});
+			}));
 
 			if (params.type === 'quickPick') {
 				// Add extra events specific for quickpick
 				const quickpick = input as IQuickPick<IQuickPickItem>;
-				quickpick.onDidChangeActive(items => {
+				store.add(quickpick.onDidChangeActive(items => {
 					this._proxy.$onDidChangeActive(sessionId, items.map(item => (item as TransferQuickPickItem).handle));
-				});
-				quickpick.onDidChangeSelection(items => {
+				}));
+				store.add(quickpick.onDidChangeSelection(items => {
 					this._proxy.$onDidChangeSelection(sessionId, items.map(item => (item as TransferQuickPickItem).handle));
-				});
-				quickpick.onDidTriggerItemButton((e) => {
+				}));
+				store.add(quickpick.onDidTriggerItemButton((e) => {
 					this._proxy.$onDidTriggerItemButton(sessionId, (e.item as TransferQuickPickItem).handle, (e.button as TransferQuickInputButton).handle);
-				});
+				}));
 			}
 
 			session = {
 				input,
-				handlesToItems: new Map()
+				handlesToItems: new Map(),
+				store
 			};
 			this.sessions.set(sessionId, session);
 		}
@@ -212,7 +219,7 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 	$dispose(sessionId: number): Promise<void> {
 		const session = this.sessions.get(sessionId);
 		if (session) {
-			session.input.dispose();
+			session.store.dispose();
 			this.sessions.delete(sessionId);
 		}
 		return Promise.resolve(undefined);

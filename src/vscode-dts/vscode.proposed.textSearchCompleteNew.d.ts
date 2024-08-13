@@ -33,14 +33,6 @@ declare module 'vscode' {
 		/**
 		 * The message type, this affects how the message will be rendered.
 		 */
-		type: TextSearchCompleteMessageTypeNew;
-	}
-
-	/**
-	 * Represents the severity of a TextSearchComplete message.
-	 */
-	export enum TextSearchCompleteMessageTypeNew {
-		Information = 1,
-		Warning = 2,
+		type: TextSearchCompleteMessageType;
 	}
 }

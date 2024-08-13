@@ -11,6 +11,10 @@
  * @import { IServerAPI } from './vs/server/node/remoteExtensionHostAgentServer'
  */
 
+// Keep bootstrap-amd.js from redefining 'fs'.
+// TODO@esm this needs to be revisited in ESM
+delete process.env['ELECTRON_RUN_AS_NODE'];
+
 // ESM-comment-begin
 const path = require('path');
 const http = require('http');
@@ -279,13 +283,12 @@ async function findFreePort(host, start, end) {
  */
 function loadCode(nlsConfiguration) {
 	return new Promise((resolve, reject) => {
-		delete process.env['ELECTRON_RUN_AS_NODE']; // Keep bootstrap-amd.js from redefining 'fs'.
 
 		/** @type {INLSConfiguration} */
 		process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfiguration); // required for `bootstrap-amd` to pick up NLS messages
 
 		// See https://github.com/microsoft/vscode-remote-release/issues/6543
-		// We would normally install a SIGPIPE listener in bootstrap.js
+		// We would normally install a SIGPIPE listener in bootstrap-node.js
 		// But in certain situations, the console itself can be in a broken pipe state
 		// so logging SIGPIPE to the console will cause an infinite async loop
 		process.env['VSCODE_HANDLES_SIGPIPE'] = 'true';

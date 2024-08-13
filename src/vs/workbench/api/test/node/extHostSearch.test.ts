@@ -16,7 +16,7 @@ import { mock } from 'vs/base/test/common/mock';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { MainContext, MainThreadSearchShape } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostConfigProvider, IExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration.js';
+import { ExtHostConfigProvider, IExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { Range } from 'vs/workbench/api/common/extHostTypes';
 import { URITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';

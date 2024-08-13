@@ -6,6 +6,10 @@
 // @ts-check
 'use strict';
 
+// Keep bootstrap-amd.js from redefining 'fs'.
+// TODO@esm this needs to be revisited in ESM
+delete process.env['ELECTRON_RUN_AS_NODE'];
+
 // ESM-comment-begin
 const path = require('path');
 const bootstrapNode = require('./bootstrap-node');
@@ -25,9 +29,6 @@ const product = require('./bootstrap-meta').product;
 // ESM-uncomment-end
 
 async function start() {
-
-	// Keep bootstrap-amd.js from redefining 'fs'.
-	delete process.env['ELECTRON_RUN_AS_NODE'];
 
 	// NLS
 	const nlsConfiguration = await resolveNLSConfiguration({ userLocale: 'en', osLocale: 'en', commit: product.commit, userDataPath: '', nlsMetadataPath: __dirname });

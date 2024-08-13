@@ -8,6 +8,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
 import { Iterable } from 'vs/base/common/iterator';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -465,22 +466,23 @@ function selectContinuousRunProfiles(
 		}
 	}
 
-	const quickpick = quickInputService.createQuickPick<IQuickPickItem & { profile: ITestRunProfile }>();
+	const disposables = new DisposableStore();
+	const quickpick = disposables.add(quickInputService.createQuickPick<IQuickPickItem & { profile: ITestRunProfile }>({ useSeparators: true }));
 	quickpick.title = localize('testing.selectContinuousProfiles', 'Select profiles to run when files change:');
 	quickpick.canSelectMany = true;
 	quickpick.items = qpItems;
 	quickpick.selectedItems = selectedItems;
 	quickpick.show();
-	return new Promise((resolve, reject) => {
-		quickpick.onDidAccept(() => {
+	return new Promise(resolve => {
+		disposables.add(quickpick.onDidAccept(() => {
 			resolve(quickpick.selectedItems.map(i => i.profile));
-			quickpick.dispose();
-		});
+			disposables.dispose();
+		}));
 
-		quickpick.onDidHide(() => {
+		disposables.add(quickpick.onDidHide(() => {
 			resolve([]);
-			quickpick.dispose();
-		});
+			disposables.dispose();
+		}));
 	});
 }
 
@@ -707,7 +709,7 @@ export class CancelTestRunAction extends Action2 {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.Semicolon, KeyMod.CtrlCmd | KeyCode.KeyX),
 			},
-			menu: {
+			menu: [{
 				id: MenuId.ViewTitle,
 				order: ActionOrder.Run,
 				group: 'navigation',
@@ -715,19 +717,23 @@ export class CancelTestRunAction extends Action2 {
 					ContextKeyExpr.equals('view', Testing.ExplorerViewId),
 					ContextKeyExpr.equals(TestingContextKeys.isRunning.serialize(), true),
 				)
-			}
+			}]
 		});
 	}
 
 	/**
 	 * @override
 	 */
-	public async run(accessor: ServicesAccessor) {
+	public async run(accessor: ServicesAccessor, resultId?: string, taskId?: string) {
 		const resultService = accessor.get(ITestResultService);
 		const testService = accessor.get(ITestService);
-		for (const run of resultService.results) {
-			if (!run.completedAt) {
-				testService.cancelTestRun(run.id);
+		if (resultId) {
+			testService.cancelTestRun(resultId, taskId);
+		} else {
+			for (const run of resultService.results) {
+				if (!run.completedAt) {
+					testService.cancelTestRun(run.id);
+				}
 			}
 		}
 	}

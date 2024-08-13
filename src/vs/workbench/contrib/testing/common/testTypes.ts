@@ -332,7 +332,7 @@ export namespace ITestTaskState {
 
 export interface ITestRunTask {
 	id: string;
-	name: string | undefined;
+	name: string;
 	running: boolean;
 	ctrlId: string;
 }

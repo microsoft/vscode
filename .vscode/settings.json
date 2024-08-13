@@ -166,7 +166,5 @@
 		"editor.wordWrap": "on"
 	},
 	"css.format.spaceAroundSelectorSeparator": true,
-	"inlineChat.mode": "live",
-	"inlineChat.experimental.textButtons": true,
 	"typescript.enablePromptUseWorkspaceTsdk": true
 }

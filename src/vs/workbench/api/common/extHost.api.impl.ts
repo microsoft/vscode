@@ -290,13 +290,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				if (typeof options?.forceNewSession === 'object' && options.forceNewSession.learnMore) {
 					checkProposedApiEnabled(extension, 'authLearnMore');
 				}
-				if (options?.account) {
-					checkProposedApiEnabled(extension, 'authGetSessions');
-				}
 				return extHostAuthentication.getSession(extension, providerId, scopes, options as any);
 			},
 			getAccounts(providerId: string) {
-				checkProposedApiEnabled(extension, 'authGetSessions');
 				return extHostAuthentication.getAccounts(providerId);
 			},
 			// TODO: remove this after GHPR and Codespaces move off of it
@@ -747,15 +743,12 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return _asExtensionEvent(extHostTerminalService.onDidExecuteTerminalCommand)(listener, thisArg, disposables);
 			},
 			onDidChangeTerminalShellIntegration(listener, thisArg?, disposables?) {
-				checkProposedApiEnabled(extension, 'terminalShellIntegration');
 				return _asExtensionEvent(extHostTerminalShellIntegration.onDidChangeTerminalShellIntegration)(listener, thisArg, disposables);
 			},
 			onDidStartTerminalShellExecution(listener, thisArg?, disposables?) {
-				checkProposedApiEnabled(extension, 'terminalShellIntegration');
 				return _asExtensionEvent(extHostTerminalShellIntegration.onDidStartTerminalShellExecution)(listener, thisArg, disposables);
 			},
 			onDidEndTerminalShellExecution(listener, thisArg?, disposables?) {
-				checkProposedApiEnabled(extension, 'terminalShellIntegration');
 				return _asExtensionEvent(extHostTerminalShellIntegration.onDidEndTerminalShellExecution)(listener, thisArg, disposables);
 			},
 			get state() {
@@ -976,8 +969,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 				const oldOptions = {
 					exclude: options?.exclude && options.exclude.length > 0 ? options.exclude[0] : undefined,
-					useDefaultExcludes: !options?.useExcludeSettings || (options?.useExcludeSettings === ExcludeSettingOptions.filesExclude || options?.useExcludeSettings === ExcludeSettingOptions.searchAndFilesExclude),
-					useDefaultSearchExcludes: !options?.useExcludeSettings || (options?.useExcludeSettings === ExcludeSettingOptions.searchAndFilesExclude),
+					useDefaultExcludes: !options?.useExcludeSettings || (options?.useExcludeSettings === ExcludeSettingOptions.FilesExclude || options?.useExcludeSettings === ExcludeSettingOptions.SearchAndFilesExclude),
+					useDefaultSearchExcludes: !options?.useExcludeSettings || (options?.useExcludeSettings === ExcludeSettingOptions.SearchAndFilesExclude),
 					maxResults: options?.maxResults,
 					useIgnoreFiles: options?.useIgnoreFiles?.local,
 					useGlobalIgnoreFiles: options?.useIgnoreFiles?.global,
@@ -1012,8 +1005,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 					oldOptions = {
 						include: options.include && options.include.length > 0 ? options.include[0] : undefined,
 						exclude: options.exclude && options.exclude.length > 0 ? options.exclude[0] : undefined,
-						useDefaultExcludes: options.useExcludeSettings === undefined || (options.useExcludeSettings === ExcludeSettingOptions.filesExclude || options.useExcludeSettings === ExcludeSettingOptions.searchAndFilesExclude),
-						useSearchExclude: options.useExcludeSettings === undefined || (options.useExcludeSettings === ExcludeSettingOptions.searchAndFilesExclude),
+						useDefaultExcludes: options.useExcludeSettings === undefined || (options.useExcludeSettings === ExcludeSettingOptions.FilesExclude || options.useExcludeSettings === ExcludeSettingOptions.SearchAndFilesExclude),
+						useSearchExclude: options.useExcludeSettings === undefined || (options.useExcludeSettings === ExcludeSettingOptions.SearchAndFilesExclude),
 						maxResults: options.maxResults,
 						useIgnoreFiles: options.useIgnoreFiles?.local,
 						useGlobalIgnoreFiles: options.useIgnoreFiles?.global,
@@ -1021,7 +1014,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 						followSymlinks: options.followSymlinks,
 						encoding: options.encoding,
 						previewOptions: options.previewOptions ? {
-							matchLines: options.previewOptions?.matchLines ?? 100,
+							matchLines: options.previewOptions?.numMatchLines ?? 100,
 							charsPerLine: options.previewOptions?.charsPerLine ?? 10000,
 						} : undefined,
 						beforeContext: options.surroundingContext,
@@ -1109,6 +1102,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				}
 
 				return uriPromise.then(uri => {
+					extHostLogService.trace(`openTextDocument from ${extension.identifier}`);
 					if (uri.scheme === Schemas.vscodeRemote && !uri.authority) {
 						extHostApiDeprecation.report('workspace.openTextDocument', extension, `A URI of 'vscode-remote' scheme requires an authority.`);
 					}
@@ -1518,6 +1512,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			createDynamicChatParticipant(id: string, dynamicProps: vscode.DynamicChatParticipantProps, handler: vscode.ChatExtendedRequestHandler): vscode.ChatParticipant {
 				checkProposedApiEnabled(extension, 'chatParticipantPrivate');
 				return extHostChatAgents2.createDynamicChatAgent(extension, id, dynamicProps, handler);
+			},
+			registerChatParticipantDetectionProvider(provider: vscode.ChatParticipantDetectionProvider) {
+				checkProposedApiEnabled(extension, 'chatParticipantAdditions');
+				return extHostChatAgents2.registerChatParticipantDetectionProvider(provider);
 			},
 		};
 

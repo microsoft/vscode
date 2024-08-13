@@ -273,7 +273,7 @@ flakySuite('Disk File Service', function () {
 				assert.strictEqual(value.mtime, undefined);
 				assert.strictEqual(value.ctime, undefined);
 			} else {
-				assert.ok(!'Unexpected value ' + basename(value.resource.fsPath));
+				assert.fail('Unexpected value ' + basename(value.resource.fsPath));
 			}
 		});
 	});
@@ -317,7 +317,7 @@ flakySuite('Disk File Service', function () {
 				assert.ok(value.mtime > 0);
 				assert.ok(value.ctime > 0);
 			} else {
-				assert.ok(!'Unexpected value ' + basename(value.resource.fsPath));
+				assert.fail('Unexpected value ' + basename(value.resource.fsPath));
 			}
 		});
 	});
