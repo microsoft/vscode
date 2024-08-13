@@ -240,6 +240,22 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 						store.add(this.registerDefaultParticipantView(providerDescriptor));
 					}
 
+					const participantsAndCommandsDisambiguation: {
+						categoryName: string;
+						description: string;
+						examples: string[];
+					}[] = [];
+					if (providerDescriptor.disambiguation?.length) {
+						participantsAndCommandsDisambiguation.push(...providerDescriptor.disambiguation);
+					}
+					if (providerDescriptor.commands) {
+						for (const command of providerDescriptor.commands) {
+							if (command.disambiguation?.length) {
+								participantsAndCommandsDisambiguation.push(...command.disambiguation);
+							}
+						}
+					}
+
 					store.add(this._chatAgentService.registerAgent(
 						providerDescriptor.id,
 						{
@@ -261,7 +277,7 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 								providerDescriptor.locations.map(ChatAgentLocation.fromRaw) :
 								[ChatAgentLocation.Panel],
 							slashCommands: providerDescriptor.commands ?? [],
-							disambiguation: coalesce([...providerDescriptor.disambiguation, ...providerDescriptor.commands?.flatMap(c => c.disambiguation) ?? []]),
+							disambiguation: coalesce(participantsAndCommandsDisambiguation.flat()),
 						} satisfies IChatAgentData));
 
 					this._participantRegistrationDisposables.set(
