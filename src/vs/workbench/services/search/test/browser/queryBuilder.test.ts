@@ -1087,7 +1087,7 @@ suite('QueryBuilder', () => {
 function makeExcludePatternFromPatterns(...patterns: string[]): {
 	pattern: IExpression;
 } | undefined {
-	const pattern = patternsToIExpression('foo/**/*.js');
+	const pattern = patternsToIExpression(...patterns);
 	return pattern ? { pattern } : undefined;
 }
 
