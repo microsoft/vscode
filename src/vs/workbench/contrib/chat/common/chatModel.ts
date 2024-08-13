@@ -54,6 +54,7 @@ export interface IChatRequestModel {
 	readonly variableData: IChatRequestVariableData;
 	readonly confirmation?: string;
 	readonly locationData?: IChatLocationData;
+	readonly attachedContext?: IChatRequestVariableEntry[];
 	readonly response?: IChatResponseModel;
 }
 
@@ -154,13 +155,18 @@ export class ChatRequestModel implements IChatRequestModel {
 		return this._locationData;
 	}
 
+	public get attachedContext(): IChatRequestVariableEntry[] | undefined {
+		return this._attachedContext;
+	}
+
 	constructor(
 		private _session: ChatModel,
 		public readonly message: IParsedChatRequest,
 		private _variableData: IChatRequestVariableData,
 		private _attempt: number = 0,
 		private _confirmation?: string,
-		private _locationData?: IChatLocationData
+		private _locationData?: IChatLocationData,
+		private _attachedContext?: IChatRequestVariableEntry[]
 	) {
 		this.id = 'request_' + ChatRequestModel.nextId++;
 	}
@@ -878,8 +884,8 @@ export class ChatModel extends Disposable implements IChatModel {
 		return this._requests;
 	}
 
-	addRequest(message: IParsedChatRequest, variableData: IChatRequestVariableData, attempt: number, chatAgent?: IChatAgentData, slashCommand?: IChatAgentCommand, confirmation?: string, locationData?: IChatLocationData): ChatRequestModel {
-		const request = new ChatRequestModel(this, message, variableData, attempt, confirmation, locationData);
+	addRequest(message: IParsedChatRequest, variableData: IChatRequestVariableData, attempt: number, chatAgent?: IChatAgentData, slashCommand?: IChatAgentCommand, confirmation?: string, locationData?: IChatLocationData, attachments?: IChatRequestVariableEntry[]): ChatRequestModel {
+		const request = new ChatRequestModel(this, message, variableData, attempt, confirmation, locationData, attachments);
 		request.response = new ChatResponseModel([], this, chatAgent, slashCommand, request.id);
 
 		this._requests.push(request);

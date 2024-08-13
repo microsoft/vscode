@@ -444,7 +444,8 @@ export class ChatService extends Disposable implements IChatService {
 
 		const resendOptions: IChatSendRequestOptions = {
 			...options,
-			locationData: request.locationData
+			locationData: request.locationData,
+			attachedContext: request.attachedContext,
 		};
 		await this._sendRequestAsync(model, model.sessionId, request.message, attempt, enableCommandDetection, defaultAgent, location, resendOptions).responseCompletePromise;
 	}
@@ -577,10 +578,10 @@ export class ChatService extends Disposable implements IChatService {
 				if (agentPart || (defaultAgent && !commandPart)) {
 					const prepareChatAgentRequest = async (agent: IChatAgentData, command?: IChatAgentCommand, enableCommandDetection?: boolean, chatRequest?: ChatRequestModel) => {
 						const initVariableData: IChatRequestVariableData = { variables: [] };
-						request = chatRequest ?? model.addRequest(parsedRequest, initVariableData, attempt, agent, command, options?.confirmation, options?.locationData);
+						request = chatRequest ?? model.addRequest(parsedRequest, initVariableData, attempt, agent, command, options?.confirmation, options?.locationData, options?.attachedContext);
 
 						// Variables may have changed if the agent and slash command changed, so resolve them again even if we already had a chatRequest
-						const variableData = await this.chatVariablesService.resolveVariables(parsedRequest, options?.attachedContext, model, progressCallback, token);
+						const variableData = await this.chatVariablesService.resolveVariables(parsedRequest, request.attachedContext, model, progressCallback, token);
 						model.updateRequest(request, variableData);
 						const promptTextResult = getPromptText(request.message);
 						const updatedVariableData = updateRanges(variableData, promptTextResult.diff); // TODO bit of a hack
