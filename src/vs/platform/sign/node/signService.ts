@@ -31,7 +31,8 @@ export class SignService extends AbstractSignService implements ISignService {
 	private async vsda(): Promise<typeof vsda> {
 		// ESM-uncomment-begin
 		// const mod = 'vsda';
-		// return import(mod);
+		// const { default: vsda } = await import(mod);
+		// return vsda;
 		// ESM-uncomment-end
 
 		// ESM-comment-begin
