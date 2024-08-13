@@ -17,6 +17,10 @@ export interface ITextureAtlasAllocator {
 
 // #region Shelf allocator
 
+/**
+ * The shelf allocator is a simple allocator that places glyphs in rows, starting a new row when the
+ * current row is full. Due to its simplicity, it can waste space but it is very fast.
+ */
 export class TextureAtlasShelfAllocator implements ITextureAtlasAllocator {
 	private _currentRow: ITextureAtlasShelf = {
 		x: 0,
@@ -139,6 +143,15 @@ interface ITextureAtlasShelf {
 
 // #region Slab allocator
 
+/**
+ * The slab allocator is a more complex allocator that places glyphs in square slabs of a fixed
+ * size. Slabs are defined by a small range of glyphs sizes they can house, this places like-sized
+ * glyphs in the same slab which reduces wasted space.
+ *
+ * Slabs also may contain "unused" regions on the left and bottom depending on the size of the
+ * glyphs they include. This space is used to place very thin or short glyphs, which would otherwise
+ * waste a lot of space in their own slab.
+ */
 export class TextureAtlasSlabAllocator implements ITextureAtlasAllocator {
 	// TODO: Is there a better way to index slabs other than an unsorted list?
 	private _slabs: ITextureAtlasSlab[] = [];
