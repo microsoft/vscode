@@ -65,6 +65,9 @@ suite('VoiceChat', () => {
 	];
 
 	class TestChatAgentService implements IChatAgentService {
+		hasChatParticipantDetectionProviders(): boolean {
+			throw new Error('Method not implemented.');
+		}
 		registerChatParticipantDetectionProvider(handle: number, provider: IChatParticipantDetectionProvider): IDisposable {
 			throw new Error('Method not implemented.');
 		}
