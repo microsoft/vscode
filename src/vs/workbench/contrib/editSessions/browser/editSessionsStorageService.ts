@@ -311,24 +311,25 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 	 * Prompts the user to pick an authentication option for storing and getting edit sessions.
 	 */
 	private async getAccountPreference(reason: 'read' | 'write'): Promise<AuthenticationSession & { providerId: string } | undefined> {
-		const quickpick = this.quickInputService.createQuickPick<ExistingSession | AuthenticationProviderOption | IQuickPickItem>({ useSeparators: true });
+		const disposables = new DisposableStore();
+		const quickpick = disposables.add(this.quickInputService.createQuickPick<ExistingSession | AuthenticationProviderOption | IQuickPickItem>({ useSeparators: true }));
 		quickpick.ok = false;
 		quickpick.placeholder = reason === 'read' ? localize('choose account read placeholder', "Select an account to restore your working changes from the cloud") : localize('choose account placeholder', "Select an account to store your working changes in the cloud");
 		quickpick.ignoreFocusOut = true;
 		quickpick.items = await this.createQuickpickItems();
 
 		return new Promise((resolve, reject) => {
-			quickpick.onDidHide((e) => {
+			disposables.add(quickpick.onDidHide((e) => {
 				reject(new CancellationError());
-				quickpick.dispose();
-			});
+				disposables.dispose();
+			}));
 
-			quickpick.onDidAccept(async (e) => {
+			disposables.add(quickpick.onDidAccept(async (e) => {
 				const selection = quickpick.selectedItems[0];
 				const session = 'provider' in selection ? { ...await this.authenticationService.createSession(selection.provider.id, selection.provider.scopes), providerId: selection.provider.id } : ('session' in selection ? selection.session : undefined);
 				resolve(session);
 				quickpick.hide();
-			});
+			}));
 
 			quickpick.show();
 		});

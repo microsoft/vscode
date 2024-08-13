@@ -2621,19 +2621,19 @@ export namespace ChatResponsePart {
 
 export namespace ChatAgentRequest {
 	export function to(request: IChatAgentRequest, location2: vscode.ChatRequestEditorData | vscode.ChatRequestNotebookData | undefined): vscode.ChatRequest {
-		const requestedTools = request.variables.variables.filter(v => v.isTool).map(tool => tool.id);
-		const variablesWithoutTools = request.variables.variables.filter(v => !v.isTool);
+		const toolReferences = request.variables.variables.filter(v => v.isTool);
+		const variableReferences = request.variables.variables.filter(v => !v.isTool);
 		return {
 			prompt: request.message,
 			command: request.command,
 			attempt: request.attempt ?? 0,
 			enableCommandDetection: request.enableCommandDetection ?? true,
-			references: variablesWithoutTools.map(ChatAgentValueReference.to),
+			references: variableReferences.map(ChatPromptReference.to),
+			toolReferences: toolReferences.map(ChatLanguageModelToolReference.to),
 			location: ChatLocation.to(request.location),
 			acceptedConfirmationData: request.acceptedConfirmationData,
 			rejectedConfirmationData: request.rejectedConfirmationData,
 			location2,
-			requestedTools
 		};
 	}
 }
@@ -2658,7 +2658,7 @@ export namespace ChatLocation {
 	}
 }
 
-export namespace ChatAgentValueReference {
+export namespace ChatPromptReference {
 	export function to(variable: IChatRequestVariableEntry): vscode.ChatPromptReference {
 		const value = variable.value;
 		if (!value) {
@@ -2673,6 +2673,20 @@ export namespace ChatAgentValueReference {
 				value && typeof value === 'object' && 'uri' in value && 'range' in value && isUriComponents(value.uri) ?
 					Location.to(revive(value)) : value,
 			modelDescription: variable.modelDescription
+		};
+	}
+}
+
+export namespace ChatLanguageModelToolReference {
+	export function to(variable: IChatRequestVariableEntry): vscode.ChatLanguageModelToolReference {
+		const value = variable.value;
+		if (value) {
+			throw new Error('Invalid tool reference');
+		}
+
+		return {
+			id: variable.id,
+			range: variable.range && [variable.range.start, variable.range.endExclusive],
 		};
 	}
 }
@@ -2799,9 +2813,10 @@ export namespace DebugTreeItem {
 export namespace LanguageModelToolDescription {
 	export function to(item: IToolData): vscode.LanguageModelToolDescription {
 		return {
-			name: item.name,
-			description: item.description,
+			id: item.id,
+			modelDescription: item.modelDescription,
 			parametersSchema: item.parametersSchema,
+			displayName: item.displayName,
 		};
 	}
 }

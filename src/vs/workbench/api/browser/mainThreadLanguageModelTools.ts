@@ -29,8 +29,8 @@ export class MainThreadLanguageModelTools extends Disposable implements MainThre
 		return Array.from(this._languageModelToolsService.getTools());
 	}
 
-	$invokeTool(name: string, parameters: any, token: CancellationToken): Promise<IToolResult> {
-		return this._languageModelToolsService.invokeTool(name, parameters, token);
+	$invokeTool(id: string, parameters: any, token: CancellationToken): Promise<IToolResult> {
+		return this._languageModelToolsService.invokeTool(id, parameters, token);
 	}
 
 	$registerTool(name: string): void {
