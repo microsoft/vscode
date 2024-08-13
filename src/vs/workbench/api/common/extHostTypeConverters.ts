@@ -1893,7 +1893,7 @@ export namespace TestMessage {
 			actual: message.actualOutput,
 			contextValue: message.contextValue,
 			location: message.location && ({ range: Range.from(message.location.range), uri: message.location.uri }),
-			stackTrace: (message as vscode.TestMessage2).stackTrace?.map(s => ({
+			stackTrace: message.stackTrace?.map(s => ({
 				label: s.label,
 				position: s.position && Position.from(s.position),
 				uri: s.uri && URI.revive(s.uri).toJSON(),
