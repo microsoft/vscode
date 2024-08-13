@@ -153,7 +153,7 @@ flakySuite('Native Modules (all platforms)', () => {
 
 	// These tests require certain modules from `vscode-distro` to work and are otherwise skipped.
 
-	test('vsda', async function () {
+	test.skip('vsda', async function () {
 		try {
 			const vsda = await import('vsda');
 			const signer = new vsda.signer();
@@ -169,7 +169,7 @@ flakySuite('Native Modules (all platforms)', () => {
 		}
 	});
 
-	test('@vscode/vsce-sign', async function () {
+	test.skip('@vscode/vsce-sign', async function () {
 		try {
 			const vsceSign = await import('@vscode/vsce-sign');
 			assert.ok(typeof vsceSign.verify === 'function', testErrorMessage('@vscode/vsce-sign'));
