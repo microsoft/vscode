@@ -26,6 +26,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { InlineChatAccessibilityHelp } from 'vs/workbench/contrib/inlineChat/browser/inlineChatAccessibilityHelp';
+import { InlineChatExansionContextKey, InlineChatExpandLineAction } from 'vs/workbench/contrib/inlineChat/browser/inlineChatCurrentLine';
 
 
 // --- browser
@@ -34,6 +35,9 @@ registerSingleton(IInlineChatSessionService, InlineChatSessionServiceImpl, Insta
 registerSingleton(IInlineChatSavingService, InlineChatSavingServiceImpl, InstantiationType.Delayed);
 
 registerEditorContribution(INLINE_CHAT_ID, InlineChatController, EditorContributionInstantiation.Eager); // EAGER because of notebook dispose/create of editors
+
+registerEditorContribution(InlineChatExansionContextKey.Id, InlineChatExansionContextKey, EditorContributionInstantiation.BeforeFirstInteraction);
+registerAction2(InlineChatExpandLineAction);
 
 // --- MENU special ---
 
