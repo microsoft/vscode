@@ -374,6 +374,7 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 		this._languageId = languageId;
 
 		this._bracketPairsTextModelPart.handleDidChangeLanguage(e);
+		this._tokens.resetTokenization();
 		this.createPreferredTokenProvider();
 		this._onDidChangeLanguage.fire(e);
 		this._onDidChangeLanguageConfiguration.fire({});
