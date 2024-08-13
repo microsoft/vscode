@@ -12,7 +12,7 @@ import { EditorsOrder, IEditorIdentifier, EditorResourceAccessor, SideBySideEdit
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ILanguageService } from 'vs/editor/common/languages/language';
-import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
+import { getIconClasses } from 'vs/editor/browser/services/getIconClasses';
 import { prepareQuery, scoreItemFuzzy, compareItemsByFuzzyScore, FuzzyScorerCache } from 'vs/base/common/fuzzyScorer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDisposable } from 'vs/base/common/lifecycle';
