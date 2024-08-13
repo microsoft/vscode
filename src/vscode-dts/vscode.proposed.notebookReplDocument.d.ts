@@ -11,10 +11,15 @@ declare module 'vscode' {
 		 * This should only be done if the notebook is not already shown in another editor.
 		 */
 		readonly asRepl?: boolean;
-	}
 
-	export namespace window {
-		export function showNotebookDocument(document: NotebookDocument, options?: NotebookDocumentShowOptions): Thenable<NotebookEditor>;
+		/**
+		 * The contoller that should be initially set for the editor.
+		 */
+		readonly controller?: NotebookController;
 
+		/**
+		 * The label for the editor tab.
+		 */
+		readonly label?: string;
 	}
 }
