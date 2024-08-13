@@ -323,7 +323,6 @@ import 'vs/workbench/contrib/update/browser/update.contribution';
 
 // Surveys
 import 'vs/workbench/contrib/surveys/browser/nps.contribution';
-import 'vs/workbench/contrib/surveys/browser/ces.contribution';
 import 'vs/workbench/contrib/surveys/browser/languageSurveys.contribution';
 
 // Welcome
