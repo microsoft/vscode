@@ -8,10 +8,10 @@ import { Event } from 'vs/base/common/event';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import type { GlyphRasterizer } from 'vs/editor/browser/view/gpu/raster/glyphRasterizer';
 import { ensureNonNullable } from 'vs/editor/browser/view/gpu/gpuUtils';
-import { TwoKeyMap } from 'vs/editor/browser/view/gpu/multiKeyMap';
 import { ITextureAtlasAllocator, TextureAtlasSlabAllocator } from 'vs/editor/browser/view/gpu/atlas/textureAtlasAllocator';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { TwoKeyMap } from 'vs/base/common/map';
 
 export class TextureAtlasPage extends Disposable {
 
