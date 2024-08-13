@@ -103,7 +103,8 @@ export class ExtensionSignatureVerificationService implements IExtensionSignatur
 
 	private async resolveVsceSign(): Promise<typeof vsceSign> {
 		// ESM-uncomment-begin
-		// return import('@vscode/vsce-sign');
+		// const mod = '@vscode/vsce-sign';
+		// return import(mod);
 		// ESM-uncomment-end
 
 		// ESM-comment-begin
