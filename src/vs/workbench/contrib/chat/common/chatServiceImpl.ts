@@ -442,7 +442,11 @@ export class ChatService extends Disposable implements IChatService {
 
 		model.removeRequest(request.id, ChatRequestRemovalReason.Resend);
 
-		await this._sendRequestAsync(model, model.sessionId, request.message, attempt, enableCommandDetection, defaultAgent, location, options).responseCompletePromise;
+		const resendOptions: IChatSendRequestOptions = {
+			...options,
+			locationData: request.locationData
+		};
+		await this._sendRequestAsync(model, model.sessionId, request.message, attempt, enableCommandDetection, defaultAgent, location, resendOptions).responseCompletePromise;
 	}
 
 	async sendRequest(sessionId: string, request: string, options?: IChatSendRequestOptions): Promise<IChatSendRequestData | undefined> {
@@ -573,7 +577,7 @@ export class ChatService extends Disposable implements IChatService {
 				if (agentPart || (defaultAgent && !commandPart)) {
 					const prepareChatAgentRequest = async (agent: IChatAgentData, command?: IChatAgentCommand, enableCommandDetection?: boolean, chatRequest?: ChatRequestModel) => {
 						const initVariableData: IChatRequestVariableData = { variables: [] };
-						request = chatRequest ?? model.addRequest(parsedRequest, initVariableData, attempt, agent, command, options?.confirmation);
+						request = chatRequest ?? model.addRequest(parsedRequest, initVariableData, attempt, agent, command, options?.confirmation, options?.locationData);
 
 						// Variables may have changed if the agent and slash command changed, so resolve them again even if we already had a chatRequest
 						const variableData = await this.chatVariablesService.resolveVariables(parsedRequest, options?.attachedContext, model, progressCallback, token);
@@ -591,7 +595,7 @@ export class ChatService extends Disposable implements IChatService {
 							enableCommandDetection,
 							attempt,
 							location,
-							locationData: options?.locationData,
+							locationData: request.locationData,
 							acceptedConfirmationData: options?.acceptedConfirmationData,
 							rejectedConfirmationData: options?.rejectedConfirmationData,
 						} satisfies IChatAgentRequest;
