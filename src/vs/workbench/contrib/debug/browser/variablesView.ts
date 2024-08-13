@@ -461,10 +461,9 @@ export class VisualizedVariableRenderer extends AbstractExpressionsRenderer {
 			text += ':';
 		}
 		data.label.set(text, highlights, viz.name);
-		renderExpressionValue(viz, data.value, {
+		renderExpressionValue(data.elementDisposable, viz, data.value, {
 			showChanged: false,
 			maxValueLength: 1024,
-			hover: data.elementDisposable,
 			colorize: true,
 			linkDetector: this.linkDetector
 		}, this.hoverService);
