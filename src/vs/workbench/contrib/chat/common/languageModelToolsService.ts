@@ -33,6 +33,8 @@ interface IToolEntry {
  */
 export const IsTsxElementToken = '$$isTSXElement';
 
+export const IsFragmentMarker = '$$isFragment';
+
 export interface IToolPromptContext {
 	tokenBudget: number;
 	endpoint: { modelMaxPromptTokens: number };

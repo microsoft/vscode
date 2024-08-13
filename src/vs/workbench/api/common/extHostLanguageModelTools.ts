@@ -10,10 +10,12 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ExtHostLanguageModelToolsShape, IMainContext, MainContext, MainThreadLanguageModelToolsShape } from 'vs/workbench/api/common/extHost.protocol';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
-import { IsTsxElementToken, IToolData, IToolDelta, IToolInvokation, IToolPromptContext, IToolsTsxPromptElement, IToolTsxPromptPiece } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
+import { IsFragmentMarker, IsTsxElementToken, IToolData, IToolDelta, IToolInvokation, IToolPromptContext, IToolsTsxPromptElement, IToolTsxPromptPiece } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
 import type * as vscode from 'vscode';
 
 let intermdiateIdCounter = 0;
+// https://github.com/microsoft/vscode-prompt-tsx/blob/95db0af0474c479be54d7618bbe125fff7a73299/src/base/tsx.ts#L30
+const getFragmentCtor = () => (globalThis as any).vscppf;
 
 export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape {
 	/** A map of tools that were registered in this EH */
@@ -104,9 +106,13 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 		function process(part: IToolTsxPromptPiece): IToolTsxPromptPiece {
 			let ctor = part.ctor;
 			if (typeof part.ctor === 'function') {
-				const id = ++intermdiateIdCounter;
-				invokation!.intermediates.set(id, part);
-				ctor = { [IsTsxElementToken]: id };
+				if (part.ctor === getFragmentCtor()) {
+					ctor = { [IsTsxElementToken]: IsFragmentMarker };
+				} else {
+					const id = ++intermdiateIdCounter;
+					invokation!.intermediates.set(id, part);
+					ctor = { [IsTsxElementToken]: id };
+				}
 			}
 
 			return {
@@ -116,7 +122,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			};
 		}
 
-		const element = new object.ctor(object.props || {});
+		const element = new object.ctor({ ...object.props, children: object.children });
 
 		return process(await element.render({
 			...context,
@@ -173,7 +179,9 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 						return {
 							...part,
 							ctor: typeof part.ctor === 'object' && IsTsxElementToken in part.ctor
-								? that.makeProxiedTsxElement(invokationId, part.ctor[IsTsxElementToken])
+								? part.ctor[IsTsxElementToken] === IsFragmentMarker
+									? getFragmentCtor()
+									: that.makeProxiedTsxElement(invokationId, part.ctor[IsTsxElementToken])
 								: part.ctor,
 							children: part.children.map((p): any => typeof p === 'object' && p ? process(p) : p),
 						};
