@@ -11,6 +11,7 @@ import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IModelService } from 'vs/editor/common/services/model';
 import { FileKind } from 'vs/platform/files/common/files';
 import { ThemeIcon } from 'vs/base/common/themables';
+import { mainWindow } from 'vs/base/browser/window';
 
 const fileIconDirectoryRegex = /(?:\/|^)(?:([^\/]+)\/)?([^\/]+)$/;
 
@@ -123,5 +124,6 @@ function detectLanguageId(modelService: IModelService, languageService: ILanguag
 }
 
 function cssEscape(str: string): string {
-	return str.replace(/[\x11\x12\x14\x15\x40]/g, '/'); // HTML class names can not contain certain whitespace characters, use / instead, which doesn't exist in file names.
+	str = str.replace(/[\x11\x12\x14\x15\x40]/g, '/'); // HTML class names can not contain certain whitespace characters, use / instead, which doesn't exist in file names.
+	return mainWindow.CSS.escape(str);
 }
