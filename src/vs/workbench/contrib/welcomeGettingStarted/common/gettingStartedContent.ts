@@ -415,8 +415,8 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 				},
 				{
 					id: 'codeFolding',
-					title: localize('gettingStarted.codeFolding.title', "Use code folding to collapse blocks of code and navigate between folding ranges as points of interest in an editor."),
-					description: localize('gettingStarted.codeFolding.description.interpolated', "Fold a code section with the Fold command.\n{0}\n Navigate to the previous or next folding range section with the commands Go to Next/Previous Folding Range\n{1}\n{2}\n", Button(localize('fold', "Fold"), 'command:editor.fold'), Button(localize('goToNextFoldingRange', "Go to Next Folding Range"), 'command:editor.gotoNextFold'), Button(localize('goToPreviousFoldingRange', "Go to Previous Folding Range"), 'command:editor.gotoPreviousFold')),
+					title: localize('gettingStarted.codeFolding.title', "Use code folding to collapse blocks of code and focus on the code you're interested in. and navigate between folding ranges as points of interest in an editor."),
+					description: localize('gettingStarted.codeFolding.description.interpolated', "Fold or unfold a code section with the Toggle Fold command.\n{0}\n Fold or unfold recursively with the Toggle Fold Recursively Command\n{1}\n", Button(localize('toggleFold', "Toggle Fold"), 'command:editor.toggleFold'), Button(localize('toggleFoldRecursively', "Toggle Fold Recursively"), 'editor.toggleFoldRecursively')),
 					media: {
 						type: 'svg', altText: 'VS Code extension marketplace with featured language extensions', path: 'extensions-web.svg'
 					},
