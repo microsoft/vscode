@@ -219,6 +219,12 @@ export abstract class DiffElementCellViewModelBase extends DiffElementViewModelB
 		this.metadataFoldingState = PropertyFoldingState.Collapsed;
 		this.outputFoldingState = PropertyFoldingState.Collapsed;
 
+		if (original) {
+			this._register(original);
+		}
+		if (modified) {
+			this._register(modified);
+		}
 		this._register(this.editorEventDispatcher.onDidChangeLayout(e => this._layoutInfoEmitter.fire({ outerWidth: true })));
 	}
 
@@ -482,8 +488,8 @@ export class SideBySideDiffElementViewModel extends DiffElementCellViewModelBase
 			editorEventDispatcher,
 			initData);
 
-		this.original = original;
-		this.modified = modified;
+		this.original = this._register(original);
+		this.modified = this._register(modified);
 		this.type = type;
 
 		this.cellFoldingState = modified.textModel.getValue() !== original.textModel.getValue() ? PropertyFoldingState.Expanded : PropertyFoldingState.Collapsed;
