@@ -341,6 +341,7 @@ export class HiddenAreaInput extends Disposable {
 			const typeInput = currentComposition.handleCompositionUpdate(e.data);
 			this._hiddenAreaState = HiddenAreaState.readFromTextArea(this._hiddenArea, this._hiddenAreaState);
 			console.log('setting this._hiddenAreaState in onCompositionUpdate: ', this._hiddenAreaState);
+			console.log('typeInput : ', typeInput);
 			this._onType.fire(typeInput);
 			this._onCompositionUpdate.fire({ data: e.data });
 		}));
@@ -545,6 +546,8 @@ export class HiddenAreaInput extends Disposable {
 		// so throttle multiple `selectionchange` events that burst in a short period of time.
 		let previousSelectionChangeEventTime = 0;
 		return dom.addDisposableListener(this._hiddenArea.ownerDocument, 'selectionchange', (e) => {//todo
+			console.log('selection change');
+
 			inputLatency.onSelectionChange();
 
 			if (!this._hasFocus) {

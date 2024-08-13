@@ -131,7 +131,7 @@ export class DivWrapper extends Disposable implements ICompleteHiddenAreaWrapper
 			console.log('newSelectionPos : ', newSelectionPos);
 			this._selectionStart = newSelectionPos;
 			this._selectionEnd = newSelectionPos;
-			this._editContext.updateSelection(this._selectionStart, this._selectionEnd);
+			this.setSelectionRange('update', this._selectionStart, this._selectionEnd);
 
 			const data = e.text.replace(/[^\S\r\n]/gm, ' ');
 			if (this._isComposing) {
@@ -265,6 +265,7 @@ export class DivWrapper extends Disposable implements ICompleteHiddenAreaWrapper
 	public getSelectionStart(): number {
 
 		console.log('getSelectionStart: ', this._selectionStart);
+		console.log('getSelectionEnd in the meantime : ', this._selectionEnd);
 		// need to check direction maybe?
 		return this._selectionStart;
 	}

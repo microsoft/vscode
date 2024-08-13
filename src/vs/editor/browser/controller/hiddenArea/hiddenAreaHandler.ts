@@ -375,6 +375,8 @@ export class HiddenAreaHandler extends ViewPart {
 
 		this._register(this._hiddenAreaInput.onCompositionStart((e) => {
 
+			console.log('on composition start');
+
 			// The textarea might contain some content when composition starts.
 			//
 			// When we make the textarea visible, it always has a height of 1 line,
@@ -494,14 +496,6 @@ export class HiddenAreaHandler extends ViewPart {
 		this._register(IME.onDidChange(() => {
 			this._ensureReadOnlyAttribute();
 		}));
-
-		// --- developer code
-		this._domElement.domNode.addEventListener('focus', () => {
-			this._domElement.domNode.style.background = 'yellow';
-		});
-		this._domElement.domNode.addEventListener('blur', () => {
-			this._domElement.domNode.style.background = 'white';
-		});
 	}
 
 	appendTo(overflowGuardContainer: FastDomNode<HTMLElement>): void {
@@ -763,6 +757,8 @@ export class HiddenAreaHandler extends ViewPart {
 	}
 
 	private _render(): void {
+		console.log('_render');
+
 		if (this._visibleTextArea) {
 			// The text area is visible for composition reasons
 
