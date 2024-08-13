@@ -176,6 +176,10 @@ export class TextAreaWrapper extends Disposable implements ICompleteHiddenAreaWr
 		return this._actual.value;
 	}
 
+	public setRenderingContext(): void { }
+
+	public setParent(): void { }
+
 	public setValue(reason: string, value: string): void {
 		const textArea = this._actual;
 		if (textArea.value === value) {

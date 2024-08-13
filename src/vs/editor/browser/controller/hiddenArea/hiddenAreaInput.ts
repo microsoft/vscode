@@ -15,6 +15,7 @@ import { Mimes } from 'vs/base/common/mime';
 import { OperatingSystem } from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import { _debugComposition, HiddenAreaState, IHiddenAreaWrapper, ITypeData } from 'vs/editor/browser/controller/hiddenArea/hiddenAreaState';
+import { RenderingContext } from 'vs/editor/browser/view/renderingContext';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
@@ -127,6 +128,8 @@ export interface ICompleteHiddenAreaWrapper extends IHiddenAreaWrapper, IDisposa
 	resetSelectionChangeTime(): void;
 
 	hasFocus(): boolean;
+	setRenderingContext(renderingContext: RenderingContext): void;
+	setParent(domNode: HTMLElement): void;
 
 	readonly className: string;
 }

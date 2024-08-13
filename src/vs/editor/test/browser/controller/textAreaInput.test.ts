@@ -185,7 +185,8 @@ suite('TextAreaInput', () => {
 				}
 				this._currDispatchingEvent = null;
 			}
-
+			setRenderingContext(): void { }
+			setParent(): void { }
 			getValue(): string {
 				return this._state.value;
 			}
