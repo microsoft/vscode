@@ -249,7 +249,7 @@ export class ReplVariablesRenderer extends AbstractExpressionsRenderer<IExpressi
 		const isReplVariable = expression instanceof ReplVariableElement;
 		if (isReplVariable || !expression.name) {
 			data.label.set('');
-			renderExpressionValue(data.elementDisposable, isReplVariable ? expression.expression : expression, data.value, { colorize: true, linkDetector: this.linkDetector }, this.hoverService);
+			renderExpressionValue(data.elementDisposable, isReplVariable ? expression.expression : expression, data.value, { colorize: true, linkDetector: this.linkDetector, hover: false }, this.hoverService);
 			data.expression.classList.remove('nested-variable');
 		} else {
 			renderVariable(data.elementDisposable, this.commandService, this.hoverService, expression as Variable, data, true, highlights, this.linkDetector);
