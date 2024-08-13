@@ -5,7 +5,7 @@
 
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
-import { CellUri, IResolvedNotebookEditorModel, NotebookEditorModelCreationOptions, NotebookSetting, NotebookWorkingCopyTypeIdentifier } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellUri, IResolvedNotebookEditorModel, NotebookData, NotebookEditorModelCreationOptions, NotebookSetting, NotebookWorkingCopyTypeIdentifier } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModelFactory, SimpleNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
 import { combinedDisposable, DisposableStore, dispose, IDisposable, IReference, ReferenceCollection, toDisposable } from 'vs/base/common/lifecycle';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
@@ -233,11 +233,10 @@ export class NotebookModelResolverServiceImpl implements INotebookEditorModelRes
 		return { resource, viewType };
 	}
 
-	public async createUntitledNotebookTextModel(uri: URI | undefined, viewType: string | undefined) {
+	public async createUntitledNotebookTextModel(uri: URI | undefined, viewType: string | undefined, data?: NotebookData) {
 		const validated = await this.validateResourceViewType(uri, viewType);
 
-		// TODO: look at piping the initial content through at this point
-		return (await this._notebookService.createNotebookTextModel(validated.viewType, validated.resource));
+		return (await this._notebookService.createNotebookTextModel(validated.viewType, validated.resource, { data }));
 	}
 
 	async resolve(resource: URI, viewType?: string, options?: NotebookEditorModelCreationOptions): Promise<IReference<IResolvedNotebookEditorModel>>;

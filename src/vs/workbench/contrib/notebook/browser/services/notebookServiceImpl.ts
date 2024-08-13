@@ -28,7 +28,7 @@ import { INotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/no
 import { NotebookDiffEditorInput } from 'vs/workbench/contrib/notebook/common/notebookDiffEditorInput';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, CellUri, NotebookSetting, INotebookContributionData, INotebookExclusiveDocumentFilter, INotebookRendererInfo, INotebookTextModel, IOrderedMimeType, IOutputDto, MimeTypeDisplayOrder, NotebookEditorPriority, NotebookRendererMatch, NOTEBOOK_DISPLAY_ORDER, RENDERER_EQUIVALENT_EXTENSIONS, RENDERER_NOT_AVAILABLE, NotebookExtensionDescription, INotebookStaticPreloadInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, CellUri, NotebookSetting, INotebookContributionData, INotebookExclusiveDocumentFilter, INotebookRendererInfo, INotebookTextModel, IOrderedMimeType, IOutputDto, MimeTypeDisplayOrder, NotebookEditorPriority, NotebookRendererMatch, NOTEBOOK_DISPLAY_ORDER, RENDERER_EQUIVALENT_EXTENSIONS, RENDERER_NOT_AVAILABLE, NotebookExtensionDescription, INotebookStaticPreloadInfo, NotebookData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
 import { NotebookOutputRendererInfo, NotebookStaticPreloadInfo as NotebookStaticPreloadInfo } from 'vs/workbench/contrib/notebook/common/notebookOutputRenderer';
@@ -744,7 +744,7 @@ export class NotebookService extends Disposable implements INotebookService {
 
 	// --- notebook documents: create, destory, retrieve, enumerate
 
-	async createNotebookTextModel(viewType: string, uri: URI, stream?: VSBufferReadableStream): Promise<NotebookTextModel> {
+	async createNotebookTextModel(viewType: string, uri: URI, content?: { data?: NotebookData; stream?: VSBufferReadableStream }): Promise<NotebookTextModel> {
 		if (this._models.has(uri)) {
 			throw new Error(`notebook for ${uri} already exists`);
 		}
@@ -754,8 +754,13 @@ export class NotebookService extends Disposable implements INotebookService {
 			throw new Error('CANNOT open file notebook with this provider');
 		}
 
-		const bytes = stream ? await streamToBuffer(stream) : VSBuffer.fromByteArray([]);
-		const data = await info.serializer.dataToNotebook(bytes);
+		let data: NotebookData;
+		if (content?.data) {
+			data = content.data;
+		} else {
+			const bytes = content?.stream ? await streamToBuffer(content.stream) : VSBuffer.fromByteArray([]);
+			data = await info.serializer.dataToNotebook(bytes);
+		}
 
 		const notebookModel = this._instantiationService.createInstance(NotebookTextModel, info.viewType, uri, data.cells, data.metadata, info.serializer.options);
 		const modelData = new ModelData(notebookModel, this._onWillDisposeDocument.bind(this));

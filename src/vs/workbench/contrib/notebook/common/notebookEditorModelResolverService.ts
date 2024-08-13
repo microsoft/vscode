@@ -5,7 +5,7 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
-import { IResolvedNotebookEditorModel, NotebookEditorModelCreationOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { IResolvedNotebookEditorModel, NotebookData, NotebookEditorModelCreationOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IReference } from 'vs/base/common/lifecycle';
 import { Event, IWaitUntil } from 'vs/base/common/event';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
@@ -50,7 +50,7 @@ export interface INotebookEditorModelResolverService {
 
 	isDirty(resource: URI): boolean;
 
-	createUntitledNotebookTextModel(uri: URI | undefined, viewType: string | undefined): Promise<NotebookTextModel>;
+	createUntitledNotebookTextModel(uri: URI | undefined, viewType: string | undefined, data?: NotebookData): Promise<NotebookTextModel>;
 
 	resolve(resource: URI, viewType?: string, creationOptions?: NotebookEditorModelCreationOptions): Promise<IReference<IResolvedNotebookEditorModel>>;
 	resolve(resource: IUntitledNotebookResource, viewType: string, creationOtions?: NotebookEditorModelCreationOptions): Promise<IReference<IResolvedNotebookEditorModel>>;

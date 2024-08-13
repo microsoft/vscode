@@ -217,7 +217,8 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 			};
 		} else {
 			resolvedOptions = {
-				preserveFocus: false
+				preserveFocus: false,
+				pinned: true
 			};
 		}
 

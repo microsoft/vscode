@@ -76,6 +76,10 @@ export class ReplEditorInput extends NotebookEditorInput {
 			return this.inputModelRef.object.textEditorModel;
 		}
 
+		if (notebook.cells.length === 0) {
+			// TODO: just create a new cell
+			throw new Error('REPL notebook must have at least one cell');
+		}
 		const lastCell = notebook.cells[notebook.cells.length - 1];
 		this.inputModelRef = await this._textModelService.createModelReference(lastCell.uri);
 		return this.inputModelRef.object.textEditorModel;
