@@ -8,7 +8,7 @@ import { debounce } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { isWindows, platform } from 'vs/base/common/platform';
-import { TerminalShellType, WindowsShellType } from 'vs/platform/terminal/common/terminal';
+import { GeneralShellType, TerminalShellType, WindowsShellType } from 'vs/platform/terminal/common/terminal';
 import type * as WindowsProcessTreeType from '@vscode/windows-process-tree';
 
 export interface IWindowsShellHelper extends IDisposable {
@@ -136,17 +136,18 @@ export class WindowsShellHelper extends Disposable implements IWindowsShellHelpe
 	getShellType(executable: string): TerminalShellType | undefined {
 		switch (executable.toLowerCase()) {
 			case 'cmd.exe':
-				return WindowsShellType.CommandPrompt;
+				// return WindowsShellType.CommandPrompt;
+				return GeneralShellType.PowerShell;
 			case 'powershell.exe':
 			case 'pwsh.exe':
-				return WindowsShellType.PowerShell;
+				return GeneralShellType.PowerShell;
 			case 'bash.exe':
 			case 'git-cmd.exe':
 				return WindowsShellType.GitBash;
 			case 'julia.exe:':
-				return WindowsShellType.Julia;
+				return GeneralShellType.Julia;
 			case 'nu.exe':
-				return WindowsShellType.NuShell;
+				return GeneralShellType.NuShell;
 			case 'wsl.exe':
 			case 'ubuntu.exe':
 			case 'ubuntu1804.exe':
@@ -157,7 +158,7 @@ export class WindowsShellHelper extends Disposable implements IWindowsShellHelpe
 				return WindowsShellType.Wsl;
 			default:
 				if (executable.match(/python(\d(\.\d{0,2})?)?\.exe/)) {
-					return WindowsShellType.Python;
+					return GeneralShellType.Python;
 				}
 				return undefined;
 		}
