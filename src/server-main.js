@@ -11,11 +11,10 @@
  * @import { IServerAPI } from './vs/server/node/remoteExtensionHostAgentServer'
  */
 
+// ESM-comment-begin
 // Keep bootstrap-amd.js from redefining 'fs'.
-// TODO@esm this needs to be revisited in ESM
 delete process.env['ELECTRON_RUN_AS_NODE'];
 
-// ESM-comment-begin
 const path = require('path');
 const http = require('http');
 const os = require('os');
@@ -29,6 +28,7 @@ const perf = require(`./vs/base/common/performance`);
 const minimist = require('minimist');
 // ESM-comment-end
 // ESM-uncomment-begin
+// import './bootstrap-server.js'; // this MUST come before other imports as it changes global state
 // import * as path from 'path';
 // import * as http from 'http';
 // import * as os from 'os';

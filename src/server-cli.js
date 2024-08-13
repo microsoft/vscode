@@ -6,11 +6,9 @@
 // @ts-check
 'use strict';
 
-// Keep bootstrap-amd.js from redefining 'fs'.
-// TODO@esm this needs to be revisited in ESM
-delete process.env['ELECTRON_RUN_AS_NODE'];
-
 // ESM-comment-begin
+// Keep bootstrap-amd.js from redefining 'fs'.
+delete process.env['ELECTRON_RUN_AS_NODE'];
 const path = require('path');
 const bootstrapNode = require('./bootstrap-node');
 const bootstrapAmd = require('./bootstrap-amd');
@@ -18,6 +16,7 @@ const { resolveNLSConfiguration } = require('./vs/base/node/nls');
 const product = require('./bootstrap-meta').product;
 // ESM-comment-end
 // ESM-uncomment-begin
+// import './bootstrap-server.js'; // this MUST come before other imports as it changes global state
 // import * as path from 'path';
 // import { fileURLToPath } from 'url';
 // import * as bootstrapNode from './bootstrap-node.js';
