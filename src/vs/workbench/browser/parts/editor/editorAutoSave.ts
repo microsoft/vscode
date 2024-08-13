@@ -84,7 +84,7 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 				) {
 					this.discardAutoSave(workingCopyResult.workingCopy);
 
-					this.logService.info(`[editor auto save] running auto save from condition change event`, workingCopyResult.workingCopy.resource.toString(), workingCopyResult.workingCopy.typeId);
+					this.logService.trace(`[editor auto save] running auto save from condition change event`, workingCopyResult.workingCopy.resource.toString(), workingCopyResult.workingCopy.typeId);
 					workingCopyResult.workingCopy.save({ reason: workingCopyResult.reason });
 				}
 			}
@@ -100,7 +100,7 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 				) {
 					this.waitingOnConditionAutoSaveEditors.delete(resource);
 
-					this.logService.info(`[editor auto save] running auto save from condition change event with reason ${editorResult.reason}`);
+					this.logService.trace(`[editor auto save] running auto save from condition change event with reason ${editorResult.reason}`);
 					this.editorService.save(editorResult.editor, { reason: editorResult.reason });
 				}
 			}

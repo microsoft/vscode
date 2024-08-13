@@ -73,7 +73,8 @@ suite('notebookCellDiagnostics', () => {
 			isDefault: true,
 			locations: [ChatAgentLocation.Editor],
 			metadata: {},
-			slashCommands: []
+			slashCommands: [],
+			disambiguation: [],
 		};
 		const chatAgentService = new class extends mock<IChatAgentService>() {
 			override getAgents(): IChatAgentData[] {

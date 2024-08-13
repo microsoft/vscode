@@ -155,7 +155,8 @@ export class OutputElement extends Disposable {
 			description: index === currIndex ? nls.localize('curruentActiveMimeType', "Currently Active") : undefined
 		}));
 
-		const picker = this._quickInputService.createQuickPick();
+		const disposables = new DisposableStore();
+		const picker = disposables.add(this._quickInputService.createQuickPick());
 		picker.items = items;
 		picker.activeItems = items.filter(item => !!item.picked);
 		picker.placeholder = items.length !== mimeTypes.length
@@ -163,10 +164,10 @@ export class OutputElement extends Disposable {
 			: nls.localize('promptChooseMimeType.placeHolder', "Select mimetype to render for current output");
 
 		const pick = await new Promise<number | undefined>(resolve => {
-			picker.onDidAccept(() => {
+			disposables.add(picker.onDidAccept(() => {
 				resolve(picker.selectedItems.length === 1 ? (picker.selectedItems[0] as IMimeTypeRenderer).index : undefined);
-				picker.dispose();
-			});
+				disposables.dispose();
+			}));
 			picker.show();
 		});
 

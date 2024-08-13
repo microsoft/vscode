@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, dispose, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, dispose, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import * as nls from 'vs/nls';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -220,7 +220,8 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 		if (!allAccounts.length) {
 			throw new Error('No accounts available');
 		}
-		const quickPick = this.quickInputService.createQuickPick<{ label: string; session?: AuthenticationSession; account?: AuthenticationSessionAccount }>();
+		const disposables = new DisposableStore();
+		const quickPick = disposables.add(this.quickInputService.createQuickPick<{ label: string; session?: AuthenticationSession; account?: AuthenticationSessionAccount }>());
 		quickPick.ignoreFocusOut = true;
 		const items: { label: string; session?: AuthenticationSession; account?: AuthenticationSessionAccount }[] = availableSessions.map(session => {
 			return {
@@ -251,7 +252,7 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 		quickPick.placeholder = nls.localize('getSessionPlateholder', "Select an account for '{0}' to use or Esc to cancel", extensionName);
 
 		return await new Promise((resolve, reject) => {
-			quickPick.onDidAccept(async _ => {
+			disposables.add(quickPick.onDidAccept(async _ => {
 				quickPick.dispose();
 				let session = quickPick.selectedItems[0].session;
 				if (!session) {
@@ -270,14 +271,14 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 				this.removeAccessRequest(providerId, extensionId);
 
 				resolve(session);
-			});
+			}));
 
-			quickPick.onDidHide(_ => {
-				quickPick.dispose();
+			disposables.add(quickPick.onDidHide(_ => {
 				if (!quickPick.selectedItems[0]) {
 					reject('User did not consent to account access');
 				}
-			});
+				disposables.dispose();
+			}));
 
 			quickPick.show();
 		});

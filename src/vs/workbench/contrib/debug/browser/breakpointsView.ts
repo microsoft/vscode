@@ -20,7 +20,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as resources from 'vs/base/common/resources';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { Constants } from 'vs/base/common/uint';
@@ -1494,18 +1494,19 @@ abstract class MemoryBreakpointAction extends Action2 {
 
 	private getRange(quickInput: IQuickInputService, defaultValue?: string) {
 		return new Promise<{ address: string; bytes: number } | undefined>(resolve => {
-			const input = quickInput.createInputBox();
+			const disposables = new DisposableStore();
+			const input = disposables.add(quickInput.createInputBox());
 			input.prompt = localize('dataBreakpointMemoryRangePrompt', "Enter a memory range in which to break");
 			input.placeholder = localize('dataBreakpointMemoryRangePlaceholder', 'Absolute range (0x1234 - 0x1300) or range of bytes after an address (0x1234 + 0xff)');
 			if (defaultValue) {
 				input.value = defaultValue;
 				input.valueSelection = [0, defaultValue.length];
 			}
-			input.onDidChangeValue(e => {
+			disposables.add(input.onDidChangeValue(e => {
 				const err = this.parseAddress(e, false);
 				input.validationMessage = err?.error;
-			});
-			input.onDidAccept(() => {
+			}));
+			disposables.add(input.onDidAccept(() => {
 				const r = this.parseAddress(input.value, true);
 				if ('error' in r) {
 					input.validationMessage = r.error;
@@ -1513,11 +1514,11 @@ abstract class MemoryBreakpointAction extends Action2 {
 					resolve(r);
 				}
 				input.dispose();
-			});
-			input.onDidHide(() => {
+			}));
+			disposables.add(input.onDidHide(() => {
 				resolve(undefined);
-				input.dispose();
-			});
+				disposables.dispose();
+			}));
 			input.ignoreFocusOut = true;
 			input.show();
 		});
