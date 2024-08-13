@@ -82,6 +82,11 @@ export interface IPickOptions<T extends IQuickPickItem> {
 	title?: string;
 
 	/**
+	 * the value to prefill in the input box
+	 */
+	value?: string;
+
+	/**
 	 * an optional string to show as placeholder in the input box to guide the user what she picks on
 	 */
 	placeHolder?: string;
