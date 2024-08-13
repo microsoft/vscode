@@ -135,8 +135,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 	}
 
 	private isPasteAsEnabled(): boolean {
-		return this._editor.getOption(EditorOption.pasteAs).enabled
-			&& !this._editor.getOption(EditorOption.readOnly);
+		return this._editor.getOption(EditorOption.pasteAs).enabled;
 	}
 
 	public async finishedPaste(): Promise<void> {
@@ -246,8 +245,8 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		}
 
 		if (
-			!this.isPasteAsEnabled()
-			&& !this._pasteAsActionContext // Still enable if paste as was explicitly requested
+			this._editor.getOption(EditorOption.readOnly) // Never enabled if editor is readonly.
+			|| (!this.isPasteAsEnabled() && !this._pasteAsActionContext) // Or feature disabled (but still enable if paste was explicitly requested)
 		) {
 			return;
 		}
