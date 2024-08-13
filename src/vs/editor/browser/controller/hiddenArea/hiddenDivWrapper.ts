@@ -7,13 +7,15 @@ import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import { inputLatency } from 'vs/base/browser/performance';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { ICompleteHiddenAreaWrapper } from 'vs/editor/browser/controller/hiddenArea/hiddenAreaInput';
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { createFastDomNode, FastDomNode } from 'vs/base/browser/fastDomNode';
 import { RenderingContext } from 'vs/editor/browser/view/renderingContext';
+import { IPosition } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
 
 export namespace NativeAreaSyntethicEvents {
 	export const Tap = '-monaco-textarea-synthetic-tap';
@@ -88,14 +90,19 @@ export class DivWrapper extends Disposable implements ICompleteHiddenAreaWrapper
 	// private _controlBoundsElement: HTMLElement | undefined;
 
 	// ---
+	private _selectionBounds: IDisposable = Disposable.None;
+	private _controlBounds: IDisposable = Disposable.None;
+	private _characterBounds: IDisposable = Disposable.None;
+	// ---
 	public readonly actual: FastDomNode<HTMLDivElement>;
 	private readonly _actual: HTMLDivElement;
 	private readonly _editContext: EditContext;
-	private readonly _rectangleStore: DisposableStore = new DisposableStore();
 	private _contentLeft: number;
 	private _isComposing: boolean = false;
 	private _renderingContext: RenderingContext | undefined;
 	private _parent: HTMLElement | undefined;
+	private _compositionStartPosition: IPosition | undefined;
+	private _compositionEndPosition: IPosition | undefined;
 
 	private _selectionEnd: number = 0;
 	private _selectionStart: number = 0;
@@ -121,6 +128,38 @@ export class DivWrapper extends Disposable implements ICompleteHiddenAreaWrapper
 		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'characterboundsupdate', e => {
 			console.log('character bounds update : ', e);
+			if (!this._parent || !this._compositionStartPosition || !this._compositionEndPosition) {
+				return;
+			}
+			const options = this._viewContext.configuration.options;
+			const lineHeight = options.get(EditorOption.lineHeight);
+			const typicalHalfwidthCharacterWidth = options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
+			const parentBounds = this._parent.getBoundingClientRect();
+			const verticalOffsetStart = this._viewContext.viewLayout.getVerticalOffsetForLineNumber(this._compositionStartPosition.lineNumber);
+			let left: number = parentBounds.left + this._contentLeft;
+			let width: number = typicalHalfwidthCharacterWidth / 2;
+
+			if (this._renderingContext) {
+				const range = Range.fromPositions(this._compositionStartPosition, this._compositionEndPosition);
+				const linesVisibleRanges = this._renderingContext.linesVisibleRangesForRange(range, true) ?? [];
+				if (linesVisibleRanges.length === 0) { return; }
+				const minLeft = Math.min(...linesVisibleRanges.map(r => Math.min(...r.ranges.map(r => r.left))));
+				const maxLeft = Math.max(...linesVisibleRanges.map(r => Math.max(...r.ranges.map(r => r.left + r.width))));
+				left += minLeft;
+				width = maxLeft - minLeft;
+			}
+			const characterBounds = [new DOMRect(
+				left,
+				parentBounds.top + verticalOffsetStart,
+				width,
+				lineHeight,
+			)];
+			console.log('characterBounds : ', characterBounds);
+			this._editContext.updateCharacterBounds(e.rangeStart, characterBounds);
+
+			// -- dev
+			this._characterBounds.dispose();
+			this._characterBounds = createRect(characterBounds[0], 'green');
 		}));
 
 		this._register(editContextAddDisposableListener(this._editContext, 'textupdate', e => {
@@ -142,6 +181,7 @@ export class DivWrapper extends Disposable implements ICompleteHiddenAreaWrapper
 			const data = e.text.replace(/[^\S\r\n]/gm, ' ');
 			if (this._isComposing) {
 				this._onCompositionUpdate.fire({ data });
+				this._compositionEndPosition = this._viewContext.viewModel.getCursorStates()[0].viewState.position;
 			} else {
 				this._onInput.fire({
 					timeStamp: e.timeStamp,
@@ -154,6 +194,7 @@ export class DivWrapper extends Disposable implements ICompleteHiddenAreaWrapper
 		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'compositionstart', e => {
 			this._isComposing = true;
+			this._compositionStartPosition = this._viewContext.viewModel.getCursorStates()[0].viewState.position;
 			console.log('oncompositionstart : ', e);
 			const currentTarget = e.currentTarget as EditContext;
 			const srcElement = e.srcElement as EditContext;
@@ -176,6 +217,7 @@ export class DivWrapper extends Disposable implements ICompleteHiddenAreaWrapper
 		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'compositionend', e => {
 			this._isComposing = false;
+			this._compositionEndPosition = this._viewContext.viewModel.getCursorStates()[0].viewState.position;
 			console.log('oncompositionend : ', e);
 			if ('data' in e && typeof e.data === 'string') {
 				this._onCompositionEnd.fire({ data: e.data });
@@ -458,9 +500,10 @@ export class DivWrapper extends Disposable implements ICompleteHiddenAreaWrapper
 		this._editContext.updateSelectionBounds(selectionBounds);
 
 		// visualizing the selection bounds
-		this._rectangleStore.clear();
-		this._rectangleStore.add(createRect(selectionBounds, 'red'));
-		this._rectangleStore.add(createRect(controlBounds, 'blue'));
+		this._selectionBounds.dispose();
+		this._controlBounds.dispose();
+		this._selectionBounds = createRect(selectionBounds, 'red');
+		this._controlBounds = createRect(controlBounds, 'blue');
 	}
 
 	private _updateDocumentSelection(selectionStart: number, selectionEnd: number) {
