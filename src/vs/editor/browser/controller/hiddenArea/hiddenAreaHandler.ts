@@ -39,9 +39,8 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 // TODO
-// Am not able to copy paste the code? Issues remain
-// Position the div correctly
-// Test IME, consider adding the test cover
+// IME is positioned on top of the code that I am writing? Need to update the selection boundaries so that does not appear on top of the text
+// When typing using the japanese keyboard there are yello squares being displayed in the editor
 
 export interface IVisibleRangeProvider {
 	visibleRangeForPosition(position: Position): HorizontalPosition | null;
