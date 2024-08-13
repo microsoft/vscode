@@ -139,7 +139,8 @@ suite('InlineChatSession', function () {
 			isDefault: true,
 			locations: [ChatAgentLocation.Editor],
 			metadata: {},
-			slashCommands: []
+			slashCommands: [],
+			disambiguation: [],
 		}, {
 			async invoke() {
 				return {};

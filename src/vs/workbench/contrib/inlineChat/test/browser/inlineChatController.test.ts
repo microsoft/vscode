@@ -78,7 +78,8 @@ suite('InteractiveChatController', function () {
 		isDefault: true,
 		locations: [ChatAgentLocation.Editor],
 		metadata: {},
-		slashCommands: []
+		slashCommands: [],
+		disambiguation: [],
 	};
 
 	class TestController extends InlineChatController {

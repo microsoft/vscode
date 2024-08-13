@@ -250,7 +250,7 @@ declare module 'vscode' {
 	export interface ChatParticipantMetadata {
 		participant: string;
 		command?: string;
-		description?: string;
+		disambiguation: { categoryName: string; description: string; examples: string[] }[];
 	}
 
 	export interface ChatParticipantDetectionResult {

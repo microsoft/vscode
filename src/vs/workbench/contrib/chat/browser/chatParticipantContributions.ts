@@ -66,6 +66,30 @@ const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.regi
 					description: localize('chatParticipantWhen', "A condition which must be true to enable this participant."),
 					type: 'string'
 				},
+				disambiguation: {
+					description: localize('chatParticipantDisambiguation', "Metadata to help with automatically routing user questions to this chat participant."),
+					type: 'array',
+					items: {
+						additionalProperties: false,
+						type: 'object',
+						defaultSnippets: [{ body: { categoryName: '', description: '', examples: [] } }],
+						required: ['categoryName', 'description', 'examples'],
+						properties: {
+							categoryName: {
+								markdownDescription: localize('chatParticipantDisambiguationCategory', "A detailed name for this category, e.g. `workspace_questions` or `web_questions`."),
+								type: 'string'
+							},
+							description: {
+								description: localize('chatParticipantDisambiguationDescription', "A detailed description of the kinds of questions that are suitable for this chat participant."),
+								type: 'string'
+							},
+							examples: {
+								description: localize('chatParticipantDisambiguationExamples', "A list of representative example questions that are suitable for this chat participant."),
+								type: 'array'
+							},
+						}
+					}
+				},
 				commands: {
 					markdownDescription: localize('chatCommandsDescription', "Commands available for this chat participant, which the user can invoke with a `/`."),
 					type: 'array',
@@ -94,6 +118,30 @@ const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.regi
 							isSticky: {
 								description: localize('chatCommandSticky', "Whether invoking the command puts the chat into a persistent mode, where the command is automatically added to the chat input for the next message."),
 								type: 'boolean'
+							},
+							disambiguation: {
+								description: localize('chatCommandDisambiguation', "Metadata to help with automatically routing user questions to this chat command."),
+								type: 'array',
+								items: {
+									additionalProperties: false,
+									type: 'object',
+									defaultSnippets: [{ body: { categoryName: '', description: '', examples: [] } }],
+									required: ['categoryName', 'description', 'examples'],
+									properties: {
+										categoryName: {
+											markdownDescription: localize('chatCommandDisambiguationCategory', "A detailed name for this category, e.g. `workspace_questions` or `web_questions`."),
+											type: 'string'
+										},
+										description: {
+											description: localize('chatCommandDisambiguationDescription', "A detailed description of the kinds of questions that are suitable for this chat command."),
+											type: 'string'
+										},
+										examples: {
+											description: localize('chatCommandDisambiguationExamples', "A list of representative example questions that are suitable for this chat command."),
+											type: 'array'
+										},
+									}
+								}
 							},
 						}
 					}
@@ -212,7 +260,8 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 							locations: isNonEmptyArray(providerDescriptor.locations) ?
 								providerDescriptor.locations.map(ChatAgentLocation.fromRaw) :
 								[ChatAgentLocation.Panel],
-							slashCommands: providerDescriptor.commands ?? []
+							slashCommands: providerDescriptor.commands ?? [],
+							disambiguation: providerDescriptor.disambiguation ?? [],
 						} satisfies IChatAgentData));
 
 					this._participantRegistrationDisposables.set(
