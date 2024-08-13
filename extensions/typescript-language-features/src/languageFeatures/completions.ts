@@ -504,9 +504,10 @@ class MyCompletionItem extends vscode.CompletionItem {
 	private static getCommitCharacters(
 		context: CompletionContext,
 		entry: Proto.CompletionEntry,
-		defaultCommitCharacters: readonly string[] | undefined): string[] | undefined {
+		defaultCommitCharacters: readonly string[] | undefined,
+	): string[] | undefined {
 		// @ts-expect-error until TS 5.6
-		let commitCharacters = entry.commitCharacters ?? defaultCommitCharacters;
+		let commitCharacters = (entry.commitCharacters as string[] | undefined) ?? (defaultCommitCharacters ? Array.from(defaultCommitCharacters) : undefined);
 		if (commitCharacters) {
 			if (context.enableCallCompletions
 				&& !context.isNewIdentifierLocation
@@ -781,7 +782,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 		const entries = response.body.entries;
 		const metadata = response.metadata;
 		// @ts-expect-error until TS 5.6
-		const defaultCommitCharacters = response.body.defaultCommitCharacters;
+		const defaultCommitCharacters: readonly string[] | undefined = Object.freeze(response.body.defaultCommitCharacters);
 
 		if (response.body.optionalReplacementSpan) {
 			optionalReplacementRange = typeConverters.Range.fromTextSpan(response.body.optionalReplacementSpan);
