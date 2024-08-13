@@ -7,12 +7,11 @@ import { commands, ExtensionContext, l10n, window, workspace } from 'vscode';
 import * as extensionV1 from './extensionV1';
 import * as extensionV2 from './extensionV2';
 
-const config = workspace.getConfiguration('microsoft');
-const useMsal = config.get<boolean>('useMsal', false);
+const useMsal = workspace.getConfiguration('microsoft').get<boolean>('useMsal', false);
 
 export async function activate(context: ExtensionContext) {
 	context.subscriptions.push(workspace.onDidChangeConfiguration(async e => {
-		if (!e.affectsConfiguration('microsoft.useMsal') && useMsal === config.get<boolean>('useMsal', false)) {
+		if (!e.affectsConfiguration('microsoft.useMsal') || useMsal === workspace.getConfiguration('microsoft').get<boolean>('useMsal', false)) {
 			return;
 		}
 

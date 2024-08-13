@@ -52,7 +52,6 @@ export abstract class EditModeStrategy {
 		description: 'inline-chat',
 		showIfCollapsed: false,
 		isWholeLine: true,
-		className: 'inline-chat-block-selection',
 	});
 
 	protected readonly _store = new DisposableStore();
