@@ -87,7 +87,7 @@ declare module 'vscode' {
 		/**
 		 * The reference target.
 		 */
-		value: Uri | Location | { variableName: string; value?: Uri | Location };
+		value: Uri | Location | { variableName: string; value?: Uri | Location } | string;
 
 		/**
 		 * The icon for the reference.
@@ -109,7 +109,7 @@ declare module 'vscode' {
 		 * @param value A uri or location
 		 * @param iconPath Icon for the reference shown in UI
 		 */
-		constructor(value: Uri | Location | { variableName: string; value?: Uri | Location }, iconPath?: Uri | ThemeIcon | {
+		constructor(value: Uri | Location | { variableName: string; value?: Uri | Location } | string, iconPath?: Uri | ThemeIcon | {
 			/**
 			 * The icon path for the light theme.
 			 */
@@ -161,7 +161,7 @@ declare module 'vscode' {
 
 		reference(value: Uri | Location | { variableName: string; value?: Uri | Location }, iconPath?: Uri | ThemeIcon | { light: Uri; dark: Uri }): void;
 
-		reference2(value: Uri | Location | { variableName: string; value?: Uri | Location }, iconPath?: Uri | ThemeIcon | { light: Uri; dark: Uri }, options?: { status?: { description: string; kind: ChatResponseReferencePartStatusKind } }): void;
+		reference2(value: Uri | Location | string | { variableName: string; value?: Uri | Location }, iconPath?: Uri | ThemeIcon | { light: Uri; dark: Uri }, options?: { status?: { description: string; kind: ChatResponseReferencePartStatusKind } }): void;
 
 		codeCitation(value: Uri, license: string, snippet: string): void;
 

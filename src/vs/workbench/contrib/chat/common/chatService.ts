@@ -82,7 +82,7 @@ export enum ChatResponseReferencePartStatusKind {
 }
 
 export interface IChatContentReference {
-	reference: URI | Location | IChatContentVariableReference;
+	reference: URI | Location | IChatContentVariableReference | string;
 	iconPath?: ThemeIcon | { light: URI; dark?: URI };
 	options?: { status?: { description: string; kind: ChatResponseReferencePartStatusKind } };
 	kind: 'reference';
