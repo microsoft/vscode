@@ -67,11 +67,6 @@
         "command": "notebook.cellOutput.openInTextEditor",
         "title": "%openCellOutput.title%",
         "category": "Notebook"
-      },
-      {
-        "command": "ipynb.newRepl",
-        "title": "new REPL",
-        "category": "Create"
       }
     ],
     "notebooks": [
