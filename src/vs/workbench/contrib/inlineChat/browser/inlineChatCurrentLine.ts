@@ -118,7 +118,7 @@ export class InlineChatExpandLineAction extends EditorAction2 {
 			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_VISIBLE.negate()),
 			keybinding: {
 				when: CTX_INLINE_CHAT_EXPANSION,
-				weight: KeybindingWeight.WorkbenchContrib,
+				weight: KeybindingWeight.EditorContrib,
 				primary: KeyCode.Tab
 			}
 		});
