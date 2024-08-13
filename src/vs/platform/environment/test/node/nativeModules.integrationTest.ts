@@ -152,35 +152,19 @@ flakySuite('Native Modules (all platforms)', () => {
 	});
 
 	// These tests require certain modules from `vscode-distro` to work and are otherwise skipped.
+	// test('vsda', async function () {
+	// 	const vsda = await import('vsda');
+	// 	const signer = new vsda.signer();
+	// 	const signed = await signer.sign('value');
+	// 	assert.ok(typeof signed === 'string', testErrorMessage('vsda'));
+	// 	assert.ok(typeof (vsda as any).validator === 'function', testErrorMessage('vsda'));
 
-	test.skip('vsda', async function () {
-		try {
-			const vsda = await import('vsda');
-			const signer = new vsda.signer();
-			const signed = await signer.sign('value');
-			assert.ok(typeof signed === 'string', testErrorMessage('vsda'));
-			assert.ok(typeof (vsda as any).validator === 'function', testErrorMessage('vsda'));
-		} catch (error) {
-			if (error.code !== 'MODULE_NOT_FOUND') {
-				throw error;
-			} else {
-				this.skip();
-			}
-		}
-	});
+	// });
 
-	test.skip('@vscode/vsce-sign', async function () {
-		try {
-			const vsceSign = await import('@vscode/vsce-sign');
-			assert.ok(typeof vsceSign.verify === 'function', testErrorMessage('@vscode/vsce-sign'));
-		} catch (error) {
-			if (error.code !== 'MODULE_NOT_FOUND') {
-				throw error;
-			} else {
-				this.skip();
-			}
-		}
-	});
+	// test('@vscode/vsce-sign', async function () {
+	// 	const vsceSign = await import('@vscode/vsce-sign');
+	// 	assert.ok(typeof vsceSign.verify === 'function', testErrorMessage('@vscode/vsce-sign'));
+	// });
 });
 
 (!isWindows ? suite.skip : suite)('Native Modules (Windows)', () => {
