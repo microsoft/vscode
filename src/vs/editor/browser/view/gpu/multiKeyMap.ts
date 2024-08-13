@@ -19,7 +19,7 @@ export class TwoKeyMap<TFirst extends string | number, TSecond extends string | 
 	}
 
 	public get(first: TFirst, second: TSecond): TValue | undefined {
-		return this._data[first as string | number] ? this._data[first as string | number]![second] : undefined;
+		return this._data[first as string | number]?.[second];
 	}
 
 	public clear(): void {
