@@ -661,6 +661,7 @@ export class HiddenAreaHandler extends ViewPart {
 		return true;
 	}
 	public override onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
+		console.log('onCursorStateChanged');
 		this._selections = e.selections.slice(0);
 		this._modelSelections = e.modelSelections.slice(0);
 		// We must update the <textarea> synchronously, otherwise long press IME on macos breaks.

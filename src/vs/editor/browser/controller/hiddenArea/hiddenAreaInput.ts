@@ -681,6 +681,7 @@ export class HiddenAreaInput extends Disposable {
 		if ((!this._accessibilityService.isScreenReaderOptimized() && reason === 'render') || this._currentComposition) {
 			// Do not write to the text on render unless a screen reader is being used #192278
 			// Do not write to the text area when doing composition
+			console.log('early return');
 			return;
 		}
 		this._logService.trace(`writeTextAreaState(reason: ${reason})`);

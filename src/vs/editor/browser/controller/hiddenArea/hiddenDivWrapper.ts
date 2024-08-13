@@ -157,7 +157,7 @@ export class DivWrapper extends Disposable implements ICompleteHiddenAreaWrapper
 			this._isComposing = false;
 			console.log('oncompositionend : ', e);
 			if ('data' in e && typeof e.data === 'string') {
-				this._onCompositionStart.fire({ data: e.data });
+				this._onCompositionEnd.fire({ data: e.data });
 			}
 		}));
 		this._register(dom.addDisposableListener(this._actual, 'beforeinput', (e) => {
