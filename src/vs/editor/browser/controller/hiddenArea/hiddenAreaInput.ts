@@ -272,6 +272,8 @@ export class HiddenAreaInput extends Disposable {
 
 		this._register(this._hiddenArea.onCompositionStart((e) => {
 			console.log('onCompositionStart');
+			console.log('e : ', e);
+			console.log('this._hiddenAreaState : ', this._hiddenAreaState);
 			if (_debugComposition) {
 				console.log(`[compositionstart]`, e);
 			}
@@ -285,6 +287,12 @@ export class HiddenAreaInput extends Disposable {
 			}
 			this._currentComposition = currentComposition;
 			console.log('this._currentComposition : ', this._currentComposition);
+			console.log('this._OS === OperatingSystem.Macintosh : ', this._OS === OperatingSystem.Macintosh);
+			console.log('lastKeyDown && lastKeyDown.equals(KeyCode.KEY_IN_COMPOSITION) : ', lastKeyDown && lastKeyDown.equals(KeyCode.KEY_IN_COMPOSITION));
+			console.log('this._hiddenAreaState.selectionStart === this._hiddenAreaState.selectionEnd : ', this._hiddenAreaState.selectionStart === this._hiddenAreaState.selectionEnd);
+			console.log('this._hiddenAreaState.selectionStart > 0 : ', this._hiddenAreaState.selectionStart > 0);
+			console.log('this._hiddenAreaState.value.substring(this._hiddenAreaState.selectionStart - 1, 1) === e.data : ', this._hiddenAreaState.value.substring(this._hiddenAreaState.selectionStart - 1, 1) === e.data);
+			console.log('(lastKeyDown.code === ArrowRight || lastKeyDown.code === ArrowLeft) : ', (lastKeyDown?.code === 'ArrowRight' || lastKeyDown?.code === 'ArrowLeft'));
 
 			if (
 				this._OS === OperatingSystem.Macintosh
@@ -295,6 +303,7 @@ export class HiddenAreaInput extends Disposable {
 				&& this._hiddenAreaState.value.substring(this._hiddenAreaState.selectionStart - 1, 1) === e.data
 				&& (lastKeyDown.code === 'ArrowRight' || lastKeyDown.code === 'ArrowLeft')
 			) {
+				console.log('entered into if statement');
 				// Handling long press case on Chromium/Safari macOS + arrow key => pretend the character was selected
 				if (_debugComposition) {
 					console.log(`[compositionstart] Handling long press case on macOS + arrow key`, e);
@@ -325,6 +334,7 @@ export class HiddenAreaInput extends Disposable {
 				// should not be possible to receive a 'compositionupdate' without a 'compositionstart'
 				return;
 			}
+			console.log('currentComposition : ', currentComposition);
 			if (this._browser.isAndroid) {
 				// On Android, the data sent with the composition update event is unusable.
 				// For example, if the cursor is in the middle of a word like Mic|osoft
@@ -333,7 +343,7 @@ export class HiddenAreaInput extends Disposable {
 				const newState = HiddenAreaState.readFromTextArea(this._hiddenArea, this._hiddenAreaState);
 				const typeInput = HiddenAreaState.deduceAndroidCompositionInput(this._hiddenAreaState, newState);
 				this._hiddenAreaState = newState;
-				console.log('setting this._hiddenAreaState in onCompositionUpdate for android: ', this._hiddenAreaState);
+				console.log('setting this._hiddenAreaState in for android: ', this._hiddenAreaState);
 				this._onType.fire(typeInput);
 				this._onCompositionUpdate.fire({ data: e.data });
 				return;

@@ -365,7 +365,9 @@ export class HiddenAreaHandler extends ViewPart {
 					console.log(` => type: <<${e.text}>>`);
 				}
 				console.log('before type');
+				console.log('this._context.viewModel.model.getValue(); : ', this._context.viewModel.model.getValue());
 				this._viewController.type(e.text);
+				console.log('this._context.viewModel.model.getValue(); : ', this._context.viewModel.model.getValue());
 			}
 		}));
 
@@ -913,6 +915,7 @@ export class HiddenAreaHandler extends ViewPart {
 		ha.setWidth(renderData.width);
 		ha.setHeight(renderData.height);
 
+		console.log('renderData.color : ', renderData.color);
 		ha.setColor(renderData.color ? Color.Format.CSS.formatHex(renderData.color) : '');
 		ha.setFontStyle(renderData.italic ? 'italic' : '');
 		if (renderData.bold) {

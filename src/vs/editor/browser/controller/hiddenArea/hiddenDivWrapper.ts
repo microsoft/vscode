@@ -149,9 +149,24 @@ export class DivWrapper extends Disposable implements ICompleteHiddenAreaWrapper
 		this._register(editContextAddDisposableListener(this._editContext, 'compositionstart', e => {
 			this._isComposing = true;
 			console.log('oncompositionstart : ', e);
+			const currentTarget = e.currentTarget as EditContext;
+			const srcElement = e.srcElement as EditContext;
+			const target = e.target as EditContext;
+
+			console.log('currentTarget.selectionStart : ', currentTarget.selectionStart);
+			console.log('currentTarget.selectionEnd : ', currentTarget.selectionEnd);
+			console.log('currentTarget.text : ', currentTarget.text);
+
+			console.log('currentTarget : ', JSON.stringify(currentTarget));
+			console.log('srcElement : ', JSON.stringify(srcElement));
+			console.log('target : ', JSON.stringify(target));
+
+			/*
 			if ('data' in e && typeof e.data === 'string') {
 				this._onCompositionStart.fire({ data: e.data });
 			}
+			*/
+			this._onCompositionStart.fire({ data: currentTarget.text });
 		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'compositionend', e => {
 			this._isComposing = false;
