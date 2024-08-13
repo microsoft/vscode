@@ -517,7 +517,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 		disposables.add(extHost.registerDocumentHighlightProvider(defaultExtension, defaultSelector, new class implements vscode.DocumentHighlightProvider {
 			provideDocumentHighlights(): any {
-				return [];
+				return undefined;
 			}
 		}));
 		disposables.add(extHost.registerDocumentHighlightProvider(defaultExtension, '*', new class implements vscode.DocumentHighlightProvider {

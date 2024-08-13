@@ -3,14 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 3
+// version: 4
 // https://github.com/microsoft/vscode/issues/213274
 
 declare module 'vscode' {
 
 	// TODO@API capabilities
-
-	export type JSONSchema = object;
 
 	// API -> LM: an tool/function that is available to the language model
 	export interface LanguageModelChatFunction {
@@ -93,18 +91,71 @@ declare module 'vscode' {
 		 * Invoke a tool with the given parameters.
 		 * TODO@API Could request a set of contentTypes to be returned so they don't all need to be computed?
 		 */
-		export function invokeTool(name: string, parameters: Object, token: CancellationToken): Thenable<LanguageModelToolResult>;
+		export function invokeTool(id: string, parameters: Object, token: CancellationToken): Thenable<LanguageModelToolResult>;
 	}
 
-	// Is the same as LanguageModelChatFunction now, but could have more details in the future
+	export type JSONSchema = object;
+
 	export interface LanguageModelToolDescription {
-		name: string;
-		description: string;
+		/**
+		 * A unique identifier for the tool.
+		 */
+		id: string;
+
+		/**
+		 * A human-readable name for this tool that may be used to describe it in the UI.
+		 */
+		displayName: string | undefined;
+
+		/**
+		 * A description of this tool that may be passed to a language model.
+		 */
+		modelDescription: string;
+
+		/**
+		 * A JSON schema for the parameters this tool accepts.
+		 */
 		parametersSchema?: JSONSchema;
 	}
 
 	export interface LanguageModelTool {
 		// TODO@API should it be LanguageModelToolResult | string?
 		invoke(parameters: any, token: CancellationToken): Thenable<LanguageModelToolResult>;
+	}
+
+	export interface ChatLanguageModelToolReference {
+		/**
+		 * The tool's ID. Refers to a tool listed in {@link lm.tools}.
+		 */
+		readonly id: string;
+
+		/**
+		 * The start and end index of the reference in the {@link ChatRequest.prompt prompt}. When undefined, the reference was not part of the prompt text.
+		 *
+		 * *Note* that the indices take the leading `#`-character into account which means they can
+		 * used to modify the prompt as-is.
+		 */
+		readonly range?: [start: number, end: number];
+	}
+
+	export interface ChatRequest {
+		/**
+		 * The list of tools that the user attached to their request.
+		 *
+		 * *Note* that if tools are referenced in the text of the prompt, using `#`, the prompt contains
+		 * references as authored and that it is up to the participant
+		 * to further modify the prompt, for instance by inlining reference values or creating links to
+		 * headings which contain the resolved values. References are sorted in reverse by their range
+		 * in the prompt. That means the last reference in the prompt is the first in this list. This simplifies
+		 * string-manipulation of the prompt.
+		 */
+		readonly toolReferences: readonly ChatLanguageModelToolReference[];
+	}
+
+	export interface ChatRequestTurn {
+		/**
+		 * The list of tools were attached to this request.
+		 */
+		readonly toolReferences?: readonly ChatLanguageModelToolReference[];
 	}
 }

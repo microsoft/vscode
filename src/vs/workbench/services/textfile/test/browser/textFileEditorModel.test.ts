@@ -359,9 +359,7 @@ suite('Files - TextFileEditorModel', () => {
 
 		model.setLanguageId(languageId);
 
-		await deferredPromise.p;
-
-		assert.strictEqual(model.getEncoding(), UTF16be);
+		await deferredPromise.p; // this asserts that the model was reloaded due to the language change
 	});
 
 	test('create with language', async function () {

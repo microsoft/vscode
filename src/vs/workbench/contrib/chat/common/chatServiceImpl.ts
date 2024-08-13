@@ -58,6 +58,7 @@ type ChatProviderInvokedEvent = {
 	slashCommand: string | undefined;
 	location: ChatAgentLocation;
 	citations: number;
+	numCodeBlocks: number;
 };
 
 type ChatProviderInvokedClassification = {
@@ -71,6 +72,7 @@ type ChatProviderInvokedClassification = {
 	slashCommand?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of slashCommand used.' };
 	location: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The location at which chat request was made.' };
 	citations: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of public code citations that were returned with the response.' };
+	numCodeBlocks: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of code blocks in the response.' };
 	owner: 'roblourens';
 	comment: 'Provides insight into the performance of Chat agents.';
 };
@@ -440,7 +442,11 @@ export class ChatService extends Disposable implements IChatService {
 
 		model.removeRequest(request.id, ChatRequestRemovalReason.Resend);
 
-		await this._sendRequestAsync(model, model.sessionId, request.message, attempt, enableCommandDetection, defaultAgent, location, options).responseCompletePromise;
+		const resendOptions: IChatSendRequestOptions = {
+			...options,
+			locationData: request.locationData
+		};
+		await this._sendRequestAsync(model, model.sessionId, request.message, attempt, enableCommandDetection, defaultAgent, location, resendOptions).responseCompletePromise;
 	}
 
 	async sendRequest(sessionId: string, request: string, options?: IChatSendRequestOptions): Promise<IChatSendRequestData | undefined> {
@@ -556,7 +562,8 @@ export class ChatService extends Disposable implements IChatService {
 					slashCommand: agentSlashCommandPart ? agentSlashCommandPart.command.name : commandPart?.slashCommand.command,
 					chatSessionId: model.sessionId,
 					location,
-					citations: request?.response?.codeCitations.length ?? 0
+					citations: request?.response?.codeCitations.length ?? 0,
+					numCodeBlocks: getCodeBlocks(request.response?.response.toString() ?? '').length
 				});
 
 				model.cancelRequest(request);
@@ -568,9 +575,9 @@ export class ChatService extends Disposable implements IChatService {
 
 
 				if (agentPart || (defaultAgent && !commandPart)) {
-					const prepareChatAgentRequest = async (agent: IChatAgentData, command?: IChatAgentCommand, chatRequest?: ChatRequestModel) => {
+					const prepareChatAgentRequest = async (agent: IChatAgentData, command?: IChatAgentCommand, enableCommandDetection?: boolean, chatRequest?: ChatRequestModel) => {
 						const initVariableData: IChatRequestVariableData = { variables: [] };
-						request = chatRequest ?? model.addRequest(parsedRequest, initVariableData, attempt, agent, command, options?.confirmation);
+						request = chatRequest ?? model.addRequest(parsedRequest, initVariableData, attempt, agent, command, options?.confirmation, options?.locationData);
 
 						// Variables may have changed if the agent and slash command changed, so resolve them again even if we already had a chatRequest
 						const variableData = await this.chatVariablesService.resolveVariables(parsedRequest, options?.attachedContext, model, progressCallback, token);
@@ -588,7 +595,7 @@ export class ChatService extends Disposable implements IChatService {
 							enableCommandDetection,
 							attempt,
 							location,
-							locationData: options?.locationData,
+							locationData: request.locationData,
 							acceptedConfirmationData: options?.acceptedConfirmationData,
 							rejectedConfirmationData: options?.rejectedConfirmationData,
 						} satisfies IChatAgentRequest;
@@ -596,12 +603,12 @@ export class ChatService extends Disposable implements IChatService {
 
 					let detectedAgent: IChatAgentData | undefined;
 					let detectedCommand: IChatAgentCommand | undefined;
-					if (this.configurationService.getValue('chat.experimental.detectParticipant.enabled') && !agentPart && !commandPart && enableCommandDetection) {
+					if (this.configurationService.getValue('chat.experimental.detectParticipant.enabled') !== false && this.chatAgentService.hasChatParticipantDetectionProviders() && !agentPart && !commandPart && enableCommandDetection) {
 						// We have no agent or command to scope history with, pass the full history to the participant detection provider
 						const defaultAgentHistory = getHistoryEntriesFromModel(model, defaultAgent.id);
 
 						// Prepare the request object that we will send to the participant detection provider
-						const chatAgentRequest = await prepareChatAgentRequest(defaultAgent, agentSlashCommandPart?.command);
+						const chatAgentRequest = await prepareChatAgentRequest(defaultAgent, agentSlashCommandPart?.command, enableCommandDetection);
 
 						const result = await this.chatAgentService.detectAgentOrCommand(chatAgentRequest, defaultAgentHistory, { location }, token);
 						if (result) {
@@ -618,7 +625,7 @@ export class ChatService extends Disposable implements IChatService {
 
 					// Recompute history in case the agent or command changed
 					const history = getHistoryEntriesFromModel(model, agent.id);
-					const requestProps = await prepareChatAgentRequest(agent, command, request /* Reuse the request object if we already created it for participant detection */);
+					const requestProps = await prepareChatAgentRequest(agent, command, !detectedAgent && enableCommandDetection, request /* Reuse the request object if we already created it for participant detection */);
 					const pendingRequest = this._pendingRequests.get(sessionId);
 					if (pendingRequest && !pendingRequest.requestId) {
 						pendingRequest.requestId = requestProps.requestId;
@@ -674,7 +681,8 @@ export class ChatService extends Disposable implements IChatService {
 						slashCommand: commandForTelemetry,
 						chatSessionId: model.sessionId,
 						location,
-						citations: request.response?.codeCitations.length ?? 0
+						citations: request.response?.codeCitations.length ?? 0,
+						numCodeBlocks: getCodeBlocks(request.response?.response.toString() ?? '').length
 					});
 					model.setResponse(request, rawResult);
 					completeResponseCreated();
@@ -700,7 +708,8 @@ export class ChatService extends Disposable implements IChatService {
 					slashCommand: agentSlashCommandPart ? agentSlashCommandPart.command.name : commandPart?.slashCommand.command,
 					chatSessionId: model.sessionId,
 					location,
-					citations: 0
+					citations: 0,
+					numCodeBlocks: 0
 				});
 				this.logService.error(`Error while handling chat request: ${toErrorMessage(err, true)}`);
 				if (request) {
@@ -840,4 +849,27 @@ export class ChatService extends Disposable implements IChatService {
 		this.storageService.store(globalChatKey, JSON.stringify(existingRaw), StorageScope.PROFILE, StorageTarget.MACHINE);
 		this.trace('transferChatSession', `Transferred session ${model.sessionId} to workspace ${toWorkspace.toString()}`);
 	}
+}
+
+function getCodeBlocks(text: string): string[] {
+	const lines = text.split('\n');
+	const codeBlockLanguages: string[] = [];
+
+	let codeBlockState: undefined | { readonly delimiter: string; readonly languageId: string };
+	for (let i = 0; i < lines.length; i++) {
+		const line = lines[i];
+
+		if (codeBlockState) {
+			if (new RegExp(`^\\s*${codeBlockState.delimiter}\\s*$`).test(line)) {
+				codeBlockLanguages.push(codeBlockState.languageId);
+				codeBlockState = undefined;
+			}
+		} else {
+			const match = line.match(/^(\s*)(`{3,}|~{3,})(\w*)/);
+			if (match) {
+				codeBlockState = { delimiter: match[2], languageId: match[3] };
+			}
+		}
+	}
+	return codeBlockLanguages;
 }

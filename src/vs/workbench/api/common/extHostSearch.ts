@@ -226,3 +226,4 @@ export function reviveQuery<U extends IRawQuery>(rawQuery: U): U extends IRawTex
 function reviveFolderQuery(rawFolderQuery: IFolderQuery<UriComponents>): IFolderQuery<URI> {
 	return revive(rawFolderQuery);
 }
+

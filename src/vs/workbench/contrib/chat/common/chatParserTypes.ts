@@ -67,6 +67,23 @@ export class ChatRequestVariablePart implements IParsedChatRequestPart {
 }
 
 /**
+ * An invocation of a tool
+ */
+export class ChatRequestToolPart implements IParsedChatRequestPart {
+	static readonly Kind = 'tool';
+	readonly kind = ChatRequestToolPart.Kind;
+	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly toolName: string, readonly toolId: string) { }
+
+	get text(): string {
+		return `${chatVariableLeader}${this.toolName}`;
+	}
+
+	get promptText(): string {
+		return this.text;
+	}
+}
+
+/**
  * An invocation of an agent that can be resolved by the agent service
  */
 export class ChatRequestAgentPart implements IParsedChatRequestPart {
@@ -150,7 +167,14 @@ export function reviveParsedChatRequest(serialized: IParsedChatRequest): IParsed
 					part.editorRange,
 					(part as ChatRequestVariablePart).variableName,
 					(part as ChatRequestVariablePart).variableArg,
-					(part as ChatRequestVariablePart).variableName || '',
+					(part as ChatRequestVariablePart).variableId || '',
+				);
+			} else if (part.kind === ChatRequestToolPart.Kind) {
+				return new ChatRequestToolPart(
+					new OffsetRange(part.range.start, part.range.endExclusive),
+					part.editorRange,
+					(part as ChatRequestToolPart).toolName,
+					(part as ChatRequestToolPart).toolId
 				);
 			} else if (part.kind === ChatRequestAgentPart.Kind) {
 				let agent = (part as ChatRequestAgentPart).agent;

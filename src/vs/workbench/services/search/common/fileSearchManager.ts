@@ -201,7 +201,7 @@ class FileSearchEngine {
 
 		return {
 			folder: fq.folder,
-			excludes,
+			excludes: excludes.map(e => typeof (e) === 'string' ? e : e.pattern), // TODO- follow baseURI
 			includes,
 			useIgnoreFiles: {
 				local: !fq.disregardIgnoreFiles,

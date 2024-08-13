@@ -188,7 +188,7 @@ export class TextSearchManager {
 
 		const options = {
 			folder: URI.from(fq.folder),
-			excludes,
+			excludes: excludes.map(e => typeof (e) === 'string' ? e : e.pattern),
 			includes,
 			useIgnoreFiles: {
 				local: !fq.disregardIgnoreFiles,

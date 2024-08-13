@@ -1125,6 +1125,31 @@ suite('observables', () => {
 		]);
 	});
 
+	test('bug: Event.fromObservable always should get events', () => {
+		const emitter = new Emitter();
+		const log = new Log();
+		let i = 0;
+		const obs = observableFromEvent(emitter.event, () => i);
+
+		i++;
+		emitter.fire(1);
+
+		const evt2 = Event.fromObservable(obs);
+		const d = evt2(e => {
+			log.log(`event fired ${e}`);
+		});
+
+		i++;
+		emitter.fire(2);
+		assert.deepStrictEqual(log.getAndClearEntries(), ["event fired 2"]);
+
+		i++;
+		emitter.fire(3);
+		assert.deepStrictEqual(log.getAndClearEntries(), ["event fired 3"]);
+
+		d.dispose();
+	});
+
 	test('dont run autorun after dispose', () => {
 		const log = new Log();
 		const myObservable = new LoggingObservableValue('myObservable', 0, log);

@@ -89,30 +89,6 @@ steps:
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Authentication
 
-  # Remove once kerberos 2.1.2-alpha.0 or newer is available.
-  # Ref https://github.com/mongodb-js/kerberos/pull/187 which contains the following patch.
-  - pwsh: |
-      $includes = @'
-        {
-          'target_defaults': {
-            'conditions': [
-              ['OS=="win"', {
-                'msvs_configuration_attributes': {
-                  'SpectreMitigation': 'Spectre'
-                }
-              }]
-            ]
-          }
-        }
-      '@
-
-      if (!(Test-Path "~/.gyp")) {
-        mkdir "~/.gyp"
-      }
-      echo $includes > "~/.gyp/include.gypi"
-    displayName: Create include.gypi
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
-
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       . build/azure-pipelines/win32/retry.ps1

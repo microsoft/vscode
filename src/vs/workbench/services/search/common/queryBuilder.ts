@@ -47,11 +47,8 @@ interface ISearchPatternBuilder {
 	pattern: ISearchPathPatternBuilder;
 }
 
-export function isISearchPatternBuilder(object: ISearchPatternBuilder | ISearchPathPatternBuilder | undefined): object is ISearchPatternBuilder {
-	if (!object || Array.isArray(object) || typeof object === 'string') {
-		return false;
-	}
-	return true;
+export function isISearchPatternBuilder(object: ISearchPatternBuilder | ISearchPathPatternBuilder): object is ISearchPatternBuilder {
+	return (typeof object === 'object' && 'uri' in object && 'pattern' in object);
 }
 
 /**
@@ -219,8 +216,7 @@ export class QueryBuilder {
 	}
 
 	private commonQuery(folderResources: (IWorkspaceFolderData | URI)[] = [], options: ICommonQueryBuilderOptions = {}): ICommonQueryProps<uri> {
-
-		const excludePattern = isISearchPatternBuilder(options.excludePattern) ? options.excludePattern.pattern : options.excludePattern;
+		const excludePattern = options.excludePattern && isISearchPatternBuilder(options.excludePattern) ? options.excludePattern.pattern : options.excludePattern;
 		const includeSearchPathsInfo: ISearchPathsInfo = this.handleIncludeExclude(options.includePattern, options.expandPatterns);
 		const excludeSearchPathsInfo: ISearchPathsInfo = this.handleIncludeExclude(excludePattern, options.expandPatterns);
 
@@ -541,7 +537,7 @@ export class QueryBuilder {
 		const folderUri = URI.isUri(folder) ? folder : folder.uri;
 
 		// only use exclude root if it is different from the folder root
-		const excludeRoot = isISearchPatternBuilder(options.excludePattern) ? options.excludePattern.uri : undefined;
+		const excludeRoot = options.excludePattern && isISearchPatternBuilder(options.excludePattern) ? options.excludePattern.uri : undefined;
 		const shouldUseExcludeRoot = (!excludeRoot || !(URI.isUri(folder) && this.uriIdentityService.extUri.isEqual(folder, excludeRoot)));
 		const excludeFolderRoot = shouldUseExcludeRoot ? excludeRoot : undefined;
 
