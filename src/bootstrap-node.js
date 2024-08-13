@@ -15,7 +15,7 @@ const isESM = false;
 // ESM-comment-end
 // ESM-uncomment-begin
 // import * as path from 'path';
-// import * as fs from 'fs';
+// import * as fs from 'original-fs';
 // import { fileURLToPath } from 'url';
 // import { createRequire } from 'node:module';
 //
