@@ -79,6 +79,10 @@ export interface IChatWidgetLocationOptions {
 	resolveData?(): IChatLocationData | undefined;
 }
 
+export function isQuickChat(widget: IChatWidget): boolean {
+	return 'viewContext' in widget && 'isQuickChat' in widget.viewContext && Boolean(widget.viewContext.isQuickChat);
+}
+
 export class ChatWidget extends Disposable implements IChatWidget {
 	public static readonly CONTRIBS: { new(...args: [IChatWidget, ...any]): IChatWidgetContrib }[] = [];
 
@@ -187,9 +191,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return this._location.location;
 	}
 
+	readonly viewContext: IChatWidgetViewContext;
+
 	constructor(
 		location: ChatAgentLocation | IChatWidgetLocationOptions,
-		readonly viewContext: IChatWidgetViewContext,
+		_viewContext: IChatWidgetViewContext | undefined,
 		private readonly viewOptions: IChatWidgetViewOptions,
 		private readonly styles: IChatWidgetStyles,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
@@ -206,6 +212,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	) {
 		super();
 
+		this.viewContext = _viewContext ?? {};
+
 		if (typeof location === 'object') {
 			this._location = location;
 		} else {
@@ -214,7 +222,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		CONTEXT_IN_CHAT_SESSION.bindTo(contextKeyService).set(true);
 		CONTEXT_CHAT_LOCATION.bindTo(contextKeyService).set(this._location.location);
-		CONTEXT_IN_QUICK_CHAT.bindTo(contextKeyService).set('resource' in viewContext);
+		CONTEXT_IN_QUICK_CHAT.bindTo(contextKeyService).set(isQuickChat(this));
 		this.agentInInput = CONTEXT_CHAT_INPUT_HAS_AGENT.bindTo(contextKeyService);
 		this.requestInProgress = CONTEXT_CHAT_REQUEST_IN_PROGRESS.bindTo(contextKeyService);
 

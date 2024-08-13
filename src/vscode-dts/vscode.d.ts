@@ -18094,6 +18094,34 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * A stack frame found in the {@link TestMessage.stackTrace}.
+	 */
+	export class TestMessageStackFrame {
+		/**
+		 * The location of this stack frame. This should be provided as a URI if the
+		 * location of the call frame can be accessed by the editor.
+		 */
+		uri?: Uri;
+
+		/**
+		 * Position of the stack frame within the file.
+		 */
+		position?: Position;
+
+		/**
+		 * The name of the stack frame, typically a method or function name.
+		 */
+		label: string;
+
+		/**
+		 * @param label The name of the stack frame
+		 * @param file The file URI of the stack frame
+		 * @param position The position of the stack frame within the file
+		 */
+		constructor(label: string, uri?: Uri, position?: Position);
+	}
+
+	/**
 	 * Message associated with the test state. Can be linked to a specific
 	 * source range -- useful for assertion failures, for example.
 	 */
@@ -18148,6 +18176,11 @@ declare module 'vscode' {
 		 * - `message`: the {@link TestMessage} instance.
 		 */
 		contextValue?: string;
+
+		/**
+		 * The stack trace associated with the message or failure.
+		 */
+		stackTrace?: TestMessageStackFrame[];
 
 		/**
 		 * Creates a new TestMessage that will present as a diff in the editor.

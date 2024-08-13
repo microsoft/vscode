@@ -71,7 +71,7 @@ export class InlineChatContentWidget implements IContentWidget {
 		this._widget = scopedInstaService.createInstance(
 			ChatWidget,
 			location,
-			{ resource: true },
+			undefined,
 			{
 				defaultElementHeight: 32,
 				editorOverflowWidgetsDomNode: _editor.getOverflowWidgetsDomNode(),
