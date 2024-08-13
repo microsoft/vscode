@@ -7,7 +7,7 @@ import { getActiveWindow } from 'vs/base/browser/dom';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { debounce } from 'vs/base/common/decorators';
 import { URI } from 'vs/base/common/uri';
-import { TextureAtlas, type ITextureAtlasGlyph } from 'vs/editor/browser/view/gpu/textureAtlas';
+import { TextureAtlas, type ITextureAtlasGlyph } from 'vs/editor/browser/view/gpu/atlas/textureAtlas';
 import type { IVisibleLine, IVisibleLinesHost } from 'vs/editor/browser/view/viewLayer';
 import type { IViewLineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';

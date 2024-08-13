@@ -6,9 +6,9 @@
 import { getActiveWindow } from 'vs/base/browser/dom';
 import { Event } from 'vs/base/common/event';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { GlyphRasterizer } from 'vs/editor/browser/view/gpu/glyphRasterizer';
+import { GlyphRasterizer } from 'vs/editor/browser/view/gpu/raster/glyphRasterizer';
 import { IdleTaskQueue } from 'vs/editor/browser/view/gpu/taskQueue';
-import { TextureAtlasPage } from 'vs/editor/browser/view/gpu/textureAtlasPage';
+import { TextureAtlasPage } from 'vs/editor/browser/view/gpu/atlas/textureAtlasPage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 
@@ -89,7 +89,6 @@ export class TextureAtlas extends Disposable {
 		}));
 
 		this._glyphRasterizer = new GlyphRasterizer(fontSize, style.fontFamily);
-		// this._allocator = new TextureAtlasShelfAllocator(this._canvas, this._ctx);
 
 		this._page = this._register(this._instantiationService.createInstance(TextureAtlasPage, parentDomNode, pageSize, maxTextureSize, this._glyphRasterizer));
 	}
