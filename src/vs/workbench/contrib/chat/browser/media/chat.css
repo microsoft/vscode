@@ -565,6 +565,13 @@
 	flex-wrap: wrap;
 }
 
+.interactive-session .interactive-input-part.compact .chat-attached-context {
+	padding-top: 8px;
+	display: flex;
+	gap: 4px;
+	flex-wrap: wrap;
+}
+
 .interactive-session .interactive-item-container.interactive-request .chat-attached-context {
 	margin-top: -8px;
 }
