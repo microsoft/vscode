@@ -3058,12 +3058,14 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, IEditorMinima
 
 	constructor() {
 		const defaults: EditorMinimapOptions = {
-			enabled: true,
+			// MEMBRANE: disable minimap by default
+			enabled: false,
 			size: 'proportional',
 			side: 'right',
 			showSlider: 'mouseover',
 			autohide: false,
-			renderCharacters: true,
+			// MEMBRANE: looks better without characters
+			renderCharacters: false,
 			maxColumn: 120,
 			scale: 1,
 		};
