@@ -15,6 +15,7 @@ import { IRawFileQuery, ISearchCompleteStats, IFileQuery, IRawTextQuery, IRawQue
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { TextSearchManager } from 'vs/workbench/services/search/common/textSearchManager';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { revive } from 'vs/base/common/marshalling';
 
 export interface IExtHostSearch extends ExtHostSearchShape {
 	registerTextSearchProvider(scheme: string, provider: vscode.TextSearchProvider): IDisposable;
@@ -171,8 +172,6 @@ export function reviveQuery<U extends IRawQuery>(rawQuery: U): U extends IRawTex
 }
 
 function reviveFolderQuery(rawFolderQuery: IFolderQuery<UriComponents>): IFolderQuery<URI> {
-	return {
-		...rawFolderQuery,
-		folder: URI.revive(rawFolderQuery.folder)
-	};
+	return revive(rawFolderQuery);
 }
+
