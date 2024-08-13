@@ -15,7 +15,7 @@ import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/co
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-// import { ThemeIcon } from 'vs/base/common/themables';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_BACKGROUND, TITLE_BAR_BORDER, WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
 import { isMacintosh, isWindows, isLinux, isWeb, isNative, platformLocale } from 'vs/base/common/platform';
 import { Color } from 'vs/base/common/color';
@@ -29,8 +29,8 @@ import { createActionViewItem, createAndFillInActionBarActions } from 'vs/platfo
 import { Action2, IMenu, IMenuService, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-// import { Codicon } from 'vs/base/common/codicons';
-// import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
+import { Codicon } from 'vs/base/common/codicons';
+import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
 import { WindowTitle } from 'vs/workbench/browser/parts/titlebar/windowTitle';
 import { CommandCenterControl } from 'vs/workbench/browser/parts/titlebar/commandCenterControl';
 import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
@@ -54,6 +54,7 @@ import { IEditorCommandsContext, IEditorPartOptionsChangeEvent, IToolbarActions 
 import { mainWindow } from 'vs/base/browser/window';
 import { ACCOUNTS_ACTIVITY_TILE_ACTION, GLOBAL_ACTIVITY_TITLE_ACTION } from 'vs/workbench/browser/parts/titlebar/titlebarActions';
 import { IView } from 'vs/base/browser/ui/grid/grid';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 export interface ITitleProperties {
 	isPure?: boolean;
@@ -218,7 +219,12 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	private rightContent!: HTMLElement;
 
 	protected customMenubar: CustomMenubarControl | undefined;
+
+	// MEMBRANE: our tittlebar logo and buttons
 	protected appIcon: HTMLElement | undefined;
+	protected newButton: HTMLElement | undefined;
+	protected searchButton: HTMLElement | undefined;
+
 	private appIconBadge: HTMLElement | undefined;
 	protected menubar?: HTMLElement;
 	private lastLayoutDimensions: Dimension | undefined;
@@ -262,7 +268,8 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IEditorService editorService: IEditorService,
 		@IMenuService private readonly menuService: IMenuService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@ICommandService private readonly commandService: ICommandService
 	) {
 		super(id, { hasTitle: false }, themeService, storageService, layoutService);
 
@@ -387,42 +394,37 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		this.centerContent = append(this.rootContainer, $('.titlebar-center'));
 		this.rightContent = append(this.rootContainer, $('.titlebar-right'));
 
-		// MEMBRANE: Show the home link on the top-left corner
-		// App Icon (Native Windows/Linux and Web)
+		// MEMBRANE: Home link at the top-left corner
 		this.appIcon = prepend(this.leftContent, $('a.membrane-appicon'));
-		this.appIcon.style.paddingLeft = '10px';
-		this.appIcon.style.paddingTop = '9px';
-		this.appIcon.style.width = '35px';
-		this.appIcon.style.height = '100%';
-		this.appIcon.style.zIndex = '2500';
-		this.appIcon.style.flexShrink = '0';
-		this.appIcon.style.order = '1';
+		const homeIndicator = this.environmentService.options?.homeIndicator;
+		this.appIcon.setAttribute('href', homeIndicator?.href ?? 'https://membrane.io');
+		append(this.appIcon, $.SVG('svg', { viewBox: '0 0 55 55' },
+			$.SVG('path', { d: 'M23.41 35.93h.5l.2-.46 4.14-9.85a1425.49 1425.49 0 0 1 1.61-3.93l.32-.81a237.65 237.65 0 0 0 .02 5.2 71.5 71.5 0 0 0 .07 2.48l.3 6.66.02.71h9.08l-.05-.79-.98-16.6-.97-16.58-.04-.71h-7.99l-.2.47-7.6 19.11a49.6 49.6 0 0 0-1.35 3.68l-.4-1.17a92.1 92.1 0 0 0-.9-2.5L11.56 1.72l-.19-.47H3.26l-.05.7-1.95 33.19-.05.8H10.14l.02-.73.25-6.66a203.24 203.24 0 0 0 .1-5.67V20.67a1308.45 1308.45 0 0 0 2.05 5.35l.01.02v.02l4.06 9.41.19.45h6.59ZM39.57 35.97h5.68v5.68h-5.68z' })
+		));
 
-		// Web-only home indicator and menu (not for auxiliary windows)
-		if (!this.isAuxiliary && isWeb) {
-			const homeIndicator = this.environmentService.options?.homeIndicator;
-			if (homeIndicator) {
-				this.appIcon.setAttribute('href', homeIndicator.href);
+		// New program button
+		// TODO: We need a command to create a new program
+		// this.newButton = prepend(this.rightContent, $('a.membrane-new-program', {},
+		// 	$.SVG('svg', { viewBox: '0 0 256 256', width: '14px', height: '14px' },
+		// 		$.SVG('path', { d: 'M216.49,79.51l-56-56A12,12,0,0,0,152,20H56A20,20,0,0,0,36,40V216a20,20,0,0,0,20,20H200a20,20,0,0,0,20-20V88A12,12,0,0,0,216.49,79.51ZM160,57l23,23H160ZM60,212V44h76V92a12,12,0,0,0,12,12h48V212Zm104-60a12,12,0,0,1-12,12H140v12a12,12,0,0,1-24,0V164H104a12,12,0,0,1,0-24h12V128a12,12,0,0,1,24,0v12h12A12,12,0,0,1,164,152Z' })
+		// 	),
+		// 	'New Program'
+		// ));
 
-				// Create an svg element with a path inside
-				const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-				svg.setAttribute('viewBox', '0 0 55 55');
-				svg.style.width = '100%';
-				svg.style.height = '100%';
-				// svg.setAttribute('width', '100%');
-				// svg.setAttribute('height', '100%');
+		// Search button
+		this.searchButton = prepend(this.rightContent, $('a.membrane-package-search', {},
+			$.SVG('svg', { viewBox: '0 0 256 256', width: '14px', height: '14px' },
+				$.SVG('path', { d: 'M223.68,66.15,135.68,18a15.88,15.88,0,0,0-15.36,0l-88,48.17a16,16,0,0,0-8.32,14v95.64a16,16,0,0,0,8.32,14l88,48.17a15.88,15.88,0,0,0,15.36,0l88-48.17a16,16,0,0,0,8.32-14V80.18A16,16,0,0,0,223.68,66.15ZM128,32l80.34,44-29.77,16.3-80.35-44ZM128,120,47.66,76l33.9-18.56,80.34,44ZM40,90l80,43.78v85.79L40,175.82Zm176,85.78h0l-80,43.79V133.82l32-17.51V152a8,8,0,0,0,16,0V107.55L216,90v85.77Z' })
+			),
+			'Find Programs'
+		));
+		// TODO: this button needs to change state when the package pane is actually open.
+		this.searchButton.onclick = e => {
+			e.preventDefault();
+			e.stopPropagation();
+			this.commandService.executeCommand('membrane.packages.focus');
+		};
 
-				const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-				path.setAttribute('d', 'M23.41 35.93h.5l.2-.46 4.14-9.85a1425.49 1425.49 0 0 1 1.61-3.93l.32-.81a237.65 237.65 0 0 0 .02 5.2 71.5 71.5 0 0 0 .07 2.48l.3 6.66.02.71h9.08l-.05-.79-.98-16.6-.97-16.58-.04-.71h-7.99l-.2.47-7.6 19.11a49.6 49.6 0 0 0-1.35 3.68l-.4-1.17a92.1 92.1 0 0 0-.9-2.5L11.56 1.72l-.19-.47H3.26l-.05.7-1.95 33.19-.05.8H10.14l.02-.73.25-6.66a203.24 203.24 0 0 0 .1-5.67V20.67a1308.45 1308.45 0 0 0 2.05 5.35l.01.02v.02l4.06 9.41.19.45h6.59ZM39.57 35.97h5.68v5.68h-5.68z');
-				path.setAttribute('stroke', '#000');
-				path.setAttribute('fill', '#fffc');
-				svg.appendChild(path);
-				this.appIcon.appendChild(svg);
-			}
-		}
-
-		// MEMBRANE: comment this out since we added our own home link above
-		/*
 		// App Icon (Native Windows/Linux and Web)
 		if (!isMacintosh && !isWeb && !hasNativeTitlebar(this.configurationService, this.titleBarStyle)) {
 			this.appIcon = prepend(this.leftContent, $('a.window-appicon'));
@@ -441,7 +443,6 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 				}
 			}
 		}
-		*/
 
 		// Draggable region that we can manipulate for #52522
 		this.dragRegion = prepend(this.rootContainer, $('div.titlebar-drag-region'));
@@ -462,7 +463,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 		// Create Toolbar Actions
 		if (hasCustomTitlebar(this.configurationService, this.titleBarStyle)) {
-			this.actionToolBarElement = append(this.rightContent, $('div.action-toolbar-container'));
+			this.actionToolBarElement = append(this.centerContent, $('div.action-toolbar-container'));
 			this.createActionToolBar();
 			this.createActionToolBarMenus();
 		}
@@ -826,8 +827,9 @@ export class MainBrowserTitlebarPart extends BrowserTitlebarPart {
 		@IEditorService editorService: IEditorService,
 		@IMenuService menuService: IMenuService,
 		@IKeybindingService keybindingService: IKeybindingService,
+		@ICommandService commandService: ICommandService,
 	) {
-		super(Parts.TITLEBAR_PART, mainWindow, 'main', contextMenuService, configurationService, environmentService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, hoverService, editorGroupService, editorService, menuService, keybindingService);
+		super(Parts.TITLEBAR_PART, mainWindow, 'main', contextMenuService, configurationService, environmentService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, hoverService, editorGroupService, editorService, menuService, keybindingService, commandService);
 	}
 }
 
@@ -860,9 +862,10 @@ export class AuxiliaryBrowserTitlebarPart extends BrowserTitlebarPart implements
 		@IEditorService editorService: IEditorService,
 		@IMenuService menuService: IMenuService,
 		@IKeybindingService keybindingService: IKeybindingService,
+		@ICommandService commandService: ICommandService,
 	) {
 		const id = AuxiliaryBrowserTitlebarPart.COUNTER++;
-		super(`workbench.parts.auxiliaryTitle.${id}`, getWindow(container), editorGroupsContainer, contextMenuService, configurationService, environmentService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, hoverService, editorGroupService, editorService, menuService, keybindingService);
+		super(`workbench.parts.auxiliaryTitle.${id}`, getWindow(container), editorGroupsContainer, contextMenuService, configurationService, environmentService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, hoverService, editorGroupService, editorService, menuService, keybindingService, commandService);
 	}
 
 	override get preventZoom(): boolean {
