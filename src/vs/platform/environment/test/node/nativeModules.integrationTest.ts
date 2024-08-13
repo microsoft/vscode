@@ -14,12 +14,32 @@ function testErrorMessage(module: string): string {
 flakySuite('Native Modules (all platforms)', () => {
 
 	test('kerberos', async () => {
-		const kerberos = await import('kerberos');
+		const { default: kerberos } = await import('kerberos');
 		assert.ok(typeof kerberos.initializeClient === 'function', testErrorMessage('kerberos'));
 	});
 
+	test('minimist', async () => {
+		const { default: minimist } = await import('minimist');
+		assert.ok(typeof minimist === 'function', testErrorMessage('minimist'));
+	});
+
+	test('yauzl', async () => {
+		const { default: yauzl } = await import('yauzl');
+		assert.ok(typeof yauzl.ZipFile === 'function', testErrorMessage('yauzl'));
+	});
+
+	test('yazl', async () => {
+		const { default: yazl } = await import('yazl');
+		assert.ok(typeof yazl.ZipFile === 'function', testErrorMessage('yazl'));
+	});
+
+	test('v8-inspect-profiler', async () => {
+		const { default: profiler } = await import('v8-inspect-profiler');
+		assert.ok(typeof profiler.startProfiling === 'function', testErrorMessage('v8-inspect-profiler'));
+	});
+
 	test('native-is-elevated', async () => {
-		const isElevated = (await import('native-is-elevated')).default;
+		const { default: isElevated } = await import('native-is-elevated');
 		assert.ok(typeof isElevated === 'function', testErrorMessage('native-is-elevated '));
 
 		const result = isElevated();
@@ -28,6 +48,7 @@ flakySuite('Native Modules (all platforms)', () => {
 
 	test('native-keymap', async () => {
 		const keyMap = await import('native-keymap');
+		assert.ok(typeof keyMap.onDidChangeKeyboardLayout === 'function', testErrorMessage('native-keymap'));
 		assert.ok(typeof keyMap.getCurrentKeyboardLayout === 'function', testErrorMessage('native-keymap'));
 
 		const result = keyMap.getCurrentKeyboardLayout();
@@ -100,7 +121,7 @@ flakySuite('Native Modules (all platforms)', () => {
 		const mod = await import('http-proxy-agent');
 		// ESM-comment-end
 		// ESM-uncomment-begin
-		// const mod = (await import('http-proxy-agent')).default;
+		// const { default: mod } = await import('http-proxy-agent');
 		// ESM-uncomment-end
 		assert.ok(typeof mod.HttpProxyAgent === 'function', testErrorMessage('http-proxy-agent'));
 	});
@@ -110,22 +131,9 @@ flakySuite('Native Modules (all platforms)', () => {
 		const mod = await import('https-proxy-agent');
 		// ESM-comment-end
 		// ESM-uncomment-begin
-		// const mod = (await import('https-proxy-agent')).default;
+		// const { default: mod } = await import('https-proxy-agent');
 		// ESM-uncomment-end
 		assert.ok(typeof mod.HttpsProxyAgent === 'function', testErrorMessage('https-proxy-agent'));
-	});
-
-	test('vsda', async () => {
-		try {
-			const vsda: any = globalThis._VSCODE_NODE_MODULES['vsda'];
-			const signer = new vsda.signer();
-			const signed = await signer.sign('value');
-			assert.ok(typeof signed === 'string', testErrorMessage('vsda'));
-		} catch (error) {
-			if (error.code !== 'MODULE_NOT_FOUND') {
-				throw error;
-			}
-		}
 	});
 
 	test('@vscode/proxy-agent', async () => {
@@ -142,6 +150,37 @@ flakySuite('Native Modules (all platforms)', () => {
 		});
 		assert.ok(windowsCerts.length > 0, testErrorMessage('@vscode/proxy-agent'));
 	});
+
+	// These tests require certain modules from `vscode-distro` to work and are otherwise skipped.
+
+	test('vsda', async function () {
+		try {
+			const vsda = await import('vsda');
+			const signer = new vsda.signer();
+			const signed = await signer.sign('value');
+			assert.ok(typeof signed === 'string', testErrorMessage('vsda'));
+			assert.ok(typeof (vsda as any).validator === 'function', testErrorMessage('vsda'));
+		} catch (error) {
+			if (error.code !== 'MODULE_NOT_FOUND') {
+				throw error;
+			} else {
+				this.skip();
+			}
+		}
+	});
+
+	test('@vscode/vsce-sign', async function () {
+		try {
+			const vsceSign = await import('@vscode/vsce-sign');
+			assert.ok(typeof vsceSign.verify === 'function', testErrorMessage('@vscode/vsce-sign'));
+		} catch (error) {
+			if (error.code !== 'MODULE_NOT_FOUND') {
+				throw error;
+			} else {
+				this.skip();
+			}
+		}
+	});
 });
 
 (!isWindows ? suite.skip : suite)('Native Modules (Windows)', () => {
@@ -150,6 +189,7 @@ flakySuite('Native Modules (all platforms)', () => {
 		const mutex = await import('@vscode/windows-mutex');
 		assert.ok(mutex && typeof mutex.isActive === 'function', testErrorMessage('@vscode/windows-mutex'));
 		assert.ok(typeof mutex.isActive === 'function', testErrorMessage('@vscode/windows-mutex'));
+		assert.ok(typeof mutex.Mutex === 'function', testErrorMessage('@vscode/windows-mutex'));
 	});
 
 	test('windows-foreground-love', async () => {

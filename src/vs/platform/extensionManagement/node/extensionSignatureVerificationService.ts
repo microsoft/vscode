@@ -10,11 +10,6 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
-// ESM-uncomment-begin
-// import { createRequire } from 'node:module';
-// const require = createRequire(import.meta.url);
-// ESM-uncomment-end
-
 export const IExtensionSignatureVerificationService = createDecorator<IExtensionSignatureVerificationService>('IExtensionSignatureVerificationService');
 
 /**
@@ -100,15 +95,15 @@ export class ExtensionSignatureVerificationService implements IExtensionSignatur
 
 	private vsceSign(): Promise<typeof vsceSign> {
 		if (!this.moduleLoadingPromise) {
-			this.moduleLoadingPromise = this.resolvevsceSign();
+			this.moduleLoadingPromise = this.resolveVsceSign();
 		}
 
 		return this.moduleLoadingPromise;
 	}
 
-	private async resolvevsceSign(): Promise<typeof vsceSign> {
+	private async resolveVsceSign(): Promise<typeof vsceSign> {
 		// ESM-uncomment-begin
-		// return require('@vscode/vsce-sign');
+		// return import('@vscode/vsce-sign');
 		// ESM-uncomment-end
 
 		// ESM-comment-begin

@@ -8,7 +8,7 @@ import { importAMDNodeModule } from 'vs/amdX';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { isESM } from 'vs/base/common/amd';
 
-suite('Modules Loading in ESM', () => {
+suite('Modules Loading in ESM via importAMDNodeModule()', () => {
 
 	test('@vscode/iconv-lite-umd', async () => {
 		const module = await importAMDNodeModule<typeof import('@vscode/iconv-lite-umd')>('@vscode/iconv-lite-umd', 'lib/iconv-lite-umd.js');
@@ -65,23 +65,8 @@ suite('Modules Loading in ESM', () => {
 	});
 
 	test('@vscode/vscode-languagedetection', async () => {
-		const vsda = await importAMDNodeModule('@vscode/vscode-languagedetection', 'dist/lib/index.js');
-		assert.ok(vsda);
-	});
-
-	// These only work when distro is installed
-
-	test.skip('vsda', async () => {
-		await importAMDNodeModule('vsda', 'rust/web/vsda.js');
-	});
-
-	test.skip('@vscode/vsce-sign', async () => {
-		await importAMDNodeModule('@vscode/vsce-sign', 'src/main.js');
-	});
-
-	test.skip('vscode-regexp-languagedetection', async () => {
-		const reg = await importAMDNodeModule('vscode-regexp-languagedetection', 'dist/index.js');
-		assert.ok(reg);
+		const languagedetection = await importAMDNodeModule<typeof import('@vscode/vscode-languagedetection')>('@vscode/vscode-languagedetection', 'dist/lib/index.js');
+		assert.ok(typeof languagedetection.ModelOperations === 'function');
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

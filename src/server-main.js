@@ -35,12 +35,12 @@ const minimist = require('minimist');
 // import * as readline from 'readline';
 // import { performance }from 'perf_hooks';
 // import { fileURLToPath } from 'url';
+// import minimist from 'minimist';
 // import * as bootstrapNode from './bootstrap-node.js';
 // import * as bootstrapAmd from './bootstrap-amd.js';
 // import { resolveNLSConfiguration } from './vs/base/node/nls.js';
 // import { product } from './bootstrap-meta.js';
 // import * as perf from './vs/base/common/performance.js';
-// import minimist from 'minimist';
 //
 // const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // ESM-uncomment-end
