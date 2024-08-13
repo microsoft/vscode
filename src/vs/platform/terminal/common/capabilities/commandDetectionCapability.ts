@@ -965,18 +965,6 @@ class WindowsPtyHeuristics extends Disposable {
 			};
 		}
 
-		// NuShell Prompt ---- Need to check if this actually works&needed for Windows.
-		// TODO: Find equivalent for MacOS and Linux
-		const nuShellPrompt = lineText.match(/^(?<prompt>.*> )/)?.groups?.prompt;
-		// TODO: Need to adjust to make sure to truncate exit code, date from being shown in Rerun and copy command.
-		// Ends with something like "1 08/10/2024 03:56:30 PM"
-		if (nuShellPrompt) {
-			return {
-				prompt: nuShellPrompt,
-				likelySingleLine: true
-			};
-		}
-
 		// Dynamic prompt detection
 		if (this._capability.promptTerminator && lineText.trim().endsWith(this._capability.promptTerminator)) {
 			const adjustedPrompt = this._adjustPrompt(lineText, lineText, this._capability.promptTerminator);
