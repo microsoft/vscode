@@ -7,7 +7,7 @@ import type { Parser } from '@vscode/tree-sitter-wasm';
 import { AppResourcePath, FileAccess, nodeModulesAsarUnpackedPath, nodeModulesPath } from 'vs/base/common/network';
 import { EDITOR_EXPERIMENTAL_PREFER_TREESITTER, ITreeSitterParserService, ITreeSitterParseResult } from 'vs/editor/common/services/treeSitterParserService';
 import { IModelService } from 'vs/editor/common/services/model';
-import { Disposable, DisposableMap, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableMap, DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { ITextModel } from 'vs/editor/common/model';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
@@ -57,7 +57,9 @@ export class TextModelTreeSitter extends Disposable {
 		let language = this._treeSitterLanguages.getLanguage(languageId);
 		if (!language) {
 			const languageAdded = Event.toPromise(Event.onceIf(this._treeSitterLanguages.onDidAddLanguage, (e) => e.id === languageId));
-			const canceled = new Promise<void>(resolve => token.onCancellationRequested(resolve));
+			const disposables: IDisposable[] = [];
+			this._languageSessionDisposables.add({ dispose: () => dispose(disposables) });
+			const canceled = new Promise<void>(resolve => token.onCancellationRequested(resolve, undefined, disposables));
 			const result = await Promise.race([languageAdded, canceled]);
 			if (result) {
 				language = result.language;
