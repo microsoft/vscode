@@ -136,8 +136,7 @@ export class WindowsShellHelper extends Disposable implements IWindowsShellHelpe
 	getShellType(executable: string): TerminalShellType | undefined {
 		switch (executable.toLowerCase()) {
 			case 'cmd.exe':
-				// return WindowsShellType.CommandPrompt;
-				return GeneralShellType.PowerShell;
+				return WindowsShellType.CommandPrompt;
 			case 'powershell.exe':
 			case 'pwsh.exe':
 				return GeneralShellType.PowerShell;
