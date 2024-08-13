@@ -56,7 +56,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { editorForeground, resolveColorValue } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IViewPaneOptions, ViewAction, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
+import { FilterViewPane, IViewPaneOptions, ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
@@ -79,6 +79,7 @@ import { Codicon } from 'vs/base/common/codicons';
 const $ = dom.$;
 
 const HISTORY_STORAGE_KEY = 'debug.repl.history';
+const FILTER_HISTORY_STORAGE_KEY = 'debug.repl.filterHistory';
 const FILTER_VALUE_STORAGE_KEY = 'debug.repl.filterValue';
 const DECORATION_KEY = 'replinputdecoration';
 
@@ -90,7 +91,7 @@ function revealLastElement(tree: WorkbenchAsyncDataTree<any, any, any>) {
 const sessionsToIgnore = new Set<IDebugSession>();
 const identityProvider = { getId: (element: IReplElement) => element.getId() };
 
-export class Repl extends ViewPane implements IHistoryNavigationWidget {
+export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 	declare readonly _serviceBrand: undefined;
 
 	private static readonly REFRESH_DELAY = 50; // delay in ms to refresh the repl for new elements to show
@@ -132,10 +133,10 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IConfigurationService protected override readonly configurationService: IConfigurationService,
 		@ITextResourcePropertiesService private readonly textResourcePropertiesService: ITextResourcePropertiesService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IKeybindingService keybindingService: IKeybindingService,
+		@IKeybindingService protected override readonly keybindingService: IKeybindingService,
 		@IOpenerService openerService: IOpenerService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService,
@@ -144,7 +145,14 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		@ILogService private readonly logService: ILogService,
 	) {
 		const filterText = storageService.get(FILTER_VALUE_STORAGE_KEY, StorageScope.WORKSPACE, '');
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
+		super({
+			...options,
+			filterOptions: {
+				placeholder: localize({ key: 'workbench.debug.filter.placeholder', comment: ['Text in the brackets after e.g. is not localizable'] }, "Filter (e.g. text, !exclude, \\escape)"),
+				text: filterText,
+				history: JSON.parse(storageService.get(FILTER_HISTORY_STORAGE_KEY, StorageScope.WORKSPACE, '[]')) as string[],
+			}
+		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
 
 		this.menu = menuService.createMenu(MenuId.DebugConsoleContext, contextKeyService);
 		this._register(this.menu);
@@ -223,6 +231,14 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 
 		this._register(this.editorService.onDidActiveEditorChange(() => {
 			this.setMode();
+		}));
+
+		this._register(this.filterWidget.onDidChangeFilterText(() => {
+			this.filter.filterQuery = this.filterWidget.getFilterText();
+			if (this.tree) {
+				this.tree.refilter();
+				revealLastElement(this.tree);
+			}
 		}));
 	}
 
@@ -330,6 +346,10 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		}
 	}
 
+	focusFilter(): void {
+		this.filterWidget.focus();
+	}
+
 	openFind(): void {
 		this.tree?.openFind();
 	}
@@ -382,7 +402,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 			this.tree?.rerender();
 
 			if (this.bodyContentDimension) {
-				this.layoutBody(this.bodyContentDimension.height, this.bodyContentDimension.width);
+				this.layoutBodyContent(this.bodyContentDimension.height, this.bodyContentDimension.width);
 			}
 		}
 	}
@@ -456,7 +476,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 			this.replInputLineCount = 1;
 			if (shouldRelayout && this.bodyContentDimension) {
 				// Trigger a layout to shrink a potential multi line input
-				this.layoutBody(this.bodyContentDimension.height, this.bodyContentDimension.width);
+				this.layoutBodyContent(this.bodyContentDimension.height, this.bodyContentDimension.width);
 			}
 		}
 	}
@@ -490,7 +510,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		return removeAnsiEscapeCodes(text);
 	}
 
-	protected override layoutBody(height: number, width: number): void {
+	protected layoutBodyContent(height: number, width: number): void {
 		this.bodyContentDimension = new dom.Dimension(width, height);
 		const replInputHeight = Math.min(this.replInput.getContentHeight(), height);
 		if (this.tree) {
@@ -584,6 +604,9 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 				};
 				await autoExpandElements(session.getReplElements());
 			}
+			// Repl elements count changed, need to update filter stats on the badge
+			const { total, filtered } = this.getFilterStats();
+			this.filterWidget.updateBadge(total === filtered || total === 0 ? undefined : localize('showing filtered repl lines', "Showing {0} of {1}", filtered, total));
 		}, Repl.REFRESH_DELAY);
 	}
 
@@ -593,10 +616,10 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		super.render();
 		this._register(registerNavigableContainer({
 			name: 'repl',
-			focusNotifiers: [this],
+			focusNotifiers: [this, this.filterWidget],
 			focusNextWidget: () => {
 				const element = this.tree?.getHTMLElement();
-				if (this.findIsOpen) {
+				if (this.filterWidget.hasFocus()) {
 					this.tree?.domFocus();
 				} else if (element && dom.isActiveElement(element)) {
 					this.focus();
@@ -607,7 +630,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 				if (this.replInput.hasTextFocus()) {
 					this.tree?.domFocus();
 				} else if (element && dom.isActiveElement(element)) {
-					this.openFind();
+					this.focusFilter();
 				}
 			}
 		}));
@@ -720,7 +743,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 			if (lineCount !== this.replInputLineCount) {
 				this.replInputLineCount = lineCount;
 				if (this.bodyContentDimension) {
-					this.layoutBody(this.bodyContentDimension.height, this.bodyContentDimension.width);
+					this.layoutBodyContent(this.bodyContentDimension.height, this.bodyContentDimension.width);
 				}
 			}
 		}));
@@ -803,6 +826,19 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		} else {
 			this.storageService.remove(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE);
 		}
+		const filterHistory = this.filterWidget.getHistory();
+		if (filterHistory.length) {
+			this.storageService.store(FILTER_HISTORY_STORAGE_KEY, JSON.stringify(filterHistory), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		} else {
+			this.storageService.remove(FILTER_HISTORY_STORAGE_KEY, StorageScope.WORKSPACE);
+		}
+		const filterValue = this.filterWidget.getFilterText();
+		if (filterValue) {
+			this.storageService.store(FILTER_VALUE_STORAGE_KEY, filterValue, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		} else {
+			this.storageService.remove(FILTER_VALUE_STORAGE_KEY, StorageScope.WORKSPACE);
+		}
+
 		super.saveState();
 	}
 
@@ -893,25 +929,46 @@ class FilterReplAction extends ViewAction<Repl> {
 	constructor() {
 		super({
 			viewId: REPL_VIEW_ID,
+			id: 'repl.action.filter',
+			title: localize('repl.action.filter', "Debug Console: Focus Filter"),
+			precondition: CONTEXT_IN_DEBUG_REPL,
+			keybinding: [{
+				when: EditorContextKeys.textInputFocus,
+				primary: KeyMod.CtrlCmd | KeyCode.KeyF,
+				weight: KeybindingWeight.EditorContrib
+			}]
+		});
+	}
+
+	runInView(accessor: ServicesAccessor, repl: Repl): void | Promise<void> {
+		repl.focusFilter();
+	}
+}
+
+
+class FindReplAction extends ViewAction<Repl> {
+
+	constructor() {
+		super({
+			viewId: REPL_VIEW_ID,
 			id: 'repl.action.find',
 			title: localize('repl.action.find', "Debug Console: Focus Find"),
 			precondition: ContextKeyExpr.or(CONTEXT_IN_DEBUG_REPL, ContextKeyExpr.equals('focusedView', 'workbench.panel.repl.view')),
 			keybinding: [{
 				when: ContextKeyExpr.or(CONTEXT_IN_DEBUG_REPL, ContextKeyExpr.equals('focusedView', 'workbench.panel.repl.view')),
-				primary: KeyMod.CtrlCmd | KeyCode.KeyF,
-				// override the editor's find
-				weight: KeybindingWeight.EditorContrib + 10
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyF,
+				weight: KeybindingWeight.EditorContrib
 			}],
 			icon: Codicon.search,
 			menu: [{
 				id: MenuId.ViewTitle,
 				group: 'navigation',
 				when: ContextKeyExpr.equals('view', REPL_VIEW_ID),
-				order: 10
+				order: 15
 			}, {
 				id: MenuId.DebugConsoleContext,
 				group: 'z_commands',
-				order: 20
+				order: 25
 			}],
 		});
 	}
@@ -944,6 +1001,7 @@ class ReplCopyAllAction extends EditorAction {
 registerEditorAction(AcceptReplInputAction);
 registerEditorAction(ReplCopyAllAction);
 registerAction2(FilterReplAction);
+registerAction2(FindReplAction);
 
 class SelectReplActionViewItem extends FocusSessionActionViewItem {
 

@@ -95,6 +95,16 @@
             ]
           }
         }
+      },
+      {
+        "title": "Microsoft",
+        "properties": {
+          "microsoft.useMsal": {
+            "type": "boolean",
+            "default": false,
+            "description": "%useMsal.description%"
+          }
+        }
       }
     ]
   },
@@ -117,6 +127,7 @@
   },
   "dependencies": {
     "@azure/ms-rest-azure-env": "^2.0.0",
+    "@azure/msal-node": "^2.12.0",
     "@vscode/extension-telemetry": "^0.9.0"
   },
   "repository": {

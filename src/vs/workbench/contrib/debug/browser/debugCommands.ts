@@ -32,11 +32,12 @@ import { deepClone } from 'vs/base/common/objects';
 import { isWeb, isWindows } from 'vs/base/common/platform';
 import { saveAllBeforeDebugStart } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { showLoadedScriptMenu } from 'vs/workbench/contrib/debug/common/loadedScriptsPicker';
+import { showLoadedScriptMenu } from 'vs/workbench/contrib/debug/browser/loadedScriptsPicker';
 import { showDebugSessionMenu } from 'vs/workbench/contrib/debug/browser/debugSessionPicker';
 import { TEXT_FILE_EDITOR_ID } from 'vs/workbench/contrib/files/common/files';
 import { ILocalizedString } from 'vs/platform/action/common/action';
 import { CONTEXT_IN_CHAT_SESSION } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 export const ADD_CONFIGURATION_ID = 'debug.addConfiguration';
 export const TOGGLE_INLINE_BREAKPOINT_ID = 'editor.debug.action.toggleInlineBreakpoint';
@@ -569,11 +570,12 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			target: DebugProtocol.StepInTarget;
 		}
 
-		const qp = quickInputService.createQuickPick<ITargetItem>();
+		const disposables = new DisposableStore();
+		const qp = disposables.add(quickInputService.createQuickPick<ITargetItem>());
 		qp.busy = true;
 		qp.show();
 
-		qp.onDidChangeActive(([item]) => {
+		disposables.add(qp.onDidChangeActive(([item]) => {
 			if (codeEditor && item && item.target.line !== undefined) {
 				codeEditor.revealLineInCenterIfOutsideViewport(item.target.line);
 				codeEditor.setSelection({
@@ -583,15 +585,15 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 					endColumn: item.target.endColumn || item.target.column || 1,
 				});
 			}
-		});
+		}));
 
-		qp.onDidAccept(() => {
+		disposables.add(qp.onDidAccept(() => {
 			if (qp.activeItems.length) {
 				session.stepIn(frame.thread.threadId, qp.activeItems[0].target.id);
 			}
-		});
+		}));
 
-		qp.onDidHide(() => qp.dispose());
+		disposables.add(qp.onDidHide(() => disposables.dispose()));
 
 		session.stepInTargets(frame.frameId).then(targets => {
 			qp.busy = false;

@@ -137,7 +137,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		}
 
 		// Update the window controls immediately based on cached or default values
-		if (useCustomTitleStyle && ((isWindows && useWindowControlsOverlay(this.configurationService)) || isMacintosh)) {
+		if (useCustomTitleStyle && (useWindowControlsOverlay(this.configurationService) || isMacintosh)) {
 			const cachedWindowControlHeight = this.stateService.getItem<number>((BaseWindow.windowControlHeightStateStorageKey));
 			if (cachedWindowControlHeight) {
 				this.updateWindowControls({ height: cachedWindowControlHeight });
@@ -366,8 +366,8 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 			this.stateService.setItem((CodeWindow.windowControlHeightStateStorageKey), options.height);
 		}
 
-		// Windows: window control overlay (WCO)
-		if (isWindows && this.hasWindowControlOverlay) {
+		// Windows/Linux: window control overlay (WCO)
+		if (this.hasWindowControlOverlay) {
 			win.setTitleBarOverlay({
 				color: options.backgroundColor?.trim() === '' ? undefined : options.backgroundColor,
 				symbolColor: options.foregroundColor?.trim() === '' ? undefined : options.foregroundColor,

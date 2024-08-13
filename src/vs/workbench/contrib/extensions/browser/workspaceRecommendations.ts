@@ -10,7 +10,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { ExtensionRecommendationReason } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { localize } from 'vs/nls';
 import { Emitter } from 'vs/base/common/event';
-import { IExtensionsConfigContent, IWorkspaceExtensionsConfigService } from 'vs/workbench/services/extensionRecommendations/common/workspaceExtensionsConfig';
+import { IExtensionsConfigContent, IWorkspaceExtensionsConfigService } from 'vs/workbench/services/extensionRecommendations/browser/workspaceExtensionsConfig';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { FileChangeType, IFileService } from 'vs/platform/files/common/files';
@@ -172,4 +172,3 @@ export class WorkspaceRecommendations extends ExtensionRecommendations {
 	}
 
 }
-
