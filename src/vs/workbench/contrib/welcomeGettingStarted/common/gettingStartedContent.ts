@@ -375,7 +375,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 				},
 				{
 					id: 'accessibleView',
-					title: localize('gettingStarted.accessibleView.title', "Use the accessibility view to inspect content line by line, character by character"),
+					title: localize('gettingStarted.accessibleView.title', "Use the accessible view to inspect content line by line, character by character"),
 					description: localize('gettingStarted.accessibleView.description.interpolated', "The accessible view is available for the terminal, hovers, notifications, comments, notebook output, chat responses, inline completions, and debug console output.\n It can be opened with the Open Accessible View command.\n{0}", Button(localize('openAccessibleView', "Open Accessible View"), 'command:editor.action.accessibleView')),
 					media: {
 						type: 'svg', altText: 'VS Code extension marketplace with featured language extensions', path: 'extensions-web.svg'
@@ -423,8 +423,8 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 				},
 				{
 					id: 'intellisense',
-					title: localize('gettingStarted.intellisense.title', "Use Intellisense, also called inline suggestions, to complete code as you type"),
-					description: localize('gettingStarted.intellisense.description.interpolated', "Intellisense is available for the editor, terminal, and debug console.\n It can be opened with the Open Intellisense command.\n{0}", Button(localize('openIntellisense', "Open Intellisense"), 'command:editor.action.triggerSuggest')),
+					title: localize('gettingStarted.intellisense.title', "Use Intellisense to improve coding efficiency"),
+					description: localize('gettingStarted.intellisense.description.interpolated', "Intellisense suggestions can be opened with the Trigger Intellisense command.\n{0}\n Inline intellisense suggestions can be triggered with Trigger Inline Suggestion\n{1}\n Useful settings include editor.inlineCompletionsAccessibilityVerbose and editor.screenReaderAnnounceInlineSuggestion.", Button(localize('triggerIntellisense', "Trigger Intellisense"), 'command:editor.action.triggerSuggest'), Button(localize('triggerInlineSuggestion', 'Trigger Inline Suggestion'), 'command:editor.action.inlineSuggest.trigger')),
 					media: {
 						type: 'svg', altText: 'VS Code extension marketplace with featured language extensions', path: 'extensions-web.svg'
 					},
