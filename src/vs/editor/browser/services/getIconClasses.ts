@@ -15,6 +15,8 @@ import { mainWindow } from 'vs/base/browser/window';
 
 const fileIconDirectoryRegex = /(?:\/|^)(?:([^\/]+)\/)?([^\/]+)$/;
 
+const escapeCSS = mainWindow.CSS.escape;
+
 export function getIconClasses(modelService: IModelService, languageService: ILanguageService, resource: uri | undefined, fileKind?: FileKind, icon?: ThemeIcon | URI): string[] {
 	if (ThemeIcon.isThemeIcon(icon)) {
 		return [`codicon-${icon.id}`, 'predefined-file-icon'];
@@ -36,13 +38,13 @@ export function getIconClasses(modelService: IModelService, languageService: ILa
 		} else {
 			const match = resource.path.match(fileIconDirectoryRegex);
 			if (match) {
-				name = cssEscape(match[2].toLowerCase());
+				name = escapeCSS(match[2].toLowerCase());
 				if (match[1]) {
-					classes.push(`${cssEscape(match[1].toLowerCase())}-name-dir-icon`); // parent directory
+					classes.push(`${escapeCSS(match[1].toLowerCase())}-name-dir-icon`); // parent directory
 				}
 
 			} else {
-				name = cssEscape(resource.authority.toLowerCase());
+				name = escapeCSS(resource.authority.toLowerCase());
 			}
 		}
 
@@ -78,7 +80,7 @@ export function getIconClasses(modelService: IModelService, languageService: ILa
 			// Detected Mode
 			const detectedLanguageId = detectLanguageId(modelService, languageService, resource);
 			if (detectedLanguageId) {
-				classes.push(`${cssEscape(detectedLanguageId)}-lang-file-icon`);
+				classes.push(`${escapeCSS(detectedLanguageId)}-lang-file-icon`);
 			}
 		}
 	}
@@ -86,7 +88,7 @@ export function getIconClasses(modelService: IModelService, languageService: ILa
 }
 
 export function getIconClassesForLanguageId(languageId: string): string[] {
-	return ['file-icon', `${cssEscape(languageId)}-lang-file-icon`];
+	return ['file-icon', `${escapeCSS(languageId)}-lang-file-icon`];
 }
 
 function detectLanguageId(modelService: IModelService, languageService: ILanguageService, resource: uri): string | null {
@@ -121,9 +123,4 @@ function detectLanguageId(modelService: IModelService, languageService: ILanguag
 
 	// otherwise fallback to path based detection
 	return languageService.guessLanguageIdByFilepathOrFirstLine(resource);
-}
-
-function cssEscape(str: string): string {
-	str = str.replace(/[\x11\x12\x14\x15\x40]/g, '/'); // HTML class names can not contain certain whitespace characters, use / instead, which doesn't exist in file names.
-	return mainWindow.CSS.escape(str);
 }
