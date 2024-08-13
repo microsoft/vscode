@@ -11,7 +11,7 @@ import { ITreeSitterParserService, ITreeSitterParseResult } from 'vs/editor/comm
 export class TestTreeSitterParserService implements ITreeSitterParserService {
 	onDidAddLanguage: Event<{ id: string; language: Parser.Language }> = Event.None;
 	_serviceBrand: undefined;
-	getLanguage(languageId: string): Parser.Language | undefined {
+	getOrInitLanguage(languageId: string): Parser.Language | undefined {
 		throw new Error('Method not implemented.');
 	}
 	waitForLanguage(languageId: string): Promise<Parser.Language | undefined> {

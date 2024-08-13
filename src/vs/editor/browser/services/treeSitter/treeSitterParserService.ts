@@ -17,7 +17,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { setTimeout0 } from 'vs/base/common/platform';
 import { importAMDNodeModule } from 'vs/amdX';
 import { Emitter, Event } from 'vs/base/common/event';
-import { cancelOnDispose } from 'vs/base/common/cancellation';
+import { CancellationToken, cancelOnDispose } from 'vs/base/common/cancellation';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { canASAR } from 'vs/base/common/amd';
 
@@ -54,18 +54,11 @@ export class TextModelTreeSitter extends Disposable {
 		this._parseResult = undefined;
 
 		const token = cancelOnDispose(this._languageSessionDisposables);
-		let language = this._treeSitterLanguages.getLanguage(languageId);
-		if (!language) {
-			const languageAdded = Event.toPromise(Event.onceIf(this._treeSitterLanguages.onDidAddLanguage, (e) => e.id === languageId));
-			const disposables: IDisposable[] = [];
-			this._languageSessionDisposables.add({ dispose: () => dispose(disposables) });
-			const canceled = new Promise<void>(resolve => token.onCancellationRequested(resolve, undefined, disposables));
-			const result = await Promise.race([languageAdded, canceled]);
-			if (result) {
-				language = result.language;
-			}
-		}
-		if (!language || token.isCancellationRequested) {
+		let language: Parser.Language | undefined;
+		try {
+			language = await this._getLanguage(languageId, token);
+		} catch (e) {
+			// cancellation has been requested.
 			return;
 		}
 
@@ -82,6 +75,24 @@ export class TextModelTreeSitter extends Disposable {
 		}
 
 		this._parseResult = treeSitterTree;
+	}
+
+	private _getLanguage(languageId: string, token: CancellationToken): Promise<Parser.Language> {
+		const language = this._treeSitterLanguages.getOrInitLanguage(languageId);
+		if (language) {
+			return Promise.resolve(language);
+		}
+		return new Promise((resolve, reject) => {
+			this._languageSessionDisposables.add(this._treeSitterLanguages.onDidAddLanguage(e => {
+				if (e.id === languageId) {
+					resolve(e.language);
+				}
+			}));
+			const disposables: IDisposable[] = [];
+			this._languageSessionDisposables.add({ dispose: () => dispose(disposables) });
+			token.onCancellationRequested(reject, undefined, disposables);
+		});
+
 	}
 
 	private async _onDidChangeContent(treeSitterTree: TreeSitterParseResult, e?: IModelContentChangedEvent) {
@@ -225,7 +236,7 @@ export class TreeSitterLanguages extends Disposable {
 		super();
 	}
 
-	public getLanguage(languageId: string): Parser.Language | undefined {
+	public getOrInitLanguage(languageId: string): Parser.Language | undefined {
 		if (this._languages.has(languageId)) {
 			return this._languages.get(languageId);
 		} else {
@@ -314,8 +325,8 @@ export class TreeSitterTextModelService extends Disposable implements ITreeSitte
 		this._supportedLanguagesChanged();
 	}
 
-	getLanguage(languageId: string): Parser.Language | undefined {
-		return this._treeSitterLanguages.getLanguage(languageId);
+	getOrInitLanguage(languageId: string): Parser.Language | undefined {
+		return this._treeSitterLanguages.getOrInitLanguage(languageId);
 	}
 
 	getParseResult(textModel: ITextModel): ITreeSitterParseResult | undefined {

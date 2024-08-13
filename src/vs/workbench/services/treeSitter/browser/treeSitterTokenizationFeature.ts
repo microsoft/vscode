@@ -105,7 +105,7 @@ class TreeSitterTokenizationSupport extends Disposable implements ITreeSitterTok
 
 	private _ensureQuery() {
 		if (!this._query) {
-			const language = this._treeSitterService.getLanguage(this._languageId);
+			const language = this._treeSitterService.getOrInitLanguage(this._languageId);
 			if (!language) {
 				if (!this._languageAddedListener) {
 					this._languageAddedListener = this._register(Event.onceIf(this._treeSitterService.onDidAddLanguage, e => e.id === this._languageId)((e) => {

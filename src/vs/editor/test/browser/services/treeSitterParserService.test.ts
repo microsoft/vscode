@@ -130,7 +130,7 @@ suite('TreeSitterParserService', function () {
 				language.languageId = 'javascript';
 				this._onDidAddLanguage.fire({ id: 'javascript', language });
 			}
-			public override getLanguage(languageId: string): Parser.Language | undefined {
+			public override getOrInitLanguage(languageId: string): Parser.Language | undefined {
 				if (languageId === 'javascript') {
 					this._fetchJavascript();
 					return undefined;

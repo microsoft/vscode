@@ -15,7 +15,7 @@ export const ITreeSitterParserService = createDecorator<ITreeSitterParserService
 export interface ITreeSitterParserService {
 	readonly _serviceBrand: undefined;
 	onDidAddLanguage: Event<{ id: string; language: Parser.Language }>;
-	getLanguage(languageId: string): Parser.Language | undefined;
+	getOrInitLanguage(languageId: string): Parser.Language | undefined;
 	getParseResult(textModel: ITextModel): ITreeSitterParseResult | undefined;
 }
 
