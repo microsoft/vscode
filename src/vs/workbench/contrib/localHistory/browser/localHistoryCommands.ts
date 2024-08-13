@@ -24,7 +24,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ActiveEditorContext, ResourceContextKey } from 'vs/workbench/common/contextkeys';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
+import { getIconClasses } from 'vs/editor/browser/services/getIconClasses';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -343,10 +343,11 @@ registerAction2(class extends Action2 {
 		// Sort the resources by history to put more relevant entries
 		// to the top.
 
-		const resourcePicker = quickInputService.createQuickPick<IQuickPickItem & { resource: URI }>();
+		const resourcePickerDisposables = new DisposableStore();
+		const resourcePicker = resourcePickerDisposables.add(quickInputService.createQuickPick<IQuickPickItem & { resource: URI }>());
 
 		let cts = new CancellationTokenSource();
-		resourcePicker.onDidHide(() => cts.dispose(true));
+		resourcePickerDisposables.add(resourcePicker.onDidHide(() => cts.dispose(true)));
 
 		resourcePicker.busy = true;
 		resourcePicker.show();
@@ -375,7 +376,7 @@ registerAction2(class extends Action2 {
 		}));
 
 		await Event.toPromise(resourcePicker.onDidAccept);
-		resourcePicker.dispose();
+		resourcePickerDisposables.dispose();
 
 		const resource = firstOrDefault(resourcePicker.selectedItems)?.resource;
 		if (!resource) {
@@ -385,11 +386,11 @@ registerAction2(class extends Action2 {
 		// Show all entries for the picked resource in another picker
 		// and open the entry in the end that was selected by the user
 
-		const disposables = new DisposableStore();
-		const entryPicker = disposables.add(quickInputService.createQuickPick<IQuickPickItem & { entry: IWorkingCopyHistoryEntry }>());
+		const entryPickerDisposables = new DisposableStore();
+		const entryPicker = entryPickerDisposables.add(quickInputService.createQuickPick<IQuickPickItem & { entry: IWorkingCopyHistoryEntry }>());
 
 		cts = new CancellationTokenSource();
-		disposables.add(entryPicker.onDidHide(() => cts.dispose(true)));
+		entryPickerDisposables.add(entryPicker.onDidHide(() => cts.dispose(true)));
 
 		entryPicker.busy = true;
 		entryPicker.show();
@@ -407,9 +408,9 @@ registerAction2(class extends Action2 {
 			description: toLocalHistoryEntryDateLabel(entry.timestamp)
 		}));
 
-		disposables.add(entryPicker.onDidAccept(async e => {
+		entryPickerDisposables.add(entryPicker.onDidAccept(async e => {
 			if (!e.inBackground) {
-				disposables.dispose();
+				entryPickerDisposables.dispose();
 			}
 
 			const selectedItem = firstOrDefault(entryPicker.selectedItems);
@@ -452,18 +453,19 @@ registerAction2(class extends Action2 {
 
 		const { entry } = await findLocalHistoryEntry(workingCopyHistoryService, item);
 		if (entry) {
-			const inputBox = quickInputService.createInputBox();
+			const disposables = new DisposableStore();
+			const inputBox = disposables.add(quickInputService.createInputBox());
 			inputBox.title = localize('renameLocalHistoryEntryTitle', "Rename Local History Entry");
 			inputBox.ignoreFocusOut = true;
 			inputBox.placeholder = localize('renameLocalHistoryPlaceholder', "Enter the new name of the local history entry");
 			inputBox.value = SaveSourceRegistry.getSourceLabel(entry.source);
 			inputBox.show();
-			inputBox.onDidAccept(() => {
+			disposables.add(inputBox.onDidAccept(() => {
 				if (inputBox.value) {
 					workingCopyHistoryService.updateEntry(entry, { source: inputBox.value }, CancellationToken.None);
 				}
-				inputBox.dispose();
-			});
+				disposables.dispose();
+			}));
 		}
 	}
 });
@@ -575,19 +577,20 @@ registerAction2(class extends Action2 {
 			return; // only enable for selected schemes
 		}
 
-		const inputBox = quickInputService.createInputBox();
+		const disposables = new DisposableStore();
+		const inputBox = disposables.add(quickInputService.createInputBox());
 		inputBox.title = localize('createLocalHistoryEntryTitle', "Create Local History Entry");
 		inputBox.ignoreFocusOut = true;
 		inputBox.placeholder = localize('createLocalHistoryPlaceholder', "Enter the new name of the local history entry for '{0}'", labelService.getUriBasenameLabel(resource));
 		inputBox.show();
-		inputBox.onDidAccept(async () => {
+		disposables.add(inputBox.onDidAccept(async () => {
 			const entrySource = inputBox.value;
-			inputBox.dispose();
+			disposables.dispose();
 
 			if (entrySource) {
 				await workingCopyHistoryService.addEntry({ resource, source: inputBox.value }, CancellationToken.None);
 			}
-		});
+		}));
 	}
 });
 

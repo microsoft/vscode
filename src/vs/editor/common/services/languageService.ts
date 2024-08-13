@@ -159,5 +159,7 @@ class LanguageSelection implements ILanguageSelection {
 		this.onDidChange = Event.fromObservable(this._value);
 	}
 
-	public get languageId(): string { return this._value.get(); }
+	public get languageId(): string {
+		return this._value.get();
+	}
 }

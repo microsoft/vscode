@@ -35,7 +35,8 @@ import { BracketMatchingController } from 'vs/editor/contrib/bracketMatching/bro
 import { ColorDetector } from 'vs/editor/contrib/colorPicker/browser/colorDetector';
 import { ContextMenuController } from 'vs/editor/contrib/contextmenu/browser/contextmenu';
 import { GotoDefinitionAtPositionEditorContribution } from 'vs/editor/contrib/gotoSymbol/browser/link/goToDefinitionAtPosition';
-import { HoverController } from 'vs/editor/contrib/hover/browser/hoverController';
+import { ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHoverController2';
+import { MarginHoverController } from 'vs/editor/contrib/hover/browser/marginHoverController';
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
 import { ViewportSemanticTokensContribution } from 'vs/editor/contrib/semanticTokens/browser/viewportSemanticTokens';
 import { SmartSelectController } from 'vs/editor/contrib/smartSelect/browser/smartSelect';
@@ -290,7 +291,8 @@ export class CodeBlockPart extends Disposable {
 				ViewportSemanticTokensContribution.ID,
 				BracketMatchingController.ID,
 				SmartSelectController.ID,
-				HoverController.ID,
+				ContentHoverController.ID,
+				MarginHoverController.ID,
 				MessageController.ID,
 				GotoDefinitionAtPositionEditorContribution.ID,
 				ColorDetector.ID
@@ -400,7 +402,8 @@ export class CodeBlockPart extends Disposable {
 	}
 
 	private clearWidgets() {
-		HoverController.get(this.editor)?.hideContentHover();
+		ContentHoverController.get(this.editor)?.hideContentHover();
+		MarginHoverController.get(this.editor)?.hideContentHover();
 	}
 
 	private async updateEditor(data: ICodeBlockData): Promise<void> {
@@ -607,7 +610,8 @@ export class CodeCompareBlockPart extends Disposable {
 				ViewportSemanticTokensContribution.ID,
 				BracketMatchingController.ID,
 				SmartSelectController.ID,
-				HoverController.ID,
+				ContentHoverController.ID,
+				MarginHoverController.ID,
 				GotoDefinitionAtPositionEditorContribution.ID,
 			])
 		};
@@ -717,8 +721,10 @@ export class CodeCompareBlockPart extends Disposable {
 	}
 
 	private clearWidgets() {
-		HoverController.get(this.diffEditor.getOriginalEditor())?.hideContentHover();
-		HoverController.get(this.diffEditor.getModifiedEditor())?.hideContentHover();
+		ContentHoverController.get(this.diffEditor.getOriginalEditor())?.hideContentHover();
+		ContentHoverController.get(this.diffEditor.getModifiedEditor())?.hideContentHover();
+		MarginHoverController.get(this.diffEditor.getOriginalEditor())?.hideContentHover();
+		MarginHoverController.get(this.diffEditor.getModifiedEditor())?.hideContentHover();
 	}
 
 	private async updateEditor(data: ICodeCompareBlockData, token: CancellationToken): Promise<void> {

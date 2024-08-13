@@ -306,46 +306,13 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 		}
 
 		let codeBlockIndex = 0;
-		const renderer = new marked.marked.Renderer();
-		renderer.code = ({ text, lang }: marked.Tokens.Code) => {
-			lang ??= '';
-			this.codeBlockModelCollection.update(this._model.sessionId, model, codeBlockIndex++, { text, languageId: lang });
-			return '';
-		};
-
-		marked.marked.parse(this.ensureFencedCodeBlocksTerminated(content), { renderer });
-	}
-
-	/**
-	 * Marked doesn't consistently render fenced code blocks that aren't terminated.
-	 *
-	 * Try to close them ourselves to workaround this.
-	 */
-	private ensureFencedCodeBlocksTerminated(content: string): string {
-		const lines = content.split('\n');
-
-		let codeBlockState: undefined | { readonly delimiter: string; readonly indent: string };
-		for (let i = 0; i < lines.length; i++) {
-			const line = lines[i];
-
-			if (codeBlockState) {
-				if (new RegExp(`^\\s*${codeBlockState.delimiter}\\s*$`).test(line)) {
-					codeBlockState = undefined;
-				}
-			} else {
-				const match = line.match(/^(\s*)(`{3,}|~{3,}|)/);
-				if (match) {
-					codeBlockState = { delimiter: match[2], indent: match[1] };
-				}
+		marked.walkTokens(marked.lexer(content), token => {
+			if (token.type === 'code') {
+				const lang = token.lang || '';
+				const text = token.text;
+				this.codeBlockModelCollection.update(this._model.sessionId, model, codeBlockIndex++, { text, languageId: lang });
 			}
-		}
-
-		// If we're still in a code block at the end of the content, add a closing fence
-		if (codeBlockState) {
-			lines.push(codeBlockState.indent + codeBlockState.delimiter);
-		}
-
-		return lines.join('\n');
+		});
 	}
 }
 

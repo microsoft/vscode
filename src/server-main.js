@@ -11,6 +11,10 @@
  * @import { IServerAPI } from './vs/server/node/remoteExtensionHostAgentServer'
  */
 
+// Keep bootstrap-amd.js from redefining 'fs'.
+// TODO@esm this needs to be revisited in ESM
+delete process.env['ELECTRON_RUN_AS_NODE'];
+
 // ESM-comment-begin
 const path = require('path');
 const http = require('http');
@@ -279,7 +283,6 @@ async function findFreePort(host, start, end) {
  */
 function loadCode(nlsConfiguration) {
 	return new Promise((resolve, reject) => {
-		delete process.env['ELECTRON_RUN_AS_NODE']; // Keep bootstrap-amd.js from redefining 'fs'.
 
 		/** @type {INLSConfiguration} */
 		process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfiguration); // required for `bootstrap-amd` to pick up NLS messages

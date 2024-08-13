@@ -261,6 +261,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return null;
 		}));
 	}
+	getLocationData(): IChatLocationData | undefined {
+		return this._location.resolveData?.();
+	}
 
 	private _lastSelectedAgent: IChatAgentData | undefined;
 	set lastSelectedAgent(agent: IChatAgentData | undefined) {
@@ -474,7 +477,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._register(this.renderer.onDidClickRerunWithAgentOrCommandDetection(item => {
 			const request = this.chatService.getSession(item.sessionId)?.getRequests().find(candidate => candidate.id === item.requestId);
 			if (request) {
-				this.chatService.resendRequest(request, { noCommandDetection: true, attempt: request.attempt, location: this.location }).catch(e => this.logService.error('FAILED to rerun request', e));
+				this.chatService.resendRequest(request, {
+					noCommandDetection: true, attempt: request.attempt + 1, location: this.location, locationData: this._location.resolveData?.(),
+				}).catch(e => this.logService.error('FAILED to rerun request', e));
 			}
 		}));
 

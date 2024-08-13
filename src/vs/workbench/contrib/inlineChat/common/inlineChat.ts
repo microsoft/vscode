@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { diffInserted, diffRemoved, editorWidgetBackground, editorWidgetBorder, editorWidgetForeground, focusBorder, inputBackground, inputPlaceholderForeground, registerColor, transparent, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 
@@ -17,8 +17,7 @@ export const enum InlineChatConfigKeys {
 	FinishOnType = 'inlineChat.finishOnType',
 	AcceptedOrDiscardBeforeSave = 'inlineChat.acceptedOrDiscardBeforeSave',
 	HoldToSpeech = 'inlineChat.holdToSpeech',
-	AccessibleDiffView = 'inlineChat.accessibleDiffView',
-	ExpTextButtons = 'inlineChat.experimental.textButtons'
+	AccessibleDiffView = 'inlineChat.accessibleDiffView'
 }
 
 export const enum EditMode {
@@ -65,13 +64,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 				localize('accessibleDiffView.on', "The accessible diff viewer is always enabled."),
 				localize('accessibleDiffView.off', "The accessible diff viewer is never enabled."),
 			],
-		},
-		[InlineChatConfigKeys.ExpTextButtons]: {
-			description: localize('txtButtons', "Whether to use textual buttons."),
-			default: false,
-			type: 'boolean',
-			tags: ['experimental']
-		},
+		}
 	}
 });
 
@@ -106,8 +99,6 @@ export const CTX_INLINE_CHAT_EDIT_MODE = new RawContextKey<EditMode>('config.inl
 export const CTX_INLINE_CHAT_REQUEST_IN_PROGRESS = new RawContextKey<boolean>('inlineChatRequestInProgress', false, localize('inlineChatRequestInProgress', "Whether an inline chat request is currently in progress"));
 export const CTX_INLINE_CHAT_RESPONSE_TYPE = new RawContextKey<InlineChatResponseType>('inlineChatResponseType', InlineChatResponseType.None, localize('inlineChatResponseTypes', "What type was the responses have been receieved, nothing yet, just messages, or messaged and local edits"));
 
-export const CTX_INLINE_CHAT_CONFIG_TXT_BTNS = ContextKeyExpr.equals(`config.${[InlineChatConfigKeys.ExpTextButtons]}`, true);
-
 // --- (selected) action identifier
 
 export const ACTION_ACCEPT_CHANGES = 'inlineChat.acceptChanges';
@@ -117,7 +108,6 @@ export const ACTION_TOGGLE_DIFF = 'inlineChat.toggleDiff';
 
 // --- menus
 
-export const MENU_INLINE_CHAT_EXECUTE = MenuId.for('inlineChat.execute');
 export const MENU_INLINE_CHAT_CONTENT_STATUS = MenuId.for('inlineChat.content.status');
 export const MENU_INLINE_CHAT_WIDGET_STATUS = MenuId.for('inlineChatWidget.status');
 
