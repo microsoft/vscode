@@ -11,11 +11,11 @@ import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { DiffElementCellViewModelBase, DiffElementPlaceholderViewModel, IDiffElementViewModelBase, SideBySideDiffElementViewModel, SingleSideDiffElementViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
-import { DiffNestedCellViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffNestedCellViewModel';
 import { NotebookDiffEditorEventDispatcher } from 'vs/workbench/contrib/notebook/browser/diff/eventDispatcher';
 import { INotebookDiffViewModel, INotebookDiffViewModelUpdateEvent } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { INotebookDiffEditorModel, INotebookDiffResult } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { INotebookEditorWorkerService } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerService';
 
 export class NotebookDiffViewModel extends Disposable implements INotebookDiffViewModel {
@@ -34,7 +34,8 @@ export class NotebookDiffViewModel extends Disposable implements INotebookDiffVi
 		private readonly instantiationService: IInstantiationService,
 		private readonly configurationService: IConfigurationService,
 		private readonly eventDispatcher: NotebookDiffEditorEventDispatcher,
-		private readonly fontInfo?: FontInfo
+		private readonly notebookService: INotebookService,
+		private readonly fontInfo?: FontInfo,
 	) {
 		super();
 	}
@@ -71,7 +72,7 @@ export class NotebookDiffViewModel extends Disposable implements INotebookDiffVi
 	}
 
 	private updateViewModels(cellDiffInfo: CellDiffInfo[]) {
-		const cellViewModels = createDiffViewModels(this.instantiationService, this.configurationService, this.model, this.eventDispatcher, cellDiffInfo, this.fontInfo);
+		const cellViewModels = createDiffViewModels(this.instantiationService, this.configurationService, this.model, this.eventDispatcher, cellDiffInfo, this.fontInfo, this.notebookService);
 		const oldLength = this._items.length;
 		this.clear();
 		this._items.splice(0, oldLength);
@@ -269,7 +270,7 @@ function isEqual(cellDiffInfo: CellDiffInfo[], viewModels: DiffElementCellViewMo
 	return true;
 }
 
-function createDiffViewModels(instantiationService: IInstantiationService, configurationService: IConfigurationService, model: INotebookDiffEditorModel, eventDispatcher: NotebookDiffEditorEventDispatcher, computedCellDiffs: CellDiffInfo[], fontInfo: FontInfo | undefined) {
+function createDiffViewModels(instantiationService: IInstantiationService, configurationService: IConfigurationService, model: INotebookDiffEditorModel, eventDispatcher: NotebookDiffEditorEventDispatcher, computedCellDiffs: CellDiffInfo[], fontInfo: FontInfo | undefined, notebookService: INotebookService) {
 	const originalModel = model.original.notebook;
 	const modifiedModel = model.modified.notebook;
 	const initData = {
@@ -284,11 +285,12 @@ function createDiffViewModels(instantiationService: IInstantiationService, confi
 				return new SingleSideDiffElementViewModel(
 					originalModel,
 					modifiedModel,
-					instantiationService.createInstance(DiffNestedCellViewModel, originalModel.cells[diff.originalCellIndex]),
+					originalModel.cells[diff.originalCellIndex],
 					undefined,
 					'delete',
 					eventDispatcher,
-					initData
+					initData,
+					notebookService
 				);
 			}
 			case 'insert': {
@@ -296,32 +298,35 @@ function createDiffViewModels(instantiationService: IInstantiationService, confi
 					modifiedModel,
 					originalModel,
 					undefined,
-					instantiationService.createInstance(DiffNestedCellViewModel, modifiedModel.cells[diff.modifiedCellIndex]),
+					modifiedModel.cells[diff.modifiedCellIndex],
 					'insert',
 					eventDispatcher,
-					initData
+					initData,
+					notebookService
 				);
 			}
 			case 'modified': {
 				return new SideBySideDiffElementViewModel(
 					model.modified.notebook,
 					model.original.notebook,
-					instantiationService.createInstance(DiffNestedCellViewModel, originalModel.cells[diff.originalCellIndex]),
-					instantiationService.createInstance(DiffNestedCellViewModel, modifiedModel.cells[diff.modifiedCellIndex]),
+					originalModel.cells[diff.originalCellIndex],
+					modifiedModel.cells[diff.modifiedCellIndex],
 					'modified',
 					eventDispatcher,
-					initData
+					initData,
+					notebookService
 				);
 			}
 			case 'unchanged': {
 				return new SideBySideDiffElementViewModel(
 					model.modified.notebook,
 					model.original.notebook,
-					instantiationService.createInstance(DiffNestedCellViewModel, originalModel.cells[diff.originalCellIndex]),
-					instantiationService.createInstance(DiffNestedCellViewModel, modifiedModel.cells[diff.modifiedCellIndex]),
+					originalModel.cells[diff.originalCellIndex],
+					modifiedModel.cells[diff.modifiedCellIndex],
 					'unchanged',
 					eventDispatcher,
-					initData
+					initData,
+					notebookService
 				);
 			}
 		}
