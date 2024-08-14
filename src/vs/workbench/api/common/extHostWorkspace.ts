@@ -547,8 +547,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 			fileEncoding: options.encoding,
 			maxResults: options.maxResults,
 			previewOptions,
-			afterContext: options.afterContext,
-			beforeContext: options.beforeContext,
+			surroundingContext: options.afterContext,
 
 			includePattern: includePattern,
 			excludePattern: excludePattern

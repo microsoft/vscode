@@ -41,6 +41,7 @@ import { IViewBadge } from 'vs/workbench/common/views';
 import { ChatAgentLocation, IChatAgentRequest, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatRequestVariableEntry } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatAgentDetection, IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatProgressMessage, IChatTaskDto, IChatTaskResult, IChatTextEdit, IChatTreeData, IChatUserActionEvent, IChatWarningMessage } from 'vs/workbench/contrib/chat/common/chatService';
+import { IToolData, IToolResult } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
 import * as chatProvider from 'vs/workbench/contrib/chat/common/languageModels';
 import { DebugTreeItemCollapsibleState, IDebugVisualizationTreeItem } from 'vs/workbench/contrib/debug/common/debug';
 import * as notebooks from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -53,7 +54,6 @@ import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/ed
 import { Dto } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import type * as vscode from 'vscode';
 import * as types from './extHostTypes';
-import { IToolData, IToolResult } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
 
 export namespace Command {
 
@@ -1893,7 +1893,7 @@ export namespace TestMessage {
 			actual: message.actualOutput,
 			contextValue: message.contextValue,
 			location: message.location && ({ range: Range.from(message.location.range), uri: message.location.uri }),
-			stackTrace: (message as vscode.TestMessage2).stackTrace?.map(s => ({
+			stackTrace: message.stackTrace?.map(s => ({
 				label: s.label,
 				position: s.position && Position.from(s.position),
 				uri: s.uri && URI.revive(s.uri).toJSON(),
@@ -2507,7 +2507,8 @@ export namespace ChatResponseReferencePart {
 			: URI.isUri(part.iconPath) ? { light: URI.revive(part.iconPath) }
 				: (part.iconPath && 'light' in part.iconPath && 'dark' in part.iconPath && URI.isUri(part.iconPath.light) && URI.isUri(part.iconPath.dark) ? { light: URI.revive(part.iconPath.light), dark: URI.revive(part.iconPath.dark) }
 					: undefined);
-		if ('variableName' in part.value) {
+
+		if (typeof part.value === 'object' && 'variableName' in part.value) {
 			return {
 				kind: 'reference',
 				reference: {
@@ -2523,7 +2524,7 @@ export namespace ChatResponseReferencePart {
 
 		return {
 			kind: 'reference',
-			reference: URI.isUri(part.value) ?
+			reference: URI.isUri(part.value) || typeof part.value === 'string' ?
 				part.value :
 				Location.from(<vscode.Location>part.value),
 			iconPath,
@@ -2538,7 +2539,7 @@ export namespace ChatResponseReferencePart {
 			Location.to(value);
 
 		return new types.ChatResponseReferencePart(
-			'variableName' in value.reference ? {
+			typeof value.reference === 'string' ? value.reference : 'variableName' in value.reference ? {
 				variableName: value.reference.variableName,
 				value: value.reference.value && mapValue(value.reference.value)
 			} :

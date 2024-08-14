@@ -442,7 +442,12 @@ export class ChatService extends Disposable implements IChatService {
 
 		model.removeRequest(request.id, ChatRequestRemovalReason.Resend);
 
-		await this._sendRequestAsync(model, model.sessionId, request.message, attempt, enableCommandDetection, defaultAgent, location, options).responseCompletePromise;
+		const resendOptions: IChatSendRequestOptions = {
+			...options,
+			locationData: request.locationData,
+			attachedContext: request.attachedContext,
+		};
+		await this._sendRequestAsync(model, model.sessionId, request.message, attempt, enableCommandDetection, defaultAgent, location, resendOptions).responseCompletePromise;
 	}
 
 	async sendRequest(sessionId: string, request: string, options?: IChatSendRequestOptions): Promise<IChatSendRequestData | undefined> {
@@ -573,10 +578,10 @@ export class ChatService extends Disposable implements IChatService {
 				if (agentPart || (defaultAgent && !commandPart)) {
 					const prepareChatAgentRequest = async (agent: IChatAgentData, command?: IChatAgentCommand, enableCommandDetection?: boolean, chatRequest?: ChatRequestModel) => {
 						const initVariableData: IChatRequestVariableData = { variables: [] };
-						request = chatRequest ?? model.addRequest(parsedRequest, initVariableData, attempt, agent, command, options?.confirmation);
+						request = chatRequest ?? model.addRequest(parsedRequest, initVariableData, attempt, agent, command, options?.confirmation, options?.locationData, options?.attachedContext);
 
 						// Variables may have changed if the agent and slash command changed, so resolve them again even if we already had a chatRequest
-						const variableData = await this.chatVariablesService.resolveVariables(parsedRequest, options?.attachedContext, model, progressCallback, token);
+						const variableData = await this.chatVariablesService.resolveVariables(parsedRequest, request.attachedContext, model, progressCallback, token);
 						model.updateRequest(request, variableData);
 						const promptTextResult = getPromptText(request.message);
 						const updatedVariableData = updateRanges(variableData, promptTextResult.diff); // TODO bit of a hack
@@ -591,7 +596,7 @@ export class ChatService extends Disposable implements IChatService {
 							enableCommandDetection,
 							attempt,
 							location,
-							locationData: options?.locationData,
+							locationData: request.locationData,
 							acceptedConfirmationData: options?.acceptedConfirmationData,
 							rejectedConfirmationData: options?.rejectedConfirmationData,
 						} satisfies IChatAgentRequest;
@@ -599,7 +604,7 @@ export class ChatService extends Disposable implements IChatService {
 
 					let detectedAgent: IChatAgentData | undefined;
 					let detectedCommand: IChatAgentCommand | undefined;
-					if (this.configurationService.getValue('chat.experimental.detectParticipant.enabled') && !agentPart && !commandPart && enableCommandDetection) {
+					if (this.configurationService.getValue('chat.experimental.detectParticipant.enabled') !== false && this.chatAgentService.hasChatParticipantDetectionProviders() && !agentPart && !commandPart && enableCommandDetection) {
 						// We have no agent or command to scope history with, pass the full history to the participant detection provider
 						const defaultAgentHistory = getHistoryEntriesFromModel(model, defaultAgent.id);
 

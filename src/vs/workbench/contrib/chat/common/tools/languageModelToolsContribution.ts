@@ -30,7 +30,7 @@ const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 	extensionPoint: 'languageModelTools',
 	activationEventsGenerator: (contributions: IRawToolContribution[], result) => {
 		for (const contrib of contributions) {
-			result.push(`onLanguageModelTool:${contrib.name}`);
+			result.push(`onLanguageModelTool:${contrib.id}`);
 		}
 	},
 	jsonSchema: {
