@@ -58,7 +58,7 @@ export interface RelativePattern {
 	/**
 	 * A base file path to which this pattern will be matched against relatively.
 	 */
-	base: string;
+	baseUri: URI;
 
 	/**
 	 * A file glob pattern like `*.{ts,js}` that will be matched on file paths

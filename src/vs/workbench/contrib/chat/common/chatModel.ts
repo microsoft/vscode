@@ -19,9 +19,9 @@ import { TextEdit } from 'vs/editor/common/languages';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService, reviveSerializedAgent } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { ChatRequestTextPart, IParsedChatRequest, getPromptText, reviveParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { ChatAgentVoteDirection, IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatProgress, IChatProgressMessage, IChatResponseProgressFileTreeData, IChatTask, IChatTextEdit, IChatTreeData, IChatUsedContext, IChatWarningMessage, isIUsedContext } from 'vs/workbench/contrib/chat/common/chatService';
+import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService, reviveSerializedAgent } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
+import { ChatAgentVoteDirection, IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatProgress, IChatProgressMessage, IChatResponseProgressFileTreeData, IChatTask, IChatTextEdit, IChatTreeData, IChatUsedContext, IChatWarningMessage, isIUsedContext } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
 
 export interface IChatRequestVariableEntry {
@@ -53,6 +53,8 @@ export interface IChatRequestModel {
 	readonly attempt: number;
 	readonly variableData: IChatRequestVariableData;
 	readonly confirmation?: string;
+	readonly locationData?: IChatLocationData;
+	readonly attachedContext?: IChatRequestVariableEntry[];
 	readonly response?: IChatResponseModel;
 }
 
@@ -149,12 +151,22 @@ export class ChatRequestModel implements IChatRequestModel {
 		return this._confirmation;
 	}
 
+	public get locationData(): IChatLocationData | undefined {
+		return this._locationData;
+	}
+
+	public get attachedContext(): IChatRequestVariableEntry[] | undefined {
+		return this._attachedContext;
+	}
+
 	constructor(
 		private _session: ChatModel,
 		public readonly message: IParsedChatRequest,
 		private _variableData: IChatRequestVariableData,
 		private _attempt: number = 0,
-		private _confirmation?: string
+		private _confirmation?: string,
+		private _locationData?: IChatLocationData,
+		private _attachedContext?: IChatRequestVariableEntry[]
 	) {
 		this.id = 'request_' + ChatRequestModel.nextId++;
 	}
@@ -872,8 +884,8 @@ export class ChatModel extends Disposable implements IChatModel {
 		return this._requests;
 	}
 
-	addRequest(message: IParsedChatRequest, variableData: IChatRequestVariableData, attempt: number, chatAgent?: IChatAgentData, slashCommand?: IChatAgentCommand, confirmation?: string): ChatRequestModel {
-		const request = new ChatRequestModel(this, message, variableData, attempt, confirmation);
+	addRequest(message: IParsedChatRequest, variableData: IChatRequestVariableData, attempt: number, chatAgent?: IChatAgentData, slashCommand?: IChatAgentCommand, confirmation?: string, locationData?: IChatLocationData, attachments?: IChatRequestVariableEntry[]): ChatRequestModel {
+		const request = new ChatRequestModel(this, message, variableData, attempt, confirmation, locationData, attachments);
 		request.response = new ChatResponseModel([], this, chatAgent, slashCommand, request.id);
 
 		this._requests.push(request);
@@ -1008,6 +1020,9 @@ export class ChatModel extends Disposable implements IChatModel {
 					...r.message,
 					parts: r.message.parts.map(p => p && 'toJSON' in p ? (p.toJSON as Function)() : p)
 				};
+				const agent = r.response?.agent;
+				const agentJson = agent && 'toJSON' in agent ? (agent.toJSON as Function)() :
+					agent ? { ...agent } : undefined;
 				return {
 					message,
 					variableData: r.variableData,
@@ -1027,7 +1042,7 @@ export class ChatModel extends Disposable implements IChatModel {
 					followups: r.response?.followups,
 					isCanceled: r.response?.isCanceled,
 					vote: r.response?.vote,
-					agent: r.response?.agent ? { ...r.response.agent } : undefined,
+					agent: agentJson,
 					slashCommand: r.response?.slashCommand,
 					usedContext: r.response?.usedContext,
 					contentReferences: r.response?.contentReferences,
@@ -1088,35 +1103,6 @@ export class ChatWelcomeMessageModel implements IChatWelcomeMessageModel {
 	public get avatarIcon(): ThemeIcon | undefined {
 		return this.chatAgentService.getDefaultAgent(ChatAgentLocation.Panel)?.metadata.themeIcon;
 	}
-}
-
-export function getHistoryEntriesFromModel(model: IChatModel, forAgentId: string | undefined): IChatAgentHistoryEntry[] {
-	const history: IChatAgentHistoryEntry[] = [];
-	for (const request of model.getRequests()) {
-		if (!request.response) {
-			continue;
-		}
-
-		if (forAgentId && forAgentId !== request.response.agent?.id) {
-			// An agent only gets to see requests that were sent to this agent.
-			// The default agent (the undefined case) gets to see all of them.
-			continue;
-		}
-
-		const promptTextResult = getPromptText(request.message);
-		const historyRequest: IChatAgentRequest = {
-			sessionId: model.sessionId,
-			requestId: request.id,
-			agentId: request.response.agent?.id ?? '',
-			message: promptTextResult.message,
-			command: request.response.slashCommand?.name,
-			variables: updateRanges(request.variableData, promptTextResult.diff), // TODO bit of a hack
-			location: ChatAgentLocation.Panel
-		};
-		history.push({ request: historyRequest, response: request.response.response.value, result: request.response.result ?? {} });
-	}
-
-	return history;
 }
 
 export function updateRanges(variableData: IChatRequestVariableData, diff: number): IChatRequestVariableData {

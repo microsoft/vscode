@@ -29,7 +29,7 @@ import { getHighlightDecorationOptions } from 'vs/editor/contrib/wordHighlighter
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { Schemas } from 'vs/base/common/network';
+import { matchesScheme, Schemas } from 'vs/base/common/network';
 import { ResourceMap } from 'vs/base/common/map';
 import { score } from 'vs/editor/common/languageSelector';
 import { isEqual } from 'vs/base/common/resources';
@@ -260,7 +260,9 @@ class WordHighlighter {
 			}
 		}));
 		this.toUnhook.add(editor.onDidChangeModelContent((e) => {
-			this._stopAll();
+			if (!matchesScheme(this.model.uri, 'output')) {
+				this._stopAll();
+			}
 		}));
 		this.toUnhook.add(editor.onDidChangeModel((e) => {
 			if (!e.newModelUrl && e.oldModelUrl) {
@@ -316,6 +318,8 @@ class WordHighlighter {
 		if (this.occurrencesHighlight === 'off') {
 			return;
 		}
+
+		this.runDelayer.cancel();
 		this._run();
 	}
 
@@ -887,7 +891,7 @@ class TriggerWordHighlightAction extends EditorAction {
 			id: 'editor.action.wordHighlight.trigger',
 			label: nls.localize('wordHighlight.trigger.label', "Trigger Symbol Highlight"),
 			alias: 'Trigger Symbol Highlight',
-			precondition: ctxHasWordHighlights.toNegated(),
+			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: 0,

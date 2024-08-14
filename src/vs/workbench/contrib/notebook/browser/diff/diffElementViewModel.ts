@@ -17,8 +17,10 @@ import { NotebookDiffEditorEventDispatcher, NotebookDiffViewEventType } from 'vs
 import { CellDiffViewModelLayoutChangeEvent, DIFF_CELL_MARGIN, DiffSide, IDiffElementLayoutInfo } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
 import { CellLayoutState, IGenericCellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
+import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { ICellOutput, INotebookTextModel, IOutputDto, IOutputItemDto, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 
 export enum PropertyFoldingState {
 	Expanded,
@@ -183,20 +185,25 @@ export abstract class DiffElementCellViewModelBase extends DiffElementViewModelB
 	private _sourceEditorViewState: editorCommon.ICodeEditorViewState | editorCommon.IDiffEditorViewState | null = null;
 	private _outputEditorViewState: editorCommon.ICodeEditorViewState | editorCommon.IDiffEditorViewState | null = null;
 	private _metadataEditorViewState: editorCommon.ICodeEditorViewState | editorCommon.IDiffEditorViewState | null = null;
+	public readonly original: DiffNestedCellViewModel | undefined;
 
+	public readonly modified: DiffNestedCellViewModel | undefined;
 	constructor(
 		mainDocumentTextModel: INotebookTextModel,
-		readonly original: DiffNestedCellViewModel | undefined,
-		readonly modified: DiffNestedCellViewModel | undefined,
+		original: NotebookCellTextModel | undefined,
+		modified: NotebookCellTextModel | undefined,
 		readonly type: 'unchanged' | 'insert' | 'delete' | 'modified',
 		editorEventDispatcher: NotebookDiffEditorEventDispatcher,
 		initData: {
 			metadataStatusHeight: number;
 			outputStatusHeight: number;
 			fontInfo: FontInfo | undefined;
-		}
+		},
+		notebookService: INotebookService
 	) {
 		super(mainDocumentTextModel, editorEventDispatcher, initData);
+		this.original = original ? this._register(new DiffNestedCellViewModel(original, notebookService)) : undefined;
+		this.modified = modified ? this._register(new DiffNestedCellViewModel(modified, notebookService)) : undefined;
 		const editorHeight = this._estimateEditorHeight(initData.fontInfo);
 		const cellStatusHeight = 25;
 		this._layoutInfo = {
@@ -457,22 +464,23 @@ export class SideBySideDiffElementViewModel extends DiffElementCellViewModelBase
 		return this.mainDocumentTextModel;
 	}
 
-	override readonly original: DiffNestedCellViewModel;
-	override readonly modified: DiffNestedCellViewModel;
+	override readonly original!: DiffNestedCellViewModel;
+	override readonly modified!: DiffNestedCellViewModel;
 	override readonly type: 'unchanged' | 'modified';
 
 	constructor(
 		mainDocumentTextModel: NotebookTextModel,
 		readonly otherDocumentTextModel: NotebookTextModel,
-		original: DiffNestedCellViewModel,
-		modified: DiffNestedCellViewModel,
+		original: NotebookCellTextModel,
+		modified: NotebookCellTextModel,
 		type: 'unchanged' | 'modified',
 		editorEventDispatcher: NotebookDiffEditorEventDispatcher,
 		initData: {
 			metadataStatusHeight: number;
 			outputStatusHeight: number;
 			fontInfo: FontInfo | undefined;
-		}
+		},
+		notebookService: INotebookService
 	) {
 		super(
 			mainDocumentTextModel,
@@ -480,13 +488,12 @@ export class SideBySideDiffElementViewModel extends DiffElementCellViewModelBase
 			modified,
 			type,
 			editorEventDispatcher,
-			initData);
+			initData,
+			notebookService);
 
-		this.original = original;
-		this.modified = modified;
 		this.type = type;
 
-		this.cellFoldingState = modified.textModel.getValue() !== original.textModel.getValue() ? PropertyFoldingState.Expanded : PropertyFoldingState.Collapsed;
+		this.cellFoldingState = this.modified.textModel.getValue() !== this.original.textModel.getValue() ? PropertyFoldingState.Expanded : PropertyFoldingState.Collapsed;
 		this.metadataFoldingState = PropertyFoldingState.Collapsed;
 		this.outputFoldingState = PropertyFoldingState.Collapsed;
 
@@ -634,17 +641,18 @@ export class SingleSideDiffElementViewModel extends DiffElementCellViewModelBase
 	constructor(
 		mainDocumentTextModel: NotebookTextModel,
 		readonly otherDocumentTextModel: NotebookTextModel,
-		original: DiffNestedCellViewModel | undefined,
-		modified: DiffNestedCellViewModel | undefined,
+		original: NotebookCellTextModel | undefined,
+		modified: NotebookCellTextModel | undefined,
 		type: 'insert' | 'delete',
 		editorEventDispatcher: NotebookDiffEditorEventDispatcher,
 		initData: {
 			metadataStatusHeight: number;
 			outputStatusHeight: number;
 			fontInfo: FontInfo | undefined;
-		}
+		},
+		notebookService: INotebookService
 	) {
-		super(mainDocumentTextModel, original, modified, type, editorEventDispatcher, initData);
+		super(mainDocumentTextModel, original, modified, type, editorEventDispatcher, initData, notebookService);
 		this.type = type;
 
 		this._register(this.cellViewModel.onDidChangeOutputLayout(() => {

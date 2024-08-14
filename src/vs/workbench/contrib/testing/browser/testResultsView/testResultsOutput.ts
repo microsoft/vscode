@@ -65,7 +65,7 @@ export interface IPeekOutputRenderer extends IDisposable {
 	/** Updates the displayed test. Should clear if it cannot display the test. */
 	update(subject: InspectSubject): Promise<boolean>;
 	/** Recalculate content layout. Returns the height it should be rendered at. */
-	layout(dimension: dom.IDimension): number | undefined;
+	layout(dimension: dom.IDimension, hasMultipleFrames: boolean): number | undefined;
 	/** Dispose the content provider. */
 	dispose(): void;
 }
@@ -172,7 +172,7 @@ export class DiffContentProvider extends Disposable implements IPeekOutputRender
 		this.widget.clear();
 	}
 
-	public layout(dimensions: dom.IDimension) {
+	public layout(dimensions: dom.IDimension, hasMultipleFrames: boolean) {
 		this.dimension = dimensions;
 		const editor = this.widget.value;
 		if (!editor) {
@@ -180,6 +180,10 @@ export class DiffContentProvider extends Disposable implements IPeekOutputRender
 		}
 
 		editor.layout(dimensions);
+		if (!hasMultipleFrames) {
+			return dimensions.height;
+		}
+
 		const height = Math.min(10000, Math.max(editor.getOriginalEditor().getContentHeight(), editor.getModifiedEditor().getContentHeight()));
 		editor.layout({ height, width: dimensions.width });
 		return height;
@@ -306,7 +310,7 @@ export class PlainTextMessagePeek extends Disposable implements IPeekOutputRende
 		this.model.clear();
 	}
 
-	public layout(dimensions: dom.IDimension) {
+	public layout(dimensions: dom.IDimension, hasMultipleFrames: boolean) {
 		this.dimension = dimensions;
 		const editor = this.widget.value;
 		if (!editor) {
@@ -314,6 +318,10 @@ export class PlainTextMessagePeek extends Disposable implements IPeekOutputRende
 		}
 
 		editor.layout(dimensions);
+		if (!hasMultipleFrames) {
+			return dimensions.height;
+		}
+
 		const height = editor.getContentHeight();
 		editor.layout({ height, width: dimensions.width });
 		return height;

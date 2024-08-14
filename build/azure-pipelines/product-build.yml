@@ -100,6 +100,10 @@ parameters:
     displayName: "Skip tests"
     type: boolean
     default: false
+  - name: VSCODE_BUILD_ESM # TODO@bpasero remove me once ESM is shipped
+    displayName: "️❗ Build as ESM (!FOR TESTING ONLY!) ️❗"
+    type: boolean
+    default: false
 
 variables:
   - name: VSCODE_PRIVATE_BUILD
@@ -110,6 +114,8 @@ variables:
     value: ${{ parameters.CARGO_REGISTRY }}
   - name: VSCODE_QUALITY
     value: ${{ parameters.VSCODE_QUALITY }}
+  - name: VSCODE_BUILD_ESM
+    value: ${{ parameters.VSCODE_BUILD_ESM }}
   - name: VSCODE_BUILD_STAGE_WINDOWS
     value: ${{ or(eq(parameters.VSCODE_BUILD_WIN32, true), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}
   - name: VSCODE_BUILD_STAGE_LINUX
@@ -217,6 +223,7 @@ extends:
               - template: build/azure-pipelines/product-compile.yml@self
                 parameters:
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_BUILD_ESM: ${{ variables.VSCODE_BUILD_ESM }}
 
       - ${{ if or(eq(parameters.VSCODE_BUILD_LINUX, true),eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true),eq(parameters.VSCODE_BUILD_LINUX_ARM64, true),eq(parameters.VSCODE_BUILD_ALPINE, true),eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true),eq(parameters.VSCODE_BUILD_MACOS, true),eq(parameters.VSCODE_BUILD_MACOS_ARM64, true),eq(parameters.VSCODE_BUILD_WIN32, true),eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}:
         - stage: CompileCLI

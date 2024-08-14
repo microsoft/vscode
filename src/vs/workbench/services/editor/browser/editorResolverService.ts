@@ -5,7 +5,7 @@
 
 import * as glob from 'vs/base/common/glob';
 import { distinct, firstOrDefault, insert } from 'vs/base/common/arrays';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { basename, extname, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -716,7 +716,8 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		const editorPicks = this.mapEditorsToQuickPickEntry(resource, showDefaultPicker);
 
 		// Create the editor picker
-		const editorPicker = this.quickInputService.createQuickPick<IQuickPickItem>({ useSeparators: true });
+		const disposables = new DisposableStore();
+		const editorPicker = disposables.add(this.quickInputService.createQuickPick<IQuickPickItem>({ useSeparators: true }));
 		const placeHolderMessage = showDefaultPicker ?
 			localize('promptOpenWith.updateDefaultPlaceHolder', "Select new default editor for '{0}'", `*${extname(resource)}`) :
 			localize('promptOpenWith.placeHolder', "Select editor for '{0}'", basename(resource));
@@ -730,7 +731,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 
 		// Prompt the user to select an editor
 		const picked: EditorPick | undefined = await new Promise<EditorPick | undefined>(resolve => {
-			editorPicker.onDidAccept(e => {
+			disposables.add(editorPicker.onDidAccept(e => {
 				let result: EditorPick | undefined = undefined;
 
 				if (editorPicker.selectedItems.length === 1) {
@@ -747,11 +748,14 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 				}
 
 				resolve(result);
-			});
+			}));
 
-			editorPicker.onDidHide(() => resolve(undefined));
+			disposables.add(editorPicker.onDidHide(() => {
+				disposables.dispose();
+				resolve(undefined);
+			}));
 
-			editorPicker.onDidTriggerItemButton(e => {
+			disposables.add(editorPicker.onDidTriggerItemButton(e => {
 
 				// Trigger opening and close picker
 				resolve({ item: e.item, openInBackground: false });
@@ -760,7 +764,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 				if (resource && e.item && e.item.id) {
 					this.updateUserAssociations(`*${extname(resource)}`, e.item.id,);
 				}
-			});
+			}));
 
 			editorPicker.show();
 		});

@@ -35,7 +35,7 @@ import { EmptyResponse, ErrorResponse, ReplyResponse, Session, SessionPrompt, St
 import { IInlineChatSessionService } from './inlineChatSessionService';
 import { EditModeStrategy, IEditObserver, LiveStrategy, PreviewStrategy, ProgressingEditsOptions } from 'vs/workbench/contrib/inlineChat/browser/inlineChatStrategies';
 import { InlineChatZoneWidget } from './inlineChatZoneWidget';
-import { CTX_INLINE_CHAT_REQUEST_IN_PROGRESS, CTX_INLINE_CHAT_RESPONSE_TYPE, CTX_INLINE_CHAT_USER_DID_EDIT, CTX_INLINE_CHAT_VISIBLE, EditMode, INLINE_CHAT_ID, InlineChatConfigKeys, InlineChatResponseType } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { CTX_INLINE_CHAT_EDITING, CTX_INLINE_CHAT_REQUEST_IN_PROGRESS, CTX_INLINE_CHAT_RESPONSE_TYPE, CTX_INLINE_CHAT_USER_DID_EDIT, CTX_INLINE_CHAT_VISIBLE, EditMode, INLINE_CHAT_ID, InlineChatConfigKeys, InlineChatResponseType } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IValidEditOperation } from 'vs/editor/common/model';
 import { InlineChatContentWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatContentWidget';
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
@@ -108,6 +108,7 @@ export class InlineChatController implements IEditorContribution {
 	private readonly _ui: Lazy<{ content: InlineChatContentWidget; zone: InlineChatZoneWidget }>;
 
 	private readonly _ctxVisible: IContextKey<boolean>;
+	private readonly _ctxEditing: IContextKey<boolean>;
 	private readonly _ctxResponseType: IContextKey<undefined | InlineChatResponseType>;
 	private readonly _ctxUserDidEdit: IContextKey<boolean>;
 	private readonly _ctxRequestInProgress: IContextKey<boolean>;
@@ -144,6 +145,7 @@ export class InlineChatController implements IEditorContribution {
 		@INotebookEditorService notebookEditorService: INotebookEditorService,
 	) {
 		this._ctxVisible = CTX_INLINE_CHAT_VISIBLE.bindTo(contextKeyService);
+		this._ctxEditing = CTX_INLINE_CHAT_EDITING.bindTo(contextKeyService);
 		this._ctxUserDidEdit = CTX_INLINE_CHAT_USER_DID_EDIT.bindTo(contextKeyService);
 		this._ctxResponseType = CTX_INLINE_CHAT_RESPONSE_TYPE.bindTo(contextKeyService);
 		this._ctxRequestInProgress = CTX_INLINE_CHAT_REQUEST_IN_PROGRESS.bindTo(contextKeyService);
@@ -381,13 +383,18 @@ export class InlineChatController implements IEditorContribution {
 		this._sessionStore.clear();
 
 		const wholeRangeDecoration = this._editor.createDecorationsCollection();
-		const updateWholeRangeDecoration = () => {
+		const handleWholeRangeChange = () => {
 			const newDecorations = this._strategy?.getWholeRangeDecoration() ?? [];
 			wholeRangeDecoration.set(newDecorations);
+
+			this._ctxEditing.set(!this._session?.wholeRange.trackedInitialRange.isEmpty());
 		};
-		this._sessionStore.add(toDisposable(() => wholeRangeDecoration.clear()));
-		this._sessionStore.add(this._session.wholeRange.onDidChange(updateWholeRangeDecoration));
-		updateWholeRangeDecoration();
+		this._sessionStore.add(toDisposable(() => {
+			wholeRangeDecoration.clear();
+			this._ctxEditing.reset();
+		}));
+		this._sessionStore.add(this._session.wholeRange.onDidChange(handleWholeRangeChange));
+		handleWholeRangeChange();
 
 		this._sessionStore.add(this._ui.value.content.onDidBlur(() => this.cancelSession()));
 
