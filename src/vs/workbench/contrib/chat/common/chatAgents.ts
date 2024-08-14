@@ -506,6 +506,10 @@ export class MergedChatAgent implements IChatAgent {
 
 		return undefined;
 	}
+
+	toJSON(): IChatAgentData {
+		return this.data;
+	}
 }
 
 export const IChatAgentNameService = createDecorator<IChatAgentNameService>('chatAgentNameService');
