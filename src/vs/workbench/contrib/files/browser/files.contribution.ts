@@ -367,6 +367,11 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('files.simpleDialog.enable', "Enables the simple file dialog for opening and saving files and folders. The simple file dialog replaces the system file dialog when enabled."),
 			'default': false
 		},
+		'files.simpleDialog.currentDirectory': {
+			'type': 'boolean',
+			'description': nls.localize('files.simpleDialog.currentDirectory', "Open the current directory instead of the parent directory when enabled."),
+			'default': false
+		},
 		'files.participants.timeout': {
 			type: 'number',
 			default: 60000,
