@@ -1,57 +1,64 @@
-# Visual Studio Code - Open Source ("Code - OSS")
+# OpenVSCode Web Server
 
-[![Feature Requests](https://img.shields.io/github/issues/microsoft/vscode/feature-request.svg)](https://github.com/microsoft/vscode/issues?q=is%3Aopen+is%3Aissue+label%3Afeature-request+sort%3Areactions-%2B1-desc)
-[![Bugs](https://img.shields.io/github/issues/microsoft/vscode/bug.svg)](https://github.com/microsoft/vscode/issues?utf8=✓&q=is%3Aissue+is%3Aopen+label%3Abug)
-[![Gitter](https://img.shields.io/badge/chat-on%20gitter-yellow.svg)](https://gitter.im/Microsoft/vscode)
+[![GitHub](https://img.shields.io/github/license/runcode-io/openvscode-web-server)](https://github.com/runcode-io/openvscode-web-server/blob/main/LICENSE.txt)
 
-## The Repository
+## What is this?
 
-This repository ("`Code - OSS`") is where we (Microsoft) develop the [Visual Studio Code](https://code.visualstudio.com) product together with the community. Not only do we work on code and issues here, we also publish our [roadmap](https://github.com/microsoft/vscode/wiki/Roadmap), [monthly iteration plans](https://github.com/microsoft/vscode/wiki/Iteration-Plans), and our [endgame plans](https://github.com/microsoft/vscode/wiki/Running-the-Endgame). This source code is available to everyone under the standard [MIT license](https://github.com/microsoft/vscode/blob/main/LICENSE.txt).
+This project provides a version of VS Code that runs as a server on a remote machine, accessible through a modern web browser. It utilizes the same architecture used by [RunCode](https://runcode.io) to deliver scalable remote development environments.
 
-## Visual Studio Code
+## Why?
 
-<p align="center">
-  <img alt="VS Code in action" src="https://user-images.githubusercontent.com/35271042/118224532-3842c400-b438-11eb-923d-a5f66fa6785a.png">
-</p>
+VS Code was originally developed as a desktop IDE using web technologies. As remote development gained popularity, the community began adapting it for remote access via web browsers. However, these adaptations were often complex and error-prone due to the extensive changes required across VS Code's large codebase.
 
-[Visual Studio Code](https://code.visualstudio.com) is a distribution of the `Code - OSS` repository with Microsoft-specific customizations released under a traditional [Microsoft product license](https://code.visualstudio.com/License/).
+In 2019, the VS Code team began restructuring its architecture to natively support a browser-based environment. While platforms like Gitpod and GitHub adopted this architecture, the key components remained closed-source until recently. Consequently, many developers continued to use the older, more difficult methods.
 
-[Visual Studio Code](https://code.visualstudio.com) combines the simplicity of a code editor with what developers need for their core edit-build-debug cycle. It provides comprehensive code editing, navigation, and understanding support along with lightweight debugging, a rich extensibility model, and lightweight integration with existing tools.
+At RunCode, we've frequently been asked about our approach. To support the community, we're sharing the minimal set of changes required to utilize the latest version of VS Code, ensuring easier upgrades and reduced maintenance.
 
-Visual Studio Code is updated monthly with new features and bug fixes. You can download it for Windows, macOS, and Linux on [Visual Studio Code's website](https://code.visualstudio.com/Download). To get the latest releases every day, install the [Insiders build](https://code.visualstudio.com/insiders).
+## Getting started
 
-## Contributing
+### Docker
 
-There are many ways in which you can participate in this project, for example:
+- Start the server:
+```bash
+docker run -it --init -p 8000:8000 -v "$(pwd):/home/runcode/workspace:cached" runcode/runcode-server
+```
+- Visit the URL printed in your terminal.
 
-* [Submit bugs and feature requests](https://github.com/microsoft/vscode/issues), and help us verify as they are checked in
-* Review [source code changes](https://github.com/microsoft/vscode/pulls)
-* Review the [documentation](https://github.com/microsoft/vscode-docs) and make pull requests for anything from typos to additional and new content
 
-If you are interested in fixing issues and contributing directly to the code base,
-please see the document [How to Contribute](https://github.com/microsoft/vscode/wiki/How-to-Contribute), which covers the following:
 
-* [How to build and run from source](https://github.com/microsoft/vscode/wiki/How-to-Contribute)
-* [The development workflow, including debugging and running tests](https://github.com/microsoft/vscode/wiki/How-to-Contribute#debugging)
-* [Coding guidelines](https://github.com/microsoft/vscode/wiki/Coding-Guidelines)
-* [Submitting pull requests](https://github.com/microsoft/vscode/wiki/How-to-Contribute#pull-requests)
-* [Finding an issue to work on](https://github.com/microsoft/vscode/wiki/How-to-Contribute#where-to-contribute)
-* [Contributing to translations](https://aka.ms/vscodeloc)
+#### Custom Environment
+- For additional possibilities, please consult the `Dockerfile` for OpenVSCode Web Server at https://github.com/runcode-io/runcode-releases/
 
-## Feedback
 
-* Ask a question on [Stack Overflow](https://stackoverflow.com/questions/tagged/vscode)
-* [Request a new feature](CONTRIBUTING.md)
-* Upvote [popular feature requests](https://github.com/microsoft/vscode/issues?q=is%3Aopen+is%3Aissue+label%3Afeature-request+sort%3Areactions-%2B1-desc)
-* [File an issue](https://github.com/microsoft/vscode/issues)
-* Connect with the extension author community on [GitHub Discussions](https://github.com/microsoft/vscode-discussions/discussions) or [Slack](https://aka.ms/vscode-dev-community)
-* Follow [@code](https://twitter.com/code) and let us know what you think!
+### Web Server
 
-See our [wiki](https://github.com/microsoft/vscode/wiki/Feedback-Channels) for a description of each of these channels and information on some other available community-driven channels.
+- [Download the latest release](https://github.com/runcode-io/openvscode-web-server/releases/latest)
+- Untar and run the server
+	```bash
+	unzip openvscode-web-server-v${OPENVSCODE_SERVER_VERSION}.zip
+	cd vscode-reh-web-linux-x64
+	./bin/runcode-server # you can add arguments here, use --help to list all of the possible options
+	```
 
-## Related Projects
+  From the possible entrypoint arguments, the most notable ones are
+	- `--port` - the port number to start the server on, this is 8000 by default
+	- `--without-connection-token` - used by default in the docker image
+	- `--connection-token` & `--connection-token-file` for securing access to the IDE, you can read more about it in [Securing access to your IDE](#securing-access-to-your-ide).
+	-  `--host` - determines the host the server is listening on. It defaults to `localhost`, so for accessing remotely it's a good idea to add `--host 0.0.0.0` to your launch arguments.
 
-Many of the core components and extensions to VS Code live in their own repositories on GitHub. For example, the [node debug adapter](https://github.com/microsoft/vscode-node-debug) and the [mono debug adapter](https://github.com/microsoft/vscode-mono-debug) repositories are separate from each other. For a complete list, please visit the [Related Projects](https://github.com/microsoft/vscode/wiki/Related-Projects) page on our [wiki](https://github.com/microsoft/vscode/wiki).
+- Visit the URL printed in your terminal.
+
+### Securing access to your IDE
+
+You can access the Web UI without authentication (anyone can access the IDE using just the hostname and port), if you need some kind of basic authentication then you can start the server with `--connection-token YOUR_TOKEN`, the provided `YOUR_TOKEN` will be used and the authenticated URL will be displayed in your terminal once you start the server. You can also create a plaintext file with the desired token as its contents and provide it to the server with `--connection-token-file YOUR_SECRET_TOKEN_FILE`.
+
+If you want to use a connection token and are working with OpenVSCode Web Server via [the Docker image](https://hub.docker.com/r/runcode/runcode-server), you will have to edit the `ENTRYPOINT` in [the Dockerfile](https://github.com/runcode-io/runcode-releases/blob/main/Dockerfile) or modify it with the [`entrypoint` option](https://docs.docker.com/compose/compose-file/compose-file-v3/#entrypoint) when working with `docker-compose`.
+
+## The scope of this project
+
+This project only adds minimal bits required to run VS Code in a server scenario. We have no intention of changing VS Code in any way or to add additional features to VS Code itself. Please report feature requests, bug fixes, etc. in the upstream repository.
+
+> **For any feature requests, bug reports, or contributions that are not specific to running VS Code in a server context, please go to [Visual Studio Code - Open Source "OSS"](https://github.com/microsoft/vscode)**
 
 ## Bundled Extensions
 
@@ -61,19 +68,56 @@ VS Code includes a set of built-in extensions located in the [extensions](extens
 
 This repository includes a Visual Studio Code Dev Containers / GitHub Codespaces development container.
 
-* For [Dev Containers](https://aka.ms/vscode-remote/download/containers), use the **Dev Containers: Clone Repository in Container Volume...** command which creates a Docker volume for better disk I/O on macOS and Windows.
-  * If you already have VS Code and Docker installed, you can also click [here](https://vscode.dev/redirect?url=vscode://ms-vscode-remote.remote-containers/cloneInVolume?url=https://github.com/microsoft/vscode) to get started. This will cause VS Code to automatically install the Dev Containers extension if needed, clone the source code into a container volume, and spin up a dev container for use.
-
-* For Codespaces, install the [GitHub Codespaces](https://marketplace.visualstudio.com/items?itemName=GitHub.codespaces) extension in VS Code, and use the **Codespaces: Create New Codespace** command.
+- For [Dev Containers](https://aka.ms/vscode-remote/download/containers), use the **Dev Containers: Clone Repository in Container Volume...** command which creates a Docker volume for better disk I/O on macOS and Windows.
+     - If you already have VS Code and Docker installed, you can also click [here](https://vscode.dev/redirect?url=vscode://ms-vscode-remote.remote-containers/cloneInVolume?url=https://github.com/microsoft/vscode) to get started. This will cause VS Code to automatically install the Dev Containers extension if needed, clone the source code into a container volume, and spin up a dev container for use.
+- For Codespaces, install the [GitHub Codespaces](https://marketplace.visualstudio.com/items?itemName=GitHub.codespaces) extension in VS Code, and use the **Codespaces: Create New Codespace** command.
 
 Docker / the Codespace should have at least **4 Cores and 6 GB of RAM (8 GB recommended)** to run full build. See the [development container README](.devcontainer/README.md) for more information.
 
-## Code of Conduct
+## Legal
+This project is not affiliated with Microsoft Corporation.
 
-This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/). For more information see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions or comments.
 
-## License
 
-Copyright (c) Microsoft Corporation. All rights reserved.
 
-Licensed under the [MIT](LICENSE.txt) license.
+
+
+
+
+
+
+
+
+
+
+
+docker run -it --network=host -v "$(pwd):/home/" ubuntu:22.04
+
+
+apt update && apt install sudo git wget build-essential
+
+sudo apt update && sudo apt upgrade -y
+sudo apt-get install -y libkrb5-dev libx11-dev libxkbfile-dev pkg-config libsecret-1-dev
+
+wget -qO- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.0/install.sh | bash
+
+source /root/.bashrc
+
+nvm install 20.14.0
+
+corepack enable
+
+git config --global --add safe.directory /home
+
+
+
+
+docker run -itd -p 8000:8000 -v "$(pwd):/home" ubuntu:22.04
+apt update && apt upgrade -y && apt install unzip sudo -y
+
+./vscode-reh-web-linux-x64/bin/runcode-server --default-folder=/home/ --host=0.0.0.0
+
+
+apt-get update && apt-get install -y software-properties-common
+add-apt-repository ppa:ubuntu-toolchain-r/test
+apt-get update && apt-get install -y libstdc++6
