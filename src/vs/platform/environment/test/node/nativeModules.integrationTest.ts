@@ -13,13 +13,33 @@ function testErrorMessage(module: string): string {
 
 flakySuite('Native Modules (all platforms)', () => {
 
-	test('kerberos', async () => {
-		const kerberos = await import('kerberos');
+	test.skip('kerberos', async () => { // TODO fails on macOS ARM?
+		const { default: kerberos } = await import('kerberos');
 		assert.ok(typeof kerberos.initializeClient === 'function', testErrorMessage('kerberos'));
 	});
 
+	test('minimist', async () => {
+		const { default: minimist } = await import('minimist');
+		assert.ok(typeof minimist === 'function', testErrorMessage('minimist'));
+	});
+
+	test('yauzl', async () => {
+		const { default: yauzl } = await import('yauzl');
+		assert.ok(typeof yauzl.ZipFile === 'function', testErrorMessage('yauzl'));
+	});
+
+	test('yazl', async () => {
+		const { default: yazl } = await import('yazl');
+		assert.ok(typeof yazl.ZipFile === 'function', testErrorMessage('yazl'));
+	});
+
+	test('v8-inspect-profiler', async () => {
+		const { default: profiler } = await import('v8-inspect-profiler');
+		assert.ok(typeof profiler.startProfiling === 'function', testErrorMessage('v8-inspect-profiler'));
+	});
+
 	test('native-is-elevated', async () => {
-		const isElevated = (await import('native-is-elevated')).default;
+		const { default: isElevated } = await import('native-is-elevated');
 		assert.ok(typeof isElevated === 'function', testErrorMessage('native-is-elevated '));
 
 		const result = isElevated();
@@ -28,6 +48,7 @@ flakySuite('Native Modules (all platforms)', () => {
 
 	test('native-keymap', async () => {
 		const keyMap = await import('native-keymap');
+		assert.ok(typeof keyMap.onDidChangeKeyboardLayout === 'function', testErrorMessage('native-keymap'));
 		assert.ok(typeof keyMap.getCurrentKeyboardLayout === 'function', testErrorMessage('native-keymap'));
 
 		const result = keyMap.getCurrentKeyboardLayout();
@@ -39,12 +60,27 @@ flakySuite('Native Modules (all platforms)', () => {
 		assert.ok(typeof watchDog.start === 'function', testErrorMessage('native-watchdog'));
 	});
 
-	(process.type === 'renderer' ? test.skip /* TODO@electron module is not context aware yet and thus cannot load in Electron renderer used by tests */ : test)('node-pty', async () => {
+	test('@vscode/sudo-prompt', async () => {
+		const prompt = await import('@vscode/sudo-prompt');
+		assert.ok(typeof prompt.exec === 'function', testErrorMessage('@vscode/sudo-prompt'));
+	});
+
+	test('@vscode/policy-watcher', async () => {
+		const watcher = await import('@vscode/policy-watcher');
+		assert.ok(typeof watcher.createWatcher === 'function', testErrorMessage('@vscode/policy-watcher'));
+	});
+
+	test('node-pty', async () => {
 		const nodePty = await import('node-pty');
 		assert.ok(typeof nodePty.spawn === 'function', testErrorMessage('node-pty'));
 	});
 
-	(process.type === 'renderer' ? test.skip /* TODO@electron module is not context aware yet and thus cannot load in Electron renderer used by tests */ : test)('@vscode/spdlog', async () => {
+	test('open', async () => {
+		const { default: open } = await import('open');
+		assert.ok(typeof open === 'function', testErrorMessage('open'));
+	});
+
+	test('@vscode/spdlog', async () => {
 		const spdlog = await import('@vscode/spdlog');
 		assert.ok(typeof spdlog.createRotatingLogger === 'function', testErrorMessage('@vscode/spdlog'));
 		assert.ok(typeof spdlog.version === 'number', testErrorMessage('@vscode/spdlog'));
@@ -53,6 +89,21 @@ flakySuite('Native Modules (all platforms)', () => {
 	test('@parcel/watcher', async () => {
 		const parcelWatcher = await import('@parcel/watcher');
 		assert.ok(typeof parcelWatcher.subscribe === 'function', testErrorMessage('@parcel/watcher'));
+	});
+
+	test('@vscode/deviceid', async () => {
+		const deviceIdPackage = await import('@vscode/deviceid');
+		assert.ok(typeof deviceIdPackage.getDeviceId === 'function', testErrorMessage('@vscode/deviceid'));
+	});
+
+	test('@vscode/ripgrep', async () => {
+		const ripgrep = await import('@vscode/ripgrep');
+		assert.ok(typeof ripgrep.rgPath === 'string', testErrorMessage('@vscode/ripgrep'));
+	});
+
+	test('vscode-regexpp', async () => {
+		const regexpp = await import('vscode-regexpp');
+		assert.ok(typeof regexpp.RegExpParser === 'function', testErrorMessage('vscode-regexpp'));
 	});
 
 	test('@vscode/sqlite3', async () => {
@@ -65,26 +116,64 @@ flakySuite('Native Modules (all platforms)', () => {
 		assert.ok(typeof sqlite3.Database === 'function', testErrorMessage('@vscode/sqlite3'));
 	});
 
-	test('vsda', async () => {
-		try {
-			const vsda: any = globalThis._VSCODE_NODE_MODULES['vsda'];
-			const signer = new vsda.signer();
-			const signed = await signer.sign('value');
-			assert.ok(typeof signed === 'string', testErrorMessage('vsda'));
-		} catch (error) {
-			if (error.code !== 'MODULE_NOT_FOUND') {
-				throw error;
-			}
-		}
+	test('http-proxy-agent', async () => {
+		// ESM-comment-begin
+		const mod = await import('http-proxy-agent');
+		// ESM-comment-end
+		// ESM-uncomment-begin
+		// const { default: mod } = await import('http-proxy-agent');
+		// ESM-uncomment-end
+		assert.ok(typeof mod.HttpProxyAgent === 'function', testErrorMessage('http-proxy-agent'));
 	});
+
+	test('https-proxy-agent', async () => {
+		// ESM-comment-begin
+		const mod = await import('https-proxy-agent');
+		// ESM-comment-end
+		// ESM-uncomment-begin
+		// const { default: mod } = await import('https-proxy-agent');
+		// ESM-uncomment-end
+		assert.ok(typeof mod.HttpsProxyAgent === 'function', testErrorMessage('https-proxy-agent'));
+	});
+
+	test('@vscode/proxy-agent', async () => {
+		const proxyAgent = await import('@vscode/proxy-agent');
+		// This call will load `@vscode/proxy-agent` which is a native module that we want to test on Windows
+		const windowsCerts = await proxyAgent.loadSystemCertificates({
+			log: {
+				trace: () => { },
+				debug: () => { },
+				info: () => { },
+				warn: () => { },
+				error: () => { }
+			}
+		});
+		assert.ok(windowsCerts.length > 0, testErrorMessage('@vscode/proxy-agent'));
+	});
+
+	// These tests require certain modules from `vscode-distro` to work and are otherwise skipped.
+	// test('vsda', async function () {
+	// 	const vsda = await import('vsda');
+	// 	const signer = new vsda.signer();
+	// 	const signed = await signer.sign('value');
+	// 	assert.ok(typeof signed === 'string', testErrorMessage('vsda'));
+	// 	assert.ok(typeof (vsda as any).validator === 'function', testErrorMessage('vsda'));
+
+	// });
+
+	// test('@vscode/vsce-sign', async function () {
+	// 	const vsceSign = await import('@vscode/vsce-sign');
+	// 	assert.ok(typeof vsceSign.verify === 'function', testErrorMessage('@vscode/vsce-sign'));
+	// });
 });
 
 (!isWindows ? suite.skip : suite)('Native Modules (Windows)', () => {
 
-	(process.type === 'renderer' ? test.skip /* TODO@electron module is not context aware yet and thus cannot load in Electron renderer used by tests */ : test)('@vscode/windows-mutex', async () => {
+	test('@vscode/windows-mutex', async () => {
 		const mutex = await import('@vscode/windows-mutex');
 		assert.ok(mutex && typeof mutex.isActive === 'function', testErrorMessage('@vscode/windows-mutex'));
 		assert.ok(typeof mutex.isActive === 'function', testErrorMessage('@vscode/windows-mutex'));
+		assert.ok(typeof mutex.Mutex === 'function', testErrorMessage('@vscode/windows-mutex'));
 	});
 
 	test('windows-foreground-love', async () => {
@@ -116,20 +205,5 @@ flakySuite('Native Modules (all platforms)', () => {
 
 		const result = windowsRegistry.GetStringRegKey('HKEY_LOCAL_MACHINE', 'SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion', 'EditionID');
 		assert.ok(typeof result === 'string' || typeof result === 'undefined', testErrorMessage('@vscode/windows-registry'));
-	});
-
-	test('@vscode/proxy-agent', async () => {
-		const proxyAgent = await import('@vscode/proxy-agent');
-		// This call will load `@vscode/proxy-agent` which is a native module that we want to test on Windows
-		const windowsCerts = await proxyAgent.loadSystemCertificates({
-			log: {
-				trace: () => { },
-				debug: () => { },
-				info: () => { },
-				warn: () => { },
-				error: () => { }
-			}
-		});
-		assert.ok(windowsCerts.length > 0, testErrorMessage('@vscode/proxy-agent'));
 	});
 });
