@@ -15,7 +15,7 @@ function setESM() {
     const esmEnv = process.env.VSCODE_BUILD_ESM;
     console.warn(`ESM variable is: ${esmEnv} with a type of ${typeof esmEnv}`);
     const result = () => new Promise((resolve, _) => {
-        if (esmEnv === 'true') {
+        if (typeof esmEnv === 'string' && esmEnv.toLowerCase() === 'true') {
             fs.mkdirSync(outDirectory, { recursive: true });
             fs.writeFileSync(esmMarkerFile, 'true', 'utf8');
             console.warn(`Setting build to ESM: true`);
