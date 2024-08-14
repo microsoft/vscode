@@ -9,15 +9,35 @@ import { TextureAtlasShelfAllocator } from 'vs/editor/browser/view/gpu/atlas/tex
 import { ensureNonNullable } from 'vs/editor/browser/view/gpu/gpuUtils';
 import type { IRasterizedGlyph } from 'vs/editor/browser/view/gpu/raster/glyphRasterizer';
 
+const blackInt = 0x000000FF;
+const blackArr = [0x00, 0x00, 0x00, 0xFF];
+
+const pixel1x1 = createRasterizedGlyph(1, 1, [...blackArr]);
+const pixel2x1 = createRasterizedGlyph(2, 1, [...blackArr, ...blackArr]);
+const pixel1x2 = createRasterizedGlyph(1, 2, [...blackArr, ...blackArr]);
+
+function initAllocator(w: number, h: number): { canvas: OffscreenCanvas; ctx: OffscreenCanvasRenderingContext2D; allocator: TextureAtlasShelfAllocator } {
+	const canvas = new OffscreenCanvas(w, h);
+	const ctx = ensureNonNullable(canvas.getContext('2d'));
+	const allocator = new TextureAtlasShelfAllocator(canvas, ctx);
+	return { canvas, ctx, allocator };
+}
+
+function createRasterizedGlyph(w: number, h: number, data: ArrayLike<number>): IRasterizedGlyph {
+	strictEqual(w * h * 4, data.length);
+	const source = new OffscreenCanvas(w, h);
+	const imageData = new ImageData(w, h);
+	imageData.data.set(data);
+	ensureNonNullable(source.getContext('2d')).putImageData(imageData, 0, 0);
+	return {
+		source,
+		boundingBox: { top: 0, left: 0, bottom: h - 1, right: w - 1 },
+		originOffset: { x: 0, y: 0 },
+	};
+}
+
 suite('TextureAtlasShelfAllocator', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
-
-	const blackInt = 0x000000FF;
-	const blackArr = [0x00, 0x00, 0x00, 0xFF];
-
-	const pixel1x1 = createRasterizedGlyph(1, 1, [...blackArr]);
-	const pixel2x1 = createRasterizedGlyph(2, 1, [...blackArr, ...blackArr]);
-	const pixel1x2 = createRasterizedGlyph(1, 2, [...blackArr, ...blackArr]);
 
 	let lastUniqueGlyph: string | undefined;
 	function getUniqueGlyphId(): [string, number] {
@@ -138,23 +158,3 @@ suite('TextureAtlasShelfAllocator', () => {
 		deepStrictEqual(allocator.allocate(...getUniqueGlyphId(), pixel1x1), undefined, 'should return undefined when the canvas is full');
 	});
 });
-
-function initAllocator(w: number, h: number): { canvas: OffscreenCanvas; ctx: OffscreenCanvasRenderingContext2D; allocator: TextureAtlasShelfAllocator } {
-	const canvas = new OffscreenCanvas(w, h);
-	const ctx = ensureNonNullable(canvas.getContext('2d'));
-	const allocator = new TextureAtlasShelfAllocator(canvas, ctx);
-	return { canvas, ctx, allocator };
-}
-
-function createRasterizedGlyph(w: number, h: number, data: ArrayLike<number>): IRasterizedGlyph {
-	strictEqual(w * h * 4, data.length);
-	const source = new OffscreenCanvas(w, h);
-	const imageData = new ImageData(w, h);
-	imageData.data.set(data);
-	ensureNonNullable(source.getContext('2d')).putImageData(imageData, 0, 0);
-	return {
-		source,
-		boundingBox: { top: 0, left: 0, bottom: h - 1, right: w - 1 },
-		originOffset: { x: 0, y: 0 },
-	};
-}
