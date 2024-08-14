@@ -101,7 +101,7 @@ function fromLocalWebpack(extensionPath: string, webpackConfigFileName: string, 
 		}
 	}
 
-	vsce.listFiles({ cwd: extensionPath, packagedDependencies }).then(fileNames => {
+	vsce.listFiles({ cwd: extensionPath, packageManager: vsce.PackageManager.Npm, packagedDependencies }).then(fileNames => {
 		const files = fileNames
 			.map(fileName => path.join(extensionPath, fileName))
 			.map(filePath => new File({
@@ -196,7 +196,7 @@ function fromLocalNormal(extensionPath: string): Stream {
 	const vsce = require('@vscode/vsce') as typeof import('@vscode/vsce');
 	const result = es.through();
 
-	vsce.listFiles({ cwd: extensionPath })
+	vsce.listFiles({ cwd: extensionPath, packageManager: vsce.PackageManager.Npm })
 		.then(fileNames => {
 			const files = fileNames
 				.map(fileName => path.join(extensionPath, fileName))
