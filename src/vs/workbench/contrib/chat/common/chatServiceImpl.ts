@@ -350,7 +350,11 @@ export class ChatService extends Disposable implements IChatService {
 
 		model.removeRequest(request.id, ChatRequestRemovalReason.Resend);
 
-		await this._sendRequestAsync(model, model.sessionId, request.message, attempt, enableCommandDetection, defaultAgent, location, options).responseCompletePromise;
+		const resendOptions: IChatSendRequestOptions = {
+			...options,
+			locationData: request.locationData
+		};
+		await this._sendRequestAsync(model, model.sessionId, request.message, attempt, enableCommandDetection, defaultAgent, location, resendOptions).responseCompletePromise;
 	}
 
 	async sendRequest(sessionId: string, request: string, options?: IChatSendRequestOptions): Promise<IChatSendRequestData | undefined> {
@@ -482,7 +486,7 @@ export class ChatService extends Disposable implements IChatService {
 					const history = getHistoryEntriesFromModel(model, agentPart?.agent.id);
 
 					const initVariableData: IChatRequestVariableData = { variables: [] };
-					request = model.addRequest(parsedRequest, initVariableData, attempt, agent, agentSlashCommandPart?.command);
+					request = model.addRequest(parsedRequest, initVariableData, attempt, agent, agentSlashCommandPart?.command, options?.locationData);
 					completeResponseCreated();
 					const variableData = await this.chatVariablesService.resolveVariables(parsedRequest, options?.attachedContext, model, progressCallback, token);
 					model.updateRequest(request, variableData);
@@ -500,7 +504,7 @@ export class ChatService extends Disposable implements IChatService {
 						enableCommandDetection,
 						attempt,
 						location,
-						locationData: options?.locationData,
+						locationData: request.locationData,
 						acceptedConfirmationData: options?.acceptedConfirmationData,
 						rejectedConfirmationData: options?.rejectedConfirmationData,
 					};
