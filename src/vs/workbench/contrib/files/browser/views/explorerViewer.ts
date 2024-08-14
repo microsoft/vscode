@@ -887,7 +887,7 @@ export class FileSorter implements ITreeSorter<ExplorerItem> {
 				numeric: true,
 			});
 
-			[statA, statB] = result >= 0 ? [statB, statA] : [statA, statB];
+			[statA, statB] = result > 0 ? [statB, statA] : [statA, statB];
 		}
 
 		const reverse = this.explorerService.sortOrderConfiguration.reverse;
