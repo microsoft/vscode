@@ -79,7 +79,9 @@ const extractEditorSrcTask = task.define('extract-editor-src', () => {
 		shakeLevel: 2, // 0-Files, 1-InnerFile, 2-ClassMembers
 		importIgnorePattern: /(^vs\/css!)/,
 		destRoot: path.join(root, 'out-editor-src'),
-		redirects: []
+		redirects: {
+			'@vscode/tree-sitter-wasm': '../node_modules/@vscode/tree-sitter-wasm/wasm/tree-sitter-web',
+		}
 	});
 });
 
