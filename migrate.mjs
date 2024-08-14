@@ -21,10 +21,9 @@ import { fileURLToPath } from 'node:url';
 import watch from './build/lib/watch/index.js';
 
 const enableWatching = !process.argv.includes('--disable-watch');
-const inPlaceMigration = process.argv.includes('--in-place');
 
 const srcFolder = fileURLToPath(new URL('src', import.meta.url));
-const dstFolder = inPlaceMigration ? srcFolder : fileURLToPath(new URL('src2', import.meta.url));
+const dstFolder = fileURLToPath(new URL('src2', import.meta.url));
 
 const binaryFileExtensions = new Set([
 	'.svg', '.ttf', '.png', '.sh', '.html', '.json', '.zsh', '.scpt', '.mp3', '.fish', '.ps1', '.psm1', '.md', '.txt', '.zip', '.pdf', '.qwoff', '.jxs', '.tst', '.wuff', '.less', '.utf16le', '.snap', '.tsx'
@@ -32,11 +31,7 @@ const binaryFileExtensions = new Set([
 
 function migrate() {
 	console.log(`~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`);
-	if (inPlaceMigration) {
-		console.log(`STARTING MIGRATION of src in-place.`);
-	} else {
-		console.log(`STARTING MIGRATION of src to src2.`);
-	}
+	console.log(`STARTING MIGRATION of src to src2.`);
 
 	// installing watcher quickly to avoid missing early events
 	const watchSrc = enableWatching ? watch('src/**', { base: 'src', readDelay: 200 }) : undefined;
@@ -50,16 +45,10 @@ function migrate() {
 		migrateOne(filePath, fileContents);
 	}
 
-	if (!inPlaceMigration) {
-		writeFileSync(join(dstFolder, '.gitignore'), `*`);
-	}
+	writeFileSync(join(dstFolder, '.gitignore'), `*`);
 
 	console.log(`~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`);
-	if (inPlaceMigration) {
-		console.log(`COMPLETED MIGRATION of src in-place.`);
-	} else {
-		console.log(`COMPLETED MIGRATION of src to src2. You can now launch yarn watch or yarn watch-client`);
-	}
+	console.log(`COMPLETED MIGRATION of src to src2. You can now launch yarn watch or yarn watch-client`);
 
 	if (watchSrc) {
 		console.log(`WATCHING src for changes...`);

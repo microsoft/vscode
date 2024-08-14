@@ -102,7 +102,7 @@ steps:
       displayName: Mixin distro quality
 
   - ${{ if eq(parameters.VSCODE_BUILD_ESM, true) }}:
-    - script: node migrate.mjs --disable-watch --in-place
+    - script: node migrate.mjs --disable-watch
       displayName: Migrate to ESM
 
   - template: common/install-builtin-extensions.yml@self

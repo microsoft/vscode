@@ -11,11 +11,9 @@ import * as fs from 'fs';
 const outDirectory = path.join(__dirname, '..', '..', 'out-build');
 const esmMarkerFile = path.join(outDirectory, 'esm');
 
-export function setESM() {
-	const esmEnv = process.env.VSCODE_BUILD_ESM;
-	console.warn(`ESM variable is: ${esmEnv} with a type of ${typeof esmEnv}`);
+export function setESM(enabled: boolean) {
 	const result = () => new Promise<void>((resolve, _) => {
-		if (typeof esmEnv === 'string' && esmEnv.toLowerCase() === 'true') {
+		if (enabled) {
 			fs.mkdirSync(outDirectory, { recursive: true });
 			fs.writeFileSync(esmMarkerFile, 'true', 'utf8');
 			console.warn(`Setting build to ESM: true`);
