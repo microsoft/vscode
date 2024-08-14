@@ -44,6 +44,7 @@ import { IUserDataProfilesMainService } from 'vs/platform/userDataProfile/electr
 import { ILoggerMainService } from 'vs/platform/log/electron-main/loggerService';
 import { firstOrDefault } from 'vs/base/common/arrays';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { isESM } from 'vs/base/common/amd';
 
 export interface IWindowCreationOptions {
 	readonly state: IWindowState;
@@ -1036,7 +1037,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		this.readyState = ReadyState.NAVIGATING;
 
 		// Load URL
-		this._win.loadURL(FileAccess.asBrowserUri(`vs/code/electron-sandbox/workbench/workbench${this.environmentMainService.isBuilt ? '' : '-dev'}.html`).toString(true));
+		this._win.loadURL(FileAccess.asBrowserUri(`vs/code/electron-sandbox/workbench/workbench${this.environmentMainService.isBuilt ? '' : '-dev'}.${isESM ? 'esm.' : ''}html`).toString(true));
 
 		// Remember that we did load
 		const wasLoaded = this.wasLoaded;
