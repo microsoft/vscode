@@ -45,6 +45,7 @@ function migrate() {
 		migrateOne(filePath, fileContents);
 	}
 
+	writeFileSync(join(dstFolder, 'package.json'), `{"type": "module"}`);
 	writeFileSync(join(dstFolder, '.gitignore'), `*`);
 
 	console.log(`~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`);
