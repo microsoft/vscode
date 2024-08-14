@@ -101,7 +101,6 @@ export class Workbench extends Layout {
 
 		// Inform user about loading issues from the loader
 		if (!isESM && typeof mainWindow.require?.config === 'function') {
-
 			interface AnnotatedLoadingError extends Error {
 				phase: 'loading';
 				moduleId: string;

@@ -6,7 +6,7 @@
 /**
  * @param {string} name
  * @param {string[]=} exclude
- * @returns {import("../build/lib/bundle").IEntryPoint}
+ * @returns {import('../build/lib/bundle').IEntryPoint}
  */
 function createModuleDescription(name, exclude) {
 
@@ -28,8 +28,6 @@ function createModuleDescription(name, exclude) {
  */
 function createEditorWorkerModuleDescription(name, noEsmSuffix) {
 	const amdVariant = createModuleDescription(name, ['vs/base/common/worker/simpleWorker', 'vs/editor/common/services/editorSimpleWorker']);
-
-	// markAsAMD
 	amdVariant.target = 'amd';
 
 	const esmVariant = { ...amdVariant, dest: undefined };
@@ -55,7 +53,6 @@ exports.base = [
 	},
 	{
 		name: 'vs/editor/common/services/editorSimpleWorker.esm',
-		// dest: 'vs/base/worker/workerMain.js',
 		target: 'esm'
 	},
 	{

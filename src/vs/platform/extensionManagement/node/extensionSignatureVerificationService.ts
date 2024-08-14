@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { importAMDNodeModule } from 'vs/amdX';
 import { getErrorMessage } from 'vs/base/common/errors';
 import { IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { TargetPlatform } from 'vs/platform/extensions/common/extensions';
@@ -108,7 +109,6 @@ export class ExtensionSignatureVerificationService implements IExtensionSignatur
 		// ESM-uncomment-end
 
 		// ESM-comment-begin
-		const { importAMDNodeModule } = await import('vs/amdX');
 		return importAMDNodeModule('@vscode/vsce-sign', 'src/main.js');
 		// ESM-comment-end
 	}
