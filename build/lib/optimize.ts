@@ -556,12 +556,10 @@ export interface IOptimizeTaskOpts {
 	manual?: IOptimizeManualTaskOpts[];
 }
 
-const esmOptimize = isESM('Running optimizer in ESM mode');
-
 export function optimizeTask(opts: IOptimizeTaskOpts): () => NodeJS.ReadWriteStream {
 	return function () {
 		const optimizers: NodeJS.ReadWriteStream[] = [];
-		if (esmOptimize) {
+		if (isESM('Running optimizer in ESM mode')) {
 			optimizers.push(optimizeESMTask(opts.amd, opts.commonJS));
 		} else {
 			optimizers.push(optimizeAMDTask(opts.amd));

@@ -80,13 +80,11 @@ const vscodeResources = [
 // Do not change the order of these files! They will
 // be inlined into the target window file in this order
 // and they depend on each other in this way.
-const windowBootstrapFiles = [
-	'out-build/bootstrap-window.js'
-];
-
+const windowBootstrapFiles = [];
 if (!isESM('Skipping loader.js in window bootstrap files')) {
 	windowBootstrapFiles.push('out-build/vs/loader.js');
 }
+windowBootstrapFiles.push('out-build/bootstrap-window.js');
 
 const commonJSEntryPoints = [
 	'out-build/main.js',

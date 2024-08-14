@@ -381,11 +381,10 @@ function optimizeManualTask(options) {
 function optimizeLoaderTask(src, out, bundleLoader, bundledFileHeader = '', externalLoaderInfo) {
     return () => loader(src, bundledFileHeader, bundleLoader, externalLoaderInfo).pipe(gulp.dest(out));
 }
-const esmOptimize = (0, esm_1.isESM)('Running optimizer in ESM mode');
 function optimizeTask(opts) {
     return function () {
         const optimizers = [];
-        if (esmOptimize) {
+        if ((0, esm_1.isESM)('Running optimizer in ESM mode')) {
             optimizers.push(optimizeESMTask(opts.amd, opts.commonJS));
         }
         else {

@@ -5,6 +5,12 @@
 
 //@ts-check
 
+// *****************************************************************
+// *                                                               *
+// *               AMD-TO-ESM MIGRATION SCRIPT                     *
+// *                                                               *
+// *****************************************************************
+
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join, extname, dirname, relative } from 'node:path';
 import { preProcessFile } from 'typescript';
