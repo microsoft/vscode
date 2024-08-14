@@ -143,7 +143,7 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 		// * Extension id: The extension that has a preference
 		// * Provider id: The provider that the preference is for
 		// * The scopes: The subset of sessions that the preference applies to
-		const key = `${extensionId}-${providerId}-${session.scopes.join(' ')}`;
+		const key = `${extensionId}-${providerId}-${session.scopes.join(SCOPESLIST_SEPARATOR)}`;
 
 		// Store the preference in the workspace and application storage. This allows new workspaces to
 		// have a preference set already to limit the number of prompts that are shown... but also allows
@@ -157,7 +157,7 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 		// * Extension id: The extension that has a preference
 		// * Provider id: The provider that the preference is for
 		// * The scopes: The subset of sessions that the preference applies to
-		const key = `${extensionId}-${providerId}-${scopes.join(' ')}`;
+		const key = `${extensionId}-${providerId}-${scopes.join(SCOPESLIST_SEPARATOR)}`;
 
 		// If a preference is set in the workspace, use that. Otherwise, use the global preference.
 		return this.storageService.get(key, StorageScope.WORKSPACE) ?? this.storageService.get(key, StorageScope.APPLICATION);
@@ -168,7 +168,7 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 		// * Extension id: The extension that has a preference
 		// * Provider id: The provider that the preference is for
 		// * The scopes: The subset of sessions that the preference applies to
-		const key = `${extensionId}-${providerId}-${scopes.join(' ')}`;
+		const key = `${extensionId}-${providerId}-${scopes.join(SCOPESLIST_SEPARATOR)}`;
 
 		// This won't affect any other workspaces that have a preference set, but it will remove the preference
 		// for this workspace and the global preference. This is only paired with a call to updateSessionPreference...
