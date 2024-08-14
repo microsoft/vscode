@@ -63,7 +63,8 @@ export type BuiltinGettingStartedStep = {
 	media:
 	| { type: 'image'; path: string | { hc: string; hcLight?: string; light: string; dark: string }; altText: string }
 	| { type: 'svg'; path: string; altText: string }
-	| { type: 'markdown'; path: string };
+	| { type: 'markdown'; path: string }
+	| undefined;
 };
 
 export type BuiltinGettingStartedCategory = {

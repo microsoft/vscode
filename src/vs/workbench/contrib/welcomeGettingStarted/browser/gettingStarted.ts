@@ -526,6 +526,13 @@ export class GettingStartedPage extends EditorPane {
 			}
 		});
 
+		if (!stepToExpand.media) {
+			this.stepsContent.classList.remove('image', 'svg', 'markdown');
+			this.currentMediaType = undefined;
+			clearNode(this.stepMediaComponent);
+			return;
+		}
+
 		if (this.currentMediaType !== stepToExpand.media.type) {
 
 			this.currentMediaType = stepToExpand.media.type;
@@ -1404,7 +1411,7 @@ export class GettingStartedPage extends EditorPane {
 						container,
 					);
 
-					if (step.media.type === 'image') {
+					if (step.media?.type === 'image') {
 						stepDescription.appendChild(
 							$('.image-description', { 'aria-label': localize('imageShowing', "Image showing {0}", step.media.altText) }),
 						);

@@ -81,7 +81,8 @@ export interface IWalkthroughStep {
 	media:
 	| { type: 'image'; path: { hcDark: URI; hcLight: URI; light: URI; dark: URI }; altText: string }
 	| { type: 'svg'; path: URI; altText: string }
-	| { type: 'markdown'; path: URI; base: URI; root: URI };
+	| { type: 'markdown'; path: URI; base: URI; root: URI }
+	| undefined;
 }
 
 type StepProgress = { done: boolean };
@@ -190,7 +191,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 							category: category.id,
 							order: index,
 							when: ContextKeyExpr.deserialize(step.when) ?? ContextKeyExpr.true(),
-							media: step.media.type === 'image'
+							media: step.media ? (step.media.type === 'image'
 								? {
 									type: 'image',
 									altText: step.media.altText,
@@ -207,7 +208,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 										path: convertInternalMediaPathToFileURI(step.media.path).with({ query: JSON.stringify({ moduleId: 'vs/workbench/contrib/welcomeGettingStarted/common/media/' + step.media.path }) }),
 										base: FileAccess.asFileUri('vs/workbench/contrib/welcomeGettingStarted/common/media/'),
 										root: FileAccess.asFileUri('vs/workbench/contrib/welcomeGettingStarted/common/media/'),
-									},
+									}) : undefined,
 						});
 					})
 			});
@@ -331,7 +332,16 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 				let media: IWalkthroughStep['media'];
 
 				if (!step.media) {
-					throw Error('missing media in walkthrough step: ' + walkthrough.id + '@' + step.id);
+					return ({
+						description,
+						media,
+						completionEvents: step.completionEvents?.filter(x => typeof x === 'string') ?? [],
+						id: fullyQualifiedID,
+						title: step.title,
+						when: ContextKeyExpr.deserialize(step.when) ?? ContextKeyExpr.true(),
+						category: categoryID,
+						order: index,
+					});
 				}
 
 				if (step.media.image) {
