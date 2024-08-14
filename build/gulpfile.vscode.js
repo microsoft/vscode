@@ -56,6 +56,7 @@ const vscodeResources = [
 	'out-build/vs/**/*.{svg,png,html,jpg,mp3}',
 	'!out-build/vs/code/browser/**/*.html',
 	'!out-build/vs/code/**/*-dev.html',
+	'!out-build/vs/code/**/*-dev.esm.html',
 	'!out-build/vs/editor/standalone/**/*.svg',
 	'out-build/vs/base/node/{stdForkStart.js,terminateProcess.sh,cpuUsage.sh,ps.sh}',
 	'out-build/vs/base/browser/ui/codicons/codicon/**',
@@ -70,8 +71,8 @@ const vscodeResources = [
 	'out-build/vs/workbench/contrib/terminal/browser/media/*.sh',
 	'out-build/vs/workbench/contrib/terminal/browser/media/*.zsh',
 	'out-build/vs/workbench/contrib/webview/browser/pre/*.js',
-	'!out-build/vs/workbench/contrib/issue/browser/*.html',
 	'!out-build/vs/workbench/contrib/issue/**/*-dev.html',
+	'!out-build/vs/workbench/contrib/issue/**/*-dev.esm.html',
 	'out-build/vs/**/markdown.css',
 	'out-build/vs/workbench/contrib/tasks/**/*.json',
 	'!**/test/**'
