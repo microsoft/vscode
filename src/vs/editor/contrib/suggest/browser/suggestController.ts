@@ -130,8 +130,6 @@ export class SuggestController implements IEditorContribution {
 	private readonly _overtypingCapturer: WindowIdleValue<OvertypingCapturer>;
 	private readonly _selectors = new PriorityRegistry<ISuggestItemPreselector>(s => s.priority);
 
-	private completionItems: CompletionItem[] | undefined;
-
 	private readonly _onWillInsertSuggestItem = new Emitter<{ item: CompletionItem }>();
 	readonly onWillInsertSuggestItem: Event<{ item: CompletionItem }> = this._onWillInsertSuggestItem.event;
 
@@ -259,8 +257,6 @@ export class SuggestController implements IEditorContribution {
 			if (index === -1) {
 				index = 0;
 			}
-
-			this.completionItems = e.completionModel.items;
 
 			if (this.model.state === State.Idle) {
 				// selecting an item can "pump" out selection/cursor change events
@@ -514,19 +510,34 @@ export class SuggestController implements IEditorContribution {
 
 		// clear only now - after all tasks are done
 		Promise.all(tasks).finally(() => {
-			this._reportSuggestionAcceptedTelemetry(item, model, isResolved, _commandExectionDuration, _additionalEditsAppliedAsync, event.index);
-			this._reportSuggestionIndexTelemetry(item, event.index);
+			this._reportSuggestionAcceptedTelemetry(item, model, isResolved, _commandExectionDuration, _additionalEditsAppliedAsync, event.index, event.model.items);
 
 			this.model.clear();
 			cts.dispose();
 		});
 	}
 
-	private _reportSuggestionAcceptedTelemetry(item: CompletionItem, model: ITextModel, itemResolved: boolean, commandExectionDuration: number, additionalEditsAppliedAsync: number, index: number): void {
+	private _reportSuggestionAcceptedTelemetry(item: CompletionItem, model: ITextModel, itemResolved: boolean, commandExectionDuration: number, additionalEditsAppliedAsync: number, index: number, completionItems: CompletionItem[]): void {
 		if (Math.floor(Math.random() * 100) === 0) {
 			// throttle telemetry event because accepting completions happens a lot
 			return;
 		}
+
+		const labelMap = new Map<string, number[]>();
+
+		for (let i = 0; i < Math.min(30, completionItems.length); i++) {
+			const label = completionItems[i].textLabel;
+
+			if (labelMap.has(label)) {
+				labelMap.get(label)!.push(i);
+			} else {
+				labelMap.set(label, [i]);
+			}
+		}
+		// Check if there are any duplicates for the selectedLabel
+		const firstIndexArray = labelMap.get(item.textLabel);
+		const hasDuplicates = firstIndexArray && firstIndexArray.length > 1;
+		const firstIndex = hasDuplicates ? firstIndexArray[0] : -1;
 
 		type AcceptedSuggestion = {
 			extensionId: string; providerId: string;
@@ -534,6 +545,7 @@ export class SuggestController implements IEditorContribution {
 			resolveInfo: number; resolveDuration: number;
 			commandDuration: number;
 			additionalEditsAsync: number;
+			index: number; firstIndex: number;
 		};
 		type AcceptedSuggestionClassification = {
 			owner: 'jrieken';
@@ -548,6 +560,8 @@ export class SuggestController implements IEditorContribution {
 			resolveDuration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How long resolving took to finish' };
 			commandDuration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How long a completion item command took' };
 			additionalEditsAsync: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Info about asynchronously applying additional edits' };
+			index: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The index of the completion item in the sorted list.' };
+			firstIndex: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'When there are multiple completions, the index of the first instance.' };
 		};
 
 		this._telemetryService.publicLog2<AcceptedSuggestion, AcceptedSuggestionClassification>('suggest.acceptedSuggestion', {
@@ -560,52 +574,10 @@ export class SuggestController implements IEditorContribution {
 			resolveInfo: !item.provider.resolveCompletionItem ? -1 : itemResolved ? 1 : 0,
 			resolveDuration: item.resolveDuration,
 			commandDuration: commandExectionDuration,
-			additionalEditsAsync: additionalEditsAppliedAsync
+			additionalEditsAsync: additionalEditsAppliedAsync,
+			index,
+			firstIndex,
 		});
-	}
-
-	private _reportSuggestionIndexTelemetry(item: CompletionItem, index: number) {
-		if (this.completionItems === undefined) {
-			return;
-		}
-
-		const selectedLabel = item.textLabel;
-
-		// Grab first 30 sorted suggestions
-		const completionItems = this.completionItems?.splice(0, 30);
-
-		// Determine if we have duplicates in the list
-		const hasOtherInstances = (items: CompletionItem[], label: string, index: number): boolean => {
-			return items.some((item, i) => i !== index && item.textLabel === label);
-		};
-
-		const hasDuplicates = hasOtherInstances(completionItems, selectedLabel, index);
-
-		// If duplicate, find first duplicate in the list
-		const firstIndex = hasDuplicates ? completionItems.findIndex((completion) => completion.textLabel === selectedLabel) : -1;
-
-		// Log telemetry only when duplicate found and index is not -1
-		if (firstIndex !== -1) {
-			type AcceptedSuggestionIndex = {
-				index: number;
-				firstIndex: number;
-				kind: number;
-			};
-
-			type AcceptedSuggestionIndexClassification = {
-				owner: 'justschen';
-				comment: 'Information accepting completion items';
-				index: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The order of the completion item in the list.' };
-				firstIndex: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'When there are multiple completions, the index of the first instance.' };
-				kind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The completion item kind' };
-			};
-
-			this._telemetryService.publicLog2<AcceptedSuggestionIndex, AcceptedSuggestionIndexClassification>('suggest.acceptedSuggestionIndex', {
-				index,
-				firstIndex,
-				kind: item.completion.kind,
-			});
-		}
 	}
 
 	getOverwriteInfo(item: CompletionItem, toggleMode: boolean): { overwriteBefore: number; overwriteAfter: number } {
