@@ -8,7 +8,7 @@ import { importAMDNodeModule } from 'vs/amdX';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { isESM } from 'vs/base/common/amd';
 
-suite('Modules Loading in ESM via importAMDNodeModule()', () => {
+(isESM ? suite : suite.skip)('Modules Loading in ESM via importAMDNodeModule()', () => {
 
 	test('@vscode/iconv-lite-umd', async () => {
 		const module = await importAMDNodeModule<typeof import('@vscode/iconv-lite-umd')>('@vscode/iconv-lite-umd', 'lib/iconv-lite-umd.js');
@@ -41,7 +41,7 @@ suite('Modules Loading in ESM via importAMDNodeModule()', () => {
 		assert.ok(typeof textmate.parseRawGrammar === 'function');
 	});
 
-	(isESM ? test : test.skip)('@xterm', async () => {
+	test('@xterm', async () => {
 		const xterm = await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js');
 		assert.ok(typeof xterm.Terminal === 'function');
 
