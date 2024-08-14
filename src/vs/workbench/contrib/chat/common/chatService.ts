@@ -236,6 +236,8 @@ export interface IChatInsertAction {
 	codeBlockIndex: number;
 	totalCharacters: number;
 	newFile?: boolean;
+	userAction?: string;
+	codeMapper?: string;
 }
 
 export interface IChatTerminalAction {
