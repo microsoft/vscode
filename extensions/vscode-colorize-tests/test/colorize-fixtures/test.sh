@@ -19,7 +19,7 @@ function code() {
 	cd $ROOT
 
 	# Node modules
-	test -d node_modules || ./scripts/npm.sh install
+	test -d node_modules || npm ci
 
 	# Configuration
 	export NODE_ENV=development

@@ -1,4 +1,4 @@
 #!/bin/sh
 
-yarn install --network-timeout 180000
-yarn electron
+npm ci
+npm run electron

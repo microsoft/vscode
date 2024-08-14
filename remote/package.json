@@ -38,7 +38,8 @@
     "yauzl": "^3.0.0",
     "yazl": "^2.4.3"
   },
-  "resolutions": {
+  "overrides": {
+    "@xterm/xterm": "5.6.0-beta.52",
     "node-gyp-build": "4.8.1"
   }
 }

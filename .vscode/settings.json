@@ -39,6 +39,7 @@
 	"files.readonlyInclude": {
 		"**/node_modules/**/*.*": true,
 		"**/yarn.lock": true,
+		"**/package-lock.json": true,
 		"**/Cargo.lock": true,
 		"src/vs/workbench/workbench.web.main.css": true,
 		"src/vs/workbench/workbench.desktop.main.css": true,
@@ -75,7 +76,6 @@
 	],
 	"typescript.tsdk": "node_modules/typescript/lib",
 	"npm.exclude": "**/extensions/**",
-	"npm.packageManager": "yarn",
 	"emmet.excludeLanguages": [],
 	"typescript.preferences.importModuleSpecifier": "relative",
 	"typescript.preferences.quoteStyle": "single",

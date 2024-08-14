@@ -6,5 +6,6 @@ test/
 tsconfig.json
 .gitignore
 yarn.lock
+package-lock.json
 extension.webpack.config.js
 vscode-json-languageserver-*.tgz
