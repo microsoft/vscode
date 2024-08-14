@@ -152,12 +152,14 @@ export interface IChatQuestion {
 	readonly command?: string;
 }
 
+export interface IChatAgentResultTimings {
+	firstProgress?: number;
+	totalElapsed: number;
+}
+
 export interface IChatAgentResult {
 	errorDetails?: IChatResponseErrorDetails;
-	timings?: {
-		firstProgress?: number;
-		totalElapsed: number;
-	};
+	timings?: IChatAgentResultTimings;
 	/** Extra properties that the agent can use to identify a result */
 	readonly metadata?: { readonly [key: string]: any };
 	nextQuestion?: IChatQuestion;
