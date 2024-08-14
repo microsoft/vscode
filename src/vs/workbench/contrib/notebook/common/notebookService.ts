@@ -79,7 +79,7 @@ export interface INotebookService {
 	updateMimePreferredRenderer(viewType: string, mimeType: string, rendererId: string, otherMimetypes: readonly string[]): void;
 	saveMimeDisplayOrder(target: ConfigurationTarget): void;
 
-	createNotebookTextModel(viewType: string, uri: URI, content?: { data?: NotebookData; stream?: VSBufferReadableStream }): Promise<NotebookTextModel>;
+	createNotebookTextModel(viewType: string, uri: URI, stream?: VSBufferReadableStream): Promise<NotebookTextModel>;
 	getNotebookTextModel(uri: URI): NotebookTextModel | undefined;
 	getNotebookTextModels(): Iterable<NotebookTextModel>;
 	listNotebookDocuments(): readonly NotebookTextModel[];

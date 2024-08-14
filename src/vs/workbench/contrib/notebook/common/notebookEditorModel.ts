@@ -378,7 +378,7 @@ export class NotebookFileWorkingCopyModelFactory implements IStoredFileWorkingCo
 	async createModel(resource: URI, stream: VSBufferReadableStream, token: CancellationToken): Promise<NotebookFileWorkingCopyModel> {
 
 		const notebookModel = this._notebookService.getNotebookTextModel(resource) ??
-			await this._notebookService.createNotebookTextModel(this._viewType, resource, { stream });
+			await this._notebookService.createNotebookTextModel(this._viewType, resource, stream);
 
 		return new NotebookFileWorkingCopyModel(notebookModel, this._notebookService, this._configurationService, this._telemetryService, this._notebookLogService);
 	}

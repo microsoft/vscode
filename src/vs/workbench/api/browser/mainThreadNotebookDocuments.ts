@@ -126,11 +126,30 @@ export class MainThreadNotebookDocuments implements MainThreadNotebookDocumentsS
 	}
 
 	async $tryCreateNotebook(options: { viewType: string; content?: NotebookDataDto }): Promise<UriComponents> {
-		const data = options.content ? NotebookDto.fromNotebookDataDto(options.content) : undefined;
-		// We create the notebook text model, but the don't resolve the editor model yet
-		// This will allow us to adjust settings when the editor is opened, e.g. scratchpad
-		const notebook = await this._notebookEditorModelResolverService.createUntitledNotebookTextModel(options.viewType, data);
-		return notebook.uri;
+		if (options.content) {
+			const ref = await this._notebookEditorModelResolverService.resolve({ untitledResource: undefined }, options.viewType);
+
+			// untitled notebooks are disposed when they get saved. we should not hold a reference
+			// to such a disposed notebook and therefore dispose the reference as well
+			ref.object.notebook.onWillDispose(() => {
+				ref.dispose();
+			});
+
+			// untitled notebooks with content are dirty by default
+			this._proxy.$acceptDirtyStateChanged(ref.object.resource, true);
+
+			// apply content changes... slightly HACKY -> this triggers a change event
+			if (options.content) {
+				const data = NotebookDto.fromNotebookDataDto(options.content);
+				ref.object.notebook.reset(data.cells, data.metadata, ref.object.notebook.transientOptions);
+			}
+			return ref.object.notebook.uri;
+		} else {
+			// If we aren't adding content, we don't need to resolve the full editor model yet.
+			// This will allow us to adjust settings when the editor is opened, e.g. scratchpad
+			const notebook = await this._notebookEditorModelResolverService.createUntitledNotebookTextModel(options.viewType);
+			return notebook.uri;
+		}
 	}
 
 	async $tryOpenNotebook(uriComponents: UriComponents): Promise<URI> {
