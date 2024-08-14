@@ -183,6 +183,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					fullName: dynamicProps.fullName,
 					metadata: revive(metadata),
 					slashCommands: [],
+					disambiguation: [],
 					locations: [ChatAgentLocation.Panel] // TODO all dynamic participants are panel only?
 				},
 				impl);

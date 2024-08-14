@@ -15,7 +15,7 @@ import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { Disposable, DisposableStore, IDisposable, toDisposable, type IReference } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
-import { getIconClassesForLanguageId } from 'vs/editor/common/services/getIconClasses';
+import { getIconClassesForLanguageId } from 'vs/editor/browser/services/getIconClasses';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';

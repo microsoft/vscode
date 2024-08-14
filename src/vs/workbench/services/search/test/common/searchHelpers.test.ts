@@ -91,13 +91,12 @@ suite('SearchHelpers', () => {
 			}
 		} as ITextModel;
 
-		function getQuery(beforeContext?: number, afterContext?: number): ITextQuery {
+		function getQuery(surroundingContext?: number): ITextQuery {
 			return {
 				folderQueries: [],
 				type: QueryType.Text,
 				contentPattern: { pattern: 'test' },
-				beforeContext,
-				afterContext
+				surroundingContext,
 			};
 		}
 
@@ -122,7 +121,7 @@ suite('SearchHelpers', () => {
 				ranges: new Range(1, 0, 1, 10)
 			}];
 
-			assert.deepStrictEqual(getTextSearchMatchWithModelContext(matches, mockTextModel, getQuery(1, 2)), [
+			assert.deepStrictEqual(getTextSearchMatchWithModelContext(matches, mockTextModel, getQuery(1)), [
 				{
 					text: '1',
 					lineNumber: 1
@@ -131,10 +130,6 @@ suite('SearchHelpers', () => {
 				{
 					text: '3',
 					lineNumber: 3
-				},
-				{
-					text: '4',
-					lineNumber: 4
 				},
 			] satisfies ITextSearchResult[]);
 		});
@@ -156,7 +151,7 @@ suite('SearchHelpers', () => {
 					ranges: new Range(2, 0, 2, 10)
 				}];
 
-			assert.deepStrictEqual(getTextSearchMatchWithModelContext(matches, mockTextModel, getQuery(1, 2)), [
+			assert.deepStrictEqual(getTextSearchMatchWithModelContext(matches, mockTextModel, getQuery(1)), [
 				<ITextSearchContext>{
 					text: '1',
 					lineNumber: 1
@@ -165,10 +160,6 @@ suite('SearchHelpers', () => {
 				<ITextSearchContext>{
 					text: '4',
 					lineNumber: 4
-				},
-				<ITextSearchContext>{
-					text: '5',
-					lineNumber: 5
 				},
 			]);
 		});
@@ -190,15 +181,11 @@ suite('SearchHelpers', () => {
 					ranges: new Range(MOCK_LINE_COUNT - 1, 0, MOCK_LINE_COUNT - 1, 10)
 				}];
 
-			assert.deepStrictEqual(getTextSearchMatchWithModelContext(matches, mockTextModel, getQuery(1, 2)), [
+			assert.deepStrictEqual(getTextSearchMatchWithModelContext(matches, mockTextModel, getQuery(1)), [
 				matches[0],
 				<ITextSearchContext>{
 					text: '2',
 					lineNumber: 2
-				},
-				<ITextSearchContext>{
-					text: '3',
-					lineNumber: 3
 				},
 				<ITextSearchContext>{
 					text: '' + (MOCK_LINE_COUNT - 1),

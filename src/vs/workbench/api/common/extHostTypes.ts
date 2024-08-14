@@ -4465,10 +4465,10 @@ export class ChatResponseCommandButtonPart {
 }
 
 export class ChatResponseReferencePart {
-	value: vscode.Uri | vscode.Location | { variableName: string; value?: vscode.Uri | vscode.Location };
+	value: vscode.Uri | vscode.Location | { variableName: string; value?: vscode.Uri | vscode.Location } | string;
 	iconPath?: vscode.Uri | vscode.ThemeIcon | { light: vscode.Uri; dark: vscode.Uri };
 	options?: { status?: { description: string; kind: vscode.ChatResponseReferencePartStatusKind } };
-	constructor(value: vscode.Uri | vscode.Location | { variableName: string; value?: vscode.Uri | vscode.Location }, iconPath?: vscode.Uri | vscode.ThemeIcon | { light: vscode.Uri; dark: vscode.Uri }, options?: { status?: { description: string; kind: vscode.ChatResponseReferencePartStatusKind } }) {
+	constructor(value: vscode.Uri | vscode.Location | { variableName: string; value?: vscode.Uri | vscode.Location } | string, iconPath?: vscode.Uri | vscode.ThemeIcon | { light: vscode.Uri; dark: vscode.Uri }, options?: { status?: { description: string; kind: vscode.ChatResponseReferencePartStatusKind } }) {
 		this.value = value;
 		this.iconPath = iconPath;
 		this.options = options;
@@ -4496,6 +4496,8 @@ export class ChatResponseTextEditPart {
 }
 
 export class ChatRequestTurn implements vscode.ChatRequestTurn {
+	toolReferences?: vscode.ChatLanguageModelToolReference[];
+
 	constructor(
 		readonly prompt: string,
 		readonly command: string | undefined,

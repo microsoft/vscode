@@ -915,7 +915,7 @@ export class CodeApplication extends Disposable {
 				this.logService.trace('app#handleProtocolUrl() opening protocol url as window:', windowOpenableFromProtocolUrl, uri.toString(true));
 
 				const window = firstOrDefault(await windowsMainService.open({
-					context: OpenContext.API,
+					context: OpenContext.LINK,
 					cli: { ...this.environmentMainService.args },
 					urisToOpen: [windowOpenableFromProtocolUrl],
 					forceNewWindow: shouldOpenInNewWindow,
@@ -934,7 +934,7 @@ export class CodeApplication extends Disposable {
 			this.logService.trace('app#handleProtocolUrl() opening empty window and passing in protocol url:', uri.toString(true));
 
 			const window = firstOrDefault(await windowsMainService.open({
-				context: OpenContext.API,
+				context: OpenContext.LINK,
 				cli: { ...this.environmentMainService.args },
 				forceNewWindow: true,
 				forceEmpty: true,

@@ -486,6 +486,10 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 	async triggerSearch(_options?: { resetCursor?: boolean; delay?: number; focusResults?: boolean }) {
 		const options = { resetCursor: true, delay: 0, ..._options };
 
+		if (!(this.queryEditorWidget.searchInput?.inputBox.isInputValid())) {
+			return;
+		}
+
 		if (!this.pauseSearching) {
 			await this.runSearchDelayer.trigger(async () => {
 				this.toggleRunAgainMessage(false);
@@ -558,8 +562,7 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 				matchLines: 1,
 				charsPerLine: 1000
 			},
-			afterContext: config.contextLines,
-			beforeContext: config.contextLines,
+			surroundingContext: config.contextLines,
 			isSmartCase: this.searchConfig.smartCase,
 			expandPatterns: true,
 			notebookSearchConfig: {

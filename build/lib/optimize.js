@@ -22,6 +22,7 @@ const i18n_1 = require("./i18n");
 const stats_1 = require("./stats");
 const util = require("./util");
 const postcss_1 = require("./postcss");
+const esm_1 = require("./esm");
 const REPO_ROOT_PATH = path.join(__dirname, '../..');
 function log(prefix, message) {
     fancyLog(ansiColors.cyan('[' + prefix + ']'), message);
@@ -148,7 +149,7 @@ const DEFAULT_FILE_HEADER = [
 ].join('\n');
 function optimizeAMDTask(opts) {
     const src = opts.src;
-    const entryPoints = opts.entryPoints;
+    const entryPoints = opts.entryPoints.filter(d => d.target !== 'esm');
     const resources = opts.resources;
     const loaderConfig = opts.loaderConfig;
     const bundledFileHeader = opts.header || DEFAULT_FILE_HEADER;
@@ -194,6 +195,162 @@ function optimizeAMDTask(opts) {
         languages: opts.languages
     }) : es.through());
 }
+function optimizeESMTask(opts, cjsOpts) {
+    // TODO@esm honor IEntryPoint#prepred/append (unused?)
+    const esbuild = require('esbuild');
+    const bundledFileHeader = opts.header || DEFAULT_FILE_HEADER;
+    const sourcemaps = require('gulp-sourcemaps');
+    const resourcesStream = es.through(); // this stream will contain the resources
+    const bundlesStream = es.through(); // this stream will contain the bundled files
+    const bundleInfoStream = es.through(); // this stream will contain bundleInfo.json
+    const entryPoints = opts.entryPoints.filter(d => d.target !== 'amd');
+    if (cjsOpts) {
+        cjsOpts.entryPoints.forEach(entryPoint => entryPoints.push({ name: path.parse(entryPoint).name }));
+    }
+    // TODO@esm remove hardcoded entry point and support `dest` of `IEntryPoint` or clean that up
+    entryPoints.push({ name: 'vs/base/worker/workerMain' });
+    const allMentionedModules = new Set();
+    for (const entryPoint of entryPoints) {
+        allMentionedModules.add(entryPoint.name);
+        entryPoint.include?.forEach(allMentionedModules.add, allMentionedModules);
+        entryPoint.exclude?.forEach(allMentionedModules.add, allMentionedModules);
+    }
+    // TODO@esm remove this from the bundle files
+    allMentionedModules.delete('vs/css');
+    const bundleAsync = async () => {
+        let bundleData;
+        const files = [];
+        const tasks = [];
+        for (const entryPoint of entryPoints) {
+            const t1 = performance.now();
+            console.log(`[bundle] STARTING '${entryPoint.name}'...`);
+            // support for 'dest' via esbuild#in/out
+            const dest = entryPoint.dest?.replace(/\.[^/.]+$/, '') ?? entryPoint.name;
+            // const dest = entryPoint.name;
+            // boilerplate massage
+            const banner = { js: '' };
+            const fs = await Promise.resolve().then(() => require('node:fs'));
+            const tslibPath = path.join(require.resolve('tslib'), '../tslib.es6.js');
+            banner.js += await fs.promises.readFile(tslibPath, 'utf-8');
+            const boilerplateTrimmer = {
+                name: 'boilerplate-trimmer',
+                setup(build) {
+                    build.onLoad({ filter: /\.js$/ }, async (args) => {
+                        const contents = await fs.promises.readFile(args.path, 'utf-8');
+                        const newContents = bundle.removeAllTSBoilerplate(contents);
+                        return { contents: newContents };
+                    });
+                }
+            };
+            // support for 'preprend' via the esbuild#banner
+            if (entryPoint.prepend?.length) {
+                for (const item of entryPoint.prepend) {
+                    const fullpath = path.join(REPO_ROOT_PATH, opts.src, item.path);
+                    const source = await fs.promises.readFile(fullpath, 'utf8');
+                    banner.js += source + '\n';
+                }
+            }
+            const task = esbuild.build({
+                logLevel: 'silent',
+                bundle: true,
+                external: entryPoint.exclude,
+                packages: 'external', // "external all the things", see https://esbuild.github.io/api/#packages
+                platform: 'neutral', // makes esm
+                format: 'esm',
+                plugins: [boilerplateTrimmer],
+                target: ['es2023'],
+                loader: {
+                    '.ttf': 'file',
+                    '.svg': 'file',
+                    '.png': 'file',
+                    '.sh': 'file',
+                },
+                banner,
+                entryPoints: [
+                    {
+                        in: path.join(REPO_ROOT_PATH, opts.src, `${entryPoint.name}.js`),
+                        out: dest,
+                    }
+                ],
+                outdir: path.join(REPO_ROOT_PATH, opts.src),
+                write: false, // enables res.outputFiles
+                metafile: true, // enables res.metafile
+            }).then(res => {
+                console.log(`[bundle] DONE for '${entryPoint.name}' (${Math.round(performance.now() - t1)}ms)`);
+                if (opts.bundleInfo) {
+                    // TODO@esm validate that bundleData is correct
+                    bundleData ??= { graph: {}, bundles: {} };
+                    function pathToModule(path) {
+                        return path
+                            .replace(new RegExp(`^${opts.src}\\/`), '')
+                            .replace(/\.js$/, '');
+                    }
+                    for (const [path, value] of Object.entries(res.metafile.outputs)) {
+                        const entryModule = pathToModule(path);
+                        const inputModules = Object.keys(value.inputs).map(pathToModule);
+                        bundleData.bundles[entryModule] = inputModules;
+                    }
+                    for (const [input, value] of Object.entries(res.metafile.inputs)) {
+                        const dependencies = value.imports.map(i => pathToModule(i.path));
+                        bundleData.graph[pathToModule(input)] = dependencies;
+                    }
+                }
+                for (const file of res.outputFiles) {
+                    let contents = file.contents;
+                    if (file.path.endsWith('.js')) {
+                        if (opts.fileContentMapper) {
+                            // UGLY the fileContentMapper is per file but at this point we have all files
+                            // bundled already. So, we call the mapper for the same contents but each file
+                            // that has been included in the bundle...
+                            let newText = file.text;
+                            for (const input of Object.keys(res.metafile.inputs)) {
+                                newText = opts.fileContentMapper(newText, input);
+                            }
+                            contents = Buffer.from(newText);
+                        }
+                    }
+                    files.push(new VinylFile({
+                        contents: Buffer.from(contents),
+                        path: file.path,
+                        base: path.join(REPO_ROOT_PATH, opts.src)
+                    }));
+                }
+            });
+            // await task; // FORCE serial bundling (makes debugging easier)
+            tasks.push(task);
+        }
+        await Promise.all(tasks);
+        return { files, bundleData };
+    };
+    bundleAsync().then((output) => {
+        // bundle output (JS, CSS, SVG...)
+        es.readArray(output.files).pipe(bundlesStream);
+        // bundeInfo.json
+        const bundleInfoArray = [];
+        if (typeof output.bundleData === 'object') {
+            bundleInfoArray.push(new VinylFile({
+                path: 'bundleInfo.json',
+                base: '.',
+                contents: Buffer.from(JSON.stringify(output.bundleData, null, '\t'))
+            }));
+        }
+        es.readArray(bundleInfoArray).pipe(bundleInfoStream);
+        // forward all resources
+        gulp.src(opts.resources, { base: `${opts.src}`, allowEmpty: true }).pipe(resourcesStream);
+    });
+    const result = es.merge(bundlesStream, resourcesStream, bundleInfoStream);
+    return result
+        .pipe(sourcemaps.write('./', {
+        sourceRoot: undefined,
+        addComment: true,
+        includeContent: true
+    }))
+        .pipe(opts.languages && opts.languages.length ? (0, i18n_1.processNlsFiles)({
+        out: opts.src,
+        fileHeader: bundledFileHeader,
+        languages: opts.languages
+    }) : es.through());
+}
 function optimizeCommonJSTask(opts) {
     const esbuild = require('esbuild');
     const src = opts.src;
@@ -226,9 +383,15 @@ function optimizeLoaderTask(src, out, bundleLoader, bundledFileHeader = '', exte
 }
 function optimizeTask(opts) {
     return function () {
-        const optimizers = [optimizeAMDTask(opts.amd)];
-        if (opts.commonJS) {
-            optimizers.push(optimizeCommonJSTask(opts.commonJS));
+        const optimizers = [];
+        if ((0, esm_1.isESM)('Running optimizer in ESM mode')) {
+            optimizers.push(optimizeESMTask(opts.amd, opts.commonJS));
+        }
+        else {
+            optimizers.push(optimizeAMDTask(opts.amd));
+            if (opts.commonJS) {
+                optimizers.push(optimizeCommonJSTask(opts.commonJS));
+            }
         }
         if (opts.manual) {
             optimizers.push(optimizeManualTask(opts.manual));

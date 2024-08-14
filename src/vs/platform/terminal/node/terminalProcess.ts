@@ -14,7 +14,7 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { FlowControlConstants, IShellLaunchConfig, ITerminalChildProcess, ITerminalLaunchError, IProcessProperty, IProcessPropertyMap as IProcessPropertyMap, ProcessPropertyType, TerminalShellType, IProcessReadyEvent, ITerminalProcessOptions, PosixShellType, IProcessReadyWindowsPty } from 'vs/platform/terminal/common/terminal';
+import { FlowControlConstants, IShellLaunchConfig, ITerminalChildProcess, ITerminalLaunchError, IProcessProperty, IProcessPropertyMap as IProcessPropertyMap, ProcessPropertyType, TerminalShellType, IProcessReadyEvent, ITerminalProcessOptions, PosixShellType, IProcessReadyWindowsPty, GeneralShellType } from 'vs/platform/terminal/common/terminal';
 import { ChildProcessMonitor } from 'vs/platform/terminal/node/childProcessMonitor';
 import { findExecutable, getShellIntegrationInjection, getWindowsBuildNumber, IShellIntegrationConfigInjection } from 'vs/platform/terminal/node/terminalEnvironment';
 import { WindowsShellHelper } from 'vs/platform/terminal/node/windowsShellHelper';
@@ -72,12 +72,16 @@ const posixShellTypeMap = new Map<string, PosixShellType>([
 	['fish', PosixShellType.Fish],
 	['ksh', PosixShellType.Ksh],
 	['sh', PosixShellType.Sh],
-	['pwsh', PosixShellType.PowerShell],
-	['python', PosixShellType.Python],
-	['julia', PosixShellType.Julia],
 	['zsh', PosixShellType.Zsh]
 ]);
 
+const generalShellTypeMap = new Map<string, GeneralShellType>([
+	['pwsh', GeneralShellType.PowerShell],
+	['python', GeneralShellType.Python],
+	['julia', GeneralShellType.Julia],
+	['nu', GeneralShellType.NuShell],
+
+]);
 export class TerminalProcess extends Disposable implements ITerminalChildProcess {
 	readonly id = 0;
 	readonly shouldPersist = false;
@@ -115,7 +119,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	get exitMessage(): string | undefined { return this._exitMessage; }
 
 	get currentTitle(): string { return this._windowsShellHelper?.shellTitle || this._currentTitle; }
-	get shellType(): TerminalShellType | undefined { return isWindows ? this._windowsShellHelper?.shellType : posixShellTypeMap.get(this._currentTitle); }
+	get shellType(): TerminalShellType | undefined { return isWindows ? this._windowsShellHelper?.shellType : posixShellTypeMap.get(this._currentTitle) || generalShellTypeMap.get(this._currentTitle); }
 	get hasChildProcesses(): boolean { return this._childProcessMonitor?.hasChildProcesses || false; }
 
 	private readonly _onProcessData = this._register(new Emitter<string>());
@@ -411,11 +415,12 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		const sanitizedTitle = this.currentTitle.replace(/ \(figterm\)$/g, '');
 
 		if (sanitizedTitle.toLowerCase().startsWith('python')) {
-			this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellType, value: PosixShellType.Python });
+			this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellType, value: GeneralShellType.Python });
 		} else if (sanitizedTitle.toLowerCase().startsWith('julia')) {
-			this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellType, value: PosixShellType.Julia });
+			this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellType, value: GeneralShellType.Julia });
 		} else {
-			this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellType, value: posixShellTypeMap.get(sanitizedTitle) });
+			const shellTypeValue = posixShellTypeMap.get(sanitizedTitle) || generalShellTypeMap.get(sanitizedTitle);
+			this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellType, value: shellTypeValue });
 		}
 	}
 

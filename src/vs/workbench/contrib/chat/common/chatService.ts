@@ -82,7 +82,7 @@ export enum ChatResponseReferencePartStatusKind {
 }
 
 export interface IChatContentReference {
-	reference: URI | Location | IChatContentVariableReference;
+	reference: URI | Location | IChatContentVariableReference | string;
 	iconPath?: ThemeIcon | { light: URI; dark?: URI };
 	options?: { status?: { description: string; kind: ChatResponseReferencePartStatusKind } };
 	kind: 'reference';
@@ -236,6 +236,8 @@ export interface IChatInsertAction {
 	codeBlockIndex: number;
 	totalCharacters: number;
 	newFile?: boolean;
+	userAction?: string;
+	codeMapper?: string;
 }
 
 export interface IChatTerminalAction {

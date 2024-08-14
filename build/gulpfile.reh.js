@@ -31,6 +31,7 @@ const { compileExtensionsBuildTask, compileExtensionMediaBuildTask } = require('
 const { vscodeWebEntryPoints, vscodeWebResourceIncludes, createVSCodeWebFileContentMapper } = require('./gulpfile.vscode.web');
 const cp = require('child_process');
 const log = require('fancy-log');
+const { isESM } = require('./lib/esm');
 
 const REPO_ROOT = path.dirname(__dirname);
 const commit = getVersion(REPO_ROOT);
@@ -299,7 +300,7 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 
 		let packageJsonContents;
 		const packageJsonStream = gulp.src(['remote/package.json'], { base: 'remote' })
-			.pipe(json({ name, version, dependencies: undefined, optionalDependencies: undefined }))
+			.pipe(json({ name, version, dependencies: undefined, optionalDependencies: undefined, ...(isESM(`Setting 'type: module' in top level package.json`) ? { type: 'module' } : {}) })) // TODO@esm this should be configured in the top level package.json
 			.pipe(es.through(function (file) {
 				packageJsonContents = file.contents.toString();
 				this.emit('data', file);
