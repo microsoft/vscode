@@ -1020,6 +1020,9 @@ export class ChatModel extends Disposable implements IChatModel {
 					...r.message,
 					parts: r.message.parts.map(p => p && 'toJSON' in p ? (p.toJSON as Function)() : p)
 				};
+				const agent = r.response?.agent;
+				const agentJson = agent && 'toJSON' in agent ? (agent.toJSON as Function)() :
+					agent ? { ...agent } : undefined;
 				return {
 					message,
 					variableData: r.variableData,
@@ -1039,7 +1042,7 @@ export class ChatModel extends Disposable implements IChatModel {
 					followups: r.response?.followups,
 					isCanceled: r.response?.isCanceled,
 					vote: r.response?.vote,
-					agent: r.response?.agent ? { ...r.response.agent } : undefined,
+					agent: agentJson,
 					slashCommand: r.response?.slashCommand,
 					usedContext: r.response?.usedContext,
 					contentReferences: r.response?.contentReferences,
