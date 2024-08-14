@@ -548,7 +548,6 @@ export class SuggestController implements IEditorContribution {
 			resolveDuration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How long resolving took to finish' };
 			commandDuration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How long a completion item command took' };
 			additionalEditsAsync: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Info about asynchronously applying additional edits' };
-
 		};
 
 		this._telemetryService.publicLog2<AcceptedSuggestion, AcceptedSuggestionClassification>('suggest.acceptedSuggestion', {
@@ -582,16 +581,8 @@ export class SuggestController implements IEditorContribution {
 
 		const hasDuplicates = hasOtherInstances(completionItems, selectedLabel, index);
 
-		let firstIndex = -1;
-
 		// If duplicate, find first duplicate in the list
-		if (hasDuplicates) {
-			for (const completion of completionItems) {
-				if (completion.textLabel === selectedLabel && firstIndex === -1) {
-					firstIndex = completionItems.indexOf(completion);
-				}
-			}
-		}
+		const firstIndex = hasDuplicates ? completionItems.findIndex((completion) => completion.textLabel === selectedLabel) : -1;
 
 		// Log telemetry only when duplicate found and index is not -1
 		if (firstIndex !== -1) {
