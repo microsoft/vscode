@@ -130,6 +130,8 @@ export class SuggestController implements IEditorContribution {
 	private readonly _overtypingCapturer: WindowIdleValue<OvertypingCapturer>;
 	private readonly _selectors = new PriorityRegistry<ISuggestItemPreselector>(s => s.priority);
 
+	private completionItems: CompletionItem[] | undefined;
+
 	private readonly _onWillInsertSuggestItem = new Emitter<{ item: CompletionItem }>();
 	readonly onWillInsertSuggestItem: Event<{ item: CompletionItem }> = this._onWillInsertSuggestItem.event;
 
@@ -257,6 +259,9 @@ export class SuggestController implements IEditorContribution {
 			if (index === -1) {
 				index = 0;
 			}
+
+			this.completionItems = e.completionModel.items;
+
 			if (this.model.state === State.Idle) {
 				// selecting an item can "pump" out selection/cursor change events
 				// which can cancel suggest halfway through this function. therefore
@@ -510,6 +515,7 @@ export class SuggestController implements IEditorContribution {
 		// clear only now - after all tasks are done
 		Promise.all(tasks).finally(() => {
 			this._reportSuggestionAcceptedTelemetry(item, model, isResolved, _commandExectionDuration, _additionalEditsAppliedAsync, event.index);
+			this._reportSuggestionIndexTelemetry(item, event.index);
 
 			this.model.clear();
 			cts.dispose();
@@ -528,8 +534,6 @@ export class SuggestController implements IEditorContribution {
 			resolveInfo: number; resolveDuration: number;
 			commandDuration: number;
 			additionalEditsAsync: number;
-			index: number;
-			label: string;
 		};
 		type AcceptedSuggestionClassification = {
 			owner: 'jrieken';
@@ -544,8 +548,7 @@ export class SuggestController implements IEditorContribution {
 			resolveDuration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How long resolving took to finish' };
 			commandDuration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How long a completion item command took' };
 			additionalEditsAsync: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Info about asynchronously applying additional edits' };
-			index: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The order of the completion item in the list.' };
-			label: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The label of the completion item.' };
+
 		};
 
 		this._telemetryService.publicLog2<AcceptedSuggestion, AcceptedSuggestionClassification>('suggest.acceptedSuggestion', {
@@ -558,10 +561,60 @@ export class SuggestController implements IEditorContribution {
 			resolveInfo: !item.provider.resolveCompletionItem ? -1 : itemResolved ? 1 : 0,
 			resolveDuration: item.resolveDuration,
 			commandDuration: commandExectionDuration,
-			additionalEditsAsync: additionalEditsAppliedAsync,
-			index,
-			label: item.textLabel
+			additionalEditsAsync: additionalEditsAppliedAsync
 		});
+	}
+
+	private _reportSuggestionIndexTelemetry(item: CompletionItem, index: number) {
+		if (this.completionItems === undefined) {
+			return;
+		}
+
+		const selectedLabel = item.textLabel;
+
+		// Grab first 30 sorted suggestions
+		const completionItems = this.completionItems?.splice(0, 30);
+
+		// Determine if we have duplicates in the list
+		const hasOtherInstances = (items: CompletionItem[], label: string, index: number): boolean => {
+			return items.some((item, i) => i !== index && item.textLabel === label);
+		};
+
+		const hasDuplicates = hasOtherInstances(completionItems, selectedLabel, index);
+
+		let firstIndex = -1;
+
+		// If duplicate, find first duplicate in the list
+		if (hasDuplicates) {
+			for (const completion of completionItems) {
+				if (completion.textLabel === selectedLabel && firstIndex === -1) {
+					firstIndex = completionItems.indexOf(completion);
+				}
+			}
+		}
+
+		// Log telemetry only when duplicate found and index is not -1
+		if (firstIndex !== -1) {
+			type AcceptedSuggestionIndex = {
+				index: number;
+				firstIndex: number;
+				kind: number;
+			};
+
+			type AcceptedSuggestionIndexClassification = {
+				owner: 'justschen';
+				comment: 'Information accepting completion items';
+				index: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The order of the completion item in the list.' };
+				firstIndex: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'When there are multiple completions, the index of the first instance.' };
+				kind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The completion item kind' };
+			};
+
+			this._telemetryService.publicLog2<AcceptedSuggestionIndex, AcceptedSuggestionIndexClassification>('suggest.acceptedSuggestionIndex', {
+				index,
+				firstIndex,
+				kind: item.completion.kind,
+			});
+		}
 	}
 
 	getOverwriteInfo(item: CompletionItem, toggleMode: boolean): { overwriteBefore: number; overwriteAfter: number } {
