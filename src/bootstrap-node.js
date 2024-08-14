@@ -72,9 +72,15 @@ setupCurrentWorkingDirectory();
 /**
  * Add support for redirecting the loading of node modules
  *
+ * Note: only applies when running out of sources.
+ *
  * @param {string} injectPath
  */
-module.exports.injectNodeModuleLookupPath = function (injectPath) {
+module.exports.devInjectNodeModuleLookupPath = function (injectPath) {
+	if (!process.env['VSCODE_DEV']) {
+		return; // only applies running out of sources
+	}
+
 	if (!injectPath) {
 		throw new Error('Missing injectPath');
 	}
@@ -83,7 +89,7 @@ module.exports.injectNodeModuleLookupPath = function (injectPath) {
 	if (isESM) {
 		// register a loader hook
 		// ESM-uncomment-begin
-		// Module.register('./loader-lookup-path.mjs', { parentURL: import.meta.url, data: injectPath });
+		// Module.register('./bootstrap-import.js', { parentURL: import.meta.url, data: injectPath });
 		// ESM-uncomment-end
 	} else {
 		const nodeModulesPath = path.join(__dirname, '../node_modules');
@@ -266,7 +272,7 @@ module.exports.fileUriFromPath = function (path, config) {
 //#endregion
 
 // ESM-uncomment-begin
-// export const injectNodeModuleLookupPath = module.exports.injectNodeModuleLookupPath;
+// export const devInjectNodeModuleLookupPath = module.exports.devInjectNodeModuleLookupPath;
 // export const removeGlobalNodeModuleLookupPaths = module.exports.removeGlobalNodeModuleLookupPaths;
 // export const configurePortable = module.exports.configurePortable;
 // export const enableASARSupport = module.exports.enableASARSupport;
