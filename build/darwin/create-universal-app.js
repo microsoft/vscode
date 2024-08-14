@@ -27,7 +27,7 @@ async function main(buildDir) {
         '**/CodeResources',
         '**/Credits.rtf',
     ];
-    const canAsar = (0, esm_1.isESM)(); // TODO@esm ASAR disabled in ESM
+    const canAsar = (0, esm_1.isESM)('ASAR disabled in universal build'); // TODO@esm ASAR disabled in ESM
     await (0, vscode_universal_bundler_1.makeUniversalApp)({
         x64AppPath,
         arm64AppPath,

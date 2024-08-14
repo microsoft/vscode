@@ -32,7 +32,7 @@ async function main(buildDir?: string) {
 		'**/Credits.rtf',
 	];
 
-	const canAsar = isESM(); // TODO@esm ASAR disabled in ESM
+	const canAsar = isESM('ASAR disabled in universal build'); // TODO@esm ASAR disabled in ESM
 
 	await makeUniversalApp({
 		x64AppPath,

@@ -26,9 +26,13 @@ function setESM(isESM) {
     result.taskName = 'set-esm';
     return result;
 }
-function isESM() {
+function isESM(logWarning) {
     try {
-        return fs.readFileSync(esmMarkerFile, 'utf8') === 'true';
+        const res = fs.readFileSync(esmMarkerFile, 'utf8') === 'true';
+        if (res && logWarning) {
+            console.warn(`ESM: ${logWarning}`);
+        }
+        return res;
     }
     catch (error) {
         return false;
