@@ -141,6 +141,8 @@ export interface CellDiffViewModelLayoutChangeEvent extends IDiffElementSelfLayo
 
 export const DIFF_CELL_MARGIN = 16;
 export const NOTEBOOK_DIFF_CELL_INPUT = new RawContextKey<boolean>('notebookDiffCellInputChanged', false);
+export const NOTEBOOK_DIFF_CELL_IGNORE_WHITESPACE_KEY = 'notebookDiffCellIgnoreWhitespace';
+export const NOTEBOOK_DIFF_CELL_IGNORE_WHITESPACE = new RawContextKey<boolean>(NOTEBOOK_DIFF_CELL_IGNORE_WHITESPACE_KEY, false);
 export const NOTEBOOK_DIFF_CELL_PROPERTY = new RawContextKey<boolean>('notebookDiffCellPropertyChanged', false);
 export const NOTEBOOK_DIFF_CELL_PROPERTY_EXPANDED = new RawContextKey<boolean>('notebookDiffCellPropertyExpanded', false);
 

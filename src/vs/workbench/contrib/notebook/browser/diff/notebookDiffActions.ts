@@ -11,10 +11,10 @@ import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/com
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ActiveEditorContext } from 'vs/workbench/common/contextkeys';
 import { DiffElementCellViewModelBase, SideBySideDiffElementViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
-import { INotebookTextDiffEditor, NOTEBOOK_DIFF_CELL_INPUT, NOTEBOOK_DIFF_CELL_PROPERTY, NOTEBOOK_DIFF_CELL_PROPERTY_EXPANDED } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
+import { INotebookTextDiffEditor, NOTEBOOK_DIFF_CELL_IGNORE_WHITESPACE_KEY, NOTEBOOK_DIFF_CELL_INPUT, NOTEBOOK_DIFF_CELL_PROPERTY, NOTEBOOK_DIFF_CELL_PROPERTY_EXPANDED } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
 import { NotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditor';
 import { NotebookDiffEditorInput } from 'vs/workbench/contrib/notebook/common/notebookDiffEditorInput';
-import { nextChangeIcon, openAsTextIcon, previousChangeIcon, renderOutputIcon, revertIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
+import { nextChangeIcon, openAsTextIcon, previousChangeIcon, renderOutputIcon, revertIcon, toggleWhitespace } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
@@ -23,6 +23,7 @@ import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { CellEditType, NOTEBOOK_DIFF_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 
 // ActiveEditorContext.isEqualTo(SearchEditorConstants.SearchEditorID)
 
@@ -58,37 +59,6 @@ registerAction2(class extends Action2 {
 						override: DEFAULT_EDITOR_ASSOCIATION.id
 					}
 				});
-		}
-	}
-});
-
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'notebook.toggle.diff.renderSideBySide',
-			title: localize('inlineView', "Inline View"),
-			toggled: ContextKeyExpr.equals('config.diffEditor.renderSideBySide', false),
-			precondition: ActiveEditorContext.isEqualTo(NotebookTextDiffEditor.ID),
-			menu: [{
-				id: MenuId.EditorTitle,
-				order: 0,
-				group: '1_diff',
-				when: ActiveEditorContext.isEqualTo(NotebookTextDiffEditor.ID)
-			}]
-		});
-	}
-
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const editorService = accessor.get(IEditorService);
-		const activeEditor = editorService.activeEditorPane;
-		if (activeEditor && activeEditor instanceof NotebookTextDiffEditor) {
-			const diffEditorInput = activeEditor.input as NotebookDiffEditorInput;
-			if (diffEditorInput.resource) {
-				const configurationService = accessor.get(IConfigurationService);
-
-				const oldValue = configurationService.getValue('diffEditor.renderSideBySide');
-				configurationService.updateValue('diffEditor.renderSideBySide', !oldValue);
-			}
 		}
 	}
 });
@@ -217,13 +187,46 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super(
 			{
+				id: 'notebook.toggle.diff.cell.ignoreTrimWhitespace',
+				title: localize('ignoreTrimWhitespace.label', "Show Leading/Trailing Whitespace Differences"),
+				icon: toggleWhitespace,
+				f1: false,
+				menu: {
+					id: MenuId.NotebookDiffCellInputTitle,
+					when: NOTEBOOK_DIFF_CELL_INPUT,
+					order: 1,
+				},
+				precondition: NOTEBOOK_DIFF_CELL_INPUT,
+				toggled: ContextKeyExpr.equals(NOTEBOOK_DIFF_CELL_IGNORE_WHITESPACE_KEY, false),
+			}
+		);
+	}
+	run(accessor: ServicesAccessor, context?: { cell: DiffElementCellViewModelBase }) {
+		const cell = context?.cell;
+		if (!cell?.modified) {
+			return;
+		}
+		const uri = cell.modified.uri;
+		const configService = accessor.get(ITextResourceConfigurationService);
+		const key = 'diffEditor.ignoreTrimWhitespace';
+		const val = configService.getValue(uri, key);
+		configService.updateValue(uri, key, !val);
+	}
+});
+
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super(
+			{
 				id: 'notebook.diff.cell.revertInput',
 				title: localize('notebook.diff.cell.revertInput', "Revert Input"),
 				icon: revertIcon,
 				f1: false,
 				menu: {
 					id: MenuId.NotebookDiffCellInputTitle,
-					when: NOTEBOOK_DIFF_CELL_INPUT
+					when: NOTEBOOK_DIFF_CELL_INPUT,
+					order: 2
 				},
 				precondition: NOTEBOOK_DIFF_CELL_INPUT
 
