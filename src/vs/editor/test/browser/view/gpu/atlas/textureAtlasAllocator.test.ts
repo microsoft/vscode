@@ -107,74 +107,74 @@ suite('TextureAtlasAllocator', () => {
 			allocateAndAssert(allocator, pixel2x1, { x: 1, y: 0, w: 2, h: 1 });
 			allocateAndAssert(allocator, pixel1x1, undefined);
 		});
+	});
 
-		suite('TextureAtlasSlabAllocator', () => {
-			function initAllocator(w: number, h: number, options?: TextureAtlasSlabAllocatorOptions): { canvas: OffscreenCanvas; ctx: OffscreenCanvasRenderingContext2D; allocator: TextureAtlasSlabAllocator } {
-				const canvas = new OffscreenCanvas(w, h);
-				const ctx = ensureNonNullable(canvas.getContext('2d'));
-				const allocator = new TextureAtlasSlabAllocator(canvas, ctx, options);
-				return { canvas, ctx, allocator };
-			}
+	suite('TextureAtlasSlabAllocator', () => {
+		function initAllocator(w: number, h: number, options?: TextureAtlasSlabAllocatorOptions): { canvas: OffscreenCanvas; ctx: OffscreenCanvasRenderingContext2D; allocator: TextureAtlasSlabAllocator } {
+			const canvas = new OffscreenCanvas(w, h);
+			const ctx = ensureNonNullable(canvas.getContext('2d'));
+			const allocator = new TextureAtlasSlabAllocator(canvas, ctx, options);
+			return { canvas, ctx, allocator };
+		}
 
-			test('single allocation', () => {
-				const { allocator } = initAllocator(2, 2);
-				// 1o
-				// oo
-				allocateAndAssert(allocator, pixel1x1, { x: 0, y: 0, w: 1, h: 1 });
-			});
+		test('single allocation', () => {
+			const { allocator } = initAllocator(2, 2);
+			// 1o
+			// oo
+			allocateAndAssert(allocator, pixel1x1, { x: 0, y: 0, w: 1, h: 1 });
+		});
 
-			test('single slab full', () => {
-				const { allocator } = initAllocator(1, 1, { slabW: 1, slabH: 1 });
+		test('single slab full', () => {
+			const { allocator } = initAllocator(1, 1, { slabW: 1, slabH: 1 });
 
-				// 1
-				allocateAndAssert(allocator, pixel1x1, { x: 0, y: 0, w: 1, h: 1 });
+			// 1
+			allocateAndAssert(allocator, pixel1x1, { x: 0, y: 0, w: 1, h: 1 });
 
-				allocateAndAssert(allocator, pixel1x1, undefined);
-			});
+			allocateAndAssert(allocator, pixel1x1, undefined);
+		});
 
-			test('allocate 1x1 to multiple slabs until full', () => {
-				const { allocator } = initAllocator(4, 2, { slabW: 2, slabH: 2 });
+		test('allocate 1x1 to multiple slabs until full', () => {
+			const { allocator } = initAllocator(4, 2, { slabW: 2, slabH: 2 });
 
-				// 12│oo
-				// 34│oo
-				allocateAndAssert(allocator, pixel1x1, { x: 0, y: 0, w: 1, h: 1 });
-				allocateAndAssert(allocator, pixel1x1, { x: 1, y: 0, w: 1, h: 1 });
-				allocateAndAssert(allocator, pixel1x1, { x: 0, y: 1, w: 1, h: 1 });
-				allocateAndAssert(allocator, pixel1x1, { x: 1, y: 1, w: 1, h: 1 });
+			// 12│oo
+			// 34│oo
+			allocateAndAssert(allocator, pixel1x1, { x: 0, y: 0, w: 1, h: 1 });
+			allocateAndAssert(allocator, pixel1x1, { x: 1, y: 0, w: 1, h: 1 });
+			allocateAndAssert(allocator, pixel1x1, { x: 0, y: 1, w: 1, h: 1 });
+			allocateAndAssert(allocator, pixel1x1, { x: 1, y: 1, w: 1, h: 1 });
 
-				// 12│56
-				// 34│78
-				allocateAndAssert(allocator, pixel1x1, { x: 2, y: 0, w: 1, h: 1 });
-				allocateAndAssert(allocator, pixel1x1, { x: 3, y: 0, w: 1, h: 1 });
-				allocateAndAssert(allocator, pixel1x1, { x: 2, y: 1, w: 1, h: 1 });
-				allocateAndAssert(allocator, pixel1x1, { x: 3, y: 1, w: 1, h: 1 });
+			// 12│56
+			// 34│78
+			allocateAndAssert(allocator, pixel1x1, { x: 2, y: 0, w: 1, h: 1 });
+			allocateAndAssert(allocator, pixel1x1, { x: 3, y: 0, w: 1, h: 1 });
+			allocateAndAssert(allocator, pixel1x1, { x: 2, y: 1, w: 1, h: 1 });
+			allocateAndAssert(allocator, pixel1x1, { x: 3, y: 1, w: 1, h: 1 });
 
-				allocateAndAssert(allocator, pixel1x1, undefined);
-			});
+			allocateAndAssert(allocator, pixel1x1, undefined);
+		});
 
-			test('glyph too large for canvas', () => {
-				const { allocator } = initAllocator(1, 1, { slabW: 1, slabH: 1 });
-				allocateAndAssert(allocator, pixel2x1, undefined);
-			});
+		test('glyph too large for canvas', () => {
+			const { allocator } = initAllocator(1, 1, { slabW: 1, slabH: 1 });
+			allocateAndAssert(allocator, pixel2x1, undefined);
+		});
 
-			test('glyph too large for slab', () => {
-				const { allocator } = initAllocator(2, 2, { slabW: 1, slabH: 1 });
-				allocateAndAssert(allocator, pixel2x1, undefined);
-			});
+		test('glyph too large for slab', () => {
+			const { allocator } = initAllocator(2, 2, { slabW: 1, slabH: 1 });
+			allocateAndAssert(allocator, pixel2x1, undefined);
+		});
 
-			test('separate slabs for different sized glyphs', () => {
-				const { allocator } = initAllocator(4, 2, { slabW: 2, slabH: 2 });
+		test('separate slabs for different sized glyphs', () => {
+			const { allocator } = initAllocator(4, 2, { slabW: 2, slabH: 2 });
 
-				// 10│2o
-				// 00│2o
-				allocateAndAssert(allocator, pixel1x1, { x: 0, y: 0, w: 1, h: 1 });
-				allocateAndAssert(allocator, pixel1x2, { x: 2, y: 0, w: 1, h: 2 });
+			// 10│2o
+			// 00│2o
+			allocateAndAssert(allocator, pixel1x1, { x: 0, y: 0, w: 1, h: 1 });
+			allocateAndAssert(allocator, pixel1x2, { x: 2, y: 0, w: 1, h: 2 });
 
-				// 14│23
-				// 00│23
-				allocateAndAssert(allocator, pixel1x2, { x: 3, y: 0, w: 1, h: 2 });
-				allocateAndAssert(allocator, pixel1x1, { x: 1, y: 0, w: 1, h: 1 });
-			});
+			// 14│23
+			// 00│23
+			allocateAndAssert(allocator, pixel1x2, { x: 3, y: 0, w: 1, h: 2 });
+			allocateAndAssert(allocator, pixel1x1, { x: 1, y: 0, w: 1, h: 1 });
 		});
 	});
 });
