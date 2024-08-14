@@ -10,8 +10,10 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
  * Do not leave at 12, when at 12 and we have whitespace and only one line,
  * then there's not enough space for the button `Show Whitespace Differences`
  */
-export const topPaddingForSingleLineCells = 24;
-
+export const fixedEditorPaddingSingleLineCells = {
+	top: 24,
+	bottom: 24
+};
 export const fixedEditorPadding = {
 	top: 12,
 	bottom: 12
