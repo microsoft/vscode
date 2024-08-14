@@ -11,7 +11,14 @@ import { TwoKeyMap } from 'vs/base/common/map';
 
 export interface ITextureAtlasAllocator {
 	readonly glyphMap: TwoKeyMap<string, number, ITextureAtlasGlyph>;
-	allocate(chars: string, tokenFg: number, rasterizedGlyph: IRasterizedGlyph): ITextureAtlasGlyph;
+	/**
+	 * Allocates a rasterized glyph to the canvas, drawing it and returning information on its
+	 * position in the canvas. This will return undefined if the glyph does not fit on the canvas.
+	 */
+	allocate(chars: string, tokenFg: number, rasterizedGlyph: IRasterizedGlyph): ITextureAtlasGlyph | undefined;
+	/**
+	 * Gets a usage preview of the atlas for debugging purposes.
+	 */
 	getUsagePreview(): Promise<Blob>;
 }
 
@@ -28,9 +35,6 @@ export class TextureAtlasShelfAllocator implements ITextureAtlasAllocator {
 		h: 0
 	};
 
-	// TODO: Allow for multiple active rows
-	// public readonly fixedRows: ICharAtlasActiveRow[] = [];
-
 	readonly glyphMap: TwoKeyMap<string, number, ITextureAtlasGlyph> = new TwoKeyMap();
 
 	private _nextIndex = 0;
@@ -41,15 +45,18 @@ export class TextureAtlasShelfAllocator implements ITextureAtlasAllocator {
 	) {
 	}
 
-	public allocate(chars: string, tokenFg: number, rasterizedGlyph: IRasterizedGlyph): ITextureAtlasGlyph {
-		// Finalize row if it doesn't fix
+	public allocate(chars: string, tokenFg: number, rasterizedGlyph: IRasterizedGlyph): ITextureAtlasGlyph | undefined {
+		// Finalize and increment row if it doesn't fix horizontally
 		if (rasterizedGlyph.boundingBox.right - rasterizedGlyph.boundingBox.left + 1 > this._canvas.width - this._currentRow.x) {
 			this._currentRow.x = 0;
 			this._currentRow.y += this._currentRow.h;
 			this._currentRow.h = 1;
 		}
 
-		// TODO: Handle end of atlas page
+		// Return undefined if there isn't any room left
+		if (this._currentRow.y + rasterizedGlyph.boundingBox.bottom - rasterizedGlyph.boundingBox.top + 1 > this._canvas.height) {
+			return undefined;
+		}
 
 		// Draw glyph
 		const glyphWidth = rasterizedGlyph.boundingBox.right - rasterizedGlyph.boundingBox.left + 1;

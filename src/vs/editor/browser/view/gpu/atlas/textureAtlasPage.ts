@@ -79,7 +79,8 @@ export class TextureAtlasPage extends Disposable {
 
 	private _createGlyph(chars: string, tokenFg: number): ITextureAtlasGlyph {
 		const rasterizedGlyph = this._glyphRasterizer.rasterizeGlyph(chars, this._colorMap[tokenFg]);
-		const glyph = this._allocator.allocate(chars, tokenFg, rasterizedGlyph);
+		// TODO: Handle undefined allocate result
+		const glyph = this._allocator.allocate(chars, tokenFg, rasterizedGlyph)!;
 		this._glyphMap.set(chars, tokenFg, glyph);
 		this._glyphInOrderSet.add(glyph);
 		this.hasChanges = true;
