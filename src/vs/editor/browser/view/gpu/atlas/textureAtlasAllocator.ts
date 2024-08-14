@@ -179,6 +179,7 @@ export class TextureAtlasSlabAllocator implements ITextureAtlasAllocator {
 	private readonly _slabW: number;
 	private readonly _slabH: number;
 	private readonly _slabsPerRow: number;
+	private readonly _slabsPerColumn: number;
 	private _nextIndex = 0;
 
 	constructor(
@@ -195,9 +196,10 @@ export class TextureAtlasSlabAllocator implements ITextureAtlasAllocator {
 			this._canvas.height
 		);
 		this._slabsPerRow = Math.floor(this._canvas.width / this._slabW);
+		this._slabsPerColumn = Math.floor(this._canvas.height / this._slabH);
 	}
 
-	public allocate(chars: string, tokenFg: number, rasterizedGlyph: IRasterizedGlyph): ITextureAtlasGlyph {
+	public allocate(chars: string, tokenFg: number, rasterizedGlyph: IRasterizedGlyph): ITextureAtlasGlyph | undefined {
 		// Find ideal slab, creating it if there is none suitable
 		const glyphWidth = rasterizedGlyph.boundingBox.right - rasterizedGlyph.boundingBox.left + 1;
 		const glyphHeight = rasterizedGlyph.boundingBox.bottom - rasterizedGlyph.boundingBox.top + 1;
@@ -236,6 +238,11 @@ export class TextureAtlasSlabAllocator implements ITextureAtlasAllocator {
 			if (slab.count >= glyphsPerSlab) {
 				slab = undefined;
 			}
+		}
+
+		// The glyph does not fit into a slab
+		if (glyphWidth > this._slabW || glyphHeight > this._slabH) {
+			return undefined;
 		}
 
 		let dx: number | undefined;
@@ -355,6 +362,9 @@ export class TextureAtlasSlabAllocator implements ITextureAtlasAllocator {
 		if (dx === undefined || dy === undefined) {
 			if (!slab) {
 				// TODO: Return undefined if there isn't any room left
+				if (this._slabs.length >= this._slabsPerRow * this._slabsPerColumn) {
+					return undefined;
+				}
 
 				slab = {
 					x: Math.floor(this._slabs.length % this._slabsPerRow) * this._slabW,

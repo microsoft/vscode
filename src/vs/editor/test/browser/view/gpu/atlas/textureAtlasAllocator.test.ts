@@ -134,11 +134,12 @@ suite('TextureAtlasAllocator', () => {
 		});
 
 		test('single slab multiple glyph full', () => {
-			const { allocator } = initAllocator(2, 2, { slabW: 1, slabH: 2 });
+			const { allocator } = initAllocator(2, 2, { slabW: 2, slabH: 2 });
 
 			// 1
 			// 1
 			allocateAndAssert(allocator, pixel1x2, { x: 0, y: 0, w: 1, h: 2 });
+			allocateAndAssert(allocator, pixel1x2, { x: 1, y: 0, w: 1, h: 2 });
 
 			allocateAndAssert(allocator, pixel1x2, undefined);
 		});
