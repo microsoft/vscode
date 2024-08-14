@@ -144,7 +144,7 @@ function discoverImports(fileContents) {
  */
 function migrateTS(filePath, fileContents) {
 	const filePathPosix = posixFilePath(filePath);
-	if (filePath.endsWith('.d.ts') || filePathPosix.includes('/typings-esm/')) {
+	if (filePath.endsWith('.d.ts')) {
 		return writeDestFile(filePath, fileContents);
 	}
 
