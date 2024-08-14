@@ -11,15 +11,5 @@ declare module 'vscode' {
 		 * This should only be done if the notebook is not already shown in another editor.
 		 */
 		readonly asRepl?: boolean;
-
-		/**
-		 * The contoller that should be initially set for the editor.
-		 */
-		readonly controller?: NotebookController;
-
-		/**
-		 * The label for the editor tab.
-		 */
-		readonly label?: string;
 	}
 }
