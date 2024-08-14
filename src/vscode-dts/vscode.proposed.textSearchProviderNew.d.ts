@@ -119,13 +119,13 @@ declare module 'vscode' {
 			 * Only search providers that support multiline search will ever return more than one line in the match.
 			 * Defaults to 100.
 			 */
-			matchLines: number;
+			matchLines?: number;
 
 			/**
 			 * The maximum number of characters included per line.
 			 * Defaults to 10000.
 			 */
-			charsPerLine: number;
+			charsPerLine?: number;
 		};
 
 		/**

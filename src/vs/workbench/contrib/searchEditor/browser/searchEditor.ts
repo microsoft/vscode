@@ -53,6 +53,7 @@ import { IPatternInfo, ISearchComplete, ISearchConfigurationProperties, ITextQue
 import { searchDetailsIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { TextSearchCompleteMessage } from 'vs/workbench/services/search/common/searchExtTypes';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { renderSearchMessage } from 'vs/workbench/contrib/search/browser/searchMessage';
@@ -63,7 +64,6 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { SearchContext } from 'vs/workbench/contrib/search/common/constants';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
-import { TextSearchCompleteMessage } from 'vs/workbench/services/search/common/searchExtConversionTypes';
 
 const RESULT_LINE_REGEX = /^(\s+)(\d+)(: |  )(\s*)(.*)$/;
 const FILE_LINE_REGEX = /^(\S.*):$/;

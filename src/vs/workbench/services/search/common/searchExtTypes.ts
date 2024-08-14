@@ -189,13 +189,13 @@ export interface TextSearchProviderOptions {
 		 * Only search providers that support multiline search will ever return more than one line in the match.
 		 * Defaults to 100.
 		 */
-		matchLines: number;
+		matchLines?: number;
 
 		/**
 		 * The maximum number of characters included per line.
 		 * Defaults to 10000.
 		 */
-		charsPerLine: number;
+		charsPerLine?: number;
 	};
 
 	/**
@@ -503,6 +503,26 @@ export enum TextSearchCompleteMessageType {
 	Information = 1,
 	Warning = 2,
 }
+
+
+/**
+ * A message regarding a completed search.
+ */
+export interface TextSearchCompleteMessage {
+	/**
+	 * Markdown text of the message.
+	 */
+	text: string;
+	/**
+	 * Whether the source of the message is trusted, command links are disabled for untrusted message sources.
+	 */
+	trusted?: boolean;
+	/**
+	 * The message type, this affects how the message will be rendered.
+	 */
+	type: TextSearchCompleteMessageType;
+}
+
 
 /**
  * An AITextSearchProvider provides additional AI text search results in the workspace.

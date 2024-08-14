@@ -33,6 +33,7 @@ interface FolderQueryInfo {
 	noSiblingsClauses: boolean;
 	folder: URI;
 }
+
 interface IDirectoryTree {
 	rootEntries: IDirectoryEntry[];
 	pathToEntries: { [relativePath: string]: IDirectoryEntry[] };

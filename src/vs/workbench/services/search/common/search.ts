@@ -21,6 +21,8 @@ import { GlobPattern, TextSearchCompleteMessageType } from 'vs/workbench/service
 import { isThenable } from 'vs/base/common/async';
 import { ResourceSet } from 'vs/base/common/map';
 
+export { TextSearchCompleteMessageType };
+
 export const VIEWLET_ID = 'workbench.view.search';
 export const PANEL_ID = 'workbench.panel.search';
 export const VIEW_ID = 'workbench.view.search';
@@ -64,6 +66,7 @@ export interface ISearchResultProvider {
 	fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete>;
 	clearCache(cacheKey: string): Promise<void>;
 }
+
 
 export interface ExcludeGlobPattern<U extends UriComponents = URI> {
 	folder?: U;
@@ -369,7 +372,6 @@ export class TextSearchMatch implements ITextSearchMatch {
 		this.preview = { text: this.previewText, matches: mapArrayOrNot(this.rangeLocations, e => e.previewRange) };
 	}
 }
-
 
 function isSingleLineRangeList(ranges: ISearchRange[]): boolean {
 	const line = ranges[0].startLineNumber;

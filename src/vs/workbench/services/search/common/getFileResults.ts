@@ -3,16 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITextSearchResult } from 'vs/workbench/services/search/common/search';
+import { ITextSearchPreviewOptions, ITextSearchResult } from 'vs/workbench/services/search/common/search';
 import { Range } from 'vs/editor/common/core/range';
-import { TextSearchPreviewOptions } from 'vs/workbench/services/search/common/searchExtConversionTypes';
 
 export const getFileResults = (
 	bytes: Uint8Array,
 	pattern: RegExp,
 	options: {
 		surroundingContext: number;
-		previewOptions: TextSearchPreviewOptions | undefined;
+		previewOptions: ITextSearchPreviewOptions | undefined;
 		remainingResultQuota: number;
 	}
 ): ITextSearchResult[] => {

@@ -12,7 +12,7 @@ import { asArray, coalesce } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { URI } from 'vs/base/common/uri';
 import { IProgress } from 'vs/platform/progress/common/progress';
-import { Range, FileSearchProviderNew, FileSearchProviderOptions, ProviderResult, TextSearchCompleteNew, TextSearchContextNew, TextSearchMatchNew, TextSearchProviderNew, TextSearchProviderOptions, TextSearchQueryNew, TextSearchResultNew, AITextSearchProviderNew } from 'vs/workbench/services/search/common/searchExtTypes';
+import { Range, FileSearchProviderNew, FileSearchProviderOptions, ProviderResult, TextSearchCompleteNew, TextSearchContextNew, TextSearchMatchNew, TextSearchProviderNew, TextSearchProviderOptions, TextSearchQueryNew, TextSearchResultNew, AITextSearchProviderNew, TextSearchCompleteMessage } from 'vs/workbench/services/search/common/searchExtTypes';
 
 // old types that are retained for backward compatibility
 // TODO: delete this when search apis are adopted by all first-party extensions
@@ -219,32 +219,6 @@ export interface AITextSearchOptions extends SearchOptions {
 	 * Number of lines of context to include after each match.
 	 */
 	afterContext?: number;
-}
-
-/**
- * Represents the severity of a TextSearchComplete message.
- */
-export enum TextSearchCompleteMessageType {
-	Information = 1,
-	Warning = 2,
-}
-
-/**
- * A message regarding a completed search.
- */
-export interface TextSearchCompleteMessage {
-	/**
-	 * Markdown text of the message.
-	 */
-	text: string;
-	/**
-	 * Whether the source of the message is trusted, command links are disabled for untrusted message sources.
-	 */
-	trusted?: boolean;
-	/**
-	 * The message type, this affects how the message will be rendered.
-	 */
-	type: TextSearchCompleteMessageType;
 }
 
 /**
@@ -516,12 +490,29 @@ function newToOldTextProviderOptions(options: TextSearchProviderOptions): TextSe
 		useParentIgnoreFiles: folderOption.useIgnoreFiles.parent,
 		followSymlinks: folderOption.followSymlinks,
 		maxResults: options.maxResults,
-		previewOptions: options.previewOptions,
+		previewOptions: newToOldPreviewOptions(options.previewOptions),
 		maxFileSize: options.maxFileSize,
 		encoding: folderOption.encoding,
 		afterContext: options.surroundingContext,
 		beforeContext: options.surroundingContext
 	} satisfies TextSearchOptions));
+}
+
+export function newToOldPreviewOptions(options: {
+	matchLines?: number;
+	charsPerLine?: number;
+} | undefined
+): {
+	matchLines: number;
+	charsPerLine: number;
+} | undefined {
+	if (!options || (options.matchLines === undefined && options.charsPerLine === undefined)) {
+		return undefined;
+	}
+	return {
+		matchLines: options.matchLines ?? 100,
+		charsPerLine: options.charsPerLine ?? 10000
+	};
 }
 
 export function oldToNewTextSearchResult(result: TextSearchResult): TextSearchResultNew {
