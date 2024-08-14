@@ -7,7 +7,7 @@ import { LazyStatefulPromise, raceTimeout } from 'vs/base/common/async';
 import { BugIndicatingError, onUnexpectedError } from 'vs/base/common/errors';
 import { Event, ValueWithChangeEvent } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { Disposable, DisposableStore, dispose, IDisposable, IReference } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, IReference } from 'vs/base/common/lifecycle';
 import { parse } from 'vs/base/common/marshalling';
 import { Schemas } from 'vs/base/common/network';
 import { deepClone } from 'vs/base/common/objects';
