@@ -9,6 +9,7 @@
 const gulp = require('gulp');
 const util = require('./lib/util');
 const date = require('./lib/date');
+const esm = require('./lib/esm');
 const task = require('./lib/task');
 const compilation = require('./lib/compilation');
 const optimize = require('./lib/optimize');
@@ -21,6 +22,7 @@ function makeCompileBuildTask(disableMangle) {
 		util.rimraf('out-build'),
 		util.buildWebNodePaths('out-build'),
 		date.writeISODate('out-build'),
+		esm.setESM(!!process.env.VSCODE_BUILD_ESM),
 		compilation.compileApiProposalNamesTask,
 		compilation.compileTask('src', 'out-build', true, { disableMangle }),
 		optimize.optimizeLoaderTask('out-build', 'out-build', true)
