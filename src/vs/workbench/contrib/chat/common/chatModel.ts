@@ -19,8 +19,8 @@ import { TextEdit } from 'vs/editor/common/languages';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService, reviveSerializedAgent } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { ChatRequestTextPart, IParsedChatRequest, getPromptText, reviveParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
+import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService, reviveSerializedAgent } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { ChatAgentVoteDirection, IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatProgress, IChatProgressMessage, IChatResponseProgressFileTreeData, IChatTask, IChatTextEdit, IChatTreeData, IChatUsedContext, IChatWarningMessage, isIUsedContext } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
 
@@ -1100,35 +1100,6 @@ export class ChatWelcomeMessageModel implements IChatWelcomeMessageModel {
 	public get avatarIcon(): ThemeIcon | undefined {
 		return this.chatAgentService.getDefaultAgent(ChatAgentLocation.Panel)?.metadata.themeIcon;
 	}
-}
-
-export function getHistoryEntriesFromModel(model: IChatModel, forAgentId: string | undefined): IChatAgentHistoryEntry[] {
-	const history: IChatAgentHistoryEntry[] = [];
-	for (const request of model.getRequests()) {
-		if (!request.response) {
-			continue;
-		}
-
-		if (forAgentId && forAgentId !== request.response.agent?.id) {
-			// An agent only gets to see requests that were sent to this agent.
-			// The default agent (the undefined case) gets to see all of them.
-			continue;
-		}
-
-		const promptTextResult = getPromptText(request.message);
-		const historyRequest: IChatAgentRequest = {
-			sessionId: model.sessionId,
-			requestId: request.id,
-			agentId: request.response.agent?.id ?? '',
-			message: promptTextResult.message,
-			command: request.response.slashCommand?.name,
-			variables: updateRanges(request.variableData, promptTextResult.diff), // TODO bit of a hack
-			location: ChatAgentLocation.Panel
-		};
-		history.push({ request: historyRequest, response: request.response.response.value, result: request.response.result ?? {} });
-	}
-
-	return history;
 }
 
 export function updateRanges(variableData: IChatRequestVariableData, diff: number): IChatRequestVariableData {
