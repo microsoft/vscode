@@ -477,11 +477,9 @@ BUILD_TARGETS.forEach(buildTarget => {
 		gulp.task(vscodeTaskCI);
 
 		const vscodeTask = task.define(`vscode${dashed(platform)}${dashed(arch)}${dashed(minified)}`, task.series(
-			// START comment for fast bundle
 			compileBuildTask,
 			compileExtensionsBuildTask,
 			compileExtensionMediaBuildTask,
-			// END comment for fast bundle
 			minified ? minifyVSCodeTask : optimizeVSCodeTask,
 			vscodeTaskCI
 		));
