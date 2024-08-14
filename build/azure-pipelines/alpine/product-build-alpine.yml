@@ -84,7 +84,7 @@ steps:
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
       VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME: vscodehub.azurecr.io/vscode-linux-build-agent:alpine-$(VSCODE_ARCH)
       VSCODE_HOST_MOUNT: "/mnt/vss/_work/1/s"
-    displayName: Install build dependencies
+    displayName: Install dependencies
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
   - script: node build/azure-pipelines/distro/mixin-npm

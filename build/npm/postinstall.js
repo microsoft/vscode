@@ -8,7 +8,7 @@ const path = require('path');
 const os = require('os');
 const cp = require('child_process');
 const { dirs } = require('./dirs');
-const { setupBuildNpmrc } = require('./setupBuildNpmrc');
+const { setupBuildNpmrc, setupRemoteNpmrc } = require('./setupNpmrc');
 const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 const root = path.dirname(path.dirname(__dirname));
 
@@ -57,7 +57,7 @@ function npmInstall(dir, opts) {
 		if (process.env['npm_config_arch'] === 'arm64') {
 			run('sudo', ['docker', 'run', '--rm', '--privileged', 'multiarch/qemu-user-static', '--reset', '-p', 'yes'], opts);
 		}
-		run('sudo', ['docker', 'run', '-e', 'GITHUB_TOKEN', '-e', 'npm_config_arch', '-v', `${process.env['VSCODE_HOST_MOUNT']}:/root/vscode`, '-v', `${process.env['VSCODE_HOST_MOUNT']}/.build/.netrc:/root/.netrc`, '-w', dir, process.env['VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME'], 'npm', command], opts);
+		run('sudo', ['docker', 'run', '-e', 'GITHUB_TOKEN', '-e', 'npm_config_arch', '-e', 'npm_config_disturl', '-e', 'npm_config_target', '-e', 'npm_config_runtime', '-e', 'npm_config_ms_build_id', '-e', 'npm_config_build_from_source', '-e', 'npm_config_legacy_peer_deps', '-v', `${process.env['VSCODE_HOST_MOUNT']}:/root/vscode`, '-v', `${process.env['VSCODE_HOST_MOUNT']}/.build/.netrc:/root/.netrc`, '-w', path.resolve(root, dir), process.env['VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME'], 'npm', command], opts);
 		run('sudo', ['chown', '-R', `${userinfo.uid}:${userinfo.gid}`, `${dir}/node_modules`], opts);
 	} else {
 		log(dir, 'Installing dependencies...');
@@ -72,20 +72,11 @@ for (let dir of dirs) {
 		continue;
 	}
 
-	if (/^.build\/distro\/npm(\/?)/.test(dir)) {
-		const ossPath = path.relative('.build/distro/npm', dir);
-		const ossNpmRc = path.join(ossPath, '.npmrc');
-
-		if (fs.existsSync(ossNpmRc)) {
-			fs.cpSync(ossNpmRc, path.join(dir, '.npmrc'));
-		}
-	}
-
 	let opts;
 
 	if (dir === 'build') {
 		const env = { ...process.env };
-		setupBuildNpmrc();
+		setupBuildNpmrc(env);
 		opts = { env };
 		if (process.env['CC']) { env['CC'] = 'gcc'; }
 		if (process.env['CXX']) { env['CXX'] = 'g++'; }
@@ -98,6 +89,7 @@ for (let dir of dirs) {
 	if (/^(.build\/distro\/npm\/)?remote$/.test(dir)) {
 		// node modules used by vscode server
 		const env = { ...process.env };
+		setupRemoteNpmrc(env);
 		if (process.env['VSCODE_REMOTE_CC']) {
 			env['CC'] = process.env['VSCODE_REMOTE_CC'];
 		} else {

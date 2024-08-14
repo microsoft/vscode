@@ -58,6 +58,7 @@ steps:
 
   - script: |
       set -e
+      node npm/setupNpmrc.js
 
       for i in {1..5}; do # try 5 times
         npm ci && break

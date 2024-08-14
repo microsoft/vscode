@@ -5,11 +5,9 @@
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
 const path = require("path");
-const fs = require("fs");
+const { getRemoteVersionInfo } = require('../npm/setupNpmrc');
 const root = path.dirname(path.dirname(__dirname));
-const npmrcPath = path.join(root, 'remote', '.npmrc');
-const npmrc = fs.readFileSync(npmrcPath, 'utf8');
-const version = /^target="(.*)"$/m.exec(npmrc)[1];
+const version = getRemoteVersionInfo().target;
 const platform = process.platform;
 const arch = process.arch;
 const node = platform === 'win32' ? 'node.exe' : 'node';

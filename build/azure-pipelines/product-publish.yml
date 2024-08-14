@@ -26,10 +26,9 @@ steps:
   - pwsh: Write-Host "##vso[build.addbuildtag]🚀"
     displayName: Add build tag
 
-  - pwsh: node build/npm/setupBuildNpmrc
-    displayName: Prepare build dependencies
-
-  - pwsh: npm ci
+  - pwsh: |
+      node npm/setupNpmrc.js
+      npm ci
     workingDirectory: build
     displayName: Install build dependencies
 

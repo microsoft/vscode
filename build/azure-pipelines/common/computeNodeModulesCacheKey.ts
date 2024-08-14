@@ -14,7 +14,6 @@ const shasum = crypto.createHash('sha256');
 
 shasum.update(fs.readFileSync(path.join(ROOT, 'build/.cachesalt')));
 shasum.update(fs.readFileSync(path.join(ROOT, '.npmrc')));
-shasum.update(fs.readFileSync(path.join(ROOT, 'remote/.npmrc')));
 
 // Add `package.json` and `package-lock.json` files
 for (const dir of dirs) {

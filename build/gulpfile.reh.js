@@ -29,6 +29,7 @@ const glob = require('glob');
 const { compileBuildTask } = require('./gulpfile.compile');
 const { compileExtensionsBuildTask, compileExtensionMediaBuildTask } = require('./gulpfile.extensions');
 const { vscodeWebResourceIncludes, createVSCodeWebFileContentMapper } = require('./gulpfile.vscode.web');
+const { getRemoteVersionInfo } = require('./npm/setupNpmrc');
 const cp = require('child_process');
 const log = require('fancy-log');
 const { isAMD } = require('./lib/amd');
@@ -169,9 +170,7 @@ const commonJSEntryPoints = [
 ];
 
 function getNodeVersion() {
-	const npmrc = fs.readFileSync(path.join(REPO_ROOT, 'remote', '.npmrc'), 'utf8');
-	const nodeVersion = /^target="(.*)"$/m.exec(npmrc)[1];
-	const internalNodeVersion = /^ms_build_id="(.*)"$/m.exec(npmrc)[1];
+	const { target: nodeVersion, ms_build_id: internalNodeVersion } = getRemoteVersionInfo();
 	return { nodeVersion, internalNodeVersion };
 }
 
