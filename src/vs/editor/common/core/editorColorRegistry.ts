@@ -107,5 +107,6 @@ registerThemingParticipant((theme, collector) => {
 	const imeBackground = (lineHighlight && !lineHighlight.isTransparent() ? lineHighlight : background);
 	if (imeBackground) {
 		collector.addRule(`.monaco-editor .inputarea.ime-input { background-color: ${imeBackground}; }`);
+		collector.addRule(`.monaco-editor .native-edit-context.ime-input { background-color: ${imeBackground}; }`);
 	}
 });
