@@ -16,6 +16,7 @@ import { NotebookOptions } from 'vs/workbench/contrib/notebook/browser/notebookO
 import { NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export enum DiffSide {
 	Original = 0,
@@ -149,10 +150,14 @@ export interface INotebookDiffViewModelUpdateEvent {
 	readonly elements: readonly IDiffElementViewModelBase[];
 }
 
-export interface INotebookDiffViewModel {
+export interface INotebookDiffViewModel extends IDisposable {
 	readonly items: readonly IDiffElementViewModelBase[];
 	onDidChangeItems: Event<INotebookDiffViewModelUpdateEvent>;
-	isEqual(viewModels: DiffElementCellViewModelBase[]): boolean;
-	setViewModel(cellViewModels: DiffElementCellViewModelBase[]): void;
-	clear(): void;
+	/**
+	 * Computes the differences and generates the viewmodel.
+	 * If view models are generated, then the onDidChangeItems is triggered and will have a return value.
+	 * Else returns `undefined`
+	 * @param token
+	 */
+	computeDiff(token: CancellationToken): Promise<{ firstChangeIndex: number } | undefined>;
 }

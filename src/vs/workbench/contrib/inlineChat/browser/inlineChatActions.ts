@@ -29,7 +29,7 @@ import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
-import { CONTEXT_IN_CHAT_INPUT } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_IN_CHAT_INPUT } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 
 CommandsRegistry.registerCommandAlias('interactiveEditor.start', 'inlineChat.start');
 CommandsRegistry.registerCommandAlias('interactive.acceptChanges', ACTION_ACCEPT_CHANGES);
@@ -269,6 +269,7 @@ export class AcceptChanges extends AbstractInlineChatAction {
 				group: '0_main',
 				order: 1,
 				when: ContextKeyExpr.and(
+					CONTEXT_CHAT_INPUT_HAS_TEXT.toNegated(),
 					CTX_INLINE_CHAT_REQUEST_IN_PROGRESS.toNegated(),
 					CTX_INLINE_CHAT_RESPONSE_TYPE.isEqualTo(InlineChatResponseType.MessagesAndEdits)
 				),
@@ -294,6 +295,7 @@ export class DiscardHunkAction extends AbstractInlineChatAction {
 				group: '0_main',
 				order: 2,
 				when: ContextKeyExpr.and(
+					CONTEXT_CHAT_INPUT_HAS_TEXT.toNegated(),
 					CTX_INLINE_CHAT_REQUEST_IN_PROGRESS.negate(),
 					CTX_INLINE_CHAT_RESPONSE_TYPE.isEqualTo(InlineChatResponseType.MessagesAndEdits),
 					CTX_INLINE_CHAT_EDIT_MODE.isEqualTo(EditMode.Live)
@@ -326,6 +328,7 @@ export class RerunAction extends AbstractInlineChatAction {
 				group: '0_main',
 				order: 5,
 				when: ContextKeyExpr.and(
+					CONTEXT_CHAT_INPUT_HAS_TEXT.toNegated(),
 					CTX_INLINE_CHAT_REQUEST_IN_PROGRESS.negate(),
 					CTX_INLINE_CHAT_RESPONSE_TYPE.notEqualsTo(InlineChatResponseType.None)
 				)
@@ -343,7 +346,7 @@ export class RerunAction extends AbstractInlineChatAction {
 
 		const lastRequest = model?.getRequests().at(-1);
 		if (lastRequest) {
-			await chatService.resendRequest(lastRequest, { noCommandDetection: false, attempt: lastRequest.attempt + 1, location: ctrl.chatWidget.location, locationData: ctrl.chatWidget.getLocationData() });
+			await chatService.resendRequest(lastRequest, { noCommandDetection: false, attempt: lastRequest.attempt + 1, location: ctrl.chatWidget.location });
 		}
 	}
 }
@@ -498,6 +501,7 @@ export class ViewInChatAction extends AbstractInlineChatAction {
 				group: '0_main',
 				order: 1,
 				when: ContextKeyExpr.and(
+					CONTEXT_CHAT_INPUT_HAS_TEXT.toNegated(),
 					CTX_INLINE_CHAT_RESPONSE_TYPE.isEqualTo(InlineChatResponseType.Messages),
 					CTX_INLINE_CHAT_REQUEST_IN_PROGRESS.negate()
 				)

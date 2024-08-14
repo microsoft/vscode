@@ -558,8 +558,7 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 				matchLines: 1,
 				charsPerLine: 1000
 			},
-			afterContext: config.contextLines,
-			beforeContext: config.contextLines,
+			surroundingContext: config.contextLines,
 			isSmartCase: this.searchConfig.smartCase,
 			expandPatterns: true,
 			notebookSearchConfig: {

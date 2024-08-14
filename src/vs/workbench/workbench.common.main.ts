@@ -84,8 +84,8 @@ import 'vs/workbench/services/label/common/labelService';
 import 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import 'vs/workbench/services/extensionManagement/browser/extensionEnablementService';
 import 'vs/workbench/services/extensionManagement/browser/builtinExtensionsScannerService';
-import 'vs/workbench/services/extensionRecommendations/common/extensionIgnoredRecommendationsService';
-import 'vs/workbench/services/extensionRecommendations/common/workspaceExtensionsConfig';
+import 'vs/workbench/services/extensionRecommendations/browser/extensionIgnoredRecommendationsService';
+import 'vs/workbench/services/extensionRecommendations/browser/workspaceExtensionsConfig';
 import 'vs/workbench/services/extensionManagement/common/extensionFeaturesManagemetService';
 import 'vs/workbench/services/notification/common/notificationService';
 import 'vs/workbench/services/userDataSync/common/userDataSyncUtil';
@@ -323,7 +323,6 @@ import 'vs/workbench/contrib/update/browser/update.contribution';
 
 // Surveys
 import 'vs/workbench/contrib/surveys/browser/nps.contribution';
-import 'vs/workbench/contrib/surveys/browser/ces.contribution';
 import 'vs/workbench/contrib/surveys/browser/languageSurveys.contribution';
 
 // Welcome
