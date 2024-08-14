@@ -150,7 +150,8 @@ export class DivWrapper extends Disposable implements ICompleteHiddenAreaWrapper
 			this._selectionEnd = newSelectionPos;
 			this.setSelectionRange('update', this._selectionStart, this._selectionEnd);
 
-			const data = e.text.replace(/[^\S\r\n]/gm, ' ');
+			const data = e.text.replaceAll(/[^\S\r\n]/gmu, ' ');
+			console.log('data : ', data);
 			if (this._isComposing) {
 				this._onCompositionUpdate.fire({ data });
 				this._compositionEndPosition = this._viewContext.viewModel.getCursorStates()[0].viewState.position;
