@@ -101,6 +101,11 @@ export function activate(context: vscode.ExtensionContext) {
 		await vscode.window.showNotebookDocument(doc);
 	}));
 
+	context.subscriptions.push(vscode.commands.registerCommand('ipynb.newRepl', async () => {
+		const notebook = await vscode.workspace.openNotebookDocument('jupyter-notebook');
+		await vscode.window.showNotebookDocument(notebook, { preserveFocus: true, asRepl: true });
+	}));
+
 	context.subscriptions.push(vscode.commands.registerCommand('ipynb.openIpynbInNotebookEditor', async (uri: vscode.Uri) => {
 		if (vscode.window.activeTextEditor?.document.uri.toString() === uri.toString()) {
 			await vscode.commands.executeCommand('workbench.action.closeActiveEditor');

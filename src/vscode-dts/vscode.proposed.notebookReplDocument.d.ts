@@ -7,8 +7,8 @@ declare module 'vscode' {
 
 	export interface NotebookDocumentShowOptions {
 		/**
-		 * The notebook should be opened in a repl editor.
-		 * This should only be done if the notebook is not already shown in another editor.
+		 * The notebook should be opened in a REPL editor,
+		 * where the last cell of the notebook is an input box and the rest are read-only.
 		 */
 		readonly asRepl?: boolean;
 	}
