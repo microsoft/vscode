@@ -150,6 +150,11 @@ interface ITextureAtlasShelf {
 
 // #region Slab allocator
 
+export interface TextureAtlasSlabAllocatorOptions {
+	slabW?: number;
+	slabH?: number;
+}
+
 /**
  * The slab allocator is a more complex allocator that places glyphs in square slabs of a fixed
  * size. Slabs are defined by a small range of glyphs sizes they can house, this places like-sized
@@ -171,12 +176,25 @@ export class TextureAtlasSlabAllocator implements ITextureAtlasAllocator {
 
 	readonly glyphMap: TwoKeyMap<string, number, ITextureAtlasGlyph> = new TwoKeyMap();
 
+	private readonly _slabW: number;
+	private readonly _slabH: number;
+	private readonly _slabsPerRow: number;
 	private _nextIndex = 0;
 
 	constructor(
 		private readonly _canvas: OffscreenCanvas,
 		private readonly _ctx: OffscreenCanvasRenderingContext2D,
+		options?: TextureAtlasSlabAllocatorOptions
 	) {
+		this._slabW = Math.min(
+			options?.slabW ?? (64 << (Math.floor(getActiveWindow().devicePixelRatio) - 1)),
+			this._canvas.width
+		);
+		this._slabH = Math.min(
+			options?.slabH ?? this._slabW,
+			this._canvas.height
+		);
+		this._slabsPerRow = Math.floor(this._canvas.width / this._slabW);
 	}
 
 	public allocate(chars: string, tokenFg: number, rasterizedGlyph: IRasterizedGlyph): ITextureAtlasGlyph {
@@ -209,16 +227,12 @@ export class TextureAtlasSlabAllocator implements ITextureAtlasAllocator {
 			h: glyphHeight,
 		};
 
-		const slabW = 64 << (Math.floor(getActiveWindow().devicePixelRatio) - 1); // this._canvas.width / 8;
-		const slabH = slabW; // this._canvas.height / 8;
-		const slabsPerRow = Math.floor(this._canvas.width / slabW);
-
 		// Get any existing slab
 		let slab = this._activeSlabsByDims.get(desiredSlabSize.w, desiredSlabSize.h);
 
 		// Check if the slab is full
 		if (slab) {
-			const glyphsPerSlab = Math.floor(slabW / slab.entryW) * Math.floor(slabH / slab.entryH);
+			const glyphsPerSlab = Math.floor(this._slabW / slab.entryW) * Math.floor(this._slabH / slab.entryH);
 			if (slab.count >= glyphsPerSlab) {
 				slab = undefined;
 			}
@@ -340,9 +354,11 @@ export class TextureAtlasSlabAllocator implements ITextureAtlasAllocator {
 		// Create a new slab
 		if (dx === undefined || dy === undefined) {
 			if (!slab) {
+				// TODO: Return undefined if there isn't any room left
+
 				slab = {
-					x: Math.floor(this._slabs.length % slabsPerRow) * slabW,
-					y: Math.floor(this._slabs.length / slabsPerRow) * slabH,
+					x: Math.floor(this._slabs.length % this._slabsPerRow) * this._slabW,
+					y: Math.floor(this._slabs.length / this._slabsPerRow) * this._slabH,
 					entryW: desiredSlabSize.w,
 					entryH: desiredSlabSize.h,
 					count: 0
@@ -355,21 +371,21 @@ export class TextureAtlasSlabAllocator implements ITextureAtlasAllocator {
 				// |-------------+----+
 				// |                  | <- Unused H region
 				// +------------------+
-				const unusedW = slabW % slab.entryW;
-				const unusedH = slabH % slab.entryH;
+				const unusedW = this._slabW % slab.entryW;
+				const unusedH = this._slabH % slab.entryH;
 				if (unusedW) {
 					addEntryToMapArray(this._openRegionsByWidth, unusedW, {
-						x: slab.x + slabW - unusedW,
+						x: slab.x + this._slabW - unusedW,
 						w: unusedW,
 						y: slab.y,
-						h: slabH - (unusedH ?? 0)
+						h: this._slabH - (unusedH ?? 0)
 					});
 				}
 				if (unusedH) {
 					addEntryToMapArray(this._openRegionsByHeight, unusedH, {
 						x: slab.x,
-						w: slabW,
-						y: slab.y + slabH - unusedH,
+						w: this._slabW,
+						y: slab.y + this._slabH - unusedH,
 						h: unusedH
 					});
 				}
@@ -377,7 +393,7 @@ export class TextureAtlasSlabAllocator implements ITextureAtlasAllocator {
 				this._activeSlabsByDims.set(desiredSlabSize.w, desiredSlabSize.h, slab);
 			}
 
-			const glyphsPerRow = Math.floor(slabW / slab.entryW);
+			const glyphsPerRow = Math.floor(this._slabW / slab.entryW);
 			dx = slab.x + Math.floor(slab.count % glyphsPerRow) * slab.entryW;
 			dy = slab.y + Math.floor(slab.count / glyphsPerRow) * slab.entryH;
 
