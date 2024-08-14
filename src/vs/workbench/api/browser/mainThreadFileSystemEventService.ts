@@ -230,7 +230,9 @@ export class MainThreadFileSystemEventService implements MainThreadFileSystemEve
 					opts.recursive = false;
 				}
 			} catch (error) {
-				this._logService.error(`MainThreadFileSystemEventService#$watch(): failed to stat a resource for file watching (extension: ${extensionId}, path: ${uri.toString(true)}, recursive: ${opts.recursive}, session: ${session}): ${error}`);
+				// MEMBRANE: change from latest vscode upstream
+				// https://github.com/microsoft/vscode/pull/207679/files
+				// ignore
 			}
 		}
 
