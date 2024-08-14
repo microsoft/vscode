@@ -395,7 +395,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 	{
 		id: 'SetupScreenReader',
 		title: localize('gettingStarted.setupScreenReader.title', "Get Started with VS Code using a Screen Reader"),
-		description: localize('gettingStarted.setupScreenReader.description', "Learn the tools and shortcuts that make VS Code accessible"),
+		description: localize('gettingStarted.setupScreenReader.description', "Learn the tools and shortcuts that make VS Code accessible. Note that some actions are not actionable from within the context of the walkthrough."),
 		isFeatured: true,
 		icon: setupIcon,
 		when: CONTEXT_ACCESSIBILITY_MODE_ENABLED.key,
