@@ -95,6 +95,8 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { ExtensionKind, IEnvironmentService, IExtensionHostDebugParams } from 'vs/platform/environment/common/environment';
 import { mainWindow } from 'vs/base/browser/window';
 import { ResourceMap } from 'vs/base/common/map';
+import { ITreeSitterParserService } from 'vs/editor/common/services/treeSitterParserService';
+import { StandaloneTreeSitterParserService } from 'vs/editor/standalone/browser/standaloneTreeSitterService';
 
 class SimpleModel implements IResolvedTextEditorModel {
 
@@ -1145,6 +1147,7 @@ registerSingleton(IClipboardService, BrowserClipboardService, InstantiationType.
 registerSingleton(IContextMenuService, StandaloneContextMenuService, InstantiationType.Eager);
 registerSingleton(IMenuService, MenuService, InstantiationType.Eager);
 registerSingleton(IAccessibilitySignalService, StandaloneAccessbilitySignalService, InstantiationType.Eager);
+registerSingleton(ITreeSitterParserService, StandaloneTreeSitterParserService, InstantiationType.Eager);
 
 /**
  * We don't want to eagerly instantiate services because embedders get a one time chance
