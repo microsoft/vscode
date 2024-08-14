@@ -33,6 +33,7 @@
 		"src/vs/base/test/node/uri.perf.data.txt": true,
 		"src/vs/workbench/api/test/browser/extHostDocumentData.test.perf-data.ts": true,
 		"src/vs/editor/test/node/diffing/fixtures/**": true,
+		"src/vs/base/test/node/uri.test.data.txt": true,
 	},
 	"files.readonlyInclude": {
 		"**/node_modules/**/*.*": true,

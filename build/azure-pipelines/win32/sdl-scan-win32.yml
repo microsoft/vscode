@@ -3,6 +3,8 @@ parameters:
     type: string
   - name: VSCODE_QUALITY
     type: string
+  - name: VSCODE_BUILD_ESM
+    type: boolean
 
 steps:
   - task: NodeTool@0

@@ -1,6 +1,8 @@
 parameters:
   - name: VSCODE_QUALITY
     type: string
+  - name: VSCODE_BUILD_ESM
+    type: boolean
   - name: VSCODE_BUILD_MACOS
     type: boolean
     default: false
