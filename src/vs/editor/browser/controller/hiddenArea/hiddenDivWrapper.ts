@@ -16,6 +16,8 @@ import { createFastDomNode, FastDomNode } from 'vs/base/browser/fastDomNode';
 import { RenderingContext } from 'vs/editor/browser/view/renderingContext';
 import { IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
+import { ViewEventHandler } from 'vs/editor/common/viewEventHandler';
+import { ViewCursorStateChangedEvent, ViewScrollChangedEvent } from 'vs/editor/common/viewEvents';
 
 export namespace NativeAreaSyntethicEvents {
 	export const Tap = '-monaco-textarea-synthetic-tap';
@@ -98,6 +100,7 @@ export class DivWrapper extends Disposable implements ICompleteHiddenAreaWrapper
 	private readonly _actual: HTMLDivElement;
 	private readonly _editContext: EditContext;
 	private _contentLeft: number;
+	private _scrollTop: number;
 	private _isComposing: boolean = false;
 	private _renderingContext: RenderingContext | undefined;
 	private _parent: HTMLElement | undefined;
@@ -128,38 +131,7 @@ export class DivWrapper extends Disposable implements ICompleteHiddenAreaWrapper
 		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'characterboundsupdate', e => {
 			console.log('character bounds update : ', e);
-			if (!this._parent || !this._compositionStartPosition || !this._compositionEndPosition) {
-				return;
-			}
-			const options = this._viewContext.configuration.options;
-			const lineHeight = options.get(EditorOption.lineHeight);
-			const typicalHalfwidthCharacterWidth = options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
-			const parentBounds = this._parent.getBoundingClientRect();
-			const verticalOffsetStart = this._viewContext.viewLayout.getVerticalOffsetForLineNumber(this._compositionStartPosition.lineNumber);
-			let left: number = parentBounds.left + this._contentLeft;
-			let width: number = typicalHalfwidthCharacterWidth / 2;
-
-			if (this._renderingContext) {
-				const range = Range.fromPositions(this._compositionStartPosition, this._compositionEndPosition);
-				const linesVisibleRanges = this._renderingContext.linesVisibleRangesForRange(range, true) ?? [];
-				if (linesVisibleRanges.length === 0) { return; }
-				const minLeft = Math.min(...linesVisibleRanges.map(r => Math.min(...r.ranges.map(r => r.left))));
-				const maxLeft = Math.max(...linesVisibleRanges.map(r => Math.max(...r.ranges.map(r => r.left + r.width))));
-				left += minLeft;
-				width = maxLeft - minLeft;
-			}
-			const characterBounds = [new DOMRect(
-				left,
-				parentBounds.top + verticalOffsetStart,
-				width,
-				lineHeight,
-			)];
-			console.log('characterBounds : ', characterBounds);
-			this._editContext.updateCharacterBounds(e.rangeStart, characterBounds);
-
-			// -- dev
-			this._characterBounds.dispose();
-			this._characterBounds = createRect(characterBounds[0], 'green');
+			this._updateCharacterBounds(e.rangeStart);
 		}));
 
 		this._register(editContextAddDisposableListener(this._editContext, 'textupdate', e => {
@@ -276,10 +248,23 @@ export class DivWrapper extends Disposable implements ICompleteHiddenAreaWrapper
 		this._register(dom.addDisposableListener(this._actual, 'blur', (e) => {
 			this._onBlur.fire(e);
 		}));
+		const that = this;
+		this._viewContext.addEventHandler(new class extends ViewEventHandler {
+			public override onScrollChanged(e: ViewScrollChangedEvent): boolean {
+				that._scrollTop = e.scrollTop;
+				that._updateSelectionAndControlBounds();
+				return false;
+			}
+			public override onCursorStateChanged(e: ViewCursorStateChangedEvent): boolean {
+				that._updateSelectionAndControlBounds();
+				return false;
+			}
+		});
 
 		const options = this._viewContext.configuration.options;
 		const layoutInfo = options.get(EditorOption.layoutInfo);
 		this._contentLeft = layoutInfo.contentLeft;
+		this._scrollTop = 0;
 	}
 
 	public hasFocus(): boolean {
@@ -354,7 +339,7 @@ export class DivWrapper extends Disposable implements ICompleteHiddenAreaWrapper
 		console.log('selectionStart : ', selectionStart);
 		console.log('selectionEnd : ', selectionEnd);
 
-		this._updateBounds();
+		this._updateSelectionAndControlBounds();
 		this._updateDocumentSelection(selectionStart, selectionEnd);
 
 		this._selectionStart = selectionStart;
@@ -453,7 +438,42 @@ export class DivWrapper extends Disposable implements ICompleteHiddenAreaWrapper
 		this._editContext.updateText(0, Number.MAX_SAFE_INTEGER, value);
 	}
 
-	private _updateBounds() {
+	private _updateCharacterBounds(rangeStart: number) {
+		if (!this._parent || !this._compositionStartPosition || !this._compositionEndPosition) {
+			return;
+		}
+		const options = this._viewContext.configuration.options;
+		const lineHeight = options.get(EditorOption.lineHeight);
+		const typicalHalfwidthCharacterWidth = options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
+		const parentBounds = this._parent.getBoundingClientRect();
+		const verticalOffsetStart = this._viewContext.viewLayout.getVerticalOffsetForLineNumber(this._compositionStartPosition.lineNumber);
+		let left: number = parentBounds.left + this._contentLeft;
+		let width: number = typicalHalfwidthCharacterWidth / 2;
+
+		if (this._renderingContext) {
+			const range = Range.fromPositions(this._compositionStartPosition, this._compositionEndPosition);
+			const linesVisibleRanges = this._renderingContext.linesVisibleRangesForRange(range, true) ?? [];
+			if (linesVisibleRanges.length === 0) { return; }
+			const minLeft = Math.min(...linesVisibleRanges.map(r => Math.min(...r.ranges.map(r => r.left))));
+			const maxLeft = Math.max(...linesVisibleRanges.map(r => Math.max(...r.ranges.map(r => r.left + r.width))));
+			left += minLeft;
+			width = maxLeft - minLeft;
+		}
+		const characterBounds = [new DOMRect(
+			left,
+			parentBounds.top + verticalOffsetStart - this._scrollTop,
+			width,
+			lineHeight,
+		)];
+		console.log('characterBounds : ', characterBounds);
+		this._editContext.updateCharacterBounds(rangeStart, characterBounds);
+
+		// -- dev
+		this._characterBounds.dispose();
+		this._characterBounds = createRect(characterBounds[0], 'green');
+	}
+
+	private _updateSelectionAndControlBounds() {
 
 		console.log('_updateBounds');
 
@@ -479,7 +499,7 @@ export class DivWrapper extends Disposable implements ICompleteHiddenAreaWrapper
 			}
 			selectionBounds = new DOMRect(
 				left,
-				parentBounds.top + verticalOffsetStart,
+				parentBounds.top + verticalOffsetStart - this._scrollTop,
 				typicalHalfwidthCharacterWidth / 2,
 				lineHeight,
 			);
@@ -488,7 +508,7 @@ export class DivWrapper extends Disposable implements ICompleteHiddenAreaWrapper
 			const numberOfLines = primarySelection.endLineNumber - primarySelection.startLineNumber;
 			selectionBounds = new DOMRect(
 				parentBounds.left + this._contentLeft,
-				parentBounds.top + verticalOffsetStart,
+				parentBounds.top + verticalOffsetStart - this._scrollTop,
 				parentBounds.width - this._contentLeft,
 				(numberOfLines + 1) * lineHeight,
 			);
