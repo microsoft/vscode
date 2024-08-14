@@ -547,7 +547,6 @@ abstract class AbstractElementRenderer extends Disposable {
 				modifiedEditor: getOptimizedNestedCodeEditorWidgetOptions()
 			});
 
-			this._metadataEditorDisposeStore.add(this.updateEditorOptions(this._metadataEditor!, ['renderSideBySide', 'useInlineViewWhenSpaceIsLimited']));
 			this.layout({ metadataHeight: true });
 			this._metadataEditorDisposeStore.add(this._metadataEditor);
 
@@ -661,7 +660,6 @@ abstract class AbstractElementRenderer extends Disposable {
 					originalEditor: getOptimizedNestedCodeEditorWidgetOptions(),
 					modifiedEditor: getOptimizedNestedCodeEditorWidgetOptions()
 				});
-				this._outputEditorDisposeStore.add(this.updateEditorOptions(this._outputEditor!, ['renderSideBySide', 'useInlineViewWhenSpaceIsLimited']));
 				this._outputEditorDisposeStore.add(this._outputEditor);
 
 				this._outputEditorContainer?.classList.add('diff');
@@ -752,61 +750,6 @@ abstract class AbstractElementRenderer extends Disposable {
 
 	abstract updateSourceEditor(): void;
 	abstract layout(state: IDiffElementLayoutState): void;
-
-	protected updateEditorOptions(editor: DiffEditorWidget, optionsToUpdate: ('hideUnchangedRegions' | 'renderSideBySide' | 'useInlineViewWhenSpaceIsLimited' | 'ignoreTrimWhitespace')[]): IDisposable {
-		const uri = editor.getModel()?.modified.uri || editor.getModel()?.original.uri;
-		if (!uri || !optionsToUpdate.includes('ignoreTrimWhitespace')) {
-			return Disposable.None;
-		}
-		const ignoreTrimWhitespace = this.textConfigurationService.getValue<boolean>(uri, 'diffEditor.ignoreTrimWhitespace');
-		editor.updateOptions({ ignoreTrimWhitespace });
-
-		return this.textConfigurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(uri, 'diffEditor') &&
-				e.affectedKeys.has('diffEditor.ignoreTrimWhitespace')) {
-				const ignoreTrimWhitespace = this.textConfigurationService.getValue<boolean>(uri, 'diffEditor.ignoreTrimWhitespace');
-				editor.updateOptions({ ignoreTrimWhitespace });
-			}
-		});
-
-		// if (!optionsToUpdate.length) {
-		// 	return Disposable.None;
-		// }
-
-		// const options: {
-		// 	renderSideBySide?: boolean;
-		// 	useInlineViewWhenSpaceIsLimited?: boolean;
-		// 	hideUnchangedRegions?: { enabled: boolean };
-		// } = {};
-
-		// if (optionsToUpdate.includes('renderSideBySide')) {
-		// 	options.renderSideBySide = this.configurationService.getValue<boolean>('diffEditor.renderSideBySide');
-		// }
-		// if (optionsToUpdate.includes('hideUnchangedRegions')) {
-		// 	const enabled = this.configurationService.getValue<boolean>('diffEditor.hideUnchangedRegions.enabled');
-		// 	options.hideUnchangedRegions = { enabled };
-		// }
-		// if (optionsToUpdate.includes('useInlineViewWhenSpaceIsLimited')) {
-		// 	options.useInlineViewWhenSpaceIsLimited = this.configurationService.getValue<boolean>('diffEditor.useInlineViewWhenSpaceIsLimited');
-		// }
-
-		// editor.updateOptions(options);
-
-		// return this.configurationService.onDidChangeConfiguration(e => {
-		// 	if (e.affectsConfiguration('diffEditor.hideUnchangedRegions.enabled')) {
-		// 		const enabled = this.configurationService.getValue<boolean>('diffEditor.hideUnchangedRegions.enabled');
-		// 		editor.updateOptions({ hideUnchangedRegions: { enabled } });
-		// 	}
-		// 	if (e.affectsConfiguration('diffEditor.renderSideBySide')) {
-		// 		const renderSideBySide = this.configurationService.getValue<boolean>('diffEditor.renderSideBySide');
-		// 		editor.updateOptions({ renderSideBySide });
-		// 	}
-		// 	if (e.affectsConfiguration('diffEditor.useInlineViewWhenSpaceIsLimited')) {
-		// 		const useInlineViewWhenSpaceIsLimited = this.configurationService.getValue<boolean>('diffEditor.useInlineViewWhenSpaceIsLimited');
-		// 		editor.updateOptions({ useInlineViewWhenSpaceIsLimited });
-		// 	}
-		// });
-	}
 }
 
 abstract class SingleSideDiffElement extends AbstractElementRenderer {
@@ -1596,7 +1539,6 @@ export class ModifiedElement extends AbstractElementRenderer {
 					modifiedEditor: getOptimizedNestedCodeEditorWidgetOptions()
 				});
 
-				this._register(this.updateEditorOptions(this._outputMetadataEditor, ['renderSideBySide', 'useInlineViewWhenSpaceIsLimited']));
 				this._register(this._outputMetadataEditor);
 				const originalOutputMetadataSource = JSON.stringify(this.cell.original.outputs[0].metadata ?? {}, undefined, '\t');
 				const modifiedOutputMetadataSource = JSON.stringify(this.cell.modified.outputs[0].metadata ?? {}, undefined, '\t');
@@ -1804,7 +1746,7 @@ export class ModifiedElement extends AbstractElementRenderer {
 			}
 		};
 
-		this._register(this.updateEditorOptions(this._editor!, ['hideUnchangedRegions', 'renderSideBySide', 'useInlineViewWhenSpaceIsLimited', 'ignoreTrimWhitespace']));
+		this.updateEditorOptionsForWhitespace();
 		this._register(this._editor!.getOriginalEditor().onDidChangeCursorSelection(handleViewStateChange));
 		this._register(this._editor!.getOriginalEditor().onDidScrollChange(handleScrollChange));
 		this._register(this._editor!.getModifiedEditor().onDidChangeCursorSelection(handleViewStateChange));
@@ -1818,7 +1760,26 @@ export class ModifiedElement extends AbstractElementRenderer {
 		const contentHeight = this._editor!.getContentHeight();
 		this.cell.editorHeight = contentHeight;
 	}
+	private updateEditorOptionsForWhitespace() {
+		const editor = this._editor;
+		if (!editor) {
+			return;
+		}
+		const uri = editor.getModel()?.modified.uri || editor.getModel()?.original.uri;
+		if (!uri) {
+			return;
+		}
+		const ignoreTrimWhitespace = this.textConfigurationService.getValue<boolean>(uri, 'diffEditor.ignoreTrimWhitespace');
+		editor.updateOptions({ ignoreTrimWhitespace });
 
+		this._register(this.textConfigurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(uri, 'diffEditor') &&
+				e.affectedKeys.has('diffEditor.ignoreTrimWhitespace')) {
+				const ignoreTrimWhitespace = this.textConfigurationService.getValue<boolean>(uri, 'diffEditor.ignoreTrimWhitespace');
+				editor.updateOptions({ ignoreTrimWhitespace });
+			}
+		}));
+	}
 	layout(state: IDiffElementLayoutState) {
 		DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this._diffEditorContainer), () => {
 			if (state.editorHeight && this._editor) {
