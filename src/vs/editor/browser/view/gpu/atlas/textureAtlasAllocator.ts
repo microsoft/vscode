@@ -43,7 +43,7 @@ export class TextureAtlasShelfAllocator implements ITextureAtlasAllocator {
 
 	public allocate(chars: string, tokenFg: number, rasterizedGlyph: IRasterizedGlyph): ITextureAtlasGlyph {
 		// Finalize row if it doesn't fix
-		if (rasterizedGlyph.boundingBox.right - rasterizedGlyph.boundingBox.left > this._canvas.width - this._currentRow.x) {
+		if (rasterizedGlyph.boundingBox.right - rasterizedGlyph.boundingBox.left + 1 > this._canvas.width - this._currentRow.x) {
 			this._currentRow.x = 0;
 			this._currentRow.y += this._currentRow.h;
 			this._currentRow.h = 1;
