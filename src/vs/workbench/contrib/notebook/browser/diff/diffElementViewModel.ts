@@ -226,12 +226,6 @@ export abstract class DiffElementCellViewModelBase extends DiffElementViewModelB
 		this.metadataFoldingState = PropertyFoldingState.Collapsed;
 		this.outputFoldingState = PropertyFoldingState.Collapsed;
 
-		if (original) {
-			this._register(original);
-		}
-		if (modified) {
-			this._register(modified);
-		}
 		this._register(this.editorEventDispatcher.onDidChangeLayout(e => this._layoutInfoEmitter.fire({ outerWidth: true })));
 	}
 
