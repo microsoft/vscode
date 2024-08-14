@@ -1344,17 +1344,7 @@ class ServerInitializingIndicator extends Disposable {
 		// the incoming project loading task is.
 		this.reset();
 
-		// `projectName` is typically an absolute file path to the tsconfig.json file.
-		// We'll try to find the first path suited to form a more suitable
-		// display name for the progress indicator.
-		let projectDisplayName = projectName;
-		for (const folder of vscode.workspace.workspaceFolders ?? empty) {
-			if (projectName.startsWith(folder.uri.fsPath)) {
-				projectDisplayName = path.relative(folder.uri.fsPath, projectName);
-				break;
-			}
-		}
-
+		const projectDisplayName = vscode.workspace.asRelativePath(projectName);
 		vscode.window.withProgress({
 			location: vscode.ProgressLocation.Window,
 			title: vscode.l10n.t("Initializing project '{0}'", projectDisplayName),
