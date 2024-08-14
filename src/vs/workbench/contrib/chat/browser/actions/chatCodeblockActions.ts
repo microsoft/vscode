@@ -85,6 +85,11 @@ abstract class ChatCodeBlockAction extends Action2 {
 	abstract runWithContext(accessor: ServicesAccessor, context: ICodeBlockActionContext): any;
 }
 
+interface IComputeEditsResult {
+	readonly edits: ResourceEdit[] | WorkspaceEdit;
+	readonly codeMapper?: string;
+}
+
 abstract class InsertCodeBlockAction extends ChatCodeBlockAction {
 
 	override async runWithContext(accessor: ServicesAccessor, context: ICodeBlockActionContext) {
@@ -140,35 +145,37 @@ abstract class InsertCodeBlockAction extends ChatCodeBlockAction {
 		}
 
 		const languageService = accessor.get(ILanguageService);
+		const chatService = accessor.get(IChatService);
+
 		const focusRange = notebookEditor.getFocus();
 		const next = Math.max(focusRange.end - 1, 0);
 		insertCell(languageService, notebookEditor, next, CellKind.Code, 'below', context.code, true);
-		this.notifyUserAction(accessor, context);
+		this.notifyUserAction(chatService, context);
 	}
 
-	protected async computeEdits(accessor: ServicesAccessor, codeEditor: IActiveCodeEditor, codeBlockActionContext: ICodeBlockActionContext): Promise<ResourceEdit[] | WorkspaceEdit> {
+	protected async computeEdits(accessor: ServicesAccessor, codeEditor: IActiveCodeEditor, codeBlockActionContext: ICodeBlockActionContext): Promise<IComputeEditsResult> {
 		const activeModel = codeEditor.getModel();
 		const range = codeEditor.getSelection() ?? new Range(activeModel.getLineCount(), 1, activeModel.getLineCount(), 1);
 		const text = reindent(codeBlockActionContext.code, activeModel, range.startLineNumber);
-		return [new ResourceTextEdit(activeModel.uri, { range, text })];
+		return { edits: [new ResourceTextEdit(activeModel.uri, { range, text })] };
 	}
 
 	private async handleTextEditor(accessor: ServicesAccessor, codeEditor: IActiveCodeEditor, codeBlockActionContext: ICodeBlockActionContext) {
 		const bulkEditService = accessor.get(IBulkEditService);
 		const codeEditorService = accessor.get(ICodeEditorService);
+		const chatService = accessor.get(IChatService);
 
-		this.notifyUserAction(accessor, codeBlockActionContext);
 		const activeModel = codeEditor.getModel();
 
-		const mappedEdits = await this.computeEdits(accessor, codeEditor, codeBlockActionContext);
+		const result = await this.computeEdits(accessor, codeEditor, codeBlockActionContext);
+		this.notifyUserAction(chatService, codeBlockActionContext, result);
 
-		await bulkEditService.apply(mappedEdits);
+		await bulkEditService.apply(result.edits);
 		codeEditorService.listCodeEditors().find(editor => editor.getModel()?.uri.toString() === activeModel.uri.toString())?.focus();
 	}
 
-	private notifyUserAction(accessor: ServicesAccessor, context: ICodeBlockActionContext) {
+	private notifyUserAction(chatService: IChatService, context: ICodeBlockActionContext, result?: IComputeEditsResult) {
 		if (isResponseVM(context.element)) {
-			const chatService = accessor.get(IChatService);
 			chatService.notifyUserAction({
 				agentId: context.element.agent?.id,
 				command: context.element.slashCommand?.name,
@@ -179,6 +186,8 @@ abstract class InsertCodeBlockAction extends ChatCodeBlockAction {
 					kind: 'insert',
 					codeBlockIndex: context.codeBlockIndex,
 					totalCharacters: context.code.length,
+					userAction: this.desc.id,
+					codeMapper: result?.codeMapper,
 				}
 			});
 		}
@@ -371,7 +380,7 @@ export function registerChatCodeBlockActions() {
 			});
 		}
 
-		protected override async computeEdits(accessor: ServicesAccessor, codeEditor: IActiveCodeEditor, codeBlockActionContext: ICodeBlockActionContext): Promise<ResourceEdit[] | WorkspaceEdit> {
+		protected override async computeEdits(accessor: ServicesAccessor, codeEditor: IActiveCodeEditor, codeBlockActionContext: ICodeBlockActionContext): Promise<IComputeEditsResult> {
 
 			const progressService = accessor.get(IProgressService);
 			const notificationService = accessor.get(INotificationService);
@@ -404,7 +413,7 @@ export function registerChatCodeBlockActions() {
 
 				const cancellationTokenSource = new CancellationTokenSource();
 				try {
-					const edits = await progressService.withProgress(
+					const edits = await progressService.withProgress<IComputeEditsResult | undefined>(
 						{ location: ProgressLocation.Notification, delay: 500, sticky: true, cancellable: true },
 						async progress => {
 							for (const provider of mappedEditsProviders) {
@@ -416,7 +425,7 @@ export function registerChatCodeBlockActions() {
 									cancellationTokenSource.token
 								);
 								if (mappedEdits) {
-									return mappedEdits;
+									return { edits: mappedEdits, codeMapper: provider.displayName };
 								}
 							}
 							return undefined;
@@ -503,7 +512,8 @@ export function registerChatCodeBlockActions() {
 						kind: 'insert',
 						codeBlockIndex: context.codeBlockIndex,
 						totalCharacters: context.code.length,
-						newFile: true
+						newFile: true,
+						userAction: this.desc.id,
 					}
 				});
 			}

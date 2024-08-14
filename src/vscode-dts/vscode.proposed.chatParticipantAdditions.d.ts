@@ -280,6 +280,8 @@ declare module 'vscode' {
 		codeBlockIndex: number;
 		totalCharacters: number;
 		newFile?: boolean;
+		userAction?: string;
+		codeMapper?: string;
 	}
 
 	export interface ChatTerminalAction {
