@@ -41,7 +41,7 @@ suite('Modules Loading in ESM via importAMDNodeModule()', () => {
 		assert.ok(typeof textmate.parseRawGrammar === 'function');
 	});
 
-	test('@xterm', async () => {
+	(isESM ? test : test.skip)('@xterm', async () => {
 		const xterm = await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js');
 		assert.ok(typeof xterm.Terminal === 'function');
 
