@@ -164,18 +164,6 @@ function migrateTS(filePath, fileContents) {
 			importedFilepath = importedFilename;
 		}
 
-		// list of node modules that we swap out for ESM-AMD magic files
-		// to some guess for what files endup in the shared process
-		if (!filePathPosix.includes('vs/workbench/') && !filePathPosix.includes('vs/editor/')) {
-			const monacoNodeModules = new Set([
-				'child_process', // inside worker of shared process
-				'console', // inside worker of shared process
-			]);
-			if (monacoNodeModules.has(importedFilename)) {
-				importedFilepath = `vs/base/node/typings-esm/${importedFilename}`;
-			}
-		}
-
 		/** @type {boolean} */
 		let isRelativeImport;
 		if (/(^\.\/)|(^\.\.\/)/.test(importedFilepath)) {
