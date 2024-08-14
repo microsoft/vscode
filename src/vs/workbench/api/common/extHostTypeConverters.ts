@@ -41,6 +41,7 @@ import { IViewBadge } from 'vs/workbench/common/views';
 import { ChatAgentLocation, IChatAgentRequest, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatRequestVariableEntry } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatAgentDetection, IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatProgressMessage, IChatTaskDto, IChatTaskResult, IChatTextEdit, IChatTreeData, IChatUserActionEvent, IChatWarningMessage } from 'vs/workbench/contrib/chat/common/chatService';
+import { IToolData, IToolResult } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
 import * as chatProvider from 'vs/workbench/contrib/chat/common/languageModels';
 import { DebugTreeItemCollapsibleState, IDebugVisualizationTreeItem } from 'vs/workbench/contrib/debug/common/debug';
 import * as notebooks from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -53,7 +54,6 @@ import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/ed
 import { Dto } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import type * as vscode from 'vscode';
 import * as types from './extHostTypes';
-import { IToolData, IToolResult } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
 
 export namespace Command {
 
@@ -1893,7 +1893,7 @@ export namespace TestMessage {
 			actual: message.actualOutput,
 			contextValue: message.contextValue,
 			location: message.location && ({ range: Range.from(message.location.range), uri: message.location.uri }),
-			stackTrace: (message as vscode.TestMessage2).stackTrace?.map(s => ({
+			stackTrace: message.stackTrace?.map(s => ({
 				label: s.label,
 				position: s.position && Position.from(s.position),
 				uri: s.uri && URI.revive(s.uri).toJSON(),
@@ -2507,7 +2507,8 @@ export namespace ChatResponseReferencePart {
 			: URI.isUri(part.iconPath) ? { light: URI.revive(part.iconPath) }
 				: (part.iconPath && 'light' in part.iconPath && 'dark' in part.iconPath && URI.isUri(part.iconPath.light) && URI.isUri(part.iconPath.dark) ? { light: URI.revive(part.iconPath.light), dark: URI.revive(part.iconPath.dark) }
 					: undefined);
-		if ('variableName' in part.value) {
+
+		if (typeof part.value === 'object' && 'variableName' in part.value) {
 			return {
 				kind: 'reference',
 				reference: {
@@ -2523,7 +2524,7 @@ export namespace ChatResponseReferencePart {
 
 		return {
 			kind: 'reference',
-			reference: URI.isUri(part.value) ?
+			reference: URI.isUri(part.value) || typeof part.value === 'string' ?
 				part.value :
 				Location.from(<vscode.Location>part.value),
 			iconPath,
@@ -2538,7 +2539,7 @@ export namespace ChatResponseReferencePart {
 			Location.to(value);
 
 		return new types.ChatResponseReferencePart(
-			'variableName' in value.reference ? {
+			typeof value.reference === 'string' ? value.reference : 'variableName' in value.reference ? {
 				variableName: value.reference.variableName,
 				value: value.reference.value && mapValue(value.reference.value)
 			} :
@@ -2621,19 +2622,19 @@ export namespace ChatResponsePart {
 
 export namespace ChatAgentRequest {
 	export function to(request: IChatAgentRequest, location2: vscode.ChatRequestEditorData | vscode.ChatRequestNotebookData | undefined): vscode.ChatRequest {
-		const requestedTools = request.variables.variables.filter(v => v.isTool).map(tool => tool.id);
-		const variablesWithoutTools = request.variables.variables.filter(v => !v.isTool);
+		const toolReferences = request.variables.variables.filter(v => v.isTool);
+		const variableReferences = request.variables.variables.filter(v => !v.isTool);
 		return {
 			prompt: request.message,
 			command: request.command,
 			attempt: request.attempt ?? 0,
 			enableCommandDetection: request.enableCommandDetection ?? true,
-			references: variablesWithoutTools.map(ChatAgentValueReference.to),
+			references: variableReferences.map(ChatPromptReference.to),
+			toolReferences: toolReferences.map(ChatLanguageModelToolReference.to),
 			location: ChatLocation.to(request.location),
 			acceptedConfirmationData: request.acceptedConfirmationData,
 			rejectedConfirmationData: request.rejectedConfirmationData,
 			location2,
-			requestedTools
 		};
 	}
 }
@@ -2658,7 +2659,7 @@ export namespace ChatLocation {
 	}
 }
 
-export namespace ChatAgentValueReference {
+export namespace ChatPromptReference {
 	export function to(variable: IChatRequestVariableEntry): vscode.ChatPromptReference {
 		const value = variable.value;
 		if (!value) {
@@ -2673,6 +2674,20 @@ export namespace ChatAgentValueReference {
 				value && typeof value === 'object' && 'uri' in value && 'range' in value && isUriComponents(value.uri) ?
 					Location.to(revive(value)) : value,
 			modelDescription: variable.modelDescription
+		};
+	}
+}
+
+export namespace ChatLanguageModelToolReference {
+	export function to(variable: IChatRequestVariableEntry): vscode.ChatLanguageModelToolReference {
+		const value = variable.value;
+		if (value) {
+			throw new Error('Invalid tool reference');
+		}
+
+		return {
+			id: variable.id,
+			range: variable.range && [variable.range.start, variable.range.endExclusive],
 		};
 	}
 }
@@ -2799,9 +2814,10 @@ export namespace DebugTreeItem {
 export namespace LanguageModelToolDescription {
 	export function to(item: IToolData): vscode.LanguageModelToolDescription {
 		return {
-			name: item.name,
-			description: item.description,
+			id: item.id,
+			modelDescription: item.modelDescription,
 			parametersSchema: item.parametersSchema,
+			displayName: item.displayName,
 		};
 	}
 }

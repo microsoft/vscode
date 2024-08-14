@@ -25,20 +25,20 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 
 		this._proxy.$getTools().then(tools => {
 			for (const tool of tools) {
-				this._allTools.set(tool.name, revive(tool));
+				this._allTools.set(tool.id, revive(tool));
 			}
 		});
 	}
 
-	async invokeTool(name: string, parameters: any, token: CancellationToken): Promise<vscode.LanguageModelToolResult> {
+	async invokeTool(id: string, parameters: any, token: CancellationToken): Promise<vscode.LanguageModelToolResult> {
 		// Making the round trip here because not all tools were necessarily registered in this EH
-		const result = await this._proxy.$invokeTool(name, parameters, token);
+		const result = await this._proxy.$invokeTool(id, parameters, token);
 		return typeConvert.LanguageModelToolResult.to(result);
 	}
 
 	async $acceptToolDelta(delta: IToolDelta): Promise<void> {
 		if (delta.added) {
-			this._allTools.set(delta.added.name, delta.added);
+			this._allTools.set(delta.added.id, delta.added);
 		}
 
 		if (delta.removed) {

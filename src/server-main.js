@@ -11,11 +11,10 @@
  * @import { IServerAPI } from './vs/server/node/remoteExtensionHostAgentServer'
  */
 
+// ESM-comment-begin
 // Keep bootstrap-amd.js from redefining 'fs'.
-// TODO@esm this needs to be revisited in ESM
 delete process.env['ELECTRON_RUN_AS_NODE'];
 
-// ESM-comment-begin
 const path = require('path');
 const http = require('http');
 const os = require('os');
@@ -29,18 +28,19 @@ const perf = require(`./vs/base/common/performance`);
 const minimist = require('minimist');
 // ESM-comment-end
 // ESM-uncomment-begin
+// import './bootstrap-server.js'; // this MUST come before other imports as it changes global state
 // import * as path from 'path';
 // import * as http from 'http';
 // import * as os from 'os';
 // import * as readline from 'readline';
 // import { performance }from 'perf_hooks';
 // import { fileURLToPath } from 'url';
+// import minimist from 'minimist';
 // import * as bootstrapNode from './bootstrap-node.js';
 // import * as bootstrapAmd from './bootstrap-amd.js';
 // import { resolveNLSConfiguration } from './vs/base/node/nls.js';
 // import { product } from './bootstrap-meta.js';
 // import * as perf from './vs/base/common/performance.js';
-// import minimist from 'minimist';
 //
 // const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // ESM-uncomment-end
@@ -296,10 +296,10 @@ function loadCode(nlsConfiguration) {
 		if (process.env['VSCODE_DEV']) {
 			// When running out of sources, we need to load node modules from remote/node_modules,
 			// which are compiled against nodejs, not electron
-			process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH'] = process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH'] || path.join(__dirname, '..', 'remote', 'node_modules');
-			bootstrapNode.injectNodeModuleLookupPath(process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH']);
+			process.env['VSCODE_DEV_INJECT_NODE_MODULE_LOOKUP_PATH'] = process.env['VSCODE_DEV_INJECT_NODE_MODULE_LOOKUP_PATH'] || path.join(__dirname, '..', 'remote', 'node_modules');
+			bootstrapNode.devInjectNodeModuleLookupPath(process.env['VSCODE_DEV_INJECT_NODE_MODULE_LOOKUP_PATH']);
 		} else {
-			delete process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH'];
+			delete process.env['VSCODE_DEV_INJECT_NODE_MODULE_LOOKUP_PATH'];
 		}
 		bootstrapAmd.load('vs/server/node/server.main', resolve, reject);
 	});

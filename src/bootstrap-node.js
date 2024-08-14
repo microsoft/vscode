@@ -72,9 +72,15 @@ setupCurrentWorkingDirectory();
 /**
  * Add support for redirecting the loading of node modules
  *
+ * Note: only applies when running out of sources.
+ *
  * @param {string} injectPath
  */
-module.exports.injectNodeModuleLookupPath = function (injectPath) {
+module.exports.devInjectNodeModuleLookupPath = function (injectPath) {
+	if (!process.env['VSCODE_DEV']) {
+		return; // only applies running out of sources
+	}
+
 	if (!injectPath) {
 		throw new Error('Missing injectPath');
 	}
@@ -83,7 +89,7 @@ module.exports.injectNodeModuleLookupPath = function (injectPath) {
 	if (isESM) {
 		// register a loader hook
 		// ESM-uncomment-begin
-		// Module.register('./loader-lookup-path.mjs', { parentURL: import.meta.url, data: injectPath });
+		// Module.register('./bootstrap-import.js', { parentURL: import.meta.url, data: injectPath });
 		// ESM-uncomment-end
 	} else {
 		const nodeModulesPath = path.join(__dirname, '../node_modules');
@@ -201,26 +207,30 @@ module.exports.configurePortable = function (product) {
  * Helper to enable ASAR support.
  */
 module.exports.enableASARSupport = function () {
-	const NODE_MODULES_PATH = path.join(__dirname, '../node_modules');
-	const NODE_MODULES_ASAR_PATH = `${NODE_MODULES_PATH}.asar`;
+	if (isESM) {
+		return; // TODO@esm ASAR support is disabled in ESM
+	} else {
+		const NODE_MODULES_PATH = path.join(__dirname, '../node_modules');
+		const NODE_MODULES_ASAR_PATH = `${NODE_MODULES_PATH}.asar`;
 
-	// @ts-ignore
-	const originalResolveLookupPaths = Module._resolveLookupPaths;
+		// @ts-ignore
+		const originalResolveLookupPaths = Module._resolveLookupPaths;
 
-	// @ts-ignore
-	Module._resolveLookupPaths = function (request, parent) {
-		const paths = originalResolveLookupPaths(request, parent);
-		if (Array.isArray(paths)) {
-			for (let i = 0, len = paths.length; i < len; i++) {
-				if (paths[i] === NODE_MODULES_PATH) {
-					paths.splice(i, 0, NODE_MODULES_ASAR_PATH);
-					break;
+		// @ts-ignore
+		Module._resolveLookupPaths = function (request, parent) {
+			const paths = originalResolveLookupPaths(request, parent);
+			if (Array.isArray(paths)) {
+				for (let i = 0, len = paths.length; i < len; i++) {
+					if (paths[i] === NODE_MODULES_PATH) {
+						paths.splice(i, 0, NODE_MODULES_ASAR_PATH);
+						break;
+					}
 				}
 			}
-		}
 
-		return paths;
-	};
+			return paths;
+		};
+	}
 };
 
 /**
@@ -262,7 +272,7 @@ module.exports.fileUriFromPath = function (path, config) {
 //#endregion
 
 // ESM-uncomment-begin
-// export const injectNodeModuleLookupPath = module.exports.injectNodeModuleLookupPath;
+// export const devInjectNodeModuleLookupPath = module.exports.devInjectNodeModuleLookupPath;
 // export const removeGlobalNodeModuleLookupPaths = module.exports.removeGlobalNodeModuleLookupPaths;
 // export const configurePortable = module.exports.configurePortable;
 // export const enableASARSupport = module.exports.enableASARSupport;
