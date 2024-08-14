@@ -8,6 +8,7 @@ import * as fs from 'fs';
 import * as minimatch from 'minimatch';
 import { makeUniversalApp } from 'vscode-universal-bundler';
 import { spawn } from '@malept/cross-spawn-promise';
+import { isESM } from '../lib/esm';
 
 const root = path.dirname(path.dirname(__dirname));
 
@@ -31,7 +32,7 @@ async function main(buildDir?: string) {
 		'**/Credits.rtf',
 	];
 
-	const canAsar = false; // TODO@esm ASAR disabled in ESM
+	const canAsar = !isESM('ASAR disabled in universal build'); // TODO@esm ASAR disabled in ESM
 
 	await makeUniversalApp({
 		x64AppPath,

@@ -22,6 +22,7 @@ const i18n_1 = require("./i18n");
 const stats_1 = require("./stats");
 const util = require("./util");
 const postcss_1 = require("./postcss");
+const esm_1 = require("./esm");
 const REPO_ROOT_PATH = path.join(__dirname, '../..');
 function log(prefix, message) {
     fancyLog(ansiColors.cyan('[' + prefix + ']'), message);
@@ -195,7 +196,7 @@ function optimizeAMDTask(opts) {
     }) : es.through());
 }
 function optimizeESMTask(opts, cjsOpts) {
-    // TODO honor IEntryPoint#prepred/append (unused?)
+    // TODO@esm honor IEntryPoint#prepred/append (unused?)
     const esbuild = require('esbuild');
     const bundledFileHeader = opts.header || DEFAULT_FILE_HEADER;
     const sourcemaps = require('gulp-sourcemaps');
@@ -206,7 +207,7 @@ function optimizeESMTask(opts, cjsOpts) {
     if (cjsOpts) {
         cjsOpts.entryPoints.forEach(entryPoint => entryPoints.push({ name: path.parse(entryPoint).name }));
     }
-    // TODO remove hardcoded entry point and support `dest` of `IEntryPoint` or clean that up
+    // TODO@esm remove hardcoded entry point and support `dest` of `IEntryPoint` or clean that up
     entryPoints.push({ name: 'vs/base/worker/workerMain' });
     const allMentionedModules = new Set();
     for (const entryPoint of entryPoints) {
@@ -214,7 +215,7 @@ function optimizeESMTask(opts, cjsOpts) {
         entryPoint.include?.forEach(allMentionedModules.add, allMentionedModules);
         entryPoint.exclude?.forEach(allMentionedModules.add, allMentionedModules);
     }
-    // TODO remove this from the bundle files
+    // TODO@esm remove this from the bundle files
     allMentionedModules.delete('vs/css');
     const bundleAsync = async () => {
         let bundleData;
@@ -277,7 +278,7 @@ function optimizeESMTask(opts, cjsOpts) {
             }).then(res => {
                 console.log(`[bundle] DONE for '${entryPoint.name}' (${Math.round(performance.now() - t1)}ms)`);
                 if (opts.bundleInfo) {
-                    // TODO validate that bundleData is correct
+                    // TODO@esm validate that bundleData is correct
                     bundleData ??= { graph: {}, bundles: {} };
                     function pathToModule(path) {
                         return path
@@ -380,11 +381,10 @@ function optimizeManualTask(options) {
 function optimizeLoaderTask(src, out, bundleLoader, bundledFileHeader = '', externalLoaderInfo) {
     return () => loader(src, bundledFileHeader, bundleLoader, externalLoaderInfo).pipe(gulp.dest(out));
 }
-const isESM = true;
 function optimizeTask(opts) {
     return function () {
         const optimizers = [];
-        if (isESM) {
+        if ((0, esm_1.isESM)('Running optimizer in ESM mode')) {
             optimizers.push(optimizeESMTask(opts.amd, opts.commonJS));
         }
         else {

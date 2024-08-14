@@ -382,8 +382,6 @@ const BOILERPLATE = [
 ];
 
 function removeDuplicateTSBoilerplate(source: string, SEEN_BOILERPLATE: boolean[] = []): string {
-
-
 	const lines = source.split(/\r\n|\n|\r/);
 	const newLines: string[] = [];
 	let IS_REMOVING_BOILERPLATE = false, END_BOILERPLATE: RegExp;

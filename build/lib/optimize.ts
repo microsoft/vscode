@@ -18,6 +18,7 @@ import { createStatsStream } from './stats';
 import * as util from './util';
 import { gulpPostcss } from './postcss';
 import type { Plugin } from 'esbuild';
+import { isESM } from './esm';
 
 const REPO_ROOT_PATH = path.join(__dirname, '../..');
 
@@ -273,7 +274,7 @@ function optimizeAMDTask(opts: IOptimizeAMDTaskOpts): NodeJS.ReadWriteStream {
 }
 
 function optimizeESMTask(opts: IOptimizeAMDTaskOpts, cjsOpts?: IOptimizeCommonJSTaskOpts): NodeJS.ReadWriteStream {
-	// TODO honor IEntryPoint#prepred/append (unused?)
+	// TODO@esm honor IEntryPoint#prepred/append (unused?)
 
 	const esbuild = require('esbuild') as typeof import('esbuild');
 
@@ -289,7 +290,7 @@ function optimizeESMTask(opts: IOptimizeAMDTaskOpts, cjsOpts?: IOptimizeCommonJS
 		cjsOpts.entryPoints.forEach(entryPoint => entryPoints.push({ name: path.parse(entryPoint).name }));
 	}
 
-	// TODO remove hardcoded entry point and support `dest` of `IEntryPoint` or clean that up
+	// TODO@esm remove hardcoded entry point and support `dest` of `IEntryPoint` or clean that up
 	entryPoints.push({ name: 'vs/base/worker/workerMain' });
 
 	const allMentionedModules = new Set<string>();
@@ -299,7 +300,7 @@ function optimizeESMTask(opts: IOptimizeAMDTaskOpts, cjsOpts?: IOptimizeCommonJS
 		entryPoint.exclude?.forEach(allMentionedModules.add, allMentionedModules);
 	}
 
-	// TODO remove this from the bundle files
+	// TODO@esm remove this from the bundle files
 	allMentionedModules.delete('vs/css');
 
 	const bundleAsync = async () => {
@@ -374,7 +375,7 @@ function optimizeESMTask(opts: IOptimizeAMDTaskOpts, cjsOpts?: IOptimizeCommonJS
 				console.log(`[bundle] DONE for '${entryPoint.name}' (${Math.round(performance.now() - t1)}ms)`);
 
 				if (opts.bundleInfo) {
-					// TODO validate that bundleData is correct
+					// TODO@esm validate that bundleData is correct
 					bundleData ??= { graph: {}, bundles: {} };
 
 					function pathToModule(path: string) {
@@ -555,12 +556,10 @@ export interface IOptimizeTaskOpts {
 	manual?: IOptimizeManualTaskOpts[];
 }
 
-const isESM = true;
-
 export function optimizeTask(opts: IOptimizeTaskOpts): () => NodeJS.ReadWriteStream {
 	return function () {
 		const optimizers: NodeJS.ReadWriteStream[] = [];
-		if (isESM) {
+		if (isESM('Running optimizer in ESM mode')) {
 			optimizers.push(optimizeESMTask(opts.amd, opts.commonJS));
 		} else {
 			optimizers.push(optimizeAMDTask(opts.amd));

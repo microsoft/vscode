@@ -45,6 +45,7 @@ import { cellIndexesToRanges, cellRangesToIndexes } from 'vs/workbench/contrib/n
 import { NotebookDiffOverviewRuler } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffOverviewRuler';
 import { registerZIndex, ZIndex } from 'vs/platform/layout/browser/zIndexRegistry';
 import { NotebookDiffViewModel } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffViewModel';
+import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 
 const $ = DOM.$;
 
@@ -148,6 +149,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IStorageService storageService: IStorageService,
+		@INotebookService private readonly notebookService: INotebookService,
 	) {
 		super(NotebookTextDiffEditor.ID, group, telemetryService, themeService, storageService);
 		this._notebookOptions = instantiationService.createInstance(NotebookOptions, this.window, false, undefined);
@@ -509,7 +511,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		}));
 
 		if (this._model) {
-			const vm = this.notebookDiffViewModel = this._register(new NotebookDiffViewModel(this._model, this.notebookEditorWorkerService, this.instantiationService, this.configurationService, this._eventDispatcher!, this.fontInfo));
+			const vm = this.notebookDiffViewModel = this._register(new NotebookDiffViewModel(this._model, this.notebookEditorWorkerService, this.instantiationService, this.configurationService, this._eventDispatcher!, this.notebookService, this.fontInfo));
 			this._localStore.add(this.notebookDiffViewModel.onDidChangeItems(e => {
 				this._list.splice(e.start, e.deleteCount, e.elements);
 				if (this.isOverviewRulerEnabled()) {
