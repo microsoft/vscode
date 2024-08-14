@@ -132,7 +132,6 @@
       agent: {
         name: "testAgent",
         id: "testAgent",
-        isDefault: true,
         extensionId: {
           value: "nullExtensionDescription",
           _lower: "nullextensiondescription"
@@ -143,7 +142,8 @@
         locations: [ "panel" ],
         metadata: { requester: { name: "test" } },
         slashCommands: [  ],
-        disambiguation: [  ]
+        disambiguation: [  ],
+        isDefault: true
       },
       slashCommand: undefined,
       usedContext: undefined,
