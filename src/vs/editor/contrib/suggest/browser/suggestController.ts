@@ -533,7 +533,7 @@ export class SuggestController implements IEditorContribution {
 				labelMap.set(label, [i]);
 			}
 		}
-		// Check if there are any duplicates for the selectedLabel
+
 		const firstIndexArray = labelMap.get(item.textLabel);
 		const hasDuplicates = firstIndexArray && firstIndexArray.length > 1;
 		const firstIndex = hasDuplicates ? firstIndexArray[0] : -1;
