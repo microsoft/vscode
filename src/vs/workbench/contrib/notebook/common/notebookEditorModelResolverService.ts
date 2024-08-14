@@ -50,7 +50,7 @@ export interface INotebookEditorModelResolverService {
 
 	isDirty(resource: URI): boolean;
 
-	createUntitledNotebookTextModel(uri: URI | undefined, viewType: string | undefined, data?: NotebookData): Promise<NotebookTextModel>;
+	createUntitledNotebookTextModel(viewType: string, data?: NotebookData): Promise<NotebookTextModel>;
 
 	resolve(resource: URI, viewType?: string, creationOptions?: NotebookEditorModelCreationOptions): Promise<IReference<IResolvedNotebookEditorModel>>;
 	resolve(resource: IUntitledNotebookResource, viewType: string, creationOtions?: NotebookEditorModelCreationOptions): Promise<IReference<IResolvedNotebookEditorModel>>;

@@ -129,7 +129,7 @@ export class MainThreadNotebookDocuments implements MainThreadNotebookDocumentsS
 		const data = options.content ? NotebookDto.fromNotebookDataDto(options.content) : undefined;
 		// We create the notebook text model, but the don't resolve the editor model yet
 		// This will allow us to adjust settings when the editor is opened, e.g. scratchpad
-		const notebook = await this._notebookEditorModelResolverService.createUntitledNotebookTextModel(undefined, options.viewType, data);
+		const notebook = await this._notebookEditorModelResolverService.createUntitledNotebookTextModel(options.viewType, data);
 		return notebook.uri;
 	}
 

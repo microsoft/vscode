@@ -233,10 +233,10 @@ export class NotebookModelResolverServiceImpl implements INotebookEditorModelRes
 		return { resource, viewType };
 	}
 
-	public async createUntitledNotebookTextModel(uri: URI | undefined, viewType: string | undefined, data?: NotebookData) {
-		const validated = await this.validateResourceViewType(uri, viewType);
+	public async createUntitledNotebookTextModel(viewType: string, data?: NotebookData) {
+		const resource = this._uriIdentService.asCanonicalUri(this.createUntitledUri(viewType));
 
-		return (await this._notebookService.createNotebookTextModel(validated.viewType, validated.resource, { data }));
+		return (await this._notebookService.createNotebookTextModel(viewType, resource, { data }));
 	}
 
 	async resolve(resource: URI, viewType?: string, options?: NotebookEditorModelCreationOptions): Promise<IReference<IResolvedNotebookEditorModel>>;

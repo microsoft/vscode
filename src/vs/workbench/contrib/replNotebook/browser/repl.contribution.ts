@@ -101,7 +101,7 @@ export class ReplDocumentContribution extends Disposable implements IWorkbenchCo
 		super();
 
 		editorResolverService.registerEditor(
-			`*`,
+			`*.ipynb`,
 			{
 				id: 'repl',
 				label: 'repl Editor',
@@ -124,6 +124,9 @@ export class ReplDocumentContribution extends Disposable implements IWorkbenchCo
 						ref.dispose();
 					});
 					return { editor: this.instantiationService.createInstance(ReplEditorInput, resource!), options };
+				},
+				createEditorInput: async ({ resource, options }) => {
+					return { editor: this.instantiationService.createInstance(ReplEditorInput, resource), options };
 				}
 			}
 		);
