@@ -96,10 +96,21 @@ export class ExtensionSignatureVerificationService implements IExtensionSignatur
 
 	private vsceSign(): Promise<typeof vsceSign> {
 		if (!this.moduleLoadingPromise) {
-			this.moduleLoadingPromise = importAMDNodeModule('@vscode/vsce-sign', 'src/main.js');
+			this.moduleLoadingPromise = this.resolveVsceSign();
 		}
 
 		return this.moduleLoadingPromise;
+	}
+
+	private async resolveVsceSign(): Promise<typeof vsceSign> {
+		// ESM-uncomment-begin
+		// const mod = '@vscode/vsce-sign';
+		// return import(mod);
+		// ESM-uncomment-end
+
+		// ESM-comment-begin
+		return importAMDNodeModule('@vscode/vsce-sign', 'src/main.js');
+		// ESM-comment-end
 	}
 
 	public async verify(extension: IGalleryExtension, vsixFilePath: string, signatureArchiveFilePath: string, clientTargetPlatform?: TargetPlatform): Promise<boolean> {
