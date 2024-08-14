@@ -53,7 +53,7 @@ suite('TextAreaInput', () => {
 				throw new Error('Function not implemented.');
 			},
 			getScreenReaderContent: function (): HiddenAreaState {
-				return new HiddenAreaState('', 0, 0, null, undefined);
+				return new HiddenAreaState('', 0, 0, null, null, undefined);
 			},
 			deduceModelPosition: function (viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position {
 				throw new Error('Function not implemented.');

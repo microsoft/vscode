@@ -332,6 +332,7 @@ export class HiddenAreaInput extends Disposable {
 				console.log(`[compositionupdate]`, e);
 			}
 			console.log('onCompositionUpdate');
+			console.log('e : ', e);
 			const currentComposition = this._currentComposition;
 			if (!currentComposition) {
 				// should not be possible to receive a 'compositionupdate' without a 'compositionstart'

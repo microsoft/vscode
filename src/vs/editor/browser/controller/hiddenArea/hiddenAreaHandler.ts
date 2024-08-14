@@ -261,10 +261,11 @@ export class HiddenAreaHandler extends ViewPart {
 							textBefore = this._getCharacterBeforePosition(position);
 						}
 
-						if (textBefore.length > 0) {
-							console.log('1st hidden area state');
-							return new HiddenAreaState(textBefore, textBefore.length, textBefore.length, Range.fromPositions(position), 0);
-						}
+						// if (textBefore.length > 0) {
+						console.log('1st hidden area state');
+						const rangeOfValue = Range.fromPositions(new Position(position.lineNumber, position.column - textBefore.length), position);
+						return new HiddenAreaState(textBefore, textBefore.length, textBefore.length, Range.fromPositions(position), rangeOfValue, 0);
+						// }
 					}
 					// on macOS, write current selection into textarea will allow system text services pick selected text,
 					// but we still want to limit the amount of text given Chromium handles very poorly text even of a few
@@ -274,7 +275,7 @@ export class HiddenAreaHandler extends ViewPart {
 					if (platform.isMacintosh && !selection.isEmpty() && simpleModel.getValueLengthInRange(selection, EndOfLinePreference.TextDefined) < LIMIT_CHARS) {
 						const text = simpleModel.getValueInRange(selection, EndOfLinePreference.TextDefined);
 						console.log('2nd hidden area state');
-						return new HiddenAreaState(text, 0, text.length, selection, 0);
+						return new HiddenAreaState(text, 0, text.length, selection, selection, 0);
 					}
 
 					// on Safari, document.execCommand('cut') and document.execCommand('copy') will just not work
@@ -283,7 +284,7 @@ export class HiddenAreaHandler extends ViewPart {
 					if (browser.isSafari && !selection.isEmpty()) {
 						const placeholderText = 'vscode-placeholder';
 						console.log('3rd hidden area state');
-						return new HiddenAreaState(placeholderText, 0, placeholderText.length, null, undefined);
+						return new HiddenAreaState(placeholderText, 0, placeholderText.length, null, null, undefined);
 					}
 
 					console.log('4th hidden area state');
@@ -301,7 +302,8 @@ export class HiddenAreaHandler extends ViewPart {
 						const [wordAtPosition, positionOffsetInWord] = this._getAndroidWordAtPosition(position);
 						if (wordAtPosition.length > 0) {
 							console.log('5th hidden area state');
-							return new HiddenAreaState(wordAtPosition, positionOffsetInWord, positionOffsetInWord, Range.fromPositions(position), 0);
+							const rangeOfValue = Range.fromPositions(new Position(position.lineNumber, position.column - wordAtPosition.length), position);
+							return new HiddenAreaState(wordAtPosition, positionOffsetInWord, positionOffsetInWord, Range.fromPositions(position), rangeOfValue, 0);
 						}
 					}
 					console.log('6th hidden area state');

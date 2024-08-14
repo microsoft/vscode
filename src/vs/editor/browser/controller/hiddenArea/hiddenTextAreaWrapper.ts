@@ -10,6 +10,7 @@ import { inputLatency } from 'vs/base/browser/performance';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ICompleteHiddenAreaWrapper } from 'vs/editor/browser/controller/hiddenArea/hiddenAreaInput';
+import { Range } from 'vs/editor/common/core/range';
 
 export namespace TextAreaSyntethicEvents {
 	export const Tap = '-monaco-textarea-synthetic-tap';
@@ -180,7 +181,7 @@ export class TextAreaWrapper extends Disposable implements ICompleteHiddenAreaWr
 
 	public setParent(): void { }
 
-	public setValue(reason: string, value: string): void {
+	public setValue(reason: string, value: string, selection: Range | null): void {
 		const textArea = this._actual;
 		if (textArea.value === value) {
 			// No change

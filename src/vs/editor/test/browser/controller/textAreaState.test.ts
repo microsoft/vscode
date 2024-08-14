@@ -75,7 +75,7 @@ suite('TextAreaState', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function assertTextAreaState(actual: HiddenAreaState, value: string, selectionStart: number, selectionEnd: number): void {
-		const desired = new HiddenAreaState(value, selectionStart, selectionEnd, null, undefined);
+		const desired = new HiddenAreaState(value, selectionStart, selectionEnd, null, null, undefined);
 		assert.ok(equalsTextAreaState(desired, actual), desired.toString() + ' == ' + actual.toString());
 	}
 
@@ -102,21 +102,21 @@ suite('TextAreaState', () => {
 		textArea._selectionStart = 1;
 		textArea._selectionEnd = 12;
 
-		let state = new HiddenAreaState('Hi world!', 2, 2, null, undefined);
+		let state = new HiddenAreaState('Hi world!', 2, 2, null, null, undefined);
 		state.writeToTextArea('test', textArea, false);
 
 		assert.strictEqual(textArea._value, 'Hi world!');
 		assert.strictEqual(textArea._selectionStart, 9);
 		assert.strictEqual(textArea._selectionEnd, 9);
 
-		state = new HiddenAreaState('Hi world!', 3, 3, null, undefined);
+		state = new HiddenAreaState('Hi world!', 3, 3, null, null, undefined);
 		state.writeToTextArea('test', textArea, false);
 
 		assert.strictEqual(textArea._value, 'Hi world!');
 		assert.strictEqual(textArea._selectionStart, 9);
 		assert.strictEqual(textArea._selectionEnd, 9);
 
-		state = new HiddenAreaState('Hi world!', 0, 2, null, undefined);
+		state = new HiddenAreaState('Hi world!', 0, 2, null, null, undefined);
 		state.writeToTextArea('test', textArea, true);
 
 		assert.strictEqual(textArea._value, 'Hi world!');
@@ -158,7 +158,7 @@ suite('TextAreaState', () => {
 
 	test('issue #2586: Replacing selected end-of-line with newline locks up the document', () => {
 		testDeduceInput(
-			new HiddenAreaState(']\n', 1, 2, null, undefined),
+			new HiddenAreaState(']\n', 1, 2, null, null, undefined),
 			']\n',
 			2, 2, true,
 			'\n', 0
@@ -194,7 +194,7 @@ suite('TextAreaState', () => {
 
 	test('extractNewText - had the entire line selected', () => {
 		testDeduceInput(
-			new HiddenAreaState('Hello world!', 0, 12, null, undefined),
+			new HiddenAreaState('Hello world!', 0, 12, null, null, undefined),
 			'H',
 			1, 1, true,
 			'H', 0
@@ -203,7 +203,7 @@ suite('TextAreaState', () => {
 
 	test('extractNewText - had previous text 1', () => {
 		testDeduceInput(
-			new HiddenAreaState('Hello world!', 12, 12, null, undefined),
+			new HiddenAreaState('Hello world!', 12, 12, null, null, undefined),
 			'Hello world!a',
 			13, 13, true,
 			'a', 0
@@ -212,7 +212,7 @@ suite('TextAreaState', () => {
 
 	test('extractNewText - had previous text 2', () => {
 		testDeduceInput(
-			new HiddenAreaState('Hello world!', 0, 0, null, undefined),
+			new HiddenAreaState('Hello world!', 0, 0, null, null, undefined),
 			'aHello world!',
 			1, 1, true,
 			'a', 0
@@ -221,7 +221,7 @@ suite('TextAreaState', () => {
 
 	test('extractNewText - had previous text 3', () => {
 		testDeduceInput(
-			new HiddenAreaState('Hello world!', 6, 11, null, undefined),
+			new HiddenAreaState('Hello world!', 6, 11, null, null, undefined),
 			'Hello other!',
 			11, 11, true,
 			'other', 0
@@ -239,7 +239,7 @@ suite('TextAreaState', () => {
 
 	test('extractNewText - isInOverwriteMode', () => {
 		testDeduceInput(
-			new HiddenAreaState('Hello world!', 0, 0, null, undefined),
+			new HiddenAreaState('Hello world!', 0, 0, null, null, undefined),
 			'Aello world!',
 			1, 1, true,
 			'A', 0
@@ -248,7 +248,7 @@ suite('TextAreaState', () => {
 
 	test('extractMacReplacedText - does nothing if there is selection', () => {
 		testDeduceInput(
-			new HiddenAreaState('Hello world!', 5, 5, null, undefined),
+			new HiddenAreaState('Hello world!', 5, 5, null, null, undefined),
 			'Hellö world!',
 			4, 5, true,
 			'ö', 0
@@ -257,7 +257,7 @@ suite('TextAreaState', () => {
 
 	test('extractMacReplacedText - does nothing if there is more than one extra char', () => {
 		testDeduceInput(
-			new HiddenAreaState('Hello world!', 5, 5, null, undefined),
+			new HiddenAreaState('Hello world!', 5, 5, null, null, undefined),
 			'Hellöö world!',
 			5, 5, true,
 			'öö', 1
@@ -266,7 +266,7 @@ suite('TextAreaState', () => {
 
 	test('extractMacReplacedText - does nothing if there is more than one changed char', () => {
 		testDeduceInput(
-			new HiddenAreaState('Hello world!', 5, 5, null, undefined),
+			new HiddenAreaState('Hello world!', 5, 5, null, null, undefined),
 			'Helöö world!',
 			5, 5, true,
 			'öö', 2
@@ -275,7 +275,7 @@ suite('TextAreaState', () => {
 
 	test('extractMacReplacedText', () => {
 		testDeduceInput(
-			new HiddenAreaState('Hello world!', 5, 5, null, undefined),
+			new HiddenAreaState('Hello world!', 5, 5, null, null, undefined),
 			'Hellö world!',
 			5, 5, true,
 			'ö', 1
@@ -284,7 +284,7 @@ suite('TextAreaState', () => {
 
 	test('issue #25101 - First key press ignored', () => {
 		testDeduceInput(
-			new HiddenAreaState('a', 0, 1, null, undefined),
+			new HiddenAreaState('a', 0, 1, null, null, undefined),
 			'a',
 			1, 1, true,
 			'a', 0
@@ -293,7 +293,7 @@ suite('TextAreaState', () => {
 
 	test('issue #16520 - Cmd-d of single character followed by typing same character as has no effect', () => {
 		testDeduceInput(
-			new HiddenAreaState('x x', 0, 1, null, undefined),
+			new HiddenAreaState('x x', 0, 1, null, null, undefined),
 			'x x',
 			1, 1, true,
 			'x', 0
@@ -326,7 +326,7 @@ suite('TextAreaState', () => {
 
 	test('Android composition input 1', () => {
 		testDeduceAndroidCompositionInput(
-			new HiddenAreaState('Microsoft', 4, 4, null, undefined),
+			new HiddenAreaState('Microsoft', 4, 4, null, null, undefined),
 			'Microsoft',
 			4, 4,
 			'', 0, 0, 0,
@@ -335,7 +335,7 @@ suite('TextAreaState', () => {
 
 	test('Android composition input 2', () => {
 		testDeduceAndroidCompositionInput(
-			new HiddenAreaState('Microsoft', 4, 4, null, undefined),
+			new HiddenAreaState('Microsoft', 4, 4, null, null, undefined),
 			'Microsoft',
 			0, 9,
 			'', 0, 0, 5,
@@ -344,7 +344,7 @@ suite('TextAreaState', () => {
 
 	test('Android composition input 3', () => {
 		testDeduceAndroidCompositionInput(
-			new HiddenAreaState('Microsoft', 0, 9, null, undefined),
+			new HiddenAreaState('Microsoft', 0, 9, null, null, undefined),
 			'Microsoft\'s',
 			11, 11,
 			'\'s', 0, 0, 0,
@@ -353,7 +353,7 @@ suite('TextAreaState', () => {
 
 	test('Android backspace', () => {
 		testDeduceAndroidCompositionInput(
-			new HiddenAreaState('undefinedVariable', 2, 2, null, undefined),
+			new HiddenAreaState('undefinedVariable', 2, 2, null, null, undefined),
 			'udefinedVariable',
 			1, 1,
 			'', 1, 0, 0,
@@ -375,7 +375,7 @@ suite('TextAreaState', () => {
 					'Hello world!'
 				],
 				new Selection(1, 13, 1, 13),
-				new HiddenAreaState('Hello world!', 12, 12, new Range(1, 13, 1, 13), 0)
+				new HiddenAreaState('Hello world!', 12, 12, new Range(1, 13, 1, 13), new Range(1, 13, 1, 13), 0)
 			);
 
 			testPagedScreenReaderStrategy(
@@ -383,7 +383,7 @@ suite('TextAreaState', () => {
 					'Hello world!'
 				],
 				new Selection(1, 1, 1, 1),
-				new HiddenAreaState('Hello world!', 0, 0, new Range(1, 1, 1, 1), 0)
+				new HiddenAreaState('Hello world!', 0, 0, new Range(1, 1, 1, 1), new Range(1, 1, 1, 1), 0)
 			);
 
 			testPagedScreenReaderStrategy(
@@ -391,7 +391,7 @@ suite('TextAreaState', () => {
 					'Hello world!'
 				],
 				new Selection(1, 1, 1, 6),
-				new HiddenAreaState('Hello world!', 0, 5, new Range(1, 1, 1, 6), 0)
+				new HiddenAreaState('Hello world!', 0, 5, new Range(1, 1, 1, 6), new Range(1, 1, 1, 6), 0)
 			);
 		});
 
@@ -402,7 +402,7 @@ suite('TextAreaState', () => {
 					'How are you?'
 				],
 				new Selection(1, 1, 1, 1),
-				new HiddenAreaState('Hello world!\nHow are you?', 0, 0, new Range(1, 1, 1, 1), 0)
+				new HiddenAreaState('Hello world!\nHow are you?', 0, 0, new Range(1, 1, 1, 1), new Range(1, 1, 1, 1), 0)
 			);
 
 			testPagedScreenReaderStrategy(
@@ -411,7 +411,7 @@ suite('TextAreaState', () => {
 					'How are you?'
 				],
 				new Selection(2, 1, 2, 1),
-				new HiddenAreaState('Hello world!\nHow are you?', 13, 13, new Range(2, 1, 2, 1), 1)
+				new HiddenAreaState('Hello world!\nHow are you?', 13, 13, new Range(2, 1, 2, 1), new Range(2, 1, 2, 1), 1)
 			);
 		});
 
@@ -421,7 +421,7 @@ suite('TextAreaState', () => {
 					'L1\nL2\nL3\nL4\nL5\nL6\nL7\nL8\nL9\nL10\nL11\nL12\nL13\nL14\nL15\nL16\nL17\nL18\nL19\nL20\nL21'
 				],
 				new Selection(1, 1, 1, 1),
-				new HiddenAreaState('L1\nL2\nL3\nL4\nL5\nL6\nL7\nL8\nL9\nL10\n', 0, 0, new Range(1, 1, 1, 1), 0)
+				new HiddenAreaState('L1\nL2\nL3\nL4\nL5\nL6\nL7\nL8\nL9\nL10\n', 0, 0, new Range(1, 1, 1, 1), new Range(1, 1, 1, 1), 0)
 			);
 
 			testPagedScreenReaderStrategy(
@@ -429,7 +429,7 @@ suite('TextAreaState', () => {
 					'L1\nL2\nL3\nL4\nL5\nL6\nL7\nL8\nL9\nL10\nL11\nL12\nL13\nL14\nL15\nL16\nL17\nL18\nL19\nL20\nL21'
 				],
 				new Selection(11, 1, 11, 1),
-				new HiddenAreaState('L11\nL12\nL13\nL14\nL15\nL16\nL17\nL18\nL19\nL20\n', 0, 0, new Range(11, 1, 11, 1), 0)
+				new HiddenAreaState('L11\nL12\nL13\nL14\nL15\nL16\nL17\nL18\nL19\nL20\n', 0, 0, new Range(11, 1, 11, 1), new Range(11, 1, 11, 1), 0)
 			);
 
 			testPagedScreenReaderStrategy(
@@ -437,7 +437,7 @@ suite('TextAreaState', () => {
 					'L1\nL2\nL3\nL4\nL5\nL6\nL7\nL8\nL9\nL10\nL11\nL12\nL13\nL14\nL15\nL16\nL17\nL18\nL19\nL20\nL21'
 				],
 				new Selection(12, 1, 12, 1),
-				new HiddenAreaState('L11\nL12\nL13\nL14\nL15\nL16\nL17\nL18\nL19\nL20\n', 4, 4, new Range(12, 1, 12, 1), 1)
+				new HiddenAreaState('L11\nL12\nL13\nL14\nL15\nL16\nL17\nL18\nL19\nL20\n', 4, 4, new Range(12, 1, 12, 1), new Range(12, 1, 12, 1), 1)
 			);
 
 			testPagedScreenReaderStrategy(
@@ -445,7 +445,7 @@ suite('TextAreaState', () => {
 					'L1\nL2\nL3\nL4\nL5\nL6\nL7\nL8\nL9\nL10\nL11\nL12\nL13\nL14\nL15\nL16\nL17\nL18\nL19\nL20\nL21'
 				],
 				new Selection(21, 1, 21, 1),
-				new HiddenAreaState('L21', 0, 0, new Range(21, 1, 21, 1), 0)
+				new HiddenAreaState('L21', 0, 0, new Range(21, 1, 21, 1), new Range(21, 1, 21, 1), 0)
 			);
 		});
 

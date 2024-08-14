@@ -12,7 +12,7 @@ export const _debugComposition = false;
 
 export interface IHiddenAreaWrapper {
 	getValue(): string;
-	setValue(reason: string, value: string): void;
+	setValue(reason: string, value: string, selection: Range | null): void;
 
 	getSelectionStart(): number;
 	getSelectionEnd(): number;
@@ -36,7 +36,7 @@ export interface ITypeData {
 
 export class HiddenAreaState {
 
-	public static readonly EMPTY = new HiddenAreaState('', 0, 0, null, undefined);
+	public static readonly EMPTY = new HiddenAreaState('', 0, 0, null, null, undefined);
 
 	constructor(
 		public readonly value: string,
@@ -46,6 +46,8 @@ export class HiddenAreaState {
 		public readonly selectionEnd: number,
 		/** the editor range in the view coordinate system that matches the selection inside `value` */
 		public readonly selection: Range | null,
+		/** the editor range of the value */
+		public readonly selectionOfValue: Range | null,
 		/** the visible line count (wrapped, not necessarily matching \n characters) for the text in `value` before `selectionStart` */
 		public readonly newlineCountBeforeSelection: number | undefined,
 	) {
@@ -73,7 +75,7 @@ export class HiddenAreaState {
 		}
 		console.log('readFromTextArea');
 		console.log('value : ', value);
-		return new HiddenAreaState(value, selectionStart, selectionEnd, null, newlineCountBeforeSelection);
+		return new HiddenAreaState(value, selectionStart, selectionEnd, null, null, newlineCountBeforeSelection);
 	}
 
 	public collapseSelection(): HiddenAreaState {
@@ -81,7 +83,7 @@ export class HiddenAreaState {
 			return this;
 		}
 		console.log('collapseSelection');
-		return new HiddenAreaState(this.value, this.value.length, this.value.length, null, undefined);
+		return new HiddenAreaState(this.value, this.value.length, this.value.length, null, null, undefined);
 	}
 
 	public writeToTextArea(reason: string, textArea: IHiddenAreaWrapper, select: boolean): void {
@@ -89,7 +91,7 @@ export class HiddenAreaState {
 		if (_debugComposition) {
 			console.log(`writeToTextArea ${reason}: ${this.toString()}`);
 		}
-		textArea.setValue(reason, this.value);
+		textArea.setValue(reason, this.value, this.selectionOfValue);
 		if (select) {
 			textArea.setSelectionRange(reason, this.selectionStart, this.selectionEnd);
 		}
@@ -306,6 +308,7 @@ export class PagedScreenReaderStrategy {
 		console.log('pretext : ', pretext);
 		console.log('text : ', text);
 		console.log('posttext : ', posttext);
-		return new HiddenAreaState(pretext + text + posttext, pretext.length, pretext.length + text.length, selection, pretextRange.endLineNumber - pretextRange.startLineNumber);
+		const valueOfRange = pretextRange.plusRange(posttextRange);
+		return new HiddenAreaState(pretext + text + posttext, pretext.length, pretext.length + text.length, selection, valueOfRange, pretextRange.endLineNumber - pretextRange.startLineNumber);
 	}
 }

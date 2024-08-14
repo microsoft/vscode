@@ -18,6 +18,8 @@ import { IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ViewEventHandler } from 'vs/editor/common/viewEventHandler';
 import { ViewCursorStateChangedEvent, ViewScrollChangedEvent } from 'vs/editor/common/viewEvents';
+import { OffsetRange } from 'vs/editor/common/core/offsetRange';
+import { PositionOffsetTransformer } from 'vs/editor/common/core/positionToOffset';
 
 export namespace NativeAreaSyntethicEvents {
 	export const Tap = '-monaco-textarea-synthetic-tap';
@@ -106,7 +108,7 @@ export class DivWrapper extends Disposable implements ICompleteHiddenAreaWrapper
 	private _parent: HTMLElement | undefined;
 	private _compositionStartPosition: IPosition | undefined;
 	private _compositionEndPosition: IPosition | undefined;
-
+	private _selectionOfValue: Range | null = null;
 	private _selectionEnd: number = 0;
 	private _selectionStart: number = 0;
 
@@ -142,6 +144,7 @@ export class DivWrapper extends Disposable implements ICompleteHiddenAreaWrapper
 			console.log('e.text : ', e.text);
 			console.log('this._editContext.text : ', this._editContext.text);
 			// Should write to the hidden div in order for the text to be read correctly
+			// for some reason when space added, a unicode character is added into the edit context, maybe this is expected when doing composition with IME?
 			this._actual.textContent = this._editContext.text;
 			// need to update the end selection because the selection is updated here
 			const newSelectionPos = e.updateRangeStart + (e.text.length);
@@ -303,9 +306,11 @@ export class DivWrapper extends Disposable implements ICompleteHiddenAreaWrapper
 		this._renderingContext = renderingContext;
 	}
 
-	public setValue(reason: string, value: string): void {
+	public setValue(reason: string, value: string, selection: Range | null): void {
 
 		console.log('setValue : ', value);
+		console.log('value : ', value);
+		console.log('selection : ', selection);
 
 		const textArea = this._actual;
 		if (textArea.textContent === value) {
@@ -316,7 +321,7 @@ export class DivWrapper extends Disposable implements ICompleteHiddenAreaWrapper
 		textArea.textContent = value;
 
 		// ---
-		this._updateEditContext(value);
+		this._updateEditContext(value, selection);
 	}
 
 	public getSelectionStart(): number {
@@ -401,46 +406,69 @@ export class DivWrapper extends Disposable implements ICompleteHiddenAreaWrapper
 
 	private _decorations: string[] = [];
 
+	// do we need this? looks like in the current implementation we wouldnt use these format
 	private _handleTextFormatUpdate(e: TextFormatUpdateEvent): void {
 
 		console.log('_handleTextFormatUpdate');
-
-		/*
-		if (!this._editContextState) {
-			return;
-		}
+		console.log('e : ', e);
 		const formats = e.getTextFormats();
-		const decorations: IModelDeltaDecoration[] = formats.map(f => {
-			const r = new OffsetRange(f.rangeStart, f.rangeEnd);
-			const range = this._editContextState!.textPositionTransformer.getRange(r);
-			const doc = new LineBasedText(lineNumber => this._viewContext.viewModel.getLineContent(lineNumber), this._viewContext.viewModel.getLineCount());
-			const viewModelRange = this._editContextState!.viewModelToEditContextText.inverseMapRange(range, doc);
-			const modelRange = this._viewContext.viewModel.coordinatesConverter.convertViewRangeToModelRange(viewModelRange);
+		console.log('formats : ', formats);
+		const decorations: IModelDeltaDecoration[] = [];
+		formats.forEach(f => {
+			const offsetRange = new OffsetRange(f.rangeStart, f.rangeEnd);
+			const textPositionTransformer = new PositionOffsetTransformer(this._editContext.text);
+			const range = textPositionTransformer.getRange(offsetRange);
+			console.log('range : ', range);
+			console.log('this._selectionOfValue : ', this._selectionOfValue);
+			if (!this._selectionOfValue) {
+				return;
+			}
+			const startLineNumber = this._selectionOfValue.startLineNumber + range.startLineNumber - 1;
+			const endLineNumber = this._selectionOfValue.startLineNumber + range.endLineNumber - 1;
+			let startColumn: number;
+			if (startLineNumber === this._selectionOfValue.startLineNumber) {
+				startColumn = this._selectionOfValue.startColumn + range.startColumn - 1;
+			} else {
+				startColumn = range.startColumn;
+			}
+			let endColumn: number;
+			if (endLineNumber === this._selectionOfValue.startLineNumber) {
+				endColumn = this._selectionOfValue.startColumn + range.endColumn - 1;
+			} else {
+				endColumn = range.endColumn;
+			}
+			const finalRange = new Range(startLineNumber, startColumn, endLineNumber, endColumn);
+			console.log('finalRange : ', finalRange);
 			const classNames = [
 				'underline',
 				`style-${f.underlineStyle.toLowerCase()}`,
 				`thickness-${f.underlineThickness.toLowerCase()}`,
 			];
-			return {
-				range: modelRange,
+			decorations.push({
+				range: finalRange,
 				options: {
 					description: 'textFormatDecoration',
 					inlineClassName: classNames.join(' '),
 				}
-			};
+			});
 		});
-		*/
-		const decorations: IModelDeltaDecoration[] = [];
+		console.log('decorations : ', decorations);
 		this._decorations = this._viewContext.viewModel.model.deltaDecorations(this._decorations, decorations);
 	}
 
-	private _updateEditContext(value: string) {
+	private _updateEditContext(value: string, selection: Range | null) {
 		console.log('_updateEditContext');
 		this._editContext.updateText(0, Number.MAX_SAFE_INTEGER, value);
+		this._selectionOfValue = selection;
 	}
 
 	private _updateCharacterBounds(rangeStart: number) {
+		console.log('_updateCharacterBounds');
+		console.log('this._parent : ', this._parent);
+		console.log('this._compositionStartPosition : ', this._compositionStartPosition);
+		console.log('this._compositionEndPosition : ', this._compositionEndPosition);
 		if (!this._parent || !this._compositionStartPosition || !this._compositionEndPosition) {
+			console.log('early return of _updateCharacterBounds');
 			return;
 		}
 		const options = this._viewContext.configuration.options;
@@ -451,21 +479,26 @@ export class DivWrapper extends Disposable implements ICompleteHiddenAreaWrapper
 		let left: number = parentBounds.left + this._contentLeft;
 		let width: number = typicalHalfwidthCharacterWidth / 2;
 
+		console.log('before using this rendering context');
 		if (this._renderingContext) {
 			const range = Range.fromPositions(this._compositionStartPosition, this._compositionEndPosition);
 			const linesVisibleRanges = this._renderingContext.linesVisibleRangesForRange(range, true) ?? [];
+			console.log('range : ', range);
+			console.log('linesVisibleRanges : ', linesVisibleRanges);
 			if (linesVisibleRanges.length === 0) { return; }
 			const minLeft = Math.min(...linesVisibleRanges.map(r => Math.min(...r.ranges.map(r => r.left))));
 			const maxLeft = Math.max(...linesVisibleRanges.map(r => Math.max(...r.ranges.map(r => r.left + r.width))));
 			left += minLeft;
 			width = maxLeft - minLeft;
 		}
+		console.log('before setting characterBounds');
 		const characterBounds = [new DOMRect(
 			left,
 			parentBounds.top + verticalOffsetStart - this._scrollTop,
 			width,
 			lineHeight,
 		)];
+
 		console.log('characterBounds : ', characterBounds);
 		this._editContext.updateCharacterBounds(rangeStart, characterBounds);
 
@@ -547,39 +580,6 @@ export class DivWrapper extends Disposable implements ICompleteHiddenAreaWrapper
 		}
 		this._editContext.updateSelection(selectionStart, selectionEnd);
 	}
-
-	/*
-	private _renderSelectionBoundsForDevelopment(controlBounds: DOMRect, selectionBounds: DOMRect) {
-		console.log('_renderSelectionBoundsForDevelopment');
-		const controlBoundsElement = document.createElement('div');
-		controlBoundsElement.style.position = 'absolute';
-		controlBoundsElement.style.left = `${controlBounds.left}px`;
-		controlBoundsElement.style.top = `${controlBounds.top}px`;
-		controlBoundsElement.style.width = `${controlBounds.width}px`;
-		controlBoundsElement.style.height = `${controlBounds.height}px`;
-		controlBoundsElement.style.background = `blue`;
-		this._controlBoundsElement?.remove();
-		this._controlBoundsElement = controlBoundsElement;
-
-		const selectionBoundsElement = document.createElement('div');
-		selectionBoundsElement.style.position = 'absolute';
-		selectionBoundsElement.style.left = `${selectionBounds.left}px`;
-		selectionBoundsElement.style.top = `${selectionBounds.top}px`;
-		selectionBoundsElement.style.width = `${selectionBounds.width}px`;
-		selectionBoundsElement.style.height = `${selectionBounds.height}px`;
-		selectionBoundsElement.style.background = `green`;
-		this._selectionBoundsElement?.remove();
-		this._selectionBoundsElement = selectionBoundsElement;
-
-		// this._parent.appendChild(controlBoundsElement);
-		// this._parent.appendChild(selectionBoundsElement);
-
-		console.log('controlBounds : ', controlBounds);
-		console.log('selectionBounds : ', selectionBounds);
-		console.log('controlBoundsElement : ', controlBoundsElement);
-		console.log('selectionBoundsElement : ', selectionBoundsElement);
-	}
-	*/
 }
 
 function editContextAddDisposableListener<K extends keyof EditContextEventHandlersEventMap>(target: EventTarget, type: K, listener: (this: GlobalEventHandlers, ev: EditContextEventHandlersEventMap[K]) => any, options?: boolean | AddEventListenerOptions): IDisposable {

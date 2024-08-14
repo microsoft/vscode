@@ -99,7 +99,7 @@ import { createFastDomNode, FastDomNode } from 'vs/base/browser/fastDomNode';
 		}));
 		const wrapper = disposables.add(new TextAreaWrapper(inputarea));
 
-		wrapper.setValue('', `aaaa`);
+		wrapper.setValue('', `aaaa`, null);
 		wrapper.setSelectionRange('', 2, 2);
 
 		const recordEvent = (e: IRecordedEvent) => {
