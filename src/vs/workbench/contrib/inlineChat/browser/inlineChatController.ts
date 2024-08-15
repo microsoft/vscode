@@ -235,7 +235,7 @@ export class InlineChatController implements IEditorContribution {
 		if (message instanceof Error) {
 			this._logService.error(message, ...more);
 		} else {
-			this._logService.trace(`[IE] (editor:${this._editor.getId()})${message}`, ...more);
+			this._logService.trace(`[IE] (editor:${this._editor.getId()}) ${message}`, ...more);
 		}
 	}
 
