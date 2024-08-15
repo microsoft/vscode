@@ -8,11 +8,11 @@ import * as path from 'path';
 import * as cp from 'child_process';
 const root = fs.realpathSync(path.dirname(path.dirname(__dirname)));
 
-function getNpmProductionDependencies(root: string): string[] {
+function getNpmProductionDependencies(folder: string): string[] {
 	let raw: string;
 
 	try {
-		raw = cp.execSync('npm ls --all --omit=dev --parseable', { cwd: root, encoding: 'utf8', env: { ...process.env, NODE_ENV: 'production' }, stdio: [null, null, null] });
+		raw = cp.execSync('npm ls --all --omit=dev --parseable', { cwd: folder, encoding: 'utf8', env: { ...process.env, NODE_ENV: 'production' }, stdio: [null, null, null] });
 	} catch (err) {
 		const regex = /^npm ERR! .*$/gm;
 		let match: RegExpExecArray | null;
@@ -32,7 +32,9 @@ function getNpmProductionDependencies(root: string): string[] {
 		raw = err.stdout;
 	}
 
-	return raw.split(/\r?\n/).filter(line => !!line.trim() && line !== root);
+	return raw.split(/\r?\n/).filter(line => {
+		return !!line.trim() && path.relative(root, line) !== path.relative(root, folder);
+	});
 }
 
 export function getProductionDependencies(folderPath: string): string[] {

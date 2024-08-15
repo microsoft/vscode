@@ -9,10 +9,10 @@ const fs = require("fs");
 const path = require("path");
 const cp = require("child_process");
 const root = fs.realpathSync(path.dirname(path.dirname(__dirname)));
-function getNpmProductionDependencies(root) {
+function getNpmProductionDependencies(folder) {
     let raw;
     try {
-        raw = cp.execSync('npm ls --all --omit=dev --parseable', { cwd: root, encoding: 'utf8', env: { ...process.env, NODE_ENV: 'production' }, stdio: [null, null, null] });
+        raw = cp.execSync('npm ls --all --omit=dev --parseable', { cwd: folder, encoding: 'utf8', env: { ...process.env, NODE_ENV: 'production' }, stdio: [null, null, null] });
     }
     catch (err) {
         const regex = /^npm ERR! .*$/gm;
@@ -33,7 +33,9 @@ function getNpmProductionDependencies(root) {
         }
         raw = err.stdout;
     }
-    return raw.split(/\r?\n/).filter(line => !!line.trim() && line !== root);
+    return raw.split(/\r?\n/).filter(line => {
+        return !!line.trim() && path.relative(root, line) !== path.relative(root, folder);
+    });
 }
 function getProductionDependencies(folderPath) {
     const result = getNpmProductionDependencies(folderPath);
