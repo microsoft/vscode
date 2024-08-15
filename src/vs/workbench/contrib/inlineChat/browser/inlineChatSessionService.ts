@@ -12,7 +12,7 @@ import { IValidEditOperation } from 'vs/editor/common/model';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ChatModel, IChatResponseModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { EditMode } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
-import { Session, StashedSession } from './inlineChatSession';
+import { Session, SessionExchange, SessionPrompt, StashedSession } from './inlineChatSession';
 
 
 export type Recording = {
@@ -44,7 +44,7 @@ export interface IInlineChatSessionService {
 	onDidStashSession: Event<IInlineChatSessionEvent>;
 	onDidEndSession: Event<IInlineChatSessionEndEvent>;
 
-	createSession(editor: IActiveCodeEditor, options: { editMode: EditMode; wholeRange?: IRange; chatModel?: ChatModel }, token: CancellationToken): Promise<Session | undefined>;
+	createSession(editor: IActiveCodeEditor, options: { editMode: EditMode; wholeRange?: IRange; chatModel?: ChatModel; exchanges?: SessionExchange[]; lastInput?: SessionPrompt }, token: CancellationToken): Promise<Session | undefined>;
 
 	moveSession(session: Session, newEditor: ICodeEditor): void;
 
