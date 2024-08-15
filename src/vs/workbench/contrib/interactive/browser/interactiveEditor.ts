@@ -60,7 +60,7 @@ import { INTERACTIVE_WINDOW_EDITOR_ID } from 'vs/workbench/contrib/notebook/comm
 import 'vs/css!./interactiveEditor';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { deepClone } from 'vs/base/common/objects';
-import { ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHoverController2';
+import { ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHoverController';
 import { MarginHoverController } from 'vs/editor/contrib/hover/browser/marginHoverController';
 import { ReplInputHintContentWidget } from 'vs/workbench/contrib/interactive/browser/replInputHintContentWidget';
 

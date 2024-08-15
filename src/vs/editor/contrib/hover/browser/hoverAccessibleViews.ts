@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { localize } from 'vs/nls';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHoverController2';
+import { ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHoverController';
 import { AccessibleViewType, AccessibleViewProviderId, AccessibleContentProvider, IAccessibleViewContentProvider, IAccessibleViewOptions } from 'vs/platform/accessibility/browser/accessibleView';
 import { IAccessibleViewImplentation } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';

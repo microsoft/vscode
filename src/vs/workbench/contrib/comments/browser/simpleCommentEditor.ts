@@ -36,7 +36,7 @@ import { LinkDetector } from 'vs/editor/contrib/links/browser/links';
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { MenuId } from 'vs/platform/actions/common/actions';
-import { ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHoverController2';
+import { ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHoverController';
 import { MarginHoverController } from 'vs/editor/contrib/hover/browser/marginHoverController';
 
 export const ctxCommentEditorFocused = new RawContextKey<boolean>('commentEditorFocused', false);

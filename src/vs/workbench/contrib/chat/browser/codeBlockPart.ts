@@ -35,7 +35,7 @@ import { BracketMatchingController } from 'vs/editor/contrib/bracketMatching/bro
 import { ColorDetector } from 'vs/editor/contrib/colorPicker/browser/colorDetector';
 import { ContextMenuController } from 'vs/editor/contrib/contextmenu/browser/contextmenu';
 import { GotoDefinitionAtPositionEditorContribution } from 'vs/editor/contrib/gotoSymbol/browser/link/goToDefinitionAtPosition';
-import { ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHoverController2';
+import { ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHoverController';
 import { MarginHoverController } from 'vs/editor/contrib/hover/browser/marginHoverController';
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
 import { ViewportSemanticTokensContribution } from 'vs/editor/contrib/semanticTokens/browser/viewportSemanticTokens';

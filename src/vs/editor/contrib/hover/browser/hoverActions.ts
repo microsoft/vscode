@@ -14,7 +14,7 @@ import { GotoDefinitionAtPositionEditorContribution } from 'vs/editor/contrib/go
 import { HoverStartMode, HoverStartSource } from 'vs/editor/contrib/hover/browser/hoverOperation';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHoverController2';
+import { ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHoverController';
 import { HoverVerbosityAction } from 'vs/editor/common/languages';
 import * as nls from 'vs/nls';
 import 'vs/css!./hover';
