@@ -471,12 +471,11 @@ export class OldFileSearchProviderConverter implements FileSearchProviderNew {
 
 	provideFileSearchResults(pattern: string, options: FileSearchProviderOptions, token: CancellationToken): ProviderResult<URI[]> {
 		const getResult = async () => {
-			return coalesce(await Promise.all(
-				newToOldFileProviderOptions(options).map(
-					o => this.provider.provideFileSearchResults({ pattern }, o, token))))
-				.flat();
+			const newOpts = newToOldFileProviderOptions(options);
+			return Promise.all(newOpts.map(
+				o => this.provider.provideFileSearchResults({ pattern }, o, token)));
 		};
-		return getResult();
+		return getResult().then(e => coalesce(e).flat());
 	}
 }
 
