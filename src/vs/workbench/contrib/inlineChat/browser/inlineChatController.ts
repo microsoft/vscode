@@ -399,11 +399,14 @@ export class InlineChatController implements IEditorContribution {
 		this._sessionStore.add(this._ui.value.content.onDidBlur(() => this.cancelSession()));
 
 		this._ui.value.content.setSession(this._session);
-		// this._ui.value.zone.widget.updateSlashCommands(this._session.session.slashCommands ?? []);
+		this._ui.value.zone.widget.setChatModel(this._session.chatModel);
 		this._updatePlaceholder();
 
-		this._showWidget(!this._session.chatModel.hasRequests);
+
+		const isModelEmpty = !this._session.chatModel.hasRequests;
 		this._ui.value.zone.widget.updateToolbar(true);
+		this._ui.value.zone.widget.toggleStatus(!isModelEmpty);
+		this._showWidget(isModelEmpty);
 
 		this._sessionStore.add(this._editor.onDidChangeModel((e) => {
 			const msg = this._session?.chatModel.hasRequests
@@ -540,9 +543,9 @@ export class InlineChatController implements IEditorContribution {
 		assertType(request.response);
 
 		this._showWidget(false);
-		// this._ui.value.zone.widget.value = request.message.text;
 		this._ui.value.zone.widget.selectAll(false);
 		this._ui.value.zone.widget.updateInfo('');
+		this._ui.value.zone.widget.toggleStatus(true);
 
 		const { response } = request;
 		const responsePromise = new DeferredPromise<void>();
@@ -809,17 +812,14 @@ export class InlineChatController implements IEditorContribution {
 		if (this._ui.rawValue?.zone?.position) {
 			this._ui.value.zone.updatePositionAndHeight(widgetPosition);
 
-		} else if (initialRender) {
+		} else if (initialRender && !this._configurationService.getValue<boolean>(InlineChatConfigKeys.OnlyZoneWidget)) {
 			const selection = this._editor.getSelection();
 			widgetPosition = selection.getStartPosition();
-			this._ui.value.content.show(widgetPosition);
+			this._ui.value.content.show(widgetPosition, selection.isEmpty());
 
 		} else {
 			this._ui.value.content.hide();
 			this._ui.value.zone.show(widgetPosition);
-			if (this._session) {
-				this._ui.value.zone.widget.setChatModel(this._session.chatModel);
-			}
 		}
 
 		return widgetPosition;

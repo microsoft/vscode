@@ -12,6 +12,13 @@ import { getAllMethodNames } from 'vs/base/common/objects';
 import { isWeb } from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 
+// ESM-comment-begin
+const isESM = false;
+// ESM-comment-end
+// ESM-uncomment-begin
+// const isESM = true;
+// ESM-uncomment-end
+
 const INITIALIZE = '$initialize';
 
 export interface IWorker extends IDisposable {
@@ -535,8 +542,8 @@ export class SimpleWorkerServer<H extends object> {
 		}
 
 		if (isESM) {
-			const url = FileAccess.asBrowserUri(moduleId + '.js' as AppResourcePath).toString(true);
-			return import(url).then((module: { create: IRequestHandlerFactory<H> }) => {
+			const url = FileAccess.asBrowserUri(`${moduleId}.js` as AppResourcePath).toString(true);
+			return import(`${url}`).then((module: { create: IRequestHandlerFactory<H> }) => {
 				this._requestHandler = module.create(hostProxy);
 
 				if (!this._requestHandler) {

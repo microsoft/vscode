@@ -254,7 +254,12 @@ class FileAccessImpl {
 	 * **Note:** use `dom.ts#asCSSUrl` whenever the URL is to be used in CSS context.
 	 */
 	asBrowserUri(resourcePath: AppResourcePath | ''): URI {
-		const uri = (isESM ? this.toUri(resourcePath) : this.toUri(resourcePath, require));
+		// ESM-comment-begin
+		const uri = this.toUri(resourcePath, require);
+		// ESM-comment-end
+		// ESM-uncomment-begin
+		// const uri = this.toUri(resourcePath);
+		// ESM-uncomment-end
 		return this.uriToBrowserUri(uri);
 	}
 
@@ -301,7 +306,12 @@ class FileAccessImpl {
 	 * is responsible for loading.
 	 */
 	asFileUri(resourcePath: AppResourcePath | ''): URI {
-		const uri = (isESM ? this.toUri(resourcePath) : this.toUri(resourcePath, require));
+		// ESM-comment-begin
+		const uri = this.toUri(resourcePath, require);
+		// ESM-comment-end
+		// ESM-uncomment-begin
+		// const uri = this.toUri(resourcePath);
+		// ESM-uncomment-end
 		return this.uriToFileUri(uri);
 	}
 
