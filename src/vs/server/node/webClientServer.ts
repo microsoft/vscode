@@ -277,14 +277,27 @@ export class WebClientServer {
 			return Array.isArray(val) ? val[0] : val;
 		};
 
+		const replacePort = (host: string, port: string) => {
+			const index = host?.indexOf(':');
+			if (index !== -1) {
+				host = host?.substring(0, index);
+			}
+			host += `:${port}`;
+			return host;
+		};
+
 		const useTestResolver = (!this._environmentService.isBuilt && this._environmentService.args['use-test-resolver']);
-		const remoteAuthority = (
+		let remoteAuthority = (
 			useTestResolver
 				? 'test+test'
 				: (getFirstHeader('x-original-host') || getFirstHeader('x-forwarded-host') || req.headers.host)
 		);
 		if (!remoteAuthority) {
 			return serveError(req, res, 400, `Bad request.`);
+		}
+		const forwardedPort = getFirstHeader('x-forwarded-port');
+		if (forwardedPort) {
+			remoteAuthority = replacePort(remoteAuthority, forwardedPort);
 		}
 
 		function asJSON(value: unknown): string {
