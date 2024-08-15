@@ -592,7 +592,9 @@ export type IChatChangeEvent =
 	| IChatInitEvent
 	| IChatAddRequestEvent | IChatChangedRequestEvent | IChatRemoveRequestEvent
 	| IChatAddResponseEvent
-	| IChatSetAgentEvent;
+	| IChatSetAgentEvent
+	| IChatMoveEvent
+	;
 
 export interface IChatAddRequestEvent {
 	kind: 'addRequest';
@@ -631,6 +633,11 @@ export interface IChatRemoveRequestEvent {
 	requestId: string;
 	responseId?: string;
 	reason: ChatRequestRemovalReason;
+}
+
+export interface IChatMoveEvent {
+	kind: 'move';
+	target: URI;
 }
 
 export interface IChatSetAgentEvent {
@@ -949,6 +956,8 @@ export class ChatModel extends Disposable implements IChatModel {
 			}
 		} else if (progress.kind === 'codeCitation') {
 			request.response.applyCodeCitation(progress);
+		} else if (progress.kind === 'move') {
+			this._onDidChange.fire({ kind: 'move', target: progress.uri });
 		} else {
 			this.logService.error(`Couldn't handle progress: ${JSON.stringify(progress)}`);
 		}

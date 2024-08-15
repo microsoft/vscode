@@ -164,6 +164,11 @@ export interface IChatCommandButton {
 	kind: 'command';
 }
 
+export interface IChatMoveMessage {
+	uri: URI;
+	kind: 'move';
+}
+
 export interface IChatTextEdit {
 	uri: URI;
 	edits: TextEdit[];
@@ -194,6 +199,7 @@ export type IChatProgress =
 	| IChatCommandButton
 	| IChatWarningMessage
 	| IChatTextEdit
+	| IChatMoveMessage
 	| IChatConfirmation;
 
 export interface IChatFollowup {

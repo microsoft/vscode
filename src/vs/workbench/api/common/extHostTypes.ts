@@ -4486,6 +4486,13 @@ export class ChatResponseCodeCitationPart {
 	}
 }
 
+export class ChatResponseMovePart {
+	constructor(
+		public readonly uri: vscode.Uri
+	) {
+	}
+}
+
 export class ChatResponseTextEditPart {
 	uri: vscode.Uri;
 	edits: vscode.TextEdit[];
