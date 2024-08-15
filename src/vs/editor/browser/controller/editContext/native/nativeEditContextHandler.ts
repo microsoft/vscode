@@ -170,10 +170,8 @@ export class NativeEditContext extends AbstractEditContext {
 			},
 			// TODO: maybe don't need the actual full selection, just the end position?
 			getIMEContentData: (): {
-				content: string;
-				selectionStartWithin: number;
-				selectionEndWithin: number;
-				selectionOfContent: Range;
+				state: TextAreaState;
+				selectionOfContent: Selection;
 			} => {
 				const cursorState = this._context.viewModel.getPrimaryCursorState().modelState;
 				const selectionOfContent = cursorState.selection;
@@ -192,7 +190,8 @@ export class NativeEditContext extends AbstractEditContext {
 						selectionEndWithin += this._context.viewModel.getLineMaxColumn(i) - 1;
 					}
 				}
-				return { content, selectionOfContent, selectionStartWithin, selectionEndWithin };
+				const state = new TextAreaState(content, selectionStartWithin, selectionStartWithin, null, undefined);
+				return { state, selectionOfContent };
 			},
 			deduceModelPosition: (viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position => {
 				return this._context.viewModel.deduceModelPositionRelativeToViewPosition(viewAnchorPosition, deltaOffset, lineFeedCnt);

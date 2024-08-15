@@ -65,12 +65,7 @@ export interface ClipboardStoredMetadata {
 export interface ITextAreaInputHost {
 	getDataToCopy(): ClipboardDataToCopy;
 	getScreenReaderContent(): TextAreaState;
-	getIMEContentData(): {
-		content: string;
-		selectionStartWithin: number;
-		selectionEndWithin: number;
-		selectionOfContent: Range;
-	};
+	getIMEContentData(): { state: TextAreaState; selectionOfContent: Selection };
 	deduceModelPosition(viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position;
 }
 
@@ -341,6 +336,8 @@ export class NativeEditContextInput extends Disposable {
 			const typeInput = TextAreaState.deduceInput(this._textAreaState, newState, /*couldBeEmojiInput*/this._OS === OperatingSystem.Macintosh);
 
 			console.log('onInput');
+			console.log('e : ', e);
+			console.log('this._textAreaState : ', this._textAreaState);
 			console.log('newState : ', newState);
 			console.log('typeInput : ', typeInput);
 
@@ -570,9 +567,7 @@ export class NativeEditContextInput extends Disposable {
 		if (!this._hasFocus) {
 			textAreaState = textAreaState.collapseSelection();
 		}
-
 		textAreaState.writeToTextArea(reason, this._textArea, this._hasFocus);
-		this._textAreaState = textAreaState;
 	}
 
 	public writeNativeTextAreaContent(reason: string): void {
@@ -589,7 +584,9 @@ export class NativeEditContextInput extends Disposable {
 	public writeEditContextContent(reason: string): void {
 		console.log('writeEditContextContent : ', reason);
 		this._logService.trace(`writeTextAreaState(reason: ${reason})`);
-		this._editContextWrapper.updateText(this._host.getIMEContentData());
+		const IMEContentData = this._host.getIMEContentData();
+		this._editContextWrapper.updateText(IMEContentData);
+		this._textAreaState = IMEContentData.state;
 	}
 
 	private _ensureClipboardGetsEditorSelection(e: ClipboardEvent): void {
@@ -756,6 +753,8 @@ export class NativeEditContextWrapper extends Disposable {
 			console.log('beforeinput : ', e);
 
 			if (e.inputType === 'insertParagraph' || e.inputType === 'insertLineBreak') {
+				console.log('this._editContext.text : ', this._editContext.text);
+				this._editContext.updateText(0, Number.MAX_SAFE_INTEGER, this._editContext.text + '\n');
 				this._onInput.fire({
 					timeStamp: e.timeStamp,
 					type: e.type,
@@ -954,20 +953,19 @@ export class NativeEditContextWrapper extends Disposable {
 		this._decorations = this._viewContext.viewModel.model.deltaDecorations(this._decorations, decorations);
 	}
 
-	public updateText(data: {
-		content: string;
-		selectionStartWithin: number;
-		selectionEndWithin: number;
-		selectionOfContent: Range;
-	}) {
+	public updateText(data: { state: TextAreaState; selectionOfContent: Selection }) {
 
 		console.log('_updateEditContext');
 
-		this._editContext.updateText(0, Number.MAX_SAFE_INTEGER, data.content);
-		this._editContext.updateSelection(data.selectionStartWithin, data.selectionEndWithin);
+		const content = data.state.value;
+		const selectionStart = data.state.selectionStart;
+		const selectionEnd = data.state.selectionEnd;
+
+		this._editContext.updateText(0, Number.MAX_SAFE_INTEGER, content);
+		this._editContext.updateSelection(selectionStart, selectionEnd);
+		this._selectionStartWithin = selectionStart;
+		this._selectionEndWithin = selectionEnd;
 		this._selectionOfContent = data.selectionOfContent;
-		this._selectionStartWithin = data.selectionStartWithin;
-		this._selectionEndWithin = data.selectionEndWithin;
 	}
 
 	public getValue(): string {
