@@ -2,17 +2,17 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { URI } from 'vs/base/common/uri';
-import { Event } from 'vs/base/common/event';
-import { EditMode } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
-import { IRange } from 'vs/editor/common/core/range';
-import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IDisposable } from 'vs/base/common/lifecycle';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { Session, StashedSession } from './inlineChatSession';
+import { Event } from 'vs/base/common/event';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { URI } from 'vs/base/common/uri';
+import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IRange } from 'vs/editor/common/core/range';
 import { IValidEditOperation } from 'vs/editor/common/model';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IChatResponseModel } from 'vs/workbench/contrib/chat/common/chatModel';
+import { EditMode } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { Session, StashedSession } from './inlineChatSession';
 
 
 export type Recording = {
@@ -44,7 +44,7 @@ export interface IInlineChatSessionService {
 	onDidStashSession: Event<IInlineChatSessionEvent>;
 	onDidEndSession: Event<IInlineChatSessionEndEvent>;
 
-	createSession(editor: IActiveCodeEditor, options: { editMode: EditMode; wholeRange?: IRange }, token: CancellationToken): Promise<Session | undefined>;
+	createSession(editor: IActiveCodeEditor, options: { editMode: EditMode; wholeRange?: IRange; session?: Session }, token: CancellationToken): Promise<Session | undefined>;
 
 	moveSession(session: Session, newEditor: ICodeEditor): void;
 

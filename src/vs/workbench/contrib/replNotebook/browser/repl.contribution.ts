@@ -6,11 +6,11 @@
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
-import { EditorExtensions, IEditorFactoryRegistry, IEditorSerializer, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { EditorExtensions, IEditorFactoryRegistry, IEditorSerializer } from 'vs/workbench/common/editor';
 import { parse } from 'vs/base/common/marshalling';
 import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { CellEditType, CellKind, NotebookSetting, NotebookWorkingCopyTypeIdentifier, REPL_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookEditorInputOptions } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
@@ -23,11 +23,7 @@ import { IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common
 import { IWorkingCopyEditorHandler, IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
 import { extname, isEqual } from 'vs/base/common/resources';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { localize2 } from 'vs/nls';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
-import { Schemas } from 'vs/base/common/network';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
@@ -98,7 +94,6 @@ export class ReplDocumentContribution extends Disposable implements IWorkbenchCo
 	constructor(
 		@INotebookService notebookService: INotebookService,
 		@IEditorResolverService editorResolverService: IEditorResolverService,
-		@IEditorService editorService: IEditorService,
 		@INotebookEditorModelResolverService private readonly notebookEditorModelResolverService: INotebookEditorModelResolverService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
@@ -106,16 +101,16 @@ export class ReplDocumentContribution extends Disposable implements IWorkbenchCo
 		super();
 
 		editorResolverService.registerEditor(
-			`*.replNotebook`,
+			`*.ipynb`,
 			{
 				id: 'repl',
 				label: 'repl Editor',
-				priority: RegisteredEditorPriority.option
+				priority: RegisteredEditorPriority.builtin
 			},
 			{
-				canSupportResource: uri =>
-					(uri.scheme === Schemas.untitled && extname(uri) === '.replNotebook') ||
-					(uri.scheme === Schemas.vscodeNotebookCell && extname(uri) === '.replNotebook'),
+				// We want to support all notebook types which could have any file extension,
+				// so we just check if the resource corresponds to a notebook
+				canSupportResource: uri => notebookService.getNotebookTextModel(uri) !== undefined,
 				singlePerResource: true
 			},
 			{
@@ -129,6 +124,9 @@ export class ReplDocumentContribution extends Disposable implements IWorkbenchCo
 						ref.dispose();
 					});
 					return { editor: this.instantiationService.createInstance(ReplEditorInput, resource!), options };
+				},
+				createEditorInput: async ({ resource, options }) => {
+					return { editor: this.instantiationService.createInstance(ReplEditorInput, resource), options };
 				}
 			}
 		);
@@ -180,25 +178,6 @@ class ReplWindowWorkingCopyEditorHandler extends Disposable implements IWorkbenc
 
 registerWorkbenchContribution2(ReplWindowWorkingCopyEditorHandler.ID, ReplWindowWorkingCopyEditorHandler, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ReplDocumentContribution.ID, ReplDocumentContribution, WorkbenchPhase.BlockRestore);
-
-
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'repl.newRepl',
-			title: localize2('repl.editor.open', 'New REPL Editor'),
-			category: 'Create',
-		});
-	}
-
-	async run(accessor: ServicesAccessor) {
-		const resource = URI.from({ scheme: Schemas.untitled, path: 'repl.replNotebook' });
-		const editorInput: IUntypedEditorInput = { resource, options: { override: 'repl' } };
-
-		const editorService = accessor.get(IEditorService);
-		await editorService.openEditor(editorInput, 1);
-	}
-});
 
 export async function executeReplInput(
 	bulkEditService: IBulkEditService,
