@@ -79,8 +79,6 @@ const serverResourceExcludes = [
 	'!out-build/vs/**/{electron-sandbox,electron-main}/**',
 	'!out-build/vs/editor/standalone/**',
 	'!out-build/vs/workbench/**/*-tb.png',
-	'!out-build/vs/code/**/*-dev.html',
-	'!out-build/vs/code/**/*-dev.esm.html',
 	'!**/test/**'
 ];
 
@@ -89,10 +87,20 @@ const serverResources = [
 	...serverResourceExcludes
 ];
 
-const serverWithWebResources = [
+const serverWithWebResourceIncludes = [
 	...serverResourceIncludes,
-	...vscodeWebResourceIncludes,
-	...serverResourceExcludes
+	...vscodeWebResourceIncludes
+];
+
+const serverWithWebResourceExcludes = [
+	...serverResourceExcludes,
+	'!out-build/vs/code/**/*-dev.html',
+	'!out-build/vs/code/**/*-dev.esm.html',
+];
+
+const serverWithWebResources = [
+	...serverWithWebResourceIncludes,
+	...serverWithWebResourceExcludes
 ];
 
 const serverEntryPoints = [

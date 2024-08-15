@@ -15,7 +15,7 @@ import { IDiagnosticsService, isRemoteDiagnosticError, PerformanceInfo, SystemIn
 import { IDiagnosticsMainService } from 'vs/platform/diagnostics/electron-main/diagnosticsMainService';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { ICSSDevelopmentService } from 'vs/platform/environment/node/cssDevService';
+import { ICSSDevelopmentService } from 'vs/platform/cssDev/node/cssDevService';
 import { IProcessMainService, ProcessExplorerData, ProcessExplorerWindowConfiguration } from 'vs/platform/issue/common/issue';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
@@ -167,7 +167,7 @@ export class ProcessMainService implements IProcessMainService {
 						messages: globalThis._VSCODE_NLS_MESSAGES,
 						language: globalThis._VSCODE_NLS_LANGUAGE
 					},
-					cssModules
+					cssModules: this.cssDevelopmentService.isEnabled ? await this.cssDevelopmentService.getCssModules() : undefined
 				});
 
 				this.processExplorerWindow.loadURL(

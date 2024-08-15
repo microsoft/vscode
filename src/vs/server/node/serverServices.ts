@@ -77,7 +77,7 @@ import { RemoteExtensionsScannerChannel, RemoteExtensionsScannerService } from '
 import { RemoteExtensionsScannerChannelName } from 'vs/platform/remote/common/remoteExtensionsScanner';
 import { RemoteUserDataProfilesServiceChannel } from 'vs/platform/userDataProfile/common/userDataProfileIpc';
 import { NodePtyHostStarter } from 'vs/platform/terminal/node/nodePtyHostStarter';
-import { CSSDevelopmentService, ICSSDevelopmentService } from 'vs/platform/environment/node/cssDevService';
+import { CSSDevelopmentService, ICSSDevelopmentService } from 'vs/platform/cssDev/node/cssDevService';
 
 const eventPrefix = 'monacoworkbench';
 
@@ -133,6 +133,9 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	const userDataProfilesService = new ServerUserDataProfilesService(uriIdentityService, environmentService, fileService, logService);
 	services.set(IUserDataProfilesService, userDataProfilesService);
 	socketServer.registerChannel('userDataProfiles', new RemoteUserDataProfilesServiceChannel(userDataProfilesService, (ctx: RemoteAgentConnectionContext) => getUriTransformer(ctx.remoteAuthority)));
+
+	// Dev Only: CSS service (for ESM)
+	services.set(ICSSDevelopmentService, new SyncDescriptor(CSSDevelopmentService, undefined, true));
 
 	// Initialize
 	const [, , machineId, sqmId, devDeviceId] = await Promise.all([

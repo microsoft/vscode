@@ -29,7 +29,7 @@ import { isString } from 'vs/base/common/types';
 import { CharCode } from 'vs/base/common/charCode';
 import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { isESM } from 'vs/base/common/amd';
-import { ICSSDevelopmentService } from 'vs/platform/environment/node/cssDevService';
+import { ICSSDevelopmentService } from 'vs/platform/cssDev/node/cssDevService';
 
 const textMimeType: { [ext: string]: string | undefined } = {
 	'.html': 'text/html',

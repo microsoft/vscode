@@ -56,7 +56,7 @@ import { IUserDataProfilesMainService } from 'vs/platform/userDataProfile/electr
 import { ILoggerMainService } from 'vs/platform/log/electron-main/loggerService';
 import { IAuxiliaryWindowsMainService } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindows';
 import { IAuxiliaryWindow } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindow';
-import { ICSSDevelopmentService } from 'vs/platform/environment/node/cssDevService';
+import { ICSSDevelopmentService } from 'vs/platform/cssDev/node/cssDevService';
 
 //#region Helper Interfaces
 
