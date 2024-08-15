@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RunOnceScheduler } from 'vs/base/common/async';
+import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import * as strings from 'vs/base/common/strings';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorModel } from 'vs/editor/common/editorCommon';
 import { ILanguageService } from 'vs/editor/common/languages/language';
@@ -20,9 +22,10 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { ChatAgentLocation, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { Breakpoints } from 'vs/workbench/contrib/debug/common/breakpoints';
 import { CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_DEBUG_EXTENSION_AVAILABLE, IAdapterDescriptor, IAdapterManager, IConfig, IDebugAdapter, IDebugAdapterDescriptorFactory, IDebugAdapterFactory, IDebugConfiguration, IDebugSession, INTERNAL_CONSOLE_OPTIONS_SCHEMA } from 'vs/workbench/contrib/debug/common/debug';
 import { Debugger } from 'vs/workbench/contrib/debug/common/debugger';
@@ -71,6 +74,7 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 		@IDialogService private readonly dialogService: IDialogService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@ITaskService private readonly tasksService: ITaskService,
+		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 	) {
 		super();
 		this.adapterDescriptorFactories = [];
@@ -423,12 +427,28 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 		picks.push(
 			{ type: 'separator', label: '' },
 			{ label: languageLabel ? nls.localize('installLanguage', "Install an extension for {0}...", languageLabel) : nls.localize('installExt', "Install extension...") });
-
+		const hasVSCodeChatAgent = this.chatAgentService.getActivatedAgents().find(a => a.id === 'github.copilot.vscode');
+		let copilotLabel: string | undefined;
+		if (hasVSCodeChatAgent) {
+			copilotLabel = nls.localize('copilot', "Generate with GitHub Copilot");
+			const copilotPick: IQuickPickItem = {
+				label: copilotLabel,
+				description: nls.localize('copilotDescription', "Generate configuration using GitHub Copilot."),
+				iconClass: ThemeIcon.asClassName(Codicon.sparkle)
+			};
+			picks.push(copilotPick);
+		}
 		const placeHolder = nls.localize('selectDebug', "Select debugger");
-		return this.quickInputService.pick<{ label: string; debugger?: Debugger }>(picks, { activeItem: picks[0], placeHolder })
-			.then(picked => {
-				if (picked && picked.debugger) {
+		return this.quickInputService.pick<{ label: string; debugger?: Debugger } | IQuickPickItem>(picks, { activeItem: picks[0], placeHolder })
+			.then(async picked => {
+				if (picked && 'debugger' in picked && picked.debugger) {
 					return picked.debugger;
+				} else if (picked && picked.label === copilotLabel) {
+					const query = await this.quickInputService.input({ 'placeHolder': nls.localize('copilotInput', "What type of app are you debugging?") });
+					try {
+						this.commandService.executeCommand('workbench.action.chat.open', '@vscode /onboardDebug ' + query, { location: ChatAgentLocation.Panel });
+						return;
+					} catch { }
 				}
 				if (picked) {
 					this.commandService.executeCommand('debug.installAdditionalDebuggers', languageLabel);
