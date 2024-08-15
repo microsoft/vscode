@@ -433,7 +433,7 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 			copilotLabel = nls.localize('copilot', "Generate with GitHub Copilot");
 			const copilotPick: IQuickPickItem = {
 				label: copilotLabel,
-				description: nls.localize('copilotDescription', "Generate configuration using GitHub Copilot."),
+				description: nls.localize('copilotDescription', "Create a launch configuration and start debugging."),
 				iconClass: ThemeIcon.asClassName(Codicon.sparkle)
 			};
 			picks.push(copilotPick);
@@ -446,7 +446,7 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 				} else if (picked && picked.label === copilotLabel) {
 					const query = await this.quickInputService.input({ 'placeHolder': nls.localize('copilotInput', "What type of app are you debugging?") });
 					try {
-						this.commandService.executeCommand('workbench.action.chat.open', '@vscode /onboardDebug ' + query, { location: ChatAgentLocation.Panel });
+						this.commandService.executeCommand('workbench.action.chat.open', '@vscode /startDebugging ' + query, { location: ChatAgentLocation.Panel });
 						return;
 					} catch { }
 				}
