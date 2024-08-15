@@ -15,7 +15,9 @@ const Module = require('module');
 // import * as path from 'path';
 // import * as fs from 'fs';
 // import { fileURLToPath } from 'url';
+// import { createRequire } from 'node:module';
 //
+// const require = createRequire(import.meta.url);
 // const module = { exports: {} };
 // const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // ESM-uncomment-end
@@ -227,7 +229,7 @@ module.exports.enableASARSupport = function () {
 /**
  * Helper to convert a file path to a URI.
  *
- * TODO@bpasero check for removal once ESM has landed.
+ * TODO@bpasero TODO@esm check for removal once ESM has landed.
  *
  * @param {string} path
  * @param {{ isWindows?: boolean, scheme?: string, fallbackAuthority?: string }} config
