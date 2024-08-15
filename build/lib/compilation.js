@@ -139,11 +139,11 @@ function compileTask(src, out, build, options = {}) {
     task.taskName = `compile-${path.basename(src)}`;
     return task;
 }
-function watchTask(out, build) {
+function watchTask(out, build, srcPath = 'src') {
     const task = () => {
-        const compile = createCompile('src', { build, emitError: false, transpileOnly: false, preserveEnglish: false });
-        const src = gulp.src('src/**', { base: 'src' });
-        const watchSrc = watch('src/**', { base: 'src', readDelay: 200 });
+        const compile = createCompile(srcPath, { build, emitError: false, transpileOnly: false, preserveEnglish: false });
+        const src = gulp.src(`${srcPath}/**`, { base: srcPath });
+        const watchSrc = watch(`${srcPath}/**`, { base: srcPath, readDelay: 200 });
         const generator = new MonacoGenerator(true);
         generator.execute();
         return watchSrc

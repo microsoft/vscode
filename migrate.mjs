@@ -31,7 +31,7 @@ const binaryFileExtensions = new Set([
 
 function migrate() {
 	console.log(`~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`);
-	console.log(`STARTING MIGRATION of src to src2.`);
+	console.log(`STARTING AMD->ESM MIGRATION of src to src2.`);
 
 	// installing watcher quickly to avoid missing early events
 	const watchSrc = enableWatching ? watch('src/**', { base: 'src', readDelay: 200 }) : undefined;
@@ -49,7 +49,8 @@ function migrate() {
 	writeFileSync(join(dstFolder, '.gitignore'), `*`);
 
 	console.log(`~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`);
-	console.log(`COMPLETED MIGRATION of src to src2. You can now launch yarn watch or yarn watch-client`);
+	console.log(`COMPLETED AMD->ESM MIGRATION of src to src2. You can now launch yarn watch-esm or yarn watch-client-esm`);
+	console.log(`Make sure to set the environment variable VSCODE_BUILD_ESM to a string of value 'true' if you want to build VS Code`);
 
 	if (watchSrc) {
 		console.log(`WATCHING src for changes...`);
