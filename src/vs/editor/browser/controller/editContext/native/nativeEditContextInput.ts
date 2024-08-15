@@ -404,18 +404,7 @@ export class NativeEditContextInput extends Disposable {
 		}));
 
 		this._register(this._textArea.onFocus(() => {
-			const hadFocus = this._hasFocus;
-
 			this._setHasFocus(true);
-
-			if (this._accessibilityService.isScreenReaderOptimized() && this._browser.isSafari && !hadFocus && this._hasFocus) {
-				// When "tabbing into" the textarea, immediately after dispatching the 'focus' event,
-				// Safari will always move the selection at offset 0 in the textarea
-				if (!this._asyncFocusGainWriteScreenReaderContent.value) {
-					this._asyncFocusGainWriteScreenReaderContent.value = new RunOnceScheduler(() => this.writeNativeTextAreaContent('asyncFocusGain'), 0);
-				}
-				this._asyncFocusGainWriteScreenReaderContent.value.schedule();
-			}
 		}));
 		this._register(this._textArea.onBlur(() => {
 			this._setHasFocus(false);
