@@ -8,7 +8,7 @@ import { importAMDNodeModule } from 'vs/amdX';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { isESM } from 'vs/base/common/amd';
 
-(isESM ? suite : suite.skip)('Modules Loading in ESM via importAMDNodeModule()', () => {
+suite('Modules Loading in ESM via importAMDNodeModule()', () => {
 
 	test('@vscode/iconv-lite-umd', async () => {
 		const module = await importAMDNodeModule<typeof import('@vscode/iconv-lite-umd')>('@vscode/iconv-lite-umd', 'lib/iconv-lite-umd.js');

@@ -27,7 +27,7 @@ async function getClient(instrumentationKey: string, addInternalFlag?: boolean, 
 	const postPlugin = await importAMDNodeModule<typeof import('@microsoft/1ds-post-js')>('@microsoft/1ds-post-js', 'dist/ms.post.js');
 	// ESM-comment-end
 	// ESM-uncomment-begin
-	// if (importAMDNodeModule) { /* fixes unused import, remove me */}
+	// if (typeof importAMDNodeModule === 'function') { /* fixes unused import, remove me */}
 	// // eslint-disable-next-line local/code-amd-node-module
 	// const oneDs = await import('@microsoft/1ds-core-js');
 	// // eslint-disable-next-line local/code-amd-node-module
