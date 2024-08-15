@@ -15,6 +15,9 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export class TextureAtlas extends Disposable {
 	// TODO: Expose all page glyphs - the glyphs will need a textureId association
+	public get scratchGlyphs(): IterableIterator<ITextureAtlasGlyph> {
+		return this._scratchPage.glyphs;
+	}
 	public get glyphs(): IterableIterator<ITextureAtlasGlyph> {
 		return this._page.glyphs;
 	}
@@ -29,9 +32,10 @@ export class TextureAtlas extends Disposable {
 	}
 
 	public get hasChanges(): boolean {
-		return this._page.hasChanges;
+		return this._scratchPage.hasChanges || this._page.hasChanges;
 	}
 	public set hasChanges(value: boolean) {
+		this._scratchPage.hasChanges = value;
 		this._page.hasChanges = value;
 	}
 
@@ -77,8 +81,9 @@ export class TextureAtlas extends Disposable {
 
 		const dprFactor = Math.max(1, Math.floor(activeWindow.devicePixelRatio));
 
+		// TODO: Scratch should be smaller
 		// TODO: Hook up scratch page to renderer
-		const scratchPageSize = Math.min(512 * dprFactor, this._maxTextureSize);
+		const scratchPageSize = Math.min(1024 * dprFactor, this._maxTextureSize);
 		// TODO: General way of assigning texture identifier
 		// TODO: Identify texture via a name, the texture index should be only known to the GPU code
 		this._scratchPage = this._register(this._instantiationService.createInstance(TextureAtlasPage, 0, scratchPageSize, 'shelf', this._glyphRasterizer));
@@ -89,11 +94,19 @@ export class TextureAtlas extends Disposable {
 
 	// TODO: Color, style etc.
 	public getGlyph(chars: string, tokenFg: number): ITextureAtlasGlyph {
+		// HACK: Testing multiple pages
+		// if (Math.random() < 0.5) {
+		// 	return this._scratchPage.getGlyph(chars, tokenFg);
+		// }
 		return this._page.getGlyph(chars, tokenFg);
+		// return this._scratchPage.getGlyph(chars, tokenFg);
 	}
 
-	public getUsagePreview(): Promise<Blob> {
-		return this._page.getUsagePreview();
+	public getUsagePreview(): Promise<Blob[]> {
+		return Promise.all([
+			this._scratchPage.getUsagePreview(),
+			this._page.getUsagePreview(),
+		]);
 	}
 
 	/**

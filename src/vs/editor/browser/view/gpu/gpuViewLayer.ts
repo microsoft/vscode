@@ -44,8 +44,7 @@ const enum BindingId {
 	SpriteInfo1,
 	DynamicUnitInfo,
 	TextureSampler,
-	Texture0,
-	Texture1,
+	Texture,
 	Uniforms,
 	TextureInfoUniform,
 	ScrollOffset,
@@ -72,8 +71,7 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 	private static _textureAtlas: TextureAtlas;
 	private _spriteInfoStorageBuffer0!: GPUBuffer;
 	private _spriteInfoStorageBuffer1!: GPUBuffer;
-	private _textureAtlasGpuTexture0!: GPUTexture;
-	private _textureAtlasGpuTexture1!: GPUTexture;
+	private _textureAtlasGpuTexture!: GPUTexture;
 
 	private _initialized = false;
 
@@ -215,21 +213,16 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 			size: spriteInfoStorageBufferByteSize * maxRenderedObjects,
 			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
 		});
-		this._textureAtlasGpuTexture0 = this._device.createTexture({
-			format: 'rgba8unorm',
-			size: { width: textureAtlas.scratchSource.width, height: textureAtlas.scratchSource.height },
-			usage: GPUTextureUsage.TEXTURE_BINDING |
-				GPUTextureUsage.COPY_DST |
-				GPUTextureUsage.RENDER_ATTACHMENT,
-		});
 		this._spriteInfoStorageBuffer1 = this._device.createBuffer({
 			label: 'Entity static info buffer',
 			size: spriteInfoStorageBufferByteSize * maxRenderedObjects,
 			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
 		});
-		this._textureAtlasGpuTexture1 = this._device.createTexture({
+		this._textureAtlasGpuTexture = this._device.createTexture({
 			format: 'rgba8unorm',
-			size: { width: textureAtlas.source.width, height: textureAtlas.source.height },
+			// TODO: These sizes are shared across all layers - this means scratch is wasting texture space
+			size: { width: textureAtlas.source.width, height: textureAtlas.source.height, depthOrArrayLayers: 2 },
+			dimension: '2d',
 			usage: GPUTextureUsage.TEXTURE_BINDING |
 				GPUTextureUsage.COPY_DST |
 				GPUTextureUsage.RENDER_ATTACHMENT,
@@ -258,8 +251,7 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 				{ binding: BindingId.SpriteInfo0, resource: { buffer: this._spriteInfoStorageBuffer0 } },
 				{ binding: BindingId.SpriteInfo1, resource: { buffer: this._spriteInfoStorageBuffer1 } },
 				{ binding: BindingId.TextureSampler, resource: sampler },
-				{ binding: BindingId.Texture0, resource: this._textureAtlasGpuTexture0.createView() },
-				{ binding: BindingId.Texture1, resource: this._textureAtlasGpuTexture1.createView() },
+				{ binding: BindingId.Texture, resource: this._textureAtlasGpuTexture.createView() },
 				{ binding: BindingId.Uniforms, resource: { buffer: uniformBuffer } },
 				{ binding: BindingId.TextureInfoUniform, resource: { buffer: textureInfoUniformBuffer } },
 				...this._renderStrategy.bindGroupEntries
@@ -321,7 +313,7 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 			const bufferSize = spriteInfoStorageBufferByteSize * 10000;
 			const values = new Float32Array(bufferSize / 4);
 			let entryOffset = 0;
-			for (const glyph of GpuViewLayerRenderer._textureAtlas.glyphs) {
+			for (const glyph of GpuViewLayerRenderer._textureAtlas.scratchGlyphs) {
 				values[entryOffset + SpriteInfoStorageBufferInfo.Offset_TexturePosition] = glyph.x;
 				values[entryOffset + SpriteInfoStorageBufferInfo.Offset_TexturePosition + 1] = glyph.y;
 				values[entryOffset + SpriteInfoStorageBufferInfo.Offset_TextureSize] = glyph.w;
@@ -332,12 +324,6 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 			}
 			this._device.queue.writeBuffer(this._spriteInfoStorageBuffer0, 0, values);
 		}
-
-		this._device.queue.copyExternalImageToTexture(
-			{ source: GpuViewLayerRenderer._textureAtlas.scratchSource },
-			{ texture: this._textureAtlasGpuTexture0 },
-			{ width: GpuViewLayerRenderer._textureAtlas.scratchSource.width, height: GpuViewLayerRenderer._textureAtlas.scratchSource.height },
-		);
 
 		// TODO: Dynamically set buffer size
 		{
@@ -356,9 +342,15 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 			this._device.queue.writeBuffer(this._spriteInfoStorageBuffer1, 0, values);
 		}
 
+		// TODO: Draw only dirty regions
+		this._device.queue.copyExternalImageToTexture(
+			{ source: GpuViewLayerRenderer._textureAtlas.scratchSource },
+			{ texture: this._textureAtlasGpuTexture, origin: { x: 0, y: 0, z: 0 } },
+			{ width: GpuViewLayerRenderer._textureAtlas.scratchSource.width, height: GpuViewLayerRenderer._textureAtlas.scratchSource.height },
+		);
 		this._device.queue.copyExternalImageToTexture(
 			{ source: GpuViewLayerRenderer._textureAtlas.source },
-			{ texture: this._textureAtlasGpuTexture1 },
+			{ texture: this._textureAtlasGpuTexture, origin: { x: 0, y: 0, z: 1 } },
 			{ width: GpuViewLayerRenderer._textureAtlas.source.width, height: GpuViewLayerRenderer._textureAtlas.source.height },
 		);
 
@@ -367,17 +359,27 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 
 	@debounce(500)
 	private static async _drawToTextureAtlas(fileService: IFileService, workspaceContextService: IWorkspaceContextService) {
+		const scratchBlob = await GpuViewLayerRenderer._textureAtlas.scratchSource.convertToBlob();
 		const blob = await GpuViewLayerRenderer._textureAtlas.source.convertToBlob();
 		const folders = workspaceContextService.getWorkspace().folders;
 		if (folders.length > 0) {
+			const usagePreviews = await GpuViewLayerRenderer._textureAtlas.getUsagePreview();
 			await Promise.all([
+				fileService.writeFile(
+					URI.joinPath(folders[0].uri, 'atlas_page0_actual.png'),
+					VSBuffer.wrap(new Uint8Array(await scratchBlob.arrayBuffer()))
+				),
+				fileService.writeFile(
+					URI.joinPath(folders[0].uri, 'atlas_page0_usage.png'),
+					VSBuffer.wrap(new Uint8Array(await usagePreviews[0].arrayBuffer()))
+				),
 				fileService.writeFile(
 					URI.joinPath(folders[0].uri, 'atlas_page1_actual.png'),
 					VSBuffer.wrap(new Uint8Array(await blob.arrayBuffer()))
 				),
 				fileService.writeFile(
 					URI.joinPath(folders[0].uri, 'atlas_page1_usage.png'),
-					VSBuffer.wrap(new Uint8Array(await ((await GpuViewLayerRenderer._textureAtlas.getUsagePreview()).arrayBuffer())))
+					VSBuffer.wrap(new Uint8Array(await usagePreviews[1].arrayBuffer()))
 				)
 			]);
 		}
@@ -472,6 +474,7 @@ struct ScrollOffset {
 
 struct VSOutput {
 	@builtin(position) position: vec4f,
+	@location(1) layerIndex: f32,
 	@location(0) texcoord: vec2f,
 };
 
@@ -489,8 +492,12 @@ struct VSOutput {
 	@builtin(vertex_index) vertexIndex : u32
 ) -> VSOutput {
 	let dynamicUnitInfo = dynamicUnitInfoStructs[instanceIndex];
-	let temp = spriteInfo0[0];
-	let spriteInfo = spriteInfo1[u32(dynamicUnitInfo.glyphIndex)];
+	var spriteInfo = spriteInfo0[0];
+	if (u32(dynamicUnitInfo.textureIndex) == 0) {
+		spriteInfo = spriteInfo0[u32(dynamicUnitInfo.glyphIndex)];
+	} else {
+		spriteInfo = spriteInfo1[u32(dynamicUnitInfo.glyphIndex)];
+	}
 
 	var vsOut: VSOutput;
 	// Multiple vert.position by 2,-2 to get it into clipspace which ranged from -1 to 1
@@ -500,6 +507,7 @@ struct VSOutput {
 		1.0
 	);
 
+	vsOut.layerIndex = dynamicUnitInfo.textureIndex;
 	// Textures are flipped from natural direction on the y-axis, so flip it back
 	vsOut.texcoord = vert.position;
 	vsOut.texcoord = (
@@ -513,12 +521,10 @@ struct VSOutput {
 }
 
 @group(0) @binding(${BindingId.TextureSampler}) var ourSampler: sampler;
-@group(0) @binding(${BindingId.Texture0}) var ourTexture0: texture_2d<f32>;
-@group(0) @binding(${BindingId.Texture1}) var ourTexture1: texture_2d<f32>;
+@group(0) @binding(${BindingId.Texture}) var ourTexture: texture_2d_array<f32>;
 
 @fragment fn fs(vsOut: VSOutput) -> @location(0) vec4f {
-	let temp = textureSample(ourTexture0, ourSampler, vsOut.texcoord);
-	return textureSample(ourTexture1, ourSampler, vsOut.texcoord);
+	return textureSample(ourTexture, ourSampler, vsOut.texcoord, u32(vsOut.layerIndex));
 }
 `;
 
