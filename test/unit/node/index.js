@@ -8,17 +8,16 @@
 
 process.env.MOCHA_COLORS = '1'; // Force colors (note that this must come before any mocha imports)
 
-import * as assert from 'assert';
-import Mocha from 'mocha';
-import * as path from 'path';
-import * as fs from 'fs';
-import glob from 'glob';
-import minimatch from 'minimatch';
-// const coverage = require('../coverage');
-import minimist from 'minimist';
-// const { takeSnapshotAndCountClasses } = require('../analyzeSnapshot');
-import * as module from 'module';
-import { fileURLToPath, pathToFileURL } from 'url';
+const assert = require('assert');
+const Mocha = require('mocha');
+const path = require('path');
+const fs = require('fs');
+const glob = require('glob');
+const minimatch = require('minimatch');
+const coverage = require('../coverage');
+const minimist = require('minimist');
+const { takeSnapshotAndCountClasses } = require('../analyzeSnapshot');
+const bootstrapNode = require('../../../src/bootstrap-node');
 
 /**
  * @type {{ build: boolean; run: string; runGlob: string; coverage: boolean; help: boolean; coverageFormats: string | string[]; coveragePath: string; }}
@@ -64,10 +63,10 @@ const excludeGlobs = [
 	'**/vs/workbench/contrib/testing/test/**' // flaky (https://github.com/microsoft/vscode/issues/137853)
 ];
 
-const REPO_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
+const REPO_ROOT = path.join(__dirname, '../../../');
 const out = args.build ? 'out-build' : 'out';
+const loader = require(`../../../${out}/vs/loader`);
 const src = path.join(REPO_ROOT, out);
-const baseUrl = pathToFileURL(src);
 
 //@ts-ignore
 const majorRequiredNodeVersion = `v${/^target\s+"([^"]+)"$/m.exec(fs.readFileSync(path.join(REPO_ROOT, 'remote', '.yarnrc'), 'utf8'))[1]}`.substring(0, 3);
@@ -80,26 +79,22 @@ if (majorRequiredNodeVersion !== currentMajorNodeVersion) {
 function main() {
 
 	// VSCODE_GLOBALS: node_modules
-	const _require = module.createRequire(import.meta.url);
-	globalThis._VSCODE_NODE_MODULES = new Proxy(Object.create(null), { get: (_target, mod) => _require(String(mod)) });
+	globalThis._VSCODE_NODE_MODULES = new Proxy(Object.create(null), { get: (_target, mod) => require(String(mod)) });
 
 	// VSCODE_GLOBALS: package/product.json
-	globalThis._VSCODE_PRODUCT_JSON = _require(`${REPO_ROOT}/product.json`);
-	globalThis._VSCODE_PACKAGE_JSON = _require(`${REPO_ROOT}/package.json`);
-
-	// VSCODE_GLOBALS: file root
-	globalThis._VSCODE_FILE_ROOT = baseUrl.href;
+	globalThis._VSCODE_PRODUCT_JSON = require(`${REPO_ROOT}/product.json`);
+	globalThis._VSCODE_PACKAGE_JSON = require(`${REPO_ROOT}/package.json`);
 
 	if (args.build) {
 		// when running from `out-build`, ensure to load the default
 		// messages file, because all `nls.localize` calls have their
 		// english values removed and replaced by an index.
-		globalThis._VSCODE_NLS_MESSAGES = _require(`${REPO_ROOT}/${out}/nls.messages.json`);
+		globalThis._VSCODE_NLS_MESSAGES = require(`../../../${out}/nls.messages.json`);
 	}
 
 	// Test file operations that are common across platforms. Used for test infra, namely snapshot tests
 	Object.assign(globalThis, {
-		// __analyzeSnapshotInTests: takeSnapshotAndCountClasses,
+		__analyzeSnapshotInTests: takeSnapshotAndCountClasses,
 		__readFileInTests: (/** @type {string} */ path) => fs.promises.readFile(path, 'utf-8'),
 		__writeFileInTests: (/** @type {string} */ path, /** @type {BufferEncoding} */ contents) => fs.promises.writeFile(path, contents),
 		__readDirInTests: (/** @type {string} */ path) => fs.promises.readdir(path),
@@ -111,28 +106,24 @@ function main() {
 		console.error(e.stack || e);
 	});
 
-	/**
-	 * @param modules
-	 * @param onLoad
-	 * @param onError
-	 */
-	const loader = function (modules, onLoad, onError) {
-
-		modules = modules.filter(mod => {
-			if (mod.endsWith('css.build.test')) {
-				// AMD ONLY, ignore for ESM
-				return false;
-			}
-			return true;
-		});
-
-		const loads = modules.map(mod => import(`${baseUrl}/${mod}.js`).catch(err => {
-			console.error(`FAILED to load ${mod} as ${baseUrl}/${mod}.js`);
-			throw err;
-		}));
-		Promise.all(loads).then(onLoad, onError);
+	const loaderConfig = {
+		nodeRequire: require,
+		baseUrl: bootstrapNode.fileUriFromPath(src, { isWindows: process.platform === 'win32' }),
+		catchError: true
 	};
 
+	if (args.coverage) {
+		coverage.initialize(loaderConfig);
+
+		process.on('exit', function (code) {
+			if (code !== 0) {
+				return;
+			}
+			coverage.createReport(args.run || args.runGlob, args.coveragePath, args.coverageFormats);
+		});
+	}
+
+	loader.config(loaderConfig);
 
 	let didErr = false;
 	const write = process.stderr.write;
@@ -147,7 +138,7 @@ function main() {
 	});
 
 	/**
-	 * @param modules
+	 * @param {string[]} modules
 	 */
 	async function loadModules(modules) {
 		for (const file of modules) {
@@ -163,7 +154,7 @@ function main() {
 
 	if (args.runGlob) {
 		loadFunc = (cb) => {
-			const doRun = /** @param tests */(tests) => {
+			const doRun = /** @param {string[]} tests */(tests) => {
 				const modulesToLoad = tests.map(test => {
 					if (path.isAbsolute(test)) {
 						test = path.relative(src, path.resolve(test));
@@ -234,7 +225,7 @@ function main() {
 		});
 
 		// replace the default unexpected error handler to be useful during tests
-		import(`${baseUrl}/vs/base/common/errors.js`).then(errors => {
+		loader(['vs/base/common/errors'], function (errors) {
 			errors.setUnexpectedErrorHandler(function (err) {
 				const stack = (err && err.stack) || (new Error().stack);
 				unexpectedErrors.push((err && err.message ? err.message : err) + '\n' + stack);
