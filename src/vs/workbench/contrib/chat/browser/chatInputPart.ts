@@ -371,11 +371,20 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.container = dom.append(container, $('.interactive-input-part'));
 		this.container.classList.toggle('compact', this.options.renderStyle === 'compact');
 
-		this.followupsContainer = dom.append(this.container, $('.interactive-input-followups'));
-		this.attachedContextContainer = dom.append(this.container, $('.chat-attached-context'));
+		let inputContainer: HTMLElement;
+		let inputAndSideToolbar: HTMLElement;
+		if (this.options.renderStyle === 'compact') {
+			inputAndSideToolbar = dom.append(this.container, $('.interactive-input-and-side-toolbar'));
+			this.followupsContainer = dom.append(this.container, $('.interactive-input-followups'));
+			inputContainer = dom.append(inputAndSideToolbar, $('.interactive-input-and-execute-toolbar'));
+			this.attachedContextContainer = dom.append(this.container, $('.chat-attached-context'));
+		} else {
+			this.followupsContainer = dom.append(this.container, $('.interactive-input-followups'));
+			this.attachedContextContainer = dom.append(this.container, $('.chat-attached-context'));
+			inputAndSideToolbar = dom.append(this.container, $('.interactive-input-and-side-toolbar'));
+			inputContainer = dom.append(inputAndSideToolbar, $('.interactive-input-and-execute-toolbar'));
+		}
 		this.initAttachedContext(this.attachedContextContainer);
-		const inputAndSideToolbar = dom.append(this.container, $('.interactive-input-and-side-toolbar'));
-		const inputContainer = dom.append(inputAndSideToolbar, $('.interactive-input-and-execute-toolbar'));
 
 		const inputScopedContextKeyService = this._register(this.contextKeyService.createScoped(inputContainer));
 		CONTEXT_IN_CHAT_INPUT.bindTo(inputScopedContextKeyService).set(true);

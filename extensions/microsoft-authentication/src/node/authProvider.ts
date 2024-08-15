@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { AccountInfo, AuthenticationResult } from '@azure/msal-node';
+import { AccountInfo, AuthenticationResult, ServerError } from '@azure/msal-node';
 import { AuthenticationGetSessionOptions, AuthenticationProvider, AuthenticationProviderAuthenticationSessionsChangeEvent, AuthenticationSession, AuthenticationSessionAccountInformation, CancellationError, env, EventEmitter, ExtensionContext, l10n, LogOutputChannel, Memento, SecretStorage, Uri, window } from 'vscode';
 import { Environment } from '@azure/ms-rest-azure-env';
 import { CachedPublicClientApplicationManager } from './publicClientCache';
@@ -132,10 +132,10 @@ export class MsalAuthProvider implements AuthenticationProvider {
 			result = await cachedPca.acquireTokenInteractive({
 				openBrowser: async (url: string) => { await env.openExternal(Uri.parse(url)); },
 				scopes: modifiedScopes,
+				// The logic for rendering one or the other of these templates is in the
+				// template itself, so we pass the same one for both.
 				successTemplate: loopbackTemplate,
-				// TODO: This is currently not working (the loopback client closes before this is rendered).
-				// There is an issue opened on MSAL Node to fix this. We should workaround this by re-implementing the Loopback client.
-				// errorTemplate: loopbackTemplate
+				errorTemplate: loopbackTemplate
 			});
 			this.setupRefresh(cachedPca, result, scopes);
 		} catch (e) {
@@ -153,6 +153,13 @@ export class MsalAuthProvider implements AuthenticationProvider {
 					this._telemetryReporter.sendLoginFailedEvent();
 					throw e;
 				}
+			}
+			// This error comes from the backend and is likely not due to the user's machine
+			// failing to open a port or something local that would require us to try the
+			// URL handler loopback client.
+			if (e instanceof ServerError) {
+				this._telemetryReporter.sendLoginFailedEvent();
+				throw e;
 			}
 			const loopbackClient = new UriHandlerLoopbackClient(this._uriHandler, redirectUri);
 			try {

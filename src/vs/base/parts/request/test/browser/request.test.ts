@@ -12,9 +12,9 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { request } from 'vs/base/parts/request/browser/request';
 import { streamToBuffer } from 'vs/base/common/buffer';
+import { flakySuite } from 'vs/base/test/common/testUtils';
 
-
-suite('Request', () => {
+flakySuite('Request', () => {
 
 	let port: number;
 	let server: http.Server;

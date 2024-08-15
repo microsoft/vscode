@@ -509,18 +509,34 @@ export class SuggestController implements IEditorContribution {
 
 		// clear only now - after all tasks are done
 		Promise.all(tasks).finally(() => {
-			this._reportSuggestionAcceptedTelemetry(item, model, isResolved, _commandExectionDuration, _additionalEditsAppliedAsync, event.index);
+			this._reportSuggestionAcceptedTelemetry(item, model, isResolved, _commandExectionDuration, _additionalEditsAppliedAsync, event.index, event.model.items);
 
 			this.model.clear();
 			cts.dispose();
 		});
 	}
 
-	private _reportSuggestionAcceptedTelemetry(item: CompletionItem, model: ITextModel, itemResolved: boolean, commandExectionDuration: number, additionalEditsAppliedAsync: number, index: number): void {
+	private _reportSuggestionAcceptedTelemetry(item: CompletionItem, model: ITextModel, itemResolved: boolean, commandExectionDuration: number, additionalEditsAppliedAsync: number, index: number, completionItems: CompletionItem[]): void {
 		if (Math.floor(Math.random() * 100) === 0) {
 			// throttle telemetry event because accepting completions happens a lot
 			return;
 		}
+
+		const labelMap = new Map<string, number[]>();
+
+		for (let i = 0; i < Math.min(30, completionItems.length); i++) {
+			const label = completionItems[i].textLabel;
+
+			if (labelMap.has(label)) {
+				labelMap.get(label)!.push(i);
+			} else {
+				labelMap.set(label, [i]);
+			}
+		}
+
+		const firstIndexArray = labelMap.get(item.textLabel);
+		const hasDuplicates = firstIndexArray && firstIndexArray.length > 1;
+		const firstIndex = hasDuplicates ? firstIndexArray[0] : -1;
 
 		type AcceptedSuggestion = {
 			extensionId: string; providerId: string;
@@ -528,8 +544,7 @@ export class SuggestController implements IEditorContribution {
 			resolveInfo: number; resolveDuration: number;
 			commandDuration: number;
 			additionalEditsAsync: number;
-			index: number;
-			label: string;
+			index: number; firstIndex: number;
 		};
 		type AcceptedSuggestionClassification = {
 			owner: 'jrieken';
@@ -544,8 +559,8 @@ export class SuggestController implements IEditorContribution {
 			resolveDuration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How long resolving took to finish' };
 			commandDuration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How long a completion item command took' };
 			additionalEditsAsync: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Info about asynchronously applying additional edits' };
-			index: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The order of the completion item in the list.' };
-			label: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The label of the completion item.' };
+			index: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The index of the completion item in the sorted list.' };
+			firstIndex: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'When there are multiple completions, the index of the first instance.' };
 		};
 
 		this._telemetryService.publicLog2<AcceptedSuggestion, AcceptedSuggestionClassification>('suggest.acceptedSuggestion', {
@@ -560,7 +575,7 @@ export class SuggestController implements IEditorContribution {
 			commandDuration: commandExectionDuration,
 			additionalEditsAsync: additionalEditsAppliedAsync,
 			index,
-			label: item.textLabel
+			firstIndex,
 		});
 	}
 

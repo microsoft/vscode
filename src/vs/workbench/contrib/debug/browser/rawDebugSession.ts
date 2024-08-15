@@ -484,6 +484,10 @@ export class RawDebugSession implements IDisposable {
 		return this.send<DebugProtocol.SourceResponse>('source', args);
 	}
 
+	locations(args: DebugProtocol.LocationsArguments): Promise<DebugProtocol.LocationsResponse | undefined> {
+		return this.send<DebugProtocol.LocationsResponse>('locations', args);
+	}
+
 	loadedSources(args: DebugProtocol.LoadedSourcesArguments): Promise<DebugProtocol.LoadedSourcesResponse | undefined> {
 		if (this.capabilities.supportsLoadedSourcesRequest) {
 			return this.send<DebugProtocol.LoadedSourcesResponse>('loadedSources', args);

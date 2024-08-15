@@ -122,19 +122,7 @@ function installHeaders() {
 		cp.execFileSync(node_gyp, ['install', '--dist-url', local.disturl, local.target], { shell: true });
 	}
 
-	// Avoid downloading headers for Windows arm64 till we move to Nodejs v19 in remote
-	// which is the first official release with support for the architecture. Downloading
-	// the headers for older versions now redirect to https://origin.nodejs.org/404.html
-	// which causes checksum validation error in node-gyp.
-	//
-	// gyp http 200 https://origin.nodejs.org/404.html
-	// gyp WARN install got an error, rolling back install
-	// gyp ERR! install error
-	// gyp ERR! stack Error: win-arm64/node.lib local checksum 4c62bed7a032f7b36984321b7ffdd60b596fac870672037ff879ae9ac9548fb7 not match remote undefined
-	//
-	if (remote !== undefined && !versions.has(remote.target) &&
-		process.env['npm_config_arch'] !== "arm64" &&
-		process.arch !== "arm64") {
+	if (remote !== undefined && !versions.has(remote.target)) {
 		// Both disturl and target come from a file checked into our repository
 		cp.execFileSync(node_gyp, ['install', '--dist-url', remote.disturl, remote.target], { shell: true });
 	}

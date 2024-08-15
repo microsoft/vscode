@@ -14,29 +14,55 @@ import { Schemas } from 'vs/base/common/network';
 import { Range } from 'vs/editor/common/core/range';
 import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
 import { assertIsDefined } from 'vs/base/common/types';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
-export function requireToContent(instantiationService: IInstantiationService, resource: URI): Promise<string> {
+interface IWalkThroughContentProvider {
+	(accessor: ServicesAccessor): string;
+}
+
+class WalkThroughContentProviderRegistry {
+
+	private readonly providers = new Map<string, IWalkThroughContentProvider>();
+
+	registerProvider(moduleId: string, provider: IWalkThroughContentProvider): void {
+		this.providers.set(moduleId, provider);
+	}
+
+	getProvider(moduleId: string): IWalkThroughContentProvider | undefined {
+		return this.providers.get(moduleId);
+	}
+}
+export const walkThroughContentRegistry = new WalkThroughContentProviderRegistry();
+
+export async function moduleToContent(instantiationService: IInstantiationService, resource: URI): Promise<string> {
 	if (!resource.query) {
-		throw new Error('Welcome: invalid resource');
+		throw new Error('Walkthrough: invalid resource');
 	}
 
 	const query = JSON.parse(resource.query);
 	if (!query.moduleId) {
-		throw new Error('Welcome: invalid resource');
+		throw new Error('Walkthrough: invalid resource');
 	}
 
-	const content: Promise<string> = new Promise<string>((resolve, reject) => {
-		require([query.moduleId], content => {
-			try {
-				resolve(instantiationService.invokeFunction(content.default));
-			} catch (err) {
-				reject(err);
-			}
+	const provider = walkThroughContentRegistry.getProvider(query.moduleId);
+	if (!provider) {
+		// ESM-comment-begin
+		return new Promise<string>((resolve, reject) => {
+			require([query.moduleId], content => {
+				try {
+					resolve(instantiationService.invokeFunction(content.default));
+				} catch (err) {
+					reject(err);
+				}
+			});
 		});
-	});
+		// ESM-comment-end
+		// ESM-uncomment-begin
+		// throw new Error(`Walkthrough: no provider registered for ${query.moduleId}`);
+		// ESM-uncomment-end
+	}
 
-	return content;
+	return instantiationService.invokeFunction(provider);
 }
 
 export class WalkThroughSnippetContentProvider implements ITextModelContentProvider, IWorkbenchContribution {
@@ -57,7 +83,7 @@ export class WalkThroughSnippetContentProvider implements ITextModelContentProvi
 	private async textBufferFactoryFromResource(resource: URI): Promise<ITextBufferFactory> {
 		let ongoing = this.loads.get(resource.toString());
 		if (!ongoing) {
-			ongoing = requireToContent(this.instantiationService, resource)
+			ongoing = moduleToContent(this.instantiationService, resource)
 				.then(content => createTextBufferFactory(content))
 				.finally(() => this.loads.delete(resource.toString()));
 			this.loads.set(resource.toString(), ongoing);

@@ -9,6 +9,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { canceled } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { compareItemsByFuzzyScore, FuzzyScorerCache, IItemAccessor, prepareQuery } from 'vs/base/common/fuzzyScorer';
+import { revive } from 'vs/base/common/marshalling';
 import { basename, dirname, join, sep } from 'vs/base/common/path';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { URI, UriComponents } from 'vs/base/common/uri';
@@ -443,8 +444,5 @@ function reviveQuery<U extends IRawQuery>(rawQuery: U): U extends IRawTextQuery 
 }
 
 function reviveFolderQuery(rawFolderQuery: IFolderQuery<UriComponents>): IFolderQuery<URI> {
-	return {
-		...rawFolderQuery,
-		folder: URI.revive(rawFolderQuery.folder)
-	};
+	return revive(rawFolderQuery);
 }
