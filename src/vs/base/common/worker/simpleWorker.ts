@@ -542,7 +542,7 @@ export class SimpleWorkerServer<H extends object> {
 
 		if (isESM) {
 			const url = FileAccess.asBrowserUri(`${moduleId}.js` as AppResourcePath).toString(true);
-			return import(url).then((module: { create: IRequestHandlerFactory<H> }) => {
+			return import(`${url}`).then((module: { create: IRequestHandlerFactory<H> }) => {
 				this._requestHandler = module.create(hostProxy);
 
 				if (!this._requestHandler) {

@@ -835,10 +835,10 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 			};
 
 			if (!isESM) {
-				require([moduleId], onModuleCallback, reject);
+				require([`${moduleId}`], onModuleCallback, reject);
 			} else {
 				const url = FileAccess.asBrowserUri(`${moduleId}.js` as AppResourcePath).toString(true);
-				import(url).then(onModuleCallback).catch(reject);
+				import(`${url}`).then(onModuleCallback).catch(reject);
 			}
 		});
 	}

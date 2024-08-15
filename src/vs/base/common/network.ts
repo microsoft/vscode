@@ -9,13 +9,6 @@ import { equalsIgnoreCase, startsWithIgnoreCase } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import * as paths from 'vs/base/common/path';
 
-// ESM-comment-begin
-const isESM = false;
-// ESM-comment-end
-// ESM-uncomment-begin
-// const isESM = true;
-// ESM-uncomment-end
-
 export namespace Schemas {
 
 	/**
@@ -260,7 +253,12 @@ class FileAccessImpl {
 	 * **Note:** use `dom.ts#asCSSUrl` whenever the URL is to be used in CSS context.
 	 */
 	asBrowserUri(resourcePath: AppResourcePath | ''): URI {
-		const uri = (isESM ? this.toUri(resourcePath) : this.toUri(resourcePath, require));
+		// ESM-comment-begin
+		const uri = this.toUri(resourcePath, require);
+		// ESM-comment-end
+		// ESM-uncomment-begin
+		// const uri = this.toUri(resourcePath);
+		// ESM-uncomment-end
 		return this.uriToBrowserUri(uri);
 	}
 
@@ -307,7 +305,12 @@ class FileAccessImpl {
 	 * is responsible for loading.
 	 */
 	asFileUri(resourcePath: AppResourcePath | ''): URI {
-		const uri = (isESM ? this.toUri(resourcePath) : this.toUri(resourcePath, require));
+		// ESM-comment-begin
+		const uri = this.toUri(resourcePath, require);
+		// ESM-comment-end
+		// ESM-uncomment-begin
+		// const uri = this.toUri(resourcePath);
+		// ESM-uncomment-end
 		return this.uriToFileUri(uri);
 	}
 
