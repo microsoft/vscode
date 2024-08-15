@@ -32,7 +32,7 @@ function createRasterizedGlyph(w: number, h: number, data: ArrayLike<number>): I
 }
 
 let lastUniqueGlyph: string | undefined;
-function getUniqueGlyphId(): [string, number] {
+function getUniqueGlyphId(): [chars: string, tokenFg: number] {
 	if (!lastUniqueGlyph) {
 		lastUniqueGlyph = 'a';
 	} else {

@@ -54,7 +54,7 @@ export class TextureAtlas extends Disposable {
 	private readonly _glyphRasterizer: GlyphRasterizer;
 
 	private _colorMap!: string[];
-	private readonly _warmUpTask: MutableDisposable<IdleTaskQueue> = new MutableDisposable();
+	private readonly _warmUpTask: MutableDisposable<IdleTaskQueue> = this._register(new MutableDisposable());
 
 	public get source(): OffscreenCanvas {
 		return this._page.source;
@@ -89,7 +89,7 @@ export class TextureAtlas extends Disposable {
 			this._warmUpAtlas();
 		}));
 
-		this._glyphRasterizer = new GlyphRasterizer(fontSize, style.fontFamily);
+		this._glyphRasterizer = this._register(new GlyphRasterizer(fontSize, style.fontFamily));
 
 		this._page = this._register(this._instantiationService.createInstance(TextureAtlasPage, parentDomNode, pageSize, maxTextureSize, this._glyphRasterizer));
 	}
