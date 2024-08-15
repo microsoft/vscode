@@ -523,7 +523,10 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 		this._widgetDisposableStore.add(editorModel.onDidChangeContent(() => {
 			const value = editorModel.getValue();
 			if (this.input?.resource && value !== '') {
-				(this.input as ReplEditorInput).historyService.replaceLast(this.input.resource, value);
+				const historyService = (this.input as ReplEditorInput).historyService;
+				if (!historyService.matchesCurrent(this.input.resource, value)) {
+					historyService.replaceLast(this.input.resource, value);
+				}
 			}
 		}));
 

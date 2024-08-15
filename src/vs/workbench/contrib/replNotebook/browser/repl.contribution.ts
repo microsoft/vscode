@@ -276,7 +276,8 @@ async function executeReplInput(
 				return;
 			}
 
-			historyService.addToHistory(notebookDocument.uri, value);
+			historyService.replaceLast(notebookDocument.uri, value);
+			historyService.addToHistory(notebookDocument.uri, '');
 			textModel.setValue('');
 			notebookDocument.cells[index].resetTextBuffer(textModel.getTextBuffer());
 
