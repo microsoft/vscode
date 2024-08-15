@@ -687,9 +687,9 @@ registerAction2(class extends Action2 {
 			const textModel = editorControl.codeEditor.getModel();
 
 			if (notebookDocument && textModel) {
-				const previousValue = historyService.getNextValue(notebookDocument.uri);
-				if (previousValue !== null) {
-					textModel.setValue(previousValue);
+				const nextValue = historyService.getNextValue(notebookDocument.uri);
+				if (nextValue !== null) {
+					textModel.setValue(nextValue);
 				}
 			}
 		}
