@@ -57,6 +57,7 @@ function npmInstall(dir, opts) {
 		if (process.env['npm_config_arch'] === 'arm64') {
 			run('sudo', ['docker', 'run', '--rm', '--privileged', 'multiarch/qemu-user-static', '--reset', '-p', 'yes'], opts);
 		}
+		run('sudo', ['docker', 'run', '-e', 'GITHUB_TOKEN', '-e', 'npm_config_arch', '-e', 'npm_config_disturl', '-e', 'npm_config_target', '-e', 'npm_config_runtime', '-e', 'npm_config_ms_build_id', '-e', 'npm_config_build_from_source', '-e', 'npm_config_legacy_peer_deps', '-v', `${process.env['VSCODE_HOST_MOUNT']}:/root/vscode`, '-v', `${process.env['VSCODE_HOST_MOUNT']}/.build/.netrc:/root/.netrc`, '-w', path.resolve('/root/vscode', dir), process.env['VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME'], 'printenv'], opts);
 		run('sudo', ['docker', 'run', '-e', 'GITHUB_TOKEN', '-e', 'npm_config_arch', '-e', 'npm_config_disturl', '-e', 'npm_config_target', '-e', 'npm_config_runtime', '-e', 'npm_config_ms_build_id', '-e', 'npm_config_build_from_source', '-e', 'npm_config_legacy_peer_deps', '-v', `${process.env['VSCODE_HOST_MOUNT']}:/root/vscode`, '-v', `${process.env['VSCODE_HOST_MOUNT']}/.build/.netrc:/root/.netrc`, '-w', path.resolve('/root/vscode', dir), process.env['VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME'], 'npm', command], opts);
 		run('sudo', ['chown', '-R', `${userinfo.uid}:${userinfo.gid}`, `${dir}/node_modules`], opts);
 	} else {
