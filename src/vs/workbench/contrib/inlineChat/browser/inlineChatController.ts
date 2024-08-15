@@ -217,7 +217,7 @@ export class InlineChatController implements IEditorContribution {
 			}
 		}));
 
-		this._log(`NEW controller for ${this._editor.getId()}`);
+		this._log(`NEW controller`);
 	}
 
 	dispose(): void {
@@ -459,7 +459,7 @@ export class InlineChatController implements IEditorContribution {
 		} else if (options.isUnstashed) {
 			delete options.isUnstashed;
 			return State.SHOW_RESPONSE;
-		} else if (this._session.chatModel.hasRequests && this._session.chatModel.requestInProgress) {
+		} else if (this._session.chatModel.requestInProgress) {
 			return State.SHOW_REQUEST;
 		} else {
 			return State.SHOW_RESPONSE;
