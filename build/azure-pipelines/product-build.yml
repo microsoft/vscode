@@ -183,9 +183,6 @@ extends:
           allTools: true
       codeql:
         runSourceLanguagesInSourceAnalysis: true
-        compiled:
-          enabled: false
-          justificationForDisabling: "CodeQL runs in the WindowsSDL job only"
       credscan:
         suppressionsFile: $(Build.SourcesDirectory)/build/azure-pipelines/config/CredScanSuppressions.json
       eslint:
@@ -212,6 +209,12 @@ extends:
               os: linux
             variables:
               VSCODE_ARCH: x64
+            templateContext:
+              sdl:
+                codeql:
+                  compiled:
+                    enabled: false
+                    justificationForDisabling: CodeQL runs in the WindowsSDL job only
             steps:
               - template: build/azure-pipelines/product-compile.yml@self
                 parameters:
@@ -226,6 +229,12 @@ extends:
                 pool:
                   name: 1es-ubuntu-20.04-x64
                   os: linux
+                templateContext:
+                  sdl:
+                    codeql:
+                      compiled:
+                        enabled: false
+                        justificationForDisabling: CodeQL runs in the WindowsSDL job only
                 steps:
                   - template: build/azure-pipelines/linux/cli-build-linux.yml@self
                     parameters:
@@ -238,6 +247,12 @@ extends:
                 pool:
                   name: 1es-ubuntu-20.04-x64
                   os: linux
+                templateContext:
+                  sdl:
+                    codeql:
+                      compiled:
+                        enabled: false
+                        justificationForDisabling: CodeQL runs in the WindowsSDL job only
                 steps:
                   - template: build/azure-pipelines/linux/cli-build-linux.yml@self
                     parameters:
@@ -250,6 +265,12 @@ extends:
                 pool:
                   name: 1es-ubuntu-20.04-x64
                   os: linux
+                templateContext:
+                  sdl:
+                    codeql:
+                      compiled:
+                        enabled: false
+                        justificationForDisabling: CodeQL runs in the WindowsSDL job only
                 steps:
                   - template: build/azure-pipelines/alpine/cli-build-alpine.yml@self
                     parameters:
@@ -263,6 +284,12 @@ extends:
                   os: linux
                   hostArchitecture: arm64
                 container: ubuntu-2004-arm64
+                templateContext:
+                  sdl:
+                    codeql:
+                      compiled:
+                        enabled: false
+                        justificationForDisabling: CodeQL runs in the WindowsSDL job only
                 steps:
                   - template: build/azure-pipelines/alpine/cli-build-alpine.yml@self
                     parameters:
@@ -275,6 +302,12 @@ extends:
                   name: Azure Pipelines
                   image: macOS-13
                   os: macOS
+                templateContext:
+                  sdl:
+                    codeql:
+                      compiled:
+                        enabled: false
+                        justificationForDisabling: CodeQL runs in the WindowsSDL job only
                 steps:
                   - template: build/azure-pipelines/darwin/cli-build-darwin.yml@self
                     parameters:
@@ -288,6 +321,12 @@ extends:
                   name: Azure Pipelines
                   image: macOS-13
                   os: macOS
+                templateContext:
+                  sdl:
+                    codeql:
+                      compiled:
+                        enabled: false
+                        justificationForDisabling: CodeQL runs in the WindowsSDL job only
                 steps:
                   - template: build/azure-pipelines/darwin/cli-build-darwin.yml@self
                     parameters:
@@ -299,6 +338,12 @@ extends:
                 pool:
                   name: 1es-windows-2019-x64
                   os: windows
+                templateContext:
+                  sdl:
+                    codeql:
+                      compiled:
+                        enabled: false
+                        justificationForDisabling: CodeQL runs in the WindowsSDL job only
                 steps:
                   - template: build/azure-pipelines/win32/cli-build-win32.yml@self
                     parameters:
@@ -311,6 +356,12 @@ extends:
                 pool:
                   name: 1es-windows-2019-x64
                   os: windows
+                templateContext:
+                  sdl:
+                    codeql:
+                      compiled:
+                        enabled: false
+                        justificationForDisabling: CodeQL runs in the WindowsSDL job only
                 steps:
                   - template: build/azure-pipelines/win32/cli-build-win32.yml@self
                     parameters:
@@ -354,6 +405,12 @@ extends:
                 timeoutInMinutes: 60
                 variables:
                   VSCODE_ARCH: x64
+                templateContext:
+                  sdl:
+                    codeql:
+                      compiled:
+                        enabled: false
+                        justificationForDisabling: CodeQL runs in the WindowsSDL job only
                 steps:
                   - template: build/azure-pipelines/win32/product-build-win32.yml@self
                     parameters:
@@ -368,6 +425,12 @@ extends:
                 timeoutInMinutes: 60
                 variables:
                   VSCODE_ARCH: x64
+                templateContext:
+                  sdl:
+                    codeql:
+                      compiled:
+                        enabled: false
+                        justificationForDisabling: CodeQL runs in the WindowsSDL job only
                 steps:
                   - template: build/azure-pipelines/win32/product-build-win32.yml@self
                     parameters:
@@ -382,6 +445,12 @@ extends:
                 timeoutInMinutes: 60
                 variables:
                   VSCODE_ARCH: x64
+                templateContext:
+                  sdl:
+                    codeql:
+                      compiled:
+                        enabled: false
+                        justificationForDisabling: CodeQL runs in the WindowsSDL job only
                 steps:
                   - template: build/azure-pipelines/win32/product-build-win32.yml@self
                     parameters:
@@ -397,6 +466,12 @@ extends:
                 timeoutInMinutes: 120
                 variables:
                   VSCODE_ARCH: x64
+                templateContext:
+                  sdl:
+                    codeql:
+                      compiled:
+                        enabled: false
+                        justificationForDisabling: CodeQL runs in the WindowsSDL job only
                 steps:
                   - template: build/azure-pipelines/win32/product-build-win32.yml@self
                     parameters:
@@ -409,6 +484,12 @@ extends:
 
               - job: WindowsCLISign
                 timeoutInMinutes: 90
+                templateContext:
+                  sdl:
+                    codeql:
+                      compiled:
+                        enabled: false
+                        justificationForDisabling: CodeQL runs in the WindowsSDL job only
                 steps:
                   - template: build/azure-pipelines/win32/product-build-win32-cli-sign.yml@self
                     parameters:
@@ -420,6 +501,12 @@ extends:
                 timeoutInMinutes: 90
                 variables:
                   VSCODE_ARCH: arm64
+                templateContext:
+                  sdl:
+                    codeql:
+                      compiled:
+                        enabled: false
+                        justificationForDisabling: CodeQL runs in the WindowsSDL job only
                 steps:
                   - template: build/azure-pipelines/win32/product-build-win32.yml@self
                     parameters:
@@ -447,6 +534,12 @@ extends:
                   VSCODE_ARCH: x64
                   NPM_ARCH: x64
                   DISPLAY: ":10"
+                templateContext:
+                  sdl:
+                    codeql:
+                      compiled:
+                        enabled: false
+                        justificationForDisabling: CodeQL runs in the WindowsSDL job only
                 steps:
                   - template: build/azure-pipelines/linux/product-build-linux.yml@self
                     parameters:
@@ -462,6 +555,12 @@ extends:
                   VSCODE_ARCH: x64
                   NPM_ARCH: x64
                   DISPLAY: ":10"
+                templateContext:
+                  sdl:
+                    codeql:
+                      compiled:
+                        enabled: false
+                        justificationForDisabling: CodeQL runs in the WindowsSDL job only
                 steps:
                   - template: build/azure-pipelines/linux/product-build-linux.yml@self
                     parameters:
@@ -477,6 +576,12 @@ extends:
                   VSCODE_ARCH: x64
                   NPM_ARCH: x64
                   DISPLAY: ":10"
+                templateContext:
+                  sdl:
+                    codeql:
+                      compiled:
+                        enabled: false
+                        justificationForDisabling: CodeQL runs in the WindowsSDL job only
                 steps:
                   - template: build/azure-pipelines/linux/product-build-linux.yml@self
                     parameters:
@@ -494,6 +599,12 @@ extends:
                   VSCODE_ARCH: x64
                   NPM_ARCH: x64
                   DISPLAY: ":10"
+                templateContext:
+                  sdl:
+                    codeql:
+                      compiled:
+                        enabled: false
+                        justificationForDisabling: CodeQL runs in the WindowsSDL job only
                 steps:
                   - template: build/azure-pipelines/linux/product-build-linux.yml@self
                     parameters:
@@ -511,6 +622,12 @@ extends:
                 container: snapcraft
                 variables:
                   VSCODE_ARCH: x64
+                templateContext:
+                  sdl:
+                    codeql:
+                      compiled:
+                        enabled: false
+                        justificationForDisabling: CodeQL runs in the WindowsSDL job only
                 steps:
                   - template: build/azure-pipelines/linux/snap-build-linux.yml@self
 
@@ -519,6 +636,12 @@ extends:
                 variables:
                   VSCODE_ARCH: armhf
                   NPM_ARCH: arm
+                templateContext:
+                  sdl:
+                    codeql:
+                      compiled:
+                        enabled: false
+                        justificationForDisabling: CodeQL runs in the WindowsSDL job only
                 steps:
                   - template: build/azure-pipelines/linux/product-build-linux.yml@self
                     parameters:
@@ -534,6 +657,12 @@ extends:
                 variables:
                   VSCODE_ARCH: arm64
                   NPM_ARCH: arm64
+                templateContext:
+                  sdl:
+                    codeql:
+                      compiled:
+                        enabled: false
+                        justificationForDisabling: CodeQL runs in the WindowsSDL job only
                 steps:
                   - template: build/azure-pipelines/linux/product-build-linux.yml@self
                     parameters:
@@ -558,6 +687,12 @@ extends:
                   VSCODE_ARCH: x64
                   NPM_ARCH: x64
                   DISPLAY: ":10"
+                templateContext:
+                  sdl:
+                    codeql:
+                      compiled:
+                        enabled: false
+                        justificationForDisabling: CodeQL runs in the WindowsSDL job only
                 steps:
                   - template: build/azure-pipelines/linux/product-build-linux-legacy-server.yml@self
                     parameters:
@@ -570,6 +705,12 @@ extends:
                 variables:
                   VSCODE_ARCH: armhf
                   NPM_ARCH: arm
+                templateContext:
+                  sdl:
+                    codeql:
+                      compiled:
+                        enabled: false
+                        justificationForDisabling: CodeQL runs in the WindowsSDL job only
                 steps:
                   - template: build/azure-pipelines/linux/product-build-linux-legacy-server.yml@self
                     parameters:
@@ -582,6 +723,12 @@ extends:
                 variables:
                   VSCODE_ARCH: arm64
                   NPM_ARCH: arm64
+                templateContext:
+                  sdl:
+                    codeql:
+                      compiled:
+                        enabled: false
+                        justificationForDisabling: CodeQL runs in the WindowsSDL job only
                 steps:
                   - template: build/azure-pipelines/linux/product-build-linux-legacy-server.yml@self
                     parameters:
@@ -604,6 +751,12 @@ extends:
                 variables:
                   VSCODE_ARCH: x64
                   NPM_ARCH: x64
+                templateContext:
+                  sdl:
+                    codeql:
+                      compiled:
+                        enabled: false
+                        justificationForDisabling: CodeQL runs in the WindowsSDL job only
                 steps:
                   - template: build/azure-pipelines/alpine/product-build-alpine.yml@self
 
@@ -613,6 +766,12 @@ extends:
                 variables:
                   VSCODE_ARCH: arm64
                   NPM_ARCH: arm64
+                templateContext:
+                  sdl:
+                    codeql:
+                      compiled:
+                        enabled: false
+                        justificationForDisabling: CodeQL runs in the WindowsSDL job only
                 steps:
                   - template: build/azure-pipelines/alpine/product-build-alpine.yml@self
 
@@ -635,6 +794,12 @@ extends:
                 timeoutInMinutes: 90
                 variables:
                   VSCODE_ARCH: x64
+                templateContext:
+                  sdl:
+                    codeql:
+                      compiled:
+                        enabled: false
+                        justificationForDisabling: CodeQL runs in the WindowsSDL job only
                 steps:
                   - template: build/azure-pipelines/darwin/product-build-darwin.yml@self
                     parameters:
@@ -648,6 +813,12 @@ extends:
                 timeoutInMinutes: 90
                 variables:
                   VSCODE_ARCH: x64
+                templateContext:
+                  sdl:
+                    codeql:
+                      compiled:
+                        enabled: false
+                        justificationForDisabling: CodeQL runs in the WindowsSDL job only
                 steps:
                   - template: build/azure-pipelines/darwin/product-build-darwin.yml@self
                     parameters:
@@ -661,6 +832,12 @@ extends:
                 timeoutInMinutes: 90
                 variables:
                   VSCODE_ARCH: x64
+                templateContext:
+                  sdl:
+                    codeql:
+                      compiled:
+                        enabled: false
+                        justificationForDisabling: CodeQL runs in the WindowsSDL job only
                 steps:
                   - template: build/azure-pipelines/darwin/product-build-darwin.yml@self
                     parameters:
@@ -675,6 +852,12 @@ extends:
                 timeoutInMinutes: 90
                 variables:
                   VSCODE_ARCH: x64
+                templateContext:
+                  sdl:
+                    codeql:
+                      compiled:
+                        enabled: false
+                        justificationForDisabling: CodeQL runs in the WindowsSDL job only
                 steps:
                   - template: build/azure-pipelines/darwin/product-build-darwin.yml@self
                     parameters:
@@ -689,6 +872,12 @@ extends:
                   timeoutInMinutes: 90
                   variables:
                     VSCODE_ARCH: x64
+                templateContext:
+                  sdl:
+                    codeql:
+                      compiled:
+                        enabled: false
+                        justificationForDisabling: CodeQL runs in the WindowsSDL job only
                   steps:
                     - template: build/azure-pipelines/darwin/product-build-darwin.yml@self
                       parameters:
@@ -704,11 +893,23 @@ extends:
                 timeoutInMinutes: 90
                 variables:
                   VSCODE_ARCH: x64
+                templateContext:
+                  sdl:
+                    codeql:
+                      compiled:
+                        enabled: false
+                        justificationForDisabling: CodeQL runs in the WindowsSDL job only
                 steps:
                   - template: build/azure-pipelines/darwin/product-build-darwin-sign.yml@self
 
               - job: macOSCLISign
                 timeoutInMinutes: 90
+                templateContext:
+                  sdl:
+                    codeql:
+                      compiled:
+                        enabled: false
+                        justificationForDisabling: CodeQL runs in the WindowsSDL job only
                 steps:
                   - template: build/azure-pipelines/darwin/product-build-darwin-cli-sign.yml@self
                     parameters:
@@ -720,6 +921,12 @@ extends:
                 timeoutInMinutes: 90
                 variables:
                   VSCODE_ARCH: arm64
+                templateContext:
+                  sdl:
+                    codeql:
+                      compiled:
+                        enabled: false
+                        justificationForDisabling: CodeQL runs in the WindowsSDL job only
                 steps:
                   - template: build/azure-pipelines/darwin/product-build-darwin.yml@self
                     parameters:
@@ -735,6 +942,12 @@ extends:
                 timeoutInMinutes: 90
                 variables:
                   VSCODE_ARCH: arm64
+                templateContext:
+                  sdl:
+                    codeql:
+                      compiled:
+                        enabled: false
+                        justificationForDisabling: CodeQL runs in the WindowsSDL job only
                 steps:
                   - template: build/azure-pipelines/darwin/product-build-darwin-sign.yml@self
 
@@ -746,6 +959,12 @@ extends:
                 timeoutInMinutes: 90
                 variables:
                   VSCODE_ARCH: universal
+                templateContext:
+                  sdl:
+                    codeql:
+                      compiled:
+                        enabled: false
+                        justificationForDisabling: CodeQL runs in the WindowsSDL job only
                 steps:
                   - template: build/azure-pipelines/darwin/product-build-darwin-universal.yml@self
 
@@ -755,6 +974,12 @@ extends:
                 timeoutInMinutes: 90
                 variables:
                   VSCODE_ARCH: universal
+                templateContext:
+                  sdl:
+                    codeql:
+                      compiled:
+                        enabled: false
+                        justificationForDisabling: CodeQL runs in the WindowsSDL job only
                 steps:
                   - template: build/azure-pipelines/darwin/product-build-darwin-sign.yml@self
 
@@ -770,6 +995,12 @@ extends:
               - job: Web
                 variables:
                   VSCODE_ARCH: x64
+                templateContext:
+                  sdl:
+                    codeql:
+                      compiled:
+                        enabled: false
+                        justificationForDisabling: CodeQL runs in the WindowsSDL job only
                 steps:
                   - template: build/azure-pipelines/web/product-build-web.yml@self
 
@@ -786,6 +1017,12 @@ extends:
             - job: PublishBuild
               timeoutInMinutes: 180
               displayName: Publish Build
+              templateContext:
+                sdl:
+                  codeql:
+                    compiled:
+                      enabled: false
+                      justificationForDisabling: CodeQL runs in the WindowsSDL job only
               steps:
                 - template: build/azure-pipelines/product-publish.yml@self
 
@@ -801,6 +1038,12 @@ extends:
                 environment: "vscode"
                 variables:
                   skipComponentGovernanceDetection: true
+                templateContext:
+                  sdl:
+                    codeql:
+                      compiled:
+                        enabled: false
+                        justificationForDisabling: CodeQL runs in the WindowsSDL job only
                 strategy:
                   runOnce:
                     deploy:
@@ -819,6 +1062,12 @@ extends:
             jobs:
               - job: ReleaseBuild
                 displayName: Release Build
+                templateContext:
+                  sdl:
+                    codeql:
+                      compiled:
+                        enabled: false
+                        justificationForDisabling: CodeQL runs in the WindowsSDL job only
                 steps:
                   - template: build/azure-pipelines/product-release.yml@self
                     parameters:
