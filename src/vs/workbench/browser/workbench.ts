@@ -100,21 +100,20 @@ export class Workbench extends Layout {
 		setUnexpectedErrorHandler(error => this.handleUnexpectedError(error, logService));
 
 		// Inform user about loading issues from the loader
-		interface AnnotatedLoadingError extends Error {
-			phase: 'loading';
-			moduleId: string;
-			neededBy: string[];
-		}
-		interface AnnotatedFactoryError extends Error {
-			phase: 'factory';
-			moduleId: string;
-		}
-		interface AnnotatedValidationError extends Error {
-			phase: 'configuration';
-		}
-		type AnnotatedError = AnnotatedLoadingError | AnnotatedFactoryError | AnnotatedValidationError;
-
 		if (!isESM && typeof mainWindow.require?.config === 'function') {
+			interface AnnotatedLoadingError extends Error {
+				phase: 'loading';
+				moduleId: string;
+				neededBy: string[];
+			}
+			interface AnnotatedFactoryError extends Error {
+				phase: 'factory';
+				moduleId: string;
+			}
+			interface AnnotatedValidationError extends Error {
+				phase: 'configuration';
+			}
+			type AnnotatedError = AnnotatedLoadingError | AnnotatedFactoryError | AnnotatedValidationError;
 			mainWindow.require.config({
 				onError: (err: AnnotatedError) => {
 					if (err.phase === 'loading') {

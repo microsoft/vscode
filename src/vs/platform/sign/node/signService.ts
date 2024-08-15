@@ -29,7 +29,16 @@ export class SignService extends AbstractSignService implements ISignService {
 		return this.vsda().then(vsda => new vsda.signer().sign(arg));
 	}
 
-	private vsda(): Promise<typeof vsda> {
+	private async vsda(): Promise<typeof vsda> {
+		// ESM-uncomment-begin
+		// if (importAMDNodeModule) { /* fixes unused import, remove me */}
+		// const mod = 'vsda';
+		// const { default: vsda } = await import(mod);
+		// return vsda;
+		// ESM-uncomment-end
+
+		// ESM-comment-begin
 		return importAMDNodeModule('vsda', 'index.js');
+		// ESM-comment-end
 	}
 }

@@ -63,6 +63,7 @@ export const loopbackTemplate = `
 
 		.error-message {
 			display: none;
+			max-width: 800px;
 			font-weight: 300;
 			font-size: 1.3rem;
 		}
@@ -123,11 +124,12 @@ export const loopbackTemplate = `
 		</div>
 	</div>
 	<script>
-		var search = window.location.search;
-		var error = (/[?&^]error=([^&]+)/.exec(search) || [])[1];
+		var search = new URLSearchParams(window.location.search);
+		var error = search.get('error');
 		if (error) {
+			const description = search.get('error_description');
 			document.querySelector('.error-text')
-				.textContent = decodeURIComponent(error);
+				.textContent = error + ' - ' + description;
 			document.querySelector('body')
 				.classList.add('error');
 		}

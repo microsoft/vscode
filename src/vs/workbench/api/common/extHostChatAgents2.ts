@@ -23,7 +23,7 @@ import { CommandsConverter, ExtHostCommands } from 'vs/workbench/api/common/extH
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
-import { ChatAgentLocation, IChatAgentRequest, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { ChatAgentLocation, IChatAgentRequest, IChatAgentResult, IChatAgentResultTimings } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatAgentVoteDirection, IChatContentReference, IChatFollowup, IChatResponseErrorDetails, IChatUserActionEvent } from 'vs/workbench/contrib/chat/common/chatService';
 import { checkProposedApiEnabled, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { Dto } from 'vs/workbench/services/extensions/common/proxyIdentifier';
@@ -48,7 +48,7 @@ class ChatAgentResponseStream {
 		this._isClosed = true;
 	}
 
-	get timings() {
+	get timings(): IChatAgentResultTimings {
 		return {
 			firstProgress: this._firstProgress,
 			totalElapsed: this._stopWatch.elapsed()
@@ -72,7 +72,7 @@ class ChatAgentResponseStream {
 
 			const _report = (progress: IChatProgressDto, task?: (progress: vscode.Progress<vscode.ChatResponseWarningPart | vscode.ChatResponseReferencePart>) => Thenable<string | void>) => {
 				// Measure the time to the first progress update with real markdown content
-				if (typeof this._firstProgress === 'undefined' && 'content' in progress) {
+				if (typeof this._firstProgress === 'undefined' && (progress.kind === 'markdownContent' || progress.kind === 'markdownVuln')) {
 					this._firstProgress = this._stopWatch.elapsed();
 				}
 
@@ -163,11 +163,11 @@ class ChatAgentResponseStream {
 				reference2(value, iconPath, options) {
 					throwIfDone(this.reference);
 
-					if ('variableName' in value) {
+					if (typeof value === 'object' && 'variableName' in value) {
 						checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
 					}
 
-					if ('variableName' in value && !value.value) {
+					if (typeof value === 'object' && 'variableName' in value && !value.value) {
 						// The participant used this variable. Does that variable have any references to pull in?
 						const matchingVarData = that._request.variables.variables.find(v => v.name === value.variableName);
 						if (matchingVarData) {
@@ -434,8 +434,13 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			// REQUEST turn
 			const varsWithoutTools = h.request.variables.variables
 				.filter(v => !v.isTool)
-				.map(typeConvert.ChatAgentValueReference.to);
-			res.push(new extHostTypes.ChatRequestTurn(h.request.message, h.request.command, varsWithoutTools, h.request.agentId));
+				.map(typeConvert.ChatPromptReference.to);
+			const toolReferences = h.request.variables.variables
+				.filter(v => v.isTool)
+				.map(typeConvert.ChatLanguageModelToolReference.to);
+			const turn = new extHostTypes.ChatRequestTurn(h.request.message, h.request.command, varsWithoutTools, h.request.agentId);
+			turn.toolReferences = toolReferences;
+			res.push(turn);
 
 			// RESPONSE turn
 			const parts = coalesce(h.response.map(r => typeConvert.ChatResponsePart.toContent(r, this._commands.converter)));

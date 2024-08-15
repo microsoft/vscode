@@ -10,7 +10,7 @@ import * as glob from 'vs/base/common/glob';
 import * as resources from 'vs/base/common/resources';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { URI } from 'vs/base/common/uri';
-import { IFileMatch, IFileSearchProviderStats, IFolderQuery, ISearchCompleteStats, IFileQuery, QueryGlobTester, resolvePatternsForProvider, hasSiblingFn } from 'vs/workbench/services/search/common/search';
+import { IFileMatch, IFileSearchProviderStats, IFolderQuery, ISearchCompleteStats, IFileQuery, QueryGlobTester, resolvePatternsForProvider, hasSiblingFn, excludeToGlobPattern } from 'vs/workbench/services/search/common/search';
 import { FileSearchProvider, FileSearchOptions } from 'vs/workbench/services/search/common/searchExtTypes';
 
 interface IInternalFileMatch {
@@ -164,11 +164,11 @@ class FileSearchEngine {
 
 	private getSearchOptionsForFolder(fq: IFolderQuery<URI>): FileSearchOptions {
 		const includes = resolvePatternsForProvider(this.config.includePattern, fq.includePattern);
-		const excludes = resolvePatternsForProvider(this.config.excludePattern, fq.excludePattern);
+		const excludes = excludeToGlobPattern(fq.excludePattern?.folder, resolvePatternsForProvider(this.config.excludePattern, fq.excludePattern?.pattern));
 
 		return {
 			folder: fq.folder,
-			excludes,
+			excludes: excludes.map(e => typeof e === 'string' ? e : e.pattern), // TODO- follow baseURI
 			includes,
 			useIgnoreFiles: !fq.disregardIgnoreFiles,
 			useGlobalIgnoreFiles: !fq.disregardGlobalIgnoreFiles,

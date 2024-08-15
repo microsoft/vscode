@@ -9,7 +9,7 @@ import * as http from 'http';
 import * as net from 'net';
 import { performance } from 'perf_hooks';
 import * as url from 'url';
-import { LoaderStats } from 'vs/base/common/amd';
+import { LoaderStats, isESM } from 'vs/base/common/amd';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CharCode } from 'vs/base/common/charCode';
 import { isSigPipeError, onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
@@ -781,7 +781,7 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 		serverBasePath = `/${serverBasePath}`;
 	}
 
-	const hasWebClient = fs.existsSync(FileAccess.asFileUri('vs/code/browser/workbench/workbench.html').fsPath);
+	const hasWebClient = fs.existsSync(FileAccess.asFileUri(`vs/code/browser/workbench/workbench.${isESM ? 'esm.' : ''}html`).fsPath);
 
 	if (hasWebClient && address && typeof address !== 'string') {
 		// ships the web ui!

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ILifecycleService, LifecyclePhase, ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -824,7 +824,8 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 
 		// Prompt the user to use edit sessions if they currently could benefit from using it
 		if (this.hasEditSession()) {
-			const quickpick = this.quickInputService.createQuickPick<IQuickPickItem>();
+			const disposables = new DisposableStore();
+			const quickpick = disposables.add(this.quickInputService.createQuickPick<IQuickPickItem>());
 			quickpick.placeholder = localize('continue with cloud changes', "Select whether to bring your working changes with you");
 			quickpick.ok = false;
 			quickpick.ignoreFocusOut = true;
@@ -833,14 +834,14 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			quickpick.items = [withCloudChanges, withoutCloudChanges];
 
 			const continueWithCloudChanges = await new Promise<boolean>((resolve, reject) => {
-				quickpick.onDidAccept(() => {
+				disposables.add(quickpick.onDidAccept(() => {
 					resolve(quickpick.selectedItems[0] === withCloudChanges);
-					quickpick.hide();
-				});
-				quickpick.onDidHide(() => {
+					disposables.dispose();
+				}));
+				disposables.add(quickpick.onDidHide(() => {
 					reject(new CancellationError());
-					quickpick.hide();
-				});
+					disposables.dispose();
+				}));
 				quickpick.show();
 			});
 
@@ -960,7 +961,8 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 	}
 
 	private async pickContinueEditSessionDestination(): Promise<string | undefined> {
-		const quickPick = this.quickInputService.createQuickPick<ContinueEditSessionItem>({ useSeparators: true });
+		const disposables = new DisposableStore();
+		const quickPick = disposables.add(this.quickInputService.createQuickPick<ContinueEditSessionItem>({ useSeparators: true }));
 
 		const workspaceContext = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER
 			? this.contextService.getWorkspace().folders[0].name
@@ -972,9 +974,12 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		});
 
 		const command = await new Promise<string | undefined>((resolve, reject) => {
-			quickPick.onDidHide(() => resolve(undefined));
+			disposables.add(quickPick.onDidHide(() => {
+				disposables.dispose();
+				resolve(undefined);
+			}));
 
-			quickPick.onDidAccept((e) => {
+			disposables.add(quickPick.onDidAccept((e) => {
 				const selection = quickPick.activeItems[0].command;
 
 				if (selection === installAdditionalContinueOnOptionsCommand.id) {
@@ -983,16 +988,16 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 					resolve(selection);
 					quickPick.hide();
 				}
-			});
+			}));
 
 			quickPick.show();
 
-			quickPick.onDidTriggerItemButton(async (e) => {
+			disposables.add(quickPick.onDidTriggerItemButton(async (e) => {
 				if (e.item.documentation !== undefined) {
 					const uri = URI.isUri(e.item.documentation) ? URI.parse(e.item.documentation) : await this.commandService.executeCommand(e.item.documentation);
 					void this.openerService.open(uri, { openExternal: true });
 				}
-			});
+			}));
 		});
 
 		quickPick.dispose();

@@ -79,7 +79,10 @@ export const enum OpenContext {
 	DESKTOP,
 
 	// opening through the API
-	API
+	API,
+
+	// opening from a protocol link
+	LINK
 }
 
 export interface IBaseOpenConfiguration {
