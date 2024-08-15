@@ -14,7 +14,7 @@ export const IInteractiveHistoryService = createDecorator<IInteractiveHistorySer
 export interface IInteractiveHistoryService {
 	readonly _serviceBrand: undefined;
 
-	isAtEnd(uri: URI): boolean;
+	matchesCurrent(uri: URI, value: string): boolean;
 	addToHistory(uri: URI, value: string): void;
 	getPreviousValue(uri: URI): string | null;
 	getNextValue(uri: URI): string | null;
@@ -33,13 +33,13 @@ export class InteractiveHistoryService extends Disposable implements IInteractiv
 		this._history = new ResourceMap<HistoryNavigator2<string>>();
 	}
 
-	isAtEnd(uri: URI) {
+	matchesCurrent(uri: URI, value: string): boolean {
 		const history = this._history.get(uri);
 		if (!history) {
-			return true;
+			return false;
 		}
 
-		return history.isAtEnd();
+		return history.current() === value;
 	}
 
 	addToHistory(uri: URI, value: string): void {
@@ -71,6 +71,7 @@ export class InteractiveHistoryService extends Disposable implements IInteractiv
 			return;
 		} else {
 			history.replaceLast(value);
+			history.resetCursor();
 		}
 	}
 

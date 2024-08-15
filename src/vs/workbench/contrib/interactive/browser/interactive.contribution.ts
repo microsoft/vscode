@@ -639,10 +639,6 @@ registerAction2(class extends Action2 {
 			const textModel = editorControl.codeEditor.getModel();
 
 			if (notebookDocument && textModel) {
-				if (historyService.isAtEnd(notebookDocument.uri)) {
-					const value = textModel.getValue();
-					historyService.replaceLast(notebookDocument.uri, value);
-				}
 				const previousValue = historyService.getPreviousValue(notebookDocument.uri);
 				if (previousValue) {
 					textModel.setValue(previousValue);
