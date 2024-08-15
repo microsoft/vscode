@@ -299,9 +299,10 @@ export class WebClientServer {
 		}
 
 		// Prefix routes with basePath for clients
-		const staticRoute = posix.join(this._basePath, this._staticRoute);
-		const callbackRoute = posix.join(this._basePath, this._callbackRoute);
-		const webExtensionRoute = posix.join(this._basePath, this._webExtensionRoute);
+		const basePath = getFirstHeader('x-forwarded-prefix') || this._basePath;
+		const staticRoute = posix.join(basePath, this._staticRoute);
+		const callbackRoute = posix.join(basePath, this._callbackRoute);
+		const webExtensionRoute = posix.join(basePath, this._webExtensionRoute);
 
 		const resolveWorkspaceURI = (defaultLocation?: string) => defaultLocation && URI.file(path.resolve(defaultLocation)).with({ scheme: Schemas.vscodeRemote, authority: remoteAuthority });
 
@@ -334,7 +335,7 @@ export class WebClientServer {
 
 		const workbenchWebConfiguration = {
 			remoteAuthority,
-			serverBasePath: this._basePath,
+			serverBasePath: basePath,
 			_wrapWebWorkerExtHostInIframe,
 			developmentOptions: { enableSmokeTestDriver: this._environmentService.args['enable-smoke-test-driver'] ? true : undefined, logLevel: this._logService.getLevel() },
 			settingsSyncOptions: !this._environmentService.isBuilt && this._environmentService.args['enable-sync'] ? { enabled: true } : undefined,
