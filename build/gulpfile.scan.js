@@ -112,7 +112,8 @@ function confirmPdbsExist(destinationExe, destinationPdb) {
 	readdirSync(destinationExe).forEach(file => {
 		if (file.endsWith('.dll') || file.endsWith('.exe')) {
 			const pdb = `${file}.pdb`;
-			if (!existsSync(path.join(destinationPdb, pdb))) {
+			// Known that d3dcompiler_47.dll does not have a pdb
+			if (!existsSync(path.join(destinationPdb, pdb)) && file !== 'd3dcompiler_47.dll') {
 				throw new Error(`Missing pdb file for ${file}. Tried searching for ${pdb} in ${destinationPdb}.`);
 			}
 		}
