@@ -15,6 +15,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { URI, UriComponents, UriDto, isUriComponents } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IOffsetRange, OffsetRange } from 'vs/editor/common/core/offsetRange';
+import { IRange } from 'vs/editor/common/core/range';
 import { TextEdit } from 'vs/editor/common/languages';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -592,7 +593,9 @@ export type IChatChangeEvent =
 	| IChatInitEvent
 	| IChatAddRequestEvent | IChatChangedRequestEvent | IChatRemoveRequestEvent
 	| IChatAddResponseEvent
-	| IChatSetAgentEvent;
+	| IChatSetAgentEvent
+	| IChatMoveEvent
+	;
 
 export interface IChatAddRequestEvent {
 	kind: 'addRequest';
@@ -631,6 +634,12 @@ export interface IChatRemoveRequestEvent {
 	requestId: string;
 	responseId?: string;
 	reason: ChatRequestRemovalReason;
+}
+
+export interface IChatMoveEvent {
+	kind: 'move';
+	target: URI;
+	range: IRange;
 }
 
 export interface IChatSetAgentEvent {
@@ -949,6 +958,8 @@ export class ChatModel extends Disposable implements IChatModel {
 			}
 		} else if (progress.kind === 'codeCitation') {
 			request.response.applyCodeCitation(progress);
+		} else if (progress.kind === 'move') {
+			this._onDidChange.fire({ kind: 'move', target: progress.uri, range: progress.range });
 		} else {
 			this.logService.error(`Couldn't handle progress: ${JSON.stringify(progress)}`);
 		}

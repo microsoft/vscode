@@ -16,6 +16,7 @@ import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/text
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -27,7 +28,6 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 import { EmptyResponse, ErrorResponse, HunkData, ReplyResponse, Session, SessionExchange, SessionWholeRange, StashedSession, TelemetryData, TelemetryDataClassification } from './inlineChatSession';
 import { IInlineChatSessionEndEvent, IInlineChatSessionEvent, IInlineChatSessionService, ISessionKeyComputer, Recording } from './inlineChatSessionService';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 
 type SessionData = {
@@ -86,7 +86,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		this._sessions.clear();
 	}
 
-	async createSession(editor: IActiveCodeEditor, options: { editMode: EditMode; wholeRange?: Range }, token: CancellationToken): Promise<Session | undefined> {
+	async createSession(editor: IActiveCodeEditor, options: { editMode: EditMode; wholeRange?: Range; session?: Session }, token: CancellationToken): Promise<Session | undefined> {
 
 		const agent = this._chatAgentService.getDefaultAgent(ChatAgentLocation.Editor);
 
@@ -94,7 +94,6 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 			this._logService.trace('[IE] NO agent found');
 			return undefined;
 		}
-
 
 		this._onWillStartSession.fire(editor);
 
@@ -104,15 +103,19 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		const store = new DisposableStore();
 		this._logService.trace(`[IE] creating NEW session for ${editor.getId()}, ${agent.extensionId}`);
 
-		const chatModel = this._chatService.startSession(ChatAgentLocation.Editor, token);
+		const chatModel = options.session?.chatModel ?? this._chatService.startSession(ChatAgentLocation.Editor, token);
 		if (!chatModel) {
 			this._logService.trace('[IE] NO chatModel found');
 			return undefined;
 		}
 
 		store.add(toDisposable(() => {
-			this._chatService.clearSession(chatModel.sessionId);
-			chatModel.dispose();
+			const doesOtherSessionUseChatModel = [...this._sessions.values()].some(data => data.session !== session && data.session.chatModel === chatModel);
+
+			if (!doesOtherSessionUseChatModel) {
+				this._chatService.clearSession(chatModel.sessionId);
+				chatModel.dispose();
+			}
 		}));
 
 		const lastResponseListener = store.add(new MutableDisposable());
@@ -210,7 +213,9 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 			agent,
 			store.add(new SessionWholeRange(textModelN, wholeRange)),
 			store.add(new HunkData(this._editorWorkerService, textModel0, textModelN)),
-			chatModel
+			chatModel,
+			options.session?.exchanges, // @ulugbekna: very hacky: we pass exchanges by reference because an exchange is added only on `addRequest` event from chat model which the migrated inline chat misses
+			options.session?.lastInput
 		);
 
 		// store: key -> session

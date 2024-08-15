@@ -241,7 +241,8 @@ class ChatAgentResponseStream {
 						part instanceof extHostTypes.ChatResponseDetectedParticipantPart ||
 						part instanceof extHostTypes.ChatResponseWarningPart ||
 						part instanceof extHostTypes.ChatResponseConfirmationPart ||
-						part instanceof extHostTypes.ChatResponseCodeCitationPart
+						part instanceof extHostTypes.ChatResponseCodeCitationPart ||
+						part instanceof extHostTypes.ChatResponseMovePart
 					) {
 						checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
 					}
