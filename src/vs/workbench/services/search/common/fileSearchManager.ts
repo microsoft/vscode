@@ -171,9 +171,8 @@ class FileSearchEngine {
 				return null;
 			}
 
-			fqs.forEach(fq => {
-				const res = folderMappings.get(fq.folder)!;
-				this.matchDirectoryTree(res.tree, res.queryTester, onResult);
+			folderMappings.forEach(e => {
+				this.matchDirectoryTree(e.tree, e.queryTester, onResult);
 			});
 
 			return {

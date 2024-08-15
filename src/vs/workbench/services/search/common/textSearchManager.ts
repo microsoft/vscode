@@ -129,10 +129,7 @@ export class TextSearchManager {
 		const progress = {
 			report: (result: TextSearchResultNew) => {
 
-				const folderQuery = folderMappings.findSubstr(result.uri);
-				if (!folderQuery) {
-					return;
-				}
+				const folderQuery = folderMappings.findSubstr(result.uri)!;
 				const hasSibling = folderQuery.folder.scheme === Schemas.file ?
 					hasSiblingPromiseFn(() => {
 						return this.fileUtils.readdir(resources.dirname(result.uri));
