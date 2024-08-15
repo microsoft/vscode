@@ -13,12 +13,6 @@
 		): undefined | Pick<TrustedTypePolicy<Options>, 'name' | Extract<keyof Options, keyof TrustedTypePolicyOptions>>;
 	}
 	const monacoEnvironment: IMonacoEnvironment | undefined = (globalThis as any).MonacoEnvironment;
-	// ESM-comment-begin
-	const isESM = false;
-	// ESM-comment-end
-	// ESM-uncomment-begin
-	// const isESM = true;
-	// ESM-uncomment-end
 
 	const monacoBaseUrl = monacoEnvironment && monacoEnvironment.baseUrl ? monacoEnvironment.baseUrl : '../../../';
 
@@ -119,17 +113,19 @@
 	}
 
 	function loadCode(moduleId: string): Promise<SimpleWorkerModule> {
-		if (isESM) {
-			const moduleUrl = new URL(`${moduleId}.js`, globalThis._VSCODE_FILE_ROOT);
-			return import(moduleUrl.href);
-		} else {
-			return loadAMDLoader().then(() => {
-				configureAMDLoader();
-				return new Promise<SimpleWorkerModule>((resolve, reject) => {
-					require([moduleId], resolve, reject);
-				});
+		// ESM-uncomment-begin
+		// const moduleUrl = new URL(`${moduleId}.js`, globalThis._VSCODE_FILE_ROOT);
+		// return import(moduleUrl.href);
+		// ESM-uncomment-end
+
+		// ESM-comment-begin
+		return loadAMDLoader().then(() => {
+			configureAMDLoader();
+			return new Promise<SimpleWorkerModule>((resolve, reject) => {
+				require([moduleId], resolve, reject);
 			});
-		}
+		});
+		// ESM-comment-end
 	}
 
 	interface MessageHandler {
