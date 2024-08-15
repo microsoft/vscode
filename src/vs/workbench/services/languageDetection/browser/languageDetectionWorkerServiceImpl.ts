@@ -24,6 +24,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { LRUCache } from 'vs/base/common/map';
 import { ILogService } from 'vs/platform/log/common/log';
+import { canASAR } from 'vs/base/common/amd';
 
 const TOP_LANG_COUNTS = 12;
 
@@ -66,21 +67,22 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 	) {
 		super();
 
+		const useAsar = canASAR && this._environmentService.isBuilt && !isWeb;
 		this._languageDetectionWorkerClient = this._register(new LanguageDetectionWorkerClient(
 			modelService,
 			languageService,
 			telemetryService,
-			// TODO: See if it's possible to bundle vscode-languagedetection
-			this._environmentService.isBuilt && !isWeb
+			// TODO@esm: See if it's possible to bundle vscode-languagedetection
+			useAsar
 				? FileAccess.asBrowserUri(`${moduleLocationAsar}/dist/lib/index.js`).toString(true)
 				: FileAccess.asBrowserUri(`${moduleLocation}/dist/lib/index.js`).toString(true),
-			this._environmentService.isBuilt && !isWeb
+			useAsar
 				? FileAccess.asBrowserUri(`${moduleLocationAsar}/model/model.json`).toString(true)
 				: FileAccess.asBrowserUri(`${moduleLocation}/model/model.json`).toString(true),
-			this._environmentService.isBuilt && !isWeb
+			useAsar
 				? FileAccess.asBrowserUri(`${moduleLocationAsar}/model/group1-shard1of1.bin`).toString(true)
 				: FileAccess.asBrowserUri(`${moduleLocation}/model/group1-shard1of1.bin`).toString(true),
-			this._environmentService.isBuilt && !isWeb
+			useAsar
 				? FileAccess.asBrowserUri(`${regexpModuleLocationAsar}/dist/index.js`).toString(true)
 				: FileAccess.asBrowserUri(`${regexpModuleLocation}/dist/index.js`).toString(true),
 			languageConfigurationService
@@ -234,7 +236,7 @@ export class LanguageDetectionWorkerClient extends EditorWorkerClient {
 		private readonly _regexpModelUri: string,
 		languageConfigurationService: ILanguageConfigurationService,
 	) {
-		super(modelService, true, 'languageDetectionWorkerService', languageConfigurationService);
+		super(FileAccess.asBrowserUri('vs/base/worker/workerMain.js'), modelService, true, 'languageDetectionWorkerService', languageConfigurationService);
 	}
 
 	private _getOrCreateLanguageDetectionWorker(): Promise<IWorkerClient<LanguageDetectionSimpleWorker>> {
