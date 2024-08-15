@@ -324,7 +324,6 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 				entryOffset += SpriteInfoStorageBufferInfo.Size;
 			}
 			this._device.queue.writeBuffer(this._glyphStorageBuffer[layerIndex], 0, values);
-			console.log(`Layer index ${layerIndex}, glyph count ${Array.from(page.glyphs).length}`);
 			// TODO: Draw only dirty regions
 			this._device.queue.copyExternalImageToTexture(
 				{ source: page.source },

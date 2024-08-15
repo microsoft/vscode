@@ -876,6 +876,10 @@ export function mapsStrictEqualIgnoreOrder(a: Map<unknown, unknown>, b: Map<unkn
 	return true;
 }
 
+/**
+ * A map that is addressable with 2 separate keys. This is useful in high performance scenarios
+ * where creating a composite key is too expensive.
+ */
 export class TwoKeyMap<TFirst extends string | number, TSecond extends string | number, TValue> {
 	private _data: { [key: string | number]: { [key: string | number]: TValue | undefined } | undefined } = {};
 
@@ -906,6 +910,10 @@ export class TwoKeyMap<TFirst extends string | number, TSecond extends string | 
 	}
 }
 
+/**
+ * A map that is addressable with 4 separate keys. This is useful in high performance scenarios
+ * where creating a composite key is too expensive.
+ */
 export class FourKeyMap<TFirst extends string | number, TSecond extends string | number, TThird extends string | number, TFourth extends string | number, TValue> {
 	private _data: TwoKeyMap<TFirst, TSecond, TwoKeyMap<TThird, TFourth, TValue>> = new TwoKeyMap();
 
