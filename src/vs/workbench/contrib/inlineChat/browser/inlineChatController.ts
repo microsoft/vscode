@@ -585,23 +585,29 @@ export class InlineChatController implements IEditorContribution {
 				return;
 			}
 			if (e.kind === 'move') {
-				this._log('state=_showRequest) request moved', e);
+				const log: typeof this._log = (msg: string, ...args: any[]) => this._log('state=_showRequest) moving inline chat', msg, ...args);
 
-				const targetUri = e.target;
+				log('move was requested', e.target, e.range);
 
 				// if there's already a tab open for targetUri, show it and move inline chat to that tab
 				// otherwise, open the tab to the side
-				const editorPane = await this._editorService.openEditor({ resource: targetUri }, SIDE_GROUP);
-				assertType(editorPane !== undefined, 'editor must be defined');
+				const editorPane = await this._editorService.openEditor({ resource: e.target }, SIDE_GROUP);
+
+				if (!editorPane) {
+					log('opening editor failed');
+					return;
+				}
 
 				const newEditor = editorPane.getControl();
-				assertType(newEditor !== undefined, 'control must be defined');
+				if (!newEditor || !isCodeEditor(newEditor) || !newEditor.hasModel()) {
+					log('new editor is either missing or not a code editor or does not have a model');
+					return;
+				}
 
-				assertType(isCodeEditor(newEditor), 'control must be a code editor');
-
-				assertType(this._session !== undefined, 'session must be defined');
-
-				assertType(newEditor.hasModel());
+				if (!this._session) {
+					log('controller does not have a session');
+					return;
+				}
 
 				const newSession = await this._inlineChatSessionService.createSession(
 					newEditor,
