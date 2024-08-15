@@ -38,7 +38,7 @@ export class InlineChatContentWidget implements IContentWidget {
 	private readonly _inputContainer = document.createElement('div');
 	private readonly _toolbarContainer = document.createElement('div');
 
-	private _position?: IPosition;
+	private _position?: IContentWidgetPosition;
 
 	private readonly _onDidBlur = this._store.add(new Emitter<void>());
 	readonly onDidBlur: Event<void> = this._onDidBlur.event;
@@ -148,13 +148,7 @@ export class InlineChatContentWidget implements IContentWidget {
 	}
 
 	getPosition(): IContentWidgetPosition | null {
-		if (!this._position) {
-			return null;
-		}
-		return {
-			position: this._position,
-			preference: [ContentWidgetPositionPreference.ABOVE]
-		};
+		return this._position ?? null;
 	}
 
 	beforeRender(): IDimension | null {
@@ -191,7 +185,7 @@ export class InlineChatContentWidget implements IContentWidget {
 		return this._widget.inputEditor.getValue();
 	}
 
-	show(position: IPosition) {
+	show(position: IPosition, below: boolean) {
 		if (!this._visible) {
 			this._visible = true;
 			this._focusNext = true;
@@ -200,7 +194,11 @@ export class InlineChatContentWidget implements IContentWidget {
 
 			const wordInfo = this._editor.getModel()?.getWordAtPosition(position);
 
-			this._position = wordInfo ? new Position(position.lineNumber, wordInfo.startColumn) : position;
+			this._position = {
+				position: wordInfo ? new Position(position.lineNumber, wordInfo.startColumn) : position,
+				preference: [below ? ContentWidgetPositionPreference.BELOW : ContentWidgetPositionPreference.ABOVE]
+			};
+
 			this._editor.addContentWidget(this);
 			this._widget.setContext(true);
 			this._widget.setVisible(true);
