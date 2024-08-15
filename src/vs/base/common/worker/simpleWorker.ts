@@ -3,9 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isESM } from 'vs/base/common/amd';
 import { transformErrorForSerialization } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { AppResourcePath, FileAccess } from 'vs/base/common/network';
 import { getAllMethodNames } from 'vs/base/common/objects';
 import { isWeb } from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
@@ -22,7 +24,7 @@ export interface IWorkerCallback {
 }
 
 export interface IWorkerFactory {
-	create(moduleId: string, callback: IWorkerCallback, onErrorCallback: (err: any) => void): IWorker;
+	create(modules: { moduleId: string; esmModuleId: string }, callback: IWorkerCallback, onErrorCallback: (err: any) => void): IWorker;
 }
 
 let webWorkerWarningLogged = false;
@@ -276,7 +278,7 @@ export class SimpleWorkerClient<W extends object, H extends object> extends Disp
 		let lazyProxyReject: ((err: any) => void) | null = null;
 
 		this._worker = this._register(workerFactory.create(
-			'vs/base/common/worker/simpleWorker',
+			{ moduleId: 'vs/base/common/worker/simpleWorker', esmModuleId: moduleId },
 			(msg: Message) => {
 				this._protocol.handleMessage(msg);
 			},
@@ -530,6 +532,19 @@ export class SimpleWorkerServer<H extends object> {
 			// Since this is in a web worker, enable catching errors
 			loaderConfig.catchError = true;
 			globalThis.require.config(loaderConfig);
+		}
+
+		if (isESM) {
+			const url = FileAccess.asBrowserUri(`${moduleId}.js` as AppResourcePath).toString(true);
+			return import(url).then((module: { create: IRequestHandlerFactory<H> }) => {
+				this._requestHandler = module.create(hostProxy);
+
+				if (!this._requestHandler) {
+					throw new Error(`No RequestHandler!`);
+				}
+
+				return getAllMethodNames(this._requestHandler);
+			});
 		}
 
 		return new Promise<string[]>((resolve, reject) => {

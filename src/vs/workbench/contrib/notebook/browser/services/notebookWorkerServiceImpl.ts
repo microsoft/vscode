@@ -13,6 +13,7 @@ import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookS
 import { NotebookEditorSimpleWorker } from 'vs/workbench/contrib/notebook/common/services/notebookSimpleWorker';
 import { INotebookWorkerHost } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerHost';
 import { INotebookEditorWorkerService } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerService';
+import { FileAccess } from 'vs/base/common/network';
 
 export class NotebookEditorWorkerServiceImpl extends Disposable implements INotebookEditorWorkerService {
 	declare readonly _serviceBrand: undefined;
@@ -207,7 +208,7 @@ class NotebookWorkerClient extends Disposable {
 
 	constructor(private readonly _notebookService: INotebookService, label: string) {
 		super();
-		this._workerFactory = new DefaultWorkerFactory(label);
+		this._workerFactory = new DefaultWorkerFactory(FileAccess.asBrowserUri('vs/base/worker/workerMain.js'), label);
 		this._worker = null;
 		this._modelManager = null;
 
