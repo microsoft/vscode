@@ -4,151 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getActiveWindow } from 'vs/base/browser/dom';
-import type { IRasterizedGlyph } from 'vs/editor/browser/view/gpu/raster/glyphRasterizer';
-import { ensureNonNullable } from 'vs/editor/browser/view/gpu/gpuUtils';
-import type { ITextureAtlasGlyph } from 'vs/editor/browser/view/gpu/atlas/textureAtlas';
 import { TwoKeyMap } from 'vs/base/common/map';
-
-export interface ITextureAtlasAllocator {
-	readonly glyphMap: TwoKeyMap<string, number, ITextureAtlasGlyph>;
-	/**
-	 * Allocates a rasterized glyph to the canvas, drawing it and returning information on its
-	 * position in the canvas. This will return undefined if the glyph does not fit on the canvas.
-	 */
-	allocate(chars: string, tokenFg: number, rasterizedGlyph: IRasterizedGlyph): ITextureAtlasGlyph | undefined;
-	/**
-	 * Gets a usage preview of the atlas for debugging purposes.
-	 */
-	getUsagePreview(): Promise<Blob>;
-}
-
-// #region Shelf allocator
-
-/**
- * The shelf allocator is a simple allocator that places glyphs in rows, starting a new row when the
- * current row is full. Due to its simplicity, it can waste space but it is very fast.
- */
-export class TextureAtlasShelfAllocator implements ITextureAtlasAllocator {
-	private _currentRow: ITextureAtlasShelf = {
-		x: 0,
-		y: 0,
-		h: 0
-	};
-
-	readonly glyphMap: TwoKeyMap<string, number, ITextureAtlasGlyph> = new TwoKeyMap();
-
-	private _nextIndex = 0;
-
-	constructor(
-		private readonly _canvas: OffscreenCanvas,
-		private readonly _ctx: OffscreenCanvasRenderingContext2D,
-	) {
-	}
-
-	public allocate(chars: string, tokenFg: number, rasterizedGlyph: IRasterizedGlyph): ITextureAtlasGlyph | undefined {
-		// Finalize and increment row if it doesn't fix horizontally
-		if (rasterizedGlyph.boundingBox.right - rasterizedGlyph.boundingBox.left + 1 > this._canvas.width - this._currentRow.x) {
-			this._currentRow.x = 0;
-			this._currentRow.y += this._currentRow.h;
-			this._currentRow.h = 1;
-		}
-
-		// Return undefined if there isn't any room left
-		if (this._currentRow.y + rasterizedGlyph.boundingBox.bottom - rasterizedGlyph.boundingBox.top + 1 > this._canvas.height) {
-			return undefined;
-		}
-
-		// Draw glyph
-		const glyphWidth = rasterizedGlyph.boundingBox.right - rasterizedGlyph.boundingBox.left + 1;
-		const glyphHeight = rasterizedGlyph.boundingBox.bottom - rasterizedGlyph.boundingBox.top + 1;
-		this._ctx.drawImage(
-			rasterizedGlyph.source,
-			// source
-			rasterizedGlyph.boundingBox.left,
-			rasterizedGlyph.boundingBox.top,
-			glyphWidth,
-			glyphHeight,
-			// destination
-			this._currentRow.x,
-			this._currentRow.y,
-			glyphWidth,
-			glyphHeight
-		);
-
-		// Create glyph object
-		const glyph: ITextureAtlasGlyph = {
-			index: this._nextIndex++,
-			x: this._currentRow.x,
-			y: this._currentRow.y,
-			w: glyphWidth,
-			h: glyphHeight,
-			originOffsetX: rasterizedGlyph.originOffset.x,
-			originOffsetY: rasterizedGlyph.originOffset.y
-		};
-
-		// Shift current row
-		this._currentRow.x += glyphWidth;
-		this._currentRow.h = Math.max(this._currentRow.h, glyphHeight);
-
-		// Set the glyph
-		this.glyphMap.set(chars, tokenFg, glyph);
-
-		return glyph;
-	}
-
-	public getUsagePreview(): Promise<Blob> {
-		const w = this._canvas.width;
-		const h = this._canvas.height;
-		const canvas = new OffscreenCanvas(w, h);
-		const ctx = ensureNonNullable(canvas.getContext('2d'));
-		ctx.fillStyle = '#808080';
-		ctx.fillRect(0, 0, w, h);
-
-		let usedPixels = 0;
-		let wastedPixels = 0;
-		const totalPixels = w * h;
-
-		const rowHeight: Map<number, number> = new Map(); // y -> h
-		const rowWidth: Map<number, number> = new Map(); // y -> w
-		for (const g of this.glyphMap.values()) {
-			rowHeight.set(g.y, Math.max(rowHeight.get(g.y) ?? 0, g.h));
-			rowWidth.set(g.y, Math.max(rowWidth.get(g.y) ?? 0, g.x + g.w));
-		}
-		for (const g of this.glyphMap.values()) {
-			usedPixels += g.w * g.h;
-			wastedPixels += g.w * (rowHeight.get(g.y)! - g.h);
-			ctx.fillStyle = '#4040FF';
-			ctx.fillRect(g.x, g.y, g.w, g.h);
-			ctx.fillStyle = '#FF0000';
-			ctx.fillRect(g.x, g.y + g.h, g.w, rowHeight.get(g.y)! - g.h);
-		}
-		for (const [rowY, rowW] of rowWidth.entries()) {
-			if (rowY !== this._currentRow.y) {
-				ctx.fillStyle = '#FF0000';
-				ctx.fillRect(rowW, rowY, w - rowW, rowHeight.get(rowY)!);
-				wastedPixels += (w - rowW) * rowHeight.get(rowY)!;
-			}
-		}
-		console.log([
-			`Texture atlas stats:`,
-			`     Total: ${totalPixels}`,
-			`      Used: ${usedPixels} (${((usedPixels / totalPixels) * 100).toPrecision(2)}%)`,
-			`    Wasted: ${wastedPixels} (${((wastedPixels / totalPixels) * 100).toPrecision(2)}%)`,
-			`Efficiency: ${((usedPixels / (usedPixels + wastedPixels)) * 100).toPrecision(2)}%`,
-		].join('\n'));
-		return canvas.convertToBlob();
-	}
-}
-
-interface ITextureAtlasShelf {
-	x: number;
-	y: number;
-	h: number;
-}
-
-// #endregion
-
-// #region Slab allocator
+import type { ITextureAtlasAllocator, ITextureAtlasGlyph } from 'vs/editor/browser/view/gpu/atlas/atlas';
+import { ensureNonNullable } from 'vs/editor/browser/view/gpu/gpuUtils';
+import type { IRasterizedGlyph } from 'vs/editor/browser/view/gpu/raster/glyphRasterizer';
 
 export interface TextureAtlasSlabAllocatorOptions {
 	slabW?: number;
@@ -412,7 +271,6 @@ export class TextureAtlasSlabAllocator implements ITextureAtlasAllocator {
 		}
 
 		// Draw glyph
-		// TODO: Prefer putImageData as it doesn't do blending or scaling
 		this._ctx.drawImage(
 			rasterizedGlyph.source,
 			// source
@@ -535,7 +393,7 @@ interface ITextureAtlasSlab {
 	count: number;
 }
 
-export interface ITextureAtlasSlabUnusedRect {
+interface ITextureAtlasSlabUnusedRect {
 	x: number;
 	y: number;
 	w: number;
@@ -550,5 +408,3 @@ function addEntryToMapArray<K, V>(map: Map<K, V[]>, key: K, entry: V) {
 	}
 	list.push(entry);
 }
-
-// #endregion

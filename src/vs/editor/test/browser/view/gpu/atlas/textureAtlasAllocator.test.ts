@@ -5,7 +5,9 @@
 
 import { deepStrictEqual, strictEqual } from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { TextureAtlasShelfAllocator, TextureAtlasSlabAllocator, type ITextureAtlasAllocator, type TextureAtlasSlabAllocatorOptions } from 'vs/editor/browser/view/gpu/atlas/textureAtlasAllocator';
+import type { ITextureAtlasAllocator } from 'vs/editor/browser/view/gpu/atlas/atlas';
+import { TextureAtlasShelfAllocator } from 'vs/editor/browser/view/gpu/atlas/textureAtlasShelfAllocator';
+import { TextureAtlasSlabAllocator, TextureAtlasSlabAllocatorOptions } from 'vs/editor/browser/view/gpu/atlas/textureAtlasSlabAllocator';
 import { ensureNonNullable } from 'vs/editor/browser/view/gpu/gpuUtils';
 import type { IRasterizedGlyph } from 'vs/editor/browser/view/gpu/raster/glyphRasterizer';
 

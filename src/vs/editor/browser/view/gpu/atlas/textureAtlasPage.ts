@@ -8,10 +8,11 @@ import { Event } from 'vs/base/common/event';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import type { GlyphRasterizer } from 'vs/editor/browser/view/gpu/raster/glyphRasterizer';
 import { ensureNonNullable } from 'vs/editor/browser/view/gpu/gpuUtils';
-import { ITextureAtlasAllocator, TextureAtlasSlabAllocator } from 'vs/editor/browser/view/gpu/atlas/textureAtlasAllocator';
+import { TextureAtlasSlabAllocator } from 'vs/editor/browser/view/gpu/atlas/textureAtlasSlabAllocator';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TwoKeyMap } from 'vs/base/common/map';
+import type { ITextureAtlasAllocator, ITextureAtlasGlyph } from 'vs/editor/browser/view/gpu/atlas/atlas';
 
 export class TextureAtlasPage extends Disposable {
 
@@ -100,21 +101,4 @@ export class TextureAtlasPage extends Disposable {
 	getUsagePreview(): Promise<Blob> {
 		return this._allocator.getUsagePreview();
 	}
-}
-
-export interface ITextureAtlasGlyph {
-	index: number;
-	x: number;
-	y: number;
-	w: number;
-	h: number;
-	originOffsetX: number;
-	originOffsetY: number;
-}
-
-export interface IBoundingBox {
-	left: number;
-	top: number;
-	right: number;
-	bottom: number;
 }

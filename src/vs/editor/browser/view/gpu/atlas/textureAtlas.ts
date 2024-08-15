@@ -11,6 +11,7 @@ import { IdleTaskQueue } from 'vs/editor/browser/view/gpu/taskQueue';
 import { TextureAtlasPage } from 'vs/editor/browser/view/gpu/atlas/textureAtlasPage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import type { ITextureAtlasGlyph } from 'vs/editor/browser/view/gpu/atlas/atlas';
 
 // DEBUG: This helper can be used to draw image data to the console, it's commented out as we don't
 //        want to ship it, but this is very useful for investigating texture atlas issues.
@@ -135,21 +136,4 @@ export class TextureAtlas extends Disposable {
 			});
 		}
 	}
-}
-
-export interface ITextureAtlasGlyph {
-	index: number;
-	x: number;
-	y: number;
-	w: number;
-	h: number;
-	originOffsetX: number;
-	originOffsetY: number;
-}
-
-export interface IBoundingBox {
-	left: number;
-	top: number;
-	right: number;
-	bottom: number;
 }
