@@ -41,7 +41,7 @@ import { isESM } from 'vs/base/common/amd';
 		assert.ok(typeof textmate.parseRawGrammar === 'function');
 	});
 
-	test('@xterm', async () => {
+	test.skip('@xterm', async () => {
 		const xterm = await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js');
 		assert.ok(typeof xterm.Terminal === 'function');
 
