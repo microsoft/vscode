@@ -71,10 +71,10 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 	private _vertexBuffer!: GPUBuffer;
 	private _squareVertices!: { vertexData: Float32Array; numVertices: number };
 
-	private static _textureAtlas: TextureAtlas;
+	private static _atlas: TextureAtlas;
 	private readonly _glyphStorageBuffer: GPUBuffer[] = [];
-	private _textureAtlasGpuTexture!: GPUTexture;
-	private readonly _textureAtlasGpuTextureVersions: number[] = [];
+	private _atlasGpuTexture!: GPUTexture;
+	private readonly _atlasGpuTextureVersions: number[] = [];
 
 	private _initialized = false;
 
@@ -116,13 +116,13 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 
 
 		// Create texture atlas
-		if (!GpuViewLayerRenderer._textureAtlas) {
-			GpuViewLayerRenderer._textureAtlas = this._instantiationService.createInstance(TextureAtlas, this.domNode, this._device.limits.maxTextureDimension2D);
+		if (!GpuViewLayerRenderer._atlas) {
+			GpuViewLayerRenderer._atlas = this._instantiationService.createInstance(TextureAtlas, this.domNode, this._device.limits.maxTextureDimension2D);
 		}
-		const textureAtlas = GpuViewLayerRenderer._textureAtlas;
+		const atlas = GpuViewLayerRenderer._atlas;
 
 
-		this._renderStrategy = this._instantiationService.createInstance(FullFileRenderStrategy, this._device, this.domNode, this.viewportData, GpuViewLayerRenderer._textureAtlas);
+		this._renderStrategy = this._instantiationService.createInstance(FullFileRenderStrategy, this._device, this.domNode, this.viewportData, GpuViewLayerRenderer._atlas);
 
 		const module = this._device.createShaderModule({
 			label: 'ViewLayer shader module',
@@ -199,8 +199,8 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 		{
 			const uniformValues = new Float32Array(TextureInfoUniformBufferInfo.Size);
 			// TODO: Update on canvas resize
-			uniformValues[TextureInfoUniformBufferInfo.SpriteSheetSize] = textureAtlas.pageSize;
-			uniformValues[TextureInfoUniformBufferInfo.SpriteSheetSize + 1] = textureAtlas.pageSize;
+			uniformValues[TextureInfoUniformBufferInfo.SpriteSheetSize] = atlas.pageSize;
+			uniformValues[TextureInfoUniformBufferInfo.SpriteSheetSize + 1] = atlas.pageSize;
 			this._device.queue.writeBuffer(textureInfoUniformBuffer, 0, uniformValues);
 		}
 
@@ -218,13 +218,13 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 			size: spriteInfoStorageBufferByteSize * Constants.MaxAtlasPageGlyphCount,
 			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
 		});
-		this._textureAtlasGpuTextureVersions[0] = 0;
-		this._textureAtlasGpuTextureVersions[1] = 0;
-		this._textureAtlasGpuTexture = this._device.createTexture({
+		this._atlasGpuTextureVersions[0] = 0;
+		this._atlasGpuTextureVersions[1] = 0;
+		this._atlasGpuTexture = this._device.createTexture({
 			label: 'Atlas texture',
 			format: 'rgba8unorm',
 			// TODO: Dynamically grow/shrink layer count
-			size: { width: textureAtlas.pageSize, height: textureAtlas.pageSize, depthOrArrayLayers: 2 },
+			size: { width: atlas.pageSize, height: atlas.pageSize, depthOrArrayLayers: 2 },
 			dimension: '2d',
 			usage: GPUTextureUsage.TEXTURE_BINDING |
 				GPUTextureUsage.COPY_DST |
@@ -232,7 +232,7 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 		});
 
 
-		this._updateTextureAtlas();
+		this._updateAtlas();
 
 
 
@@ -254,7 +254,7 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 				{ binding: BindingId.GlyphInfo0, resource: { buffer: this._glyphStorageBuffer[0] } },
 				{ binding: BindingId.GlyphInfo1, resource: { buffer: this._glyphStorageBuffer[1] } },
 				{ binding: BindingId.TextureSampler, resource: sampler },
-				{ binding: BindingId.Texture, resource: this._textureAtlasGpuTexture.createView() },
+				{ binding: BindingId.Texture, resource: this._atlasGpuTexture.createView() },
 				{ binding: BindingId.Uniforms, resource: { buffer: uniformBuffer } },
 				{ binding: BindingId.TextureInfoUniform, resource: { buffer: textureInfoUniformBuffer } },
 				...this._renderStrategy.bindGroupEntries
@@ -301,12 +301,12 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 		this.viewportData = viewportData;
 	}
 
-	private _updateTextureAtlas() {
-		const atlas = GpuViewLayerRenderer._textureAtlas;
+	private _updateAtlas() {
+		const atlas = GpuViewLayerRenderer._atlas;
 
 		for (const [layerIndex, page] of atlas.pages.entries()) {
 			// Skip the update if it's already the latest version
-			if (page.version === this._textureAtlasGpuTextureVersions[layerIndex]) {
+			if (page.version === this._atlasGpuTextureVersions[layerIndex]) {
 				continue;
 			}
 
@@ -327,20 +327,20 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 			// TODO: Draw only dirty regions
 			this._device.queue.copyExternalImageToTexture(
 				{ source: page.source },
-				{ texture: this._textureAtlasGpuTexture, origin: { x: 0, y: 0, z: layerIndex } },
+				{ texture: this._atlasGpuTexture, origin: { x: 0, y: 0, z: layerIndex } },
 				{ width: page.source.width, height: page.source.height },
 			);
-			this._textureAtlasGpuTextureVersions[layerIndex] = page.version;
+			this._atlasGpuTextureVersions[layerIndex] = page.version;
 		}
 
-		GpuViewLayerRenderer._drawToTextureAtlas(this._fileService, this._workspaceContextService);
+		GpuViewLayerRenderer._drawToAtlas(this._fileService, this._workspaceContextService);
 	}
 
 	@debounce(500)
-	private static async _drawToTextureAtlas(fileService: IFileService, workspaceContextService: IWorkspaceContextService) {
+	private static async _drawToAtlas(fileService: IFileService, workspaceContextService: IWorkspaceContextService) {
 		const folders = workspaceContextService.getWorkspace().folders;
 		if (folders.length > 0) {
-			const atlas = GpuViewLayerRenderer._textureAtlas;
+			const atlas = GpuViewLayerRenderer._atlas;
 			const promises = [];
 			for (const [layerIndex, page] of atlas.pages.entries()) {
 				promises.push(...[
@@ -374,7 +374,7 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 	private _render(ctx: IRendererContext<T>, startLineNumber: number, stopLineNumber: number, deltaTop: number[]): IRendererContext<T> {
 		const visibleObjectCount = this._renderStrategy.update(ctx, startLineNumber, stopLineNumber, deltaTop);
 
-		this._updateTextureAtlas();
+		this._updateAtlas();
 
 		const encoder = this._device.createCommandEncoder();
 
@@ -530,7 +530,7 @@ class FullFileRenderStrategy<T extends IVisibleLine> implements IRenderStrategy<
 		private readonly _device: GPUDevice,
 		private readonly _canvas: HTMLCanvasElement,
 		private readonly _viewportData: ViewportData,
-		private readonly _textureAtlas: TextureAtlas,
+		private readonly _atlas: TextureAtlas,
 		@IThemeService private readonly _themeService: IThemeService,
 	) {
 		// TODO: Detect when lines have been tokenized and clear _upToDateLines
@@ -679,7 +679,7 @@ class FullFileRenderStrategy<T extends IVisibleLine> implements IRenderStrategy<
 						continue;
 					}
 
-					glyph = this._textureAtlas.getGlyph(chars, tokenFg);
+					glyph = this._atlas.getGlyph(chars, tokenFg);
 
 					screenAbsoluteX = Math.round((x + xOffset) * 7 * activeWindow.devicePixelRatio);
 					screenAbsoluteY = Math.round(deltaTop[y - startLineNumber] * activeWindow.devicePixelRatio);
