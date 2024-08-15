@@ -1666,7 +1666,7 @@ export class ModifiedElement extends AbstractElementRenderer {
 		this._cellHeader.buildHeader();
 		renderSourceEditor();
 
-		const scopedContextKeyService = this.contextKeyService.createScoped(this._cellHeaderContainer);
+		const scopedContextKeyService = this.contextKeyService.createScoped(this.templateData.inputToolbarContainer);
 		this._register(scopedContextKeyService);
 		const inputChanged = NOTEBOOK_DIFF_CELL_INPUT.bindTo(scopedContextKeyService);
 		inputChanged.set(this.cell.modified.textModel.getValue() !== this.cell.original.textModel.getValue());
@@ -1681,21 +1681,16 @@ export class ModifiedElement extends AbstractElementRenderer {
 			cell: this.cell
 		};
 
-		const actions: IAction[] = [];
-
 		const refreshToolbar = () => {
 			const ignore = this.textConfigurationService.getValue<boolean>(this.cell.modified.uri, 'diffEditor.ignoreTrimWhitespace');
 			ignoreWhitespace.set(ignore);
-
 			const hasChanges = this.cell.modified.textModel.getValue() !== this.cell.original.textModel.getValue();
 			inputChanged.set(hasChanges);
 
-			if (!actions.length) {
+			if (hasChanges) {
+				const actions: IAction[] = [];
 				const menu = this.menuService.getMenuActions(MenuId.NotebookDiffCellInputTitle, scopedContextKeyService, { shouldForwardArgs: true });
 				createAndFillInActionBarActions(menu, actions);
-			}
-
-			if (hasChanges) {
 				this._toolbar.setActions(actions);
 			} else {
 				this._toolbar.setActions([]);
