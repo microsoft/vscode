@@ -380,7 +380,7 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 
 		const encoder = this._device.createCommandEncoder({ label: 'Monaco command encoder' });
 
-		this._renderPassColorAttachment.view = this._gpuCtx.getCurrentTexture().createView();
+		this._renderPassColorAttachment.view = this._gpuCtx.getCurrentTexture().createView({ label: 'Monaco canvas texture view' });
 		const pass = encoder.beginRenderPass(this._renderPassDescriptor);
 		pass.setPipeline(this._pipeline);
 		pass.setVertexBuffer(0, this._vertexBuffer);
@@ -542,7 +542,7 @@ class FullFileRenderStrategy<T extends IVisibleLine> implements IRenderStrategy<
 	initBuffers(): void {
 		const bufferSize = FullFileRenderStrategy._lineCount * FullFileRenderStrategy._columnCount * Constants.IndicesPerCell * Float32Array.BYTES_PER_ELEMENT;
 		this._cellBindBuffer = this._device.createBuffer({
-			label: 'Full file cell buffer',
+			label: 'Monaco full file cell buffer',
 			size: bufferSize,
 			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
 		});
@@ -553,7 +553,7 @@ class FullFileRenderStrategy<T extends IVisibleLine> implements IRenderStrategy<
 
 		const scrollOffsetBufferSize = 2;
 		this._scrollOffsetBindBuffer = this._device.createBuffer({
-			label: 'Scroll offset buffer',
+			label: 'Monaco scroll offset buffer',
 			size: scrollOffsetBufferSize * Float32Array.BYTES_PER_ELEMENT,
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
 		});
