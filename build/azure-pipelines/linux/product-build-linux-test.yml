@@ -10,6 +10,9 @@ parameters:
   - name: PUBLISH_TASK_NAME
     type: string
     default: PublishPipelineArtifact@0
+  - name: VSCODE_BUILD_ESM
+    type: boolean
+    default: false
 
 steps:
   - script: yarn npm-run-all -lp "electron $(VSCODE_ARCH)" "playwright-install"
@@ -39,9 +42,14 @@ steps:
         displayName: Run unit tests (Electron)
         timeoutInMinutes: 15
 
-      - script: yarn test-node
-        displayName: Run unit tests (node.js)
-        timeoutInMinutes: 15
+      - ${{ if eq(parameters.VSCODE_BUILD_ESM, true) }}:
+        - script: yarn test-node-esm
+          displayName: Run unit tests (node.js) [ESM]
+          timeoutInMinutes: 15
+      - ${{ if eq(parameters.VSCODE_BUILD_ESM, false) }}:
+        - script: yarn test-node
+          displayName: Run unit tests (node.js)
+          timeoutInMinutes: 15
 
       - script: yarn test-browser-no-install --browser chromium --tfs "Browser Unit Tests"
         env:
@@ -54,9 +62,14 @@ steps:
         displayName: Run unit tests (Electron)
         timeoutInMinutes: 15
 
-      - script: yarn test-node --build
-        displayName: Run unit tests (node.js)
-        timeoutInMinutes: 15
+      - ${{ if eq(parameters.VSCODE_BUILD_ESM, true) }}:
+        - script: yarn test-node-esm --build
+          displayName: Run unit tests (node.js) [ESM]
+          timeoutInMinutes: 15
+      - ${{ if eq(parameters.VSCODE_BUILD_ESM, false) }}:
+        - script: yarn test-node --build
+          displayName: Run unit tests (node.js)
+          timeoutInMinutes: 15
 
       - script: yarn test-browser-no-install --build --browser chromium --tfs "Browser Unit Tests"
         env:
