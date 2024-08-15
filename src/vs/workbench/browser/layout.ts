@@ -14,7 +14,7 @@ import { SidebarPart } from 'vs/workbench/browser/parts/sidebar/sidebarPart';
 import { PanelPart } from 'vs/workbench/browser/parts/panel/panelPart';
 import { Position, Parts, PanelOpensMaximizedOptions, IWorkbenchLayoutService, positionFromString, positionToString, panelOpensMaximizedFromString, PanelAlignment, ActivityBarPosition, LayoutSettings, MULTI_WINDOW_PARTS, SINGLE_WINDOW_PARTS, ZenModeSettings, EditorTabsMode, EditorActionsLocation } from 'vs/workbench/services/layout/browser/layoutService';
 import { isTemporaryWorkspace, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITitleService } from 'vs/workbench/services/title/browser/titleService';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -1588,28 +1588,30 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}));
 		}
 
-		this._register(this.storageService.onWillSaveState(willSaveState => {
-			if (willSaveState.reason === WillSaveStateReason.SHUTDOWN) {
-				// Side Bar Size
-				const sideBarSize = this.stateModel.getRuntimeValue(LayoutStateKeys.SIDEBAR_HIDDEN)
-					? this.workbenchGrid.getViewCachedVisibleSize(this.sideBarPartView)
-					: this.workbenchGrid.getViewSize(this.sideBarPartView).width;
-				this.stateModel.setInitializationValue(LayoutStateKeys.SIDEBAR_SIZE, sideBarSize as number);
+		// MEMBRANE: vscode web never fires with this shutdown reason. This was already fixed upstream so we can just drop
+		// this change when upgrading.
+		this._register(this.storageService.onWillSaveState(e => {
+			// if (willSaveState.reason === WillSaveStateReason.SHUTDOWN) {
+			// Side Bar Size
+			const sideBarSize = this.stateModel.getRuntimeValue(LayoutStateKeys.SIDEBAR_HIDDEN)
+				? this.workbenchGrid.getViewCachedVisibleSize(this.sideBarPartView)
+				: this.workbenchGrid.getViewSize(this.sideBarPartView).width;
+			this.stateModel.setInitializationValue(LayoutStateKeys.SIDEBAR_SIZE, sideBarSize as number);
 
-				// Panel Size
-				const panelSize = this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_HIDDEN)
-					? this.workbenchGrid.getViewCachedVisibleSize(this.panelPartView)
-					: (this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_POSITION) === Position.BOTTOM ? this.workbenchGrid.getViewSize(this.panelPartView).height : this.workbenchGrid.getViewSize(this.panelPartView).width);
-				this.stateModel.setInitializationValue(LayoutStateKeys.PANEL_SIZE, panelSize as number);
+			// Panel Size
+			const panelSize = this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_HIDDEN)
+				? this.workbenchGrid.getViewCachedVisibleSize(this.panelPartView)
+				: (this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_POSITION) === Position.BOTTOM ? this.workbenchGrid.getViewSize(this.panelPartView).height : this.workbenchGrid.getViewSize(this.panelPartView).width);
+			this.stateModel.setInitializationValue(LayoutStateKeys.PANEL_SIZE, panelSize as number);
 
-				// Auxiliary Bar Size
-				const auxiliaryBarSize = this.stateModel.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_HIDDEN)
-					? this.workbenchGrid.getViewCachedVisibleSize(this.auxiliaryBarPartView)
-					: this.workbenchGrid.getViewSize(this.auxiliaryBarPartView).width;
-				this.stateModel.setInitializationValue(LayoutStateKeys.AUXILIARYBAR_SIZE, auxiliaryBarSize as number);
+			// Auxiliary Bar Size
+			const auxiliaryBarSize = this.stateModel.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_HIDDEN)
+				? this.workbenchGrid.getViewCachedVisibleSize(this.auxiliaryBarPartView)
+				: this.workbenchGrid.getViewSize(this.auxiliaryBarPartView).width;
+			this.stateModel.setInitializationValue(LayoutStateKeys.AUXILIARYBAR_SIZE, auxiliaryBarSize as number);
 
-				this.stateModel.save(true, true);
-			}
+			this.stateModel.save(true, true);
+			// }
 		}));
 	}
 
