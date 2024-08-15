@@ -30,29 +30,29 @@ function assertIsValidGlyph(glyph: ITextureAtlasGlyph, atlas: TextureAtlas) {
 	// (x,y) are valid coordinates
 	ok(isNumber(glyph.x));
 	ok(glyph.x >= 0);
-	ok(glyph.x < atlas.source.width);
+	ok(glyph.x < atlas.pageSize);
 	ok(isNumber(glyph.y));
 	ok(glyph.y >= 0);
-	ok(glyph.y < atlas.source.height);
+	ok(glyph.y < atlas.pageSize);
 
 	// (w,h) are valid dimensions
 	ok(isNumber(glyph.w));
 	ok(glyph.w > 0);
-	ok(glyph.w < atlas.source.width);
+	ok(glyph.w < atlas.pageSize);
 	ok(isNumber(glyph.h));
 	ok(glyph.h > 0);
-	ok(glyph.h < atlas.source.height);
+	ok(glyph.h < atlas.pageSize);
 
 	// (originOffsetX, originOffsetY) are valid offsets
 	ok(isNumber(glyph.originOffsetX));
 	ok(isNumber(glyph.originOffsetY));
 
 	// (x,y) + (w,h) are within the bounds of the atlas
-	ok(glyph.x + glyph.w <= atlas.source.width);
-	ok(glyph.y + glyph.h <= atlas.source.height);
+	ok(glyph.x + glyph.w <= atlas.pageSize);
+	ok(glyph.y + glyph.h <= atlas.pageSize);
 
 	// Each of the glyph's outer pixel edges contain at least 1 non-transparent pixel
-	const ctx = ensureNonNullable(atlas.source.getContext('2d'));
+	const ctx = ensureNonNullable(atlas.pages[glyph.textureIndex].source.getContext('2d'));
 	const edges = [
 		ctx.getImageData(glyph.x, glyph.y, glyph.w, 1).data,
 		ctx.getImageData(glyph.x, glyph.y + glyph.h - 1, glyph.w, 1).data,

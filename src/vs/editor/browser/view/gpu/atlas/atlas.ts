@@ -36,3 +36,10 @@ export interface ITextureAtlasAllocator {
 	 */
 	getUsagePreview(): Promise<Blob>;
 }
+
+export interface IReadableTextureAtlasPage {
+	readonly glyphs: IterableIterator<ITextureAtlasGlyph>;
+	readonly source: OffscreenCanvas;
+	readonly hasChanges: boolean;
+	getUsagePreview(): Promise<Blob>;
+}

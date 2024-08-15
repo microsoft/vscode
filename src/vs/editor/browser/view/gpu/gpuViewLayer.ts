@@ -40,8 +40,8 @@ const spriteInfoStorageBufferByteSize = SpriteInfoStorageBufferInfo.Size * Float
 
 const enum BindingId {
 	// TODO: Improve names
-	SpriteInfo0,
-	SpriteInfo1,
+	GlyphInfo0,
+	GlyphInfo1,
 	DynamicUnitInfo,
 	TextureSampler,
 	Texture,
@@ -69,8 +69,7 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 	private _squareVertices!: { vertexData: Float32Array; numVertices: number };
 
 	private static _textureAtlas: TextureAtlas;
-	private _spriteInfoStorageBuffer0!: GPUBuffer;
-	private _spriteInfoStorageBuffer1!: GPUBuffer;
+	private readonly _glyphStorageBuffer: GPUBuffer[] = [];
 	private _textureAtlasGpuTexture!: GPUTexture;
 
 	private _initialized = false;
@@ -119,7 +118,6 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 		const textureAtlas = GpuViewLayerRenderer._textureAtlas;
 
 
-		// this._renderStrategy = new NaiveViewportRenderStrategy(this._device, this.domNode, this.viewportData, GpuViewLayerRenderer._textureAtlas);
 		this._renderStrategy = this._instantiationService.createInstance(FullFileRenderStrategy, this._device, this.domNode, this.viewportData, GpuViewLayerRenderer._textureAtlas);
 
 		const module = this._device.createShaderModule({
@@ -197,8 +195,8 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 		{
 			const uniformValues = new Float32Array(TextureInfoUniformBufferInfo.Size);
 			// TODO: Update on canvas resize
-			uniformValues[TextureInfoUniformBufferInfo.SpriteSheetSize] = textureAtlas.source.width;
-			uniformValues[TextureInfoUniformBufferInfo.SpriteSheetSize + 1] = textureAtlas.source.height;
+			uniformValues[TextureInfoUniformBufferInfo.SpriteSheetSize] = textureAtlas.pageSize;
+			uniformValues[TextureInfoUniformBufferInfo.SpriteSheetSize + 1] = textureAtlas.pageSize;
 			this._device.queue.writeBuffer(textureInfoUniformBuffer, 0, uniformValues);
 		}
 
@@ -208,20 +206,21 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 		///////////////////
 		// Static buffer //
 		///////////////////
-		this._spriteInfoStorageBuffer0 = this._device.createBuffer({
-			label: 'Entity static info buffer',
+		this._glyphStorageBuffer[0] = this._device.createBuffer({
+			label: 'Glyph storage buffer',
 			size: spriteInfoStorageBufferByteSize * maxRenderedObjects,
 			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
 		});
-		this._spriteInfoStorageBuffer1 = this._device.createBuffer({
-			label: 'Entity static info buffer',
+		this._glyphStorageBuffer[1] = this._device.createBuffer({
+			label: 'Glyph storage buffer',
 			size: spriteInfoStorageBufferByteSize * maxRenderedObjects,
 			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
 		});
 		this._textureAtlasGpuTexture = this._device.createTexture({
+			label: 'Atlas texture',
 			format: 'rgba8unorm',
-			// TODO: These sizes are shared across all layers - this means scratch is wasting texture space
-			size: { width: textureAtlas.source.width, height: textureAtlas.source.height, depthOrArrayLayers: 2 },
+			// TODO: Dynamically grow/shrink layer count
+			size: { width: textureAtlas.pageSize, height: textureAtlas.pageSize, depthOrArrayLayers: 2 },
 			dimension: '2d',
 			usage: GPUTextureUsage.TEXTURE_BINDING |
 				GPUTextureUsage.COPY_DST |
@@ -247,9 +246,9 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 			label: 'ViewLayer bind group',
 			layout: this._pipeline.getBindGroupLayout(0),
 			entries: [
-				// Pass in generically as array?
-				{ binding: BindingId.SpriteInfo0, resource: { buffer: this._spriteInfoStorageBuffer0 } },
-				{ binding: BindingId.SpriteInfo1, resource: { buffer: this._spriteInfoStorageBuffer1 } },
+				// TODO: Pass in generically as array?
+				{ binding: BindingId.GlyphInfo0, resource: { buffer: this._glyphStorageBuffer[0] } },
+				{ binding: BindingId.GlyphInfo1, resource: { buffer: this._glyphStorageBuffer[1] } },
 				{ binding: BindingId.TextureSampler, resource: sampler },
 				{ binding: BindingId.Texture, resource: this._textureAtlasGpuTexture.createView() },
 				{ binding: BindingId.Uniforms, resource: { buffer: uniformBuffer } },
@@ -303,17 +302,19 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 	}
 
 	private _updateTextureAtlas() {
-		if (!GpuViewLayerRenderer._textureAtlas.hasChanges) {
+		const atlas = GpuViewLayerRenderer._textureAtlas;
+		if (!atlas.hasChanges) {
 			return;
 		}
-		GpuViewLayerRenderer._textureAtlas.hasChanges = false;
+		atlas.hasChanges = false;
 
-		{
+		// TODO: Update only dirty pages
+		for (const [layerIndex, page] of atlas.pages.entries()) {
 			// TODO: Dynamically set buffer size
 			const bufferSize = spriteInfoStorageBufferByteSize * 10000;
 			const values = new Float32Array(bufferSize / 4);
 			let entryOffset = 0;
-			for (const glyph of GpuViewLayerRenderer._textureAtlas.scratchGlyphs) {
+			for (const glyph of page.glyphs) {
 				values[entryOffset + SpriteInfoStorageBufferInfo.Offset_TexturePosition] = glyph.x;
 				values[entryOffset + SpriteInfoStorageBufferInfo.Offset_TexturePosition + 1] = glyph.y;
 				values[entryOffset + SpriteInfoStorageBufferInfo.Offset_TextureSize] = glyph.w;
@@ -322,66 +323,38 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 				values[entryOffset + SpriteInfoStorageBufferInfo.Offset_OriginPosition + 1] = glyph.originOffsetY;
 				entryOffset += SpriteInfoStorageBufferInfo.Size;
 			}
-			this._device.queue.writeBuffer(this._spriteInfoStorageBuffer0, 0, values);
+			this._device.queue.writeBuffer(this._glyphStorageBuffer[layerIndex], 0, values);
+			console.log(`Layer index ${layerIndex}, glyph count ${Array.from(page.glyphs).length}`);
+			// TODO: Draw only dirty regions
+			this._device.queue.copyExternalImageToTexture(
+				{ source: page.source },
+				{ texture: this._textureAtlasGpuTexture, origin: { x: 0, y: 0, z: layerIndex } },
+				{ width: page.source.width, height: page.source.height },
+			);
 		}
-
-		// TODO: Dynamically set buffer size
-		{
-			const bufferSize = spriteInfoStorageBufferByteSize * 10000;
-			const values = new Float32Array(bufferSize / 4);
-			let entryOffset = 0;
-			for (const glyph of GpuViewLayerRenderer._textureAtlas.glyphs) {
-				values[entryOffset + SpriteInfoStorageBufferInfo.Offset_TexturePosition] = glyph.x;
-				values[entryOffset + SpriteInfoStorageBufferInfo.Offset_TexturePosition + 1] = glyph.y;
-				values[entryOffset + SpriteInfoStorageBufferInfo.Offset_TextureSize] = glyph.w;
-				values[entryOffset + SpriteInfoStorageBufferInfo.Offset_TextureSize + 1] = glyph.h;
-				values[entryOffset + SpriteInfoStorageBufferInfo.Offset_OriginPosition] = glyph.originOffsetX;
-				values[entryOffset + SpriteInfoStorageBufferInfo.Offset_OriginPosition + 1] = glyph.originOffsetY;
-				entryOffset += SpriteInfoStorageBufferInfo.Size;
-			}
-			this._device.queue.writeBuffer(this._spriteInfoStorageBuffer1, 0, values);
-		}
-
-		// TODO: Draw only dirty regions
-		this._device.queue.copyExternalImageToTexture(
-			{ source: GpuViewLayerRenderer._textureAtlas.scratchSource },
-			{ texture: this._textureAtlasGpuTexture, origin: { x: 0, y: 0, z: 0 } },
-			{ width: GpuViewLayerRenderer._textureAtlas.scratchSource.width, height: GpuViewLayerRenderer._textureAtlas.scratchSource.height },
-		);
-		this._device.queue.copyExternalImageToTexture(
-			{ source: GpuViewLayerRenderer._textureAtlas.source },
-			{ texture: this._textureAtlasGpuTexture, origin: { x: 0, y: 0, z: 1 } },
-			{ width: GpuViewLayerRenderer._textureAtlas.source.width, height: GpuViewLayerRenderer._textureAtlas.source.height },
-		);
 
 		GpuViewLayerRenderer._drawToTextureAtlas(this._fileService, this._workspaceContextService);
 	}
 
 	@debounce(500)
 	private static async _drawToTextureAtlas(fileService: IFileService, workspaceContextService: IWorkspaceContextService) {
-		const scratchBlob = await GpuViewLayerRenderer._textureAtlas.scratchSource.convertToBlob();
-		const blob = await GpuViewLayerRenderer._textureAtlas.source.convertToBlob();
 		const folders = workspaceContextService.getWorkspace().folders;
 		if (folders.length > 0) {
-			const usagePreviews = await GpuViewLayerRenderer._textureAtlas.getUsagePreview();
-			await Promise.all([
-				fileService.writeFile(
-					URI.joinPath(folders[0].uri, 'atlas_page0_actual.png'),
-					VSBuffer.wrap(new Uint8Array(await scratchBlob.arrayBuffer()))
-				),
-				fileService.writeFile(
-					URI.joinPath(folders[0].uri, 'atlas_page0_usage.png'),
-					VSBuffer.wrap(new Uint8Array(await usagePreviews[0].arrayBuffer()))
-				),
-				fileService.writeFile(
-					URI.joinPath(folders[0].uri, 'atlas_page1_actual.png'),
-					VSBuffer.wrap(new Uint8Array(await blob.arrayBuffer()))
-				),
-				fileService.writeFile(
-					URI.joinPath(folders[0].uri, 'atlas_page1_usage.png'),
-					VSBuffer.wrap(new Uint8Array(await usagePreviews[1].arrayBuffer()))
-				)
-			]);
+			const atlas = GpuViewLayerRenderer._textureAtlas;
+			const promises = [];
+			for (const [layerIndex, page] of atlas.pages.entries()) {
+				promises.push(...[
+					fileService.writeFile(
+						URI.joinPath(folders[0].uri, `atlas_page${layerIndex}_usage.png`),
+						VSBuffer.wrap(new Uint8Array(await (await page.getUsagePreview()).arrayBuffer()))
+					),
+					fileService.writeFile(
+						URI.joinPath(folders[0].uri, `atlas_page${layerIndex}_actual.png`),
+						VSBuffer.wrap(new Uint8Array(await (await page.source.convertToBlob()).arrayBuffer()))
+					),
+				]);
+			}
+			await promises;
 		}
 	}
 
@@ -481,8 +454,9 @@ struct VSOutput {
 @group(0) @binding(${BindingId.Uniforms}) var<uniform> uniforms: Uniforms;
 @group(0) @binding(${BindingId.TextureInfoUniform}) var<uniform> textureInfoUniform: TextureInfoUniform;
 
-@group(0) @binding(${BindingId.SpriteInfo0}) var<storage, read> spriteInfo0: array<SpriteInfo>;
-@group(0) @binding(${BindingId.SpriteInfo1}) var<storage, read> spriteInfo1: array<SpriteInfo>;
+// TODO: Make this an array of arrays
+@group(0) @binding(${BindingId.GlyphInfo0}) var<storage, read> glyphInfo0: array<SpriteInfo>;
+@group(0) @binding(${BindingId.GlyphInfo1}) var<storage, read> glyphInfo1: array<SpriteInfo>;
 @group(0) @binding(${BindingId.DynamicUnitInfo}) var<storage, read> dynamicUnitInfoStructs: array<DynamicUnitInfo>;
 @group(0) @binding(${BindingId.ScrollOffset}) var<uniform> scrollOffset: ScrollOffset;
 
@@ -492,11 +466,13 @@ struct VSOutput {
 	@builtin(vertex_index) vertexIndex : u32
 ) -> VSOutput {
 	let dynamicUnitInfo = dynamicUnitInfoStructs[instanceIndex];
-	var spriteInfo = spriteInfo0[0];
+	// TODO: Is there a nicer way to init this?
+	var spriteInfo = glyphInfo0[0];
+	let glyphIndex = u32(dynamicUnitInfo.glyphIndex);
 	if (u32(dynamicUnitInfo.textureIndex) == 0) {
-		spriteInfo = spriteInfo0[u32(dynamicUnitInfo.glyphIndex)];
+		spriteInfo = glyphInfo0[glyphIndex];
 	} else {
-		spriteInfo = spriteInfo1[u32(dynamicUnitInfo.glyphIndex)];
+		spriteInfo = glyphInfo1[glyphIndex];
 	}
 
 	var vsOut: VSOutput;

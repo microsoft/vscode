@@ -5,8 +5,8 @@
 
 import { getActiveWindow } from 'vs/base/browser/dom';
 import { Event } from 'vs/base/common/event';
-import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import type { ITextureAtlasGlyph } from 'vs/editor/browser/view/gpu/atlas/atlas';
+import { Disposable, dispose, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import type { IReadableTextureAtlasPage, ITextureAtlasGlyph } from 'vs/editor/browser/view/gpu/atlas/atlas';
 import { TextureAtlasPage } from 'vs/editor/browser/view/gpu/atlas/textureAtlasPage';
 import { GlyphRasterizer } from 'vs/editor/browser/view/gpu/raster/glyphRasterizer';
 import { IdleTaskQueue } from 'vs/editor/browser/view/gpu/taskQueue';
@@ -18,25 +18,28 @@ export class TextureAtlas extends Disposable {
 	public get scratchGlyphs(): IterableIterator<ITextureAtlasGlyph> {
 		return this._scratchPage.glyphs;
 	}
-	public get glyphs(): IterableIterator<ITextureAtlasGlyph> {
-		return this._page.glyphs;
-	}
+	// public get glyphs(): IterableIterator<ITextureAtlasGlyph> {
+	// 	return this._pages.glyphs;
+	// }
 
 	private readonly _glyphRasterizer: GlyphRasterizer;
 
 	private _colorMap!: string[];
 	private readonly _warmUpTask: MutableDisposable<IdleTaskQueue> = this._register(new MutableDisposable());
 
-	public get source(): OffscreenCanvas {
-		return this._page.source;
-	}
+	// get source(): OffscreenCanvas {
+	// 	return this._pages.source;
+	// }
 
-	public get hasChanges(): boolean {
-		return this._scratchPage.hasChanges || this._page.hasChanges;
+	// TODO: Should check changes independently
+	get hasChanges(): boolean {
+		// return this._scratchPage.hasChanges || this._pages.hasChanges;
+		return this._pages.some(e => e.hasChanges);
 	}
-	public set hasChanges(value: boolean) {
-		this._scratchPage.hasChanges = value;
-		this._page.hasChanges = value;
+	set hasChanges(value: boolean) {
+		// this._scratchPage.hasChanges = value;
+		// this._pages.hasChanges = value;
+		this._pages[0].hasChanges = value;
 	}
 
 	/**
@@ -46,7 +49,7 @@ export class TextureAtlas extends Disposable {
 	 */
 	private readonly _scratchPage: TextureAtlasPage;
 	// TODO: Generically get pages externally - gpu shouldn't care about the details of the pages
-	public get scratchSource(): OffscreenCanvas {
+	get scratchSource(): OffscreenCanvas {
 		return this._scratchPage.source;
 	}
 
@@ -55,7 +58,12 @@ export class TextureAtlas extends Disposable {
 	 * relative to the scratch page. The idea is the main pages are drawn to and uploaded to the GPU
 	 * much less frequently so as to not drop frames.
 	 */
-	private readonly _page: TextureAtlasPage;
+	private readonly _pages: TextureAtlasPage[] = [];
+	get pages(): IReadableTextureAtlasPage[] {
+		return this._pages;
+	}
+
+	readonly pageSize: number;
 
 	constructor(
 		parentDomNode: HTMLElement,
@@ -88,25 +96,22 @@ export class TextureAtlas extends Disposable {
 		// TODO: Identify texture via a name, the texture index should be only known to the GPU code
 		this._scratchPage = this._register(this._instantiationService.createInstance(TextureAtlasPage, 0, scratchPageSize, 'shelf', this._glyphRasterizer));
 
-		const pageSize = Math.min(1024 * dprFactor, this._maxTextureSize);
-		this._page = this._register(this._instantiationService.createInstance(TextureAtlasPage, 1, pageSize, 'slab', this._glyphRasterizer));
+		this.pageSize = Math.min(1024 * dprFactor, this._maxTextureSize);
+		this._pages.push(this._instantiationService.createInstance(TextureAtlasPage, 0, this.pageSize, 'slab', this._glyphRasterizer));
+		this._pages.push(this._instantiationService.createInstance(TextureAtlasPage, 1, this.pageSize, 'slab', this._glyphRasterizer));
+		this._register(toDisposable(() => dispose(this._pages)));
 	}
 
 	// TODO: Color, style etc.
 	public getGlyph(chars: string, tokenFg: number): ITextureAtlasGlyph {
-		// HACK: Testing multiple pages
-		// if (Math.random() < 0.5) {
-		// 	return this._scratchPage.getGlyph(chars, tokenFg);
-		// }
-		return this._page.getGlyph(chars, tokenFg);
-		// return this._scratchPage.getGlyph(chars, tokenFg);
+		// HACK: Draw glyphs to different pages to test out multiple textures while there's no overflow logic
+		const targetPage = chars.match(/[a-z]/i) ? 0 : 1;
+		return this._pages[targetPage].getGlyph(chars, tokenFg);
 	}
 
 	public getUsagePreview(): Promise<Blob[]> {
-		return Promise.all([
-			this._scratchPage.getUsagePreview(),
-			this._page.getUsagePreview(),
-		]);
+		// TODO: Include scratch page
+		return Promise.all(this._pages.map(e => e.getUsagePreview()));
 	}
 
 	/**
