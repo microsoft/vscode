@@ -186,7 +186,6 @@ extends:
         compiled:
           enabled: false
           justificationForDisabling: "CodeQL breaks ESRP CodeSign on macOS (ICM #520035761, githubcustomers/microsoft-codeql-support#198)"
-        runSourceLanguagesInSourceAnalysis: true
       credscan:
         suppressionsFile: $(Build.SourcesDirectory)/build/azure-pipelines/config/CredScanSuppressions.json
       eslint:
