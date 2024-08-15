@@ -63,6 +63,7 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 	private _adapter!: GPUAdapter;
 	private _device!: GPUDevice;
 	private _renderPassDescriptor!: GPURenderPassDescriptor;
+	private _renderPassColorAttachment!: GPURenderPassColorAttachment;
 	private _bindGroup!: GPUBindGroup;
 	private _pipeline!: GPURenderPipeline;
 
@@ -260,18 +261,14 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 			],
 		});
 
+		this._renderPassColorAttachment = {
+			view: null!, // Will be filled at render time
+			loadOp: 'load',
+			storeOp: 'store',
+		};
 		this._renderPassDescriptor = {
 			label: 'ViewLayer render pass',
-			colorAttachments: [
-				(
-					{
-						// view: <- to be filled out when we render
-						loadValue: [0, 0, 0, 0],
-						loadOp: 'load',
-						storeOp: 'store',
-					} as Omit<GPURenderPassColorAttachment, 'view'>
-				) as any as GPURenderPassColorAttachment,
-			] as any as Iterable<GPURenderPassColorAttachment>,
+			colorAttachments: [this._renderPassColorAttachment],
 		};
 
 
@@ -381,7 +378,7 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 
 		const encoder = this._device.createCommandEncoder();
 
-		(this._renderPassDescriptor.colorAttachments as any)[0].view = this._gpuCtx.getCurrentTexture().createView();
+		this._renderPassColorAttachment.view = this._gpuCtx.getCurrentTexture().createView();
 		const pass = encoder.beginRenderPass(this._renderPassDescriptor);
 		pass.setPipeline(this._pipeline);
 		pass.setVertexBuffer(0, this._vertexBuffer);
