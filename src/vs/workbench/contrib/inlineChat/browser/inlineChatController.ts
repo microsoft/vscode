@@ -613,9 +613,7 @@ export class InlineChatController implements IEditorContribution {
 					newEditor,
 					{
 						editMode: this._getMode(),
-						chatModel: this._session.chatModel,
-						exchanges: this._session.exchanges, // @ulugbekna: very hacky: we pass exchanges by reference because an exchange is added only on `addRequest` event from chat model which the migrated inline chat misses
-						lastInput: this._session.lastInput
+						session: this._session,
 					},
 					CancellationToken.None); // TODO@ulugbekna: add proper cancellation?
 
