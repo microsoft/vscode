@@ -32,6 +32,7 @@ interface FolderQueryInfo {
 	queryTester: QueryGlobTester;
 	noSiblingsClauses: boolean;
 	folder: URI;
+	tree: IDirectoryTree;
 }
 
 interface IDirectoryTree {
@@ -122,7 +123,12 @@ class FileSearchEngine {
 		};
 
 
-		const tree = this.initDirectoryTree();
+		const folderMappings: TernarySearchTree<URI, FolderQueryInfo> = TernarySearchTree.forUris<FolderQueryInfo>();
+		fqs.forEach(fq => {
+			const queryTester = new QueryGlobTester(this.config, fq);
+			const noSiblingsClauses = !queryTester.hasSiblingExcludeClauses();
+			folderMappings.set(fq.folder, { queryTester, noSiblingsClauses, folder: fq.folder, tree: this.initDirectoryTree() });
+		});
 
 
 		let providerSW: StopWatch;
@@ -142,27 +148,14 @@ class FileSearchEngine {
 				return null;
 			}
 
-			// const folderMappings: ResourceMap<{ queryTester: QueryGlobTester; noSiblingsClauses: boolean }> = new ResourceMap();
-			const folderMappings: TernarySearchTree<URI, FolderQueryInfo> = TernarySearchTree.forUris<FolderQueryInfo>();
-			fqs.forEach(fq => {
-				const queryTester = new QueryGlobTester(this.config, fq);
-				const noSiblingsClauses = !queryTester.hasSiblingExcludeClauses();
-				folderMappings.set(fq.folder, { queryTester, noSiblingsClauses, folder: fq.folder });
-			});
 
 			if (results) {
 				results.forEach(result => {
 
-					const fqFolderInfo = folderMappings.findSubstr(result);
-
-					if (!fqFolderInfo) {
-						return;
-					}
-
-					const res = folderMappings.get(fqFolderInfo.folder)!;
+					const fqFolderInfo = folderMappings.findSubstr(result)!;
 					const relativePath = path.posix.relative(fqFolderInfo.folder.path, result.path);
 
-					if (res.noSiblingsClauses) {
+					if (fqFolderInfo.noSiblingsClauses) {
 						const basename = path.basename(result.path);
 						this.matchFile(onResult, { base: fqFolderInfo.folder, relativePath, basename });
 
@@ -170,7 +163,7 @@ class FileSearchEngine {
 					}
 
 					// TODO: Optimize siblings clauses with ripgrep here.
-					this.addDirectoryEntries(tree, fqFolderInfo.folder, relativePath, onResult);
+					this.addDirectoryEntries(fqFolderInfo.tree, fqFolderInfo.folder, relativePath, onResult);
 				});
 			}
 
@@ -179,11 +172,8 @@ class FileSearchEngine {
 			}
 
 			fqs.forEach(fq => {
-				const res = folderMappings.get(fq.folder);
-				if (!res) {
-					return;
-				}
-				this.matchDirectoryTree(tree, res.queryTester, onResult);
+				const res = folderMappings.get(fq.folder)!;
+				this.matchDirectoryTree(res.tree, res.queryTester, onResult);
 			});
 
 			return {
