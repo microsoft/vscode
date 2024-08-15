@@ -48,7 +48,7 @@ const enum BindingId {
 	TextureSampler,
 	Texture,
 	Uniforms,
-	TextureInfoUniform,
+	AtlasInfoUniform,
 	ScrollOffset,
 }
 
@@ -125,12 +125,12 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 		this._renderStrategy = this._instantiationService.createInstance(FullFileRenderStrategy, this._device, this.domNode, this.viewportData, GpuViewLayerRenderer._atlas);
 
 		const module = this._device.createShaderModule({
-			label: 'ViewLayer shader module',
+			label: 'Monaco shader module',
 			code: this._renderStrategy.wgsl,
 		});
 
 		this._pipeline = this._device.createRenderPipeline({
-			label: 'ViewLayer render pipeline',
+			label: 'Monaco render pipeline',
 			layout: 'auto',
 			vertex: {
 				module,
@@ -174,6 +174,7 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 			OffsetCanvasHeight = 1
 		}
 		const uniformBuffer = this._device.createBuffer({
+			label: 'Monaco uniform buffer',
 			size: UniformBufferInfo.Size * Float32Array.BYTES_PER_ELEMENT,
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
 		});
@@ -187,21 +188,21 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 
 
 
-		const enum TextureInfoUniformBufferInfo {
+		const enum AtlasInfoUniformBufferInfo {
 			Size = 2,
 			SpriteSheetSize = 0,
 		}
-		const textureInfoUniformBufferSize = TextureInfoUniformBufferInfo.Size * Float32Array.BYTES_PER_ELEMENT;
-		const textureInfoUniformBuffer = this._device.createBuffer({
-			size: textureInfoUniformBufferSize,
+		const atlasInfoUniformBufferSize = AtlasInfoUniformBufferInfo.Size * Float32Array.BYTES_PER_ELEMENT;
+		const atlasInfoUniformBuffer = this._device.createBuffer({
+			label: 'Monaco atlas info uniform buffer',
+			size: atlasInfoUniformBufferSize,
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
 		});
 		{
-			const uniformValues = new Float32Array(TextureInfoUniformBufferInfo.Size);
-			// TODO: Update on canvas resize
-			uniformValues[TextureInfoUniformBufferInfo.SpriteSheetSize] = atlas.pageSize;
-			uniformValues[TextureInfoUniformBufferInfo.SpriteSheetSize + 1] = atlas.pageSize;
-			this._device.queue.writeBuffer(textureInfoUniformBuffer, 0, uniformValues);
+			const uniformValues = new Float32Array(AtlasInfoUniformBufferInfo.Size);
+			uniformValues[AtlasInfoUniformBufferInfo.SpriteSheetSize] = atlas.pageSize;
+			uniformValues[AtlasInfoUniformBufferInfo.SpriteSheetSize + 1] = atlas.pageSize;
+			this._device.queue.writeBuffer(atlasInfoUniformBuffer, 0, uniformValues);
 		}
 
 
@@ -209,19 +210,19 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 		// Static buffer //
 		///////////////////
 		this._glyphStorageBuffer[0] = this._device.createBuffer({
-			label: 'Glyph storage buffer',
+			label: 'Monaco glyph storage buffer',
 			size: spriteInfoStorageBufferByteSize * Constants.MaxAtlasPageGlyphCount,
 			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
 		});
 		this._glyphStorageBuffer[1] = this._device.createBuffer({
-			label: 'Glyph storage buffer',
+			label: 'Monaco glyph storage buffer',
 			size: spriteInfoStorageBufferByteSize * Constants.MaxAtlasPageGlyphCount,
 			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
 		});
 		this._atlasGpuTextureVersions[0] = 0;
 		this._atlasGpuTextureVersions[1] = 0;
 		this._atlasGpuTexture = this._device.createTexture({
-			label: 'Atlas texture',
+			label: 'Monaco atlas texture',
 			format: 'rgba8unorm',
 			// TODO: Dynamically grow/shrink layer count
 			size: { width: atlas.pageSize, height: atlas.pageSize, depthOrArrayLayers: 2 },
@@ -243,11 +244,12 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 
 
 		const sampler = this._device.createSampler({
+			label: 'Monaco atlas sampler',
 			magFilter: 'nearest',
 			minFilter: 'nearest',
 		});
 		this._bindGroup = this._device.createBindGroup({
-			label: 'ViewLayer bind group',
+			label: 'Monaco bind group',
 			layout: this._pipeline.getBindGroupLayout(0),
 			entries: [
 				// TODO: Pass in generically as array?
@@ -256,7 +258,7 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 				{ binding: BindingId.TextureSampler, resource: sampler },
 				{ binding: BindingId.Texture, resource: this._atlasGpuTexture.createView() },
 				{ binding: BindingId.Uniforms, resource: { buffer: uniformBuffer } },
-				{ binding: BindingId.TextureInfoUniform, resource: { buffer: textureInfoUniformBuffer } },
+				{ binding: BindingId.AtlasInfoUniform, resource: { buffer: atlasInfoUniformBuffer } },
 				...this._renderStrategy.bindGroupEntries
 			],
 		});
@@ -267,7 +269,7 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 			storeOp: 'store',
 		};
 		this._renderPassDescriptor = {
-			label: 'ViewLayer render pass',
+			label: 'Monaco render pass',
 			colorAttachments: [this._renderPassColorAttachment],
 		};
 
@@ -290,7 +292,7 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 		const { vertexData } = this._squareVertices;
 
 		this._vertexBuffer = this._device.createBuffer({
-			label: 'vertex buffer vertices',
+			label: 'Monaco quad vertex buffer',
 			size: vertexData.byteLength,
 			usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
 		});
@@ -376,7 +378,7 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 
 		this._updateAtlas();
 
-		const encoder = this._device.createCommandEncoder();
+		const encoder = this._device.createCommandEncoder({ label: 'Monaco command encoder' });
 
 		this._renderPassColorAttachment.view = this._gpuCtx.getCurrentTexture().createView();
 		const pass = encoder.beginRenderPass(this._renderPassDescriptor);
@@ -419,11 +421,11 @@ struct Uniforms {
 	canvasDimensions: vec2f,
 };
 
-struct TextureInfoUniform {
+struct AtlasInfoUniform {
 	spriteSheetSize: vec2f,
 }
 
-struct SpriteInfo {
+struct GlyphInfo {
 	position: vec2f,
 	size: vec2f,
 	origin: vec2f,
@@ -451,11 +453,10 @@ struct VSOutput {
 };
 
 @group(0) @binding(${BindingId.Uniforms}) var<uniform> uniforms: Uniforms;
-@group(0) @binding(${BindingId.TextureInfoUniform}) var<uniform> textureInfoUniform: TextureInfoUniform;
+@group(0) @binding(${BindingId.AtlasInfoUniform}) var<uniform> atlasInfoUniform: AtlasInfoUniform;
 
-// TODO: Make this an array of arrays
-@group(0) @binding(${BindingId.GlyphInfo0}) var<storage, read> glyphInfo0: array<SpriteInfo>;
-@group(0) @binding(${BindingId.GlyphInfo1}) var<storage, read> glyphInfo1: array<SpriteInfo>;
+@group(0) @binding(${BindingId.GlyphInfo0}) var<storage, read> glyphInfo0: array<GlyphInfo>;
+@group(0) @binding(${BindingId.GlyphInfo1}) var<storage, read> glyphInfo1: array<GlyphInfo>;
 @group(0) @binding(${BindingId.DynamicUnitInfo}) var<storage, read> dynamicUnitInfoStructs: array<DynamicUnitInfo>;
 @group(0) @binding(${BindingId.ScrollOffset}) var<uniform> scrollOffset: ScrollOffset;
 
@@ -466,18 +467,18 @@ struct VSOutput {
 ) -> VSOutput {
 	let dynamicUnitInfo = dynamicUnitInfoStructs[instanceIndex];
 	// TODO: Is there a nicer way to init this?
-	var spriteInfo = glyphInfo0[0];
+	var glyph = glyphInfo0[0];
 	let glyphIndex = u32(dynamicUnitInfo.glyphIndex);
 	if (u32(dynamicUnitInfo.textureIndex) == 0) {
-		spriteInfo = glyphInfo0[glyphIndex];
+		glyph = glyphInfo0[glyphIndex];
 	} else {
-		spriteInfo = glyphInfo1[glyphIndex];
+		glyph = glyphInfo1[glyphIndex];
 	}
 
 	var vsOut: VSOutput;
 	// Multiple vert.position by 2,-2 to get it into clipspace which ranged from -1 to 1
 	vsOut.position = vec4f(
-		(((vert.position * vec2f(2, -2)) / uniforms.canvasDimensions)) * spriteInfo.size + dynamicUnitInfo.position + ((spriteInfo.origin * vec2f(2, -2)) / uniforms.canvasDimensions) + ((scrollOffset.offset * 2) / uniforms.canvasDimensions),
+		(((vert.position * vec2f(2, -2)) / uniforms.canvasDimensions)) * glyph.size + dynamicUnitInfo.position + ((glyph.origin * vec2f(2, -2)) / uniforms.canvasDimensions) + ((scrollOffset.offset * 2) / uniforms.canvasDimensions),
 		0.0,
 		1.0
 	);
@@ -487,9 +488,9 @@ struct VSOutput {
 	vsOut.texcoord = vert.position;
 	vsOut.texcoord = (
 		// Sprite offset (0-1)
-		(spriteInfo.position / textureInfoUniform.spriteSheetSize) +
+		(glyph.position / atlasInfoUniform.spriteSheetSize) +
 		// Sprite coordinate (0-1)
-		(vsOut.texcoord * (spriteInfo.size / textureInfoUniform.spriteSheetSize))
+		(vsOut.texcoord * (glyph.size / atlasInfoUniform.spriteSheetSize))
 	);
 
 	return vsOut;
