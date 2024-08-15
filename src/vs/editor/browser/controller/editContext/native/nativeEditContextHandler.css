@@ -1,0 +1,46 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-editor .native-edit-context {
+	min-width: 0;
+	min-height: 0;
+	margin: 0;
+	padding: 0;
+	position: absolute;
+	outline: none !important;
+	resize: none;
+	border: none;
+	overflow: hidden;
+	color: transparent;
+	background-color: transparent;
+	z-index: -10;
+	white-space: pre-wrap;
+	text-wrap: nowrap;
+}
+
+/*
+.monaco-editor .native-edit-context {
+	min-width: 0;
+	min-height: 0;
+	margin: 0;
+	padding: 0;
+	position: absolute;
+	outline: none !important;
+	resize: none;
+	border: none;
+	overflow: visible;
+	color: rgb(32, 32, 32);
+	background-color: white;
+	z-index: 100;
+	white-space: pre-wrap;
+	text-wrap: nowrap;
+}
+*/
+
+.monaco-editor .native-edit-context.ime-input {
+	z-index: 10;
+	caret-color: var(--vscode-editorCursor-foreground);
+	color: var(--vscode-editor-foreground);
+}
