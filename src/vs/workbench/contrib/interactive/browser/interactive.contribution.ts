@@ -526,6 +526,7 @@ registerAction2(class extends Action2 {
 					return;
 				}
 
+				historyService.replaceLast(notebookDocument.uri, value);
 				historyService.addToHistory(notebookDocument.uri, '');
 				textModel.setValue('');
 
@@ -631,11 +632,17 @@ registerAction2(class extends Action2 {
 		const historyService = accessor.get(IInteractiveHistoryService);
 		const editorControl = editorService.activeEditorPane?.getControl() as { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
 
+
+
 		if (editorControl && editorControl.notebookEditor && editorControl.codeEditor) {
 			const notebookDocument = editorControl.notebookEditor.textModel;
 			const textModel = editorControl.codeEditor.getModel();
 
 			if (notebookDocument && textModel) {
+				if (historyService.isAtEnd(notebookDocument.uri)) {
+					const value = textModel.getValue();
+					historyService.replaceLast(notebookDocument.uri, value);
+				}
 				const previousValue = historyService.getPreviousValue(notebookDocument.uri);
 				if (previousValue) {
 					textModel.setValue(previousValue);
@@ -685,7 +692,7 @@ registerAction2(class extends Action2 {
 
 			if (notebookDocument && textModel) {
 				const previousValue = historyService.getNextValue(notebookDocument.uri);
-				if (previousValue) {
+				if (previousValue !== null) {
 					textModel.setValue(previousValue);
 				}
 			}
