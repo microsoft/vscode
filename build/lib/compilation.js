@@ -141,15 +141,9 @@ function compileTask(src, out, build, options = {}) {
 }
 function watchTask(out, build, srcPath = 'src') {
     const task = () => {
-<<<<<<< HEAD
-        const compile = createCompile('src2', { build, emitError: false, transpileOnly: false, preserveEnglish: false }); // DO NOT MERGE TO `main`
-        const src = gulp.src('src2/**', { base: 'src2' }); // DO NOT MERGE TO `main`
-        const watchSrc = watch('src2/**', { base: 'src2', readDelay: 200 }); // DO NOT MERGE TO `main`
-=======
         const compile = createCompile(srcPath, { build, emitError: false, transpileOnly: false, preserveEnglish: false });
         const src = gulp.src(`${srcPath}/**`, { base: srcPath });
         const watchSrc = watch(`${srcPath}/**`, { base: srcPath, readDelay: 200 });
->>>>>>> main
         const generator = new MonacoGenerator(true);
         generator.execute();
         return watchSrc
