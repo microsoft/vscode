@@ -13,6 +13,9 @@ import type { IRasterizedGlyph } from 'vs/editor/browser/view/gpu/raster/glyphRa
  * current row is full. Due to its simplicity, it can waste space but it is very fast.
  */
 export class TextureAtlasShelfAllocator implements ITextureAtlasAllocator {
+
+	private readonly _ctx: OffscreenCanvasRenderingContext2D;
+
 	private _currentRow: ITextureAtlasShelf = {
 		x: 0,
 		y: 0,
@@ -25,8 +28,11 @@ export class TextureAtlasShelfAllocator implements ITextureAtlasAllocator {
 
 	constructor(
 		private readonly _canvas: OffscreenCanvas,
-		private readonly _ctx: OffscreenCanvasRenderingContext2D,
+		private readonly _textureIndex: number,
 	) {
+		this._ctx = ensureNonNullable(this._canvas.getContext('2d', {
+			willReadFrequently: true
+		}));
 	}
 
 	public allocate(chars: string, tokenFg: number, rasterizedGlyph: IRasterizedGlyph): ITextureAtlasGlyph | undefined {
@@ -61,6 +67,7 @@ export class TextureAtlasShelfAllocator implements ITextureAtlasAllocator {
 
 		// Create glyph object
 		const glyph: ITextureAtlasGlyph = {
+			textureIndex: this._textureIndex,
 			index: this._nextIndex++,
 			x: this._currentRow.x,
 			y: this._currentRow.y,

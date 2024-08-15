@@ -3,21 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getActiveWindow } from 'vs/base/browser/dom';
 import { Event } from 'vs/base/common/event';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import type { GlyphRasterizer } from 'vs/editor/browser/view/gpu/raster/glyphRasterizer';
-import { ensureNonNullable } from 'vs/editor/browser/view/gpu/gpuUtils';
-import { TextureAtlasSlabAllocator } from 'vs/editor/browser/view/gpu/atlas/textureAtlasSlabAllocator';
-import { ILogService, LogLevel } from 'vs/platform/log/common/log';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TwoKeyMap } from 'vs/base/common/map';
 import type { ITextureAtlasAllocator, ITextureAtlasGlyph } from 'vs/editor/browser/view/gpu/atlas/atlas';
+import { TextureAtlasShelfAllocator } from 'vs/editor/browser/view/gpu/atlas/textureAtlasShelfAllocator';
+import { TextureAtlasSlabAllocator } from 'vs/editor/browser/view/gpu/atlas/textureAtlasSlabAllocator';
+import type { GlyphRasterizer } from 'vs/editor/browser/view/gpu/raster/glyphRasterizer';
+import { ILogService, LogLevel } from 'vs/platform/log/common/log';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export class TextureAtlasPage extends Disposable {
 
 	private readonly _canvas: OffscreenCanvas;
-	private readonly _ctx: OffscreenCanvasRenderingContext2D;
 
 	private readonly _glyphMap: TwoKeyMap<string, number, ITextureAtlasGlyph> = new TwoKeyMap();
 	// HACK: This is an ordered set of glyphs to be passed to the GPU since currently the shader
@@ -39,9 +37,9 @@ export class TextureAtlasPage extends Disposable {
 
 	// TODO: Should pull in the font size from config instead of random dom node
 	constructor(
-		parentDomNode: HTMLElement,
+		textureIndex: number,
 		pageSize: number,
-		maxTextureSize: number,
+		allocatorType: 'shelf' | 'slab',
 		private readonly _glyphRasterizer: GlyphRasterizer,
 		@ILogService private readonly _logService: ILogService,
 		@IThemeService private readonly _themeService: IThemeService,
@@ -49,22 +47,16 @@ export class TextureAtlasPage extends Disposable {
 		super();
 
 		this._canvas = new OffscreenCanvas(pageSize, pageSize);
-		this._ctx = ensureNonNullable(this._canvas.getContext('2d', {
-			willReadFrequently: true
-		}));
 
-		const activeWindow = getActiveWindow();
-		const style = activeWindow.getComputedStyle(parentDomNode);
-		const fontSize = Math.ceil(parseInt(style.fontSize) * activeWindow.devicePixelRatio);
-		this._ctx.font = `${fontSize}px ${style.fontFamily}`;
+		switch (allocatorType) {
+			case 'shelf': this._allocator = new TextureAtlasShelfAllocator(this._canvas, textureIndex); break;
+			case 'slab': this._allocator = new TextureAtlasSlabAllocator(this._canvas, textureIndex); break;
+		}
 
 		this._register(Event.runAndSubscribe(this._themeService.onDidColorThemeChange, () => {
 			// TODO: Clear entire atlas on theme change
 			this._colorMap = this._themeService.getColorTheme().tokenColorMap;
 		}));
-
-		// this._allocator = new TextureAtlasShelfAllocator(this._canvas, this._ctx);
-		this._allocator = new TextureAtlasSlabAllocator(this._canvas, this._ctx);
 
 		// Reduce impact of a memory leak if this object is not released
 		this._register(toDisposable(() => {
@@ -99,6 +91,7 @@ export class TextureAtlasPage extends Disposable {
 	}
 
 	getUsagePreview(): Promise<Blob> {
+		// TODO: Standardize usage stats and make them loggable
 		return this._allocator.getUsagePreview();
 	}
 }

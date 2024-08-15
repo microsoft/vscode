@@ -7,6 +7,7 @@ import type { TwoKeyMap } from 'vs/base/common/map';
 import type { IRasterizedGlyph } from 'vs/editor/browser/view/gpu/raster/glyphRasterizer';
 
 export interface ITextureAtlasGlyph {
+	textureIndex: number;
 	index: number;
 	x: number;
 	y: number;

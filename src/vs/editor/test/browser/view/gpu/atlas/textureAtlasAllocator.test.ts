@@ -63,11 +63,10 @@ suite('TextureAtlasAllocator', () => {
 	});
 
 	suite('TextureAtlasShelfAllocator', () => {
-		function initAllocator(w: number, h: number): { canvas: OffscreenCanvas; ctx: OffscreenCanvasRenderingContext2D; allocator: TextureAtlasShelfAllocator } {
+		function initAllocator(w: number, h: number): { canvas: OffscreenCanvas; allocator: TextureAtlasShelfAllocator } {
 			const canvas = new OffscreenCanvas(w, h);
-			const ctx = ensureNonNullable(canvas.getContext('2d'));
-			const allocator = new TextureAtlasShelfAllocator(canvas, ctx);
-			return { canvas, ctx, allocator };
+			const allocator = new TextureAtlasShelfAllocator(canvas, 0);
+			return { canvas, allocator };
 		}
 
 		test('single allocation', () => {
@@ -112,11 +111,10 @@ suite('TextureAtlasAllocator', () => {
 	});
 
 	suite('TextureAtlasSlabAllocator', () => {
-		function initAllocator(w: number, h: number, options?: TextureAtlasSlabAllocatorOptions): { canvas: OffscreenCanvas; ctx: OffscreenCanvasRenderingContext2D; allocator: TextureAtlasSlabAllocator } {
+		function initAllocator(w: number, h: number, options?: TextureAtlasSlabAllocatorOptions): { canvas: OffscreenCanvas; allocator: TextureAtlasSlabAllocator } {
 			const canvas = new OffscreenCanvas(w, h);
-			const ctx = ensureNonNullable(canvas.getContext('2d'));
-			const allocator = new TextureAtlasSlabAllocator(canvas, ctx, options);
-			return { canvas, ctx, allocator };
+			const allocator = new TextureAtlasSlabAllocator(canvas, 0, options);
+			return { canvas, allocator };
 		}
 
 		test('single allocation', () => {

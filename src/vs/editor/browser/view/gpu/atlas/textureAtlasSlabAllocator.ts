@@ -24,6 +24,9 @@ export interface TextureAtlasSlabAllocatorOptions {
  * waste a lot of space in their own slab.
  */
 export class TextureAtlasSlabAllocator implements ITextureAtlasAllocator {
+
+	private readonly _ctx: OffscreenCanvasRenderingContext2D;
+
 	// TODO: Is there a better way to index slabs other than an unsorted list?
 	private _slabs: ITextureAtlasSlab[] = [];
 	private _activeSlabsByDims: TwoKeyMap<number, number, ITextureAtlasSlab> = new TwoKeyMap();
@@ -43,9 +46,13 @@ export class TextureAtlasSlabAllocator implements ITextureAtlasAllocator {
 
 	constructor(
 		private readonly _canvas: OffscreenCanvas,
-		private readonly _ctx: OffscreenCanvasRenderingContext2D,
+		private readonly _textureIndex: number,
 		options?: TextureAtlasSlabAllocatorOptions
 	) {
+		this._ctx = ensureNonNullable(this._canvas.getContext('2d', {
+			willReadFrequently: true
+		}));
+
 		this._slabW = Math.min(
 			options?.slabW ?? (64 << (Math.floor(getActiveWindow().devicePixelRatio) - 1)),
 			this._canvas.width
@@ -287,6 +294,7 @@ export class TextureAtlasSlabAllocator implements ITextureAtlasAllocator {
 
 		// Create glyph object
 		const glyph: ITextureAtlasGlyph = {
+			textureIndex: this._textureIndex,
 			index: this._nextIndex++,
 			x: dx,
 			y: dy,

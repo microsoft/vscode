@@ -6,47 +6,15 @@
 import { getActiveWindow } from 'vs/base/browser/dom';
 import { Event } from 'vs/base/common/event';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import type { ITextureAtlasGlyph } from 'vs/editor/browser/view/gpu/atlas/atlas';
+import { TextureAtlasPage } from 'vs/editor/browser/view/gpu/atlas/textureAtlasPage';
 import { GlyphRasterizer } from 'vs/editor/browser/view/gpu/raster/glyphRasterizer';
 import { IdleTaskQueue } from 'vs/editor/browser/view/gpu/taskQueue';
-import { TextureAtlasPage } from 'vs/editor/browser/view/gpu/atlas/textureAtlasPage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import type { ITextureAtlasGlyph } from 'vs/editor/browser/view/gpu/atlas/atlas';
-
-// DEBUG: This helper can be used to draw image data to the console, it's commented out as we don't
-//        want to ship it, but this is very useful for investigating texture atlas issues.
-// (console as any).image = (source: ImageData | HTMLCanvasElement, scale: number = 1) => {
-// 	function getBox(width: number, height: number) {
-// 		return {
-// 			string: '+',
-// 			style: 'font-size: 1px; padding: ' + Math.floor(height / 2) + 'px ' + Math.floor(width / 2) + 'px; line-height: ' + height + 'px;'
-// 		};
-// 	}
-// 	if (source instanceof HTMLCanvasElement) {
-// 		source = source.getContext('2d')?.getImageData(0, 0, source.width, source.height)!;
-// 	}
-// 	const canvas = document.createElement('canvas');
-// 	canvas.width = source.width;
-// 	canvas.height = source.height;
-// 	const ctx = canvas.getContext('2d')!;
-// 	ctx.putImageData(source, 0, 0);
-
-// 	const sw = source.width * scale;
-// 	const sh = source.height * scale;
-// 	const dim = getBox(sw, sh);
-// 	console.log(
-// 		`Image: ${source.width} x ${source.height}\n%c${dim.string}`,
-// 		`${dim.style}background: url(${canvas.toDataURL()}); background-size: ${sw}px ${sh}px; background-repeat: no-repeat; color: transparent;`
-// 	);
-// 	console.groupCollapsed('Zoomed');
-// 	console.log(
-// 		`%c${dim.string}`,
-// 		`${getBox(sw * 10, sh * 10).style}background: url(${canvas.toDataURL()}); background-size: ${sw * 10}px ${sh * 10}px; background-repeat: no-repeat; color: transparent; image-rendering: pixelated;-ms-interpolation-mode: nearest-neighbor;`
-// 	);
-// 	console.groupEnd();
-// };
 
 export class TextureAtlas extends Disposable {
+	// TODO: Expose all page glyphs - the glyphs will need a textureId association
 	public get glyphs(): IterableIterator<ITextureAtlasGlyph> {
 		return this._page.glyphs;
 	}
@@ -67,18 +35,34 @@ export class TextureAtlas extends Disposable {
 		this._page.hasChanges = value;
 	}
 
+	/**
+	 * The scratch texture atlas page is a relatively small texture where glyphs that are required
+	 * immediately are drawn to which reduces the latency of their first draw. In some future idle
+	 * callback, the glyph will be transferred into one of the main pages.
+	 */
+	private readonly _scratchPage: TextureAtlasPage;
+	// TODO: Generically get pages externally - gpu shouldn't care about the details of the pages
+	public get scratchSource(): OffscreenCanvas {
+		return this._scratchPage.source;
+	}
+
+	/**
+	 * The main texture atlas pages which are both larger textures and more efficiently packed
+	 * relative to the scratch page. The idea is the main pages are drawn to and uploaded to the GPU
+	 * much less frequently so as to not drop frames.
+	 */
 	private readonly _page: TextureAtlasPage;
 
-	// TODO: Should pull in the font size from config instead of random dom node
 	constructor(
 		parentDomNode: HTMLElement,
-		pageSize: number,
-		maxTextureSize: number,
+		/** The maximum texture size supported by the GPU. */
+		private readonly _maxTextureSize: number,
 		@IThemeService private readonly _themeService: IThemeService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
 
+		// TODO: Should pull in the font size from config instead of random dom node
 		const activeWindow = getActiveWindow();
 		const style = activeWindow.getComputedStyle(parentDomNode);
 		const fontSize = Math.ceil(parseInt(style.fontSize) * activeWindow.devicePixelRatio);
@@ -91,7 +75,16 @@ export class TextureAtlas extends Disposable {
 
 		this._glyphRasterizer = this._register(new GlyphRasterizer(fontSize, style.fontFamily));
 
-		this._page = this._register(this._instantiationService.createInstance(TextureAtlasPage, parentDomNode, pageSize, maxTextureSize, this._glyphRasterizer));
+		const dprFactor = Math.max(1, Math.floor(activeWindow.devicePixelRatio));
+
+		// TODO: Hook up scratch page to renderer
+		const scratchPageSize = Math.min(512 * dprFactor, this._maxTextureSize);
+		// TODO: General way of assigning texture identifier
+		// TODO: Identify texture via a name, the texture index should be only known to the GPU code
+		this._scratchPage = this._register(this._instantiationService.createInstance(TextureAtlasPage, 0, scratchPageSize, 'shelf', this._glyphRasterizer));
+
+		const pageSize = Math.min(1024 * dprFactor, this._maxTextureSize);
+		this._page = this._register(this._instantiationService.createInstance(TextureAtlasPage, 1, pageSize, 'slab', this._glyphRasterizer));
 	}
 
 	// TODO: Color, style etc.
