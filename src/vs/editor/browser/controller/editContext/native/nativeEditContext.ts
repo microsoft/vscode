@@ -68,20 +68,20 @@ export class NativeEditContext extends AbstractEditContext {
 	private _compositionEndPosition: Position | undefined;
 	private _currentComposition: CompositionContext | null = null;
 	private _selectionOfContent: Range | undefined;
-	private _selectionStart: number = 0;
-	private _selectionEnd: number = 0;
+	private _selectionStartWithinScreenReaderContent: number = 0;
+	private _selectionEndWithinScreenReaderContent: number = 0;
 
 	private _hasFocus: boolean = false;
 	private _renderingContext: RenderingContext | undefined;
 
 	private _contextForTextArea = {
-		getValue: () => this.getValue(),
-		getSelectionStart: () => this.getSelectionStart(),
-		getSelectionEnd: () => this.getSelectionEnd(),
+		getValue: () => this._editContext.text,
+		getSelectionStart: () => this._selectionStartWithinEditContext,
+		getSelectionEnd: () => this._selectionEndWithinEditContext,
 	};
 	private _textAreaState: TextAreaState = TextAreaState.EMPTY;
-	private _selectionStartWithin: number = 0;
-	private _selectionEndWithin: number = 0;
+	private _selectionStartWithinEditContext: number = 0;
+	private _selectionEndWithinEditContext: number = 0;
 
 	private _selectionBounds: IDisposable = Disposable.None;
 	private _controlBounds: IDisposable = Disposable.None;
@@ -247,10 +247,10 @@ export class NativeEditContext extends AbstractEditContext {
 
 			if (e.inputType === 'insertParagraph' || e.inputType === 'insertLineBreak') {
 				console.log('this._editContext.text : ', this._editContext.text);
-				console.log('this._selectionStartWithin : ', this._selectionStartWithin);
-				console.log('this._selectionEndWithin : ', this._selectionEndWithin);
+				console.log('this._selectionStartWithin : ', this._selectionStartWithinEditContext);
+				console.log('this._selectionEndWithin : ', this._selectionEndWithinEditContext);
 				const editContextText = this._editContext.text;
-				const textAfterAddingNewLine = editContextText.substring(0, this._selectionStartWithin) + '\n' + editContextText.substring(this._selectionEndWithin);
+				const textAfterAddingNewLine = editContextText.substring(0, this._selectionStartWithinEditContext) + '\n' + editContextText.substring(this._selectionEndWithinEditContext);
 				this._editContext.updateText(0, Number.MAX_SAFE_INTEGER, textAfterAddingNewLine);
 				this.onInput();
 			}
@@ -322,13 +322,13 @@ export class NativeEditContext extends AbstractEditContext {
 		this._editContext.updateText(0, Number.MAX_SAFE_INTEGER, content);
 		this._editContext.updateSelection(selectionStart, selectionEnd);
 
-		this._selectionStartWithin = selectionStart;
-		this._selectionEndWithin = selectionEnd;
+		this._selectionStartWithinEditContext = selectionStart;
+		this._selectionEndWithinEditContext = selectionEnd;
 		this._selectionOfContent = IMEContentData.selectionOfContent;
 
 		console.log('this._editContext.text : ', this._editContext.text);
-		console.log('this._selectionStartWithin : ', this._selectionStartWithin);
-		console.log('this._selectionEndWithin : ', this._selectionEndWithin);
+		console.log('this._selectionStartWithin : ', this._selectionStartWithinEditContext);
+		console.log('this._selectionEndWithin : ', this._selectionEndWithinEditContext);
 		console.log('this._selectionOfContent : ', this._selectionOfContent);
 
 		this._textAreaState = IMEContentData.state;
@@ -570,7 +570,8 @@ export class NativeEditContext extends AbstractEditContext {
 			// In case the textarea contains a word, we're going to try to align the textarea's cursor
 			// with our cursor by scrolling the textarea as much as possible
 			this._domElement.domNode.scrollLeft = this._primaryCursorVisibleRange.left;
-			const lineCount = this._textAreaState.newlineCountBeforeSelection ?? this._newlinecount(this.getValue().substring(0, this.getSelectionStart()));
+			const divValue = this._domElement.domNode.textContent ?? '';
+			const lineCount = this._textAreaState.newlineCountBeforeSelection ?? this._newlinecount(divValue.substring(0, this._selectionStartWithinScreenReaderContent));
 			this._domElement.domNode.scrollTop = lineCount * this._lineHeight;
 			return;
 		}
@@ -723,7 +724,7 @@ export class NativeEditContext extends AbstractEditContext {
 
 		const currentIsFocused = (activeElement === textArea);
 
-		if (currentIsFocused && this._selectionStart === selectionStart && this._selectionEnd === selectionEnd) {
+		if (currentIsFocused && this._selectionStartWithinScreenReaderContent === selectionStart && this._selectionEndWithinScreenReaderContent === selectionEnd) {
 			// No change
 			// Firefox iframe bug https://github.com/microsoft/monaco-editor/issues/643#issuecomment-367871377
 			if (browser.isFirefox && activeWindow.parent !== activeWindow) {
@@ -761,8 +762,8 @@ export class NativeEditContext extends AbstractEditContext {
 		console.log('selectionStart : ', selectionStart);
 		console.log('selectionEnd : ', selectionEnd);
 
-		this._selectionStart = selectionStart;
-		this._selectionEnd = selectionEnd;
+		this._selectionStartWithinScreenReaderContent = selectionStart;
+		this._selectionEndWithinScreenReaderContent = selectionEnd;
 
 		const activeDocument = dom.getActiveWindow().document;
 		const activeDocumentSelection = activeDocument.getSelection();
@@ -969,18 +970,6 @@ export class NativeEditContext extends AbstractEditContext {
 		this._controlBounds.dispose();
 		this._selectionBounds = createRect(selectionBounds, 'red');
 		this._controlBounds = createRect(controlBounds, 'blue');
-	}
-
-	public getValue(): string {
-		return this._editContext.text;
-	}
-
-	public getSelectionStart(): number {
-		return this._selectionStart;
-	}
-
-	public getSelectionEnd(): number {
-		return this._selectionEnd;
 	}
 }
 
