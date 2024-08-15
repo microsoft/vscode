@@ -668,8 +668,6 @@ export class NativeEditContextWrapper extends Disposable {
 	private _selectionEndWithin: number = 0;
 	private _selectionOfContent: Range | undefined;
 
-	private _parent: HTMLElement | undefined;
-	private _renderingContext: RenderingContext | undefined;
 	private _contentLeft: number = 0;
 	private _scrollTop: number = 0;
 
@@ -679,7 +677,11 @@ export class NativeEditContextWrapper extends Disposable {
 
 	constructor(
 		public readonly domNode: HTMLDivElement,
-		private readonly _viewContext: ViewContext
+		private readonly _viewContext: ViewContext,
+		private readonly _context: {
+			get renderingContext(): RenderingContext | undefined;
+			get parentNode(): HTMLElement | undefined;
+		}
 	) {
 		super();
 		this._editContext = domNode.editContext = new EditContext();
@@ -782,12 +784,12 @@ export class NativeEditContextWrapper extends Disposable {
 
 		console.log('_updateBounds');
 
-		if (!this._parent) {
+		if (!this._context.parentNode) {
 			return;
 		}
 		const primaryViewState = this._viewContext.viewModel.getCursorStates()[0].viewState;
 		const primarySelection = primaryViewState.selection;
-		const parentBounds = this._parent.getBoundingClientRect();
+		const parentBounds = this._context.parentNode.getBoundingClientRect();
 		const verticalOffsetStart = this._viewContext.viewLayout.getVerticalOffsetForLineNumber(primarySelection.startLineNumber);
 		const options = this._viewContext.configuration.options;
 		const lineHeight = options.get(EditorOption.lineHeight);
@@ -797,8 +799,8 @@ export class NativeEditContextWrapper extends Disposable {
 		if (primarySelection.isEmpty()) {
 			const typicalHalfwidthCharacterWidth = options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
 			let left: number = parentBounds.left + this._contentLeft;
-			if (this._renderingContext) {
-				const linesVisibleRanges = this._renderingContext.linesVisibleRangesForRange(primaryViewState.selection, true) ?? [];
+			if (this._context.renderingContext) {
+				const linesVisibleRanges = this._context.renderingContext.linesVisibleRangesForRange(primaryViewState.selection, true) ?? [];
 				if (linesVisibleRanges.length === 0) { return; }
 				const minLeft = Math.min(...linesVisibleRanges.map(r => Math.min(...r.ranges.map(r => r.left))));
 				left += minLeft;
@@ -836,11 +838,11 @@ export class NativeEditContextWrapper extends Disposable {
 
 	private _updateCharacterBounds(rangeStart: number) {
 		console.log('_updateCharacterBounds');
-		console.log('this._parent : ', this._parent);
+		console.log('this._context.parentNode : ', this._context.parentNode);
 		console.log('this._compositionStartPosition : ', this._compositionStartPosition);
 		console.log('this._compositionEndPosition : ', this._compositionEndPosition);
 
-		if (!this._parent || !this._compositionStartPosition || !this._compositionEndPosition) {
+		if (!this._context.parentNode || !this._compositionStartPosition || !this._compositionEndPosition) {
 			console.log('early return of _updateCharacterBounds');
 			return;
 		}
@@ -848,17 +850,17 @@ export class NativeEditContextWrapper extends Disposable {
 		const options = this._viewContext.configuration.options;
 		const lineHeight = options.get(EditorOption.lineHeight);
 		const typicalHalfwidthCharacterWidth = options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
-		const parentBounds = this._parent.getBoundingClientRect();
+		const parentBounds = this._context.parentNode.getBoundingClientRect();
 		const verticalOffsetStart = this._viewContext.viewLayout.getVerticalOffsetForLineNumber(this._compositionStartPosition.lineNumber);
 		let left: number = parentBounds.left + this._contentLeft;
 		let width: number = typicalHalfwidthCharacterWidth / 2;
 
 		console.log('before using this rendering context');
-		console.log('this._renderingContext : ', this._renderingContext);
+		console.log('this._renderingContext : ', this._context.renderingContext);
 
-		if (this._renderingContext) {
+		if (this._context.renderingContext) {
 			const range = Range.fromPositions(this._compositionStartPosition, this._compositionEndPosition);
-			const linesVisibleRanges = this._renderingContext.linesVisibleRangesForRange(range, true) ?? [];
+			const linesVisibleRanges = this._context.renderingContext.linesVisibleRangesForRange(range, true) ?? [];
 
 			console.log('range : ', range);
 			console.log('linesVisibleRanges : ', linesVisibleRanges);
@@ -978,30 +980,6 @@ export class NativeEditContextWrapper extends Disposable {
 
 	public getSelectionEnd(): number {
 		return this._selectionEndWithin;
-	}
-
-	// --- do we need this?
-	public updateSelection(start: number, end: number) {
-
-		console.log('_updateSelection');
-
-		this._editContext.updateSelection(start, end);
-	}
-
-	// --- do we need this?
-	public updateOriginalSelection(selection: Selection) {
-
-		console.log('_updateOriginalSelection');
-
-		this._selectionOfContent = selection;
-	}
-
-	public setParent(parent: HTMLElement): void {
-		this._parent = parent;
-	}
-
-	public setRenderingContext(renderingContext: RenderingContext): void {
-		this._renderingContext = renderingContext;
 	}
 }
 
