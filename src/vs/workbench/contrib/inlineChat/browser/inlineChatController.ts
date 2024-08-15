@@ -273,6 +273,7 @@ export class InlineChatController implements IEditorContribution {
 
 		} catch (error) {
 			// this should not happen but when it does make sure to tear down the UI and everything
+			this._log('error during run', error);
 			onUnexpectedError(error);
 			if (this._session) {
 				this._inlineChatSessionService.releaseSession(this._session);
