@@ -175,7 +175,7 @@ resources:
       ref: refs/tags/release
 
 extends:
-  template: v1/1ES.Unofficial.PipelineTemplate.yml@1esPipelines
+  template: v1/1ES.Official.PipelineTemplate.yml@1esPipelines
   parameters:
     sdl:
       tsa:
@@ -190,9 +190,10 @@ extends:
           validateToolOutput: None
           allTools: true
       codeql:
+        runSourceLanguagesInSourceAnalysis: true
         compiled:
           enabled: false
-        runSourceLanguagesInSourceAnalysis: true
+          justificationForDisabling: "CodeQL breaks ESRP CodeSign on macOS (ICM #520035761, githubcustomers/microsoft-codeql-support#198)"
       credscan:
         suppressionsFile: $(Build.SourcesDirectory)/build/azure-pipelines/config/CredScanSuppressions.json
       eslint:

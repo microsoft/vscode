@@ -170,13 +170,13 @@ export function compileTask(src: string, out: string, build: boolean, options: {
 	return task;
 }
 
-export function watchTask(out: string, build: boolean): task.StreamTask {
+export function watchTask(out: string, build: boolean, srcPath: string = 'src'): task.StreamTask {
 
 	const task = () => {
-		const compile = createCompile('src2', { build, emitError: false, transpileOnly: false, preserveEnglish: false }); // DO NOT MERGE TO `main`
+		const compile = createCompile(srcPath, { build, emitError: false, transpileOnly: false, preserveEnglish: false });
 
-		const src = gulp.src('src2/**', { base: 'src2' }); // DO NOT MERGE TO `main`
-		const watchSrc = watch('src2/**', { base: 'src2', readDelay: 200 }); // DO NOT MERGE TO `main`
+		const src = gulp.src(`${srcPath}/**`, { base: srcPath });
+		const watchSrc = watch(`${srcPath}/**`, { base: srcPath, readDelay: 200 });
 
 		const generator = new MonacoGenerator(true);
 		generator.execute();
