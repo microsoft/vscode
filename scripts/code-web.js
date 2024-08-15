@@ -74,7 +74,9 @@ async function main() {
 		openSystemBrowser = true;
 	}
 
-	serverArgs.push('--esm');
+	if (fs.existsSync(path.join(APP_ROOT, 'src2')) || fs.existsSync(path.join(APP_ROOT, 'out-build', 'esm'))) {
+		serverArgs.push('--esm');
+	}
 
 	serverArgs.push('--sourcesPath', APP_ROOT);
 

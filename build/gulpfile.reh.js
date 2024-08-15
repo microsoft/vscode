@@ -54,7 +54,7 @@ const BUILD_TARGETS = [
 	{ platform: 'linux', arch: 'alpine' },
 ];
 
-const serverResources = [
+const serverResourceIncludes = [
 
 	// NLS
 	'out-build/nls.messages.json',
@@ -73,17 +73,26 @@ const serverResources = [
 	'out-build/vs/workbench/contrib/terminal/browser/media/shellIntegration-rc.zsh',
 	'out-build/vs/workbench/contrib/terminal/browser/media/shellIntegration-login.zsh',
 	'out-build/vs/workbench/contrib/terminal/browser/media/fish_xdg_data/fish/vendor_conf.d/shellIntegration.fish',
+];
 
+const serverResourceExcludes = [
+	'!out-build/vs/**/{electron-sandbox,electron-main}/**',
+	'!out-build/vs/editor/standalone/**',
+	'!out-build/vs/workbench/**/*-tb.png',
+	'!out-build/vs/code/**/*-dev.html',
+	'!out-build/vs/code/**/*-dev.esm.html',
 	'!**/test/**'
 ];
 
+const serverResources = [
+	...serverResourceIncludes,
+	...serverResourceExcludes
+];
+
 const serverWithWebResources = [
-
-	// Include all of server...
-	...serverResources,
-
-	// ...and all of web
-	...vscodeWebResourceIncludes
+	...serverResourceIncludes,
+	...vscodeWebResourceIncludes,
+	...serverResourceExcludes
 ];
 
 const serverEntryPoints = [

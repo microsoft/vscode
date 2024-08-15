@@ -31,7 +31,7 @@ export class SignService extends AbstractSignService implements ISignService {
 
 	private async vsda(): Promise<typeof vsda> {
 		// ESM-uncomment-begin
-		// if (importAMDNodeModule) { /* fixes unused import, remove me */}
+		// if (typeof importAMDNodeModule === 'function') { /* fixes unused import, remove me */}
 		// const mod = 'vsda';
 		// const { default: vsda } = await import(mod);
 		// return vsda;
