@@ -484,6 +484,15 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 	}
 
 	async triggerSearch(_options?: { resetCursor?: boolean; delay?: number; focusResults?: boolean }) {
+		const focusResults = this.searchConfig.searchEditor.focusResultsOnSearch;
+
+		// If _options don't define focusResult field, then use the setting
+		if (_options === undefined) {
+			_options = { focusResults: focusResults };
+		} else if (_options.focusResults === undefined) {
+			_options.focusResults = focusResults;
+		}
+
 		const options = { resetCursor: true, delay: 0, ..._options };
 
 		if (!(this.queryEditorWidget.searchInput?.inputBox.isInputValid())) {
