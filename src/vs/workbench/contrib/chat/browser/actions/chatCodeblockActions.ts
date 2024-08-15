@@ -137,8 +137,8 @@ abstract class InsertCodeBlockAction extends ChatCodeBlockAction {
 			return;
 		}
 
-		if (notebookEditor.activeCodeEditor?.hasTextFocus()) {
-			const codeEditor = notebookEditor.activeCodeEditor;
+		if (notebookEditor.activeCodeEditor?.[1].hasTextFocus()) {
+			const codeEditor = notebookEditor.activeCodeEditor[1];
 			if (codeEditor.hasModel()) {
 				return this.handleTextEditor(accessor, codeEditor, context);
 			}

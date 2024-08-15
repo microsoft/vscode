@@ -504,7 +504,7 @@ export interface INotebookEditor {
 	readonly scrollTop: number;
 	readonly scrollBottom: number;
 	readonly scopedContextKeyService: IContextKeyService;
-	readonly activeCodeEditor: ICodeEditor | undefined;
+	readonly activeCodeEditor: [ICellViewModel, ICodeEditor] | undefined;
 	readonly codeEditors: [ICellViewModel, ICodeEditor][];
 	//#endregion
 
