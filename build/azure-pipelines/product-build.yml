@@ -182,9 +182,10 @@ extends:
           validateToolOutput: None
           allTools: true
       codeql:
-        compiled:
-          buildmode: none
         runSourceLanguagesInSourceAnalysis: true
+        compiled:
+          enabled: false
+          justification: "CodeQL runs in the WindowsSDL job only"
       credscan:
         suppressionsFile: $(Build.SourcesDirectory)/build/azure-pipelines/config/CredScanSuppressions.json
       eslint:
@@ -326,6 +327,11 @@ extends:
             - job: WindowsSDL
               variables:
                 - group: 'API Scan'
+              templateContext:
+                sdl:
+                  codeql:
+                    compiled:
+                      enabled: true
               steps:
                 - template: build/azure-pipelines/win32/sdl-scan-win32.yml@self
                   parameters:
