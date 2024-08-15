@@ -872,12 +872,12 @@ extends:
                   timeoutInMinutes: 90
                   variables:
                     VSCODE_ARCH: x64
-                templateContext:
-                  sdl:
-                    codeql:
-                      compiled:
-                        enabled: false
-                        justificationForDisabling: CodeQL runs in the WindowsSDL job only
+                  templateContext:
+                    sdl:
+                      codeql:
+                        compiled:
+                          enabled: false
+                          justificationForDisabling: CodeQL runs in the WindowsSDL job only
                   steps:
                     - template: build/azure-pipelines/darwin/product-build-darwin.yml@self
                       parameters:
