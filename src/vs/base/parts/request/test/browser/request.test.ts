@@ -12,9 +12,9 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { request } from 'vs/base/parts/request/browser/request';
 import { streamToBuffer } from 'vs/base/common/buffer';
-import { isLinux } from 'vs/base/common/platform';
+import { flakySuite } from 'vs/base/test/common/testUtils';
 
-suite('Request', () => {
+flakySuite('Request', () => {
 
 	let port: number;
 	let server: http.Server;
@@ -53,7 +53,7 @@ suite('Request', () => {
 		});
 	});
 
-	(isLinux ? test.skip : test)('GET', async () => { // TODO fails on Linux in CI
+	test('GET', async () => {
 		const context = await request({
 			url: `http://127.0.0.1:${port}`,
 			headers: {
