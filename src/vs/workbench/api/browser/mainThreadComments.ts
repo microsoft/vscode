@@ -27,6 +27,9 @@ import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { Schemas } from 'vs/base/common/network';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { MarshalledCommentThread } from 'vs/workbench/common/comments';
+import { revealCommentThread } from 'vs/workbench/contrib/comments/browser/commentsController';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
 export class MainThreadCommentThread<T> implements languages.CommentThread<T> {
 	private _input?: languages.CommentInput;
@@ -66,13 +69,13 @@ export class MainThreadCommentThread<T> implements languages.CommentThread<T> {
 	private readonly _onDidChangeLabel = new Emitter<string | undefined>();
 	readonly onDidChangeLabel: Event<string | undefined> = this._onDidChangeLabel.event;
 
-	private _comments: languages.Comment[] | undefined;
+	private _comments: ReadonlyArray<languages.Comment> | undefined;
 
-	public get comments(): languages.Comment[] | undefined {
+	public get comments(): ReadonlyArray<languages.Comment> | undefined {
 		return this._comments;
 	}
 
-	public set comments(newComments: languages.Comment[] | undefined) {
+	public set comments(newComments: ReadonlyArray<languages.Comment> | undefined) {
 		this._comments = newComments;
 		this._onDidChangeComments.fire(this._comments);
 	}
@@ -109,8 +112,10 @@ export class MainThreadCommentThread<T> implements languages.CommentThread<T> {
 	}
 
 	set collapsibleState(newState: languages.CommentThreadCollapsibleState | undefined) {
-		this._collapsibleState = newState;
-		this._onDidChangeCollapsibleState.fire(this._collapsibleState);
+		if (newState !== this._collapsibleState) {
+			this._collapsibleState = newState;
+			this._onDidChangeCollapsibleState.fire(this._collapsibleState);
+		}
 	}
 
 	private _initialCollapsibleState: languages.CommentThreadCollapsibleState | undefined;
@@ -179,6 +184,7 @@ export class MainThreadCommentThread<T> implements languages.CommentThread<T> {
 		public threadId: string,
 		public resource: string,
 		private _range: T | undefined,
+		comments: languages.Comment[] | undefined,
 		private _canReply: boolean,
 		private _isTemplate: boolean,
 		public editorId?: string
@@ -186,6 +192,8 @@ export class MainThreadCommentThread<T> implements languages.CommentThread<T> {
 		this._isDisposed = false;
 		if (_isTemplate) {
 			this.comments = [];
+		} else if (comments) {
+			this._comments = comments;
 		}
 	}
 
@@ -196,12 +204,16 @@ export class MainThreadCommentThread<T> implements languages.CommentThread<T> {
 		if (modified('range')) { this._range = changes.range!; }
 		if (modified('label')) { this._label = changes.label; }
 		if (modified('contextValue')) { this._contextValue = changes.contextValue === null ? undefined : changes.contextValue; }
-		if (modified('comments')) { this._comments = changes.comments; }
+		if (modified('comments')) { this.comments = changes.comments; }
 		if (modified('collapseState')) { this.initialCollapsibleState = changes.collapseState; }
 		if (modified('canReply')) { this.canReply = changes.canReply!; }
 		if (modified('state')) { this.state = changes.state!; }
 		if (modified('applicability')) { this.applicability = changes.applicability!; }
 		if (modified('isTemplate')) { this._isTemplate = changes.isTemplate!; }
+	}
+
+	hasComments(): boolean {
+		return !!this.comments && this.comments.length > 0;
 	}
 
 	dispose() {
@@ -292,6 +304,7 @@ export class MainThreadCommentController implements ICommentController {
 		threadId: string,
 		resource: UriComponents,
 		range: IRange | ICellRange | undefined,
+		comments: languages.Comment[],
 		isTemplate: boolean,
 		editorId?: string
 	): languages.CommentThread<IRange | ICellRange> {
@@ -302,6 +315,7 @@ export class MainThreadCommentController implements ICommentController {
 			threadId,
 			URI.revive(resource).toString(),
 			range,
+			comments,
 			true,
 			isTemplate,
 			editorId
@@ -518,7 +532,9 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		extHostContext: IExtHostContext,
 		@ICommentService private readonly _commentService: ICommentService,
 		@IViewsService private readonly _viewsService: IViewsService,
-		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService
+		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
+		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
+		@IEditorService private readonly _editorService: IEditorService
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostComments);
@@ -582,6 +598,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		threadId: string,
 		resource: UriComponents,
 		range: IRange | ICellRange | undefined,
+		comments: languages.Comment[],
 		extensionId: ExtensionIdentifier,
 		isTemplate: boolean,
 		editorId?: string
@@ -592,7 +609,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 			return undefined;
 		}
 
-		return provider.createCommentThread(extensionId.value, commentThreadHandle, threadId, resource, range, isTemplate, editorId);
+		return provider.createCommentThread(extensionId.value, commentThreadHandle, threadId, resource, range, comments, isTemplate, editorId);
 	}
 
 	$updateCommentThread(handle: number,
@@ -627,6 +644,38 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		}
 
 		provider.updateCommentingRanges(resourceHints);
+	}
+
+	async $revealCommentThread(handle: number, commentThreadHandle: number, commentUniqueIdInThread: number, options: languages.CommentThreadRevealOptions): Promise<void> {
+		const provider = this._commentControllers.get(handle);
+
+		if (!provider) {
+			return Promise.resolve();
+		}
+
+		const thread = provider.getAllComments().find(thread => thread.commentThreadHandle === commentThreadHandle);
+		if (!thread || !thread.isDocumentCommentThread()) {
+			return Promise.resolve();
+		}
+
+		const comment = thread.comments?.find(comment => comment.uniqueIdInThread === commentUniqueIdInThread);
+
+		revealCommentThread(this._commentService, this._editorService, this._uriIdentityService, thread, comment, options.focusReply, undefined, options.preserveFocus);
+	}
+
+	async $hideCommentThread(handle: number, commentThreadHandle: number): Promise<void> {
+		const provider = this._commentControllers.get(handle);
+
+		if (!provider) {
+			return Promise.resolve();
+		}
+
+		const thread = provider.getAllComments().find(thread => thread.commentThreadHandle === commentThreadHandle);
+		if (!thread || !thread.isDocumentCommentThread()) {
+			return Promise.resolve();
+		}
+
+		thread.collapsibleState = languages.CommentThreadCollapsibleState.Collapsed;
 	}
 
 	private registerView(commentsViewAlreadyRegistered: boolean) {

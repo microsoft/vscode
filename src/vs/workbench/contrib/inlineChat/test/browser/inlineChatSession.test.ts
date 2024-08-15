@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
+import assert from 'assert';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { mock } from 'vs/base/test/common/mock';
@@ -30,11 +30,10 @@ import { IInlineChatSavingService } from 'vs/workbench/contrib/inlineChat/browse
 import { HunkState, Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { IInlineChatSessionService } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSessionService';
 import { InlineChatSessionServiceImpl } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSessionServiceImpl';
-import { EditMode, IInlineChatService } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { EditMode } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { assertType } from 'vs/base/common/types';
-import { InlineChatServiceImpl } from 'vs/workbench/contrib/inlineChat/common/inlineChatServiceImpl';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
@@ -57,6 +56,10 @@ import { ChatVariablesService } from 'vs/workbench/contrib/chat/browser/chatVari
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { TestCommandService } from 'vs/editor/test/browser/editorTestServices';
 import { IAccessibleViewService } from 'vs/platform/accessibility/browser/accessibleView';
+import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
+import { NullWorkbenchAssignmentService } from 'vs/workbench/services/assignment/test/common/nullAssignmentService';
+import { ILanguageModelToolsService } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
+import { MockLanguageModelToolsService } from 'vs/workbench/contrib/chat/test/common/mockLanguageModelToolsService';
 
 suite('InlineChatSession', function () {
 
@@ -86,11 +89,11 @@ suite('InlineChatSession', function () {
 			[IChatService, new SyncDescriptor(ChatService)],
 			[IEditorWorkerService, new SyncDescriptor(TestWorkerService)],
 			[IChatAgentService, new SyncDescriptor(ChatAgentService)],
-			[IInlineChatService, new SyncDescriptor(InlineChatServiceImpl)],
 			[IContextKeyService, contextKeyService],
 			[IDiffProviderFactoryService, new SyncDescriptor(TestDiffProviderFactoryService)],
 			[IInlineChatSessionService, new SyncDescriptor(InlineChatSessionServiceImpl)],
 			[ICommandService, new SyncDescriptor(TestCommandService)],
+			[ILanguageModelToolsService, new MockLanguageModelToolsService()],
 			[IInlineChatSavingService, new class extends mock<IInlineChatSavingService>() {
 				override markChanged(session: Session): void {
 					// noop
@@ -117,7 +120,8 @@ suite('InlineChatSession', function () {
 			[IConfigurationService, new TestConfigurationService()],
 			[IViewDescriptorService, new class extends mock<IViewDescriptorService>() {
 				override onDidChangeLocation = Event.None;
-			}]
+			}],
+			[IWorkbenchAssignmentService, new NullWorkbenchAssignmentService()]
 		);
 
 
@@ -135,7 +139,8 @@ suite('InlineChatSession', function () {
 			isDefault: true,
 			locations: [ChatAgentLocation.Editor],
 			metadata: {},
-			slashCommands: []
+			slashCommands: [],
+			disambiguation: [],
 		}, {
 			async invoke() {
 				return {};
@@ -162,7 +167,7 @@ suite('InlineChatSession', function () {
 		} finally {
 			session.hunkData.ignoreTextModelNChanges = false;
 		}
-		await session.hunkData.recompute();
+		await session.hunkData.recompute({ applied: 0, sha1: 'fakeSha1' });
 	}
 
 	function makeEdit(edit: EditOperation | EditOperation[]) {
@@ -435,4 +440,51 @@ suite('InlineChatSession', function () {
 		assert.strictEqual(session.textModelN.getValue(), session.textModel0.getValue());
 	});
 
+	test('HunkData, accept, discardAll', async function () {
+
+		const session = await inlineChatSessionService.createSession(editor, { editMode: EditMode.Live }, CancellationToken.None);
+		assertType(session);
+
+		await makeEditAsAi([EditOperation.insert(new Position(1, 1), 'AI_EDIT\n'), EditOperation.insert(new Position(10, 1), 'AI_EDIT\n')]);
+
+		assert.strictEqual(session.hunkData.size, 2);
+		assert.ok(!session.textModel0.equalsTextBuffer(session.textModelN.getTextBuffer()));
+
+		const textModeNNow = session.textModelN.getValue();
+
+		session.hunkData.getInfo()[0].acceptChanges();
+		assert.strictEqual(textModeNNow, session.textModelN.getValue());
+
+		session.hunkData.discardAll(); // all remaining
+		assert.strictEqual(session.textModelN.getValue(), 'AI_EDIT\none\ntwo\nthree\nfour\nfive\nsix\nseven\neight\nnine\nten\neleven');
+		assert.strictEqual(session.textModelN.getValue(), session.textModel0.getValue());
+
+		inlineChatSessionService.releaseSession(session);
+	});
+
+	test('HunkData, discardAll return undo edits', async function () {
+
+		const session = await inlineChatSessionService.createSession(editor, { editMode: EditMode.Live }, CancellationToken.None);
+		assertType(session);
+
+		await makeEditAsAi([EditOperation.insert(new Position(1, 1), 'AI_EDIT\n'), EditOperation.insert(new Position(10, 1), 'AI_EDIT\n')]);
+
+		assert.strictEqual(session.hunkData.size, 2);
+		assert.ok(!session.textModel0.equalsTextBuffer(session.textModelN.getTextBuffer()));
+
+		const textModeNNow = session.textModelN.getValue();
+
+		session.hunkData.getInfo()[0].acceptChanges();
+		assert.strictEqual(textModeNNow, session.textModelN.getValue());
+
+		const undoEdits = session.hunkData.discardAll(); // all remaining
+		assert.strictEqual(session.textModelN.getValue(), 'AI_EDIT\none\ntwo\nthree\nfour\nfive\nsix\nseven\neight\nnine\nten\neleven');
+		assert.strictEqual(session.textModelN.getValue(), session.textModel0.getValue());
+
+		// undo the discards
+		session.textModelN.pushEditOperations(null, undoEdits, () => null);
+		assert.strictEqual(textModeNNow, session.textModelN.getValue());
+
+		inlineChatSessionService.releaseSession(session);
+	});
 });

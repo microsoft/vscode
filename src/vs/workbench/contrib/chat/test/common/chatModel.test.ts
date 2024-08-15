@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { timeout } from 'vs/base/common/async';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { URI } from 'vs/base/common/uri';
@@ -121,22 +121,52 @@ suite('ChatModel', () => {
 		model.removeRequest(requests[0].id);
 		assert.strictEqual(model.getRequests().length, 0);
 	});
+
+	test('adoptRequest', async function () {
+		const model1 = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, ChatAgentLocation.Editor));
+		const model2 = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, ChatAgentLocation.Panel));
+
+		model1.startInitialize();
+		model1.initialize(undefined);
+
+		model2.startInitialize();
+		model2.initialize(undefined);
+
+		const text = 'hello';
+		const request1 = model1.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] }, { variables: [] }, 0);
+
+		assert.strictEqual(model1.getRequests().length, 1);
+		assert.strictEqual(model2.getRequests().length, 0);
+		assert.ok(request1.session === model1);
+		assert.ok(request1.response?.session === model1);
+
+		model2.adoptRequest(request1);
+
+		assert.strictEqual(model1.getRequests().length, 0);
+		assert.strictEqual(model2.getRequests().length, 1);
+		assert.ok(request1.session === model2);
+		assert.ok(request1.response?.session === model2);
+
+		model2.acceptResponseProgress(request1, { content: new MarkdownString('Hello'), kind: 'markdownContent' });
+
+		assert.strictEqual(request1.response.response.toString(), 'Hello');
+	});
 });
 
 suite('Response', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('mergeable markdown', async () => {
-		const response = new Response([]);
+		const response = store.add(new Response([]));
 		response.updateContent({ content: new MarkdownString('markdown1'), kind: 'markdownContent' });
 		response.updateContent({ content: new MarkdownString('markdown2'), kind: 'markdownContent' });
 		await assertSnapshot(response.value);
 
-		assert.strictEqual(response.asString(), 'markdown1markdown2');
+		assert.strictEqual(response.toString(), 'markdown1markdown2');
 	});
 
 	test('not mergeable markdown', async () => {
-		const response = new Response([]);
+		const response = store.add(new Response([]));
 		const md1 = new MarkdownString('markdown1');
 		md1.supportHtml = true;
 		response.updateContent({ content: md1, kind: 'markdownContent' });
@@ -145,7 +175,7 @@ suite('Response', () => {
 	});
 
 	test('inline reference', async () => {
-		const response = new Response([]);
+		const response = store.add(new Response([]));
 		response.updateContent({ content: new MarkdownString('text before'), kind: 'markdownContent' });
 		response.updateContent({ inlineReference: URI.parse('https://microsoft.com'), kind: 'inlineReference' });
 		response.updateContent({ content: new MarkdownString('text after'), kind: 'markdownContent' });

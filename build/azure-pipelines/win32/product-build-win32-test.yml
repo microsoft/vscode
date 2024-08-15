@@ -61,7 +61,6 @@ steps:
           compile-extension:ipynb `
           compile-extension:notebook-renderers `
           compile-extension:json-language-features-server `
-          compile-extension:markdown-language-features-server `
           compile-extension:markdown-language-features `
           compile-extension-media `
           compile-extension:microsoft-authentication `
@@ -71,6 +70,11 @@ steps:
           compile-extension:vscode-test-resolver `
         }
       displayName: Build integration tests
+
+    - powershell: .\build\azure-pipelines\win32\listprocesses.bat
+      displayName: Diagnostics before integration test runs
+      continueOnError: true
+      condition: succeededOrFailed()
 
     - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
       - powershell: .\scripts\test-integration.bat --tfs "Integration Tests"
@@ -120,6 +124,11 @@ steps:
           exec { .\scripts\test-remote-integration.bat }
         displayName: Run integration tests (Remote)
         timeoutInMinutes: 20
+
+      - powershell: .\build\azure-pipelines\win32\listprocesses.bat
+        displayName: Diagnostics after integration test runs
+        continueOnError: true
+        condition: succeededOrFailed()
 
   - ${{ if eq(parameters.VSCODE_RUN_SMOKE_TESTS, true) }}:
     - powershell: .\build\azure-pipelines\win32\listprocesses.bat

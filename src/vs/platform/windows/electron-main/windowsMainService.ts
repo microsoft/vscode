@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
 import { app, BrowserWindow, WebContents, shell } from 'electron';
-import { Promises } from 'vs/base/node/pfs';
 import { addUNCHostToAllowlist } from 'vs/base/node/unc';
 import { hostname, release, arch } from 'os';
 import { coalesce, distinct } from 'vs/base/common/arrays';
@@ -56,6 +56,7 @@ import { IUserDataProfilesMainService } from 'vs/platform/userDataProfile/electr
 import { ILoggerMainService } from 'vs/platform/log/electron-main/loggerService';
 import { IAuxiliaryWindowsMainService } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindows';
 import { IAuxiliaryWindow } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindow';
+import { ICSSDevelopmentService } from 'vs/platform/cssDev/node/cssDevService';
 
 //#region Helper Interfaces
 
@@ -211,6 +212,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	constructor(
 		private readonly machineId: string,
 		private readonly sqmId: string,
+		private readonly devDeviceId: string,
 		private readonly initialUserEnv: IProcessEnvironment,
 		@ILogService private readonly logService: ILogService,
 		@ILoggerMainService private readonly loggerService: ILoggerMainService,
@@ -228,7 +230,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		@IFileService private readonly fileService: IFileService,
 		@IProtocolMainService private readonly protocolMainService: IProtocolMainService,
 		@IThemeMainService private readonly themeMainService: IThemeMainService,
-		@IAuxiliaryWindowsMainService private readonly auxiliaryWindowsMainService: IAuxiliaryWindowsMainService
+		@IAuxiliaryWindowsMainService private readonly auxiliaryWindowsMainService: IAuxiliaryWindowsMainService,
+		@ICSSDevelopmentService private readonly cssDevelopmentService: ICSSDevelopmentService
 	) {
 		super();
 
@@ -268,7 +271,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		const forceReuseWindow = options?.forceReuseWindow;
 		const forceNewWindow = !forceReuseWindow;
 
-		return this.open({ ...openConfig, cli, forceEmpty, forceNewWindow, forceReuseWindow, remoteAuthority });
+		return this.open({ ...openConfig, cli, forceEmpty, forceNewWindow, forceReuseWindow, remoteAuthority, forceTempProfile: options?.forceTempProfile, forceProfile: options?.forceProfile });
 	}
 
 	openExistingWindow(window: ICodeWindow, openConfig: IOpenConfiguration): void {
@@ -505,7 +508,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			// this step.
 			let windowToUseForFiles: ICodeWindow | undefined = undefined;
 			if (fileToCheck?.fileUri && !openFilesInNewWindow) {
-				if (openConfig.context === OpenContext.DESKTOP || openConfig.context === OpenContext.CLI || openConfig.context === OpenContext.DOCK) {
+				if (openConfig.context === OpenContext.DESKTOP || openConfig.context === OpenContext.CLI || openConfig.context === OpenContext.DOCK || openConfig.context === OpenContext.LINK) {
 					windowToUseForFiles = await findWindowOnFile(windows, fileToCheck.fileUri, async workspace => workspace.configPath.scheme === Schemas.file ? this.workspacesManagementMainService.resolveLocalWorkspace(workspace.configPath) : undefined);
 				}
 
@@ -1056,7 +1059,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		path = sanitizeFilePath(normalize(path), cwd());
 
 		try {
-			const pathStat = await Promises.stat(path);
+			const pathStat = await fs.promises.stat(path);
 
 			// File
 			if (pathStat.isFile()) {
@@ -1389,7 +1392,9 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		const windowConfig = this.configurationService.getValue<IWindowSettings | undefined>('window');
 
 		const lastActiveWindow = this.getLastActiveWindow();
-		const defaultProfile = lastActiveWindow?.profile ?? this.userDataProfilesMainService.defaultProfile;
+		const newWindowProfile = windowConfig?.newWindowProfile
+			? this.userDataProfilesMainService.profiles.find(profile => profile.name === windowConfig.newWindowProfile) : undefined;
+		const defaultProfile = newWindowProfile ?? lastActiveWindow?.profile ?? this.userDataProfilesMainService.defaultProfile;
 
 		let window: ICodeWindow | undefined;
 		if (!options.forceNewWindow && !options.forceNewTabbedWindow) {
@@ -1409,6 +1414,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 			machineId: this.machineId,
 			sqmId: this.sqmId,
+			devDeviceId: this.devDeviceId,
 
 			windowId: -1,	// Will be filled in by the window once loaded later
 
@@ -1440,6 +1446,11 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			workspace: options.workspace,
 			userEnv: { ...this.initialUserEnv, ...options.userEnv },
 
+			nls: {
+				messages: globalThis._VSCODE_NLS_MESSAGES,
+				language: globalThis._VSCODE_NLS_LANGUAGE
+			},
+
 			filesToOpenOrCreate: options.filesToOpen?.filesToOpenOrCreate,
 			filesToDiff: options.filesToOpen?.filesToDiff,
 			filesToMerge: options.filesToOpen?.filesToMerge,
@@ -1462,7 +1473,9 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			accessibilitySupport: app.accessibilitySupportEnabled,
 			colorScheme: this.themeMainService.getColorScheme(),
 			policiesData: this.policyService.serialize(),
-			continueOn: this.environmentMainService.continueOn
+			continueOn: this.environmentMainService.continueOn,
+
+			cssModules: this.cssDevelopmentService.isEnabled ? await this.cssDevelopmentService.getCssModules() : undefined
 		};
 
 		// New window

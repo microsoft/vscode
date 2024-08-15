@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { HierarchicalKind } from 'vs/base/common/hierarchicalKind';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { StopWatch } from 'vs/base/common/stopwatch';
 import * as strings from 'vs/base/common/strings';
 import { IActiveCodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -27,9 +28,12 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProgress, IProgressStep, Progress } from 'vs/platform/progress/common/progress';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchContributionsExtensions } from 'vs/workbench/common/contributions';
 import { SaveReason } from 'vs/workbench/common/editor';
 import { getModifiedRanges } from 'vs/workbench/contrib/format/browser/formatModified';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ITextFileEditorModel, ITextFileSaveParticipant, ITextFileSaveParticipantContext, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
@@ -267,13 +271,54 @@ class FormatOnSaveParticipant implements ITextFileSaveParticipant {
 	}
 }
 
-class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
+class CodeActionOnSaveParticipant extends Disposable implements ITextFileSaveParticipant {
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
-	) { }
+		@IHostService private readonly hostService: IHostService,
+		@IEditorService private readonly editorService: IEditorService,
+		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService
+	) {
+		super();
+
+		this._register(this.hostService.onDidChangeFocus(() => { this.triggerCodeActionsCommand(); }));
+		this._register(this.editorService.onDidActiveEditorChange(() => { this.triggerCodeActionsCommand(); }));
+	}
+
+	private async triggerCodeActionsCommand() {
+		if (this.configurationService.getValue<boolean>('editor.codeActions.triggerOnFocusChange') && this.configurationService.getValue<string>('files.autoSave') === 'afterDelay') {
+			const model = this.codeEditorService.getActiveCodeEditor()?.getModel();
+			if (!model) {
+				return undefined;
+			}
+
+			const settingsOverrides = { overrideIdentifier: model.getLanguageId(), resource: model.uri };
+			const setting = this.configurationService.getValue<{ [kind: string]: string | boolean } | string[]>('editor.codeActionsOnSave', settingsOverrides);
+
+			if (!setting) {
+				return undefined;
+			}
+
+			if (Array.isArray(setting)) {
+				return undefined;
+			}
+
+			const settingItems: string[] = Object.keys(setting).filter(x => setting[x] && setting[x] === 'always' && CodeActionKind.Source.contains(new HierarchicalKind(x)));
+
+			const cancellationTokenSource = new CancellationTokenSource();
+
+			const codeActionKindList = [];
+			for (const item of settingItems) {
+				codeActionKindList.push(new HierarchicalKind(item));
+			}
+
+			// run code actions based on what is found from setting === 'always', no exclusions.
+			await this.applyOnSaveActions(model, codeActionKindList, [], Progress.None, cancellationTokenSource.token);
+		}
+	}
 
 	async participate(model: ITextFileEditorModel, context: ITextFileSaveParticipantContext, progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
 		if (!model.textEditorModel) {
@@ -366,7 +411,27 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 		};
 
 		for (const codeActionKind of codeActionsOnSave) {
+			const sw = new StopWatch();
+
 			const actionsToRun = await this.getActionsToRun(model, codeActionKind, excludes, getActionProgress, token);
+
+			// Telemetry for duration of each code action on save.
+			type CodeActionOnSave = {
+				codeAction: string;
+				duration: number;
+			};
+			type CodeActionOnSaveClassification = {
+				owner: 'justschen';
+				comment: 'Information about the code action that was accepted on save.';
+				codeAction: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Kind of the code action setting that is run.' };
+				duration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Duration it took for TS to return the action to run for each kind. ' };
+			};
+
+			this.telemetryService.publicLog2<CodeActionOnSave, CodeActionOnSaveClassification>('codeAction.appliedOnSave', {
+				codeAction: codeActionKind.value,
+				duration: sw.elapsed()
+			});
+
 			if (token.isCancellationRequested) {
 				actionsToRun.dispose();
 				return;

@@ -40,7 +40,7 @@ import { ICodeEditor, getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Schemas } from 'vs/base/common/network';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
-import { getIconClassesForLanguageId } from 'vs/editor/common/services/getIconClasses';
+import { getIconClassesForLanguageId } from 'vs/editor/browser/services/getIconClasses';
 import { Promises, timeout } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -55,9 +55,7 @@ import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { TabFocus } from 'vs/editor/browser/config/tabFocus';
-import { mainWindow } from 'vs/base/browser/window';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { IEditorGroupsService, IEditorPart } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 class SideBySideEditorEncodingSupport implements IEncodingSupport {
 	constructor(private primary: IEncodingSupport, private secondary: IEncodingSupport) { }
@@ -886,22 +884,23 @@ export class EditorStatusContribution extends Disposable implements IWorkbenchCo
 	static readonly ID = 'workbench.contrib.editorStatus';
 
 	constructor(
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IEditorService editorService: IEditorService
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 	) {
 		super();
 
-		// Main Editor Status
-		const mainInstantiationService = this._register(instantiationService.createChild(new ServiceCollection(
-			[IEditorService, editorService.createScoped('main', this._store)]
-		)));
-		this._register(mainInstantiationService.createInstance(EditorStatus, mainWindow.vscodeWindowId));
+		for (const part of editorGroupService.parts) {
+			this.createEditorStatus(part);
+		}
 
-		// Auxiliary Editor Status
-		this._register(editorGroupService.onDidCreateAuxiliaryEditorPart(({ part, instantiationService, disposables }) => {
-			disposables.add(instantiationService.createInstance(EditorStatus, part.windowId));
-		}));
+		this._register(editorGroupService.onDidCreateAuxiliaryEditorPart(part => this.createEditorStatus(part)));
+	}
+
+	private createEditorStatus(part: IEditorPart): void {
+		const disposables = new DisposableStore();
+		Event.once(part.onWillDispose)(() => disposables.dispose());
+
+		const scopedInstantiationService = this.editorGroupService.getScopedInstantiationService(part);
+		disposables.add(scopedInstantiationService.createInstance(EditorStatus, part.windowId));
 	}
 }
 
@@ -1079,11 +1078,20 @@ export class ChangeLanguageAction extends Action2 {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyM)
 			},
-			precondition: ContextKeyExpr.not('notebookEditorFocused')
+			precondition: ContextKeyExpr.not('notebookEditorFocused'),
+			metadata: {
+				description: localize('changeLanguageMode.description', "Change the language mode of the active text editor."),
+				args: [
+					{
+						name: localize('changeLanguageMode.arg.name', "The name of the language mode to change to."),
+						constraint: (value: any) => typeof value === 'string',
+					}
+				]
+			}
 		});
 	}
 
-	override async run(accessor: ServicesAccessor): Promise<void> {
+	override async run(accessor: ServicesAccessor, languageMode?: string): Promise<void> {
 		const quickInputService = accessor.get(IQuickInputService);
 		const editorService = accessor.get(IEditorService);
 		const languageService = accessor.get(ILanguageService);
@@ -1162,7 +1170,7 @@ export class ChangeLanguageAction extends Action2 {
 		};
 		picks.unshift(autoDetectLanguage);
 
-		const pick = await quickInputService.pick(picks, { placeHolder: localize('pickLanguage', "Select Language Mode"), matchOnDescription: true });
+		const pick = typeof languageMode === 'string' ? { label: languageMode } : await quickInputService.pick(picks, { placeHolder: localize('pickLanguage', "Select Language Mode"), matchOnDescription: true });
 		if (!pick) {
 			return;
 		}
@@ -1444,13 +1452,16 @@ export class ChangeEncodingAction extends Action2 {
 
 		let guessedEncoding: string | undefined = undefined;
 		if (fileService.hasProvider(resource)) {
-			const content = await textFileService.readStream(resource, { autoGuessEncoding: true });
+			const content = await textFileService.readStream(resource, {
+				autoGuessEncoding: true,
+				candidateGuessEncodings: textResourceConfigurationService.getValue(resource, 'files.candidateGuessEncodings')
+			});
 			guessedEncoding = content.encoding;
 		}
 
 		const isReopenWithEncoding = (action === reopenWithEncodingPick);
 
-		const configuredEncoding = textResourceConfigurationService.getValue(resource ?? undefined, 'files.encoding');
+		const configuredEncoding = textResourceConfigurationService.getValue(resource, 'files.encoding');
 
 		let directMatchIndex: number | undefined;
 		let aliasMatchIndex: number | undefined;

@@ -128,7 +128,7 @@ export class SearchEditorInput extends EditorInput {
 		}
 
 		this.memento = new Memento(SearchEditorInput.ID, storageService);
-		storageService.onWillSaveState(() => this.memento.saveMemento());
+		this._register(storageService.onWillSaveState(() => this.memento.saveMemento()));
 
 		const input = this;
 		const workingCopyAdapter = new class implements IWorkingCopy {

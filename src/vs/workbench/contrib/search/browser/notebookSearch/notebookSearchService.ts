@@ -13,7 +13,7 @@ import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/note
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { INotebookSearchService } from 'vs/workbench/contrib/search/common/notebookSearch';
 import { INotebookCellMatchWithModel, INotebookFileMatchWithModel, contentMatchesToTextSearchMatches, webviewMatchesToTextSearchMatches } from 'vs/workbench/contrib/search/browser/notebookSearch/searchNotebookHelpers';
-import { ITextQuery, QueryType, ISearchProgressItem, ISearchComplete, ISearchConfigurationProperties, pathIncludedInQuery, ISearchService, IFolderQuery } from 'vs/workbench/services/search/common/search';
+import { ITextQuery, QueryType, ISearchProgressItem, ISearchComplete, ISearchConfigurationProperties, pathIncludedInQuery, ISearchService, IFolderQuery, DEFAULT_MAX_SEARCH_RESULTS } from 'vs/workbench/services/search/common/search';
 import * as arrays from 'vs/base/common/arrays';
 import { isNumber } from 'vs/base/common/types';
 import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
@@ -232,7 +232,7 @@ export class NotebookSearchService implements INotebookSearchService {
 			if (!widget.hasModel()) {
 				continue;
 			}
-			const askMax = isNumber(query.maxResults) ? query.maxResults + 1 : Number.MAX_SAFE_INTEGER;
+			const askMax = (isNumber(query.maxResults) ? query.maxResults : DEFAULT_MAX_SEARCH_RESULTS) + 1;
 			const uri = widget.viewModel!.uri;
 
 			if (!pathIncludedInQuery(query, uri.fsPath)) {

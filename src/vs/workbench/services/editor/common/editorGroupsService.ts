@@ -11,7 +11,7 @@ import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDimension } from 'vs/editor/common/core/dimension';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyValue, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
 import { IGroupModelChangeEvent } from 'vs/workbench/common/editor/editorGroupModel';
 import { IRectangle } from 'vs/platform/window/common/window';
@@ -439,6 +439,11 @@ export interface IEditorPart extends IEditorGroupsContainer {
 	readonly onDidScroll: Event<void>;
 
 	/**
+	 * An event for when the editor part is disposed.
+	 */
+	readonly onWillDispose: Event<void>;
+
+	/**
 	 * The identifier of the window the editor part is contained in.
 	 */
 	readonly windowId: number;
@@ -480,15 +485,31 @@ export interface IAuxiliaryEditorPart extends IEditorPart {
 	close(): boolean;
 }
 
-export interface IAuxiliaryEditorPartCreateEvent {
-	readonly part: IAuxiliaryEditorPart;
-	readonly instantiationService: IInstantiationService;
-	readonly disposables: DisposableStore;
-}
-
 export interface IEditorWorkingSet {
 	readonly id: string;
 	readonly name: string;
+}
+
+export interface IEditorWorkingSetOptions {
+	readonly preserveFocus?: boolean;
+}
+
+export interface IEditorGroupContextKeyProvider<T extends ContextKeyValue> {
+
+	/**
+	 * The context key that needs to be set for each editor group context and the global context.
+	 */
+	readonly contextKey: RawContextKey<T>;
+
+	/**
+	 * Retrieves the context key value for the given editor group.
+	 */
+	readonly getGroupContextKeyValue: (group: IEditorGroup) => T;
+
+	/**
+	 * An event that is fired when there was a change leading to the context key value to be re-evaluated.
+	 */
+	readonly onDidChange?: Event<void>;
 }
 
 /**
@@ -501,7 +522,7 @@ export interface IEditorGroupsService extends IEditorGroupsContainer {
 	/**
 	 * An event for when a new auxiliary editor part is created.
 	 */
-	readonly onDidCreateAuxiliaryEditorPart: Event<IAuxiliaryEditorPartCreateEvent>;
+	readonly onDidCreateAuxiliaryEditorPart: Event<IAuxiliaryEditorPart>;
 
 	/**
 	 * Provides access to the main window editor part.
@@ -540,6 +561,14 @@ export interface IEditorGroupsService extends IEditorGroupsContainer {
 	createAuxiliaryEditorPart(options?: { bounds?: Partial<IRectangle> }): Promise<IAuxiliaryEditorPart>;
 
 	/**
+	 * Returns the instantiation service that is scoped to the
+	 * provided editor part. Use this method when building UI
+	 * that contributes to auxiliary editor parts to ensure the
+	 * UI is scoped to that part.
+	 */
+	getScopedInstantiationService(part: IEditorPart): IInstantiationService;
+
+	/**
 	 * Save a new editor working set from the currently opened
 	 * editors and group layout.
 	 */
@@ -555,12 +584,20 @@ export interface IEditorGroupsService extends IEditorGroupsContainer {
 	 *
 	 * @returns `true` when the working set as applied.
 	 */
-	applyWorkingSet(workingSet: IEditorWorkingSet | 'empty'): Promise<boolean>;
+	applyWorkingSet(workingSet: IEditorWorkingSet | 'empty', options?: IEditorWorkingSetOptions): Promise<boolean>;
 
 	/**
 	 * Deletes a working set.
 	 */
 	deleteWorkingSet(workingSet: IEditorWorkingSet): void;
+
+	/**
+	 * Registers a context key provider. This provider sets a context key for each scoped editor group context and the global context.
+	 *
+	 * @param provider - The context key provider to be registered.
+	 * @returns - A disposable object to unregister the provider.
+	 */
+	registerContextKeyProvider<T extends ContextKeyValue>(provider: IEditorGroupContextKeyProvider<T>): IDisposable;
 }
 
 export const enum OpenEditorContext {

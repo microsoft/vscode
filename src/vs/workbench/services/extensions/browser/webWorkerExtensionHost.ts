@@ -6,12 +6,13 @@
 import * as dom from 'vs/base/browser/dom';
 import { parentOriginHash } from 'vs/base/browser/iframe';
 import { mainWindow } from 'vs/base/browser/window';
+import { isESM } from 'vs/base/common/amd';
 import { Barrier } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { canceled, onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { COI, FileAccess } from 'vs/base/common/network';
+import { AppResourcePath, COI, FileAccess } from 'vs/base/common/network';
 import * as platform from 'vs/base/common/platform';
 import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
@@ -85,7 +86,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 
 		const suffix = `?${suffixSearchParams.toString()}`;
 
-		const iframeModulePath = 'vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html';
+		const iframeModulePath: AppResourcePath = `vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.${isESM ? 'esm.' : ''}html`;
 		if (platform.isWeb) {
 			const webEndpointUrlTemplate = this._productService.webEndpointUrlTemplate;
 			const commit = this._productService.commit;
@@ -180,6 +181,23 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 				err.name = name;
 				err.stack = stack;
 				return rejectBarrier(ExtensionHostExitCode.UnexpectedError, err);
+			}
+			if (event.data.type === 'vscode.bootstrap.nls') {
+				const factoryModuleId = 'vs/base/worker/workerMain.js';
+				const baseUrl = isESM ? undefined : require.toUrl(factoryModuleId).slice(0, -factoryModuleId.length);
+				iframe.contentWindow!.postMessage({
+					type: event.data.type,
+					data: {
+						baseUrl,
+						workerUrl: isESM ? FileAccess.asBrowserUri(factoryModuleId).toString(true) : require.toUrl(factoryModuleId),
+						fileRoot: globalThis._VSCODE_FILE_ROOT,
+						nls: {
+							messages: globalThis._VSCODE_NLS_MESSAGES,
+							language: globalThis._VSCODE_NLS_LANGUAGE
+						}
+					}
+				}, '*');
+				return;
 			}
 			const { data } = event.data;
 			if (barrier.isOpen() || !(data instanceof MessagePort)) {
@@ -310,6 +328,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 				sessionId: this._telemetryService.sessionId,
 				machineId: this._telemetryService.machineId,
 				sqmId: this._telemetryService.sqmId,
+				devDeviceId: this._telemetryService.devDeviceId,
 				firstSessionDate: this._telemetryService.firstSessionDate,
 				msftInternal: this._telemetryService.msftInternal
 			},

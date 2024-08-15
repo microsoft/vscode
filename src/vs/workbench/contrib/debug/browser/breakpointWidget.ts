@@ -6,6 +6,7 @@
 import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Button } from 'vs/base/browser/ui/button/button';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { ISelectOptionItem, SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -34,6 +35,7 @@ import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -109,6 +111,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@ILabelService private readonly labelService: ILabelService,
 		@ITextModelService private readonly textModelService: ITextModelService,
+		@IHoverService private readonly hoverService: IHoverService
 	) {
 		super(editor, { showFrame: true, showArrow: false, frameWidth: 1, isAccessible: true });
 
@@ -204,12 +207,12 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 
 	protected _fillContainer(container: HTMLElement): void {
 		this.setCssClass('breakpoint-widget');
-		const selectBox = new SelectBox(<ISelectOptionItem[]>[
+		const selectBox = new SelectBox([
 			{ text: nls.localize('expression', "Expression") },
 			{ text: nls.localize('hitCount', "Hit Count") },
 			{ text: nls.localize('logMessage', "Log Message") },
 			{ text: nls.localize('triggeredBy', "Wait for Breakpoint") },
-		], this.context, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: nls.localize('breakpointType', 'Breakpoint Type') });
+		] satisfies ISelectOptionItem[], this.context, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: nls.localize('breakpointType', 'Breakpoint Type') });
 		this.selectContainer = $('.breakpoint-select-container');
 		selectBox.render(dom.append(container, this.selectContainer));
 		selectBox.onDidSelect(e => {
@@ -221,6 +224,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		this.createModesInput(container);
 
 		this.inputContainer = $('.inputContainer');
+		this.toDispose.push(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this.inputContainer, this.placeholder));
 		this.createBreakpointInput(dom.append(container, this.inputContainer));
 
 		this.input.getModel().setValue(this.getInputValue(this.breakpoint));
@@ -264,7 +268,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 	}
 
 	private createTriggerBreakpointInput(container: HTMLElement) {
-		const breakpoints = this.debugService.getModel().getBreakpoints().filter(bp => bp !== this.breakpoint);
+		const breakpoints = this.debugService.getModel().getBreakpoints().filter(bp => bp !== this.breakpoint && !bp.logMessage);
 		const breakpointOptions: ISelectOptionItem[] = [
 			{ text: nls.localize('noTriggerByBreakpoint', 'None'), isDisabled: true },
 			...breakpoints.map(bp => ({
@@ -346,7 +350,10 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		this.toDispose.push(scopedContextKeyService);
 
 		const scopedInstatiationService = this.instantiationService.createChild(new ServiceCollection(
-			[IContextKeyService, scopedContextKeyService], [IPrivateBreakpointWidgetService, this]));
+			[IContextKeyService, scopedContextKeyService],
+			[IPrivateBreakpointWidgetService, this]
+		));
+		this.toDispose.push(scopedInstatiationService);
 
 		const options = this.createEditorOptions();
 		const codeEditorWidgetOptions = getSimpleCodeEditorWidgetOptions();
@@ -433,12 +440,12 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		if (success) {
 			// if there is already a breakpoint on this location - remove it.
 
-			let condition = this.breakpoint?.condition;
-			let hitCondition = this.breakpoint?.hitCondition;
-			let logMessage = this.breakpoint?.logMessage;
-			let triggeredBy = this.breakpoint?.triggeredBy;
-			let mode = this.breakpoint?.mode;
-			let modeLabel = this.breakpoint?.modeLabel;
+			let condition: string | undefined = undefined;
+			let hitCondition: string | undefined = undefined;
+			let logMessage: string | undefined = undefined;
+			let triggeredBy: string | undefined = undefined;
+			let mode: string | undefined = undefined;
+			let modeLabel: string | undefined = undefined;
 
 			this.rememberInput();
 

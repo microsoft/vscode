@@ -11,6 +11,9 @@ import { AccessibilityProgressSignalScheduler } from 'vs/platform/accessibilityS
 import { IChatAccessibilityService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { renderStringAsPlaintext } from 'vs/base/browser/markdownRenderer';
+import { MarkdownString } from 'vs/base/common/htmlContent';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { AccessibilityVoiceSettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 
 const CHAT_RESPONSE_PENDING_ALLOWANCE_MS = 4000;
 export class ChatAccessibilityService extends Disposable implements IChatAccessibilityService {
@@ -21,7 +24,11 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 
 	private _requestId: number = 0;
 
-	constructor(@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService, @IInstantiationService private readonly _instantiationService: IInstantiationService) {
+	constructor(
+		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
+	) {
 		super();
 	}
 	acceptRequest(): number {
@@ -33,13 +40,15 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 	acceptResponse(response: IChatResponseViewModel | string | undefined, requestId: number): void {
 		this._pendingSignalMap.deleteAndDispose(requestId);
 		const isPanelChat = typeof response !== 'string';
-		const responseContent = typeof response === 'string' ? response : response?.response.asString();
+		const responseContent = typeof response === 'string' ? response : response?.response.toString();
 		this._accessibilitySignalService.playSignal(AccessibilitySignal.chatResponseReceived, { allowManyInParallel: true });
 		if (!response || !responseContent) {
 			return;
 		}
 		const errorDetails = isPanelChat && response.errorDetails ? ` ${response.errorDetails.message}` : '';
-		status(renderStringAsPlaintext(responseContent) + errorDetails);
+		const plainTextResponse = renderStringAsPlaintext(new MarkdownString(responseContent));
+		if (this._configurationService.getValue(AccessibilityVoiceSettingId.AutoSynthesize) !== 'on') {
+			status(plainTextResponse + errorDetails);
+		}
 	}
 }
-

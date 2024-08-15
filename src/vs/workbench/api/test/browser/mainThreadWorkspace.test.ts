@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -56,7 +56,7 @@ suite('MainThreadWorkspace', () => {
 			fileSearch(query: IFileQuery) {
 				assert.strictEqual(query.folderQueries.length, 1);
 				assert.strictEqual(query.folderQueries[0].disregardIgnoreFiles, true);
-				assert.deepStrictEqual(query.folderQueries[0].excludePattern, { 'filesExclude': true });
+				assert.deepStrictEqual(query.folderQueries[0].excludePattern?.pattern, { 'filesExclude': true });
 
 				return Promise.resolve({ results: [], messages: [] });
 			}

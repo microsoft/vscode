@@ -78,6 +78,7 @@ module.exports.indentationFilter = [
 	'!src/vs/base/node/terminateProcess.sh',
 	'!src/vs/base/node/cpuUsage.sh',
 	'!test/unit/assert.js',
+	'!test/unit/assert-esm.js',
 	'!resources/linux/snap/electron-launch',
 	'!build/ext.js',
 	'!build/npm/gyp/patches/gyp_spectre_mitigation_support.patch',
@@ -117,7 +118,7 @@ module.exports.indentationFilter = [
 	'!src/vs/*/**/*.d.ts',
 	'!src/typings/**/*.d.ts',
 	'!extensions/**/*.d.ts',
-	'!**/*.{svg,exe,png,bmp,jpg,scpt,bat,cmd,cur,ttf,woff,eot,md,ps1,template,yaml,yml,d.ts.recipe,ico,icns,plist,opus,admx,adml,wasm}',
+	'!**/*.{svg,exe,png,bmp,jpg,scpt,bat,cmd,cur,ttf,woff,eot,md,ps1,psm1,template,yaml,yml,d.ts.recipe,ico,icns,plist,opus,admx,adml,wasm}',
 	'!build/{lib,download,linux,darwin}/**/*.js',
 	'!build/**/*.sh',
 	'!build/azure-pipelines/**/*.js',
@@ -199,7 +200,7 @@ module.exports.eslintFilter = [
 		.toString().split(/\r\n|\n/)
 		.filter(line => !line.startsWith('#'))
 		.filter(line => !!line)
-		.map(line => `!${line}`)
+		.map(line => line.startsWith('!') ? line.slice(1) : `!${line}`)
 ];
 
 module.exports.stylelintFilter = [

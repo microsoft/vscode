@@ -21,19 +21,6 @@ export interface ICommand {
 	category?: string | ILocalizedString;
 }
 
-export interface IConfigurationProperty {
-	description: string;
-	type: string | string[];
-	default?: any;
-}
-
-export interface IConfiguration {
-	id?: string;
-	order?: number;
-	title?: string;
-	properties: { [key: string]: IConfigurationProperty };
-}
-
 export interface IDebugger {
 	label?: string;
 	type: string;
@@ -41,7 +28,7 @@ export interface IDebugger {
 }
 
 export interface IGrammar {
-	language: string;
+	language?: string;
 }
 
 export interface IJSONValidation {
@@ -182,7 +169,7 @@ export interface ILocalizationContribution {
 
 export interface IExtensionContributions {
 	commands?: ICommand[];
-	configuration?: IConfiguration | IConfiguration[];
+	configuration?: any;
 	debuggers?: IDebugger[];
 	grammars?: IGrammar[];
 	jsonValidation?: IJSONValidation[];
@@ -239,7 +226,9 @@ export interface IExtensionIdentifier {
 }
 
 export const EXTENSION_CATEGORIES = [
+	'AI',
 	'Azure',
+	'Chat',
 	'Data Science',
 	'Debuggers',
 	'Extension Packs',
@@ -256,8 +245,6 @@ export const EXTENSION_CATEGORIES = [
 	'Testing',
 	'Themes',
 	'Visualization',
-	'AI',
-	'Chat',
 	'Other',
 ];
 
@@ -284,6 +271,7 @@ export interface IRelaxedExtensionManifest {
 	contributes?: IExtensionContributions;
 	repository?: { url: string };
 	bugs?: { url: string };
+	originalEnabledApiProposals?: readonly string[];
 	enabledApiProposals?: readonly string[];
 	api?: string;
 	scripts?: { [key: string]: string };
@@ -490,6 +478,17 @@ export function isResolverExtension(manifest: IExtensionManifest, remoteAuthorit
 		return !!manifest.activationEvents?.includes(activationEvent);
 	}
 	return false;
+}
+
+export function parseApiProposals(enabledApiProposals: string[]): { proposalName: string; version?: number }[] {
+	return enabledApiProposals.map(proposal => {
+		const [proposalName, version] = proposal.split('@');
+		return { proposalName, version: version ? parseInt(version) : undefined };
+	});
+}
+
+export function parseEnabledApiProposalNames(enabledApiProposals: string[]): string[] {
+	return enabledApiProposals.map(proposal => proposal.split('@')[0]);
 }
 
 export const IBuiltinExtensionsScannerService = createDecorator<IBuiltinExtensionsScannerService>('IBuiltinExtensionsScannerService');

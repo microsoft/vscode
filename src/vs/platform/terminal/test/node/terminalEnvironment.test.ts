@@ -12,9 +12,9 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { ITerminalProcessOptions } from 'vs/platform/terminal/common/terminal';
 import { getShellIntegrationInjection, getWindowsBuildNumber, IShellIntegrationConfigInjection } from 'vs/platform/terminal/node/terminalEnvironment';
 
-const enabledProcessOptions: ITerminalProcessOptions = { shellIntegration: { enabled: true, suggestEnabled: false, nonce: '' }, windowsEnableConpty: true, environmentVariableCollections: undefined, workspaceFolder: undefined };
-const disabledProcessOptions: ITerminalProcessOptions = { shellIntegration: { enabled: false, suggestEnabled: false, nonce: '' }, windowsEnableConpty: true, environmentVariableCollections: undefined, workspaceFolder: undefined };
-const winptyProcessOptions: ITerminalProcessOptions = { shellIntegration: { enabled: true, suggestEnabled: false, nonce: '' }, windowsEnableConpty: false, environmentVariableCollections: undefined, workspaceFolder: undefined };
+const enabledProcessOptions: ITerminalProcessOptions = { shellIntegration: { enabled: true, suggestEnabled: false, nonce: '' }, windowsEnableConpty: true, windowsUseConptyDll: false, environmentVariableCollections: undefined, workspaceFolder: undefined };
+const disabledProcessOptions: ITerminalProcessOptions = { shellIntegration: { enabled: false, suggestEnabled: false, nonce: '' }, windowsEnableConpty: true, windowsUseConptyDll: false, environmentVariableCollections: undefined, workspaceFolder: undefined };
+const winptyProcessOptions: ITerminalProcessOptions = { shellIntegration: { enabled: true, suggestEnabled: false, nonce: '' }, windowsEnableConpty: false, windowsUseConptyDll: false, environmentVariableCollections: undefined, workspaceFolder: undefined };
 const pwshExe = process.platform === 'win32' ? 'pwsh.exe' : 'pwsh';
 const repoRoot = process.platform === 'win32' ? process.cwd()[0].toLowerCase() + process.cwd().substring(1) : process.cwd();
 const logService = new NullLogService();
@@ -186,7 +186,8 @@ suite('platform - terminalEnvironment', () => {
 								`${repoRoot}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration-bash.sh`
 							],
 							envMixin: {
-								VSCODE_INJECTION: '1'
+								VSCODE_INJECTION: '1',
+								VSCODE_STABLE: '0'
 							}
 						});
 						deepStrictEqual(getShellIntegrationInjection({ executable: 'bash', args: [] }, enabledProcessOptions, defaultEnvironment, logService, productService), enabledExpectedResult);
@@ -201,7 +202,8 @@ suite('platform - terminalEnvironment', () => {
 							],
 							envMixin: {
 								VSCODE_INJECTION: '1',
-								VSCODE_SHELL_LOGIN: '1'
+								VSCODE_SHELL_LOGIN: '1',
+								VSCODE_STABLE: '0'
 							}
 						});
 						test('when array', () => {

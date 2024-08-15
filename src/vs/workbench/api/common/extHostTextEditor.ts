@@ -566,6 +566,9 @@ export class ExtHostTextEditor {
 			},
 			hide() {
 				_proxy.$tryHideEditor(id);
+			},
+			[Symbol.for('debug.description')]() {
+				return `TextEditor(${this.document.uri.toString()})`;
 			}
 		});
 	}

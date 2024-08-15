@@ -8,22 +8,19 @@ import { Button, IButtonStyles } from 'vs/base/browser/ui/button/button';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
-import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ChatAgentLocation, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { chatAgentLeader, chatSubcommandLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
+import { formatChatQuestion } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatFollowup } from 'vs/workbench/contrib/chat/common/chatService';
-import { IInlineChatFollowup } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 
 const $ = dom.$;
 
-export class ChatFollowups<T extends IChatFollowup | IInlineChatFollowup> extends Disposable {
+export class ChatFollowups<T extends IChatFollowup> extends Disposable {
 	constructor(
 		container: HTMLElement,
 		followups: T[],
 		private readonly location: ChatAgentLocation,
 		private readonly options: IButtonStyles | undefined,
 		private readonly clickHandler: (followup: T) => void,
-		@IContextKeyService private readonly contextService: IContextKeyService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService
 	) {
 		super();
@@ -33,27 +30,15 @@ export class ChatFollowups<T extends IChatFollowup | IInlineChatFollowup> extend
 	}
 
 	private renderFollowup(container: HTMLElement, followup: T): void {
-		if (followup.kind === 'command' && followup.when && !this.contextService.contextMatchesRules(ContextKeyExpr.deserialize(followup.when))) {
-			return;
-		}
 
 		if (!this.chatAgentService.getDefaultAgent(this.location)) {
 			// No default agent yet, which affects how followups are rendered, so can't render this yet
 			return;
 		}
 
-		let tooltipPrefix = '';
-		if ('agentId' in followup && followup.agentId && followup.agentId !== this.chatAgentService.getDefaultAgent(this.location)?.id) {
-			const agent = this.chatAgentService.getAgent(followup.agentId);
-			if (!agent) {
-				// Refers to agent that doesn't exist
-				return;
-			}
-
-			tooltipPrefix += `${chatAgentLeader}${agent.name} `;
-			if ('subCommand' in followup && followup.subCommand) {
-				tooltipPrefix += `${chatSubcommandLeader}${followup.subCommand} `;
-			}
+		const tooltipPrefix = formatChatQuestion(this.chatAgentService, this.location, '', followup.agentId, followup.subCommand);
+		if (tooltipPrefix === undefined) {
+			return;
 		}
 
 		const baseTitle = followup.kind === 'reply' ?

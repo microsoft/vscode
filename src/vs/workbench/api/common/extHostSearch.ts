@@ -15,6 +15,7 @@ import { IRawFileQuery, ISearchCompleteStats, IFileQuery, IRawTextQuery, IRawQue
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { TextSearchManager } from 'vs/workbench/services/search/common/textSearchManager';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { revive } from 'vs/base/common/marshalling';
 
 export interface IExtHostSearch extends ExtHostSearchShape {
 	registerTextSearchProvider(scheme: string, provider: vscode.TextSearchProvider): IDisposable;
@@ -25,7 +26,7 @@ export interface IExtHostSearch extends ExtHostSearchShape {
 
 export const IExtHostSearch = createDecorator<IExtHostSearch>('IExtHostSearch');
 
-export class ExtHostSearch implements ExtHostSearchShape {
+export class ExtHostSearch implements IExtHostSearch {
 
 	protected readonly _proxy: MainThreadSearchShape = this.extHostRpc.getProxy(MainContext.MainThreadSearch);
 	protected _handlePool: number = 0;
@@ -124,7 +125,7 @@ export class ExtHostSearch implements ExtHostSearchShape {
 	$provideTextSearchResults(handle: number, session: number, rawQuery: IRawTextQuery, token: vscode.CancellationToken): Promise<ISearchCompleteStats> {
 		const provider = this._textSearchProvider.get(handle);
 		if (!provider || !provider.provideTextSearchResults) {
-			throw new Error(`2 Unknown provider ${handle}`);
+			throw new Error(`Unknown Text Search Provider ${handle}`);
 		}
 
 		const query = reviveQuery(rawQuery);
@@ -135,7 +136,7 @@ export class ExtHostSearch implements ExtHostSearchShape {
 	$provideAITextSearchResults(handle: number, session: number, rawQuery: IRawAITextQuery, token: vscode.CancellationToken): Promise<ISearchCompleteStats> {
 		const provider = this._aiTextSearchProvider.get(handle);
 		if (!provider || !provider.provideAITextSearchResults) {
-			throw new Error(`1 Unknown provider ${handle}`);
+			throw new Error(`Unknown AI Text Search Provider ${handle}`);
 		}
 
 		const query = reviveQuery(rawQuery);
@@ -171,8 +172,6 @@ export function reviveQuery<U extends IRawQuery>(rawQuery: U): U extends IRawTex
 }
 
 function reviveFolderQuery(rawFolderQuery: IFolderQuery<UriComponents>): IFolderQuery<URI> {
-	return {
-		...rawFolderQuery,
-		folder: URI.revive(rawFolderQuery.folder)
-	};
+	return revive(rawFolderQuery);
 }
+

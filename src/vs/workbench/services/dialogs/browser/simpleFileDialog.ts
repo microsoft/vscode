@@ -16,7 +16,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ILanguageService } from 'vs/editor/common/languages/language';
-import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
+import { getIconClasses } from 'vs/editor/browser/services/getIconClasses';
 import { Schemas } from 'vs/base/common/network';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
@@ -832,7 +832,7 @@ export class SimpleFileDialog implements ISimpleFileDialog {
 			} else if (!statDirname.isDirectory) {
 				this.filePickBox.validationMessage = nls.localize('remoteFileDialog.validateNonexistentDir', 'Please enter a path that exists.');
 				return Promise.resolve(false);
-			} else if (statDirname.readonly || statDirname.locked) {
+			} else if (statDirname.readonly) {
 				this.filePickBox.validationMessage = nls.localize('remoteFileDialog.validateReadonlyFolder', 'This folder cannot be used as a save destination. Please choose another folder');
 				return Promise.resolve(false);
 			}

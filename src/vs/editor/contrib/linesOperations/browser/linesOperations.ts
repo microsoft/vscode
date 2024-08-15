@@ -11,6 +11,7 @@ import { ReplaceCommand, ReplaceCommandThatPreservesSelection, ReplaceCommandTha
 import { TrimTrailingWhitespaceCommand } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { TypeOperations } from 'vs/editor/common/cursor/cursorTypeOperations';
+import { EnterOperation } from 'vs/editor/common/cursor/cursorTypeEditOperations';
 import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -594,7 +595,7 @@ export class InsertLineBeforeAction extends EditorAction {
 			return;
 		}
 		editor.pushUndoStop();
-		editor.executeCommands(this.id, TypeOperations.lineInsertBefore(viewModel.cursorConfig, editor.getModel(), editor.getSelections()));
+		editor.executeCommands(this.id, EnterOperation.lineInsertBefore(viewModel.cursorConfig, editor.getModel(), editor.getSelections()));
 	}
 }
 
@@ -619,7 +620,7 @@ export class InsertLineAfterAction extends EditorAction {
 			return;
 		}
 		editor.pushUndoStop();
-		editor.executeCommands(this.id, TypeOperations.lineInsertAfter(viewModel.cursorConfig, editor.getModel(), editor.getSelections()));
+		editor.executeCommands(this.id, EnterOperation.lineInsertAfter(viewModel.cursorConfig, editor.getModel(), editor.getSelections()));
 	}
 }
 

@@ -7,7 +7,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ILoggerService } from 'vs/platform/log/common/log';
 import { RequestService } from 'vs/platform/request/browser/requestService';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IRequestService } from 'vs/platform/request/common/request';
+import { AuthInfo, Credentials, IRequestService } from 'vs/platform/request/common/request';
 import { INativeHostService } from 'vs/platform/native/common/native';
 
 export class NativeRequestService extends RequestService {
@@ -22,6 +22,14 @@ export class NativeRequestService extends RequestService {
 
 	override async resolveProxy(url: string): Promise<string | undefined> {
 		return this.nativeHostService.resolveProxy(url);
+	}
+
+	override async lookupAuthorization(authInfo: AuthInfo): Promise<Credentials | undefined> {
+		return this.nativeHostService.lookupAuthorization(authInfo);
+	}
+
+	override async lookupKerberosAuthorization(url: string): Promise<string | undefined> {
+		return this.nativeHostService.lookupKerberosAuthorization(url);
 	}
 
 	override async loadCertificates(): Promise<string[]> {

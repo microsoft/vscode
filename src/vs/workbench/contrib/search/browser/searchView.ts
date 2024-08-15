@@ -143,7 +143,7 @@ export class SearchView extends ViewPane {
 	private currentSelectedFileMatch: FileMatch | undefined;
 
 	private delayedRefresh: Delayer<void>;
-	private changedWhileHidden: boolean = false;
+	private changedWhileHidden: boolean;
 
 	private searchWithoutFolderMessageElement: HTMLElement | undefined;
 
@@ -165,6 +165,9 @@ export class SearchView extends ViewPane {
 	private _refreshResultsScheduler: RunOnceScheduler;
 
 	private _onSearchResultChangedDisposable: IDisposable | undefined;
+
+	private _stashedQueryDetailsVisibility: boolean | undefined = undefined;
+	private _stashedReplaceVisibility: boolean | undefined = undefined;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -237,8 +240,8 @@ export class SearchView extends ViewPane {
 		this.inputPatternExclusionsFocused = Constants.SearchContext.PatternExcludesFocusedKey.bindTo(this.contextKeyService);
 		this.isEditableItem = Constants.SearchContext.IsEditableItemKey.bindTo(this.contextKeyService);
 
-		this.instantiationService = this.instantiationService.createChild(
-			new ServiceCollection([IContextKeyService, this.contextKeyService]));
+		this.instantiationService = this._register(this.instantiationService.createChild(
+			new ServiceCollection([IContextKeyService, this.contextKeyService])));
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('search.sortOrder')) {
@@ -253,7 +256,7 @@ export class SearchView extends ViewPane {
 			}
 		}));
 
-		this.viewModel = this._register(this.searchViewModelWorkbenchService.searchModel);
+		this.viewModel = this.searchViewModelWorkbenchService.searchModel;
 		this.queryBuilder = this.instantiationService.createInstance(QueryBuilder);
 		this.memento = new Memento(this.id, storageService);
 		this.viewletState = this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
@@ -296,6 +299,8 @@ export class SearchView extends ViewPane {
 				this.searchWidget.prependReplaceHistory(restoredHistory.replace);
 			}
 		}));
+
+		this.changedWhileHidden = this.hasSearchResults();
 	}
 
 	get isTreeLayoutViewVisible(): boolean {
@@ -327,7 +332,32 @@ export class SearchView extends ViewPane {
 		if (visible === this.aiResultsVisible) {
 			return;
 		}
+
+		if (visible) {
+			this._stashedQueryDetailsVisibility = this._queryDetailsHidden();
+			this._stashedReplaceVisibility = this.searchWidget.isReplaceShown();
+
+			this.searchWidget.toggleReplace(false);
+			this.toggleQueryDetailsButton.style.display = 'none';
+
+			this.searchWidget.replaceButtonVisibility = false;
+			this.toggleQueryDetails(undefined, false);
+		} else {
+			this.toggleQueryDetailsButton.style.display = '';
+			this.searchWidget.replaceButtonVisibility = true;
+
+			if (this._stashedReplaceVisibility) {
+				this.searchWidget.toggleReplace(this._stashedReplaceVisibility);
+			}
+
+			if (this._stashedQueryDetailsVisibility) {
+				this.toggleQueryDetails(undefined, this._stashedQueryDetailsVisibility);
+			}
+		}
+
 		this.aiResultsVisible = visible;
+
+
 		if (this.viewModel.searchResult.isEmpty()) {
 			return;
 		}
@@ -336,9 +366,8 @@ export class SearchView extends ViewPane {
 		this.model.cancelAISearch();
 		if (visible) {
 			await this.model.addAIResults();
-		} else {
-			this.searchWidget.toggleReplace(false);
 		}
+
 		this.onSearchResultsChanged();
 		this.onSearchComplete(() => { }, undefined, undefined, this.viewModel.searchResult.getCachedSearchComplete(visible));
 	}
@@ -453,9 +482,10 @@ export class SearchView extends ViewPane {
 		this.queryDetails = dom.append(this.searchWidgetsContainerElement, $('.query-details'));
 
 		// Toggle query details button
+		const toggleQueryDetailsLabel = nls.localize('moreSearch', "Toggle Search Details");
 		this.toggleQueryDetailsButton = dom.append(this.queryDetails,
-			$('.more' + ThemeIcon.asCSSSelector(searchDetailsIcon), { tabindex: 0, role: 'button' }));
-		this._register(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('element'), this.toggleQueryDetailsButton, nls.localize('moreSearch', "Toggle Search Details")));
+			$('.more' + ThemeIcon.asCSSSelector(searchDetailsIcon), { tabindex: 0, role: 'button', 'aria-label': toggleQueryDetailsLabel }));
+		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), this.toggleQueryDetailsButton, toggleQueryDetailsLabel));
 
 		this._register(dom.addDisposableListener(this.toggleQueryDetailsButton, dom.EventType.CLICK, e => {
 			dom.EventHelper.stop(e);
@@ -1482,6 +1512,10 @@ export class SearchView extends ViewPane {
 		}
 	}
 
+	private _queryDetailsHidden() {
+		return this.queryDetails.classList.contains('more');
+	}
+
 	searchInFolders(folderPaths: string[] = []): void {
 		this._searchWithIncludeOrExclude(true, folderPaths);
 	}
@@ -2222,7 +2256,7 @@ class SearchLinkButton extends Disposable {
 	constructor(label: string, handler: (e: dom.EventLike) => unknown, hoverService: IHoverService, tooltip?: string) {
 		super();
 		this.element = $('a.pointer', { tabindex: 0 }, label);
-		this._register(hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), this.element, tooltip));
+		this._register(hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this.element, tooltip));
 		this.addEventHandlers(handler);
 	}
 

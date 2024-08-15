@@ -5,12 +5,12 @@
 
 import * as path from 'path';
 import * as vscode from 'vscode';
-import type * as Proto from '../tsServer/protocol/protocol';
-import { API } from '../tsServer/api';
-import { ITypeScriptServiceClient } from '../typescriptService';
-import { Disposable } from '../utils/dispose';
 import * as fileSchemes from '../configuration/fileSchemes';
 import { isTypeScriptDocument } from '../configuration/languageIds';
+import { API } from '../tsServer/api';
+import type * as Proto from '../tsServer/protocol/protocol';
+import { ITypeScriptServiceClient } from '../typescriptService';
+import { Disposable } from '../utils/dispose';
 import { equals } from '../utils/objects';
 import { ResourceMap } from '../utils/resourceMap';
 
@@ -191,7 +191,6 @@ export default class FileConfigurationManager extends Disposable {
 			includeCompletionsWithClassMemberSnippets: config.get<boolean>('suggest.classMemberSnippets.enabled', true),
 			includeCompletionsWithObjectLiteralMethodSnippets: config.get<boolean>('suggest.objectLiteralMethodSnippets.enabled', true),
 			autoImportFileExcludePatterns: this.getAutoImportFileExcludePatternsPreference(preferencesConfig, vscode.workspace.getWorkspaceFolder(document.uri)?.uri),
-			// @ts-expect-error until 5.3 #56090
 			preferTypeOnlyAutoImports: preferencesConfig.get<boolean>('preferTypeOnlyAutoImports', false),
 			useLabelDetailsInCompletionEntries: true,
 			allowIncompleteCompletions: true,
@@ -209,7 +208,7 @@ export default class FileConfigurationManager extends Disposable {
 		switch (config.get<string>('quoteStyle')) {
 			case 'single': return 'single';
 			case 'double': return 'double';
-			default: return this.client.apiVersion.gte(API.v333) ? 'auto' : undefined;
+			default: return 'auto';
 		}
 	}
 

@@ -55,30 +55,33 @@ export class TerminalAccessibilityHelpProvider extends Disposable implements IAc
 		this._hasShellIntegration = _xterm.shellIntegration.status === ShellIntegrationStatus.VSCode;
 	}
 	provideContent(): string {
-		const content = [];
-		content.push(localize('focusAccessibleTerminalView', 'The Focus Accessible Terminal View command<keybinding:{0}> enables screen readers to read terminal contents.', TerminalAccessibilityCommandId.FocusAccessibleBuffer));
-		content.push(localize('preserveCursor', 'Customize the behavior of the cursor when toggling between the terminal and accessible view with `terminal.integrated.accessibleViewPreserveCursorPosition.`'));
+		const content = [
+			localize('focusAccessibleTerminalView', 'The Focus Accessible Terminal View command<keybinding:{0}> enables screen readers to read terminal contents.', TerminalAccessibilityCommandId.FocusAccessibleBuffer),
+			localize('preserveCursor', 'Customize the behavior of the cursor when toggling between the terminal and accessible view with `terminal.integrated.accessibleViewPreserveCursorPosition.`'),
+			localize('openDetectedLink', 'The Open Detected Link command<keybinding:{0}> enables screen readers to easily open links found in the terminal.', TerminalLinksCommandId.OpenDetectedLink),
+			localize('newWithProfile', 'The Create New Terminal (With Profile) command<keybinding:{0}> allows for easy terminal creation using a specific profile.', TerminalCommandId.NewWithProfile),
+			localize('focusAfterRun', 'Configure what gets focused after running selected text in the terminal with `{0}`.', TerminalSettingId.FocusAfterRun)
+		];
+
 		if (!this._configurationService.getValue(TerminalAccessibilitySettingId.AccessibleViewFocusOnCommandExecution)) {
 			content.push(localize('focusViewOnExecution', 'Enable `terminal.integrated.accessibleViewFocusOnCommandExecution` to automatically focus the terminal accessible view when a command is executed in the terminal.'));
 		}
+
 		if (this._instance.shellType === WindowsShellType.CommandPrompt) {
 			content.push(localize('commandPromptMigration', "Consider using powershell instead of command prompt for an improved experience"));
 		}
+
 		if (this._hasShellIntegration) {
-			const shellIntegrationCommandList = [];
-			shellIntegrationCommandList.push(localize('shellIntegration', "The terminal has a feature called shell integration that offers an enhanced experience and provides useful commands for screen readers such as:"));
-			shellIntegrationCommandList.push('- ' + localize('goToNextCommand', 'Go to Next Command<keybinding:{0}> in the accessible view', TerminalAccessibilityCommandId.AccessibleBufferGoToNextCommand));
-			shellIntegrationCommandList.push('- ' + localize('goToPreviousCommand', 'Go to Previous Command<keybinding:{0}> in the accessible view', TerminalAccessibilityCommandId.AccessibleBufferGoToPreviousCommand));
-			shellIntegrationCommandList.push('- ' + localize('goToSymbol', 'Go to Symbol<keybinding:{0}>', AccessibilityCommandId.GoToSymbol));
-			shellIntegrationCommandList.push('- ' + localize('runRecentCommand', 'Run Recent Command<keybinding:{0}>', TerminalCommandId.RunRecentCommand));
-			shellIntegrationCommandList.push('- ' + localize('goToRecentDirectory', 'Go to Recent Directory<keybinding:{0}>', TerminalCommandId.GoToRecentDirectory));
-			content.push(shellIntegrationCommandList.join('\n'));
+			content.push(localize('shellIntegration', "The terminal has a feature called shell integration that offers an enhanced experience and provides useful commands for screen readers such as:"));
+			content.push('- ' + localize('goToNextCommand', 'Go to Next Command<keybinding:{0}> in the accessible view', TerminalAccessibilityCommandId.AccessibleBufferGoToNextCommand));
+			content.push('- ' + localize('goToPreviousCommand', 'Go to Previous Command<keybinding:{0}> in the accessible view', TerminalAccessibilityCommandId.AccessibleBufferGoToPreviousCommand));
+			content.push('- ' + localize('goToSymbol', 'Go to Symbol<keybinding:{0}>', AccessibilityCommandId.GoToSymbol));
+			content.push('- ' + localize('runRecentCommand', 'Run Recent Command<keybinding:{0}>', TerminalCommandId.RunRecentCommand));
+			content.push('- ' + localize('goToRecentDirectory', 'Go to Recent Directory<keybinding:{0}>', TerminalCommandId.GoToRecentDirectory));
 		} else {
-			content.push(localize('goToRecentDirectoryNoShellIntegration', 'The Go to Recent Directory command<keybinding:{0}> enables screen readers to easily navigate to a directory that has been used in the terminal.', TerminalCommandId.RunRecentCommand));
+			content.push(localize('noShellIntegration', 'Shell integration is not enabled. Some accessibility features may not be available.'));
 		}
-		content.push(localize('openDetectedLink', 'The Open Detected Link command<keybinding:{0}> enables screen readers to easily open links found in the terminal.', TerminalLinksCommandId.OpenDetectedLink));
-		content.push(localize('newWithProfile', 'The Create New Terminal (With Profile) command<keybinding:{0}> allows for easy terminal creation using a specific profile.', TerminalCommandId.NewWithProfile));
-		content.push(localize('focusAfterRun', 'Configure what gets focused after running selected text in the terminal with `{0}`.', TerminalSettingId.FocusAfterRun));
-		return content.join('\n\n');
+
+		return content.join('\n');
 	}
 }

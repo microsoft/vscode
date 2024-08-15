@@ -118,12 +118,12 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 			return [];
 		}
 
-		return this.doGetSymbolPicks(this.getDocumentSymbols(model, token), prepareQuery(filter), options, token);
+		return this.doGetSymbolPicks(this.getDocumentSymbols(model, token), prepareQuery(filter), options, token, model);
 	}
 
 	//#endregion
 
-	protected override provideWithoutTextEditor(picker: IQuickPick<IGotoSymbolQuickPickItem>): IDisposable {
+	protected override provideWithoutTextEditor(picker: IQuickPick<IGotoSymbolQuickPickItem, { useSeparators: true }>): IDisposable {
 		if (this.canPickWithOutlineService()) {
 			return this.doGetOutlinePicks(picker);
 		}
@@ -134,7 +134,7 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 		return this.editorService.activeEditorPane ? this.outlineService.canCreateOutline(this.editorService.activeEditorPane) : false;
 	}
 
-	private doGetOutlinePicks(picker: IQuickPick<IGotoSymbolQuickPickItem>): IDisposable {
+	private doGetOutlinePicks(picker: IQuickPick<IGotoSymbolQuickPickItem, { useSeparators: true }>): IDisposable {
 		const pane = this.editorService.activeEditorPane;
 		if (!pane) {
 			return Disposable.None;

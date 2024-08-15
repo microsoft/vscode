@@ -31,6 +31,7 @@ class TestWebglAddon implements WebglAddon {
 	static isEnabled = false;
 	readonly onChangeTextureAtlas = new Emitter().event as IEvent<HTMLCanvasElement>;
 	readonly onAddTextureAtlasCanvas = new Emitter().event as IEvent<HTMLCanvasElement>;
+	readonly onRemoveTextureAtlasCanvas = new Emitter().event as IEvent<HTMLCanvasElement, void>;
 	readonly onContextLoss = new Emitter().event as IEvent<void>;
 	activate() {
 		TestWebglAddon.isEnabled = !TestWebglAddon.shouldThrow;
@@ -167,6 +168,10 @@ suite('XtermTerminal', () => {
 				selectionBackground: '#000500',
 				selectionInactiveBackground: '#000600',
 				selectionForeground: undefined,
+				overviewRulerBorder: undefined,
+				scrollbarSliderActiveBackground: undefined,
+				scrollbarSliderBackground: undefined,
+				scrollbarSliderHoverBackground: undefined,
 				black: '#010000',
 				green: '#030000',
 				red: '#020000',
@@ -217,6 +222,10 @@ suite('XtermTerminal', () => {
 				selectionBackground: '#00050f',
 				selectionInactiveBackground: '#00060f',
 				selectionForeground: '#00070f',
+				overviewRulerBorder: undefined,
+				scrollbarSliderActiveBackground: undefined,
+				scrollbarSliderBackground: undefined,
+				scrollbarSliderHoverBackground: undefined,
 				black: '#01000f',
 				green: '#03000f',
 				red: '#02000f',

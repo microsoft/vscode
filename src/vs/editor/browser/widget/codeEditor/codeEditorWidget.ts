@@ -577,7 +577,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		if (!this._modelData) {
 			return -1;
 		}
-		return CodeEditorWidget._getVerticalOffsetAfterPosition(this._modelData, lineNumber, 1, includeViewZones);
+		const maxCol = this._modelData.model.getLineMaxColumn(lineNumber);
+		return CodeEditorWidget._getVerticalOffsetAfterPosition(this._modelData, lineNumber, maxCol, includeViewZones);
 	}
 
 	public setHiddenAreas(ranges: IRange[], source?: unknown): void {
@@ -1613,7 +1614,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 	public setBanner(domNode: HTMLElement | null, domNodeHeight: number): void {
 		if (this._bannerDomNode && this._domElement.contains(this._bannerDomNode)) {
-			this._domElement.removeChild(this._bannerDomNode);
+			this._bannerDomNode.remove();
 		}
 
 		this._bannerDomNode = domNode;
@@ -1648,6 +1649,16 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			this.languageConfigurationService,
 			this._themeService,
 			attachedView,
+			{
+				batchChanges: (cb) => {
+					try {
+						this._beginUpdate();
+						return cb();
+					} finally {
+						this._endUpdate();
+					}
+				},
+			}
 		);
 
 		// Someone might destroy the model from under the editor, so prevent any exceptions by setting a null model
@@ -1874,10 +1885,10 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 		this._domElement.removeAttribute('data-mode-id');
 		if (removeDomNode && this._domElement.contains(removeDomNode)) {
-			this._domElement.removeChild(removeDomNode);
+			removeDomNode.remove();
 		}
 		if (this._bannerDomNode && this._domElement.contains(this._bannerDomNode)) {
-			this._domElement.removeChild(this._bannerDomNode);
+			this._bannerDomNode.remove();
 		}
 		return model;
 	}

@@ -30,7 +30,6 @@ export interface IQuickAccessProviderRunOptions {
 export interface AnythingQuickAccessProviderRunOptions extends IQuickAccessProviderRunOptions {
 	readonly includeHelp?: boolean;
 	readonly filter?: (item: unknown) => boolean;
-	readonly includeSymbols?: boolean;
 	/**
 	 * @deprecated - temporary for Dynamic Chat Variables (see usage) until it has built-in UX for file picking
 	 * Useful for adding items to the top of the list that might contain actions.
@@ -130,7 +129,7 @@ export interface IQuickAccessProvider {
 	 * @return a disposable that will automatically be disposed when the picker
 	 * closes or is replaced by another picker.
 	 */
-	provide(picker: IQuickPick<IQuickPickItem>, token: CancellationToken, options?: IQuickAccessProviderRunOptions): IDisposable;
+	provide(picker: IQuickPick<IQuickPickItem, { useSeparators: true }>, token: CancellationToken, options?: IQuickAccessProviderRunOptions): IDisposable;
 }
 
 export interface IQuickAccessProviderHelp {

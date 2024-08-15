@@ -3,11 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as _fs from 'fs';
-import * as _url from 'url';
-import * as _cp from 'child_process';
-import * as _http from 'http';
-import * as _os from 'os';
+import * as fs from 'fs';
+import * as url from 'url';
+import * as cp from 'child_process';
+import * as http from 'http';
 import { cwd } from 'vs/base/common/process';
 import { dirname, extname, resolve, join } from 'vs/base/common/path';
 import { parseArgs, buildHelpMessage, buildVersionMessage, OPTIONS, OptionDescriptions, ErrorReporter } from 'vs/platform/environment/node/argv';
@@ -240,8 +239,8 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 				cmdLine.push('--update-extensions');
 			}
 
-			const cp = _cp.fork(join(__dirname, '../../../server-main.js'), cmdLine, { stdio: 'inherit' });
-			cp.on('error', err => console.log(err));
+			const childProcess = cp.fork(join(__dirname, '../../../server-main.js'), cmdLine, { stdio: 'inherit' });
+			childProcess.on('error', err => console.log(err));
 			return;
 		}
 
@@ -270,7 +269,7 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 			if (verbose) {
 				console.log(`Invoking: cmd.exe /C ${cliCommand} ${newCommandline.join(' ')} in ${processCwd}`);
 			}
-			_cp.spawn('cmd.exe', ['/C', cliCommand, ...newCommandline], {
+			cp.spawn('cmd.exe', ['/C', cliCommand, ...newCommandline], {
 				stdio: 'inherit',
 				cwd: processCwd
 			});
@@ -285,11 +284,11 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 				if (verbose) {
 					console.log(`Using pipes for output.`);
 				}
-				const cp = _cp.spawn(cliCommand, newCommandline, { cwd: cliCwd, env, stdio: ['inherit', 'pipe', 'pipe'] });
-				cp.stdout.on('data', data => process.stdout.write(data));
-				cp.stderr.on('data', data => process.stderr.write(data));
+				const childProcess = cp.spawn(cliCommand, newCommandline, { cwd: cliCwd, env, stdio: ['inherit', 'pipe', 'pipe'] });
+				childProcess.stdout.on('data', data => process.stdout.write(data));
+				childProcess.stderr.on('data', data => process.stderr.write(data));
 			} else {
-				_cp.spawn(cliCommand, newCommandline, { cwd: cliCwd, env, stdio: 'inherit' });
+				cp.spawn(cliCommand, newCommandline, { cwd: cliCwd, env, stdio: 'inherit' });
 			}
 		}
 	} else {
@@ -357,7 +356,7 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 function runningInWSL2(): boolean {
 	if (!!process.env['WSL_DISTRO_NAME']) {
 		try {
-			return _cp.execSync('uname -r', { encoding: 'utf8' }).includes('-microsoft-');
+			return cp.execSync('uname -r', { encoding: 'utf8' }).includes('-microsoft-');
 		} catch (_e) {
 			// Ignore
 		}
@@ -366,7 +365,7 @@ function runningInWSL2(): boolean {
 }
 
 async function waitForFileDeleted(path: string) {
-	while (_fs.existsSync(path)) {
+	while (fs.existsSync(path)) {
 		await new Promise(res => setTimeout(res, 1000));
 	}
 }
@@ -376,7 +375,7 @@ function openInBrowser(args: string[], verbose: boolean) {
 	for (const location of args) {
 		try {
 			if (/^(http|https|file):\/\//.test(location)) {
-				uris.push(_url.parse(location).href);
+				uris.push(url.parse(location).href);
 			} else {
 				uris.push(pathToURI(location).href);
 			}
@@ -406,7 +405,7 @@ function sendToPipe(args: PipeCommand, verbose: boolean): Promise<any> {
 			return;
 		}
 
-		const opts: _http.RequestOptions = {
+		const opts: http.RequestOptions = {
 			socketPath: cliPipe,
 			path: '/',
 			method: 'POST',
@@ -416,7 +415,7 @@ function sendToPipe(args: PipeCommand, verbose: boolean): Promise<any> {
 			}
 		};
 
-		const req = _http.request(opts, res => {
+		const req = http.request(opts, res => {
 			if (res.headers['content-type'] !== 'application/json') {
 				reject('Error in response: Invalid content type: Expected \'application/json\', is: ' + res.headers['content-type']);
 				return;
@@ -461,18 +460,18 @@ function fatal(message: string, err: any): void {
 
 const preferredCwd = process.env.PWD || cwd(); // prefer process.env.PWD as it does not follow symlinks
 
-function pathToURI(input: string): _url.URL {
+function pathToURI(input: string): url.URL {
 	input = input.trim();
 	input = resolve(preferredCwd, input);
 
-	return _url.pathToFileURL(input);
+	return url.pathToFileURL(input);
 }
 
 function translatePath(input: string, mapFileUri: (input: string) => string, folderURIS: string[], fileURIS: string[]) {
 	const url = pathToURI(input);
 	const mappedUri = mapFileUri(url.href);
 	try {
-		const stat = _fs.lstatSync(_fs.realpathSync(input));
+		const stat = fs.lstatSync(fs.realpathSync(input));
 
 		if (stat.isFile()) {
 			fileURIS.push(mappedUri);

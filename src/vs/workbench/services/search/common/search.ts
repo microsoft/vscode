@@ -17,7 +17,7 @@ import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { Event } from 'vs/base/common/event';
 import * as paths from 'vs/base/common/path';
 import { isCancellationError } from 'vs/base/common/errors';
-import { TextSearchCompleteMessageType } from 'vs/workbench/services/search/common/searchExtTypes';
+import { GlobPattern, TextSearchCompleteMessageType } from 'vs/workbench/services/search/common/searchExtTypes';
 import { isThenable } from 'vs/base/common/async';
 import { ResourceSet } from 'vs/base/common/map';
 
@@ -29,6 +29,7 @@ export const VIEW_ID = 'workbench.view.search';
 export const SEARCH_RESULT_LANGUAGE_ID = 'search-result';
 
 export const SEARCH_EXCLUDE_CONFIG = 'search.exclude';
+export const DEFAULT_MAX_SEARCH_RESULTS = 20000;
 
 // Warning: this pattern is used in the search editor to detect offsets. If you
 // change this, also change the search-result built-in extension
@@ -66,10 +67,16 @@ export interface ISearchResultProvider {
 	clearCache(cacheKey: string): Promise<void>;
 }
 
+
+export interface ExcludeGlobPattern<U extends UriComponents = URI> {
+	folder?: U;
+	pattern: glob.IExpression;
+}
+
 export interface IFolderQuery<U extends UriComponents = URI> {
 	folder: U;
 	folderName?: string;
-	excludePattern?: glob.IExpression;
+	excludePattern?: ExcludeGlobPattern<U>;
 	includePattern?: glob.IExpression;
 	fileEncoding?: string;
 	disregardIgnoreFiles?: boolean;
@@ -119,8 +126,7 @@ export interface ITextQueryProps<U extends UriComponents> extends ICommonQueryPr
 	previewOptions?: ITextSearchPreviewOptions;
 	maxFileSize?: number;
 	usePCRE2?: boolean;
-	afterContext?: number;
-	beforeContext?: number;
+	surroundingContext?: number;
 
 	userDisabledExcludesAndIgnoreFiles?: boolean;
 }
@@ -131,8 +137,7 @@ export interface IAITextQueryProps<U extends UriComponents> extends ICommonQuery
 
 	previewOptions?: ITextSearchPreviewOptions;
 	maxFileSize?: number;
-	afterContext?: number;
-	beforeContext?: number;
+	surroundingContext?: number;
 
 	userDisabledExcludesAndIgnoreFiles?: boolean;
 }
@@ -461,7 +466,7 @@ export function getExcludes(configuration: ISearchConfiguration, includeSearchEx
 	}
 
 	if (!fileExcludes || !searchExcludes) {
-		return fileExcludes || searchExcludes;
+		return fileExcludes || searchExcludes || undefined;
 	}
 
 	let allExcludes: glob.IExpression = Object.create(null);
@@ -674,9 +679,10 @@ export class QueryGlobTester {
 	private _parsedIncludeExpression: glob.ParsedExpression | null = null;
 
 	constructor(config: ISearchQuery, folderQuery: IFolderQuery) {
+		// todo: try to incorporate folderQuery.excludePattern.folder if available
 		this._excludeExpression = {
 			...(config.excludePattern || {}),
-			...(folderQuery.excludePattern || {})
+			...(folderQuery.excludePattern?.pattern || {})
 		};
 		this._parsedExcludeExpression = glob.parse(this._excludeExpression);
 
@@ -798,4 +804,14 @@ function listToMap(list: string[]) {
 		map[key] = true;
 	}
 	return map;
+}
+
+export function excludeToGlobPattern(baseUri: URI | undefined, patterns: string[]): GlobPattern[] {
+	return patterns.map(pattern => {
+		return baseUri ?
+			{
+				baseUri: baseUri,
+				pattern: pattern
+			} : pattern;
+	});
 }

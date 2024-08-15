@@ -11,14 +11,14 @@ import { localize } from 'vs/nls';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ExtensionIdentifier, ExtensionIdentifierSet, IExtensionDescription, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { Extensions as ViewletExtensions, PaneCompositeRegistry } from 'vs/workbench/browser/panecomposite';
-import { CustomTreeView, RawCustomTreeViewContextKey, TreeViewPane } from 'vs/workbench/browser/parts/views/treeView';
+import { CustomTreeView, TreeViewPane } from 'vs/workbench/browser/parts/views/treeView';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
-import { Extensions as ViewContainerExtensions, ICustomViewDescriptor, IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ResolvableTreeItem, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
+import { Extensions as ViewContainerExtensions, ICustomViewDescriptor, IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
 import { VIEWLET_ID as DEBUG } from 'vs/workbench/contrib/debug/common/debug';
 import { VIEWLET_ID as EXPLORER } from 'vs/workbench/contrib/files/common/files';
 import { VIEWLET_ID as REMOTE } from 'vs/workbench/contrib/remote/browser/remoteExplorer';
@@ -26,14 +26,6 @@ import { VIEWLET_ID as SCM } from 'vs/workbench/contrib/scm/common/scm';
 import { WebviewViewPane } from 'vs/workbench/contrib/webviewView/browser/webviewViewPane';
 import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionMessageCollector, ExtensionsRegistry, IExtensionPoint, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { IListService, WorkbenchListFocusContextKey } from 'vs/platform/list/browser/listService';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
-import { ITreeViewsService } from 'vs/workbench/services/views/browser/treeViewsService';
-import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IExtensionFeatureTableRenderer, IRenderedData, ITableData, IRowData, IExtensionFeaturesRegistry, Extensions as ExtensionFeaturesRegistryExtensions } from 'vs/workbench/services/extensionManagement/common/extensionFeatures';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -291,53 +283,6 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 		this.viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
 		this.handleAndRegisterCustomViewContainers();
 		this.handleAndRegisterCustomViews();
-
-		// Abstract tree has it's own implementation of triggering custom hover
-		// TreeView uses it's own implementation due to setting focus inside the (markdown)
-		let showTreeHoverCancellation = new CancellationTokenSource();
-		KeybindingsRegistry.registerCommandAndKeybindingRule({
-			id: 'workbench.action.showTreeHover',
-			handler: async (accessor: ServicesAccessor, ...args: any[]) => {
-				showTreeHoverCancellation.cancel();
-				showTreeHoverCancellation = new CancellationTokenSource();
-				const listService = accessor.get(IListService);
-				const treeViewsService = accessor.get(ITreeViewsService);
-				const hoverService = accessor.get(IHoverService);
-				const lastFocusedList = listService.lastFocusedList;
-				if (!(lastFocusedList instanceof AsyncDataTree)) {
-					return;
-				}
-				const focus = lastFocusedList.getFocus();
-				if (!focus || (focus.length === 0)) {
-					return;
-				}
-				const treeItem = focus[0];
-
-				if (treeItem instanceof ResolvableTreeItem) {
-					await treeItem.resolve(showTreeHoverCancellation.token);
-				}
-				if (!treeItem.tooltip) {
-					return;
-				}
-				const element = treeViewsService.getRenderedTreeElement(('handle' in treeItem) ? treeItem.handle : treeItem);
-				if (!element) {
-					return;
-				}
-				hoverService.showHover({
-					content: treeItem.tooltip,
-					target: element,
-					position: {
-						hoverPosition: HoverPosition.BELOW,
-					},
-					persistence: {
-						hideOnHover: false
-					}
-				}, true);
-			},
-			weight: KeybindingWeight.WorkbenchContrib + 1,
-			primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyI),
-			when: ContextKeyExpr.and(RawCustomTreeViewContextKey, WorkbenchListFocusContextKey)
-		});
 	}
 
 	private handleAndRegisterCustomViewContainers() {

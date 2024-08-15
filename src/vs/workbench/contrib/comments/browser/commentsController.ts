@@ -46,6 +46,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { URI } from 'vs/base/common/uri';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { threadHasMeaningfulComments } from 'vs/workbench/contrib/comments/browser/commentsModel';
 
 export const ID = 'editor.contrib.review';
 
@@ -430,6 +431,7 @@ export class CommentController implements IEditorContribution {
 	private _commentingRangeSpaceReserved = false;
 	private _commentingRangeAmountReserved = 0;
 	private _computePromise: CancelablePromise<Array<ICommentInfo | null>> | null;
+	private _computeAndSetPromise: Promise<void> | undefined;
 	private _addInProgress!: boolean;
 	private _emptyThreadsToAddQueue: [Range | undefined, IEditorMouseEvent | undefined][] = [];
 	private _computeCommentingRangePromise!: CancelablePromise<ICommentInfo[]> | null;
@@ -645,10 +647,12 @@ export class CommentController implements IEditorContribution {
 			return Promise.resolve([]);
 		});
 
-		return this._computePromise.then(async commentInfos => {
+		this._computeAndSetPromise = this._computePromise.then(async commentInfos => {
 			await this.setComments(coalesce(commentInfos));
 			this._computePromise = null;
 		}, error => console.log(error));
+		this._computePromise.then(() => this._computeAndSetPromise = undefined);
+		return this._computeAndSetPromise;
 	}
 
 	private beginComputeCommentingRanges() {
@@ -687,8 +691,8 @@ export class CommentController implements IEditorContribution {
 		if (commentThreadWidget.length === 1) {
 			commentThreadWidget[0].reveal(commentUniqueId, focus);
 		} else if (fetchOnceIfNotExist) {
-			if (this._computePromise) {
-				this._computePromise.then(_ => {
+			if (this._computeAndSetPromise) {
+				this._computeAndSetPromise.then(_ => {
 					this.revealCommentThread(threadId, commentUniqueId, false, focus);
 				});
 			} else {
@@ -728,7 +732,7 @@ export class CommentController implements IEditorContribution {
 			return;
 		}
 
-		const after = this.editor.getSelection().getEndPosition();
+		const after = reverse ? this.editor.getSelection().getStartPosition() : this.editor.getSelection().getEndPosition();
 		const sortedWidgets = this._commentWidgets.sort((a, b) => {
 			if (reverse) {
 				const temp = a;
@@ -1012,7 +1016,7 @@ export class CommentController implements IEditorContribution {
 	}
 
 	private async openCommentsView(thread: languages.CommentThread) {
-		if (thread.comments && (thread.comments.length > 0)) {
+		if (thread.comments && (thread.comments.length > 0) && threadHasMeaningfulComments(thread)) {
 			const openViewState = this.configurationService.getValue<ICommentsConfiguration>(COMMENTS_SECTION).openView;
 			if (openViewState === 'file') {
 				return this.viewsService.openView(COMMENTS_VIEW_ID);
@@ -1094,7 +1098,7 @@ export class CommentController implements IEditorContribution {
 			const existingCommentsAtLine = this._commentWidgets.filter(widget => widget.getGlyphPosition() === (commentRange ? commentRange.endLineNumber : 0));
 			if (existingCommentsAtLine.length) {
 				const allExpanded = existingCommentsAtLine.every(widget => widget.expanded);
-				existingCommentsAtLine.forEach(allExpanded ? widget => widget.collapse() : widget => widget.expand());
+				existingCommentsAtLine.forEach(allExpanded ? widget => widget.collapse() : widget => widget.expand(true));
 				this.processNextThreadToAdd();
 				return;
 			} else {
@@ -1128,7 +1132,7 @@ export class CommentController implements IEditorContribution {
 		if (!newCommentInfos.length || !this.editor?.hasModel()) {
 			this._addInProgress = false;
 			if (!newCommentInfos.length) {
-				throw new Error('There are no commenting ranges at the current position.');
+				throw new Error(`There are no commenting ranges at the current position (${range ? 'with range' : 'without range'}).`);
 			}
 			return Promise.resolve();
 		}

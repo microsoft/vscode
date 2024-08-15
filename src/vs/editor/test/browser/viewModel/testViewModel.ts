@@ -22,6 +22,8 @@ export function testViewModel(text: string[], options: IEditorOptions, callback:
 	const viewModel = new ViewModel(EDITOR_ID, configuration, model, monospaceLineBreaksComputerFactory, monospaceLineBreaksComputerFactory, null!, testLanguageConfigurationService, new TestThemeService(), {
 		setVisibleLines(visibleLines, stabilized) {
 		},
+	}, {
+		batchChanges: (cb) => cb(),
 	});
 
 	callback(viewModel, model);

@@ -242,6 +242,15 @@ export interface IEditorGroupTitleHeight {
 	readonly offset: number;
 }
 
+export interface IEditorGroupViewOptions {
+
+	/**
+	 * Whether the editor group should receive keyboard focus
+	 * after creation or not.
+	 */
+	readonly preserveFocus?: boolean;
+}
+
 /**
  * A helper to access and mutate an editor group within an editor part.
  */

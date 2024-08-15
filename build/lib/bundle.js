@@ -5,6 +5,7 @@
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.bundle = bundle;
+exports.removeAllTSBoilerplate = removeAllTSBoilerplate;
 const fs = require("fs");
 const path = require("path");
 const vm = require("vm");
@@ -36,14 +37,10 @@ function bundle(entryPoints, config, callback) {
     const loader = loaderModule.exports;
     config.isBuild = true;
     config.paths = config.paths || {};
-    if (!config.paths['vs/nls']) {
-        config.paths['vs/nls'] = 'out-build/vs/nls.build';
-    }
     if (!config.paths['vs/css']) {
         config.paths['vs/css'] = 'out-build/vs/css.build';
     }
     config.buildForceInvokeFactory = config.buildForceInvokeFactory || {};
-    config.buildForceInvokeFactory['vs/nls'] = true;
     config.buildForceInvokeFactory['vs/css'] = true;
     loader.config(config);
     loader(['require'], (localRequire) => {
@@ -53,7 +50,6 @@ function bundle(entryPoints, config, callback) {
                 r += '.js';
             }
             // avoid packaging the build version of plugins:
-            r = r.replace('vs/nls.build.js', 'vs/nls.js');
             r = r.replace('vs/css.build.js', 'vs/css.js');
             return { path: r, amdModuleId: entry.amdModuleId };
         };
@@ -132,7 +128,7 @@ function emitEntryPoints(modules, entryPoints) {
     });
     return {
         // TODO@TS 2.1.2
-        files: extractStrings(removeDuplicateTSBoilerplate(result)),
+        files: extractStrings(removeAllDuplicateTSBoilerplate(result)),
         bundleData: bundleData
     };
 }
@@ -221,56 +217,66 @@ function extractStrings(destFiles) {
     });
     return destFiles;
 }
-function removeDuplicateTSBoilerplate(destFiles) {
-    // Taken from typescript compiler => emitFiles
-    const BOILERPLATE = [
-        { start: /^var __extends/, end: /^}\)\(\);$/ },
-        { start: /^var __assign/, end: /^};$/ },
-        { start: /^var __decorate/, end: /^};$/ },
-        { start: /^var __metadata/, end: /^};$/ },
-        { start: /^var __param/, end: /^};$/ },
-        { start: /^var __awaiter/, end: /^};$/ },
-        { start: /^var __generator/, end: /^};$/ },
-    ];
+function removeAllDuplicateTSBoilerplate(destFiles) {
     destFiles.forEach((destFile) => {
         const SEEN_BOILERPLATE = [];
         destFile.sources.forEach((source) => {
-            const lines = source.contents.split(/\r\n|\n|\r/);
-            const newLines = [];
-            let IS_REMOVING_BOILERPLATE = false, END_BOILERPLATE;
-            for (let i = 0; i < lines.length; i++) {
-                const line = lines[i];
-                if (IS_REMOVING_BOILERPLATE) {
-                    newLines.push('');
-                    if (END_BOILERPLATE.test(line)) {
-                        IS_REMOVING_BOILERPLATE = false;
-                    }
-                }
-                else {
-                    for (let j = 0; j < BOILERPLATE.length; j++) {
-                        const boilerplate = BOILERPLATE[j];
-                        if (boilerplate.start.test(line)) {
-                            if (SEEN_BOILERPLATE[j]) {
-                                IS_REMOVING_BOILERPLATE = true;
-                                END_BOILERPLATE = boilerplate.end;
-                            }
-                            else {
-                                SEEN_BOILERPLATE[j] = true;
-                            }
-                        }
-                    }
-                    if (IS_REMOVING_BOILERPLATE) {
-                        newLines.push('');
-                    }
-                    else {
-                        newLines.push(line);
-                    }
-                }
-            }
-            source.contents = newLines.join('\n');
+            source.contents = removeDuplicateTSBoilerplate(source.contents, SEEN_BOILERPLATE);
         });
     });
     return destFiles;
+}
+function removeAllTSBoilerplate(source) {
+    const seen = new Array(BOILERPLATE.length).fill(true, 0, 10);
+    return removeDuplicateTSBoilerplate(source, seen);
+}
+// Taken from typescript compiler => emitFiles
+const BOILERPLATE = [
+    { start: /^var __extends/, end: /^}\)\(\);$/ },
+    { start: /^var __assign/, end: /^};$/ },
+    { start: /^var __decorate/, end: /^};$/ },
+    { start: /^var __metadata/, end: /^};$/ },
+    { start: /^var __param/, end: /^};$/ },
+    { start: /^var __awaiter/, end: /^};$/ },
+    { start: /^var __generator/, end: /^};$/ },
+    { start: /^var __createBinding/, end: /^}\)\);$/ },
+    { start: /^var __setModuleDefault/, end: /^}\);$/ },
+    { start: /^var __importStar/, end: /^};$/ },
+];
+function removeDuplicateTSBoilerplate(source, SEEN_BOILERPLATE = []) {
+    const lines = source.split(/\r\n|\n|\r/);
+    const newLines = [];
+    let IS_REMOVING_BOILERPLATE = false, END_BOILERPLATE;
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (IS_REMOVING_BOILERPLATE) {
+            newLines.push('');
+            if (END_BOILERPLATE.test(line)) {
+                IS_REMOVING_BOILERPLATE = false;
+            }
+        }
+        else {
+            for (let j = 0; j < BOILERPLATE.length; j++) {
+                const boilerplate = BOILERPLATE[j];
+                if (boilerplate.start.test(line)) {
+                    if (SEEN_BOILERPLATE[j]) {
+                        IS_REMOVING_BOILERPLATE = true;
+                        END_BOILERPLATE = boilerplate.end;
+                    }
+                    else {
+                        SEEN_BOILERPLATE[j] = true;
+                    }
+                }
+            }
+            if (IS_REMOVING_BOILERPLATE) {
+                newLines.push('');
+            }
+            else {
+                newLines.push(line);
+            }
+        }
+    }
+    return newLines.join('\n');
 }
 function emitEntryPoint(modulesMap, deps, entryPoint, includedModules, prepend, append, dest) {
     if (!dest) {

@@ -21,7 +21,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { DisposableStore, IDisposable, toDisposable, MutableDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
+import { getIconClasses } from 'vs/editor/browser/services/getIconClasses';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { localize } from 'vs/nls';
@@ -87,7 +87,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 	private readonly pickState = this._register(new class extends Disposable {
 
-		picker: IQuickPick<IAnythingQuickPickItem> | undefined = undefined;
+		picker: IQuickPick<IAnythingQuickPickItem, { useSeparators: true }> | undefined = undefined;
 
 		editorViewState = this._register(this.instantiationService.createInstance(PickerEditorState));
 
@@ -109,7 +109,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			super();
 		}
 
-		set(picker: IQuickPick<IAnythingQuickPickItem>): void {
+		set(picker: IQuickPick<IAnythingQuickPickItem, { useSeparators: true }>): void {
 
 			// Picker for this run
 			this.picker = picker;
@@ -188,7 +188,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		};
 	}
 
-	override provide(picker: IQuickPick<IAnythingQuickPickItem>, token: CancellationToken, runOptions?: AnythingQuickAccessProviderRunOptions): IDisposable {
+	override provide(picker: IQuickPick<IAnythingQuickPickItem, { useSeparators: true }>, token: CancellationToken, runOptions?: AnythingQuickAccessProviderRunOptions): IDisposable {
 		const disposables = new DisposableStore();
 
 		// Update the pick state for this run
@@ -319,13 +319,12 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		disposables: DisposableStore,
 		token: CancellationToken
 	): Picks<IAnythingQuickPickItem> | Promise<Picks<IAnythingQuickPickItem>> | FastAndSlowPicks<IAnythingQuickPickItem> {
-		const configuration = { ...this.configuration, includeSymbols: options.includeSymbols ?? this.configuration.includeSymbols };
 		const query = prepareQuery(filter);
 
 		// Return early if we have editor symbol picks. We support this by:
 		// - having a previously active global pick (e.g. a file)
 		// - the user typing `@` to start the local symbol query
-		if (options.enableEditorSymbolSearch && options.includeSymbols) {
+		if (options.enableEditorSymbolSearch) {
 			const editorSymbolPicks = this.getEditorSymbolPicks(query, disposables, token);
 			if (editorSymbolPicks) {
 				return editorSymbolPicks;
@@ -345,7 +344,26 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 		let picks = new Array<IAnythingQuickPickItem | IQuickPickSeparator>();
 		if (options.additionPicks) {
-			picks.push(...options.additionPicks);
+			for (const pick of options.additionPicks) {
+				if (pick.type === 'separator') {
+					picks.push(pick);
+					continue;
+				}
+				if (!query.original) {
+					pick.highlights = undefined;
+					picks.push(pick);
+					continue;
+				}
+				const { score, labelMatch, descriptionMatch } = scoreItemFuzzy(pick, query, true, quickPickItemScorerAccessor, this.pickState.scorerCache);
+				if (!score) {
+					continue;
+				}
+				pick.highlights = {
+					label: labelMatch,
+					description: descriptionMatch
+				};
+				picks.push(pick);
+			}
 		}
 		if (this.pickState.isQuickNavigating) {
 			if (picks.length > 0) {
@@ -378,7 +396,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 					}
 				}
 
-				let additionalPicks = await this.getAdditionalPicks(query, additionalPicksExcludes, configuration.includeSymbols, token);
+				let additionalPicks = await this.getAdditionalPicks(query, additionalPicksExcludes, this.configuration.includeSymbols, token);
 				if (options.filter) {
 					additionalPicks = additionalPicks.filter((p) => options.filter?.(p));
 				}
@@ -387,7 +405,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 				}
 
 				return additionalPicks.length > 0 ? [
-					{ type: 'separator', label: configuration.includeSymbols ? localize('fileAndSymbolResultsSeparator', "file and symbol results") : localize('fileResultsSeparator', "file results") },
+					{ type: 'separator', label: this.configuration.includeSymbols ? localize('fileAndSymbolResultsSeparator', "file and symbol results") : localize('fileResultsSeparator', "file results") },
 					...additionalPicks
 				] : [];
 			})(),

@@ -6,10 +6,11 @@
 /**
  * @param {string} name
  * @param {string[]=} exclude
+ * @returns {import('../build/lib/bundle').IEntryPoint}
  */
 function createModuleDescription(name, exclude) {
 
-	let excludes = ['vs/css', 'vs/nls'];
+	let excludes = ['vs/css'];
 	if (Array.isArray(exclude) && exclude.length > 0) {
 		excludes = excludes.concat(exclude);
 	}
@@ -23,46 +24,62 @@ function createModuleDescription(name, exclude) {
 
 /**
  * @param {string} name
+ * @param {boolean?} noEsmSuffix
  */
-function createEditorWorkerModuleDescription(name) {
-	return createModuleDescription(name, ['vs/base/common/worker/simpleWorker', 'vs/editor/common/services/editorSimpleWorker']);
+function createEditorWorkerModuleDescription(name, noEsmSuffix) {
+	const amdVariant = createModuleDescription(name, ['vs/base/common/worker/simpleWorker', 'vs/editor/common/services/editorSimpleWorker']);
+	amdVariant.target = 'amd';
+
+	const esmVariant = { ...amdVariant, dest: undefined };
+	esmVariant.target = 'esm';
+	if (!noEsmSuffix) {
+		esmVariant.name = `${esmVariant.name}.esm`;
+	}
+
+	return [amdVariant, esmVariant];
 }
 
 exports.base = [
 	{
 		name: 'vs/editor/common/services/editorSimpleWorker',
 		include: ['vs/base/common/worker/simpleWorker'],
-		exclude: ['vs/nls'],
+		exclude: [],
 		prepend: [
 			{ path: 'vs/loader.js' },
 			{ path: 'vs/base/worker/workerMain.js' }
 		],
-		dest: 'vs/base/worker/workerMain.js'
+		dest: 'vs/base/worker/workerMain.js',
+		target: 'amd'
+	},
+	{
+		name: 'vs/editor/common/services/editorSimpleWorker.esm',
+		target: 'esm'
 	},
 	{
 		name: 'vs/base/common/worker/simpleWorker',
-		exclude: ['vs/nls'],
+		exclude: [],
 	}
 ];
 
-exports.workerExtensionHost = [createEditorWorkerModuleDescription('vs/workbench/api/worker/extensionHostWorker')];
-exports.workerNotebook = [createEditorWorkerModuleDescription('vs/workbench/contrib/notebook/common/services/notebookSimpleWorker')];
-exports.workerLanguageDetection = [createEditorWorkerModuleDescription('vs/workbench/services/languageDetection/browser/languageDetectionSimpleWorker')];
-exports.workerLocalFileSearch = [createEditorWorkerModuleDescription('vs/workbench/services/search/worker/localFileSearch')];
-exports.workerProfileAnalysis = [createEditorWorkerModuleDescription('vs/platform/profiling/electron-sandbox/profileAnalysisWorker')];
+exports.workerExtensionHost = createEditorWorkerModuleDescription('vs/workbench/api/worker/extensionHostWorker');
+exports.workerNotebook = createEditorWorkerModuleDescription('vs/workbench/contrib/notebook/common/services/notebookSimpleWorker');
+exports.workerLanguageDetection = createEditorWorkerModuleDescription('vs/workbench/services/languageDetection/browser/languageDetectionSimpleWorker');
+exports.workerLocalFileSearch = createEditorWorkerModuleDescription('vs/workbench/services/search/worker/localFileSearch');
+exports.workerProfileAnalysis = createEditorWorkerModuleDescription('vs/platform/profiling/electron-sandbox/profileAnalysisWorker');
 
 exports.workbenchDesktop = [
-	createEditorWorkerModuleDescription('vs/workbench/contrib/output/common/outputLinkComputer'),
-	createEditorWorkerModuleDescription('vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker'),
+	...createEditorWorkerModuleDescription('vs/workbench/contrib/output/common/outputLinkComputer', true),
+	...createEditorWorkerModuleDescription('vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker', true),
 	createModuleDescription('vs/workbench/contrib/debug/node/telemetryApp'),
 	createModuleDescription('vs/platform/files/node/watcher/watcherMain'),
 	createModuleDescription('vs/platform/terminal/node/ptyHostMain'),
-	createModuleDescription('vs/workbench/api/node/extensionHostProcess')
+	createModuleDescription('vs/workbench/api/node/extensionHostProcess'),
+	createModuleDescription('vs/workbench/contrib/issue/electron-sandbox/issueReporterMain'),
 ];
 
 exports.workbenchWeb = [
-	createEditorWorkerModuleDescription('vs/workbench/contrib/output/common/outputLinkComputer'),
-	createEditorWorkerModuleDescription('vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker'),
+	...createEditorWorkerModuleDescription('vs/workbench/contrib/output/common/outputLinkComputer', true),
+	...createEditorWorkerModuleDescription('vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker', true),
 	createModuleDescription('vs/code/browser/workbench/workbench', ['vs/workbench/workbench.web.main'])
 ];
 
@@ -76,7 +93,6 @@ exports.code = [
 	createModuleDescription('vs/code/electron-main/main'),
 	createModuleDescription('vs/code/node/cli'),
 	createModuleDescription('vs/code/node/cliProcessMain', ['vs/code/node/cli']),
-	createModuleDescription('vs/code/electron-sandbox/issue/issueReporterMain'),
 	createModuleDescription('vs/code/node/sharedProcess/sharedProcessMain'),
 	createModuleDescription('vs/code/electron-sandbox/processExplorer/processExplorerMain')
 ];

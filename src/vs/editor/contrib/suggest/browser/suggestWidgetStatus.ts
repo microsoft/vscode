@@ -6,30 +6,11 @@
 import * as dom from 'vs/base/browser/dom';
 import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IAction } from 'vs/base/common/actions';
-import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { localize } from 'vs/nls';
-import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { TextOnlyMenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-
-class StatusBarViewItem extends MenuEntryActionViewItem {
-
-	protected override updateLabel() {
-		const kb = this._keybindingService.lookupKeybinding(this._action.id, this._contextKeyService);
-		if (!kb) {
-			return super.updateLabel();
-		}
-		if (this.label) {
-			this.label.textContent = localize({ key: 'content', comment: ['A label', 'A keybinding'] }, '{0} ({1})', this._action.label, StatusBarViewItem.symbolPrintEnter(kb));
-		}
-	}
-
-	static symbolPrintEnter(kb: ResolvedKeybinding) {
-		return kb.getLabel()?.replace(/\benter\b/gi, '\u23CE');
-	}
-}
 
 export class SuggestWidgetStatus {
 
@@ -49,7 +30,7 @@ export class SuggestWidgetStatus {
 		this.element = dom.append(container, dom.$('.suggest-status-bar'));
 
 		const actionViewItemProvider = <IActionViewItemProvider>(action => {
-			return action instanceof MenuItemAction ? instantiationService.createInstance(StatusBarViewItem, action, undefined) : undefined;
+			return action instanceof MenuItemAction ? instantiationService.createInstance(TextOnlyMenuEntryActionViewItem, action, { useComma: true }) : undefined;
 		});
 		this._leftActions = new ActionBar(this.element, { actionViewItemProvider });
 		this._rightActions = new ActionBar(this.element, { actionViewItemProvider });

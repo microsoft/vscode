@@ -30,11 +30,11 @@ import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { Event } from 'vs/base/common/event';
 import { ICurrentPartialCommand } from 'vs/platform/terminal/common/capabilities/commandDetection/terminalCommand';
 import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
-import { alert } from 'vs/base/browser/ui/aria/aria';
 import { TerminalAccessibilitySettingId } from 'vs/workbench/contrib/terminalContrib/accessibility/common/terminalAccessibilityConfiguration';
 import { TerminalAccessibilityCommandId } from 'vs/workbench/contrib/terminalContrib/accessibility/common/terminal.accessibility';
 import { IAccessibleViewService, AccessibleViewProviderId, NavigationType } from 'vs/platform/accessibility/browser/accessibleView';
 import { accessibleViewCurrentProviderId, accessibleViewIsShown } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { isWindows } from 'vs/base/common/platform';
 
 // #region Terminal Contributions
 
@@ -186,11 +186,14 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 			return;
 		}
 		const command = filteredCommands[0];
-		this._accessibleViewService.setPosition(new Position(command.lineNumber, 1), true);
 		const commandLine = command.command.command;
-		if (commandLine) {
+		if (!isWindows && commandLine) {
+			this._accessibleViewService.setPosition(new Position(command.lineNumber, 1), true);
 			alert(commandLine);
+		} else {
+			this._accessibleViewService.setPosition(new Position(command.lineNumber, 1), true, true);
 		}
+
 		if (command.exitCode) {
 			this._accessibilitySignalService.playSignal(AccessibilitySignal.terminalCommandFailed);
 		} else {

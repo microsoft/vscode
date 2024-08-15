@@ -141,7 +141,7 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 
 		this.createQueryEditor(
 			this.queryEditorContainer,
-			this.instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService])),
+			this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService]))),
 			SearchContext.InputBoxFocusedKey.bindTo(scopedContextKeyService)
 		);
 	}
@@ -165,8 +165,9 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 		this.includesExcludesContainer = DOM.append(container, DOM.$('.includes-excludes'));
 
 		// Toggle query details button
-		this.toggleQueryDetailsButton = DOM.append(this.includesExcludesContainer, DOM.$('.expand' + ThemeIcon.asCSSSelector(searchDetailsIcon), { tabindex: 0, role: 'button' }));
-		this._register(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('element'), this.toggleQueryDetailsButton, localize('moreSearch', "Toggle Search Details")));
+		const toggleQueryDetailsLabel = localize('moreSearch', "Toggle Search Details");
+		this.toggleQueryDetailsButton = DOM.append(this.includesExcludesContainer, DOM.$('.expand' + ThemeIcon.asCSSSelector(searchDetailsIcon), { tabindex: 0, role: 'button', 'aria-label': toggleQueryDetailsLabel }));
+		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), this.toggleQueryDetailsButton, toggleQueryDetailsLabel));
 		this._register(DOM.addDisposableListener(this.toggleQueryDetailsButton, DOM.EventType.CLICK, e => {
 			DOM.EventHelper.stop(e);
 			this.toggleIncludesExcludes();
@@ -485,6 +486,10 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 	async triggerSearch(_options?: { resetCursor?: boolean; delay?: number; focusResults?: boolean }) {
 		const options = { resetCursor: true, delay: 0, ..._options };
 
+		if (!(this.queryEditorWidget.searchInput?.inputBox.isInputValid())) {
+			return;
+		}
+
 		if (!this.pauseSearching) {
 			await this.runSearchDelayer.trigger(async () => {
 				this.toggleRunAgainMessage(false);
@@ -557,8 +562,7 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 				matchLines: 1,
 				charsPerLine: 1000
 			},
-			afterContext: config.contextLines,
-			beforeContext: config.contextLines,
+			surroundingContext: config.contextLines,
 			isSmartCase: this.searchConfig.smartCase,
 			expandPatterns: true,
 			notebookSearchConfig: {
@@ -776,7 +780,7 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 	}
 }
 
-const searchEditorTextInputBorder = registerColor('searchEditor.textInputBorder', { dark: inputBorder, light: inputBorder, hcDark: inputBorder, hcLight: inputBorder }, localize('textInputBoxBorder', "Search editor text input box border."));
+const searchEditorTextInputBorder = registerColor('searchEditor.textInputBorder', inputBorder, localize('textInputBoxBorder', "Search editor text input box border."));
 
 function findNextRange(matchRanges: Range[], currentPosition: Position) {
 	for (const matchRange of matchRanges) {

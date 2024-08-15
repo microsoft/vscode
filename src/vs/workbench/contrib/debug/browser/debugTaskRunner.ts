@@ -3,35 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+import { Action } from 'vs/base/common/actions';
+import { disposableTimeout } from 'vs/base/common/async';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { createErrorWithActions } from 'vs/base/common/errorMessage';
+import { Emitter, Event } from 'vs/base/common/event';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import severity from 'vs/base/common/severity';
-import { Event } from 'vs/base/common/event';
-import { Markers } from 'vs/workbench/contrib/markers/common/markers';
-import { ITaskService, ITaskSummary } from 'vs/workbench/contrib/tasks/common/taskService';
+import * as nls from 'vs/nls';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
-import { ITaskEvent, TaskEventKind, ITaskIdentifier, Task } from 'vs/workbench/contrib/tasks/common/tasks';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { IDebugConfiguration } from 'vs/workbench/contrib/debug/common/debug';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
+import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { createErrorWithActions } from 'vs/base/common/errorMessage';
-import { Action } from 'vs/base/common/actions';
+import { IWorkspace, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { DEBUG_CONFIGURE_COMMAND_ID, DEBUG_CONFIGURE_LABEL } from 'vs/workbench/contrib/debug/browser/debugCommands';
-import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IDebugConfiguration } from 'vs/workbench/contrib/debug/common/debug';
+import { Markers } from 'vs/workbench/contrib/markers/common/markers';
+import { ConfiguringTask, CustomTask, ITaskEvent, ITaskIdentifier, Task, TaskEventKind } from 'vs/workbench/contrib/tasks/common/tasks';
+import { ITaskService, ITaskSummary } from 'vs/workbench/contrib/tasks/common/taskService';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 
-function once(match: (e: ITaskEvent) => boolean, event: Event<ITaskEvent>): Event<ITaskEvent> {
-	return (listener, thisArgs = null, disposables?) => {
-		const result = event(e => {
-			if (match(e)) {
-				result.dispose();
-				return listener.call(thisArgs, e);
-			}
-		}, null, disposables);
-		return result;
-	};
-}
+const onceFilter = (event: Event<ITaskEvent>, filter: (e: ITaskEvent) => boolean) => Event.once(Event.filter(event, filter));
 
 export const enum TaskRunResult {
 	Failure,
@@ -39,10 +33,17 @@ export const enum TaskRunResult {
 }
 
 const DEBUG_TASK_ERROR_CHOICE_KEY = 'debug.taskerrorchoice';
+const ABORT_LABEL = nls.localize('abort', "Abort");
+const DEBUG_ANYWAY_LABEL = nls.localize({ key: 'debugAnyway', comment: ['&& denotes a mnemonic'] }, "&&Debug Anyway");
+const DEBUG_ANYWAY_LABEL_NO_MEMO = nls.localize('debugAnywayNoMemo', "Debug Anyway");
 
-export class DebugTaskRunner {
+interface IRunnerTaskSummary extends ITaskSummary {
+	cancelled?: boolean;
+}
 
-	private canceled = false;
+export class DebugTaskRunner implements IDisposable {
+
+	private globalCancellation = new CancellationTokenSource();
 
 	constructor(
 		@ITaskService private readonly taskService: ITaskService,
@@ -51,18 +52,26 @@ export class DebugTaskRunner {
 		@IViewsService private readonly viewsService: IViewsService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IStorageService private readonly storageService: IStorageService,
-		@ICommandService private readonly commandService: ICommandService
+		@ICommandService private readonly commandService: ICommandService,
+		@IProgressService private readonly progressService: IProgressService,
 	) { }
 
 	cancel(): void {
-		this.canceled = true;
+		this.globalCancellation.dispose(true);
+		this.globalCancellation = new CancellationTokenSource();
 	}
 
-	async runTaskAndCheckErrors(root: IWorkspaceFolder | IWorkspace | undefined, taskId: string | ITaskIdentifier | undefined): Promise<TaskRunResult> {
+	public dispose(): void {
+		this.globalCancellation.dispose(true);
+	}
+
+	async runTaskAndCheckErrors(
+		root: IWorkspaceFolder | IWorkspace | undefined,
+		taskId: string | ITaskIdentifier | undefined,
+	): Promise<TaskRunResult> {
 		try {
-			this.canceled = false;
-			const taskSummary = await this.runTask(root, taskId);
-			if (this.canceled || (taskSummary && taskSummary.exitCode === undefined)) {
+			const taskSummary = await this.runTask(root, taskId, this.globalCancellation.token);
+			if (taskSummary && (taskSummary.exitCode === undefined || taskSummary.cancelled)) {
 				// User canceled, either debugging, or the prelaunch task
 				return TaskRunResult.Failure;
 			}
@@ -101,7 +110,7 @@ export class DebugTaskRunner {
 				message,
 				buttons: [
 					{
-						label: nls.localize({ key: 'debugAnyway', comment: ['&& denotes a mnemonic'] }, "&&Debug Anyway"),
+						label: DEBUG_ANYWAY_LABEL,
 						run: () => DebugChoice.DebugAnyway
 					},
 					{
@@ -110,7 +119,7 @@ export class DebugTaskRunner {
 					}
 				],
 				cancelButton: {
-					label: nls.localize('abort', "Abort"),
+					label: ABORT_LABEL,
 					run: () => DebugChoice.Cancel
 				},
 				checkbox: {
@@ -182,7 +191,7 @@ export class DebugTaskRunner {
 		}
 	}
 
-	async runTask(root: IWorkspace | IWorkspaceFolder | undefined, taskId: string | ITaskIdentifier | undefined): Promise<ITaskSummary | null> {
+	async runTask(root: IWorkspace | IWorkspaceFolder | undefined, taskId: string | ITaskIdentifier | undefined, token = this.globalCancellation.token): Promise<IRunnerTaskSummary | null> {
 		if (!taskId) {
 			return Promise.resolve(null);
 		}
@@ -200,23 +209,42 @@ export class DebugTaskRunner {
 
 		// If a task is missing the problem matcher the promise will never complete, so we need to have a workaround #35340
 		let taskStarted = false;
+		const store = new DisposableStore();
 		const getTaskKey = (t: Task) => t.getKey() ?? t.getMapKey();
 		const taskKey = getTaskKey(task);
-		const inactivePromise: Promise<ITaskSummary | null> = new Promise((c) => once(e => {
-			// When a task isBackground it will go inactive when it is safe to launch.
-			// But when a background task is terminated by the user, it will also fire an inactive event.
-			// This means that we will not get to see the real exit code from running the task (undefined when terminated by the user).
-			// Catch the ProcessEnded event here, which occurs before inactive, and capture the exit code to prevent this.
-			return (e.kind === TaskEventKind.Inactive
-				|| (e.kind === TaskEventKind.ProcessEnded && e.exitCode === undefined))
-				&& getTaskKey(e.__task) === taskKey;
-		}, this.taskService.onDidStateChange)(e => {
-			taskStarted = true;
-			c(e.kind === TaskEventKind.ProcessEnded ? { exitCode: e.exitCode } : null);
-		}));
+		const inactivePromise: Promise<ITaskSummary | null> = new Promise((resolve) => store.add(
+			onceFilter(this.taskService.onDidStateChange, e => {
+				// When a task isBackground it will go inactive when it is safe to launch.
+				// But when a background task is terminated by the user, it will also fire an inactive event.
+				// This means that we will not get to see the real exit code from running the task (undefined when terminated by the user).
+				// Catch the ProcessEnded event here, which occurs before inactive, and capture the exit code to prevent this.
+				return (e.kind === TaskEventKind.Inactive
+					|| (e.kind === TaskEventKind.ProcessEnded && e.exitCode === undefined))
+					&& getTaskKey(e.__task) === taskKey;
+			})(e => {
+				taskStarted = true;
+				resolve(e.kind === TaskEventKind.ProcessEnded ? { exitCode: e.exitCode } : null);
+			}),
+		));
 
-		const promise: Promise<ITaskSummary | null> = this.taskService.getActiveTasks().then(async (tasks): Promise<ITaskSummary | null> => {
+		store.add(
+			onceFilter(this.taskService.onDidStateChange, e => ((e.kind === TaskEventKind.Active) || (e.kind === TaskEventKind.DependsOnStarted)) && getTaskKey(e.__task) === taskKey
+			)(() => {
+				// Task is active, so everything seems to be fine, no need to prompt after 10 seconds
+				// Use case being a slow running task should not be prompted even though it takes more than 10 seconds
+				taskStarted = true;
+			})
+		);
+
+		const didAcquireInput = store.add(new Emitter<void>());
+		store.add(onceFilter(
+			this.taskService.onDidStateChange,
+			e => (e.kind === TaskEventKind.AcquiredInput) && getTaskKey(e.__task) === taskKey
+		)(() => didAcquireInput.fire()));
+
+		const taskDonePromise: Promise<ITaskSummary | null> = this.taskService.getActiveTasks().then(async (tasks): Promise<ITaskSummary | null> => {
 			if (tasks.find(t => getTaskKey(t) === taskKey)) {
+				didAcquireInput.fire();
 				// Check that the task isn't busy and if it is, wait for it
 				const busyTasks = await this.taskService.getBusyTasks();
 				if (busyTasks.find(t => getTaskKey(t) === taskKey)) {
@@ -226,11 +254,7 @@ export class DebugTaskRunner {
 				// task is already running and isn't busy - nothing to do.
 				return Promise.resolve(null);
 			}
-			once(e => ((e.kind === TaskEventKind.Active) || (e.kind === TaskEventKind.DependsOnStarted)) && getTaskKey(e.__task) === taskKey, this.taskService.onDidStateChange)(() => {
-				// Task is active, so everything seems to be fine, no need to prompt after 10 seconds
-				// Use case being a slow running task should not be prompted even though it takes more than 10 seconds
-				taskStarted = true;
-			});
+
 			const taskPromise = this.taskService.run(task);
 			if (task.configurationProperties.isBackground) {
 				return inactivePromise;
@@ -239,28 +263,59 @@ export class DebugTaskRunner {
 			return taskPromise.then(x => x ?? null);
 		});
 
-		return new Promise((c, e) => {
-			const waitForInput = new Promise<void>(resolve => once(e => (e.kind === TaskEventKind.AcquiredInput) && getTaskKey(e.__task) === taskKey, this.taskService.onDidStateChange)(() => {
-				resolve();
+		const result = new Promise<IRunnerTaskSummary | null>((resolve, reject) => {
+			taskDonePromise.then(result => {
+				taskStarted = true;
+				resolve(result);
+			}, error => reject(error));
+
+			store.add(token.onCancellationRequested(() => {
+				resolve({ exitCode: undefined, cancelled: true });
+				this.taskService.terminate(task).catch(() => { });
 			}));
 
-			promise.then(result => {
-				taskStarted = true;
-				c(result);
-			}, error => e(error));
-
-			waitForInput.then(() => {
+			// Start the timeouts once a terminal has been acquired
+			store.add(didAcquireInput.event(() => {
 				const waitTime = task.configurationProperties.isBackground ? 5000 : 10000;
 
-				setTimeout(() => {
+				// Error shown if there's a background task with no problem matcher that doesn't exit quickly
+				store.add(disposableTimeout(() => {
 					if (!taskStarted) {
-						const errorMessage = typeof taskId === 'string'
-							? nls.localize('taskNotTrackedWithTaskId', "The task '{0}' cannot be tracked. Make sure to have a problem matcher defined.", taskId)
-							: nls.localize('taskNotTracked', "The task '{0}' cannot be tracked. Make sure to have a problem matcher defined.", JSON.stringify(taskId));
-						e({ severity: severity.Error, message: errorMessage });
+						const errorMessage = nls.localize('taskNotTracked', "The task '{0}' has not exited and doesn't have a 'problemMatcher' defined. Make sure to define a problem matcher for watch tasks.", typeof taskId === 'string' ? taskId : JSON.stringify(taskId));
+						reject({ severity: severity.Error, message: errorMessage });
 					}
-				}, waitTime);
-			});
+				}, waitTime));
+
+				// Notification shown on any task taking a while to resolve
+				store.add(disposableTimeout(() => {
+					const message = nls.localize('runningTask', "Waiting for preLaunchTask '{0}'...", task.configurationProperties.name);
+					const buttons = [DEBUG_ANYWAY_LABEL_NO_MEMO, ABORT_LABEL];
+					const canConfigure = task instanceof CustomTask || task instanceof ConfiguringTask;
+					if (canConfigure) {
+						buttons.splice(1, 0, nls.localize('configureTask', "Configure Task"));
+					}
+
+					this.progressService.withProgress(
+						{ location: ProgressLocation.Notification, title: message, buttons },
+						() => result.catch(() => { }),
+						(choice) => {
+							if (choice === undefined) {
+								// no-op, keep waiting
+							} else if (choice === 0) { // debug anyway
+								resolve({ exitCode: 0 });
+							} else { // abort or configure
+								resolve({ exitCode: undefined, cancelled: true });
+								this.taskService.terminate(task).catch(() => { });
+								if (canConfigure && choice === 1) { // configure
+									this.taskService.openConfig(task as CustomTask);
+								}
+							}
+						}
+					);
+				}, 10_000));
+			}));
 		});
+
+		return result.finally(() => store.dispose());
 	}
 }

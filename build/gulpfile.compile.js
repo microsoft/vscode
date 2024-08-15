@@ -3,20 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+//@ts-check
 'use strict';
 
 const gulp = require('gulp');
 const util = require('./lib/util');
+const date = require('./lib/date');
+const esm = require('./lib/esm');
 const task = require('./lib/task');
 const compilation = require('./lib/compilation');
 const optimize = require('./lib/optimize');
 
+const isESMBuild = typeof process.env.VSCODE_BUILD_ESM === 'string' && process.env.VSCODE_BUILD_ESM.toLowerCase() === 'true';
+
+/**
+ * @param {boolean} disableMangle
+ */
 function makeCompileBuildTask(disableMangle) {
 	return task.series(
 		util.rimraf('out-build'),
 		util.buildWebNodePaths('out-build'),
+		date.writeISODate('out-build'),
+		esm.setESM(isESMBuild),
 		compilation.compileApiProposalNamesTask,
-		compilation.compileTask('src', 'out-build', true, { disableMangle }),
+		compilation.compileTask(isESMBuild ? 'src2' : 'src', 'out-build', true, { disableMangle }),
 		optimize.optimizeLoaderTask('out-build', 'out-build', true)
 	);
 }

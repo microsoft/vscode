@@ -16,13 +16,13 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IEditorOpenContext } from 'vs/workbench/common/editor';
 import { Memento } from 'vs/workbench/common/memento';
-import { ChatEditorInput } from 'vs/workbench/contrib/chat/browser/chatEditorInput';
-import { IChatViewState, ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
-import { IChatModel, IExportableChatData, ISerializableChatData } from 'vs/workbench/contrib/chat/common/chatModel';
 import { clearChatEditor } from 'vs/workbench/contrib/chat/browser/actions/chatClear';
-import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { ChatEditorInput } from 'vs/workbench/contrib/chat/browser/chatEditorInput';
+import { ChatWidget, IChatViewState } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { IChatModel, IExportableChatData, ISerializableChatData } from 'vs/workbench/contrib/chat/common/chatModel';
 import { CHAT_PROVIDER_ID } from 'vs/workbench/contrib/chat/common/chatParticipantContribTypes';
+import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 export interface IChatEditorOptions extends IEditorOptions {
 	target?: { sessionId: string } | { data: IExportableChatData | ISerializableChatData };
@@ -50,19 +50,21 @@ export class ChatEditor extends EditorPane {
 		super(ChatEditorInput.EditorID, group, telemetryService, themeService, storageService);
 	}
 
-	public async clear() {
-		return this.instantiationService.invokeFunction(clearChatEditor);
+	private async clear() {
+		if (this.input) {
+			return this.instantiationService.invokeFunction(clearChatEditor, this.input as ChatEditorInput);
+		}
 	}
 
 	protected override createEditor(parent: HTMLElement): void {
 		this._scopedContextKeyService = this._register(this.contextKeyService.createScoped(parent));
-		const scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService]));
+		const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
 
 		this.widget = this._register(
 			scopedInstantiationService.createInstance(
 				ChatWidget,
 				ChatAgentLocation.Panel,
-				{ resource: true },
+				undefined,
 				{ supportsFileReferences: true },
 				{
 					listForeground: editorForeground,
@@ -75,7 +77,7 @@ export class ChatEditor extends EditorPane {
 		this.widget.setVisible(true);
 	}
 
-	protected override  setEditorVisible(visible: boolean): void {
+	protected override setEditorVisible(visible: boolean): void {
 		super.setEditorVisible(visible);
 
 		this.widget?.setVisible(visible);
