@@ -723,10 +723,10 @@ export class InlineChatController implements IEditorContribution {
 	private async[State.SHOW_RESPONSE](): Promise<State.WAIT_FOR_INPUT> {
 		assertType(this._session);
 		assertType(this._strategy);
+		assertType(this._session.lastExchange, `State ${State.SHOW_RESPONSE} should only be reached if there has been an exchange`);
+		assertType(this._session.lastExchange.response, `State ${State.SHOW_RESPONSE} should only be reached if last exchange had a response`);
 
-		const response = this._session.lastExchange?.response; // FIXME@ulugbekna
-
-		assertType(response, `State ${State.SHOW_RESPONSE} should only be reached if there is a response`);
+		const response = this._session.lastExchange.response;
 
 		let newPosition: Position | undefined;
 
