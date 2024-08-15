@@ -27,7 +27,9 @@ interface IRendererContext<T extends IVisibleLine> {
 }
 
 const enum Constants {
-	IndicesPerCell = 6
+	IndicesPerCell = 6,
+
+	MaxAtlasPageGlyphCount = 10_000,
 }
 
 const enum SpriteInfoStorageBufferInfo {
@@ -202,19 +204,17 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 		}
 
 
-		const maxRenderedObjects = 10000;
-
 		///////////////////
 		// Static buffer //
 		///////////////////
 		this._glyphStorageBuffer[0] = this._device.createBuffer({
 			label: 'Glyph storage buffer',
-			size: spriteInfoStorageBufferByteSize * maxRenderedObjects,
+			size: spriteInfoStorageBufferByteSize * Constants.MaxAtlasPageGlyphCount,
 			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
 		});
 		this._glyphStorageBuffer[1] = this._device.createBuffer({
 			label: 'Glyph storage buffer',
-			size: spriteInfoStorageBufferByteSize * maxRenderedObjects,
+			size: spriteInfoStorageBufferByteSize * Constants.MaxAtlasPageGlyphCount,
 			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
 		});
 		this._textureAtlasGpuTextureVersions[0] = 0;
@@ -314,7 +314,7 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 			}
 
 			// TODO: Dynamically set buffer size
-			const bufferSize = spriteInfoStorageBufferByteSize * 10000;
+			const bufferSize = spriteInfoStorageBufferByteSize * Constants.MaxAtlasPageGlyphCount;
 			const values = new Float32Array(bufferSize / 4);
 			let entryOffset = 0;
 			for (const glyph of page.glyphs) {
@@ -348,11 +348,11 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 			for (const [layerIndex, page] of atlas.pages.entries()) {
 				promises.push(...[
 					fileService.writeFile(
-						URI.joinPath(folders[0].uri, `atlas_page${layerIndex}_usage.png`),
+						URI.joinPath(folders[0].uri, `atlasPage${layerIndex}_usage.png`),
 						VSBuffer.wrap(new Uint8Array(await (await page.getUsagePreview()).arrayBuffer()))
 					),
 					fileService.writeFile(
-						URI.joinPath(folders[0].uri, `atlas_page${layerIndex}_actual.png`),
+						URI.joinPath(folders[0].uri, `atlasPage${layerIndex}_actual.png`),
 						VSBuffer.wrap(new Uint8Array(await (await page.source.convertToBlob()).arrayBuffer()))
 					),
 				]);
@@ -377,7 +377,6 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 	private _render(ctx: IRendererContext<T>, startLineNumber: number, stopLineNumber: number, deltaTop: number[]): IRendererContext<T> {
 		const visibleObjectCount = this._renderStrategy.update(ctx, startLineNumber, stopLineNumber, deltaTop);
 
-		// TODO: Only do this when needed
 		this._updateTextureAtlas();
 
 		const encoder = this._device.createCommandEncoder();

@@ -19,7 +19,7 @@ export class TextureAtlasPage extends Disposable implements IReadableTextureAtla
 	/**
 	 * The version of the texture atlas. This is incremented every time the page's texture changes.
 	 */
-	public get version(): number {
+	get version(): number {
 		return this._version;
 	}
 
@@ -29,7 +29,7 @@ export class TextureAtlasPage extends Disposable implements IReadableTextureAtla
 	// HACK: This is an ordered set of glyphs to be passed to the GPU since currently the shader
 	//       uses the index of the glyph. This should be improved to derive from _glyphMap
 	private readonly _glyphInOrderSet: Set<ITextureAtlasGlyph> = new Set();
-	public get glyphs(): IterableIterator<ITextureAtlasGlyph> {
+	get glyphs(): IterableIterator<ITextureAtlasGlyph> {
 		return this._glyphInOrderSet.values();
 	}
 
@@ -37,7 +37,7 @@ export class TextureAtlasPage extends Disposable implements IReadableTextureAtla
 
 	private _colorMap!: string[];
 
-	public get source(): OffscreenCanvas {
+	get source(): OffscreenCanvas {
 		return this._canvas;
 	}
 
