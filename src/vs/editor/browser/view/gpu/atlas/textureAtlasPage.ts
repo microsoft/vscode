@@ -14,6 +14,14 @@ import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export class TextureAtlasPage extends Disposable implements IReadableTextureAtlasPage {
+	private _version: number = 0;
+
+	/**
+	 * The version of the texture atlas. This is incremented every time the page's texture changes.
+	 */
+	public get version(): number {
+		return this._version;
+	}
 
 	private readonly _canvas: OffscreenCanvas;
 
@@ -32,8 +40,6 @@ export class TextureAtlasPage extends Disposable implements IReadableTextureAtla
 	public get source(): OffscreenCanvas {
 		return this._canvas;
 	}
-
-	public hasChanges = false;
 
 	// TODO: Should pull in the font size from config instead of random dom node
 	constructor(
@@ -76,7 +82,7 @@ export class TextureAtlasPage extends Disposable implements IReadableTextureAtla
 		const glyph = this._allocator.allocate(chars, tokenFg, rasterizedGlyph)!;
 		this._glyphMap.set(chars, tokenFg, glyph);
 		this._glyphInOrderSet.add(glyph);
-		this.hasChanges = true;
+		this._version++;
 
 		if (this._logService.getLevel() === LogLevel.Trace) {
 			this._logService.trace('New glyph', {

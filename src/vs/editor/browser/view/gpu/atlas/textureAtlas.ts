@@ -31,17 +31,6 @@ export class TextureAtlas extends Disposable {
 	// 	return this._pages.source;
 	// }
 
-	// TODO: Should check changes independently
-	get hasChanges(): boolean {
-		// return this._scratchPage.hasChanges || this._pages.hasChanges;
-		return this._pages.some(e => e.hasChanges);
-	}
-	set hasChanges(value: boolean) {
-		// this._scratchPage.hasChanges = value;
-		// this._pages.hasChanges = value;
-		this._pages[0].hasChanges = value;
-	}
-
 	/**
 	 * The scratch texture atlas page is a relatively small texture where glyphs that are required
 	 * immediately are drawn to which reduces the latency of their first draw. In some future idle

@@ -38,8 +38,8 @@ export interface ITextureAtlasAllocator {
 }
 
 export interface IReadableTextureAtlasPage {
+	readonly version: number;
 	readonly glyphs: IterableIterator<ITextureAtlasGlyph>;
 	readonly source: OffscreenCanvas;
-	readonly hasChanges: boolean;
 	getUsagePreview(): Promise<Blob>;
 }

@@ -71,6 +71,7 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 	private static _textureAtlas: TextureAtlas;
 	private readonly _glyphStorageBuffer: GPUBuffer[] = [];
 	private _textureAtlasGpuTexture!: GPUTexture;
+	private readonly _textureAtlasGpuTextureVersions: number[] = [];
 
 	private _initialized = false;
 
@@ -216,6 +217,8 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 			size: spriteInfoStorageBufferByteSize * maxRenderedObjects,
 			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
 		});
+		this._textureAtlasGpuTextureVersions[0] = 0;
+		this._textureAtlasGpuTextureVersions[1] = 0;
 		this._textureAtlasGpuTexture = this._device.createTexture({
 			label: 'Atlas texture',
 			format: 'rgba8unorm',
@@ -303,13 +306,13 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 
 	private _updateTextureAtlas() {
 		const atlas = GpuViewLayerRenderer._textureAtlas;
-		if (!atlas.hasChanges) {
-			return;
-		}
-		atlas.hasChanges = false;
 
-		// TODO: Update only dirty pages
 		for (const [layerIndex, page] of atlas.pages.entries()) {
+			// Skip the update if it's already the latest version
+			if (page.version === this._textureAtlasGpuTextureVersions[layerIndex]) {
+				continue;
+			}
+
 			// TODO: Dynamically set buffer size
 			const bufferSize = spriteInfoStorageBufferByteSize * 10000;
 			const values = new Float32Array(bufferSize / 4);
@@ -330,6 +333,7 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 				{ texture: this._textureAtlasGpuTexture, origin: { x: 0, y: 0, z: layerIndex } },
 				{ width: page.source.width, height: page.source.height },
 			);
+			this._textureAtlasGpuTextureVersions[layerIndex] = page.version;
 		}
 
 		GpuViewLayerRenderer._drawToTextureAtlas(this._fileService, this._workspaceContextService);
