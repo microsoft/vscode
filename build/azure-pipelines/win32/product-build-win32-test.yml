@@ -51,14 +51,16 @@ steps:
         - script: yarn test-node-esm --build
           displayName: Run unit tests (node.js) [ESM]
           timeoutInMinutes: 15
+        - powershell: yarn test-browser-esm-no-install --sequential --build --browser chromium --tfs "Browser Unit Tests"
+          displayName: Run unit tests (Browser, Chromium) [ESM]
+          timeoutInMinutes: 20
       - ${{ if eq(parameters.VSCODE_BUILD_ESM, false) }}:
         - script: yarn test-node --build
           displayName: Run unit tests (node.js)
           timeoutInMinutes: 15
-
-      - powershell: yarn test-browser-no-install --sequential --build --browser chromium --tfs "Browser Unit Tests"
-        displayName: Run unit tests (Browser, Chromium)
-        timeoutInMinutes: 20
+        - powershell: yarn test-browser-no-install --sequential --build --browser chromium --tfs "Browser Unit Tests"
+          displayName: Run unit tests (Browser, Chromium)
+          timeoutInMinutes: 20
 
   - ${{ if eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true) }}:
     - powershell: |

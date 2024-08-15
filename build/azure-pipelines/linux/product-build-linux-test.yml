@@ -46,16 +46,21 @@ steps:
         - script: yarn test-node-esm
           displayName: Run unit tests (node.js) [ESM]
           timeoutInMinutes: 15
+        - script: yarn test-browser-esm-no-install --browser chromium --tfs "Browser Unit Tests"
+          env:
+            DEBUG: "*browser*"
+          displayName: Run unit tests (Browser, Chromium) [ESM]
+          timeoutInMinutes: 15
       - ${{ if eq(parameters.VSCODE_BUILD_ESM, false) }}:
         - script: yarn test-node
           displayName: Run unit tests (node.js)
           timeoutInMinutes: 15
+        - script: yarn test-browser-no-install --browser chromium --tfs "Browser Unit Tests"
+          env:
+            DEBUG: "*browser*"
+          displayName: Run unit tests (Browser, Chromium)
+          timeoutInMinutes: 15
 
-      - script: yarn test-browser-no-install --browser chromium --tfs "Browser Unit Tests"
-        env:
-          DEBUG: "*browser*"
-        displayName: Run unit tests (Browser, Chromium)
-        timeoutInMinutes: 15
 
     - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
       - script: ./scripts/test.sh --build --tfs "Unit Tests"
@@ -66,16 +71,20 @@ steps:
         - script: yarn test-node-esm --build
           displayName: Run unit tests (node.js) [ESM]
           timeoutInMinutes: 15
+        - script: yarn test-browser-esm-no-install --build --browser chromium --tfs "Browser Unit Tests"
+          env:
+            DEBUG: "*browser*"
+          displayName: Run unit tests (Browser, Chromium) [ESM]
+          timeoutInMinutes: 15
       - ${{ if eq(parameters.VSCODE_BUILD_ESM, false) }}:
         - script: yarn test-node --build
           displayName: Run unit tests (node.js)
           timeoutInMinutes: 15
-
-      - script: yarn test-browser-no-install --build --browser chromium --tfs "Browser Unit Tests"
-        env:
-          DEBUG: "*browser*"
-        displayName: Run unit tests (Browser, Chromium)
-        timeoutInMinutes: 15
+        - script: yarn test-browser-no-install --build --browser chromium --tfs "Browser Unit Tests"
+          env:
+            DEBUG: "*browser*"
+          displayName: Run unit tests (Browser, Chromium)
+          timeoutInMinutes: 15
 
   - ${{ if eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true) }}:
     - script: |
