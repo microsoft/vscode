@@ -166,6 +166,7 @@ export interface IChatCommandButton {
 
 export interface IChatMoveMessage {
 	uri: URI;
+	range: IRange;
 	kind: 'move';
 }
 

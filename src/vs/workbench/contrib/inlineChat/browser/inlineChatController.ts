@@ -19,7 +19,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { ISelection, Selection } from 'vs/editor/common/core/selection';
+import { ISelection, Selection, SelectionDirection } from 'vs/editor/common/core/selection';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { TextEdit } from 'vs/editor/common/languages';
 import { IValidEditOperation } from 'vs/editor/common/model';
@@ -613,7 +613,9 @@ export class InlineChatController implements IEditorContribution {
 					},
 					CancellationToken.None); // TODO@ulugbekna: add proper cancellation?
 
-				InlineChatController.get(newEditor)?.run({ existingSession: newSession });
+				const initialSelection = Selection.fromRange(Range.lift(e.range), SelectionDirection.LTR);
+
+				InlineChatController.get(newEditor)?.run({ initialSelection, existingSession: newSession });
 
 				next = State.CANCEL;
 				responsePromise.complete();

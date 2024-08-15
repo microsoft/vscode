@@ -4488,7 +4488,8 @@ export class ChatResponseCodeCitationPart {
 
 export class ChatResponseMovePart {
 	constructor(
-		public readonly uri: vscode.Uri
+		public readonly uri: vscode.Uri,
+		public readonly range: vscode.Range,
 	) {
 	}
 }

@@ -124,8 +124,9 @@ declare module 'vscode' {
 	export class ChatResponseMovePart {
 
 		readonly uri: Uri;
+		readonly range: Range;
 
-		constructor(uri: Uri);
+		constructor(uri: Uri, range: Range);
 	}
 
 	export interface ChatResponseStream {

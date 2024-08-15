@@ -2459,10 +2459,11 @@ export namespace ChatResponseMovePart {
 		return {
 			kind: 'move',
 			uri: part.uri,
+			range: Range.from(part.range),
 		};
 	}
 	export function to(part: Dto<IChatMoveMessage>): vscode.ChatResponseMovePart {
-		return new types.ChatResponseMovePart(URI.revive(part.uri));
+		return new types.ChatResponseMovePart(URI.revive(part.uri), Range.to(part.range));
 	}
 }
 
