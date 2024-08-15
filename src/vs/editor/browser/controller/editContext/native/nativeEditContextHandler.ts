@@ -69,6 +69,7 @@ export class NativeEditContext extends AbstractEditContext {
 	private readonly _nativeEditContextInput: NativeEditContextInput;
 
 	private _screenReaderWrapper: ScreenReaderContent;
+	private _nativeEditContextWrapper: NativeEditContextWrapper;
 
 	constructor(
 		context: ViewContext,
@@ -198,9 +199,9 @@ export class NativeEditContext extends AbstractEditContext {
 			}
 		};
 
-		const nativeEditContextWrapper = new NativeEditContextWrapper(this._domElement.domNode, this._context);
-		this._screenReaderWrapper = this._register(new ScreenReaderContent(nativeEditContextWrapper));
-		this._nativeEditContextInput = this._register(this._instantiationService.createInstance(NativeEditContextInput, textAreaInputHost, nativeEditContextWrapper, this._screenReaderWrapper, platform.OS, {
+		this._nativeEditContextWrapper = new NativeEditContextWrapper(this._domElement.domNode, this._context);
+		this._screenReaderWrapper = this._register(new ScreenReaderContent(this._nativeEditContextWrapper));
+		this._nativeEditContextInput = this._register(this._instantiationService.createInstance(NativeEditContextInput, textAreaInputHost, this._nativeEditContextWrapper, this._screenReaderWrapper, platform.OS, {
 			isAndroid: browser.isAndroid,
 			isChrome: browser.isChrome,
 			isFirefox: browser.isFirefox,
@@ -300,6 +301,7 @@ export class NativeEditContext extends AbstractEditContext {
 
 	appendTo(overflowGuardContainer: FastDomNode<HTMLElement>): void {
 		overflowGuardContainer.appendChild(this._domElement);
+		this._nativeEditContextWrapper.setParent(overflowGuardContainer.domNode);
 	}
 
 	public writeScreenReaderContent(reason: string): void {
@@ -475,6 +477,7 @@ export class NativeEditContext extends AbstractEditContext {
 	private _primaryCursorVisibleRange: HorizontalPosition | null = null;
 
 	public prepareRender(ctx: RenderingContext): void {
+		this._nativeEditContextWrapper.setRenderingContext(ctx);
 		this._primaryCursorPosition = new Position(this._selections[0].positionLineNumber, this._selections[0].positionColumn);
 		this._primaryCursorVisibleRange = ctx.visibleRangeForPosition(this._primaryCursorPosition);
 	}

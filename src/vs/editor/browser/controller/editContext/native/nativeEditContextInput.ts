@@ -854,6 +854,7 @@ export class NativeEditContextWrapper extends Disposable {
 		let width: number = typicalHalfwidthCharacterWidth / 2;
 
 		console.log('before using this rendering context');
+		console.log('this._renderingContext : ', this._renderingContext);
 
 		if (this._renderingContext) {
 			const range = Range.fromPositions(this._compositionStartPosition, this._compositionEndPosition);
@@ -948,7 +949,8 @@ export class NativeEditContextWrapper extends Disposable {
 
 	public updateText(data: { state: TextAreaState; selectionOfContent: Selection }) {
 
-		console.log('_updateEditContext');
+		console.log('updateText');
+		console.log('data : ', data);
 
 		const content = data.state.value;
 		const selectionStart = data.state.selectionStart;
@@ -959,6 +961,11 @@ export class NativeEditContextWrapper extends Disposable {
 		this._selectionStartWithin = selectionStart;
 		this._selectionEndWithin = selectionEnd;
 		this._selectionOfContent = data.selectionOfContent;
+
+		console.log('this._editContext.text : ', this._editContext.text);
+		console.log('this._selectionStartWithin : ', this._selectionStartWithin);
+		console.log('this._selectionEndWithin : ', this._selectionEndWithin);
+		console.log('this._selectionOfContent : ', this._selectionOfContent);
 	}
 
 	public getValue(): string {
