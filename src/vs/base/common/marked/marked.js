@@ -2522,6 +2522,7 @@
 // export var Renderer = (__marked_exports.Renderer || exports.Renderer);
 // export var TextRenderer = (__marked_exports.TextRenderer || exports.TextRenderer);
 // export var Tokenizer = (__marked_exports.Tokenizer || exports.Tokenizer);
+// export var defaults = (__marked_exports.defaults || exports.defaults);
 // export var getDefaults = (__marked_exports.getDefaults || exports.getDefaults);
 // export var lexer = (__marked_exports.lexer || exports.lexer);
 // export var marked = (__marked_exports.marked || exports.marked);

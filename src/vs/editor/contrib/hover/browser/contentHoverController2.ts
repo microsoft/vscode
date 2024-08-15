@@ -92,7 +92,7 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 		this._hoverSettings = {
 			enabled: hoverOpts.enabled,
 			sticky: hoverOpts.sticky,
-			hidingDelay: hoverOpts.delay
+			hidingDelay: hoverOpts.hidingDelay
 		};
 
 		if (hoverOpts.enabled) {

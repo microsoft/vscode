@@ -229,7 +229,7 @@ module.exports.enableASARSupport = function () {
 /**
  * Helper to convert a file path to a URI.
  *
- * TODO@bpasero check for removal once ESM has landed.
+ * TODO@bpasero TODO@esm check for removal once ESM has landed.
  *
  * @param {string} path
  * @param {{ isWindows?: boolean, scheme?: string, fallbackAuthority?: string }} config
