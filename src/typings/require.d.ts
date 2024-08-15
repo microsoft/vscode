@@ -3,11 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-declare module "*.css" {
-	const value: CSSStyleSheet;
-	export default value;
-}
-
 declare class LoaderEvent {
 	readonly type: number;
 	readonly timestamp: number;
