@@ -72,13 +72,6 @@ export class IssueMainService implements IIssueMainService {
 					alwaysOnTop: false
 				}, 'issue-reporter');
 
-
-				// DEV: list all CSS modules and send them the new window
-				let cssModules: string[] | undefined;
-				if (this.cssDevelopmentService) {
-					cssModules = await this.cssDevelopmentService.getCssModules();
-				}
-
 				// Store into config object URL
 				issueReporterWindowConfigUrl.update({
 					appRoot: this.environmentMainService.appRoot,

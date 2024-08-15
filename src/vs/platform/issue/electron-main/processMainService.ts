@@ -150,12 +150,6 @@ export class ProcessMainService implements IProcessMainService {
 					alwaysOnTop: true
 				}, 'process-explorer');
 
-				// DEV: list all CSS modules and send them the new window
-				let cssModules: string[] | undefined;
-				if (this.cssDevelopmentService) {
-					cssModules = await this.cssDevelopmentService.getCssModules();
-				}
-
 				// Store into config object URL
 				processExplorerWindowConfigUrl.update({
 					appRoot: this.environmentMainService.appRoot,
