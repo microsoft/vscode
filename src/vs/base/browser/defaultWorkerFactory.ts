@@ -10,7 +10,13 @@ import { URI } from 'vs/base/common/uri';
 import { IWorker, IWorkerCallback, IWorkerFactory, logOnceWebWorkerWarning } from 'vs/base/common/worker/simpleWorker';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { coalesce } from 'vs/base/common/arrays';
-import { isESM } from 'vs/base/common/amd';
+
+// ESM-comment-begin
+const isESM = false;
+// ESM-comment-end
+// ESM-uncomment-begin
+// const isESM = true;
+// ESM-uncomment-end
 
 // Reuse the trusted types policy defined from worker bootstrap
 // when available.

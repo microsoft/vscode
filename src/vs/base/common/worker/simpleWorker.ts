@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isESM } from 'vs/base/common/amd';
 import { transformErrorForSerialization } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
@@ -11,6 +10,13 @@ import { AppResourcePath, FileAccess } from 'vs/base/common/network';
 import { getAllMethodNames } from 'vs/base/common/objects';
 import { isWeb } from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
+
+// ESM-comment-begin
+const isESM = false;
+// ESM-comment-end
+// ESM-uncomment-begin
+// const isESM = true;
+// ESM-uncomment-end
 
 const INITIALIZE = '$initialize';
 

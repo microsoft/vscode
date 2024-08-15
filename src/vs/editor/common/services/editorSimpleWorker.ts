@@ -26,11 +26,17 @@ import { DetailedLineRangeMapping } from '../diff/rangeMapping';
 import { linesDiffComputers } from 'vs/editor/common/diff/linesDiffComputers';
 import { createProxyObject, getAllMethodNames } from 'vs/base/common/objects';
 import { IDocumentDiffProviderOptions } from 'vs/editor/common/diff/documentDiffProvider';
-import { isESM } from 'vs/base/common/amd';
 import { AppResourcePath, FileAccess } from 'vs/base/common/network';
 import { BugIndicatingError } from 'vs/base/common/errors';
 import { IDocumentColorComputerTarget, computeDefaultDocumentColors } from 'vs/editor/common/languages/defaultDocumentColorsComputer';
 import { FindSectionHeaderOptions, SectionHeader, findSectionHeaders } from 'vs/editor/common/services/findSectionHeaders';
+
+// ESM-comment-begin
+const isESM = false;
+// ESM-comment-end
+// ESM-uncomment-begin
+// const isESM = true;
+// ESM-uncomment-end
 
 export interface IMirrorModel extends IMirrorTextModel {
 	readonly uri: URI;
