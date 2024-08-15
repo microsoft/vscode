@@ -29,7 +29,7 @@ steps:
         - powershell: .\scripts\test-esm.bat --tfs "Unit Tests"
           displayName: Run unit tests (Electron) [ESM]
           timeoutInMinutes: 15
-        - script: yarn test-node-esm
+        - powershell: yarn test-node-esm
           displayName: Run unit tests (node.js) [ESM]
           timeoutInMinutes: 15
         - powershell: node test/unit/browser/index.esm.js --sequential --browser chromium --tfs "Browser Unit Tests"
@@ -39,7 +39,7 @@ steps:
         - powershell: .\scripts\test.bat --tfs "Unit Tests"
           displayName: Run unit tests (Electron)
           timeoutInMinutes: 15
-        - script: yarn test-node
+        - powershell: yarn test-node
           displayName: Run unit tests (node.js)
           timeoutInMinutes: 15
         - powershell: node test/unit/browser/index.js --sequential --browser chromium --tfs "Browser Unit Tests"
@@ -61,7 +61,7 @@ steps:
         - powershell: .\scripts\test.bat --build --tfs "Unit Tests"
           displayName: Run unit tests (Electron)
           timeoutInMinutes: 15
-        - script: yarn test-node --build
+        - powershell: yarn test-node --build
           displayName: Run unit tests (node.js)
           timeoutInMinutes: 15
         - powershell: yarn test-browser-no-install --sequential --build --browser chromium --tfs "Browser Unit Tests"
