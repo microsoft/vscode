@@ -7,7 +7,6 @@ import * as errors from 'vs/base/common/errors';
 import * as platform from 'vs/base/common/platform';
 import { equalsIgnoreCase, startsWithIgnoreCase } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
-import { isESM } from 'vs/base/common/amd';
 import * as paths from 'vs/base/common/path';
 
 export namespace Schemas {
