@@ -812,7 +812,7 @@ export class InlineChatController implements IEditorContribution {
 		} else if (initialRender) {
 			const selection = this._editor.getSelection();
 			widgetPosition = selection.getStartPosition();
-			this._ui.value.content.show(widgetPosition);
+			this._ui.value.content.show(widgetPosition, selection.isEmpty());
 
 		} else {
 			this._ui.value.content.hide();
