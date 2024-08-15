@@ -743,7 +743,11 @@ export class NativeEditContextWrapper extends Disposable {
 
 			if (e.inputType === 'insertParagraph' || e.inputType === 'insertLineBreak') {
 				console.log('this._editContext.text : ', this._editContext.text);
-				this._editContext.updateText(0, Number.MAX_SAFE_INTEGER, this._editContext.text + '\n');
+				console.log('this._selectionStartWithin : ', this._selectionStartWithin);
+				console.log('this._selectionEndWithin : ', this._selectionEndWithin);
+				const editContextText = this._editContext.text;
+				const textAfterAddingNewLine = editContextText.substring(0, this._selectionStartWithin) + '\n' + editContextText.substring(this._selectionEndWithin);
+				this._editContext.updateText(0, Number.MAX_SAFE_INTEGER, textAfterAddingNewLine);
 				this._onInput.fire({
 					timeStamp: e.timeStamp,
 					type: e.type,
