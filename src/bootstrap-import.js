@@ -5,10 +5,12 @@
 
 //@ts-check
 
-// NOTE
-// NOTE: We need this to redirect to node_modules from the remote-folder. This ONLY applies
-// NOTE: when running out of source.
-// NOTE
+// *********************************************************************
+// *                                                                   *
+// *  We need this to redirect to node_modules from the remote-folder. *
+// *  This ONLY applies  when running out of source.                   *
+// *                                                                   *
+// *********************************************************************
 
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { promises } from 'node:fs';
@@ -16,8 +18,14 @@ import { join } from 'node:path';
 
 // SEE https://nodejs.org/docs/latest/api/module.html#initialize
 
+/**
+ * @type {Object.<string, string>}
+ */
 const _specifierToUrl = {};
 
+/**
+ * @param {string} injectPath
+ */
 export async function initialize(injectPath) {
 	// populate mappings
 
@@ -44,9 +52,14 @@ export async function initialize(injectPath) {
 		}
 	}
 
-	console.log(`[HOOKS] Initialized node_modules redirector for: ${injectPath}`);
+	console.log(`[bootstrap-import] Initialized node_modules redirector for: ${injectPath}`);
 }
 
+/**
+ * @param {string | number} specifier
+ * @param {any} context
+ * @param {(arg0: any, arg1: any) => any} nextResolve
+ */
 export async function resolve(specifier, context, nextResolve) {
 
 	const newSpecifier = _specifierToUrl[specifier];

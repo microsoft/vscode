@@ -26,6 +26,7 @@ import { IStateService } from 'vs/platform/state/node/state';
 import { UtilityProcess } from 'vs/platform/utilityProcess/electron-main/utilityProcess';
 import { zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
 import { IWindowState } from 'vs/platform/window/electron-main/window';
+import { isESM } from 'vs/base/common/amd';
 
 const processExplorerWindowState = 'issue.processExplorerWindowState';
 
@@ -170,7 +171,7 @@ export class ProcessMainService implements IProcessMainService {
 				});
 
 				this.processExplorerWindow.loadURL(
-					FileAccess.asBrowserUri(`vs/code/electron-sandbox/processExplorer/processExplorer${this.environmentMainService.isBuilt ? '' : '-dev'}.html`).toString(true)
+					FileAccess.asBrowserUri(`vs/code/electron-sandbox/processExplorer/processExplorer${this.environmentMainService.isBuilt ? '' : '-dev'}.${isESM ? 'esm.' : ''}html`).toString(true)
 				);
 
 				this.processExplorerWindow.on('close', () => {

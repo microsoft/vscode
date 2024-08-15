@@ -28,6 +28,7 @@
 		"./bootstrap-amd.js",
 		"./bootstrap-cli.js",
 		"./bootstrap-fork.js",
+		"./bootstrap-import.js",
 		"./bootstrap-meta.js",
 		"./bootstrap-node.js",
 		"./bootstrap-server.js",

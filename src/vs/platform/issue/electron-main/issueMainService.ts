@@ -22,6 +22,7 @@ import { IIPCObjectUrl, IProtocolMainService } from 'vs/platform/protocol/electr
 import { zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
 import { ICodeWindow, IWindowState } from 'vs/platform/window/electron-main/window';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
+import { isESM } from 'vs/base/common/amd';
 import { ICSSDevelopmentService } from 'vs/platform/environment/node/cssDevService';
 
 interface IBrowserWindowOptions {
@@ -99,7 +100,7 @@ export class IssueMainService implements IIssueMainService {
 				});
 
 				this.issueReporterWindow.loadURL(
-					FileAccess.asBrowserUri(`vs/workbench/contrib/issue/electron-sandbox/issueReporter${this.environmentMainService.isBuilt ? '' : '-dev'}.html`).toString(true)
+					FileAccess.asBrowserUri(`vs/workbench/contrib/issue/electron-sandbox/issueReporter${this.environmentMainService.isBuilt ? '' : '-dev'}.${isESM ? 'esm.' : ''}html`).toString(true)
 				);
 
 				this.issueReporterWindow.on('close', () => {

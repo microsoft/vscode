@@ -248,7 +248,8 @@ export class CellDiffSideBySideRenderer implements IListRenderer<SideBySideDiffE
 				}
 
 				return undefined;
-			}
+			},
+			highlightToggledItems: true
 		});
 
 		const metadataHeaderContainer = DOM.append(diffEditorContainer, DOM.$('.metadata-header-container'));

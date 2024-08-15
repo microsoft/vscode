@@ -648,12 +648,6 @@
 	color: var(--vscode-icon-foreground) !important;
 }
 
-.interactive-item-container.filtered-response .value > .rendered-markdown {
-	pointer-events: none;
-	-webkit-mask-image: linear-gradient(rgba(0, 0, 0, 0.75), rgba(0, 0, 0, 0.05) 60%, rgba(0, 0, 0, 0.00) 80%);
-	mask-image: linear-gradient(rgba(0, 0, 0, 0.75), rgba(0, 0, 0, 0.05) 60%, rgba(0, 0, 0, 0.00) 80%);
-}
-
 /* #region Quick Chat */
 
 .quick-input-widget .interactive-session .interactive-input-part {
