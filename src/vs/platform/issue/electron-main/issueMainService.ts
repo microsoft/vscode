@@ -23,6 +23,7 @@ import { zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
 import { ICodeWindow, IWindowState } from 'vs/platform/window/electron-main/window';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 import { isESM } from 'vs/base/common/amd';
+import { ICSSDevelopmentService } from 'vs/platform/cssDev/node/cssDevService';
 
 interface IBrowserWindowOptions {
 	backgroundColor: string | undefined;
@@ -50,6 +51,7 @@ export class IssueMainService implements IIssueMainService {
 		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService,
 		@IProtocolMainService private readonly protocolMainService: IProtocolMainService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
+		@ICSSDevelopmentService private readonly cssDevelopmentService: ICSSDevelopmentService,
 	) { }
 
 	//#region Used by renderer
@@ -86,7 +88,8 @@ export class IssueMainService implements IIssueMainService {
 					nls: {
 						messages: globalThis._VSCODE_NLS_MESSAGES,
 						language: globalThis._VSCODE_NLS_LANGUAGE
-					}
+					},
+					cssModules: this.cssDevelopmentService.isEnabled ? await this.cssDevelopmentService.getCssModules() : undefined
 				});
 
 				this.issueReporterWindow.loadURL(

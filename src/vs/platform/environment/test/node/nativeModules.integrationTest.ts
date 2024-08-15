@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { isWindows } from 'vs/base/common/platform';
+import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { flakySuite } from 'vs/base/test/common/testUtils';
 
 function testErrorMessage(module: string): string {
@@ -13,7 +13,7 @@ function testErrorMessage(module: string): string {
 
 flakySuite('Native Modules (all platforms)', () => {
 
-	test.skip('kerberos', async () => { // TODO fails on macOS ARM?
+	(isMacintosh ? test.skip : test)('kerberos', async () => { // Somehow fails on macOS ARM?
 		const { default: kerberos } = await import('kerberos');
 		assert.ok(typeof kerberos.initializeClient === 'function', testErrorMessage('kerberos'));
 	});
@@ -150,21 +150,6 @@ flakySuite('Native Modules (all platforms)', () => {
 		});
 		assert.ok(windowsCerts.length > 0, testErrorMessage('@vscode/proxy-agent'));
 	});
-
-	// These tests require certain modules from `vscode-distro` to work and are otherwise skipped.
-	// test('vsda', async function () {
-	// 	const vsda = await import('vsda');
-	// 	const signer = new vsda.signer();
-	// 	const signed = await signer.sign('value');
-	// 	assert.ok(typeof signed === 'string', testErrorMessage('vsda'));
-	// 	assert.ok(typeof (vsda as any).validator === 'function', testErrorMessage('vsda'));
-
-	// });
-
-	// test('@vscode/vsce-sign', async function () {
-	// 	const vsceSign = await import('@vscode/vsce-sign');
-	// 	assert.ok(typeof vsceSign.verify === 'function', testErrorMessage('@vscode/vsce-sign'));
-	// });
 });
 
 (!isWindows ? suite.skip : suite)('Native Modules (Windows)', () => {
