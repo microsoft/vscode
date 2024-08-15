@@ -77,13 +77,18 @@ steps:
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
-      exec { npm config set registry "$env:NPM_REGISTRY" --location=project }
+      # Set the private NPM registry to the global npmrc file
+      # so that authentication works for subfolders like build/, remote/, extensions/ etc
+      # which does not have their own .npmrc file
+      exec { npm config set registry "$env:NPM_REGISTRY" }
+      $NpmrcPath = (npm config get userconfig)
+      echo "##vso[task.setvariable variable=NPMRC_PATH]$NpmrcPath"
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM
 
   - task: npmAuthenticate@0
     inputs:
-      workingFile: .npmrc
+      workingFile: $(NPMRC_PATH)
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Authentication
 
