@@ -20,11 +20,10 @@ steps:
 
   - ${{ if eq(parameters.VSCODE_RUN_UNIT_TESTS, true) }}:
     - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
-      - script: ./scripts/test.sh --tfs "Unit Tests"
-        displayName: Run unit tests (Electron)
-        timeoutInMinutes: 15
-
       - ${{ if eq(parameters.VSCODE_BUILD_ESM, true) }}:
+        - script: ./scripts/test-esm.sh --tfs "Unit Tests"
+          displayName: Run unit tests (Electron) [ESM]
+          timeoutInMinutes: 15
         - script: yarn test-node-esm
           displayName: Run unit tests (node.js) [ESM]
           timeoutInMinutes: 15
@@ -34,6 +33,9 @@ steps:
           displayName: Run unit tests (Browser, Chromium & Webkit) [ESM]
           timeoutInMinutes: 30
       - ${{ if eq(parameters.VSCODE_BUILD_ESM, false) }}:
+        - script: ./scripts/test.sh --tfs "Unit Tests"
+          displayName: Run unit tests (Electron)
+          timeoutInMinutes: 15
         - script: yarn test-node
           displayName: Run unit tests (node.js)
           timeoutInMinutes: 15
@@ -44,11 +46,10 @@ steps:
           timeoutInMinutes: 30
 
     - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-      - script: ./scripts/test.sh --build --tfs "Unit Tests"
-        displayName: Run unit tests (Electron)
-        timeoutInMinutes: 15
-
       - ${{ if eq(parameters.VSCODE_BUILD_ESM, true) }}:
+        - script: ./scripts/test-esm.sh --build --tfs "Unit Tests"
+          displayName: Run unit tests (Electron) [ESM]
+          timeoutInMinutes: 15
         - script: yarn test-node-esm --build
           displayName: Run unit tests (node.js) [ESM]
           timeoutInMinutes: 15
@@ -58,6 +59,9 @@ steps:
           displayName: Run unit tests (Browser, Chromium & Webkit) [ESM]
           timeoutInMinutes: 30
       - ${{ if eq(parameters.VSCODE_BUILD_ESM, false) }}:
+        - script: ./scripts/test.sh --build --tfs "Unit Tests"
+          displayName: Run unit tests (Electron)
+          timeoutInMinutes: 15
         - script: yarn test-node --build
           displayName: Run unit tests (node.js)
           timeoutInMinutes: 15
