@@ -19,7 +19,6 @@ import { PositionOffsetTransformer } from 'vs/editor/common/core/positionToOffse
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import * as dom from 'vs/base/browser/dom';
-import { IME } from 'vs/base/common/ime';
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import * as viewEvents from 'vs/editor/common/viewEvents';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -71,7 +70,6 @@ export class NativeEditContext extends AbstractEditContext {
 	private _rangeStart: number = 0;
 	private _isComposing: boolean = false;
 	private _hasFocus: boolean = false;
-
 	private _selectionStartWithinScreenReaderContent: number = 0;
 	private _selectionEndWithinScreenReaderContent: number = 0;
 	private _selectionStartWithinEditContext: number = 0;
@@ -114,10 +112,7 @@ export class NativeEditContext extends AbstractEditContext {
 		this._domElement.setAttribute('tabindex', String(options.get(EditorOption.tabIndex)));
 		this._domElement.setAttribute('role', 'textbox');
 
-		this._ensureReadOnlyAttribute();
-
 		let lastKeyDown: IKeyboardEvent | null = null;
-
 		this._register(dom.addDisposableListener(this._domElement.domNode, 'keydown', (e) => {
 			const standardKeyboardEvent = new StandardKeyboardEvent(e);
 			if (standardKeyboardEvent.keyCode === KeyCode.KEY_IN_COMPOSITION
@@ -297,9 +292,6 @@ export class NativeEditContext extends AbstractEditContext {
 		this._register(dom.addDisposableListener(this._domElement.domNode, 'blur', (e) => {
 			this._setHasFocus(false);
 		}));
-		this._register(IME.onDidChange(() => {
-			this._ensureReadOnlyAttribute();
-		}));
 
 		const that = this;
 		this._context.addEventHandler(new class extends ViewEventHandler {
@@ -430,10 +422,6 @@ export class NativeEditContext extends AbstractEditContext {
 		this._domElement.setAttribute('aria-required', options.get(EditorOption.ariaRequired) ? 'true' : 'false');
 		this._domElement.setAttribute('tabindex', String(options.get(EditorOption.tabIndex)));
 
-		if (e.hasChanged(EditorOption.domReadOnly) || e.hasChanged(EditorOption.readOnly)) {
-			this._ensureReadOnlyAttribute();
-		}
-
 		if (e.hasChanged(EditorOption.accessibilitySupport)) {
 			this.writeScreenReaderContent('strategy changed');
 		}
@@ -531,18 +519,6 @@ export class NativeEditContext extends AbstractEditContext {
 	public setAriaOptions(options: IEditorAriaOptions): void { }
 
 	// --- end view API
-
-	private _ensureReadOnlyAttribute(): void {
-		const options = this._context.configuration.options;
-		// When someone requests to disable IME, we set the "readonly" attribute on the <textarea>.
-		// This will prevent composition.
-		const useReadOnly = !IME.enabled || (options.get(EditorOption.domReadOnly) && options.get(EditorOption.readOnly));
-		if (useReadOnly) {
-			this._domElement.setAttribute('readonly', 'true');
-		} else {
-			this._domElement.removeAttribute('readonly');
-		}
-	}
 
 	private _primaryCursorPosition: Position = new Position(1, 1);
 	private _primaryCursorVisibleRange: HorizontalPosition | null = null;
