@@ -54,6 +54,7 @@ fi
 
 # Clone the submodule extension folder
 execute "git submodule update --init --recursive" "Failed to initialize git submodules"
+execute "git submodule update --recursive --remote" "Failed to update to latest tip of submodule"
 
 
 # Check if the symbolic link exists

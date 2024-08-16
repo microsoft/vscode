@@ -18,6 +18,7 @@ function Invoke-CMD {
 function Initialize-BaseFunctionality {
     Write-Host "`nInitializing sub-modules..." -ForegroundColor White
     Invoke-CMD -Command "git submodule update --init --recursive" -ErrorMessage "Failed to initialize git submodules"
+    Invoke-CMD -Command "git submodule update --recursive --remote" -ErrorMessage "Failed to update to latest tip of submodule"
 
     Create-SymLink
 
@@ -36,7 +37,7 @@ function Initialize-BaseFunctionality {
 	$script = Join-Path -Path $modulePath -ChildPath 'scripts\install-and-build.ps1'
     Invoke-CMD -Command "powershell.exe -ExecutionPolicy Bypass -File $script" -ErrorMessage "Failed to install dependencies for the submodule"
 
-    # Discard the package.json and package-lock.json version update changes     
+    # Discard the package.json and package-lock.json version update changes
     Invoke-CMD -Command "git reset --hard" -ErrorMessage "Failed to reset --hard after submodule dependencies install"
 
     Set-Location $currentDir
