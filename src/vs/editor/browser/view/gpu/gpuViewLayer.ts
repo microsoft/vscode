@@ -114,6 +114,7 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 		this._gpuCtx.configure({
 			device: this._device,
 			format: presentationFormat,
+			alphaMode: 'premultiplied',
 		});
 
 
