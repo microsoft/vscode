@@ -94,24 +94,44 @@ steps:
       displayName: Build integration tests
 
     - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
-      - script: ./scripts/test-integration.sh --tfs "Integration Tests"
-        displayName: Run integration tests (Electron)
-        timeoutInMinutes: 20
+      - ${{ if eq(parameters.VSCODE_BUILD_ESM, true) }}:
+        - script: ./scripts/test-integration-esm.sh --tfs "Integration Tests"
+          displayName: Run integration tests (Electron) [ESM]
+          timeoutInMinutes: 20
+      - ${{ if eq(parameters.VSCODE_BUILD_ESM, false) }}:
+        - script: ./scripts/test-integration --tfs "Integration Tests"
+          displayName: Run integration tests (Electron)
+          timeoutInMinutes: 20
 
     - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-      - script: |
-          # Figure out the full absolute path of the product we just built
-          # including the remote server and configure the integration tests
-          # to run with these builds instead of running out of sources.
-          set -e
-          APP_ROOT="$(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)"
-          APP_NAME="`ls $APP_ROOT | head -n 1`"
-          INTEGRATION_TEST_ELECTRON_PATH="$APP_ROOT/$APP_NAME/Contents/MacOS/Electron" \
-          ./scripts/test-integration.sh --build --tfs "Integration Tests"
-        env:
-          VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-darwin-$(VSCODE_ARCH)
-        displayName: Run integration tests (Electron)
-        timeoutInMinutes: 20
+      - ${{ if eq(parameters.VSCODE_BUILD_ESM, true) }}:
+        - script: |
+            # Figure out the full absolute path of the product we just built
+            # including the remote server and configure the integration tests
+            # to run with these builds instead of running out of sources.
+            set -e
+            APP_ROOT="$(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)"
+            APP_NAME="`ls $APP_ROOT | head -n 1`"
+            INTEGRATION_TEST_ELECTRON_PATH="$APP_ROOT/$APP_NAME/Contents/MacOS/Electron" \
+            ./scripts/test-integration-esm.sh --build --tfs "Integration Tests"
+          env:
+            VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-darwin-$(VSCODE_ARCH)
+          displayName: Run integration tests (Electron) [ESM]
+          timeoutInMinutes: 20
+      - ${{ if eq(parameters.VSCODE_BUILD_ESM, false) }}:
+        - script: |
+            # Figure out the full absolute path of the product we just built
+            # including the remote server and configure the integration tests
+            # to run with these builds instead of running out of sources.
+            set -e
+            APP_ROOT="$(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)"
+            APP_NAME="`ls $APP_ROOT | head -n 1`"
+            INTEGRATION_TEST_ELECTRON_PATH="$APP_ROOT/$APP_NAME/Contents/MacOS/Electron" \
+            ./scripts/test-integration.sh --build --tfs "Integration Tests"
+          env:
+            VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-darwin-$(VSCODE_ARCH)
+          displayName: Run integration tests (Electron)
+          timeoutInMinutes: 20
 
       - script: ./scripts/test-web-integration.sh --browser webkit
         env:
