@@ -32,7 +32,6 @@ import { EndOfLinePreference, IModelDeltaDecoration } from 'vs/editor/common/mod
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { ViewEventHandler } from 'vs/editor/common/viewEventHandler';
 import { deduceInput, findNewLineCountBeforeSelection, ISimpleModel, ITypeData, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/editContext/utilities';
 
 /**
@@ -210,11 +209,12 @@ export class NativeEditContext extends AbstractEditContext {
 			console.log('beforeinput : ', e);
 
 			if (e.inputType === 'insertParagraph' || e.inputType === 'insertLineBreak') {
+
 				console.log('this._editContext.text : ', this._editContext.text);
 				console.log('this._selectionStartWithin : ', this._selectionStartWithinEditContext);
 				console.log('this._selectionEndWithin : ', this._selectionEndWithinEditContext);
-				const editContextText = this._editContext.text;
-				const textAfterAddingNewLine = editContextText.substring(0, this._selectionStartWithinEditContext) + '\n' + editContextText.substring(this._selectionEndWithinEditContext);
+
+				const textAfterAddingNewLine = this._editContext.text.substring(0, this._selectionStartWithinEditContext) + '\n' + this._editContext.text.substring(this._selectionEndWithinEditContext);
 				this._editContext.updateText(0, Number.MAX_SAFE_INTEGER, textAfterAddingNewLine);
 				this.onInputWithoutComposition();
 			}
@@ -237,6 +237,7 @@ export class NativeEditContext extends AbstractEditContext {
 		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'characterboundsupdate', e => {
 			console.log('characterboundsupdate : ', e);
+
 			this._rangeStart = e.rangeStart;
 			this._updateCharacterBounds(e.rangeStart);
 		}));
@@ -247,19 +248,6 @@ export class NativeEditContext extends AbstractEditContext {
 		this._register(dom.addDisposableListener(this._domElement.domNode, 'blur', (e) => {
 			this._setHasFocus(false);
 		}));
-
-		const that = this;
-		this._context.addEventHandler(new class extends ViewEventHandler {
-			public override onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
-				that._scrollTop = e.scrollTop;
-				that._updateBounds();
-				return false;
-			}
-			public override onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
-				that._updateBounds();
-				return false;
-			}
-		});
 	}
 
 	appendTo(overflowGuardContainer: FastDomNode<HTMLElement>): void {
@@ -395,6 +383,7 @@ export class NativeEditContext extends AbstractEditContext {
 		// See https://github.com/microsoft/vscode/issues/165821
 		this.writeScreenReaderContent('selection changed');
 		this.writeEditContextContent();
+		this._updateBounds();
 		return true;
 	}
 	public override onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
@@ -416,6 +405,7 @@ export class NativeEditContext extends AbstractEditContext {
 	public override onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		this._scrollLeft = e.scrollLeft;
 		this._scrollTop = e.scrollTop;
+		this._updateBounds();
 		return true;
 	}
 	public override onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
