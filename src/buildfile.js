@@ -68,7 +68,7 @@ exports.workerLocalFileSearch = createEditorWorkerModuleDescription('vs/workbenc
 exports.workerProfileAnalysis = createEditorWorkerModuleDescription('vs/platform/profiling/electron-sandbox/profileAnalysisWorker');
 
 exports.workbenchDesktop = [
-	...createEditorWorkerModuleDescription('vs/workbench/contrib/output/common/outputLinkComputer', true),
+	...createEditorWorkerModuleDescription('vs/workbench/contrib/output/common/outputLinkComputer'),
 	...createEditorWorkerModuleDescription('vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker', true),
 	createModuleDescription('vs/workbench/contrib/debug/node/telemetryApp'),
 	createModuleDescription('vs/platform/files/node/watcher/watcherMain'),
@@ -78,7 +78,7 @@ exports.workbenchDesktop = [
 ];
 
 exports.workbenchWeb = [
-	...createEditorWorkerModuleDescription('vs/workbench/contrib/output/common/outputLinkComputer', true),
+	...createEditorWorkerModuleDescription('vs/workbench/contrib/output/common/outputLinkComputer'),
 	...createEditorWorkerModuleDescription('vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker', true),
 	createModuleDescription('vs/code/browser/workbench/workbench', ['vs/workbench/workbench.web.main'])
 ];

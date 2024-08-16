@@ -6,11 +6,14 @@
 import { IntervalTimer } from 'vs/base/common/async';
 import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
+import { IWorkerClient, IWorkerServer } from 'vs/base/common/worker/simpleWorker';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ensureValidWordDefinition, getWordAtText, IWordAtPosition } from 'vs/editor/common/core/wordHelper';
+import { IDocumentColorComputerTarget } from 'vs/editor/common/languages/defaultDocumentColorsComputer';
+import { ILinkComputerTarget } from 'vs/editor/common/languages/linkComputer';
 import { MirrorTextModel as BaseMirrorModel, IModelChangedEvent } from 'vs/editor/common/model/mirrorTextModel';
-import { ICommonModel, IWordRange } from 'vs/editor/common/services/editorSimpleWorker';
+import { IMirrorModel, IWordRange } from 'vs/editor/common/services/editorSimpleWorker';
 import { IModelService } from 'vs/editor/common/services/model';
 import { IRawModelData, IWorkerTextModelSyncChannelServer } from 'vs/editor/common/services/textModelSync/textModelSync.protocol';
 
@@ -23,12 +26,19 @@ export const WORKER_TEXT_MODEL_SYNC_CHANNEL = 'workerTextModelSync';
 
 export class WorkerTextModelSyncClient extends Disposable {
 
+	public static create(workerClient: IWorkerClient<any>, modelService: IModelService): WorkerTextModelSyncClient {
+		return new WorkerTextModelSyncClient(
+			workerClient.getChannel<IWorkerTextModelSyncChannelServer>(WORKER_TEXT_MODEL_SYNC_CHANNEL),
+			modelService
+		);
+	}
+
 	private readonly _proxy: IWorkerTextModelSyncChannelServer;
 	private readonly _modelService: IModelService;
 	private _syncedModels: { [modelUrl: string]: IDisposable } = Object.create(null);
 	private _syncedModelsLastUsedTime: { [modelUrl: string]: number } = Object.create(null);
 
-	constructor(proxy: IWorkerTextModelSyncChannelServer, modelService: IModelService, keepIdleModels: boolean) {
+	constructor(proxy: IWorkerTextModelSyncChannelServer, modelService: IModelService, keepIdleModels: boolean = false) {
 		super();
 		this._proxy = proxy;
 		this._modelService = modelService;
@@ -124,6 +134,10 @@ export class WorkerTextModelSyncServer implements IWorkerTextModelSyncChannelSer
 
 	constructor() {
 		this._models = Object.create(null);
+	}
+
+	public bindToServer(workerServer: IWorkerServer): void {
+		workerServer.setChannel(WORKER_TEXT_MODEL_SYNC_CHANNEL, this);
 	}
 
 	public getModel(uri: string): ICommonModel | undefined {
@@ -391,4 +405,23 @@ export class MirrorModel extends BaseMirrorModel implements ICommonModel {
 			return { lineNumber, column };
 		}
 	}
+}
+
+export interface ICommonModel extends ILinkComputerTarget, IDocumentColorComputerTarget, IMirrorModel {
+	uri: URI;
+	version: number;
+	eol: string;
+	getValue(): string;
+
+	getLinesContent(): string[];
+	getLineCount(): number;
+	getLineContent(lineNumber: number): string;
+	getLineWords(lineNumber: number, wordDefinition: RegExp): IWordAtPosition[];
+	words(wordDefinition: RegExp): Iterable<string>;
+	getWordUntilPosition(position: IPosition, wordDefinition: RegExp): IWordAtPosition;
+	getValueInRange(range: IRange): string;
+	getWordAtPosition(position: IPosition, wordDefinition: RegExp): Range | null;
+	offsetAt(position: IPosition): number;
+	positionAt(offset: number): IPosition;
+	findMatches(regex: RegExp): RegExpMatchArray[];
 }

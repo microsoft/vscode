@@ -8,7 +8,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/uti
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { TextEdit } from 'vs/editor/common/languages';
-import { EditorSimpleWorker, ICommonModel } from 'vs/editor/common/services/editorSimpleWorker';
+import { EditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';
+import { ICommonModel } from 'vs/editor/common/services/textModelSync/textModelSync.impl';
 import { IEditorWorkerHost } from 'vs/editor/common/services/editorWorkerHost';
 
 suite('EditorSimpleWorker', () => {

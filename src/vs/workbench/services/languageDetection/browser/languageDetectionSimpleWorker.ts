@@ -8,7 +8,7 @@ import { importAMDNodeModule } from 'vs/amdX';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { IRequestHandler, IWorkerServer } from 'vs/base/common/worker/simpleWorker';
 import { ILanguageDetectionClient, ILanguageDetectionWorker } from 'vs/workbench/services/languageDetection/browser/languageDetectionWorker.protocol';
-import { WORKER_TEXT_MODEL_SYNC_CHANNEL, WorkerTextModelSyncServer } from 'vs/editor/common/services/textModelSync/textModelSync.impl';
+import { WorkerTextModelSyncServer } from 'vs/editor/common/services/textModelSync/textModelSync.impl';
 
 type RegexpModel = { detect: (inp: string, langBiases: Record<string, number>, supportedLangs?: string[]) => string | undefined };
 
@@ -45,7 +45,7 @@ export class LanguageDetectionSimpleWorker implements ILanguageDetectionWorker {
 		workerServer: IWorkerServer,
 		private readonly _host: ILanguageDetectionClient
 	) {
-		workerServer.setChannel(WORKER_TEXT_MODEL_SYNC_CHANNEL, this._workerTextModelSyncServer);
+		this._workerTextModelSyncServer.bindToServer(workerServer);
 	}
 
 	public async detectLanguage(uri: string, langBiases: Record<string, number> | undefined, preferHistory: boolean, supportedLangs?: string[]): Promise<string | undefined> {

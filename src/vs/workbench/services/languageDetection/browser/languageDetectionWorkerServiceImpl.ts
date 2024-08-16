@@ -23,8 +23,7 @@ import { LRUCache } from 'vs/base/common/map';
 import { ILogService } from 'vs/platform/log/common/log';
 import { canASAR } from 'vs/base/common/amd';
 import { DefaultWorkerFactory } from 'vs/base/browser/defaultWorkerFactory';
-import { WORKER_TEXT_MODEL_SYNC_CHANNEL, WorkerTextModelSyncClient } from 'vs/editor/common/services/textModelSync/textModelSync.impl';
-import { IWorkerTextModelSyncChannelServer } from 'vs/editor/common/services/textModelSync/textModelSync.protocol';
+import { WorkerTextModelSyncClient } from 'vs/editor/common/services/textModelSync/textModelSync.impl';
 import { ILanguageDetectionClient, ILanguageDetectionWorker } from 'vs/workbench/services/languageDetection/browser/languageDetectionWorker.protocol';
 
 const TOP_LANG_COUNTS = 12;
@@ -262,11 +261,7 @@ export class LanguageDetectionWorkerClient extends Disposable {
 					getWeightsUri: async () => this.getWeightsUri(),
 				}
 			));
-			const workerTextModelSyncClient = new WorkerTextModelSyncClient(
-				workerClient.getChannel<IWorkerTextModelSyncChannelServer>(WORKER_TEXT_MODEL_SYNC_CHANNEL),
-				this._modelService,
-				false
-			);
+			const workerTextModelSyncClient = WorkerTextModelSyncClient.create(workerClient, this._modelService);
 			resolve({ workerClient, workerTextModelSyncClient });
 		});
 

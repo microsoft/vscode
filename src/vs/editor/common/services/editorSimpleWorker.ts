@@ -7,13 +7,12 @@ import { stringDiff } from 'vs/base/common/diff/diff';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IRequestHandler, IWorkerServer } from 'vs/base/common/worker/simpleWorker';
-import { IPosition, Position } from 'vs/editor/common/core/position';
+import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { EndOfLineSequence, ITextModel } from 'vs/editor/common/model';
 import { IMirrorTextModel, IModelChangedEvent } from 'vs/editor/common/model/mirrorTextModel';
-import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
 import { IColorInformation, IInplaceReplaceSupportResult, ILink, TextEdit } from 'vs/editor/common/languages';
-import { ILinkComputerTarget, computeLinks } from 'vs/editor/common/languages/linkComputer';
+import { computeLinks } from 'vs/editor/common/languages/linkComputer';
 import { BasicInplaceReplace } from 'vs/editor/common/languages/supports/inplaceReplaceSupport';
 import { DiffAlgorithmName, IDiffComputationResult, ILineChange, IUnicodeHighlightsResult } from 'vs/editor/common/services/editorWorker';
 import { createMonacoBaseAPI } from 'vs/editor/common/services/editorBaseApi';
@@ -28,10 +27,10 @@ import { createProxyObject, getAllMethodNames } from 'vs/base/common/objects';
 import { IDocumentDiffProviderOptions } from 'vs/editor/common/diff/documentDiffProvider';
 import { AppResourcePath, FileAccess } from 'vs/base/common/network';
 import { BugIndicatingError } from 'vs/base/common/errors';
-import { IDocumentColorComputerTarget, computeDefaultDocumentColors } from 'vs/editor/common/languages/defaultDocumentColorsComputer';
+import { computeDefaultDocumentColors } from 'vs/editor/common/languages/defaultDocumentColorsComputer';
 import { FindSectionHeaderOptions, SectionHeader, findSectionHeaders } from 'vs/editor/common/services/findSectionHeaders';
 import { IRawModelData, IWorkerTextModelSyncChannelServer } from './textModelSync/textModelSync.protocol';
-import { WorkerTextModelSyncServer } from 'vs/editor/common/services/textModelSync/textModelSync.impl';
+import { ICommonModel, WorkerTextModelSyncServer } from 'vs/editor/common/services/textModelSync/textModelSync.impl';
 
 // ESM-comment-begin
 const isESM = false;
@@ -55,28 +54,6 @@ export interface IWorkerContext<H = undefined> {
 	 * Get all available mirror models in this worker.
 	 */
 	getMirrorModels(): IMirrorModel[];
-}
-
-/**
- * @internal
- */
-export interface ICommonModel extends ILinkComputerTarget, IDocumentColorComputerTarget, IMirrorModel {
-	uri: URI;
-	version: number;
-	eol: string;
-	getValue(): string;
-
-	getLinesContent(): string[];
-	getLineCount(): number;
-	getLineContent(lineNumber: number): string;
-	getLineWords(lineNumber: number, wordDefinition: RegExp): IWordAtPosition[];
-	words(wordDefinition: RegExp): Iterable<string>;
-	getWordUntilPosition(position: IPosition, wordDefinition: RegExp): IWordAtPosition;
-	getValueInRange(range: IRange): string;
-	getWordAtPosition(position: IPosition, wordDefinition: RegExp): Range | null;
-	offsetAt(position: IPosition): number;
-	positionAt(offset: number): IPosition;
-	findMatches(regex: RegExp): RegExpMatchArray[];
 }
 
 /**

@@ -9,7 +9,7 @@ import { AppResourcePath, FileAccess, nodeModulesAsarPath, nodeModulesPath } fro
 import { IObservable } from 'vs/base/common/observable';
 import { isWeb } from 'vs/base/common/platform';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { MonacoWebWorker, createWebWorker } from 'vs/editor/browser/services/webWorker';
+import { MonacoWebWorker, createWorkbenchWebWorker } from 'vs/editor/browser/services/webWorker';
 import { IBackgroundTokenizationStore, IBackgroundTokenizer } from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
@@ -157,7 +157,7 @@ export class ThreadedBackgroundTokenizerFactory implements IDisposable {
 				this._reportTokenizationTime(timeMs, languageId, sourceExtensionId, lineLength, isRandomSample);
 			}
 		};
-		const worker = this._worker = createWebWorker<TextMateTokenizationWorker>(this._modelService, this._languageConfigurationService, {
+		const worker = this._worker = createWorkbenchWebWorker<TextMateTokenizationWorker>(this._modelService, this._languageConfigurationService, {
 			createData,
 			label: 'textMateWorker',
 			moduleId: 'vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker',
