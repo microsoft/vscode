@@ -6,7 +6,7 @@
 import { Event } from 'vs/base/common/event';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { TwoKeyMap } from 'vs/base/common/map';
-import type { IReadableTextureAtlasPage, ITextureAtlasAllocator, ITextureAtlasGlyph } from 'vs/editor/browser/view/gpu/atlas/atlas';
+import type { IBoundingBox, IReadableTextureAtlasPage, ITextureAtlasAllocator, ITextureAtlasGlyph } from 'vs/editor/browser/view/gpu/atlas/atlas';
 import { TextureAtlasShelfAllocator } from 'vs/editor/browser/view/gpu/atlas/textureAtlasShelfAllocator';
 import { TextureAtlasSlabAllocator } from 'vs/editor/browser/view/gpu/atlas/textureAtlasSlabAllocator';
 import type { GlyphRasterizer } from 'vs/editor/browser/view/gpu/raster/glyphRasterizer';
@@ -15,6 +15,11 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export class TextureAtlasPage extends Disposable implements IReadableTextureAtlasPage {
 	private _version: number = 0;
+
+	private _usedArea: IBoundingBox = { left: 0, top: 0, right: 0, bottom: 0 };
+	public get usedArea(): Readonly<IBoundingBox> {
+		return this._usedArea;
+	}
 
 	/**
 	 * The version of the texture atlas. This is incremented every time the page's texture changes.
@@ -82,7 +87,10 @@ export class TextureAtlasPage extends Disposable implements IReadableTextureAtla
 		const glyph = this._allocator.allocate(chars, tokenFg, rasterizedGlyph)!;
 		this._glyphMap.set(chars, tokenFg, glyph);
 		this._glyphInOrderSet.add(glyph);
+
 		this._version++;
+		this._usedArea.right = Math.max(this._usedArea.right, glyph.x + glyph.w);
+		this._usedArea.bottom = Math.max(this._usedArea.bottom, glyph.y + glyph.h);
 
 		if (this._logService.getLevel() === LogLevel.Trace) {
 			this._logService.trace('New glyph', {

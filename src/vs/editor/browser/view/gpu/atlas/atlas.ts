@@ -39,6 +39,7 @@ export interface ITextureAtlasAllocator {
 
 export interface IReadableTextureAtlasPage {
 	readonly version: number;
+	readonly usedArea: Readonly<IBoundingBox>;
 	readonly glyphs: IterableIterator<ITextureAtlasGlyph>;
 	readonly source: OffscreenCanvas;
 	getUsagePreview(): Promise<Blob>;

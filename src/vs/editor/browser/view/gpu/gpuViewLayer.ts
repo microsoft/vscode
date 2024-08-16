@@ -326,11 +326,10 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 				entryOffset += SpriteInfoStorageBufferInfo.Size;
 			}
 			this._device.queue.writeBuffer(this._glyphStorageBuffer[layerIndex], 0, values);
-			// TODO: Draw only dirty regions
 			this._device.queue.copyExternalImageToTexture(
 				{ source: page.source },
-				{ texture: this._atlasGpuTexture, origin: { x: 0, y: 0, z: layerIndex } },
-				{ width: page.source.width, height: page.source.height },
+				{ texture: this._atlasGpuTexture, origin: { x: page.usedArea.left, y: page.usedArea.top, z: layerIndex } },
+				{ width: page.usedArea.right - page.usedArea.left, height: page.usedArea.bottom - page.usedArea.top },
 			);
 			this._atlasGpuTextureVersions[layerIndex] = page.version;
 		}
