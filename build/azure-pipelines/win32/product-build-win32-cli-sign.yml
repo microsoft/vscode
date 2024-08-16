@@ -39,7 +39,6 @@ steps:
       . build/azure-pipelines/win32/retry.ps1
       $ErrorActionPreference = "Stop"
       $env:CHILD_CONCURRENCY="1"
-      retry { exec { node npm/setupNpmrc.js } }
       retry { exec { npm ci } }
     workingDirectory: build
     displayName: Install build dependencies

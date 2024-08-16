@@ -18,7 +18,6 @@ if (!process.env['VSCODE_SKIP_NODE_VERSION_CHECK']) {
 const path = require('path');
 const fs = require('fs');
 const cp = require('child_process');
-const { getRemoteVersionInfo } = require('./setupNpmrc');
 
 if (process.platform === 'win32') {
 	if (!hasSupportedVisualStudioVersion()) {
@@ -80,7 +79,7 @@ function installHeaders() {
 	const versions = new Set(result.split(/\n/g).filter(line => !line.startsWith('gyp info')).map(value => value));
 
 	const local = getHeaderInfo(path.join(__dirname, '..', '..', '.npmrc'));
-	const remote = getRemoteVersionInfo();
+	const remote = getHeaderInfo(path.join(__dirname, '..', '..', 'remote', '.npmrc'));
 
 	if (local !== undefined && !versions.has(local.target)) {
 		// Both disturl and target come from a file checked into our repository

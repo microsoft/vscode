@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as path from 'path';
-const { getRemoteVersionInfo } = require('../npm/setupNpmrc');
+import * as fs from 'fs';
 
 const root = path.dirname(path.dirname(__dirname));
-const version = getRemoteVersionInfo().target;
+const npmrcPath = path.join(root, 'remote', '.npmrc');
+const npmrc = fs.readFileSync(npmrcPath, 'utf8');
+const version = /^target="(.*)"$/m.exec(npmrc)![1];
 
 const platform = process.platform;
 const arch = process.arch;

@@ -27,7 +27,6 @@ steps:
     displayName: Add build tag
 
   - pwsh: |
-      node npm/setupNpmrc.js
       npm ci
     workingDirectory: build
     displayName: Install build dependencies
