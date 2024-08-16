@@ -97,6 +97,7 @@ import 'vs/workbench/contrib/notebook/browser/contrib/debug/notebookDebugDecorat
 import 'vs/workbench/contrib/notebook/browser/contrib/execute/executionEditorProgress';
 import 'vs/workbench/contrib/notebook/browser/contrib/kernelDetection/notebookKernelDetection';
 import 'vs/workbench/contrib/notebook/browser/contrib/cellDiagnostics/cellDiagnostics';
+import 'vs/workbench/contrib/notebook/browser/contrib/multicursor/notebookMulticursor';
 
 // Diff Editor Contribution
 import 'vs/workbench/contrib/notebook/browser/diff/notebookDiffActions';
