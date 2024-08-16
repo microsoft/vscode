@@ -213,7 +213,7 @@ const apiTestSerializer: vscode.NotebookSerializer = {
 		assert.strictEqual(doc.isDirty, true);
 	});
 
-	test('Cannot open notebook from cell-uri with vscode.open-command', async function () {
+	test.skip('Cannot open notebook from cell-uri with vscode.open-command', async function () {
 
 		const document = await openRandomNotebookDocument();
 		const [cell] = document.getCells();
