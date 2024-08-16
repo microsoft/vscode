@@ -35,6 +35,7 @@ import { ViewEventHandler } from 'vs/editor/common/viewEventHandler';
 import { ISimpleModel, ITypeData, PagedScreenReaderStrategy, TextAreaState } from 'vs/editor/browser/controller/editContext/native/nativeEditContextState';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
+import { KeyCode } from 'vs/base/common/keyCodes';
 
 const canUseZeroSizeTextarea = (browser.isFirefox);
 
@@ -122,6 +123,11 @@ export class NativeEditContext extends AbstractEditContext {
 
 		this._register(dom.addDisposableListener(this._domElement.domNode, 'keydown', (e) => {
 			const standardKeyboardEvent = new StandardKeyboardEvent(e);
+			if (standardKeyboardEvent.keyCode === KeyCode.KEY_IN_COMPOSITION
+				|| (this._currentComposition && standardKeyboardEvent.keyCode === KeyCode.Backspace)) {
+				// Stop propagation for keyDown events if the IME is processing key input
+				standardKeyboardEvent.stopPropagation();
+			}
 			this._viewController.emitKeyDown(standardKeyboardEvent);
 		}));
 
