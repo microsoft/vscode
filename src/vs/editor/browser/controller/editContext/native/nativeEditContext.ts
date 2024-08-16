@@ -116,8 +116,8 @@ export class NativeEditContext extends AbstractEditContext {
 				// Stop propagation for keyDown events if the IME is processing key input
 				standardKeyboardEvent.stopPropagation();
 			}
-			this._domElement.domNode.focus();
 			lastKeyDown = standardKeyboardEvent;
+			this._domElement.domNode.focus();
 			this._viewController.emitKeyDown(standardKeyboardEvent);
 		}));
 
@@ -126,33 +126,17 @@ export class NativeEditContext extends AbstractEditContext {
 		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'textupdate', e => {
 
-			const data = e.text.replaceAll(/[^\S\r\n]/gmu, ' ');
-
 			console.log('textupdate : ', e);
 			console.log('e.text : ', e.text);
 			console.log('e.updateRangeStart : ', e.updateRangeStart);
 			console.log('e.updateRangeEnd : ', e.updateRangeEnd);
 			console.log('this._editContext.text : ', this._editContext.text);
-			console.log('data : ', data);
 
 			if (this._currentComposition) {
-
-				this._updateCompositionEndPosition();
-
-				console.log('this._textAreaState before assignment : ', this._editContextState);
-
-				this._editContextState = this._getEditContextState();
-
-				console.log('this._textAreaState after assignment : ', this._editContextState);
-
-				const compositionInput = this._currentComposition.handleCompositionUpdate(data);
-
-				console.log('compositionInput : ', compositionInput);
-
-				this._onType(compositionInput);
-				this._render();
+				const data = e.text.replaceAll(/[^\S\r\n]/gmu, ' ');
+				this.onInputWithComposition(this._currentComposition, data);
 			} else {
-				this.onInput();
+				this.onInputWithoutComposition();
 			}
 		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'compositionstart', e => {
@@ -169,8 +153,6 @@ export class NativeEditContext extends AbstractEditContext {
 			}
 			this._currentComposition = currentComposition;
 
-			const currentTarget = e.currentTarget as EditContext;
-
 			if (
 				platform.OS === platform.OperatingSystem.Macintosh
 				&& lastKeyDown
@@ -178,7 +160,7 @@ export class NativeEditContext extends AbstractEditContext {
 				&& this._editContextState
 				&& this._editContextState.selectionStart === this._editContextState.selectionEnd
 				&& this._editContextState.selectionStart > 0
-				&& this._editContextState.value.substring(this._editContextState.selectionStart - 1, 1) === currentTarget.text
+				&& this._editContextState.value.substring(this._editContextState.selectionStart - 1, 1) === (e.currentTarget as EditContext).text
 				&& (lastKeyDown.code === 'ArrowRight' || lastKeyDown.code === 'ArrowLeft')
 			) {
 				// Handling long press case on Chromium/Safari macOS + arrow key => pretend the character was selected
@@ -193,7 +175,6 @@ export class NativeEditContext extends AbstractEditContext {
 				viewEvents.VerticalRevealType.Simple,
 				ScrollType.Immediate
 			);
-
 			this._render();
 			this._domElement.setClassName(`native-edit-context ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME} ime-input`);
 			this._viewController.compositionStart();
@@ -203,17 +184,17 @@ export class NativeEditContext extends AbstractEditContext {
 
 			console.log('oncompositionend : ', e);
 
-			this._compositionEndPosition = this._context.viewModel.getCursorStates()[0].viewState.position;
+			this._updateCompositionEndPosition();
+
+			const currentComposition = this._currentComposition;
+			if (!currentComposition) {
+				return;
+			}
+			this._currentComposition = undefined;
 
 			if ('data' in e && typeof e.data === 'string') {
 
-				const currentComposition = this._currentComposition;
-				if (!currentComposition) {
-					return;
-				}
-				this._currentComposition = undefined;
-
-				this._editContextState = this._getEditContextState();
+				this._editContextState = this._getUpdatedEditContextState();
 
 				const typeInput = currentComposition.handleCompositionUpdate(e.data);
 				this._onType(typeInput);
@@ -235,7 +216,7 @@ export class NativeEditContext extends AbstractEditContext {
 				const editContextText = this._editContext.text;
 				const textAfterAddingNewLine = editContextText.substring(0, this._selectionStartWithinEditContext) + '\n' + editContextText.substring(this._selectionEndWithinEditContext);
 				this._editContext.updateText(0, Number.MAX_SAFE_INTEGER, textAfterAddingNewLine);
-				this.onInput();
+				this.onInputWithoutComposition();
 			}
 		}));
 		this._register(dom.addDisposableListener(this._domElement.domNode, 'paste', (e) => {
@@ -787,11 +768,11 @@ export class NativeEditContext extends AbstractEditContext {
 		}
 	}
 
-	public onInput() {
+	public onInputWithoutComposition() {
 		if (this._currentComposition) {
 			return;
 		}
-		const editContextState = this._getEditContextState();
+		const editContextState = this._getUpdatedEditContextState();
 		const typeInput = deduceInput(this._editContextState, editContextState);
 
 		console.log('onInput');
@@ -806,6 +787,24 @@ export class NativeEditContext extends AbstractEditContext {
 		) {
 			this._onType(typeInput);
 		}
+	}
+
+	public onInputWithComposition(composition: CompositionContext, data: string): void {
+
+		this._updateCompositionEndPosition();
+
+		console.log('this._textAreaState before assignment : ', this._editContextState);
+
+		this._editContextState = this._getUpdatedEditContextState();
+
+		console.log('this._textAreaState after assignment : ', this._editContextState);
+
+		const compositionInput = composition.handleCompositionUpdate(data);
+
+		console.log('compositionInput : ', compositionInput);
+
+		this._onType(compositionInput);
+		this._render();
 	}
 
 	private _updateCharacterBounds(rangeStart: number) {
@@ -992,7 +991,7 @@ export class NativeEditContext extends AbstractEditContext {
 		this._compositionStartPosition = this._context.viewModel.getCursorStates()[0].viewState.position;
 	}
 
-	private _getEditContextState(): {
+	private _getUpdatedEditContextState(): {
 		value: string;
 		selectionStart: number;
 		selectionEnd: number;
