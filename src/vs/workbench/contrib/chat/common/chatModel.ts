@@ -564,13 +564,48 @@ export interface IExportableChatData {
 	responderAvatarIconUri: ThemeIcon | UriComponents | undefined; // Keeping Uri name for backcompat
 }
 
-export interface ISerializableChatData extends IExportableChatData {
+/*
+	NOTE: every time the serialized data format is updated, we need to create a new interface, because we may need to handle any old data format when parsing.
+*/
+
+export interface ISerializableChatData1 extends IExportableChatData {
 	sessionId: string;
 	creationDate: number;
 	isImported: boolean;
 
 	/** Indicates that this session was created in this window. Is cleared after the chat has been written to storage once. Needed to sync chat creations/deletions between empty windows. */
 	isNew?: boolean;
+}
+
+export interface ISerializableChatData2 extends ISerializableChatData1 {
+	version: 2;
+	lastMessageDate: number;
+}
+
+/**
+ * Chat data that has been parsed and normalized to the current format.
+ */
+export type ISerializableChatData = ISerializableChatData2;
+
+/**
+ * Chat data that has been loaded but not normalized, and could be any format
+ */
+export type ISerializableChatDataIn = ISerializableChatData1 | ISerializableChatData2;
+
+/**
+ * Normalize chat data from storage to the current format.
+ * TODO- ChatModel#_deserialize and reviveSerializedAgent also still do some normalization and maybe that should be done in here too.
+ */
+export function normalizeSerializableChatData(raw: ISerializableChatDataIn): ISerializableChatData {
+	if (!('version' in raw)) {
+		return {
+			version: 2,
+			...raw,
+			lastMessageDate: raw.creationDate,
+		};
+	}
+
+	return raw;
 }
 
 export function isExportableSessionData(obj: unknown): obj is IExportableChatData {
@@ -703,6 +738,11 @@ export class ChatModel extends Disposable implements IChatModel {
 		return this._creationDate;
 	}
 
+	private _lastMessageDate: number;
+	get lastMessageDate(): number {
+		return this._lastMessageDate;
+	}
+
 	private get _defaultAgent() {
 		return this.chatAgentService.getDefaultAgent(ChatAgentLocation.Panel);
 	}
@@ -763,6 +803,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		this._sessionId = (isSerializableSessionData(initialData) && initialData.sessionId) || generateUuid();
 		this._requests = initialData ? this._deserialize(initialData) : [];
 		this._creationDate = (isSerializableSessionData(initialData) && initialData.creationDate) || Date.now();
+		this._lastMessageDate = (isSerializableSessionData(initialData) && initialData.lastMessageDate) || this._creationDate;
 
 		this._initialRequesterAvatarIconUri = initialData?.requesterAvatarIconUri && URI.revive(initialData.requesterAvatarIconUri);
 		this._initialResponderAvatarIconUri = isUriComponents(initialData?.responderAvatarIconUri) ? URI.revive(initialData.responderAvatarIconUri) : initialData?.responderAvatarIconUri;
@@ -898,6 +939,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		request.response = new ChatResponseModel([], this, chatAgent, slashCommand, request.id);
 
 		this._requests.push(request);
+		this._lastMessageDate = Date.now();
 		this._onDidChange.fire({ kind: 'addRequest', request });
 		return request;
 	}
@@ -1065,10 +1107,12 @@ export class ChatModel extends Disposable implements IChatModel {
 
 	toJSON(): ISerializableChatData {
 		return {
+			version: 2,
 			...this.toExport(),
 			sessionId: this.sessionId,
 			creationDate: this._creationDate,
-			isImported: this._isImported
+			isImported: this._isImported,
+			lastMessageDate: this._lastMessageDate
 		};
 	}
 

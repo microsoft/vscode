@@ -141,8 +141,10 @@ class ChatHistoryAction extends Action2 {
 
 		const getPicks = () => {
 			const items = chatService.getHistory();
+			items.sort((a, b) => (b.lastMessageDate ?? 0) - (a.lastMessageDate ?? 0));
 			return items.map((i): IChatPickerItem => ({
 				label: i.title,
+				description: i.isActive ? '(active)' : '',
 				chat: i,
 				buttons: [
 					openInEditorButton,

@@ -25,7 +25,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ChatAgentLocation, IChatAgent, IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { CONTEXT_VOTE_UP_ENABLED } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, ChatWelcomeMessageModel, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatsData, updateRanges } from 'vs/workbench/contrib/chat/common/chatModel';
+import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, ChatWelcomeMessageModel, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, normalizeSerializableChatData, updateRanges } from 'vs/workbench/contrib/chat/common/chatModel';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, IParsedChatRequest, chatAgentLeader, chatSubcommandLeader, getPromptText } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { ChatRequestParser } from 'vs/workbench/contrib/chat/common/chatRequestParser';
 import { IChatCompleteResponse, IChatDetail, IChatFollowup, IChatProgress, IChatSendRequestData, IChatSendRequestOptions, IChatSendRequestResponseState, IChatService, IChatTransferredSessionData, IChatUserActionEvent } from 'vs/workbench/contrib/chat/common/chatService';
@@ -267,7 +267,7 @@ export class ChatService extends Disposable implements IChatService {
 
 	private deserializeChats(sessionData: string): ISerializableChatsData {
 		try {
-			const arrayOfSessions: ISerializableChatData[] = revive(JSON.parse(sessionData)); // Revive serialized URIs in session data
+			const arrayOfSessions: ISerializableChatDataIn[] = revive(JSON.parse(sessionData)); // Revive serialized URIs in session data
 			if (!Array.isArray(arrayOfSessions)) {
 				throw new Error('Expected array');
 			}
@@ -287,7 +287,7 @@ export class ChatService extends Disposable implements IChatService {
 					}
 				}
 
-				acc[session.sessionId] = session;
+				acc[session.sessionId] = normalizeSerializableChatData(session);
 				return acc;
 			}, {});
 			return sessions;
@@ -323,17 +323,17 @@ export class ChatService extends Disposable implements IChatService {
 	getHistory(): IChatDetail[] {
 		const sessions = Object.values(this._persistedSessions)
 			.filter(session => session.requests.length > 0);
-		sessions.sort((a, b) => (b.creationDate ?? 0) - (a.creationDate ?? 0));
 
 		return sessions
-			.filter(session => !this._sessionModels.has(session.sessionId))
 			.filter(session => !session.isImported)
-			.map(item => {
-				const title = ChatModel.getDefaultTitle(item.requests);
+			.map(session => {
+				const title = ChatModel.getDefaultTitle(session.requests);
 				return {
-					sessionId: item.sessionId,
-					title
-				};
+					sessionId: session.sessionId,
+					title,
+					lastMessageDate: session.lastMessageDate,
+					isActive: this._sessionModels.has(session.sessionId)
+				} satisfies IChatDetail;
 			});
 	}
 
