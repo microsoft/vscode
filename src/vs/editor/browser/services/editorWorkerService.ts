@@ -356,11 +356,11 @@ class SynchronousWorkerClient<T extends IDisposable> implements IWorkerClient<T>
 	}
 
 	public setChannel<T extends object>(channel: string, handler: T): void {
-		throw new Error(`Not implemented`);
+		throw new Error(`Not supported`);
 	}
 
 	public getChannel<T extends object>(channel: string): T {
-		throw new Error(`Not implemented`);
+		throw new Error(`Not supported`);
 	}
 }
 
@@ -386,8 +386,8 @@ export class EditorWorkerClient extends Disposable implements IEditorWorkerClien
 
 	private readonly _modelService: IModelService;
 	private readonly _keepIdleModels: boolean;
-	protected _worker: IWorkerClient<EditorSimpleWorker> | null;
-	protected readonly _workerFactory: DefaultWorkerFactory;
+	private _worker: IWorkerClient<EditorSimpleWorker> | null;
+	private readonly _workerFactory: DefaultWorkerFactory;
 	private _modelManager: WorkerTextModelSyncClient | null;
 	private _disposed = false;
 

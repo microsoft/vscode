@@ -14,7 +14,7 @@ import { IModelService } from 'vs/editor/common/services/model';
  * Specify an AMD module to load that will `create` an object that will be proxied.
  */
 export function createWebWorker<T extends object>(modelService: IModelService, languageConfigurationService: ILanguageConfigurationService, opts: IWebWorkerOptions): MonacoWebWorker<T> {
-	return new MonacoWebWorkerImpl<T>(undefined, modelService, languageConfigurationService, opts);
+	return new MonacoWebWorkerImpl<T>(modelService, languageConfigurationService, opts);
 }
 
 /**
@@ -68,8 +68,8 @@ class MonacoWebWorkerImpl<T extends object> extends EditorWorkerClient implement
 	private _foreignModuleCreateData: any | null;
 	private _foreignProxy: Promise<T> | null;
 
-	constructor(workerMainLocation: URI | undefined, modelService: IModelService, languageConfigurationService: ILanguageConfigurationService, opts: IWebWorkerOptions) {
-		super(workerMainLocation, modelService, opts.keepIdleModels || false, opts.label, languageConfigurationService);
+	constructor(modelService: IModelService, languageConfigurationService: ILanguageConfigurationService, opts: IWebWorkerOptions) {
+		super(undefined, modelService, opts.keepIdleModels || false, opts.label, languageConfigurationService);
 		this._foreignModuleId = opts.moduleId;
 		this._foreignModuleCreateData = opts.createData || null;
 		this._foreignModuleHost = opts.host || null;
