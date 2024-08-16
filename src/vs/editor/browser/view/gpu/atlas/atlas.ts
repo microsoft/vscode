@@ -25,12 +25,12 @@ export interface IBoundingBox {
 }
 
 export interface ITextureAtlasAllocator {
-	readonly glyphMap: TwoKeyMap<string, number, ITextureAtlasGlyph>;
+	readonly glyphMap: TwoKeyMap<string, number, Readonly<ITextureAtlasGlyph>>;
 	/**
 	 * Allocates a rasterized glyph to the canvas, drawing it and returning information on its
 	 * position in the canvas. This will return undefined if the glyph does not fit on the canvas.
 	 */
-	allocate(chars: string, tokenFg: number, rasterizedGlyph: IRasterizedGlyph): ITextureAtlasGlyph | undefined;
+	allocate(chars: string, tokenFg: number, rasterizedGlyph: Readonly<IRasterizedGlyph>): Readonly<ITextureAtlasGlyph> | undefined;
 	/**
 	 * Gets a usage preview of the atlas for debugging purposes.
 	 */
@@ -40,7 +40,7 @@ export interface ITextureAtlasAllocator {
 export interface IReadableTextureAtlasPage {
 	readonly version: number;
 	readonly usedArea: Readonly<IBoundingBox>;
-	readonly glyphs: IterableIterator<ITextureAtlasGlyph>;
+	readonly glyphs: IterableIterator<Readonly<ITextureAtlasGlyph>>;
 	readonly source: OffscreenCanvas;
 	getUsagePreview(): Promise<Blob>;
 }

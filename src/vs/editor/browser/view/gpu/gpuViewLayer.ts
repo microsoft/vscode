@@ -575,7 +575,7 @@ class FullFileRenderStrategy<T extends IVisibleLine> implements IRenderStrategy<
 		let wgslX = 0;
 		let wgslY = 0;
 		let xOffset = 0;
-		let glyph: ITextureAtlasGlyph;
+		let glyph: Readonly<ITextureAtlasGlyph>;
 		let cellIndex = 0;
 		let tokenStartIndex = 0;
 		let tokenEndIndex = 0;

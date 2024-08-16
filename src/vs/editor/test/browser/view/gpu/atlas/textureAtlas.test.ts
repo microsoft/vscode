@@ -26,7 +26,7 @@ function getUniqueGlyphId(): [chars: string, tokenFg: number] {
 	return [lastUniqueGlyph, blackInt];
 }
 
-function assertIsValidGlyph(glyph: ITextureAtlasGlyph, atlas: TextureAtlas) {
+function assertIsValidGlyph(glyph: Readonly<ITextureAtlasGlyph>, atlas: TextureAtlas) {
 	// (x,y) are valid coordinates
 	ok(isNumber(glyph.x));
 	ok(glyph.x >= 0);

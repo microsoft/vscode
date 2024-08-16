@@ -47,7 +47,7 @@ export class GlyphRasterizer extends Disposable {
 	 * Rasterizes a glyph. Note that the returned object is reused across different glyphs and
 	 * therefore is only safe for synchronous access.
 	 */
-	public rasterizeGlyph(chars: string, fg: string): IRasterizedGlyph {
+	public rasterizeGlyph(chars: string, fg: string): Readonly<IRasterizedGlyph> {
 		// TODO: Support workbench.fontAliasing
 		this._ctx.clearRect(0, 0, this._canvas.width, this._canvas.height);
 

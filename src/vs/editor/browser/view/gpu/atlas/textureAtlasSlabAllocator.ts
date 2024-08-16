@@ -36,7 +36,7 @@ export class TextureAtlasSlabAllocator implements ITextureAtlasAllocator {
 	private _openRegionsByHeight: Map<number, ITextureAtlasSlabUnusedRect[]> = new Map();
 	private _openRegionsByWidth: Map<number, ITextureAtlasSlabUnusedRect[]> = new Map();
 
-	readonly glyphMap: TwoKeyMap<string, number, ITextureAtlasGlyph> = new TwoKeyMap();
+	readonly glyphMap: TwoKeyMap<string, number, Readonly<ITextureAtlasGlyph>> = new TwoKeyMap();
 
 	private readonly _slabW: number;
 	private readonly _slabH: number;

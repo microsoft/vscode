@@ -77,11 +77,11 @@ export class TextureAtlasPage extends Disposable implements IReadableTextureAtla
 	}
 
 	// TODO: Color, style etc.
-	public getGlyph(chars: string, tokenFg: number): ITextureAtlasGlyph {
+	public getGlyph(chars: string, tokenFg: number): Readonly<ITextureAtlasGlyph> {
 		return this._glyphMap.get(chars, tokenFg) ?? this._createGlyph(chars, tokenFg);
 	}
 
-	private _createGlyph(chars: string, tokenFg: number): ITextureAtlasGlyph {
+	private _createGlyph(chars: string, tokenFg: number): Readonly<ITextureAtlasGlyph> {
 		const rasterizedGlyph = this._glyphRasterizer.rasterizeGlyph(chars, this._colorMap[tokenFg]);
 		// TODO: Handle undefined allocate result
 		const glyph = this._allocator.allocate(chars, tokenFg, rasterizedGlyph)!;
