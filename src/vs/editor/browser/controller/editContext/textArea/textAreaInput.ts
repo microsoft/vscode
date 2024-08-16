@@ -15,7 +15,7 @@ import { Disposable, IDisposable, MutableDisposable } from 'vs/base/common/lifec
 import { Mimes } from 'vs/base/common/mime';
 import { OperatingSystem } from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
-import { ITextAreaWrapper, ITypeData, TextAreaState, _debugComposition } from 'vs/editor/browser/controller/editContext/textArea/textAreaState';
+import { ITextAreaWrapper, ITypeData, TextAreaState, _debugComposition } from 'vs/editor/browser/controller/editContext/textState';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
@@ -315,7 +315,7 @@ export class TextAreaInput extends Disposable {
 				// For example, if the cursor is in the middle of a word like Mic|osoft
 				// and Microsoft is chosen from the keyboard's suggestions, the e.data will contain "Microsoft".
 				// This is not really usable because it doesn't tell us where the edit began and where it ended.
-				const newState = TextAreaState.readFromTextArea(this._textArea, this._textAreaState);
+				const newState = TextAreaState.readFromEditContext(this._textArea, this._textAreaState);
 				const typeInput = TextAreaState.deduceAndroidCompositionInput(this._textAreaState, newState);
 				this._textAreaState = newState;
 				this._onType.fire(typeInput);
@@ -323,7 +323,7 @@ export class TextAreaInput extends Disposable {
 				return;
 			}
 			const typeInput = currentComposition.handleCompositionUpdate(e.data);
-			this._textAreaState = TextAreaState.readFromTextArea(this._textArea, this._textAreaState);
+			this._textAreaState = TextAreaState.readFromEditContext(this._textArea, this._textAreaState);
 			this._onType.fire(typeInput);
 			this._onCompositionUpdate.fire(e);
 		}));
@@ -345,7 +345,7 @@ export class TextAreaInput extends Disposable {
 				// For example, if the cursor is in the middle of a word like Mic|osoft
 				// and Microsoft is chosen from the keyboard's suggestions, the e.data will contain "Microsoft".
 				// This is not really usable because it doesn't tell us where the edit began and where it ended.
-				const newState = TextAreaState.readFromTextArea(this._textArea, this._textAreaState);
+				const newState = TextAreaState.readFromEditContext(this._textArea, this._textAreaState);
 				const typeInput = TextAreaState.deduceAndroidCompositionInput(this._textAreaState, newState);
 				this._textAreaState = newState;
 				this._onType.fire(typeInput);
@@ -354,7 +354,7 @@ export class TextAreaInput extends Disposable {
 			}
 
 			const typeInput = currentComposition.handleCompositionUpdate(e.data);
-			this._textAreaState = TextAreaState.readFromTextArea(this._textArea, this._textAreaState);
+			this._textAreaState = TextAreaState.readFromEditContext(this._textArea, this._textAreaState);
 			this._onType.fire(typeInput);
 			this._onCompositionEnd.fire();
 		}));
@@ -372,7 +372,7 @@ export class TextAreaInput extends Disposable {
 				return;
 			}
 
-			const newState = TextAreaState.readFromTextArea(this._textArea, this._textAreaState);
+			const newState = TextAreaState.readFromEditContext(this._textArea, this._textAreaState);
 			const typeInput = TextAreaState.deduceInput(this._textAreaState, newState, /*couldBeEmojiInput*/this._OS === OperatingSystem.Macintosh);
 
 			if (typeInput.replacePrevCharCnt === 0 && typeInput.text.length === 1) {
@@ -487,7 +487,7 @@ export class TextAreaInput extends Disposable {
 
 	_initializeFromTest(): void {
 		this._hasFocus = true;
-		this._textAreaState = TextAreaState.readFromTextArea(this._textArea, null);
+		this._textAreaState = TextAreaState.readFromEditContext(this._textArea, null);
 	}
 
 	private _installSelectionChangeListener(): IDisposable {

@@ -31,11 +31,11 @@ import { Position } from 'vs/editor/common/core/position';
 import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 import { Color } from 'vs/base/common/color';
 import { EndOfLinePreference, IModelDeltaDecoration } from 'vs/editor/common/model';
-import { ISimpleModel, ITypeData, PagedScreenReaderStrategy, TextAreaState } from 'vs/editor/browser/controller/editContext/native/nativeEditContextState';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ViewEventHandler } from 'vs/editor/common/viewEventHandler';
+import { ISimpleModel, ITypeData, PagedScreenReaderStrategy, TextAreaState } from 'vs/editor/browser/controller/editContext/textState';
 
 /**
  * Correctly place the bounding boxes so that they are exactly aligned

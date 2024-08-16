@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { ITextAreaWrapper, PagedScreenReaderStrategy, TextAreaState } from 'vs/editor/browser/controller/editContext/textArea/textAreaState';
+import { ITextAreaWrapper, PagedScreenReaderStrategy, TextAreaState } from 'vs/editor/browser/controller/editContext/textState';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
@@ -84,7 +84,7 @@ suite('TextAreaState', () => {
 		textArea._value = 'Hello world!';
 		textArea._selectionStart = 1;
 		textArea._selectionEnd = 12;
-		let actual = TextAreaState.readFromTextArea(textArea, null);
+		let actual = TextAreaState.readFromEditContext(textArea, null);
 
 		assertTextAreaState(actual, 'Hello world!', 1, 12);
 		assert.strictEqual(actual.value, 'Hello world!');
@@ -134,7 +134,7 @@ suite('TextAreaState', () => {
 		textArea._selectionStart = selectionStart;
 		textArea._selectionEnd = selectionEnd;
 
-		const newState = TextAreaState.readFromTextArea(textArea, null);
+		const newState = TextAreaState.readFromEditContext(textArea, null);
 		const actual = TextAreaState.deduceInput(prevState, newState, couldBeEmojiInput);
 
 		assert.deepStrictEqual(actual, {
@@ -311,7 +311,7 @@ suite('TextAreaState', () => {
 		textArea._selectionStart = selectionStart;
 		textArea._selectionEnd = selectionEnd;
 
-		const newState = TextAreaState.readFromTextArea(textArea, null);
+		const newState = TextAreaState.readFromEditContext(textArea, null);
 		const actual = TextAreaState.deduceAndroidCompositionInput(prevState, newState);
 
 		assert.deepStrictEqual(actual, {

@@ -12,7 +12,7 @@ import * as platform from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 import { CopyOptions, ICompositionData, IPasteData, ITextAreaInputHost, TextAreaInput, ClipboardDataToCopy, TextAreaWrapper } from 'vs/editor/browser/controller/editContext/textArea/textAreaInput';
-import { ISimpleModel, ITypeData, PagedScreenReaderStrategy, TextAreaState, _debugComposition } from 'vs/editor/browser/controller/editContext/textArea/textAreaState';
+import { ISimpleModel, ITypeData, PagedScreenReaderStrategy, TextAreaState, _debugComposition } from 'vs/editor/browser/controller/editContext/textState';
 import { ViewController } from 'vs/editor/browser/view/viewController';
 import { PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
 import { LineNumbersOverlay } from 'vs/editor/browser/viewParts/lineNumbers/lineNumbers';
