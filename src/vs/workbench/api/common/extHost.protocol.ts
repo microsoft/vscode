@@ -81,6 +81,7 @@ import { OutputChannelUpdateMode } from 'vs/workbench/services/output/common/out
 import { CandidatePort } from 'vs/workbench/services/remote/common/tunnelModel';
 import { IFileQueryBuilderOptions, ITextQueryBuilderOptions } from 'vs/workbench/services/search/common/queryBuilder';
 import * as search from 'vs/workbench/services/search/common/search';
+import { TextSearchCompleteMessage } from 'vs/workbench/services/search/common/searchExtTypes';
 import { ISaveProfileResult } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import type { TerminalShellExecutionCommandLineConfidence } from 'vscode';
 
@@ -1390,6 +1391,7 @@ export interface ExtHostProfileContentHandlersShape {
 
 export interface ITextSearchComplete {
 	limitHit?: boolean;
+	message?: TextSearchCompleteMessage | TextSearchCompleteMessage[];
 }
 
 export interface MainThreadWorkspaceShape extends IDisposable {
