@@ -71,6 +71,9 @@ export class GlyphRasterizer extends Disposable {
 		if (fontStyle & FontStyle.Bold) {
 			fontSb.appendString('bold ');
 		}
+		// TODO: Support FontStyle.Strikethrough and FontStyle.Underline text decorations, these
+		//       need to be drawn manually to the canvas. See xterm.js for "dodging" the text for
+		//       underlines.
 		fontSb.appendString(`${this._fontSize}px ${this._fontFamily}`);
 		this._ctx.font = fontSb.build();
 
