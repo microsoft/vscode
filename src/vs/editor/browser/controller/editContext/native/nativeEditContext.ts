@@ -22,7 +22,7 @@ import * as dom from 'vs/base/browser/dom';
 import { IME } from 'vs/base/common/ime';
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import * as viewEvents from 'vs/editor/common/viewEvents';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ClipboardEventUtils, InMemoryClipboardMetadataManager } from 'vs/editor/browser/controller/editContext/textArea/textAreaInput';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { AccessibilitySupport, IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
@@ -36,6 +36,11 @@ import { ISimpleModel, ITypeData, PagedScreenReaderStrategy, TextAreaState } fro
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { KeyCode } from 'vs/base/common/keyCodes';
+
+/**
+ * Correctly place the bounding boxes so that they are exactly aligned
+ * Long press of e should work correctly to add accents
+ */
 
 const canUseZeroSizeTextarea = (browser.isFirefox);
 
@@ -121,6 +126,8 @@ export class NativeEditContext extends AbstractEditContext {
 
 		this._ensureReadOnlyAttribute();
 
+		let lastKeyDown: IKeyboardEvent | null = null;
+
 		this._register(dom.addDisposableListener(this._domElement.domNode, 'keydown', (e) => {
 			const standardKeyboardEvent = new StandardKeyboardEvent(e);
 			if (standardKeyboardEvent.keyCode === KeyCode.KEY_IN_COMPOSITION
@@ -128,6 +135,7 @@ export class NativeEditContext extends AbstractEditContext {
 				// Stop propagation for keyDown events if the IME is processing key input
 				standardKeyboardEvent.stopPropagation();
 			}
+			lastKeyDown = standardKeyboardEvent;
 			this._viewController.emitKeyDown(standardKeyboardEvent);
 		}));
 
@@ -185,8 +193,14 @@ export class NativeEditContext extends AbstractEditContext {
 					// should not be possible to receive a 'compositionupdate' without a 'compositionstart'
 					return;
 				}
+
+				console.log('this._textAreaState : ', this._textAreaState);
 				const typeInput = currentComposition.handleCompositionUpdate(data);
 				this._textAreaState = TextAreaState.readFromEditContext(this._contextForTextArea, this._textAreaState);
+
+				console.log('typeInput : ', typeInput);
+				console.log('this._textAreaState : ', this._textAreaState);
+
 				this._onType(typeInput);
 				this._render();
 			} else {
@@ -209,6 +223,22 @@ export class NativeEditContext extends AbstractEditContext {
 				return;
 			}
 			this._currentComposition = currentComposition;
+
+			const currentTarget = e.currentTarget as EditContext;
+
+			if (
+				platform.OS === platform.OperatingSystem.Macintosh
+				&& lastKeyDown
+				&& lastKeyDown.equals(KeyCode.KEY_IN_COMPOSITION)
+				&& this._textAreaState.selectionStart === this._textAreaState.selectionEnd
+				&& this._textAreaState.selectionStart > 0
+				&& this._textAreaState.value.substring(this._textAreaState.selectionStart - 1, 1) === currentTarget.text
+				&& (lastKeyDown.code === 'ArrowRight' || lastKeyDown.code === 'ArrowLeft')
+			) {
+				// Handling long press case on Chromium/Safari macOS + arrow key => pretend the character was selected
+				// Pretend the previous character was composed (in order to get it removed by subsequent compositionupdate events)
+				currentComposition.handleCompositionUpdate('x');
+			}
 
 			this._context.viewModel.revealRange(
 				'keyboard',
