@@ -72,20 +72,22 @@ export class TextSearchManager {
 
 					const newResultSize = this.resultSize(result);
 					this.resultCount += newResultSize;
-					if (newResultSize > 0 || !(result instanceof TextSearchMatchNew)) {
+					const a = result instanceof TextSearchMatchNew;
+
+					if (newResultSize > 0 || !a) {
 						this.collector!.add(result, folderIdx);
 					}
 				}
 			};
 
 			// For each root folder
-			this.doSearch(folderQueries, onResult, tokenSource.token).then(results => {
+			this.doSearch(folderQueries, onResult, tokenSource.token).then(result => {
 				tokenSource.dispose();
 				this.collector!.flush();
 
 				resolve({
-					limitHit: results?.limitHit,
-					messages: results?.message ?? [],
+					limitHit: this.isLimitHit || result?.limitHit,
+					messages: this.getMessagesFromResults(result),
 					stats: {
 						type: this.processType
 					}
@@ -96,6 +98,12 @@ export class TextSearchManager {
 				reject(new Error(errMsg));
 			});
 		});
+	}
+
+	private getMessagesFromResults(result: TextSearchCompleteNew | null | undefined) {
+		if (!result?.message) { return []; }
+		if (Array.isArray(result.message)) { return result.message; }
+		return [result.message];
 	}
 
 	private resultSize(result: TextSearchResultNew): number {
@@ -111,11 +119,7 @@ export class TextSearchManager {
 	}
 
 	private trimResultToSize(result: TextSearchMatchNew, size: number): TextSearchMatchNew {
-		return {
-			ranges: result.ranges.slice(0, size),
-			uri: result.uri,
-			previewText: result.previewText
-		};
+		return new TextSearchMatchNew(result.uri, result.ranges.slice(0, size), result.previewText);
 	}
 
 	private async doSearch(folderQueries: IFolderQuery<URI>[], onResult: (result: TextSearchResultNew, folderIdx: number) => void, token: CancellationToken): Promise<TextSearchCompleteNew | null | undefined> {

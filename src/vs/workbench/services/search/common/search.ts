@@ -317,18 +317,18 @@ interface SearchRangeSetPairing {
 export class TextSearchMatch implements ITextSearchMatch {
 	rangeLocations: SearchRangeSetPairing[] = [];
 	previewText: string;
-	ranges: ISearchRange | ISearchRange[];
 	preview: ITextSearchResultPreview;
 	webviewIndex?: number;
 
-	constructor(text: string, range: ISearchRange | ISearchRange[], previewOptions?: ITextSearchPreviewOptions, webviewIndex?: number) {
+	constructor(text: string, public ranges: ISearchRange | ISearchRange[], previewOptions?: ITextSearchPreviewOptions, webviewIndex?: number) {
 		this.webviewIndex = webviewIndex;
 
 		// Trim preview if this is one match and a single-line match with a preview requested.
 		// Otherwise send the full text, like for replace or for showing multiple previews.
 		// TODO this is fishy.
-		const ranges = Array.isArray(range) ? range : [range];
-		if (previewOptions && previewOptions.matchLines === 1 && isSingleLineRangeList(ranges)) {
+		const rangesArr = Array.isArray(ranges) ? ranges : [ranges];
+
+		if (previewOptions && previewOptions.matchLines === 1 && isSingleLineRangeList(rangesArr)) {
 			// 1 line preview requested
 			text = getNLines(text, previewOptions.matchLines);
 
@@ -336,7 +336,7 @@ export class TextSearchMatch implements ITextSearchMatch {
 			let shift = 0;
 			let lastEnd = 0;
 			const leadingChars = Math.floor(previewOptions.charsPerLine / 5);
-			for (const range of ranges) {
+			for (const range of rangesArr) {
 				const previewStart = Math.max(range.startColumn - leadingChars, 0);
 				const previewEnd = range.startColumn + previewOptions.charsPerLine;
 				if (previewStart > lastEnd + leadingChars + SEARCH_ELIDED_MIN_LEN) {
@@ -357,9 +357,9 @@ export class TextSearchMatch implements ITextSearchMatch {
 
 			this.previewText = result;
 		} else {
-			const firstMatchLine = Array.isArray(range) ? range[0].startLineNumber : range.startLineNumber;
+			const firstMatchLine = Array.isArray(ranges) ? ranges[0].startLineNumber : ranges.startLineNumber;
 
-			const rangeLocs = mapArrayOrNot(range, r => ({
+			const rangeLocs = mapArrayOrNot(ranges, r => ({
 				previewRange: new SearchRange(r.startLineNumber - firstMatchLine, r.startColumn, r.endLineNumber - firstMatchLine, r.endColumn),
 				sourceRange: r
 			}));
@@ -368,8 +368,8 @@ export class TextSearchMatch implements ITextSearchMatch {
 			this.previewText = text;
 		}
 
-		this.ranges = mapArrayOrNot(this.rangeLocations, e => e.sourceRange);
-		this.preview = { text: this.previewText, matches: mapArrayOrNot(this.rangeLocations, e => e.previewRange) };
+		const rangesArrayOrSingle = this.rangeLocations.length === 1 ? this.rangeLocations[0] : this.rangeLocations;
+		this.preview = { text: this.previewText, matches: mapArrayOrNot(rangesArrayOrSingle, e => e.previewRange) };
 	}
 }
 
