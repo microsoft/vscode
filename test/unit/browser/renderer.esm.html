@@ -42,17 +42,17 @@
 
 	<script>
 		const isBuild = urlParams.get('build');
+		const out = !!isBuild ? 'out-build' : 'out';
 		const tasks =[];
 
 		// configure loader
 		const baseUrl = window.location.href;
 
-
 		// generate import map
 		const importMapParent = document.currentScript.parentNode;
 		const importMap = {
 			imports: {
-				vs: new URL(`../../../${!!isBuild ? 'out-build' : 'out'}/vs`, baseUrl).href,
+				vs: new URL(`../../../${out}/vs`, baseUrl).href,
 				assert: new URL('../assert-esm.js', baseUrl).href,
 				sinon: new URL('../../../node_modules/sinon/pkg/sinon-esm.js', baseUrl).href,
 				'sinon-test': new URL('../../../node_modules/sinon-test/dist/sinon-test-es.js', baseUrl).href,
@@ -80,7 +80,7 @@
 			tasks.push(new Response(new Blob([cssData], {type:'application/octet-binary'}).stream().pipeThrough(new DecompressionStream('gzip'))).text().then(value => {
 				const cssModules = value.split(',');
 				for (const cssModule of cssModules) {
-					const cssUrl = new URL(`../../../out/${cssModule}`, baseUrl).href;
+					const cssUrl = new URL(`../../../${out}/${cssModule}`, baseUrl).href;
 					const jsSrc = `globalThis._VSCODE_CSS_LOAD('${cssUrl}');\n`;
 					const blob = new Blob([jsSrc], { type: 'application/javascript' });
 					importMap.imports[cssUrl] = URL.createObjectURL(blob);
@@ -193,8 +193,8 @@
 		async function loadModules(modules) {
 			for (const file of modules) {
 				mocha.suite.emit(Mocha.Suite.constants.EVENT_FILE_PRE_REQUIRE, globalThis, file, mocha);
-				const m = await new Promise((resolve, reject) => import(`../../../out/${file}.js`).then(resolve, err => {
-					console.log("BAD " + file + JSON.stringify(err, undefined, '\t'));
+				const m = await new Promise((resolve, reject) => import(`../../../${out}/${file}.js`).then(resolve, err => {
+					console.log("BAD" + file + JSON.stringify(err, undefined, '\t'));
 					resolve({});
 				}));
 				mocha.suite.emit(Mocha.Suite.constants.EVENT_FILE_REQUIRE, m, file, mocha);
