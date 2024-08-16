@@ -746,13 +746,13 @@ suite('ExtHostSearch', () => {
 					if (resultIsMatch(lineResult)) {
 						actualTextSearchResults.push({
 							preview: {
-								text: lineResult.preview.text,
+								text: lineResult.previewText,
 								matches: mapArrayOrNot(
-									lineResult.preview.matches,
+									lineResult.rangeLocations.map(r => r.preview),
 									m => new Range(m.startLineNumber, m.startColumn, m.endLineNumber, m.endColumn))
 							},
 							ranges: mapArrayOrNot(
-								lineResult.ranges,
+								lineResult.rangeLocations.map(r => r.source),
 								r => new Range(r.startLineNumber, r.startColumn, r.endLineNumber, r.endColumn),
 							),
 							uri: fileMatch.resource

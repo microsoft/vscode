@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { mapArrayOrNot } from 'vs/base/common/arrays';
 import { isThenable } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -12,7 +11,7 @@ import * as path from 'vs/base/common/path';
 import * as resources from 'vs/base/common/resources';
 import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { URI } from 'vs/base/common/uri';
-import { DEFAULT_MAX_SEARCH_RESULTS, hasSiblingPromiseFn, IAITextQuery, IExtendedExtensionSearchOptions, IFileMatch, IFolderQuery, excludeToGlobPattern, IPatternInfo, ISearchCompleteStats, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchResult, ITextSearchStats, QueryGlobTester, QueryType, resolvePatternsForProvider } from 'vs/workbench/services/search/common/search';
+import { DEFAULT_MAX_SEARCH_RESULTS, hasSiblingPromiseFn, IAITextQuery, IExtendedExtensionSearchOptions, IFileMatch, IFolderQuery, excludeToGlobPattern, IPatternInfo, ISearchCompleteStats, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchResult, ITextSearchStats, QueryGlobTester, QueryType, resolvePatternsForProvider, ISearchRange } from 'vs/workbench/services/search/common/search';
 import { AITextSearchProviderNew, TextSearchCompleteNew, TextSearchMatchNew, TextSearchProviderFolderOptions, TextSearchProviderNew, TextSearchProviderOptions, TextSearchQueryNew, TextSearchResultNew } from 'vs/workbench/services/search/common/searchExtTypes';
 
 export interface IFileUtils {
@@ -265,21 +264,21 @@ function extensionResultToFrontendResult(data: TextSearchResultNew): ITextSearch
 	// Warning: result from RipgrepTextSearchEH has fake Range. Don't depend on any other props beyond these...
 	if (data instanceof TextSearchMatchNew) {
 		return {
-			preview: {
-				matches: mapArrayOrNot(data.ranges, r => ({
+			previewText: data.previewText,
+			rangeLocations: data.ranges.map(r => ({
+				preview: {
 					startLineNumber: r.previewRange.start.line,
 					startColumn: r.previewRange.start.character,
 					endLineNumber: r.previewRange.end.line,
 					endColumn: r.previewRange.end.character
-				})),
-				text: data.previewText
-			},
-			ranges: mapArrayOrNot(data.ranges, r => ({
-				startLineNumber: r.sourceRange.start.line,
-				startColumn: r.sourceRange.start.character,
-				endLineNumber: r.sourceRange.end.line,
-				endColumn: r.sourceRange.end.character
-			}))
+				} satisfies ISearchRange,
+				source: {
+					startLineNumber: r.sourceRange.start.line,
+					startColumn: r.sourceRange.start.character,
+					endLineNumber: r.sourceRange.end.line,
+					endColumn: r.sourceRange.end.character
+				} satisfies ISearchRange,
+			})),
 		} satisfies ITextSearchMatch;
 	} else {
 		return {

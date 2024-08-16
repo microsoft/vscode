@@ -209,17 +209,12 @@ export interface ISearchRange {
 	readonly endColumn: number;
 }
 
-export interface ITextSearchResultPreview {
-	text: string;
-	matches: ISearchRange | ISearchRange[];
-	cellFragment?: string;
-}
-
 export interface ITextSearchMatch<U extends UriComponents = URI> {
 	uri?: U;
-	ranges: ISearchRange | ISearchRange[];
-	preview: ITextSearchResultPreview;
+	rangeLocations: SearchRangeSetPairing[];
+	previewText: string;
 	webviewIndex?: number;
+	cellFragment?: string;
 }
 
 export interface ITextSearchContext<U extends UriComponents = URI> {
@@ -231,7 +226,7 @@ export interface ITextSearchContext<U extends UriComponents = URI> {
 export type ITextSearchResult<U extends UriComponents = URI> = ITextSearchMatch<U> | ITextSearchContext<U>;
 
 export function resultIsMatch(result: ITextSearchResult): result is ITextSearchMatch {
-	return !!(<ITextSearchMatch>result).preview;
+	return !!(<ITextSearchMatch>result).rangeLocations && !!(<ITextSearchMatch>result).previewText;
 }
 
 export interface IProgressMessage {
@@ -310,17 +305,17 @@ export class FileMatch implements IFileMatch {
 	}
 }
 
-interface SearchRangeSetPairing {
-	sourceRange: ISearchRange;
-	previewRange: ISearchRange;
+export interface SearchRangeSetPairing {
+	source: ISearchRange;
+	preview: ISearchRange;
 }
+
 export class TextSearchMatch implements ITextSearchMatch {
 	rangeLocations: SearchRangeSetPairing[] = [];
 	previewText: string;
-	preview: ITextSearchResultPreview;
 	webviewIndex?: number;
 
-	constructor(text: string, public ranges: ISearchRange | ISearchRange[], previewOptions?: ITextSearchPreviewOptions, webviewIndex?: number) {
+	constructor(text: string, ranges: ISearchRange | ISearchRange[], previewOptions?: ITextSearchPreviewOptions, webviewIndex?: number) {
 		this.webviewIndex = webviewIndex;
 
 		// Trim preview if this is one match and a single-line match with a preview requested.
@@ -349,8 +344,8 @@ export class TextSearchMatch implements ITextSearchMatch {
 
 				lastEnd = previewEnd;
 				this.rangeLocations.push({
-					sourceRange: range,
-					previewRange: new OneLineRange(0, range.startColumn - shift, range.endColumn - shift)
+					source: range,
+					preview: new OneLineRange(0, range.startColumn - shift, range.endColumn - shift)
 				});
 
 			}
@@ -360,16 +355,13 @@ export class TextSearchMatch implements ITextSearchMatch {
 			const firstMatchLine = Array.isArray(ranges) ? ranges[0].startLineNumber : ranges.startLineNumber;
 
 			const rangeLocs = mapArrayOrNot(ranges, r => ({
-				previewRange: new SearchRange(r.startLineNumber - firstMatchLine, r.startColumn, r.endLineNumber - firstMatchLine, r.endColumn),
-				sourceRange: r
+				preview: new SearchRange(r.startLineNumber - firstMatchLine, r.startColumn, r.endLineNumber - firstMatchLine, r.endColumn),
+				source: r
 			}));
 
 			this.rangeLocations = Array.isArray(rangeLocs) ? rangeLocs : [rangeLocs];
 			this.previewText = text;
 		}
-
-		const rangesArrayOrSingle = this.rangeLocations.length === 1 ? this.rangeLocations[0] : this.rangeLocations;
-		this.preview = { text: this.previewText, matches: mapArrayOrNot(rangesArrayOrSingle, e => e.previewRange) };
 	}
 }
 

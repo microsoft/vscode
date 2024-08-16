@@ -355,8 +355,8 @@ export class RipgrepParser extends EventEmitter {
 			uri,
 			internalResult.rangeLocations.map(e => (
 				{
-					sourceRange: searchRangeToRange(e.sourceRange),
-					previewRange: searchRangeToRange(e.sourceRange),
+					sourceRange: searchRangeToRange(e.source),
+					previewRange: searchRangeToRange(e.preview),
 				}
 			)),
 			internalResult.previewText);
