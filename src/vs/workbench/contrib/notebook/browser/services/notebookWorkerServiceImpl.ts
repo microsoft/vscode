@@ -11,7 +11,6 @@ import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/mode
 import { IMainCellDto, INotebookDiffResult, NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { NotebookEditorSimpleWorker } from 'vs/workbench/contrib/notebook/common/services/notebookSimpleWorker';
-import { INotebookWorkerHost } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerHost';
 import { INotebookEditorWorkerService } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerService';
 import { FileAccess } from 'vs/base/common/network';
 
@@ -186,20 +185,6 @@ class NotebookEditorModelManager extends Disposable {
 	}
 }
 
-class NotebookWorkerHost implements INotebookWorkerHost {
-
-	private readonly _workerClient: NotebookWorkerClient;
-
-	constructor(workerClient: NotebookWorkerClient) {
-		this._workerClient = workerClient;
-	}
-
-	// foreign host request
-	public fhr(method: string, args: any[]): Promise<any> {
-		return this._workerClient.fhr(method, args);
-	}
-}
-
 class NotebookWorkerClient extends Disposable {
 	private _worker: IWorkerClient<NotebookEditorSimpleWorker> | null;
 	private readonly _workerFactory: DefaultWorkerFactory;
@@ -248,10 +233,9 @@ class NotebookWorkerClient extends Disposable {
 	private _getOrCreateWorker(): IWorkerClient<NotebookEditorSimpleWorker> {
 		if (!this._worker) {
 			try {
-				this._worker = this._register(new SimpleWorkerClient<NotebookEditorSimpleWorker, NotebookWorkerHost>(
+				this._worker = this._register(new SimpleWorkerClient<NotebookEditorSimpleWorker, void>(
 					this._workerFactory,
-					'vs/workbench/contrib/notebook/common/services/notebookSimpleWorker',
-					new NotebookWorkerHost(this)
+					'vs/workbench/contrib/notebook/common/services/notebookSimpleWorker'
 				));
 			} catch (err) {
 				// logOnceWebWorkerWarning(err);

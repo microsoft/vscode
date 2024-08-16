@@ -305,7 +305,7 @@ export interface IWorkerServer {
 /**
  * Main thread side
  */
-export class SimpleWorkerClient<W extends object, H extends object> extends Disposable implements IWorkerClient<W> {
+export class SimpleWorkerClient<W extends object, H extends object | void> extends Disposable implements IWorkerClient<W> {
 
 	private readonly _worker: IWorker;
 	private readonly _onModuleLoaded: Promise<string[]>;
@@ -317,7 +317,7 @@ export class SimpleWorkerClient<W extends object, H extends object> extends Disp
 	constructor(
 		workerFactory: IWorkerFactory,
 		moduleId: string,
-		private readonly _host: H,
+		private readonly _host?: H,
 	) {
 		super();
 
@@ -360,7 +360,7 @@ export class SimpleWorkerClient<W extends object, H extends object> extends Disp
 			loaderConfiguration = (globalThis as any).requirejs.s.contexts._.config;
 		}
 
-		const hostMethods = getAllMethodNames(_host);
+		const hostMethods = getAllMethodNames(_host ?? {});
 
 		// Send initialize message
 		this._onModuleLoaded = this._protocol.sendMessage(DEFAULT_CHANNEL, INITIALIZE, [
@@ -390,7 +390,7 @@ export class SimpleWorkerClient<W extends object, H extends object> extends Disp
 	}
 
 	private _handleMessage(channel: string, method: string, args: any[]): Promise<any> {
-		const host: object | undefined = (channel === DEFAULT_CHANNEL ? this._host : this._localChannels.get(channel));
+		const host: object | void | undefined = (channel === DEFAULT_CHANNEL ? this._host : this._localChannels.get(channel));
 		if (!host) {
 			return Promise.reject(new Error(`Missing channel ${channel} on main thread`));
 		}
@@ -406,7 +406,7 @@ export class SimpleWorkerClient<W extends object, H extends object> extends Disp
 	}
 
 	private _handleEvent(channel: string, eventName: string, arg: any): Event<any> {
-		const host: object | undefined = (channel === DEFAULT_CHANNEL ? this._host : this._localChannels.get(channel));
+		const host: object | void | undefined = (channel === DEFAULT_CHANNEL ? this._host : this._localChannels.get(channel));
 		if (!host) {
 			throw new Error(`Missing channel ${channel} on main thread`);
 		}

@@ -11,7 +11,6 @@ import * as model from 'vs/editor/common/model';
 import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
 import { CellKind, ICellDto2, IMainCellDto, INotebookDiffResult, IOutputDto, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookCellTextModelSplice, NotebookData, NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Range } from 'vs/editor/common/core/range';
-import { INotebookWorkerHost } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerHost';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { SearchParams } from 'vs/editor/common/model/textModelSearch';
 
@@ -318,6 +317,6 @@ export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable 
  * Called on the worker side
  * @skipMangle
  */
-export function create(workerServer: IWorkerServer, host: INotebookWorkerHost): IRequestHandler {
+export function create(workerServer: IWorkerServer): IRequestHandler {
 	return new NotebookEditorSimpleWorker();
 }
