@@ -2,8 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+import { createStyleSheet } from 'vs/base/browser/dom';
+import { RunOnceScheduler } from 'vs/base/common/async';
 import { IProductConfiguration } from 'vs/base/common/product';
 import { localize } from 'vs/nls';
+import { getIconsStyleSheet } from 'vs/platform/theme/browser/iconsStyleSheet';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { BaseIssueReporterService } from 'vs/workbench/contrib/issue/browser/baseIssueReporterService';
 import { IIssueFormService, IssueReporterData } from 'vs/workbench/contrib/issue/common/issue';
 
@@ -21,9 +25,10 @@ export class IssueWebReporter extends BaseIssueReporterService {
 		},
 		product: IProductConfiguration,
 		window: Window,
-		@IIssueFormService issueFormService: IIssueFormService
+		@IIssueFormService issueFormService: IIssueFormService,
+		@IThemeService themeService: IThemeService
 	) {
-		super(disableExtensions, data, os, product, window, true, issueFormService);
+		super(disableExtensions, data, os, product, window, true, issueFormService, themeService);
 
 		const target = this.window.document.querySelector<HTMLElement>('.block-system .block-info');
 
