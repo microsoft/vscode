@@ -76,12 +76,12 @@ suite('ExtHostSearch', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	async function registerTestTextSearchProvider(provider: vscode.TextSearchProvider, scheme = 'file'): Promise<void> {
-		disposables.add(extHostSearch.registerTextSearchProvider(scheme, provider));
+		disposables.add(extHostSearch.registerTextSearchProviderOld(scheme, provider));
 		await rpcProtocol.sync();
 	}
 
 	async function registerTestFileSearchProvider(provider: vscode.FileSearchProvider, scheme = 'file'): Promise<void> {
-		disposables.add(extHostSearch.registerFileSearchProvider(scheme, provider));
+		disposables.add(extHostSearch.registerFileSearchProviderOld(scheme, provider));
 		await rpcProtocol.sync();
 	}
 
@@ -170,7 +170,7 @@ suite('ExtHostSearch', () => {
 				this._pfs = mockPFS as any;
 			}
 
-			protected override createTextSearchManager(query: ITextQuery, provider: vscode.TextSearchProvider): TextSearchManager {
+			protected override createTextSearchManager(query: ITextQuery, provider: vscode.TextSearchProviderNew): TextSearchManager {
 				return new NativeTextSearchManager(query, provider, this._pfs);
 			}
 		});
@@ -746,13 +746,13 @@ suite('ExtHostSearch', () => {
 					if (resultIsMatch(lineResult)) {
 						actualTextSearchResults.push({
 							preview: {
-								text: lineResult.preview.text,
+								text: lineResult.previewText,
 								matches: mapArrayOrNot(
-									lineResult.preview.matches,
+									lineResult.rangeLocations.map(r => r.preview),
 									m => new Range(m.startLineNumber, m.startColumn, m.endLineNumber, m.endColumn))
 							},
 							ranges: mapArrayOrNot(
-								lineResult.ranges,
+								lineResult.rangeLocations.map(r => r.source),
 								r => new Range(r.startLineNumber, r.startColumn, r.endLineNumber, r.endColumn),
 							),
 							uri: fileMatch.resource
