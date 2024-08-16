@@ -422,7 +422,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		this.searchButton.onclick = e => {
 			e.preventDefault();
 			e.stopPropagation();
-			this.commandService.executeCommand('membrane.packages.focus');
+			this.commandService.executeCommand('membrane.packages.search');
 		};
 
 		// App Icon (Native Windows/Linux and Web)

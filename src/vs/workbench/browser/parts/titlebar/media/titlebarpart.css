@@ -522,6 +522,7 @@
 .membrane-package-search:hover,
 .membrane-new-program:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
+	color: var(--vscode-titleBar-activeForeground);
 }
 
 .membrane-package-search:active,
