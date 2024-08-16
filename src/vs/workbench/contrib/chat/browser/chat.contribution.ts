@@ -119,7 +119,7 @@ configurationRegistry.registerConfiguration({
 		'chat.experimental.detectParticipant.enabled': {
 			type: 'boolean',
 			description: nls.localize('chat.experimental.detectParticipant.enabled', "Enables chat participant autodetection for panel chat."),
-			default: false
+			default: null
 		},
 	}
 });

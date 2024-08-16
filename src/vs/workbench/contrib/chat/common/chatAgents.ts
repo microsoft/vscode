@@ -74,6 +74,7 @@ export interface IChatAgentData {
 	metadata: IChatAgentMetadata;
 	slashCommands: IChatAgentCommand[];
 	locations: ChatAgentLocation[];
+	disambiguation: { categoryName: string; description: string; examples: string[] }[];
 }
 
 export interface IChatAgentImplementation {
@@ -91,7 +92,7 @@ export interface IChatParticipantDetectionResult {
 export interface IChatParticipantMetadata {
 	participant: string;
 	command?: string;
-	description?: string;
+	disambiguation: { categoryName: string; description: string; examples: string[] }[];
 }
 
 export interface IChatParticipantDetectionProvider {
@@ -191,6 +192,7 @@ export interface IChatAgentService {
 	getAgentCompletionItems(id: string, query: string, token: CancellationToken): Promise<IChatAgentCompletionItem[]>;
 	registerChatParticipantDetectionProvider(handle: number, provider: IChatParticipantDetectionProvider): IDisposable;
 	detectAgentOrCommand(request: IChatAgentRequest, history: IChatAgentHistoryEntry[], options: { location: ChatAgentLocation }, token: CancellationToken): Promise<{ agent: IChatAgentData; command?: IChatAgentCommand } | undefined>;
+	hasChatParticipantDetectionProviders(): boolean;
 	invokeAgent(agent: string, request: IChatAgentRequest, progress: (part: IChatProgress) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult>;
 	getFollowups(id: string, request: IChatAgentRequest, result: IChatAgentResult, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatFollowup[]>;
 	getAgent(id: string): IChatAgentData | undefined;
@@ -410,6 +412,10 @@ export class ChatAgentService implements IChatAgentService {
 		});
 	}
 
+	hasChatParticipantDetectionProviders() {
+		return this._chatParticipantDetectionProviders.size > 0;
+	}
+
 	async detectAgentOrCommand(request: IChatAgentRequest, history: IChatAgentHistoryEntry[], options: { location: ChatAgentLocation }, token: CancellationToken): Promise<{ agent: IChatAgentData; command?: IChatAgentCommand } | undefined> {
 		// TODO@joyceerhl should we have a selector to be able to narrow down which provider to use
 		const provider = Iterable.first(this._chatParticipantDetectionProviders.values());
@@ -418,9 +424,9 @@ export class ChatAgentService implements IChatAgentService {
 		}
 
 		const participants = this.getAgents().reduce<IChatParticipantMetadata[]>((acc, a) => {
-			acc.push({ participant: a.id, description: undefined });
+			acc.push({ participant: a.id, disambiguation: a.disambiguation ?? [] });
 			for (const command of a.slashCommands) {
-				acc.push({ participant: a.id, command: command.name, description: undefined });
+				acc.push({ participant: a.id, command: command.name, disambiguation: [] });
 			}
 			return acc;
 		}, []);
@@ -455,6 +461,9 @@ export class MergedChatAgent implements IChatAgent {
 		private readonly data: IChatAgentData,
 		private readonly impl: IChatAgentImplementation
 	) { }
+	when?: string | undefined;
+	publisherDisplayName?: string | undefined;
+	isDynamic?: boolean | undefined;
 
 	get id(): string { return this.data.id; }
 	get name(): string { return this.data.name ?? ''; }
@@ -468,6 +477,7 @@ export class MergedChatAgent implements IChatAgent {
 	get metadata(): IChatAgentMetadata { return this.data.metadata; }
 	get slashCommands(): IChatAgentCommand[] { return this.data.slashCommands; }
 	get locations(): ChatAgentLocation[] { return this.data.locations; }
+	get disambiguation(): { categoryName: string; description: string; examples: string[] }[] { return this.data.disambiguation; }
 
 	async invoke(request: IChatAgentRequest, progress: (part: IChatProgress) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult> {
 		return this.impl.invoke(request, progress, history, token);

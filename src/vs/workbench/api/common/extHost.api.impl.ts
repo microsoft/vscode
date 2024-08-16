@@ -1770,7 +1770,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			TestResultState: extHostTypes.TestResultState,
 			TestRunRequest: extHostTypes.TestRunRequest,
 			TestMessage: extHostTypes.TestMessage,
-			TestMessage2: extHostTypes.TestMessage,
 			TestMessageStackFrame: extHostTypes.TestMessageStackFrame,
 			TestTag: extHostTypes.TestTag,
 			TestRunProfileKind: extHostTypes.TestRunProfileKind,

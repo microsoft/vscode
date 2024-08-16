@@ -69,7 +69,7 @@
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
-	padding: 4px 6px 0 6px
+	padding: 6px 6px 0 6px
 }
 
 .monaco-workbench .inline-chat .status .actions.hidden {
@@ -121,29 +121,6 @@
 	.actions-container {
 		gap: 3px
 	}
-
-	.action-item.text-only .action-label {
-		font-size: 12px;
-		line-height: 16px;
-		padding: 0 4px;
-		border-radius: 2px;
-	}
-
-	.monaco-action-bar .action-item.menu-entry.text-only + .action-item:not(.text-only) > .monaco-dropdown .action-label {
-		font-size: 12px;
-		line-height: 16px;
-		width: unset;
-		height: unset;
-	}
-}
-
-.monaco-workbench .inline-chat .status .actions,
-.monaco-workbench .inline-chat-content-widget.contents .toolbar  {
-
-	.monaco-action-bar .action-item.menu-entry.text-only:first-of-type .action-label{
-		color: var(--vscode-button-foreground);
-		background-color: var(--vscode-button-background);
-	}
 }
 
 .monaco-workbench .inline-chat .status {
@@ -152,15 +129,6 @@
 	}
 	.actions.button-style {
 		display: inherit;
-	}
-}
-
-.monaco-workbench .inline-chat .status.text {
-	.actions.text-style {
-		display: inherit;
-	}
-	.actions.button-style {
-		display: none;
 	}
 }
 
@@ -229,11 +197,6 @@
 .monaco-workbench .inline-chat-lines-inserted-range {
 	background-color: var(--vscode-diffEditor-insertedTextBackground);
 }
-
-.monaco-workbench .inline-chat-block-selection {
-	background-color: var(--vscode-inlineChat-regionHighlight);
-}
-
 
 /* gutter decoration */
 

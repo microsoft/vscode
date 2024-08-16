@@ -22,7 +22,7 @@ import { Emitter } from 'vs/base/common/event';
 import { RenderedContentHover } from 'vs/editor/contrib/hover/browser/contentHoverRendered';
 import { isMousePositionWithinElement } from 'vs/editor/contrib/hover/browser/hoverUtils';
 
-export class ContentHoverController extends Disposable implements IHoverWidget {
+export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidget {
 
 	private _currentResult: HoverResult | null = null;
 	private _renderedContentHover: RenderedContentHover | undefined;

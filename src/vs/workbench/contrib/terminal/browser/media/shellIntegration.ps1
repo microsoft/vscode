@@ -369,8 +369,19 @@ function Send-Completions {
 		}
 
 		# Get completions using TabExpansion2
-		$completions = TabExpansion2 -inputScript $completionPrefix -cursorColumn $cursorIndex
-		if ($null -ne $completions.CompletionMatches) {
+		$completions = $null
+		try
+		{
+			$completions = TabExpansion2 -inputScript $completionPrefix -cursorColumn $cursorIndex
+		}
+		catch
+		{
+			# TabExpansion2 may throw when there are no completions, in this case return an empty
+			# list to prevent falling back to file path completions
+		}
+		if ($null -eq $completions -or $null -eq $completions.CompletionMatches) {
+			$result += ";0;$($completionPrefix.Length);$($completionPrefix.Length);[]"
+		} else {
 			$result += ";$($completions.ReplacementIndex);$($completions.ReplacementLength + $prefixCursorDelta);$($cursorIndex - $prefixCursorDelta);"
 			$json = [System.Collections.ArrayList]@($completions.CompletionMatches)
 			# Relative directory completions

@@ -819,14 +819,24 @@ Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMi
 			const delayWarning = getDelaysFromConfig(accessor, 'warningAtPosition');
 			const volume = getVolumeFromConfig(accessor);
 			const debouncePositionChanges = getDebouncePositionChangesFromConfig(accessor);
-			return [
-				['accessibility.signalOptions.volume', { value: volume }],
-				['accessibility.signalOptions.debouncePositionChanges', { value: debouncePositionChanges }],
-				['accessibility.signalOptions.experimental.delays.general', { value: delayGeneral }],
-				['accessibility.signalOptions.experimental.delays.errorAtPosition', { value: delayError }],
-				['accessibility.signalOptions.experimental.delays.warningAtPosition', { value: delayWarning }],
-				['accessibility.signalOptions', { value: undefined }],
-			];
+			const result: [key: string, { value: any }][] = [];
+			if (!!volume) {
+				result.push(['accessibility.signalOptions.volume', { value: volume }]);
+			}
+			if (!!delayGeneral) {
+				result.push(['accessibility.signalOptions.experimental.delays.general', { value: delayGeneral }]);
+			}
+			if (!!delayError) {
+				result.push(['accessibility.signalOptions.experimental.delays.errorAtPosition', { value: delayError }]);
+			}
+			if (!!delayWarning) {
+				result.push(['accessibility.signalOptions.experimental.delays.warningAtPosition', { value: delayWarning }]);
+			}
+			if (!!debouncePositionChanges) {
+				result.push(['accessibility.signalOptions.debouncePositionChanges', { value: debouncePositionChanges }]);
+			}
+			result.push(['accessibility.signalOptions', { value: undefined }]);
+			return result;
 		}
 	}]);
 
@@ -874,6 +884,8 @@ Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMi
 				newValue = 'on';
 			} else if (value === false) {
 				newValue = 'off';
+			} else {
+				return [];
 			}
 			return [
 				[AccessibilityVoiceSettingId.AutoSynthesize, { value: newValue }],

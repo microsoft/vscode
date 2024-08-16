@@ -134,7 +134,7 @@ suite('TreeSitterParserService', function () {
 			}
 		}
 
-		const treeSitterParser: TreeSitterLanguages = store.add(new MockTreeSitterParser(treeSitterImporter, {} as any));
+		const treeSitterParser: TreeSitterLanguages = store.add(new MockTreeSitterParser(treeSitterImporter, {} as any, { isBuilt: false } as any));
 		const textModel = store.add(createTextModel('console.log("Hello, world!");', 'javascript'));
 		const textModelTreeSitter = store.add(new TextModelTreeSitter(textModel, treeSitterParser, treeSitterImporter, logService, telemetryService));
 		textModel.setLanguage('typescript');

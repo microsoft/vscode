@@ -28,17 +28,19 @@ suite('typescript.previewer', () => {
 	test('Should parse url jsdoc @link', () => {
 		assert.strictEqual(
 			documentationToMarkdown(
-				'x {@link http://www.example.com/foo} y {@link https://api.jquery.com/bind/#bind-eventType-eventData-handler} z',
+				// 'x {@link http://www.example.com/foo} y {@link https://api.jquery.com/bind/#bind-eventType-eventData-handler} z',
+				[{ "text": "x ", "kind": "text" }, { "text": "{@link ", "kind": "link" }, { "text": "http://www.example.com/foo", "kind": "linkText" }, { "text": "}", "kind": "link" }, { "text": " y ", "kind": "text" }, { "text": "{@link ", "kind": "link" }, { "text": "https://api.jquery.com/bind/#bind-eventType-eventData-handler", "kind": "linkText" }, { "text": "}", "kind": "link" }, { "text": " z", "kind": "text" }],
 				[],
 				noopToResource, undefined
 			).value,
-			'x [http://www.example.com/foo](http://www.example.com/foo) y [https://api.jquery.com/bind/#bind-eventType-eventData-handler](https://api.jquery.com/bind/#bind-eventType-eventData-handler) z');
+			'x <http://www.example.com/foo> y <https://api.jquery.com/bind/#bind-eventType-eventData-handler> z');
 	});
 
 	test('Should parse url jsdoc @link with text', () => {
 		assert.strictEqual(
 			documentationToMarkdown(
-				'x {@link http://www.example.com/foo abc xyz} y {@link http://www.example.com/bar|b a z} z',
+				// 'x {@link http://www.example.com/foo abc xyz} y {@link http://www.example.com/bar|b a z} z',
+				[{ "text": "x ", "kind": "text" }, { "text": "{@link ", "kind": "link" }, { "text": "http://www.example.com/foo abc xyz", "kind": "linkText" }, { "text": "}", "kind": "link" }, { "text": " y ", "kind": "text" }, { "text": "{@link ", "kind": "link" }, { "text": "http://www.example.com/bar b a z", "kind": "linkText" }, { "text": "}", "kind": "link" }, { "text": " z", "kind": "text" }],
 				[],
 				noopToResource, undefined
 			).value,
@@ -48,11 +50,12 @@ suite('typescript.previewer', () => {
 	test('Should treat @linkcode jsdocs links as monospace', () => {
 		assert.strictEqual(
 			documentationToMarkdown(
-				'x {@linkcode http://www.example.com/foo} y {@linkplain http://www.example.com/bar} z',
+				// 'x {@linkcode http://www.example.com/foo} y {@linkplain http://www.example.com/bar} z',
+				[{ "text": "x ", "kind": "text" }, { "text": "{@linkcode ", "kind": "link" }, { "text": "http://www.example.com/foo", "kind": "linkText" }, { "text": "}", "kind": "link" }, { "text": " y ", "kind": "text" }, { "text": "{@linkplain ", "kind": "link" }, { "text": "http://www.example.com/bar", "kind": "linkText" }, { "text": "}", "kind": "link" }, { "text": " z", "kind": "text" }],
 				[],
 				noopToResource, undefined
 			).value,
-			'x [`http://www.example.com/foo`](http://www.example.com/foo) y [http://www.example.com/bar](http://www.example.com/bar) z');
+			'x [`http://www.example.com/foo`](http://www.example.com/foo) y <http://www.example.com/bar> z');
 	});
 
 	test('Should parse url jsdoc @link in param tag', () => {
@@ -60,20 +63,11 @@ suite('typescript.previewer', () => {
 			tagsToMarkdown([
 				{
 					name: 'param',
-					text: 'a x {@link http://www.example.com/foo abc xyz} y {@link http://www.example.com/bar|b a z} z'
+					// a x {@link http://www.example.com/foo abc xyz} y {@link http://www.example.com/bar|b a z} z
+					text: [{ "text": "a", "kind": "parameterName" }, { "text": " ", "kind": "space" }, { "text": "x ", "kind": "text" }, { "text": "{@link ", "kind": "link" }, { "text": "http://www.example.com/foo abc xyz", "kind": "linkText" }, { "text": "}", "kind": "link" }, { "text": " y ", "kind": "text" }, { "text": "{@link ", "kind": "link" }, { "text": "http://www.example.com/bar b a z", "kind": "linkText" }, { "text": "}", "kind": "link" }, { "text": " z", "kind": "text" }],
 				}
 			], noopToResource),
 			'*@param* `a` — x [abc xyz](http://www.example.com/foo) y [b a z](http://www.example.com/bar) z');
-	});
-
-	test('Should ignore unclosed jsdocs @link', () => {
-		assert.strictEqual(
-			documentationToMarkdown(
-				'x {@link http://www.example.com/foo y {@link http://www.example.com/bar bar} z',
-				[],
-				noopToResource, undefined
-			).value,
-			'x {@link http://www.example.com/foo y [bar](http://www.example.com/bar) z');
 	});
 
 	test('Should support non-ascii characters in parameter name (#90108)', () => {

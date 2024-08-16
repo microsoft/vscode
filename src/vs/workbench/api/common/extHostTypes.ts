@@ -4496,6 +4496,8 @@ export class ChatResponseTextEditPart {
 }
 
 export class ChatRequestTurn implements vscode.ChatRequestTurn {
+	toolReferences?: vscode.ChatLanguageModelToolReference[];
+
 	constructor(
 		readonly prompt: string,
 		readonly command: string | undefined,

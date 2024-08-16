@@ -23,8 +23,7 @@ import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/se
 import { localize } from 'vs/nls';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IWorkbenchButtonBarOptions, MenuWorkbenchButtonBar } from 'vs/platform/actions/browser/buttonbar';
-import { HiddenItemStrategy, MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
-import { MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
+import { MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -36,7 +35,7 @@ import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/commo
 import { ChatModel, IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { HunkInformation, Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
-import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_RESPONSE_FOCUSED, inlineChatBackground, InlineChatConfigKeys, inlineChatForeground } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_RESPONSE_FOCUSED, inlineChatBackground, inlineChatForeground } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { ChatWidget, IChatWidgetLocationOptions } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { chatRequestBackground } from 'vs/workbench/contrib/chat/common/chatColors';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -47,7 +46,6 @@ import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateF
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { IChatWidgetViewOptions } from 'vs/workbench/contrib/chat/browser/chat';
-import { TextOnlyMenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 
 
 export interface InlineChatWidgetViewState {
@@ -89,7 +87,6 @@ export class InlineChatWidget {
 			h('div.accessibleViewer@accessibleViewer'),
 			h('div.status@status', [
 				h('div.label.info.hidden@infoLabel'),
-				h('div.actions.text-style.hidden@toolbar1'),
 				h('div.actions.button-style.hidden@toolbar2'),
 				h('div.label.status.hidden@statusLabel'),
 			]),
@@ -196,19 +193,6 @@ export class InlineChatWidget {
 
 		const statusMenuId = options.statusMenuId instanceof MenuId ? options.statusMenuId : options.statusMenuId.menu;
 
-		// TEXT-ONLY bar
-		const statusToolbarMenu = scopedInstaService.createInstance(MenuWorkbenchToolBar, this._elements.toolbar1, statusMenuId, {
-			hiddenItemStrategy: HiddenItemStrategy.NoHide,
-			telemetrySource: options.chatWidgetViewOptions?.menus?.telemetrySource,
-			actionViewItemProvider: action => action instanceof MenuItemAction ? this._instantiationService.createInstance(TextOnlyMenuEntryActionViewItem, action, { conversational: true }) : undefined,
-			toolbarOptions: { primaryGroup: '0_main' },
-			menuOptions: { renderShortTitle: true },
-			label: true,
-			icon: false
-		});
-		this._store.add(statusToolbarMenu.onDidChangeMenuItems(() => this._onDidChangeHeight.fire()));
-		this._store.add(statusToolbarMenu);
-
 		// BUTTON bar
 		const statusMenuOptions = options.statusMenuId instanceof MenuId ? undefined : options.statusMenuId.options;
 		const statusButtonBar = scopedInstaService.createInstance(MenuWorkbenchButtonBar, this._elements.toolbar2, statusMenuId, {
@@ -219,10 +203,6 @@ export class InlineChatWidget {
 		});
 		this._store.add(statusButtonBar.onDidChange(() => this._onDidChangeHeight.fire()));
 		this._store.add(statusButtonBar);
-
-		const toggleToolbar = () => this._elements.status.classList.toggle('text', this._configurationService.getValue(InlineChatConfigKeys.ExpTextButtons));
-		this._store.add(this._configurationService.onDidChangeConfiguration(e => e.affectsConfiguration(InlineChatConfigKeys.ExpTextButtons) && toggleToolbar()));
-		toggleToolbar();
 
 
 		this._store.add(this._configurationService.onDidChangeConfiguration(e => {
@@ -373,7 +353,6 @@ export class InlineChatWidget {
 
 	updateToolbar(show: boolean) {
 		this._elements.root.classList.toggle('toolbar', show);
-		this._elements.toolbar1.classList.toggle('hidden', !show);
 		this._elements.toolbar2.classList.toggle('hidden', !show);
 		this._elements.status.classList.toggle('actions', show);
 		this._elements.infoLabel.classList.toggle('hidden', show);
@@ -505,7 +484,6 @@ export class InlineChatWidget {
 
 		reset(this._elements.statusLabel);
 		this._elements.statusLabel.classList.toggle('hidden', true);
-		this._elements.toolbar1.classList.add('hidden');
 		this._elements.toolbar2.classList.add('hidden');
 		this.updateInfo('');
 
