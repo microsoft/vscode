@@ -1416,32 +1416,32 @@ suite('NotebookTextModel', () => {
 				const notebookModel = viewModel.notebookDocument;
 
 				// Test case 1: Find 'var' starting from the first cell
-				let match = notebookModel.findNextMatch('var', { cellIndex: 0, position: { lineNumber: 1, column: 1 } }, false, false, null);
-				assert.ok(match);
-				assert.strictEqual(match!.range.startLineNumber, 1);
-				assert.strictEqual(match!.range.startColumn, 1);
+				let findMatch = notebookModel.findNextMatch('var', { cellIndex: 0, position: { lineNumber: 1, column: 1 } }, false, false, null);
+				assert.ok(findMatch);
+				assert.strictEqual(findMatch!.match.range.startLineNumber, 1);
+				assert.strictEqual(findMatch!.match.range.startColumn, 1);
 
 				// Test case 2: Find 'b' starting from the second cell
-				match = notebookModel.findNextMatch('b', { cellIndex: 1, position: { lineNumber: 1, column: 1 } }, false, false, null);
-				assert.ok(match);
-				assert.strictEqual(match!.range.startLineNumber, 1);
-				assert.strictEqual(match!.range.startColumn, 5);
+				findMatch = notebookModel.findNextMatch('b', { cellIndex: 1, position: { lineNumber: 1, column: 1 } }, false, false, null);
+				assert.ok(findMatch);
+				assert.strictEqual(findMatch!.match.range.startLineNumber, 1);
+				assert.strictEqual(findMatch!.match.range.startColumn, 5);
 
 				// Test case 3: Find 'c' starting from the third cell
-				match = notebookModel.findNextMatch('c', { cellIndex: 2, position: { lineNumber: 1, column: 1 } }, false, false, null);
-				assert.ok(match);
-				assert.strictEqual(match!.range.startLineNumber, 1);
-				assert.strictEqual(match!.range.startColumn, 5);
+				findMatch = notebookModel.findNextMatch('c', { cellIndex: 2, position: { lineNumber: 1, column: 1 } }, false, false, null);
+				assert.ok(findMatch);
+				assert.strictEqual(findMatch!.match.range.startLineNumber, 1);
+				assert.strictEqual(findMatch!.match.range.startColumn, 5);
 
 				// Test case 4: Find 'd' starting from the fourth cell
-				match = notebookModel.findNextMatch('d', { cellIndex: 3, position: { lineNumber: 1, column: 1 } }, false, false, null);
-				assert.ok(match);
-				assert.strictEqual(match!.range.startLineNumber, 1);
-				assert.strictEqual(match!.range.startColumn, 5);
+				findMatch = notebookModel.findNextMatch('d', { cellIndex: 3, position: { lineNumber: 1, column: 1 } }, false, false, null);
+				assert.ok(findMatch);
+				assert.strictEqual(findMatch!.match.range.startLineNumber, 1);
+				assert.strictEqual(findMatch!.match.range.startColumn, 5);
 
 				// Test case 5: No match found
-				match = notebookModel.findNextMatch('e', { cellIndex: 0, position: { lineNumber: 1, column: 1 } }, false, false, null);
-				assert.strictEqual(match, null);
+				findMatch = notebookModel.findNextMatch('e', { cellIndex: 0, position: { lineNumber: 1, column: 1 } }, false, false, null);
+				assert.strictEqual(findMatch, null);
 			}
 		);
 	});
@@ -1458,55 +1458,55 @@ suite('NotebookTextModel', () => {
 				const notebookModel = viewModel.notebookDocument;
 
 				// Test case 1: Find 'var' starting from the first cell
-				let match = notebookModel.findNextMatch('var', { cellIndex: 0, position: { lineNumber: 1, column: 1 } }, false, false, null);
-				assert.ok(match);
-				assert.strictEqual(match!.range.startLineNumber, 1);
-				assert.strictEqual(match!.range.startColumn, 1);
+				let findMatch = notebookModel.findNextMatch('var', { cellIndex: 0, position: { lineNumber: 1, column: 1 } }, false, false, null);
+				assert.ok(findMatch);
+				assert.strictEqual(findMatch!.match.range.startLineNumber, 1);
+				assert.strictEqual(findMatch!.match.range.startColumn, 1);
 
 				// Test case 2: Find 'b' starting from the second cell
-				match = notebookModel.findNextMatch('b', { cellIndex: 1, position: { lineNumber: 1, column: 1 } }, false, false, null);
-				assert.ok(match);
-				assert.strictEqual(match!.range.startLineNumber, 1);
-				assert.strictEqual(match!.range.startColumn, 5);
+				findMatch = notebookModel.findNextMatch('b', { cellIndex: 1, position: { lineNumber: 1, column: 1 } }, false, false, null);
+				assert.ok(findMatch);
+				assert.strictEqual(findMatch!.match.range.startLineNumber, 1);
+				assert.strictEqual(findMatch!.match.range.startColumn, 5);
 
 				// Test case 3: Find 'c' starting from the third cell
-				match = notebookModel.findNextMatch('c', { cellIndex: 2, position: { lineNumber: 1, column: 1 } }, false, false, null);
-				assert.ok(match);
-				assert.strictEqual(match!.range.startLineNumber, 1);
-				assert.strictEqual(match!.range.startColumn, 5);
+				findMatch = notebookModel.findNextMatch('c', { cellIndex: 2, position: { lineNumber: 1, column: 1 } }, false, false, null);
+				assert.ok(findMatch);
+				assert.strictEqual(findMatch!.match.range.startLineNumber, 1);
+				assert.strictEqual(findMatch!.match.range.startColumn, 5);
 
 				// Test case 4: Find 'd' starting from the fourth cell
-				match = notebookModel.findNextMatch('d', { cellIndex: 3, position: { lineNumber: 1, column: 1 } }, false, false, null);
-				assert.ok(match);
-				assert.strictEqual(match!.range.startLineNumber, 1);
-				assert.strictEqual(match!.range.startColumn, 5);
+				findMatch = notebookModel.findNextMatch('d', { cellIndex: 3, position: { lineNumber: 1, column: 1 } }, false, false, null);
+				assert.ok(findMatch);
+				assert.strictEqual(findMatch!.match.range.startLineNumber, 1);
+				assert.strictEqual(findMatch!.match.range.startColumn, 5);
 
 				// Test case 5: No match found
-				match = notebookModel.findNextMatch('e', { cellIndex: 0, position: { lineNumber: 1, column: 1 } }, false, false, null);
-				assert.strictEqual(match, null);
+				findMatch = notebookModel.findNextMatch('e', { cellIndex: 0, position: { lineNumber: 1, column: 1 } }, false, false, null);
+				assert.strictEqual(findMatch, null);
 
 				// Test case 6: Same keywords in the same cell
-				match = notebookModel.findNextMatch('var', { cellIndex: 0, position: { lineNumber: 1, column: 1 } }, false, false, null);
-				assert.ok(match);
-				assert.strictEqual(match!.range.startLineNumber, 1);
-				assert.strictEqual(match!.range.startColumn, 1);
+				findMatch = notebookModel.findNextMatch('var', { cellIndex: 0, position: { lineNumber: 1, column: 1 } }, false, false, null);
+				assert.ok(findMatch);
+				assert.strictEqual(findMatch!.match.range.startLineNumber, 1);
+				assert.strictEqual(findMatch!.match.range.startColumn, 1);
 
-				match = notebookModel.findNextMatch('var', { cellIndex: 0, position: { lineNumber: 1, column: 5 } }, false, false, null);
-				assert.ok(match);
-				assert.strictEqual(match!.range.startLineNumber, 1);
-				assert.strictEqual(match!.range.startColumn, 12);
+				findMatch = notebookModel.findNextMatch('var', { cellIndex: 0, position: { lineNumber: 1, column: 5 } }, false, false, null);
+				assert.ok(findMatch);
+				assert.strictEqual(findMatch!.match.range.startLineNumber, 1);
+				assert.strictEqual(findMatch!.match.range.startColumn, 12);
 
 				// Test case 7: Search from the middle of a cell with keyword before and after
-				match = notebookModel.findNextMatch('a', { cellIndex: 0, position: { lineNumber: 1, column: 10 } }, false, false, null);
-				assert.ok(match);
-				assert.strictEqual(match!.range.startLineNumber, 1);
-				assert.strictEqual(match!.range.startColumn, 13);
+				findMatch = notebookModel.findNextMatch('a', { cellIndex: 0, position: { lineNumber: 1, column: 10 } }, false, false, null);
+				assert.ok(findMatch);
+				assert.strictEqual(findMatch!.match.range.startLineNumber, 1);
+				assert.strictEqual(findMatch!.match.range.startColumn, 13);
 
 				// Test case 8: Search from a cell and next match is in another cell below
-				match = notebookModel.findNextMatch('var', { cellIndex: 0, position: { lineNumber: 1, column: 20 } }, false, false, null);
-				assert.ok(match);
-				assert.strictEqual(match!.range.startLineNumber, 1);
-				assert.strictEqual(match!.range.startColumn, 1);
+				findMatch = notebookModel.findNextMatch('var', { cellIndex: 0, position: { lineNumber: 1, column: 20 } }, false, false, null);
+				assert.ok(findMatch);
+				assert.strictEqual(findMatch!.match.range.startLineNumber, 1);
+				assert.strictEqual(findMatch!.match.range.startColumn, 1);
 				// assert.strictEqual(match!.cellIndex, 1);
 			}
 		);

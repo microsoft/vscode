@@ -1177,7 +1177,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	}
 
 	//#region Find
-	findNextMatch(searchString: string, searchStart: { cellIndex: number; position: IPosition }, isRegex: boolean, matchCase: boolean, wordSeparators: string | null): FindMatch | null {
+	findNextMatch(searchString: string, searchStart: { cellIndex: number; position: IPosition }, isRegex: boolean, matchCase: boolean, wordSeparators: string | null): { cell: NotebookCellTextModel; match: FindMatch } | null {
 		// check if search cell index is valid
 		this._assertIndex(searchStart.cellIndex);
 		const searchParams = new SearchParams(searchString, isRegex, matchCase, wordSeparators);
@@ -1201,7 +1201,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 			const result = cell.textBuffer.findMatchesLineByLine(searchRange, searchData, false, 1);
 			if (result.length > 0) {
-				return result[0];
+				return { cell, match: result[0] };
 			}
 
 			// Move to the next cell
