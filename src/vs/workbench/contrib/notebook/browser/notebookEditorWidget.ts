@@ -253,7 +253,16 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		return this._notebookViewModel?.options.isReadOnly ?? false;
 	}
 
-	get activeCodeEditor(): [ICellViewModel, ICodeEditor] | undefined {
+	get activeCodeEditor(): ICodeEditor | undefined {
+		if (this._isDisposed) {
+			return;
+		}
+
+		const [focused] = this._list.getFocusedElements();
+		return this._renderedEditors.get(focused);
+	}
+
+	get activeCellAndCodeEditor(): [ICellViewModel, ICodeEditor] | undefined {
 		if (this._isDisposed) {
 			return;
 		}

@@ -618,7 +618,7 @@ function getActiveCellCodeEditor(editorService: IEditorService): ICodeEditor | u
 	const activePane = editorService.activeEditorPane;
 	const notebookEditor = getNotebookEditorFromEditorPane(activePane);
 	const activeCodeEditor = notebookEditor?.activeCodeEditor;
-	return activeCodeEditor?.[1];
+	return activeCodeEditor;
 }
 
 export class SaveParticipantsContribution extends Disposable implements IWorkbenchContribution {
