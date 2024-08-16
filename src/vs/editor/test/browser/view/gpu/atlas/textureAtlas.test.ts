@@ -4,13 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ok } from 'assert';
-import { getActiveWindow } from 'vs/base/browser/dom';
-import { toDisposable } from 'vs/base/common/lifecycle';
 import { isNumber } from 'vs/base/common/types';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import type { ITextureAtlasGlyph } from 'vs/editor/browser/view/gpu/atlas/atlas';
 import { TextureAtlas } from 'vs/editor/browser/view/gpu/atlas/textureAtlas';
 import { ensureNonNullable } from 'vs/editor/browser/view/gpu/gpuUtils';
+import { GlyphRasterizer } from 'vs/editor/browser/view/gpu/raster/glyphRasterizer';
 import { createCodeEditorServices } from 'vs/editor/test/browser/testCodeEditor';
 import type { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
@@ -72,24 +71,20 @@ suite('TextureAtlas', () => {
 	});
 
 	let instantiationService: IInstantiationService;
-	let parentElement: HTMLElement;
+	let glyphRasterizer: GlyphRasterizer;
 
 	setup(() => {
 		instantiationService = createCodeEditorServices(store);
-
-		const doc = getActiveWindow().document;
-		parentElement = doc.createElement('div');
-		doc.body.appendChild(parentElement);
-		store.add(toDisposable(() => parentElement.remove()));
+		glyphRasterizer = new GlyphRasterizer(10, 'monospace');
 	});
 
 	test('get single glyph', () => {
-		const atlas = store.add(instantiationService.createInstance(TextureAtlas, parentElement, 512));
+		const atlas = store.add(instantiationService.createInstance(TextureAtlas, glyphRasterizer, 512));
 		assertIsValidGlyph(atlas.getGlyph(...getUniqueGlyphId()), atlas);
 	});
 
 	test('get multiple glyphs', () => {
-		const atlas = store.add(instantiationService.createInstance(TextureAtlas, parentElement, 512));
+		const atlas = store.add(instantiationService.createInstance(TextureAtlas, glyphRasterizer, 512));
 		for (let i = 0; i < 10; i++) {
 			assertIsValidGlyph(atlas.getGlyph(...getUniqueGlyphId()), atlas);
 		}

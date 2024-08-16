@@ -9,6 +9,7 @@ import { debounce } from 'vs/base/common/decorators';
 import { URI } from 'vs/base/common/uri';
 import type { ITextureAtlasGlyph } from 'vs/editor/browser/view/gpu/atlas/atlas';
 import { TextureAtlas } from 'vs/editor/browser/view/gpu/atlas/textureAtlas';
+import { GlyphRasterizer } from 'vs/editor/browser/view/gpu/raster/glyphRasterizer';
 import type { IVisibleLine, IVisibleLinesHost } from 'vs/editor/browser/view/viewLayer';
 import type { IViewLineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
@@ -67,11 +68,12 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 	private _bindGroup!: GPUBindGroup;
 	private _pipeline!: GPURenderPipeline;
 
-
 	private _vertexBuffer!: GPUBuffer;
 	private _squareVertices!: { vertexData: Float32Array; numVertices: number };
 
 	private static _atlas: TextureAtlas;
+	private _glyphRasterizer: GlyphRasterizer;
+
 	private readonly _glyphStorageBuffer: GPUBuffer[] = [];
 	private _atlasGpuTexture!: GPUTexture;
 	private readonly _atlasGpuTextureVersions: number[] = [];
@@ -91,6 +93,14 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 		this.domNode = domNode;
 		this.host = host;
 		this.viewportData = viewportData;
+
+		// TODO: Can the font details come from settings/editor options instead?
+		const activeWindow = getActiveWindow();
+		const style = activeWindow.getComputedStyle(domNode);
+		const fontSize = Math.ceil(parseInt(style.fontSize) * activeWindow.devicePixelRatio);
+
+		// TODO: Register this
+		this._glyphRasterizer = new GlyphRasterizer(fontSize, style.fontFamily);
 
 		this._gpuCtx = this.domNode.getContext('webgpu')!;
 		this.initWebgpu();
@@ -117,7 +127,7 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 
 		// Create texture atlas
 		if (!GpuViewLayerRenderer._atlas) {
-			GpuViewLayerRenderer._atlas = this._instantiationService.createInstance(TextureAtlas, this.domNode, this._device.limits.maxTextureDimension2D);
+			GpuViewLayerRenderer._atlas = this._instantiationService.createInstance(TextureAtlas, this._glyphRasterizer, this._device.limits.maxTextureDimension2D);
 		}
 		const atlas = GpuViewLayerRenderer._atlas;
 

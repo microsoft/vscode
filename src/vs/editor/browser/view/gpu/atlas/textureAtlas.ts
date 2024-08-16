@@ -14,8 +14,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export class TextureAtlas extends Disposable {
-	private readonly _glyphRasterizer: GlyphRasterizer;
-
 	private _colorMap!: string[];
 	private readonly _warmUpTask: MutableDisposable<IdleTaskQueue> = this._register(new MutableDisposable());
 
@@ -32,7 +30,7 @@ export class TextureAtlas extends Disposable {
 	readonly pageSize: number;
 
 	constructor(
-		parentDomNode: HTMLElement,
+		private readonly _glyphRasterizer: GlyphRasterizer,
 		/** The maximum texture size supported by the GPU. */
 		private readonly _maxTextureSize: number,
 		@IThemeService private readonly _themeService: IThemeService,
@@ -40,20 +38,13 @@ export class TextureAtlas extends Disposable {
 	) {
 		super();
 
-		// TODO: Should pull in the font size from config instead of random dom node
-		const activeWindow = getActiveWindow();
-		const style = activeWindow.getComputedStyle(parentDomNode);
-		const fontSize = Math.ceil(parseInt(style.fontSize) * activeWindow.devicePixelRatio);
-
 		this._register(Event.runAndSubscribe(this._themeService.onDidColorThemeChange, () => {
 			// TODO: Clear entire atlas on theme change
 			this._colorMap = this._themeService.getColorTheme().tokenColorMap;
 			this._warmUpAtlas();
 		}));
 
-		this._glyphRasterizer = this._register(new GlyphRasterizer(fontSize, style.fontFamily));
-
-		const dprFactor = Math.max(1, Math.floor(activeWindow.devicePixelRatio));
+		const dprFactor = Math.max(1, Math.floor(getActiveWindow().devicePixelRatio));
 
 		this.pageSize = Math.min(1024 * dprFactor, this._maxTextureSize);
 		this._pages.push(this._instantiationService.createInstance(TextureAtlasPage, 0, this.pageSize, 'slab', this._glyphRasterizer));
@@ -62,7 +53,7 @@ export class TextureAtlas extends Disposable {
 	}
 
 	// TODO: Color, style etc.
-	public getGlyph(chars: string, tokenFg: number): ITextureAtlasGlyph {
+	public getGlyph(chars: string, tokenFg: number): Readonly<ITextureAtlasGlyph> {
 		// HACK: Draw glyphs to different pages to test out multiple textures while there's no overflow logic
 		const targetPage = chars.match(/[a-z]/i) ? 0 : 1;
 		return this._pages[targetPage].getGlyph(chars, tokenFg);
