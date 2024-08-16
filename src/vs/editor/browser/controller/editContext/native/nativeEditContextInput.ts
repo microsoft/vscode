@@ -244,6 +244,8 @@ export class NativeEditContextInput extends Disposable {
 		this._hasFocus = false;
 		this._currentComposition = null;
 
+		let lastKeyDown: IKeyboardEvent | null = null;
+
 		this._register(this._textArea.onKeyDown((_e) => {
 			const e = new StandardKeyboardEvent(_e);
 			if (e.keyCode === KeyCode.KEY_IN_COMPOSITION
@@ -258,6 +260,7 @@ export class NativeEditContextInput extends Disposable {
 				e.preventDefault();
 			}
 
+			lastKeyDown = e;
 			this._onKeyDown.fire(e);
 		}));
 
@@ -278,6 +281,26 @@ export class NativeEditContextInput extends Disposable {
 				return;
 			}
 			this._currentComposition = currentComposition;
+
+			if (
+				this._OS === OperatingSystem.Macintosh
+				&& lastKeyDown
+				&& lastKeyDown.equals(KeyCode.KEY_IN_COMPOSITION)
+				&& this._textAreaState.selectionStart === this._textAreaState.selectionEnd
+				&& this._textAreaState.selectionStart > 0
+				&& this._textAreaState.value.substr(this._textAreaState.selectionStart - 1, 1) === e.data
+				&& (lastKeyDown.code === 'ArrowRight' || lastKeyDown.code === 'ArrowLeft')
+			) {
+				// Handling long press case on Chromium/Safari macOS + arrow key => pretend the character was selected
+				if (_debugComposition) {
+					console.log(`[compositionstart] Handling long press case on macOS + arrow key`, e);
+				}
+				// Pretend the previous character was composed (in order to get it removed by subsequent compositionupdate events)
+				currentComposition.handleCompositionUpdate('x');
+				this._onCompositionStart.fire({ data: e.data });
+				return;
+			}
+
 
 			this._onCompositionStart.fire({ data: e.data });
 		}));
