@@ -21,13 +21,13 @@ import { isMacintosh, isWindows, isLinux, isWeb, isNative, platformLocale } from
 import { Color } from 'vs/base/common/color';
 import { EventType, EventHelper, Dimension, append, $, addDisposableListener, prepend, reset, getWindow, getWindowId, isAncestor, getActiveDocument, isHTMLElement } from 'vs/base/browser/dom';
 import { CustomMenubarControl } from 'vs/workbench/browser/parts/titlebar/menubarControl';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { Parts, IWorkbenchLayoutService, ActivityBarPosition, LayoutSettings, EditorActionsLocation, EditorTabsMode } from 'vs/workbench/services/layout/browser/layoutService';
 import { createActionViewItem, createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { Action2, IMenu, IMenuService, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { Codicon } from 'vs/base/common/codicons';
 import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
@@ -55,6 +55,7 @@ import { IView } from 'vs/base/browser/ui/grid/grid';
 import { createInstantHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 
 export interface ITitleVariable {
 	readonly name: string;
@@ -94,13 +95,16 @@ export class BrowserTitleService extends MultiWindowParts<BrowserTitlebarPart> i
 	constructor(
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
 		super('workbench.titleService', themeService, storageService);
 
 		this._register(this.registerPart(this.mainPart));
 
 		this.registerActions();
+
+		this.registerCommands();
 	}
 
 	protected createMainTitlebarPart(): BrowserTitlebarPart {
@@ -126,6 +130,29 @@ export class BrowserTitleService extends MultiWindowParts<BrowserTitlebarPart> i
 				that.getPartByDocument(getActiveDocument()).focus();
 			}
 		}));
+	}
+
+	private registerCommands(): void {
+		this._register(CommandsRegistry.registerCommand('setWindowTitleVariable', (accessor: ServicesAccessor, key: string, value: string) => {
+			this.setVariable(key, value);
+		}));
+	}
+
+	private readonly _windowTitleVariableContextKeyMap = new Map<string, IContextKey<string>>();
+
+	private setVariable(key: string, value: string): void {
+		const prefixedKey = `windowTitleVariable.${key}`;
+
+		let contextKey = this._windowTitleVariableContextKeyMap.get(prefixedKey);
+		if (!contextKey) {
+			contextKey = this._contextKeyService.createKey(prefixedKey, value);
+			this._windowTitleVariableContextKeyMap.set(prefixedKey, contextKey);
+			this.registerVariables([
+				{ name: prefixedKey, contextKey: prefixedKey }
+			]);
+		} else {
+			contextKey.set(value);
+		}
 	}
 
 	//#region Auxiliary Titlebar Parts
@@ -182,7 +209,21 @@ export class BrowserTitleService extends MultiWindowParts<BrowserTitlebarPart> i
 	private variables: ITitleVariable[] = [];
 
 	registerVariables(variables: ITitleVariable[]): void {
-		const unregisteredVariables = variables.filter(v => !this.variables.some(v2 => v2.contextKey === v.contextKey));
+		const existingVariables = new Set(this.variables.map(v => v.contextKey));
+		const unregisteredVariables: ITitleVariable[] = [];
+		const duplicateVariables: ITitleVariable[] = [];
+		for (const v of variables) {
+			if (existingVariables.has(v.contextKey)) {
+				duplicateVariables.push(v);
+			} else {
+				unregisteredVariables.push(v);
+			}
+		}
+
+		if (duplicateVariables.length > 0) {
+			const duplicateKeys = duplicateVariables.map(v => v.contextKey).join(', ');
+			throw new Error(`Window title variables already registered: ${duplicateKeys}`);
+		}
 
 		this.variables.push(...unregisteredVariables);
 
