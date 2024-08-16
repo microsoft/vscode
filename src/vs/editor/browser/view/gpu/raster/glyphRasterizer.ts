@@ -21,7 +21,14 @@ const $rasterizedGlyph: IRasterizedGlyph = {
 };
 const $bbox = $rasterizedGlyph.boundingBox;
 
+let nextId = 0;
+
 export class GlyphRasterizer extends Disposable {
+	/**
+	 * A unique identifier for this rasterizer.
+	 */
+	public readonly id = nextId++;
+
 	private _canvas: OffscreenCanvas;
 	// A temporary context that glyphs are drawn to before being transfered to the atlas.
 	private _ctx: OffscreenCanvasRenderingContext2D;
@@ -47,7 +54,11 @@ export class GlyphRasterizer extends Disposable {
 	 * Rasterizes a glyph. Note that the returned object is reused across different glyphs and
 	 * therefore is only safe for synchronous access.
 	 */
-	public rasterizeGlyph(chars: string, fg: string): Readonly<IRasterizedGlyph> {
+	public rasterizeGlyph(
+		chars: string,
+		fg: string,
+		isItalic: boolean
+	): Readonly<IRasterizedGlyph> {
 		// TODO: Support workbench.fontAliasing
 		this._ctx.clearRect(0, 0, this._canvas.width, this._canvas.height);
 

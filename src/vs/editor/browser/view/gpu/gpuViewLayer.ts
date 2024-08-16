@@ -72,7 +72,7 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 	private _squareVertices!: { vertexData: Float32Array; numVertices: number };
 
 	private static _atlas: TextureAtlas;
-	private _glyphRasterizer: GlyphRasterizer;
+	// private _glyphRasterizer: GlyphRasterizer;
 
 	private readonly _glyphStorageBuffer: GPUBuffer[] = [];
 	private _atlasGpuTexture!: GPUTexture;
@@ -93,14 +93,6 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 		this.domNode = domNode;
 		this.host = host;
 		this.viewportData = viewportData;
-
-		// TODO: Can the font details come from settings/editor options instead?
-		const activeWindow = getActiveWindow();
-		const style = activeWindow.getComputedStyle(domNode);
-		const fontSize = Math.ceil(parseInt(style.fontSize) * activeWindow.devicePixelRatio);
-
-		// TODO: Register this
-		this._glyphRasterizer = new GlyphRasterizer(fontSize, style.fontFamily);
 
 		this._gpuCtx = this.domNode.getContext('webgpu')!;
 		this.initWebgpu();
@@ -127,7 +119,7 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 
 		// Create texture atlas
 		if (!GpuViewLayerRenderer._atlas) {
-			GpuViewLayerRenderer._atlas = this._instantiationService.createInstance(TextureAtlas, this._glyphRasterizer, this._device.limits.maxTextureDimension2D);
+			GpuViewLayerRenderer._atlas = this._instantiationService.createInstance(TextureAtlas, this._device.limits.maxTextureDimension2D);
 		}
 		const atlas = GpuViewLayerRenderer._atlas;
 
@@ -520,6 +512,8 @@ class FullFileRenderStrategy<T extends IVisibleLine> implements IRenderStrategy<
 
 	readonly wgsl: string = fullFileRenderStrategyWgsl;
 
+	private readonly _glyphRasterizer: GlyphRasterizer;
+
 	private _cellBindBuffer!: GPUBuffer;
 	private _cellValueBuffers!: [ArrayBuffer, ArrayBuffer];
 	private _activeDoubleBufferIndex: 0 | 1 = 0;
@@ -546,6 +540,14 @@ class FullFileRenderStrategy<T extends IVisibleLine> implements IRenderStrategy<
 		// TODO: Detect when lines have been tokenized and clear _upToDateLines
 		const colorMap = this._themeService.getColorTheme().tokenColorMap;
 		console.log('colorMap', colorMap);
+
+		// TODO: Can the font details come from settings/editor options instead?
+		const activeWindow = getActiveWindow();
+		const style = activeWindow.getComputedStyle(this._canvas);
+		const fontSize = Math.ceil(parseInt(style.fontSize) * activeWindow.devicePixelRatio);
+
+		// TODO: Register this
+		this._glyphRasterizer = new GlyphRasterizer(fontSize, style.fontFamily);
 	}
 
 	initBuffers(): void {
@@ -689,7 +691,7 @@ class FullFileRenderStrategy<T extends IVisibleLine> implements IRenderStrategy<
 						continue;
 					}
 
-					glyph = this._atlas.getGlyph(chars, tokenFg);
+					glyph = this._atlas.getGlyph(this._glyphRasterizer, chars, tokenFg);
 
 					screenAbsoluteX = Math.round((x + xOffset) * 7 * activeWindow.devicePixelRatio);
 					screenAbsoluteY = Math.round(deltaTop[y - startLineNumber] * activeWindow.devicePixelRatio);

@@ -51,7 +51,6 @@ export class TextureAtlasPage extends Disposable implements IReadableTextureAtla
 		textureIndex: number,
 		pageSize: number,
 		allocatorType: 'shelf' | 'slab',
-		private readonly _glyphRasterizer: GlyphRasterizer,
 		@ILogService private readonly _logService: ILogService,
 		@IThemeService private readonly _themeService: IThemeService,
 	) {
@@ -77,12 +76,12 @@ export class TextureAtlasPage extends Disposable implements IReadableTextureAtla
 	}
 
 	// TODO: Color, style etc.
-	public getGlyph(chars: string, tokenFg: number): Readonly<ITextureAtlasGlyph> {
-		return this._glyphMap.get(chars, tokenFg) ?? this._createGlyph(chars, tokenFg);
+	public getGlyph(rasterizer: GlyphRasterizer, chars: string, tokenFg: number): Readonly<ITextureAtlasGlyph> {
+		return this._glyphMap.get(chars, tokenFg) ?? this._createGlyph(rasterizer, chars, tokenFg);
 	}
 
-	private _createGlyph(chars: string, tokenFg: number): Readonly<ITextureAtlasGlyph> {
-		const rasterizedGlyph = this._glyphRasterizer.rasterizeGlyph(chars, this._colorMap[tokenFg]);
+	private _createGlyph(rasterizer: GlyphRasterizer, chars: string, tokenFg: number): Readonly<ITextureAtlasGlyph> {
+		const rasterizedGlyph = rasterizer.rasterizeGlyph(chars, this._colorMap[tokenFg], false);
 		// TODO: Handle undefined allocate result
 		const glyph = this._allocator.allocate(chars, tokenFg, rasterizedGlyph)!;
 		this._glyphMap.set(chars, tokenFg, glyph);

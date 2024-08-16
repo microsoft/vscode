@@ -79,14 +79,14 @@ suite('TextureAtlas', () => {
 	});
 
 	test('get single glyph', () => {
-		const atlas = store.add(instantiationService.createInstance(TextureAtlas, glyphRasterizer, 512));
-		assertIsValidGlyph(atlas.getGlyph(...getUniqueGlyphId()), atlas);
+		const atlas = store.add(instantiationService.createInstance(TextureAtlas, 512));
+		assertIsValidGlyph(atlas.getGlyph(glyphRasterizer, ...getUniqueGlyphId()), atlas);
 	});
 
 	test('get multiple glyphs', () => {
-		const atlas = store.add(instantiationService.createInstance(TextureAtlas, glyphRasterizer, 512));
+		const atlas = store.add(instantiationService.createInstance(TextureAtlas, 512));
 		for (let i = 0; i < 10; i++) {
-			assertIsValidGlyph(atlas.getGlyph(...getUniqueGlyphId()), atlas);
+			assertIsValidGlyph(atlas.getGlyph(glyphRasterizer, ...getUniqueGlyphId()), atlas);
 		}
 	});
 

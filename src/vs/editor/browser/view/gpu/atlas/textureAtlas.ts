@@ -17,6 +17,8 @@ export class TextureAtlas extends Disposable {
 	private _colorMap!: string[];
 	private readonly _warmUpTask: MutableDisposable<IdleTaskQueue> = this._register(new MutableDisposable());
 
+	private readonly _warmedUpRasterizers = new Set<number>();
+
 	/**
 	 * The main texture atlas pages which are both larger textures and more efficiently packed
 	 * relative to the scratch page. The idea is the main pages are drawn to and uploaded to the GPU
@@ -30,7 +32,6 @@ export class TextureAtlas extends Disposable {
 	readonly pageSize: number;
 
 	constructor(
-		private readonly _glyphRasterizer: GlyphRasterizer,
 		/** The maximum texture size supported by the GPU. */
 		private readonly _maxTextureSize: number,
 		@IThemeService private readonly _themeService: IThemeService,
@@ -41,26 +42,28 @@ export class TextureAtlas extends Disposable {
 		this._register(Event.runAndSubscribe(this._themeService.onDidColorThemeChange, () => {
 			// TODO: Clear entire atlas on theme change
 			this._colorMap = this._themeService.getColorTheme().tokenColorMap;
-			this._warmUpAtlas();
 		}));
 
 		const dprFactor = Math.max(1, Math.floor(getActiveWindow().devicePixelRatio));
 
 		this.pageSize = Math.min(1024 * dprFactor, this._maxTextureSize);
-		this._pages.push(this._instantiationService.createInstance(TextureAtlasPage, 0, this.pageSize, 'slab', this._glyphRasterizer));
-		this._pages.push(this._instantiationService.createInstance(TextureAtlasPage, 1, this.pageSize, 'slab', this._glyphRasterizer));
+		this._pages.push(this._instantiationService.createInstance(TextureAtlasPage, 0, this.pageSize, 'slab'));
+		this._pages.push(this._instantiationService.createInstance(TextureAtlasPage, 1, this.pageSize, 'slab'));
 		this._register(toDisposable(() => dispose(this._pages)));
 	}
 
 	// TODO: Color, style etc.
-	public getGlyph(chars: string, tokenFg: number): Readonly<ITextureAtlasGlyph> {
+	public getGlyph(rasterizer: GlyphRasterizer, chars: string, tokenFg: number): Readonly<ITextureAtlasGlyph> {
+		if (!this._warmedUpRasterizers.has(rasterizer.id)) {
+			this._warmUpAtlas(rasterizer);
+			this._warmedUpRasterizers.add(rasterizer.id);
+		}
 		// HACK: Draw glyphs to different pages to test out multiple textures while there's no overflow logic
 		const targetPage = chars.match(/[a-z]/i) ? 0 : 1;
-		return this._pages[targetPage].getGlyph(chars, tokenFg);
+		return this._pages[targetPage].getGlyph(rasterizer, chars, tokenFg);
 	}
 
 	public getUsagePreview(): Promise<Blob[]> {
-		// TODO: Include scratch page
 		return Promise.all(this._pages.map(e => e.getUsagePreview()));
 	}
 
@@ -68,7 +71,7 @@ export class TextureAtlas extends Disposable {
 	 * Warms up the atlas by rasterizing all printable ASCII characters for each token color. This
 	 * is distrubuted over multiple idle callbacks to avoid blocking the main thread.
 	 */
-	private _warmUpAtlas(): void {
+	private _warmUpAtlas(rasterizer: GlyphRasterizer): void {
 		this._warmUpTask.value?.clear();
 		const taskQueue = this._warmUpTask.value = new IdleTaskQueue();
 		// Warm up using roughly the larger glyphs first to help optimize atlas allocation
@@ -76,7 +79,7 @@ export class TextureAtlas extends Disposable {
 		for (let code = 65; code <= 90; code++) {
 			taskQueue.enqueue(() => {
 				for (const tokenFg of this._colorMap.keys()) {
-					this.getGlyph(String.fromCharCode(code), tokenFg);
+					this.getGlyph(rasterizer, String.fromCharCode(code), tokenFg);
 				}
 			});
 		}
@@ -84,7 +87,7 @@ export class TextureAtlas extends Disposable {
 		for (let code = 97; code <= 122; code++) {
 			taskQueue.enqueue(() => {
 				for (const tokenFg of this._colorMap.keys()) {
-					this.getGlyph(String.fromCharCode(code), tokenFg);
+					this.getGlyph(rasterizer, String.fromCharCode(code), tokenFg);
 				}
 			});
 		}
@@ -92,7 +95,7 @@ export class TextureAtlas extends Disposable {
 		for (let code = 33; code <= 126; code++) {
 			taskQueue.enqueue(() => {
 				for (const tokenFg of this._colorMap.keys()) {
-					this.getGlyph(String.fromCharCode(code), tokenFg);
+					this.getGlyph(rasterizer, String.fromCharCode(code), tokenFg);
 				}
 			});
 		}
