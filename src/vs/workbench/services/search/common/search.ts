@@ -680,24 +680,21 @@ export function resolvePatternsForProvider(globalPattern: glob.IExpression | und
 
 export class QueryGlobTester {
 
-	private _excludeExpression: glob.IExpression[];
+	private _excludeExpression: glob.IExpression[]; // TODO: evaluate globs based on baseURI of pattern
 	private _parsedExcludeExpression: glob.ParsedExpression[];
 
 	private _parsedIncludeExpression: glob.ParsedExpression | null = null;
 
 	constructor(config: ISearchQuery, folderQuery: IFolderQuery) {
 		// todo: try to incorporate folderQuery.excludePattern.folder if available
-		this._excludeExpression = [];
-		folderQuery.excludePattern?.map(excludePattern => {
-			this._excludeExpression.push(
-				{
-					...(config.excludePattern || {}),
-					...(excludePattern.pattern || {})
-				}
-			);
-		});
+		this._excludeExpression = folderQuery.excludePattern?.map(excludePattern => {
+			return {
+				...(config.excludePattern || {}),
+				...(excludePattern.pattern || {})
+			} satisfies glob.IExpression;
+		}) ?? [];
 
-		this._parsedExcludeExpression = this._excludeExpression.map(ee => glob.parse(ee));
+		this._parsedExcludeExpression = this._excludeExpression.map(e => glob.parse(e));
 
 		// Empty includeExpression means include nothing, so no {} shortcuts
 		let includeExpression: glob.IExpression | undefined = config.includePattern;
@@ -717,12 +714,25 @@ export class QueryGlobTester {
 		}
 	}
 
-	private _evalParsedExcludeExpression(testPath: string, basename: string | undefined, hasSibling?: (name: string) => boolean | Promise<boolean>): string | null | Promise<string | null> {
-		return Promise.race(this._parsedExcludeExpression.map(e => e(testPath, basename, hasSibling)));
+	private _evalParsedExcludeExpression(testPath: string, basename: string | undefined, hasSibling?: (name: string) => boolean): string | null {
+		// todo: less hacky way of evaluating sync vs async sibling clauses
+		let result: string | null = null;
+
+		for (const folderExclude of this._parsedExcludeExpression) {
+
+			// find first non-null result
+			const evaluation = folderExclude(testPath, basename, hasSibling);
+
+			if (typeof evaluation === 'string') {
+				result = evaluation;
+				break;
+			}
+		}
+		return result;
 	}
 
-	matchesExcludesSync(testPath: string, basename?: string, hasSibling?: (name: string) => boolean): boolean {
 
+	matchesExcludesSync(testPath: string, basename?: string, hasSibling?: (name: string) => boolean): boolean {
 		if (this._parsedExcludeExpression && this._evalParsedExcludeExpression(testPath, basename, hasSibling)) {
 			return true;
 		}
@@ -750,7 +760,6 @@ export class QueryGlobTester {
 	 * unless the expression is async.
 	 */
 	includedInQuery(testPath: string, basename?: string, hasSibling?: (name: string) => boolean | Promise<boolean>): Promise<boolean> | boolean {
-		const excluded = this._evalParsedExcludeExpression(testPath, basename, hasSibling);
 
 		const isIncluded = () => {
 			return this._parsedIncludeExpression ?
@@ -758,17 +767,23 @@ export class QueryGlobTester {
 				true;
 		};
 
-		if (isThenable(excluded)) {
-			return excluded.then(excluded => {
-				if (excluded) {
-					return false;
-				}
+		return Promise.all(this._parsedExcludeExpression.map(e => {
+			const excluded = e(testPath, basename, hasSibling);
+			if (isThenable(excluded)) {
+				return excluded.then(excluded => {
+					if (excluded) {
+						return false;
+					}
 
-				return isIncluded();
-			});
-		}
+					return isIncluded();
+				});
+			}
 
-		return isIncluded();
+			return isIncluded();
+
+		})).then(e => e.some(e => !!e));
+
+
 	}
 
 	hasSiblingExcludeClauses(): boolean {

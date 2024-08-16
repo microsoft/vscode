@@ -82,9 +82,9 @@ export class FileWalker {
 		this.folderExcludePatterns = new Map<string, AbsoluteAndRelativeParsedExpression>();
 
 		config.folderQueries.forEach(folderQuery => {
-			const folderExcludeExpression: glob.IExpression = {};
+			const folderExcludeExpression: glob.IExpression = {}; // todo: consider exclude baseURI
 
-			folderQuery.excludePattern?.map(excludePattern => {
+			folderQuery.excludePattern?.forEach(excludePattern => {
 				Object.assign(folderExcludeExpression, excludePattern.pattern || {}, this.config.excludePattern || {});
 			});
 
