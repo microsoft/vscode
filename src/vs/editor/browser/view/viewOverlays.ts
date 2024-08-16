@@ -30,7 +30,7 @@ export class ViewOverlays extends ViewPart implements IVisibleLinesHost<ViewOver
 	) {
 		super(context);
 
-		this._visibleLines = instantiationService.createInstance(VisibleLinesCollection<ViewOverlayLine>, this);
+		this._visibleLines = instantiationService.createInstance(VisibleLinesCollection<ViewOverlayLine>, context, this);
 		this.domNode = this._visibleLines.domNode;
 
 		const options = this._context.configuration.options;

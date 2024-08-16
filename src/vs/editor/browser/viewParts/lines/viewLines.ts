@@ -129,7 +129,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		super(context);
 		this._linesContent = linesContent;
 		this._textRangeRestingSpot = document.createElement('div');
-		this._visibleLines = instantiationService.createInstance(VisibleLinesCollection, this);
+		this._visibleLines = instantiationService.createInstance(VisibleLinesCollection, context, this);
 		this.domNode = this._visibleLines.domNode;
 
 		const conf = this._context.configuration;

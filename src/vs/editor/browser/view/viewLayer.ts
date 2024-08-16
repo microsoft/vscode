@@ -13,6 +13,7 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { StringBuilder } from 'vs/editor/common/core/stringBuilder';
 import * as viewEvents from 'vs/editor/common/viewEvents';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
+import type { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 /**
@@ -262,6 +263,7 @@ export class VisibleLinesCollection<T extends IVisibleLine> {
 	private readonly _canvas: HTMLCanvasElement;
 
 	constructor(
+		private readonly _context: ViewContext,
 		host: IVisibleLinesHost<T>,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
@@ -375,7 +377,7 @@ export class VisibleLinesCollection<T extends IVisibleLine> {
 			}
 
 			if (!this._gpuRenderer) {
-				this._gpuRenderer = this._instantiationService.createInstance(GpuViewLayerRenderer<T>, this._canvas, this._host, viewportData);
+				this._gpuRenderer = this._instantiationService.createInstance(GpuViewLayerRenderer<T>, this._canvas, this._context, this._host, viewportData);
 			}
 			renderer = this._gpuRenderer;
 			renderer.update(viewportData);

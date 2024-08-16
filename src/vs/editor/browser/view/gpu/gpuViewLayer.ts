@@ -11,12 +11,13 @@ import type { ITextureAtlasGlyph } from 'vs/editor/browser/view/gpu/atlas/atlas'
 import { TextureAtlas } from 'vs/editor/browser/view/gpu/atlas/textureAtlas';
 import { GlyphRasterizer } from 'vs/editor/browser/view/gpu/raster/glyphRasterizer';
 import type { IVisibleLine, IVisibleLinesHost } from 'vs/editor/browser/view/viewLayer';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import type { IViewLineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import type { ViewLineRenderingData } from 'vs/editor/common/viewModel';
+import type { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 export const disableNonGpuRendering = true;
@@ -84,6 +85,7 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 
 	constructor(
 		domNode: HTMLCanvasElement,
+		private readonly _context: ViewContext,
 		host: IVisibleLinesHost<T>,
 		viewportData: ViewportData,
 		@IFileService private readonly _fileService: IFileService,
@@ -125,7 +127,7 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 		const atlas = GpuViewLayerRenderer._atlas;
 
 
-		this._renderStrategy = this._instantiationService.createInstance(FullFileRenderStrategy, this._device, this.domNode, this.viewportData, GpuViewLayerRenderer._atlas);
+		this._renderStrategy = this._instantiationService.createInstance(FullFileRenderStrategy, this._context, this._device, this.domNode, this.viewportData, GpuViewLayerRenderer._atlas);
 
 		const module = this._device.createShaderModule({
 			label: 'Monaco shader module',
@@ -513,7 +515,6 @@ class FullFileRenderStrategy<T extends IVisibleLine> implements IRenderStrategy<
 
 	readonly wgsl: string = fullFileRenderStrategyWgsl;
 
-	private readonly _colorMap: string[];
 	private readonly _glyphRasterizer: GlyphRasterizer;
 
 	private _cellBindBuffer!: GPUBuffer;
@@ -533,23 +534,19 @@ class FullFileRenderStrategy<T extends IVisibleLine> implements IRenderStrategy<
 	}
 
 	constructor(
+		private readonly _context: ViewContext,
 		private readonly _device: GPUDevice,
 		private readonly _canvas: HTMLCanvasElement,
 		private readonly _viewportData: ViewportData,
 		private readonly _atlas: TextureAtlas,
-		@IThemeService private readonly _themeService: IThemeService,
 	) {
 		// TODO: Detect when lines have been tokenized and clear _upToDateLines
-		this._colorMap = this._themeService.getColorTheme().tokenColorMap;
-		console.log('colorMap', this._colorMap);
-
-		// TODO: Can the font details come from settings/editor options instead?
 		const activeWindow = getActiveWindow();
-		const style = activeWindow.getComputedStyle(this._canvas);
-		const fontSize = Math.ceil(parseInt(style.fontSize) * activeWindow.devicePixelRatio);
+		const fontFamily = this._context.configuration.options.get(EditorOption.fontFamily);
+		const fontSize = Math.ceil(this._context.configuration.options.get(EditorOption.fontSize) * activeWindow.devicePixelRatio);
 
 		// TODO: Register this
-		this._glyphRasterizer = new GlyphRasterizer(fontSize, style.fontFamily);
+		this._glyphRasterizer = new GlyphRasterizer(fontSize, fontFamily);
 	}
 
 	initBuffers(): void {
