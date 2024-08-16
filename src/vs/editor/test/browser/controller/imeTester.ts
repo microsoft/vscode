@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ITextAreaInputHost, TextAreaInput, TextAreaWrapper } from 'vs/editor/browser/controller/editContext/textArea/textAreaInput';
-import { ISimpleModel, PagedScreenReaderStrategy, TextAreaState } from 'vs/editor/browser/controller/editContext/textState';
+import { ISimpleModel, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/editContext/utilities';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { EndOfLinePreference } from 'vs/editor/common/model';
@@ -14,6 +14,7 @@ import * as platform from 'vs/base/common/platform';
 import { mainWindow } from 'vs/base/browser/window';
 import { TestAccessibilityService } from 'vs/platform/accessibility/test/common/testAccessibilityService';
 import { NullLogService } from 'vs/platform/log/common/log';
+import { TextAreaState } from 'vs/editor/browser/controller/editContext/textArea/textAreaState';
 
 // To run this test, open imeTester.html
 
@@ -117,7 +118,8 @@ function doCreateTest(description: string, inputStr: string, expectedStr: string
 		getScreenReaderContent: (): TextAreaState => {
 			const selection = new Range(1, 1 + cursorOffset, 1, 1 + cursorOffset + cursorLength);
 
-			return PagedScreenReaderStrategy.fromEditorSelection(model, selection, 10, true);
+			const data = PagedScreenReaderStrategy.fromEditorSelection(model, selection, 10, true);
+			return new TextAreaState(data.value, data.selectionStart, data.selectionEnd, selection, data.newLineCountBeforeSelection);
 		},
 		deduceModelPosition: (viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position => {
 			return null!;

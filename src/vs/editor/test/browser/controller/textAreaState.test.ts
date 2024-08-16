@@ -6,7 +6,8 @@
 import assert from 'assert';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { ITextAreaWrapper, PagedScreenReaderStrategy, TextAreaState } from 'vs/editor/browser/controller/editContext/textState';
+import { ITextAreaWrapper, TextAreaState } from 'vs/editor/browser/controller/editContext/textArea/textAreaState';
+import { PagedScreenReaderStrategy } from 'vs/editor/browser/controller/editContext/utilities';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
@@ -84,7 +85,7 @@ suite('TextAreaState', () => {
 		textArea._value = 'Hello world!';
 		textArea._selectionStart = 1;
 		textArea._selectionEnd = 12;
-		let actual = TextAreaState.readFromEditContext(textArea, null);
+		let actual = TextAreaState.readFromTextArea(textArea, null);
 
 		assertTextAreaState(actual, 'Hello world!', 1, 12);
 		assert.strictEqual(actual.value, 'Hello world!');
@@ -134,7 +135,7 @@ suite('TextAreaState', () => {
 		textArea._selectionStart = selectionStart;
 		textArea._selectionEnd = selectionEnd;
 
-		const newState = TextAreaState.readFromEditContext(textArea, null);
+		const newState = TextAreaState.readFromTextArea(textArea, null);
 		const actual = TextAreaState.deduceInput(prevState, newState, couldBeEmojiInput);
 
 		assert.deepStrictEqual(actual, {
@@ -311,7 +312,7 @@ suite('TextAreaState', () => {
 		textArea._selectionStart = selectionStart;
 		textArea._selectionEnd = selectionEnd;
 
-		const newState = TextAreaState.readFromEditContext(textArea, null);
+		const newState = TextAreaState.readFromTextArea(textArea, null);
 		const actual = TextAreaState.deduceAndroidCompositionInput(prevState, newState);
 
 		assert.deepStrictEqual(actual, {
@@ -365,7 +366,8 @@ suite('TextAreaState', () => {
 		function testPagedScreenReaderStrategy(lines: string[], selection: Selection, expected: TextAreaState): void {
 			const model = createTextModel(lines.join('\n'));
 			const actual = PagedScreenReaderStrategy.fromEditorSelection(model, selection, 10, true);
-			assert.ok(equalsTextAreaState(actual, expected));
+			const textAreaState = new TextAreaState(actual.value, actual.selectionStart, actual.selectionEnd, selection, actual.newLineCountBeforeSelection);
+			assert.ok(equalsTextAreaState(textAreaState, expected));
 			model.dispose();
 		}
 

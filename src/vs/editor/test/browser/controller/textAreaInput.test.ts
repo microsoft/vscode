@@ -9,7 +9,7 @@ import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ClipboardDataToCopy, IBrowser, ICompleteTextAreaWrapper, ITextAreaInputHost, TextAreaInput } from 'vs/editor/browser/controller/editContext/textArea/textAreaInput';
-import { TextAreaState } from 'vs/editor/browser/controller/editContext/textState';
+import { TextAreaState } from 'vs/editor/browser/controller/editContext/textArea/textAreaState';
 import { Position } from 'vs/editor/common/core/position';
 import { IRecorded, IRecordedEvent, IRecordedTextareaState } from 'vs/editor/test/browser/controller/imeRecordedTypes';
 import { TestAccessibilityService } from 'vs/platform/accessibility/test/common/testAccessibilityService';
