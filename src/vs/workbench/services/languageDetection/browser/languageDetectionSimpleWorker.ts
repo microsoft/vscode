@@ -6,28 +6,32 @@
 import type { ModelOperations, ModelResult } from '@vscode/vscode-languagedetection';
 import { importAMDNodeModule } from 'vs/amdX';
 import { StopWatch } from 'vs/base/common/stopwatch';
-import { IRequestHandler } from 'vs/base/common/worker/simpleWorker';
-import { EditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';
-import { IEditorWorkerHost } from 'vs/editor/common/services/editorWorkerHost';
+import { IRequestHandler, IWorkerServer } from 'vs/base/common/worker/simpleWorker';
+import { ILanguageDetectionClient, ILanguageDetectionWorker } from 'vs/workbench/services/languageDetection/browser/languageDetectionWorker.protocol';
+import { WORKER_TEXT_MODEL_SYNC_CHANNEL, WorkerTextModelSyncServer } from 'vs/editor/common/services/textModelSync/textModelSync.impl';
 
 type RegexpModel = { detect: (inp: string, langBiases: Record<string, number>, supportedLangs?: string[]) => string | undefined };
 
 /**
  * Called on the worker side
- * @internal
+ * @skipMangle
  */
-export function create(host: IEditorWorkerHost): IRequestHandler {
-	return new LanguageDetectionSimpleWorker(host, null);
+export function create(workerServer: IWorkerServer, host: ILanguageDetectionClient): IRequestHandler {
+	return new LanguageDetectionSimpleWorker(workerServer, host);
 }
 
 /**
  * @internal
  */
-export class LanguageDetectionSimpleWorker extends EditorSimpleWorker {
+export class LanguageDetectionSimpleWorker implements ILanguageDetectionWorker {
+	_requestHandlerBrand: any;
+
 	private static readonly expectedRelativeConfidence = 0.2;
 	private static readonly positiveConfidenceCorrectionBucket1 = 0.05;
 	private static readonly positiveConfidenceCorrectionBucket2 = 0.025;
 	private static readonly negativeConfidenceCorrection = 0.5;
+
+	private readonly _workerTextModelSyncServer = new WorkerTextModelSyncServer();
 
 	private _regexpModel: RegexpModel | undefined;
 	private _regexpLoadFailed: boolean = false;
@@ -35,7 +39,14 @@ export class LanguageDetectionSimpleWorker extends EditorSimpleWorker {
 	private _modelOperations: ModelOperations | undefined;
 	private _loadFailed: boolean = false;
 
-	private modelIdToCoreId = new Map<string, string>();
+	private modelIdToCoreId = new Map<string, string | undefined>();
+
+	constructor(
+		workerServer: IWorkerServer,
+		private readonly _host: ILanguageDetectionClient
+	) {
+		workerServer.setChannel(WORKER_TEXT_MODEL_SYNC_CHANNEL, this._workerTextModelSyncServer);
+	}
 
 	public async detectLanguage(uri: string, langBiases: Record<string, number> | undefined, preferHistory: boolean, supportedLangs?: string[]): Promise<string | undefined> {
 		const languages: string[] = [];
@@ -47,7 +58,7 @@ export class LanguageDetectionSimpleWorker extends EditorSimpleWorker {
 		const neuralResolver = async () => {
 			for await (const language of this.detectLanguagesImpl(documentTextSample)) {
 				if (!this.modelIdToCoreId.has(language.languageId)) {
-					this.modelIdToCoreId.set(language.languageId, await this._host.fhr('getLanguageId', [language.languageId]));
+					this.modelIdToCoreId.set(language.languageId, await this._host.getLanguageId(language.languageId));
 				}
 				const coreId = this.modelIdToCoreId.get(language.languageId);
 				if (coreId && (!supportedLangs?.length || supportedLangs.includes(coreId))) {
@@ -58,7 +69,7 @@ export class LanguageDetectionSimpleWorker extends EditorSimpleWorker {
 			stopWatch.stop();
 
 			if (languages.length) {
-				this._host.fhr('sendTelemetryEvent', [languages, confidences, stopWatch.elapsed()]);
+				this._host.sendTelemetryEvent(languages, confidences, stopWatch.elapsed());
 				return languages[0];
 			}
 			return undefined;
@@ -82,7 +93,7 @@ export class LanguageDetectionSimpleWorker extends EditorSimpleWorker {
 	}
 
 	private getTextForDetection(uri: string): string | undefined {
-		const editorModel = this._getModel(uri);
+		const editorModel = this._workerTextModelSyncServer.getModel(uri);
 		if (!editorModel) { return; }
 
 		const end = editorModel.positionAt(10000);
@@ -102,7 +113,7 @@ export class LanguageDetectionSimpleWorker extends EditorSimpleWorker {
 		if (this._regexpModel) {
 			return this._regexpModel;
 		}
-		const uri: string = await this._host.fhr('getRegexpModelUri', []);
+		const uri: string = await this._host.getRegexpModelUri();
 		try {
 			this._regexpModel = await importAMDNodeModule(uri, '') as RegexpModel;
 			return this._regexpModel;
@@ -137,11 +148,11 @@ export class LanguageDetectionSimpleWorker extends EditorSimpleWorker {
 			return this._modelOperations;
 		}
 
-		const uri: string = await this._host.fhr('getIndexJsUri', []);
+		const uri: string = await this._host.getIndexJsUri();
 		const { ModelOperations } = await importAMDNodeModule(uri, '') as typeof import('@vscode/vscode-languagedetection');
 		this._modelOperations = new ModelOperations({
 			modelJsonLoaderFunc: async () => {
-				const response = await fetch(await this._host.fhr('getModelJsonUri', []));
+				const response = await fetch(await this._host.getModelJsonUri());
 				try {
 					const modelJSON = await response.json();
 					return modelJSON;
@@ -151,7 +162,7 @@ export class LanguageDetectionSimpleWorker extends EditorSimpleWorker {
 				}
 			},
 			weightsLoaderFunc: async () => {
-				const response = await fetch(await this._host.fhr('getWeightsUri', []));
+				const response = await fetch(await this._host.getWeightsUri());
 				const buffer = await response.arrayBuffer();
 				return buffer;
 			}

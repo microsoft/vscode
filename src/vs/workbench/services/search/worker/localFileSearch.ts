@@ -5,7 +5,7 @@
 
 import * as glob from 'vs/base/common/glob';
 import { UriComponents, URI } from 'vs/base/common/uri';
-import { IRequestHandler } from 'vs/base/common/worker/simpleWorker';
+import { IRequestHandler, IWorkerServer } from 'vs/base/common/worker/simpleWorker';
 import { ILocalFileSearchSimpleWorker, ILocalFileSearchSimpleWorkerHost, IWorkerFileSearchComplete, IWorkerFileSystemDirectoryHandle, IWorkerFileSystemHandle, IWorkerTextSearchComplete } from 'vs/workbench/services/search/common/localFileSearchWorkerTypes';
 import { ICommonQueryProps, IFileMatch, IFileQueryProps, IFolderQuery, IPatternInfo, ITextQueryProps, } from 'vs/workbench/services/search/common/search';
 import * as paths from 'vs/base/common/path';
@@ -50,9 +50,9 @@ const time = async <T>(name: string, task: () => Promise<T> | T) => {
 
 /**
  * Called on the worker side
- * @internal
+ * @skipMangle
  */
-export function create(host: ILocalFileSearchSimpleWorkerHost): IRequestHandler {
+export function create(workerServer: IWorkerServer, host: ILocalFileSearchSimpleWorkerHost): IRequestHandler {
 	return new LocalFileSearchSimpleWorker(host);
 }
 

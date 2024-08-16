@@ -6,7 +6,7 @@ import { ISequence, LcsDiff } from 'vs/base/common/diff/diff';
 import { doHash, hash, numberHash } from 'vs/base/common/hash';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { IRequestHandler } from 'vs/base/common/worker/simpleWorker';
+import { IRequestHandler, IWorkerServer } from 'vs/base/common/worker/simpleWorker';
 import * as model from 'vs/editor/common/model';
 import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
 import { CellKind, ICellDto2, IMainCellDto, INotebookDiffResult, IOutputDto, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookCellTextModelSplice, NotebookData, NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -316,8 +316,8 @@ export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable 
 
 /**
  * Called on the worker side
- * @internal
+ * @skipMangle
  */
-export function create(host: INotebookWorkerHost): IRequestHandler {
+export function create(workerServer: IWorkerServer, host: INotebookWorkerHost): IRequestHandler {
 	return new NotebookEditorSimpleWorker();
 }

@@ -36,14 +36,14 @@ export class TestWorkerService extends mock<IEditorWorkerService>() {
 		assertType(originalModel);
 		assertType(modifiedModel);
 
-		this._worker.acceptNewModel({
+		this._worker.$acceptNewModel({
 			url: originalModel.uri.toString(),
 			versionId: originalModel.getVersionId(),
 			lines: originalModel.getLinesContent(),
 			EOL: originalModel.getEOL(),
 		});
 
-		this._worker.acceptNewModel({
+		this._worker.$acceptNewModel({
 			url: modifiedModel.uri.toString(),
 			versionId: modifiedModel.getVersionId(),
 			lines: modifiedModel.getLinesContent(),

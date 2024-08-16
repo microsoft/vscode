@@ -172,7 +172,7 @@ class SimpleWorkerProtocol {
 		this._handleMessage(message);
 	}
 
-	public createProxyToRemoteChannel<T extends object>(channel: string): T {
+	public createProxyToRemoteChannel<T extends object>(channel: string, sendMessageBarrier?: () => Promise<void>): T {
 		const handler = {
 			get: (target: any, name: PropertyKey) => {
 				if (typeof name === 'string' && !target[name]) {
@@ -183,7 +183,8 @@ class SimpleWorkerProtocol {
 					} else if (propertyIsEvent(name)) { // on...
 						target[name] = this.listen(channel, name, undefined);
 					} else if (name.charCodeAt(0) === CharCode.DollarSign) { // $...
-						target[name] = (...myArgs: any[]) => {
+						target[name] = async (...myArgs: any[]) => {
+							await sendMessageBarrier?.();
 							return this.sendMessage(channel, name, myArgs);
 						};
 					}
@@ -436,7 +437,7 @@ export class SimpleWorkerClient<W extends object, H extends object> extends Disp
 
 	public getChannel<T extends object>(channel: string): T {
 		if (!this._remoteChannels.has(channel)) {
-			const inst = this._protocol.createProxyToRemoteChannel(channel);
+			const inst = this._protocol.createProxyToRemoteChannel(channel, async () => { await this._onModuleLoaded; });
 			this._remoteChannels.set(channel, inst);
 		}
 		return this._remoteChannels.get(channel) as T;
@@ -504,7 +505,7 @@ export interface IRequestHandler {
 }
 
 export interface IRequestHandlerFactory<H> {
-	(host: H): IRequestHandler;
+	(workerServer: IWorkerServer, host: H): IRequestHandler;
 }
 
 /**
@@ -602,7 +603,7 @@ export class SimpleWorkerServer<H extends object> implements IWorkerServer {
 
 		if (this._requestHandlerFactory) {
 			// static request handler
-			this._requestHandler = this._requestHandlerFactory(hostProxy);
+			this._requestHandler = this._requestHandlerFactory(this, hostProxy);
 			return Promise.resolve(getAllMethodNames(this._requestHandler));
 		}
 
@@ -629,7 +630,7 @@ export class SimpleWorkerServer<H extends object> implements IWorkerServer {
 		if (isESM) {
 			const url = FileAccess.asBrowserUri(`${moduleId}.js` as AppResourcePath).toString(true);
 			return import(`${url}`).then((module: { create: IRequestHandlerFactory<H> }) => {
-				this._requestHandler = module.create(hostProxy);
+				this._requestHandler = module.create(this, hostProxy);
 
 				if (!this._requestHandler) {
 					throw new Error(`No RequestHandler!`);
@@ -650,7 +651,7 @@ export class SimpleWorkerServer<H extends object> implements IWorkerServer {
 			// ESM-uncomment-end
 
 			req([moduleId], (module: { create: IRequestHandlerFactory<H> }) => {
-				this._requestHandler = module.create(hostProxy);
+				this._requestHandler = module.create(this, hostProxy);
 
 				if (!this._requestHandler) {
 					reject(new Error(`No RequestHandler!`));

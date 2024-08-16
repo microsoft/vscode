@@ -10,7 +10,7 @@ import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ensureValidWordDefinition, getWordAtText, IWordAtPosition } from 'vs/editor/common/core/wordHelper';
 import { MirrorTextModel as BaseMirrorModel, IModelChangedEvent } from 'vs/editor/common/model/mirrorTextModel';
-import { EditorSimpleWorker, ICommonModel, IWordRange } from 'vs/editor/common/services/editorSimpleWorker';
+import { ICommonModel, IWordRange } from 'vs/editor/common/services/editorSimpleWorker';
 import { IModelService } from 'vs/editor/common/services/model';
 import { IRawModelData, IWorkerTextModelSyncChannelServer } from 'vs/editor/common/services/textModelSync/textModelSync.protocol';
 
@@ -19,6 +19,8 @@ import { IRawModelData, IWorkerTextModelSyncChannelServer } from 'vs/editor/comm
  */
 export const STOP_SYNC_MODEL_DELTA_TIME_MS = 60 * 1000;
 
+export const WORKER_TEXT_MODEL_SYNC_CHANNEL = 'workerTextModelSync';
+
 export class WorkerTextModelSyncClient extends Disposable {
 
 	private readonly _proxy: IWorkerTextModelSyncChannelServer;
@@ -26,7 +28,7 @@ export class WorkerTextModelSyncClient extends Disposable {
 	private _syncedModels: { [modelUrl: string]: IDisposable } = Object.create(null);
 	private _syncedModelsLastUsedTime: { [modelUrl: string]: number } = Object.create(null);
 
-	constructor(proxy: EditorSimpleWorker, modelService: IModelService, keepIdleModels: boolean) {
+	constructor(proxy: IWorkerTextModelSyncChannelServer, modelService: IModelService, keepIdleModels: boolean) {
 		super();
 		this._proxy = proxy;
 		this._modelService = modelService;
@@ -47,7 +49,7 @@ export class WorkerTextModelSyncClient extends Disposable {
 		super.dispose();
 	}
 
-	public ensureSyncedResources(resources: URI[], forceLargeModels: boolean): void {
+	public ensureSyncedResources(resources: URI[], forceLargeModels: boolean = false): void {
 		for (const resource of resources) {
 			const resourceStr = resource.toString();
 
@@ -87,7 +89,7 @@ export class WorkerTextModelSyncClient extends Disposable {
 
 		const modelUrl = resource.toString();
 
-		this._proxy.acceptNewModel({
+		this._proxy.$acceptNewModel({
 			url: model.uri.toString(),
 			lines: model.getLinesContent(),
 			EOL: model.getEOL(),
@@ -96,13 +98,13 @@ export class WorkerTextModelSyncClient extends Disposable {
 
 		const toDispose = new DisposableStore();
 		toDispose.add(model.onDidChangeContent((e) => {
-			this._proxy.acceptModelChanged(modelUrl.toString(), e);
+			this._proxy.$acceptModelChanged(modelUrl.toString(), e);
 		}));
 		toDispose.add(model.onWillDispose(() => {
 			this._stopModelSync(modelUrl);
 		}));
 		toDispose.add(toDisposable(() => {
-			this._proxy.acceptRemovedModel(modelUrl);
+			this._proxy.$acceptRemovedModel(modelUrl);
 		}));
 
 		this._syncedModels[modelUrl] = toDispose;
@@ -134,11 +136,11 @@ export class WorkerTextModelSyncServer implements IWorkerTextModelSyncChannelSer
 		return all;
 	}
 
-	acceptNewModel(data: IRawModelData): void {
+	$acceptNewModel(data: IRawModelData): void {
 		this._models[data.url] = new MirrorModel(URI.parse(data.url), data.lines, data.EOL, data.versionId);
 	}
 
-	acceptModelChanged(uri: string, e: IModelChangedEvent): void {
+	$acceptModelChanged(uri: string, e: IModelChangedEvent): void {
 		if (!this._models[uri]) {
 			return;
 		}
@@ -146,7 +148,7 @@ export class WorkerTextModelSyncServer implements IWorkerTextModelSyncChannelSer
 		model.onEvents(e);
 	}
 
-	acceptRemovedModel(uri: string): void {
+	$acceptRemovedModel(uri: string): void {
 		if (!this._models[uri]) {
 			return;
 		}

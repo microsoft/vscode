@@ -6,7 +6,7 @@
 import { stringDiff } from 'vs/base/common/diff/diff';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { IRequestHandler } from 'vs/base/common/worker/simpleWorker';
+import { IRequestHandler, IWorkerServer } from 'vs/base/common/worker/simpleWorker';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { EndOfLineSequence, ITextModel } from 'vs/editor/common/model';
@@ -131,16 +131,16 @@ export class EditorSimpleWorker implements IDisposable, IWorkerTextModelSyncChan
 		return this._workerTextModelSyncServer.getModels();
 	}
 
-	public acceptNewModel(data: IRawModelData): void {
-		this._workerTextModelSyncServer.acceptNewModel(data);
+	public $acceptNewModel(data: IRawModelData): void {
+		this._workerTextModelSyncServer.$acceptNewModel(data);
 	}
 
-	public acceptModelChanged(uri: string, e: IModelChangedEvent): void {
-		this._workerTextModelSyncServer.acceptModelChanged(uri, e);
+	public $acceptModelChanged(uri: string, e: IModelChangedEvent): void {
+		this._workerTextModelSyncServer.$acceptModelChanged(uri, e);
 	}
 
-	public acceptRemovedModel(uri: string): void {
-		this._workerTextModelSyncServer.acceptRemovedModel(uri);
+	public $acceptRemovedModel(uri: string): void {
+		this._workerTextModelSyncServer.$acceptRemovedModel(uri);
 	}
 
 	public async computeUnicodeHighlights(url: string, options: UnicodeHighlighterOptions, range?: IRange): Promise<IUnicodeHighlightsResult> {
@@ -602,9 +602,10 @@ export class EditorSimpleWorker implements IDisposable, IWorkerTextModelSyncChan
 
 /**
  * Called on the worker side
+ * @skipMangle
  * @internal
  */
-export function create(host: IEditorWorkerHost): IRequestHandler {
+export function create(workerServer: IWorkerServer, host: IEditorWorkerHost): IRequestHandler {
 	return new EditorSimpleWorker(host, null);
 }
 

@@ -23,13 +23,13 @@ suite('EditorSimpleWorker', () => {
 
 		addModel(lines: string[], eol: string = '\n') {
 			const uri = 'test:file#' + Date.now();
-			this.acceptNewModel({
+			this.$acceptNewModel({
 				url: uri,
 				versionId: 1,
 				lines: lines,
 				EOL: eol
 			});
-			return this._getModel(uri);
+			return this._getModel(uri)!;
 		}
 	}
 

@@ -24,7 +24,7 @@ function initialize<H extends object>(factory: IRequestHandlerFactory<H>) {
 
 	const simpleWorker = new SimpleWorkerServer<H>(
 		msg => globalThis.postMessage(msg),
-		host => factory(host)
+		(workerServer, host) => factory(workerServer, host)
 	);
 
 	globalThis.onmessage = (e: MessageEvent) => {

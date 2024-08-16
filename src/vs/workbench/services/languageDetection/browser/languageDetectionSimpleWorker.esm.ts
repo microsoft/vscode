@@ -7,4 +7,4 @@ import { LanguageDetectionSimpleWorker } from './languageDetectionSimpleWorker';
 import { bootstrapSimpleWorker } from 'vs/base/common/worker/simpleWorkerBootstrap';
 import { IEditorWorkerHost } from 'vs/editor/common/services/editorWorkerHost';
 
-bootstrapSimpleWorker<IEditorWorkerHost>(host => new LanguageDetectionSimpleWorker(host, () => { return {}; }));
+bootstrapSimpleWorker<IEditorWorkerHost>((workerServer, host) => new LanguageDetectionSimpleWorker(workerServer, host));

@@ -234,6 +234,10 @@ function isInitMessage(a: any): a is IInitMessage {
 	return !!a && typeof a === 'object' && a.type === 'vscode.init' && a.data instanceof Map;
 }
 
+/**
+ * Called on the worker side
+ * @skipMangle
+ */
 export function create(): { onmessage: (message: any) => void } {
 	performance.mark(`code/extHost/willConnectToRenderer`);
 	const res = new ExtensionWorker();

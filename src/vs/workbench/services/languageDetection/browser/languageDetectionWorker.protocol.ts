@@ -1,0 +1,17 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+export interface ILanguageDetectionClient {
+	getIndexJsUri(): Promise<string>;
+	getLanguageId(languageIdOrExt: string | undefined): Promise<string | undefined>;
+	sendTelemetryEvent(languages: string[], confidences: number[], timeSpent: number): Promise<void>;
+	getRegexpModelUri(): Promise<string>;
+	getModelJsonUri(): Promise<string>;
+	getWeightsUri(): Promise<string>;
+}
+
+export interface ILanguageDetectionWorker {
+	detectLanguage(uri: string, langBiases: Record<string, number> | undefined, preferHistory: boolean, supportedLangs?: string[]): Promise<string | undefined>;
+}

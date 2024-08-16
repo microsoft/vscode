@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SimpleWorkerServer } from 'vs/base/common/worker/simpleWorker';
+import { IWorkerServer, SimpleWorkerServer } from 'vs/base/common/worker/simpleWorker';
 import { EditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';
 import { IEditorWorkerHost } from 'vs/editor/common/services/editorWorkerHost';
 
@@ -26,7 +26,7 @@ export function initialize(factory: any) {
 
 	const simpleWorker = new SimpleWorkerServer((msg) => {
 		globalThis.postMessage(msg);
-	}, (host: IEditorWorkerHost) => new EditorSimpleWorker(host, null));
+	}, (workerServer: IWorkerServer, host: IEditorWorkerHost) => new EditorSimpleWorker(host, null));
 
 	globalThis.onmessage = (e: MessageEvent) => {
 		simpleWorker.onmessage(e.data);

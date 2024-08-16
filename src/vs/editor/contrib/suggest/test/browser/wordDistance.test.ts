@@ -67,13 +67,13 @@ suite('suggest, word distance', function () {
 
 			constructor() {
 				super(undefined, modelService, new class extends mock<ITextResourceConfigurationService>() { }, new NullLogService(), new TestLanguageConfigurationService(), new LanguageFeaturesService());
-				this._worker.acceptNewModel({
+				this._worker.$acceptNewModel({
 					url: model.uri.toString(),
 					lines: model.getLinesContent(),
 					EOL: model.getEOL(),
 					versionId: model.getVersionId()
 				});
-				model.onDidChangeContent(e => this._worker.acceptModelChanged(model.uri.toString(), e));
+				model.onDidChangeContent(e => this._worker.$acceptModelChanged(model.uri.toString(), e));
 			}
 			override computeWordRanges(resource: URI, range: IRange): Promise<{ [word: string]: IRange[] } | null> {
 				return this._worker.computeWordRanges(resource.toString(), range, DEFAULT_WORD_REGEXP.source, DEFAULT_WORD_REGEXP.flags);
