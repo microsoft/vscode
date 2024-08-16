@@ -199,11 +199,6 @@ class NotebookWorkerClient extends Disposable {
 
 	}
 
-	// foreign host request
-	public fhr(method: string, args: any[]): Promise<any> {
-		throw new Error(`Not implemented!`);
-	}
-
 	computeDiff(original: URI, modified: URI) {
 		return this._withSyncedResources([original, modified]).then(proxy => {
 			return proxy.computeDiff(original.toString(), modified.toString());
