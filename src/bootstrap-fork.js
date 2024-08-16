@@ -22,14 +22,14 @@ performance.mark('code/fork/start');
 // Crash reporter
 configureCrashReporter();
 
-// Remove global paths from the node module lookup
+// Remove global paths from the node module lookup (TODO@esm does this work in ESM?)
 bootstrapNode.removeGlobalNodeModuleLookupPaths();
 
 // Enable ASAR in our forked processes
 bootstrapNode.enableASARSupport();
 
-if (process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH']) {
-	bootstrapNode.injectNodeModuleLookupPath(process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH']);
+if (process.env['VSCODE_DEV_INJECT_NODE_MODULE_LOOKUP_PATH']) {
+	bootstrapNode.devInjectNodeModuleLookupPath(process.env['VSCODE_DEV_INJECT_NODE_MODULE_LOOKUP_PATH']);
 }
 
 // Configure: pipe logging to parent process

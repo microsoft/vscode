@@ -33,6 +33,7 @@ const { app, protocol, crashReporter, Menu, contentTracing } = require('electron
 // import * as bootstrapAmd from './bootstrap-amd.js';
 // import { fileURLToPath } from 'url';
 // import { app, protocol, crashReporter, Menu, contentTracing } from 'electron';
+// import minimist from 'minimist';
 // import { product } from './bootstrap-meta.js';
 // import { parse } from './vs/base/common/jsonc.js';
 // import { getUserDataPath } from './vs/platform/environment/node/userDataPath.js';
@@ -54,9 +55,6 @@ bootstrapNode.enableASARSupport();
 // ESM-comment-begin
 const minimist = require('minimist'); // !!! IMPORTANT: MUST come after bootstrap#enableASARSupport
 // ESM-comment-end
-// ESM-uncomment-begin
-// import minimist from 'minimist'; // !!! IMPORTANT: MUST come after bootstrap#enableASARSupport
-// ESM-uncomment-end
 
 const args = parseCLIArgs();
 // Configure static command line arguments

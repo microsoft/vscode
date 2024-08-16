@@ -8,6 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { IResolvedNotebookEditorModel, NotebookEditorModelCreationOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IReference } from 'vs/base/common/lifecycle';
 import { Event, IWaitUntil } from 'vs/base/common/event';
+import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 
 export const INotebookEditorModelResolverService = createDecorator<INotebookEditorModelResolverService>('INotebookModelResolverService');
 
@@ -48,6 +49,8 @@ export interface INotebookEditorModelResolverService {
 	readonly onWillFailWithConflict: Event<INotebookConflictEvent>;
 
 	isDirty(resource: URI): boolean;
+
+	createUntitledNotebookTextModel(viewType: string): Promise<NotebookTextModel>;
 
 	resolve(resource: URI, viewType?: string, creationOptions?: NotebookEditorModelCreationOptions): Promise<IReference<IResolvedNotebookEditorModel>>;
 	resolve(resource: IUntitledNotebookResource, viewType: string, creationOtions?: NotebookEditorModelCreationOptions): Promise<IReference<IResolvedNotebookEditorModel>>;

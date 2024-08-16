@@ -67,10 +67,11 @@ import { settingsNumberInputBackground, settingsNumberInputBorder, settingsNumbe
 import { APPLY_ALL_PROFILES_SETTING, IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { ISetting, ISettingsGroup, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
+import { ISetting, ISettingsGroup, SETTINGS_AUTHORITY, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
 import { getInvalidTypeError } from 'vs/workbench/services/preferences/common/preferencesValidation';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
+import { URI } from 'vs/base/common/uri';
 
 const $ = DOM.$;
 
@@ -1377,6 +1378,8 @@ class SettingObjectRenderer extends AbstractSettingObjectRenderer implements ITr
 					// If the key of the default value is changed, remove the default value
 					if (e.originalItem.key.data !== e.newItem.key.data && settingSupportsRemoveDefault && e.originalItem.key.data in defaultValue) {
 						newValue[e.originalItem.key.data] = null;
+					} else {
+						delete newValue[e.originalItem.key.data];
 					}
 					newValue[e.newItem.key.data] = e.newItem.value.data;
 					newItems.push(e.newItem);
@@ -2114,6 +2117,7 @@ export class SettingTreeRenderers extends Disposable {
 			new Separator(),
 			this._instantiationService.createInstance(CopySettingIdAction),
 			this._instantiationService.createInstance(CopySettingAsJSONAction),
+			this._instantiationService.createInstance(CopySettingAsURLAction),
 		];
 
 		const actionFactory = (setting: ISetting, settingTarget: SettingsTarget) => this.getActionsForSetting(setting, settingTarget);
@@ -2593,6 +2597,29 @@ class CopySettingAsJSONAction extends Action {
 		if (context) {
 			const jsonResult = `"${context.setting.key}": ${JSON.stringify(context.value, undefined, '  ')}`;
 			await this.clipboardService.writeText(jsonResult);
+		}
+
+		return Promise.resolve(undefined);
+	}
+}
+
+class CopySettingAsURLAction extends Action {
+	static readonly ID = 'settings.copySettingAsURL';
+	static readonly LABEL = localize('copySettingAsURLLabel', "Copy Setting as URL");
+
+	constructor(
+		@IClipboardService private readonly clipboardService: IClipboardService,
+		@IProductService private readonly productService: IProductService,
+	) {
+		super(CopySettingAsURLAction.ID, CopySettingAsURLAction.LABEL);
+	}
+
+	override async run(context: SettingsTreeSettingElement): Promise<void> {
+		if (context) {
+			const settingKey = context.setting.key;
+			const product = this.productService.urlProtocol;
+			const uri = URI.from({ scheme: product, authority: SETTINGS_AUTHORITY, path: `/${settingKey}` }, true);
+			await this.clipboardService.writeText(uri.toString());
 		}
 
 		return Promise.resolve(undefined);

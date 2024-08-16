@@ -334,6 +334,11 @@ configurationRegistry.registerConfiguration({
 			default: 1,
 			markdownDescription: nls.localize('search.searchEditor.defaultNumberOfContextLines', "The default number of surrounding context lines to use when creating new Search Editors. If using `#search.searchEditor.reusePriorSearchConfiguration#`, this can be set to `null` (empty) to use the prior Search Editor's configuration.")
 		},
+		'search.searchEditor.focusResultsOnSearch': {
+			type: 'boolean',
+			default: false,
+			markdownDescription: nls.localize('search.searchEditor.focusResultsOnSearch', "When a search is triggered, focus the Search Editor results instead of the Search Editor input.")
+		},
 		'search.sortOrder': {
 			type: 'string',
 			enum: [SearchSortOrder.Default, SearchSortOrder.FileNames, SearchSortOrder.Type, SearchSortOrder.Modified, SearchSortOrder.CountDescending, SearchSortOrder.CountAscending],
