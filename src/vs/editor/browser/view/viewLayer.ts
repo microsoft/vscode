@@ -368,11 +368,6 @@ export class VisibleLinesCollection<T extends IVisibleLine> {
 		} else {
 			// If not yet attached, listen for device pixel size and attach
 			if (!this._canvas.parentElement) {
-				// TODO: Track disposable
-				observeDevicePixelDimensions(this._canvas, getActiveWindow(), (w, h) => {
-					this._canvas.width = w;
-					this._canvas.height = h;
-				});
 				this.domNode.domNode.appendChild(this._canvas);
 			}
 

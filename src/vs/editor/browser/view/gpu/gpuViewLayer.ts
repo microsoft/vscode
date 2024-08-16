@@ -9,6 +9,7 @@ import { debounce } from 'vs/base/common/decorators';
 import { URI } from 'vs/base/common/uri';
 import type { ITextureAtlasGlyph } from 'vs/editor/browser/view/gpu/atlas/atlas';
 import { TextureAtlas } from 'vs/editor/browser/view/gpu/atlas/textureAtlas';
+import { ensureNonNullable, observeDevicePixelDimensions } from 'vs/editor/browser/view/gpu/gpuUtils';
 import { GlyphRasterizer } from 'vs/editor/browser/view/gpu/raster/glyphRasterizer';
 import type { IVisibleLine, IVisibleLinesHost } from 'vs/editor/browser/view/viewLayer';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -94,7 +95,7 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 		this.host = host;
 		this.viewportData = viewportData;
 
-		this._gpuCtx = this.domNode.getContext('webgpu')!;
+		this._gpuCtx = ensureNonNullable(this.domNode.getContext('webgpu'));
 		this.initWebgpu();
 	}
 
@@ -188,6 +189,16 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 			uniformValues[UniformBufferInfo.Offset_CanvasWidth] = this.domNode.width;
 			uniformValues[UniformBufferInfo.Offset_CanvasHeight] = this.domNode.height;
 			this._device.queue.writeBuffer(uniformBuffer, 0, uniformValues);
+
+			// TODO: Track disposable
+			observeDevicePixelDimensions(this.domNode, getActiveWindow(), (w, h) => {
+				this.domNode.width = w;
+				this.domNode.height = h;
+				uniformValues[UniformBufferInfo.Offset_CanvasWidth] = this.domNode.width;
+				uniformValues[UniformBufferInfo.Offset_CanvasHeight] = this.domNode.height;
+				this._device.queue.writeBuffer(uniformBuffer, 0, uniformValues);
+				// TODO: Request render
+			});
 		}
 
 
@@ -198,10 +209,9 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 			Offset_Width = 0,
 			Offset_Height = 1,
 		}
-		const atlasInfoUniformBufferSize = AtlasInfoUniformBufferInfo.BytesPerEntry;
 		const atlasInfoUniformBuffer = this._device.createBuffer({
 			label: 'Monaco atlas info uniform buffer',
-			size: atlasInfoUniformBufferSize,
+			size: AtlasInfoUniformBufferInfo.BytesPerEntry,
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
 		});
 		{
@@ -334,8 +344,18 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 			this._device.queue.writeBuffer(this._glyphStorageBuffer[layerIndex], 0, values);
 			this._device.queue.copyExternalImageToTexture(
 				{ source: page.source },
-				{ texture: this._atlasGpuTexture, origin: { x: page.usedArea.left, y: page.usedArea.top, z: layerIndex } },
-				{ width: page.usedArea.right - page.usedArea.left, height: page.usedArea.bottom - page.usedArea.top },
+				{
+					texture: this._atlasGpuTexture,
+					origin: {
+						x: page.usedArea.left,
+						y: page.usedArea.top,
+						z: layerIndex
+					}
+				},
+				{
+					width: page.usedArea.right - page.usedArea.left,
+					height: page.usedArea.bottom - page.usedArea.top
+				},
 			);
 			this._atlasGpuTextureVersions[layerIndex] = page.version;
 		}
