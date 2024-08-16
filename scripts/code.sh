@@ -3,7 +3,7 @@
 set -e
 
 cd extensions/pearai-submodule
-./scripts/build-extension.sh
+./scripts/install-and-build.sh
 cd ../..
 
 if [[ "$OSTYPE" == "darwin"* ]]; then
