@@ -26,6 +26,7 @@ import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/no
 import { CellKind, IOutputDto, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { INotebookKernel, INotebookKernelHistoryService, INotebookKernelService, INotebookTextModelLike, VariablesResult } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { INotebookLoggingService } from 'vs/workbench/contrib/notebook/common/notebookLoggingService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { setupInstantiationService, withTestNotebook as _withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
 
@@ -52,6 +53,12 @@ suite('NotebookExecutionService', () => {
 			override onDidAddNotebookDocument = Event.None;
 			override onWillRemoveNotebookDocument = Event.None;
 			override getNotebookTextModels() { return []; }
+		});
+
+		instantiationService.stub(INotebookLoggingService, new class extends mock<INotebookLoggingService>() {
+			override debug(category: string, output: string): void {
+				//
+			}
 		});
 
 		instantiationService.stub(IMenuService, new class extends mock<IMenuService>() {

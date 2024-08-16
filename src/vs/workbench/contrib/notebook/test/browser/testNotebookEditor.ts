@@ -399,15 +399,19 @@ export async function withTestNotebookDiffModel<R = any>(originalCells: [source:
 	if (res instanceof Promise) {
 		res.finally(() => {
 			originalNotebook.editor.dispose();
+			originalNotebook.viewModel.notebookDocument.dispose();
 			originalNotebook.viewModel.dispose();
 			modifiedNotebook.editor.dispose();
+			modifiedNotebook.viewModel.notebookDocument.dispose();
 			modifiedNotebook.viewModel.dispose();
 			disposables.dispose();
 		});
 	} else {
 		originalNotebook.editor.dispose();
+		originalNotebook.viewModel.notebookDocument.dispose();
 		originalNotebook.viewModel.dispose();
 		modifiedNotebook.editor.dispose();
+		modifiedNotebook.viewModel.notebookDocument.dispose();
 		modifiedNotebook.viewModel.dispose();
 		disposables.dispose();
 	}

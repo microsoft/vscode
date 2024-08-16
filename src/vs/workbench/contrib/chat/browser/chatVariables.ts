@@ -15,11 +15,13 @@ import { IChatWidgetService, showChatView } from 'vs/workbench/contrib/chat/brow
 import { ChatDynamicVariableModel } from 'vs/workbench/contrib/chat/browser/contrib/chatDynamicVariables';
 import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatModel, IChatRequestVariableData, IChatRequestVariableEntry } from 'vs/workbench/contrib/chat/common/chatModel';
-import { ChatRequestDynamicVariablePart, ChatRequestVariablePart, IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
+import { ChatRequestDynamicVariablePart, ChatRequestToolPart, ChatRequestVariablePart, IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatContentReference } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatRequestVariableValue, IChatVariableData, IChatVariableResolver, IChatVariableResolverProgress, IChatVariablesService, IDynamicVariable } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { ChatContextAttachments } from 'vs/workbench/contrib/chat/browser/contrib/chatContextAttachments';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
+import { ILanguageModelToolsService } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
+import { ThemeIcon } from 'vs/base/common/themables';
 
 interface IChatData {
 	data: IChatVariableData;
@@ -34,6 +36,7 @@ export class ChatVariablesService implements IChatVariablesService {
 	constructor(
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IViewsService private readonly viewsService: IViewsService,
+		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
 	) {
 	}
 
@@ -61,7 +64,12 @@ export class ChatVariablesService implements IChatVariablesService {
 						}).catch(onUnexpectedExternalError));
 					}
 				} else if (part instanceof ChatRequestDynamicVariablePart) {
-					resolvedVariables[i] = { id: part.id, name: part.referenceText, range: part.range, value: part.data };
+					resolvedVariables[i] = { id: part.id, name: part.referenceText, range: part.range, value: part.data, };
+				} else if (part instanceof ChatRequestToolPart) {
+					const tool = this.toolsService.getTool(part.toolId);
+					if (tool) {
+						resolvedVariables[i] = { id: part.toolId, name: part.toolName, range: part.range, value: undefined, isTool: true, icon: ThemeIcon.isThemeIcon(tool.icon) ? tool.icon : undefined, fullName: tool.displayName };
+					}
 				}
 			});
 

@@ -541,8 +541,11 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 
 		this._widgetDisposableStore.add(editorModel.onDidChangeContent(() => {
 			const value = editorModel.getValue();
-			if (this.input?.resource && value !== '') {
-				(this.input as InteractiveEditorInput).historyService.replaceLast(this.input.resource, value);
+			if (this.input?.resource) {
+				const historyService = (this.input as InteractiveEditorInput).historyService;
+				if (!historyService.matchesCurrent(this.input.resource, value)) {
+					historyService.replaceLast(this.input.resource, value);
+				}
 			}
 		}));
 

@@ -10,6 +10,7 @@ import * as File from 'vinyl';
 import * as sm from 'source-map';
 import * as path from 'path';
 import * as sort from 'gulp-sort';
+import { isESM } from './esm';
 
 declare class FileSourceMap extends File {
 	public sourceMap: sm.RawSourceMap;
@@ -231,14 +232,24 @@ module _nls {
 			.filter(n => n.kind === ts.SyntaxKind.ImportEqualsDeclaration)
 			.map(n => <ts.ImportEqualsDeclaration>n)
 			.filter(d => d.moduleReference.kind === ts.SyntaxKind.ExternalModuleReference)
-			.filter(d => (<ts.ExternalModuleReference>d.moduleReference).expression.getText() === '\'vs/nls\'');
+			.filter(d => {
+				if (isESM()) {
+					return (<ts.ExternalModuleReference>d.moduleReference).expression.getText().endsWith(`/nls.js'`);
+				}
+				return (<ts.ExternalModuleReference>d.moduleReference).expression.getText() === '\'vs/nls\'';
+			});
 
 		// import ... from 'vs/nls';
 		const importDeclarations = imports
 			.filter(n => n.kind === ts.SyntaxKind.ImportDeclaration)
 			.map(n => <ts.ImportDeclaration>n)
 			.filter(d => d.moduleSpecifier.kind === ts.SyntaxKind.StringLiteral)
-			.filter(d => d.moduleSpecifier.getText() === '\'vs/nls\'')
+			.filter(d => {
+				if (isESM()) {
+					return d.moduleSpecifier.getText().endsWith(`/nls.js'`);
+				}
+				return d.moduleSpecifier.getText() === '\'vs/nls\'';
+			})
 			.filter(d => !!d.importClause && !!d.importClause.namedBindings);
 
 		// `nls.localize(...)` calls

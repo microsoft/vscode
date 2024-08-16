@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { IRemoteAgentService, remoteConnectionLatencyMeasurer } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { RunOnceScheduler, retry } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { MenuId, IMenuService, MenuItemAction, MenuRegistry, registerAction2, Action2, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/workbench/services/statusbar/browser/statusbar';
@@ -778,12 +778,13 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 			return items;
 		};
 
-		const quickPick = this.quickInputService.createQuickPick({ useSeparators: true });
+		const disposables = new DisposableStore();
+		const quickPick = disposables.add(this.quickInputService.createQuickPick({ useSeparators: true }));
 		quickPick.placeholder = nls.localize('remoteActions', "Select an option to open a Remote Window");
 		quickPick.items = computeItems();
 		quickPick.sortByLabel = false;
 		quickPick.canSelectMany = false;
-		Event.once(quickPick.onDidAccept)((async _ => {
+		disposables.add(Event.once(quickPick.onDidAccept)((async _ => {
 			const selectedItems = quickPick.selectedItems;
 			if (selectedItems.length === 1) {
 				const commandId = selectedItems[0].id!;
@@ -806,21 +807,20 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 					quickPick.hide();
 				}
 			}
-		}));
+		})));
 
-		Event.once(quickPick.onDidTriggerItemButton)(async (e) => {
+		disposables.add(Event.once(quickPick.onDidTriggerItemButton)(async (e) => {
 			const remoteExtension = this.remoteExtensionMetadata.find(value => ExtensionIdentifier.equals(value.id, e.item.id));
 			if (remoteExtension) {
 				await this.openerService.open(URI.parse(remoteExtension.helpLink));
 			}
-		});
+		}));
 
 		// refresh the items when actions change
-		const legacyItemUpdater = this.legacyIndicatorMenu.onDidChange(() => quickPick.items = computeItems());
-		quickPick.onDidHide(legacyItemUpdater.dispose);
+		disposables.add(this.legacyIndicatorMenu.onDidChange(() => quickPick.items = computeItems()));
+		disposables.add(this.remoteIndicatorMenu.onDidChange(() => quickPick.items = computeItems()));
 
-		const itemUpdater = this.remoteIndicatorMenu.onDidChange(() => quickPick.items = computeItems());
-		quickPick.onDidHide(itemUpdater.dispose);
+		disposables.add(quickPick.onDidHide(() => disposables.dispose()));
 
 		if (!this.remoteMetadataInitialized) {
 			quickPick.busy = true;

@@ -16,6 +16,8 @@ import { IExtensionResourceLoaderService } from 'vs/platform/extensionResourceLo
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { mainWindow } from 'vs/base/browser/window';
 
+const escapeCSS = mainWindow.CSS.escape;
+
 export class FileIconThemeData implements IWorkbenchFileIconTheme {
 
 	static readonly STORAGE_KEY = 'iconThemeData';
@@ -462,9 +464,4 @@ function handleParentFolder(key: string, selectors: string[]): string {
 		return key.substring(lastIndexOfSlash + 1);
 	}
 	return key;
-}
-
-function escapeCSS(str: string) {
-	str = str.replace(/[\x11\x12\x14\x15\x40]/g, '/'); // HTML class names can not contain certain whitespace characters, use / instead, which doesn't exist in file names.
-	return mainWindow.CSS.escape(str);
 }

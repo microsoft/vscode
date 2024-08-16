@@ -353,7 +353,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData.rowContainer.classList.toggle('interactive-request', isRequestVM(element));
 		templateData.rowContainer.classList.toggle('interactive-response', isResponseVM(element));
 		templateData.rowContainer.classList.toggle('interactive-welcome', isWelcomeVM(element));
-		templateData.rowContainer.classList.toggle('filtered-response', isFiltered);
 		templateData.rowContainer.classList.toggle('show-detail-progress', isResponseVM(element) && !element.isComplete && !element.progressMessages.length);
 		templateData.username.textContent = element.username;
 		if (!this.rendererOptions.noHeader) {
@@ -484,30 +483,37 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			this.renderDetail(element, templateData);
 		}
 
+		const isFiltered = !!(isResponseVM(element) && element.errorDetails?.responseIsFiltered);
+
 		const parts: IChatContentPart[] = [];
-		value.forEach((data, index) => {
-			const context: IChatContentPartRenderContext = {
-				element,
-				index,
-				content: value,
-				preceedingContentParts: parts,
-			};
-			const newPart = this.renderChatContentPart(data, templateData, context);
-			if (newPart) {
-				templateData.value.appendChild(newPart.domNode);
-				parts.push(newPart);
-			}
-		});
+		if (!isFiltered) {
+			value.forEach((data, index) => {
+				const context: IChatContentPartRenderContext = {
+					element,
+					index,
+					content: value,
+					preceedingContentParts: parts,
+				};
+				const newPart = this.renderChatContentPart(data, templateData, context);
+				if (newPart) {
+					templateData.value.appendChild(newPart.domNode);
+					parts.push(newPart);
+				}
+			});
+		}
+
 		if (templateData.renderedParts) {
 			dispose(templateData.renderedParts);
 		}
 		templateData.renderedParts = parts;
 
-		if (isRequestVM(element) && element.variables.length) {
-			const newPart = this.renderAttachments(element.variables, element.contentReferences, templateData);
-			if (newPart) {
-				templateData.value.appendChild(newPart.domNode);
-				templateData.elementDisposables.add(newPart);
+		if (!isFiltered) {
+			if (isRequestVM(element) && element.variables.length) {
+				const newPart = this.renderAttachments(element.variables, element.contentReferences, templateData);
+				if (newPart) {
+					templateData.value.appendChild(newPart.domNode);
+					templateData.elementDisposables.add(newPart);
+				}
 			}
 		}
 
