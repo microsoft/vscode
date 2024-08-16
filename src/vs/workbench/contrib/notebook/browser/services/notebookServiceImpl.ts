@@ -20,12 +20,11 @@ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessib
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IFileService } from 'vs/platform/files/common/files';
-import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Memento, MementoObject } from 'vs/workbench/common/memento';
 import { INotebookEditorContribution, notebookPreloadExtensionPoint, notebookRendererExtensionPoint, notebooksExtensionPoint } from 'vs/workbench/contrib/notebook/browser/notebookExtensionPoint';
 import { INotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NotebookDiffEditorInput } from 'vs/workbench/contrib/notebook/common/notebookDiffEditorInput';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, CellUri, NotebookSetting, INotebookContributionData, INotebookExclusiveDocumentFilter, INotebookRendererInfo, INotebookTextModel, IOrderedMimeType, IOutputDto, MimeTypeDisplayOrder, NotebookEditorPriority, NotebookRendererMatch, NOTEBOOK_DISPLAY_ORDER, RENDERER_EQUIVALENT_EXTENSIONS, RENDERER_NOT_AVAILABLE, NotebookExtensionDescription, INotebookStaticPreloadInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -41,123 +40,11 @@ import { InstallRecommendedExtensionAction } from 'vs/workbench/contrib/extensio
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { INotebookDocument, INotebookDocumentService } from 'vs/workbench/services/notebook/common/notebookDocumentService';
 import { MergeEditorInput } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
-import type { EditorInputWithOptions, IResourceDiffEditorInput, IResourceMergeEditorInput } from 'vs/workbench/common/editor';
+import type { EditorInputWithOptions, IResourceMergeEditorInput } from 'vs/workbench/common/editor';
 import { MultiDiffEditorInput } from 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput';
-import { NotebookDiffViewModel } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffViewModel';
-import { INotebookEditorWorkerService } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerService';
-import { NotebookDiffEditorEventDispatcher } from 'vs/workbench/contrib/notebook/browser/diff/eventDispatcher';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { SideBySideDiffElementViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
-import { IMultiDiffSourceResolverService, MultiDiffEditorItem, type IMultiDiffSourceResolver, type IResolvedMultiDiffSource } from 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffSourceResolverService';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
-import type { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorWebviewZone } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffOutputWebView';
-
-
-export const ID_NOTEBOOK_MULTI_DIFF_SOURCE_RESOLVER_SERVICE = 'notebookDiffSourceResolverService';
-export const INotebookDiffSourceResolverService = createDecorator<INotebookDiffSourceResolverService>(ID_NOTEBOOK_MULTI_DIFF_SOURCE_RESOLVER_SERVICE);
-
-export interface INotebookDiffSourceResolverService {
-	readonly _serviceBrand: undefined;
-	add(uri: URI, diffEditorInput: IResourceDiffEditorInput & { id: string }): IDisposable;
-}
-
-
-const NotebookMultiDiffEditorScheme = 'multi-cell-notebook-diff-editor';
-export class NotebookDiffSourceResolverService extends Disposable implements IMultiDiffSourceResolver, INotebookDiffSourceResolverService {
-	declare readonly _serviceBrand: undefined;
-	constructor(
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@INotebookEditorWorkerService private readonly notebookEditorWorkerService: INotebookEditorWorkerService,
-		@INotebookService private readonly notebookService: INotebookService,
-		@IMultiDiffSourceResolverService multiDiffSourceResolverService: IMultiDiffSourceResolverService,
-		@ICodeEditorService private readonly _editorService: ICodeEditorService,
-		@IWebviewService private readonly _webviewService: IWebviewService,
-	) {
-		super();
-		this._register(multiDiffSourceResolverService.registerResolver(this));
-	}
-
-	private readonly mappedInputs = new ResourceMap<IResourceDiffEditorInput & { id: string } & { disposables: DisposableStore }>();
-	add(uri: URI, diffEditorInput: IResourceDiffEditorInput & { id: string }): IDisposable {
-		const disposables = new DisposableStore();
-		this.mappedInputs.set(uri, { ...diffEditorInput, disposables });
-		return toDisposable(() => { this.mappedInputs.delete(uri); disposables.dispose(); });
-	}
-
-	canHandleUri(uri: URI): boolean {
-		return this.mappedInputs.has(uri);
-	}
-	async resolveDiffSource(uri: URI): Promise<IResolvedMultiDiffSource> {
-		const data = this.mappedInputs.get(uri);
-		if (!data) {
-			throw new Error('No data found');
-		}
-		const { modified, label, description, original, id: notebookProviderInfoId, disposables } = data;
-		const nbInput = disposables.add(NotebookDiffEditorInput.create(this.instantiationService, modified.resource!, label, description, original.resource!, notebookProviderInfoId));
-		const model = disposables.add(await nbInput.resolve());
-		const eventDispatcher = disposables.add(new NotebookDiffEditorEventDispatcher());
-		const vm = disposables.add(new NotebookDiffViewModel(model, this.notebookEditorWorkerService, this.instantiationService, this._configurationService, eventDispatcher, this.notebookService, undefined, true));
-		const token = disposables.add(new CancellationTokenSource()).token;
-		await vm.computeDiff(token);
-
-		let metadataUri: URI | undefined = undefined;
-		const resources = vm.items.filter(v => v.type === 'modified').map(v => {
-			const item = v as SideBySideDiffElementViewModel;
-			const originalMetadata = CellUri.generateCellPropertyUri(original.resource!, item.original.handle, Schemas.vscodeNotebookCellMetadata);
-			const modifiedMetadata = CellUri.generateCellPropertyUri(modified.resource!, item.modified.handle, Schemas.vscodeNotebookCellMetadata);
-			metadataUri = modifiedMetadata;
-			return [
-				new MultiDiffEditorItem(item.original.uri, item.modified.uri, undefined),
-				new MultiDiffEditorItem(originalMetadata, modifiedMetadata, item.modified.uri),
-			];
-		}).flat();
-
-		let found = false;
-		const tryCreatingWebView = (e: ICodeEditor) => {
-			if (found) {
-				return;
-			}
-			const editor = this._editorService.listCodeEditors().find(editor => editor.getModel()?.uri.scheme === Schemas.vscodeNotebookCellMetadata);
-			if (!editor) {
-				return;
-			}
-			found = true;
-			const webview = disposables.add(this._webviewService.createWebviewElement({
-				title: undefined,
-				options: {
-					enableFindWidget: false,
-				},
-				contentOptions: { allowScripts: true },
-				extension: { id: { value: 'ms-toolsai.jupyter', _lower: 'ms-toolsai.jupyter' } }
-			}));
-			const webviewZone = disposables.add(new EditorWebviewZone(editor as IActiveCodeEditor, 0, 15, webview));
-			webviewZone.webview.setHtml('<html><body><button>Hello World!</button></body></html>');
-
-		}
-		this._editorService.onCodeEditorAdd(e => {
-			console.log(e.getModel());
-			if (e.getModel()) {
-				tryCreatingWebView(e);
-			} else {
-				e.onDidChangeModel(model => {
-					console.error(model);
-					tryCreatingWebView(e);
-				});
-			}
-		});
-
-		return {
-			resources: {
-				value: resources,
-				onDidChange: Event.None
-			}
-		};
-	}
-}
 import { streamToBuffer, VSBuffer, VSBufferReadableStream } from 'vs/base/common/buffer';
+import { INotebookDiffSourceResolverService, NotebookMultiDiffEditorScheme } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffSourceResolverService';
+// import { NotebookDiffEditorInput } from 'vs/workbench/contrib/notebook/common/notebookDiffEditorInput';
 
 export class NotebookProviderInfoStore extends Disposable {
 

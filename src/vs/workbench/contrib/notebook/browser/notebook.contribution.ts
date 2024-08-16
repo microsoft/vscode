@@ -28,7 +28,7 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
 import { NotebookEditorInput, NotebookEditorInputOptions } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { INotebookDiffSourceResolverService, NotebookDiffSourceResolverService, NotebookService } from 'vs/workbench/contrib/notebook/browser/services/notebookServiceImpl';
+import { NotebookService } from 'vs/workbench/contrib/notebook/browser/services/notebookServiceImpl';
 import { CellKind, CellUri, IResolvedNotebookEditorModel, NotebookWorkingCopyTypeIdentifier, NotebookSetting, ICellOutput, ICell } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
@@ -123,6 +123,7 @@ import { AccessibleViewRegistry } from 'vs/platform/accessibility/browser/access
 import { NotebookAccessibilityHelp } from 'vs/workbench/contrib/notebook/browser/notebookAccessibilityHelp';
 import { NotebookAccessibleView } from 'vs/workbench/contrib/notebook/browser/notebookAccessibleView';
 import { DefaultFormatter } from 'vs/workbench/contrib/format/browser/formatActionsMultiple';
+import { INotebookDiffSourceResolverService, NotebookDiffSourceResolverService } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffSourceResolverService';
 
 /*--------------------------------------------------------------------------------------------- */
 
