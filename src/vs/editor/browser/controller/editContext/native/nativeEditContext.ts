@@ -45,9 +45,10 @@ const canUseZeroSizeTextarea = (browser.isFirefox);
 
 export class NativeEditContext extends AbstractEditContext {
 
-	private _scrollLeft: number;
-	private _scrollTop: number;
+	private readonly _domElement = new FastDomNode(document.createElement('div'));
+	private readonly _editContext: EditContext = this._domElement.domNode.editContext = new EditContext();
 
+	private _parent!: HTMLElement;
 	private _accessibilitySupport!: AccessibilitySupport;
 	private _accessibilityPageSize!: number;
 	private _textAreaWidth!: number;
@@ -57,42 +58,34 @@ export class NativeEditContext extends AbstractEditContext {
 	private _fontInfo: FontInfo;
 	private _lineHeight: number;
 	private _emptySelectionClipboard: boolean;
-
-	/**
-	 * Defined only when the text area is visible (composition case).
-	 */
 	private _selections: Selection[];
-
-	private readonly _domElement = new FastDomNode(document.createElement('div'));
-	private readonly _editContext: EditContext = this._domElement.domNode.editContext = new EditContext();
-
-	private _parent!: HTMLElement;
-
-	private _isComposing: boolean = false;
 	private _compositionStartPosition: Position | undefined;
 	private _compositionEndPosition: Position | undefined;
-	private _currentComposition: CompositionContext | null = null;
+	private _currentComposition: CompositionContext | undefined;
 	private _selectionOfContent: Range | undefined;
+	private _renderingContext: RenderingContext | undefined;
+	private _textAreaState: TextAreaState = TextAreaState.EMPTY;
+
+	private _scrollLeft: number = 0;
+	private _scrollTop: number = 0;
+	private _rangeStart: number = 0;
+	private _isComposing: boolean = false;
+	private _hasFocus: boolean = false;
+
 	private _selectionStartWithinScreenReaderContent: number = 0;
 	private _selectionEndWithinScreenReaderContent: number = 0;
-
-	private _hasFocus: boolean = false;
-	private _renderingContext: RenderingContext | undefined;
+	private _selectionStartWithinEditContext: number = 0;
+	private _selectionEndWithinEditContext: number = 0;
 
 	private _contextForTextArea = {
 		getValue: () => this._editContext.text,
 		getSelectionStart: () => this._selectionStartWithinEditContext,
 		getSelectionEnd: () => this._selectionEndWithinEditContext,
 	};
-	private _textAreaState: TextAreaState = TextAreaState.EMPTY;
-	private _selectionStartWithinEditContext: number = 0;
-	private _selectionEndWithinEditContext: number = 0;
 
 	private _selectionBounds: IDisposable = Disposable.None;
 	private _controlBounds: IDisposable = Disposable.None;
 	private _characterBounds: IDisposable = Disposable.None;
-
-	private _rangeStart: number;
 
 	constructor(
 		context: ViewContext,
@@ -101,11 +94,6 @@ export class NativeEditContext extends AbstractEditContext {
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 	) {
 		super(context);
-
-		this._scrollLeft = 0;
-		this._scrollTop = 0;
-		this._hasFocus = false;
-		this._rangeStart = 0;
 
 		const options = this._context.configuration.options;
 		const layoutInfo = options.get(EditorOption.layoutInfo);
@@ -268,7 +256,7 @@ export class NativeEditContext extends AbstractEditContext {
 				if (!currentComposition) {
 					return;
 				}
-				this._currentComposition = null;
+				this._currentComposition = undefined;
 				const typeInput = currentComposition.handleCompositionUpdate(e.data);
 				this._textAreaState = TextAreaState.readFromEditContext(this._contextForTextArea, this._textAreaState);
 				this._onType(typeInput);
@@ -984,7 +972,7 @@ export class NativeEditContext extends AbstractEditContext {
 				const linesVisibleRanges = this._renderingContext.linesVisibleRangesForRange(primaryViewState.selection, true) ?? [];
 				if (linesVisibleRanges.length === 0) { return; }
 				const minLeft = Math.min(...linesVisibleRanges.map(r => Math.min(...r.ranges.map(r => r.left))));
-				left += minLeft;
+				left += (minLeft + typicalHalfwidthCharacterWidth / 2);
 			}
 			selectionBounds = new DOMRect(
 				left,
