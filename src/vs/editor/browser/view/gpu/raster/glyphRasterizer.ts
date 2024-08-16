@@ -48,6 +48,7 @@ export class GlyphRasterizer extends Disposable {
 	 * therefore is only safe for synchronous access.
 	 */
 	public rasterizeGlyph(chars: string, fg: string): IRasterizedGlyph {
+		// TODO: Support workbench.fontAliasing
 		this._ctx.clearRect(0, 0, this._canvas.width, this._canvas.height);
 
 		// TODO: Draw in middle using alphabetical baseline
