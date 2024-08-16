@@ -53,14 +53,14 @@ export class TextureAtlas extends Disposable {
 	}
 
 	// TODO: Color, style etc.
-	public getGlyph(rasterizer: GlyphRasterizer, chars: string, tokenFg: number): Readonly<ITextureAtlasGlyph> {
+	public getGlyph(rasterizer: GlyphRasterizer, chars: string, metadata: number): Readonly<ITextureAtlasGlyph> {
 		if (!this._warmedUpRasterizers.has(rasterizer.id)) {
 			this._warmUpAtlas(rasterizer);
 			this._warmedUpRasterizers.add(rasterizer.id);
 		}
 		// HACK: Draw glyphs to different pages to test out multiple textures while there's no overflow logic
 		const targetPage = chars.match(/[a-z]/i) ? 0 : 1;
-		return this._pages[targetPage].getGlyph(rasterizer, chars, tokenFg);
+		return this._pages[targetPage].getGlyph(rasterizer, chars, metadata);
 	}
 
 	public getUsagePreview(): Promise<Blob[]> {

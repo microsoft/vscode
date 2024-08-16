@@ -76,15 +76,15 @@ export class TextureAtlasPage extends Disposable implements IReadableTextureAtla
 	}
 
 	// TODO: Color, style etc.
-	public getGlyph(rasterizer: GlyphRasterizer, chars: string, tokenFg: number): Readonly<ITextureAtlasGlyph> {
-		return this._glyphMap.get(chars, tokenFg) ?? this._createGlyph(rasterizer, chars, tokenFg);
+	public getGlyph(rasterizer: GlyphRasterizer, chars: string, metadata: number): Readonly<ITextureAtlasGlyph> {
+		return this._glyphMap.get(chars, metadata) ?? this._createGlyph(rasterizer, chars, metadata);
 	}
 
-	private _createGlyph(rasterizer: GlyphRasterizer, chars: string, tokenFg: number): Readonly<ITextureAtlasGlyph> {
-		const rasterizedGlyph = rasterizer.rasterizeGlyph(chars, this._colorMap[tokenFg], false);
+	private _createGlyph(rasterizer: GlyphRasterizer, chars: string, metadata: number): Readonly<ITextureAtlasGlyph> {
+		const rasterizedGlyph = rasterizer.rasterizeGlyph(chars, metadata, this._colorMap);
 		// TODO: Handle undefined allocate result
-		const glyph = this._allocator.allocate(chars, tokenFg, rasterizedGlyph)!;
-		this._glyphMap.set(chars, tokenFg, glyph);
+		const glyph = this._allocator.allocate(chars, metadata, rasterizedGlyph)!;
+		this._glyphMap.set(chars, metadata, glyph);
 		this._glyphInOrderSet.add(glyph);
 
 		this._version++;
@@ -94,7 +94,7 @@ export class TextureAtlasPage extends Disposable implements IReadableTextureAtla
 		if (this._logService.getLevel() === LogLevel.Trace) {
 			this._logService.trace('New glyph', {
 				chars,
-				fg: this._colorMap[tokenFg],
+				fg: this._colorMap[metadata],
 				rasterizedGlyph,
 				glyph
 			});

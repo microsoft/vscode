@@ -5,6 +5,8 @@
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ensureNonNullable } from 'vs/editor/browser/view/gpu/gpuUtils';
+import { StringBuilder } from 'vs/editor/common/core/stringBuilder';
+import { FontStyle, TokenMetadata } from 'vs/editor/common/encodedTokenAttributes';
 
 const $rasterizedGlyph: IRasterizedGlyph = {
 	source: null!,
@@ -35,7 +37,7 @@ export class GlyphRasterizer extends Disposable {
 
 	constructor(
 		private readonly _fontSize: number,
-		fontFamily: string,
+		private readonly _fontFamily: string,
 	) {
 		super();
 
@@ -43,7 +45,6 @@ export class GlyphRasterizer extends Disposable {
 		this._ctx = ensureNonNullable(this._canvas.getContext('2d', {
 			willReadFrequently: true
 		}));
-		this._ctx.font = `${this._fontSize}px ${fontFamily}`;
 		this._ctx.textBaseline = 'top';
 		this._ctx.fillStyle = '#FFFFFF';
 	}
@@ -56,16 +57,27 @@ export class GlyphRasterizer extends Disposable {
 	 */
 	public rasterizeGlyph(
 		chars: string,
-		fg: string,
-		isItalic: boolean
+		metadata: number,
+		colorMap: string[],
 	): Readonly<IRasterizedGlyph> {
 		// TODO: Support workbench.fontAliasing
 		this._ctx.clearRect(0, 0, this._canvas.width, this._canvas.height);
 
+		const fontSb = new StringBuilder(200);
+		const fontStyle = TokenMetadata.getFontStyle(metadata);
+		if (fontStyle & FontStyle.Italic) {
+			fontSb.appendString('italic ');
+		}
+		if (fontStyle & FontStyle.Bold) {
+			fontSb.appendString('bold ');
+		}
+		fontSb.appendString(`${this._fontSize}px ${this._fontFamily}`);
+		this._ctx.font = fontSb.build();
+
 		// TODO: Draw in middle using alphabetical baseline
 		const originX = this._fontSize;
 		const originY = this._fontSize;
-		this._ctx.fillStyle = fg;
+		this._ctx.fillStyle = colorMap[TokenMetadata.getForeground(metadata)];
 		// TODO: This might actually be slower
 		// const textMetrics = this._ctx.measureText(chars);
 		this._ctx.fillText(chars, originX, originY);

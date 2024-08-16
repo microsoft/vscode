@@ -512,6 +512,7 @@ class FullFileRenderStrategy<T extends IVisibleLine> implements IRenderStrategy<
 
 	readonly wgsl: string = fullFileRenderStrategyWgsl;
 
+	private readonly _colorMap: string[];
 	private readonly _glyphRasterizer: GlyphRasterizer;
 
 	private _cellBindBuffer!: GPUBuffer;
@@ -538,8 +539,8 @@ class FullFileRenderStrategy<T extends IVisibleLine> implements IRenderStrategy<
 		@IThemeService private readonly _themeService: IThemeService,
 	) {
 		// TODO: Detect when lines have been tokenized and clear _upToDateLines
-		const colorMap = this._themeService.getColorTheme().tokenColorMap;
-		console.log('colorMap', colorMap);
+		this._colorMap = this._themeService.getColorTheme().tokenColorMap;
+		console.log('colorMap', this._colorMap);
 
 		// TODO: Can the font details come from settings/editor options instead?
 		const activeWindow = getActiveWindow();
@@ -589,9 +590,11 @@ class FullFileRenderStrategy<T extends IVisibleLine> implements IRenderStrategy<
 		let xOffset = 0;
 		let glyph: Readonly<ITextureAtlasGlyph>;
 		let cellIndex = 0;
+
 		let tokenStartIndex = 0;
 		let tokenEndIndex = 0;
-		let tokenFg = 0;
+		let tokenMetadata = 0;
+
 		let lineData: ViewLineRenderingData;
 		let content: string = '';
 		let fillStartIndex = 0;
@@ -671,7 +674,10 @@ class FullFileRenderStrategy<T extends IVisibleLine> implements IRenderStrategy<
 					// The faux indent part of the line should have no token type
 					continue;
 				}
-				tokenFg = tokens.getForeground(tokenIndex);
+
+
+				tokenMetadata = tokens.getMetadata(tokenIndex);
+
 				// console.log(`token: start=${tokenStartIndex}, end=${tokenEndIndex}, fg=${colorMap[tokenFg]}`);
 
 
@@ -691,7 +697,7 @@ class FullFileRenderStrategy<T extends IVisibleLine> implements IRenderStrategy<
 						continue;
 					}
 
-					glyph = this._atlas.getGlyph(this._glyphRasterizer, chars, tokenFg);
+					glyph = this._atlas.getGlyph(this._glyphRasterizer, chars, tokenMetadata);
 
 					screenAbsoluteX = Math.round((x + xOffset) * 7 * activeWindow.devicePixelRatio);
 					screenAbsoluteY = Math.round(deltaTop[y - startLineNumber] * activeWindow.devicePixelRatio);
