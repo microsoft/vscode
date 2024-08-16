@@ -117,13 +117,13 @@ declare module 'vscode' {
 			/**
 			 * The maximum number of lines in the preview.
 			 * Only search providers that support multiline search will ever return more than one line in the match.
-			 * Defaults to 100.
+			 * Defaults to 100 in the default ripgrep search provider, but extension-contributed providers can enforce their own default.
 			 */
 			matchLines?: number;
 
 			/**
 			 * The maximum number of characters included per line.
-			 * Defaults to 10000.
+			 * Defaults to 10000 in the default ripgrep search provider, but extension-contributed providers can enforce their own default.
 			 */
 			charsPerLine?: number;
 		};
