@@ -162,7 +162,7 @@ class WorkbenchUIElementFactory implements IWorkbenchUIElementFactory {
 				if (!uri) {
 					label.element.clear();
 				} else {
-					label.element.setFile(uri, { strikethrough: options.strikethrough });
+					label.element.setFile(uri, { strikethrough: options.strikethrough, hideIcon: options.hideIcon, hideLabel: options.hideLabel });
 				}
 			},
 			dispose() {

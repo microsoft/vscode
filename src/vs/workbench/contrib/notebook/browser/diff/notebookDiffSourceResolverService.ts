@@ -27,6 +27,7 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
 import type { ITextModel } from 'vs/editor/common/model';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 
 export const ID_NOTEBOOK_MULTI_DIFF_SOURCE_RESOLVER_SERVICE = 'notebookDiffSourceResolverService';
@@ -53,12 +54,29 @@ export class NotebookDiffSourceResolverService extends Disposable implements IMu
 		@IModelService private readonly modelService: IModelService,
 		@INotebookEditorModelResolverService private readonly _notebookModelResolverService: INotebookEditorModelResolverService,
 		@ITextModelService textModelService: ITextModelService,
+		@ILabelService private readonly _labelService: ILabelService,
 	) {
 		super();
 		this._register(multiDiffSourceResolverService.registerResolver(this));
-		this._register(textModelService.registerTextModelContentProvider(Schemas.vscodeNotebookCellOutput, {
+		this._register(textModelService.registerTextModelContentProvider(Schemas.vscodeNotebookCellOutputDiff, {
 			provideTextContent: this.provideOutputTextContent.bind(this)
 		}));
+		this._register(this._labelService.registerFormatter({
+			scheme: Schemas.vscodeNotebookCellMetadataDiff,
+			formatting: {
+				label: 'Metadata',
+				separator: '/'
+			}
+		}));
+
+		this._register(this._labelService.registerFormatter({
+			scheme: Schemas.vscodeNotebookCellOutputDiff,
+			formatting: {
+				label: 'Output',
+				separator: '/'
+			}
+		}));
+
 	}
 
 	private readonly mappedInputs = new ResourceMap<IResourceDiffEditorInput & { id: string } & { disposables: DisposableStore }>();
@@ -89,14 +107,14 @@ export class NotebookDiffSourceResolverService extends Disposable implements IMu
 			const item = v as SideBySideDiffElementViewModel;
 			const items = [new MultiDiffEditorItem(item.original.uri, item.modified.uri, undefined)];
 			if (item.checkMetadataIfModified()) {
-				const originalMetadata = CellUri.generateCellPropertyUri(original.resource!, item.original.handle, Schemas.vscodeNotebookCellMetadata);
-				const modifiedMetadata = CellUri.generateCellPropertyUri(modified.resource!, item.modified.handle, Schemas.vscodeNotebookCellMetadata);
+				const originalMetadata = CellUri.generateCellPropertyUri(original.resource!, item.original.handle, Schemas.vscodeNotebookCellMetadataDiff);
+				const modifiedMetadata = CellUri.generateCellPropertyUri(modified.resource!, item.modified.handle, Schemas.vscodeNotebookCellMetadataDiff);
 				items.push(new MultiDiffEditorItem(originalMetadata, modifiedMetadata, item.modified.uri));
 				// metadataUri = modifiedMetadata;
 			}
 			if (item.checkIfOutputsModified()) {
-				const originalOutput = CellUri.generateCellPropertyUri(original.resource!, item.original.handle, Schemas.vscodeNotebookCellOutput);
-				const modifiedOutput = CellUri.generateCellPropertyUri(modified.resource!, item.modified.handle, Schemas.vscodeNotebookCellOutput);
+				const originalOutput = CellUri.generateCellPropertyUri(original.resource!, item.original.handle, Schemas.vscodeNotebookCellOutputDiff);
+				const modifiedOutput = CellUri.generateCellPropertyUri(modified.resource!, item.modified.handle, Schemas.vscodeNotebookCellOutputDiff);
 				// // const originalModel = this.modelService.createModel(originalOutputsSource, mode, originalOutput, true);
 				// // const modifiedModel = this.modelService.createModel(modifiedOutputsSource, mode, modifiedOutput, true);
 
@@ -152,7 +170,7 @@ export class NotebookDiffSourceResolverService extends Disposable implements IMu
 			return existing;
 		}
 
-		const data = CellUri.parseCellPropertyUri(resource, Schemas.vscodeNotebookCellOutput);
+		const data = CellUri.parseCellPropertyUri(resource, Schemas.vscodeNotebookCellOutputDiff);
 		if (!data) {
 			return null;
 		}

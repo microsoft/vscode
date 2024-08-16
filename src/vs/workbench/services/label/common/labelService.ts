@@ -262,6 +262,9 @@ export class LabelService extends Disposable implements ILabelService {
 				const folderLabel = this.formatUri(folder.uri, formatting, options.noPrefix);
 
 				let relativeLabel = this.formatUri(resource, formatting, options.noPrefix);
+				if (relativeLabel === folderLabel && relativeLabel === formatting.label) {
+					return relativeLabel;
+				}
 				let overlap = 0;
 				while (relativeLabel[overlap] && relativeLabel[overlap] === folderLabel[overlap]) {
 					overlap++;

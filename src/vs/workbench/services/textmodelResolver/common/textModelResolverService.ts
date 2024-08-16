@@ -79,7 +79,7 @@ class ResourceModelCollection extends ReferenceCollection<Promise<IResolvedTextE
 			await this.resolveTextModelContent(key);
 
 			const cls = resource.scheme === Schemas.vscodeNotebookCell ? NotebookCellResourceEditorModel :
-				(resource.scheme === Schemas.vscodeNotebookCellOutput ? NotebookCellOutputResourceEditorModel : TextResourceEditorModel);
+				(resource.scheme === Schemas.vscodeNotebookCellOutputDiff ? NotebookCellOutputResourceEditorModel : TextResourceEditorModel);
 			const model = this.instantiationService.createInstance(cls, resource);
 			if (this.ensureResolvedModel(model, key)) {
 				return model;

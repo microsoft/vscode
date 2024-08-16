@@ -20,6 +20,7 @@ import { MenuId } from 'vs/platform/actions/common/actions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IObjectData, IPooledObject } from './objectPool';
 import { ActionRunnerWithContext } from './utils';
+import { Schemas } from 'vs/base/common/network';
 
 export class TemplateData implements IObjectData {
 	constructor(
@@ -210,7 +211,10 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 		const value = data.viewModel.documentDiffItem;
 
 		globalTransaction(tx => {
-			this._resourceLabel?.setUri(data.viewModel.modifiedUri ?? data.viewModel.originalUri!, { strikethrough: data.viewModel.modifiedUri === undefined });
+			const uri = data.viewModel.modifiedUri ?? data.viewModel.originalUri!;
+			const hideIcon = uri.scheme === Schemas.vscodeNotebookCellMetadataDiff || uri.scheme === Schemas.vscodeNotebookCellOutputDiff;
+			const hideLabel = hideIcon;
+			this._resourceLabel?.setUri(uri, { strikethrough: data.viewModel.modifiedUri === undefined, hideIcon, hideLabel });
 
 			let isRenamed = false;
 			let isDeleted = false;
@@ -231,7 +235,7 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 			this._elements.status.classList.toggle('added', isAdded);
 			this._elements.status.innerText = flag;
 
-			this._resourceLabel2?.setUri(isRenamed ? data.viewModel.originalUri : undefined, { strikethrough: true });
+			this._resourceLabel2?.setUri(isRenamed ? data.viewModel.originalUri : undefined, { strikethrough: true, hideIcon, hideLabel });
 
 			this._dataStore.clear();
 			this._viewModel.set(data.viewModel, tx);

@@ -57,10 +57,10 @@ export class NotebookCellOutputResourceEditorModel extends TextResourceEditorMod
 	}
 
 	override isReadonly(): boolean {
-		if (this.textEditorModelHandle?.scheme !== Schemas.vscodeNotebookCellOutput) {
+		if (this.textEditorModelHandle?.scheme !== Schemas.vscodeNotebookCellOutputDiff) {
 			return false;
 		}
-		const data = CellUri.parseCellPropertyUri(this.textEditorModelHandle, Schemas.vscodeNotebookCellOutput);
+		const data = CellUri.parseCellPropertyUri(this.textEditorModelHandle, Schemas.vscodeNotebookCellOutputDiff);
 		if (!data) {
 			return false;
 		}

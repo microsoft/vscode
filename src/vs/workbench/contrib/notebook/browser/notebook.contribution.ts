@@ -380,6 +380,9 @@ class CellInfoContentProvider {
 		this._disposables.push(textModelService.registerTextModelContentProvider(Schemas.vscodeNotebookCellMetadata, {
 			provideTextContent: this.provideMetadataTextContent.bind(this)
 		}));
+		this._disposables.push(textModelService.registerTextModelContentProvider(Schemas.vscodeNotebookCellMetadataDiff, {
+			provideTextContent: this.provideMetadataTextContent.bind(this)
+		}));
 
 		this._disposables.push(textModelService.registerTextModelContentProvider(Schemas.vscodeNotebookCellOutput, {
 			provideTextContent: this.provideOutputTextContent.bind(this)
@@ -412,7 +415,7 @@ class CellInfoContentProvider {
 			return existing;
 		}
 
-		const data = CellUri.parseCellPropertyUri(resource, Schemas.vscodeNotebookCellMetadata);
+		const data = CellUri.parseCellPropertyUri(resource, Schemas.vscodeNotebookCellMetadata) || CellUri.parseCellPropertyUri(resource, Schemas.vscodeNotebookCellMetadataDiff);
 		if (!data) {
 			return null;
 		}
