@@ -1378,6 +1378,8 @@ class SettingObjectRenderer extends AbstractSettingObjectRenderer implements ITr
 					// If the key of the default value is changed, remove the default value
 					if (e.originalItem.key.data !== e.newItem.key.data && settingSupportsRemoveDefault && e.originalItem.key.data in defaultValue) {
 						newValue[e.originalItem.key.data] = null;
+					} else {
+						delete newValue[e.originalItem.key.data];
 					}
 					newValue[e.newItem.key.data] = e.newItem.value.data;
 					newItems.push(e.newItem);
