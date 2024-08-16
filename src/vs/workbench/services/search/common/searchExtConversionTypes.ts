@@ -516,7 +516,11 @@ export function newToOldPreviewOptions(options: {
 
 export function oldToNewTextSearchResult(result: TextSearchResult): TextSearchResultNew {
 	if (isTextSearchMatch(result)) {
-		const ranges = asArray(result.ranges).map(r => ({ sourceRange: r, previewRange: r }));
+		const ranges = asArray(result.ranges).map((r, i) => {
+			const previewArr = asArray(result.preview.matches);
+			const matchingPreviewRange = previewArr[i];
+			return { sourceRange: r, previewRange: matchingPreviewRange };
+		});
 		return new TextSearchMatchNew(result.uri, ranges, result.preview.text);
 	} else {
 		return new TextSearchContextNew(result.uri, result.text, result.lineNumber);
