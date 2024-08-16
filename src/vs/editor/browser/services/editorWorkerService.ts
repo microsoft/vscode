@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IntervalTimer, timeout } from 'vs/base/common/async';
-import { Disposable, IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { timeout } from 'vs/base/common/async';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { SimpleWorkerClient, logOnceWebWorkerWarning, IWorkerClient } from 'vs/base/common/worker/simpleWorker';
 import { DefaultWorkerFactory } from 'vs/base/browser/defaultWorkerFactory';
@@ -32,11 +32,7 @@ import { LineRange } from 'vs/editor/common/core/lineRange';
 import { SectionHeader, FindSectionHeaderOptions } from 'vs/editor/common/services/findSectionHeaders';
 import { mainWindow } from 'vs/base/browser/window';
 import { WindowIntervalTimer } from 'vs/base/browser/dom';
-
-/**
- * Stop syncing a model to the worker if it was not needed for 1 min.
- */
-const STOP_SYNC_MODEL_DELTA_TIME_MS = 60 * 1000;
+import { WorkerTextModelSyncClient } from 'vs/editor/common/services/textModelSync/textModelSync.impl';
 
 /**
  * Stop the worker if it was not needed for 5 min.
@@ -342,103 +338,6 @@ class WorkerManager extends Disposable {
 	}
 }
 
-class EditorModelManager extends Disposable {
-
-	private readonly _proxy: EditorSimpleWorker;
-	private readonly _modelService: IModelService;
-	private _syncedModels: { [modelUrl: string]: IDisposable } = Object.create(null);
-	private _syncedModelsLastUsedTime: { [modelUrl: string]: number } = Object.create(null);
-
-	constructor(proxy: EditorSimpleWorker, modelService: IModelService, keepIdleModels: boolean) {
-		super();
-		this._proxy = proxy;
-		this._modelService = modelService;
-
-		if (!keepIdleModels) {
-			const timer = new IntervalTimer();
-			timer.cancelAndSet(() => this._checkStopModelSync(), Math.round(STOP_SYNC_MODEL_DELTA_TIME_MS / 2));
-			this._register(timer);
-		}
-	}
-
-	public override dispose(): void {
-		for (const modelUrl in this._syncedModels) {
-			dispose(this._syncedModels[modelUrl]);
-		}
-		this._syncedModels = Object.create(null);
-		this._syncedModelsLastUsedTime = Object.create(null);
-		super.dispose();
-	}
-
-	public ensureSyncedResources(resources: URI[], forceLargeModels: boolean): void {
-		for (const resource of resources) {
-			const resourceStr = resource.toString();
-
-			if (!this._syncedModels[resourceStr]) {
-				this._beginModelSync(resource, forceLargeModels);
-			}
-			if (this._syncedModels[resourceStr]) {
-				this._syncedModelsLastUsedTime[resourceStr] = (new Date()).getTime();
-			}
-		}
-	}
-
-	private _checkStopModelSync(): void {
-		const currentTime = (new Date()).getTime();
-
-		const toRemove: string[] = [];
-		for (const modelUrl in this._syncedModelsLastUsedTime) {
-			const elapsedTime = currentTime - this._syncedModelsLastUsedTime[modelUrl];
-			if (elapsedTime > STOP_SYNC_MODEL_DELTA_TIME_MS) {
-				toRemove.push(modelUrl);
-			}
-		}
-
-		for (const e of toRemove) {
-			this._stopModelSync(e);
-		}
-	}
-
-	private _beginModelSync(resource: URI, forceLargeModels: boolean): void {
-		const model = this._modelService.getModel(resource);
-		if (!model) {
-			return;
-		}
-		if (!forceLargeModels && model.isTooLargeForSyncing()) {
-			return;
-		}
-
-		const modelUrl = resource.toString();
-
-		this._proxy.acceptNewModel({
-			url: model.uri.toString(),
-			lines: model.getLinesContent(),
-			EOL: model.getEOL(),
-			versionId: model.getVersionId()
-		});
-
-		const toDispose = new DisposableStore();
-		toDispose.add(model.onDidChangeContent((e) => {
-			this._proxy.acceptModelChanged(modelUrl.toString(), e);
-		}));
-		toDispose.add(model.onWillDispose(() => {
-			this._stopModelSync(modelUrl);
-		}));
-		toDispose.add(toDisposable(() => {
-			this._proxy.acceptRemovedModel(modelUrl);
-		}));
-
-		this._syncedModels[modelUrl] = toDispose;
-	}
-
-	private _stopModelSync(modelUrl: string): void {
-		const toDispose = this._syncedModels[modelUrl];
-		delete this._syncedModels[modelUrl];
-		delete this._syncedModelsLastUsedTime[modelUrl];
-		dispose(toDispose);
-	}
-}
-
 class SynchronousWorkerClient<T extends IDisposable> implements IWorkerClient<T> {
 	private readonly _instance: T;
 	private readonly _proxyObj: Promise<T>;
@@ -454,6 +353,14 @@ class SynchronousWorkerClient<T extends IDisposable> implements IWorkerClient<T>
 
 	public getProxyObject(): Promise<T> {
 		return this._proxyObj;
+	}
+
+	public setChannel<T extends object>(channel: string, handler: T): void {
+		throw new Error(`Not implemented`);
+	}
+
+	public getChannel<T extends object>(channel: string): T {
+		throw new Error(`Not implemented`);
 	}
 }
 
@@ -481,7 +388,7 @@ export class EditorWorkerClient extends Disposable implements IEditorWorkerClien
 	private readonly _keepIdleModels: boolean;
 	protected _worker: IWorkerClient<EditorSimpleWorker> | null;
 	protected readonly _workerFactory: DefaultWorkerFactory;
-	private _modelManager: EditorModelManager | null;
+	private _modelManager: WorkerTextModelSyncClient | null;
 	private _disposed = false;
 
 	constructor(
@@ -528,9 +435,9 @@ export class EditorWorkerClient extends Disposable implements IEditorWorkerClien
 		});
 	}
 
-	private _getOrCreateModelManager(proxy: EditorSimpleWorker): EditorModelManager {
+	private _getOrCreateModelManager(proxy: EditorSimpleWorker): WorkerTextModelSyncClient {
 		if (!this._modelManager) {
-			this._modelManager = this._register(new EditorModelManager(proxy, this._modelService, this._keepIdleModels));
+			this._modelManager = this._register(new WorkerTextModelSyncClient(proxy, this._modelService, this._keepIdleModels));
 		}
 		return this._modelManager;
 	}

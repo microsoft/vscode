@@ -10,8 +10,8 @@ import { IRequestHandler } from 'vs/base/common/worker/simpleWorker';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { EndOfLineSequence, ITextModel } from 'vs/editor/common/model';
-import { IMirrorTextModel, IModelChangedEvent, MirrorTextModel as BaseMirrorModel } from 'vs/editor/common/model/mirrorTextModel';
-import { ensureValidWordDefinition, getWordAtText, IWordAtPosition } from 'vs/editor/common/core/wordHelper';
+import { IMirrorTextModel, IModelChangedEvent } from 'vs/editor/common/model/mirrorTextModel';
+import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
 import { IColorInformation, IInplaceReplaceSupportResult, ILink, TextEdit } from 'vs/editor/common/languages';
 import { ILinkComputerTarget, computeLinks } from 'vs/editor/common/languages/linkComputer';
 import { BasicInplaceReplace } from 'vs/editor/common/languages/supports/inplaceReplaceSupport';
@@ -30,6 +30,8 @@ import { AppResourcePath, FileAccess } from 'vs/base/common/network';
 import { BugIndicatingError } from 'vs/base/common/errors';
 import { IDocumentColorComputerTarget, computeDefaultDocumentColors } from 'vs/editor/common/languages/defaultDocumentColorsComputer';
 import { FindSectionHeaderOptions, SectionHeader, findSectionHeaders } from 'vs/editor/common/services/findSectionHeaders';
+import { IRawModelData, IWorkerTextModelSyncChannelServer } from './textModelSync/textModelSync.protocol';
+import { WorkerTextModelSyncServer } from 'vs/editor/common/services/textModelSync/textModelSync.impl';
 
 // ESM-comment-begin
 const isESM = false;
@@ -58,16 +60,6 @@ export interface IWorkerContext<H = undefined> {
 /**
  * @internal
  */
-export interface IRawModelData {
-	url: string;
-	versionId: number;
-	lines: string[];
-	EOL: string;
-}
-
-/**
- * @internal
- */
 export interface ICommonModel extends ILinkComputerTarget, IDocumentColorComputerTarget, IMirrorModel {
 	uri: URI;
 	version: number;
@@ -91,7 +83,7 @@ export interface ICommonModel extends ILinkComputerTarget, IDocumentColorCompute
  * Range of a word inside a model.
  * @internal
  */
-interface IWordRange {
+export interface IWordRange {
 	/**
 	 * The index where the word starts.
 	 */
@@ -100,246 +92,6 @@ interface IWordRange {
 	 * The index where the word ends.
 	 */
 	readonly end: number;
-}
-
-/**
- * @internal
- */
-class MirrorModel extends BaseMirrorModel implements ICommonModel {
-
-	public get uri(): URI {
-		return this._uri;
-	}
-
-	public get eol(): string {
-		return this._eol;
-	}
-
-	public getValue(): string {
-		return this.getText();
-	}
-
-	public findMatches(regex: RegExp): RegExpMatchArray[] {
-		const matches = [];
-		for (let i = 0; i < this._lines.length; i++) {
-			const line = this._lines[i];
-			const offsetToAdd = this.offsetAt(new Position(i + 1, 1));
-			const iteratorOverMatches = line.matchAll(regex);
-			for (const match of iteratorOverMatches) {
-				if (match.index || match.index === 0) {
-					match.index = match.index + offsetToAdd;
-				}
-				matches.push(match);
-			}
-		}
-		return matches;
-	}
-
-	public getLinesContent(): string[] {
-		return this._lines.slice(0);
-	}
-
-	public getLineCount(): number {
-		return this._lines.length;
-	}
-
-	public getLineContent(lineNumber: number): string {
-		return this._lines[lineNumber - 1];
-	}
-
-	public getWordAtPosition(position: IPosition, wordDefinition: RegExp): Range | null {
-
-		const wordAtText = getWordAtText(
-			position.column,
-			ensureValidWordDefinition(wordDefinition),
-			this._lines[position.lineNumber - 1],
-			0
-		);
-
-		if (wordAtText) {
-			return new Range(position.lineNumber, wordAtText.startColumn, position.lineNumber, wordAtText.endColumn);
-		}
-
-		return null;
-	}
-
-	public getWordUntilPosition(position: IPosition, wordDefinition: RegExp): IWordAtPosition {
-		const wordAtPosition = this.getWordAtPosition(position, wordDefinition);
-		if (!wordAtPosition) {
-			return {
-				word: '',
-				startColumn: position.column,
-				endColumn: position.column
-			};
-		}
-		return {
-			word: this._lines[position.lineNumber - 1].substring(wordAtPosition.startColumn - 1, position.column - 1),
-			startColumn: wordAtPosition.startColumn,
-			endColumn: position.column
-		};
-	}
-
-
-	public words(wordDefinition: RegExp): Iterable<string> {
-
-		const lines = this._lines;
-		const wordenize = this._wordenize.bind(this);
-
-		let lineNumber = 0;
-		let lineText = '';
-		let wordRangesIdx = 0;
-		let wordRanges: IWordRange[] = [];
-
-		return {
-			*[Symbol.iterator]() {
-				while (true) {
-					if (wordRangesIdx < wordRanges.length) {
-						const value = lineText.substring(wordRanges[wordRangesIdx].start, wordRanges[wordRangesIdx].end);
-						wordRangesIdx += 1;
-						yield value;
-					} else {
-						if (lineNumber < lines.length) {
-							lineText = lines[lineNumber];
-							wordRanges = wordenize(lineText, wordDefinition);
-							wordRangesIdx = 0;
-							lineNumber += 1;
-						} else {
-							break;
-						}
-					}
-				}
-			}
-		};
-	}
-
-	public getLineWords(lineNumber: number, wordDefinition: RegExp): IWordAtPosition[] {
-		const content = this._lines[lineNumber - 1];
-		const ranges = this._wordenize(content, wordDefinition);
-		const words: IWordAtPosition[] = [];
-		for (const range of ranges) {
-			words.push({
-				word: content.substring(range.start, range.end),
-				startColumn: range.start + 1,
-				endColumn: range.end + 1
-			});
-		}
-		return words;
-	}
-
-	private _wordenize(content: string, wordDefinition: RegExp): IWordRange[] {
-		const result: IWordRange[] = [];
-		let match: RegExpExecArray | null;
-
-		wordDefinition.lastIndex = 0; // reset lastIndex just to be sure
-
-		while (match = wordDefinition.exec(content)) {
-			if (match[0].length === 0) {
-				// it did match the empty string
-				break;
-			}
-			result.push({ start: match.index, end: match.index + match[0].length });
-		}
-		return result;
-	}
-
-	public getValueInRange(range: IRange): string {
-		range = this._validateRange(range);
-
-		if (range.startLineNumber === range.endLineNumber) {
-			return this._lines[range.startLineNumber - 1].substring(range.startColumn - 1, range.endColumn - 1);
-		}
-
-		const lineEnding = this._eol;
-		const startLineIndex = range.startLineNumber - 1;
-		const endLineIndex = range.endLineNumber - 1;
-		const resultLines: string[] = [];
-
-		resultLines.push(this._lines[startLineIndex].substring(range.startColumn - 1));
-		for (let i = startLineIndex + 1; i < endLineIndex; i++) {
-			resultLines.push(this._lines[i]);
-		}
-		resultLines.push(this._lines[endLineIndex].substring(0, range.endColumn - 1));
-
-		return resultLines.join(lineEnding);
-	}
-
-	public offsetAt(position: IPosition): number {
-		position = this._validatePosition(position);
-		this._ensureLineStarts();
-		return this._lineStarts!.getPrefixSum(position.lineNumber - 2) + (position.column - 1);
-	}
-
-	public positionAt(offset: number): IPosition {
-		offset = Math.floor(offset);
-		offset = Math.max(0, offset);
-
-		this._ensureLineStarts();
-		const out = this._lineStarts!.getIndexOf(offset);
-		const lineLength = this._lines[out.index].length;
-
-		// Ensure we return a valid position
-		return {
-			lineNumber: 1 + out.index,
-			column: 1 + Math.min(out.remainder, lineLength)
-		};
-	}
-
-	private _validateRange(range: IRange): IRange {
-
-		const start = this._validatePosition({ lineNumber: range.startLineNumber, column: range.startColumn });
-		const end = this._validatePosition({ lineNumber: range.endLineNumber, column: range.endColumn });
-
-		if (start.lineNumber !== range.startLineNumber
-			|| start.column !== range.startColumn
-			|| end.lineNumber !== range.endLineNumber
-			|| end.column !== range.endColumn) {
-
-			return {
-				startLineNumber: start.lineNumber,
-				startColumn: start.column,
-				endLineNumber: end.lineNumber,
-				endColumn: end.column
-			};
-		}
-
-		return range;
-	}
-
-	private _validatePosition(position: IPosition): IPosition {
-		if (!Position.isIPosition(position)) {
-			throw new Error('bad position');
-		}
-		let { lineNumber, column } = position;
-		let hasChanged = false;
-
-		if (lineNumber < 1) {
-			lineNumber = 1;
-			column = 1;
-			hasChanged = true;
-
-		} else if (lineNumber > this._lines.length) {
-			lineNumber = this._lines.length;
-			column = this._lines[lineNumber - 1].length + 1;
-			hasChanged = true;
-
-		} else {
-			const maxCharacter = this._lines[lineNumber - 1].length + 1;
-			if (column < 1) {
-				column = 1;
-				hasChanged = true;
-			}
-			else if (column > maxCharacter) {
-				column = maxCharacter;
-				hasChanged = true;
-			}
-		}
-
-		if (!hasChanged) {
-			return position;
-		} else {
-			return { lineNumber, column };
-		}
-	}
 }
 
 /**
@@ -354,52 +106,41 @@ declare const require: any;
 /**
  * @internal
  */
-export class EditorSimpleWorker implements IRequestHandler, IDisposable {
+export class EditorSimpleWorker implements IDisposable, IWorkerTextModelSyncChannelServer, IRequestHandler {
 	_requestHandlerBrand: any;
 
 	protected readonly _host: IEditorWorkerHost;
-	private _models: { [uri: string]: MirrorModel };
 	private readonly _foreignModuleFactory: IForeignModuleFactory | null;
 	private _foreignModule: any;
+	private readonly _workerTextModelSyncServer = new WorkerTextModelSyncServer();
 
 	constructor(host: IEditorWorkerHost, foreignModuleFactory: IForeignModuleFactory | null) {
 		this._host = host;
-		this._models = Object.create(null);
 		this._foreignModuleFactory = foreignModuleFactory;
 		this._foreignModule = null;
 	}
 
-	public dispose(): void {
-		this._models = Object.create(null);
+	dispose(): void {
 	}
 
-	protected _getModel(uri: string): ICommonModel {
-		return this._models[uri];
+	protected _getModel(uri: string): ICommonModel | undefined {
+		return this._workerTextModelSyncServer.getModel(uri);
 	}
 
 	private _getModels(): ICommonModel[] {
-		const all: MirrorModel[] = [];
-		Object.keys(this._models).forEach((key) => all.push(this._models[key]));
-		return all;
+		return this._workerTextModelSyncServer.getModels();
 	}
 
 	public acceptNewModel(data: IRawModelData): void {
-		this._models[data.url] = new MirrorModel(URI.parse(data.url), data.lines, data.EOL, data.versionId);
+		this._workerTextModelSyncServer.acceptNewModel(data);
 	}
 
-	public acceptModelChanged(strURL: string, e: IModelChangedEvent): void {
-		if (!this._models[strURL]) {
-			return;
-		}
-		const model = this._models[strURL];
-		model.onEvents(e);
+	public acceptModelChanged(uri: string, e: IModelChangedEvent): void {
+		this._workerTextModelSyncServer.acceptModelChanged(uri, e);
 	}
 
-	public acceptRemovedModel(strURL: string): void {
-		if (!this._models[strURL]) {
-			return;
-		}
-		delete this._models[strURL];
+	public acceptRemovedModel(uri: string): void {
+		this._workerTextModelSyncServer.acceptRemovedModel(uri);
 	}
 
 	public async computeUnicodeHighlights(url: string, options: UnicodeHighlighterOptions, range?: IRange): Promise<IUnicodeHighlightsResult> {
