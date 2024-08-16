@@ -17,7 +17,7 @@ steps:
     displayName: Setup NPM Registry
 
   - powershell: |
-      . azure-pipelines/win32/exec.ps1
+      . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
       # Set the private NPM registry to the global npmrc file
       # so that authentication works for subfolders like build/, remote/, extensions/ etc
@@ -35,8 +35,8 @@ steps:
     displayName: Setup NPM Authentication
 
   - powershell: |
-      . azure-pipelines/win32/exec.ps1
-      . azure-pipelines/win32/retry.ps1
+      . build/azure-pipelines/win32/exec.ps1
+      . build/azure-pipelines/win32/retry.ps1
       $ErrorActionPreference = "Stop"
       $env:CHILD_CONCURRENCY="1"
       retry { exec { node npm/setupNpmrc.js } }
