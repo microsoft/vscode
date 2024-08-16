@@ -57,8 +57,8 @@ export class InlineChatNotebookContribution {
 				if (fallback) {
 					return fallback;
 				}
-
-				throw illegalState('Expected notebook editor');
+				return `<notebook>${data.notebook.toString()}#${data.handle}`;
+				// throw illegalState('Expected notebook editor');
 			}
 		}));
 

@@ -68,6 +68,9 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 		);
 	}
 
+	public register<T extends IDisposable>(d: T): T{
+		return this._register(d);
+	}
 	static readonly ID: string = 'workbench.input.multiDiffEditor';
 
 	get resource(): URI | undefined { return this.multiDiffSource; }

@@ -36,6 +36,7 @@ export class NotebookDiffViewModel extends Disposable implements INotebookDiffVi
 		private readonly eventDispatcher: NotebookDiffEditorEventDispatcher,
 		private readonly notebookService: INotebookService,
 		private readonly fontInfo?: FontInfo,
+		private readonly disableFolding?: boolean,
 	) {
 		super();
 	}
@@ -80,7 +81,7 @@ export class NotebookDiffViewModel extends Disposable implements INotebookDiffVi
 		let placeholder: DiffElementPlaceholderViewModel | undefined = undefined;
 		this.originalCellViewModels = cellViewModels;
 		cellViewModels.forEach((vm, index) => {
-			if (vm.type === 'unchanged') {
+			if (vm.type === 'unchanged' && !this.disableFolding) {
 				if (!placeholder) {
 					vm.displayIconToHideUnmodifiedCells = true;
 					placeholder = new DiffElementPlaceholderViewModel(vm.mainDocumentTextModel, vm.editorEventDispatcher, vm.initData);

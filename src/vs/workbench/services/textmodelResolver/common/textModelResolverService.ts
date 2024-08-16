@@ -19,6 +19,7 @@ import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { ModelUndoRedoParticipant } from 'vs/editor/common/services/modelUndoRedoParticipant';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { UntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
+import { NotebookCellResourceEditorModel } from 'vs/workbench/contrib/notebook/browser/services/notebookCellResourceEditorModel';
 
 class ResourceModelCollection extends ReferenceCollection<Promise<IResolvedTextEditorModel>> {
 
@@ -77,7 +78,8 @@ class ResourceModelCollection extends ReferenceCollection<Promise<IResolvedTextE
 		if (this.providers.has(resource.scheme)) {
 			await this.resolveTextModelContent(key);
 
-			const model = this.instantiationService.createInstance(TextResourceEditorModel, resource);
+			const cls = resource.scheme === 'vscode-notebook-cell' ? NotebookCellResourceEditorModel : TextResourceEditorModel;
+			const model = this.instantiationService.createInstance(cls, resource);
 			if (this.ensureResolvedModel(model, key)) {
 				return model;
 			}
