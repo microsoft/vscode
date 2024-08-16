@@ -13,7 +13,7 @@ import { WorkerTextModelSyncServer } from 'vs/editor/common/services/textModelSy
 type RegexpModel = { detect: (inp: string, langBiases: Record<string, number>, supportedLangs?: string[]) => string | undefined };
 
 /**
- * Called on the worker side
+ * Defines the worker entry point. Must be exported and named `create`.
  * @skipMangle
  */
 export function create(workerServer: IWorkerServer, host: ILanguageDetectionClient): IRequestHandler {

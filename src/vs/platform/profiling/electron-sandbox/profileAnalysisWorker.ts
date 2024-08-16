@@ -12,7 +12,7 @@ import { IProfileModel, BottomUpSample, buildModel, BottomUpNode, processNode, C
 import { BottomUpAnalysis, IProfileAnalysisWorker, ProfilingOutput } from 'vs/platform/profiling/electron-sandbox/profileAnalysisWorkerService';
 
 /**
- * Called on the worker side
+ * Defines the worker entry point. Must be exported and named `create`.
  * @skipMangle
  */
 export function create(workerServer: IWorkerServer): IRequestHandler {

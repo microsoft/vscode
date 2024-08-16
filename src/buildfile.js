@@ -24,17 +24,14 @@ function createModuleDescription(name, exclude) {
 
 /**
  * @param {string} name
- * @param {boolean?} noEsmSuffix
  */
-function createEditorWorkerModuleDescription(name, noEsmSuffix) {
+function createEditorWorkerModuleDescription(name) {
 	const amdVariant = createModuleDescription(name, ['vs/base/common/worker/simpleWorker', 'vs/editor/common/services/editorSimpleWorker']);
 	amdVariant.target = 'amd';
 
 	const esmVariant = { ...amdVariant, dest: undefined };
 	esmVariant.target = 'esm';
-	if (!noEsmSuffix) {
-		esmVariant.name = `${esmVariant.name}.esm`;
-	}
+	esmVariant.name = `${esmVariant.name}.esm`;
 
 	return [amdVariant, esmVariant];
 }
@@ -69,7 +66,7 @@ exports.workerProfileAnalysis = createEditorWorkerModuleDescription('vs/platform
 
 exports.workbenchDesktop = [
 	...createEditorWorkerModuleDescription('vs/workbench/contrib/output/common/outputLinkComputer'),
-	...createEditorWorkerModuleDescription('vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker', true),
+	...createEditorWorkerModuleDescription('vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker'),
 	createModuleDescription('vs/workbench/contrib/debug/node/telemetryApp'),
 	createModuleDescription('vs/platform/files/node/watcher/watcherMain'),
 	createModuleDescription('vs/platform/terminal/node/ptyHostMain'),
@@ -79,7 +76,7 @@ exports.workbenchDesktop = [
 
 exports.workbenchWeb = [
 	...createEditorWorkerModuleDescription('vs/workbench/contrib/output/common/outputLinkComputer'),
-	...createEditorWorkerModuleDescription('vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker', true),
+	...createEditorWorkerModuleDescription('vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker'),
 	createModuleDescription('vs/code/browser/workbench/workbench', ['vs/workbench/workbench.web.main'])
 ];
 

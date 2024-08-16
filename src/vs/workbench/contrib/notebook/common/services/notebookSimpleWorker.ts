@@ -314,7 +314,7 @@ export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable 
 }
 
 /**
- * Called on the worker side
+ * Defines the worker entry point. Must be exported and named `create`.
  * @skipMangle
  */
 export function create(workerServer: IWorkerServer): IRequestHandler {

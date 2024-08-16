@@ -6,18 +6,19 @@
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { LanguageId } from 'vs/editor/common/encodedTokenAttributes';
 import { IModelChangedEvent } from 'vs/editor/common/model/mirrorTextModel';
-import { IWorkerContext } from 'vs/editor/common/services/editorSimpleWorker';
 import { ICreateGrammarResult, TMGrammarFactory } from 'vs/workbench/services/textMate/common/TMGrammarFactory';
 import { IValidEmbeddedLanguagesMap, IValidGrammarDefinition, IValidTokenTypeMap } from 'vs/workbench/services/textMate/common/TMScopeRegistry';
 import type { IOnigLib, IRawTheme, StackDiff } from 'vscode-textmate';
 import { TextMateWorkerTokenizer } from './textMateWorkerTokenizer';
 import { importAMDNodeModule } from 'vs/amdX';
+import { IRequestHandler, IWorkerServer } from 'vs/base/common/worker/simpleWorker';
 
 /**
  * Defines the worker entry point. Must be exported and named `create`.
+ * @skipMangle
  */
-export function create(ctx: IWorkerContext<ITextMateWorkerHost>, createData: ICreateData): TextMateTokenizationWorker {
-	return new TextMateTokenizationWorker(ctx, createData);
+export function create(workerServer: IWorkerServer, host: ITextMateWorkerHost): TextMateTokenizationWorker {
+	return new TextMateTokenizationWorker(workerServer, host);
 }
 
 export interface ITextMateWorkerHost {
@@ -49,17 +50,19 @@ export interface StateDeltas {
 	stateDeltas: (StackDiff | null)[];
 }
 
-export class TextMateTokenizationWorker {
+export class TextMateTokenizationWorker implements IRequestHandler {
+	_requestHandlerBrand: any;
+
 	private readonly _host: ITextMateWorkerHost;
 	private readonly _models = new Map</* controllerId */ number, TextMateWorkerTokenizer>();
 	private readonly _grammarCache: Promise<ICreateGrammarResult>[] = [];
-	private readonly _grammarFactory: Promise<TMGrammarFactory | null>;
+	private _grammarFactory: Promise<TMGrammarFactory | null> = Promise.resolve(null);
 
-	constructor(
-		ctx: IWorkerContext<ITextMateWorkerHost>,
-		private readonly _createData: ICreateData
-	) {
-		this._host = ctx.host;
+	constructor(workerServer: IWorkerServer, host: ITextMateWorkerHost) {
+		this._host = host;
+	}
+
+	public async init(_createData: ICreateData): Promise<void> {
 		const grammarDefinitions = _createData.grammarDefinitions.map<IValidGrammarDefinition>((def) => {
 			return {
 				location: URI.revive(def.location),
@@ -73,13 +76,13 @@ export class TextMateTokenizationWorker {
 				sourceExtensionId: def.sourceExtensionId,
 			};
 		});
-		this._grammarFactory = this._loadTMGrammarFactory(grammarDefinitions);
+		this._grammarFactory = this._loadTMGrammarFactory(grammarDefinitions, _createData.onigurumaWASMUri);
 	}
 
-	private async _loadTMGrammarFactory(grammarDefinitions: IValidGrammarDefinition[]): Promise<TMGrammarFactory> {
+	private async _loadTMGrammarFactory(grammarDefinitions: IValidGrammarDefinition[], onigurumaWASMUri: string): Promise<TMGrammarFactory> {
 		const vscodeTextmate = await importAMDNodeModule<typeof import('vscode-textmate')>('vscode-textmate', 'release/main.js');
 		const vscodeOniguruma = await importAMDNodeModule<typeof import('vscode-oniguruma')>('vscode-oniguruma', 'release/main.js');
-		const response = await fetch(this._createData.onigurumaWASMUri);
+		const response = await fetch(onigurumaWASMUri);
 
 		// Using the response directly only works if the server sets the MIME type 'application/wasm'.
 		// Otherwise, a TypeError is thrown when using the streaming compiler.

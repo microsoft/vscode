@@ -578,7 +578,7 @@ export class EditorSimpleWorker implements IDisposable, IWorkerTextModelSyncChan
 }
 
 /**
- * Called on the worker side
+ * Defines the worker entry point. Must be exported and named `create`.
  * @skipMangle
  * @internal
  */

@@ -9,12 +9,9 @@ import { AppResourcePath, FileAccess, nodeModulesAsarPath, nodeModulesPath } fro
 import { IObservable } from 'vs/base/common/observable';
 import { isWeb } from 'vs/base/common/platform';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { MonacoWebWorker, createWorkbenchWebWorker } from 'vs/editor/browser/services/webWorker';
 import { IBackgroundTokenizationStore, IBackgroundTokenizer } from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { ITextModel } from 'vs/editor/common/model';
-import { IModelService } from 'vs/editor/common/services/model';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IExtensionResourceLoaderService } from 'vs/platform/extensionResourceLoader/common/extensionResourceLoader';
@@ -24,12 +21,15 @@ import { ICreateData, ITextMateWorkerHost, StateDeltas, TextMateTokenizationWork
 import { TextMateWorkerTokenizerController } from 'vs/workbench/services/textMate/browser/backgroundTokenization/textMateWorkerTokenizerController';
 import { IValidGrammarDefinition } from 'vs/workbench/services/textMate/common/TMScopeRegistry';
 import type { IRawTheme } from 'vscode-textmate';
+import { DefaultWorkerFactory } from 'vs/base/browser/defaultWorkerFactory';
+import { SimpleWorkerClient } from 'vs/base/common/worker/simpleWorker';
 
 export class ThreadedBackgroundTokenizerFactory implements IDisposable {
 	private static _reportedMismatchingTokens = false;
 
+	private readonly _workerFactory = new DefaultWorkerFactory(FileAccess.asBrowserUri('vs/base/worker/workerMain.js'), 'textMateWorker');
 	private _workerProxyPromise: Promise<TextMateTokenizationWorker | null> | null = null;
-	private _worker: MonacoWebWorker<TextMateTokenizationWorker> | null = null;
+	private _worker: SimpleWorkerClient<TextMateTokenizationWorker, ITextMateWorkerHost> | null = null;
 	private _workerProxy: TextMateTokenizationWorker | null = null;
 	private readonly _workerTokenizerControllers = new Map</* backgroundTokenizerId */number, TextMateWorkerTokenizerController>();
 
@@ -41,8 +41,6 @@ export class ThreadedBackgroundTokenizerFactory implements IDisposable {
 		private readonly _reportTokenizationTime: (timeMs: number, languageId: string, sourceExtensionId: string | undefined, lineLength: number, isRandomSample: boolean) => void,
 		private readonly _shouldTokenizeAsync: () => boolean,
 		@IExtensionResourceLoaderService private readonly _extensionResourceLoaderService: IExtensionResourceLoaderService,
-		@IModelService private readonly _modelService: IModelService,
-		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
@@ -157,13 +155,13 @@ export class ThreadedBackgroundTokenizerFactory implements IDisposable {
 				this._reportTokenizationTime(timeMs, languageId, sourceExtensionId, lineLength, isRandomSample);
 			}
 		};
-		const worker = this._worker = createWorkbenchWebWorker<TextMateTokenizationWorker>(this._modelService, this._languageConfigurationService, {
-			createData,
-			label: 'textMateWorker',
-			moduleId: 'vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker',
-			host,
-		});
-		const proxy = await worker.getProxy();
+		const worker = this._worker = new SimpleWorkerClient<TextMateTokenizationWorker, ITextMateWorkerHost>(
+			this._workerFactory,
+			'vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker',
+			host
+		);
+		const proxy = await worker.getProxyObject();
+		await proxy.init(createData);
 
 		if (this._worker !== worker) {
 			// disposed in the meantime

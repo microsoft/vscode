@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { FileAccess } from 'vs/base/common/network';
 import { getAllMethodNames } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
 import { EditorWorkerClient } from 'vs/editor/browser/services/editorWorkerService';
@@ -16,13 +15,6 @@ import { IModelService } from 'vs/editor/common/services/model';
  */
 export function createWebWorker<T extends object>(modelService: IModelService, languageConfigurationService: ILanguageConfigurationService, opts: IWebWorkerOptions): MonacoWebWorker<T> {
 	return new MonacoWebWorkerImpl<T>(undefined, modelService, languageConfigurationService, opts);
-}
-
-/**
- * @internal
- */
-export function createWorkbenchWebWorker<T extends object>(modelService: IModelService, languageConfigurationService: ILanguageConfigurationService, opts: IWebWorkerOptions): MonacoWebWorker<T> {
-	return new MonacoWebWorkerImpl<T>(FileAccess.asBrowserUri('vs/base/worker/workerMain.js'), modelService, languageConfigurationService, opts);
 }
 
 /**

@@ -665,7 +665,7 @@ export class SimpleWorkerServer<H extends object> implements IWorkerServer {
 }
 
 /**
- * Called on the worker side
+ * Defines the worker entry point. Must be exported and named `create`.
  * @skipMangle
  */
 export function create(postMessage: (msg: Message, transfer?: ArrayBuffer[]) => void): SimpleWorkerServer<any> {

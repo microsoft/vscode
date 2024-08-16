@@ -235,7 +235,7 @@ function isInitMessage(a: any): a is IInitMessage {
 }
 
 /**
- * Called on the worker side
+ * Defines the worker entry point. Must be exported and named `create`.
  * @skipMangle
  */
 export function create(): { onmessage: (message: any) => void } {
