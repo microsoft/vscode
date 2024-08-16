@@ -30,6 +30,7 @@ export class ReplEditorInput extends NotebookEditorInput {
 
 	private inputModelRef: IReference<IResolvedTextEditorModel> | undefined;
 	private isScratchpad: boolean;
+	private label: string;
 	private isDisposing = false;
 
 	constructor(
@@ -51,6 +52,20 @@ export class ReplEditorInput extends NotebookEditorInput {
 	) {
 		super(resource, undefined, 'jupyter-notebook', {}, _notebookService, _notebookModelResolverService, _fileDialogService, labelService, fileService, filesConfigurationService, extensionService, editorService, textResourceConfigurationService, customEditorLabelService);
 		this.isScratchpad = resource.scheme === 'untitled' && configurationService.getValue<boolean>(NotebookSetting.InteractiveWindowPromptToSave) !== true;
+		this.label = this.createEditorLabel(resource);
+	}
+
+	private createEditorLabel(resource: URI | undefined): string {
+		if (!resource) {
+			return 'REPL';
+		}
+
+		const match = new RegExp('Untitled-(\\d+)\.').exec(resource.path);
+		if (match?.length === 2) {
+			return `REPL - ${match[1]}`;
+		}
+		const filename = resource.path.split('/').pop();
+		return filename ? `REPL - ${filename}` : 'REPL';
 	}
 
 	override get typeId(): string {
@@ -62,7 +77,7 @@ export class ReplEditorInput extends NotebookEditorInput {
 	}
 
 	override getName() {
-		return 'REPL';
+		return this.label;
 	}
 
 	override get capabilities() {

@@ -54,9 +54,6 @@ import { CellEditType, CellKind, CellUri, INTERACTIVE_WINDOW_EDITOR_ID, Notebook
 import { InteractiveWindowOpen } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { executeReplInput } from 'vs/workbench/contrib/replNotebook/browser/repl.contribution';
-import { ReplEditor } from 'vs/workbench/contrib/replNotebook/browser/replEditor';
-import { ReplEditorInput } from 'vs/workbench/contrib/replNotebook/browser/replEditorInput';
 import { columnToEditorGroup } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
@@ -477,9 +474,6 @@ registerAction2(class extends Action2 {
 				{
 					id: MenuId.InteractiveInputExecute
 				},
-				{
-					id: MenuId.ReplInputExecute
-				}
 			],
 			icon: icons.executeIcon,
 			f1: false,
@@ -502,28 +496,21 @@ registerAction2(class extends Action2 {
 		const historyService = accessor.get(IInteractiveHistoryService);
 		const notebookEditorService = accessor.get(INotebookEditorService);
 		let editorControl: { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
-		let isReplEditor = false;
 		if (context) {
 			const resourceUri = URI.revive(context);
 			const editors = editorService.findEditors(resourceUri);
 			for (const found of editors) {
-				if (found.editor.typeId === ReplEditorInput.ID || found.editor.typeId === InteractiveEditorInput.ID) {
+				if (found.editor.typeId === InteractiveEditorInput.ID) {
 					const editor = await editorService.openEditor(found.editor, found.groupId);
 					editorControl = editor?.getControl() as { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
-					isReplEditor = found.editor.typeId === ReplEditorInput.ID;
 					break;
 				}
 			}
 		}
 		else {
-			const editor = editorService.activeEditorPane;
-			isReplEditor = editor instanceof ReplEditor;
 			editorControl = editorService.activeEditorPane?.getControl() as { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
 		}
 
-		if (editorControl && isReplEditor) {
-			executeReplInput(bulkEditService, historyService, notebookEditorService, editorControl);
-		}
 
 		if (editorControl && editorControl.notebookEditor && editorControl.codeEditor) {
 			const notebookDocument = editorControl.notebookEditor.textModel;
@@ -539,6 +526,7 @@ registerAction2(class extends Action2 {
 					return;
 				}
 
+				historyService.replaceLast(notebookDocument.uri, value);
 				historyService.addToHistory(notebookDocument.uri, '');
 				textModel.setValue('');
 
@@ -644,6 +632,8 @@ registerAction2(class extends Action2 {
 		const historyService = accessor.get(IInteractiveHistoryService);
 		const editorControl = editorService.activeEditorPane?.getControl() as { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
 
+
+
 		if (editorControl && editorControl.notebookEditor && editorControl.codeEditor) {
 			const notebookDocument = editorControl.notebookEditor.textModel;
 			const textModel = editorControl.codeEditor.getModel();
@@ -697,9 +687,9 @@ registerAction2(class extends Action2 {
 			const textModel = editorControl.codeEditor.getModel();
 
 			if (notebookDocument && textModel) {
-				const previousValue = historyService.getNextValue(notebookDocument.uri);
-				if (previousValue) {
-					textModel.setValue(previousValue);
+				const nextValue = historyService.getNextValue(notebookDocument.uri);
+				if (nextValue !== null) {
+					textModel.setValue(nextValue);
 				}
 			}
 		}
