@@ -251,7 +251,7 @@ export class CodeActionController extends Disposable implements IEditorContribut
 		}
 
 		if ((trigger.autoApply === CodeActionAutoApply.First && actions.validActions.length > 0)
-			|| (trigger.autoApply === CodeActionAutoApply.IfSingle & actions.validActions.length === 1)
+			|| (trigger.autoApply === CodeActionAutoApply.IfSingle && actions.validActions.length === 1)
 		) {
 			return actions.validActions[0];
 		}
