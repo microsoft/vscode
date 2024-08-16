@@ -499,7 +499,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 			disregardExcludeSettings: typeof options.useDefaultExcludes === 'boolean' ? !options.useDefaultExcludes : false,
 			disregardSearchExcludeSettings: typeof options.useDefaultSearchExcludes === 'boolean' ? !options.useDefaultSearchExcludes : false,
 			maxResults: options.maxResults,
-			excludePattern: excludePattern,
+			excludePattern: excludePattern ? [{ pattern: excludePattern }] : undefined,
 			shouldGlobSearch: typeof options.fuzzy === 'boolean' ? !options.fuzzy : true,
 			_reason: 'startFileSearch'
 		};
@@ -550,7 +550,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 			surroundingContext: options.afterContext, // TODO: remove ability to have before/after context separately
 
 			includePattern: includePattern,
-			excludePattern: excludePattern
+			excludePattern: excludePattern ? [{ pattern: excludePattern }] : undefined,
 		};
 
 		const isCanceled = false;

@@ -76,7 +76,7 @@ export interface ExcludeGlobPattern<U extends UriComponents = URI> {
 export interface IFolderQuery<U extends UriComponents = URI> {
 	folder: U;
 	folderName?: string;
-	excludePattern?: ExcludeGlobPattern<U>;
+	excludePattern?: ExcludeGlobPattern<U>[];
 	includePattern?: glob.IExpression;
 	fileEncoding?: string;
 	disregardIgnoreFiles?: boolean;
@@ -680,18 +680,24 @@ export function resolvePatternsForProvider(globalPattern: glob.IExpression | und
 
 export class QueryGlobTester {
 
-	private _excludeExpression: glob.IExpression;
-	private _parsedExcludeExpression: glob.ParsedExpression;
+	private _excludeExpression: glob.IExpression[];
+	private _parsedExcludeExpression: glob.ParsedExpression[];
 
 	private _parsedIncludeExpression: glob.ParsedExpression | null = null;
 
 	constructor(config: ISearchQuery, folderQuery: IFolderQuery) {
 		// todo: try to incorporate folderQuery.excludePattern.folder if available
-		this._excludeExpression = {
-			...(config.excludePattern || {}),
-			...(folderQuery.excludePattern?.pattern || {})
-		};
-		this._parsedExcludeExpression = glob.parse(this._excludeExpression);
+		this._excludeExpression = [];
+		folderQuery.excludePattern?.map(excludePattern => {
+			this._excludeExpression.push(
+				{
+					...(config.excludePattern || {}),
+					...(excludePattern.pattern || {})
+				}
+			);
+		});
+
+		this._parsedExcludeExpression = this._excludeExpression.map(ee => glob.parse(ee));
 
 		// Empty includeExpression means include nothing, so no {} shortcuts
 		let includeExpression: glob.IExpression | undefined = config.includePattern;
@@ -711,8 +717,13 @@ export class QueryGlobTester {
 		}
 	}
 
+	private _evalParsedExcludeExpression(testPath: string, basename: string | undefined, hasSibling?: (name: string) => boolean | Promise<boolean>): string | null | Promise<string | null> {
+		return Promise.race(this._parsedExcludeExpression.map(e => e(testPath, basename, hasSibling)));
+	}
+
 	matchesExcludesSync(testPath: string, basename?: string, hasSibling?: (name: string) => boolean): boolean {
-		if (this._parsedExcludeExpression && this._parsedExcludeExpression(testPath, basename, hasSibling)) {
+
+		if (this._parsedExcludeExpression && this._evalParsedExcludeExpression(testPath, basename, hasSibling)) {
 			return true;
 		}
 
@@ -723,7 +734,7 @@ export class QueryGlobTester {
 	 * Guaranteed sync - siblingsFn should not return a promise.
 	 */
 	includedInQuerySync(testPath: string, basename?: string, hasSibling?: (name: string) => boolean): boolean {
-		if (this._parsedExcludeExpression && this._parsedExcludeExpression(testPath, basename, hasSibling)) {
+		if (this._parsedExcludeExpression && this._evalParsedExcludeExpression(testPath, basename, hasSibling)) {
 			return false;
 		}
 
@@ -739,7 +750,7 @@ export class QueryGlobTester {
 	 * unless the expression is async.
 	 */
 	includedInQuery(testPath: string, basename?: string, hasSibling?: (name: string) => boolean | Promise<boolean>): Promise<boolean> | boolean {
-		const excluded = this._parsedExcludeExpression(testPath, basename, hasSibling);
+		const excluded = this._evalParsedExcludeExpression(testPath, basename, hasSibling);
 
 		const isIncluded = () => {
 			return this._parsedIncludeExpression ?
@@ -761,7 +772,7 @@ export class QueryGlobTester {
 	}
 
 	hasSiblingExcludeClauses(): boolean {
-		return hasSiblingClauses(this._excludeExpression);
+		return this._excludeExpression.reduce((prev, curr) => hasSiblingClauses(curr) || prev, false);
 	}
 }
 
@@ -813,12 +824,12 @@ function listToMap(list: string[]) {
 	return map;
 }
 
-export function excludeToGlobPattern(baseUri: URI | undefined, patterns: string[]): GlobPattern[] {
-	return patterns.map(pattern => {
-		return baseUri ?
+export function excludeToGlobPattern(excludesForFolder: { baseUri?: URI | undefined; patterns: string[] }[]): GlobPattern[] {
+	return excludesForFolder.flatMap(exclude => exclude.patterns.map(pattern => {
+		return exclude.baseUri ?
 			{
-				baseUri: baseUri,
+				baseUri: exclude.baseUri,
 				pattern: pattern
 			} : pattern;
-	});
+	}));
 }

@@ -56,7 +56,8 @@ suite('MainThreadWorkspace', () => {
 			fileSearch(query: IFileQuery) {
 				assert.strictEqual(query.folderQueries.length, 1);
 				assert.strictEqual(query.folderQueries[0].disregardIgnoreFiles, true);
-				assert.deepStrictEqual(query.folderQueries[0].excludePattern?.pattern, { 'filesExclude': true });
+				assert.strictEqual(query.folderQueries[0].excludePattern?.length, 1);
+				assert.deepStrictEqual(query.folderQueries[0].excludePattern[0].pattern, { 'filesExclude': true });
 
 				return Promise.resolve({ results: [], messages: [] });
 			}
@@ -120,6 +121,6 @@ suite('MainThreadWorkspace', () => {
 		});
 
 		const mtw = disposables.add(instantiationService.createInstance(MainThreadWorkspace, SingleProxyRPCProtocol({ $initializeWorkspace: () => { } })));
-		return mtw.$startFileSearch(null, { maxResults: 10, includePattern: '', excludePattern: 'exclude/**', disregardSearchExcludeSettings: true }, CancellationToken.None);
+		return mtw.$startFileSearch(null, { maxResults: 10, includePattern: '', excludePattern: [{ pattern: 'exclude/**' }], disregardSearchExcludeSettings: true }, CancellationToken.None);
 	});
 });

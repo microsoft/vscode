@@ -187,7 +187,10 @@ class FileSearchEngine {
 
 	private getSearchOptionsForFolder(fq: IFolderQuery<URI>): FileSearchProviderFolderOptions {
 		const includes = resolvePatternsForProvider(this.config.includePattern, fq.includePattern);
-		const excludes = excludeToGlobPattern(fq.excludePattern?.folder, resolvePatternsForProvider(this.config.excludePattern, fq.excludePattern?.pattern));
+		const excludes = excludeToGlobPattern(fq.excludePattern?.map(e => ({
+			folder: e.folder,
+			patterns: resolvePatternsForProvider(this.config.excludePattern, e.pattern)
+		})) ?? []);
 
 		return {
 			folder: fq.folder,

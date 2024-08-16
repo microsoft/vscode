@@ -184,7 +184,10 @@ export class TextSearchManager {
 
 	private getSearchOptionsForFolder(fq: IFolderQuery<URI>): TextSearchProviderFolderOptions {
 		const includes = resolvePatternsForProvider(this.query.includePattern, fq.includePattern);
-		const excludes = excludeToGlobPattern(fq.excludePattern?.folder, resolvePatternsForProvider(this.query.excludePattern, fq.excludePattern?.pattern));
+		const excludes = excludeToGlobPattern(fq.excludePattern?.map(e => ({
+			folder: e.folder,
+			patterns: resolvePatternsForProvider(this.query.excludePattern, e.pattern)
+		})) ?? []);
 
 		const options = {
 			folder: URI.from(fq.folder),
