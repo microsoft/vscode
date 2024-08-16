@@ -78,6 +78,7 @@ function setNpmrcConfig(dir, env) {
 
 	if (dir === 'build') {
 		env['npm_config_target'] = process.versions.node;
+		env['npm_config_arch'] = process.arch;
 	}
 }
 

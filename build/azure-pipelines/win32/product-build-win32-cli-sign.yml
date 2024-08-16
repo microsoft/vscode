@@ -35,8 +35,8 @@ steps:
     displayName: Setup NPM Authentication
 
   - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      . build/azure-pipelines/win32/retry.ps1
+      . azure-pipelines/win32/exec.ps1
+      . azure-pipelines/win32/retry.ps1
       $ErrorActionPreference = "Stop"
       $env:CHILD_CONCURRENCY="1"
       retry { exec { npm ci } }
