@@ -33,6 +33,16 @@
 	border-radius: 4px;
 }
 
+/** Notification: List Row */
+
+.monaco-workbench .notifications-toasts.visible .notifications-list-container .monaco-list-row.focused {
+	border-radius: 4px;
+}
+
+.monaco-workbench .notifications-center.visible .notifications-list-container .monaco-list-row.focused:last-child {
+	border-radius: 0px 0px 4px 4px;
+}
+
 /** Notification: Main Row */
 
 .monaco-workbench .notifications-list-container .notification-list-item > .notification-list-item-main-row {
