@@ -2479,20 +2479,12 @@ export class RangeHighlightDecorations implements IDisposable {
 	});
 }
 
-
-
 function textSearchResultToMatches(rawMatch: ITextSearchMatch, fileMatch: FileMatch, isAiContributed: boolean): Match[] {
-	const previewLines = rawMatch.preview.text.split('\n');
-	if (Array.isArray(rawMatch.ranges)) {
-		return rawMatch.ranges.map((r, i) => {
-			const previewRange: ISearchRange = (<ISearchRange[]>rawMatch.preview.matches)[i];
-			return new Match(fileMatch, previewLines, previewRange, r, isAiContributed);
-		});
-	} else {
-		const previewRange = <ISearchRange>rawMatch.preview.matches;
-		const match = new Match(fileMatch, previewLines, previewRange, rawMatch.ranges, isAiContributed);
-		return [match];
-	}
+	const previewLines = rawMatch.previewText.split('\n');
+	return rawMatch.rangeLocations.map((rangeLocation) => {
+		const previewRange: ISearchRange = rangeLocation.preview;
+		return new Match(fileMatch, previewLines, previewRange, rangeLocation.source, isAiContributed);
+	});
 }
 
 // text search to notebook matches
@@ -2500,18 +2492,12 @@ function textSearchResultToMatches(rawMatch: ITextSearchMatch, fileMatch: FileMa
 export function textSearchMatchesToNotebookMatches(textSearchMatches: ITextSearchMatch[], cell: CellMatch): MatchInNotebook[] {
 	const notebookMatches: MatchInNotebook[] = [];
 	textSearchMatches.forEach((textSearchMatch) => {
-		const previewLines = textSearchMatch.preview.text.split('\n');
-		if (Array.isArray(textSearchMatch.ranges)) {
-			textSearchMatch.ranges.forEach((r, i) => {
-				const previewRange: ISearchRange = (<ISearchRange[]>textSearchMatch.preview.matches)[i];
-				const match = new MatchInNotebook(cell, previewLines, previewRange, r, textSearchMatch.webviewIndex);
-				notebookMatches.push(match);
-			});
-		} else {
-			const previewRange = <ISearchRange>textSearchMatch.preview.matches;
-			const match = new MatchInNotebook(cell, previewLines, previewRange, textSearchMatch.ranges, textSearchMatch.webviewIndex);
+		const previewLines = textSearchMatch.previewText.split('\n');
+		textSearchMatch.rangeLocations.map((rangeLocation) => {
+			const previewRange: ISearchRange = rangeLocation.preview;
+			const match = new MatchInNotebook(cell, previewLines, previewRange, rangeLocation.source, textSearchMatch.webviewIndex);
 			notebookMatches.push(match);
-		}
+		});
 	});
 	return notebookMatches;
 }

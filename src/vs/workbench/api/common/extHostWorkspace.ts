@@ -547,7 +547,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 			fileEncoding: options.encoding,
 			maxResults: options.maxResults,
 			previewOptions,
-			surroundingContext: options.afterContext,
+			surroundingContext: options.afterContext, // TODO: remove ability to have before/after context separately
 
 			includePattern: includePattern,
 			excludePattern: excludePattern
@@ -567,14 +567,14 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 					callback({
 						uri,
 						preview: {
-							text: result.preview.text,
+							text: result.previewText,
 							matches: mapArrayOrNot(
-								result.preview.matches,
-								m => new Range(m.startLineNumber, m.startColumn, m.endLineNumber, m.endColumn))
+								result.rangeLocations,
+								m => new Range(m.preview.startLineNumber, m.preview.startColumn, m.preview.endLineNumber, m.preview.endColumn))
 						},
 						ranges: mapArrayOrNot(
-							result.ranges,
-							r => new Range(r.startLineNumber, r.startColumn, r.endLineNumber, r.endColumn))
+							result.rangeLocations,
+							r => new Range(r.source.startLineNumber, r.source.startColumn, r.source.endLineNumber, r.source.endColumn))
 					} satisfies vscode.TextSearchMatch);
 				} else {
 					callback({
