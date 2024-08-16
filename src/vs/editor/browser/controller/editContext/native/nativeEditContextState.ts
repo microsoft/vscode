@@ -54,6 +54,7 @@ export class TextAreaState {
 		return `[ <${this.value}>, selectionStart: ${this.selectionStart}, selectionEnd: ${this.selectionEnd}]`;
 	}
 
+	// --
 	public static readFromEditContext(context: {
 		getValue(): string;
 		getSelectionStart(): number;
@@ -73,6 +74,7 @@ export class TextAreaState {
 		return new TextAreaState(value, selectionStart, selectionEnd, null, newlineCountBeforeSelection);
 	}
 
+	// --
 	public collapseSelection(): TextAreaState {
 		if (this.selectionStart === this.value.length) {
 			return this;
@@ -116,6 +118,7 @@ export class TextAreaState {
 		return [anchor, signum * deltaText.length, lineFeedCnt];
 	}
 
+	// --
 	public static deduceInput(previousState: TextAreaState, currentState: TextAreaState, couldBeEmojiInput: boolean): ITypeData {
 		if (!previousState) {
 			// This is the EMPTY state

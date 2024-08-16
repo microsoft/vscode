@@ -31,15 +31,14 @@ import { Position } from 'vs/editor/common/core/position';
 import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 import { Color } from 'vs/base/common/color';
 import { EndOfLinePreference, IModelDeltaDecoration } from 'vs/editor/common/model';
-import { ViewEventHandler } from 'vs/editor/common/viewEventHandler';
 import { ISimpleModel, ITypeData, PagedScreenReaderStrategy, TextAreaState } from 'vs/editor/browser/controller/editContext/native/nativeEditContextState';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { KeyCode } from 'vs/base/common/keyCodes';
+import { ViewEventHandler } from 'vs/editor/common/viewEventHandler';
 
 /**
  * Correctly place the bounding boxes so that they are exactly aligned
- * Long press of e should work correctly to add accents
  */
 
 const canUseZeroSizeTextarea = (browser.isFirefox);
@@ -93,6 +92,8 @@ export class NativeEditContext extends AbstractEditContext {
 	private _controlBounds: IDisposable = Disposable.None;
 	private _characterBounds: IDisposable = Disposable.None;
 
+	private _rangeStart: number;
+
 	constructor(
 		context: ViewContext,
 		private readonly _viewController: ViewController,
@@ -104,6 +105,7 @@ export class NativeEditContext extends AbstractEditContext {
 		this._scrollLeft = 0;
 		this._scrollTop = 0;
 		this._hasFocus = false;
+		this._rangeStart = 0;
 
 		const options = this._context.configuration.options;
 		const layoutInfo = options.get(EditorOption.layoutInfo);
@@ -297,6 +299,7 @@ export class NativeEditContext extends AbstractEditContext {
 		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'characterboundsupdate', e => {
 			console.log('characterboundsupdate : ', e);
+			this._rangeStart = e.rangeStart;
 			this._updateCharacterBounds(e.rangeStart);
 		}));
 		this._register(dom.addDisposableListener(this._domElement.domNode, 'focus', (e) => {
@@ -314,11 +317,11 @@ export class NativeEditContext extends AbstractEditContext {
 		this._context.addEventHandler(new class extends ViewEventHandler {
 			public override onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 				that._scrollTop = e.scrollTop;
-				that._updateSelectionAndControlBounds();
+				that._updateBounds();
 				return false;
 			}
 			public override onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
-				that._updateSelectionAndControlBounds();
+				that._updateBounds();
 				return false;
 			}
 		});
@@ -950,6 +953,12 @@ export class NativeEditContext extends AbstractEditContext {
 		console.log('decorations : ', decorations);
 
 		this._decorations = this._context.viewModel.model.deltaDecorations(this._decorations, decorations);
+	}
+
+	private _updateBounds() {
+		this._updateSelectionAndControlBounds();
+		// Need to update character bounds eagerly in order for the IME to be positioned correctly
+		this._updateCharacterBounds(this._rangeStart);
 	}
 
 	private _updateSelectionAndControlBounds() {

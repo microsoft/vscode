@@ -413,15 +413,18 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 	}
 
 	public linesVisibleRangesForRange(_range: Range, includeNewLines: boolean): LineVisibleRanges[] | null {
+		console.log('linesVisibleRangesForRange');
 		if (this.shouldRender()) {
 			// Cannot read from the DOM because it is dirty
 			// i.e. the model & the dom are out of sync, so I'd be reading something stale
+			console.log('return 1');
 			return null;
 		}
 
 		const originalEndLineNumber = _range.endLineNumber;
 		const range = Range.intersectRanges(_range, this._lastRenderedData.getCurrentVisibleRange());
 		if (!range) {
+			console.log('return 2');
 			return null;
 		}
 
@@ -466,9 +469,11 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		this._updateLineWidthsSlowIfDomDidLayout(domReadingContext);
 
 		if (visibleRangesLen === 0) {
+			console.log('return 3');
 			return null;
 		}
 
+		console.log('return 4');
 		return visibleRanges;
 	}
 
@@ -621,6 +626,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 				this._horizontalRevealRequest = null;
 
 				// allow `visibleRangesForRange2` to work
+				console.log('on did render from renderText ', this);
 				this.onDidRender();
 
 				// compute new scroll position
