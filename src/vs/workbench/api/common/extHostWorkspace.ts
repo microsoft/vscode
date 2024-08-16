@@ -34,7 +34,6 @@ import * as vscode from 'vscode';
 import { ExtHostWorkspaceShape, IRelativePatternDto, IWorkspaceData, MainContext, MainThreadMessageOptions, MainThreadMessageServiceShape, MainThreadWorkspaceShape } from './extHost.protocol';
 import { revive } from 'vs/base/common/marshalling';
 import { AuthInfo, Credentials } from 'vs/platform/request/common/request';
-import { ExcludeSettingOptions } from 'vs/workbench/services/search/common/searchExtTypes';
 
 export interface IExtHostWorkspaceProvider {
 	getWorkspaceFolder2(uri: vscode.Uri, resolveParent?: boolean): Promise<vscode.WorkspaceFolder | undefined>;
@@ -539,8 +538,8 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 					disregardIgnoreFiles: typeof options.useIgnoreFiles === 'boolean' ? !options.useIgnoreFiles : undefined,
 					disregardGlobalIgnoreFiles: typeof options.useIgnoreFiles?.global === 'boolean' ? !options.useIgnoreFiles?.global : undefined,
 					disregardParentIgnoreFiles: typeof options.useIgnoreFiles?.parent === 'boolean' ? !options.useIgnoreFiles?.parent : undefined,
-					disregardExcludeSettings: options.useExcludeSettings !== undefined && options.useExcludeSettings === ExcludeSettingOptions.None,
-					disregardSearchExcludeSettings: options.useExcludeSettings !== undefined && (options.useExcludeSettings !== ExcludeSettingOptions.SearchAndFilesExclude),
+					disregardExcludeSettings: options.useExcludeSettings !== undefined && options.useExcludeSettings === vscode.ExcludeSettingOptions.None,
+					disregardSearchExcludeSettings: options.useExcludeSettings !== undefined && (options.useExcludeSettings !== vscode.ExcludeSettingOptions.SearchAndFilesExclude),
 					fileEncoding: options.encoding,
 					maxResults: options.maxResults,
 					previewOptions: options.previewOptions ? {
