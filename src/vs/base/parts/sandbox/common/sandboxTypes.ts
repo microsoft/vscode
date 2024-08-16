@@ -72,7 +72,7 @@ export interface ISandboxConfiguration {
 	};
 
 	/**
-	 * DEV time only! All css-modules that we have.
+	 * DEV time only: All CSS-modules that we have.
 	 */
 	cssModules?: string[];
 }

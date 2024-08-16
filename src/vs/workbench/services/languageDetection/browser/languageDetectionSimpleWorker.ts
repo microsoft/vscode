@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { ModelOperations, ModelResult } from '@vscode/vscode-languagedetection';
+import { importAMDNodeModule } from 'vs/amdX';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { IRequestHandler } from 'vs/base/common/worker/simpleWorker';
 import { EditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';
@@ -103,7 +104,7 @@ export class LanguageDetectionSimpleWorker extends EditorSimpleWorker {
 		}
 		const uri: string = await this._host.fhr('getRegexpModelUri', []);
 		try {
-			this._regexpModel = await import(uri) as RegexpModel;
+			this._regexpModel = await importAMDNodeModule(uri, '') as RegexpModel;
 			return this._regexpModel;
 		} catch (e) {
 			this._regexpLoadFailed = true;
@@ -137,7 +138,7 @@ export class LanguageDetectionSimpleWorker extends EditorSimpleWorker {
 		}
 
 		const uri: string = await this._host.fhr('getIndexJsUri', []);
-		const { ModelOperations } = await import(uri) as typeof import('@vscode/vscode-languagedetection');
+		const { ModelOperations } = await importAMDNodeModule(uri, '') as typeof import('@vscode/vscode-languagedetection');
 		this._modelOperations = new ModelOperations({
 			modelJsonLoaderFunc: async () => {
 				const response = await fetch(await this._host.fhr('getModelJsonUri', []));

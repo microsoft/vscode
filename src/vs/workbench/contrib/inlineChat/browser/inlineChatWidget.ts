@@ -351,6 +351,13 @@ export class InlineChatWidget {
 		this._chatWidget.setInputPlaceholder(value);
 	}
 
+	toggleStatus(show: boolean) {
+		this._elements.toolbar2.classList.toggle('hidden', !show);
+		this._elements.status.classList.toggle('hidden', !show);
+		this._elements.infoLabel.classList.toggle('hidden', !show);
+		this._onDidChangeHeight.fire();
+	}
+
 	updateToolbar(show: boolean) {
 		this._elements.root.classList.toggle('toolbar', show);
 		this._elements.toolbar2.classList.toggle('hidden', !show);
@@ -387,16 +394,6 @@ export class InlineChatWidget {
 
 	setChatModel(chatModel: IChatModel) {
 		this._chatWidget.setModel(chatModel, { inputValue: undefined });
-	}
-
-
-	/**
-	 * @deprecated use `setChatModel` instead
-	 */
-	addToHistory(input: string) {
-		if (this._chatWidget.viewModel?.model === this._defaultChatModel) {
-			this._chatWidget.input.acceptInput(true);
-		}
 	}
 
 	/**

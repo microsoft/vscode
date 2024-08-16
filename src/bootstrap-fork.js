@@ -28,8 +28,8 @@ bootstrapNode.removeGlobalNodeModuleLookupPaths();
 // Enable ASAR in our forked processes
 bootstrapNode.enableASARSupport();
 
-if (process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH']) {
-	bootstrapNode.injectNodeModuleLookupPath(process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH']);
+if (process.env['VSCODE_DEV_INJECT_NODE_MODULE_LOOKUP_PATH']) {
+	bootstrapNode.devInjectNodeModuleLookupPath(process.env['VSCODE_DEV_INJECT_NODE_MODULE_LOOKUP_PATH']);
 }
 
 // Configure: pipe logging to parent process

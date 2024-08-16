@@ -253,7 +253,12 @@ class FileAccessImpl {
 	 * **Note:** use `dom.ts#asCSSUrl` whenever the URL is to be used in CSS context.
 	 */
 	asBrowserUri(resourcePath: AppResourcePath | ''): URI {
+		// ESM-comment-begin
 		const uri = this.toUri(resourcePath, require);
+		// ESM-comment-end
+		// ESM-uncomment-begin
+		// const uri = this.toUri(resourcePath);
+		// ESM-uncomment-end
 		return this.uriToBrowserUri(uri);
 	}
 
@@ -300,7 +305,12 @@ class FileAccessImpl {
 	 * is responsible for loading.
 	 */
 	asFileUri(resourcePath: AppResourcePath | ''): URI {
+		// ESM-comment-begin
 		const uri = this.toUri(resourcePath, require);
+		// ESM-comment-end
+		// ESM-uncomment-begin
+		// const uri = this.toUri(resourcePath);
+		// ESM-uncomment-end
 		return this.uriToFileUri(uri);
 	}
 
@@ -325,12 +335,25 @@ class FileAccessImpl {
 		return uri;
 	}
 
-	private toUri(uriOrModule: URI | string, moduleIdToUrl: { toUrl(moduleId: string): string }): URI {
+	private toUri(uriOrModule: URI | string, moduleIdToUrl?: { toUrl(moduleId: string): string }): URI {
 		if (URI.isUri(uriOrModule)) {
 			return uriOrModule;
 		}
 
-		return URI.parse(moduleIdToUrl.toUrl(uriOrModule));
+		if (globalThis._VSCODE_FILE_ROOT) {
+			const rootUriOrPath = globalThis._VSCODE_FILE_ROOT;
+
+			// File URL (with scheme)
+			if (/^\w[\w\d+.-]*:\/\//.test(rootUriOrPath)) {
+				return URI.joinPath(URI.parse(rootUriOrPath, true), uriOrModule);
+			}
+
+			// File Path (no scheme)
+			const modulePath = paths.join(rootUriOrPath, uriOrModule);
+			return URI.file(modulePath);
+		}
+
+		return URI.parse(moduleIdToUrl!.toUrl(uriOrModule));
 	}
 }
 
