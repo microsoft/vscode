@@ -114,21 +114,21 @@ export class NativeEditContext extends AbstractEditContext {
 
 		let lastKeyDown: IKeyboardEvent | null = null;
 		this._register(dom.addDisposableListener(this._domElement.domNode, 'keydown', (e) => {
+			console.log('keydown : ', e);
 			const standardKeyboardEvent = new StandardKeyboardEvent(e);
 			if (standardKeyboardEvent.keyCode === KeyCode.KEY_IN_COMPOSITION
 				|| (this._currentComposition && standardKeyboardEvent.keyCode === KeyCode.Backspace)) {
 				// Stop propagation for keyDown events if the IME is processing key input
 				standardKeyboardEvent.stopPropagation();
 			}
+			this._domElement.domNode.focus();
 			lastKeyDown = standardKeyboardEvent;
 			this._viewController.emitKeyDown(standardKeyboardEvent);
 		}));
 
 		this._register(dom.addDisposableListener(this._domElement.domNode, 'keyup', (e) => {
-			const standardKeyboardEvent = new StandardKeyboardEvent(e);
-			this._viewController.emitKeyUp(standardKeyboardEvent);
+			this._viewController.emitKeyUp(new StandardKeyboardEvent(e));
 		}));
-
 		this._register(dom.addDisposableListener(this._domElement.domNode, 'paste', (e) => {
 			e.preventDefault();
 			if (!e.clipboardData) {
@@ -152,11 +152,13 @@ export class NativeEditContext extends AbstractEditContext {
 		}));
 
 		this._register(dom.addDisposableListener(this._domElement.domNode, 'cut', (e) => {
+			console.log('cut : ', e);
 			// TODO: maybe need to do async cutting here
 			this._viewController.cut();
 		}));
 		this._register(dom.addDisposableListener(this._domElement.domNode, 'copy', (e) => {
 			// TODO: add the code which copies
+			console.log('copy : ', e);
 		}));
 
 		// -- on input is mixed with the composition start, composition end, textupdate

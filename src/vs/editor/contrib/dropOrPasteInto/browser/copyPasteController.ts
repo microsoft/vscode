@@ -144,6 +144,8 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 	}
 
 	private handleCopy(e: ClipboardEvent) {
+		console.log('handleCopy');
+		console.log('editor.getCotainerDomNode() : ', this._editor.getContainerDomNode());
 		if (!this._editor.hasTextFocus()) {
 			return;
 		}
@@ -233,6 +235,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 	}
 
 	private async handlePaste(e: ClipboardEvent) {
+		console.log('handlePaste');
 		if (!e.clipboardData || !this._editor.hasTextFocus()) {
 			return;
 		}

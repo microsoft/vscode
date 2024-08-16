@@ -44,6 +44,7 @@ export class TextInputActionsProvider extends Disposable implements IWorkbenchCo
 			new Action('editor.action.clipboardCutAction', localize('cut', "Cut"), undefined, true, async () => getActiveDocument().execCommand('cut')),
 			new Action('editor.action.clipboardCopyAction', localize('copy', "Copy"), undefined, true, async () => getActiveDocument().execCommand('copy')),
 			new Action('editor.action.clipboardPasteAction', localize('paste', "Paste"), undefined, true, async element => {
+				console.log('paste action of createActions');
 
 				// Native: paste is supported
 				if (isNative) {
