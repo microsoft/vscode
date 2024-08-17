@@ -22,11 +22,10 @@ import { EditorContributionInstantiation, registerEditorContribution } from 'vs/
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IRange } from 'vs/editor/common/core/range';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { DefaultDocumentColorProvider } from 'vs/editor/contrib/colorPicker/browser/defaultDocumentColorProvider';
 import * as dom from 'vs/base/browser/dom';
 import 'vs/css!./colorPicker';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 
 export class StandaloneColorPickerController extends Disposable implements IEditorContribution {
 
@@ -38,11 +37,7 @@ export class StandaloneColorPickerController extends Disposable implements IEdit
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IContextKeyService _contextKeyService: IContextKeyService,
-		@IModelService private readonly _modelService: IModelService,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ILanguageFeaturesService private readonly _languageFeatureService: ILanguageFeaturesService,
-		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService
 	) {
 		super();
 		this._standaloneColorPickerVisible = EditorContextKeys.standaloneColorPickerVisible.bindTo(_contextKeyService);
@@ -54,7 +49,12 @@ export class StandaloneColorPickerController extends Disposable implements IEdit
 			return;
 		}
 		if (!this._standaloneColorPickerVisible.get()) {
-			this._standaloneColorPickerWidget = new StandaloneColorPickerWidget(this._editor, this._standaloneColorPickerVisible, this._standaloneColorPickerFocused, this._instantiationService, this._modelService, this._keybindingService, this._languageFeatureService, this._languageConfigurationService);
+			this._standaloneColorPickerWidget = this._instantiationService.createInstance(
+				StandaloneColorPickerWidget,
+				this._editor,
+				this._standaloneColorPickerVisible,
+				this._standaloneColorPickerFocused
+			);
 		} else if (!this._standaloneColorPickerFocused.get()) {
 			this._standaloneColorPickerWidget?.focus();
 		}
@@ -102,10 +102,9 @@ export class StandaloneColorPickerWidget extends Disposable implements IContentW
 		private readonly _standaloneColorPickerVisible: IContextKey<boolean>,
 		private readonly _standaloneColorPickerFocused: IContextKey<boolean>,
 		@IInstantiationService _instantiationService: IInstantiationService,
-		@IModelService private readonly _modelService: IModelService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
-		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService
+		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
 	) {
 		super();
 		this._standaloneColorPickerVisible.set(true);
@@ -205,7 +204,7 @@ export class StandaloneColorPickerWidget extends Disposable implements IContentW
 			range: range,
 			color: { red: 0, green: 0, blue: 0, alpha: 1 }
 		};
-		const colorHoverResult: { colorHover: StandaloneColorPickerHover; foundInEditor: boolean } | null = await this._standaloneColorPickerParticipant.createColorHover(colorInfo, new DefaultDocumentColorProvider(this._modelService, this._languageConfigurationService), this._languageFeaturesService.colorProvider);
+		const colorHoverResult: { colorHover: StandaloneColorPickerHover; foundInEditor: boolean } | null = await this._standaloneColorPickerParticipant.createColorHover(colorInfo, new DefaultDocumentColorProvider(this._editorWorkerService), this._languageFeaturesService.colorProvider);
 		if (!colorHoverResult) {
 			return null;
 		}

@@ -192,6 +192,11 @@ export class EditorWorkerService extends Disposable implements IEditorWorkerServ
 	public findSectionHeaders(uri: URI, options: FindSectionHeaderOptions): Promise<SectionHeader[]> {
 		return this._workerManager.withWorker().then(client => client.findSectionHeaders(uri, options));
 	}
+
+	public async computeDefaultDocumentColors(uri: URI): Promise<languages.IColorInformation[] | null> {
+		const client = await this._workerManager.withWorker();
+		return client.computeDefaultDocumentColors(uri);
+	}
 }
 
 class WordBasedCompletionItemProvider implements languages.CompletionItemProvider {

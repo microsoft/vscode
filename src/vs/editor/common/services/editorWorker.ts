@@ -7,7 +7,7 @@ import { URI } from 'vs/base/common/uri';
 import { IRange } from 'vs/editor/common/core/range';
 import { IDocumentDiff, IDocumentDiffProviderOptions } from 'vs/editor/common/diff/documentDiffProvider';
 import { IChange } from 'vs/editor/common/diff/legacyLinesDiffComputer';
-import { IInplaceReplaceSupportResult, TextEdit } from 'vs/editor/common/languages';
+import { IColorInformation, IInplaceReplaceSupportResult, TextEdit } from 'vs/editor/common/languages';
 import { UnicodeHighlighterOptions } from 'vs/editor/common/services/unicodeTextModelHighlighter';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import type { BaseEditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';
@@ -39,6 +39,9 @@ export interface IEditorWorkerService {
 	navigateValueSet(resource: URI, range: IRange, up: boolean): Promise<IInplaceReplaceSupportResult | null>;
 
 	findSectionHeaders(uri: URI, options: FindSectionHeaderOptions): Promise<SectionHeader[]>;
+
+	computeDefaultDocumentColors(uri: URI): Promise<IColorInformation[] | null>;
+
 }
 
 export interface IDiffComputationResult {
