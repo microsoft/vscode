@@ -17,6 +17,7 @@ import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData'
 import type { ViewLineRenderingData } from 'vs/editor/common/viewModel';
 import type { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export const disableNonGpuRendering = true;
 
@@ -84,6 +85,7 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> extends Disposable {
 		host: IVisibleLinesHost<T>,
 		viewportData: ViewportData,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 
@@ -307,6 +309,8 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> extends Disposable {
 			if (page.version === this._atlasGpuTextureVersions[layerIndex]) {
 				continue;
 			}
+
+			this._logService.trace('Updating atlas page[', layerIndex, '] from version ', this._atlasGpuTextureVersions[layerIndex], ' to version ', page.version);
 
 			// TODO: Dynamically set buffer size
 			const bufferSize = GlyphStorageBufferInfo.FloatsPerEntry * Constants.MaxAtlasPageGlyphCount;

@@ -10,6 +10,7 @@ import type { IReadableTextureAtlasPage, ITextureAtlasGlyph } from 'vs/editor/br
 import { TextureAtlasPage } from 'vs/editor/browser/view/gpu/atlas/textureAtlasPage';
 import { GlyphRasterizer } from 'vs/editor/browser/view/gpu/raster/glyphRasterizer';
 import { IdleTaskQueue } from 'vs/editor/browser/view/gpu/taskQueue';
+import { MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 
@@ -82,24 +83,24 @@ export class TextureAtlas extends Disposable {
 		// A-Z
 		for (let code = 65; code <= 90; code++) {
 			taskQueue.enqueue(() => {
-				for (const tokenFg of this._colorMap.keys()) {
-					this.getGlyph(rasterizer, String.fromCharCode(code), tokenFg);
+				for (const fgColor of this._colorMap.keys()) {
+					this.getGlyph(rasterizer, String.fromCharCode(code), (fgColor << MetadataConsts.FOREGROUND_OFFSET) & MetadataConsts.FOREGROUND_MASK);
 				}
 			});
 		}
 		// a-z
 		for (let code = 97; code <= 122; code++) {
 			taskQueue.enqueue(() => {
-				for (const tokenFg of this._colorMap.keys()) {
-					this.getGlyph(rasterizer, String.fromCharCode(code), tokenFg);
+				for (const fgColor of this._colorMap.keys()) {
+					this.getGlyph(rasterizer, String.fromCharCode(code), (fgColor << MetadataConsts.FOREGROUND_OFFSET) & MetadataConsts.FOREGROUND_MASK);
 				}
 			});
 		}
 		// Remaining ascii
 		for (let code = 33; code <= 126; code++) {
 			taskQueue.enqueue(() => {
-				for (const tokenFg of this._colorMap.keys()) {
-					this.getGlyph(rasterizer, String.fromCharCode(code), tokenFg);
+				for (const fgColor of this._colorMap.keys()) {
+					this.getGlyph(rasterizer, String.fromCharCode(code), (fgColor << MetadataConsts.FOREGROUND_OFFSET) & MetadataConsts.FOREGROUND_MASK);
 				}
 			});
 		}

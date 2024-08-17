@@ -10,6 +10,7 @@ import type { IBoundingBox, IReadableTextureAtlasPage, ITextureAtlasAllocator, I
 import { TextureAtlasShelfAllocator } from 'vs/editor/browser/view/gpu/atlas/textureAtlasShelfAllocator';
 import { TextureAtlasSlabAllocator } from 'vs/editor/browser/view/gpu/atlas/textureAtlasSlabAllocator';
 import type { GlyphRasterizer } from 'vs/editor/browser/view/gpu/raster/glyphRasterizer';
+import { MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 
@@ -77,6 +78,9 @@ export class TextureAtlasPage extends Disposable implements IReadableTextureAtla
 
 	// TODO: Color, style etc.
 	public getGlyph(rasterizer: GlyphRasterizer, chars: string, metadata: number): Readonly<ITextureAtlasGlyph> {
+		// Ignore metadata that doesn't affect the glyph
+		metadata ^= (MetadataConsts.LANGUAGEID_MASK | MetadataConsts.TOKEN_TYPE_MASK | MetadataConsts.BALANCED_BRACKETS_MASK);
+
 		return this._glyphMap.get(chars, metadata) ?? this._createGlyph(rasterizer, chars, metadata);
 	}
 
@@ -94,7 +98,7 @@ export class TextureAtlasPage extends Disposable implements IReadableTextureAtla
 		if (this._logService.getLevel() === LogLevel.Trace) {
 			this._logService.trace('New glyph', {
 				chars,
-				fg: this._colorMap[metadata],
+				metadata,
 				rasterizedGlyph,
 				glyph
 			});
