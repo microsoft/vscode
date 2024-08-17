@@ -10,6 +10,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import type { ITextureAtlasGlyph } from 'vs/editor/browser/view/gpu/atlas/atlas';
 import { TextureAtlas } from 'vs/editor/browser/view/gpu/atlas/textureAtlas';
+import { GpuLifecycle } from 'vs/editor/browser/view/gpu/gpuDisposable';
 import { ensureNonNullable, observeDevicePixelDimensions } from 'vs/editor/browser/view/gpu/gpuUtils';
 import { GlyphRasterizer } from 'vs/editor/browser/view/gpu/raster/glyphRasterizer';
 import type { IVisibleLine, IVisibleLinesHost } from 'vs/editor/browser/view/viewLayer';
@@ -71,7 +72,7 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> extends Disposable {
 	private _pipeline!: GPURenderPipeline;
 
 	private _vertexBuffer!: GPUBuffer;
-	private _squareVertices!: { vertexData: Float32Array; numVertices: number };
+	private _quadVertices!: { vertexData: Float32Array; numVertices: number };
 
 	private static _atlas: TextureAtlas;
 
@@ -97,6 +98,12 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> extends Disposable {
 		this.domNode = domNode;
 		this.host = host;
 		this.viewportData = viewportData;
+
+		this._register(observeDevicePixelDimensions(this.domNode, getActiveWindow(), (w, h) => {
+			this.domNode.width = w;
+			this.domNode.height = h;
+			// TODO: Request render
+		}));
 
 		this._gpuCtx = ensureNonNullable(this.domNode.getContext('webgpu'));
 		this.initWebgpu();
@@ -129,7 +136,7 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> extends Disposable {
 		const atlas = GpuViewLayerRenderer._atlas;
 
 
-		this._renderStrategy = this._instantiationService.createInstance(FullFileRenderStrategy, this._context, this._device, this.domNode, this.viewportData, GpuViewLayerRenderer._atlas);
+		this._renderStrategy = this._register(this._instantiationService.createInstance(FullFileRenderStrategy, this._context, this._device, this.domNode, this.viewportData, GpuViewLayerRenderer._atlas));
 
 		const module = this._device.createShaderModule({
 			label: 'Monaco shader module',
@@ -181,26 +188,21 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> extends Disposable {
 			Offset_CanvasWidth = 0,
 			Offset_CanvasHeight = 1
 		}
-		const uniformBuffer = this._device.createBuffer({
+		const uniformBufferValues = new Float32Array(UniformBufferInfo.FloatsPerEntry);
+		const uniformBuffer = this._register(GpuLifecycle.createBuffer(this._device, {
 			label: 'Monaco uniform buffer',
 			size: UniformBufferInfo.BytesPerEntry,
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-		});
-		{
-			const uniformValues = new Float32Array(UniformBufferInfo.FloatsPerEntry);
-			uniformValues[UniformBufferInfo.Offset_CanvasWidth] = this.domNode.width;
-			uniformValues[UniformBufferInfo.Offset_CanvasHeight] = this.domNode.height;
-			this._device.queue.writeBuffer(uniformBuffer, 0, uniformValues);
-
-			this._register(observeDevicePixelDimensions(this.domNode, getActiveWindow(), (w, h) => {
-				this.domNode.width = w;
-				this.domNode.height = h;
-				uniformValues[UniformBufferInfo.Offset_CanvasWidth] = this.domNode.width;
-				uniformValues[UniformBufferInfo.Offset_CanvasHeight] = this.domNode.height;
-				this._device.queue.writeBuffer(uniformBuffer, 0, uniformValues);
-				// TODO: Request render
-			}));
-		}
+		}, () => {
+			uniformBufferValues[UniformBufferInfo.Offset_CanvasWidth] = this.domNode.width;
+			uniformBufferValues[UniformBufferInfo.Offset_CanvasHeight] = this.domNode.height;
+			return uniformBufferValues;
+		})).buffer;
+		this._register(observeDevicePixelDimensions(this.domNode, getActiveWindow(), (w, h) => {
+			uniformBufferValues[UniformBufferInfo.Offset_CanvasWidth] = this.domNode.width;
+			uniformBufferValues[UniformBufferInfo.Offset_CanvasHeight] = this.domNode.height;
+			this._device.queue.writeBuffer(uniformBuffer, 0, uniformBufferValues);
+		}));
 
 
 
@@ -210,32 +212,31 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> extends Disposable {
 			Offset_Width = 0,
 			Offset_Height = 1,
 		}
-		const atlasInfoUniformBuffer = this._device.createBuffer({
+		const atlasInfoUniformBuffer = this._register(GpuLifecycle.createBuffer(this._device, {
 			label: 'Monaco atlas info uniform buffer',
 			size: AtlasInfoUniformBufferInfo.BytesPerEntry,
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-		});
-		{
-			const uniformValues = new Float32Array(AtlasInfoUniformBufferInfo.FloatsPerEntry);
-			uniformValues[AtlasInfoUniformBufferInfo.Offset_Width] = atlas.pageSize;
-			uniformValues[AtlasInfoUniformBufferInfo.Offset_Height] = atlas.pageSize;
-			this._device.queue.writeBuffer(atlasInfoUniformBuffer, 0, uniformValues);
-		}
+		}, () => {
+			const values = new Float32Array(AtlasInfoUniformBufferInfo.FloatsPerEntry);
+			values[AtlasInfoUniformBufferInfo.Offset_Width] = atlas.pageSize;
+			values[AtlasInfoUniformBufferInfo.Offset_Height] = atlas.pageSize;
+			return values;
+		})).buffer;
 
 
 		///////////////////
 		// Static buffer //
 		///////////////////
-		this._glyphStorageBuffer[0] = this._device.createBuffer({
+		this._glyphStorageBuffer[0] = this._register(GpuLifecycle.createBuffer(this._device, {
 			label: 'Monaco glyph storage buffer',
 			size: GlyphStorageBufferInfo.BytesPerEntry * Constants.MaxAtlasPageGlyphCount,
 			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-		});
-		this._glyphStorageBuffer[1] = this._device.createBuffer({
+		})).buffer;
+		this._glyphStorageBuffer[1] = this._register(GpuLifecycle.createBuffer(this._device, {
 			label: 'Monaco glyph storage buffer',
 			size: GlyphStorageBufferInfo.BytesPerEntry * Constants.MaxAtlasPageGlyphCount,
 			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-		});
+		})).buffer;
 		this._atlasGpuTextureVersions[0] = 0;
 		this._atlasGpuTextureVersions[1] = 0;
 		this._atlasGpuTexture = this._device.createTexture({
@@ -256,7 +257,24 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> extends Disposable {
 
 		this._renderStrategy.initBuffers();
 
-		this._updateSquareVertices();
+
+
+		this._quadVertices = {
+			vertexData: new Float32Array([
+				1, 0,
+				1, 1,
+				0, 1,
+				0, 0,
+				0, 1,
+				1, 0,
+			]),
+			numVertices: 6
+		};
+		this._vertexBuffer = this._register(GpuLifecycle.createBuffer(this._device, {
+			label: 'Monaco quad vertex buffer',
+			size: this._quadVertices.vertexData.byteLength,
+			usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+		}, this._quadVertices.vertexData)).buffer;
 
 
 
@@ -292,28 +310,6 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> extends Disposable {
 
 
 		this._initialized = true;
-	}
-
-	private _updateSquareVertices() {
-		this._squareVertices = {
-			vertexData: new Float32Array([
-				1, 0,
-				1, 1,
-				0, 1,
-				0, 0,
-				0, 1,
-				1, 0,
-			]),
-			numVertices: 6
-		};
-		const { vertexData } = this._squareVertices;
-
-		this._vertexBuffer = this._device.createBuffer({
-			label: 'Monaco quad vertex buffer',
-			size: vertexData.byteLength,
-			usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-		});
-		this._device.queue.writeBuffer(this._vertexBuffer, 0, vertexData);
 	}
 
 	update(viewportData: ViewportData) {
@@ -417,7 +413,7 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> extends Disposable {
 		if (this._renderStrategy?.draw) {
 			this._renderStrategy.draw(pass, ctx, startLineNumber, stopLineNumber, deltaTop);
 		} else {
-			pass.draw(this._squareVertices.numVertices, visibleObjectCount);
+			pass.draw(this._quadVertices.numVertices, visibleObjectCount);
 		}
 
 		pass.end();
@@ -532,7 +528,7 @@ struct VSOutput {
 }
 `;
 
-class FullFileRenderStrategy<T extends IVisibleLine> implements IRenderStrategy<T> {
+class FullFileRenderStrategy<T extends IVisibleLine> extends Disposable implements IRenderStrategy<T> {
 
 	private static _lineCount = 3000;
 	private static _columnCount = 200;
@@ -564,6 +560,8 @@ class FullFileRenderStrategy<T extends IVisibleLine> implements IRenderStrategy<
 		private readonly _viewportData: ViewportData,
 		private readonly _atlas: TextureAtlas,
 	) {
+		super();
+
 		// TODO: Detect when lines have been tokenized and clear _upToDateLines
 		const activeWindow = getActiveWindow();
 		const fontFamily = this._context.configuration.options.get(EditorOption.fontFamily);
@@ -575,22 +573,22 @@ class FullFileRenderStrategy<T extends IVisibleLine> implements IRenderStrategy<
 
 	initBuffers(): void {
 		const bufferSize = FullFileRenderStrategy._lineCount * FullFileRenderStrategy._columnCount * Constants.IndicesPerCell * Float32Array.BYTES_PER_ELEMENT;
-		this._cellBindBuffer = this._device.createBuffer({
+		this._cellBindBuffer = this._register(GpuLifecycle.createBuffer(this._device, {
 			label: 'Monaco full file cell buffer',
 			size: bufferSize,
 			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-		});
+		})).buffer;
 		this._cellValueBuffers = [
 			new ArrayBuffer(bufferSize),
 			new ArrayBuffer(bufferSize),
 		];
 
 		const scrollOffsetBufferSize = 2;
-		this._scrollOffsetBindBuffer = this._device.createBuffer({
+		this._scrollOffsetBindBuffer = this._register(GpuLifecycle.createBuffer(this._device, {
 			label: 'Monaco scroll offset buffer',
 			size: scrollOffsetBufferSize * Float32Array.BYTES_PER_ELEMENT,
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-		});
+		})).buffer;
 		this._scrollOffsetValueBuffers = [
 			new Float32Array(scrollOffsetBufferSize),
 			new Float32Array(scrollOffsetBufferSize),
