@@ -297,16 +297,21 @@ class SimpleWorkerProtocol {
 	}
 }
 
+export type Proxied<T> = { [K in keyof T]: T[K] extends (...args: infer A) => infer R
+	? (...args: A) => Promise<Awaited<R>>
+	: never
+};
+
 export interface IWorkerClient<W> {
-	getProxyObject(): Promise<W>;
+	getProxyObject(): Promise<Proxied<W>>;
 	dispose(): void;
 	setChannel<T extends object>(channel: string, handler: T): void;
-	getChannel<T extends object>(channel: string): T;
+	getChannel<T extends object>(channel: string): Proxied<T>;
 }
 
 export interface IWorkerServer {
 	setChannel<T extends object>(channel: string, handler: T): void;
-	getChannel<T extends object>(channel: string): T;
+	getChannel<T extends object>(channel: string): Proxied<T>;
 }
 
 /**
@@ -317,7 +322,7 @@ export class SimpleWorkerClient<W extends object> extends Disposable implements 
 	private readonly _worker: IWorker;
 	private readonly _onModuleLoaded: Promise<string[]>;
 	private readonly _protocol: SimpleWorkerProtocol;
-	private readonly _lazyProxy: Promise<W>;
+	private readonly _lazyProxy: Promise<Proxied<W>>;
 	private readonly _localChannels: Map<string, object> = new Map();
 	private readonly _remoteChannels: Map<string, object> = new Map();
 
@@ -385,10 +390,10 @@ export class SimpleWorkerClient<W extends object> extends Disposable implements 
 			return this._protocol.listen(DEFAULT_CHANNEL, eventName, arg);
 		};
 
-		this._lazyProxy = new Promise<W>((resolve, reject) => {
+		this._lazyProxy = new Promise<Proxied<W>>((resolve, reject) => {
 			lazyProxyReject = reject;
 			this._onModuleLoaded.then((availableMethods: string[]) => {
-				resolve(createProxyObject<W>(availableMethods, proxyMethodRequest, proxyListen));
+				resolve(createProxyObject<Proxied<W>>(availableMethods, proxyMethodRequest, proxyListen));
 			}, (e) => {
 				reject(e);
 				this._onError('Worker failed to load ' + workerDescriptor.amdModuleId, e);
@@ -434,7 +439,7 @@ export class SimpleWorkerClient<W extends object> extends Disposable implements 
 		throw new Error(`Malformed event name ${eventName}`);
 	}
 
-	public getProxyObject(): Promise<W> {
+	public getProxyObject(): Promise<Proxied<W>> {
 		return this._lazyProxy;
 	}
 
@@ -442,12 +447,12 @@ export class SimpleWorkerClient<W extends object> extends Disposable implements 
 		this._localChannels.set(channel, handler);
 	}
 
-	public getChannel<T extends object>(channel: string): T {
+	public getChannel<T extends object>(channel: string): Proxied<T> {
 		if (!this._remoteChannels.has(channel)) {
 			const inst = this._protocol.createProxyToRemoteChannel(channel, async () => { await this._onModuleLoaded; });
 			this._remoteChannels.set(channel, inst);
 		}
-		return this._remoteChannels.get(channel) as T;
+		return this._remoteChannels.get(channel) as Proxied<T>;
 	}
 
 	private _request(channel: string, method: string, args: any[]): Promise<any> {
@@ -588,12 +593,12 @@ export class SimpleWorkerServer implements IWorkerServer {
 		this._localChannels.set(channel, handler);
 	}
 
-	public getChannel<T extends object>(channel: string): T {
+	public getChannel<T extends object>(channel: string): Proxied<T> {
 		if (!this._remoteChannels.has(channel)) {
 			const inst = this._protocol.createProxyToRemoteChannel(channel);
 			this._remoteChannels.set(channel, inst);
 		}
-		return this._remoteChannels.get(channel) as T;
+		return this._remoteChannels.get(channel) as Proxied<T>;
 	}
 
 	private initialize(workerId: number, loaderConfig: any, moduleId: string): Promise<string[]> {

@@ -6,7 +6,7 @@
 import { timeout } from 'vs/base/common/async';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { SimpleWorkerClient, logOnceWebWorkerWarning, IWorkerClient } from 'vs/base/common/worker/simpleWorker';
+import { SimpleWorkerClient, logOnceWebWorkerWarning, IWorkerClient, Proxied } from 'vs/base/common/worker/simpleWorker';
 import { DefaultWorkerFactory, WorkerDescriptor } from 'vs/base/browser/defaultWorkerFactory';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
@@ -344,18 +344,18 @@ class WorkerManager extends Disposable {
 
 class SynchronousWorkerClient<T extends IDisposable> implements IWorkerClient<T> {
 	private readonly _instance: T;
-	private readonly _proxyObj: Promise<T>;
+	private readonly _proxyObj: Promise<Proxied<T>>;
 
 	constructor(instance: T) {
 		this._instance = instance;
-		this._proxyObj = Promise.resolve(this._instance);
+		this._proxyObj = Promise.resolve(this._instance as Proxied<T>);
 	}
 
 	public dispose(): void {
 		this._instance.dispose();
 	}
 
-	public getProxyObject(): Promise<T> {
+	public getProxyObject(): Promise<Proxied<T>> {
 		return this._proxyObj;
 	}
 
@@ -363,7 +363,7 @@ class SynchronousWorkerClient<T extends IDisposable> implements IWorkerClient<T>
 		throw new Error(`Not supported`);
 	}
 
-	public getChannel<T extends object>(channel: string): T {
+	public getChannel<T extends object>(channel: string): Proxied<T> {
 		throw new Error(`Not supported`);
 	}
 }
@@ -417,7 +417,7 @@ export class EditorWorkerClient extends Disposable implements IEditorWorkerClien
 		return this._worker;
 	}
 
-	protected _getProxy(): Promise<EditorSimpleWorker> {
+	protected _getProxy(): Promise<Proxied<EditorSimpleWorker>> {
 		return this._getOrCreateWorker().getProxyObject().then(undefined, (err) => {
 			logOnceWebWorkerWarning(err);
 			this._worker = this._createFallbackLocalWorker();
@@ -435,14 +435,14 @@ export class EditorWorkerClient extends Disposable implements IEditorWorkerClien
 		};
 	}
 
-	private _getOrCreateModelManager(proxy: EditorSimpleWorker): WorkerTextModelSyncClient {
+	private _getOrCreateModelManager(proxy: Proxied<EditorSimpleWorker>): WorkerTextModelSyncClient {
 		if (!this._modelManager) {
 			this._modelManager = this._register(new WorkerTextModelSyncClient(proxy, this._modelService, this._keepIdleModels));
 		}
 		return this._modelManager;
 	}
 
-	protected async _withSyncedResources(resources: URI[], forceLargeModels: boolean = false): Promise<EditorSimpleWorker> {
+	protected async _withSyncedResources(resources: URI[], forceLargeModels: boolean = false): Promise<Proxied<EditorSimpleWorker>> {
 		if (this._disposed) {
 			return Promise.reject(canceled());
 		}

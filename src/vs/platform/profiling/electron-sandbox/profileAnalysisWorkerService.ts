@@ -6,7 +6,7 @@
 
 import { DefaultWorkerFactory, WorkerDescriptor } from 'vs/base/browser/defaultWorkerFactory';
 import { URI } from 'vs/base/common/uri';
-import { SimpleWorkerClient } from 'vs/base/common/worker/simpleWorker';
+import { Proxied, SimpleWorkerClient } from 'vs/base/common/worker/simpleWorker';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -47,7 +47,7 @@ class ProfileAnalysisWorkerService implements IProfileAnalysisWorkerService {
 
 	private async _withWorker<R>(callback: (worker: Proxied<IProfileAnalysisWorker>) => Promise<R>): Promise<R> {
 
-		const worker = new SimpleWorkerClient<Proxied<IProfileAnalysisWorker>>(
+		const worker = new SimpleWorkerClient<IProfileAnalysisWorker>(
 			new DefaultWorkerFactory(),
 			new WorkerDescriptor(
 				'vs/platform/profiling/electron-sandbox/profileAnalysisWorker',
@@ -105,12 +105,5 @@ export interface IProfileAnalysisWorker {
 	analyseBottomUp(profile: IV8Profile): BottomUpAnalysis;
 	analyseByUrlCategory(profile: IV8Profile, categories: [url: URI, category: string][]): [category: string, aggregated: number][];
 }
-
-// TODO@jrieken move into worker logic
-type Proxied<T> = { [K in keyof T]: T[K] extends (...args: infer A) => infer R
-	? (...args: A) => Promise<Awaited<R>>
-	: never
-};
-
 
 registerSingleton(IProfileAnalysisWorkerService, ProfileAnalysisWorkerService, InstantiationType.Delayed);

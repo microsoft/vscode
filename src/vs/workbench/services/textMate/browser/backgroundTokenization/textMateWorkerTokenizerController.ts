@@ -6,6 +6,7 @@
 import { importAMDNodeModule } from 'vs/amdX';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IObservable, autorun, keepObserved } from 'vs/base/common/observable';
+import { Proxied } from 'vs/base/common/worker/simpleWorker';
 import { countEOL } from 'vs/editor/common/core/eolCounter';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 import { Range } from 'vs/editor/common/core/range';
@@ -39,7 +40,7 @@ export class TextMateWorkerTokenizerController extends Disposable {
 
 	constructor(
 		private readonly _model: ITextModel,
-		private readonly _worker: TextMateTokenizationWorker,
+		private readonly _worker: Proxied<TextMateTokenizationWorker>,
 		private readonly _languageIdCodec: ILanguageIdCodec,
 		private readonly _backgroundTokenizationStore: IBackgroundTokenizationStore,
 		private readonly _configurationService: IConfigurationService,

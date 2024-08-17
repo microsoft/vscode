@@ -5,7 +5,7 @@
 
 import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { SimpleWorkerClient } from 'vs/base/common/worker/simpleWorker';
+import { IWorkerClient, Proxied, SimpleWorkerClient } from 'vs/base/common/worker/simpleWorker';
 import { DefaultWorkerFactory, WorkerDescriptor } from 'vs/base/browser/defaultWorkerFactory';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { IMainCellDto, INotebookDiffResult, NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -63,17 +63,12 @@ class WorkerManager extends Disposable {
 	}
 }
 
-interface IWorkerClient<W> {
-	getProxyObject(): Promise<W>;
-	dispose(): void;
-}
-
 class NotebookEditorModelManager extends Disposable {
 	private _syncedModels: { [modelUrl: string]: IDisposable } = Object.create(null);
 	private _syncedModelsLastUsedTime: { [modelUrl: string]: number } = Object.create(null);
 
 	constructor(
-		private readonly _proxy: NotebookEditorSimpleWorker,
+		private readonly _proxy: Proxied<NotebookEditorSimpleWorker>,
 		private readonly _notebookService: INotebookService
 	) {
 		super();
@@ -208,14 +203,14 @@ class NotebookWorkerClient extends Disposable {
 		});
 	}
 
-	private _getOrCreateModelManager(proxy: NotebookEditorSimpleWorker): NotebookEditorModelManager {
+	private _getOrCreateModelManager(proxy: Proxied<NotebookEditorSimpleWorker>): NotebookEditorModelManager {
 		if (!this._modelManager) {
 			this._modelManager = this._register(new NotebookEditorModelManager(proxy, this._notebookService));
 		}
 		return this._modelManager;
 	}
 
-	protected _withSyncedResources(resources: URI[]): Promise<NotebookEditorSimpleWorker> {
+	protected _withSyncedResources(resources: URI[]): Promise<Proxied<NotebookEditorSimpleWorker>> {
 		return this._getProxy().then((proxy) => {
 			this._getOrCreateModelManager(proxy).ensureSyncedResources(resources);
 			return proxy;
@@ -241,7 +236,7 @@ class NotebookWorkerClient extends Disposable {
 		return this._worker;
 	}
 
-	protected _getProxy(): Promise<NotebookEditorSimpleWorker> {
+	protected _getProxy(): Promise<Proxied<NotebookEditorSimpleWorker>> {
 		return this._getOrCreateWorker().getProxyObject().then(undefined, (err) => {
 			// logOnceWebWorkerWarning(err);
 			// this._worker = new SynchronousWorkerClient(new EditorSimpleWorker(new EditorWorkerHost(this), null));

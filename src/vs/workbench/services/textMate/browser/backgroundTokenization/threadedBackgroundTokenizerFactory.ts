@@ -23,14 +23,14 @@ import { TextMateWorkerTokenizerController } from 'vs/workbench/services/textMat
 import { IValidGrammarDefinition } from 'vs/workbench/services/textMate/common/TMScopeRegistry';
 import type { IRawTheme } from 'vscode-textmate';
 import { DefaultWorkerFactory, WorkerDescriptor } from 'vs/base/browser/defaultWorkerFactory';
-import { SimpleWorkerClient } from 'vs/base/common/worker/simpleWorker';
+import { Proxied, SimpleWorkerClient } from 'vs/base/common/worker/simpleWorker';
 
 export class ThreadedBackgroundTokenizerFactory implements IDisposable {
 	private static _reportedMismatchingTokens = false;
 
-	private _workerProxyPromise: Promise<TextMateTokenizationWorker | null> | null = null;
+	private _workerProxyPromise: Promise<Proxied<TextMateTokenizationWorker> | null> | null = null;
 	private _worker: SimpleWorkerClient<TextMateTokenizationWorker> | null = null;
-	private _workerProxy: TextMateTokenizationWorker | null = null;
+	private _workerProxy: Proxied<TextMateTokenizationWorker> | null = null;
 	private readonly _workerTokenizerControllers = new Map</* backgroundTokenizerId */number, TextMateWorkerTokenizerController>();
 
 	private _currentTheme: IRawTheme | null = null;
@@ -118,14 +118,14 @@ export class ThreadedBackgroundTokenizerFactory implements IDisposable {
 		}
 	}
 
-	private _getWorkerProxy(): Promise<TextMateTokenizationWorker | null> {
+	private _getWorkerProxy(): Promise<Proxied<TextMateTokenizationWorker> | null> {
 		if (!this._workerProxyPromise) {
 			this._workerProxyPromise = this._createWorkerProxy();
 		}
 		return this._workerProxyPromise;
 	}
 
-	private async _createWorkerProxy(): Promise<TextMateTokenizationWorker | null> {
+	private async _createWorkerProxy(): Promise<Proxied<TextMateTokenizationWorker> | null> {
 		const onigurumaModuleLocation: AppResourcePath = `${nodeModulesPath}/vscode-oniguruma`;
 		const onigurumaModuleLocationAsar: AppResourcePath = `${nodeModulesAsarPath}/vscode-oniguruma`;
 
