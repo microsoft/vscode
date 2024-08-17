@@ -324,7 +324,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 
 			let currentHTMLChild: HTMLElement;
 
-			getDefinitionsAtPosition(this._languageFeaturesService.definitionProvider, this._editor.getModel(), new Position(range.startLineNumber, range.startColumn + 1), cancellationToken.token).then((candidateDefinitions => {
+			getDefinitionsAtPosition(this._languageFeaturesService.definitionProvider, this._editor.getModel(), new Position(range.startLineNumber, range.startColumn + 1), false, cancellationToken.token).then((candidateDefinitions => {
 				if (cancellationToken.token.isCancellationRequested) {
 					return;
 				}

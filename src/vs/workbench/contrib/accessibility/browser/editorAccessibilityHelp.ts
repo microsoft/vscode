@@ -94,7 +94,15 @@ class EditorAccessibilityHelpProvider extends Disposable implements IAccessibleV
 		} else {
 			content.push(AccessibilityHelpNLS.tabFocusModeOffMsg);
 		}
-		return content.join('\n\n');
+		content.push(AccessibilityHelpNLS.codeFolding);
+		content.push(AccessibilityHelpNLS.intellisense);
+		content.push(AccessibilityHelpNLS.showOrFocusHover);
+		content.push(AccessibilityHelpNLS.goToSymbol);
+		content.push(AccessibilityHelpNLS.startDebugging);
+		content.push(AccessibilityHelpNLS.setBreakpoint);
+		content.push(AccessibilityHelpNLS.debugExecuteSelection);
+		content.push(AccessibilityHelpNLS.addToWatch);
+		return content.join('\n');
 	}
 }
 

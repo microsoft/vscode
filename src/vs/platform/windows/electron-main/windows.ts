@@ -4,21 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import electron from 'electron';
+import { Color } from 'vs/base/common/color';
 import { Event } from 'vs/base/common/event';
+import { join } from 'vs/base/common/path';
 import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { ServicesAccessor, createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ICodeWindow, IWindowState, WindowMode, defaultWindowState } from 'vs/platform/window/electron-main/window';
-import { IOpenEmptyWindowOptions, IWindowOpenable, IWindowSettings, WindowMinimumSize, hasNativeTitlebar, useNativeFullScreen, useWindowControlsOverlay, zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
-import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { join } from 'vs/base/common/path';
 import { IAuxiliaryWindow } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindow';
-import { Color } from 'vs/base/common/color';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
+import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
+import { ServicesAccessor, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
+import { IOpenEmptyWindowOptions, IWindowOpenable, IWindowSettings, TitlebarStyle, WindowMinimumSize, hasNativeTitlebar, useNativeFullScreen, useWindowControlsOverlay, zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
+import { ICodeWindow, IWindowState, WindowMode, defaultWindowState } from 'vs/platform/window/electron-main/window';
 
 export const IWindowsMainService = createDecorator<IWindowsMainService>('windowsMainService');
 
@@ -79,7 +79,10 @@ export const enum OpenContext {
 	DESKTOP,
 
 	// opening through the API
-	API
+	API,
+
+	// opening from a protocol link
+	LINK
 }
 
 export interface IBaseOpenConfiguration {
@@ -115,7 +118,12 @@ export interface IOpenConfiguration extends IBaseOpenConfiguration {
 
 export interface IOpenEmptyConfiguration extends IBaseOpenConfiguration { }
 
-export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowState: IWindowState, webPreferences?: electron.WebPreferences): electron.BrowserWindowConstructorOptions & { experimentalDarkMode: boolean } {
+export interface IDefaultBrowserWindowOptionsOverrides {
+	forceNativeTitlebar?: boolean;
+	disableFullscreen?: boolean;
+}
+
+export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowState: IWindowState, overrides?: IDefaultBrowserWindowOptionsOverrides, webPreferences?: electron.WebPreferences): electron.BrowserWindowConstructorOptions & { experimentalDarkMode: boolean } {
 	const themeMainService = accessor.get(IThemeMainService);
 	const productService = accessor.get(IProductService);
 	const configurationService = accessor.get(IConfigurationService);
@@ -161,7 +169,9 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 		}
 	}
 
-	if (isMacintosh && !useNativeFullScreen(configurationService)) {
+	if (overrides?.disableFullscreen) {
+		options.fullscreen = false;
+	} else if (isMacintosh && !useNativeFullScreen(configurationService)) {
 		options.fullscreenable = false; // enables simple fullscreen mode
 	}
 
@@ -170,7 +180,7 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 		options.tabbingIdentifier = productService.nameShort; // this opts in to sierra tabs
 	}
 
-	const hideNativeTitleBar = !hasNativeTitlebar(configurationService);
+	const hideNativeTitleBar = !hasNativeTitlebar(configurationService, overrides?.forceNativeTitlebar ? TitlebarStyle.NATIVE : undefined);
 	if (hideNativeTitleBar) {
 		options.titleBarStyle = 'hidden';
 		if (!isMacintosh) {

@@ -75,7 +75,9 @@ export class TerminalLinkQuickpick extends DisposableStore {
 		}
 
 		// Create and show quick pick
-		const pick = this._quickInputService.createQuickPick<IQuickPickItem | ITerminalLinkQuickPickItem>();
+		const pick = this._quickInputService.createQuickPick<IQuickPickItem | ITerminalLinkQuickPickItem>({ useSeparators: true });
+		const disposables = new DisposableStore();
+		disposables.add(pick);
 		pick.items = picks;
 		pick.placeholder = localize('terminal.integrated.openDetectedLink', "Select the link to open, type to filter all links");
 		pick.sortByLabel = false;
@@ -87,7 +89,6 @@ export class TerminalLinkQuickpick extends DisposableStore {
 		// Show all results only when filtering begins, this is done so the quick pick will show up
 		// ASAP with only the viewport entries.
 		let accepted = false;
-		const disposables = new DisposableStore();
 		if (!usingAllLinks) {
 			disposables.add(Event.once(pick.onDidChangeValue)(async () => {
 				const allLinks = await links.all;

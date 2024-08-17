@@ -22,7 +22,9 @@ import { ChatAccessibilityHelp } from 'vs/workbench/contrib/chat/browser/actions
 import { registerChatActions } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { ACTION_ID_NEW_CHAT, registerNewChatActions } from 'vs/workbench/contrib/chat/browser/actions/chatClearActions';
 import { registerChatCodeBlockActions, registerChatCodeCompareBlockActions } from 'vs/workbench/contrib/chat/browser/actions/chatCodeblockActions';
+import { registerChatContextActions } from 'vs/workbench/contrib/chat/browser/actions/chatContextActions';
 import { registerChatCopyActions } from 'vs/workbench/contrib/chat/browser/actions/chatCopyActions';
+import { registerChatDeveloperActions } from 'vs/workbench/contrib/chat/browser/actions/chatDeveloperActions';
 import { SubmitAction, registerChatExecuteActions } from 'vs/workbench/contrib/chat/browser/actions/chatExecuteActions';
 import { registerChatFileTreeActions } from 'vs/workbench/contrib/chat/browser/actions/chatFileTreeActions';
 import { registerChatExportActions } from 'vs/workbench/contrib/chat/browser/actions/chatImportExport';
@@ -40,27 +42,25 @@ import { ChatResponseAccessibleView } from 'vs/workbench/contrib/chat/browser/ch
 import { ChatVariablesService } from 'vs/workbench/contrib/chat/browser/chatVariables';
 import { ChatWidgetService } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { ChatCodeBlockContextProviderService } from 'vs/workbench/contrib/chat/browser/codeBlockContextProviderService';
-import 'vs/workbench/contrib/chat/browser/contrib/chatInputEditorContrib';
 import 'vs/workbench/contrib/chat/browser/contrib/chatContextAttachments';
 import 'vs/workbench/contrib/chat/browser/contrib/chatInputCompletions';
+import 'vs/workbench/contrib/chat/browser/contrib/chatInputEditorContrib';
 import 'vs/workbench/contrib/chat/browser/contrib/chatInputEditorHover';
 import { ChatAgentLocation, ChatAgentNameService, ChatAgentService, IChatAgentNameService, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { chatVariableLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { ChatService } from 'vs/workbench/contrib/chat/common/chatServiceImpl';
-import { LanguageModelToolsService, ILanguageModelToolsService } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
 import { ChatSlashCommandService, IChatSlashCommandService } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { ChatWidgetHistoryService, IChatWidgetHistoryService } from 'vs/workbench/contrib/chat/common/chatWidgetHistoryService';
 import { ILanguageModelsService, LanguageModelsService } from 'vs/workbench/contrib/chat/common/languageModels';
 import { ILanguageModelStatsService, LanguageModelStatsService } from 'vs/workbench/contrib/chat/common/languageModelStats';
+import { ILanguageModelToolsService, LanguageModelToolsService } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
+import { LanguageModelToolsExtensionPointHandler } from 'vs/workbench/contrib/chat/common/tools/languageModelToolsContribution';
 import { IVoiceChatService, VoiceChatService } from 'vs/workbench/contrib/chat/common/voiceChatService';
 import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import '../common/chatColors';
-import { registerChatContextActions } from 'vs/workbench/contrib/chat/browser/actions/chatContextActions';
-import { registerChatDeveloperActions } from 'vs/workbench/contrib/chat/browser/actions/chatDeveloperActions';
-import { LanguageModelToolsExtensionPointHandler } from 'vs/workbench/contrib/chat/common/tools/languageModelToolsContribution';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -115,6 +115,11 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize('chat.experimental.variables.terminal', "Enables variables for terminal chat."),
 			default: false
+		},
+		'chat.experimental.detectParticipant.enabled': {
+			type: 'boolean',
+			description: nls.localize('chat.experimental.detectParticipant.enabled', "Enables chat participant autodetection for panel chat."),
+			default: null
 		},
 	}
 });
@@ -256,6 +261,9 @@ workbenchContributionsRegistry.registerWorkbenchContribution(ChatSlashStaticSlas
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(ChatEditorInput.TypeID, ChatEditorInputSerializer);
 registerWorkbenchContribution2(ChatExtensionPointHandler.ID, ChatExtensionPointHandler, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(LanguageModelToolsExtensionPointHandler.ID, LanguageModelToolsExtensionPointHandler, WorkbenchPhase.BlockRestore);
+
+// Disabled until https://github.com/microsoft/vscode/issues/218646 is fixed
+// registerWorkbenchContribution2(ChatCompatibilityNotifier.ID, ChatCompatibilityNotifier, WorkbenchPhase.Eventually);
 
 registerChatActions();
 registerChatCopyActions();

@@ -73,7 +73,8 @@ import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetN
 import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { IAccessibleViewService } from 'vs/platform/accessibility/browser/accessibleView';
+import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
+import { Codicon } from 'vs/base/common/codicons';
 
 const $ = dom.$;
 
@@ -119,6 +120,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 	private multiSessionRepl: IContextKey<boolean>;
 	private menu: IMenu;
 	private replDataSource: IAsyncDataSource<IDebugSession, IReplElement> | undefined;
+	private findIsOpen: boolean = false;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -131,17 +133,16 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IConfigurationService protected override readonly configurationService: IConfigurationService,
 		@ITextResourcePropertiesService private readonly textResourcePropertiesService: ITextResourcePropertiesService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IKeybindingService keybindingService: IKeybindingService,
+		@IKeybindingService protected override readonly keybindingService: IKeybindingService,
 		@IOpenerService openerService: IOpenerService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService,
 		@IMenuService menuService: IMenuService,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@ILogService private readonly logService: ILogService,
-		@IAccessibleViewService private readonly accessibleViewService: IAccessibleViewService
 	) {
 		const filterText = storageService.get(FILTER_VALUE_STORAGE_KEY, StorageScope.WORKSPACE, '');
 		super({
@@ -349,6 +350,10 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		this.filterWidget.focus();
 	}
 
+	openFind(): void {
+		this.tree?.openFind();
+	}
+
 	private setMode(): void {
 		if (!this.isVisible()) {
 			return;
@@ -526,6 +531,10 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		this.tree?.collapseAll();
 	}
 
+	getDebugSession(): IDebugSession | undefined {
+		return this.tree?.getInput();
+	}
+
 	getReplInput(): CodeEditorWidget {
 		return this.replInput;
 	}
@@ -655,14 +664,13 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 				new ReplEvaluationResultsRenderer(linkDetector, this.hoverService),
 				new ReplRawObjectsRenderer(linkDetector, this.hoverService),
 			],
-			// https://github.com/microsoft/TypeScript/issues/32526
 			this.replDataSource,
 			{
 				filter: this.filter,
 				accessibilityProvider: new ReplAccessibilityProvider(),
 				identityProvider,
 				mouseSupport: false,
-				findWidgetEnabled: false,
+				findWidgetEnabled: true,
 				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IReplElement) => e.toString(true) },
 				horizontalScrolling: !wordWrap,
 				setRowLineHeight: false,
@@ -687,11 +695,16 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		}));
 
 		this._register(tree.onContextMenu(e => this.onContextMenu(e)));
+		this._register(tree.onDidChangeFindOpenState((open) => this.findIsOpen = open));
+
 		let lastSelectedString: string;
 		this._register(tree.onMouseClick(() => {
+			if (this.findIsOpen) {
+				return;
+			}
 			const selection = dom.getWindow(this.treeContainer).getSelection();
 			if (!selection || selection.type !== 'Range' || lastSelectedString === selection.toString()) {
-				// only focus the input if the user is not currently selecting.
+				// only focus the input if the user is not currently selecting and find isn't open.
 				this.replInput.focus();
 			}
 			lastSelectedString = selection ? selection.toString() : '';
@@ -719,8 +732,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		options.suggest = { showStatusBar: true };
 		const config = this.configurationService.getValue<IDebugConfiguration>('debug');
 		options.acceptSuggestionOnEnter = config.console.acceptSuggestionOnEnter === 'on' ? 'on' : 'off';
-		const accessibleViewHint = this.accessibleViewService.getOpenAriaHint(AccessibilityVerbositySettingId.DebugConsole);
-		options.ariaLabel = accessibleViewHint ? localize('debugConsoleHint', "Debug Console, {0}", accessibleViewHint) : localize('debugConsole', "Debug Console");
+		options.ariaLabel = this.getAriaLabel();
 
 		this.replInput = this.scopedInstantiationService.createInstance(CodeEditorWidget, this.replInputContainer, options, getSimpleCodeEditorWidgetOptions());
 
@@ -741,6 +753,21 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 
 		this._register(dom.addStandardDisposableListener(this.replInputContainer, dom.EventType.FOCUS, () => this.replInputContainer.classList.add('synthetic-focus')));
 		this._register(dom.addStandardDisposableListener(this.replInputContainer, dom.EventType.BLUR, () => this.replInputContainer.classList.remove('synthetic-focus')));
+	}
+
+	private getAriaLabel(): string {
+		let ariaLabel = localize('debugConsole', "Debug Console");
+		if (!this.configurationService.getValue(AccessibilityVerbositySettingId.Debug)) {
+			return ariaLabel;
+		}
+		const keybinding = this.keybindingService.lookupKeybinding(AccessibilityCommandId.OpenAccessibilityHelp)?.getAriaLabel();
+		if (keybinding) {
+			ariaLabel = localize('commentLabelWithKeybinding', "{0}, use ({1}) for accessibility help", ariaLabel, keybinding);
+		} else {
+			ariaLabel = localize('commentLabelWithKeybindingNoKeybinding', "{0}, run the command Open Accessibility Help which is currently not triggerable via keybinding.", ariaLabel);
+		}
+
+		return ariaLabel;
 	}
 
 	private onContextMenu(e: ITreeContextMenuEvent<IReplElement>): void {
@@ -879,8 +906,8 @@ class AcceptReplInputAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'repl.action.acceptInput',
-			label: localize({ key: 'actions.repl.acceptInput', comment: ['Apply input from the debug console input box'] }, "REPL Accept Input"),
-			alias: 'REPL Accept Input',
+			label: localize({ key: 'actions.repl.acceptInput', comment: ['Apply input from the debug console input box'] }, "Debug Console: Accept Input"),
+			alias: 'Debug Console: Accept Input',
 			precondition: CONTEXT_IN_DEBUG_REPL,
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
@@ -897,25 +924,57 @@ class AcceptReplInputAction extends EditorAction {
 	}
 }
 
-class FilterReplAction extends EditorAction {
+class FilterReplAction extends ViewAction<Repl> {
 
 	constructor() {
 		super({
+			viewId: REPL_VIEW_ID,
 			id: 'repl.action.filter',
-			label: localize('repl.action.filter', "REPL Focus Content to Filter"),
-			alias: 'REPL Filter',
+			title: localize('repl.action.filter', "Debug Console: Focus Filter"),
 			precondition: CONTEXT_IN_DEBUG_REPL,
-			kbOpts: {
-				kbExpr: EditorContextKeys.textInputFocus,
+			keybinding: [{
+				when: EditorContextKeys.textInputFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.KeyF,
 				weight: KeybindingWeight.EditorContrib
-			}
+			}]
 		});
 	}
 
-	run(accessor: ServicesAccessor, editor: ICodeEditor): void | Promise<void> {
-		const repl = getReplView(accessor.get(IViewsService));
-		repl?.focusFilter();
+	runInView(accessor: ServicesAccessor, repl: Repl): void | Promise<void> {
+		repl.focusFilter();
+	}
+}
+
+
+class FindReplAction extends ViewAction<Repl> {
+
+	constructor() {
+		super({
+			viewId: REPL_VIEW_ID,
+			id: 'repl.action.find',
+			title: localize('repl.action.find', "Debug Console: Focus Find"),
+			precondition: ContextKeyExpr.or(CONTEXT_IN_DEBUG_REPL, ContextKeyExpr.equals('focusedView', 'workbench.panel.repl.view')),
+			keybinding: [{
+				when: ContextKeyExpr.or(CONTEXT_IN_DEBUG_REPL, ContextKeyExpr.equals('focusedView', 'workbench.panel.repl.view')),
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyF,
+				weight: KeybindingWeight.EditorContrib
+			}],
+			icon: Codicon.search,
+			menu: [{
+				id: MenuId.ViewTitle,
+				group: 'navigation',
+				when: ContextKeyExpr.equals('view', REPL_VIEW_ID),
+				order: 15
+			}, {
+				id: MenuId.DebugConsoleContext,
+				group: 'z_commands',
+				order: 25
+			}],
+		});
+	}
+
+	runInView(accessor: ServicesAccessor, view: Repl): void | Promise<void> {
+		view.openFind();
 	}
 }
 
@@ -941,7 +1000,8 @@ class ReplCopyAllAction extends EditorAction {
 
 registerEditorAction(AcceptReplInputAction);
 registerEditorAction(ReplCopyAllAction);
-registerEditorAction(FilterReplAction);
+registerAction2(FilterReplAction);
+registerAction2(FindReplAction);
 
 class SelectReplActionViewItem extends FocusSessionActionViewItem {
 
@@ -1016,7 +1076,15 @@ registerAction2(class extends ViewAction<Repl> {
 				id: MenuId.DebugConsoleContext,
 				group: 'z_commands',
 				order: 20
-			}]
+			}],
+			keybinding: [{
+				primary: 0,
+				mac: { primary: KeyMod.CtrlCmd | KeyCode.KeyK },
+				// Weight is higher than work workbench contributions so the keybinding remains
+				// highest priority when chords are registered afterwards
+				weight: KeybindingWeight.WorkbenchContrib + 1,
+				when: ContextKeyExpr.equals('focusedView', 'workbench.panel.repl.view')
+			}],
 		});
 	}
 

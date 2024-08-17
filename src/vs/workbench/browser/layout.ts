@@ -19,7 +19,7 @@ import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/co
 import { ITitleService } from 'vs/workbench/services/title/browser/titleService';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { StartupKind, ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { getMenuBarVisibility, IPath, hasNativeTitlebar, hasCustomTitlebar, TitleBarSetting } from 'vs/platform/window/common/window';
+import { getMenuBarVisibility, IPath, hasNativeTitlebar, hasCustomTitlebar, TitleBarSetting, CustomTitleBarVisibility, useWindowControlsOverlay } from 'vs/platform/window/common/window';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -48,7 +48,6 @@ import { AuxiliaryBarPart } from 'vs/workbench/browser/parts/auxiliarybar/auxili
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
 import { CodeWindow, mainWindow } from 'vs/base/browser/window';
-import { CustomTitleBarVisibility } from '../../platform/window/common/window';
 
 //#region Layout Implementation
 
@@ -560,7 +559,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private updateWindowsBorder(skipLayout = false) {
 		if (
 			isWeb ||
-			isWindows || // not working well with zooming and window control overlays
+			isWindows || 											// not working well with zooming (border often not visible)
+			useWindowControlsOverlay(this.configurationService) || 	// not working with WCO (border cannot draw over the overlay)
 			hasNativeTitlebar(this.configurationService)
 		) {
 			return;
@@ -635,7 +635,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// Layout Initialization State
 		const initialEditorsState = this.getInitialEditorsState();
 		if (initialEditorsState) {
-			this.logService.info('Initial editor state', initialEditorsState);
+			this.logService.trace('Initial editor state', initialEditorsState);
 		}
 		const initialLayoutState: ILayoutInitializationState = {
 			layout: {

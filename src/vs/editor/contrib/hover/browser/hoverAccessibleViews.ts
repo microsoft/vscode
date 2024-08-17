@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { localize } from 'vs/nls';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { HoverController } from 'vs/editor/contrib/hover/browser/hoverController';
+import { ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHoverController2';
 import { AccessibleViewType, AccessibleViewProviderId, AccessibleContentProvider, IAccessibleViewContentProvider, IAccessibleViewOptions } from 'vs/platform/accessibility/browser/accessibleView';
 import { IAccessibleViewImplentation } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
@@ -23,10 +23,8 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { labelForHoverVerbosityAction } from 'vs/editor/contrib/hover/browser/markdownHoverParticipant';
 
 namespace HoverAccessibilityHelpNLS {
-	export const introHoverPart = localize('introHoverPart', 'The focused hover part content is the following:');
-	export const introHoverFull = localize('introHoverFull', 'The full focused hover content is the following:');
-	export const increaseVerbosity = localize('increaseVerbosity', '- The focused hover part verbosity level can be increased with the Increase Hover Verbosity command<keybinding:{0}>.', INCREASE_HOVER_VERBOSITY_ACTION_ID);
-	export const decreaseVerbosity = localize('decreaseVerbosity', '- The focused hover part verbosity level can be decreased with the Decrease Hover Verbosity command<keybinding:{0}>.', DECREASE_HOVER_VERBOSITY_ACTION_ID);
+	export const increaseVerbosity = localize('increaseVerbosity', '- The focused hover part verbosity level can be increased with the Increase Hover Verbosity command.', `<keybinding:${INCREASE_HOVER_VERBOSITY_ACTION_ID}>`);
+	export const decreaseVerbosity = localize('decreaseVerbosity', '- The focused hover part verbosity level can be decreased with the Decrease Hover Verbosity command.', `<keybinding:${DECREASE_HOVER_VERBOSITY_ACTION_ID}>`);
 }
 
 export class HoverAccessibleView implements IAccessibleViewImplentation {
@@ -42,7 +40,7 @@ export class HoverAccessibleView implements IAccessibleViewImplentation {
 		if (!codeEditor) {
 			throw new Error('No active or focused code editor');
 		}
-		const hoverController = HoverController.get(codeEditor);
+		const hoverController = ContentHoverController.get(codeEditor);
 		if (!hoverController) {
 			return;
 		}
@@ -64,7 +62,7 @@ export class HoverAccessibilityHelp implements IAccessibleViewImplentation {
 		if (!codeEditor) {
 			throw new Error('No active or focused code editor');
 		}
-		const hoverController = HoverController.get(codeEditor);
+		const hoverController = ContentHoverController.get(codeEditor);
 		if (!hoverController) {
 			return;
 		}
@@ -85,7 +83,7 @@ abstract class BaseHoverAccessibleViewProvider extends Disposable implements IAc
 
 	protected _focusedHoverPartIndex: number = -1;
 
-	constructor(protected readonly _hoverController: HoverController) {
+	constructor(protected readonly _hoverController: ContentHoverController) {
 		super();
 	}
 
@@ -123,18 +121,16 @@ abstract class BaseHoverAccessibleViewProvider extends Disposable implements IAc
 			if (includeVerbosityActions) {
 				contents.push(...this._descriptionsOfVerbosityActionsForIndex(focusedHoverIndex));
 			}
-			contents.push(HoverAccessibilityHelpNLS.introHoverPart);
 			contents.push(accessibleContent);
-			return contents.join('\n\n');
+			return contents.join('\n');
 		} else {
 			const accessibleContent = this._hoverController.getAccessibleWidgetContent();
 			if (accessibleContent === undefined) {
 				return '';
 			}
 			const contents: string[] = [];
-			contents.push(HoverAccessibilityHelpNLS.introHoverFull);
 			contents.push(accessibleContent);
-			return contents.join('\n\n');
+			return contents.join('\n');
 		}
 	}
 
@@ -169,7 +165,7 @@ export class HoverAccessibilityHelpProvider extends BaseHoverAccessibleViewProvi
 
 	public readonly options: IAccessibleViewOptions = { type: AccessibleViewType.Help };
 
-	constructor(hoverController: HoverController) {
+	constructor(hoverController: ContentHoverController) {
 		super(hoverController);
 	}
 
@@ -185,7 +181,7 @@ export class HoverAccessibleViewProvider extends BaseHoverAccessibleViewProvider
 	constructor(
 		private readonly _keybindingService: IKeybindingService,
 		private readonly _editor: ICodeEditor,
-		hoverController: HoverController,
+		hoverController: ContentHoverController,
 	) {
 		super(hoverController);
 		this._initializeOptions(this._editor, hoverController);
@@ -225,7 +221,7 @@ export class HoverAccessibleViewProvider extends BaseHoverAccessibleViewProvider
 		});
 	}
 
-	private _initializeOptions(editor: ICodeEditor, hoverController: HoverController): void {
+	private _initializeOptions(editor: ICodeEditor, hoverController: ContentHoverController): void {
 		const helpProvider = this._register(new HoverAccessibilityHelpProvider(hoverController));
 		this.options.language = editor.getModel()?.getLanguageId();
 		this.options.customHelp = () => { return helpProvider.provideContentAtIndex(this._focusedHoverPartIndex, true); };

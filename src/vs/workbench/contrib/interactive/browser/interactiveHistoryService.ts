@@ -14,6 +14,7 @@ export const IInteractiveHistoryService = createDecorator<IInteractiveHistorySer
 export interface IInteractiveHistoryService {
 	readonly _serviceBrand: undefined;
 
+	matchesCurrent(uri: URI, value: string): boolean;
 	addToHistory(uri: URI, value: string): void;
 	getPreviousValue(uri: URI): string | null;
 	getNextValue(uri: URI): string | null;
@@ -32,19 +33,26 @@ export class InteractiveHistoryService extends Disposable implements IInteractiv
 		this._history = new ResourceMap<HistoryNavigator2<string>>();
 	}
 
+	matchesCurrent(uri: URI, value: string): boolean {
+		const history = this._history.get(uri);
+		if (!history) {
+			return false;
+		}
+
+		return history.current() === value;
+	}
+
 	addToHistory(uri: URI, value: string): void {
-		if (!this._history.has(uri)) {
+		const history = this._history.get(uri);
+		if (!history) {
 			this._history.set(uri, new HistoryNavigator2<string>([value], 50));
 			return;
 		}
 
-		const history = this._history.get(uri)!;
-
 		history.resetCursor();
-		if (history?.current() !== value) {
-			history?.add(value);
-		}
+		history.add(value);
 	}
+
 	getPreviousValue(uri: URI): string | null {
 		const history = this._history.get(uri);
 		return history?.previous() ?? null;
@@ -57,16 +65,14 @@ export class InteractiveHistoryService extends Disposable implements IInteractiv
 	}
 
 	replaceLast(uri: URI, value: string) {
-		if (!this._history.has(uri)) {
+		const history = this._history.get(uri);
+		if (!history) {
 			this._history.set(uri, new HistoryNavigator2<string>([value], 50));
 			return;
 		} else {
-			const history = this._history.get(uri);
-			if (history?.current() !== value) {
-				history?.replaceLast(value);
-			}
+			history.replaceLast(value);
+			history.resetCursor();
 		}
-
 	}
 
 	clearHistory(uri: URI) {

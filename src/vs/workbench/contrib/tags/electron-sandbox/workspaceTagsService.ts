@@ -160,6 +160,7 @@ const ModulesToLookFor = [
 	'@azure/attestation',
 	'@azure/data-tables',
 	'@azure/arm-appservice',
+	'@azure-rest/ai-inference',
 	'@azure-rest/arm-appservice',
 	'@azure/arm-appcontainers',
 	'@azure/arm-rediscache',
@@ -229,8 +230,8 @@ const ModulesToLookFor = [
 	'@azure/cognitiveservices-customvision-training',
 	'@azure/cognitiveservices-face',
 	'@azure/cognitiveservices-translatortext',
-	'microsoft-cognitiveservices-speech-sdk'
-
+	'microsoft-cognitiveservices-speech-sdk',
+	'@google/generative-ai'
 ];
 
 const PyMetaModulesToLookFor = [
@@ -249,6 +250,7 @@ const PyMetaModulesToLookFor = [
 
 const PyModulesToLookFor = [
 	'azure',
+	'azure-ai-inference',
 	'azure-ai-language-conversations',
 	'azure-ai-language-questionanswering',
 	'azure-ai-ml',
@@ -394,7 +396,8 @@ const PyModulesToLookFor = [
 	'azure-cognitiveservices-vision-contentmoderator',
 	'azure-cognitiveservices-vision-face',
 	'azure-mgmt-cognitiveservices',
-	'azure-mgmt-search'
+	'azure-mgmt-search',
+	'google-generativeai'
 ];
 
 const GoModulesToLookFor = [
@@ -670,6 +673,7 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			"workspace.npm.@azure/communication-administration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@azure/attestation" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@azure/data-tables" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.@azure-rest/ai-inference" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@azure-rest/arm-appservice" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@azure/arm-appservice" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@azure/arm-appcontainers" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -691,6 +695,7 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			"workspace.npm.@azure/arm-kubernetesconfiguration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.react-native-macos" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.react-native-windows" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.@google/generative-ai" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.bower" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.yeoman.code.ext" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.cordova.high" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -759,6 +764,7 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			"workspace.py.pulumi-azure" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.azure" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.azure-ai" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.azure-ai-inference" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.azure-ai-language-conversations" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.azure-ai-language-questionanswering" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.azure-ai-ml" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -911,6 +917,7 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			"workspace.py.trulens" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.trulens-eval" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.wandb" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.google-generativeai" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.go.mod.github.com/Azure/azure-sdk-for-go/sdk/storage/azblob" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.go.mod.github.com/Azure/azure-sdk-for-go/sdk/storage/azfile" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.go.mod.github.com/Azure/azure-sdk-for-go/sdk/storage/azqueue" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },

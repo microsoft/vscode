@@ -39,12 +39,16 @@ type ChatInsertEvent = {
 	newFile: boolean;
 	agentId: string;
 	command: string | undefined;
+	userAction: string | undefined;
+	codeMapper: string | undefined;
 };
 
 type ChatInsertClassification = {
 	newFile: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the code was inserted into a new untitled file.' };
 	agentId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the chat agent that this insertion is for.' };
 	command: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The name of the slash command that this insertion is for.' };
+	userAction: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Id of the UI command that was used to do the insert.' };
+	codeMapper: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The code mapper that wa used to compute the edit.' };
 	owner: 'roblourens';
 	comment: 'Provides insight into the usage of Chat features.';
 };
@@ -63,6 +67,18 @@ type ChatCommandClassification = {
 	comment: 'Provides insight into the usage of Chat features.';
 };
 
+type ChatFollowupEvent = {
+	agentId: string;
+	command: string | undefined;
+};
+
+type ChatFollowupClassification = {
+	agentId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the related chat agent.' };
+	command: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The name of the related slash command.' };
+	owner: 'roblourens';
+	comment: 'Provides insight into the usage of Chat features.';
+};
+
 type ChatTerminalEvent = {
 	languageId: string;
 	agentId: string;
@@ -73,6 +89,20 @@ type ChatTerminalClassification = {
 	languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language of the code that was run in the terminal.' };
 	agentId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the related chat agent.' };
 	command: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The name of the related slash command.' };
+	owner: 'roblourens';
+	comment: 'Provides insight into the usage of Chat features.';
+};
+
+type ChatFollowupsRetrievedEvent = {
+	agentId: string;
+	command: string | undefined;
+	numFollowups: number;
+};
+
+type ChatFollowupsRetrievedClassification = {
+	agentId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the related chat agent.' };
+	command: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The name of the related slash command.' };
+	numFollowups: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of followup prompts returned by the agent.' };
 	owner: 'roblourens';
 	comment: 'Provides insight into the usage of Chat features.';
 };
@@ -98,6 +128,8 @@ export class ChatServiceTelemetry {
 		} else if (action.action.kind === 'insert') {
 			this.telemetryService.publicLog2<ChatInsertEvent, ChatInsertClassification>('interactiveSessionInsert', {
 				newFile: !!action.action.newFile,
+				userAction: action.action.userAction,
+				codeMapper: action.action.codeMapper,
 				agentId: action.agentId ?? '',
 				command: action.command,
 			});
@@ -116,6 +148,19 @@ export class ChatServiceTelemetry {
 				agentId: action.agentId ?? '',
 				command: action.command,
 			});
+		} else if (action.action.kind === 'followUp') {
+			this.telemetryService.publicLog2<ChatFollowupEvent, ChatFollowupClassification>('chatFollowupClicked', {
+				agentId: action.agentId ?? '',
+				command: action.command,
+			});
 		}
+	}
+
+	retrievedFollowups(agentId: string, command: string | undefined, numFollowups: number): void {
+		this.telemetryService.publicLog2<ChatFollowupsRetrievedEvent, ChatFollowupsRetrievedClassification>('chatFollowupsRetrieved', {
+			agentId,
+			command,
+			numFollowups,
+		});
 	}
 }

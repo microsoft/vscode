@@ -14,7 +14,7 @@ import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ACTION_ACCEPT_CHANGES, ACTION_REGENERATE_RESPONSE, ACTION_TOGGLE_DIFF, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, EditMode, InlineChatConfigKeys, MENU_INLINE_CHAT_EXECUTE, MENU_INLINE_CHAT_WIDGET_STATUS } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { ACTION_ACCEPT_CHANGES, ACTION_REGENERATE_RESPONSE, ACTION_TOGGLE_DIFF, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, EditMode, InlineChatConfigKeys, MENU_INLINE_CHAT_WIDGET_STATUS } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { EditorBasedInlineChatWidget } from './inlineChatWidget';
 import { isEqual } from 'vs/base/common/resources';
 import { StableEditorBottomScrollState } from 'vs/editor/browser/stableEditorScroll';
@@ -22,6 +22,7 @@ import { ScrollType } from 'vs/editor/common/editorCommon';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IChatWidgetLocationOptions } from 'vs/workbench/contrib/chat/browser/chatWidget';
+import { MenuId } from 'vs/platform/actions/common/actions';
 
 export class InlineChatZoneWidget extends ZoneWidget {
 
@@ -50,20 +51,21 @@ export class InlineChatZoneWidget extends ZoneWidget {
 			statusMenuId: {
 				menu: MENU_INLINE_CHAT_WIDGET_STATUS,
 				options: {
-					buttonConfigProvider: action => {
+					buttonConfigProvider: (action, index) => {
+						const isSecondary = index > 0;
 						if (new Set([ACTION_REGENERATE_RESPONSE, ACTION_TOGGLE_DIFF]).has(action.id)) {
-							return { isSecondary: true, showIcon: true, showLabel: false };
+							return { isSecondary, showIcon: true, showLabel: false };
 						} else if (action.id === ACTION_ACCEPT_CHANGES) {
-							return { isSecondary: false };
+							return { isSecondary };
 						} else {
-							return { isSecondary: true };
+							return { isSecondary };
 						}
 					}
 				}
 			},
 			chatWidgetViewOptions: {
 				menus: {
-					executeToolbar: MENU_INLINE_CHAT_EXECUTE,
+					executeToolbar: MenuId.ChatExecute,
 					telemetrySource: 'interactiveEditorWidget-toolbar',
 				},
 				rendererOptions: {

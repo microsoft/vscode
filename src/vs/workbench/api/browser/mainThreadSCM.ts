@@ -27,7 +27,6 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { Schemas } from 'vs/base/common/network';
 import { ITextModel } from 'vs/editor/common/model';
-import { structuralEquals } from 'vs/base/common/equals';
 
 function getIconFromIconDto(iconDto?: UriComponents | { light: UriComponents; dark: UriComponents } | ThemeIcon): URI | { light: URI; dark: URI } | ThemeIcon | undefined {
 	if (iconDto === undefined) {
@@ -164,7 +163,7 @@ class MainThreadSCMHistoryProvider implements ISCMHistoryProvider {
 	readonly currentHistoryItemGroupId = derived<string | undefined>(this, reader => this.currentHistoryItemGroup.read(reader)?.id);
 	readonly currentHistoryItemGroupName = derived<string | undefined>(this, reader => this.currentHistoryItemGroup.read(reader)?.name);
 
-	private readonly _currentHistoryItemGroup = observableValueOpts<ISCMHistoryItemGroup | undefined>({ owner: this, equalsFn: structuralEquals }, undefined);
+	private readonly _currentHistoryItemGroup = observableValueOpts<ISCMHistoryItemGroup | undefined>({ owner: this, equalsFn: () => false }, undefined);
 	get currentHistoryItemGroup() { return this._currentHistoryItemGroup; }
 
 	constructor(private readonly proxy: ExtHostSCMShape, private readonly handle: number) { }

@@ -23,9 +23,7 @@ import { ScrollType } from 'vs/editor/common/editorCommon';
 import { IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions, TextModel } from 'vs/editor/common/model/textModel';
 import { Location } from 'vs/editor/common/languages';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ITextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { AccessibilityProvider, DataSource, Delegate, FileReferencesRenderer, IdentityProvider, OneReferenceRenderer, StringRepresentationProvider, TreeElement } from 'vs/editor/contrib/gotoSymbol/browser/peek/referencesTree';
 import * as peekView from 'vs/editor/contrib/peekView/browser/peekView';
@@ -35,7 +33,6 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IWorkbenchAsyncDataTreeOptions, WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { FileReferences, OneReference, ReferencesModel } from '../referencesModel';
 
 class DecorationsManager implements IDisposable {
@@ -214,6 +211,7 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 	private _previewContainer!: HTMLElement;
 	private _messageContainer!: HTMLElement;
 	private _dim = new dom.Dimension(0, 0);
+	private _isClosing = false; // whether or not a dispose is already in progress
 
 	constructor(
 		editor: ICodeEditor,
@@ -224,10 +222,7 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@peekView.IPeekViewService private readonly _peekViewService: peekView.IPeekViewService,
 		@ILabelService private readonly _uriLabel: ILabelService,
-		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@ILanguageService private readonly _languageService: ILanguageService,
-		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
 	) {
 		super(editor, { showFrame: false, showArrow: true, isResizeable: true, isAccessible: true, supportOnTitleClick: true }, _instantiationService);
 
@@ -237,7 +232,12 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 		this.create();
 	}
 
+	get isClosing() {
+		return this._isClosing;
+	}
+
 	override dispose(): void {
+		this._isClosing = true;
 		this.setModel(undefined);
 		this._callOnDispose.dispose();
 		this._disposeOnNewModel.dispose();
@@ -315,7 +315,7 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 		};
 		this._preview = this._instantiationService.createInstance(EmbeddedCodeEditorWidget, this._previewContainer, options, {}, this.editor);
 		dom.hide(this._previewContainer);
-		this._previewNotAvailableMessage = new TextModel(nls.localize('missingPreviewMessage', "no preview available"), PLAINTEXT_LANGUAGE_ID, TextModel.DEFAULT_CREATION_OPTIONS, null, this._undoRedoService, this._languageService, this._languageConfigurationService);
+		this._previewNotAvailableMessage = this._instantiationService.createInstance(TextModel, nls.localize('missingPreviewMessage', "no preview available"), PLAINTEXT_LANGUAGE_ID, TextModel.DEFAULT_CREATION_OPTIONS, null);
 
 		// tree
 		this._treeContainer = dom.append(containerElement, dom.$('div.ref-tree.inline'));

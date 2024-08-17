@@ -522,7 +522,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 			.then(data => Array.isArray(data) ? data.map(d => URI.revive(d)) : []);
 	}
 
-	async findTextInFiles(query: vscode.TextSearchQuery, options: vscode.FindTextInFilesOptions, callback: (result: vscode.TextSearchResult) => void, extensionId: ExtensionIdentifier, token: vscode.CancellationToken = CancellationToken.None): Promise<vscode.TextSearchComplete> {
+	async findTextInFiles(query: vscode.TextSearchQuery, options: vscode.FindTextInFilesOptions & { useSearchExclude?: boolean }, callback: (result: vscode.TextSearchResult) => void, extensionId: ExtensionIdentifier, token: vscode.CancellationToken = CancellationToken.None): Promise<vscode.TextSearchComplete> {
 		this._logService.trace(`extHostWorkspace#findTextInFiles: textSearch, extension: ${extensionId.value}, entryPoint: findTextInFiles`);
 
 		const requestId = this._requestIdProvider.getNext();
@@ -543,11 +543,11 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 			disregardGlobalIgnoreFiles: typeof options.useGlobalIgnoreFiles === 'boolean' ? !options.useGlobalIgnoreFiles : undefined,
 			disregardParentIgnoreFiles: typeof options.useParentIgnoreFiles === 'boolean' ? !options.useParentIgnoreFiles : undefined,
 			disregardExcludeSettings: typeof options.useDefaultExcludes === 'boolean' ? !options.useDefaultExcludes : true,
+			disregardSearchExcludeSettings: typeof options.useSearchExclude === 'boolean' ? !options.useSearchExclude : true,
 			fileEncoding: options.encoding,
 			maxResults: options.maxResults,
 			previewOptions,
-			afterContext: options.afterContext,
-			beforeContext: options.beforeContext,
+			surroundingContext: options.afterContext, // TODO: remove ability to have before/after context separately
 
 			includePattern: includePattern,
 			excludePattern: excludePattern
@@ -567,14 +567,14 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 					callback({
 						uri,
 						preview: {
-							text: result.preview.text,
+							text: result.previewText,
 							matches: mapArrayOrNot(
-								result.preview.matches,
-								m => new Range(m.startLineNumber, m.startColumn, m.endLineNumber, m.endColumn))
+								result.rangeLocations,
+								m => new Range(m.preview.startLineNumber, m.preview.startColumn, m.preview.endLineNumber, m.preview.endColumn))
 						},
 						ranges: mapArrayOrNot(
-							result.ranges,
-							r => new Range(r.startLineNumber, r.startColumn, r.endLineNumber, r.endColumn))
+							result.rangeLocations,
+							r => new Range(r.source.startLineNumber, r.source.startColumn, r.source.endLineNumber, r.source.endColumn))
 					} satisfies vscode.TextSearchMatch);
 				} else {
 					callback({

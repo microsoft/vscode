@@ -56,7 +56,7 @@ suite('MainThreadWorkspace', () => {
 			fileSearch(query: IFileQuery) {
 				assert.strictEqual(query.folderQueries.length, 1);
 				assert.strictEqual(query.folderQueries[0].disregardIgnoreFiles, true);
-				assert.deepStrictEqual(query.folderQueries[0].excludePattern, { 'filesExclude': true });
+				assert.deepStrictEqual(query.folderQueries[0].excludePattern?.pattern, { 'filesExclude': true });
 
 				return Promise.resolve({ results: [], messages: [] });
 			}

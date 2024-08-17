@@ -28,7 +28,9 @@ export const enum AccessibleViewProviderId {
 	Notification = 'notification',
 	EmptyEditorHint = 'emptyEditorHint',
 	Comments = 'comments',
-	DebugConsole = 'debugConsole',
+	Repl = 'repl',
+	ReplHelp = 'replHelp',
+	RunAndDebug = 'runAndDebug',
 }
 
 export const enum AccessibleViewType {
@@ -68,6 +70,11 @@ export interface IAccessibleViewOptions {
 	 * Keybinding items to configure
 	 */
 	configureKeybindingItems?: IQuickPickItem[];
+
+	/**
+	 * Keybinding items that are already configured
+	 */
+	configuredKeybindingItems?: IQuickPickItem[];
 }
 
 
@@ -114,7 +121,7 @@ export interface IAccessibleViewService {
 	goToSymbol(): void;
 	disableHint(): void;
 	getPosition(id: AccessibleViewProviderId): IPosition | undefined;
-	setPosition(position: IPosition, reveal?: boolean): void;
+	setPosition(position: IPosition, reveal?: boolean, select?: boolean): void;
 	getLastPosition(): IPosition | undefined;
 	/**
 	 * If the setting is enabled, provides the open accessible view hint as a localized string.
@@ -122,7 +129,7 @@ export interface IAccessibleViewService {
 	 */
 	getOpenAriaHint(verbositySettingKey: string): string | null;
 	getCodeBlockContext(): ICodeBlockActionContext | undefined;
-	configureKeybindings(): void;
+	configureKeybindings(unassigned: boolean): void;
 	openHelpLink(): void;
 }
 
@@ -146,8 +153,8 @@ export class AccessibleContentProvider extends Disposable implements IAccessible
 		public verbositySettingKey: string,
 		public onOpen?: () => void,
 		public actions?: IAction[],
-		public next?: () => void,
-		public previous?: () => void,
+		public provideNextContent?: () => string | undefined,
+		public providePreviousContent?: () => string | undefined,
 		public onDidChangeContent?: Event<void>,
 		public onKeyDown?: (e: IKeyboardEvent) => void,
 		public getSymbols?: () => IAccessibleViewSymbol[],
@@ -165,8 +172,8 @@ export class ExtensionContentProvider extends Disposable implements IBasicConten
 		public provideContent: () => string,
 		public onClose: () => void,
 		public onOpen?: () => void,
-		public next?: () => void,
-		public previous?: () => void,
+		public provideNextContent?: () => string | undefined,
+		public providePreviousContent?: () => string | undefined,
 		public actions?: IAction[],
 		public onDidChangeContent?: Event<void>,
 	) {
@@ -181,7 +188,7 @@ export interface IBasicContentProvider extends IDisposable {
 	provideContent(): string;
 	onOpen?(): void;
 	actions?: IAction[];
-	previous?(): void;
-	next?(): void;
+	providePreviousContent?(): void;
+	provideNextContent?(): void;
 	onDidChangeContent?: Event<void>;
 }

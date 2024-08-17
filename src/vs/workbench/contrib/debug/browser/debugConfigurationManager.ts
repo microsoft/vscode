@@ -20,6 +20,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
+import { ILogService } from 'vs/platform/log/common/log';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
@@ -72,7 +73,8 @@ export class ConfigurationManager implements IConfigurationManager {
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IHistoryService private readonly historyService: IHistoryService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		this.configProviders = [];
 		this.toDispose = [this._onDidChangeConfigurationProviders];
@@ -257,7 +259,18 @@ export class ConfigurationManager implements IConfigurationManager {
 						disposables.add(input.onDidHide(() => resolve(undefined)));
 					});
 
-					const nestedPicks = await Promise.all(picks);
+					let nestedPicks: IDynamicPickItem[][];
+					try {
+						// This await invokes the extension providers, which might fail due to several reasons,
+						// therefore we gate this logic under a try/catch to prevent leaving the Debug Tab
+						// selector in a borked state.
+						nestedPicks = await Promise.all(picks);
+					} catch (err) {
+						this.logService.error(err);
+						disposables.dispose();
+						return;
+					}
+
 					const items = nestedPicks.flat();
 
 					input.items = items;

@@ -190,10 +190,11 @@ export class ProxyAuthService extends Disposable implements IProxyAuthService {
 		// Reply with session credentials unless we used them already.
 		// In that case we need to show a login dialog again because
 		// they seem invalid.
-		if (authInfo.attempt === 1 && this.sessionCredentials.has(authInfoHash)) {
+		const sessionCredentials = authInfo.attempt === 1 && this.sessionCredentials.get(authInfoHash);
+		if (sessionCredentials) {
 			this.logService.trace('auth#doResolveProxyCredentials (proxy) - exit - found session credentials to use');
 
-			const { username, password } = this.sessionCredentials.get(authInfoHash)!;
+			const { username, password } = sessionCredentials;
 			return { username, password };
 		}
 

@@ -31,6 +31,7 @@ import { ICommandActionTitle } from 'vs/platform/action/common/action';
 import { mainWindow } from 'vs/base/browser/window';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { TitlebarStyle } from 'vs/platform/window/common/window';
+import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 
 // Register Icons
 const menubarIcon = registerIcon('menuBar', Codicon.layoutMenubar, localize('menuBarIcon', "Represents the menu bar"));
@@ -673,6 +674,48 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	order: 11
 });
 
+// --- Configure Tabs Layout
+
+export class ConfigureEditorTabsAction extends Action2 {
+
+	static readonly ID = 'workbench.action.configureEditorTabs';
+
+	constructor() {
+		super({
+			id: ConfigureEditorTabsAction.ID,
+			title: localize2('configureTabs', "Configure Tabs"),
+			category: Categories.View,
+		});
+	}
+
+	run(accessor: ServicesAccessor) {
+		const preferencesService = accessor.get(IPreferencesService);
+		preferencesService.openSettings({ jsonEditor: false, query: 'workbench.editor tab' });
+	}
+}
+registerAction2(ConfigureEditorTabsAction);
+
+// --- Configure Editor
+
+export class ConfigureEditorAction extends Action2 {
+
+	static readonly ID = 'workbench.action.configureEditor';
+
+	constructor() {
+		super({
+			id: ConfigureEditorAction.ID,
+			title: localize2('configureEditors', "Configure Editors"),
+			category: Categories.View,
+		});
+	}
+
+	run(accessor: ServicesAccessor) {
+		const preferencesService = accessor.get(IPreferencesService);
+		preferencesService.openSettings({ jsonEditor: false, query: 'workbench.editor' });
+	}
+}
+registerAction2(ConfigureEditorAction);
+
 // --- Toggle Pinned Tabs On Separate Row
 
 registerAction2(class extends Action2 {
@@ -923,13 +966,14 @@ registerAction2(class extends Action2 {
 	}
 
 	private async getView(quickInputService: IQuickInputService, viewDescriptorService: IViewDescriptorService, paneCompositePartService: IPaneCompositePartService, viewId?: string): Promise<string> {
-		const quickPick = quickInputService.createQuickPick();
+		const disposables = new DisposableStore();
+		const quickPick = disposables.add(quickInputService.createQuickPick({ useSeparators: true }));
 		quickPick.placeholder = localize('moveFocusedView.selectView', "Select a View to Move");
 		quickPick.items = this.getViewItems(viewDescriptorService, paneCompositePartService);
 		quickPick.selectedItems = quickPick.items.filter(item => (item as IQuickPickItem).id === viewId) as IQuickPickItem[];
 
 		return new Promise((resolve, reject) => {
-			quickPick.onDidAccept(() => {
+			disposables.add(quickPick.onDidAccept(() => {
 				const viewId = quickPick.selectedItems[0];
 				if (viewId.id) {
 					resolve(viewId.id);
@@ -938,9 +982,12 @@ registerAction2(class extends Action2 {
 				}
 
 				quickPick.hide();
-			});
+			}));
 
-			quickPick.onDidHide(() => reject());
+			disposables.add(quickPick.onDidHide(() => {
+				disposables.dispose();
+				reject();
+			}));
 
 			quickPick.show();
 		});
@@ -982,7 +1029,8 @@ class MoveFocusedViewAction extends Action2 {
 			return;
 		}
 
-		const quickPick = quickInputService.createQuickPick();
+		const disposables = new DisposableStore();
+		const quickPick = disposables.add(quickInputService.createQuickPick({ useSeparators: true }));
 		quickPick.placeholder = localize('moveFocusedView.selectDestination', "Select a Destination for the View");
 		quickPick.title = localize({ key: 'moveFocusedView.title', comment: ['{0} indicates the title of the view the user has selected to move.'] }, "View: Move {0}", viewDescriptor.name.value);
 
@@ -1077,7 +1125,7 @@ class MoveFocusedViewAction extends Action2 {
 
 		quickPick.items = items;
 
-		quickPick.onDidAccept(() => {
+		disposables.add(quickPick.onDidAccept(() => {
 			const destination = quickPick.selectedItems[0];
 
 			if (destination.id === '_.panel.newcontainer') {
@@ -1095,7 +1143,9 @@ class MoveFocusedViewAction extends Action2 {
 			}
 
 			quickPick.hide();
-		});
+		}));
+
+		disposables.add(quickPick.onDidHide(() => disposables.dispose()));
 
 		quickPick.show();
 	}
@@ -1368,7 +1418,7 @@ for (const { active } of [...ToggleVisibilityActions, ...MoveSideBarActions, ...
 
 registerAction2(class CustomizeLayoutAction extends Action2 {
 
-	private _currentQuickPick?: IQuickPick<IQuickPickItem>;
+	private _currentQuickPick?: IQuickPick<IQuickPickItem, { useSeparators: true }>;
 
 	constructor() {
 		super({
@@ -1461,7 +1511,10 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 		const commandService = accessor.get(ICommandService);
 		const quickInputService = accessor.get(IQuickInputService);
 		const keybindingService = accessor.get(IKeybindingService);
-		const quickPick = quickInputService.createQuickPick();
+
+		const disposables = new DisposableStore();
+
+		const quickPick = disposables.add(quickInputService.createQuickPick({ useSeparators: true }));
 
 		this._currentQuickPick = quickPick;
 		quickPick.items = this.getItems(contextKeyService, keybindingService);
@@ -1486,7 +1539,6 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 			closeButton
 		];
 
-		const disposables = new DisposableStore();
 		let selectedItem: CustomizeLayoutItem | undefined = undefined;
 		disposables.add(contextKeyService.onDidChangeContext(changeEvent => {
 			if (changeEvent.affectsSome(LayoutContextKeySet)) {
@@ -1499,21 +1551,21 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 			}
 		}));
 
-		quickPick.onDidAccept(event => {
+		disposables.add(quickPick.onDidAccept(event => {
 			if (quickPick.selectedItems.length) {
 				selectedItem = quickPick.selectedItems[0] as CustomizeLayoutItem;
 				commandService.executeCommand(selectedItem.id);
 			}
-		});
+		}));
 
-		quickPick.onDidTriggerItemButton(event => {
+		disposables.add(quickPick.onDidTriggerItemButton(event => {
 			if (event.item) {
 				selectedItem = event.item as CustomizeLayoutItem;
 				commandService.executeCommand(selectedItem.id);
 			}
-		});
+		}));
 
-		quickPick.onDidTriggerButton((button) => {
+		disposables.add(quickPick.onDidTriggerButton((button) => {
 			if (button === closeButton) {
 				quickPick.hide();
 			} else if (button === resetButton) {
@@ -1535,16 +1587,16 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 
 				commandService.executeCommand('workbench.action.alignPanelCenter');
 			}
-		});
+		}));
 
-		quickPick.onDidHide(() => {
+		disposables.add(quickPick.onDidHide(() => {
 			quickPick.dispose();
-		});
+		}));
 
-		quickPick.onDispose(() => {
+		disposables.add(quickPick.onDispose(() => {
 			this._currentQuickPick = undefined;
 			disposables.dispose();
-		});
+		}));
 
 		quickPick.show();
 	}

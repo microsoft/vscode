@@ -11,7 +11,7 @@ import { IAction } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { marked } from 'vs/base/common/marked/marked';
+import * as marked from 'vs/base/common/marked/marked';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
@@ -40,7 +40,7 @@ import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService, IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { AccessibilityVerbositySettingId, AccessibilityWorkbenchSettingId, accessibilityHelpIsShown, accessibleViewContainsCodeBlocks, accessibleViewCurrentProviderId, accessibleViewGoToSymbolSupported, accessibleViewInCodeBlock, accessibleViewIsShown, accessibleViewOnLastLine, accessibleViewSupportsNavigation, accessibleViewVerbosityEnabled } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { AccessibilityVerbositySettingId, AccessibilityWorkbenchSettingId, accessibilityHelpIsShown, accessibleViewContainsCodeBlocks, accessibleViewCurrentProviderId, accessibleViewGoToSymbolSupported, accessibleViewHasAssignedKeybindings, accessibleViewHasUnassignedKeybindings, accessibleViewInCodeBlock, accessibleViewIsShown, accessibleViewOnLastLine, accessibleViewSupportsNavigation, accessibleViewVerbosityEnabled } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { resolveContentAndKeybindingItems } from 'vs/workbench/contrib/accessibility/browser/accessibleViewKeybindingResolver';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
 import { IChatCodeBlockContextProviderService } from 'vs/workbench/contrib/chat/browser/chat';
@@ -72,6 +72,9 @@ export class AccessibleView extends Disposable {
 	private _accessibleViewCurrentProviderId: IContextKey<string>;
 	private _accessibleViewInCodeBlock: IContextKey<boolean>;
 	private _accessibleViewContainsCodeBlocks: IContextKey<boolean>;
+	private _hasUnassignedKeybindings: IContextKey<boolean>;
+	private _hasAssignedKeybindings: IContextKey<boolean>;
+
 	private _codeBlocks?: ICodeBlock[];
 	private _inQuickPick: boolean = false;
 
@@ -84,6 +87,9 @@ export class AccessibleView extends Disposable {
 	private _currentContent: string | undefined;
 
 	private _lastProvider: AccesibleViewContentProvider | undefined;
+
+	private _viewContainer: HTMLElement | undefined;
+
 
 	constructor(
 		@IOpenerService private readonly _openerService: IOpenerService,
@@ -112,6 +118,8 @@ export class AccessibleView extends Disposable {
 		this._accessibleViewInCodeBlock = accessibleViewInCodeBlock.bindTo(this._contextKeyService);
 		this._accessibleViewContainsCodeBlocks = accessibleViewContainsCodeBlocks.bindTo(this._contextKeyService);
 		this._onLastLine = accessibleViewOnLastLine.bindTo(this._contextKeyService);
+		this._hasUnassignedKeybindings = accessibleViewHasUnassignedKeybindings.bindTo(this._contextKeyService);
+		this._hasAssignedKeybindings = accessibleViewHasAssignedKeybindings.bindTo(this._contextKeyService);
 
 		this._container = document.createElement('div');
 		this._container.classList.add('accessible-view');
@@ -188,6 +196,8 @@ export class AccessibleView extends Disposable {
 		this._accessibleViewVerbosityEnabled.reset();
 		this._accessibleViewGoToSymbolSupported.reset();
 		this._accessibleViewCurrentProviderId.reset();
+		this._hasAssignedKeybindings.reset();
+		this._hasUnassignedKeybindings.reset();
 	}
 
 	getPosition(id?: AccessibleViewProviderId): Position | undefined {
@@ -197,10 +207,16 @@ export class AccessibleView extends Disposable {
 		return this._editorWidget.getPosition() || undefined;
 	}
 
-	setPosition(position: Position, reveal?: boolean): void {
+	setPosition(position: Position, reveal?: boolean, select?: boolean): void {
 		this._editorWidget.setPosition(position);
 		if (reveal) {
 			this._editorWidget.revealPosition(position);
+		}
+		if (select) {
+			const lineLength = this._editorWidget.getModel()?.getLineLength(position.lineNumber) ?? 0;
+			if (lineLength) {
+				this._editorWidget.setSelection({ startLineNumber: position.lineNumber, startColumn: 1, endLineNumber: position.lineNumber, endColumn: lineLength + 1 });
+			}
 		}
 	}
 
@@ -248,12 +264,11 @@ export class AccessibleView extends Disposable {
 			return;
 		}
 		provider.onOpen?.();
-		let viewContainer: HTMLElement | undefined;
 		const delegate: IContextViewDelegate = {
 			getAnchor: () => { return { x: (getActiveWindow().innerWidth / 2) - ((Math.min(this._layoutService.activeContainerDimension.width * 0.62 /* golden cut */, DIMENSIONS.MAX_WIDTH)) / 2), y: this._layoutService.activeContainerOffset.quickPickTop }; },
 			render: (container) => {
-				viewContainer = container;
-				viewContainer.classList.add('accessible-view-container');
+				this._viewContainer = container;
+				this._viewContainer.classList.add('accessible-view-container');
 				return this._render(provider, container, showAccessibleViewHelp);
 			},
 			onHide: () => {
@@ -297,17 +312,25 @@ export class AccessibleView extends Disposable {
 		}
 		if (provider.onDidChangeContent) {
 			this._register(provider.onDidChangeContent(() => {
-				if (viewContainer) { this._render(provider, viewContainer, showAccessibleViewHelp); }
+				if (this._viewContainer) { this._render(provider, this._viewContainer, showAccessibleViewHelp); }
 			}));
 		}
 	}
 
 	previous(): void {
-		this._currentProvider?.previous?.();
+		const newContent = this._currentProvider?.providePreviousContent?.();
+		if (!this._currentProvider || !this._viewContainer || !newContent) {
+			return;
+		}
+		this._render(this._currentProvider, this._viewContainer, undefined, newContent);
 	}
 
 	next(): void {
-		this._currentProvider?.next?.();
+		const newContent = this._currentProvider?.provideNextContent?.();
+		if (!this._currentProvider || !this._viewContainer || !newContent) {
+			return;
+		}
+		this._render(this._currentProvider, this._viewContainer, undefined, newContent);
 	}
 
 	private _verbosityEnabled(): boolean {
@@ -324,7 +347,10 @@ export class AccessibleView extends Disposable {
 		this._instantiationService.createInstance(AccessibleViewSymbolQuickPick, this).show(this._currentProvider);
 	}
 
-	calculateCodeBlocks(markdown: string): void {
+	calculateCodeBlocks(markdown?: string): void {
+		if (!markdown) {
+			return;
+		}
 		if (this._currentProvider?.id !== AccessibleViewProviderId.Chat) {
 			return;
 		}
@@ -366,7 +392,7 @@ export class AccessibleView extends Disposable {
 			// Symbols haven't been provided and we cannot parse this language
 			return;
 		}
-		const markdownTokens: marked.TokensList | undefined = marked.lexer(this._currentContent);
+		const markdownTokens: marked.TokensList | undefined = marked.marked.lexer(this._currentContent);
 		if (!markdownTokens) {
 			return;
 		}
@@ -381,33 +407,33 @@ export class AccessibleView extends Disposable {
 		this._openerService.open(URI.parse(this._currentProvider.options.readMoreUrl));
 	}
 
-	configureKeybindings(): void {
+	configureKeybindings(unassigned: boolean): void {
 		this._inQuickPick = true;
 		const provider = this._updateLastProvider();
-		const items = provider?.options?.configureKeybindingItems;
+		const items = unassigned ? provider?.options?.configureKeybindingItems : provider?.options?.configuredKeybindingItems;
 		if (!items) {
 			return;
 		}
-		const quickPick: IQuickPick<IQuickPickItem> = this._quickInputService.createQuickPick();
-		this._register(quickPick);
+		const disposables = this._register(new DisposableStore());
+		const quickPick: IQuickPick<IQuickPickItem> = disposables.add(this._quickInputService.createQuickPick());
 		quickPick.items = items;
 		quickPick.title = localize('keybindings', 'Configure keybindings');
 		quickPick.placeholder = localize('selectKeybinding', 'Select a command ID to configure a keybinding for it');
 		quickPick.show();
-		quickPick.onDidAccept(async () => {
+		disposables.add(quickPick.onDidAccept(async () => {
 			const item = quickPick.selectedItems[0];
 			if (item) {
 				await this._commandService.executeCommand('workbench.action.openGlobalKeybindings', item.id);
 			}
 			quickPick.dispose();
-		});
-		quickPick.onDidHide(() => {
+		}));
+		disposables.add(quickPick.onDidHide(() => {
 			if (!quickPick.selectedItems.length && provider) {
 				this.show(provider);
 			}
-			quickPick.dispose();
+			disposables.dispose();
 			this._inQuickPick = false;
-		});
+		}));
 	}
 
 	private _convertTokensToSymbols(tokens: marked.TokensList, symbols: IAccessibleViewSymbol[]): void {
@@ -422,12 +448,12 @@ export class AccessibleView extends Disposable {
 						label = token.text;
 						break;
 					case 'list': {
-						const firstItem = token.items?.[0];
+						const firstItem = (token as marked.Tokens.List).items[0];
 						if (!firstItem) {
 							break;
 						}
 						firstListItem = `- ${firstItem.text}`;
-						label = token.items?.map(i => i.text).join(', ');
+						label = (token as marked.Tokens.List).items.map(i => i.text).join(', ');
 						break;
 					}
 				}
@@ -481,50 +507,52 @@ export class AccessibleView extends Disposable {
 			this._accessibleViewIsShown.set(shown);
 			this._accessiblityHelpIsShown.reset();
 		}
-		this._accessibleViewSupportsNavigation.set(provider.next !== undefined || provider.previous !== undefined);
+		this._accessibleViewSupportsNavigation.set(provider.provideNextContent !== undefined || provider.providePreviousContent !== undefined);
 		this._accessibleViewVerbosityEnabled.set(this._verbosityEnabled());
 		this._accessibleViewGoToSymbolSupported.set(this._goToSymbolsSupported() ? this.getSymbols()?.length! > 0 : false);
 	}
 
-	private _render(provider: AccesibleViewContentProvider, container: HTMLElement, showAccessibleViewHelp?: boolean): IDisposable {
+	private _updateContent(provider: AccesibleViewContentProvider, updatedContent?: string): void {
+		let content = updatedContent ?? provider.provideContent();
+		if (provider.options.type === AccessibleViewType.View) {
+			this._currentContent = content;
+			this._hasUnassignedKeybindings.reset();
+			this._hasAssignedKeybindings.reset();
+			return;
+		}
+		const readMoreLinkHint = this._readMoreHint(provider);
+		const disableHelpHint = this._disableVerbosityHint(provider);
+		const screenReaderModeHint = this._screenReaderModeHint(provider);
+		const exitThisDialogHint = this._exitDialogHint(provider);
+		let configureKbHint = '';
+		let configureAssignedKbHint = '';
+		const resolvedContent = resolveContentAndKeybindingItems(this._keybindingService, screenReaderModeHint + content + readMoreLinkHint + disableHelpHint + exitThisDialogHint);
+		if (resolvedContent) {
+			content = resolvedContent.content.value;
+			if (resolvedContent.configureKeybindingItems) {
+				provider.options.configureKeybindingItems = resolvedContent.configureKeybindingItems;
+				this._hasUnassignedKeybindings.set(true);
+				configureKbHint = this._configureUnassignedKbHint();
+			} else {
+				this._hasAssignedKeybindings.reset();
+			}
+			if (resolvedContent.configuredKeybindingItems) {
+				provider.options.configuredKeybindingItems = resolvedContent.configuredKeybindingItems;
+				this._hasAssignedKeybindings.set(true);
+				configureAssignedKbHint = this._configureAssignedKbHint();
+			} else {
+				this._hasAssignedKeybindings.reset();
+			}
+		}
+		this._currentContent = content + configureKbHint + configureAssignedKbHint;
+	}
+
+	private _render(provider: AccesibleViewContentProvider, container: HTMLElement, showAccessibleViewHelp?: boolean, updatedContent?: string): IDisposable {
 		this._currentProvider = provider;
 		this._accessibleViewCurrentProviderId.set(provider.id);
 		const verbose = this._verbosityEnabled();
-		const readMoreLink = provider.options.readMoreUrl ? localize("openDoc", "\n\nOpen a browser window with more information related to accessibility<keybinding:{0}>.", AccessibilityCommandId.AccessibilityHelpOpenHelpLink) : '';
-		let disableHelpHint = '';
-		if (provider instanceof AccessibleContentProvider && provider.options.type === AccessibleViewType.Help && verbose) {
-			disableHelpHint = this._getDisableVerbosityHint();
-		}
-		const accessibilitySupport = this._accessibilityService.isScreenReaderOptimized();
-		let message = '';
-		if (provider.options.type === AccessibleViewType.Help) {
-			const turnOnMessage = (
-				isMacintosh
-					? AccessibilityHelpNLS.changeConfigToOnMac
-					: AccessibilityHelpNLS.changeConfigToOnWinLinux
-			);
-			if (accessibilitySupport && provider instanceof AccessibleContentProvider && provider.verbositySettingKey === AccessibilityVerbositySettingId.Editor) {
-				message = AccessibilityHelpNLS.auto_on;
-				message += '\n';
-			} else if (!accessibilitySupport) {
-				message = AccessibilityHelpNLS.auto_off + '\n' + turnOnMessage;
-				message += '\n';
-			}
-		}
-		const exitThisDialogHint = verbose && !provider.options.position ? localize('exit', '\n\nExit this dialog (Escape).') : '';
-		let content = provider.provideContent();
-		if (provider.options.type === AccessibleViewType.Help) {
-			const resolvedContent = resolveContentAndKeybindingItems(this._keybindingService, content + readMoreLink + disableHelpHint + exitThisDialogHint);
-			if (resolvedContent) {
-				content = resolvedContent.content.value;
-				if (resolvedContent.configureKeybindingItems) {
-					provider.options.configureKeybindingItems = resolvedContent.configureKeybindingItems;
-				}
-			}
-		}
-		const newContent = message + content;
-		this.calculateCodeBlocks(newContent);
-		this._currentContent = newContent;
+		this._updateContent(provider, updatedContent);
+		this.calculateCodeBlocks(this._currentContent);
 		this._updateContextKeys(provider, true);
 		const widgetIsFocused = this._editorWidget.hasTextFocus() || this._editorWidget.hasWidgetFocus();
 		this._getTextModel(URI.from({ path: `accessible-view-${provider.id}`, scheme: 'accessible-view', fragment: this._currentContent })).then((model) => {
@@ -669,8 +697,8 @@ export class AccessibleView extends Disposable {
 			provider.verbositySettingKey,
 			provider.onOpen?.bind(provider),
 			provider.actions,
-			provider.next?.bind(provider),
-			provider.previous?.bind(provider),
+			provider.provideNextContent?.bind(provider),
+			provider.providePreviousContent?.bind(provider),
 			provider.onDidChangeContent?.bind(provider),
 			provider.onKeyDown?.bind(provider),
 			provider.getSymbols?.bind(provider),
@@ -680,8 +708,8 @@ export class AccessibleView extends Disposable {
 			provider.provideContent.bind(provider),
 			provider.onClose.bind(provider),
 			provider.onOpen?.bind(provider),
-			provider.next?.bind(provider),
-			provider.previous?.bind(provider),
+			provider.provideNextContent?.bind(provider),
+			provider.providePreviousContent?.bind(provider),
 			provider.actions,
 			provider.onDidChangeContent?.bind(provider),
 		);
@@ -698,7 +726,7 @@ export class AccessibleView extends Disposable {
 			accessibleViewHelpProvider = new AccessibleContentProvider(
 				lastProvider.id as AccessibleViewProviderId,
 				{ type: AccessibleViewType.Help },
-				() => lastProvider.options.customHelp ? lastProvider?.options.customHelp() : this._getAccessibleViewHelpDialogContent(this._goToSymbolsSupported()),
+				() => lastProvider.options.customHelp ? lastProvider?.options.customHelp() : this._accessibleViewHelpDialogContent(this._goToSymbolsSupported()),
 				() => {
 					this._contextViewService.hideContextView();
 					// HACK: Delay to allow the context view to hide #207638
@@ -710,7 +738,7 @@ export class AccessibleView extends Disposable {
 			accessibleViewHelpProvider = new ExtensionContentProvider(
 				lastProvider.id as AccessibleViewProviderId,
 				{ type: AccessibleViewType.Help },
-				() => lastProvider.options.customHelp ? lastProvider?.options.customHelp() : this._getAccessibleViewHelpDialogContent(this._goToSymbolsSupported()),
+				() => lastProvider.options.customHelp ? lastProvider?.options.customHelp() : this._accessibleViewHelpDialogContent(this._goToSymbolsSupported()),
 				() => {
 					this._contextViewService.hideContextView();
 					// HACK: Delay to allow the context view to hide #207638
@@ -725,9 +753,9 @@ export class AccessibleView extends Disposable {
 		}
 	}
 
-	private _getAccessibleViewHelpDialogContent(providerHasSymbols?: boolean): string {
-		const navigationHint = this._getNavigationHint();
-		const goToSymbolHint = this._getGoToSymbolHint(providerHasSymbols);
+	private _accessibleViewHelpDialogContent(providerHasSymbols?: boolean): string {
+		const navigationHint = this._navigationHint();
+		const goToSymbolHint = this._goToSymbolHint(providerHasSymbols);
 		const toolbarHint = localize('toolbar', "Navigate to the toolbar (Shift+Tab).");
 		const chatHints = this._getChatHints();
 
@@ -751,24 +779,65 @@ export class AccessibleView extends Disposable {
 		if (this._currentProvider?.id !== AccessibleViewProviderId.Chat) {
 			return;
 		}
-		return [localize('insertAtCursor', " - Insert the code block at the cursor<keybinding:workbench.action.chat.insertCodeBlock>."),
-		localize('insertIntoNewFile', " - Insert the code block into a new file<keybinding:workbench.action.chat.insertIntoNewFile>."),
-		localize('runInTerminal', " - Run the code block in the terminal<keybinding:'workbench.action.chat.runInTerminal>.\n")].join('\n');
+		return [localize('insertAtCursor', " - Insert the code block at the cursor{0}.", '<keybinding:workbench.action.chat.insertCodeBlock>'),
+		localize('insertIntoNewFile', " - Insert the code block into a new file{0}.", '<keybinding:workbench.action.chat.insertIntoNewFile>'),
+		localize('runInTerminal', " - Run the code block in the terminal{0}.\n", '<keybinding:workbench.action.chat.runInTerminal>')].join('\n');
 	}
 
-	private _getNavigationHint(): string {
-		return localize('accessibleViewNextPreviousHint', "Show the next item<keybinding:{0}> or previous item<keybinding:{1}>.", AccessibilityCommandId.ShowNext, AccessibilityCommandId.ShowPrevious);
+	private _navigationHint(): string {
+		return localize('accessibleViewNextPreviousHint', "Show the next item{0} or previous item{1}.", `<keybinding:${AccessibilityCommandId.ShowNext}`, `<keybinding:${AccessibilityCommandId.ShowPrevious}>`);
 	}
 
-	private _getDisableVerbosityHint(): string {
-		return localize('acessibleViewDisableHint', "\n\nDisable accessibility verbosity for this feature<keybinding:{0}>.", AccessibilityCommandId.DisableVerbosityHint);
+	private _disableVerbosityHint(provider: AccesibleViewContentProvider): string {
+		if (provider.options.type === AccessibleViewType.Help && this._verbosityEnabled()) {
+			return localize('acessibleViewDisableHint', "\nDisable accessibility verbosity for this feature{0}.", `<keybinding:${AccessibilityCommandId.DisableVerbosityHint}>`);
+		}
+		return '';
 	}
 
-	private _getGoToSymbolHint(providerHasSymbols?: boolean): string | undefined {
+	private _goToSymbolHint(providerHasSymbols?: boolean): string | undefined {
 		if (!providerHasSymbols) {
 			return;
 		}
-		return localize('goToSymbolHint', 'Go to a symbol<keybinding:{0}>.', AccessibilityCommandId.GoToSymbol);
+		return localize('goToSymbolHint', 'Go to a symbol{0}.', `<keybinding:${AccessibilityCommandId.GoToSymbol}>`);
+	}
+
+	private _configureUnassignedKbHint(): string {
+		const configureKb = this._keybindingService.lookupKeybinding(AccessibilityCommandId.AccessibilityHelpConfigureKeybindings)?.getAriaLabel();
+		const keybindingToConfigureQuickPick = configureKb ? '(' + configureKb + ')' : 'by assigning a keybinding to the command Accessibility Help Configure Unassigned Keybindings.';
+		return localize('configureKb', '\nConfigure keybindings for commands that lack them {0}.', keybindingToConfigureQuickPick);
+	}
+
+	private _configureAssignedKbHint(): string {
+		const configureKb = this._keybindingService.lookupKeybinding(AccessibilityCommandId.AccessibilityHelpConfigureAssignedKeybindings)?.getAriaLabel();
+		const keybindingToConfigureQuickPick = configureKb ? '(' + configureKb + ')' : 'by assigning a keybinding to the command Accessibility Help Configure Assigned Keybindings.';
+		return localize('configureKbAssigned', '\nConfigure keybindings for commands that already have assignments {0}.', keybindingToConfigureQuickPick);
+	}
+
+	private _screenReaderModeHint(provider: AccesibleViewContentProvider): string {
+		const accessibilitySupport = this._accessibilityService.isScreenReaderOptimized();
+		let screenReaderModeHint = '';
+		const turnOnMessage = (
+			isMacintosh
+				? AccessibilityHelpNLS.changeConfigToOnMac
+				: AccessibilityHelpNLS.changeConfigToOnWinLinux
+		);
+		if (accessibilitySupport && provider.id === AccessibleViewProviderId.Editor) {
+			screenReaderModeHint = AccessibilityHelpNLS.auto_on;
+			screenReaderModeHint += '\n';
+		} else if (!accessibilitySupport) {
+			screenReaderModeHint = AccessibilityHelpNLS.auto_off + '\n' + turnOnMessage;
+			screenReaderModeHint += '\n';
+		}
+		return screenReaderModeHint;
+	}
+
+	private _exitDialogHint(provider: AccesibleViewContentProvider): string {
+		return this._verbosityEnabled() && !provider.options.position ? localize('exit', '\nExit this dialog (Escape).') : '';
+	}
+
+	private _readMoreHint(provider: AccesibleViewContentProvider): string {
+		return provider.options.readMoreUrl ? localize("openDoc", "\nOpen a browser window with more information related to accessibility{0}.", `<keybinding:${AccessibilityCommandId.AccessibilityHelpOpenHelpLink}>`) : '';
 	}
 }
 
@@ -790,8 +859,8 @@ export class AccessibleViewService extends Disposable implements IAccessibleView
 		}
 		this._accessibleView.show(provider, undefined, undefined, position);
 	}
-	configureKeybindings(): void {
-		this._accessibleView?.configureKeybindings();
+	configureKeybindings(unassigned: boolean): void {
+		this._accessibleView?.configureKeybindings(unassigned);
 	}
 	openHelpLink(): void {
 		this._accessibleView?.openHelpLink();
@@ -834,12 +903,8 @@ export class AccessibleViewService extends Disposable implements IAccessibleView
 		const lastLine = this._accessibleView?.editorWidget.getModel()?.getLineCount();
 		return lastLine !== undefined && lastLine > 0 ? new Position(lastLine, 1) : undefined;
 	}
-	setPosition(position: Position, reveal?: boolean): void {
-		const editorWidget = this._accessibleView?.editorWidget;
-		editorWidget?.setPosition(position);
-		if (reveal) {
-			editorWidget?.revealLine(position.lineNumber);
-		}
+	setPosition(position: Position, reveal?: boolean, select?: boolean): void {
+		this._accessibleView?.setPosition(position, reveal, select);
 	}
 	getCodeBlockContext(): ICodeBlockActionContext | undefined {
 		return this._accessibleView?.getCodeBlockContext();
@@ -854,7 +919,8 @@ class AccessibleViewSymbolQuickPick {
 
 	}
 	show(provider: AccesibleViewContentProvider): void {
-		const quickPick = this._quickInputService.createQuickPick<IAccessibleViewSymbol>();
+		const disposables = new DisposableStore();
+		const quickPick = disposables.add(this._quickInputService.createQuickPick<IAccessibleViewSymbol>());
 		quickPick.placeholder = localize('accessibleViewSymbolQuickPickPlaceholder', "Type to search symbols");
 		quickPick.title = localize('accessibleViewSymbolQuickPickTitle', "Go to Symbol Accessible View");
 		const picks = [];
@@ -871,16 +937,17 @@ class AccessibleViewSymbolQuickPick {
 		quickPick.canSelectMany = false;
 		quickPick.items = symbols;
 		quickPick.show();
-		quickPick.onDidAccept(() => {
+		disposables.add(quickPick.onDidAccept(() => {
 			this._accessibleView.showSymbol(provider, quickPick.selectedItems[0]);
 			quickPick.hide();
-		});
-		quickPick.onDidHide(() => {
+		}));
+		disposables.add(quickPick.onDidHide(() => {
 			if (quickPick.selectedItems.length === 0) {
 				// this was escaped, so refocus the accessible view
 				this._accessibleView.show(provider);
 			}
-		});
+			disposables.dispose();
+		}));
 	}
 }
 

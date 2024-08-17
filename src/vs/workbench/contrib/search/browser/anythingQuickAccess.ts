@@ -21,7 +21,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { DisposableStore, IDisposable, toDisposable, MutableDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
+import { getIconClasses } from 'vs/editor/browser/services/getIconClasses';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { localize } from 'vs/nls';
@@ -87,7 +87,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 	private readonly pickState = this._register(new class extends Disposable {
 
-		picker: IQuickPick<IAnythingQuickPickItem> | undefined = undefined;
+		picker: IQuickPick<IAnythingQuickPickItem, { useSeparators: true }> | undefined = undefined;
 
 		editorViewState = this._register(this.instantiationService.createInstance(PickerEditorState));
 
@@ -109,7 +109,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			super();
 		}
 
-		set(picker: IQuickPick<IAnythingQuickPickItem>): void {
+		set(picker: IQuickPick<IAnythingQuickPickItem, { useSeparators: true }>): void {
 
 			// Picker for this run
 			this.picker = picker;
@@ -188,7 +188,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		};
 	}
 
-	override provide(picker: IQuickPick<IAnythingQuickPickItem>, token: CancellationToken, runOptions?: AnythingQuickAccessProviderRunOptions): IDisposable {
+	override provide(picker: IQuickPick<IAnythingQuickPickItem, { useSeparators: true }>, token: CancellationToken, runOptions?: AnythingQuickAccessProviderRunOptions): IDisposable {
 		const disposables = new DisposableStore();
 
 		// Update the pick state for this run
