@@ -3,11 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getActiveWindow } from 'vs/base/browser/dom';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { createTrustedTypesPolicy } from 'vs/base/browser/trustedTypes';
 import { BugIndicatingError } from 'vs/base/common/errors';
-import { observeDevicePixelDimensions } from 'vs/editor/browser/view/gpu/gpuUtils';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { GpuViewLayerRenderer } from 'vs/editor/browser/view/gpu/gpuViewLayer';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { StringBuilder } from 'vs/editor/common/core/stringBuilder';
@@ -254,7 +253,7 @@ export interface IVisibleLinesHost<T extends IVisibleLine> {
 	createVisibleLine(): T;
 }
 
-export class VisibleLinesCollection<T extends IVisibleLine> {
+export class VisibleLinesCollection<T extends IVisibleLine> extends Disposable {
 
 	private readonly _host: IVisibleLinesHost<T>;
 	public readonly domNode: FastDomNode<HTMLElement>;
@@ -267,6 +266,8 @@ export class VisibleLinesCollection<T extends IVisibleLine> {
 		host: IVisibleLinesHost<T>,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
+		super();
+
 		this._host = host;
 		this.domNode = this._createDomNode();
 
@@ -372,7 +373,7 @@ export class VisibleLinesCollection<T extends IVisibleLine> {
 			}
 
 			if (!this._gpuRenderer) {
-				this._gpuRenderer = this._instantiationService.createInstance(GpuViewLayerRenderer<T>, this._canvas, this._context, this._host, viewportData);
+				this._gpuRenderer = this._register(this._instantiationService.createInstance(GpuViewLayerRenderer<T>, this._canvas, this._context, this._host, viewportData));
 			}
 			renderer = this._gpuRenderer;
 			renderer.update(viewportData);

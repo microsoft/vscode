@@ -6,6 +6,7 @@
 import { getActiveWindow } from 'vs/base/browser/dom';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { debounce } from 'vs/base/common/decorators';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import type { ITextureAtlasGlyph } from 'vs/editor/browser/view/gpu/atlas/atlas';
 import { TextureAtlas } from 'vs/editor/browser/view/gpu/atlas/textureAtlas';
@@ -54,7 +55,7 @@ const enum BindingId {
 	ScrollOffset,
 }
 
-export class GpuViewLayerRenderer<T extends IVisibleLine> {
+export class GpuViewLayerRenderer<T extends IVisibleLine> extends Disposable {
 
 	readonly domNode: HTMLCanvasElement;
 	host: IVisibleLinesHost<T>;
@@ -91,6 +92,8 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 	) {
+		super();
+
 		this.domNode = domNode;
 		this.host = host;
 		this.viewportData = viewportData;
@@ -185,20 +188,18 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 		});
 		{
 			const uniformValues = new Float32Array(UniformBufferInfo.FloatsPerEntry);
-			// TODO: Update on canvas resize
 			uniformValues[UniformBufferInfo.Offset_CanvasWidth] = this.domNode.width;
 			uniformValues[UniformBufferInfo.Offset_CanvasHeight] = this.domNode.height;
 			this._device.queue.writeBuffer(uniformBuffer, 0, uniformValues);
 
-			// TODO: Track disposable
-			observeDevicePixelDimensions(this.domNode, getActiveWindow(), (w, h) => {
+			this._register(observeDevicePixelDimensions(this.domNode, getActiveWindow(), (w, h) => {
 				this.domNode.width = w;
 				this.domNode.height = h;
 				uniformValues[UniformBufferInfo.Offset_CanvasWidth] = this.domNode.width;
 				uniformValues[UniformBufferInfo.Offset_CanvasHeight] = this.domNode.height;
 				this._device.queue.writeBuffer(uniformBuffer, 0, uniformValues);
 				// TODO: Request render
-			});
+			}));
 		}
 
 
