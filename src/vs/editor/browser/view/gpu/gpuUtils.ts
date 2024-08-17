@@ -12,6 +12,7 @@ export function ensureNonNullable<T>(value: T | null): T {
 	return value;
 }
 
+// TODO: Move capabilities into ElementSizeObserver?
 export function observeDevicePixelDimensions(element: HTMLElement, parentWindow: Window & typeof globalThis, callback: (deviceWidth: number, deviceHeight: number) => void): IDisposable {
 	// Observe any resizes to the element and extract the actual pixel size of the element if the
 	// devicePixelContentBoxSize API is supported. This allows correcting rounding errors when

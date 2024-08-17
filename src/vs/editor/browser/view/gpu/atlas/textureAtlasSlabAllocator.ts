@@ -5,7 +5,7 @@
 
 import { getActiveWindow } from 'vs/base/browser/dom';
 import { TwoKeyMap } from 'vs/base/common/map';
-import type { ITextureAtlasAllocator, ITextureAtlasGlyph } from 'vs/editor/browser/view/gpu/atlas/atlas';
+import { UsagePreviewColors, type ITextureAtlasAllocator, type ITextureAtlasGlyph } from 'vs/editor/browser/view/gpu/atlas/atlas';
 import { ensureNonNullable } from 'vs/editor/browser/view/gpu/gpuUtils';
 import type { IRasterizedGlyph } from 'vs/editor/browser/view/gpu/raster/glyphRasterizer';
 
@@ -316,7 +316,7 @@ export class TextureAtlasSlabAllocator implements ITextureAtlasAllocator {
 		const canvas = new OffscreenCanvas(w, h);
 		const ctx = ensureNonNullable(canvas.getContext('2d'));
 
-		ctx.fillStyle = '#808080';
+		ctx.fillStyle = UsagePreviewColors.Unused;
 		ctx.fillRect(0, 0, w, h);
 
 		let slabEntryPixels = 0;
@@ -336,7 +336,7 @@ export class TextureAtlasSlabAllocator implements ITextureAtlasAllocator {
 					y += slab.entryH;
 				}
 				// TODO: This doesn't visualize wasted space between entries - draw glyphs on top?
-				ctx.fillStyle = '#FF0000';
+				ctx.fillStyle = UsagePreviewColors.Wasted;
 				ctx.fillRect(slab.x + x, slab.y + y, slab.entryW, slab.entryH);
 
 				slabEntryPixels += slab.entryW * slab.entryH;
@@ -351,14 +351,14 @@ export class TextureAtlasSlabAllocator implements ITextureAtlasAllocator {
 		// Draw glyphs
 		for (const g of this.glyphMap.values()) {
 			usedPixels += g.w * g.h;
-			ctx.fillStyle = '#4040FF';
+			ctx.fillStyle = UsagePreviewColors.Used;
 			ctx.fillRect(g.x, g.y, g.w, g.h);
 		}
 
 		// Draw unused space on side
 		const unusedRegions = Array.from(this._openRegionsByWidth.values()).flat().concat(Array.from(this._openRegionsByHeight.values()).flat());
 		for (const r of unusedRegions) {
-			ctx.fillStyle = '#FF000080';
+			ctx.fillStyle = UsagePreviewColors.Restricted;
 			ctx.fillRect(r.x, r.y, r.w, r.h);
 			restrictedPixels += r.w * r.h;
 		}

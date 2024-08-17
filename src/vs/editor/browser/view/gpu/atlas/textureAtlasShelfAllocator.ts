@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TwoKeyMap } from 'vs/base/common/map';
-import type { ITextureAtlasAllocator, ITextureAtlasGlyph } from 'vs/editor/browser/view/gpu/atlas/atlas';
+import { UsagePreviewColors, type ITextureAtlasAllocator, type ITextureAtlasGlyph } from 'vs/editor/browser/view/gpu/atlas/atlas';
 import { ensureNonNullable } from 'vs/editor/browser/view/gpu/gpuUtils';
 import type { IRasterizedGlyph } from 'vs/editor/browser/view/gpu/raster/glyphRasterizer';
 
@@ -92,7 +92,7 @@ export class TextureAtlasShelfAllocator implements ITextureAtlasAllocator {
 		const h = this._canvas.height;
 		const canvas = new OffscreenCanvas(w, h);
 		const ctx = ensureNonNullable(canvas.getContext('2d'));
-		ctx.fillStyle = '#808080';
+		ctx.fillStyle = UsagePreviewColors.Unused;
 		ctx.fillRect(0, 0, w, h);
 
 		const rowHeight: Map<number, number> = new Map(); // y -> h
@@ -102,14 +102,14 @@ export class TextureAtlasShelfAllocator implements ITextureAtlasAllocator {
 			rowWidth.set(g.y, Math.max(rowWidth.get(g.y) ?? 0, g.x + g.w));
 		}
 		for (const g of this.glyphMap.values()) {
-			ctx.fillStyle = '#4040FF';
+			ctx.fillStyle = UsagePreviewColors.Used;
 			ctx.fillRect(g.x, g.y, g.w, g.h);
-			ctx.fillStyle = '#FF0000';
+			ctx.fillStyle = UsagePreviewColors.Wasted;
 			ctx.fillRect(g.x, g.y + g.h, g.w, rowHeight.get(g.y)! - g.h);
 		}
 		for (const [rowY, rowW] of rowWidth.entries()) {
 			if (rowY !== this._currentRow.y) {
-				ctx.fillStyle = '#FF0000';
+				ctx.fillStyle = UsagePreviewColors.Wasted;
 				ctx.fillRect(rowW, rowY, w - rowW, rowHeight.get(rowY)!);
 			}
 		}

@@ -46,3 +46,10 @@ export interface IReadableTextureAtlasPage {
 	getUsagePreview(): Promise<Blob>;
 	getStats(): string;
 }
+
+export const enum UsagePreviewColors {
+	Unused = '#808080',
+	Used = '#4040FF',
+	Wasted = '#FF0000',
+	Restricted = '#FF000088',
+}
