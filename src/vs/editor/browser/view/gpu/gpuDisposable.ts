@@ -15,14 +15,11 @@ export namespace GPULifecycle {
 		if (!navigator.gpu) {
 			throw new Error('This browser does not support WebGPU');
 		}
-
 		const adapter = (await navigator.gpu.requestAdapter())!;
 		if (!adapter) {
 			throw new Error('This browser supports WebGPU but it appears to be disabled');
 		}
-
-		const device = await adapter.requestDevice();
-		return wrapDestroyableInDisposable(device);
+		return wrapDestroyableInDisposable(await adapter.requestDevice());
 	}
 
 	export function createBuffer(device: GPUDevice, descriptor: GPUBufferDescriptor, initialValues?: Float32Array | (() => Float32Array)): IDisposableGPUObject<GPUBuffer> {
@@ -31,6 +28,10 @@ export namespace GPULifecycle {
 			device.queue.writeBuffer(buffer, 0, isFunction(initialValues) ? initialValues() : initialValues);
 		}
 		return wrapDestroyableInDisposable(buffer);
+	}
+
+	export function createTexture(device: GPUDevice, descriptor: GPUTextureDescriptor): IDisposableGPUObject<GPUTexture> {
+		return wrapDestroyableInDisposable(device.createTexture(descriptor));
 	}
 }
 

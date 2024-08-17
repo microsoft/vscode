@@ -229,7 +229,7 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> extends Disposable {
 		})).value;
 		this._atlasGpuTextureVersions[0] = 0;
 		this._atlasGpuTextureVersions[1] = 0;
-		this._atlasGpuTexture = this._device.createTexture({
+		this._atlasGpuTexture = this._register(GPULifecycle.createTexture(this._device, {
 			label: 'Monaco atlas texture',
 			format: 'rgba8unorm',
 			// TODO: Dynamically grow/shrink layer count
@@ -238,7 +238,7 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> extends Disposable {
 			usage: GPUTextureUsage.TEXTURE_BINDING |
 				GPUTextureUsage.COPY_DST |
 				GPUTextureUsage.RENDER_ATTACHMENT,
-		});
+		})).value;
 
 
 		this._updateAtlas();
