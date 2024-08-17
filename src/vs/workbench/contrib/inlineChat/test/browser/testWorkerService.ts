@@ -9,7 +9,7 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { assertType } from 'vs/base/common/types';
 import { DiffAlgorithmName, IEditorWorkerService, ILineChange } from 'vs/editor/common/services/editorWorker';
 import { IDocumentDiff, IDocumentDiffProviderOptions } from 'vs/editor/common/diff/documentDiffProvider';
-import { EditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';
+import { BaseEditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 import { MovedText } from 'vs/editor/common/diff/linesDiffComputer';
 import { LineRangeMapping, DetailedLineRangeMapping, RangeMapping } from 'vs/editor/common/diff/rangeMapping';
@@ -18,7 +18,7 @@ import { TextEdit } from 'vs/editor/common/languages';
 
 export class TestWorkerService extends mock<IEditorWorkerService>() {
 
-	private readonly _worker = new EditorSimpleWorker(null!, null);
+	private readonly _worker = new BaseEditorSimpleWorker();
 
 	constructor(@IModelService private readonly _modelService: IModelService) {
 		super();

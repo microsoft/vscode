@@ -16,7 +16,7 @@ import { computeLinks } from 'vs/editor/common/languages/linkComputer';
 import { BasicInplaceReplace } from 'vs/editor/common/languages/supports/inplaceReplaceSupport';
 import { DiffAlgorithmName, IDiffComputationResult, ILineChange, IUnicodeHighlightsResult } from 'vs/editor/common/services/editorWorker';
 import { createMonacoBaseAPI } from 'vs/editor/common/services/editorBaseApi';
-import { IEditorWorkerHost } from 'vs/editor/common/services/editorWorkerHost';
+import { EditorWorkerHost } from './editorWorkerHost';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { UnicodeTextModelHighlighter, UnicodeHighlighterOptions } from 'vs/editor/common/services/unicodeTextModelHighlighter';
 import { DiffComputer, IChange } from 'vs/editor/common/diff/legacyLinesDiffComputer';
@@ -83,18 +83,12 @@ declare const require: any;
 /**
  * @internal
  */
-export class EditorSimpleWorker implements IDisposable, IWorkerTextModelSyncChannelServer, IRequestHandler {
+export class BaseEditorSimpleWorker implements IDisposable, IWorkerTextModelSyncChannelServer, IRequestHandler {
 	_requestHandlerBrand: any;
 
-	protected readonly _host: IEditorWorkerHost;
-	private readonly _foreignModuleFactory: IForeignModuleFactory | null;
-	private _foreignModule: any;
 	private readonly _workerTextModelSyncServer = new WorkerTextModelSyncServer();
 
-	constructor(host: IEditorWorkerHost, foreignModuleFactory: IForeignModuleFactory | null) {
-		this._host = host;
-		this._foreignModuleFactory = foreignModuleFactory;
-		this._foreignModule = null;
+	constructor() {
 	}
 
 	dispose(): void {
@@ -104,7 +98,7 @@ export class EditorSimpleWorker implements IDisposable, IWorkerTextModelSyncChan
 		return this._workerTextModelSyncServer.getModel(uri);
 	}
 
-	private _getModels(): ICommonModel[] {
+	protected _getModels(): ICommonModel[] {
 		return this._workerTextModelSyncServer.getModels();
 	}
 
@@ -522,12 +516,27 @@ export class EditorSimpleWorker implements IDisposable, IWorkerTextModelSyncChan
 		const result = BasicInplaceReplace.INSTANCE.navigateValueSet(range, selectionText, wordRange, word, up);
 		return result;
 	}
+}
+
+/**
+ * @internal
+ */
+export class EditorSimpleWorker extends BaseEditorSimpleWorker {
+
+	private _foreignModule: any = null;
+
+	constructor(
+		private readonly _host: EditorWorkerHost,
+		private readonly _foreignModuleFactory: IForeignModuleFactory | null
+	) {
+		super();
+	}
 
 	// ---- BEGIN foreign module support --------------------------------------------------------------------------
 
 	public loadForeignModule(moduleId: string, createData: any, foreignHostMethods: string[]): Promise<string[]> {
 		const proxyMethodRequest = (method: string, args: any[]): Promise<any> => {
-			return this._host.fhr(method, args);
+			return this._host.$fhr(method, args);
 		};
 
 		const foreignHost = createProxyObject(foreignHostMethods, proxyMethodRequest);
@@ -582,8 +591,8 @@ export class EditorSimpleWorker implements IDisposable, IWorkerTextModelSyncChan
  * @skipMangle
  * @internal
  */
-export function create(workerServer: IWorkerServer, host: IEditorWorkerHost): IRequestHandler {
-	return new EditorSimpleWorker(host, null);
+export function create(workerServer: IWorkerServer): IRequestHandler {
+	return new EditorSimpleWorker(EditorWorkerHost.getChannel(workerServer), null);
 }
 
 // This is only available in a Web Worker

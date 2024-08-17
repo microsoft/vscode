@@ -8,15 +8,14 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/uti
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { TextEdit } from 'vs/editor/common/languages';
-import { EditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';
+import { BaseEditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';
 import { ICommonModel } from 'vs/editor/common/services/textModelSync/textModelSync.impl';
-import { IEditorWorkerHost } from 'vs/editor/common/services/editorWorkerHost';
 
 suite('EditorSimpleWorker', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	class WorkerWithModels extends EditorSimpleWorker {
+	class WorkerWithModels extends BaseEditorSimpleWorker {
 
 		getModel(uri: string) {
 			return this._getModel(uri);
@@ -38,7 +37,7 @@ suite('EditorSimpleWorker', () => {
 	let model: ICommonModel;
 
 	setup(() => {
-		worker = new WorkerWithModels(<IEditorWorkerHost>null!, null);
+		worker = new WorkerWithModels();
 		model = worker.addModel([
 			'This is line one', //16
 			'and this is line number two', //27

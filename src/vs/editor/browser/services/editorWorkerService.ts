@@ -22,7 +22,6 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { canceled, onUnexpectedError } from 'vs/base/common/errors';
 import { UnicodeHighlighterOptions } from 'vs/editor/common/services/unicodeTextModelHighlighter';
-import { IEditorWorkerHost } from 'vs/editor/common/services/editorWorkerHost';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { IChange } from 'vs/editor/common/diff/legacyLinesDiffComputer';
 import { IDocumentDiff, IDocumentDiffProviderOptions } from 'vs/editor/common/diff/documentDiffProvider';
@@ -33,6 +32,7 @@ import { SectionHeader, FindSectionHeaderOptions } from 'vs/editor/common/servic
 import { mainWindow } from 'vs/base/browser/window';
 import { WindowIntervalTimer } from 'vs/base/browser/dom';
 import { WorkerTextModelSyncClient } from 'vs/editor/common/services/textModelSync/textModelSync.impl';
+import { EditorWorkerHost } from 'vs/editor/common/services/editorWorkerHost';
 
 /**
  * Stop the worker if it was not needed for 5 min.
@@ -368,20 +368,6 @@ export interface IEditorWorkerClient {
 	fhr(method: string, args: any[]): Promise<any>;
 }
 
-export class EditorWorkerHost implements IEditorWorkerHost {
-
-	private readonly _workerClient: IEditorWorkerClient;
-
-	constructor(workerClient: IEditorWorkerClient) {
-		this._workerClient = workerClient;
-	}
-
-	// foreign host request
-	public fhr(method: string, args: any[]): Promise<any> {
-		return this._workerClient.fhr(method, args);
-	}
-}
-
 export class EditorWorkerClient extends Disposable implements IEditorWorkerClient {
 
 	private readonly _modelService: IModelService;
@@ -414,14 +400,14 @@ export class EditorWorkerClient extends Disposable implements IEditorWorkerClien
 	private _getOrCreateWorker(): IWorkerClient<EditorSimpleWorker> {
 		if (!this._worker) {
 			try {
-				this._worker = this._register(new SimpleWorkerClient<EditorSimpleWorker, EditorWorkerHost>(
+				this._worker = this._register(new SimpleWorkerClient<EditorSimpleWorker, void>(
 					this._workerFactory,
-					'vs/editor/common/services/editorSimpleWorker',
-					new EditorWorkerHost(this)
+					'vs/editor/common/services/editorSimpleWorker'
 				));
+				EditorWorkerHost.setChannel(this._worker, this._createEditorWorkerHost());
 			} catch (err) {
 				logOnceWebWorkerWarning(err);
-				this._worker = new SynchronousWorkerClient(new EditorSimpleWorker(new EditorWorkerHost(this), null));
+				this._worker = this._createFallbackLocalWorker();
 			}
 		}
 		return this._worker;
@@ -430,9 +416,19 @@ export class EditorWorkerClient extends Disposable implements IEditorWorkerClien
 	protected _getProxy(): Promise<EditorSimpleWorker> {
 		return this._getOrCreateWorker().getProxyObject().then(undefined, (err) => {
 			logOnceWebWorkerWarning(err);
-			this._worker = new SynchronousWorkerClient(new EditorSimpleWorker(new EditorWorkerHost(this), null));
+			this._worker = this._createFallbackLocalWorker();
 			return this._getOrCreateWorker().getProxyObject();
 		});
+	}
+
+	private _createFallbackLocalWorker(): SynchronousWorkerClient<EditorSimpleWorker> {
+		return new SynchronousWorkerClient(new EditorSimpleWorker(this._createEditorWorkerHost(), null));
+	}
+
+	private _createEditorWorkerHost(): EditorWorkerHost {
+		return {
+			$fhr: (method, args) => this.fhr(method, args)
+		};
 	}
 
 	private _getOrCreateModelManager(proxy: EditorSimpleWorker): WorkerTextModelSyncClient {
