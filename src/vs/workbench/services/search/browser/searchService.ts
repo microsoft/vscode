@@ -16,12 +16,12 @@ import { SearchService } from 'vs/workbench/services/search/common/searchService
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IWorkerClient, logOnceWebWorkerWarning, SimpleWorkerClient } from 'vs/base/common/worker/simpleWorker';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { DefaultWorkerFactory } from 'vs/base/browser/defaultWorkerFactory';
+import { DefaultWorkerFactory, WorkerDescriptor } from 'vs/base/browser/defaultWorkerFactory';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILocalFileSearchSimpleWorker, LocalFileSearchSimpleWorkerHost } from 'vs/workbench/services/search/common/localFileSearchWorkerTypes';
 import { memoize } from 'vs/base/common/decorators';
 import { HTMLFileSystemProvider } from 'vs/platform/files/browser/htmlFileSystemProvider';
-import { FileAccess, Schemas } from 'vs/base/common/network';
+import { Schemas } from 'vs/base/common/network';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { Emitter, Event } from 'vs/base/common/event';
 import { localize } from 'vs/nls';
@@ -64,7 +64,7 @@ export class LocalFileSearchWorkerClient extends Disposable implements ISearchRe
 	) {
 		super();
 		this._worker = null;
-		this._workerFactory = new DefaultWorkerFactory(FileAccess.asBrowserUri('vs/base/worker/workerMain.js'), 'localFileSearchWorker');
+		this._workerFactory = new DefaultWorkerFactory();
 	}
 
 	sendTextSearchMatch(match: IFileMatch<UriComponents>, queryId: number): void {
@@ -186,8 +186,11 @@ export class LocalFileSearchWorkerClient extends Disposable implements ISearchRe
 		if (!this._worker) {
 			try {
 				this._worker = this._register(new SimpleWorkerClient<ILocalFileSearchSimpleWorker>(
-					this._workerFactory,
-					'vs/workbench/services/search/worker/localFileSearch'
+					new DefaultWorkerFactory(),
+					new WorkerDescriptor(
+						'vs/workbench/services/search/worker/localFileSearch',
+						'localFileSearchWorker'
+					)
 				));
 				LocalFileSearchSimpleWorkerHost.setChannel(this._worker, {
 					$sendTextSearchMatch: (match, queryId) => {

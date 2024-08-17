@@ -22,7 +22,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { LRUCache } from 'vs/base/common/map';
 import { ILogService } from 'vs/platform/log/common/log';
 import { canASAR } from 'vs/base/common/amd';
-import { DefaultWorkerFactory } from 'vs/base/browser/defaultWorkerFactory';
+import { DefaultWorkerFactory, WorkerDescriptor } from 'vs/base/browser/defaultWorkerFactory';
 import { WorkerTextModelSyncClient } from 'vs/editor/common/services/textModelSync/textModelSync.impl';
 import { ILanguageDetectionWorker, LanguageDetectionWorkerHost } from 'vs/workbench/services/languageDetection/browser/languageDetectionWorker.protocol';
 
@@ -178,7 +178,6 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 }
 
 export class LanguageDetectionWorkerClient extends Disposable {
-	private readonly _workerFactory = new DefaultWorkerFactory(FileAccess.asBrowserUri('vs/base/worker/workerMain.js'), 'languageDetectionWorkerService');
 	private workerPromise: Promise<{
 		workerClient: IWorkerClient<ILanguageDetectionWorker>;
 		workerTextModelSyncClient: WorkerTextModelSyncClient;
@@ -206,8 +205,11 @@ export class LanguageDetectionWorkerClient extends Disposable {
 
 		this.workerPromise = new Promise((resolve, reject) => {
 			const workerClient = this._register(new SimpleWorkerClient<ILanguageDetectionWorker>(
-				this._workerFactory,
-				'vs/workbench/services/languageDetection/browser/languageDetectionSimpleWorker'
+				new DefaultWorkerFactory(),
+				new WorkerDescriptor(
+					'vs/workbench/services/languageDetection/browser/languageDetectionSimpleWorker',
+					'languageDetectionWorkerService'
+				)
 			));
 			LanguageDetectionWorkerHost.setChannel(workerClient, {
 				$getIndexJsUri: async () => this.getIndexJsUri(),

@@ -22,13 +22,12 @@ import { TextMateWorkerHost } from './worker/textMateWorkerHost';
 import { TextMateWorkerTokenizerController } from 'vs/workbench/services/textMate/browser/backgroundTokenization/textMateWorkerTokenizerController';
 import { IValidGrammarDefinition } from 'vs/workbench/services/textMate/common/TMScopeRegistry';
 import type { IRawTheme } from 'vscode-textmate';
-import { DefaultWorkerFactory } from 'vs/base/browser/defaultWorkerFactory';
+import { DefaultWorkerFactory, WorkerDescriptor } from 'vs/base/browser/defaultWorkerFactory';
 import { SimpleWorkerClient } from 'vs/base/common/worker/simpleWorker';
 
 export class ThreadedBackgroundTokenizerFactory implements IDisposable {
 	private static _reportedMismatchingTokens = false;
 
-	private readonly _workerFactory = new DefaultWorkerFactory(FileAccess.asBrowserUri('vs/base/worker/workerMain.js'), 'textMateWorker');
 	private _workerProxyPromise: Promise<TextMateTokenizationWorker | null> | null = null;
 	private _worker: SimpleWorkerClient<TextMateTokenizationWorker> | null = null;
 	private _workerProxy: TextMateTokenizationWorker | null = null;
@@ -139,8 +138,11 @@ export class ThreadedBackgroundTokenizerFactory implements IDisposable {
 			onigurumaWASMUri: FileAccess.asBrowserUri(onigurumaWASM).toString(true),
 		};
 		const worker = this._worker = new SimpleWorkerClient<TextMateTokenizationWorker>(
-			this._workerFactory,
-			'vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker'
+			new DefaultWorkerFactory(),
+			new WorkerDescriptor(
+				'vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker',
+				'textMateWorker'
+			)
 		);
 		TextMateWorkerHost.setChannel(worker, {
 			$readFile: async (_resource: UriComponents): Promise<string> => {

@@ -69,7 +69,7 @@ class MonacoWebWorkerImpl<T extends object> extends EditorWorkerClient implement
 	private _foreignProxy: Promise<T> | null;
 
 	constructor(modelService: IModelService, languageConfigurationService: ILanguageConfigurationService, opts: IWebWorkerOptions) {
-		super(undefined, modelService, opts.keepIdleModels || false, opts.label, languageConfigurationService);
+		super(modelService, opts.keepIdleModels || false, opts.label, languageConfigurationService);
 		this._foreignModuleId = opts.moduleId;
 		this._foreignModuleCreateData = opts.createData || null;
 		this._foreignModuleHost = opts.host || null;

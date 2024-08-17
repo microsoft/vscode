@@ -11,6 +11,7 @@ import { AppResourcePath, FileAccess } from 'vs/base/common/network';
 import { getAllMethodNames } from 'vs/base/common/objects';
 import { isWeb } from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
+import { URI } from 'vs/base/common/uri';
 
 // ESM-comment-begin
 const isESM = false;
@@ -32,7 +33,13 @@ export interface IWorkerCallback {
 }
 
 export interface IWorkerFactory {
-	create(modules: { moduleId: string; esmModuleId: string }, callback: IWorkerCallback, onErrorCallback: (err: any) => void): IWorker;
+	create(modules: IWorkerDescriptor, callback: IWorkerCallback, onErrorCallback: (err: any) => void): IWorker;
+}
+
+export interface IWorkerDescriptor {
+	readonly amdModuleId: string;
+	readonly esmModuleLocation: URI | undefined;
+	readonly label: string | undefined;
 }
 
 let webWorkerWarningLogged = false;
@@ -316,14 +323,18 @@ export class SimpleWorkerClient<W extends object> extends Disposable implements 
 
 	constructor(
 		workerFactory: IWorkerFactory,
-		moduleId: string
+		workerDescriptor: IWorkerDescriptor,
 	) {
 		super();
 
 		let lazyProxyReject: ((err: any) => void) | null = null;
 
 		this._worker = this._register(workerFactory.create(
-			{ moduleId: 'vs/base/common/worker/simpleWorker', esmModuleId: moduleId },
+			{
+				amdModuleId: 'vs/base/common/worker/simpleWorker',
+				esmModuleLocation: workerDescriptor.esmModuleLocation,
+				label: workerDescriptor.label
+			},
 			(msg: Message) => {
 				this._protocol.handleMessage(msg);
 			},
@@ -363,7 +374,7 @@ export class SimpleWorkerClient<W extends object> extends Disposable implements 
 		this._onModuleLoaded = this._protocol.sendMessage(DEFAULT_CHANNEL, INITIALIZE, [
 			this._worker.getId(),
 			JSON.parse(JSON.stringify(loaderConfiguration)),
-			moduleId,
+			workerDescriptor.amdModuleId,
 		]);
 
 		// Create proxy to loaded code
@@ -380,7 +391,7 @@ export class SimpleWorkerClient<W extends object> extends Disposable implements 
 				resolve(createProxyObject<W>(availableMethods, proxyMethodRequest, proxyListen));
 			}, (e) => {
 				reject(e);
-				this._onError('Worker failed to load ' + moduleId, e);
+				this._onError('Worker failed to load ' + workerDescriptor.amdModuleId, e);
 			});
 		});
 	}

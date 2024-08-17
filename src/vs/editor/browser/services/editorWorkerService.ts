@@ -7,7 +7,7 @@ import { timeout } from 'vs/base/common/async';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { SimpleWorkerClient, logOnceWebWorkerWarning, IWorkerClient } from 'vs/base/common/worker/simpleWorker';
-import { DefaultWorkerFactory } from 'vs/base/browser/defaultWorkerFactory';
+import { DefaultWorkerFactory, WorkerDescriptor } from 'vs/base/browser/defaultWorkerFactory';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
@@ -59,7 +59,6 @@ export class EditorWorkerService extends Disposable implements IEditorWorkerServ
 	private readonly _logService: ILogService;
 
 	constructor(
-		workerMainLocation: URI | undefined,
 		@IModelService modelService: IModelService,
 		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
 		@ILogService logService: ILogService,
@@ -68,7 +67,7 @@ export class EditorWorkerService extends Disposable implements IEditorWorkerServ
 	) {
 		super();
 		this._modelService = modelService;
-		this._workerManager = this._register(new WorkerManager(workerMainLocation, this._modelService, languageConfigurationService));
+		this._workerManager = this._register(new WorkerManager(this._modelService, languageConfigurationService));
 		this._logService = logService;
 
 		// register default link-provider and default completions-provider
@@ -283,7 +282,7 @@ class WorkerManager extends Disposable {
 	private _editorWorkerClient: EditorWorkerClient | null;
 	private _lastWorkerUsedTime: number;
 
-	constructor(private readonly workerMainLocation: URI | undefined, modelService: IModelService, private readonly languageConfigurationService: ILanguageConfigurationService) {
+	constructor(modelService: IModelService, private readonly languageConfigurationService: ILanguageConfigurationService) {
 		super();
 		this._modelService = modelService;
 		this._editorWorkerClient = null;
@@ -337,7 +336,7 @@ class WorkerManager extends Disposable {
 	public withWorker(): Promise<EditorWorkerClient> {
 		this._lastWorkerUsedTime = (new Date()).getTime();
 		if (!this._editorWorkerClient) {
-			this._editorWorkerClient = new EditorWorkerClient(this.workerMainLocation, this._modelService, false, 'editorWorkerService', this.languageConfigurationService);
+			this._editorWorkerClient = new EditorWorkerClient(this._modelService, false, 'editorWorkerService', this.languageConfigurationService);
 		}
 		return Promise.resolve(this._editorWorkerClient);
 	}
@@ -378,21 +377,18 @@ export class EditorWorkerClient extends Disposable implements IEditorWorkerClien
 	private readonly _modelService: IModelService;
 	private readonly _keepIdleModels: boolean;
 	private _worker: IWorkerClient<EditorSimpleWorker> | null;
-	private readonly _workerFactory: DefaultWorkerFactory;
 	private _modelManager: WorkerTextModelSyncClient | null;
 	private _disposed = false;
 
 	constructor(
-		workerMainLocation: URI | undefined,
 		modelService: IModelService,
 		keepIdleModels: boolean,
-		label: string | undefined,
+		private readonly _label: string | undefined,
 		private readonly languageConfigurationService: ILanguageConfigurationService
 	) {
 		super();
 		this._modelService = modelService;
 		this._keepIdleModels = keepIdleModels;
-		this._workerFactory = new DefaultWorkerFactory(workerMainLocation, label);
 		this._worker = null;
 		this._modelManager = null;
 	}
@@ -406,8 +402,11 @@ export class EditorWorkerClient extends Disposable implements IEditorWorkerClien
 		if (!this._worker) {
 			try {
 				this._worker = this._register(new SimpleWorkerClient<EditorSimpleWorker>(
-					this._workerFactory,
-					'vs/editor/common/services/editorSimpleWorker'
+					new DefaultWorkerFactory(),
+					new WorkerDescriptor(
+						'vs/editor/common/services/editorSimpleWorker',
+						this._label
+					)
 				));
 				EditorWorkerHost.setChannel(this._worker, this._createEditorWorkerHost());
 			} catch (err) {

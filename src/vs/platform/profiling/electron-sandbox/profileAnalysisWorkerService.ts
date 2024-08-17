@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import { DefaultWorkerFactory } from 'vs/base/browser/defaultWorkerFactory';
-import { FileAccess } from 'vs/base/common/network';
+import { DefaultWorkerFactory, WorkerDescriptor } from 'vs/base/browser/defaultWorkerFactory';
 import { URI } from 'vs/base/common/uri';
 import { SimpleWorkerClient } from 'vs/base/common/worker/simpleWorker';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -15,7 +14,6 @@ import { IV8Profile } from 'vs/platform/profiling/common/profiling';
 import { BottomUpSample } from 'vs/platform/profiling/common/profilingModel';
 import { reportSample } from 'vs/platform/profiling/common/profilingTelemetrySpec';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-
 
 export const enum ProfilingOutput {
 	Failure,
@@ -42,8 +40,6 @@ class ProfileAnalysisWorkerService implements IProfileAnalysisWorkerService {
 
 	declare _serviceBrand: undefined;
 
-	private readonly _workerFactory = new DefaultWorkerFactory(FileAccess.asBrowserUri('vs/base/worker/workerMain.js'), 'CpuProfileAnalysis');
-
 	constructor(
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILogService private readonly _logService: ILogService,
@@ -52,8 +48,11 @@ class ProfileAnalysisWorkerService implements IProfileAnalysisWorkerService {
 	private async _withWorker<R>(callback: (worker: Proxied<IProfileAnalysisWorker>) => Promise<R>): Promise<R> {
 
 		const worker = new SimpleWorkerClient<Proxied<IProfileAnalysisWorker>>(
-			this._workerFactory,
-			'vs/platform/profiling/electron-sandbox/profileAnalysisWorker'
+			new DefaultWorkerFactory(),
+			new WorkerDescriptor(
+				'vs/platform/profiling/electron-sandbox/profileAnalysisWorker',
+				'CpuProfileAnalysis'
+			)
 		);
 
 		try {

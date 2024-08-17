@@ -6,13 +6,12 @@
 import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { SimpleWorkerClient } from 'vs/base/common/worker/simpleWorker';
-import { DefaultWorkerFactory } from 'vs/base/browser/defaultWorkerFactory';
+import { DefaultWorkerFactory, WorkerDescriptor } from 'vs/base/browser/defaultWorkerFactory';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { IMainCellDto, INotebookDiffResult, NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { NotebookEditorSimpleWorker } from 'vs/workbench/contrib/notebook/common/services/notebookSimpleWorker';
 import { INotebookEditorWorkerService } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerService';
-import { FileAccess } from 'vs/base/common/network';
 
 export class NotebookEditorWorkerServiceImpl extends Disposable implements INotebookEditorWorkerService {
 	declare readonly _serviceBrand: undefined;
@@ -58,7 +57,7 @@ class WorkerManager extends Disposable {
 	withWorker(): Promise<NotebookWorkerClient> {
 		// this._lastWorkerUsedTime = (new Date()).getTime();
 		if (!this._editorWorkerClient) {
-			this._editorWorkerClient = new NotebookWorkerClient(this._notebookService, 'notebookEditorWorkerService');
+			this._editorWorkerClient = new NotebookWorkerClient(this._notebookService);
 		}
 		return Promise.resolve(this._editorWorkerClient);
 	}
@@ -187,13 +186,11 @@ class NotebookEditorModelManager extends Disposable {
 
 class NotebookWorkerClient extends Disposable {
 	private _worker: IWorkerClient<NotebookEditorSimpleWorker> | null;
-	private readonly _workerFactory: DefaultWorkerFactory;
 	private _modelManager: NotebookEditorModelManager | null;
 
 
-	constructor(private readonly _notebookService: INotebookService, label: string) {
+	constructor(private readonly _notebookService: INotebookService) {
 		super();
-		this._workerFactory = new DefaultWorkerFactory(FileAccess.asBrowserUri('vs/base/worker/workerMain.js'), label);
 		this._worker = null;
 		this._modelManager = null;
 
@@ -229,8 +226,11 @@ class NotebookWorkerClient extends Disposable {
 		if (!this._worker) {
 			try {
 				this._worker = this._register(new SimpleWorkerClient<NotebookEditorSimpleWorker>(
-					this._workerFactory,
-					'vs/workbench/contrib/notebook/common/services/notebookSimpleWorker'
+					new DefaultWorkerFactory(),
+					new WorkerDescriptor(
+						'vs/workbench/contrib/notebook/common/services/notebookSimpleWorker',
+						'notebookEditorWorkerService'
+					)
 				));
 			} catch (err) {
 				// logOnceWebWorkerWarning(err);
