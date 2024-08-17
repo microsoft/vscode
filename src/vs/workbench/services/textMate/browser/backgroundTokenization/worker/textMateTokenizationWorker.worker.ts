@@ -12,19 +12,14 @@ import type { IOnigLib, IRawTheme, StackDiff } from 'vscode-textmate';
 import { TextMateWorkerTokenizer } from './textMateWorkerTokenizer';
 import { importAMDNodeModule } from 'vs/amdX';
 import { IRequestHandler, IWorkerServer } from 'vs/base/common/worker/simpleWorker';
+import { TextMateWorkerHost } from './textMateWorkerHost';
 
 /**
  * Defines the worker entry point. Must be exported and named `create`.
  * @skipMangle
  */
-export function create(workerServer: IWorkerServer, host: ITextMateWorkerHost): TextMateTokenizationWorker {
-	return new TextMateTokenizationWorker(workerServer, host);
-}
-
-export interface ITextMateWorkerHost {
-	readFile(_resource: UriComponents): Promise<string>;
-	setTokensAndStates(controllerId: number, versionId: number, tokens: Uint8Array, lineEndStateDeltas: StateDeltas[]): Promise<void>;
-	reportTokenizationTime(timeMs: number, languageId: string, sourceExtensionId: string | undefined, lineLength: number, isRandomSample: boolean): void;
+export function create(workerServer: IWorkerServer): TextMateTokenizationWorker {
+	return new TextMateTokenizationWorker(workerServer);
 }
 
 export interface ICreateData {
@@ -53,13 +48,13 @@ export interface StateDeltas {
 export class TextMateTokenizationWorker implements IRequestHandler {
 	_requestHandlerBrand: any;
 
-	private readonly _host: ITextMateWorkerHost;
+	private readonly _host: TextMateWorkerHost;
 	private readonly _models = new Map</* controllerId */ number, TextMateWorkerTokenizer>();
 	private readonly _grammarCache: Promise<ICreateGrammarResult>[] = [];
 	private _grammarFactory: Promise<TMGrammarFactory | null> = Promise.resolve(null);
 
-	constructor(workerServer: IWorkerServer, host: ITextMateWorkerHost) {
-		this._host = host;
+	constructor(workerServer: IWorkerServer) {
+		this._host = TextMateWorkerHost.getChannel(workerServer);
 	}
 
 	public async init(_createData: ICreateData): Promise<void> {
@@ -98,7 +93,7 @@ export class TextMateTokenizationWorker implements IRequestHandler {
 		return new TMGrammarFactory({
 			logTrace: (msg: string) => {/* console.log(msg) */ },
 			logError: (msg: string, err: any) => console.error(msg, err),
-			readFile: (resource: URI) => this._host.readFile(resource)
+			readFile: (resource: URI) => this._host.$readFile(resource)
 		}, grammarDefinitions, vscodeTextmate, onigLib);
 	}
 
@@ -119,10 +114,10 @@ export class TextMateTokenizationWorker implements IRequestHandler {
 				return that._grammarCache[encodedLanguageId];
 			},
 			setTokensAndStates(versionId: number, tokens: Uint8Array, stateDeltas: StateDeltas[]): void {
-				that._host.setTokensAndStates(data.controllerId, versionId, tokens, stateDeltas);
+				that._host.$setTokensAndStates(data.controllerId, versionId, tokens, stateDeltas);
 			},
 			reportTokenizationTime(timeMs: number, languageId: string, sourceExtensionId: string | undefined, lineLength: number, isRandomSample: boolean): void {
-				that._host.reportTokenizationTime(timeMs, languageId, sourceExtensionId, lineLength, isRandomSample);
+				that._host.$reportTokenizationTime(timeMs, languageId, sourceExtensionId, lineLength, isRandomSample);
 			},
 		}, data.languageId, data.encodedLanguageId, data.maxTokenizationLineLength));
 	}

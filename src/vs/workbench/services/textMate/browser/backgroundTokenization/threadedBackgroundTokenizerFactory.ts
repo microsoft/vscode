@@ -17,7 +17,8 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IExtensionResourceLoaderService } from 'vs/platform/extensionResourceLoader/common/extensionResourceLoader';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ICreateData, ITextMateWorkerHost, StateDeltas, TextMateTokenizationWorker } from 'vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker';
+import { ICreateData, StateDeltas, TextMateTokenizationWorker } from 'vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker';
+import { TextMateWorkerHost } from './worker/textMateWorkerHost';
 import { TextMateWorkerTokenizerController } from 'vs/workbench/services/textMate/browser/backgroundTokenization/textMateWorkerTokenizerController';
 import { IValidGrammarDefinition } from 'vs/workbench/services/textMate/common/TMScopeRegistry';
 import type { IRawTheme } from 'vscode-textmate';
@@ -29,7 +30,7 @@ export class ThreadedBackgroundTokenizerFactory implements IDisposable {
 
 	private readonly _workerFactory = new DefaultWorkerFactory(FileAccess.asBrowserUri('vs/base/worker/workerMain.js'), 'textMateWorker');
 	private _workerProxyPromise: Promise<TextMateTokenizationWorker | null> | null = null;
-	private _worker: SimpleWorkerClient<TextMateTokenizationWorker, ITextMateWorkerHost> | null = null;
+	private _worker: SimpleWorkerClient<TextMateTokenizationWorker, void> | null = null;
 	private _workerProxy: TextMateTokenizationWorker | null = null;
 	private readonly _workerTokenizerControllers = new Map</* backgroundTokenizerId */number, TextMateWorkerTokenizerController>();
 
@@ -137,12 +138,12 @@ export class ThreadedBackgroundTokenizerFactory implements IDisposable {
 			grammarDefinitions: this._grammarDefinitions,
 			onigurumaWASMUri: FileAccess.asBrowserUri(onigurumaWASM).toString(true),
 		};
-		const host: ITextMateWorkerHost = {
-			readFile: async (_resource: UriComponents): Promise<string> => {
+		const host: TextMateWorkerHost = {
+			$readFile: async (_resource: UriComponents): Promise<string> => {
 				const resource = URI.revive(_resource);
 				return this._extensionResourceLoaderService.readExtensionResource(resource);
 			},
-			setTokensAndStates: async (controllerId: number, versionId: number, tokens: Uint8Array, lineEndStateDeltas: StateDeltas[]): Promise<void> => {
+			$setTokensAndStates: async (controllerId: number, versionId: number, tokens: Uint8Array, lineEndStateDeltas: StateDeltas[]): Promise<void> => {
 				const controller = this._workerTokenizerControllers.get(controllerId);
 				// When a model detaches, it is removed synchronously from the map.
 				// However, the worker might still be sending tokens for that model,
@@ -151,15 +152,15 @@ export class ThreadedBackgroundTokenizerFactory implements IDisposable {
 					controller.setTokensAndStates(controllerId, versionId, tokens, lineEndStateDeltas);
 				}
 			},
-			reportTokenizationTime: (timeMs: number, languageId: string, sourceExtensionId: string | undefined, lineLength: number, isRandomSample: boolean): void => {
+			$reportTokenizationTime: (timeMs: number, languageId: string, sourceExtensionId: string | undefined, lineLength: number, isRandomSample: boolean): void => {
 				this._reportTokenizationTime(timeMs, languageId, sourceExtensionId, lineLength, isRandomSample);
 			}
 		};
-		const worker = this._worker = new SimpleWorkerClient<TextMateTokenizationWorker, ITextMateWorkerHost>(
+		const worker = this._worker = new SimpleWorkerClient<TextMateTokenizationWorker, void>(
 			this._workerFactory,
-			'vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker',
-			host
+			'vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker'
 		);
+		TextMateWorkerHost.setChannel(worker, host);
 		const proxy = await worker.getProxyObject();
 		await proxy.init(createData);
 
