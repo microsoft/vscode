@@ -138,7 +138,11 @@ export class ThreadedBackgroundTokenizerFactory implements IDisposable {
 			grammarDefinitions: this._grammarDefinitions,
 			onigurumaWASMUri: FileAccess.asBrowserUri(onigurumaWASM).toString(true),
 		};
-		const host: TextMateWorkerHost = {
+		const worker = this._worker = new SimpleWorkerClient<TextMateTokenizationWorker, void>(
+			this._workerFactory,
+			'vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker'
+		);
+		TextMateWorkerHost.setChannel(worker, {
 			$readFile: async (_resource: UriComponents): Promise<string> => {
 				const resource = URI.revive(_resource);
 				return this._extensionResourceLoaderService.readExtensionResource(resource);
@@ -155,12 +159,7 @@ export class ThreadedBackgroundTokenizerFactory implements IDisposable {
 			$reportTokenizationTime: (timeMs: number, languageId: string, sourceExtensionId: string | undefined, lineLength: number, isRandomSample: boolean): void => {
 				this._reportTokenizationTime(timeMs, languageId, sourceExtensionId, lineLength, isRandomSample);
 			}
-		};
-		const worker = this._worker = new SimpleWorkerClient<TextMateTokenizationWorker, void>(
-			this._workerFactory,
-			'vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker'
-		);
-		TextMateWorkerHost.setChannel(worker, host);
+		});
 		const proxy = await worker.getProxyObject();
 		await proxy.init(createData);
 

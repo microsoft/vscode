@@ -18,7 +18,7 @@ import { IWorkerClient, logOnceWebWorkerWarning, SimpleWorkerClient } from 'vs/b
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { DefaultWorkerFactory } from 'vs/base/browser/defaultWorkerFactory';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ILocalFileSearchSimpleWorker, ILocalFileSearchSimpleWorkerHost } from 'vs/workbench/services/search/common/localFileSearchWorkerTypes';
+import { ILocalFileSearchSimpleWorker, LocalFileSearchSimpleWorkerHost } from 'vs/workbench/services/search/common/localFileSearchWorkerTypes';
 import { memoize } from 'vs/base/common/decorators';
 import { HTMLFileSystemProvider } from 'vs/platform/files/browser/htmlFileSystemProvider';
 import { FileAccess, Schemas } from 'vs/base/common/network';
@@ -46,7 +46,7 @@ export class RemoteSearchService extends SearchService {
 	}
 }
 
-export class LocalFileSearchWorkerClient extends Disposable implements ISearchResultProvider, ILocalFileSearchSimpleWorkerHost {
+export class LocalFileSearchWorkerClient extends Disposable implements ISearchResultProvider {
 
 	protected _worker: IWorkerClient<ILocalFileSearchSimpleWorker> | null;
 	protected readonly _workerFactory: DefaultWorkerFactory;
@@ -185,11 +185,15 @@ export class LocalFileSearchWorkerClient extends Disposable implements ISearchRe
 	private _getOrCreateWorker(): IWorkerClient<ILocalFileSearchSimpleWorker> {
 		if (!this._worker) {
 			try {
-				this._worker = this._register(new SimpleWorkerClient<ILocalFileSearchSimpleWorker, ILocalFileSearchSimpleWorkerHost>(
+				this._worker = this._register(new SimpleWorkerClient<ILocalFileSearchSimpleWorker, void>(
 					this._workerFactory,
-					'vs/workbench/services/search/worker/localFileSearch',
-					this,
+					'vs/workbench/services/search/worker/localFileSearch'
 				));
+				LocalFileSearchSimpleWorkerHost.setChannel(this._worker, {
+					$sendTextSearchMatch: (match, queryId) => {
+						return this.sendTextSearchMatch(match, queryId);
+					}
+				});
 			} catch (err) {
 				logOnceWebWorkerWarning(err);
 				throw err;
