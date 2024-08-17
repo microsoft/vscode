@@ -28,10 +28,11 @@ const fs = require('fs');
 const glob = require('glob');
 const { compileBuildTask } = require('./gulpfile.compile');
 const { compileExtensionsBuildTask, compileExtensionMediaBuildTask } = require('./gulpfile.extensions');
-const { vscodeWebEntryPoints, vscodeWebResourceIncludes, createVSCodeWebFileContentMapper } = require('./gulpfile.vscode.web');
+const { vscodeWebResourceIncludes, createVSCodeWebFileContentMapper } = require('./gulpfile.vscode.web');
 const cp = require('child_process');
 const log = require('fancy-log');
 const { isESM } = require('./lib/esm');
+const buildfile = require('../src/buildfile');
 
 const REPO_ROOT = path.dirname(__dirname);
 const commit = getVersion(REPO_ROOT);
@@ -89,6 +90,7 @@ const serverResources = [
 
 const serverWithWebResourceIncludes = [
 	...serverResourceIncludes,
+	'out-build/vs/code/browser/workbench/*.html',
 	...vscodeWebResourceIncludes
 ];
 
@@ -126,14 +128,26 @@ const serverEntryPoints = [
 	}
 ];
 
+const webEntryPoints = [
+	buildfile.base,
+	buildfile.workerExtensionHost,
+	buildfile.workerNotebook,
+	buildfile.workerLanguageDetection,
+	buildfile.workerLocalFileSearch,
+	buildfile.workerOutputLinks,
+	buildfile.workerBackgroundTokenization,
+	buildfile.keyboardMaps,
+	buildfile.codeWeb
+].flat();
+
 const serverWithWebEntryPoints = [
 
 	// Include all of server
 	...serverEntryPoints,
 
-	// Include workbench web
-	...vscodeWebEntryPoints
-];
+	// Include all of web
+	...webEntryPoints,
+].flat();
 
 const commonJSEntryPoints = [
 	'out-build/server-main.js',

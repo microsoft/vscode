@@ -32,25 +32,24 @@ const version = (quality && quality !== 'stable') ? `${packageJson.version}-${qu
 
 const vscodeWebResourceIncludes = [
 
-	// Workbench
-	'out-build/vs/{base,platform,editor,workbench}/**/*.{svg,png,jpg,mp3}',
-	'out-build/vs/code/browser/workbench/*.html',
-	'out-build/vs/base/browser/ui/codicons/codicon/**/*.ttf',
-	'out-build/vs/**/markdown.css',
-
 	// NLS
 	'out-build/nls.messages.js',
 
+	// Accessibility Signals
+	'out-build/vs/platform/accessibilitySignal/browser/media/*.mp3',
+
+	// Welcome
+	'out-build/vs/workbench/contrib/welcomeGettingStarted/common/media/**/*.{svg,png}',
+
+	// Extensions
+	'out-build/vs/workbench/contrib/extensions/browser/media/{theme-icon.png,language-icon.svg}',
+	'out-build/vs/workbench/services/extensionManagement/common/media/*.{svg,png}',
+
 	// Webview
-	'out-build/vs/workbench/contrib/webview/browser/pre/*.js',
-	'out-build/vs/workbench/contrib/webview/browser/pre/*.html',
+	'out-build/vs/workbench/contrib/webview/browser/pre/*.{js,html}',
 
-	// Extension Worker
-	'out-build/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html',
+	// Extension Host Worker
 	'out-build/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.esm.html',
-
-	// Web node paths (needed for integration tests)
-	'out-build/vs/webPackagePaths.js',
 ];
 exports.vscodeWebResourceIncludes = vscodeWebResourceIncludes;
 
@@ -71,16 +70,16 @@ const vscodeWebResources = [
 const buildfile = require('../src/buildfile');
 
 const vscodeWebEntryPoints = [
-	buildfile.entrypoint('vs/workbench/workbench.web.main'),
 	buildfile.base,
 	buildfile.workerExtensionHost,
 	buildfile.workerNotebook,
 	buildfile.workerLanguageDetection,
 	buildfile.workerLocalFileSearch,
+	buildfile.workerOutputLinks,
+	buildfile.workerBackgroundTokenization,
 	buildfile.keyboardMaps,
 	buildfile.workbenchWeb
 ].flat();
-exports.vscodeWebEntryPoints = vscodeWebEntryPoints;
 
 /**
  * @param {object} product The parsed product.json file contents

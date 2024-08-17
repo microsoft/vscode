@@ -301,16 +301,18 @@ const skippedExportMangledFiles = [
 	// entry points
 	...[
 		buildfile.entrypoint('vs/server/node/server.main', []),
-		buildfile.entrypoint('vs/workbench/workbench.desktop.main', []),
 		buildfile.base,
 		buildfile.workerExtensionHost,
 		buildfile.workerNotebook,
 		buildfile.workerLanguageDetection,
 		buildfile.workerLocalFileSearch,
 		buildfile.workerProfileAnalysis,
+		buildfile.workerOutputLinks,
+		buildfile.workerBackgroundTokenization,
 		buildfile.workbenchDesktop,
 		buildfile.workbenchWeb,
-		buildfile.code
+		buildfile.code,
+		buildfile.codeWeb
 	].flat().map(x => x.name),
 ];
 

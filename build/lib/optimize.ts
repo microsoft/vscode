@@ -360,6 +360,7 @@ function optimizeESMTask(opts: IOptimizeAMDTaskOpts, cjsOpts?: IOptimizeCommonJS
 					'.png': 'file',
 					'.sh': 'file',
 				},
+				assetNames: 'media/[name]', // moves media assets into a sub-folder "media"
 				banner,
 				entryPoints: [
 					{

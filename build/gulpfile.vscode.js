@@ -39,13 +39,14 @@ const rcedit = promisify(require('rcedit'));
 
 // Build
 const vscodeEntryPoints = [
-	buildfile.entrypoint('vs/workbench/workbench.desktop.main'),
 	buildfile.base,
 	buildfile.workerExtensionHost,
 	buildfile.workerNotebook,
 	buildfile.workerLanguageDetection,
 	buildfile.workerLocalFileSearch,
 	buildfile.workerProfileAnalysis,
+	buildfile.workerOutputLinks,
+	buildfile.workerBackgroundTokenization,
 	buildfile.workbenchDesktop,
 	buildfile.code
 ].flat();
@@ -73,7 +74,6 @@ const vscodeResources = [
 	'out-build/vs/workbench/contrib/webview/browser/pre/*.js',
 	'!out-build/vs/workbench/contrib/issue/**/*-dev.html',
 	'!out-build/vs/workbench/contrib/issue/**/*-dev.esm.html',
-	'out-build/vs/**/markdown.css',
 	'out-build/vs/workbench/contrib/tasks/**/*.json',
 	'!**/test/**'
 ];

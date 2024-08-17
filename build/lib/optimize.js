@@ -265,6 +265,7 @@ function optimizeESMTask(opts, cjsOpts) {
                     '.png': 'file',
                     '.sh': 'file',
                 },
+                assetNames: 'media/[name]', // moves media assets into a sub-folder "media"
                 banner,
                 entryPoints: [
                     {
