@@ -732,7 +732,7 @@ registerAction2(class ToggleInlineCoverage extends Action2 {
 			category: Categories.Test,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.Semicolon, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyI),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Digit2, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyI),
 			},
 			icon: testingCoverageReport,
 			menu: [
