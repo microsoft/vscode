@@ -13,7 +13,7 @@ import { URI } from 'vs/base/common/uri';
 import { isWeb } from 'vs/base/common/platform';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IModelService } from 'vs/editor/common/services/model';
-import { SimpleWorkerClient } from 'vs/base/common/worker/simpleWorker';
+import { IWorkerClient, SimpleWorkerClient } from 'vs/base/common/worker/simpleWorker';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IDiagnosticsService } from 'vs/platform/diagnostics/common/diagnostics';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -24,7 +24,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { canASAR } from 'vs/base/common/amd';
 import { DefaultWorkerFactory } from 'vs/base/browser/defaultWorkerFactory';
 import { WorkerTextModelSyncClient } from 'vs/editor/common/services/textModelSync/textModelSync.impl';
-import { ILanguageDetectionClient, ILanguageDetectionWorker } from 'vs/workbench/services/languageDetection/browser/languageDetectionWorker.protocol';
+import { ILanguageDetectionWorker, LanguageDetectionWorkerHost } from 'vs/workbench/services/languageDetection/browser/languageDetectionWorker.protocol';
 
 const TOP_LANG_COUNTS = 12;
 
@@ -177,50 +177,6 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 	}
 }
 
-export interface IWorkerClient<W> {
-	getProxyObject(): Promise<W>;
-	dispose(): void;
-}
-
-export class LanguageDetectionWorkerHost {
-	constructor(
-		private _indexJsUri: string,
-		private _modelJsonUri: string,
-		private _weightsUri: string,
-		private _telemetryService: ITelemetryService,
-	) {
-	}
-
-	async getIndexJsUri() {
-		return this._indexJsUri;
-	}
-
-	async getModelJsonUri() {
-		return this._modelJsonUri;
-	}
-
-	async getWeightsUri() {
-		return this._weightsUri;
-	}
-
-	async sendTelemetryEvent(languages: string[], confidences: number[], timeSpent: number): Promise<void> {
-		type LanguageDetectionStats = { languages: string; confidences: string; timeSpent: number };
-		type LanguageDetectionStatsClassification = {
-			owner: 'TylerLeonhardt';
-			comment: 'Helps understand how effective language detection is via confidences and how long it takes to run';
-			languages: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The languages that are guessed' };
-			confidences: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The confidences of each language guessed' };
-			timeSpent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The time it took to run language detection' };
-		};
-
-		this._telemetryService.publicLog2<LanguageDetectionStats, LanguageDetectionStatsClassification>('automaticlanguagedetection.stats', {
-			languages: languages.join(','),
-			confidences: confidences.join(','),
-			timeSpent
-		});
-	}
-}
-
 export class LanguageDetectionWorkerClient extends Disposable {
 	private readonly _workerFactory = new DefaultWorkerFactory(FileAccess.asBrowserUri('vs/base/worker/workerMain.js'), 'languageDetectionWorkerService');
 	private workerPromise: Promise<{
@@ -249,18 +205,18 @@ export class LanguageDetectionWorkerClient extends Disposable {
 		}
 
 		this.workerPromise = new Promise((resolve, reject) => {
-			const workerClient = this._register(new SimpleWorkerClient<ILanguageDetectionWorker, ILanguageDetectionClient>(
+			const workerClient = this._register(new SimpleWorkerClient<ILanguageDetectionWorker, void>(
 				this._workerFactory,
-				'vs/workbench/services/languageDetection/browser/languageDetectionSimpleWorker',
-				{
-					getIndexJsUri: async () => this.getIndexJsUri(),
-					getLanguageId: async (languageIdOrExt) => this.getLanguageId(languageIdOrExt),
-					sendTelemetryEvent: async (languages, confidences, timeSpent) => this.sendTelemetryEvent(languages, confidences, timeSpent),
-					getRegexpModelUri: async () => this.getRegexpModelUri(),
-					getModelJsonUri: async () => this.getModelJsonUri(),
-					getWeightsUri: async () => this.getWeightsUri(),
-				}
+				'vs/workbench/services/languageDetection/browser/languageDetectionSimpleWorker'
 			));
+			LanguageDetectionWorkerHost.setChannel(workerClient, {
+				$getIndexJsUri: async () => this.getIndexJsUri(),
+				$getLanguageId: async (languageIdOrExt) => this.getLanguageId(languageIdOrExt),
+				$sendTelemetryEvent: async (languages, confidences, timeSpent) => this.sendTelemetryEvent(languages, confidences, timeSpent),
+				$getRegexpModelUri: async () => this.getRegexpModelUri(),
+				$getModelJsonUri: async () => this.getModelJsonUri(),
+				$getWeightsUri: async () => this.getWeightsUri(),
+			});
 			const workerTextModelSyncClient = WorkerTextModelSyncClient.create(workerClient, this._modelService);
 			resolve({ workerClient, workerTextModelSyncClient });
 		});
