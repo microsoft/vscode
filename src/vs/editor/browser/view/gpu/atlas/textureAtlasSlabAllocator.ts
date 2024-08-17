@@ -322,9 +322,7 @@ export class TextureAtlasSlabAllocator implements ITextureAtlasAllocator {
 		let slabEntryPixels = 0;
 		let usedPixels = 0;
 		let slabEdgePixels = 0;
-		let wastedPixels = 0;
 		let restrictedPixels = 0;
-		const totalPixels = w * h;
 		const slabW = 64 << (Math.floor(getActiveWindow().devicePixelRatio) - 1);
 		const slabH = slabW;
 
@@ -365,31 +363,72 @@ export class TextureAtlasSlabAllocator implements ITextureAtlasAllocator {
 			restrictedPixels += r.w * r.h;
 		}
 
-		const edgeUsedPixels = slabEdgePixels - restrictedPixels;
-		console.log({ edgeUsedPixels, slabEdgePixels, restrictedPixels });
-		wastedPixels = slabEntryPixels - (usedPixels - edgeUsedPixels);
-
 
 		// Overlay actual glyphs on top
 		ctx.globalAlpha = 0.5;
 		ctx.drawImage(this._canvas, 0, 0);
 		ctx.globalAlpha = 1;
 
+		return canvas.convertToBlob();
+	}
+
+	public getStats(): string {
+		const w = this._canvas.width;
+		const h = this._canvas.height;
+
+		let slabEntryPixels = 0;
+		let usedPixels = 0;
+		let slabEdgePixels = 0;
+		let wastedPixels = 0;
+		let restrictedPixels = 0;
+		const totalPixels = w * h;
+		const slabW = 64 << (Math.floor(getActiveWindow().devicePixelRatio) - 1);
+		const slabH = slabW;
+
+		// Draw wasted underneath glyphs first
+		for (const slab of this._slabs) {
+			let x = 0;
+			let y = 0;
+			for (let i = 0; i < slab.count; i++) {
+				if (x + slab.entryW > slabW) {
+					x = 0;
+					y += slab.entryH;
+				}
+				slabEntryPixels += slab.entryW * slab.entryH;
+				x += slab.entryW;
+			}
+			const entriesPerRow = Math.floor(slabW / slab.entryW);
+			const entriesPerCol = Math.floor(slabH / slab.entryH);
+			const thisSlabPixels = slab.entryW * entriesPerRow * slab.entryH * entriesPerCol;
+			slabEdgePixels += (slabW * slabH) - thisSlabPixels;
+		}
+
+		// Draw glyphs
+		for (const g of this.glyphMap.values()) {
+			usedPixels += g.w * g.h;
+		}
+
+		// Draw unused space on side
+		const unusedRegions = Array.from(this._openRegionsByWidth.values()).flat().concat(Array.from(this._openRegionsByHeight.values()).flat());
+		for (const r of unusedRegions) {
+			restrictedPixels += r.w * r.h;
+		}
+
+		const edgeUsedPixels = slabEdgePixels - restrictedPixels;
+		wastedPixels = slabEntryPixels - (usedPixels - edgeUsedPixels);
+
 		// usedPixels += slabEdgePixels - restrictedPixels;
 		const efficiency = usedPixels / (usedPixels + wastedPixels + restrictedPixels);
 
-		// Report stats
-		console.log([
-			`Texture atlas stats:`,
-			`     Total: ${totalPixels}px`,
+		return [
+			`page[${this._textureIndex}]:`,
+			`     Total: ${totalPixels}px (${w}x${h})`,
 			`      Used: ${usedPixels}px (${((usedPixels / totalPixels) * 100).toFixed(2)}%)`,
 			`    Wasted: ${wastedPixels}px (${((wastedPixels / totalPixels) * 100).toFixed(2)}%)`,
 			`Restricted: ${restrictedPixels}px (${((restrictedPixels / totalPixels) * 100).toFixed(2)}%) (hard to allocate)`,
 			`Efficiency: ${efficiency === 1 ? '100' : (efficiency * 100).toFixed(2)}%`,
 			`     Slabs: ${this._slabs.length} of ${Math.floor(this._canvas.width / slabW) * Math.floor(this._canvas.height / slabH)}`
-		].join('\n'));
-
-		return canvas.convertToBlob();
+		].join('\n');
 	}
 }
 

@@ -67,6 +67,10 @@ export class TextureAtlas extends Disposable {
 		return Promise.all(this._pages.map(e => e.getUsagePreview()));
 	}
 
+	public getStats(): string[] {
+		return this._pages.map(e => e.getStats());
+	}
+
 	/**
 	 * Warms up the atlas by rasterizing all printable ASCII characters for each token color. This
 	 * is distrubuted over multiple idle callbacks to avoid blocking the main thread.

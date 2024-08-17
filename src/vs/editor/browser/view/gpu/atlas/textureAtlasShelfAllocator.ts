@@ -95,6 +95,31 @@ export class TextureAtlasShelfAllocator implements ITextureAtlasAllocator {
 		ctx.fillStyle = '#808080';
 		ctx.fillRect(0, 0, w, h);
 
+		const rowHeight: Map<number, number> = new Map(); // y -> h
+		const rowWidth: Map<number, number> = new Map(); // y -> w
+		for (const g of this.glyphMap.values()) {
+			rowHeight.set(g.y, Math.max(rowHeight.get(g.y) ?? 0, g.h));
+			rowWidth.set(g.y, Math.max(rowWidth.get(g.y) ?? 0, g.x + g.w));
+		}
+		for (const g of this.glyphMap.values()) {
+			ctx.fillStyle = '#4040FF';
+			ctx.fillRect(g.x, g.y, g.w, g.h);
+			ctx.fillStyle = '#FF0000';
+			ctx.fillRect(g.x, g.y + g.h, g.w, rowHeight.get(g.y)! - g.h);
+		}
+		for (const [rowY, rowW] of rowWidth.entries()) {
+			if (rowY !== this._currentRow.y) {
+				ctx.fillStyle = '#FF0000';
+				ctx.fillRect(rowW, rowY, w - rowW, rowHeight.get(rowY)!);
+			}
+		}
+		return canvas.convertToBlob();
+	}
+
+	getStats(): string {
+		const w = this._canvas.width;
+		const h = this._canvas.height;
+
 		let usedPixels = 0;
 		let wastedPixels = 0;
 		const totalPixels = w * h;
@@ -108,26 +133,19 @@ export class TextureAtlasShelfAllocator implements ITextureAtlasAllocator {
 		for (const g of this.glyphMap.values()) {
 			usedPixels += g.w * g.h;
 			wastedPixels += g.w * (rowHeight.get(g.y)! - g.h);
-			ctx.fillStyle = '#4040FF';
-			ctx.fillRect(g.x, g.y, g.w, g.h);
-			ctx.fillStyle = '#FF0000';
-			ctx.fillRect(g.x, g.y + g.h, g.w, rowHeight.get(g.y)! - g.h);
 		}
 		for (const [rowY, rowW] of rowWidth.entries()) {
 			if (rowY !== this._currentRow.y) {
-				ctx.fillStyle = '#FF0000';
-				ctx.fillRect(rowW, rowY, w - rowW, rowHeight.get(rowY)!);
 				wastedPixels += (w - rowW) * rowHeight.get(rowY)!;
 			}
 		}
-		console.log([
-			`Texture atlas stats:`,
-			`     Total: ${totalPixels}`,
+		return [
+			`page${this._textureIndex}:`,
+			`     Total: ${totalPixels} (${w}x${h})`,
 			`      Used: ${usedPixels} (${((usedPixels / totalPixels) * 100).toPrecision(2)}%)`,
 			`    Wasted: ${wastedPixels} (${((wastedPixels / totalPixels) * 100).toPrecision(2)}%)`,
 			`Efficiency: ${((usedPixels / (usedPixels + wastedPixels)) * 100).toPrecision(2)}%`,
-		].join('\n'));
-		return canvas.convertToBlob();
+		].join('\n');
 	}
 }
 

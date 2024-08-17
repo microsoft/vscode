@@ -35,6 +35,7 @@ export interface ITextureAtlasAllocator {
 	 * Gets a usage preview of the atlas for debugging purposes.
 	 */
 	getUsagePreview(): Promise<Blob>;
+	getStats(): string;
 }
 
 export interface IReadableTextureAtlasPage {
@@ -43,4 +44,5 @@ export interface IReadableTextureAtlasPage {
 	readonly glyphs: IterableIterator<Readonly<ITextureAtlasGlyph>>;
 	readonly source: OffscreenCanvas;
 	getUsagePreview(): Promise<Blob>;
+	getStats(): string;
 }

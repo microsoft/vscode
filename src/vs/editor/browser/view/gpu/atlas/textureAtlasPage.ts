@@ -107,4 +107,8 @@ export class TextureAtlasPage extends Disposable implements IReadableTextureAtla
 		// TODO: Standardize usage stats and make them loggable
 		return this._allocator.getUsagePreview();
 	}
+
+	getStats(): string {
+		return this._allocator.getStats();
+	}
 }

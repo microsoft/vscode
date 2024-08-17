@@ -4,10 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getActiveWindow } from 'vs/base/browser/dom';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { debounce } from 'vs/base/common/decorators';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
 import type { ITextureAtlasGlyph } from 'vs/editor/browser/view/gpu/atlas/atlas';
 import { TextureAtlas } from 'vs/editor/browser/view/gpu/atlas/textureAtlas';
 import { GPULifecycle } from 'vs/editor/browser/view/gpu/gpuDisposable';
@@ -19,9 +16,7 @@ import type { IViewLineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import type { ViewLineRenderingData } from 'vs/editor/common/viewModel';
 import type { ViewContext } from 'vs/editor/common/viewModel/viewContext';
-import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 export const disableNonGpuRendering = true;
 
@@ -73,7 +68,7 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> extends Disposable {
 	private _vertexBuffer!: GPUBuffer;
 	private _quadVertices!: { vertexData: Float32Array; numVertices: number };
 
-	private static _atlas: TextureAtlas;
+	static atlas: TextureAtlas;
 
 	private readonly _glyphStorageBuffer: GPUBuffer[] = [];
 	private _atlasGpuTexture!: GPUTexture;
@@ -88,9 +83,7 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> extends Disposable {
 		private readonly _context: ViewContext,
 		host: IVisibleLinesHost<T>,
 		viewportData: ViewportData,
-		@IFileService private readonly _fileService: IFileService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 	) {
 		super();
 
@@ -120,13 +113,13 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> extends Disposable {
 
 
 		// Create texture atlas
-		if (!GpuViewLayerRenderer._atlas) {
-			GpuViewLayerRenderer._atlas = this._instantiationService.createInstance(TextureAtlas, this._device.limits.maxTextureDimension2D);
+		if (!GpuViewLayerRenderer.atlas) {
+			GpuViewLayerRenderer.atlas = this._instantiationService.createInstance(TextureAtlas, this._device.limits.maxTextureDimension2D);
 		}
-		const atlas = GpuViewLayerRenderer._atlas;
+		const atlas = GpuViewLayerRenderer.atlas;
 
 
-		this._renderStrategy = this._register(this._instantiationService.createInstance(FullFileRenderStrategy, this._context, this._device, this.domNode, this.viewportData, GpuViewLayerRenderer._atlas));
+		this._renderStrategy = this._register(this._instantiationService.createInstance(FullFileRenderStrategy, this._context, this._device, this.domNode, this.viewportData, GpuViewLayerRenderer.atlas));
 
 		const module = this._device.createShaderModule({
 			label: 'Monaco shader module',
@@ -307,7 +300,7 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> extends Disposable {
 	}
 
 	private _updateAtlas() {
-		const atlas = GpuViewLayerRenderer._atlas;
+		const atlas = GpuViewLayerRenderer.atlas;
 
 		for (const [layerIndex, page] of atlas.pages.entries()) {
 			// Skip the update if it's already the latest version
@@ -345,30 +338,6 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> extends Disposable {
 				},
 			);
 			this._atlasGpuTextureVersions[layerIndex] = page.version;
-		}
-
-		GpuViewLayerRenderer._drawToAtlas(this._fileService, this._workspaceContextService);
-	}
-
-	@debounce(500)
-	private static async _drawToAtlas(fileService: IFileService, workspaceContextService: IWorkspaceContextService) {
-		const folders = workspaceContextService.getWorkspace().folders;
-		if (folders.length > 0) {
-			const atlas = GpuViewLayerRenderer._atlas;
-			const promises = [];
-			for (const [layerIndex, page] of atlas.pages.entries()) {
-				promises.push(...[
-					fileService.writeFile(
-						URI.joinPath(folders[0].uri, `atlasPage${layerIndex}_usage.png`),
-						VSBuffer.wrap(new Uint8Array(await (await page.getUsagePreview()).arrayBuffer()))
-					),
-					fileService.writeFile(
-						URI.joinPath(folders[0].uri, `atlasPage${layerIndex}_actual.png`),
-						VSBuffer.wrap(new Uint8Array(await (await page.source.convertToBlob()).arrayBuffer()))
-					),
-				]);
-			}
-			await promises;
 		}
 	}
 
