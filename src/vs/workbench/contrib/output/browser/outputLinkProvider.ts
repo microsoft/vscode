@@ -90,7 +90,7 @@ export class OutputLinkProvider extends Disposable {
 
 class OutputLinkWorkerClient extends Disposable {
 	private readonly _workerFactory = new DefaultWorkerFactory(FileAccess.asBrowserUri('vs/base/worker/workerMain.js'), 'outputLinkComputer');
-	private readonly _workerClient: SimpleWorkerClient<OutputLinkComputer, void>;
+	private readonly _workerClient: SimpleWorkerClient<OutputLinkComputer>;
 	private readonly _workerTextModelSyncClient: WorkerTextModelSyncClient;
 	private readonly _initializeBarrier: Promise<void>;
 
@@ -99,7 +99,7 @@ class OutputLinkWorkerClient extends Disposable {
 		@IModelService modelService: IModelService,
 	) {
 		super();
-		this._workerClient = this._register(new SimpleWorkerClient<OutputLinkComputer, void>(
+		this._workerClient = this._register(new SimpleWorkerClient<OutputLinkComputer>(
 			this._workerFactory,
 			'vs/workbench/contrib/output/common/outputLinkComputer',
 		));

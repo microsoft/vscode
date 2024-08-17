@@ -228,7 +228,7 @@ class NotebookWorkerClient extends Disposable {
 	private _getOrCreateWorker(): IWorkerClient<NotebookEditorSimpleWorker> {
 		if (!this._worker) {
 			try {
-				this._worker = this._register(new SimpleWorkerClient<NotebookEditorSimpleWorker, void>(
+				this._worker = this._register(new SimpleWorkerClient<NotebookEditorSimpleWorker>(
 					this._workerFactory,
 					'vs/workbench/contrib/notebook/common/services/notebookSimpleWorker'
 				));

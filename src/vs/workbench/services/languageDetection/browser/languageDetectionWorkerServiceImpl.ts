@@ -205,7 +205,7 @@ export class LanguageDetectionWorkerClient extends Disposable {
 		}
 
 		this.workerPromise = new Promise((resolve, reject) => {
-			const workerClient = this._register(new SimpleWorkerClient<ILanguageDetectionWorker, void>(
+			const workerClient = this._register(new SimpleWorkerClient<ILanguageDetectionWorker>(
 				this._workerFactory,
 				'vs/workbench/services/languageDetection/browser/languageDetectionSimpleWorker'
 			));

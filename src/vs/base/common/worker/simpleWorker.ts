@@ -305,7 +305,7 @@ export interface IWorkerServer {
 /**
  * Main thread side
  */
-export class SimpleWorkerClient<W extends object, H extends object | void> extends Disposable implements IWorkerClient<W> {
+export class SimpleWorkerClient<W extends object> extends Disposable implements IWorkerClient<W> {
 
 	private readonly _worker: IWorker;
 	private readonly _onModuleLoaded: Promise<string[]>;
@@ -316,8 +316,7 @@ export class SimpleWorkerClient<W extends object, H extends object | void> exten
 
 	constructor(
 		workerFactory: IWorkerFactory,
-		moduleId: string,
-		private readonly _host?: H,
+		moduleId: string
 	) {
 		super();
 
@@ -360,14 +359,11 @@ export class SimpleWorkerClient<W extends object, H extends object | void> exten
 			loaderConfiguration = (globalThis as any).requirejs.s.contexts._.config;
 		}
 
-		const hostMethods = getAllMethodNames(_host ?? {});
-
 		// Send initialize message
 		this._onModuleLoaded = this._protocol.sendMessage(DEFAULT_CHANNEL, INITIALIZE, [
 			this._worker.getId(),
 			JSON.parse(JSON.stringify(loaderConfiguration)),
 			moduleId,
-			hostMethods,
 		]);
 
 		// Create proxy to loaded code
@@ -389,38 +385,38 @@ export class SimpleWorkerClient<W extends object, H extends object | void> exten
 		});
 	}
 
-	private _handleMessage(channel: string, method: string, args: any[]): Promise<any> {
-		const host: object | void | undefined = (channel === DEFAULT_CHANNEL ? this._host : this._localChannels.get(channel));
-		if (!host) {
-			return Promise.reject(new Error(`Missing channel ${channel} on main thread`));
+	private _handleMessage(channelName: string, method: string, args: any[]): Promise<any> {
+		const channel: object | undefined = this._localChannels.get(channelName);
+		if (!channel) {
+			return Promise.reject(new Error(`Missing channel ${channelName} on main thread`));
 		}
-		if (typeof (host as any)[method] !== 'function') {
-			return Promise.reject(new Error(`Missing method ${method} on main thread channel ${channel}`));
+		if (typeof (channel as any)[method] !== 'function') {
+			return Promise.reject(new Error(`Missing method ${method} on main thread channel ${channelName}`));
 		}
 
 		try {
-			return Promise.resolve((host as any)[method].apply(host, args));
+			return Promise.resolve((channel as any)[method].apply(channel, args));
 		} catch (e) {
 			return Promise.reject(e);
 		}
 	}
 
-	private _handleEvent(channel: string, eventName: string, arg: any): Event<any> {
-		const host: object | void | undefined = (channel === DEFAULT_CHANNEL ? this._host : this._localChannels.get(channel));
-		if (!host) {
-			throw new Error(`Missing channel ${channel} on main thread`);
+	private _handleEvent(channelName: string, eventName: string, arg: any): Event<any> {
+		const channel: object | undefined = this._localChannels.get(channelName);
+		if (!channel) {
+			throw new Error(`Missing channel ${channelName} on main thread`);
 		}
 		if (propertyIsDynamicEvent(eventName)) {
-			const event = (host as any)[eventName].call(host, arg);
+			const event = (channel as any)[eventName].call(channel, arg);
 			if (typeof event !== 'function') {
-				throw new Error(`Missing dynamic event ${eventName} on main thread channel ${channel}.`);
+				throw new Error(`Missing dynamic event ${eventName} on main thread channel ${channelName}.`);
 			}
 			return event;
 		}
 		if (propertyIsEvent(eventName)) {
-			const event = (host as any)[eventName];
+			const event = (channel as any)[eventName];
 			if (typeof event !== 'function') {
-				throw new Error(`Missing event ${eventName} on main thread channel ${channel}.`);
+				throw new Error(`Missing event ${eventName} on main thread channel ${channelName}.`);
 			}
 			return event;
 		}
@@ -504,22 +500,22 @@ export interface IRequestHandler {
 	[prop: string]: any;
 }
 
-export interface IRequestHandlerFactory<H> {
-	(workerServer: IWorkerServer, host: H): IRequestHandler;
+export interface IRequestHandlerFactory {
+	(workerServer: IWorkerServer): IRequestHandler;
 }
 
 /**
  * Worker side
  */
-export class SimpleWorkerServer<H extends object> implements IWorkerServer {
+export class SimpleWorkerServer implements IWorkerServer {
 
-	private _requestHandlerFactory: IRequestHandlerFactory<H> | null;
+	private _requestHandlerFactory: IRequestHandlerFactory | null;
 	private _requestHandler: IRequestHandler | null;
 	private _protocol: SimpleWorkerProtocol;
 	private readonly _localChannels: Map<string, object> = new Map();
 	private readonly _remoteChannels: Map<string, object> = new Map();
 
-	constructor(postMessage: (msg: Message, transfer?: ArrayBuffer[]) => void, requestHandlerFactory: IRequestHandlerFactory<H> | null) {
+	constructor(postMessage: (msg: Message, transfer?: ArrayBuffer[]) => void, requestHandlerFactory: IRequestHandlerFactory | null) {
 		this._requestHandlerFactory = requestHandlerFactory;
 		this._requestHandler = null;
 		this._protocol = new SimpleWorkerProtocol({
@@ -537,7 +533,7 @@ export class SimpleWorkerServer<H extends object> implements IWorkerServer {
 
 	private _handleMessage(channel: string, method: string, args: any[]): Promise<any> {
 		if (channel === DEFAULT_CHANNEL && method === INITIALIZE) {
-			return this.initialize(<number>args[0], <any>args[1], <string>args[2], <string[]>args[3]);
+			return this.initialize(<number>args[0], <any>args[1], <string>args[2]);
 		}
 
 		const requestHandler: object | null | undefined = (channel === DEFAULT_CHANNEL ? this._requestHandler : this._localChannels.get(channel));
@@ -589,21 +585,12 @@ export class SimpleWorkerServer<H extends object> implements IWorkerServer {
 		return this._remoteChannels.get(channel) as T;
 	}
 
-	private initialize(workerId: number, loaderConfig: any, moduleId: string, hostMethods: string[]): Promise<string[]> {
+	private initialize(workerId: number, loaderConfig: any, moduleId: string): Promise<string[]> {
 		this._protocol.setWorkerId(workerId);
-
-		const proxyMethodRequest = (method: string, args: any[]): Promise<any> => {
-			return this._protocol.sendMessage(DEFAULT_CHANNEL, method, args);
-		};
-		const proxyListen = (eventName: string, arg: any): Event<any> => {
-			return this._protocol.listen(DEFAULT_CHANNEL, eventName, arg);
-		};
-
-		const hostProxy = createProxyObject<H>(hostMethods, proxyMethodRequest, proxyListen);
 
 		if (this._requestHandlerFactory) {
 			// static request handler
-			this._requestHandler = this._requestHandlerFactory(this, hostProxy);
+			this._requestHandler = this._requestHandlerFactory(this);
 			return Promise.resolve(getAllMethodNames(this._requestHandler));
 		}
 
@@ -629,8 +616,8 @@ export class SimpleWorkerServer<H extends object> implements IWorkerServer {
 
 		if (isESM) {
 			const url = FileAccess.asBrowserUri(`${moduleId}.js` as AppResourcePath).toString(true);
-			return import(`${url}`).then((module: { create: IRequestHandlerFactory<H> }) => {
-				this._requestHandler = module.create(this, hostProxy);
+			return import(`${url}`).then((module: { create: IRequestHandlerFactory }) => {
+				this._requestHandler = module.create(this);
 
 				if (!this._requestHandler) {
 					throw new Error(`No RequestHandler!`);
@@ -650,8 +637,8 @@ export class SimpleWorkerServer<H extends object> implements IWorkerServer {
 			// const req = globalThis.require;
 			// ESM-uncomment-end
 
-			req([moduleId], (module: { create: IRequestHandlerFactory<H> }) => {
-				this._requestHandler = module.create(this, hostProxy);
+			req([moduleId], (module: { create: IRequestHandlerFactory }) => {
+				this._requestHandler = module.create(this);
 
 				if (!this._requestHandler) {
 					reject(new Error(`No RequestHandler!`));
@@ -668,6 +655,6 @@ export class SimpleWorkerServer<H extends object> implements IWorkerServer {
  * Defines the worker entry point. Must be exported and named `create`.
  * @skipMangle
  */
-export function create(postMessage: (msg: Message, transfer?: ArrayBuffer[]) => void): SimpleWorkerServer<any> {
+export function create(postMessage: (msg: Message, transfer?: ArrayBuffer[]) => void): SimpleWorkerServer {
 	return new SimpleWorkerServer(postMessage, null);
 }

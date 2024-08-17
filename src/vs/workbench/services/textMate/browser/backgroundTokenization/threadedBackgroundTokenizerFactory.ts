@@ -30,7 +30,7 @@ export class ThreadedBackgroundTokenizerFactory implements IDisposable {
 
 	private readonly _workerFactory = new DefaultWorkerFactory(FileAccess.asBrowserUri('vs/base/worker/workerMain.js'), 'textMateWorker');
 	private _workerProxyPromise: Promise<TextMateTokenizationWorker | null> | null = null;
-	private _worker: SimpleWorkerClient<TextMateTokenizationWorker, void> | null = null;
+	private _worker: SimpleWorkerClient<TextMateTokenizationWorker> | null = null;
 	private _workerProxy: TextMateTokenizationWorker | null = null;
 	private readonly _workerTokenizerControllers = new Map</* backgroundTokenizerId */number, TextMateWorkerTokenizerController>();
 
@@ -138,7 +138,7 @@ export class ThreadedBackgroundTokenizerFactory implements IDisposable {
 			grammarDefinitions: this._grammarDefinitions,
 			onigurumaWASMUri: FileAccess.asBrowserUri(onigurumaWASM).toString(true),
 		};
-		const worker = this._worker = new SimpleWorkerClient<TextMateTokenizationWorker, void>(
+		const worker = this._worker = new SimpleWorkerClient<TextMateTokenizationWorker>(
 			this._workerFactory,
 			'vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker'
 		);

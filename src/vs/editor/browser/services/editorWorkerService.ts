@@ -400,7 +400,7 @@ export class EditorWorkerClient extends Disposable implements IEditorWorkerClien
 	private _getOrCreateWorker(): IWorkerClient<EditorSimpleWorker> {
 		if (!this._worker) {
 			try {
-				this._worker = this._register(new SimpleWorkerClient<EditorSimpleWorker, void>(
+				this._worker = this._register(new SimpleWorkerClient<EditorSimpleWorker>(
 					this._workerFactory,
 					'vs/editor/common/services/editorSimpleWorker'
 				));
