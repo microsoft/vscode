@@ -88,6 +88,17 @@ export class KeybindingResolver {
 		}
 	}
 
+	private _getKeybindingPriority(item: ResolvedKeybindingItem): number {
+		if (!item.isDefault) {
+			return 3; // User keybindings (highest priority)
+		}
+		if (item.extensionId === 'pearai.pearai') {
+			// todo: remove id hardcode and extract extension id from env or settings
+			return 2; // Pear AI keybindings
+		}
+		return 1; // Other extensions' keybindings
+	}
+
 	private static _isTargetedForRemoval(defaultKb: ResolvedKeybindingItem, keypress: string[] | null, when: ContextKeyExpression | undefined): boolean {
 		if (keypress) {
 			for (let i = 0; i < keypress.length; i++) {
@@ -164,7 +175,12 @@ export class KeybindingResolver {
 				continue;
 			}
 		}
-		return result;
+		// Sort the result array based on priority before returning
+    	return result.sort((a, b) => {
+			const priorityA = a.isDefault ? (a.extensionId === 'pearai.pearai' ? 2 : 1) : 3;
+			const priorityB = b.isDefault ? (b.extensionId === 'pearai.pearai' ? 2 : 1) : 3;
+			return priorityA - priorityB;
+		});
 	}
 
 	private _addKeyPress(keypress: string, item: ResolvedKeybindingItem): void {
@@ -207,6 +223,8 @@ export class KeybindingResolver {
 		}
 
 		conflicts.push(item);
+		conflicts.sort((a, b) => this._getKeybindingPriority(a) - this._getKeybindingPriority(b));
+		this._map.set(keypress, conflicts);
 		this._addToLookupMap(item);
 	}
 

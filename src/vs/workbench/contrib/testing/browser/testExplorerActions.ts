@@ -644,7 +644,7 @@ export class RunAllAction extends RunOrDebugAllTestsAction {
 				icon: icons.testingRunAllIcon,
 				keybinding: {
 					weight: KeybindingWeight.WorkbenchContrib,
-					primary: KeyChord(KeyMod.CtrlCmd | KeyCode.Semicolon, KeyCode.KeyA),
+					primary: KeyChord(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Digit2, KeyCode.KeyA),
 				},
 			},
 			TestRunProfileBitset.Run,
@@ -662,7 +662,7 @@ export class DebugAllAction extends RunOrDebugAllTestsAction {
 				icon: icons.testingDebugIcon,
 				keybinding: {
 					weight: KeybindingWeight.WorkbenchContrib,
-					primary: KeyChord(KeyMod.CtrlCmd | KeyCode.Semicolon, KeyMod.CtrlCmd | KeyCode.KeyA),
+					primary: KeyChord(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Digit2, KeyMod.CtrlCmd | KeyCode.KeyA),
 				},
 			},
 			TestRunProfileBitset.Debug,
@@ -680,7 +680,7 @@ export class CoverageAllAction extends RunOrDebugAllTestsAction {
 				icon: icons.testingCoverageIcon,
 				keybinding: {
 					weight: KeybindingWeight.WorkbenchContrib,
-					primary: KeyChord(KeyMod.CtrlCmd | KeyCode.Semicolon, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyA),
+					primary: KeyChord(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Digit2, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyA),
 				},
 			},
 			TestRunProfileBitset.Coverage,
@@ -697,7 +697,7 @@ export class CancelTestRunAction extends Action2 {
 			icon: icons.testingCancelIcon,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.Semicolon, KeyMod.CtrlCmd | KeyCode.KeyX),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Digit2, KeyMod.CtrlCmd | KeyCode.KeyX),
 			},
 			menu: {
 				id: MenuId.ViewTitle,
@@ -855,7 +855,7 @@ export class ShowMostRecentOutputAction extends Action2 {
 			icon: Codicon.terminal,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.Semicolon, KeyMod.CtrlCmd | KeyCode.KeyO),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Digit2, KeyMod.CtrlCmd | KeyCode.KeyO),
 			},
 			precondition: TestingContextKeys.hasAnyResults.isEqualTo(true),
 			menu: [{
@@ -1074,7 +1074,7 @@ export class RunAtCursor extends ExecuteTestAtCursor {
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				when: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.Semicolon, KeyCode.KeyC),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Digit2, KeyCode.KeyC),
 			},
 		}, TestRunProfileBitset.Run);
 	}
@@ -1089,7 +1089,7 @@ export class DebugAtCursor extends ExecuteTestAtCursor {
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				when: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.Semicolon, KeyMod.CtrlCmd | KeyCode.KeyC),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Digit2, KeyMod.CtrlCmd | KeyCode.KeyC),
 			},
 		}, TestRunProfileBitset.Debug);
 	}
@@ -1104,7 +1104,7 @@ export class CoverageAtCursor extends ExecuteTestAtCursor {
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				when: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.Semicolon, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyC),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Digit2, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyC),
 			},
 		}, TestRunProfileBitset.Coverage);
 	}
@@ -1248,7 +1248,7 @@ export class RunCurrentFile extends ExecuteTestsInCurrentFile {
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				when: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.Semicolon, KeyCode.KeyF),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Digit2, KeyCode.KeyF),
 			},
 		}, TestRunProfileBitset.Run);
 	}
@@ -1263,7 +1263,7 @@ export class DebugCurrentFile extends ExecuteTestsInCurrentFile {
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				when: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.Semicolon, KeyMod.CtrlCmd | KeyCode.KeyF),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Digit2, KeyMod.CtrlCmd | KeyCode.KeyF),
 			},
 		}, TestRunProfileBitset.Debug);
 	}
@@ -1278,7 +1278,7 @@ export class CoverageCurrentFile extends ExecuteTestsInCurrentFile {
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				when: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.Semicolon, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyF),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Digit2, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyF),
 			},
 		}, TestRunProfileBitset.Coverage);
 	}
@@ -1385,7 +1385,7 @@ export class ReRunFailedTests extends RunOrDebugFailedTests {
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.Semicolon, KeyCode.KeyE),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Digit2, KeyCode.KeyE),
 			},
 		});
 	}
@@ -1406,7 +1406,7 @@ export class DebugFailedTests extends RunOrDebugFailedTests {
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.Semicolon, KeyMod.CtrlCmd | KeyCode.KeyE),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Digit2, KeyMod.CtrlCmd | KeyCode.KeyE),
 			},
 		});
 	}
@@ -1427,7 +1427,7 @@ export class ReRunLastRun extends RunOrDebugLastRun {
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.Semicolon, KeyCode.KeyL),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Digit2, KeyCode.KeyL),
 			},
 		});
 	}
@@ -1448,7 +1448,7 @@ export class DebugLastRun extends RunOrDebugLastRun {
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.Semicolon, KeyMod.CtrlCmd | KeyCode.KeyL),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Digit2, KeyMod.CtrlCmd | KeyCode.KeyL),
 			},
 		});
 	}
@@ -1469,7 +1469,7 @@ export class CoverageLastRun extends RunOrDebugLastRun {
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.Semicolon, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyL),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Digit2, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyL),
 			},
 		});
 	}
@@ -1506,7 +1506,7 @@ export class OpenOutputPeek extends Action2 {
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.Semicolon, KeyMod.CtrlCmd | KeyCode.KeyM),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Digit2, KeyMod.CtrlCmd | KeyCode.KeyM),
 			},
 			menu: {
 				id: MenuId.CommandPalette,
@@ -1528,7 +1528,7 @@ export class ToggleInlineTestOutput extends Action2 {
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.Semicolon, KeyMod.CtrlCmd | KeyCode.KeyI),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Digit2, KeyMod.CtrlCmd | KeyCode.KeyI),
 			},
 			menu: {
 				id: MenuId.CommandPalette,
@@ -1578,7 +1578,7 @@ export class RefreshTestsAction extends Action2 {
 			icon: icons.testingRefreshTests,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.Semicolon, KeyMod.CtrlCmd | KeyCode.KeyR),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Digit2, KeyMod.CtrlCmd | KeyCode.KeyR),
 				when: TestingContextKeys.canRefreshTests.isEqualTo(true),
 			},
 			menu: refreshMenus(false),
