@@ -22,14 +22,14 @@ import { TextMateWorkerHost } from './worker/textMateWorkerHost';
 import { TextMateWorkerTokenizerController } from 'vs/workbench/services/textMate/browser/backgroundTokenization/textMateWorkerTokenizerController';
 import { IValidGrammarDefinition } from 'vs/workbench/services/textMate/common/TMScopeRegistry';
 import type { IRawTheme } from 'vscode-textmate';
-import { DefaultWorkerFactory, WorkerDescriptor } from 'vs/base/browser/defaultWorkerFactory';
-import { Proxied, SimpleWorkerClient } from 'vs/base/common/worker/simpleWorker';
+import { createWebWorker } from 'vs/base/browser/defaultWorkerFactory';
+import { IWorkerClient, Proxied } from 'vs/base/common/worker/simpleWorker';
 
 export class ThreadedBackgroundTokenizerFactory implements IDisposable {
 	private static _reportedMismatchingTokens = false;
 
 	private _workerProxyPromise: Promise<Proxied<TextMateTokenizationWorker> | null> | null = null;
-	private _worker: SimpleWorkerClient<TextMateTokenizationWorker> | null = null;
+	private _worker: IWorkerClient<TextMateTokenizationWorker> | null = null;
 	private _workerProxy: Proxied<TextMateTokenizationWorker> | null = null;
 	private readonly _workerTokenizerControllers = new Map</* backgroundTokenizerId */number, TextMateWorkerTokenizerController>();
 
@@ -137,12 +137,9 @@ export class ThreadedBackgroundTokenizerFactory implements IDisposable {
 			grammarDefinitions: this._grammarDefinitions,
 			onigurumaWASMUri: FileAccess.asBrowserUri(onigurumaWASM).toString(true),
 		};
-		const worker = this._worker = new SimpleWorkerClient<TextMateTokenizationWorker>(
-			new DefaultWorkerFactory(),
-			new WorkerDescriptor(
-				'vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker',
-				'textMateWorker'
-			)
+		const worker = this._worker = createWebWorker<TextMateTokenizationWorker>(
+			'vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker',
+			'textMateWorker'
 		);
 		TextMateWorkerHost.setChannel(worker, {
 			$readFile: async (_resource: UriComponents): Promise<string> => {

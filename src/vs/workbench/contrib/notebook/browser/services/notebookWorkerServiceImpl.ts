@@ -5,8 +5,8 @@
 
 import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { IWorkerClient, Proxied, SimpleWorkerClient } from 'vs/base/common/worker/simpleWorker';
-import { DefaultWorkerFactory, WorkerDescriptor } from 'vs/base/browser/defaultWorkerFactory';
+import { IWorkerClient, Proxied } from 'vs/base/common/worker/simpleWorker';
+import { createWebWorker } from 'vs/base/browser/defaultWorkerFactory';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { IMainCellDto, INotebookDiffResult, NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
@@ -220,12 +220,9 @@ class NotebookWorkerClient extends Disposable {
 	private _getOrCreateWorker(): IWorkerClient<NotebookEditorSimpleWorker> {
 		if (!this._worker) {
 			try {
-				this._worker = this._register(new SimpleWorkerClient<NotebookEditorSimpleWorker>(
-					new DefaultWorkerFactory(),
-					new WorkerDescriptor(
-						'vs/workbench/contrib/notebook/common/services/notebookSimpleWorker',
-						'notebookEditorWorkerService'
-					)
+				this._worker = this._register(createWebWorker<NotebookEditorSimpleWorker>(
+					'vs/workbench/contrib/notebook/common/services/notebookSimpleWorker',
+					'notebookEditorWorkerService'
 				));
 			} catch (err) {
 				// logOnceWebWorkerWarning(err);

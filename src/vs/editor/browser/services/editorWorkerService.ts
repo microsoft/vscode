@@ -6,8 +6,8 @@
 import { timeout } from 'vs/base/common/async';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { SimpleWorkerClient, logOnceWebWorkerWarning, IWorkerClient, Proxied } from 'vs/base/common/worker/simpleWorker';
-import { DefaultWorkerFactory, WorkerDescriptor } from 'vs/base/browser/defaultWorkerFactory';
+import { logOnceWebWorkerWarning, IWorkerClient, Proxied } from 'vs/base/common/worker/simpleWorker';
+import { createWebWorker } from 'vs/base/browser/defaultWorkerFactory';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
@@ -401,12 +401,9 @@ export class EditorWorkerClient extends Disposable implements IEditorWorkerClien
 	private _getOrCreateWorker(): IWorkerClient<EditorSimpleWorker> {
 		if (!this._worker) {
 			try {
-				this._worker = this._register(new SimpleWorkerClient<EditorSimpleWorker>(
-					new DefaultWorkerFactory(),
-					new WorkerDescriptor(
-						'vs/editor/common/services/editorSimpleWorker',
-						this._label
-					)
+				this._worker = this._register(createWebWorker<EditorSimpleWorker>(
+					'vs/editor/common/services/editorSimpleWorker',
+					this._label
 				));
 				EditorWorkerHost.setChannel(this._worker, this._createEditorWorkerHost());
 			} catch (err) {

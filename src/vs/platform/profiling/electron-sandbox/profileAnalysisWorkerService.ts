@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import { DefaultWorkerFactory, WorkerDescriptor } from 'vs/base/browser/defaultWorkerFactory';
+import { createWebWorker } from 'vs/base/browser/defaultWorkerFactory';
 import { URI } from 'vs/base/common/uri';
-import { Proxied, SimpleWorkerClient } from 'vs/base/common/worker/simpleWorker';
+import { Proxied } from 'vs/base/common/worker/simpleWorker';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -47,12 +47,9 @@ class ProfileAnalysisWorkerService implements IProfileAnalysisWorkerService {
 
 	private async _withWorker<R>(callback: (worker: Proxied<IProfileAnalysisWorker>) => Promise<R>): Promise<R> {
 
-		const worker = new SimpleWorkerClient<IProfileAnalysisWorker>(
-			new DefaultWorkerFactory(),
-			new WorkerDescriptor(
-				'vs/platform/profiling/electron-sandbox/profileAnalysisWorker',
-				'CpuProfileAnalysis'
-			)
+		const worker = createWebWorker<IProfileAnalysisWorker>(
+			'vs/platform/profiling/electron-sandbox/profileAnalysisWorker',
+			'CpuProfileAnalysis'
 		);
 
 		try {

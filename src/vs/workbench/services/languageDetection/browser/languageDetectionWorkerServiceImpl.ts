@@ -13,7 +13,7 @@ import { URI } from 'vs/base/common/uri';
 import { isWeb } from 'vs/base/common/platform';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IModelService } from 'vs/editor/common/services/model';
-import { IWorkerClient, SimpleWorkerClient } from 'vs/base/common/worker/simpleWorker';
+import { IWorkerClient } from 'vs/base/common/worker/simpleWorker';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IDiagnosticsService } from 'vs/platform/diagnostics/common/diagnostics';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -22,7 +22,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { LRUCache } from 'vs/base/common/map';
 import { ILogService } from 'vs/platform/log/common/log';
 import { canASAR } from 'vs/base/common/amd';
-import { DefaultWorkerFactory, WorkerDescriptor } from 'vs/base/browser/defaultWorkerFactory';
+import { createWebWorker } from 'vs/base/browser/defaultWorkerFactory';
 import { WorkerTextModelSyncClient } from 'vs/editor/common/services/textModelSync/textModelSync.impl';
 import { ILanguageDetectionWorker, LanguageDetectionWorkerHost } from 'vs/workbench/services/languageDetection/browser/languageDetectionWorker.protocol';
 
@@ -204,12 +204,9 @@ export class LanguageDetectionWorkerClient extends Disposable {
 		}
 
 		this.workerPromise = new Promise((resolve, reject) => {
-			const workerClient = this._register(new SimpleWorkerClient<ILanguageDetectionWorker>(
-				new DefaultWorkerFactory(),
-				new WorkerDescriptor(
-					'vs/workbench/services/languageDetection/browser/languageDetectionSimpleWorker',
-					'languageDetectionWorkerService'
-				)
+			const workerClient = this._register(createWebWorker<ILanguageDetectionWorker>(
+				'vs/workbench/services/languageDetection/browser/languageDetectionSimpleWorker',
+				'languageDetectionWorkerService'
 			));
 			LanguageDetectionWorkerHost.setChannel(workerClient, {
 				$getIndexJsUri: async () => this.getIndexJsUri(),

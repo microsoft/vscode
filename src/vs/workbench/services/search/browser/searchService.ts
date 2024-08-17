@@ -14,9 +14,9 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IFileMatch, IFileQuery, ISearchComplete, ISearchProgressItem, ISearchResultProvider, ISearchService, ITextQuery, SearchProviderType, TextSearchCompleteMessageType } from 'vs/workbench/services/search/common/search';
 import { SearchService } from 'vs/workbench/services/search/common/searchService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IWorkerClient, logOnceWebWorkerWarning, SimpleWorkerClient } from 'vs/base/common/worker/simpleWorker';
+import { IWorkerClient, logOnceWebWorkerWarning } from 'vs/base/common/worker/simpleWorker';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { DefaultWorkerFactory, WorkerDescriptor } from 'vs/base/browser/defaultWorkerFactory';
+import { createWebWorker } from 'vs/base/browser/defaultWorkerFactory';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILocalFileSearchSimpleWorker, LocalFileSearchSimpleWorkerHost } from 'vs/workbench/services/search/common/localFileSearchWorkerTypes';
 import { memoize } from 'vs/base/common/decorators';
@@ -49,7 +49,6 @@ export class RemoteSearchService extends SearchService {
 export class LocalFileSearchWorkerClient extends Disposable implements ISearchResultProvider {
 
 	protected _worker: IWorkerClient<ILocalFileSearchSimpleWorker> | null;
-	protected readonly _workerFactory: DefaultWorkerFactory;
 
 	private readonly _onDidReceiveTextSearchMatch = new Emitter<{ match: IFileMatch<UriComponents>; queryId: number }>();
 	readonly onDidReceiveTextSearchMatch: Event<{ match: IFileMatch<UriComponents>; queryId: number }> = this._onDidReceiveTextSearchMatch.event;
@@ -64,7 +63,6 @@ export class LocalFileSearchWorkerClient extends Disposable implements ISearchRe
 	) {
 		super();
 		this._worker = null;
-		this._workerFactory = new DefaultWorkerFactory();
 	}
 
 	sendTextSearchMatch(match: IFileMatch<UriComponents>, queryId: number): void {
@@ -185,12 +183,9 @@ export class LocalFileSearchWorkerClient extends Disposable implements ISearchRe
 	private _getOrCreateWorker(): IWorkerClient<ILocalFileSearchSimpleWorker> {
 		if (!this._worker) {
 			try {
-				this._worker = this._register(new SimpleWorkerClient<ILocalFileSearchSimpleWorker>(
-					new DefaultWorkerFactory(),
-					new WorkerDescriptor(
-						'vs/workbench/services/search/worker/localFileSearch',
-						'localFileSearchWorker'
-					)
+				this._worker = this._register(createWebWorker<ILocalFileSearchSimpleWorker>(
+					'vs/workbench/services/search/worker/localFileSearch',
+					'localFileSearchWorker'
 				));
 				LocalFileSearchSimpleWorkerHost.setChannel(this._worker, {
 					$sendTextSearchMatch: (match, queryId) => {

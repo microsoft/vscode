@@ -7,7 +7,7 @@ import { createTrustedTypesPolicy } from 'vs/base/browser/trustedTypes';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { AppResourcePath, COI, FileAccess } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
-import { IWorker, IWorkerCallback, IWorkerDescriptor, IWorkerFactory, logOnceWebWorkerWarning } from 'vs/base/common/worker/simpleWorker';
+import { IWorker, IWorkerCallback, IWorkerClient, IWorkerDescriptor, IWorkerFactory, logOnceWebWorkerWarning, SimpleWorkerClient } from 'vs/base/common/worker/simpleWorker';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { coalesce } from 'vs/base/common/arrays';
 
@@ -183,7 +183,7 @@ class WebWorker extends Disposable implements IWorker {
 	}
 }
 
-export class WorkerDescriptor implements IWorkerDescriptor {
+class WorkerDescriptor implements IWorkerDescriptor {
 
 	public readonly esmModuleLocation: URI | undefined;
 
@@ -195,7 +195,7 @@ export class WorkerDescriptor implements IWorkerDescriptor {
 	}
 }
 
-export class DefaultWorkerFactory implements IWorkerFactory {
+class DefaultWorkerFactory implements IWorkerFactory {
 
 	private static LAST_WORKER_ID = 0;
 	private _webWorkerFailedBeforeError: any;
@@ -217,4 +217,11 @@ export class DefaultWorkerFactory implements IWorkerFactory {
 			onErrorCallback(err);
 		});
 	}
+}
+
+export function createWebWorker<T extends object>(amdModuleId: string, label: string | undefined): IWorkerClient<T> {
+	return new SimpleWorkerClient<T>(
+		new DefaultWorkerFactory(),
+		new WorkerDescriptor(amdModuleId, label)
+	);
 }

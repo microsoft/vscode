@@ -12,8 +12,8 @@ import { OUTPUT_MODE_ID, LOG_MODE_ID } from 'vs/workbench/services/output/common
 import { OutputLinkComputer } from 'vs/workbench/contrib/output/common/outputLinkComputer';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { DefaultWorkerFactory, WorkerDescriptor } from 'vs/base/browser/defaultWorkerFactory';
-import { SimpleWorkerClient } from 'vs/base/common/worker/simpleWorker';
+import { createWebWorker } from 'vs/base/browser/defaultWorkerFactory';
+import { IWorkerClient } from 'vs/base/common/worker/simpleWorker';
 import { WorkerTextModelSyncClient } from 'vs/editor/common/services/textModelSync/textModelSync.impl';
 
 export class OutputLinkProvider extends Disposable {
@@ -88,7 +88,7 @@ export class OutputLinkProvider extends Disposable {
 }
 
 class OutputLinkWorkerClient extends Disposable {
-	private readonly _workerClient: SimpleWorkerClient<OutputLinkComputer>;
+	private readonly _workerClient: IWorkerClient<OutputLinkComputer>;
 	private readonly _workerTextModelSyncClient: WorkerTextModelSyncClient;
 	private readonly _initializeBarrier: Promise<void>;
 
@@ -97,12 +97,9 @@ class OutputLinkWorkerClient extends Disposable {
 		@IModelService modelService: IModelService,
 	) {
 		super();
-		this._workerClient = this._register(new SimpleWorkerClient<OutputLinkComputer>(
-			new DefaultWorkerFactory(),
-			new WorkerDescriptor(
-				'vs/workbench/contrib/output/common/outputLinkComputer',
-				'outputLinkComputer'
-			)
+		this._workerClient = this._register(createWebWorker<OutputLinkComputer>(
+			'vs/workbench/contrib/output/common/outputLinkComputer',
+			'outputLinkComputer'
 		));
 		this._workerTextModelSyncClient = WorkerTextModelSyncClient.create(this._workerClient, modelService);
 		this._initializeBarrier = this._ensureWorkspaceFolders();
