@@ -11,11 +11,9 @@ import { UriEventHandler } from '../UriEventHandler';
 import { ICachedPublicClientApplication } from '../common/publicClientCache';
 import { MicrosoftAccountType, MicrosoftAuthenticationTelemetryReporter } from '../common/telemetryReporter';
 import { loopbackTemplate } from './loopbackTemplate';
-import { Delayer } from '../common/async';
+import { ScopeData } from '../common/scopeData';
 
 const redirectUri = 'https://vscode.dev/redirect';
-const DEFAULT_CLIENT_ID = 'aebc6443-996d-45c2-90f0-388ff96faa56';
-const DEFAULT_TENANT = 'organizations';
 const MSA_TID = '9188040d-6c67-4c5b-b112-36a304b66dad';
 const MSA_PASSTHRU_TID = 'f8cdef31-a31e-4b4a-93e4-5f571e91255a';
 
@@ -23,7 +21,6 @@ export class MsalAuthProvider implements AuthenticationProvider {
 
 	private readonly _disposables: { dispose(): void }[];
 	private readonly _publicClientManager: CachedPublicClientApplicationManager;
-	private readonly _refreshDelayer = new DelayerByKey<void>();
 
 	/**
 	 * Event to signal a change in authentication sessions for this provider.
@@ -97,47 +94,45 @@ export class MsalAuthProvider implements AuthenticationProvider {
 		this._onDidChangeSessionsEmitter.fire({ added: added.map(process), changed: [], removed: deleted.map(process) });
 	}
 
+	//#region AuthenticationProvider methods
+
 	async getSessions(scopes: string[] | undefined, options?: AuthenticationGetSessionOptions): Promise<AuthenticationSession[]> {
-		this._logger.info('[getSessions]', scopes ?? 'all', 'starting');
-		const modifiedScopes = scopes ? [...scopes] : [];
-		const clientId = this.getClientId(modifiedScopes);
-		const tenant = this.getTenantId(modifiedScopes);
-		this._addCommonScopes(modifiedScopes);
+		const scopeData = new ScopeData(scopes);
+		this._logger.info('[getSessions]', scopes ? scopeData.scopeStr : 'all', 'starting');
 		if (!scopes) {
+			// Do NOT use `scopes` beyond this place in the code. Use `scopeData` instead.
+
 			const allSessions: AuthenticationSession[] = [];
 			for (const cachedPca of this._publicClientManager.getAll()) {
-				const sessions = await this.getAllSessionsForPca(cachedPca, modifiedScopes, modifiedScopes, options?.account);
+				const sessions = await this.getAllSessionsForPca(cachedPca, scopeData.originalScopes, scopeData.scopesToSend, options?.account);
 				allSessions.push(...sessions);
 			}
 			return allSessions;
 		}
 
-		const cachedPca = await this.getOrCreatePublicClientApplication(clientId, tenant);
-		const sessions = await this.getAllSessionsForPca(cachedPca, scopes, modifiedScopes.filter(s => !s.startsWith('VSCODE_'), options?.account));
+		const cachedPca = await this.getOrCreatePublicClientApplication(scopeData.clientId, scopeData.tenant);
+		const sessions = await this.getAllSessionsForPca(cachedPca, scopeData.originalScopes, scopeData.scopesToSend, options?.account);
 		this._logger.info(`[getSessions] returned ${sessions.length} sessions`);
 		return sessions;
 
 	}
 
 	async createSession(scopes: readonly string[]): Promise<AuthenticationSession> {
-		this._logger.info('[createSession]', scopes, 'starting');
-		const modifiedScopes = scopes ? [...scopes] : [];
-		const clientId = this.getClientId(modifiedScopes);
-		const tenant = this.getTenantId(modifiedScopes);
-		this._addCommonScopes(modifiedScopes);
+		const scopeData = new ScopeData(scopes);
+		// Do NOT use `scopes` beyond this place in the code. Use `scopeData` instead.
 
-		const cachedPca = await this.getOrCreatePublicClientApplication(clientId, tenant);
+		this._logger.info('[createSession]', scopeData.scopeStr, 'starting');
+		const cachedPca = await this.getOrCreatePublicClientApplication(scopeData.clientId, scopeData.tenant);
 		let result: AuthenticationResult;
 		try {
 			result = await cachedPca.acquireTokenInteractive({
 				openBrowser: async (url: string) => { await env.openExternal(Uri.parse(url)); },
-				scopes: modifiedScopes,
+				scopes: scopeData.scopesToSend,
 				// The logic for rendering one or the other of these templates is in the
 				// template itself, so we pass the same one for both.
 				successTemplate: loopbackTemplate,
 				errorTemplate: loopbackTemplate
 			});
-			this.setupRefresh(cachedPca, result, scopes);
 		} catch (e) {
 			if (e instanceof CancellationError) {
 				const yes = l10n.t('Yes');
@@ -165,19 +160,18 @@ export class MsalAuthProvider implements AuthenticationProvider {
 			try {
 				result = await cachedPca.acquireTokenInteractive({
 					openBrowser: (url: string) => loopbackClient.openBrowser(url),
-					scopes: modifiedScopes,
+					scopes: scopeData.scopesToSend,
 					loopbackClient
 				});
-				this.setupRefresh(cachedPca, result, scopes);
 			} catch (e) {
 				this._telemetryReporter.sendLoginFailedEvent();
 				throw e;
 			}
 		}
 
-		const session = this.toAuthenticationSession(result, scopes);
+		const session = this.toAuthenticationSession(result, scopeData.originalScopes);
 		this._telemetryReporter.sendLoginEvent(session.scopes);
-		this._logger.info('[createSession]', scopes, 'returned session');
+		this._logger.info('[createSession]', scopeData.scopeStr, 'returned session');
 		return session;
 	}
 
@@ -202,25 +196,11 @@ export class MsalAuthProvider implements AuthenticationProvider {
 		this._logger.info('[removeSession]', sessionId, 'session not found');
 	}
 
+	//#endregion
+
 	private async getOrCreatePublicClientApplication(clientId: string, tenant: string): Promise<ICachedPublicClientApplication> {
 		const authority = new URL(tenant, this._env.activeDirectoryEndpointUrl).toString();
 		return await this._publicClientManager.getOrCreate(clientId, authority);
-	}
-
-	private _addCommonScopes(scopes: string[]) {
-		if (!scopes.includes('openid')) {
-			scopes.push('openid');
-		}
-		if (!scopes.includes('email')) {
-			scopes.push('email');
-		}
-		if (!scopes.includes('profile')) {
-			scopes.push('profile');
-		}
-		if (!scopes.includes('offline_access')) {
-			scopes.push('offline_access');
-		}
-		return scopes;
 	}
 
 	private async getAllSessionsForPca(
@@ -234,50 +214,17 @@ export class MsalAuthProvider implements AuthenticationProvider {
 			: cachedPca.accounts;
 		const sessions: AuthenticationSession[] = [];
 		for (const account of accounts) {
-			const result = await cachedPca.acquireTokenSilent({ account, scopes: scopesToSend, redirectUri });
-			this.setupRefresh(cachedPca, result, originalScopes);
-			sessions.push(this.toAuthenticationSession(result, originalScopes));
+			try {
+				const result = await cachedPca.acquireTokenSilent({ account, scopes: scopesToSend, redirectUri });
+				sessions.push(this.toAuthenticationSession(result, originalScopes));
+			} catch (e) {
+				// If we can't get a token silently, the account is probably in a bad state so we should skip it
+				// MSAL will log this already, so we don't need to log it again
+				continue;
+			}
 		}
 		return sessions;
 	}
-
-	private setupRefresh(cachedPca: ICachedPublicClientApplication, result: AuthenticationResult, originalScopes: readonly string[]) {
-		const on = result.refreshOn || result.expiresOn;
-		if (!result.account || !on) {
-			return;
-		}
-
-		const account = result.account;
-		const scopes = result.scopes;
-		const timeToRefresh = on.getTime() - Date.now() - 5 * 60 * 1000; // 5 minutes before expiry
-		const key = JSON.stringify({ accountId: account.homeAccountId, scopes });
-		this._refreshDelayer.trigger(key, async () => {
-			const result = await cachedPca.acquireTokenSilent({ account, scopes, redirectUri, forceRefresh: true });
-			this._onDidChangeSessionsEmitter.fire({ added: [], changed: [this.toAuthenticationSession(result, originalScopes)], removed: [] });
-		}, timeToRefresh > 0 ? timeToRefresh : 0);
-	}
-
-	//#region scope parsers
-
-	private getClientId(scopes: string[]) {
-		return scopes.reduce<string | undefined>((prev, current) => {
-			if (current.startsWith('VSCODE_CLIENT_ID:')) {
-				return current.split('VSCODE_CLIENT_ID:')[1];
-			}
-			return prev;
-		}, undefined) ?? DEFAULT_CLIENT_ID;
-	}
-
-	private getTenantId(scopes: string[]) {
-		return scopes.reduce<string | undefined>((prev, current) => {
-			if (current.startsWith('VSCODE_TENANT:')) {
-				return current.split('VSCODE_TENANT:')[1];
-			}
-			return prev;
-		}, undefined) ?? DEFAULT_TENANT;
-	}
-
-	//#endregion
 
 	private toAuthenticationSession(result: AuthenticationResult, scopes: readonly string[]): AuthenticationSession & { idToken: string } {
 		return {
@@ -290,19 +237,5 @@ export class MsalAuthProvider implements AuthenticationProvider {
 			},
 			scopes
 		};
-	}
-}
-
-class DelayerByKey<T> {
-	private _delayers = new Map<string, Delayer<T>>();
-
-	trigger(key: string, fn: () => Promise<T>, delay: number): Promise<T> {
-		let delayer = this._delayers.get(key);
-		if (!delayer) {
-			delayer = new Delayer<T>(delay);
-			this._delayers.set(key, delayer);
-		}
-
-		return delayer.trigger(fn, delay);
 	}
 }
