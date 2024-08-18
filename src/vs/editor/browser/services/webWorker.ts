@@ -6,15 +6,14 @@
 import { getAllMethodNames } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
 import { EditorWorkerClient } from 'vs/editor/browser/services/editorWorkerService';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { IModelService } from 'vs/editor/common/services/model';
 
 /**
  * Create a new web worker that has model syncing capabilities built in.
  * Specify an AMD module to load that will `create` an object that will be proxied.
  */
-export function createWebWorker<T extends object>(modelService: IModelService, languageConfigurationService: ILanguageConfigurationService, opts: IWebWorkerOptions): MonacoWebWorker<T> {
-	return new MonacoWebWorkerImpl<T>(modelService, languageConfigurationService, opts);
+export function createWebWorker<T extends object>(modelService: IModelService, opts: IWebWorkerOptions): MonacoWebWorker<T> {
+	return new MonacoWebWorkerImpl<T>(modelService, opts);
 }
 
 /**
@@ -68,8 +67,8 @@ class MonacoWebWorkerImpl<T extends object> extends EditorWorkerClient implement
 	private _foreignModuleCreateData: any | null;
 	private _foreignProxy: Promise<T> | null;
 
-	constructor(modelService: IModelService, languageConfigurationService: ILanguageConfigurationService, opts: IWebWorkerOptions) {
-		super(modelService, opts.keepIdleModels || false, opts.label, languageConfigurationService);
+	constructor(modelService: IModelService, opts: IWebWorkerOptions) {
+		super(modelService, opts.keepIdleModels || false, opts.label);
 		this._foreignModuleId = opts.moduleId;
 		this._foreignModuleCreateData = opts.createData || null;
 		this._foreignModuleHost = opts.host || null;
@@ -124,6 +123,6 @@ class MonacoWebWorkerImpl<T extends object> extends EditorWorkerClient implement
 	}
 
 	public withSyncedResources(resources: URI[]): Promise<T> {
-		return this._withSyncedResources(resources).then(_ => this.getProxy());
+		return this.workerWithSyncedResources(resources).then(_ => this.getProxy());
 	}
 }
