@@ -8,7 +8,6 @@ import { onUnexpectedError, transformErrorForSerialization } from 'vs/base/commo
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { AppResourcePath, FileAccess } from 'vs/base/common/network';
-import { getAllMethodNames } from 'vs/base/common/objects';
 import { isWeb } from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
@@ -548,13 +547,13 @@ export class SimpleWorkerServer implements IWorkerServer {
 		return this._remoteChannels.get(channel) as Proxied<T>;
 	}
 
-	private initialize(workerId: number, loaderConfig: any, moduleId: string): Promise<string[]> {
+	private async initialize(workerId: number, loaderConfig: any, moduleId: string): Promise<void> {
 		this._protocol.setWorkerId(workerId);
 
 		if (this._requestHandlerFactory) {
 			// static request handler
 			this._requestHandler = this._requestHandlerFactory(this);
-			return Promise.resolve(getAllMethodNames(this._requestHandler));
+			return;
 		}
 
 		if (loaderConfig) {
@@ -585,12 +584,10 @@ export class SimpleWorkerServer implements IWorkerServer {
 				if (!this._requestHandler) {
 					throw new Error(`No RequestHandler!`);
 				}
-
-				return getAllMethodNames(this._requestHandler);
 			});
 		}
 
-		return new Promise<string[]>((resolve, reject) => {
+		return new Promise<void>((resolve, reject) => {
 			// Use the global require to be sure to get the global config
 
 			// ESM-comment-begin
@@ -608,7 +605,7 @@ export class SimpleWorkerServer implements IWorkerServer {
 					return;
 				}
 
-				resolve(getAllMethodNames(this._requestHandler));
+				resolve();
 			}, reject);
 		});
 	}
