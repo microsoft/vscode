@@ -560,7 +560,6 @@ class ExtHostChatAgent {
 
 	private _followupProvider: vscode.ChatFollowupProvider | undefined;
 	private _iconPath: vscode.Uri | { light: vscode.Uri; dark: vscode.Uri } | vscode.ThemeIcon | undefined;
-	private _isDefault: boolean | undefined;
 	private _helpTextPrefix: string | vscode.MarkdownString | undefined;
 	private _helpTextVariablesPrefix: string | vscode.MarkdownString | undefined;
 	private _helpTextPostfix: string | vscode.MarkdownString | undefined;
@@ -700,15 +699,6 @@ class ExtHostChatAgent {
 			},
 			set followupProvider(v) {
 				that._followupProvider = v;
-				updateMetadataSoon();
-			},
-			get isDefault() {
-				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
-				return that._isDefault;
-			},
-			set isDefault(v) {
-				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
-				that._isDefault = v;
 				updateMetadataSoon();
 			},
 			get helpTextPrefix() {

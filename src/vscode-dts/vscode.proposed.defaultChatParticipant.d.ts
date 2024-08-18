@@ -23,11 +23,6 @@ declare module 'vscode' {
 
 	export interface ChatParticipant {
 		/**
-		 * When true, this participant is invoked by default when no other participant is being invoked
-		 */
-		isDefault?: boolean;
-
-		/**
 		 * When true, this participant is invoked when the user submits their query using ctrl/cmd+enter
 		 * TODO@API name
 		 */
