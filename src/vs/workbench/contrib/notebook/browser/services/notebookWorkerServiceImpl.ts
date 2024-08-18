@@ -192,15 +192,13 @@ class NotebookWorkerClient extends Disposable {
 	}
 
 	computeDiff(original: URI, modified: URI) {
-		return this._withSyncedResources([original, modified]).then(proxy => {
-			return proxy.$computeDiff(original.toString(), modified.toString());
-		});
+		const proxy = this._ensureSyncedResources([original, modified]);
+		return proxy.$computeDiff(original.toString(), modified.toString());
 	}
 
 	canPromptRecommendation(modelUri: URI) {
-		return this._withSyncedResources([modelUri]).then(proxy => {
-			return proxy.$canPromptRecommendation(modelUri.toString());
-		});
+		const proxy = this._ensureSyncedResources([modelUri]);
+		return proxy.$canPromptRecommendation(modelUri.toString());
 	}
 
 	private _getOrCreateModelManager(proxy: Proxied<NotebookEditorSimpleWorker>): NotebookEditorModelManager {
@@ -210,11 +208,10 @@ class NotebookWorkerClient extends Disposable {
 		return this._modelManager;
 	}
 
-	protected _withSyncedResources(resources: URI[]): Promise<Proxied<NotebookEditorSimpleWorker>> {
-		return this._getProxy().then((proxy) => {
-			this._getOrCreateModelManager(proxy).ensureSyncedResources(resources);
-			return proxy;
-		});
+	protected _ensureSyncedResources(resources: URI[]): Proxied<NotebookEditorSimpleWorker> {
+		const proxy = this._getOrCreateWorker().proxy;
+		this._getOrCreateModelManager(proxy).ensureSyncedResources(resources);
+		return proxy;
 	}
 
 	private _getOrCreateWorker(): IWorkerClient<NotebookEditorSimpleWorker> {
@@ -232,15 +229,4 @@ class NotebookWorkerClient extends Disposable {
 		}
 		return this._worker;
 	}
-
-	protected _getProxy(): Promise<Proxied<NotebookEditorSimpleWorker>> {
-		return this._getOrCreateWorker().getProxyObject().then(undefined, (err) => {
-			// logOnceWebWorkerWarning(err);
-			// this._worker = new SynchronousWorkerClient(new EditorSimpleWorker(new EditorWorkerHost(this), null));
-			// return this._getOrCreateWorker().getProxyObject();
-			throw (err);
-		});
-	}
-
-
 }

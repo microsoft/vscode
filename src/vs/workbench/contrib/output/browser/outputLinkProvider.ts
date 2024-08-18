@@ -106,14 +106,12 @@ class OutputLinkWorkerClient extends Disposable {
 	}
 
 	private async _ensureWorkspaceFolders(): Promise<void> {
-		const worker = await this._workerClient.getProxyObject();
-		await worker.$setWorkspaceFolders(this.contextService.getWorkspace().folders.map(folder => folder.uri.toString()));
+		await this._workerClient.proxy.$setWorkspaceFolders(this.contextService.getWorkspace().folders.map(folder => folder.uri.toString()));
 	}
 
 	public async provideLinks(modelUri: URI): Promise<ILink[]> {
 		await this._initializeBarrier;
 		await this._workerTextModelSyncClient.ensureSyncedResources([modelUri]);
-		const worker = await this._workerClient.getProxyObject();
-		return worker.$computeLinks(modelUri.toString());
+		return this._workerClient.proxy.$computeLinks(modelUri.toString());
 	}
 }

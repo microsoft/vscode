@@ -344,19 +344,15 @@ class WorkerManager extends Disposable {
 
 class SynchronousWorkerClient<T extends IDisposable> implements IWorkerClient<T> {
 	private readonly _instance: T;
-	private readonly _proxyObj: Promise<Proxied<T>>;
+	public readonly proxy: Proxied<T>;
 
 	constructor(instance: T) {
 		this._instance = instance;
-		this._proxyObj = Promise.resolve(this._instance as Proxied<T>);
+		this.proxy = this._instance as Proxied<T>;
 	}
 
 	public dispose(): void {
 		this._instance.dispose();
-	}
-
-	public getProxyObject(): Promise<Proxied<T>> {
-		return this._proxyObj;
 	}
 
 	public setChannel<T extends object>(channel: string, handler: T): void {
@@ -415,10 +411,10 @@ export class EditorWorkerClient extends Disposable implements IEditorWorkerClien
 	}
 
 	protected _getProxy(): Promise<Proxied<EditorSimpleWorker>> {
-		return this._getOrCreateWorker().getProxyObject().then(undefined, (err) => {
+		return this._getOrCreateWorker().proxy.$ping().then(undefined, (err) => {
 			logOnceWebWorkerWarning(err);
 			this._worker = this._createFallbackLocalWorker();
-			return this._getOrCreateWorker().getProxyObject();
+			return this._worker.proxy;
 		});
 	}
 

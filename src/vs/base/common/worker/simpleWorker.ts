@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CharCode } from 'vs/base/common/charCode';
-import { transformErrorForSerialization } from 'vs/base/common/errors';
+import { onUnexpectedError, transformErrorForSerialization } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { AppResourcePath, FileAccess } from 'vs/base/common/network';
@@ -309,7 +309,7 @@ export type Proxied<T> = { [K in keyof T]: T[K] extends (...args: infer A) => in
 };
 
 export interface IWorkerClient<W> {
-	getProxyObject(): Promise<Proxied<W>>;
+	proxy: Proxied<W>;
 	dispose(): void;
 	setChannel<T extends object>(channel: string, handler: T): void;
 	getChannel<T extends object>(channel: string): Proxied<T>;
@@ -326,9 +326,9 @@ export interface IWorkerServer {
 export class SimpleWorkerClient<W extends object> extends Disposable implements IWorkerClient<W> {
 
 	private readonly _worker: IWorker;
-	private readonly _onModuleLoaded: Promise<string[]>;
+	private readonly _onModuleLoaded: Promise<void>;
 	private readonly _protocol: SimpleWorkerProtocol;
-	private readonly _lazyProxy: Promise<Proxied<W>>;
+	public readonly proxy: Proxied<W>;
 	private readonly _localChannels: Map<string, object> = new Map();
 	private readonly _remoteChannels: Map<string, object> = new Map();
 
@@ -337,8 +337,6 @@ export class SimpleWorkerClient<W extends object> extends Disposable implements 
 		workerDescriptor: IWorkerDescriptor,
 	) {
 		super();
-
-		let lazyProxyReject: ((err: any) => void) | null = null;
 
 		this._worker = this._register(workerFactory.create(
 			{
@@ -352,7 +350,7 @@ export class SimpleWorkerClient<W extends object> extends Disposable implements 
 			(err: any) => {
 				// in Firefox, web workers fail lazily :(
 				// we will reject the proxy
-				lazyProxyReject?.(err);
+				onUnexpectedError(err);
 			}
 		));
 
@@ -388,22 +386,9 @@ export class SimpleWorkerClient<W extends object> extends Disposable implements 
 			workerDescriptor.amdModuleId,
 		]);
 
-		// Create proxy to loaded code
-		const proxyMethodRequest = (method: string, args: any[]): Promise<any> => {
-			return this._request(DEFAULT_CHANNEL, method, args);
-		};
-		const proxyListen = (eventName: string, arg: any): Event<any> => {
-			return this._protocol.listen(DEFAULT_CHANNEL, eventName, arg);
-		};
-
-		this._lazyProxy = new Promise<Proxied<W>>((resolve, reject) => {
-			lazyProxyReject = reject;
-			this._onModuleLoaded.then((availableMethods: string[]) => {
-				resolve(createProxyObject<Proxied<W>>(availableMethods, proxyMethodRequest, proxyListen));
-			}, (e) => {
-				reject(e);
-				this._onError('Worker failed to load ' + workerDescriptor.amdModuleId, e);
-			});
+		this.proxy = this._protocol.createProxyToRemoteChannel(DEFAULT_CHANNEL, async () => { await this._onModuleLoaded; });
+		this._onModuleLoaded.catch((e) => {
+			this._onError('Worker failed to load ' + workerDescriptor.amdModuleId, e);
 		});
 	}
 
@@ -445,10 +430,6 @@ export class SimpleWorkerClient<W extends object> extends Disposable implements 
 		throw new Error(`Malformed event name ${eventName}`);
 	}
 
-	public getProxyObject(): Promise<Proxied<W>> {
-		return this._lazyProxy;
-	}
-
 	public setChannel<T extends object>(channel: string, handler: T): void {
 		this._localChannels.set(channel, handler);
 	}
@@ -459,14 +440,6 @@ export class SimpleWorkerClient<W extends object> extends Disposable implements 
 			this._remoteChannels.set(channel, inst);
 		}
 		return this._remoteChannels.get(channel) as Proxied<T>;
-	}
-
-	private _request(channel: string, method: string, args: any[]): Promise<any> {
-		return new Promise<any>((resolve, reject) => {
-			this._onModuleLoaded.then(() => {
-				this._protocol.sendMessage(channel, method, args).then(resolve, reject);
-			}, reject);
-		});
 	}
 
 	private _onError(message: string, error?: any): void {
@@ -483,38 +456,6 @@ function propertyIsEvent(name: string): boolean {
 function propertyIsDynamicEvent(name: string): boolean {
 	// Assume a property is a dynamic event (a method that returns an event) if it has a form of "onDynamicSomething"
 	return /^onDynamic/.test(name) && strings.isUpperAsciiLetter(name.charCodeAt(9));
-}
-
-function createProxyObject<T extends object>(
-	methodNames: string[],
-	invoke: (method: string, args: unknown[]) => unknown,
-	proxyListen: (eventName: string, arg: any) => Event<any>
-): T {
-	const createProxyMethod = (method: string): () => unknown => {
-		return function () {
-			const args = Array.prototype.slice.call(arguments, 0);
-			return invoke(method, args);
-		};
-	};
-	const createProxyDynamicEvent = (eventName: string): (arg: any) => Event<any> => {
-		return function (arg) {
-			return proxyListen(eventName, arg);
-		};
-	};
-
-	const result = {} as T;
-	for (const methodName of methodNames) {
-		if (propertyIsDynamicEvent(methodName)) {
-			(<any>result)[methodName] = createProxyDynamicEvent(methodName);
-			continue;
-		}
-		if (propertyIsEvent(methodName)) {
-			(<any>result)[methodName] = proxyListen(methodName, undefined);
-			continue;
-		}
-		(<any>result)[methodName] = createProxyMethod(methodName);
-	}
-	return result;
 }
 
 export interface IRequestHandler {

@@ -75,7 +75,7 @@ export class LocalFileSearchWorkerClient extends Disposable implements ISearchRe
 	}
 
 	private async cancelQuery(queryId: number) {
-		const proxy = await this._getOrCreateWorker().getProxyObject();
+		const proxy = this._getOrCreateWorker().proxy;
 		proxy.$cancelQuery(queryId);
 	}
 
@@ -83,7 +83,7 @@ export class LocalFileSearchWorkerClient extends Disposable implements ISearchRe
 		try {
 			const queryDisposables = new DisposableStore();
 
-			const proxy = await this._getOrCreateWorker().getProxyObject();
+			const proxy = this._getOrCreateWorker().proxy;
 			const results: IFileMatch[] = [];
 
 			let limitHit = false;
@@ -142,7 +142,7 @@ export class LocalFileSearchWorkerClient extends Disposable implements ISearchRe
 			const queryDisposables = new DisposableStore();
 			let limitHit = false;
 
-			const proxy = await this._getOrCreateWorker().getProxyObject();
+			const proxy = this._getOrCreateWorker().proxy;
 			const results: IFileMatch[] = [];
 			await Promise.all(query.folderQueries.map(async fq => {
 				const queryId = this.queryId++;

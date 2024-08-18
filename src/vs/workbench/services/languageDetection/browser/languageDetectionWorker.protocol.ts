@@ -23,5 +23,5 @@ export abstract class LanguageDetectionWorkerHost {
 }
 
 export interface ILanguageDetectionWorker {
-	detectLanguage(uri: string, langBiases: Record<string, number> | undefined, preferHistory: boolean, supportedLangs?: string[]): Promise<string | undefined>;
+	$detectLanguage(uri: string, langBiases: Record<string, number> | undefined, preferHistory: boolean, supportedLangs?: string[]): Promise<string | undefined>;
 }

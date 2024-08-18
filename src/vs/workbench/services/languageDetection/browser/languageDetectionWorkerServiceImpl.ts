@@ -178,10 +178,10 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 }
 
 export class LanguageDetectionWorkerClient extends Disposable {
-	private workerPromise: Promise<{
+	private worker: {
 		workerClient: IWorkerClient<ILanguageDetectionWorker>;
 		workerTextModelSyncClient: WorkerTextModelSyncClient;
-	}> | undefined;
+	} | undefined;
 
 	constructor(
 		private readonly _modelService: IModelService,
@@ -195,15 +195,11 @@ export class LanguageDetectionWorkerClient extends Disposable {
 		super();
 	}
 
-	private _getOrCreateLanguageDetectionWorker(): Promise<{
+	private _getOrCreateLanguageDetectionWorker(): {
 		workerClient: IWorkerClient<ILanguageDetectionWorker>;
 		workerTextModelSyncClient: WorkerTextModelSyncClient;
-	}> {
-		if (this.workerPromise) {
-			return this.workerPromise;
-		}
-
-		this.workerPromise = new Promise((resolve, reject) => {
+	} {
+		if (!this.worker) {
 			const workerClient = this._register(createWebWorker<ILanguageDetectionWorker>(
 				'vs/workbench/services/languageDetection/browser/languageDetectionSimpleWorker',
 				'languageDetectionWorkerService'
@@ -217,10 +213,9 @@ export class LanguageDetectionWorkerClient extends Disposable {
 				$getWeightsUri: async () => this.getWeightsUri(),
 			});
 			const workerTextModelSyncClient = WorkerTextModelSyncClient.create(workerClient, this._modelService);
-			resolve({ workerClient, workerTextModelSyncClient });
-		});
-
-		return this.workerPromise;
+			this.worker = { workerClient, workerTextModelSyncClient };
+		}
+		return this.worker;
 	}
 
 	private _guessLanguageIdByUri(uri: URI): string | undefined {
@@ -229,14 +224,6 @@ export class LanguageDetectionWorkerClient extends Disposable {
 			return guess;
 		}
 		return undefined;
-	}
-
-	private async _getProxy(): Promise<ILanguageDetectionWorker> {
-		return (await this._getOrCreateLanguageDetectionWorker()).workerClient.getProxyObject();
-	}
-
-	private async _getWorkerTextModelSyncClient(): Promise<WorkerTextModelSyncClient> {
-		return (await this._getOrCreateLanguageDetectionWorker()).workerTextModelSyncClient;
 	}
 
 	async getIndexJsUri() {
@@ -284,9 +271,9 @@ export class LanguageDetectionWorkerClient extends Disposable {
 			return quickGuess;
 		}
 
-		const workerTextModelSync = await this._getWorkerTextModelSyncClient();
-		await workerTextModelSync.ensureSyncedResources([resource]);
-		const modelId = await (await this._getProxy()).detectLanguage(resource.toString(), langBiases, preferHistory, supportedLangs);
+		const { workerClient, workerTextModelSyncClient } = this._getOrCreateLanguageDetectionWorker();
+		await workerTextModelSyncClient.ensureSyncedResources([resource]);
+		const modelId = await workerClient.proxy.$detectLanguage(resource.toString(), langBiases, preferHistory, supportedLangs);
 		const languageId = this.getLanguageId(modelId);
 
 		const LanguageDetectionStatsId = 'automaticlanguagedetection.perf';

@@ -47,7 +47,7 @@ export class LanguageDetectionSimpleWorker implements ILanguageDetectionWorker {
 		this._workerTextModelSyncServer.bindToServer(workerServer);
 	}
 
-	public async detectLanguage(uri: string, langBiases: Record<string, number> | undefined, preferHistory: boolean, supportedLangs?: string[]): Promise<string | undefined> {
+	public async $detectLanguage(uri: string, langBiases: Record<string, number> | undefined, preferHistory: boolean, supportedLangs?: string[]): Promise<string | undefined> {
 		const languages: string[] = [];
 		const confidences: number[] = [];
 		const stopWatch = new StopWatch();

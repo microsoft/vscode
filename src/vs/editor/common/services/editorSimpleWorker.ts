@@ -532,6 +532,10 @@ export class EditorSimpleWorker extends BaseEditorSimpleWorker {
 		super();
 	}
 
+	public async $ping() {
+		return 'pong';
+	}
+
 	// ---- BEGIN foreign module support --------------------------------------------------------------------------
 
 	public $loadForeignModule(moduleId: string, createData: any, foreignHostMethods: string[]): Promise<string[]> {

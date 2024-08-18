@@ -53,7 +53,7 @@ class ProfileAnalysisWorkerService implements IProfileAnalysisWorkerService {
 		);
 
 		try {
-			const r = await callback(await worker.getProxyObject());
+			const r = await callback(worker.proxy);
 			return r;
 		} finally {
 			worker.dispose();

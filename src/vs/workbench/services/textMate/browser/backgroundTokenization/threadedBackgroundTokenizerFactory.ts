@@ -159,18 +159,17 @@ export class ThreadedBackgroundTokenizerFactory implements IDisposable {
 				this._reportTokenizationTime(timeMs, languageId, sourceExtensionId, lineLength, isRandomSample);
 			}
 		});
-		const proxy = await worker.getProxyObject();
-		await proxy.$init(createData);
+		await worker.proxy.$init(createData);
 
 		if (this._worker !== worker) {
 			// disposed in the meantime
 			return null;
 		}
-		this._workerProxy = proxy;
+		this._workerProxy = worker.proxy;
 		if (this._currentTheme && this._currentTokenColorMap) {
 			this._workerProxy.$acceptTheme(this._currentTheme, this._currentTokenColorMap);
 		}
-		return proxy;
+		return worker.proxy;
 	}
 
 	private _disposeWorker(): void {
