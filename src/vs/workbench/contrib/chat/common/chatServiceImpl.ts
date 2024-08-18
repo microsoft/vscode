@@ -321,10 +321,11 @@ export class ChatService extends Disposable implements IChatService {
 	 * Imported chat sessions are also excluded from the result.
 	 */
 	getHistory(): IChatDetail[] {
-		const sessions = Object.values(this._persistedSessions)
-			.filter(session => session.requests.length > 0);
+		const persistedSessions = Object.values(this._persistedSessions)
+			.filter(session => session.requests.length > 0)
+			.filter(session => !this._sessionModels.has(session.sessionId));
 
-		return sessions
+		const persistedSessionItems = persistedSessions
 			.filter(session => !session.isImported)
 			.map(session => {
 				const title = ChatModel.getDefaultTitle(session.requests);
@@ -335,6 +336,18 @@ export class ChatService extends Disposable implements IChatService {
 					isActive: this._sessionModels.has(session.sessionId)
 				} satisfies IChatDetail;
 			});
+		const liveSessionItems = Array.from(this._sessionModels.values())
+			.filter(session => !session.isImported)
+			.map(session => {
+				const title = ChatModel.getDefaultTitle(session.getRequests());
+				return {
+					sessionId: session.sessionId,
+					title,
+					lastMessageDate: session.lastMessageDate,
+					isActive: this._sessionModels.has(session.sessionId)
+				} satisfies IChatDetail;
+			});
+		return [...liveSessionItems, ...persistedSessionItems];
 	}
 
 	removeHistoryEntry(sessionId: string): void {
