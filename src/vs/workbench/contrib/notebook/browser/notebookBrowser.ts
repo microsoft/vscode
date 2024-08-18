@@ -504,8 +504,12 @@ export interface INotebookEditor {
 	readonly scrollTop: number;
 	readonly scrollBottom: number;
 	readonly scopedContextKeyService: IContextKeyService;
+	/**
+	 * Required for Composite Editor check. The interface should not be changed.
+	 */
 	readonly activeCodeEditor: ICodeEditor | undefined;
 	readonly codeEditors: [ICellViewModel, ICodeEditor][];
+	readonly activeCellAndCodeEditor: [ICellViewModel, ICodeEditor] | undefined;
 	//#endregion
 
 	getLength(): number;

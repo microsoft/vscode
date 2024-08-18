@@ -151,6 +151,7 @@ const apiTestSerializer: vscode.NotebookSerializer = {
 	teardown(async function () {
 		disposeAll(testDisposables);
 		testDisposables.length = 0;
+		await revertAllDirty();
 		await saveAllFilesAndCloseAll();
 	});
 

@@ -107,7 +107,8 @@ import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/c
 import { UIKind } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { checkProposedApiEnabled, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { ProxyIdentifier } from 'vs/workbench/services/extensions/common/proxyIdentifier';
-import { ExcludeSettingOptions, TextSearchCompleteMessageType, TextSearchCompleteMessageTypeNew, TextSearchContextNew, TextSearchMatchNew, oldToNewTextSearchResult } from 'vs/workbench/services/search/common/searchExtTypes';
+import { oldToNewTextSearchResult } from 'vs/workbench/services/search/common/searchExtConversionTypes';
+import { ExcludeSettingOptions, TextSearchCompleteMessageType, TextSearchContextNew, TextSearchMatchNew } from 'vs/workbench/services/search/common/searchExtTypes';
 import type * as vscode from 'vscode';
 
 export interface IExtensionRegistries {
@@ -1186,17 +1187,17 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			registerFileSearchProvider: (scheme: string, provider: vscode.FileSearchProvider) => {
 				checkProposedApiEnabled(extension, 'fileSearchProvider');
-				return extHostSearch.registerFileSearchProvider(scheme, provider);
+				return extHostSearch.registerFileSearchProviderOld(scheme, provider);
 			},
 			registerTextSearchProvider: (scheme: string, provider: vscode.TextSearchProvider) => {
 				checkProposedApiEnabled(extension, 'textSearchProvider');
-				return extHostSearch.registerTextSearchProvider(scheme, provider);
+				return extHostSearch.registerTextSearchProviderOld(scheme, provider);
 			},
 			registerAITextSearchProvider: (scheme: string, provider: vscode.AITextSearchProvider) => {
 				// there are some dependencies on textSearchProvider, so we need to check for both
 				checkProposedApiEnabled(extension, 'aiTextSearchProvider');
 				checkProposedApiEnabled(extension, 'textSearchProvider');
-				return extHostSearch.registerAITextSearchProvider(scheme, provider);
+				return extHostSearch.registerAITextSearchProviderOld(scheme, provider);
 			},
 			registerFileSearchProviderNew: (scheme: string, provider: vscode.FileSearchProviderNew) => {
 				checkProposedApiEnabled(extension, 'fileSearchProviderNew');
@@ -1839,7 +1840,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ExcludeSettingOptions: ExcludeSettingOptions,
 			TextSearchContextNew: TextSearchContextNew,
 			TextSearchMatchNew: TextSearchMatchNew,
-			TextSearchCompleteMessageTypeNew: TextSearchCompleteMessageTypeNew,
+			TextSearchCompleteMessageTypeNew: TextSearchCompleteMessageType,
 		};
 	};
 }

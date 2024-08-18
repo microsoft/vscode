@@ -101,7 +101,7 @@ function migrateOne(filePath, fileContents) {
 		writeDestFile(filePath, fileContents);
 	} else if (filePath.endsWith('tsconfig.base.json')) {
 		const opts = JSON.parse(fileContents.toString());
-		opts.compilerOptions.module = 'ESNext';
+		opts.compilerOptions.module = 'es2022';
 		opts.compilerOptions.allowSyntheticDefaultImports = true;
 		writeDestFile(filePath, JSON.stringify(opts, null, '\t'));
 	} else if (binaryFileExtensions.has(fileExtension)) {
