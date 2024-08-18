@@ -51,30 +51,71 @@ const vscodeEntryPoints = [
 	buildfile.code
 ].flat();
 
-const vscodeResources = [
+const vscodeResourceIncludes = [
+
+	// NLS
 	'out-build/nls.messages.json',
 	'out-build/nls.keys.json',
-	'out-build/vs/**/*.{svg,png,html,jpg,mp3}',
-	'!out-build/vs/code/browser/**/*.html',
-	'!out-build/vs/code/**/*-dev.html',
-	'!out-build/vs/code/**/*-dev.esm.html',
-	'!out-build/vs/editor/standalone/**/*.svg',
-	'out-build/vs/base/node/{stdForkStart.js,terminateProcess.sh,cpuUsage.sh,ps.sh}',
-	'out-build/vs/base/browser/ui/codicons/codicon/**',
+
+	// Workbench
+	'out-build/vs/code/electron-sandbox/workbench/workbench.esm.html',
+
+	// Electron Preload
 	'out-build/vs/base/parts/sandbox/electron-sandbox/preload.js',
 	'out-build/vs/base/parts/sandbox/electron-sandbox/preload-aux.js',
-	'out-build/vs/workbench/browser/media/*-theme.css',
-	'out-build/vs/workbench/contrib/debug/**/*.json',
+
+	// Node Scripts
+	'out-build/vs/base/node/{terminateProcess.sh,cpuUsage.sh,ps.sh}',
+
+	// Touchbar
+	'out-build/vs/workbench/browser/parts/editor/media/*.png',
+	'out-build/vs/workbench/contrib/debug/browser/media/*.png',
+
+	// External Terminal
 	'out-build/vs/workbench/contrib/externalTerminal/**/*.scpt',
+
+	// Terminal shell integration
 	'out-build/vs/workbench/contrib/terminal/browser/media/fish_xdg_data/fish/vendor_conf.d/*.fish',
 	'out-build/vs/workbench/contrib/terminal/browser/media/*.ps1',
 	'out-build/vs/workbench/contrib/terminal/browser/media/*.psm1',
 	'out-build/vs/workbench/contrib/terminal/browser/media/*.sh',
 	'out-build/vs/workbench/contrib/terminal/browser/media/*.zsh',
-	'out-build/vs/workbench/contrib/webview/browser/pre/*.js',
+
+	// Accessibility Signals
+	'out-build/vs/platform/accessibilitySignal/browser/media/*.mp3',
+
+	// Welcome
+	'out-build/vs/workbench/contrib/welcomeGettingStarted/common/media/**/*.{svg,png}',
+
+	// Extensions
+	'out-build/vs/workbench/contrib/extensions/browser/media/{theme-icon.png,language-icon.svg}',
+	'out-build/vs/workbench/services/extensionManagement/common/media/*.{svg,png}',
+
+	// Webview
+	'out-build/vs/workbench/contrib/webview/browser/pre/*.{js,html}',
+
+	// Extension Host Worker
+	'out-build/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.esm.html',
+
+	// Process Explorer
+	'out-build/vs/code/electron-sandbox/processExplorer/processExplorer.esm.html',
+
+	// Issue Reporter
+	'out-build/vs/workbench/contrib/issue/electron-sandbox/issueReporter.esm.html'
+];
+
+const vscodeResources = [
+
+	// Includes
+	...vscodeResourceIncludes,
+
+	// Excludes
+	'!out-build/vs/code/browser/**',
+	'!out-build/vs/editor/standalone/**',
+	'!out-build/vs/code/**/*-dev.html',
+	'!out-build/vs/code/**/*-dev.esm.html',
 	'!out-build/vs/workbench/contrib/issue/**/*-dev.html',
 	'!out-build/vs/workbench/contrib/issue/**/*-dev.esm.html',
-	'out-build/vs/workbench/contrib/tasks/**/*.json',
 	'!**/test/**'
 ];
 
@@ -215,7 +256,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 			'vs/workbench/workbench.desktop.main.js',
 			'vs/workbench/workbench.desktop.main.css',
 			'vs/workbench/api/node/extensionHostProcess.js',
-			'vs/code/electron-sandbox/workbench/workbench.html',
+			isESM() ? 'vs/code/electron-sandbox/workbench/workbench.esm.html' : 'vs/code/electron-sandbox/workbench/workbench.html',
 			'vs/code/electron-sandbox/workbench/workbench.js'
 		]);
 
