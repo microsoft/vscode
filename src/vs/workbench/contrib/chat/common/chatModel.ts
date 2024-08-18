@@ -580,6 +580,7 @@ export interface ISerializableChatData1 extends IExportableChatData {
 export interface ISerializableChatData2 extends ISerializableChatData1 {
 	version: 2;
 	lastMessageDate: number;
+	computedTitle: string | undefined;
 }
 
 /**
@@ -602,6 +603,7 @@ export function normalizeSerializableChatData(raw: ISerializableChatDataIn): ISe
 			version: 2,
 			...raw,
 			lastMessageDate: raw.creationDate,
+			computedTitle: undefined
 		};
 	}
 
@@ -782,8 +784,13 @@ export class ChatModel extends Disposable implements IChatModel {
 		return this._isImported;
 	}
 
+	private _computedTitle: string | undefined;
+	get computedTitle(): string | undefined {
+		return this._computedTitle;
+	}
+
 	get title(): string {
-		return ChatModel.getDefaultTitle(this._requests);
+		return this._computedTitle || ChatModel.getDefaultTitle(this._requests);
 	}
 
 	get initialLocation() {
@@ -804,6 +811,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		this._requests = initialData ? this._deserialize(initialData) : [];
 		this._creationDate = (isSerializableSessionData(initialData) && initialData.creationDate) || Date.now();
 		this._lastMessageDate = (isSerializableSessionData(initialData) && initialData.lastMessageDate) || this._creationDate;
+		this._computedTitle = isSerializableSessionData(initialData) ? initialData.computedTitle : undefined;
 
 		this._initialRequesterAvatarIconUri = initialData?.requesterAvatarIconUri && URI.revive(initialData.requesterAvatarIconUri);
 		this._initialResponderAvatarIconUri = isUriComponents(initialData?.responderAvatarIconUri) ? URI.revive(initialData.responderAvatarIconUri) : initialData?.responderAvatarIconUri;
@@ -944,13 +952,16 @@ export class ChatModel extends Disposable implements IChatModel {
 		return request;
 	}
 
+	setComputedTitle(title: string): void {
+		this._computedTitle = title;
+	}
+
 	updateRequest(request: ChatRequestModel, variableData: IChatRequestVariableData) {
 		request.variableData = variableData;
 		this._onDidChange.fire({ kind: 'changedRequest', request });
 	}
 
 	adoptRequest(request: ChatRequestModel): void {
-
 		// this doesn't use `removeRequest` because it must not dispose the request object
 		const oldOwner = request.session;
 		const index = oldOwner._requests.findIndex(candidate => candidate.id === request.id);
@@ -1112,7 +1123,8 @@ export class ChatModel extends Disposable implements IChatModel {
 			sessionId: this.sessionId,
 			creationDate: this._creationDate,
 			isImported: this._isImported,
-			lastMessageDate: this._lastMessageDate
+			lastMessageDate: this._lastMessageDate,
+			computedTitle: this._computedTitle
 		};
 	}
 

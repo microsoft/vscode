@@ -21,6 +21,13 @@ declare module 'vscode' {
 		icon?: Uri;
 	}
 
+	export interface ChatTitleProvider {
+		/**
+		 * Should this take a ChatResult like the followup provider, or just take a new ChatContext that includes the current message as history?
+		 */
+		provideChatTitle(context: ChatContext, token: CancellationToken): ProviderResult<string>;
+	}
+
 	export interface ChatParticipant {
 		/**
 		 * When true, this participant is invoked when the user submits their query using ctrl/cmd+enter
@@ -44,6 +51,7 @@ declare module 'vscode' {
 		helpTextPostfix?: string | MarkdownString;
 
 		welcomeMessageProvider?: ChatWelcomeMessageProvider;
+		titleProvider?: ChatTitleProvider;
 		requester?: ChatRequesterInformation;
 	}
 }

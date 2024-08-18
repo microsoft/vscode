@@ -328,7 +328,7 @@ export class ChatService extends Disposable implements IChatService {
 		const persistedSessionItems = persistedSessions
 			.filter(session => !session.isImported)
 			.map(session => {
-				const title = ChatModel.getDefaultTitle(session.requests);
+				const title = session.computedTitle ?? ChatModel.getDefaultTitle(session.requests);
 				return {
 					sessionId: session.sessionId,
 					title,
@@ -339,7 +339,7 @@ export class ChatService extends Disposable implements IChatService {
 		const liveSessionItems = Array.from(this._sessionModels.values())
 			.filter(session => !session.isImported)
 			.map(session => {
-				const title = ChatModel.getDefaultTitle(session.getRequests());
+				const title = session.title;
 				return {
 					sessionId: session.sessionId,
 					title,
@@ -586,7 +586,7 @@ export class ChatService extends Disposable implements IChatService {
 			try {
 				let rawResult: IChatAgentResult | null | undefined;
 				let agentOrCommandFollowups: Promise<IChatFollowup[] | undefined> | undefined = undefined;
-
+				let chatTitlePromise: Promise<string | undefined> | undefined;
 
 				if (agentPart || (defaultAgent && !commandPart)) {
 					const prepareChatAgentRequest = async (agent: IChatAgentData, command?: IChatAgentCommand, enableCommandDetection?: boolean, chatRequest?: ChatRequestModel) => {
@@ -648,6 +648,7 @@ export class ChatService extends Disposable implements IChatService {
 					const agentResult = await this.chatAgentService.invokeAgent(agent.id, requestProps, progressCallback, history, token);
 					rawResult = agentResult;
 					agentOrCommandFollowups = this.chatAgentService.getFollowups(agent.id, requestProps, agentResult, history, followupsCancelToken);
+					chatTitlePromise = model.getRequests().length === 1 ? this.chatAgentService.getChatTitle(defaultAgent.id, this.getHistoryEntriesFromModel(model, location, agent.id), CancellationToken.None) : undefined;
 				} else if (commandPart && this.chatSlashCommandService.hasCommand(commandPart.slashCommand.command)) {
 					request = model.addRequest(parsedRequest, { variables: [] }, attempt);
 					completeResponseCreated();
@@ -707,6 +708,13 @@ export class ChatService extends Disposable implements IChatService {
 						agentOrCommandFollowups.then(followups => {
 							model.setFollowups(request, followups);
 							this._chatServiceTelemetry.retrievedFollowups(agentPart?.agent.id ?? '', commandForTelemetry, followups?.length ?? 0);
+						});
+					}
+					if (chatTitlePromise) {
+						chatTitlePromise.then(title => {
+							if (title) {
+								model.setComputedTitle(title);
+							}
 						});
 					}
 				}
