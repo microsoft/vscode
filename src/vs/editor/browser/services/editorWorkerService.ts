@@ -451,43 +451,43 @@ export class EditorWorkerClient extends Disposable implements IEditorWorkerClien
 
 	public computedUnicodeHighlights(uri: URI, options: UnicodeHighlighterOptions, range?: IRange): Promise<IUnicodeHighlightsResult> {
 		return this._withSyncedResources([uri]).then(proxy => {
-			return proxy.computeUnicodeHighlights(uri.toString(), options, range);
+			return proxy.$computeUnicodeHighlights(uri.toString(), options, range);
 		});
 	}
 
 	public computeDiff(original: URI, modified: URI, options: IDocumentDiffProviderOptions, algorithm: DiffAlgorithmName): Promise<IDiffComputationResult | null> {
 		return this._withSyncedResources([original, modified], /* forceLargeModels */true).then(proxy => {
-			return proxy.computeDiff(original.toString(), modified.toString(), options, algorithm);
+			return proxy.$computeDiff(original.toString(), modified.toString(), options, algorithm);
 		});
 	}
 
 	public computeDirtyDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): Promise<IChange[] | null> {
 		return this._withSyncedResources([original, modified]).then(proxy => {
-			return proxy.computeDirtyDiff(original.toString(), modified.toString(), ignoreTrimWhitespace);
+			return proxy.$computeDirtyDiff(original.toString(), modified.toString(), ignoreTrimWhitespace);
 		});
 	}
 
 	public computeMoreMinimalEdits(resource: URI, edits: languages.TextEdit[], pretty: boolean): Promise<languages.TextEdit[]> {
 		return this._withSyncedResources([resource]).then(proxy => {
-			return proxy.computeMoreMinimalEdits(resource.toString(), edits, pretty);
+			return proxy.$computeMoreMinimalEdits(resource.toString(), edits, pretty);
 		});
 	}
 
 	public computeHumanReadableDiff(resource: URI, edits: languages.TextEdit[], options: ILinesDiffComputerOptions): Promise<languages.TextEdit[]> {
 		return this._withSyncedResources([resource]).then(proxy => {
-			return proxy.computeHumanReadableDiff(resource.toString(), edits, options);
+			return proxy.$computeHumanReadableDiff(resource.toString(), edits, options);
 		});
 	}
 
 	public computeLinks(resource: URI): Promise<languages.ILink[] | null> {
 		return this._withSyncedResources([resource]).then(proxy => {
-			return proxy.computeLinks(resource.toString());
+			return proxy.$computeLinks(resource.toString());
 		});
 	}
 
 	public computeDefaultDocumentColors(resource: URI): Promise<languages.IColorInformation[] | null> {
 		return this._withSyncedResources([resource]).then(proxy => {
-			return proxy.computeDefaultDocumentColors(resource.toString());
+			return proxy.$computeDefaultDocumentColors(resource.toString());
 		});
 	}
 
@@ -495,7 +495,7 @@ export class EditorWorkerClient extends Disposable implements IEditorWorkerClien
 		const proxy = await this._withSyncedResources(resources);
 		const wordDef = wordDefRegExp.source;
 		const wordDefFlags = wordDefRegExp.flags;
-		return proxy.textualSuggest(resources.map(r => r.toString()), leadingWord, wordDef, wordDefFlags);
+		return proxy.$textualSuggest(resources.map(r => r.toString()), leadingWord, wordDef, wordDefFlags);
 	}
 
 	computeWordRanges(resource: URI, range: IRange): Promise<{ [word: string]: IRange[] } | null> {
@@ -507,7 +507,7 @@ export class EditorWorkerClient extends Disposable implements IEditorWorkerClien
 			const wordDefRegExp = this.languageConfigurationService.getLanguageConfiguration(model.getLanguageId()).getWordDefinition();
 			const wordDef = wordDefRegExp.source;
 			const wordDefFlags = wordDefRegExp.flags;
-			return proxy.computeWordRanges(resource.toString(), range, wordDef, wordDefFlags);
+			return proxy.$computeWordRanges(resource.toString(), range, wordDef, wordDefFlags);
 		});
 	}
 
@@ -520,13 +520,13 @@ export class EditorWorkerClient extends Disposable implements IEditorWorkerClien
 			const wordDefRegExp = this.languageConfigurationService.getLanguageConfiguration(model.getLanguageId()).getWordDefinition();
 			const wordDef = wordDefRegExp.source;
 			const wordDefFlags = wordDefRegExp.flags;
-			return proxy.navigateValueSet(resource.toString(), range, up, wordDef, wordDefFlags);
+			return proxy.$navigateValueSet(resource.toString(), range, up, wordDef, wordDefFlags);
 		});
 	}
 
 	public findSectionHeaders(uri: URI, options: FindSectionHeaderOptions): Promise<SectionHeader[]> {
 		return this._withSyncedResources([uri]).then(proxy => {
-			return proxy.findSectionHeaders(uri.toString(), options);
+			return proxy.$findSectionHeaders(uri.toString(), options);
 		});
 	}
 

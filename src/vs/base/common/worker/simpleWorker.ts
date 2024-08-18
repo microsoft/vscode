@@ -297,8 +297,14 @@ class SimpleWorkerProtocol {
 	}
 }
 
+type ProxiedMethodName = (`$${string}` | `on${string}`);
+
 export type Proxied<T> = { [K in keyof T]: T[K] extends (...args: infer A) => infer R
-	? (...args: A) => Promise<Awaited<R>>
+	? (
+		K extends ProxiedMethodName
+		? (...args: A) => Promise<Awaited<R>>
+		: never
+	)
 	: never
 };
 

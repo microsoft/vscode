@@ -57,7 +57,7 @@ export class TextMateWorkerTokenizerController extends Disposable {
 					changes: changesToString(e.changes),
 				});
 			}
-			this._worker.acceptModelChanged(this.controllerId, e);
+			this._worker.$acceptModelChanged(this.controllerId, e);
 			this._pendingChanges.push(e);
 		}));
 
@@ -65,7 +65,7 @@ export class TextMateWorkerTokenizerController extends Disposable {
 			const languageId = this._model.getLanguageId();
 			const encodedLanguageId =
 				this._languageIdCodec.encodeLanguageId(languageId);
-			this._worker.acceptModelLanguageChanged(
+			this._worker.$acceptModelLanguageChanged(
 				this.controllerId,
 				languageId,
 				encodedLanguageId
@@ -74,7 +74,7 @@ export class TextMateWorkerTokenizerController extends Disposable {
 
 		const languageId = this._model.getLanguageId();
 		const encodedLanguageId = this._languageIdCodec.encodeLanguageId(languageId);
-		this._worker.acceptNewModel({
+		this._worker.$acceptNewModel({
 			uri: this._model.uri,
 			versionId: this._model.getVersionId(),
 			lines: this._model.getLinesContent(),
@@ -88,17 +88,17 @@ export class TextMateWorkerTokenizerController extends Disposable {
 		this._register(autorun(reader => {
 			/** @description update maxTokenizationLineLength */
 			const maxTokenizationLineLength = this._maxTokenizationLineLength.read(reader);
-			this._worker.acceptMaxTokenizationLineLength(this.controllerId, maxTokenizationLineLength);
+			this._worker.$acceptMaxTokenizationLineLength(this.controllerId, maxTokenizationLineLength);
 		}));
 	}
 
 	public override dispose(): void {
 		super.dispose();
-		this._worker.acceptRemovedModel(this.controllerId);
+		this._worker.$acceptRemovedModel(this.controllerId);
 	}
 
 	public requestTokens(startLineNumber: number, endLineNumberExclusive: number): void {
-		this._worker.retokenize(this.controllerId, startLineNumber, endLineNumberExclusive);
+		this._worker.$retokenize(this.controllerId, startLineNumber, endLineNumberExclusive);
 	}
 
 	/**

@@ -75,7 +75,7 @@ suite('suggest, word distance', function () {
 				model.onDidChangeContent(e => this._worker.$acceptModelChanged(model.uri.toString(), e));
 			}
 			override computeWordRanges(resource: URI, range: IRange): Promise<{ [word: string]: IRange[] } | null> {
-				return this._worker.computeWordRanges(resource.toString(), range, DEFAULT_WORD_REGEXP.source, DEFAULT_WORD_REGEXP.flags);
+				return this._worker.$computeWordRanges(resource.toString(), range, DEFAULT_WORD_REGEXP.source, DEFAULT_WORD_REGEXP.flags);
 			}
 		};
 

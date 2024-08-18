@@ -95,7 +95,7 @@ class NotebookEditorModelManager extends Disposable {
 
 		const modelUrl = resource.toString();
 
-		this._proxy.acceptNewModel(
+		this._proxy.$acceptNewModel(
 			model.uri.toString(),
 			{
 				cells: model.cells.map(cell => ({
@@ -155,7 +155,7 @@ class NotebookEditorModelManager extends Disposable {
 				return data;
 			});
 
-			this._proxy.acceptModelChanged(modelUrl.toString(), {
+			this._proxy.$acceptModelChanged(modelUrl.toString(), {
 				rawEvents: dto,
 				versionId: event.versionId
 			});
@@ -165,7 +165,7 @@ class NotebookEditorModelManager extends Disposable {
 			this._stopModelSync(modelUrl);
 		}));
 		toDispose.add(toDisposable(() => {
-			this._proxy.acceptRemovedModel(modelUrl);
+			this._proxy.$acceptRemovedModel(modelUrl);
 		}));
 
 		this._syncedModels[modelUrl] = toDispose;
@@ -193,13 +193,13 @@ class NotebookWorkerClient extends Disposable {
 
 	computeDiff(original: URI, modified: URI) {
 		return this._withSyncedResources([original, modified]).then(proxy => {
-			return proxy.computeDiff(original.toString(), modified.toString());
+			return proxy.$computeDiff(original.toString(), modified.toString());
 		});
 	}
 
 	canPromptRecommendation(modelUri: URI) {
 		return this._withSyncedResources([modelUri]).then(proxy => {
-			return proxy.canPromptRecommendation(modelUri.toString());
+			return proxy.$canPromptRecommendation(modelUri.toString());
 		});
 	}
 

@@ -50,7 +50,7 @@ export class TestWorkerService extends mock<IEditorWorkerService>() {
 			EOL: modifiedModel.getEOL(),
 		});
 
-		const result = await this._worker.computeDiff(originalModel.uri.toString(), modifiedModel.uri.toString(), options, algorithm);
+		const result = await this._worker.$computeDiff(originalModel.uri.toString(), modifiedModel.uri.toString(), options, algorithm);
 		if (!result) {
 			return result;
 		}

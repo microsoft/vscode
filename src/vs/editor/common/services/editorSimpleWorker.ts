@@ -114,7 +114,7 @@ export class BaseEditorSimpleWorker implements IDisposable, IWorkerTextModelSync
 		this._workerTextModelSyncServer.$acceptRemovedModel(uri);
 	}
 
-	public async computeUnicodeHighlights(url: string, options: UnicodeHighlighterOptions, range?: IRange): Promise<IUnicodeHighlightsResult> {
+	public async $computeUnicodeHighlights(url: string, options: UnicodeHighlighterOptions, range?: IRange): Promise<IUnicodeHighlightsResult> {
 		const model = this._getModel(url);
 		if (!model) {
 			return { ranges: [], hasMore: false, ambiguousCharacterCount: 0, invisibleCharacterCount: 0, nonBasicAsciiCharacterCount: 0 };
@@ -122,7 +122,7 @@ export class BaseEditorSimpleWorker implements IDisposable, IWorkerTextModelSync
 		return UnicodeTextModelHighlighter.computeUnicodeHighlights(model, options, range);
 	}
 
-	public async findSectionHeaders(url: string, options: FindSectionHeaderOptions): Promise<SectionHeader[]> {
+	public async $findSectionHeaders(url: string, options: FindSectionHeaderOptions): Promise<SectionHeader[]> {
 		const model = this._getModel(url);
 		if (!model) {
 			return [];
@@ -132,7 +132,7 @@ export class BaseEditorSimpleWorker implements IDisposable, IWorkerTextModelSync
 
 	// ---- BEGIN diff --------------------------------------------------------------------------
 
-	public async computeDiff(originalUrl: string, modifiedUrl: string, options: IDocumentDiffProviderOptions, algorithm: DiffAlgorithmName): Promise<IDiffComputationResult | null> {
+	public async $computeDiff(originalUrl: string, modifiedUrl: string, options: IDocumentDiffProviderOptions, algorithm: DiffAlgorithmName): Promise<IDiffComputationResult | null> {
 		const original = this._getModel(originalUrl);
 		const modified = this._getModel(modifiedUrl);
 		if (!original || !modified) {
@@ -196,7 +196,7 @@ export class BaseEditorSimpleWorker implements IDisposable, IWorkerTextModelSync
 		return true;
 	}
 
-	public async computeDirtyDiff(originalUrl: string, modifiedUrl: string, ignoreTrimWhitespace: boolean): Promise<IChange[] | null> {
+	public async $computeDirtyDiff(originalUrl: string, modifiedUrl: string, ignoreTrimWhitespace: boolean): Promise<IChange[] | null> {
 		const original = this._getModel(originalUrl);
 		const modified = this._getModel(modifiedUrl);
 		if (!original || !modified) {
@@ -222,7 +222,7 @@ export class BaseEditorSimpleWorker implements IDisposable, IWorkerTextModelSync
 
 	private static readonly _diffLimit = 100000;
 
-	public async computeMoreMinimalEdits(modelUrl: string, edits: TextEdit[], pretty: boolean): Promise<TextEdit[]> {
+	public async $computeMoreMinimalEdits(modelUrl: string, edits: TextEdit[], pretty: boolean): Promise<TextEdit[]> {
 		const model = this._getModel(modelUrl);
 		if (!model) {
 			return edits;
@@ -304,7 +304,7 @@ export class BaseEditorSimpleWorker implements IDisposable, IWorkerTextModelSync
 		return result;
 	}
 
-	public computeHumanReadableDiff(modelUrl: string, edits: TextEdit[], options: ILinesDiffComputerOptions): TextEdit[] {
+	public $computeHumanReadableDiff(modelUrl: string, edits: TextEdit[], options: ILinesDiffComputerOptions): TextEdit[] {
 		const model = this._getModel(modelUrl);
 		if (!model) {
 			return edits;
@@ -404,7 +404,7 @@ export class BaseEditorSimpleWorker implements IDisposable, IWorkerTextModelSync
 
 	// ---- END minimal edits ---------------------------------------------------------------
 
-	public async computeLinks(modelUrl: string): Promise<ILink[] | null> {
+	public async $computeLinks(modelUrl: string): Promise<ILink[] | null> {
 		const model = this._getModel(modelUrl);
 		if (!model) {
 			return null;
@@ -415,7 +415,7 @@ export class BaseEditorSimpleWorker implements IDisposable, IWorkerTextModelSync
 
 	// --- BEGIN default document colors -----------------------------------------------------------
 
-	public async computeDefaultDocumentColors(modelUrl: string): Promise<IColorInformation[] | null> {
+	public async $computeDefaultDocumentColors(modelUrl: string): Promise<IColorInformation[] | null> {
 		const model = this._getModel(modelUrl);
 		if (!model) {
 			return null;
@@ -427,7 +427,7 @@ export class BaseEditorSimpleWorker implements IDisposable, IWorkerTextModelSync
 
 	private static readonly _suggestionsLimit = 10000;
 
-	public async textualSuggest(modelUrls: string[], leadingWord: string | undefined, wordDef: string, wordDefFlags: string): Promise<{ words: string[]; duration: number } | null> {
+	public async $textualSuggest(modelUrls: string[], leadingWord: string | undefined, wordDef: string, wordDefFlags: string): Promise<{ words: string[]; duration: number } | null> {
 
 		const sw = new StopWatch();
 		const wordDefRegExp = new RegExp(wordDef, wordDefFlags);
@@ -458,7 +458,7 @@ export class BaseEditorSimpleWorker implements IDisposable, IWorkerTextModelSync
 
 	//#region -- word ranges --
 
-	public async computeWordRanges(modelUrl: string, range: IRange, wordDef: string, wordDefFlags: string): Promise<{ [word: string]: IRange[] }> {
+	public async $computeWordRanges(modelUrl: string, range: IRange, wordDef: string, wordDefFlags: string): Promise<{ [word: string]: IRange[] }> {
 		const model = this._getModel(modelUrl);
 		if (!model) {
 			return Object.create(null);
@@ -489,7 +489,7 @@ export class BaseEditorSimpleWorker implements IDisposable, IWorkerTextModelSync
 
 	//#endregion
 
-	public async navigateValueSet(modelUrl: string, range: IRange, up: boolean, wordDef: string, wordDefFlags: string): Promise<IInplaceReplaceSupportResult | null> {
+	public async $navigateValueSet(modelUrl: string, range: IRange, up: boolean, wordDef: string, wordDefFlags: string): Promise<IInplaceReplaceSupportResult | null> {
 		const model = this._getModel(modelUrl);
 		if (!model) {
 			return null;
@@ -534,7 +534,7 @@ export class EditorSimpleWorker extends BaseEditorSimpleWorker {
 
 	// ---- BEGIN foreign module support --------------------------------------------------------------------------
 
-	public loadForeignModule(moduleId: string, createData: any, foreignHostMethods: string[]): Promise<string[]> {
+	public $loadForeignModule(moduleId: string, createData: any, foreignHostMethods: string[]): Promise<string[]> {
 		const proxyMethodRequest = (method: string, args: any[]): Promise<any> => {
 			return this._host.$fhr(method, args);
 		};
@@ -571,7 +571,7 @@ export class EditorSimpleWorker extends BaseEditorSimpleWorker {
 	}
 
 	// foreign method request
-	public fmr(method: string, args: any[]): Promise<any> {
+	public $fmr(method: string, args: any[]): Promise<any> {
 		if (!this._foreignModule || typeof this._foreignModule[method] !== 'function') {
 			return Promise.reject(new Error('Missing requestHandler or method: ' + method));
 		}

@@ -23,7 +23,7 @@ class ProfileAnalysisWorker implements IRequestHandler, IProfileAnalysisWorker {
 
 	_requestHandlerBrand: any;
 
-	analyseBottomUp(profile: IV8Profile): BottomUpAnalysis {
+	$analyseBottomUp(profile: IV8Profile): BottomUpAnalysis {
 		if (!Utils.isValidProfile(profile)) {
 			return { kind: ProfilingOutput.Irrelevant, samples: [] };
 		}
@@ -41,7 +41,7 @@ class ProfileAnalysisWorker implements IRequestHandler, IProfileAnalysisWorker {
 		return { kind: ProfilingOutput.Interesting, samples };
 	}
 
-	analyseByUrlCategory(profile: IV8Profile, categories: [url: URI, category: string][]): [category: string, aggregated: number][] {
+	$analyseByUrlCategory(profile: IV8Profile, categories: [url: URI, category: string][]): [category: string, aggregated: number][] {
 
 		// build search tree
 		const searchTree = TernarySearchTree.forUris<string>();

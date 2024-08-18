@@ -28,7 +28,7 @@ export class OutputLinkComputer implements IRequestHandler {
 		this.workerTextModelSyncServer.bindToServer(workerServer);
 	}
 
-	setWorkspaceFolders(workspaceFolders: string[]) {
+	$setWorkspaceFolders(workspaceFolders: string[]) {
 		this.computePatterns(workspaceFolders);
 	}
 
@@ -51,7 +51,7 @@ export class OutputLinkComputer implements IRequestHandler {
 		return this.workerTextModelSyncServer.getModel(uri);
 	}
 
-	computeLinks(uri: string): ILink[] {
+	$computeLinks(uri: string): ILink[] {
 		const model = this.getModel(uri);
 		if (!model) {
 			return [];

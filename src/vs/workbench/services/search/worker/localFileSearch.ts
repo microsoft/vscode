@@ -66,7 +66,7 @@ export class LocalFileSearchSimpleWorker implements ILocalFileSearchSimpleWorker
 		this.host = LocalFileSearchSimpleWorkerHost.getChannel(workerServer);
 	}
 
-	cancelQuery(queryId: number): void {
+	$cancelQuery(queryId: number): void {
 		this.cancellationTokens.get(queryId)?.cancel();
 	}
 
@@ -76,7 +76,7 @@ export class LocalFileSearchSimpleWorker implements ILocalFileSearchSimpleWorker
 		return source;
 	}
 
-	async listDirectory(handle: IWorkerFileSystemDirectoryHandle, query: IFileQueryProps<UriComponents>, folderQuery: IFolderQuery<UriComponents>, ignorePathCasing: boolean, queryId: number): Promise<IWorkerFileSearchComplete> {
+	async $listDirectory(handle: IWorkerFileSystemDirectoryHandle, query: IFileQueryProps<UriComponents>, folderQuery: IFolderQuery<UriComponents>, ignorePathCasing: boolean, queryId: number): Promise<IWorkerFileSearchComplete> {
 		const revivedFolderQuery = reviveFolderQuery(folderQuery);
 		const extUri = new ExtUri(() => ignorePathCasing);
 
@@ -111,7 +111,7 @@ export class LocalFileSearchSimpleWorker implements ILocalFileSearchSimpleWorker
 		};
 	}
 
-	async searchDirectory(handle: IWorkerFileSystemDirectoryHandle, query: ITextQueryProps<UriComponents>, folderQuery: IFolderQuery<UriComponents>, ignorePathCasing: boolean, queryId: number): Promise<IWorkerTextSearchComplete> {
+	async $searchDirectory(handle: IWorkerFileSystemDirectoryHandle, query: ITextQueryProps<UriComponents>, folderQuery: IFolderQuery<UriComponents>, ignorePathCasing: boolean, queryId: number): Promise<IWorkerTextSearchComplete> {
 		const revivedQuery = reviveFolderQuery(folderQuery);
 		const extUri = new ExtUri(() => ignorePathCasing);
 

@@ -114,7 +114,7 @@ export class ThreadedBackgroundTokenizerFactory implements IDisposable {
 		this._currentTheme = theme;
 		this._currentTokenColorMap = colorMap;
 		if (this._currentTheme && this._currentTokenColorMap && this._workerProxy) {
-			this._workerProxy.acceptTheme(this._currentTheme, this._currentTokenColorMap);
+			this._workerProxy.$acceptTheme(this._currentTheme, this._currentTokenColorMap);
 		}
 	}
 
@@ -160,7 +160,7 @@ export class ThreadedBackgroundTokenizerFactory implements IDisposable {
 			}
 		});
 		const proxy = await worker.getProxyObject();
-		await proxy.init(createData);
+		await proxy.$init(createData);
 
 		if (this._worker !== worker) {
 			// disposed in the meantime
@@ -168,7 +168,7 @@ export class ThreadedBackgroundTokenizerFactory implements IDisposable {
 		}
 		this._workerProxy = proxy;
 		if (this._currentTheme && this._currentTokenColorMap) {
-			this._workerProxy.acceptTheme(this._currentTheme, this._currentTokenColorMap);
+			this._workerProxy.$acceptTheme(this._currentTheme, this._currentTokenColorMap);
 		}
 		return proxy;
 	}

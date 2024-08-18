@@ -93,11 +93,11 @@ class MonacoWebWorkerImpl<T extends object> extends EditorWorkerClient implement
 		if (!this._foreignProxy) {
 			this._foreignProxy = this._getProxy().then((proxy) => {
 				const foreignHostMethods = this._foreignModuleHost ? getAllMethodNames(this._foreignModuleHost) : [];
-				return proxy.loadForeignModule(this._foreignModuleId, this._foreignModuleCreateData, foreignHostMethods).then((foreignMethods) => {
+				return proxy.$loadForeignModule(this._foreignModuleId, this._foreignModuleCreateData, foreignHostMethods).then((foreignMethods) => {
 					this._foreignModuleCreateData = null;
 
 					const proxyMethodRequest = (method: string, args: any[]): Promise<any> => {
-						return proxy.fmr(method, args);
+						return proxy.$fmr(method, args);
 					};
 
 					const createProxyMethod = (method: string, proxyMethodRequest: (method: string, args: any[]) => Promise<any>): () => Promise<any> => {

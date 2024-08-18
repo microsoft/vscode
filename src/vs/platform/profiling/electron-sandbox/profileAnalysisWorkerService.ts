@@ -62,7 +62,7 @@ class ProfileAnalysisWorkerService implements IProfileAnalysisWorkerService {
 
 	async analyseBottomUp(profile: IV8Profile, callFrameClassifier: IScriptUrlClassifier, perfBaseline: number, sendAsErrorTelemtry: boolean): Promise<ProfilingOutput> {
 		return this._withWorker(async worker => {
-			const result = await worker.analyseBottomUp(profile);
+			const result = await worker.$analyseBottomUp(profile);
 			if (result.kind === ProfilingOutput.Interesting) {
 				for (const sample of result.samples) {
 					reportSample({
@@ -78,7 +78,7 @@ class ProfileAnalysisWorkerService implements IProfileAnalysisWorkerService {
 
 	async analyseByLocation(profile: IV8Profile, locations: [location: URI, id: string][]): Promise<[category: string, aggregated: number][]> {
 		return this._withWorker(async worker => {
-			const result = await worker.analyseByUrlCategory(profile, locations);
+			const result = await worker.$analyseByUrlCategory(profile, locations);
 			return result;
 		});
 	}
@@ -99,8 +99,8 @@ export interface CategoryAnalysis {
 }
 
 export interface IProfileAnalysisWorker {
-	analyseBottomUp(profile: IV8Profile): BottomUpAnalysis;
-	analyseByUrlCategory(profile: IV8Profile, categories: [url: URI, category: string][]): [category: string, aggregated: number][];
+	$analyseBottomUp(profile: IV8Profile): BottomUpAnalysis;
+	$analyseByUrlCategory(profile: IV8Profile, categories: [url: URI, category: string][]): [category: string, aggregated: number][];
 }
 
 registerSingleton(IProfileAnalysisWorkerService, ProfileAnalysisWorkerService, InstantiationType.Delayed);

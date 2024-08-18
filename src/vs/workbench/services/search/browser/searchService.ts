@@ -76,7 +76,7 @@ export class LocalFileSearchWorkerClient extends Disposable implements ISearchRe
 
 	private async cancelQuery(queryId: number) {
 		const proxy = await this._getOrCreateWorker().getProxyObject();
-		proxy.cancelQuery(queryId);
+		proxy.$cancelQuery(queryId);
 	}
 
 	async textSearch(query: ITextQuery, onProgress?: (p: ISearchProgressItem) => void, token?: CancellationToken): Promise<ISearchComplete> {
@@ -112,7 +112,7 @@ export class LocalFileSearchWorkerClient extends Disposable implements ISearchRe
 				}));
 
 				const ignorePathCasing = this.uriIdentityService.extUri.ignorePathCasing(fq.folder);
-				const folderResults = await proxy.searchDirectory(handle, query, fq, ignorePathCasing, queryId);
+				const folderResults = await proxy.$searchDirectory(handle, query, fq, ignorePathCasing, queryId);
 				for (const folderResult of folderResults.results) {
 					results.push(revive(folderResult));
 				}
@@ -154,7 +154,7 @@ export class LocalFileSearchWorkerClient extends Disposable implements ISearchRe
 					return;
 				}
 				const caseSensitive = this.uriIdentityService.extUri.ignorePathCasing(fq.folder);
-				const folderResults = await proxy.listDirectory(handle, query, fq, caseSensitive, queryId);
+				const folderResults = await proxy.$listDirectory(handle, query, fq, caseSensitive, queryId);
 				for (const folderResult of folderResults.results) {
 					results.push({ resource: URI.joinPath(fq.folder, folderResult) });
 				}

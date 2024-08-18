@@ -190,7 +190,7 @@ export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable 
 	dispose(): void {
 	}
 
-	public acceptNewModel(uri: string, data: NotebookData): void {
+	public $acceptNewModel(uri: string, data: NotebookData): void {
 		this._models[uri] = new MirrorNotebookDocument(URI.parse(uri), data.cells.map(dto => new MirrorCell(
 			(dto as unknown as IMainCellDto).handle,
 			dto.source,
@@ -201,19 +201,19 @@ export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable 
 		)), data.metadata);
 	}
 
-	public acceptModelChanged(strURL: string, event: NotebookCellsChangedEventDto) {
+	public $acceptModelChanged(strURL: string, event: NotebookCellsChangedEventDto) {
 		const model = this._models[strURL];
 		model?.acceptModelChanged(event);
 	}
 
-	public acceptRemovedModel(strURL: string): void {
+	public $acceptRemovedModel(strURL: string): void {
 		if (!this._models[strURL]) {
 			return;
 		}
 		delete this._models[strURL];
 	}
 
-	computeDiff(originalUrl: string, modifiedUrl: string): INotebookDiffResult {
+	$computeDiff(originalUrl: string, modifiedUrl: string): INotebookDiffResult {
 		const original = this._getModel(originalUrl);
 		const modified = this._getModel(modifiedUrl);
 
@@ -275,7 +275,7 @@ export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable 
 		};
 	}
 
-	canPromptRecommendation(modelUrl: string): boolean {
+	$canPromptRecommendation(modelUrl: string): boolean {
 		const model = this._getModel(modelUrl);
 		const cells = model.cells;
 
