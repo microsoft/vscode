@@ -9,23 +9,25 @@ const gulp = require('gulp');
 const path = require('path');
 const task = require('./lib/task');
 const util = require('./lib/util');
-const electron = require('gulp-atom-electron');
+const electron = require('@vscode/gulp-electron');
 const { config } = require('./lib/electron');
 const filter = require('gulp-filter');
 const deps = require('./lib/dependencies');
+const { existsSync, readdirSync } = require('fs');
 
 const root = path.dirname(__dirname);
 
 const BUILD_TARGETS = [
-	{ platform: 'win32', arch: 'ia32' },
 	{ platform: 'win32', arch: 'x64' },
 	{ platform: 'win32', arch: 'arm64' },
 	{ platform: 'darwin', arch: null, opts: { stats: true } },
-	{ platform: 'linux', arch: 'ia32' },
 	{ platform: 'linux', arch: 'x64' },
 	{ platform: 'linux', arch: 'armhf' },
 	{ platform: 'linux', arch: 'arm64' },
 ];
+
+// The following files do not have PDBs downloaded for them during the download symbols process.
+const excludedCheckList = ['d3dcompiler_47.dll'];
 
 BUILD_TARGETS.forEach(buildTarget => {
 	const dashed = (/** @type {string | null} */ str) => (str ? `-${str}` : ``);
@@ -47,8 +49,8 @@ BUILD_TARGETS.forEach(buildTarget => {
 	if (platform === 'win32') {
 		tasks.push(
 			() => electron.dest(destinationPdb, { ...config, platform, arch: arch === 'armhf' ? 'arm' : arch, pdbs: true }),
-			util.rimraf(path.join(destinationExe, 'swiftshader')),
-			util.rimraf(path.join(destinationExe, 'd3dcompiler_47.dll')));
+			() => confirmPdbsExist(destinationExe, destinationPdb)
+		);
 	}
 
 	if (platform === 'linux') {
@@ -81,8 +83,7 @@ function nodeModules(destinationExe, destinationPdb, platform) {
 				// We don't build the prebuilt node files so we don't scan them
 				'!**/prebuilds/**/*.node',
 				// These are 3rd party modules that we should ignore
-				'!**/@parcel/watcher/**/*',
-				'!**/native-is-elevated/**/*']))
+				'!**/@parcel/watcher/**/*']))
 			.pipe(gulp.dest(destinationExe));
 	};
 
@@ -107,4 +108,20 @@ function nodeModules(destinationExe, destinationPdb, platform) {
 	}
 
 	return exe;
+}
+
+function confirmPdbsExist(destinationExe, destinationPdb) {
+	readdirSync(destinationExe).forEach(file => {
+		if (excludedCheckList.includes(file)) {
+			return;
+		}
+
+		if (file.endsWith('.dll') || file.endsWith('.exe')) {
+			const pdb = `${file}.pdb`;
+			if (!existsSync(path.join(destinationPdb, pdb))) {
+				throw new Error(`Missing pdb file for ${file}. Tried searching for ${pdb} in ${destinationPdb}.`);
+			}
+		}
+	});
+	return Promise.resolve();
 }

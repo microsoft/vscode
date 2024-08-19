@@ -137,12 +137,7 @@ export class ViewZones extends ViewPart {
 	// ---- end view event handlers
 
 	private _getZoneOrdinal(zone: IViewZone): number {
-
-		if (typeof zone.afterColumn !== 'undefined') {
-			return zone.afterColumn;
-		}
-
-		return 10000;
+		return zone.ordinal ?? zone.afterColumn ?? 10000;
 	}
 
 	private _computeWhitespaceProps(zone: IViewZone): IComputedViewZoneProps {
@@ -186,8 +181,8 @@ export class ViewZones extends ViewPart {
 			});
 		}
 
-		const viewPosition = this._context.viewModel.coordinatesConverter.convertModelPositionToViewPosition(zoneAfterModelPosition, zone.afterColumnAffinity);
-		const isVisible = this._context.viewModel.coordinatesConverter.modelPositionIsVisible(zoneBeforeModelPosition);
+		const viewPosition = this._context.viewModel.coordinatesConverter.convertModelPositionToViewPosition(zoneAfterModelPosition, zone.afterColumnAffinity, true);
+		const isVisible = zone.showInHiddenAreas || this._context.viewModel.coordinatesConverter.modelPositionIsVisible(zoneBeforeModelPosition);
 		return {
 			isInHiddenArea: !isVisible,
 			afterViewLineNumber: viewPosition.lineNumber,
@@ -276,12 +271,12 @@ export class ViewZones extends ViewPart {
 
 			zone.domNode.removeAttribute('monaco-visible-view-zone');
 			zone.domNode.removeAttribute('monaco-view-zone');
-			zone.domNode.domNode.parentNode!.removeChild(zone.domNode.domNode);
+			zone.domNode.domNode.remove();
 
 			if (zone.marginDomNode) {
 				zone.marginDomNode.removeAttribute('monaco-visible-view-zone');
 				zone.marginDomNode.removeAttribute('monaco-view-zone');
-				zone.marginDomNode.domNode.parentNode!.removeChild(zone.marginDomNode.domNode);
+				zone.marginDomNode.domNode.remove();
 			}
 
 			this.setShouldRender();

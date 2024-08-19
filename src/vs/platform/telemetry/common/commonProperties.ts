@@ -23,6 +23,8 @@ export function resolveCommonProperties(
 	commit: string | undefined,
 	version: string | undefined,
 	machineId: string | undefined,
+	sqmId: string | undefined,
+	devDeviceId: string | undefined,
 	isInternalTelemetry: boolean,
 	product?: string
 ): ICommonProperties {
@@ -30,6 +32,10 @@ export function resolveCommonProperties(
 
 	// __GDPR__COMMON__ "common.machineId" : { "endPoint": "MacAddressHash", "classification": "EndUserPseudonymizedInformation", "purpose": "FeatureInsight" }
 	result['common.machineId'] = machineId;
+	// __GDPR__COMMON__ "common.sqmId" : { "endPoint": "SqmMachineId", "classification": "EndUserPseudonymizedInformation", "purpose": "BusinessInsight" }
+	result['common.sqmId'] = sqmId;
+	// __GDPR__COMMON__ "common.devDeviceId" : { "endPoint": "SqmMachineId", "classification": "EndUserPseudonymizedInformation", "purpose": "BusinessInsight" }
+	result['common.devDeviceId'] = devDeviceId;
 	// __GDPR__COMMON__ "sessionID" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	result['sessionID'] = generateUuid() + Date.now();
 	// __GDPR__COMMON__ "commitHash" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }

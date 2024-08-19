@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { OPTIONS, parseArgs } from 'vs/platform/environment/node/argv';
 import { getUserDataPath } from 'vs/platform/environment/node/userDataPath';
 import product from 'vs/platform/product/common/product';
@@ -57,4 +58,6 @@ suite('User data path', () => {
 			}
 		}
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

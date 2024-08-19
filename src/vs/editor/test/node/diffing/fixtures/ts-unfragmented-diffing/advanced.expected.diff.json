@@ -1,0 +1,32 @@
+{
+	"original": {
+		"content": "import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';\nimport { Disposable } from 'vs/base/common/lifecycle';\nimport { ICodeEditor } from 'vs/editor/browser/editorBrowser';\nimport { EditorAction, EditorCommand, registerEditorAction, registerEditorCommand, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';\nimport { IEditorContribution } from 'vs/editor/common/editorCommon';\nimport { EditorContextKeys } from 'vs/editor/common/editorContextKeys';\nimport * as languages from 'vs/editor/common/languages';\nimport { TriggerContext } from 'vs/editor/contrib/parameterHints/browser/parameterHintsModel';\nimport { Context } from 'vs/editor/contrib/parameterHints/browser/provideSignatureHelp';\nimport * as nls from 'vs/nls';\nimport { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';\nimport { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';\nimport { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';\nimport { ParameterHintsWidget } from './parameterHintsWidget';\n",
+		"fileName": "./1.tst"
+	},
+	"modified": {
+		"content": "import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';\nimport { Lazy } from 'vs/base/common/lazy';\nimport { Disposable } from 'vs/base/common/lifecycle';\nimport { ICodeEditor } from 'vs/editor/browser/editorBrowser';\nimport { EditorAction, EditorCommand, registerEditorAction, registerEditorCommand, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';\nimport { IEditorContribution } from 'vs/editor/common/editorCommon';\nimport { EditorContextKeys } from 'vs/editor/common/editorContextKeys';\nimport * as languages from 'vs/editor/common/languages';\nimport { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';\nimport { ParameterHintsModel, TriggerContext } from 'vs/editor/contrib/parameterHints/browser/parameterHintsModel';\nimport { Context } from 'vs/editor/contrib/parameterHints/browser/provideSignatureHelp';\nimport * as nls from 'vs/nls';\nimport { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';\nimport { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';\nimport { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';\nimport { ParameterHintsWidget } from './parameterHintsWidget';\n",
+		"fileName": "./2.tst"
+	},
+	"diffs": [
+		{
+			"originalRange": "[2,2)",
+			"modifiedRange": "[2,3)",
+			"innerChanges": [
+				{
+					"originalRange": "[2,1 -> 2,1]",
+					"modifiedRange": "[2,1 -> 3,1]"
+				}
+			]
+		},
+		{
+			"originalRange": "[8,9)",
+			"modifiedRange": "[9,11)",
+			"innerChanges": [
+				{
+					"originalRange": "[8,9 -> 8,9]",
+					"modifiedRange": "[9,9 -> 10,30]"
+				}
+			]
+		}
+	]
+}

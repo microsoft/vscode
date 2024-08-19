@@ -16,6 +16,9 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { removeDangerousEnvVariables } from 'vs/base/common/processes';
 import { deepClone } from 'vs/base/common/objects';
+import { isWindows } from 'vs/base/common/platform';
+import { isUNCAccessRestrictionsDisabled, getUNCHostAllowlist } from 'vs/base/node/unc';
+import { upcast } from 'vs/base/common/types';
 
 export interface IUtilityProcessConfiguration {
 
@@ -74,6 +77,13 @@ export interface IUtilityProcessConfiguration {
 	 * the V8 sandbox.
 	 */
 	readonly forceAllocationsToV8Sandbox?: boolean;
+
+	/**
+	 * HTTP 401 and 407 requests created via electron:net module
+	 * will be redirected to the main process and can be handled
+	 * via the app#login event.
+	 */
+	readonly respondToAuthRequestsFromMainProcess?: boolean;
 }
 
 export interface IWindowUtilityProcessConfiguration extends IUtilityProcessConfiguration {
@@ -154,6 +164,9 @@ export class UtilityProcess extends Disposable {
 	private readonly _onMessage = this._register(new Emitter<unknown>());
 	readonly onMessage = this._onMessage.event;
 
+	private readonly _onSpawn = this._register(new Emitter<number | undefined>());
+	readonly onSpawn = this._onSpawn.event;
+
 	private readonly _onExit = this._register(new Emitter<IUtilityProcessExitEvent>());
 	readonly onExit = this._onExit.event;
 
@@ -163,6 +176,7 @@ export class UtilityProcess extends Disposable {
 	private process: ElectronUtilityProcess | undefined = undefined;
 	private processPid: number | undefined = undefined;
 	private configuration: IUtilityProcessConfiguration | undefined = undefined;
+	private killed = false;
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
@@ -204,16 +218,19 @@ export class UtilityProcess extends Disposable {
 	}
 
 	start(configuration: IUtilityProcessConfiguration): boolean {
-		const started = this.doStart(configuration, false);
+		const started = this.doStart(configuration);
 
 		if (started && configuration.payload) {
-			this.postMessage(configuration.payload);
+			const posted = this.postMessage(configuration.payload);
+			if (posted) {
+				this.log('payload sent via postMessage()', Severity.Info);
+			}
 		}
 
 		return started;
 	}
 
-	protected doStart(configuration: IUtilityProcessConfiguration, isWindowSandboxed: boolean): boolean {
+	protected doStart(configuration: IUtilityProcessConfiguration): boolean {
 		if (!this.validateCanStart()) {
 			return false;
 		}
@@ -226,28 +243,33 @@ export class UtilityProcess extends Disposable {
 		const execArgv = this.configuration.execArgv ?? [];
 		const allowLoadingUnsignedLibraries = this.configuration.allowLoadingUnsignedLibraries;
 		const forceAllocationsToV8Sandbox = this.configuration.forceAllocationsToV8Sandbox;
+		const respondToAuthRequestsFromMainProcess = this.configuration.respondToAuthRequestsFromMainProcess;
 		const stdio = 'pipe';
-		const env = this.createEnv(configuration, isWindowSandboxed);
+		const env = this.createEnv(configuration);
 
 		this.log('creating new...', Severity.Info);
 
 		// Fork utility process
-		this.process = utilityProcess.fork(modulePath, args, {
+		this.process = utilityProcess.fork(modulePath, args, upcast<ForkOptions, ForkOptions & {
+			forceAllocationsToV8Sandbox?: boolean;
+			respondToAuthRequestsFromMainProcess?: boolean;
+		}>({
 			serviceName,
 			env,
 			execArgv,
 			allowLoadingUnsignedLibraries,
 			forceAllocationsToV8Sandbox,
+			respondToAuthRequestsFromMainProcess,
 			stdio
-		} as ForkOptions & { forceAllocationsToV8Sandbox?: Boolean });
+		}));
 
 		// Register to events
-		this.registerListeners(this.process, this.configuration, serviceName, isWindowSandboxed);
+		this.registerListeners(this.process, this.configuration, serviceName);
 
 		return true;
 	}
 
-	private createEnv(configuration: IUtilityProcessConfiguration, isWindowSandboxed: boolean): { [key: string]: any } {
+	private createEnv(configuration: IUtilityProcessConfiguration): { [key: string]: any } {
 		const env: { [key: string]: any } = configuration.env ? { ...configuration.env } : { ...deepClone(process.env) };
 
 		// Apply supported environment variables from config
@@ -255,10 +277,14 @@ export class UtilityProcess extends Disposable {
 		if (typeof configuration.parentLifecycleBound === 'number') {
 			env['VSCODE_PARENT_PID'] = String(configuration.parentLifecycleBound);
 		}
-		if (isWindowSandboxed) {
-			env['VSCODE_CRASH_REPORTER_SANDBOXED_HINT'] = '1'; // TODO@bpasero remove me once sandbox is final
-		}
 		env['VSCODE_CRASH_REPORTER_PROCESS_TYPE'] = configuration.type;
+		if (isWindows) {
+			if (isUNCAccessRestrictionsDisabled()) {
+				env['NODE_DISABLE_UNC_ACCESS_CHECKS'] = '1';
+			} else {
+				env['NODE_UNC_HOST_ALLOWLIST'] = getUNCHostAllowlist().join('\\');
+			}
+		}
 
 		// Remove any environment variables that are not allowed
 		removeDangerousEnvVariables(env);
@@ -271,7 +297,7 @@ export class UtilityProcess extends Disposable {
 		return env;
 	}
 
-	private registerListeners(process: ElectronUtilityProcess, configuration: IUtilityProcessConfiguration, serviceName: string, isWindowSandboxed: boolean): void {
+	private registerListeners(process: ElectronUtilityProcess, configuration: IUtilityProcessConfiguration, serviceName: string): void {
 
 		// Stdout
 		if (process.stdout) {
@@ -297,14 +323,16 @@ export class UtilityProcess extends Disposable {
 			}
 
 			this.log('successfully created', Severity.Info);
+			this._onSpawn.fire(process.pid);
 		}));
 
 		// Exit
 		this._register(Event.fromNodeEventEmitter<number>(process, 'exit')(code => {
-			this.log(`received exit event with code ${code}`, Severity.Info);
+			const normalizedCode = this.isNormalExit(code) ? 0 : code;
+			this.log(`received exit event with code ${normalizedCode}`, Severity.Info);
 
 			// Event
-			this._onExit.fire({ pid: this.processPid!, code, signal: 'unknown' });
+			this._onExit.fire({ pid: this.processPid!, code: normalizedCode, signal: 'unknown' });
 
 			// Cleanup
 			this.onDidExitOrCrashOrKill();
@@ -312,15 +340,14 @@ export class UtilityProcess extends Disposable {
 
 		// Child process gone
 		this._register(Event.fromNodeEventEmitter<{ details: Details }>(app, 'child-process-gone', (event, details) => ({ event, details }))(({ details }) => {
-			if (details.type === 'Utility' && details.name === serviceName) {
+			if (details.type === 'Utility' && details.name === serviceName && !this.isNormalExit(details.exitCode)) {
 				this.log(`crashed with code ${details.exitCode} and reason '${details.reason}'`, Severity.Error);
 
 				// Telemetry
 				type UtilityProcessCrashClassification = {
 					type: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The type of utility process to understand the origin of the crash better.' };
 					reason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The reason of the utility process crash to understand the nature of the crash better.' };
-					sandboxed: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'If the window for the utility process was sandboxed or not.' };
-					code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The exit code of the utility process to understand the nature of the crash better' };
+					code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The exit code of the utility process to understand the nature of the crash better' };
 					owner: 'bpasero';
 					comment: 'Provides insight into reasons the utility process crashed.';
 				};
@@ -328,13 +355,11 @@ export class UtilityProcess extends Disposable {
 					type: string;
 					reason: string;
 					code: number;
-					sandboxed: string;
 				};
 				this.telemetryService.publicLog2<UtilityProcessCrashEvent, UtilityProcessCrashClassification>('utilityprocesscrash', {
 					type: configuration.type,
 					reason: details.reason,
-					code: details.exitCode,
-					sandboxed: isWindowSandboxed ? '1' : '0' // TODO@bpasero remove this once sandbox is enabled by default
+					code: details.exitCode
 				});
 
 				// Event
@@ -356,12 +381,14 @@ export class UtilityProcess extends Disposable {
 		}));
 	}
 
-	postMessage(message: unknown, transfer?: Electron.MessagePortMain[]): void {
+	postMessage(message: unknown, transfer?: Electron.MessagePortMain[]): boolean {
 		if (!this.process) {
-			return; // already killed, crashed or never started
+			return false; // already killed, crashed or never started
 		}
 
 		this.process.postMessage(message, transfer);
+
+		return true;
 	}
 
 	connect(payload?: unknown): Electron.MessagePortMain {
@@ -403,10 +430,22 @@ export class UtilityProcess extends Disposable {
 		const killed = this.process.kill();
 		if (killed) {
 			this.log('successfully killed the process', Severity.Info);
+			this.killed = true;
 			this.onDidExitOrCrashOrKill();
 		} else {
 			this.log('unable to kill the process', Severity.Warning);
 		}
+	}
+
+	private isNormalExit(exitCode: number): boolean {
+		if (exitCode === 0) {
+			return true;
+		}
+
+		// Treat an exit code of 15 (SIGTERM) as a normal exit
+		// if we triggered the termination from process.kill()
+
+		return this.killed && exitCode === 15 /* SIGTERM */;
 	}
 
 	private onDidExitOrCrashOrKill(): void {
@@ -452,7 +491,7 @@ export class WindowUtilityProcess extends UtilityProcess {
 		}
 
 		// Start utility process
-		const started = super.doStart(configuration, responseWindow.isSandboxed);
+		const started = super.doStart(configuration);
 		if (!started) {
 			return false;
 		}

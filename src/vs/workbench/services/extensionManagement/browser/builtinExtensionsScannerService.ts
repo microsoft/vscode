@@ -15,6 +15,7 @@ import { IExtensionResourceLoaderService } from 'vs/platform/extensionResourceLo
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ITranslations, localizeManifest } from 'vs/platform/extensionManagement/common/extensionNls';
 import { ILogService } from 'vs/platform/log/common/log';
+import { mainWindow } from 'vs/base/browser/window';
 
 interface IBundledExtension {
 	extensionPath: string;
@@ -55,7 +56,7 @@ export class BuiltinExtensionsScannerService implements IBuiltinExtensionsScanne
 					bundledExtensions = [/*BUILD->INSERT_BUILTIN_EXTENSIONS*/];
 				} else {
 					// Find builtin extensions by checking for DOM
-					const builtinExtensionsElement = document.getElementById('vscode-workbench-builtin-extensions');
+					const builtinExtensionsElement = mainWindow.document.getElementById('vscode-workbench-builtin-extensions');
 					const builtinExtensionsElementAttribute = builtinExtensionsElement ? builtinExtensionsElement.getAttribute('data-settings') : undefined;
 					if (builtinExtensionsElementAttribute) {
 						try {
@@ -68,12 +69,12 @@ export class BuiltinExtensionsScannerService implements IBuiltinExtensionsScanne
 					const id = getGalleryExtensionId(e.packageJSON.publisher, e.packageJSON.name);
 					return {
 						identifier: { id },
-						location: uriIdentityService.extUri.joinPath(builtinExtensionsServiceUrl!, e.extensionPath),
+						location: uriIdentityService.extUri.joinPath(builtinExtensionsServiceUrl, e.extensionPath),
 						type: ExtensionType.System,
 						isBuiltin: true,
 						manifest: e.packageNLS ? await this.localizeManifest(id, e.packageJSON, e.packageNLS) : e.packageJSON,
-						readmeUrl: e.readmePath ? uriIdentityService.extUri.joinPath(builtinExtensionsServiceUrl!, e.readmePath) : undefined,
-						changelogUrl: e.changelogPath ? uriIdentityService.extUri.joinPath(builtinExtensionsServiceUrl!, e.changelogPath) : undefined,
+						readmeUrl: e.readmePath ? uriIdentityService.extUri.joinPath(builtinExtensionsServiceUrl, e.readmePath) : undefined,
+						changelogUrl: e.changelogPath ? uriIdentityService.extUri.joinPath(builtinExtensionsServiceUrl, e.changelogPath) : undefined,
 						targetPlatform: TargetPlatform.WEB,
 						validations: [],
 						isValid: true
@@ -89,17 +90,17 @@ export class BuiltinExtensionsScannerService implements IBuiltinExtensionsScanne
 
 	private async localizeManifest(extensionId: string, manifest: IExtensionManifest, fallbackTranslations: ITranslations): Promise<IExtensionManifest> {
 		if (!this.nlsUrl) {
-			return localizeManifest(manifest, fallbackTranslations);
+			return localizeManifest(this.logService, manifest, fallbackTranslations);
 		}
 		// the `package` endpoint returns the translations in a key-value format similar to the package.nls.json file.
 		const uri = URI.joinPath(this.nlsUrl, extensionId, 'package');
 		try {
 			const res = await this.extensionResourceLoaderService.readExtensionResource(uri);
 			const json = JSON.parse(res.toString());
-			return localizeManifest(manifest, json, fallbackTranslations);
+			return localizeManifest(this.logService, manifest, json, fallbackTranslations);
 		} catch (e) {
 			this.logService.error(e);
-			return localizeManifest(manifest, fallbackTranslations);
+			return localizeManifest(this.logService, manifest, fallbackTranslations);
 		}
 	}
 }

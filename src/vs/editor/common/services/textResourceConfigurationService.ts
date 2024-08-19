@@ -43,26 +43,8 @@ export class TextResourceConfigurationService extends Disposable implements ITex
 		if (configurationTarget === undefined) {
 			configurationTarget = this.deriveConfigurationTarget(configurationValue, language);
 		}
-		switch (configurationTarget) {
-			case ConfigurationTarget.MEMORY:
-				return this._updateValue(key, value, configurationTarget, configurationValue.memory?.override, resource, language);
-			case ConfigurationTarget.WORKSPACE_FOLDER:
-				return this._updateValue(key, value, configurationTarget, configurationValue.workspaceFolder?.override, resource, language);
-			case ConfigurationTarget.WORKSPACE:
-				return this._updateValue(key, value, configurationTarget, configurationValue.workspace?.override, resource, language);
-			case ConfigurationTarget.USER_REMOTE:
-				return this._updateValue(key, value, configurationTarget, configurationValue.userRemote?.override, resource, language);
-			default:
-				return this._updateValue(key, value, configurationTarget, configurationValue.userLocal?.override, resource, language);
-		}
-	}
-
-	private _updateValue(key: string, value: any, configurationTarget: ConfigurationTarget, overriddenValue: any | undefined, resource: URI, language: string | null): Promise<void> {
-		if (language && overriddenValue !== undefined) {
-			return this.configurationService.updateValue(key, value, { resource, overrideIdentifier: language }, configurationTarget);
-		} else {
-			return this.configurationService.updateValue(key, value, { resource }, configurationTarget);
-		}
+		const overrideIdentifier = language && configurationValue.overrideIdentifiers?.includes(language) ? language : undefined;
+		return this.configurationService.updateValue(key, value, { resource, overrideIdentifier }, configurationTarget);
 	}
 
 	private deriveConfigurationTarget(configurationValue: IConfigurationValue<any>, language: string | null): ConfigurationTarget {
@@ -104,6 +86,11 @@ export class TextResourceConfigurationService extends Disposable implements ITex
 			return this.configurationService.getValue<T>({ resource, overrideIdentifier: language });
 		}
 		return this.configurationService.getValue<T>(section, { resource, overrideIdentifier: language });
+	}
+
+	inspect<T>(resource: URI | undefined, position: IPosition | null, section: string): IConfigurationValue<Readonly<T>> {
+		const language = resource ? this.getLanguage(resource, position) : undefined;
+		return this.configurationService.inspect<T>(section, { resource, overrideIdentifier: language });
 	}
 
 	private getLanguage(resource: URI, position: IPosition | null): string | null {

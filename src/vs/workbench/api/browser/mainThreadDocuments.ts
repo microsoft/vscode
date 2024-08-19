@@ -17,10 +17,11 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { toLocalResource, extUri, IExtUri } from 'vs/base/common/resources';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { ResourceMap } from 'vs/base/common/map';
 import { IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { ErrorNoTelemetry } from 'vs/base/common/errors';
 
 export class BoundModelReferenceCollection {
 
@@ -212,7 +213,7 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 	async $tryOpenDocument(uriData: UriComponents): Promise<URI> {
 		const inputUri = URI.revive(uriData);
 		if (!inputUri.scheme || !(inputUri.fsPath || inputUri.authority)) {
-			throw new Error(`Invalid uri. Scheme and authority or path must be set.`);
+			throw new ErrorNoTelemetry(`Invalid uri. Scheme and authority or path must be set.`);
 		}
 
 		const canonicalUri = this._uriIdentityService.asCanonicalUri(inputUri);
@@ -232,14 +233,14 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 		try {
 			documentUri = await promise;
 		} catch (err) {
-			throw new Error(`cannot open ${canonicalUri.toString()}. Detail: ${toErrorMessage(err)}`);
+			throw new ErrorNoTelemetry(`cannot open ${canonicalUri.toString()}. Detail: ${toErrorMessage(err)}`);
 		}
 		if (!documentUri) {
-			throw new Error(`cannot open ${canonicalUri.toString()}`);
+			throw new ErrorNoTelemetry(`cannot open ${canonicalUri.toString()}`);
 		} else if (!extUri.isEqual(documentUri, canonicalUri)) {
-			throw new Error(`cannot open ${canonicalUri.toString()}. Detail: Actual document opened as ${documentUri.toString()}`);
+			throw new ErrorNoTelemetry(`cannot open ${canonicalUri.toString()}. Detail: Actual document opened as ${documentUri.toString()}`);
 		} else if (!this._modelTrackers.has(canonicalUri)) {
-			throw new Error(`cannot open ${canonicalUri.toString()}. Detail: Files above 50MB cannot be synchronized with extensions.`);
+			throw new ErrorNoTelemetry(`cannot open ${canonicalUri.toString()}. Detail: Files above 50MB cannot be synchronized with extensions.`);
 		} else {
 			return canonicalUri;
 		}
@@ -266,15 +267,19 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 	}
 
 	private async _doCreateUntitled(associatedResource?: URI, languageId?: string, initialValue?: string): Promise<URI> {
-		const model = await this._textFileService.untitled.resolve({
+		const model = this._textFileService.untitled.create({
 			associatedResource,
 			languageId,
 			initialValue
 		});
 		const resource = model.resource;
+		const ref = await this._textModelResolverService.createModelReference(resource);
 		if (!this._modelTrackers.has(resource)) {
+			ref.dispose();
 			throw new Error(`expected URI ${resource.toString()} to have come to LIFE`);
 		}
+		this._modelReferenceCollection.add(resource, ref, ref.object.textEditorModel.getValueLength());
+		Event.once(model.onDidRevert)(() => this._modelReferenceCollection.remove(resource));
 		this._proxy.$acceptDirtyStateChanged(resource, true); // mark as dirty
 		return resource;
 	}

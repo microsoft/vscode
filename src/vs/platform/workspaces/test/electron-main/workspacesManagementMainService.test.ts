@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import * as fs from 'fs';
 import * as os from 'os';
 import { isUNC, toSlashes } from 'vs/base/common/extpath';
@@ -13,6 +13,7 @@ import { isWindows } from 'vs/base/common/platform';
 import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import * as pfs from 'vs/base/node/pfs';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { IWorkspaceBackupInfo, IFolderBackupInfo } from 'vs/platform/backup/common/backup';
 import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
@@ -111,7 +112,7 @@ flakySuite('WorkspacesManagementMainService', () => {
 		const fileService = new FileService(logService);
 		service = new WorkspacesManagementMainService(environmentMainService, logService, new UserDataProfilesMainService(new StateService(SaveStrategy.DELAYED, environmentMainService, logService, fileService), new UriIdentityService(fileService), environmentMainService, fileService, logService), new TestBackupMainService(), new TestDialogMainService());
 
-		return pfs.Promises.mkdir(untitledWorkspacesHomePath, { recursive: true });
+		return fs.promises.mkdir(untitledWorkspacesHomePath, { recursive: true });
 	});
 
 	teardown(() => {
@@ -357,4 +358,6 @@ flakySuite('WorkspacesManagementMainService', () => {
 		untitled = service.getUntitledWorkspaces();
 		assert.strictEqual(0, untitled.length);
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

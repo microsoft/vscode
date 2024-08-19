@@ -3,9 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+//@ts-check
 'use strict';
 
-//@ts-check
+// ESM-uncomment-begin
+// const module = { exports: {} };
+// ESM-uncomment-end
 
 (function () {
 
@@ -42,6 +45,7 @@
 
 		// Identify browser environment when following property is not present
 		// https://nodejs.org/dist/latest-v16.x/docs/api/perf_hooks.html#performancenodetiming
+		// @ts-ignore
 		if (typeof performance === 'object' && typeof performance.mark === 'function' && !performance.nodeTiming) {
 			// in a browser context, reuse performance-util
 
@@ -119,7 +123,13 @@
 		module.exports = _factory(sharedObj);
 	} else {
 		console.trace('perf-util defined in UNKNOWN context (neither requirejs or commonjs)');
+		// @ts-ignore
 		sharedObj.perf = _factory(sharedObj);
 	}
 
 })();
+
+// ESM-uncomment-begin
+// export const mark = module.exports.mark;
+// export const getMarks = module.exports.getMarks;
+// ESM-uncomment-end

@@ -13,6 +13,7 @@ import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookS
 import { NotebookEditorSimpleWorker } from 'vs/workbench/contrib/notebook/common/services/notebookSimpleWorker';
 import { INotebookWorkerHost } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerHost';
 import { INotebookEditorWorkerService } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerService';
+import { FileAccess } from 'vs/base/common/network';
 
 export class NotebookEditorWorkerServiceImpl extends Disposable implements INotebookEditorWorkerService {
 	declare readonly _serviceBrand: undefined;
@@ -33,6 +34,12 @@ export class NotebookEditorWorkerServiceImpl extends Disposable implements INote
 	computeDiff(original: URI, modified: URI): Promise<INotebookDiffResult> {
 		return this._workerManager.withWorker().then(client => {
 			return client.computeDiff(original, modified);
+		});
+	}
+
+	canPromptRecommendation(model: URI): Promise<boolean> {
+		return this._workerManager.withWorker().then(client => {
+			return client.canPromptRecommendation(model);
 		});
 	}
 }
@@ -201,7 +208,7 @@ class NotebookWorkerClient extends Disposable {
 
 	constructor(private readonly _notebookService: INotebookService, label: string) {
 		super();
-		this._workerFactory = new DefaultWorkerFactory(label);
+		this._workerFactory = new DefaultWorkerFactory(FileAccess.asBrowserUri('vs/base/worker/workerMain.js'), label);
 		this._worker = null;
 		this._modelManager = null;
 
@@ -215,6 +222,12 @@ class NotebookWorkerClient extends Disposable {
 	computeDiff(original: URI, modified: URI) {
 		return this._withSyncedResources([original, modified]).then(proxy => {
 			return proxy.computeDiff(original.toString(), modified.toString());
+		});
+	}
+
+	canPromptRecommendation(modelUri: URI) {
+		return this._withSyncedResources([modelUri]).then(proxy => {
+			return proxy.canPromptRecommendation(modelUri.toString());
 		});
 	}
 

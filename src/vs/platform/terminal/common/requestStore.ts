@@ -32,6 +32,11 @@ export class RequestStore<T, RequestArgs> extends Disposable {
 	) {
 		super();
 		this._timeout = timeout === undefined ? 15000 : timeout;
+		this._register(toDisposable(() => {
+			for (const d of this._pendingRequestDisposables.values()) {
+				dispose(d);
+			}
+		}));
 	}
 
 	/**

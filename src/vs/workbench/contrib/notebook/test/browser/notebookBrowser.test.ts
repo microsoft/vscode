@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
@@ -33,6 +34,8 @@ function getRanges(cells: ICellViewModel[], included: (cell: ICellViewModel) => 
 
 
 suite('notebookBrowser', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	suite('getRanges', function () {
 		const predicate = (cell: ICellViewModel) => cell.cellKind === CellKind.Code;
 

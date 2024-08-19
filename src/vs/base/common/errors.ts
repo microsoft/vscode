@@ -74,6 +74,7 @@ export class ErrorHandler {
 
 export const errorHandler = new ErrorHandler();
 
+/** @skipMangle */
 export function setUnexpectedErrorHandler(newUnexpectedErrorHandler: (e: any) => void): void {
 	errorHandler.setUnexpectedErrorHandler(newUnexpectedErrorHandler);
 }
@@ -133,6 +134,19 @@ export function transformErrorForSerialization(error: any): any {
 	}
 
 	// return as is
+	return error;
+}
+
+export function transformErrorFromSerialization(data: SerializedError): Error {
+	let error: Error;
+	if (data.noTelemetry) {
+		error = new ErrorNoTelemetry();
+	} else {
+		error = new Error();
+		error.name = data.name;
+	}
+	error.message = data.message;
+	error.stack = data.stack;
 	return error;
 }
 
@@ -200,16 +214,10 @@ export function illegalState(name?: string): Error {
 	}
 }
 
-export function readonly(name?: string): Error {
-	return name
-		? new Error(`readonly property '${name} cannot be changed'`)
-		: new Error('readonly property cannot be changed');
-}
-
-export function disposed(what: string): Error {
-	const result = new Error(`${what} has been disposed`);
-	result.name = 'DISPOSED';
-	return result;
+export class ReadonlyError extends TypeError {
+	constructor(name?: string) {
+		super(name ? `${name} is read-only and cannot be changed` : 'Cannot change read-only property');
+	}
 }
 
 export function getErrorMessage(err: any): string {
@@ -290,6 +298,6 @@ export class BugIndicatingError extends Error {
 		// Because we know for sure only buggy code throws this,
 		// we definitely want to break here and fix the bug.
 		// eslint-disable-next-line no-debugger
-		debugger;
+		// debugger;
 	}
 }

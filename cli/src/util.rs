@@ -17,5 +17,6 @@ pub mod sync;
 pub use is_integrated::*;
 pub mod app_lock;
 pub mod file_lock;
+pub mod os;
 pub mod tar;
 pub mod zipper;

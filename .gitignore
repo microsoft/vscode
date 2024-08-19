@@ -4,6 +4,7 @@ npm-debug.log
 Thumbs.db
 node_modules/
 .build/
+.vscode/extensions/**/out/
 extensions/**/dist/
 /out*/
 /extensions/**/out/
@@ -16,4 +17,7 @@ vscode.lsif
 vscode.db
 /.profile-oss
 /cli/target
+/cli/openssl
 product.overrides.json
+*.snap.actual
+.vscode-test

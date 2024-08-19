@@ -53,7 +53,7 @@ export async function changeCellToKind(kind: CellKind, context: INotebookActionC
 				cells: [{
 					cellKind: kind,
 					source: text,
-					language: language!,
+					language: language,
 					mime: mime ?? cell.mime,
 					outputs: cell.model.outputs,
 					metadata: cell.metadata,
@@ -96,7 +96,7 @@ export async function changeCellToKind(kind: CellKind, context: INotebookActionC
 					cells: [{
 						cellKind: kind,
 						source: text,
-						language: language!,
+						language: language,
 						mime: mime ?? cell.mime,
 						outputs: cell.model.outputs,
 						metadata: cell.metadata,
@@ -184,7 +184,7 @@ export function runDeleteAction(editor: IActiveNotebookEditor, cell: ICellViewMo
 	}
 }
 
-export async function moveCellRange(context: INotebookCellActionContext, direction: 'up' | 'down'): Promise<void> {
+export async function moveCellRange(context: INotebookActionContext, direction: 'up' | 'down'): Promise<void> {
 	if (!context.notebookEditor.hasModel()) {
 		return;
 	}
@@ -195,9 +195,17 @@ export async function moveCellRange(context: INotebookCellActionContext, directi
 		return;
 	}
 
-	const selections = editor.getSelections();
-	const modelRanges = expandCellRangesWithHiddenCells(editor, selections);
-	const range = modelRanges[0];
+	let range: ICellRange | undefined = undefined;
+
+	if (context.cell) {
+		const idx = editor.getCellIndex(context.cell);
+		range = { start: idx, end: idx + 1 };
+	} else {
+		const selections = editor.getSelections();
+		const modelRanges = expandCellRangesWithHiddenCells(editor, selections);
+		range = modelRanges[0];
+	}
+
 	if (!range || range.start === range.end) {
 		return;
 	}
@@ -498,7 +506,7 @@ export async function joinNotebookCells(editor: IActiveNotebookEditor, range: IC
 export async function joinCellsWithSurrounds(bulkEditService: IBulkEditService, context: INotebookCellActionContext, direction: 'above' | 'below'): Promise<void> {
 	const editor = context.notebookEditor;
 	const textModel = editor.textModel;
-	const viewModel = editor._getViewModel() as NotebookViewModel;
+	const viewModel = editor.getViewModel() as NotebookViewModel;
 	let ret: {
 		edits: ResourceEdit[];
 		cell: ICellViewModel;
@@ -656,7 +664,7 @@ export function insertCell(
 	initialText: string = '',
 	ui: boolean = false
 ) {
-	const viewModel = editor._getViewModel() as NotebookViewModel;
+	const viewModel = editor.getViewModel() as NotebookViewModel;
 	const activeKernel = editor.activeKernel;
 	if (viewModel.options.isReadOnly) {
 		return null;

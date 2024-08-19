@@ -18,9 +18,12 @@ export function testViewModel(text: string[], options: IEditorOptions, callback:
 	const configuration = new TestConfiguration(options);
 	const model = createTextModel(text.join('\n'));
 	const monospaceLineBreaksComputerFactory = MonospaceLineBreaksComputerFactory.create(configuration.options);
-	const viewModel = new ViewModel(EDITOR_ID, configuration, model, monospaceLineBreaksComputerFactory, monospaceLineBreaksComputerFactory, null!, new TestLanguageConfigurationService(), new TestThemeService(), {
+	const testLanguageConfigurationService = new TestLanguageConfigurationService();
+	const viewModel = new ViewModel(EDITOR_ID, configuration, model, monospaceLineBreaksComputerFactory, monospaceLineBreaksComputerFactory, null!, testLanguageConfigurationService, new TestThemeService(), {
 		setVisibleLines(visibleLines, stabilized) {
 		},
+	}, {
+		batchChanges: (cb) => cb(),
 	});
 
 	callback(viewModel, model);
@@ -28,4 +31,5 @@ export function testViewModel(text: string[], options: IEditorOptions, callback:
 	viewModel.dispose();
 	model.dispose();
 	configuration.dispose();
+	testLanguageConfigurationService.dispose();
 }

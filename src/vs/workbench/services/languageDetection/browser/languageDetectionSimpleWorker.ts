@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { ModelOperations, ModelResult } from '@vscode/vscode-languagedetection';
+import { importAMDNodeModule } from 'vs/amdX';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { IRequestHandler } from 'vs/base/common/worker/simpleWorker';
 import { EditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';
@@ -39,7 +40,7 @@ export class LanguageDetectionSimpleWorker extends EditorSimpleWorker {
 	public async detectLanguage(uri: string, langBiases: Record<string, number> | undefined, preferHistory: boolean, supportedLangs?: string[]): Promise<string | undefined> {
 		const languages: string[] = [];
 		const confidences: number[] = [];
-		const stopWatch = new StopWatch(true);
+		const stopWatch = new StopWatch();
 		const documentTextSample = this.getTextForDetection(uri);
 		if (!documentTextSample) { return; }
 
@@ -103,7 +104,7 @@ export class LanguageDetectionSimpleWorker extends EditorSimpleWorker {
 		}
 		const uri: string = await this._host.fhr('getRegexpModelUri', []);
 		try {
-			this._regexpModel = await import(uri) as RegexpModel;
+			this._regexpModel = await importAMDNodeModule(uri, '') as RegexpModel;
 			return this._regexpModel;
 		} catch (e) {
 			this._regexpLoadFailed = true;
@@ -137,7 +138,7 @@ export class LanguageDetectionSimpleWorker extends EditorSimpleWorker {
 		}
 
 		const uri: string = await this._host.fhr('getIndexJsUri', []);
-		const { ModelOperations } = await import(uri) as typeof import('@vscode/vscode-languagedetection');
+		const { ModelOperations } = await importAMDNodeModule(uri, '') as typeof import('@vscode/vscode-languagedetection');
 		this._modelOperations = new ModelOperations({
 			modelJsonLoaderFunc: async () => {
 				const response = await fetch(await this._host.fhr('getModelJsonUri', []));
@@ -156,7 +157,7 @@ export class LanguageDetectionSimpleWorker extends EditorSimpleWorker {
 			}
 		});
 
-		return this._modelOperations!;
+		return this._modelOperations;
 	}
 
 	// This adjusts the language confidence scores to be more accurate based on:

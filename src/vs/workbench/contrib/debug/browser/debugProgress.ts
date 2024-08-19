@@ -4,12 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IDebugService, VIEWLET_ID, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { IViewsService } from 'vs/workbench/common/views';
-import { NotificationPriority } from 'vs/platform/notification/common/notification';
+import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { IDebugService, IDebugSession, VIEWLET_ID } from 'vs/workbench/contrib/debug/common/debug';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 
 export class DebugProgressContribution implements IWorkbenchContribution {
 
@@ -45,7 +44,6 @@ export class DebugProgressContribution implements IWorkbenchContribution {
 						location: ProgressLocation.Notification,
 						title: progressStartEvent.body.title,
 						cancellable: progressStartEvent.body.cancellable,
-						priority: NotificationPriority.SILENT,
 						source,
 						delay: 500
 					}, progressStep => {

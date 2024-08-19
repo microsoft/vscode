@@ -10,7 +10,7 @@ import { Constants } from 'vs/base/common/uint';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { IModelDecorationOptions, IModelDeltaDecoration, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { GlyphMarginLane, IModelDecorationOptions, IModelDeltaDecoration, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
 import { ILogService } from 'vs/platform/log/common/log';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
@@ -29,6 +29,8 @@ const stickiness = TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges;
 const TOP_STACK_FRAME_MARGIN: IModelDecorationOptions = {
 	description: 'top-stack-frame-margin',
 	glyphMarginClassName: ThemeIcon.asClassName(debugStackframe),
+	glyphMargin: { position: GlyphMarginLane.Right },
+	zIndex: 9999,
 	stickiness,
 	overviewRuler: {
 		position: OverviewRulerLane.Full,
@@ -38,24 +40,35 @@ const TOP_STACK_FRAME_MARGIN: IModelDecorationOptions = {
 const FOCUSED_STACK_FRAME_MARGIN: IModelDecorationOptions = {
 	description: 'focused-stack-frame-margin',
 	glyphMarginClassName: ThemeIcon.asClassName(debugStackframeFocused),
+	glyphMargin: { position: GlyphMarginLane.Right },
+	zIndex: 9999,
 	stickiness,
 	overviewRuler: {
 		position: OverviewRulerLane.Full,
 		color: themeColorFromId(focusedStackFrameColor)
 	}
 };
-const TOP_STACK_FRAME_DECORATION: IModelDecorationOptions = {
+export const TOP_STACK_FRAME_DECORATION: IModelDecorationOptions = {
 	description: 'top-stack-frame-decoration',
 	isWholeLine: true,
 	className: 'debug-top-stack-frame-line',
 	stickiness
 };
-const FOCUSED_STACK_FRAME_DECORATION: IModelDecorationOptions = {
+export const FOCUSED_STACK_FRAME_DECORATION: IModelDecorationOptions = {
 	description: 'focused-stack-frame-decoration',
 	isWholeLine: true,
 	className: 'debug-focused-stack-frame-line',
 	stickiness
 };
+
+export const makeStackFrameColumnDecoration = (noCharactersBefore: boolean): IModelDecorationOptions => ({
+	description: 'top-stack-frame-inline-decoration',
+	before: {
+		content: '\uEB8B',
+		inlineClassName: noCharactersBefore ? 'debug-top-stack-frame-column start-of-line' : 'debug-top-stack-frame-column',
+		inlineClassNameAffectsLetterSpacing: true
+	},
+});
 
 export function createDecorationsForStackFrame(stackFrame: IStackFrame, isFocusedSession: boolean, noCharactersBefore: boolean): IModelDeltaDecoration[] {
 	// only show decorations for the currently focused thread.
@@ -81,14 +94,7 @@ export function createDecorationsForStackFrame(stackFrame: IStackFrame, isFocuse
 
 		if (stackFrame.range.startColumn > 1) {
 			result.push({
-				options: {
-					description: 'top-stack-frame-inline-decoration',
-					before: {
-						content: '\uEB8B',
-						inlineClassName: noCharactersBefore ? 'debug-top-stack-frame-column start-of-line' : 'debug-top-stack-frame-column',
-						inlineClassNameAffectsLetterSpacing: true
-					},
-				},
+				options: makeStackFrameColumnDecoration(noCharactersBefore),
 				range: columnUntilEOLRange
 			});
 		}

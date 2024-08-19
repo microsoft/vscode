@@ -11,7 +11,6 @@ import { IRemoteUserDataProfilesService } from 'vs/workbench/services/userDataPr
 import { ProfileAwareExtensionManagementChannelClient } from 'vs/workbench/services/extensionManagement/common/extensionManagementChannelClient';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { ExtensionEventResult } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export class RemoteExtensionManagementService extends ProfileAwareExtensionManagementChannelClient implements IProfileAwareExtensionManagementService {
@@ -26,15 +25,15 @@ export class RemoteExtensionManagementService extends ProfileAwareExtensionManag
 		super(channel, userDataProfileService, uriIdentityService);
 	}
 
-	protected async filterEvent(e: ExtensionEventResult): Promise<boolean> {
-		if (e.applicationScoped) {
+	protected async filterEvent(profileLocation: URI, applicationScoped: boolean): Promise<boolean> {
+		if (applicationScoped) {
 			return true;
 		}
-		if (!e.profileLocation && this.userDataProfileService.currentProfile.isDefault) {
+		if (!profileLocation && this.userDataProfileService.currentProfile.isDefault) {
 			return true;
 		}
 		const currentRemoteProfile = await this.remoteUserDataProfilesService.getRemoteProfile(this.userDataProfileService.currentProfile);
-		if (this.uriIdentityService.extUri.isEqual(currentRemoteProfile.extensionsResource, e.profileLocation)) {
+		if (this.uriIdentityService.extUri.isEqual(currentRemoteProfile.extensionsResource, profileLocation)) {
 			return true;
 		}
 		return false;
@@ -56,16 +55,13 @@ export class RemoteExtensionManagementService extends ProfileAwareExtensionManag
 		return profile?.extensionsResource;
 	}
 
-	protected override async switchExtensionsProfile(previousProfileLocation: URI, currentProfileLocation: URI, preserveData: boolean | ExtensionIdentifier[]): Promise<DidChangeProfileEvent> {
+	protected override async switchExtensionsProfile(previousProfileLocation: URI, currentProfileLocation: URI, preserveExtensions?: ExtensionIdentifier[]): Promise<DidChangeProfileEvent> {
 		const remoteProfiles = await this.remoteUserDataProfilesService.getRemoteProfiles();
 		const previousProfile = remoteProfiles.find(p => this.uriIdentityService.extUri.isEqual(p.extensionsResource, previousProfileLocation));
 		const currentProfile = remoteProfiles.find(p => this.uriIdentityService.extUri.isEqual(p.extensionsResource, currentProfileLocation));
 		if (previousProfile?.id === currentProfile?.id) {
 			return { added: [], removed: [] };
 		}
-		if (preserveData === true && currentProfile?.isDefault) {
-			preserveData = false;
-		}
-		return super.switchExtensionsProfile(previousProfileLocation, currentProfileLocation, preserveData);
+		return super.switchExtensionsProfile(previousProfileLocation, currentProfileLocation, preserveExtensions);
 	}
 }

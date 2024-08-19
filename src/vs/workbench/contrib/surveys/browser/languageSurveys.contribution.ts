@@ -105,7 +105,7 @@ class LanguageSurvey extends Disposable {
 					storageService.store(SKIP_VERSION_KEY, productService.version, StorageScope.APPLICATION, StorageTarget.USER);
 				}
 			}, {
-				label: localize('remindLater', "Remind Me later"),
+				label: localize('remindLater', "Remind Me Later"),
 				run: () => {
 					telemetryService.publicLog(`${data.surveyId}.survey/remindMeLater`);
 					storageService.store(SESSION_COUNT_KEY, sessionCount - 3, StorageScope.APPLICATION, StorageTarget.USER);

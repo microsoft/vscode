@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { EndOfLinePreference, EndOfLineSequence } from 'vs/editor/common/model';
@@ -100,7 +100,7 @@ export function assertSyncedModels(text: string, callback: (model: TextModel, as
 	const mirrorModel2 = new MirrorTextModel(null!, model.getLinesContent(), model.getEOL(), model.getVersionId());
 	let mirrorModel2PrevVersionId = model.getVersionId();
 
-	model.onDidChangeContent((e: IModelContentChangedEvent) => {
+	const disposable = model.onDidChangeContent((e: IModelContentChangedEvent) => {
 		const versionId = e.versionId;
 		if (versionId < mirrorModel2PrevVersionId) {
 			console.warn('Model version id did not advance between edits (2)');
@@ -117,6 +117,7 @@ export function assertSyncedModels(text: string, callback: (model: TextModel, as
 
 	callback(model, assertMirrorModels);
 
+	disposable.dispose();
 	model.dispose();
 	mirrorModel2.dispose();
 }

@@ -1,0 +1,120 @@
+{
+	"original": {
+		"content": "// test case 1:\n{\n\tconst abc = 1;\n}\n\n// test case 2:\n{\n\tconst private = 1;\n}\n\n// test case 3:\n{\n\tconst abc1 = 1;\n}\n\n// test case 4:\n{\n\tconst index = 1;\n}\n\n// test case 5:\n{\n\tconst InlineDecoration = 1;\n}\n\n// test case 6:\n{\n\tconst _getDecorationsInRange = 1;\n}\n\n// test case 7:\n{\n\tconst lord = 1;\n}\n\n// test case 8:\n{\n\tconst abc1 = 1;\n}\n\n// test case 1:\n{\n\t// hello world\n}\n\n// test case 2:\n{\n\t// optimizeSequenceDiffs\n}\n\n// test case 3:\n{\n\tconst optequffs = 1;\n}\n\n// test case 4:\n{\n\tconst abc = 1;\n}\n\n// test case 5:\n{\n\tconst abc = 1;\n}\n\n// test case 6:\n{\n\tconst abc = 1;\n}\n\n// test case 7:\n{\n\tconst abc = 1;\n}\n\n// test case 8:\n{\n\tconst abc = 1;\n}\n",
+		"fileName": "./1.tst"
+	},
+	"modified": {
+		"content": "// test case 1:\n{\n\tconst asciiLower = 1;\n}\n\n// test case 2:\n{\n\tconst protected = 1;\n}\n\n// test case 3:\n{\n\tconst abc2 = 1;\n}\n\n// test case 4:\n{\n\tconst undefined = 1;\n}\n\n// test case 5:\n{\n\tconst IDecorationsViewportData = 1;\n}\n\n// test case 6:\n{\n\tconst configuration = 1;\n}\n\n// test case 7:\n{\n\tconst helloWorld = 1;\n}\n\n// test case 8:\n{\n\tconst abc1 = 1;\n}\n\n// test case 1:\n{\n\t// helwor\n}\n\n// test case 2:\n{\n\t// optimize Sequence Diffs\n}\n\n// test case 3:\n{\n\tconst optimize Sequence Diffs = 1;\n}\n\n// test case 4:\n{\n\tconst abc = 1;\n}\n\n// test case 5:\n{\n\tconst abc = 1;\n}\n\n// test case 6:\n{\n\tconst abc = 1;\n}\n\n// test case 7:\n{\n\tconst abc = 1;\n}\n\n// test case 8:\n{\n\tconst abc = 1;\n}\n",
+		"fileName": "./2.tst"
+	},
+	"diffs": [
+		{
+			"originalRange": "[3,4)",
+			"modifiedRange": "[3,4)",
+			"innerChanges": [
+				{
+					"originalRange": "[3,8 -> 3,11]",
+					"modifiedRange": "[3,8 -> 3,18]"
+				}
+			]
+		},
+		{
+			"originalRange": "[8,9)",
+			"modifiedRange": "[8,9)",
+			"innerChanges": [
+				{
+					"originalRange": "[8,8 -> 8,15]",
+					"modifiedRange": "[8,8 -> 8,17]"
+				}
+			]
+		},
+		{
+			"originalRange": "[13,14)",
+			"modifiedRange": "[13,14)",
+			"innerChanges": [
+				{
+					"originalRange": "[13,11 -> 13,12]",
+					"modifiedRange": "[13,11 -> 13,12]"
+				}
+			]
+		},
+		{
+			"originalRange": "[18,19)",
+			"modifiedRange": "[18,19)",
+			"innerChanges": [
+				{
+					"originalRange": "[18,8 -> 18,13]",
+					"modifiedRange": "[18,8 -> 18,17]"
+				}
+			]
+		},
+		{
+			"originalRange": "[23,24)",
+			"modifiedRange": "[23,24)",
+			"innerChanges": [
+				{
+					"originalRange": "[23,8 -> 23,24]",
+					"modifiedRange": "[23,8 -> 23,32]"
+				}
+			]
+		},
+		{
+			"originalRange": "[28,29)",
+			"modifiedRange": "[28,29)",
+			"innerChanges": [
+				{
+					"originalRange": "[28,8 -> 28,30]",
+					"modifiedRange": "[28,8 -> 28,21]"
+				}
+			]
+		},
+		{
+			"originalRange": "[33,34)",
+			"modifiedRange": "[33,34)",
+			"innerChanges": [
+				{
+					"originalRange": "[33,8 -> 33,12]",
+					"modifiedRange": "[33,8 -> 33,18]"
+				}
+			]
+		},
+		{
+			"originalRange": "[43,44)",
+			"modifiedRange": "[43,44)",
+			"innerChanges": [
+				{
+					"originalRange": "[43,8 -> 43,11]",
+					"modifiedRange": "[43,8 -> 43,8]"
+				},
+				{
+					"originalRange": "[43,14 -> 43,16 EOL]",
+					"modifiedRange": "[43,11 -> 43,11 EOL]"
+				}
+			]
+		},
+		{
+			"originalRange": "[48,49)",
+			"modifiedRange": "[48,49)",
+			"innerChanges": [
+				{
+					"originalRange": "[48,13 -> 48,13]",
+					"modifiedRange": "[48,13 -> 48,14]"
+				},
+				{
+					"originalRange": "[48,21 -> 48,21]",
+					"modifiedRange": "[48,22 -> 48,23]"
+				}
+			]
+		},
+		{
+			"originalRange": "[53,54)",
+			"modifiedRange": "[53,54)",
+			"innerChanges": [
+				{
+					"originalRange": "[53,8 -> 53,17]",
+					"modifiedRange": "[53,8 -> 53,31]"
+				}
+			]
+		}
+	]
+}

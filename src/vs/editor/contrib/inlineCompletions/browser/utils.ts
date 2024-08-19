@@ -5,49 +5,11 @@
 
 import { BugIndicatingError } from 'vs/base/common/errors';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, autorun } from 'vs/base/common/observable';
+import { IObservable, autorunOpts } from 'vs/base/common/observable';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
+import { Range } from 'vs/editor/common/core/range';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
-
-export function applyEdits(text: string, edits: { range: IRange; text: string }[]): string {
-	const transformer = new PositionOffsetTransformer(text);
-	const offsetEdits = edits.map(e => {
-		const range = Range.lift(e.range);
-		return ({
-			startOffset: transformer.getOffset(range.getStartPosition()),
-			endOffset: transformer.getOffset(range.getEndPosition()),
-			text: e.text
-		});
-	});
-
-	offsetEdits.sort((a, b) => b.startOffset - a.startOffset);
-
-	for (const edit of offsetEdits) {
-		text = text.substring(0, edit.startOffset) + edit.text + text.substring(edit.endOffset);
-	}
-
-	return text;
-}
-
-class PositionOffsetTransformer {
-	private readonly lineStartOffsetByLineIdx: number[];
-
-	constructor(text: string) {
-		this.lineStartOffsetByLineIdx = [];
-		this.lineStartOffsetByLineIdx.push(0);
-		for (let i = 0; i < text.length; i++) {
-			if (text.charAt(i) === '\n') {
-				this.lineStartOffsetByLineIdx.push(i + 1);
-			}
-		}
-	}
-
-	getOffset(position: Position): number {
-		return this.lineStartOffsetByLineIdx[position.lineNumber - 1] + position.column - 1;
-	}
-}
 
 const array: ReadonlyArray<any> = [];
 export function getReadonlyEmptyArray<T>(): readonly T[] {
@@ -67,22 +29,23 @@ export class ColumnRange {
 	toRange(lineNumber: number): Range {
 		return new Range(lineNumber, this.startColumn, lineNumber, this.endColumnExclusive);
 	}
+
+	equals(other: ColumnRange): boolean {
+		return this.startColumn === other.startColumn
+			&& this.endColumnExclusive === other.endColumnExclusive;
+	}
 }
 
 export function applyObservableDecorations(editor: ICodeEditor, decorations: IObservable<IModelDeltaDecoration[]>): IDisposable {
 	const d = new DisposableStore();
-	let decorationIds: string[] = [];
-	d.add(autorun(`Apply decorations from ${decorations.debugName}`, reader => {
+	const decorationsCollection = editor.createDecorationsCollection();
+	d.add(autorunOpts({ debugName: () => `Apply decorations from ${decorations.debugName}` }, reader => {
 		const d = decorations.read(reader);
-		editor.changeDecorations(a => {
-			decorationIds = a.deltaDecorations(decorationIds, d);
-		});
+		decorationsCollection.set(d);
 	}));
 	d.add({
 		dispose: () => {
-			editor.changeDecorations(a => {
-				decorationIds = a.deltaDecorations(decorationIds, []);
-			});
+			decorationsCollection.clear();
 		}
 	});
 	return d;
@@ -92,16 +55,6 @@ export function addPositions(pos1: Position, pos2: Position): Position {
 	return new Position(pos1.lineNumber + pos2.lineNumber - 1, pos2.lineNumber === 1 ? pos1.column + pos2.column - 1 : pos2.column);
 }
 
-export function lengthOfText(text: string): Position {
-	let line = 1;
-	let column = 1;
-	for (const c of text) {
-		if (c === '\n') {
-			line++;
-			column = 1;
-		} else {
-			column++;
-		}
-	}
-	return new Position(line, column);
+export function subtractPositions(pos1: Position, pos2: Position): Position {
+	return new Position(pos1.lineNumber - pos2.lineNumber + 1, pos1.lineNumber - pos2.lineNumber === 0 ? pos1.column - pos2.column + 1 : pos1.column);
 }

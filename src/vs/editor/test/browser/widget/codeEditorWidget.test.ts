@@ -3,15 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Selection } from 'vs/editor/common/core/selection';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Range } from 'vs/editor/common/core/range';
-import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { Selection } from 'vs/editor/common/core/selection';
 import { ILanguageService } from 'vs/editor/common/languages/language';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 
 suite('CodeEditorWidget', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('onDidChangeModelDecorations', () => {
 		withTestCodeEditor('', {}, (editor, viewModel) => {

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { FileAccess } from 'vs/base/common/network';
 import { getAllMethodNames } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
 import { EditorWorkerClient } from 'vs/editor/browser/services/editorWorkerService';
@@ -14,7 +15,14 @@ import { IModelService } from 'vs/editor/common/services/model';
  * Specify an AMD module to load that will `create` an object that will be proxied.
  */
 export function createWebWorker<T extends object>(modelService: IModelService, languageConfigurationService: ILanguageConfigurationService, opts: IWebWorkerOptions): MonacoWebWorker<T> {
-	return new MonacoWebWorkerImpl<T>(modelService, languageConfigurationService, opts);
+	return new MonacoWebWorkerImpl<T>(undefined, modelService, languageConfigurationService, opts);
+}
+
+/**
+ * @internal
+ */
+export function createWorkbenchWebWorker<T extends object>(modelService: IModelService, languageConfigurationService: ILanguageConfigurationService, opts: IWebWorkerOptions): MonacoWebWorker<T> {
+	return new MonacoWebWorkerImpl<T>(FileAccess.asBrowserUri('vs/base/worker/workerMain.js'), modelService, languageConfigurationService, opts);
 }
 
 /**
@@ -68,8 +76,8 @@ class MonacoWebWorkerImpl<T extends object> extends EditorWorkerClient implement
 	private _foreignModuleCreateData: any | null;
 	private _foreignProxy: Promise<T> | null;
 
-	constructor(modelService: IModelService, languageConfigurationService: ILanguageConfigurationService, opts: IWebWorkerOptions) {
-		super(modelService, opts.keepIdleModels || false, opts.label, languageConfigurationService);
+	constructor(workerMainLocation: URI | undefined, modelService: IModelService, languageConfigurationService: ILanguageConfigurationService, opts: IWebWorkerOptions) {
+		super(workerMainLocation, modelService, opts.keepIdleModels || false, opts.label, languageConfigurationService);
 		this._foreignModuleId = opts.moduleId;
 		this._foreignModuleCreateData = opts.createData || null;
 		this._foreignModuleHost = opts.host || null;

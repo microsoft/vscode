@@ -40,7 +40,7 @@ export type ConfigurationSyncStore = {
 	url: string;
 	insidersUrl: string;
 	stableUrl: string;
-	canSwitch: boolean;
+	canSwitch?: boolean;
 	authenticationProviders: IStringDictionary<{ scopes: string[] }>;
 };
 
@@ -82,6 +82,7 @@ export interface IProductConfiguration {
 	readonly webEndpointUrlTemplate?: string;
 	readonly webviewContentExternalBaseUrlTemplate?: string;
 	readonly target?: string;
+	readonly nlsCoreBaseUrl?: string;
 
 	readonly settingsSearchBuildId?: number;
 	readonly settingsSearchUrl?: string;
@@ -89,11 +90,8 @@ export interface IProductConfiguration {
 	readonly tasConfig?: {
 		endpoint: string;
 		telemetryEventName: string;
-		featuresTelemetryPropertyName: string;
 		assignmentContextTelemetryPropertyName: string;
 	};
-
-	readonly experimentsUrl?: string;
 
 	readonly extensionsGallery?: {
 		readonly serviceUrl: string;
@@ -116,7 +114,8 @@ export interface IProductConfiguration {
 	readonly webExtensionTips?: readonly string[];
 	readonly languageExtensionTips?: readonly string[];
 	readonly trustedExtensionUrlPublicKeys?: IStringDictionary<string[]>;
-	readonly trustedExtensionAuthAccess?: readonly string[];
+	readonly trustedExtensionAuthAccess?: string[] | IStringDictionary<string[]>;
+	readonly trustedExtensionProtocolHandlers?: readonly string[];
 
 	readonly commandPaletteSuggestedCommandIds?: string[];
 
@@ -133,11 +132,6 @@ export interface IProductConfiguration {
 		readonly ariaKey: string;
 	};
 
-	readonly sendASmile?: {
-		readonly reportIssueUrl: string;
-		readonly requestFeatureUrl: string;
-	};
-
 	readonly documentationUrl?: string;
 	readonly serverDocumentationUrl?: string;
 	readonly releaseNotesUrl?: string;
@@ -147,7 +141,7 @@ export interface IProductConfiguration {
 	readonly introductoryVideosUrl?: string;
 	readonly tipsAndTricksUrl?: string;
 	readonly newsletterSignupUrl?: string;
-	readonly twitterUrl?: string;
+	readonly youTubeUrl?: string;
 	readonly requestFeatureUrl?: string;
 	readonly reportIssueUrl?: string;
 	readonly reportMarketplaceIssueUrl?: string;
@@ -166,7 +160,6 @@ export interface IProductConfiguration {
 	readonly tunnelApplicationConfig?: ITunnelApplicationConfig;
 
 	readonly npsSurveyUrl?: string;
-	readonly cesSurveyUrl?: string;
 	readonly surveys?: readonly ISurveyData[];
 
 	readonly checksums?: { [path: string]: string };
@@ -180,6 +173,7 @@ export interface IProductConfiguration {
 	readonly extensionPointExtensionKind?: { readonly [extensionPointId: string]: ('ui' | 'workspace' | 'web')[] };
 	readonly extensionSyncedKeys?: { readonly [extensionId: string]: string[] };
 
+	readonly extensionsEnabledWithApiProposalVersion?: string[];
 	readonly extensionEnabledApiProposals?: { readonly [extensionId: string]: string[] };
 	readonly extensionUntrustedWorkspaceSupport?: { readonly [extensionId: string]: ExtensionUntrustedWorkspaceSupport };
 	readonly extensionVirtualWorkspacesSupport?: { readonly [extensionId: string]: ExtensionVirtualWorkspaceSupport };
@@ -192,6 +186,11 @@ export interface IProductConfiguration {
 	readonly 'editSessions.store'?: Omit<ConfigurationSyncStore, 'insidersUrl' | 'stableUrl'>;
 	readonly darwinUniversalAssetId?: string;
 	readonly profileTemplatesUrl?: string;
+
+	readonly commonlyUsedSettings?: string[];
+	readonly aiGeneratedWorkspaceTrust?: IAiGeneratedWorkspaceTrust;
+	readonly gitHubEntitlement?: IGitHubEntitlement;
+	readonly chatParticipantRegistry?: string;
 }
 
 export interface ITunnelApplicationConfig {
@@ -202,6 +201,12 @@ export interface ITunnelApplicationConfig {
 
 export interface IExtensionRecommendations {
 	readonly onFileOpen: IFileOpenCondition[];
+	readonly onSettingsEditorOpen?: ISettingsEditorOpenCondition;
+}
+
+export interface ISettingsEditorOpenCondition {
+	readonly prerelease?: boolean | string;
+	readonly descriptionOverride?: string;
 }
 
 export interface IExtensionRecommendationCondition {
@@ -223,10 +228,12 @@ export interface IFilePathCondition extends IExtensionRecommendationCondition {
 export type IFileContentCondition = (IFileLanguageCondition | IFilePathCondition) & { readonly contentPattern: string };
 
 export interface IAppCenterConfiguration {
-	readonly 'win32-ia32': string;
 	readonly 'win32-x64': string;
+	readonly 'win32-arm64': string;
 	readonly 'linux-x64': string;
 	readonly 'darwin': string;
+	readonly 'darwin-universal': string;
+	readonly 'darwin-arm64': string;
 }
 
 export interface IConfigBasedExtensionTip {
@@ -253,14 +260,24 @@ export interface IRemoteExtensionTip {
 	friendlyName: string;
 	extensionId: string;
 	supportedPlatforms?: PlatformName[];
-	showInStartEntry?: boolean;
+	startEntry?: {
+		helpLink: string;
+		startConnectLabel: string;
+		startCommand: string;
+		priority: number;
+	};
 }
 
 export interface IVirtualWorkspaceExtensionTip {
 	friendlyName: string;
 	extensionId: string;
 	supportedPlatforms?: PlatformName[];
-	showInStartEntry?: boolean;
+	startEntry: {
+		helpLink: string;
+		startConnectLabel: string;
+		startCommand: string;
+		priority: number;
+	};
 }
 
 export interface ISurveyData {
@@ -269,4 +286,22 @@ export interface ISurveyData {
 	languageId: string;
 	editCount: number;
 	userProbability: number;
+}
+
+export interface IAiGeneratedWorkspaceTrust {
+	readonly title: string;
+	readonly checkboxText: string;
+	readonly trustOption: string;
+	readonly dontTrustOption: string;
+	readonly startupTrustRequestLearnMore: string;
+}
+
+export interface IGitHubEntitlement {
+	providerId: string;
+	command: { title: string; titleWithoutPlaceHolder: string; action: string; when: string };
+	entitlementUrl: string;
+	extensionId: string;
+	enablementKey: string;
+	confirmationMessage: string;
+	confirmationAction: string;
 }

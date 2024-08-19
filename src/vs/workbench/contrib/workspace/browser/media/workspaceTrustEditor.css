@@ -3,14 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-icon-label.file-icon.workspacetrusteditor-name-file-icon.ext-file-icon.tab-label::before {
-	font-family: 'codicon';
-	content: '\eb53';
-	background-image: none;
-	font-size: 16px;
-	line-height: 37px !important;
-}
-
 .workspace-trust-editor {
 	max-width: 1000px;
 	padding-top: 11px;

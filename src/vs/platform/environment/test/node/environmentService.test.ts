@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { parseExtensionHostDebugPort } from 'vs/platform/environment/common/environmentService';
 import { OPTIONS, parseArgs } from 'vs/platform/environment/node/argv';
 import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
@@ -67,4 +68,6 @@ suite('EnvironmentService', () => {
 		const service2 = new NativeEnvironmentService(args, { _serviceBrand: undefined, ...product });
 		assert.notStrictEqual(service1.userDataPath, service2.userDataPath);
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

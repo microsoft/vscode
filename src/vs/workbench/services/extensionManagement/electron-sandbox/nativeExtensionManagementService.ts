@@ -6,7 +6,7 @@
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { DidChangeProfileEvent, IProfileAwareExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { URI } from 'vs/base/common/uri';
-import { ILocalExtension, InstallVSIXOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ILocalExtension, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { joinPath } from 'vs/base/common/resources';
@@ -33,11 +33,11 @@ export class NativeExtensionManagementService extends ProfileAwareExtensionManag
 		super(channel, userDataProfileService, uriIdentityService);
 	}
 
-	protected filterEvent({ profileLocation, applicationScoped }: { readonly profileLocation?: URI; readonly applicationScoped?: boolean }): boolean {
-		return applicationScoped || this.uriIdentityService.extUri.isEqual(this.userDataProfileService.currentProfile.extensionsResource, profileLocation);
+	protected filterEvent(profileLocation: URI, isApplicationScoped: boolean): boolean {
+		return isApplicationScoped || this.uriIdentityService.extUri.isEqual(this.userDataProfileService.currentProfile.extensionsResource, profileLocation);
 	}
 
-	override async install(vsix: URI, options?: InstallVSIXOptions): Promise<ILocalExtension> {
+	override async install(vsix: URI, options?: InstallOptions): Promise<ILocalExtension> {
 		const { location, cleanup } = await this.downloadVsix(vsix);
 		try {
 			return await super.install(location, options);
@@ -64,12 +64,17 @@ export class NativeExtensionManagementService extends ProfileAwareExtensionManag
 		return { location, cleanup };
 	}
 
-	protected override async switchExtensionsProfile(previousProfileLocation: URI, currentProfileLocation: URI, preserveData: boolean | ExtensionIdentifier[]): Promise<DidChangeProfileEvent> {
-		if (!preserveData && this.nativeEnvironmentService.remoteAuthority) {
+	protected override async switchExtensionsProfile(previousProfileLocation: URI, currentProfileLocation: URI, preserveExtensions?: ExtensionIdentifier[]): Promise<DidChangeProfileEvent> {
+		if (this.nativeEnvironmentService.remoteAuthority) {
 			const previousInstalledExtensions = await this.getInstalled(ExtensionType.User, previousProfileLocation);
 			const resolverExtension = previousInstalledExtensions.find(e => isResolverExtension(e.manifest, this.nativeEnvironmentService.remoteAuthority));
-			preserveData = resolverExtension ? [new ExtensionIdentifier(resolverExtension.identifier.id)] : preserveData;
+			if (resolverExtension) {
+				if (!preserveExtensions) {
+					preserveExtensions = [];
+				}
+				preserveExtensions.push(new ExtensionIdentifier(resolverExtension.identifier.id));
+			}
 		}
-		return super.switchExtensionsProfile(previousProfileLocation, currentProfileLocation, preserveData);
+		return super.switchExtensionsProfile(previousProfileLocation, currentProfileLocation, preserveExtensions);
 	}
 }

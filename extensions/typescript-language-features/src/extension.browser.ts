@@ -8,21 +8,23 @@ import * as vscode from 'vscode';
 import { Api, getExtensionApi } from './api';
 import { CommandManager } from './commands/commandManager';
 import { registerBaseCommands } from './commands/index';
+import { TypeScriptServiceConfiguration } from './configuration/configuration';
+import { BrowserServiceConfigurationProvider } from './configuration/configuration.browser';
 import { ExperimentationTelemetryReporter, IExperimentationTelemetryReporter } from './experimentTelemetryReporter';
+import { registerAtaSupport } from './filesystems/ata';
 import { createLazyClientHost, lazilyActivateClient } from './lazyClientHost';
+import { Logger } from './logging/logger';
 import RemoteRepositories from './remoteRepositories.browser';
 import { API } from './tsServer/api';
 import { noopRequestCancellerFactory } from './tsServer/cancellation';
 import { noopLogDirectoryProvider } from './tsServer/logDirectoryProvider';
+import { PluginManager } from './tsServer/plugins';
 import { WorkerServerProcessFactory } from './tsServer/serverProcess.browser';
 import { ITypeScriptVersionProvider, TypeScriptVersion, TypeScriptVersionSource } from './tsServer/versionProvider';
 import { ActiveJsTsEditorTracker } from './ui/activeJsTsEditorTracker';
-import { TypeScriptServiceConfiguration } from './configuration/configuration';
-import { BrowserServiceConfigurationProvider } from './configuration/configuration.browser';
-import { Logger } from './logging/logger';
+import { Disposable } from './utils/dispose';
 import { getPackageInfo } from './utils/packageInfo';
 import { isWebAndHasSharedArrayBuffers } from './utils/platform';
-import { PluginManager } from './tsServer/plugins';
 
 class StaticVersionProvider implements ITypeScriptVersionProvider {
 
@@ -59,7 +61,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Api> {
 		new TypeScriptVersion(
 			TypeScriptVersionSource.Bundled,
 			vscode.Uri.joinPath(context.extensionUri, 'dist/browser/typescript/tsserver.web.js').toString(),
-			API.fromSimpleString('5.0.1')));
+			API.fromSimpleString('5.5.4')));
 
 	let experimentTelemetryReporter: IExperimentationTelemetryReporter | undefined;
 	const packageInfo = getPackageInfo(context);
@@ -78,7 +80,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Api> {
 		logDirectoryProvider: noopLogDirectoryProvider,
 		cancellerFactory: noopRequestCancellerFactory,
 		versionProvider,
-		processFactory: new WorkerServerProcessFactory(context.extensionUri),
+		processFactory: new WorkerServerProcessFactory(context.extensionUri, logger),
 		activeJsTsEditorTracker,
 		serviceConfigurationProvider: new BrowserServiceConfigurationProvider(),
 		experimentTelemetryReporter,
@@ -96,34 +98,75 @@ export async function activate(context: vscode.ExtensionContext): Promise<Api> {
 	});
 
 	context.subscriptions.push(lazilyActivateClient(lazyClientHost, pluginManager, activeJsTsEditorTracker, async () => {
-		await preload(logger);
+		await startPreloadWorkspaceContentsIfNeeded(context, logger);
 	}));
+
+	context.subscriptions.push(registerAtaSupport(logger));
 
 	return getExtensionApi(onCompletionAccepted.event, pluginManager);
 }
 
-async function preload(logger: Logger): Promise<void> {
+async function startPreloadWorkspaceContentsIfNeeded(context: vscode.ExtensionContext, logger: Logger): Promise<void> {
 	if (!isWebAndHasSharedArrayBuffers()) {
 		return;
 	}
 
-	const workspaceUri = vscode.workspace.workspaceFolders?.[0].uri;
-	if (!workspaceUri || workspaceUri.scheme !== 'vscode-vfs' || workspaceUri.authority !== 'github') {
-		return undefined;
+	if (!vscode.workspace.workspaceFolders) {
+		return;
 	}
 
-	try {
-		const remoteHubApi = await RemoteRepositories.getApi();
-		if (remoteHubApi.loadWorkspaceContents !== undefined) {
-			if (await remoteHubApi.loadWorkspaceContents(workspaceUri)) {
-				logger.info(`Successfully loaded workspace content for repository ${workspaceUri.toString()}`);
-			} else {
-				logger.info(`Failed to load workspace content for repository ${workspaceUri.toString()}`);
-			}
-
+	await Promise.all(vscode.workspace.workspaceFolders.map(async folder => {
+		const workspaceUri = folder.uri;
+		if (workspaceUri.scheme !== 'vscode-vfs' || !workspaceUri.authority.startsWith('github')) {
+			logger.info(`Skipped pre loading workspace contents for repository ${workspaceUri?.toString()}`);
+			return;
 		}
-	} catch (error) {
-		logger.info(`Loading workspace content for repository ${workspaceUri.toString()} failed: ${error instanceof Error ? error.toString() : 'Unknown reason'}`);
-		console.error(error);
+
+		const loader = new RemoteWorkspaceContentsPreloader(workspaceUri, logger);
+		context.subscriptions.push(loader);
+		try {
+			await loader.triggerPreload();
+		} catch (error) {
+			console.error(error);
+		}
+	}));
+}
+
+class RemoteWorkspaceContentsPreloader extends Disposable {
+
+	private _preload: Promise<void> | undefined;
+
+	constructor(
+		private readonly workspaceUri: vscode.Uri,
+		private readonly logger: Logger,
+	) {
+		super();
+
+		const fsWatcher = this._register(vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(workspaceUri, '*')));
+		this._register(fsWatcher.onDidChange(uri => {
+			if (uri.toString() === workspaceUri.toString()) {
+				this._preload = undefined;
+				this.triggerPreload();
+			}
+		}));
+	}
+
+	async triggerPreload() {
+		this._preload ??= this.doPreload();
+		return this._preload;
+	}
+
+	private async doPreload(): Promise<void> {
+		try {
+			const remoteHubApi = await RemoteRepositories.getApi();
+			if (await remoteHubApi.loadWorkspaceContents?.(this.workspaceUri)) {
+				this.logger.info(`Successfully loaded workspace content for repository ${this.workspaceUri.toString()}`);
+			} else {
+				this.logger.info(`Failed to load workspace content for repository ${this.workspaceUri.toString()}`);
+			}
+		} catch (error) {
+			this.logger.info(`Loading workspace content for repository ${this.workspaceUri.toString()} failed: ${error instanceof Error ? error.toString() : 'Unknown reason'}`);
+			console.error(error);
+		}
 	}
 }

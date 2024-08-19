@@ -23,10 +23,9 @@ function main() {
 	const editorMainBundle = new CachedBundle('vs/editor/editor.main', moduleIdMapper);
 	fileServer.overrideFileContent(editorMainBundle.entryModulePath, () => editorMainBundle.bundle());
 
-	const hotReloadJsCode = getHotReloadCode(new URL('/file-changes', server.url));
 	const loaderPath = path.join(rootDir, 'out/vs/loader.js');
 	fileServer.overrideFileContent(loaderPath, async () =>
-		Buffer.from(new TextEncoder().encode(`${await fsPromise.readFile(loaderPath, 'utf8')}\n${hotReloadJsCode}`))
+		Buffer.from(new TextEncoder().encode(makeLoaderJsHotReloadable(await fsPromise.readFile(loaderPath, 'utf8'), new URL('/file-changes', server.url))))
 	);
 
 	const watcher = DirWatcher.watchRecursively(moduleIdMapper.rootDir);
@@ -35,7 +34,7 @@ function main() {
 		editorMainBundle.bundle();
 		console.log(`${new Date().toLocaleTimeString()}, file change: ${path}`);
 	});
-	server.use('/file-changes', handleGetFileChangesRequest(watcher, fileServer));
+	server.use('/file-changes', handleGetFileChangesRequest(watcher, fileServer, moduleIdMapper));
 
 	console.log(`Server listening on ${server.url}`);
 }
@@ -169,6 +168,12 @@ function getContentType(filePath: string): string {
 			return 'image/png';
 		case '.jpg':
 			return 'image/jpg';
+		case '.svg':
+			return 'image/svg+xml';
+		case '.html':
+			return 'text/html';
+		case '.wasm':
+			return 'application/wasm';
 		default:
 			return 'text/plain';
 	}
@@ -215,56 +220,237 @@ class DirWatcher {
 	}
 }
 
-function handleGetFileChangesRequest(watcher: DirWatcher, fileServer: FileServer): ChainableRequestHandler {
+function handleGetFileChangesRequest(watcher: DirWatcher, fileServer: FileServer, moduleIdMapper: SimpleModuleIdPathMapper): ChainableRequestHandler {
 	return async (req, res) => {
 		res.writeHead(200, { 'Content-Type': 'text/plain' });
-		const d = watcher.onDidChange(fsPath => {
+		const d = watcher.onDidChange((fsPath, newContent) => {
 			const path = fileServer.filePathToUrlPath(fsPath);
 			if (path) {
-				res.write(JSON.stringify({ changedPath: path }) + '\n');
+				res.write(JSON.stringify({ changedPath: path, moduleId: moduleIdMapper.getModuleId(fsPath), newContent }) + '\n');
 			}
 		});
 		res.on('close', () => d.dispose());
 	};
 }
+function makeLoaderJsHotReloadable(loaderJsCode: string, fileChangesUrl: URL): string {
+	loaderJsCode = loaderJsCode.replace(
+		/constructor\(env, scriptLoader, defineFunc, requireFunc, loaderAvailableTimestamp = 0\) {/,
+		'$&globalThis.___globalModuleManager = this; globalThis.vscode = { process: { env: { VSCODE_DEV: true } } }'
+	);
 
-function getHotReloadCode(fileChangesUrl: URL): string {
-	const additionalJsCode = `
-function $watchChanges() {
-	console.log("Connecting to server to watch for changes...");
-	fetch(${JSON.stringify(fileChangesUrl)})
-		.then(async request => {
-			const reader = request.body.getReader();
-			let buffer = '';
-			while (true) {
-				const { done, value } = await reader.read();
-				if (done) { break; }
-				buffer += new TextDecoder().decode(value);
-				const lines = buffer.split('\\n');
-				buffer = lines.pop();
-				for (const line of lines) {
-					const data = JSON.parse(line);
-					if (data.changedPath.endsWith('.css')) {
-						console.log('css changed', data.changedPath);
-						const styleSheet = [...document.querySelectorAll("link[rel='stylesheet']")].find(l => new URL(l.href, document.location.href).pathname.endsWith(data.changedPath));
-						if (styleSheet) {
-							styleSheet.href = styleSheet.href.replace(/\\?.*/, '') + '?' + Date.now();
-						}
-					} else {
-						$sendMessageToParent({ kind: "reload" });
+	const ___globalModuleManager: any = undefined;
+
+	// This code will be appended to loader.js
+	function $watchChanges(fileChangesUrl: string) {
+		interface HotReloadConfig { }
+
+		let reloadFn;
+		if (globalThis.$sendMessageToParent) {
+			reloadFn = () => globalThis.$sendMessageToParent({ kind: 'reload' });
+		} else if (typeof window !== 'undefined') {
+			reloadFn = () => window.location.reload();
+		} else {
+			reloadFn = () => { };
+		}
+
+		console.log('Connecting to server to watch for changes...');
+		(fetch as any)(fileChangesUrl)
+			.then(async request => {
+				const reader = request.body.getReader();
+				let buffer = '';
+				while (true) {
+					const { done, value } = await reader.read();
+					if (done) { break; }
+					buffer += new TextDecoder().decode(value);
+					const lines = buffer.split('\n');
+					buffer = lines.pop()!;
+
+					const changes: { relativePath: string; config: HotReloadConfig | undefined; path: string; newContent: string }[] = [];
+
+					for (const line of lines) {
+						const data = JSON.parse(line);
+						const relativePath = data.changedPath.replace(/\\/g, '/').split('/out/')[1];
+						changes.push({ config: {}, path: data.changedPath, relativePath, newContent: data.newContent });
+					}
+
+					const result = handleChanges(changes, 'playground-server');
+					if (result.reloadFailedJsFiles.length > 0) {
+						reloadFn();
 					}
 				}
-			}
-		})
-		.catch(err => {
-			console.error(err);
-			setTimeout($watchChanges, 1000);
-		});
+			}).catch(err => {
+				console.error(err);
+				setTimeout(() => $watchChanges(fileChangesUrl), 1000);
+			});
 
-}
-$watchChanges();
+
+		function handleChanges(changes: {
+			relativePath: string;
+			config: HotReloadConfig | undefined;
+			path: string;
+			newContent: string;
+		}[], debugSessionName: string) {
+			// This function is stringified and injected into the debuggee.
+
+			const hotReloadData: { count: number; originalWindowTitle: any; timeout: any; shouldReload: boolean } = globalThis.$hotReloadData || (globalThis.$hotReloadData = { count: 0, messageHideTimeout: undefined, shouldReload: false });
+
+			const reloadFailedJsFiles: { relativePath: string; path: string }[] = [];
+
+			for (const change of changes) {
+				handleChange(change.relativePath, change.path, change.newContent, change.config);
+			}
+
+			return { reloadFailedJsFiles };
+
+			function handleChange(relativePath: string, path: string, newSrc: string, config: any) {
+				if (relativePath.endsWith('.css')) {
+					handleCssChange(relativePath);
+				} else if (relativePath.endsWith('.js')) {
+					handleJsChange(relativePath, path, newSrc, config);
+				}
+			}
+
+			function handleCssChange(relativePath: string) {
+				if (typeof document === 'undefined') {
+					return;
+				}
+
+				const styleSheet = (([...document.querySelectorAll(`link[rel='stylesheet']`)] as HTMLLinkElement[]))
+					.find(l => new URL(l.href, document.location.href).pathname.endsWith(relativePath));
+				if (styleSheet) {
+					setMessage(`reload ${formatPath(relativePath)} - ${new Date().toLocaleTimeString()}`);
+					console.log(debugSessionName, 'css reloaded', relativePath);
+					styleSheet.href = styleSheet.href.replace(/\?.*/, '') + '?' + Date.now();
+				} else {
+					setMessage(`could not reload ${formatPath(relativePath)} - ${new Date().toLocaleTimeString()}`);
+					console.log(debugSessionName, 'ignoring css change, as stylesheet is not loaded', relativePath);
+				}
+			}
+
+
+			function handleJsChange(relativePath: string, path: string, newSrc: string, config: any) {
+				const moduleIdStr = trimEnd(relativePath, '.js');
+
+				const requireFn: any = globalThis.require;
+				const moduleManager = (requireFn as any).moduleManager;
+				if (!moduleManager) {
+					console.log(debugSessionName, 'ignoring js change, as moduleManager is not available', relativePath);
+					return;
+				}
+
+				const moduleId = moduleManager._moduleIdProvider.getModuleId(moduleIdStr);
+				const oldModule = moduleManager._modules2[moduleId];
+
+				if (!oldModule) {
+					console.log(debugSessionName, 'ignoring js change, as module is not loaded', relativePath);
+					return;
+				}
+
+				// Check if we can reload
+				const g = globalThis as any;
+
+				// A frozen copy of the previous exports
+				const oldExports = Object.freeze({ ...oldModule.exports });
+				const reloadFn = g.$hotReload_applyNewExports?.({ oldExports, newSrc, config });
+
+				if (!reloadFn) {
+					console.log(debugSessionName, 'ignoring js change, as module does not support hot-reload', relativePath);
+					hotReloadData.shouldReload = true;
+
+					reloadFailedJsFiles.push({ relativePath, path });
+
+					setMessage(`hot reload not supported for ${formatPath(relativePath)} - ${new Date().toLocaleTimeString()}`);
+					return;
+				}
+
+				// Eval maintains source maps
+				function newScript(/* this parameter is used by newSrc */ define) {
+					// eslint-disable-next-line no-eval
+					eval(newSrc); // CodeQL [SM01632] This code is only executed during development. It is required for the hot-reload functionality.
+				}
+
+				newScript(/* define */ function (deps, callback) {
+					// Evaluating the new code was successful.
+
+					// Redefine the module
+					delete moduleManager._modules2[moduleId];
+					moduleManager.defineModule(moduleIdStr, deps, callback);
+					const newModule = moduleManager._modules2[moduleId];
+
+
+					// Patch the exports of the old module, so that modules using the old module get the new exports
+					Object.assign(oldModule.exports, newModule.exports);
+					// We override the exports so that future reloads still patch the initial exports.
+					newModule.exports = oldModule.exports;
+
+					const successful = reloadFn(newModule.exports);
+					if (!successful) {
+						hotReloadData.shouldReload = true;
+						setMessage(`hot reload failed ${formatPath(relativePath)} - ${new Date().toLocaleTimeString()}`);
+						console.log(debugSessionName, 'hot reload was not successful', relativePath);
+						return;
+					}
+
+					console.log(debugSessionName, 'hot reloaded', moduleIdStr);
+					setMessage(`successfully reloaded ${formatPath(relativePath)} - ${new Date().toLocaleTimeString()}`);
+				});
+			}
+
+			function setMessage(message: string) {
+				const domElem = (document.querySelector('.titlebar-center .window-title')) as HTMLDivElement | undefined;
+				if (!domElem) { return; }
+				if (!hotReloadData.timeout) {
+					hotReloadData.originalWindowTitle = domElem.innerText;
+				} else {
+					clearTimeout(hotReloadData.timeout);
+				}
+				if (hotReloadData.shouldReload) {
+					message += ' (manual reload required)';
+				}
+
+				domElem.innerText = message;
+				hotReloadData.timeout = setTimeout(() => {
+					hotReloadData.timeout = undefined;
+					// If wanted, we can restore the previous title message
+					// domElem.replaceChildren(hotReloadData.originalWindowTitle);
+				}, 5000);
+			}
+
+			function formatPath(path: string): string {
+				const parts = path.split('/');
+				parts.reverse();
+				let result = parts[0];
+				parts.shift();
+				for (const p of parts) {
+					if (result.length + p.length > 40) {
+						break;
+					}
+					result = p + '/' + result;
+					if (result.length > 20) {
+						break;
+					}
+				}
+				return result;
+			}
+
+			function trimEnd(str, suffix) {
+				if (str.endsWith(suffix)) {
+					return str.substring(0, str.length - suffix.length);
+				}
+				return str;
+			}
+		}
+	}
+
+	const additionalJsCode = `
+(${(function () {
+			globalThis.$hotReload_deprecateExports = new Set<(oldExports: any, newExports: any) => void>();
+		}).toString()})();
+${$watchChanges.toString()}
+$watchChanges(${JSON.stringify(fileChangesUrl)});
 `;
-	return additionalJsCode;
+
+	return `${loaderJsCode}\n${additionalJsCode}`;
 }
 
 // #endregion

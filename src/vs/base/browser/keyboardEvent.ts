@@ -142,7 +142,7 @@ export class StandardKeyboardEvent implements IKeyboardEvent {
 		this.shiftKey = e.shiftKey;
 		this.altKey = e.altKey;
 		this.metaKey = e.metaKey;
-		this.altGraphKey = e.getModifierState('AltGraph');
+		this.altGraphKey = e.getModifierState?.('AltGraph');
 		this.keyCode = extractKeyCode(e);
 		this.code = e.code;
 

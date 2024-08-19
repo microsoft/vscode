@@ -12,19 +12,19 @@ import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 export abstract class Widget extends Disposable {
 
 	protected onclick(domNode: HTMLElement, listener: (e: IMouseEvent) => void): void {
-		this._register(dom.addDisposableListener(domNode, dom.EventType.CLICK, (e: MouseEvent) => listener(new StandardMouseEvent(e))));
+		this._register(dom.addDisposableListener(domNode, dom.EventType.CLICK, (e: MouseEvent) => listener(new StandardMouseEvent(dom.getWindow(domNode), e))));
 	}
 
 	protected onmousedown(domNode: HTMLElement, listener: (e: IMouseEvent) => void): void {
-		this._register(dom.addDisposableListener(domNode, dom.EventType.MOUSE_DOWN, (e: MouseEvent) => listener(new StandardMouseEvent(e))));
+		this._register(dom.addDisposableListener(domNode, dom.EventType.MOUSE_DOWN, (e: MouseEvent) => listener(new StandardMouseEvent(dom.getWindow(domNode), e))));
 	}
 
 	protected onmouseover(domNode: HTMLElement, listener: (e: IMouseEvent) => void): void {
-		this._register(dom.addDisposableListener(domNode, dom.EventType.MOUSE_OVER, (e: MouseEvent) => listener(new StandardMouseEvent(e))));
+		this._register(dom.addDisposableListener(domNode, dom.EventType.MOUSE_OVER, (e: MouseEvent) => listener(new StandardMouseEvent(dom.getWindow(domNode), e))));
 	}
 
 	protected onmouseleave(domNode: HTMLElement, listener: (e: IMouseEvent) => void): void {
-		this._register(dom.addDisposableListener(domNode, dom.EventType.MOUSE_LEAVE, (e: MouseEvent) => listener(new StandardMouseEvent(e))));
+		this._register(dom.addDisposableListener(domNode, dom.EventType.MOUSE_LEAVE, (e: MouseEvent) => listener(new StandardMouseEvent(dom.getWindow(domNode), e))));
 	}
 
 	protected onkeydown(domNode: HTMLElement, listener: (e: IKeyboardEvent) => void): void {

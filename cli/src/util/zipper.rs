@@ -44,19 +44,20 @@ fn should_skip_first_segment(archive: &mut ZipArchive<File>) -> bool {
 	archive.len() > 1 // prefix removal is invalid if there's only a single file
 }
 
-pub fn unzip_file<T>(path: &Path, parent_path: &Path, mut reporter: T) -> Result<(), WrappedError>
+pub fn unzip_file<T>(file: File, parent_path: &Path, mut reporter: T) -> Result<(), WrappedError>
 where
 	T: ReportCopyProgress,
 {
-	let file = fs::File::open(path)
-		.map_err(|e| wrap(e, format!("unable to open file {}", path.display())))?;
-
-	let mut archive = zip::ZipArchive::new(file)
-		.map_err(|e| wrap(e, format!("failed to open zip archive {}", path.display())))?;
+	let mut archive =
+		zip::ZipArchive::new(file).map_err(|e| wrap(e, "failed to open zip archive"))?;
 
 	let skip_segments_no = usize::from(should_skip_first_segment(&mut archive));
+	let report_progress_every = archive.len() / 20;
+
 	for i in 0..archive.len() {
-		reporter.report_progress(i as u64, archive.len() as u64);
+		if i % report_progress_every == 0 {
+			reporter.report_progress(i as u64, archive.len() as u64);
+		}
 		let mut file = archive
 			.by_index(i)
 			.map_err(|e| wrap(e, format!("could not open zip entry {}", i)))?;
@@ -88,8 +89,13 @@ where
 			use std::io::Read;
 			use std::os::unix::ffi::OsStringExt;
 
-			if matches!(file.unix_mode(), Some(mode) if mode & (S_IFLNK as u32) == (S_IFLNK as u32))
-			{
+			#[cfg(target_os = "macos")]
+			const S_IFLINK_32: u32 = S_IFLNK as u32;
+
+			#[cfg(target_os = "linux")]
+			const S_IFLINK_32: u32 = S_IFLNK;
+
+			if matches!(file.unix_mode(), Some(mode) if mode & S_IFLINK_32 == S_IFLINK_32) {
 				let mut link_to = Vec::new();
 				file.read_to_end(&mut link_to).map_err(|e| {
 					wrap(

@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { KeybindingEditorDecorationsRenderer } from 'vs/workbench/contrib/preferences/browser/keybindingsEditorContribution';
 
 suite('KeybindingsEditorContribution', () => {
@@ -37,4 +38,6 @@ suite('KeybindingsEditorContribution', () => {
 		assertEqual('cmd+shift+p', 'shift+cmd+p');
 		assertEqual('cmd+shift+p', 'shift-cmd-p');
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

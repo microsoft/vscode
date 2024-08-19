@@ -9,5 +9,6 @@ export const INTERACTIVE_INPUT_CURSOR_BOUNDARY = new RawContextKey<'none' | 'top
 
 export const InteractiveWindowSetting = {
 	interactiveWindowAlwaysScrollOnNewCell: 'interactiveWindow.alwaysScrollOnNewCell',
-	interactiveWindowRestore: 'interactiveWindow.restore'
+	executeWithShiftEnter: 'interactiveWindow.executeWithShiftEnter',
+	showExecutionHint: 'interactiveWindow.showExecutionHint'
 };

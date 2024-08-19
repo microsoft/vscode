@@ -1,0 +1,33 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench .inline-chat-content-widget {
+	z-index: 50;
+	border-radius: 4px;
+	background-color: var(--vscode-inlineChat-background);
+	box-shadow: 0 4px 8px var(--vscode-inlineChat-shadow);
+}
+
+
+.monaco-workbench .inline-chat-content-widget.interactive-session .interactive-session {
+	max-width: unset;
+}
+
+.monaco-workbench .inline-chat-content-widget.interactive-session .interactive-input-part .interactive-execute-toolbar {
+	margin-bottom: 1px;
+}
+
+.monaco-workbench .inline-chat-content-widget.interactive-session .interactive-input-part.compact {
+	padding: 6px;
+}
+
+.monaco-workbench .inline-chat-content-widget.interactive-session .interactive-list {
+	display: none;
+}
+
+.monaco-workbench .inline-chat-content-widget.interactive-session .toolbar {
+	display: none;
+	padding-top: 4px;
+}

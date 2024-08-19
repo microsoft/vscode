@@ -16,6 +16,7 @@ export interface IValidGrammarDefinition {
 	injectTo?: string[];
 	balancedBracketSelectors: string[];
 	unbalancedBracketSelectors: string[];
+	sourceExtensionId?: string;
 }
 
 export interface IValidTokenTypeMap {

@@ -59,6 +59,11 @@ export class DocumentSemanticTokensFeature extends Disposable {
 				}
 			}
 		};
+		modelService.getModels().forEach(model => {
+			if (isSemanticColoringEnabled(model, themeService, configurationService)) {
+				register(model);
+			}
+		});
 		this._register(modelService.onModelAdded((model) => {
 			if (isSemanticColoringEnabled(model, themeService, configurationService)) {
 				register(model);
@@ -185,6 +190,8 @@ class ModelSemanticColoring extends Disposable {
 			this._currentDocumentRequestCancellationTokenSource.cancel();
 			this._currentDocumentRequestCancellationTokenSource = null;
 		}
+		dispose(this._documentProvidersChangeListeners);
+		this._documentProvidersChangeListeners = [];
 		this._setDocumentSemanticTokens(null, null, null, []);
 		this._isDisposed = true;
 

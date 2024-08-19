@@ -216,7 +216,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 		if (state.collapsedRegions && state.collapsedRegions.length > 0 && this.foldingModel) {
 			this._restoringViewState = true;
 			try {
-				this.foldingModel.applyMemento(state.collapsedRegions!);
+				this.foldingModel.applyMemento(state.collapsedRegions);
 			} finally {
 				this._restoringViewState = false;
 			}
@@ -311,7 +311,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 				if (!foldingModel) { // null if editor has been disposed, or folding turned off
 					return null;
 				}
-				const sw = new StopWatch(true);
+				const sw = new StopWatch();
 				const provider = this.getRangeProvider(foldingModel.textModel);
 				const foldingRegionPromise = this.foldingRegionPromise = createCancelablePromise(token => provider.compute(token));
 				return foldingRegionPromise.then(foldingRanges => {
@@ -407,13 +407,13 @@ export class FoldingController extends Disposable implements IEditorContribution
 		switch (e.target.type) {
 			case MouseTargetType.GUTTER_LINE_DECORATIONS: {
 				const data = e.target.detail;
-				const offsetLeftInGutter = (e.target.element as HTMLElement).offsetLeft;
+				const offsetLeftInGutter = e.target.element!.offsetLeft;
 				const gutterOffsetX = data.offsetX - offsetLeftInGutter;
 
 				// const gutterOffsetX = data.offsetX - data.glyphMarginWidth - data.lineNumbersWidth - data.glyphMarginLeft;
 
 				// TODO@joao TODO@alex TODO@martin this is such that we don't collide with dirty diff
-				if (gutterOffsetX < 5) { // the whitespace between the border and the real folding icon border is 5px
+				if (gutterOffsetX < 4) { // the whitespace between the border and the real folding icon border is 4px
 					return;
 				}
 
@@ -476,7 +476,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 				const surrounding = e.event.altKey;
 				let toToggle = [];
 				if (surrounding) {
-					const filter = (otherRegion: FoldingRegion) => !otherRegion.containedBy(region!) && !region!.containedBy(otherRegion);
+					const filter = (otherRegion: FoldingRegion) => !otherRegion.containedBy(region) && !region.containedBy(otherRegion);
 					const toMaybeToggle = foldingModel.getRegionsInside(null, filter);
 					for (const r of toMaybeToggle) {
 						if (r.isCollapsed) {
@@ -623,7 +623,7 @@ class UnfoldAction extends FoldingAction<FoldingArguments> {
 				},
 				weight: KeybindingWeight.EditorContrib
 			},
-			description: {
+			metadata: {
 				description: 'Unfold the content in the editor',
 				args: [
 					{
@@ -708,7 +708,7 @@ class FoldAction extends FoldingAction<FoldingArguments> {
 				},
 				weight: KeybindingWeight.EditorContrib
 			},
-			description: {
+			metadata: {
 				description: 'Fold the content in the editor',
 				args: [
 					{
@@ -809,6 +809,30 @@ class FoldRecursivelyAction extends FoldingAction<void> {
 	}
 }
 
+
+class ToggleFoldRecursivelyAction extends FoldingAction<void> {
+
+	constructor() {
+		super({
+			id: 'editor.toggleFoldRecursively',
+			label: nls.localize('toggleFoldRecursivelyAction.label', "Toggle Fold Recursively"),
+			alias: 'Toggle Fold Recursively',
+			precondition: CONTEXT_FOLDING_ENABLED,
+			kbOpts: {
+				kbExpr: EditorContextKeys.editorTextFocus,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyL),
+				weight: KeybindingWeight.EditorContrib
+			}
+		});
+	}
+
+	invoke(_foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor): void {
+		const selectedLines = this.getSelectedLines(editor);
+		toggleCollapseState(foldingModel, Number.MAX_VALUE, selectedLines);
+	}
+}
+
+
 class FoldAllBlockCommentsAction extends FoldingAction<void> {
 
 	constructor() {
@@ -908,13 +932,13 @@ class UnfoldAllRegionsAction extends FoldingAction<void> {
 	}
 }
 
-class FoldAllRegionsExceptAction extends FoldingAction<void> {
+class FoldAllExceptAction extends FoldingAction<void> {
 
 	constructor() {
 		super({
 			id: 'editor.foldAllExcept',
-			label: nls.localize('foldAllExcept.label', "Fold All Regions Except Selected"),
-			alias: 'Fold All Regions Except Selected',
+			label: nls.localize('foldAllExcept.label', "Fold All Except Selected"),
+			alias: 'Fold All Except Selected',
 			precondition: CONTEXT_FOLDING_ENABLED,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -931,13 +955,13 @@ class FoldAllRegionsExceptAction extends FoldingAction<void> {
 
 }
 
-class UnfoldAllRegionsExceptAction extends FoldingAction<void> {
+class UnfoldAllExceptAction extends FoldingAction<void> {
 
 	constructor() {
 		super({
 			id: 'editor.unfoldAllExcept',
-			label: nls.localize('unfoldAllExcept.label', "Unfold All Regions Except Selected"),
-			alias: 'Unfold All Regions Except Selected',
+			label: nls.localize('unfoldAllExcept.label', "Unfold All Except Selected"),
+			alias: 'Unfold All Except Selected',
 			precondition: CONTEXT_FOLDING_ENABLED,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -1127,7 +1151,7 @@ class FoldRangeFromSelectionAction extends FoldingAction<void> {
 					--endLineNumber;
 				}
 				if (endLineNumber > selection.startLineNumber) {
-					collapseRanges.push(<FoldRange>{
+					collapseRanges.push({
 						startLineNumber: selection.startLineNumber,
 						endLineNumber: endLineNumber,
 						type: undefined,
@@ -1189,13 +1213,14 @@ registerEditorAction(UnfoldAction);
 registerEditorAction(UnFoldRecursivelyAction);
 registerEditorAction(FoldAction);
 registerEditorAction(FoldRecursivelyAction);
+registerEditorAction(ToggleFoldRecursivelyAction);
 registerEditorAction(FoldAllAction);
 registerEditorAction(UnfoldAllAction);
 registerEditorAction(FoldAllBlockCommentsAction);
 registerEditorAction(FoldAllRegionsAction);
 registerEditorAction(UnfoldAllRegionsAction);
-registerEditorAction(FoldAllRegionsExceptAction);
-registerEditorAction(UnfoldAllRegionsExceptAction);
+registerEditorAction(FoldAllExceptAction);
+registerEditorAction(UnfoldAllExceptAction);
 registerEditorAction(ToggleFoldAction);
 registerEditorAction(GotoParentFoldAction);
 registerEditorAction(GotoPreviousFoldAction);
@@ -1269,4 +1294,3 @@ CommandsRegistry.registerCommand('_executeFoldingRangeProvider', async function 
 		rangeProvider.dispose();
 	}
 });
-

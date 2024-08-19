@@ -17,6 +17,7 @@ import { assertIsDefined } from 'vs/base/common/types';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
+import { IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 
 /**
  * Composites are layed out in the sidebar and panel part of the workbench. At a time only one composite
@@ -35,17 +36,13 @@ export abstract class Composite extends Component implements IComposite {
 	private readonly _onTitleAreaUpdate = this._register(new Emitter<void>());
 	readonly onTitleAreaUpdate = this._onTitleAreaUpdate.event;
 
-	private _onDidFocus: Emitter<void> | undefined;
+	protected _onDidFocus: Emitter<void> | undefined;
 	get onDidFocus(): Event<void> {
 		if (!this._onDidFocus) {
 			this._onDidFocus = this.registerFocusTrackEvents().onDidFocus;
 		}
 
 		return this._onDidFocus.event;
-	}
-
-	protected fireOnDidFocus(): void {
-		this._onDidFocus?.fire();
 	}
 
 	private _onDidBlur: Emitter<void> | undefined;
@@ -85,22 +82,16 @@ export abstract class Composite extends Component implements IComposite {
 
 	protected actionRunner: IActionRunner | undefined;
 
-	private _telemetryService: ITelemetryService;
-	protected get telemetryService(): ITelemetryService { return this._telemetryService; }
-
-	private visible: boolean;
+	private visible = false;
 	private parent: HTMLElement | undefined;
 
 	constructor(
 		id: string,
-		telemetryService: ITelemetryService,
+		protected readonly telemetryService: ITelemetryService,
 		themeService: IThemeService,
 		storageService: IStorageService
 	) {
 		super(id, themeService, storageService);
-
-		this._telemetryService = telemetryService;
-		this.visible = false;
 	}
 
 	getTitle(): string | undefined {
@@ -163,13 +154,6 @@ export abstract class Composite extends Component implements IComposite {
 	abstract setBoundarySashes(sashes: IBoundarySashes): void;
 
 	/**
-	 * Update the styles of the contents of this composite.
-	 */
-	override updateStyles(): void {
-		super.updateStyles();
-	}
-
-	/**
 	 *
 	 * @returns the action runner for this composite
 	 */
@@ -205,7 +189,7 @@ export abstract class Composite extends Component implements IComposite {
 	 * of an action. Returns undefined to indicate that the action is not rendered through
 	 * an action item.
 	 */
-	getActionViewItem(action: IAction): IActionViewItem | undefined {
+	getActionViewItem(action: IAction, options: IBaseActionViewItemOptions): IActionViewItem | undefined {
 		return undefined;
 	}
 

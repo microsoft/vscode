@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as browser from 'vs/base/browser/browser';
-import { Emitter, Event } from 'vs/base/common/event';
+import { getWindowId } from 'vs/base/browser/dom';
+import { PixelRatio } from 'vs/base/browser/pixelRatio';
+import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { CharWidthRequest, CharWidthRequestType, readCharWidths } from 'vs/editor/browser/config/charWidthReader';
 import { EditorFontLigatures } from 'vs/editor/common/config/editorOptions';
@@ -35,22 +36,16 @@ export interface ISerializedFontInfo {
 
 export class FontMeasurementsImpl extends Disposable {
 
-	private _cache: FontMeasurementsCache;
-	private _evictUntrustedReadingsTimeout: number;
+	private readonly _cache = new Map<number, FontMeasurementsCache>();
+
+	private _evictUntrustedReadingsTimeout = -1;
 
 	private readonly _onDidChange = this._register(new Emitter<void>());
-	public readonly onDidChange: Event<void> = this._onDidChange.event;
-
-	constructor() {
-		super();
-
-		this._cache = new FontMeasurementsCache();
-		this._evictUntrustedReadingsTimeout = -1;
-	}
+	public readonly onDidChange = this._onDidChange.event;
 
 	public override dispose(): void {
 		if (this._evictUntrustedReadingsTimeout !== -1) {
-			window.clearTimeout(this._evictUntrustedReadingsTimeout);
+			clearTimeout(this._evictUntrustedReadingsTimeout);
 			this._evictUntrustedReadingsTimeout = -1;
 		}
 		super.dispose();
@@ -60,29 +55,41 @@ export class FontMeasurementsImpl extends Disposable {
 	 * Clear all cached font information and trigger a change event.
 	 */
 	public clearAllFontInfos(): void {
-		this._cache = new FontMeasurementsCache();
+		this._cache.clear();
 		this._onDidChange.fire();
 	}
 
-	private _writeToCache(item: BareFontInfo, value: FontInfo): void {
-		this._cache.put(item, value);
+	private _ensureCache(targetWindow: Window): FontMeasurementsCache {
+		const windowId = getWindowId(targetWindow);
+		let cache = this._cache.get(windowId);
+		if (!cache) {
+			cache = new FontMeasurementsCache();
+			this._cache.set(windowId, cache);
+		}
+		return cache;
+	}
+
+	private _writeToCache(targetWindow: Window, item: BareFontInfo, value: FontInfo): void {
+		const cache = this._ensureCache(targetWindow);
+		cache.put(item, value);
 
 		if (!value.isTrusted && this._evictUntrustedReadingsTimeout === -1) {
 			// Try reading again after some time
-			this._evictUntrustedReadingsTimeout = window.setTimeout(() => {
+			this._evictUntrustedReadingsTimeout = targetWindow.setTimeout(() => {
 				this._evictUntrustedReadingsTimeout = -1;
-				this._evictUntrustedReadings();
+				this._evictUntrustedReadings(targetWindow);
 			}, 5000);
 		}
 	}
 
-	private _evictUntrustedReadings(): void {
-		const values = this._cache.getValues();
+	private _evictUntrustedReadings(targetWindow: Window): void {
+		const cache = this._ensureCache(targetWindow);
+		const values = cache.getValues();
 		let somethingRemoved = false;
 		for (const item of values) {
 			if (!item.isTrusted) {
 				somethingRemoved = true;
-				this._cache.remove(item);
+				cache.remove(item);
 			}
 		}
 		if (somethingRemoved) {
@@ -93,15 +100,16 @@ export class FontMeasurementsImpl extends Disposable {
 	/**
 	 * Serialized currently cached font information.
 	 */
-	public serializeFontInfo(): ISerializedFontInfo[] {
+	public serializeFontInfo(targetWindow: Window): ISerializedFontInfo[] {
 		// Only save trusted font info (that has been measured in this running instance)
-		return this._cache.getValues().filter(item => item.isTrusted);
+		const cache = this._ensureCache(targetWindow);
+		return cache.getValues().filter(item => item.isTrusted);
 	}
 
 	/**
 	 * Restore previously serialized font informations.
 	 */
-	public restoreFontInfo(savedFontInfos: ISerializedFontInfo[]): void {
+	public restoreFontInfo(targetWindow: Window, savedFontInfos: ISerializedFontInfo[]): void {
 		// Take all the saved font info and insert them in the cache without the trusted flag.
 		// The reason for this is that a font might have been installed on the OS in the meantime.
 		for (const savedFontInfo of savedFontInfos) {
@@ -110,21 +118,22 @@ export class FontMeasurementsImpl extends Disposable {
 				continue;
 			}
 			const fontInfo = new FontInfo(savedFontInfo, false);
-			this._writeToCache(fontInfo, fontInfo);
+			this._writeToCache(targetWindow, fontInfo, fontInfo);
 		}
 	}
 
 	/**
 	 * Read font information.
 	 */
-	public readFontInfo(bareFontInfo: BareFontInfo): FontInfo {
-		if (!this._cache.has(bareFontInfo)) {
-			let readConfig = this._actualReadFontInfo(bareFontInfo);
+	public readFontInfo(targetWindow: Window, bareFontInfo: BareFontInfo): FontInfo {
+		const cache = this._ensureCache(targetWindow);
+		if (!cache.has(bareFontInfo)) {
+			let readConfig = this._actualReadFontInfo(targetWindow, bareFontInfo);
 
 			if (readConfig.typicalHalfwidthCharacterWidth <= 2 || readConfig.typicalFullwidthCharacterWidth <= 2 || readConfig.spaceWidth <= 2 || readConfig.maxDigitWidth <= 2) {
 				// Hey, it's Bug 14341 ... we couldn't read
 				readConfig = new FontInfo({
-					pixelRatio: browser.PixelRatio.value,
+					pixelRatio: PixelRatio.getInstance(targetWindow).value,
 					fontFamily: readConfig.fontFamily,
 					fontWeight: readConfig.fontWeight,
 					fontSize: readConfig.fontSize,
@@ -143,9 +152,9 @@ export class FontMeasurementsImpl extends Disposable {
 				}, false);
 			}
 
-			this._writeToCache(bareFontInfo, readConfig);
+			this._writeToCache(targetWindow, bareFontInfo, readConfig);
 		}
-		return this._cache.get(bareFontInfo);
+		return cache.get(bareFontInfo);
 	}
 
 	private _createRequest(chr: string, type: CharWidthRequestType, all: CharWidthRequest[], monospace: CharWidthRequest[] | null): CharWidthRequest {
@@ -155,7 +164,7 @@ export class FontMeasurementsImpl extends Disposable {
 		return result;
 	}
 
-	private _actualReadFontInfo(bareFontInfo: BareFontInfo): FontInfo {
+	private _actualReadFontInfo(targetWindow: Window, bareFontInfo: BareFontInfo): FontInfo {
 		const all: CharWidthRequest[] = [];
 		const monospace: CharWidthRequest[] = [];
 
@@ -191,7 +200,7 @@ export class FontMeasurementsImpl extends Disposable {
 			this._createRequest(monospaceTestChars.charAt(i), CharWidthRequestType.Bold, all, monospace);
 		}
 
-		readCharWidths(bareFontInfo, all);
+		readCharWidths(targetWindow, bareFontInfo, all);
 
 		const maxDigitWidth = Math.max(digit0.width, digit1.width, digit2.width, digit3.width, digit4.width, digit5.width, digit6.width, digit7.width, digit8.width, digit9.width);
 
@@ -216,7 +225,7 @@ export class FontMeasurementsImpl extends Disposable {
 		}
 
 		return new FontInfo({
-			pixelRatio: browser.PixelRatio.value,
+			pixelRatio: PixelRatio.getInstance(targetWindow).value,
 			fontFamily: bareFontInfo.fontFamily,
 			fontWeight: bareFontInfo.fontWeight,
 			fontSize: bareFontInfo.fontSize,

@@ -14,6 +14,9 @@
 	height: 100%;
 	width: 0;
 	left: -2px;
+}
+
+.monaco-workbench:not(.reduce-motion) .monaco-editor .dirty-diff-glyph:before {
 	transition: width 80ms linear, left 80ms linear, transform 80ms linear;
 }
 
@@ -25,7 +28,6 @@
 .monaco-editor .dirty-diff-added {
 	border-left-color: var(--vscode-editorGutter-addedBackground);
 	border-left-style: solid;
-	transition: opacity 0.5s;
 }
 
 .monaco-editor .dirty-diff-added:before {
@@ -35,7 +37,6 @@
 .monaco-editor .dirty-diff-added-pattern {
 	background-image: linear-gradient(-45deg, var(--vscode-editorGutter-addedBackground) 25%, var(--vscode-editorGutter-background) 25%, var(--vscode-editorGutter-background) 50%, var(--vscode-editorGutter-addedBackground) 50%, var(--vscode-editorGutter-addedBackground) 75%, var(--vscode-editorGutter-background) 75%, var(--vscode-editorGutter-background));
 	background-repeat: repeat-y;
-	transition: opacity 0.5s;
 }
 
 .monaco-editor .dirty-diff-added-pattern:before {
@@ -46,7 +47,6 @@
 .monaco-editor .dirty-diff-modified {
 	border-left-color: var(--vscode-editorGutter-modifiedBackground);
 	border-left-style: solid;
-	transition: opacity 0.5s;
 }
 
 .monaco-editor .dirty-diff-modified:before {
@@ -56,6 +56,12 @@
 .monaco-editor .dirty-diff-modified-pattern {
 	background-image: linear-gradient(-45deg, var(--vscode-editorGutter-modifiedBackground) 25%, var(--vscode-editorGutter-background) 25%, var(--vscode-editorGutter-background) 50%, var(--vscode-editorGutter-modifiedBackground) 50%, var(--vscode-editorGutter-modifiedBackground) 75%, var(--vscode-editorGutter-background) 75%, var(--vscode-editorGutter-background));
 	background-repeat: repeat-y;
+}
+
+.monaco-workbench:not(.reduce-motion) .monaco-editor .dirty-diff-added,
+.monaco-workbench:not(.reduce-motion) .monaco-editor .dirty-diff-added-pattern,
+.monaco-workbench:not(.reduce-motion) .monaco-editor .dirty-diff-modified,
+.monaco-workbench:not(.reduce-motion) .monaco-editor .dirty-diff-modified-pattern {
 	transition: opacity 0.5s;
 }
 
@@ -82,8 +88,11 @@
 	border-top: 4px solid transparent;
 	border-bottom: 4px solid transparent;
 	border-left: 4px solid var(--vscode-editorGutter-deletedBackground);
-	transition: border-top-width 80ms linear, border-bottom-width 80ms linear, bottom 80ms linear, opacity 0.5s;
 	pointer-events: none;
+}
+
+.monaco-workbench:not(.reduce-motion) .monaco-editor .dirty-diff-deleted:after {
+	transition: border-top-width 80ms linear, border-bottom-width 80ms linear, bottom 80ms linear, opacity 0.5s;
 }
 
 .monaco-editor .dirty-diff-deleted:before {
@@ -91,6 +100,9 @@
 	margin-left: 3px;
 	height: 0;
 	bottom: 0;
+}
+
+.monaco-workbench:not(.reduce-motion) .monaco-editor .dirty-diff-deleted:before {
 	transition: height 80ms linear;
 }
 

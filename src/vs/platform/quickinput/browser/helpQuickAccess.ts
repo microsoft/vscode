@@ -11,7 +11,7 @@ import { Extensions, IQuickAccessProvider, IQuickAccessProviderDescriptor, IQuic
 import { IQuickInputService, IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 
 interface IHelpQuickAccessPickItem extends IQuickPickItem {
-	prefix: string;
+	readonly prefix: string;
 }
 
 export class HelpQuickAccessProvider implements IQuickAccessProvider {
@@ -25,7 +25,7 @@ export class HelpQuickAccessProvider implements IQuickAccessProvider {
 		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) { }
 
-	provide(picker: IQuickPick<IHelpQuickAccessPickItem>): IDisposable {
+	provide(picker: IQuickPick<IHelpQuickAccessPickItem, { useSeparators: true }>): IDisposable {
 		const disposables = new DisposableStore();
 
 		// Open a picker with the selected value if picked
@@ -75,4 +75,3 @@ export class HelpQuickAccessProvider implements IQuickAccessProvider {
 		});
 	}
 }
-

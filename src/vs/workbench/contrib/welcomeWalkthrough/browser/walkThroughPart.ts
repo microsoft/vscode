@@ -17,7 +17,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { WalkThroughInput } from 'vs/workbench/contrib/welcomeWalkthrough/browser/walkThroughInput';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
+import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { localize } from 'vs/nls';
@@ -32,8 +32,8 @@ import { UILabelProvider } from 'vs/base/common/keybindingLabels';
 import { OS, OperatingSystem } from 'vs/base/common/platform';
 import { deepClone } from 'vs/base/common/objects';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { addDisposableListener, Dimension, safeInnerHtml, size } from 'vs/base/browser/dom';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { addDisposableListener, Dimension, isHTMLAnchorElement, isHTMLButtonElement, isHTMLElement, safeInnerHtml, size } from 'vs/base/browser/dom';
+import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
@@ -66,6 +66,7 @@ export class WalkThroughPart extends EditorPane {
 	private editorMemento: IEditorMemento<IWalkThroughEditorViewState>;
 
 	constructor(
+		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
@@ -79,7 +80,7 @@ export class WalkThroughPart extends EditorPane {
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 	) {
-		super(WalkThroughPart.ID, telemetryService, themeService, storageService);
+		super(WalkThroughPart.ID, group, telemetryService, themeService, storageService);
 		this.editorFocus = WALK_THROUGH_FOCUS.bindTo(this.contextKeyService);
 		this.editorMemento = this.getEditorMemento<IWalkThroughEditorViewState>(editorGroupService, textResourceConfigurationService, WALK_THROUGH_EDITOR_VIEW_STATE_PREFERENCE_KEY);
 	}
@@ -141,12 +142,12 @@ export class WalkThroughPart extends EditorPane {
 		}));
 		this.disposables.add(this.addEventListener(this.content, 'focusin', (e: FocusEvent) => {
 			// Work around scrolling as side-effect of setting focus on the offscreen zone widget (#18929)
-			if (e.target instanceof HTMLElement && e.target.classList.contains('zone-widget-container')) {
+			if (isHTMLElement(e.target) && e.target.classList.contains('zone-widget-container')) {
 				const scrollPosition = this.scrollbar.getScrollPosition();
 				this.content.scrollTop = scrollPosition.scrollTop;
 				this.content.scrollLeft = scrollPosition.scrollLeft;
 			}
-			if (e.target instanceof HTMLElement) {
+			if (isHTMLElement(e.target)) {
 				this.lastFocus = e.target;
 			}
 		}));
@@ -155,8 +156,8 @@ export class WalkThroughPart extends EditorPane {
 	private registerClickHandler() {
 		this.content.addEventListener('click', event => {
 			for (let node = event.target as HTMLElement; node; node = node.parentNode as HTMLElement) {
-				if (node instanceof HTMLAnchorElement && node.href) {
-					const baseElement = window.document.getElementsByTagName('base')[0] || window.location;
+				if (isHTMLAnchorElement(node) && node.href) {
+					const baseElement = node.ownerDocument.getElementsByTagName('base')[0] || this.window.location;
 					if (baseElement && node.href.indexOf(baseElement.href) >= 0 && node.hash) {
 						const scrollTarget = this.content.querySelector(node.hash);
 						const innerContent = this.content.firstElementChild;
@@ -170,7 +171,7 @@ export class WalkThroughPart extends EditorPane {
 					}
 					event.preventDefault();
 					break;
-				} else if (node instanceof HTMLButtonElement) {
+				} else if (isHTMLButtonElement(node)) {
 					const href = node.getAttribute('data-href');
 					if (href) {
 						this.open(URI.parse(href));
@@ -224,7 +225,9 @@ export class WalkThroughPart extends EditorPane {
 	}
 
 	override focus(): void {
-		let active = document.activeElement;
+		super.focus();
+
+		let active = this.content.ownerDocument.activeElement;
 		while (active && active !== this.content) {
 			active = active.parentElement;
 		}
@@ -411,7 +414,7 @@ export class WalkThroughPart extends EditorPane {
 			const keybinding = command && this.keybindingService.lookupKeybinding(command);
 			const label = keybinding ? keybinding.getLabel() || '' : UNBOUND_COMMAND;
 			while (key.firstChild) {
-				key.removeChild(key.firstChild);
+				key.firstChild.remove();
 			}
 			key.appendChild(document.createTextNode(label));
 		});
@@ -430,7 +433,7 @@ export class WalkThroughPart extends EditorPane {
 		const keys = this.content.querySelectorAll('.multi-cursor-modifier');
 		Array.prototype.forEach.call(keys, (key: Element) => {
 			while (key.firstChild) {
-				key.removeChild(key.firstChild);
+				key.firstChild.remove();
 			}
 			key.appendChild(document.createTextNode(modifier));
 		});
@@ -439,22 +442,18 @@ export class WalkThroughPart extends EditorPane {
 	private saveTextEditorViewState(input: WalkThroughInput): void {
 		const scrollPosition = this.scrollbar.getScrollPosition();
 
-		if (this.group) {
-			this.editorMemento.saveEditorState(this.group, input, {
-				viewState: {
-					scrollTop: scrollPosition.scrollTop,
-					scrollLeft: scrollPosition.scrollLeft
-				}
-			});
-		}
+		this.editorMemento.saveEditorState(this.group, input, {
+			viewState: {
+				scrollTop: scrollPosition.scrollTop,
+				scrollLeft: scrollPosition.scrollLeft
+			}
+		});
 	}
 
 	private loadTextEditorViewState(input: WalkThroughInput) {
-		if (this.group) {
-			const state = this.editorMemento.loadEditorState(this.group, input);
-			if (state) {
-				this.scrollbar.setScrollPosition(state.viewState);
-			}
+		const state = this.editorMemento.loadEditorState(this.group, input);
+		if (state) {
+			this.scrollbar.setScrollPosition(state.viewState);
 		}
 	}
 

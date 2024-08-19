@@ -87,7 +87,7 @@ class DecorationRule {
 
 	private _appendForMany(data: IDecorationData[], element: HTMLStyleElement): void {
 		// label
-		const { color } = data[0];
+		const { color } = data.find(d => !!d.color) ?? data[0];
 		createCSSRule(`.${this.itemColorClassName}`, `color: ${getColor(color)};`, element);
 
 		// badge or icon
@@ -158,16 +158,15 @@ class DecorationRule {
 
 class DecorationStyles {
 
-	private readonly _styleElement = createStyleSheet();
-	private readonly _decorationRules = new Map<string, DecorationRule>();
 	private readonly _dispoables = new DisposableStore();
+	private readonly _styleElement = createStyleSheet(undefined, undefined, this._dispoables);
+	private readonly _decorationRules = new Map<string, DecorationRule>();
 
 	constructor(private readonly _themeService: IThemeService) {
 	}
 
 	dispose(): void {
 		this._dispoables.dispose();
-		this._styleElement.remove();
 	}
 
 	asDecoration(data: IDecorationData[], onlyChildren: boolean): IDecoration {
@@ -246,8 +245,9 @@ export class DecorationsService implements IDecorationsService {
 
 	declare _serviceBrand: undefined;
 
-	private readonly _onDidChangeDecorationsDelayed = new DebounceEmitter<URI | URI[]>({ merge: all => all.flat() });
-	private readonly _onDidChangeDecorations = new Emitter<IResourceDecorationChangeEvent>();
+	private readonly _store = new DisposableStore();
+	private readonly _onDidChangeDecorationsDelayed = this._store.add(new DebounceEmitter<URI | URI[]>({ merge: all => all.flat() }));
+	private readonly _onDidChangeDecorations = this._store.add(new Emitter<IResourceDecorationChangeEvent>());
 
 	onDidChangeDecorations: Event<IResourceDecorationChangeEvent> = this._onDidChangeDecorations.event;
 
@@ -262,12 +262,12 @@ export class DecorationsService implements IDecorationsService {
 		this._decorationStyles = new DecorationStyles(themeService);
 		this._data = TernarySearchTree.forUris(key => uriIdentityService.extUri.ignorePathCasing(key));
 
-		this._onDidChangeDecorationsDelayed.event(event => { this._onDidChangeDecorations.fire(new FileDecorationChangeEvent(event)); });
+		this._store.add(this._onDidChangeDecorationsDelayed.event(event => { this._onDidChangeDecorations.fire(new FileDecorationChangeEvent(event)); }));
 	}
 
 	dispose(): void {
-		this._onDidChangeDecorations.dispose();
-		this._onDidChangeDecorationsDelayed.dispose();
+		this._store.dispose();
+		this._data.clear();
 	}
 
 	registerDecorationsProvider(provider: IDecorationsProvider): IDisposable {
@@ -374,15 +374,16 @@ export class DecorationsService implements IDecorationsService {
 			map.delete(provider);
 		}
 
-		const source = new CancellationTokenSource();
-		const dataOrThenable = provider.provideDecorations(uri, source.token);
+		const cts = new CancellationTokenSource();
+		const dataOrThenable = provider.provideDecorations(uri, cts.token);
 		if (!isThenable<IDecorationData | Promise<IDecorationData | undefined> | undefined>(dataOrThenable)) {
 			// sync -> we have a result now
+			cts.dispose();
 			return this._keepItem(map, provider, uri, dataOrThenable);
 
 		} else {
 			// async -> we have a result soon
-			const request = new DecorationDataRequest(source, Promise.resolve(dataOrThenable).then(data => {
+			const request = new DecorationDataRequest(cts, Promise.resolve(dataOrThenable).then(data => {
 				if (map.get(provider) === request) {
 					this._keepItem(map, provider, uri, data);
 				}
@@ -390,6 +391,8 @@ export class DecorationsService implements IDecorationsService {
 				if (!isCancellationError(err) && map.get(provider) === request) {
 					map.delete(provider);
 				}
+			}).finally(() => {
+				cts.dispose();
 			}));
 
 			map.set(provider, request);

@@ -4,31 +4,33 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import * as assert from 'assert';
-import severity from 'vs/base/common/severity';
-import { DebugModel, StackFrame, Thread } from 'vs/workbench/contrib/debug/common/debugModel';
-import { createMockDebugModel } from 'vs/workbench/contrib/debug/test/browser/mockDebugModel';
-import { ReplOutputElement, RawObjectReplElement, ReplEvaluationInput, ReplModel, ReplEvaluationResult, ReplGroup, ReplVariableElement } from 'vs/workbench/contrib/debug/common/replModel';
-import { RawDebugSession } from 'vs/workbench/contrib/debug/browser/rawDebugSession';
-import { timeout } from 'vs/base/common/async';
-import { createTestSession } from 'vs/workbench/contrib/debug/test/browser/callStack.test';
-import { ReplFilter } from 'vs/workbench/contrib/debug/browser/replFilter';
+import assert from 'assert';
 import { TreeVisibility } from 'vs/base/browser/ui/tree/tree';
+import { timeout } from 'vs/base/common/async';
+import severity from 'vs/base/common/severity';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { RawDebugSession } from 'vs/workbench/contrib/debug/browser/rawDebugSession';
+import { ReplFilter } from 'vs/workbench/contrib/debug/browser/replFilter';
+import { DebugModel, StackFrame, Thread } from 'vs/workbench/contrib/debug/common/debugModel';
+import { RawObjectReplElement, ReplEvaluationInput, ReplEvaluationResult, ReplGroup, ReplModel, ReplOutputElement, ReplVariableElement } from 'vs/workbench/contrib/debug/common/replModel';
+import { createTestSession } from 'vs/workbench/contrib/debug/test/browser/callStack.test';
+import { createMockDebugModel } from 'vs/workbench/contrib/debug/test/browser/mockDebugModel';
 import { MockDebugAdapter, MockRawSession } from 'vs/workbench/contrib/debug/test/common/mockDebug';
 
 suite('Debug - REPL', () => {
 	let model: DebugModel;
 	let rawSession: MockRawSession;
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const configurationService = new TestConfigurationService({ debug: { console: { collapseIdenticalLines: true } } });
 
 	setup(() => {
-		model = createMockDebugModel();
+		model = createMockDebugModel(disposables);
 		rawSession = new MockRawSession();
 	});
 
 	test('repl output', () => {
-		const session = createTestSession(model);
+		const session = disposables.add(createTestSession(model));
 		const repl = new ReplModel(configurationService);
 		repl.appendToRepl(session, { output: 'first line\n', sev: severity.Error });
 		repl.appendToRepl(session, { output: 'second line ', sev: severity.Error });
@@ -51,8 +53,8 @@ suite('Debug - REPL', () => {
 		const keyValueObject = { 'key1': 2, 'key2': 'value' };
 		repl.appendToRepl(session, { output: '', expression: new RawObjectReplElement('fakeid', 'fake', keyValueObject), sev: severity.Info });
 		const element = <ReplVariableElement>repl.getReplElements()[3];
-		assert.strictEqual(element.expr.value, 'Object');
-		assert.deepStrictEqual((element.expr as RawObjectReplElement).valueObj, keyValueObject);
+		assert.strictEqual(element.expression.value, 'Object');
+		assert.deepStrictEqual((element.expression as RawObjectReplElement).valueObj, keyValueObject);
 
 		repl.removeReplExpressions();
 		assert.strictEqual(repl.getReplElements().length, 0);
@@ -86,7 +88,7 @@ suite('Debug - REPL', () => {
 	});
 
 	test('repl output count', () => {
-		const session = createTestSession(model);
+		const session = disposables.add(createTestSession(model));
 		const repl = new ReplModel(configurationService);
 		repl.appendToRepl(session, { output: 'first line\n', sev: severity.Info });
 		repl.appendToRepl(session, { output: 'first line\n', sev: severity.Info });
@@ -108,14 +110,14 @@ suite('Debug - REPL', () => {
 
 	test('repl merging', () => {
 		// 'mergeWithParent' should be ignored when there is no parent.
-		const parent = createTestSession(model, 'parent', { repl: 'mergeWithParent' });
-		const child1 = createTestSession(model, 'child1', { parentSession: parent, repl: 'separate' });
-		const child2 = createTestSession(model, 'child2', { parentSession: parent, repl: 'mergeWithParent' });
-		const grandChild = createTestSession(model, 'grandChild', { parentSession: child2, repl: 'mergeWithParent' });
-		const child3 = createTestSession(model, 'child3', { parentSession: parent });
+		const parent = disposables.add(createTestSession(model, 'parent', { repl: 'mergeWithParent' }));
+		const child1 = disposables.add(createTestSession(model, 'child1', { parentSession: parent, repl: 'separate' }));
+		const child2 = disposables.add(createTestSession(model, 'child2', { parentSession: parent, repl: 'mergeWithParent' }));
+		const grandChild = disposables.add(createTestSession(model, 'grandChild', { parentSession: child2, repl: 'mergeWithParent' }));
+		const child3 = disposables.add(createTestSession(model, 'child3', { parentSession: parent }));
 
 		let parentChanges = 0;
-		parent.onDidChangeReplElements(() => ++parentChanges);
+		disposables.add(parent.onDidChangeReplElements(() => ++parentChanges));
 
 		parent.appendToRepl({ output: '1\n', sev: severity.Info });
 		assert.strictEqual(parentChanges, 1);
@@ -151,7 +153,7 @@ suite('Debug - REPL', () => {
 	});
 
 	test('repl expressions', () => {
-		const session = createTestSession(model);
+		const session = disposables.add(createTestSession(model));
 		assert.strictEqual(session.getReplElements().length, 0);
 		model.addSession(session);
 
@@ -173,11 +175,11 @@ suite('Debug - REPL', () => {
 	});
 
 	test('repl ordering', async () => {
-		const session = createTestSession(model);
+		const session = disposables.add(createTestSession(model));
 		model.addSession(session);
 
 		const adapter = new MockDebugAdapter();
-		const raw = new RawDebugSession(adapter, undefined!, '', '', undefined!, undefined!, undefined!, undefined!,);
+		const raw = disposables.add(new RawDebugSession(adapter, undefined!, '', '', undefined!, undefined!, undefined!, undefined!,));
 		session.initializeForTest(raw);
 
 		await session.addReplExpression(undefined, 'before.1');
@@ -195,7 +197,7 @@ suite('Debug - REPL', () => {
 	});
 
 	test('repl groups', async () => {
-		const session = createTestSession(model);
+		const session = disposables.add(createTestSession(model));
 		const repl = new ReplModel(configurationService);
 
 		repl.appendToRepl(session, { output: 'first global line', sev: severity.Info });
@@ -233,13 +235,13 @@ suite('Debug - REPL', () => {
 	});
 
 	test('repl filter', async () => {
-		const session = createTestSession(model);
+		const session = disposables.add(createTestSession(model));
 		const repl = new ReplModel(configurationService);
 		const replFilter = new ReplFilter();
 
-		const getFilteredElements = () => {
+		const getFilteredElements = (): ReplOutputElement[] => {
 			const elements = repl.getReplElements();
-			return elements.filter(e => {
+			return elements.filter((e): e is ReplOutputElement => {
 				const filterResult = replFilter.filter(e, TreeVisibility.Visible);
 				return filterResult === true || filterResult === TreeVisibility.Visible;
 			});
@@ -251,19 +253,19 @@ suite('Debug - REPL', () => {
 		repl.appendToRepl(session, { output: 'fourth line\n', sev: severity.Info });
 
 		replFilter.filterQuery = 'first';
-		const r1 = <ReplOutputElement[]>getFilteredElements();
+		const r1 = getFilteredElements();
 		assert.strictEqual(r1.length, 1);
 		assert.strictEqual(r1[0].value, 'first line\n');
 
 		replFilter.filterQuery = '!first';
-		const r2 = <ReplOutputElement[]>getFilteredElements();
+		const r2 = getFilteredElements();
 		assert.strictEqual(r1.length, 1);
 		assert.strictEqual(r2[0].value, 'second line\n');
 		assert.strictEqual(r2[1].value, 'third line\n');
 		assert.strictEqual(r2[2].value, 'fourth line\n');
 
 		replFilter.filterQuery = 'first, line';
-		const r3 = <ReplOutputElement[]>getFilteredElements();
+		const r3 = getFilteredElements();
 		assert.strictEqual(r3.length, 4);
 		assert.strictEqual(r3[0].value, 'first line\n');
 		assert.strictEqual(r3[1].value, 'second line\n');
@@ -271,22 +273,22 @@ suite('Debug - REPL', () => {
 		assert.strictEqual(r3[3].value, 'fourth line\n');
 
 		replFilter.filterQuery = 'line, !second';
-		const r4 = <ReplOutputElement[]>getFilteredElements();
+		const r4 = getFilteredElements();
 		assert.strictEqual(r4.length, 3);
 		assert.strictEqual(r4[0].value, 'first line\n');
 		assert.strictEqual(r4[1].value, 'third line\n');
 		assert.strictEqual(r4[2].value, 'fourth line\n');
 
 		replFilter.filterQuery = '!second, line';
-		const r4_same = <ReplOutputElement[]>getFilteredElements();
+		const r4_same = getFilteredElements();
 		assert.strictEqual(r4.length, r4_same.length);
 
 		replFilter.filterQuery = '!line';
-		const r5 = <ReplOutputElement[]>getFilteredElements();
+		const r5 = getFilteredElements();
 		assert.strictEqual(r5.length, 0);
 
 		replFilter.filterQuery = 'smth';
-		const r6 = <ReplOutputElement[]>getFilteredElements();
+		const r6 = getFilteredElements();
 		assert.strictEqual(r6.length, 0);
 	});
 });

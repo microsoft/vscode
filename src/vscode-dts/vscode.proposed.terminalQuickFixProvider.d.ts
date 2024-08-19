@@ -5,6 +5,10 @@
 
 declare module 'vscode' {
 
+	// https://github.com/microsoft/vscode/issues/162950
+
+	export type SingleOrMany<T> = T[] | T;
+
 	export interface TerminalQuickFixProvider {
 		/**
 		 * Provides terminal quick fixes
@@ -12,7 +16,7 @@ declare module 'vscode' {
 		 * @param token A cancellation token indicating the result is no longer needed
 		 * @return Terminal quick fix(es) if any
 		 */
-		provideTerminalQuickFixes(commandMatchResult: TerminalCommandMatchResult, token: CancellationToken): ProviderResult<(TerminalQuickFixCommand | TerminalQuickFixOpener)[] | TerminalQuickFixCommand | TerminalQuickFixOpener>;
+		provideTerminalQuickFixes(commandMatchResult: TerminalCommandMatchResult, token: CancellationToken): ProviderResult<SingleOrMany<TerminalQuickFixTerminalCommand | TerminalQuickFixOpener | Command>>;
 	}
 
 
@@ -27,18 +31,22 @@ declare module 'vscode' {
 
 	export namespace window {
 		/**
-			 * @param provider A terminal quick fix provider
-			 * @return A {@link Disposable} that unregisters the provider when being disposed
-			 */
+		 * @param provider A terminal quick fix provider
+		 * @return A {@link Disposable} that unregisters the provider when being disposed
+		 */
 		export function registerTerminalQuickFixProvider(id: string, provider: TerminalQuickFixProvider): Disposable;
 	}
 
-	export class TerminalQuickFixCommand {
+	export class TerminalQuickFixTerminalCommand {
 		/**
-		 * The terminal command to run
+		 * The terminal command to insert or run
 		 */
 		terminalCommand: string;
-		constructor(terminalCommand: string);
+		/**
+		 * Whether the command should be executed or just inserted (default)
+		 */
+		shouldExecute?: boolean;
+		constructor(terminalCommand: string, shouldExecute?: boolean);
 	}
 	export class TerminalQuickFixOpener {
 		/**
@@ -75,10 +83,5 @@ declare module 'vscode' {
 	enum TerminalOutputAnchor {
 		Top = 0,
 		Bottom = 1
-	}
-
-	enum TerminalQuickFixType {
-		Command = 0,
-		Opener = 1
 	}
 }

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { editorActiveIndentGuides, editorIndentGuides } from 'vs/editor/common/core/editorColorRegistry';
+import { editorActiveIndentGuide1, editorIndentGuide1 } from 'vs/editor/common/core/editorColorRegistry';
 import { IStandaloneThemeData } from 'vs/editor/standalone/common/standaloneTheme';
 import { editorBackground, editorForeground, editorInactiveSelection, editorSelectionHighlight } from 'vs/platform/theme/common/colorRegistry';
 
@@ -71,8 +71,8 @@ export const vs: IStandaloneThemeData = {
 		[editorBackground]: '#FFFFFE',
 		[editorForeground]: '#000000',
 		[editorInactiveSelection]: '#E5EBF1',
-		[editorIndentGuides]: '#D3D3D3',
-		[editorActiveIndentGuides]: '#939393',
+		[editorIndentGuide1]: '#D3D3D3',
+		[editorActiveIndentGuide1]: '#939393',
 		[editorSelectionHighlight]: '#ADD6FF4D'
 	}
 };
@@ -142,8 +142,8 @@ export const vs_dark: IStandaloneThemeData = {
 		[editorBackground]: '#1E1E1E',
 		[editorForeground]: '#D4D4D4',
 		[editorInactiveSelection]: '#3A3D41',
-		[editorIndentGuides]: '#404040',
-		[editorActiveIndentGuides]: '#707070',
+		[editorIndentGuide1]: '#404040',
+		[editorActiveIndentGuide1]: '#707070',
 		[editorSelectionHighlight]: '#ADD6FF26'
 	}
 };
@@ -204,8 +204,8 @@ export const hc_black: IStandaloneThemeData = {
 	colors: {
 		[editorBackground]: '#000000',
 		[editorForeground]: '#FFFFFF',
-		[editorIndentGuides]: '#FFFFFF',
-		[editorActiveIndentGuides]: '#FFFFFF',
+		[editorIndentGuide1]: '#FFFFFF',
+		[editorActiveIndentGuide1]: '#FFFFFF',
 	}
 };
 /* -------------------------------- End hc-black theme -------------------------------- */
@@ -263,8 +263,8 @@ export const hc_light: IStandaloneThemeData = {
 	colors: {
 		[editorBackground]: '#FFFFFF',
 		[editorForeground]: '#292929',
-		[editorIndentGuides]: '#292929',
-		[editorActiveIndentGuides]: '#292929',
+		[editorIndentGuide1]: '#292929',
+		[editorActiveIndentGuide1]: '#292929',
 	}
 };
 /* -------------------------------- End hc-light theme -------------------------------- */

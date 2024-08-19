@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { createHash } from 'crypto';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -26,6 +26,7 @@ import { IFolderBackupInfo, isFolderBackupInfo, IWorkspaceBackupInfo } from 'vs/
 import { IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { InMemoryTestStateMainService } from 'vs/platform/test/electron-main/workbenchTestServices';
 import { LogService } from 'vs/platform/log/common/logService';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 flakySuite('BackupMainService', () => {
 
@@ -36,7 +37,7 @@ flakySuite('BackupMainService', () => {
 
 	function toWorkspace(path: string): IWorkspaceIdentifier {
 		return {
-			id: createHash('md5').update(sanitizePath(path)).digest('hex'),
+			id: createHash('md5').update(sanitizePath(path)).digest('hex'), // CodeQL [SM04514] Using MD5 to convert a file path to a fixed length
 			configPath: URI.file(path)
 		};
 	}
@@ -44,7 +45,7 @@ flakySuite('BackupMainService', () => {
 	function toWorkspaceBackupInfo(path: string, remoteAuthority?: string): IWorkspaceBackupInfo {
 		return {
 			workspace: {
-				id: createHash('md5').update(sanitizePath(path)).digest('hex'),
+				id: createHash('md5').update(sanitizePath(path)).digest('hex'), // CodeQL [SM04514] Using MD5 to convert a file path to a fixed length
 				configPath: URI.file(path)
 			},
 			remoteAuthority
@@ -130,7 +131,7 @@ flakySuite('BackupMainService', () => {
 
 		environmentService = new EnvironmentMainService(parseArgs(process.argv, OPTIONS), { _serviceBrand: undefined, ...product });
 
-		await Promises.mkdir(backupHome, { recursive: true });
+		await fs.promises.mkdir(backupHome, { recursive: true });
 
 		configService = new TestConfigurationService();
 		stateMainService = new InMemoryTestStateMainService();
@@ -292,7 +293,7 @@ flakySuite('BackupMainService', () => {
 
 		const emptyBackups = service.getEmptyWindowBackups();
 		assert.strictEqual(1, emptyBackups.length);
-		assert.strictEqual(1, fs.readdirSync(path.join(backupHome, emptyBackups[0].backupFolder!)).length);
+		assert.strictEqual(1, fs.readdirSync(path.join(backupHome, emptyBackups[0].backupFolder)).length);
 	});
 
 	suite('loadSync', () => {
@@ -583,8 +584,8 @@ flakySuite('BackupMainService', () => {
 			assert.strictEqual(((await service.getDirtyWorkspaces()).length), 0);
 
 			try {
-				await Promises.mkdir(path.join(folderBackupPath, Schemas.file), { recursive: true });
-				await Promises.mkdir(path.join(workspaceBackupPath, Schemas.untitled), { recursive: true });
+				await fs.promises.mkdir(path.join(folderBackupPath, Schemas.file), { recursive: true });
+				await fs.promises.mkdir(path.join(workspaceBackupPath, Schemas.untitled), { recursive: true });
 			} catch (error) {
 				// ignore - folder might exist already
 			}
@@ -613,4 +614,6 @@ flakySuite('BackupMainService', () => {
 			assert.strictEqual(found, 2);
 		});
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

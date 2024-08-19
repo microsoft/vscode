@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-use std::{ffi::OsStr, fmt, path::Path};
+use std::{fmt, path::Path};
 
 use serde::{Deserialize, Serialize};
 
@@ -11,14 +11,16 @@ use crate::{
 	constants::VSCODE_CLI_UPDATE_ENDPOINT,
 	debug, log, options, spanf,
 	util::{
-		errors::{AnyError, CodeError, UpdatesNotConfigured, WrappedError},
+		errors::{wrap, AnyError, CodeError, WrappedError},
 		http::{BoxedHttp, SimpleResponse},
 		io::ReportCopyProgress,
-		tar, zipper,
+		tar::{self, has_gzip_header},
+		zipper,
 	},
 };
 
 /// Implementation of the VS Code Update service for use in the CLI.
+#[derive(Clone)]
 pub struct UpdateService {
 	client: BoxedHttp,
 	log: log::Logger,
@@ -54,6 +56,10 @@ fn quality_download_segment(quality: options::Quality) -> &'static str {
 	}
 }
 
+fn get_update_endpoint() -> Result<&'static str, CodeError> {
+	VSCODE_CLI_UPDATE_ENDPOINT.ok_or_else(|| CodeError::UpdatesNotConfigured("no service url"))
+}
+
 impl UpdateService {
 	pub fn new(log: log::Logger, http: BoxedHttp) -> Self {
 		UpdateService { client: http, log }
@@ -66,8 +72,7 @@ impl UpdateService {
 		quality: options::Quality,
 		version: &str,
 	) -> Result<Release, AnyError> {
-		let update_endpoint =
-			VSCODE_CLI_UPDATE_ENDPOINT.ok_or_else(UpdatesNotConfigured::no_url)?;
+		let update_endpoint = get_update_endpoint()?;
 		let download_segment = target
 			.download_segment(platform)
 			.ok_or_else(|| CodeError::UnsupportedPlatform(platform.to_string()))?;
@@ -108,8 +113,7 @@ impl UpdateService {
 		target: TargetKind,
 		quality: options::Quality,
 	) -> Result<Release, AnyError> {
-		let update_endpoint =
-			VSCODE_CLI_UPDATE_ENDPOINT.ok_or_else(UpdatesNotConfigured::no_url)?;
+		let update_endpoint = get_update_endpoint()?;
 		let download_segment = target
 			.download_segment(platform)
 			.ok_or_else(|| CodeError::UnsupportedPlatform(platform.to_string()))?;
@@ -144,8 +148,7 @@ impl UpdateService {
 
 	/// Gets the download stream for the release.
 	pub async fn get_download_stream(&self, release: &Release) -> Result<SimpleResponse, AnyError> {
-		let update_endpoint =
-			VSCODE_CLI_UPDATE_ENDPOINT.ok_or_else(UpdatesNotConfigured::no_url)?;
+		let update_endpoint = get_update_endpoint()?;
 		let download_segment = release
 			.target
 			.download_segment(release.platform)
@@ -176,10 +179,10 @@ pub fn unzip_downloaded_release<T>(
 where
 	T: ReportCopyProgress,
 {
-	if compressed_file.extension() == Some(OsStr::new("zip")) {
-		zipper::unzip_file(compressed_file, target_dir, reporter)
-	} else {
-		tar::decompress_tarball(compressed_file, target_dir, reporter)
+	match has_gzip_header(compressed_file) {
+		Ok((f, true)) => tar::decompress_tarball(f, target_dir, reporter),
+		Ok((f, false)) => zipper::unzip_file(f, target_dir, reporter),
+		Err(e) => Err(wrap(e, "error checking for gzip header")),
 	}
 }
 
@@ -207,8 +210,11 @@ pub enum Platform {
 	LinuxAlpineX64,
 	LinuxAlpineARM64,
 	LinuxX64,
+	LinuxX64Legacy,
 	LinuxARM64,
+	LinuxARM64Legacy,
 	LinuxARM32,
+	LinuxARM32Legacy,
 	DarwinX64,
 	DarwinARM64,
 	WindowsX64,
@@ -235,13 +241,16 @@ impl Platform {
 			Platform::LinuxAlpineARM64 => "server-alpine-arm64",
 			Platform::LinuxAlpineX64 => "server-linux-alpine",
 			Platform::LinuxX64 => "server-linux-x64",
+			Platform::LinuxX64Legacy => "server-linux-legacy-x64",
 			Platform::LinuxARM64 => "server-linux-arm64",
+			Platform::LinuxARM64Legacy => "server-linux-legacy-arm64",
 			Platform::LinuxARM32 => "server-linux-armhf",
+			Platform::LinuxARM32Legacy => "server-linux-legacy-armhf",
 			Platform::DarwinX64 => "server-darwin",
 			Platform::DarwinARM64 => "server-darwin-arm64",
 			Platform::WindowsX64 => "server-win32-x64",
 			Platform::WindowsX86 => "server-win32",
-			Platform::WindowsARM64 => "server-win32-x64", // we don't publish an arm64 server build yet
+			Platform::WindowsARM64 => "server-win32-arm64",
 		}
 		.to_owned()
 	}
@@ -251,8 +260,11 @@ impl Platform {
 			Platform::LinuxAlpineARM64 => "cli-alpine-arm64",
 			Platform::LinuxAlpineX64 => "cli-alpine-x64",
 			Platform::LinuxX64 => "cli-linux-x64",
+			Platform::LinuxX64Legacy => "cli-linux-x64",
 			Platform::LinuxARM64 => "cli-linux-arm64",
+			Platform::LinuxARM64Legacy => "cli-linux-arm64",
 			Platform::LinuxARM32 => "cli-linux-armhf",
+			Platform::LinuxARM32Legacy => "cli-linux-armhf",
 			Platform::DarwinX64 => "cli-darwin-x64",
 			Platform::DarwinARM64 => "cli-darwin-arm64",
 			Platform::WindowsARM64 => "cli-win32-arm64",
@@ -307,8 +319,11 @@ impl fmt::Display for Platform {
 			Platform::LinuxAlpineARM64 => "LinuxAlpineARM64",
 			Platform::LinuxAlpineX64 => "LinuxAlpineX64",
 			Platform::LinuxX64 => "LinuxX64",
+			Platform::LinuxX64Legacy => "LinuxX64Legacy",
 			Platform::LinuxARM64 => "LinuxARM64",
+			Platform::LinuxARM64Legacy => "LinuxARM64Legacy",
 			Platform::LinuxARM32 => "LinuxARM32",
+			Platform::LinuxARM32Legacy => "LinuxARM32Legacy",
 			Platform::DarwinX64 => "DarwinX64",
 			Platform::DarwinARM64 => "DarwinARM64",
 			Platform::WindowsX64 => "WindowsX64",

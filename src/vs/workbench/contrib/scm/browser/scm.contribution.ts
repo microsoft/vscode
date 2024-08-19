@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
+import { IWorkbenchContributionsRegistry, registerWorkbenchContribution2, Extensions as WorkbenchExtensions, WorkbenchPhase } from 'vs/workbench/common/contributions';
 import { DirtyDiffWorkbenchController } from './dirtydiffDecorator';
 import { VIEWLET_ID, ISCMService, VIEW_PANE_ID, ISCMProvider, ISCMViewService, REPOSITORIES_VIEW_PANE_ID } from 'vs/workbench/contrib/scm/common/scm';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
-import { SCMActiveResourceContextKeyController, SCMStatusController } from './activity';
+import { SCMActiveResourceContextKeyController, SCMActiveRepositoryController } from './activity';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -24,7 +24,7 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { SCMViewPane } from 'vs/workbench/contrib/scm/browser/scmViewPane';
+import { ContextKeys, SCMViewPane } from 'vs/workbench/contrib/scm/browser/scmViewPane';
 import { SCMViewService } from 'vs/workbench/contrib/scm/browser/scmViewService';
 import { SCMRepositoriesViewPane } from 'vs/workbench/contrib/scm/browser/scmRepositoriesViewPane';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -32,6 +32,11 @@ import { Context as SuggestContext } from 'vs/editor/contrib/suggest/browser/sug
 import { MANAGE_TRUST_COMMAND_ID, WorkspaceTrustContext } from 'vs/workbench/contrib/workspace/common/workspace';
 import { IQuickDiffService } from 'vs/workbench/contrib/scm/common/quickDiff';
 import { QuickDiffService } from 'vs/workbench/contrib/scm/common/quickDiffService';
+import { getActiveElement, isActiveElement } from 'vs/base/browser/dom';
+import { SCMWorkingSetController } from 'vs/workbench/contrib/scm/browser/workingSet';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
+import { IListService, WorkbenchList } from 'vs/platform/list/browser/listService';
+import { isSCMRepository } from 'vs/workbench/contrib/scm/browser/util';
 
 ModesRegistry.registerLanguage({
 	id: 'scminput',
@@ -47,7 +52,7 @@ const sourceControlViewIcon = registerIcon('source-control-view-icon', Codicon.s
 
 const viewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: VIEWLET_ID,
-	title: localize('source control', "Source Control"),
+	title: localize2('source control', 'Source Control'),
 	ctorDescriptor: new SyncDescriptor(SCMViewPaneContainer),
 	storageId: 'workbench.scm.views.state',
 	icon: sourceControlViewIcon,
@@ -75,7 +80,7 @@ viewsRegistry.registerViewWelcomeContent(VIEW_PANE_ID, {
 
 viewsRegistry.registerViews([{
 	id: VIEW_PANE_ID,
-	name: localize('source control', "Source Control"),
+	name: localize2('source control', 'Source Control'),
 	ctorDescriptor: new SyncDescriptor(SCMViewPane),
 	canToggleVisibility: true,
 	canMoveView: true,
@@ -97,7 +102,7 @@ viewsRegistry.registerViews([{
 
 viewsRegistry.registerViews([{
 	id: REPOSITORIES_VIEW_PANE_ID,
-	name: localize('source control repositories', "Source Control Repositories"),
+	name: localize2('source control repositories', "Source Control Repositories"),
 	ctorDescriptor: new SyncDescriptor(SCMRepositoriesViewPane),
 	canToggleVisibility: true,
 	hideByDefault: true,
@@ -110,10 +115,16 @@ viewsRegistry.registerViews([{
 }], viewContainer);
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(SCMActiveResourceContextKeyController, LifecyclePhase.Restored);
+	.registerWorkbenchContribution(SCMActiveRepositoryController, LifecyclePhase.Restored);
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(SCMStatusController, LifecyclePhase.Restored);
+	.registerWorkbenchContribution(SCMActiveResourceContextKeyController, LifecyclePhase.Restored);
+
+registerWorkbenchContribution2(
+	SCMWorkingSetController.ID,
+	SCMWorkingSetController,
+	WorkbenchPhase.AfterRestored
+);
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'scm',
@@ -215,7 +226,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 				localize('scm.providerCountBadge.auto', "Only show count badge for Source Control Provider when non-zero."),
 				localize('scm.providerCountBadge.visible', "Show Source Control Provider count badges.")
 			],
-			description: localize('scm.providerCountBadge', "Controls the count badges on Source Control Provider headers. These headers only appear when there is more than one provider."),
+			markdownDescription: localize('scm.providerCountBadge', "Controls the count badges on Source Control Provider headers. These headers appear in the Source Control view when there is more than one provider or when the {0} setting is enabled, and in the Source Control Repositories view.", '\`#scm.alwaysShowRepositories#\`'),
 			default: 'hidden'
 		},
 		'scm.defaultViewMode': {
@@ -254,6 +265,20 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			markdownDescription: localize('inputFontSize', "Controls the font size for the input message in pixels."),
 			default: 13
 		},
+		'scm.inputMaxLineCount': {
+			type: 'number',
+			markdownDescription: localize('inputMaxLines', "Controls the maximum number of lines that the input will auto-grow to."),
+			minimum: 1,
+			maximum: 50,
+			default: 10
+		},
+		'scm.inputMinLineCount': {
+			type: 'number',
+			markdownDescription: localize('inputMinLines', "Controls the minimum number of lines that the input will auto-grow from."),
+			minimum: 1,
+			maximum: 50,
+			default: 1
+		},
 		'scm.alwaysShowRepositories': {
 			type: 'boolean',
 			markdownDescription: localize('alwaysShowRepository', "Controls whether repositories should always be visible in the Source Control view."),
@@ -279,19 +304,76 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'boolean',
 			markdownDescription: localize('showActionButton', "Controls whether an action button can be shown in the Source Control view."),
 			default: true
+		},
+		'scm.showInputActionButton': {
+			type: 'boolean',
+			markdownDescription: localize('showInputActionButton', "Controls whether an action button can be shown in the Source Control input."),
+			default: true
+		},
+		'scm.showIncomingChanges': {
+			type: 'string',
+			enum: ['always', 'never', 'auto'],
+			enumDescriptions: [
+				localize('scm.showIncomingChanges.always', "Always show incoming changes in the Source Control view."),
+				localize('scm.showIncomingChanges.never', "Never show incoming changes in the Source Control view."),
+				localize('scm.showIncomingChanges.auto', "Only show incoming changes in the Source Control view when any exist."),
+			],
+			description: localize('scm.showIncomingChanges', "Controls whether incoming changes are shown in the Source Control view."),
+			default: 'auto'
+		},
+		'scm.showOutgoingChanges': {
+			type: 'string',
+			enum: ['always', 'never', 'auto'],
+			enumDescriptions: [
+				localize('scm.showOutgoingChanges.always', "Always show outgoing changes in the Source Control view."),
+				localize('scm.showOutgoingChanges.never', "Never show outgoing changes in the Source Control view."),
+				localize('scm.showOutgoingChanges.auto', "Only show outgoing changes in the Source Control view when any exist."),
+			],
+			description: localize('scm.showOutgoingChanges', "Controls whether outgoing changes are shown in the Source Control view."),
+			default: 'auto'
+		},
+		'scm.showChangesSummary': {
+			type: 'boolean',
+			description: localize('scm.showChangesSummary', "Controls whether the All Changes entry is shown for incoming/outgoing changes in the Source Control view."),
+			default: true
+		},
+		'scm.workingSets.enabled': {
+			type: 'boolean',
+			description: localize('scm.workingSets.enabled', "Controls whether to store editor working sets when switching between source control history item groups."),
+			default: false
+		},
+		'scm.workingSets.default': {
+			type: 'string',
+			enum: ['empty', 'current'],
+			enumDescriptions: [
+				localize('scm.workingSets.default.empty', "Use an empty working set when switching to a source control history item group that does not have a working set."),
+				localize('scm.workingSets.default.current', "Use the current working set when switching to a source control history item group that does not have a working set.")
+			],
+			description: localize('scm.workingSets.default', "Controls the default working set to use when switching to a source control history item group that does not have a working set."),
+			default: 'current'
+		},
+		'scm.showHistoryGraph': {
+			type: 'boolean',
+			description: localize('scm.showHistoryGraph', "Controls whether to render incoming/outgoing changes using a graph in the Source Control view."),
+			default: true
+		},
+		'scm.compactFolders': {
+			type: 'boolean',
+			description: localize('scm.compactFolders', "Controls whether the Source Control view should render folders in a compact form. In such a form, single child folders will be compressed in a combined tree element."),
+			default: true
 		}
 	}
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'scm.acceptInput',
-	description: { description: localize('scm accept', "Source Control: Accept Input"), args: [] },
+	metadata: { description: localize('scm accept', "Source Control: Accept Input"), args: [] },
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: ContextKeyExpr.has('scmRepository'),
 	primary: KeyMod.CtrlCmd | KeyCode.Enter,
 	handler: accessor => {
 		const contextKeyService = accessor.get(IContextKeyService);
-		const context = contextKeyService.getContext(document.activeElement);
+		const context = contextKeyService.getContext(getActiveElement());
 		const repositoryId = context.getValue<string | undefined>('scmRepository');
 
 		if (!repositoryId) {
@@ -313,13 +395,29 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'scm.clearInput',
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: ContextKeyExpr.and(ContextKeyExpr.has('scmRepository'), SuggestContext.Visible.toNegated()),
+	primary: KeyCode.Escape,
+	handler: async (accessor) => {
+		const scmService = accessor.get(ISCMService);
+		const contextKeyService = accessor.get(IContextKeyService);
+
+		const context = contextKeyService.getContext(getActiveElement());
+		const repositoryId = context.getValue<string | undefined>('scmRepository');
+		const repository = repositoryId ? scmService.getRepository(repositoryId) : undefined;
+		repository?.input.setValue('', true);
+	}
+});
+
 const viewNextCommitCommand = {
 	description: { description: localize('scm view next commit', "Source Control: View Next Commit"), args: [] },
 	weight: KeybindingWeight.WorkbenchContrib,
 	handler: (accessor: ServicesAccessor) => {
 		const contextKeyService = accessor.get(IContextKeyService);
 		const scmService = accessor.get(ISCMService);
-		const context = contextKeyService.getContext(document.activeElement);
+		const context = contextKeyService.getContext(getActiveElement());
 		const repositoryId = context.getValue<string | undefined>('scmRepository');
 		const repository = repositoryId ? scmService.getRepository(repositoryId) : undefined;
 		repository?.input.showNextHistoryValue();
@@ -332,7 +430,7 @@ const viewPreviousCommitCommand = {
 	handler: (accessor: ServicesAccessor) => {
 		const contextKeyService = accessor.get(IContextKeyService);
 		const scmService = accessor.get(ISCMService);
-		const context = contextKeyService.getContext(document.activeElement);
+		const context = contextKeyService.getContext(getActiveElement());
 		const repositoryId = context.getValue<string | undefined>('scmRepository');
 		const repository = repositoryId ? scmService.getRepository(repositoryId) : undefined;
 		repository?.input.showPreviousHistoryValue();
@@ -367,6 +465,38 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyMod.Alt | KeyCode.UpArrow
 });
 
+CommandsRegistry.registerCommand('scm.openInIntegratedTerminal', async (accessor, ...providers: ISCMProvider[]) => {
+	if (!providers || providers.length === 0) {
+		return;
+	}
+
+	const commandService = accessor.get(ICommandService);
+	const listService = accessor.get(IListService);
+
+	let provider = providers.length === 1 ? providers[0] : undefined;
+
+	if (!provider) {
+		const list = listService.lastFocusedList;
+		const element = list?.getHTMLElement();
+
+		if (list instanceof WorkbenchList && element && isActiveElement(element)) {
+			const [index] = list.getFocus();
+			const focusedElement = list.element(index);
+
+			// Source Control Repositories
+			if (isSCMRepository(focusedElement)) {
+				provider = focusedElement.provider;
+			}
+		}
+	}
+
+	if (!provider?.rootUri) {
+		return;
+	}
+
+	await commandService.executeCommand('openInIntegratedTerminal', provider.rootUri);
+});
+
 CommandsRegistry.registerCommand('scm.openInTerminal', async (accessor, provider: ISCMProvider) => {
 	if (!provider || !provider.rootUri) {
 		return;
@@ -380,9 +510,68 @@ MenuRegistry.appendMenuItem(MenuId.SCMSourceControl, {
 	group: '100_end',
 	command: {
 		id: 'scm.openInTerminal',
-		title: localize('open in terminal', "Open In Terminal")
+		title: localize('open in external terminal', "Open in External Terminal")
 	},
-	when: ContextKeyExpr.equals('scmProviderHasRootUri', true)
+	when: ContextKeyExpr.and(ContextKeyExpr.equals('scmProviderHasRootUri', true), ContextKeyExpr.or(ContextKeyExpr.equals('config.terminal.sourceControlRepositoriesKind', 'external'), ContextKeyExpr.equals('config.terminal.sourceControlRepositoriesKind', 'both')))
+});
+
+MenuRegistry.appendMenuItem(MenuId.SCMSourceControl, {
+	group: '100_end',
+	command: {
+		id: 'scm.openInIntegratedTerminal',
+		title: localize('open in integrated terminal', "Open in Integrated Terminal")
+	},
+	when: ContextKeyExpr.and(ContextKeyExpr.equals('scmProviderHasRootUri', true), ContextKeyExpr.or(ContextKeyExpr.equals('config.terminal.sourceControlRepositoriesKind', 'integrated'), ContextKeyExpr.equals('config.terminal.sourceControlRepositoriesKind', 'both')))
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'workbench.scm.action.focusPreviousInput',
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: ContextKeys.RepositoryVisibilityCount.notEqualsTo(0),
+	handler: async accessor => {
+		const viewsService = accessor.get(IViewsService);
+		const scmView = await viewsService.openView<SCMViewPane>(VIEW_PANE_ID);
+		if (scmView) {
+			scmView.focusPreviousInput();
+		}
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'workbench.scm.action.focusNextInput',
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: ContextKeys.RepositoryVisibilityCount.notEqualsTo(0),
+	handler: async accessor => {
+		const viewsService = accessor.get(IViewsService);
+		const scmView = await viewsService.openView<SCMViewPane>(VIEW_PANE_ID);
+		if (scmView) {
+			scmView.focusNextInput();
+		}
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'workbench.scm.action.focusPreviousResourceGroup',
+	weight: KeybindingWeight.WorkbenchContrib,
+	handler: async accessor => {
+		const viewsService = accessor.get(IViewsService);
+		const scmView = await viewsService.openView<SCMViewPane>(VIEW_PANE_ID);
+		if (scmView) {
+			scmView.focusPreviousResourceGroup();
+		}
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'workbench.scm.action.focusNextResourceGroup',
+	weight: KeybindingWeight.WorkbenchContrib,
+	handler: async accessor => {
+		const viewsService = accessor.get(IViewsService);
+		const scmView = await viewsService.openView<SCMViewPane>(VIEW_PANE_ID);
+		if (scmView) {
+			scmView.focusNextResourceGroup();
+		}
+	}
 });
 
 registerSingleton(ISCMService, SCMService, InstantiationType.Delayed);

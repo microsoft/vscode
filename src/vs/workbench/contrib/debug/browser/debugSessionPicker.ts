@@ -9,8 +9,8 @@ import { IDebugService, IDebugSession, REPL_VIEW_ID } from 'vs/workbench/contrib
 import { IQuickInputService, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IPickerDebugItem } from 'vs/workbench/contrib/debug/common/loadedScriptsPicker';
-import { IViewsService } from 'vs/workbench/common/views';
+import { IPickerDebugItem } from 'vs/workbench/contrib/debug/browser/loadedScriptsPicker';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 
 
@@ -21,7 +21,7 @@ export async function showDebugSessionMenu(accessor: ServicesAccessor, selectAnd
 	const commandService = accessor.get(ICommandService);
 
 	const localDisposableStore = new DisposableStore();
-	const quickPick = quickInputService.createQuickPick<IPickerDebugItem>();
+	const quickPick = quickInputService.createQuickPick<IPickerDebugItem>({ useSeparators: true });
 	localDisposableStore.add(quickPick);
 	quickPick.matchOnLabel = quickPick.matchOnDescription = quickPick.matchOnDetail = quickPick.sortByLabel = false;
 	quickPick.placeholder = nls.localize('moveFocusedView.selectView', 'Search debug sessions by name');
@@ -120,5 +120,3 @@ function _createPick(session: IDebugSession, filter: string, debugService: IDebu
 	}
 	return undefined;
 }
-
-

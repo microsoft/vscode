@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getErrorMessage } from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
 import { combinedDisposable, Disposable, DisposableMap } from 'vs/base/common/lifecycle';
 import { ResourceSet } from 'vs/base/common/map';
@@ -40,18 +41,18 @@ export class ExtensionsWatcher extends Disposable {
 		private readonly logService: ILogService,
 	) {
 		super();
-		this.initialize().then(null, error => logService.error(error));
+		this.initialize().then(null, error => logService.error('Error while initializing Extensions Watcher', getErrorMessage(error)));
 	}
 
 	private async initialize(): Promise<void> {
 		await this.extensionsScannerService.initializeDefaultProfileExtensions();
-		await this.onDidChangeProfiles(this.userDataProfilesService.profiles, []);
+		await this.onDidChangeProfiles(this.userDataProfilesService.profiles);
 		this.registerListeners();
 		await this.uninstallExtensionsNotInProfiles();
 	}
 
 	private registerListeners(): void {
-		this._register(this.userDataProfilesService.onDidChangeProfiles(e => this.onDidChangeProfiles(e.added, e.removed)));
+		this._register(this.userDataProfilesService.onDidChangeProfiles(e => this.onDidChangeProfiles(e.added)));
 		this._register(this.extensionsProfileScannerService.onAddExtensions(e => this.onAddExtensions(e)));
 		this._register(this.extensionsProfileScannerService.onDidAddExtensions(e => this.onDidAddExtensions(e)));
 		this._register(this.extensionsProfileScannerService.onRemoveExtensions(e => this.onRemoveExtensions(e)));
@@ -59,13 +60,8 @@ export class ExtensionsWatcher extends Disposable {
 		this._register(this.fileService.onDidFilesChange(e => this.onDidFilesChange(e)));
 	}
 
-	private async onDidChangeProfiles(added: readonly IUserDataProfile[], removed: readonly IUserDataProfile[]): Promise<void> {
+	private async onDidChangeProfiles(added: readonly IUserDataProfile[]): Promise<void> {
 		try {
-			await Promise.all(removed.map(profile => {
-				this.extensionsProfileWatchDisposables.deleteAndDispose(profile.id);
-				return this.removeExtensionsFromProfile(profile.extensionsResource);
-			}));
-
 			if (added.length) {
 				await Promise.all(added.map(profile => {
 					this.extensionsProfileWatchDisposables.set(profile.id, combinedDisposable(
@@ -182,13 +178,6 @@ export class ExtensionsWatcher extends Disposable {
 		for (const extension of extensions) {
 			this.addExtensionWithKey(this.getKey(extension.identifier, extension.version), extensionsProfileLocation);
 		}
-	}
-
-	private async removeExtensionsFromProfile(removedProfile: URI): Promise<void> {
-		for (const key of [...this.allExtensions.keys()]) {
-			this.removeExtensionWithKey(key, removedProfile);
-		}
-		await this.uninstallExtensionsNotInProfiles();
 	}
 
 	private async uninstallExtensionsNotInProfiles(toUninstall?: IExtension[]): Promise<void> {

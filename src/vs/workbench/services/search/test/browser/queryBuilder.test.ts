@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
+import assert from 'assert';
 import { IExpression } from 'vs/base/common/glob';
 import { join } from 'vs/base/common/path';
 import { isWindows } from 'vs/base/common/platform';
@@ -20,6 +20,7 @@ import { TestContextService } from 'vs/workbench/test/common/workbenchTestServic
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 const DEFAULT_EDITOR_CONFIG = {};
 const DEFAULT_USER_CONFIG = { useRipgrep: true, useIgnoreFiles: true, useGlobalIgnoreFiles: true, useParentIgnoreFiles: true };
@@ -27,6 +28,7 @@ const DEFAULT_QUERY_PROPS = {};
 const DEFAULT_TEXT_QUERY_PROPS = { usePCRE2: false };
 
 suite('QueryBuilder', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
 	const PATTERN_INFO: IPatternInfo = { pattern: 'a' };
 	const ROOT_1 = fixPath('/foo/root1');
 	const ROOT_1_URI = getUri(ROOT_1);
@@ -56,6 +58,10 @@ suite('QueryBuilder', () => {
 		instantiationService.stub(IPathService, new TestPathService());
 
 		queryBuilder = instantiationService.createInstance(QueryBuilder);
+	});
+
+	teardown(() => {
+		instantiationService.dispose();
 	});
 
 	test('simple text pattern', () => {
@@ -206,9 +212,11 @@ suite('QueryBuilder', () => {
 				folderQueries: [{
 					folder: ROOT_1_URI,
 					excludePattern: {
-						'bar/**': true,
-						'foo/**': {
-							'when': '$(basename).ts'
+						pattern: {
+							'bar/**': true,
+							'foo/**': {
+								'when': '$(basename).ts'
+							}
 						}
 					}
 				}],
@@ -332,9 +340,12 @@ suite('QueryBuilder', () => {
 						'foo/**': true
 					},
 					excludePattern: {
-						'foo/**/*.js': true,
-						'bar/**': {
-							'when': '$(basename).ts'
+						pattern: {
+
+							'foo/**/*.js': true,
+							'bar/**': {
+								'when': '$(basename).ts'
+							}
 						}
 					}
 				}],
@@ -369,8 +380,8 @@ suite('QueryBuilder', () => {
 			{
 				contentPattern: PATTERN_INFO,
 				folderQueries: [
-					{ folder: ROOT_1_URI, excludePattern: patternsToIExpression('foo/**/*.js') },
-					{ folder: ROOT_2_URI, excludePattern: patternsToIExpression('bar') },
+					{ folder: ROOT_1_URI, excludePattern: makeExcludePatternFromPatterns('foo/**/*.js') },
+					{ folder: ROOT_2_URI, excludePattern: makeExcludePatternFromPatterns('bar') },
 					{ folder: ROOT_3_URI }
 				],
 				type: QueryType.Text
@@ -397,7 +408,7 @@ suite('QueryBuilder', () => {
 							'src/**': true
 						},
 						excludePattern: {
-							'bar': true
+							pattern: { 'bar': true }
 						},
 					}
 				],
@@ -454,7 +465,7 @@ suite('QueryBuilder', () => {
 				contentPattern: PATTERN_INFO,
 				folderQueries: [{
 					folder: ROOT_1_URI,
-					excludePattern: patternsToIExpression('bar', 'bar/**'),
+					excludePattern: makeExcludePatternFromPatterns('bar', 'bar/**'),
 				}],
 				type: QueryType.Text
 			});
@@ -472,7 +483,7 @@ suite('QueryBuilder', () => {
 				contentPattern: PATTERN_INFO,
 				folderQueries: [{
 					folder: ROOT_1_URI,
-					excludePattern: patternsToIExpression('bar/**/*.ts', 'bar/**/*.ts/**'),
+					excludePattern: makeExcludePatternFromPatterns('bar/**/*.ts', 'bar/**/*.ts/**'),
 				}],
 				type: QueryType.Text
 			});
@@ -490,7 +501,7 @@ suite('QueryBuilder', () => {
 				contentPattern: PATTERN_INFO,
 				folderQueries: [{
 					folder: ROOT_1_URI,
-					excludePattern: patternsToIExpression('bar/**/*.ts', 'bar/**/*.ts/**'),
+					excludePattern: makeExcludePatternFromPatterns('bar/**/*.ts', 'bar/**/*.ts/**'),
 				}],
 				type: QueryType.Text
 			});
@@ -1073,6 +1084,12 @@ suite('QueryBuilder', () => {
 		});
 	});
 });
+function makeExcludePatternFromPatterns(...patterns: string[]): {
+	pattern: IExpression;
+} | undefined {
+	const pattern = patternsToIExpression(...patterns);
+	return pattern ? { pattern } : undefined;
+}
 
 function assertEqualTextQueries(actual: ITextQuery, expected: ITextQuery): void {
 	expected = {
@@ -1092,7 +1109,7 @@ export function assertEqualQueries(actual: ITextQuery | IFileQuery, expected: IT
 	const folderQueryToCompareObject = (fq: IFolderQuery) => {
 		return {
 			path: fq.folder.fsPath,
-			excludePattern: normalizeExpression(fq.excludePattern),
+			excludePattern: normalizeExpression(fq.excludePattern?.pattern),
 			includePattern: normalizeExpression(fq.includePattern),
 			fileEncoding: fq.fileEncoding
 		};

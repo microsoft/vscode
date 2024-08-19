@@ -552,7 +552,7 @@ export class TernarySearchTree<K, V> {
 				const min = this._min(node.right);
 				if (min.key) {
 					const { key, value, segment } = min;
-					this._delete(min.key!, false);
+					this._delete(min.key, false);
 					node.key = key;
 					node.value = value;
 					node.segment = segment;

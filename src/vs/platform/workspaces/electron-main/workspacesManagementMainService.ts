@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserWindow } from 'electron';
+import * as fs from 'fs';
+import electron from 'electron';
 import { Emitter, Event } from 'vs/base/common/event';
 import { parse } from 'vs/base/common/json';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { dirname, join } from 'vs/base/common/path';
 import { basename, extUriBiasedIgnorePathCase, joinPath, originalFSPath } from 'vs/base/common/resources';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { Promises } from 'vs/base/node/pfs';
 import { localize } from 'vs/nls';
@@ -85,7 +85,7 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 
 		// Resolve untitled workspaces
 		try {
-			const untitledWorkspacePaths = (await Promises.readdir(this.untitledWorkspacesHome.fsPath)).map(folder => joinPath(this.untitledWorkspacesHome, folder, UNTITLED_WORKSPACE_NAME));
+			const untitledWorkspacePaths = (await Promises.readdir(this.untitledWorkspacesHome.with({ scheme: Schemas.file }).fsPath)).map(folder => joinPath(this.untitledWorkspacesHome, folder, UNTITLED_WORKSPACE_NAME));
 			for (const untitledWorkspacePath of untitledWorkspacePaths) {
 				const workspace = getWorkspaceIdentifier(untitledWorkspacePath);
 				const resolvedWorkspace = await this.resolveLocalWorkspace(untitledWorkspacePath);
@@ -103,7 +103,7 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 	}
 
 	resolveLocalWorkspace(uri: URI): Promise<IResolvedWorkspace | undefined> {
-		return this.doResolveLocalWorkspace(uri, path => Promises.readFile(path, 'utf8'));
+		return this.doResolveLocalWorkspace(uri, path => fs.promises.readFile(path, 'utf8'));
 	}
 
 	private doResolveLocalWorkspace(uri: URI, contentsFn: (path: string) => string): IResolvedWorkspace | undefined;
@@ -170,7 +170,7 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 		const { workspace, storedWorkspace } = this.newUntitledWorkspace(folders, remoteAuthority);
 		const configPath = workspace.configPath.fsPath;
 
-		await Promises.mkdir(dirname(configPath), { recursive: true });
+		await fs.promises.mkdir(dirname(configPath), { recursive: true });
 		await Promises.writeFile(configPath, JSON.stringify(storedWorkspace, null, '\t'));
 
 		this.untitledWorkspaces.push({ workspace, remoteAuthority });
@@ -228,7 +228,7 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 			await Promises.rm(dirname(configPath));
 
 			// Mark Workspace Storage to be deleted
-			const workspaceStoragePath = join(this.environmentMainService.workspaceStorageHome.fsPath, workspace.id);
+			const workspaceStoragePath = join(this.environmentMainService.workspaceStorageHome.with({ scheme: Schemas.file }).fsPath, workspace.id);
 			if (await Promises.exists(workspaceStoragePath)) {
 				await Promises.writeFile(join(workspaceStoragePath, 'obsolete'), '');
 			}
@@ -281,7 +281,7 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 				buttons: [localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK")],
 				message: localize('workspaceOpenedMessage', "Unable to save workspace '{0}'", basename(workspacePath)),
 				detail: localize('workspaceOpenedDetail', "The workspace is already opened in another window. Please close that window first and then try again.")
-			}, withNullAsUndefined(BrowserWindow.getFocusedWindow()));
+			}, electron.BrowserWindow.getFocusedWindow() ?? undefined);
 
 			return false;
 		}

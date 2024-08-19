@@ -33,6 +33,7 @@ export const enum PartFingerprint {
 	OverflowingContentWidgets,
 	OverflowGuard,
 	OverlayWidgets,
+	OverflowingOverlayWidgets,
 	ScrollableElement,
 	TextArea,
 	ViewLines,
@@ -57,7 +58,7 @@ export class PartFingerprints {
 		const result: PartFingerprint[] = [];
 		let resultLen = 0;
 
-		while (child && child !== document.body) {
+		while (child && child !== child.ownerDocument.body) {
 			if (child === stopAt) {
 				break;
 			}

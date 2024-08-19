@@ -6,7 +6,7 @@
 mod context;
 
 pub mod args;
-pub mod internal_wsl;
+pub mod serve_web;
 pub mod tunnels;
 pub mod update;
 pub mod version;

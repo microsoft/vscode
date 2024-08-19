@@ -17,6 +17,10 @@ type KeyEvent = {
 	repeat: boolean;
 }
 
+type WebViewDragEvent = {
+	shiftKey: boolean;
+}
+
 export type FromWebviewMessage = {
 	'onmessage': { message: any; transfer?: ArrayBuffer[] };
 	'did-click-link': { uri: string };
@@ -36,6 +40,7 @@ export type FromWebviewMessage = {
 	'did-keyup': KeyEvent;
 	'did-context-menu': { clientX: number; clientY: number; context: { [key: string]: unknown } };
 	'drag-start': void;
+	'drag': WebViewDragEvent
 };
 
 interface UpdateContentEvent {
@@ -66,6 +71,7 @@ export type ToWebviewMessage = {
 		location: string | undefined;
 	};
 	'set-confirm-before-close': string;
+	'set-context-menu-visible': { visible: boolean };
 	'initial-scroll-position': number;
 	'content': UpdateContentEvent;
 	'set-title': string | undefined;

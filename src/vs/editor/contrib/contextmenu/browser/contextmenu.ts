@@ -5,7 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
+import { IMouseEvent, IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { IAction, Separator, SubmenuAction } from 'vs/base/common/actions';
@@ -103,7 +103,7 @@ export class ContextMenuController implements IEditorContribution {
 		e.event.stopPropagation();
 
 		if (e.target.type === MouseTargetType.SCROLLBAR) {
-			return this._showScrollbarContextMenu({ x: e.event.posx - 1, width: 2, y: e.event.posy - 1, height: 2 });
+			return this._showScrollbarContextMenu(e.event);
 		}
 
 		if (e.target.type !== MouseTargetType.CONTENT_TEXT && e.target.type !== MouseTargetType.CONTENT_EMPTY && e.target.type !== MouseTargetType.TEXTAREA) {
@@ -129,16 +129,16 @@ export class ContextMenuController implements IEditorContribution {
 		}
 
 		// Unless the user triggerd the context menu through Shift+F10, use the mouse position as menu position
-		let anchor: IAnchor | null = null;
+		let anchor: IMouseEvent | null = null;
 		if (e.target.type !== MouseTargetType.TEXTAREA) {
-			anchor = { x: e.event.posx - 1, width: 2, y: e.event.posy - 1, height: 2 };
+			anchor = e.event;
 		}
 
 		// Show the context menu
 		this.showContextMenu(anchor);
 	}
 
-	public showContextMenu(anchor?: IAnchor | null): void {
+	public showContextMenu(anchor?: IMouseEvent | null): void {
 		if (!this._editor.getOption(EditorOption.contextmenu)) {
 			return; // Context menu is turned off through configuration
 		}
@@ -148,7 +148,7 @@ export class ContextMenuController implements IEditorContribution {
 
 		// Find actions available for menu
 		const menuActions = this._getMenuActions(this._editor.getModel(),
-			this._editor.isSimpleWidget ? MenuId.SimpleEditorContext : MenuId.EditorContext);
+			this._editor.contextMenuId);
 
 		// Show menu if we have actions to show
 		if (menuActions.length > 0) {
@@ -160,9 +160,7 @@ export class ContextMenuController implements IEditorContribution {
 		const result: IAction[] = [];
 
 		// get menu groups
-		const menu = this._menuService.createMenu(menuId, this._contextKeyService);
-		const groups = menu.getActions({ arg: model.uri });
-		menu.dispose();
+		const groups = this._menuService.getMenuActions(menuId, this._contextKeyService, { arg: model.uri });
 
 		// translate them into other actions
 		for (const group of groups) {
@@ -193,7 +191,7 @@ export class ContextMenuController implements IEditorContribution {
 		return result;
 	}
 
-	private _doShowContextMenu(actions: IAction[], anchor: IAnchor | null = null): void {
+	private _doShowContextMenu(actions: IAction[], event: IMouseEvent | null = null): void {
 		if (!this._editor.hasModel()) {
 			return;
 		}
@@ -206,6 +204,7 @@ export class ContextMenuController implements IEditorContribution {
 			}
 		});
 
+		let anchor: IMouseEvent | IAnchor | null = event;
 		if (!anchor) {
 			// Ensure selection is visible
 			this._editor.revealPosition(this._editor.getPosition(), ScrollType.Immediate);
@@ -226,9 +225,9 @@ export class ContextMenuController implements IEditorContribution {
 		// Show menu
 		this._contextMenuIsBeingShownCount++;
 		this._contextMenuService.showContextMenu({
-			domForShadowRoot: useShadowDOM ? this._editor.getDomNode() : undefined,
+			domForShadowRoot: useShadowDOM ? this._editor.getOverflowWidgetsDomNode() ?? this._editor.getDomNode() : undefined,
 
-			getAnchor: () => anchor!,
+			getAnchor: () => anchor,
 
 			getActions: () => actions,
 
@@ -259,7 +258,7 @@ export class ContextMenuController implements IEditorContribution {
 		});
 	}
 
-	private _showScrollbarContextMenu(anchor: IAnchor): void {
+	private _showScrollbarContextMenu(anchor: IMouseEvent): void {
 		if (!this._editor.hasModel()) {
 			return;
 		}

@@ -121,7 +121,7 @@ export class ViewContentWidgets extends ViewPart {
 			delete this._widgets[widgetId];
 
 			const domNode = myWidget.domNode.domNode;
-			domNode.parentNode!.removeChild(domNode);
+			domNode.remove();
 			domNode.removeAttribute('monaco-visible-content-widget');
 
 			this.setShouldRender();
@@ -167,10 +167,18 @@ interface IBoxLayoutResult {
 	left: number;
 }
 
-interface IRenderData {
+interface IOffViewportRenderData {
+	kind: 'offViewport';
+	preserveFocus: boolean;
+}
+
+interface IInViewportRenderData {
+	kind: 'inViewport';
 	coordinate: Coordinate;
 	position: ContentWidgetPositionPreference;
 }
+
+type IRenderData = IInViewportRenderData | IOffViewportRenderData;
 
 class Widget {
 	private readonly _context: ViewContext;
@@ -266,9 +274,11 @@ class Widget {
 	}
 
 	private _getMaxWidth(): number {
+		const elDocument = this.domNode.domNode.ownerDocument;
+		const elWindow = elDocument.defaultView;
 		return (
 			this.allowEditorOverflow
-				? window.innerWidth || document.documentElement!.offsetWidth || document.body.offsetWidth
+				? elWindow?.innerWidth || elDocument.documentElement.offsetWidth || elDocument.body.offsetWidth
 				: this._contentWidth
 		);
 	}
@@ -326,7 +336,9 @@ class Widget {
 		const MIN_LIMIT = Math.max(LEFT_PADDING, domNodePosition.left - width);
 		const MAX_LIMIT = Math.min(domNodePosition.left + domNodePosition.width + width, windowSize.width - RIGHT_PADDING);
 
-		let absoluteLeft = domNodePosition.left + left - window.scrollX;
+		const elDocument = this._viewDomNode.domNode.ownerDocument;
+		const elWindow = elDocument.defaultView;
+		let absoluteLeft = domNodePosition.left + left - (elWindow?.scrollX ?? 0);
 
 		if (absoluteLeft + width > MAX_LIMIT) {
 			const delta = absoluteLeft - (MAX_LIMIT - width);
@@ -348,10 +360,12 @@ class Widget {
 		const belowTop = anchor.top + anchor.height;
 
 		const domNodePosition = dom.getDomNodePagePosition(this._viewDomNode.domNode);
-		const absoluteAboveTop = domNodePosition.top + aboveTop - window.scrollY;
-		const absoluteBelowTop = domNodePosition.top + belowTop - window.scrollY;
+		const elDocument = this._viewDomNode.domNode.ownerDocument;
+		const elWindow = elDocument.defaultView;
+		const absoluteAboveTop = domNodePosition.top + aboveTop - (elWindow?.scrollY ?? 0);
+		const absoluteBelowTop = domNodePosition.top + belowTop - (elWindow?.scrollY ?? 0);
 
-		const windowSize = dom.getClientArea(document.body);
+		const windowSize = dom.getClientArea(elDocument.body);
 		const [left, absoluteAboveLeft] = this._layoutHorizontalSegmentInPage(windowSize, domNodePosition, anchor.left - ctx.scrollLeft + this._contentLeft, width);
 
 		// Leave some clearance to the top/bottom
@@ -429,7 +443,11 @@ class Widget {
 
 		const { primary, secondary } = this._getAnchorsCoordinates(ctx);
 		if (!primary) {
-			return null;
+			return {
+				kind: 'offViewport',
+				preserveFocus: this.domNode.domNode.contains(this.domNode.domNode.ownerDocument.activeElement)
+			};
+			// return null;
 		}
 
 		if (this._cachedDomNodeOffsetWidth === -1 || this._cachedDomNodeOffsetHeight === -1) {
@@ -468,7 +486,11 @@ class Widget {
 						return null;
 					}
 					if (pass === 2 || placement.fitsAbove) {
-						return { coordinate: new Coordinate(placement.aboveTop, placement.left), position: ContentWidgetPositionPreference.ABOVE };
+						return {
+							kind: 'inViewport',
+							coordinate: new Coordinate(placement.aboveTop, placement.left),
+							position: ContentWidgetPositionPreference.ABOVE
+						};
 					}
 				} else if (pref === ContentWidgetPositionPreference.BELOW) {
 					if (!placement) {
@@ -476,13 +498,25 @@ class Widget {
 						return null;
 					}
 					if (pass === 2 || placement.fitsBelow) {
-						return { coordinate: new Coordinate(placement.belowTop, placement.left), position: ContentWidgetPositionPreference.BELOW };
+						return {
+							kind: 'inViewport',
+							coordinate: new Coordinate(placement.belowTop, placement.left),
+							position: ContentWidgetPositionPreference.BELOW
+						};
 					}
 				} else {
 					if (this.allowEditorOverflow) {
-						return { coordinate: this._prepareRenderWidgetAtExactPositionOverflowing(new Coordinate(anchor.top, anchor.left)), position: ContentWidgetPositionPreference.EXACT };
+						return {
+							kind: 'inViewport',
+							coordinate: this._prepareRenderWidgetAtExactPositionOverflowing(new Coordinate(anchor.top, anchor.left)),
+							position: ContentWidgetPositionPreference.EXACT
+						};
 					} else {
-						return { coordinate: new Coordinate(anchor.top, anchor.left), position: ContentWidgetPositionPreference.EXACT };
+						return {
+							kind: 'inViewport',
+							coordinate: new Coordinate(anchor.top, anchor.left),
+							position: ContentWidgetPositionPreference.EXACT
+						};
 					}
 				}
 			}
@@ -512,12 +546,19 @@ class Widget {
 	}
 
 	public render(ctx: RestrictedRenderingContext): void {
-		if (!this._renderData) {
+		if (!this._renderData || this._renderData.kind === 'offViewport') {
 			// This widget should be invisible
 			if (this._isVisible) {
 				this.domNode.removeAttribute('monaco-visible-content-widget');
 				this._isVisible = false;
-				this.domNode.setVisibility('hidden');
+
+				if (this._renderData?.kind === 'offViewport' && this._renderData.preserveFocus) {
+					// widget wants to be shown, but it is outside of the viewport and it
+					// has focus which we need to preserve
+					this.domNode.setTop(-1000);
+				} else {
+					this.domNode.setVisibility('hidden');
+				}
 			}
 
 			if (typeof this._actual.afterRender === 'function') {

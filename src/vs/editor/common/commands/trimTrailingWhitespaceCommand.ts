@@ -9,6 +9,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
+import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
 import { ITextModel } from 'vs/editor/common/model';
 
 export class TrimTrailingWhitespaceCommand implements ICommand {
@@ -16,15 +17,17 @@ export class TrimTrailingWhitespaceCommand implements ICommand {
 	private readonly _selection: Selection;
 	private _selectionId: string | null;
 	private readonly _cursors: Position[];
+	private readonly _trimInRegexesAndStrings: boolean;
 
-	constructor(selection: Selection, cursors: Position[]) {
+	constructor(selection: Selection, cursors: Position[], trimInRegexesAndStrings: boolean) {
 		this._selection = selection;
 		this._cursors = cursors;
 		this._selectionId = null;
+		this._trimInRegexesAndStrings = trimInRegexesAndStrings;
 	}
 
 	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
-		const ops = trimTrailingWhitespace(model, this._cursors);
+		const ops = trimTrailingWhitespace(model, this._cursors, this._trimInRegexesAndStrings);
 		for (let i = 0, len = ops.length; i < len; i++) {
 			const op = ops[i];
 
@@ -42,7 +45,7 @@ export class TrimTrailingWhitespaceCommand implements ICommand {
 /**
  * Generate commands for trimming trailing whitespace on a model and ignore lines on which cursors are sitting.
  */
-export function trimTrailingWhitespace(model: ITextModel, cursors: Position[]): ISingleEditOperation[] {
+export function trimTrailingWhitespace(model: ITextModel, cursors: Position[], trimInRegexesAndStrings: boolean): ISingleEditOperation[] {
 	// Sort cursors ascending
 	cursors.sort((a, b) => {
 		if (a.lineNumber === b.lineNumber) {
@@ -94,6 +97,22 @@ export function trimTrailingWhitespace(model: ITextModel, cursors: Position[]): 
 		} else {
 			// There is no trailing whitespace
 			continue;
+		}
+
+		if (!trimInRegexesAndStrings) {
+			if (!model.tokenization.hasAccurateTokensForLine(lineNumber)) {
+				// We don't want to force line tokenization, as that can be expensive, but we also don't want to trim
+				// trailing whitespace in lines that are not tokenized yet, as that can be wrong and trim whitespace from
+				// lines that the user requested we don't. So we bail out if the tokens are not accurate for this line.
+				continue;
+			}
+
+			const lineTokens = model.tokenization.getLineTokens(lineNumber);
+			const fromColumnType = lineTokens.getStandardTokenType(lineTokens.findTokenIndexAtOffset(fromColumn));
+
+			if (fromColumnType === StandardTokenType.String || fromColumnType === StandardTokenType.RegEx) {
+				continue;
+			}
 		}
 
 		fromColumn = Math.max(minEditColumn, fromColumn);

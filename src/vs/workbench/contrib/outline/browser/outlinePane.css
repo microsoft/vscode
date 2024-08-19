@@ -15,14 +15,6 @@
 	position: absolute;
 }
 
-.monaco-workbench .outline-pane .outline-progress .monaco-progress-container {
-	height: 2px;
-}
-
-.monaco-workbench .outline-pane .outline-progress .monaco-progress-container .progress-bit {
-	height: 2px;
-}
-
 .monaco-workbench .outline-pane .outline-tree {
 	height: 100%;
 }

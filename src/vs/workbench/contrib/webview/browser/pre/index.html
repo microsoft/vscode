@@ -5,14 +5,15 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-7T0Xm7l4AYKDwm8oYNQ65wcQX7K/ndvxH/2ZgHWUE3w=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-DXeP32g8BdMsVuVabYTmznoTH59F7M7UtV0vXemEFqc=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
 		content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
 </head>
 
-<body style="margin: 0; overflow: hidden; width: 100%; height: 100%" role="document">
+<body style="margin: 0; overflow: hidden; width: 100%; height: 100%; overscroll-behavior-x: none;" role="document">
 	<script async type="module">
 		// @ts-check
 		/// <reference lib="dom" />
@@ -47,7 +48,8 @@
 			const interval = 250;
 			let isFocused = document.hasFocus();
 			setInterval(() => {
-				const isCurrentlyFocused = document.hasFocus();
+				const target = getActiveFrame();
+				const isCurrentlyFocused = document.hasFocus() || !!(target && target.contentDocument && target.contentDocument.body.classList.contains('vscode-context-menu-visible'));
 				if (isCurrentlyFocused === isFocused) {
 					return;
 				}
@@ -90,6 +92,7 @@
 			}
 
 			body {
+				overscroll-behavior-x: none;
 				background-color: transparent;
 				color: var(--vscode-editor-foreground);
 				font-family: var(--vscode-font-family);
@@ -108,6 +111,10 @@
 				color: var(--vscode-textLink-foreground);
 			}
 
+			p > a {
+				text-decoration: var(--text-link-decoration);
+			}
+
 			a:hover {
 				color: var(--vscode-textLink-activeForeground);
 			}
@@ -121,7 +128,15 @@
 			}
 
 			code {
+				font-family: var(--monaco-monospace-font);
 				color: var(--vscode-textPreformat-foreground);
+				background-color: var(--vscode-textPreformat-background);
+				padding: 1px 3px;
+				border-radius: 4px;
+			}
+
+			pre code {
+				padding: 0;
 			}
 
 			blockquote {
@@ -592,7 +607,7 @@
 				} else {
 					return; // let the browser handle this
 				}
-			} else if (!onElectron && (isCloseTab(e) || isNewWindow(e))) {
+			} else if (!onElectron && (isCloseTab(e) || isNewWindow(e) || isHelp(e) || isRefresh(e))) {
 				// Prevent Ctrl+W closing window / Ctrl+N opening new window in PWA.
 				// (No effect in a regular browser tab.)
 				e.preventDefault();
@@ -631,8 +646,10 @@
 		 */
 		function isCopyPasteOrCut(e) {
 			const hasMeta = e.ctrlKey || e.metaKey;
-			const shiftInsert = e.shiftKey && e.key.toLowerCase() === 'insert';
-			return (hasMeta && ['c', 'v', 'x'].includes(e.key.toLowerCase())) || shiftInsert;
+			// 45: keyCode of "Insert"
+			const shiftInsert = e.shiftKey && e.keyCode === 45;
+			// 67, 86, 88: keyCode of "C", "V", "X"
+			return (hasMeta && [67, 86, 88].includes(e.keyCode)) || shiftInsert;
 		}
 
 		/**
@@ -641,7 +658,8 @@
 		 */
 		function isUndoRedo(e) {
 			const hasMeta = e.ctrlKey || e.metaKey;
-			return hasMeta && ['z', 'y'].includes(e.key.toLowerCase());
+			// 90, 89: keyCode of "Z", "Y"
+			return hasMeta && [90, 89].includes(e.keyCode);
 		}
 
 		/**
@@ -650,7 +668,8 @@
 		 */
 		function isPrint(e) {
 			const hasMeta = e.ctrlKey || e.metaKey;
-			return hasMeta && e.key.toLowerCase() === 'p';
+			// 80: keyCode of "P"
+			return hasMeta && e.keyCode === 80;
 		}
 
 		/**
@@ -659,7 +678,8 @@
 		 */
 		function isFindEvent(e) {
 			const hasMeta = e.ctrlKey || e.metaKey;
-			return hasMeta && e.key.toLowerCase() === 'f';
+			// 70: keyCode of "F"
+			return hasMeta && e.keyCode === 70;
 		}
 
 		/**
@@ -668,7 +688,8 @@
 		 */
 		function isSaveEvent(e) {
 			const hasMeta = e.ctrlKey || e.metaKey;
-			return hasMeta && e.key.toLowerCase() === 's';
+			// 83: keyCode of "S"
+			return hasMeta && e.keyCode === 83;
 		}
 
 		/**
@@ -677,7 +698,8 @@
 		 */
 		function isCloseTab(e) {
 			const hasMeta = e.ctrlKey || e.metaKey;
-			return hasMeta && e.key.toLowerCase() === 'w';
+			// 87: keyCode of "W"
+			return hasMeta && e.keyCode === 87;
 		}
 
 		/**
@@ -686,7 +708,26 @@
 		 */
 		function isNewWindow(e) {
 			const hasMeta = e.ctrlKey || e.metaKey;
-			return hasMeta && e.key.toLowerCase() === 'n';
+			// 78: keyCode of "N"
+			return hasMeta && e.keyCode === 78;
+		}
+
+		/**
+		 * @param {KeyboardEvent} e
+		 * @return {boolean}
+		 */
+		function isHelp(e) {
+			// 112: keyCode of "F1"
+			return e.keyCode === 112;
+		}
+
+		/**
+		 * @param {KeyboardEvent} e
+		 * @return {boolean}
+		 */
+		function isRefresh(e) {
+			// 116: keyCode of "F5"
+			return e.keyCode === 116;
 		}
 
 		let isHandlingScroll = false;
@@ -753,6 +794,32 @@
 			if (e.dataTransfer.items.length && Array.prototype.every.call(e.dataTransfer.items, item => item.kind === 'file')) {
 				hostMessaging.postMessage('drag-start', undefined);
 			}
+		}
+
+
+		function handleInnerDragEvent(/** @type {DragEvent} */ e) {
+			/**
+			 * To ensure that the drop event always fires as expected, you should always include a preventDefault() call in the part of your code which handles the dragover event.
+			 * source: https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/drop_event
+			 **/
+			e.preventDefault();
+
+			if (!e.dataTransfer) {
+				return;
+			}
+
+
+			// Only handle drags from outside editor for now
+			if (e.dataTransfer.items.length && Array.prototype.every.call(e.dataTransfer.items, item => item.kind === 'file')) {
+				hostMessaging.postMessage('drag', {
+					shiftKey: e.shiftKey
+				});
+			}
+
+		}
+
+		function handleInnerDropEvent(/**@type {DragEvent} */e) {
+			e.preventDefault();
 		}
 
 		/**
@@ -845,7 +912,10 @@
 		window.addEventListener('keydown', handleInnerKeydown);
 		window.addEventListener('keyup', handleInnerKeyup);
 		window.addEventListener('dragenter', handleInnerDragStartEvent);
-		window.addEventListener('dragover', handleInnerDragStartEvent);
+		window.addEventListener('dragover', handleInnerDragEvent);
+		window.addEventListener('drag', handleInnerDragEvent);
+		window.addEventListener('drop', handleInnerDropEvent);
+
 
 		onDomReady(() => {
 			if (!document.body) {
@@ -938,7 +1008,7 @@
 				const previousPendingFrame = getPendingFrame();
 				if (previousPendingFrame) {
 					previousPendingFrame.setAttribute('id', '');
-					document.body.removeChild(previousPendingFrame);
+					previousPendingFrame.remove();
 				}
 				if (!wasFirstLoad) {
 					pendingMessages = [];
@@ -1035,9 +1105,7 @@
 					if (newFrame && newFrame.contentDocument && newFrame.contentDocument === contentDocument) {
 						const wasFocused = document.hasFocus();
 						const oldActiveFrame = getActiveFrame();
-						if (oldActiveFrame) {
-							document.body.removeChild(oldActiveFrame);
-						}
+						oldActiveFrame?.remove();
 						// Styles may have changed since we created the element. Make sure we re-style
 						if (initialStyleVersion !== styleVersion) {
 							applyStyles(newFrame.contentDocument, newFrame.contentDocument.body);
@@ -1129,9 +1197,19 @@
 					});
 
 					contentWindow.addEventListener('dragenter', handleInnerDragStartEvent);
-					contentWindow.addEventListener('dragover', handleInnerDragStartEvent);
+					contentWindow.addEventListener('dragover', handleInnerDragEvent);
+					contentWindow.addEventListener('drag', handleInnerDragEvent);
+					contentWindow.addEventListener('drop', handleInnerDropEvent);
 
 					unloadMonitor.onIframeLoaded(newFrame);
+				}
+			});
+
+			// propagate vscode-context-menu-visible class
+			hostMessaging.onMessage('set-context-menu-visible', (_event, data) => {
+				const target = getActiveFrame();
+				if (target && target.contentDocument) {
+					target.contentDocument.body.classList.toggle('vscode-context-menu-visible', data.visible);
 				}
 			});
 

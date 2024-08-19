@@ -6,36 +6,47 @@
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Mimes } from 'vs/base/common/mime';
 import { URI } from 'vs/base/common/uri';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { Selection } from 'vs/editor/common/core/selection';
+import { CommandExecutor } from 'vs/editor/common/cursor/cursor';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
-import { IModelService } from 'vs/editor/common/services/model';
 import { ILanguageService } from 'vs/editor/common/languages/language';
-import { localize } from 'vs/nls';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { TrackedRangeStickiness } from 'vs/editor/common/model';
+import { getIconClasses } from 'vs/editor/browser/services/getIconClasses';
+import { IModelService } from 'vs/editor/common/services/model';
+import { LineCommentCommand, Type } from 'vs/editor/contrib/comment/browser/lineCommentCommand';
+import { localize, localize2 } from 'vs/nls';
 import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { InputFocusedContext, InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IConfirmationResult, IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
+import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
+import { CTX_INLINE_CHAT_FOCUSED } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { changeCellToKind, runDeleteAction } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
-import { CellToolbarOrder, CELL_TITLE_CELL_GROUP_ID, CELL_TITLE_OUTPUT_GROUP_ID, executeNotebookCondition, INotebookActionContext, INotebookCellActionContext, NotebookAction, NotebookCellAction, NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_HAS_OUTPUTS, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_USE_CONSOLIDATED_OUTPUT_BUTTON } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
-import { CellEditState, CHANGE_CELL_LANGUAGE, DETECT_CELL_LANGUAGE, QUIT_EDIT_CELL_COMMAND_ID } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CELL_TITLE_CELL_GROUP_ID, CELL_TITLE_OUTPUT_GROUP_ID, CellToolbarOrder, INotebookActionContext, INotebookCellActionContext, INotebookCommandContext, NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT, NotebookAction, NotebookCellAction, NotebookMultiCellAction, executeNotebookCondition, findTargetCellEditor } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
+import { NotebookChangeTabDisplaySize, NotebookIndentUsingSpaces, NotebookIndentUsingTabs, NotebookIndentationToSpacesAction, NotebookIndentationToTabsAction } from 'vs/workbench/contrib/notebook/browser/controller/notebookIndentationActions';
+import { CHANGE_CELL_LANGUAGE, CellEditState, DETECT_CELL_LANGUAGE, QUIT_EDIT_CELL_COMMAND_ID, getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { CellEditType, CellKind, ICellEditOperation, NotebookCellExecutionState, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
+import { NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_IS_FIRST_OUTPUT, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_HAS_OUTPUTS, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_OUTPUT_FOCUSED, NOTEBOOK_OUTPUT_INPUT_FOCUSED, NOTEBOOK_USE_CONSOLIDATED_OUTPUT_BUTTON } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { INotificationService } from 'vs/platform/notification/common/notification';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { IDialogService, IConfirmationResult } from 'vs/platform/dialogs/common/dialogs';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-
+import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
 
 const CLEAR_ALL_CELLS_OUTPUTS_COMMAND_ID = 'notebook.clearAllCellsOutputs';
 const EDIT_CELL_COMMAND_ID = 'notebook.cell.edit';
 const DELETE_CELL_COMMAND_ID = 'notebook.cell.delete';
-const CLEAR_CELL_OUTPUTS_COMMAND_ID = 'notebook.cell.clearOutputs';
+export const CLEAR_CELL_OUTPUTS_COMMAND_ID = 'notebook.cell.clearOutputs';
+export const SELECT_NOTEBOOK_INDENTATION_ID = 'notebook.selectIndentation';
+export const COMMENT_SELECTED_CELLS_ID = 'notebook.commentSelectedCells';
 
 registerAction2(class EditCellAction extends NotebookCellAction {
 	constructor() {
@@ -47,7 +58,10 @@ registerAction2(class EditCellAction extends NotebookCellAction {
 					when: ContextKeyExpr.and(
 						NOTEBOOK_CELL_LIST_FOCUSED,
 						ContextKeyExpr.not(InputFocusedContextKey),
-						NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true)),
+						NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
+						EditorContextKeys.hoverFocused.toNegated(),
+						NOTEBOOK_OUTPUT_INPUT_FOCUSED.toNegated()
+					),
 					primary: KeyCode.Enter,
 					weight: KeybindingWeight.WorkbenchContrib
 				},
@@ -71,12 +85,17 @@ registerAction2(class EditCellAction extends NotebookCellAction {
 		}
 
 		await context.notebookEditor.focusNotebookCell(context.cell, 'editor');
+		const foundEditor: ICodeEditor | undefined = context.cell ? findTargetCellEditor(context, context.cell) : undefined;
+		if (foundEditor && foundEditor.hasTextFocus() && InlineChatController.get(foundEditor)?.getWidgetPosition()?.lineNumber === foundEditor.getPosition()?.lineNumber) {
+			InlineChatController.get(foundEditor)?.focus();
+		}
 	}
 });
 
 const quitEditCondition = ContextKeyExpr.and(
 	NOTEBOOK_EDITOR_FOCUSED,
-	InputFocusedContext
+	InputFocusedContext,
+	CTX_INLINE_CHAT_FOCUSED.toNegated()
 );
 registerAction2(class QuitEditCellAction extends NotebookCellAction {
 	constructor() {
@@ -102,6 +121,12 @@ registerAction2(class QuitEditCellAction extends NotebookCellAction {
 							EditorContextKeys.hasMultipleSelections.toNegated()),
 						primary: KeyCode.Escape,
 						weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT - 5
+					},
+					{
+						when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED,
+							NOTEBOOK_OUTPUT_FOCUSED),
+						primary: KeyCode.Escape,
+						weight: KeybindingWeight.WorkbenchContrib + 5
 					},
 					{
 						when: ContextKeyExpr.and(
@@ -137,7 +162,7 @@ registerAction2(class DeleteCellAction extends NotebookCellAction {
 					mac: {
 						primary: KeyMod.CtrlCmd | KeyCode.Backspace
 					},
-					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
+					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey), NOTEBOOK_OUTPUT_INPUT_FOCUSED.toNegated()),
 					weight: KeybindingWeight.WorkbenchContrib
 				},
 				menu: [
@@ -208,7 +233,7 @@ registerAction2(class ClearCellOutputsAction extends NotebookCellAction {
 				},
 				{
 					id: MenuId.NotebookOutputToolbar,
-					when: ContextKeyExpr.and(NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE)
+					when: ContextKeyExpr.and(NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_IS_FIRST_OUTPUT, NOTEBOOK_USE_CONSOLIDATED_OUTPUT_BUTTON)
 				},
 			],
 			keybinding: {
@@ -252,7 +277,6 @@ registerAction2(class ClearCellOutputsAction extends NotebookCellAction {
 	}
 });
 
-
 registerAction2(class ClearAllCellOutputsAction extends NotebookAction {
 	constructor() {
 		super({
@@ -276,7 +300,7 @@ registerAction2(class ClearAllCellOutputsAction extends NotebookAction {
 						ContextKeyExpr.equals('config.notebook.globalToolbar', true)
 					),
 					group: 'navigation/execute',
-					order: 0
+					order: 10
 				}
 			],
 			icon: icons.clearIcon
@@ -318,7 +342,6 @@ registerAction2(class ClearAllCellOutputsAction extends NotebookAction {
 	}
 });
 
-
 interface ILanguagePickInput extends IQuickPickItem {
 	languageId: string;
 	description: string;
@@ -335,7 +358,7 @@ registerAction2(class ChangeCellLanguageAction extends NotebookCellAction<ICellR
 		super({
 			id: CHANGE_CELL_LANGUAGE,
 			title: localize('changeLanguage', 'Change Cell Language'),
-			description: {
+			metadata: {
 				description: localize('changeLanguage', 'Change Cell Language'),
 				args: [
 					{
@@ -431,7 +454,7 @@ registerAction2(class ChangeCellLanguageAction extends NotebookCellAction<ICellR
 				return;
 			}
 
-			const item = <ILanguagePickInput>{
+			const item: ILanguagePickInput = {
 				label: languageName,
 				iconClasses: getIconClasses(modelService, languageService, this.getFakeResource(languageName, languageService)),
 				description,
@@ -503,7 +526,7 @@ registerAction2(class DetectCellLanguageAction extends NotebookCellAction {
 	constructor() {
 		super({
 			id: DETECT_CELL_LANGUAGE,
-			title: { value: localize('detectLanguage', 'Accept Detected Language for Cell'), original: 'Accept Detected Language for Cell' },
+			title: localize2('detectLanguage', "Accept Detected Language for Cell"),
 			f1: true,
 			precondition: ContextKeyExpr.and(NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE),
 			keybinding: { primary: KeyCode.KeyD | KeyMod.Alt | KeyMod.Shift, weight: KeybindingWeight.WorkbenchContrib }
@@ -545,3 +568,113 @@ async function setCellToLanguage(languageId: string, context: IChangeCellContext
 		);
 	}
 }
+
+registerAction2(class SelectNotebookIndentation extends NotebookAction {
+	constructor() {
+		super({
+			id: SELECT_NOTEBOOK_INDENTATION_ID,
+			title: localize2('selectNotebookIndentation', 'Select Indentation'),
+			f1: true,
+			precondition: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE),
+		});
+	}
+
+	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
+		await this.showNotebookIndentationPicker(accessor, context);
+	}
+
+	private async showNotebookIndentationPicker(accessor: ServicesAccessor, context: INotebookActionContext) {
+		const quickInputService = accessor.get(IQuickInputService);
+		const editorService = accessor.get(IEditorService);
+		const instantiationService = accessor.get(IInstantiationService);
+
+		const activeNotebook = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
+		if (!activeNotebook || activeNotebook.isDisposed) {
+			return quickInputService.pick([{ label: localize('noNotebookEditor', "No notebook editor active at this time") }]);
+		}
+
+		if (activeNotebook.isReadOnly) {
+			return quickInputService.pick([{ label: localize('noWritableCodeEditor', "The active notebook editor is read-only.") }]);
+		}
+
+		const picks: QuickPickInput<IQuickPickItem & { run(): void }>[] = [
+			new NotebookIndentUsingTabs(), // indent using tabs
+			new NotebookIndentUsingSpaces(), // indent using spaces
+			new NotebookChangeTabDisplaySize(), // change tab size
+			new NotebookIndentationToTabsAction(), // convert indentation to tabs
+			new NotebookIndentationToSpacesAction() // convert indentation to spaces
+		].map(item => {
+			return {
+				id: item.desc.id,
+				label: item.desc.title.toString(),
+				run: () => {
+					instantiationService.invokeFunction(item.run);
+				}
+			};
+		});
+
+		picks.splice(3, 0, { type: 'separator', label: localize('indentConvert', "convert file") });
+		picks.unshift({ type: 'separator', label: localize('indentView', "change view") });
+
+		const action = await quickInputService.pick(picks, { placeHolder: localize('pickAction', "Select Action"), matchOnDetail: true });
+		if (!action) {
+			return;
+		}
+		action.run();
+		context.notebookEditor.focus();
+		return;
+	}
+});
+
+registerAction2(class CommentSelectedCellsAction extends NotebookMultiCellAction {
+	constructor() {
+		super({
+			id: COMMENT_SELECTED_CELLS_ID,
+			title: localize('commentSelectedCells', "Comment Selected Cells"),
+			keybinding: {
+				when: ContextKeyExpr.and(
+					NOTEBOOK_EDITOR_FOCUSED,
+					NOTEBOOK_EDITOR_EDITABLE,
+					ContextKeyExpr.not(InputFocusedContextKey),
+				),
+				primary: KeyMod.CtrlCmd | KeyCode.Slash,
+				weight: KeybindingWeight.WorkbenchContrib
+			}
+		});
+	}
+
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCommandContext): Promise<void> {
+		const languageConfigurationService = accessor.get(ILanguageConfigurationService);
+
+		context.selectedCells.forEach(async cellViewModel => {
+			const textModel = await cellViewModel.resolveTextModel();
+
+			const commentsOptions = cellViewModel.commentOptions;
+			const cellCommentCommand = new LineCommentCommand(
+				languageConfigurationService,
+				new Selection(1, 1, textModel.getLineCount(), textModel.getLineMaxColumn(textModel.getLineCount())), // comment the entire cell
+				textModel.getOptions().tabSize,
+				Type.Toggle,
+				commentsOptions.insertSpace ?? true,
+				commentsOptions.ignoreEmptyLines ?? true,
+				false
+			);
+
+			// store any selections that are in the cell, allows them to be shifted by comments and preserved
+			const cellEditorSelections = cellViewModel.getSelections();
+			const initialTrackedRangesIDs: string[] = cellEditorSelections.map(selection => {
+				return textModel._setTrackedRange(null, selection, TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges);
+			});
+
+			CommandExecutor.executeCommands(textModel, cellEditorSelections, [cellCommentCommand]);
+
+			const newTrackedSelections = initialTrackedRangesIDs.map(i => {
+				return textModel._getTrackedRange(i);
+			}).filter(r => !!r).map((range,) => {
+				return new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);
+			});
+			cellViewModel.setSelections(newTrackedSelections ?? []);
+		}); // end of cells forEach
+	}
+
+});

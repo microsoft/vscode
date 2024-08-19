@@ -6,7 +6,7 @@
   "publisher": "vscode",
   "license": "MIT",
   "engines": {
-    "vscode": "^1.29.0"
+    "vscode": "^1.77.0"
   },
   "icon": "icons/css.png",
   "activationEvents": [
@@ -23,6 +23,9 @@
       "supported": true
     }
   },
+  "enabledApiProposals": [
+    "documentPaste"
+  ],
   "scripts": {
     "compile": "npx gulp compile-extension:css-language-features-client compile-extension:css-language-features-server",
     "watch": "npx gulp watch-extension:css-language-features-client watch-extension:css-language-features-server",
@@ -994,11 +997,11 @@
     ]
   },
   "dependencies": {
-    "vscode-languageclient": "^8.1.0",
-    "vscode-uri": "^3.0.7"
+    "vscode-languageclient": "^10.0.0-next.8",
+    "vscode-uri": "^3.0.8"
   },
   "devDependencies": {
-    "@types/node": "16.x"
+    "@types/node": "20.x"
   },
   "repository": {
     "type": "git",

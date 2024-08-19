@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ExternalUriOpenerPriority } from 'vs/editor/common/languages';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -16,7 +17,7 @@ import { IPickOptions, IQuickInputService, IQuickPickItem, QuickPickInput } from
 import { ExternalUriOpenerService, IExternalOpenerProvider, IExternalUriOpener } from 'vs/workbench/contrib/externalUriOpener/common/externalUriOpenerService';
 
 
-class MockQuickInputService implements Partial<IQuickInputService>{
+class MockQuickInputService implements Partial<IQuickInputService> {
 
 	constructor(
 		private readonly pickIndex: number
@@ -36,11 +37,12 @@ class MockQuickInputService implements Partial<IQuickInputService>{
 }
 
 suite('ExternalUriOpenerService', () => {
-
+	let disposables: DisposableStore;
 	let instantiationService: TestInstantiationService;
 
 	setup(() => {
-		instantiationService = new TestInstantiationService();
+		disposables = new DisposableStore();
+		instantiationService = disposables.add(new TestInstantiationService());
 
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(IOpenerService, {
@@ -48,8 +50,14 @@ suite('ExternalUriOpenerService', () => {
 		});
 	});
 
+	teardown(() => {
+		disposables.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('Should not open if there are no openers', async () => {
-		const externalUriOpenerService: ExternalUriOpenerService = instantiationService.createInstance(ExternalUriOpenerService);
+		const externalUriOpenerService = disposables.add(instantiationService.createInstance(ExternalUriOpenerService));
 
 		externalUriOpenerService.registerExternalOpenerProvider(new class implements IExternalOpenerProvider {
 			async *getOpeners(_targetUri: URI): AsyncGenerator<IExternalUriOpener> {
@@ -65,7 +73,7 @@ suite('ExternalUriOpenerService', () => {
 	test('Should prompt if there is at least one enabled opener', async () => {
 		instantiationService.stub(IQuickInputService, new MockQuickInputService(0));
 
-		const externalUriOpenerService: ExternalUriOpenerService = instantiationService.createInstance(ExternalUriOpenerService);
+		const externalUriOpenerService = disposables.add(instantiationService.createInstance(ExternalUriOpenerService));
 
 		let openedWithEnabled = false;
 		externalUriOpenerService.registerExternalOpenerProvider(new class implements IExternalOpenerProvider {
@@ -95,7 +103,7 @@ suite('ExternalUriOpenerService', () => {
 	});
 
 	test('Should automatically pick single preferred opener without prompt', async () => {
-		const externalUriOpenerService: ExternalUriOpenerService = instantiationService.createInstance(ExternalUriOpenerService);
+		const externalUriOpenerService = disposables.add(instantiationService.createInstance(ExternalUriOpenerService));
 
 		let openedWithPreferred = false;
 		externalUriOpenerService.registerExternalOpenerProvider(new class implements IExternalOpenerProvider {

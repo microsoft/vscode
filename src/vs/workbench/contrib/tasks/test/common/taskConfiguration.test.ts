@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { URI } from 'vs/base/common/uri';
-import * as assert from 'assert';
+import assert from 'assert';
 import Severity from 'vs/base/common/severity';
 import * as UUID from 'vs/base/common/uuid';
 
@@ -1801,6 +1801,9 @@ suite('Task configuration conversions', () => {
 		parseContext.problemReporter = problemReporter;
 		parseContext.namedProblemMatchers = { 'real': namedProblemMatcher };
 		parseContext.uuidMap = new UUIDMap();
+	});
+	teardown(() => {
+		instantiationService.dispose();
 	});
 	suite('ProblemMatcherConverter.from', () => {
 		test('returns [] and an error for an unknown problem matcher', () => {

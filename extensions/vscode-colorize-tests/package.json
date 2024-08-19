@@ -17,10 +17,10 @@
     "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:vscode-colorize-tests ./tsconfig.json"
   },
   "dependencies": {
-    "jsonc-parser": "2.2.1"
+    "jsonc-parser": "^3.2.0"
   },
   "devDependencies": {
-    "@types/node": "16.x"
+    "@types/node": "20.x"
   },
   "contributes": {
     "semanticTokenTypes": [

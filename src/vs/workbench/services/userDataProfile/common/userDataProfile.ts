@@ -5,10 +5,10 @@
 
 import { isUndefined } from 'vs/base/common/types';
 import { Event } from 'vs/base/common/event';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IUserDataProfile, IUserDataProfileOptions, IUserDataProfileUpdateOptions } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfile, IUserDataProfileOptions, IUserDataProfileUpdateOptions, ProfileResourceType, ProfileResourceTypeFlags } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
@@ -19,7 +19,6 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { IProductService } from 'vs/platform/product/common/productService';
 
 export interface DidChangeUserDataProfileEvent {
-	readonly preserveData: boolean;
 	readonly previous: IUserDataProfile;
 	readonly profile: IUserDataProfile;
 	join(promise: Promise<void>): void;
@@ -28,26 +27,34 @@ export interface DidChangeUserDataProfileEvent {
 export const IUserDataProfileService = createDecorator<IUserDataProfileService>('IUserDataProfileService');
 export interface IUserDataProfileService {
 	readonly _serviceBrand: undefined;
-	readonly onDidUpdateCurrentProfile: Event<void>;
-	readonly onDidChangeCurrentProfile: Event<DidChangeUserDataProfileEvent>;
 	readonly currentProfile: IUserDataProfile;
-	updateCurrentProfile(currentProfile: IUserDataProfile, preserveData: boolean): Promise<void>;
+	readonly onDidChangeCurrentProfile: Event<DidChangeUserDataProfileEvent>;
+	updateCurrentProfile(currentProfile: IUserDataProfile): Promise<void>;
 	getShortName(profile: IUserDataProfile): string;
+}
+
+export interface IProfileTemplateInfo {
+	readonly name: string;
+	readonly url: string;
 }
 
 export const IUserDataProfileManagementService = createDecorator<IUserDataProfileManagementService>('IUserDataProfileManagementService');
 export interface IUserDataProfileManagementService {
 	readonly _serviceBrand: undefined;
 
-	createAndEnterProfile(name: string, options?: IUserDataProfileOptions, fromExisting?: boolean): Promise<IUserDataProfile>;
+	createProfile(name: string, options?: IUserDataProfileOptions): Promise<IUserDataProfile>;
+	createAndEnterProfile(name: string, options?: IUserDataProfileOptions): Promise<IUserDataProfile>;
 	createAndEnterTransientProfile(): Promise<IUserDataProfile>;
 	removeProfile(profile: IUserDataProfile): Promise<void>;
-	updateProfile(profile: IUserDataProfile, updateOptions: IUserDataProfileUpdateOptions): Promise<void>;
+	updateProfile(profile: IUserDataProfile, updateOptions: IUserDataProfileUpdateOptions): Promise<IUserDataProfile>;
 	switchProfile(profile: IUserDataProfile): Promise<void>;
+	getBuiltinProfileTemplates(): Promise<IProfileTemplateInfo[]>;
 
 }
 
 export interface IUserDataProfileTemplate {
+	readonly name: string;
+	readonly icon?: string;
 	readonly settings?: string;
 	readonly keybindings?: string;
 	readonly tasks?: string;
@@ -74,8 +81,15 @@ export function toUserDataProfileUri(path: string, productService: IProductServi
 	});
 }
 
-export interface IProfileImportOptions {
-	readonly preview?: boolean;
+export interface IUserDataProfileCreateOptions extends IUserDataProfileOptions {
+	readonly name?: string;
+	readonly resourceTypeFlags?: ProfileResourceTypeFlags;
+}
+
+export interface IProfileImportOptions extends IUserDataProfileCreateOptions {
+	readonly name?: string;
+	readonly icon?: string;
+	readonly mode?: 'preview' | 'apply' | 'both';
 }
 
 export const IUserDataProfileImportExportService = createDecorator<IUserDataProfileImportExportService>('IUserDataProfileImportExportService');
@@ -85,20 +99,20 @@ export interface IUserDataProfileImportExportService {
 	registerProfileContentHandler(id: string, profileContentHandler: IUserDataProfileContentHandler): IDisposable;
 	unregisterProfileContentHandler(id: string): void;
 
-	exportProfile(): Promise<void>;
+	resolveProfileTemplate(uri: URI): Promise<IUserDataProfileTemplate | null>;
+	exportProfile(profile: IUserDataProfile): Promise<void>;
+	exportProfile2(): Promise<void>;
 	importProfile(uri: URI, options?: IProfileImportOptions): Promise<void>;
 	showProfileContents(): Promise<void>;
-	createFromCurrentProfile(name: string): Promise<void>;
-	setProfile(profile: IUserDataProfileTemplate): Promise<void>;
+	createProfile(from?: IUserDataProfile | URI): Promise<void>;
+	editProfile(profile: IUserDataProfile): Promise<void>;
+	createFromProfile(from: IUserDataProfile, options: IUserDataProfileCreateOptions, token: CancellationToken): Promise<IUserDataProfile | undefined>;
+	createProfileFromTemplate(profileTemplate: IUserDataProfileTemplate, options: IUserDataProfileCreateOptions, token: CancellationToken): Promise<IUserDataProfile | undefined>;
+	createTroubleshootProfile(): Promise<void>;
 }
 
-export const enum ProfileResourceType {
-	Settings = 'settings',
-	Keybindings = 'keybindings',
-	Snippets = 'snippets',
-	Tasks = 'tasks',
-	Extensions = 'extensions',
-	GlobalState = 'globalState',
+export interface IProfileResourceInitializer {
+	initialize(content: string): Promise<void>;
 }
 
 export interface IProfileResource {
@@ -109,6 +123,7 @@ export interface IProfileResource {
 export interface IProfileResourceTreeItem extends ITreeItem {
 	readonly type: ProfileResourceType;
 	readonly label: ITreeItemLabel;
+	isFromDefaultProfile(): boolean;
 	getChildren(): Promise<IProfileResourceChildTreeItem[] | undefined>;
 	getContent(): Promise<string>;
 }
@@ -134,7 +149,7 @@ export const defaultUserDataProfileIcon = registerIcon('defaultProfile-icon', Co
 
 export const ProfilesMenu = new MenuId('Profiles');
 export const MANAGE_PROFILES_ACTION_ID = 'workbench.profiles.actions.manage';
-export const PROFILES_TITLE = { value: localize('profiles', "Profiles"), original: 'Profiles' };
+export const PROFILES_TITLE = localize2('profiles', 'Profiles');
 export const PROFILES_CATEGORY = { ...PROFILES_TITLE };
 export const PROFILE_EXTENSION = 'code-profile';
 export const PROFILE_FILTER = [{ name: localize('profile', "Profile"), extensions: [PROFILE_EXTENSION] }];

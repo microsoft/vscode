@@ -103,7 +103,7 @@ ${1/^_(.*)/$1/}
 Grammar
 --
 
-Below is the EBNF for snippets. With `\` (backslash) you can escape `$`, `}` and `\`, within choice elements the backslash also escapes comma and pipe characters.
+Below is the EBNF for snippets.
 
 ```
 any         ::= tabstop | placeholder | choice | variable | text
@@ -127,3 +127,5 @@ var         ::= [_a-zA-Z] [_a-zA-Z0-9]*
 int         ::= [0-9]+
 text        ::= .*
 ```
+
+Escaping is done with with the `\` (backslash) character. The rule of thumb is that you can escape characters that otherwise would have a syntactic meaning, e.g within text you can escape `$`, `}` and `\`, within choice elements you can escape `|`, `,` and `\`, and within transform elements you can escape `/` and `\`. Also note that in JSON you need to escape `\` as `\\`.

@@ -13,12 +13,15 @@ import * as fileSchemes from '../configuration/fileSchemes';
 import { Schemes } from '../configuration/schemes';
 import { TelemetryReporter } from '../logging/telemetry';
 import { API } from '../tsServer/api';
+import { CachedResponse } from '../tsServer/cachedResponse';
 import type * as Proto from '../tsServer/protocol/protocol';
+import * as PConst from '../tsServer/protocol/protocol.const';
 import * as typeConverters from '../typeConverters';
 import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
 import { coalesce } from '../utils/arrays';
 import { nulToken } from '../utils/cancellation';
 import FormattingOptionsManager from './fileConfigurationManager';
+import { CompositeCommand, EditorChatFollowUp } from './util/copilot';
 import { conditionalRegistration, requireSomeCapability } from './util/dependentRegistration';
 
 function toWorkspaceEdit(client: ITypeScriptServiceClient, edits: readonly Proto.FileCodeEdits[]): vscode.WorkspaceEdit {
@@ -34,20 +37,10 @@ function toWorkspaceEdit(client: ITypeScriptServiceClient, edits: readonly Proto
 }
 
 
-class CompositeCommand implements Command {
-	public static readonly ID = '_typescript.compositeCommand';
-	public readonly id = CompositeCommand.ID;
-
-	public async execute(...commands: vscode.Command[]): Promise<void> {
-		for (const command of commands) {
-			await vscode.commands.executeCommand(command.command, ...(command.arguments ?? []));
-		}
-	}
-}
-
 namespace DidApplyRefactoringCommand {
 	export interface Args {
 		readonly action: string;
+		readonly trigger: vscode.CodeActionTriggerKind;
 	}
 }
 
@@ -64,6 +57,7 @@ class DidApplyRefactoringCommand implements Command {
 			"refactor.execute" : {
 				"owner": "mjbvz",
 				"action" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+				"trigger" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
 				"${include}": [
 					"${TypeScriptCommonProperties}"
 				]
@@ -71,6 +65,7 @@ class DidApplyRefactoringCommand implements Command {
 		*/
 		this.telemetryReporter.logTelemetry('refactor.execute', {
 			action: args.action,
+			trigger: args.trigger,
 		});
 	}
 }
@@ -79,6 +74,7 @@ namespace SelectRefactorCommand {
 		readonly document: vscode.TextDocument;
 		readonly refactor: Proto.ApplicableRefactorInfo;
 		readonly rangeOrSelection: vscode.Range | vscode.Selection;
+		readonly trigger: vscode.CodeActionTriggerKind;
 	}
 }
 
@@ -105,11 +101,11 @@ class SelectRefactorCommand implements Command {
 			return;
 		}
 
-		const tsAction = new InlinedCodeAction(this.client, args.document, args.refactor, selected.action, args.rangeOrSelection);
+		const tsAction = new InlinedCodeAction(this.client, args.document, args.refactor, selected.action, args.rangeOrSelection, args.trigger);
 		await tsAction.resolve(nulToken);
 
 		if (tsAction.edit) {
-			if (!(await vscode.workspace.applyEdit(tsAction.edit))) {
+			if (!(await vscode.workspace.applyEdit(tsAction.edit, { isRefactoring: true }))) {
 				vscode.window.showErrorMessage(vscode.l10n.t("Could not apply refactoring"));
 				return;
 			}
@@ -126,6 +122,7 @@ namespace MoveToFileRefactorCommand {
 		readonly document: vscode.TextDocument;
 		readonly action: Proto.RefactorActionInfo;
 		readonly range: vscode.Range;
+		readonly trigger: vscode.CodeActionTriggerKind;
 	}
 }
 
@@ -145,28 +142,28 @@ class MoveToFileRefactorCommand implements Command {
 		}
 
 		const targetFile = await this.getTargetFile(args.document, file, args.range);
-		if (!targetFile) {
+		if (!targetFile || targetFile.toString() === file.toString()) {
 			return;
 		}
 
-		const fileSuggestionArgs: Proto.GetEditsForMoveToFileRefactorRequestArgs = {
+		const fileSuggestionArgs: Proto.GetEditsForRefactorRequestArgs = {
 			...typeConverters.Range.toFileRangeRequestArgs(file, args.range),
-			filepath: targetFile,
 			action: 'Move to file',
 			refactor: 'Move to file',
+			interactiveRefactorArguments: { targetFile },
 		};
 
-		const response = await this.client.execute('getEditsForMoveToFileRefactor', fileSuggestionArgs, nulToken);
+		const response = await this.client.execute('getEditsForRefactor', fileSuggestionArgs, nulToken);
 		if (response.type !== 'response' || !response.body) {
 			return;
 		}
 		const edit = toWorkspaceEdit(this.client, response.body.edits);
-		if (!(await vscode.workspace.applyEdit(edit))) {
+		if (!(await vscode.workspace.applyEdit(edit, { isRefactoring: true }))) {
 			vscode.window.showErrorMessage(vscode.l10n.t("Could not apply refactoring"));
 			return;
 		}
 
-		await this.didApplyCommand.execute({ action: args.action.name });
+		await this.didApplyCommand.execute({ action: args.action.name, trigger: args.trigger });
 	}
 
 	private async getTargetFile(document: vscode.TextDocument, file: string, range: vscode.Range): Promise<string | undefined> {
@@ -175,60 +172,102 @@ class MoveToFileRefactorCommand implements Command {
 		if (response.type !== 'response' || !response.body) {
 			return;
 		}
+		const body = response.body;
 
-		const selectFileItem: vscode.QuickPickItem = {
-			label: vscode.l10n.t("Select file..."),
-			detail: vscode.l10n.t("Select file or enter new file path..."),
-		};
-
-		type DestinationItem = vscode.QuickPickItem & { file: string };
+		type DestinationItem = vscode.QuickPickItem & { readonly file?: string };
+		const selectExistingFileItem: vscode.QuickPickItem = { label: vscode.l10n.t("Select existing file...") };
+		const selectNewFileItem: vscode.QuickPickItem = { label: vscode.l10n.t("Enter new file path...") };
 
 		const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
+		const quickPick = vscode.window.createQuickPick<DestinationItem>();
+		quickPick.ignoreFocusOut = true;
 
-		const destinationItems = response.body.files.map((file): DestinationItem => {
-			const uri = this.client.toResource(file);
-			const parentDir = Utils.dirname(uri);
-
-			let description;
-			if (workspaceFolder) {
-				if (uri.scheme === Schemes.file) {
-					description = path.relative(workspaceFolder.uri.fsPath, parentDir.fsPath);
-				} else {
-					description = path.posix.relative(workspaceFolder.uri.path, parentDir.path);
-				}
-			} else {
-				description = parentDir.fsPath;
+		// true so we don't skip computing in the first call
+		let quickPickInRelativeMode = true;
+		const updateItems = () => {
+			const relativeQuery = ['./', '../'].find(str => quickPick.value.startsWith(str));
+			if (quickPickInRelativeMode === false && !!relativeQuery === false) {
+				return;
 			}
+			quickPickInRelativeMode = !!relativeQuery;
+			const destinationItems = body.files.map((file): DestinationItem | undefined => {
+				const uri = this.client.toResource(file);
+				const parentDir = Utils.dirname(uri);
+				const filename = Utils.basename(uri);
 
-			return {
-				file,
-				label: Utils.basename(uri),
-				description,
-			};
-		});
+				let description: string | undefined;
+				if (workspaceFolder) {
+					if (uri.scheme === Schemes.file) {
+						description = path.relative(workspaceFolder.uri.fsPath, parentDir.fsPath);
+					} else {
+						description = path.posix.relative(workspaceFolder.uri.path, parentDir.path);
+					}
+					if (relativeQuery) {
+						const convertRelativePath = (str: string) => {
+							return !str.startsWith('../') ? `./${str}` : str;
+						};
 
-		const picked = await vscode.window.showQuickPick([
-			selectFileItem,
-			{ label: vscode.l10n.t("Destination Files"), kind: vscode.QuickPickItemKind.Separator },
-			...destinationItems
-		], {
-			title: vscode.l10n.t("Move to File"),
-			placeHolder: vscode.l10n.t("Enter file path"),
+						const relativePath = convertRelativePath(path.relative(path.dirname(document.uri.fsPath), uri.fsPath));
+						if (!relativePath.startsWith(relativeQuery)) {
+							return;
+						}
+						description = relativePath;
+					}
+				} else {
+					description = parentDir.fsPath;
+				}
+
+				return {
+					file,
+					label: Utils.basename(uri),
+					description: relativeQuery ? description : path.join(description, filename),
+				};
+			});
+			quickPick.items = [
+				selectExistingFileItem,
+				selectNewFileItem,
+				{ label: vscode.l10n.t("destination files"), kind: vscode.QuickPickItemKind.Separator },
+				...coalesce(destinationItems)
+			];
+		};
+		quickPick.title = vscode.l10n.t("Move to File");
+		quickPick.placeholder = vscode.l10n.t("Enter file path");
+		quickPick.matchOnDescription = true;
+		quickPick.onDidChangeValue(updateItems);
+		updateItems();
+
+		const picked = await new Promise<DestinationItem | undefined>(resolve => {
+			quickPick.onDidAccept(() => {
+				resolve(quickPick.selectedItems[0]);
+				quickPick.dispose();
+			});
+			quickPick.onDidHide(() => {
+				resolve(undefined);
+				quickPick.dispose();
+			});
+			quickPick.show();
 		});
 		if (!picked) {
 			return;
 		}
 
-		if (picked === selectFileItem) {
+		if (picked === selectExistingFileItem) {
+			const picked = await vscode.window.showOpenDialog({
+				title: vscode.l10n.t("Select move destination"),
+				openLabel: vscode.l10n.t("Move to File"),
+				defaultUri: Utils.dirname(document.uri),
+			});
+			return picked?.length ? this.client.toTsFilePath(picked[0]) : undefined;
+		} else if (picked === selectNewFileItem) {
 			const picked = await vscode.window.showSaveDialog({
 				title: vscode.l10n.t("Select move destination"),
 				saveLabel: vscode.l10n.t("Move to File"),
-				defaultUri: vscode.Uri.joinPath(Utils.dirname(document.uri), response.body.newFilename)
+				defaultUri: this.client.toResource(response.body.newFileName),
 			});
 			return picked ? this.client.toTsFilePath(picked) : undefined;
+		} else {
+			return picked.file;
 		}
-
-		return (picked as DestinationItem).file;
 	}
 }
 
@@ -313,17 +352,19 @@ class InlinedCodeAction extends vscode.CodeAction {
 		public readonly refactor: Proto.ApplicableRefactorInfo,
 		public readonly action: Proto.RefactorActionInfo,
 		public readonly range: vscode.Range,
+		trigger: vscode.CodeActionTriggerKind,
 	) {
-		super(action.description, InlinedCodeAction.getKind(action));
+		const title = action.description;
+		super(title, InlinedCodeAction.getKind(action));
 
 		if (action.notApplicableReason) {
 			this.disabled = { reason: action.notApplicableReason };
 		}
 
 		this.command = {
-			title: action.description,
+			title,
 			command: DidApplyRefactoringCommand.ID,
-			arguments: [<DidApplyRefactoringCommand.Args>{ action: action.name }],
+			arguments: [{ action: action.name, trigger } satisfies DidApplyRefactoringCommand.Args],
 		};
 	}
 
@@ -364,7 +405,7 @@ class InlinedCodeAction extends vscode.CodeAction {
 								this.document.uri,
 								typeConverters.Position.fromLocation(response.body.renameLocation)
 							]]
-						}
+						},
 					])
 				};
 			}
@@ -385,6 +426,7 @@ class MoveToFileCodeAction extends vscode.CodeAction {
 		document: vscode.TextDocument,
 		action: Proto.RefactorActionInfo,
 		range: vscode.Range,
+		trigger: vscode.CodeActionTriggerKind,
 	) {
 		super(action.description, Move_File.kind);
 
@@ -395,7 +437,7 @@ class MoveToFileCodeAction extends vscode.CodeAction {
 		this.command = {
 			title: action.description,
 			command: MoveToFileRefactorCommand.ID,
-			arguments: [<MoveToFileRefactorCommand.Args>{ action, document, range }]
+			arguments: [{ action, document, range, trigger } satisfies MoveToFileRefactorCommand.Args]
 		};
 	}
 }
@@ -404,31 +446,70 @@ class SelectCodeAction extends vscode.CodeAction {
 	constructor(
 		info: Proto.ApplicableRefactorInfo,
 		document: vscode.TextDocument,
-		rangeOrSelection: vscode.Range | vscode.Selection
+		rangeOrSelection: vscode.Range | vscode.Selection,
+		trigger: vscode.CodeActionTriggerKind,
 	) {
 		super(info.description, vscode.CodeActionKind.Refactor);
 		this.command = {
 			title: info.description,
 			command: SelectRefactorCommand.ID,
-			arguments: [<SelectRefactorCommand.Args>{ action: this, document, refactor: info, rangeOrSelection }]
+			arguments: [{ document, refactor: info, rangeOrSelection, trigger } satisfies SelectRefactorCommand.Args]
 		};
 	}
 }
-
 type TsCodeAction = InlinedCodeAction | MoveToFileCodeAction | SelectCodeAction;
 
 class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeAction> {
 
+	private static readonly _declarationKinds = new Set([
+		PConst.Kind.module,
+		PConst.Kind.class,
+		PConst.Kind.interface,
+		PConst.Kind.function,
+		PConst.Kind.enum,
+		PConst.Kind.type,
+		PConst.Kind.const,
+		PConst.Kind.variable,
+		PConst.Kind.let,
+	]);
+
+	private static isOnSignatureName(node: Proto.NavigationTree, range: vscode.Range): boolean {
+		if (this._declarationKinds.has(node.kind)) {
+			// Show when on the name span
+			if (node.nameSpan) {
+				const convertedSpan = typeConverters.Range.fromTextSpan(node.nameSpan);
+				if (range.intersection(convertedSpan)) {
+					return true;
+				}
+			}
+
+			// Show when on the same line as an exported symbols without a name (handles default exports)
+			if (!node.nameSpan && /\bexport\b/.test(node.kindModifiers) && node.spans.length) {
+				const convertedSpan = typeConverters.Range.fromTextSpan(node.spans[0]);
+				if (range.intersection(new vscode.Range(convertedSpan.start.line, 0, convertedSpan.start.line, Number.MAX_SAFE_INTEGER))) {
+					return true;
+				}
+			}
+		}
+
+		// Show if on the signature of any children
+		return node.childItems?.some(child => this.isOnSignatureName(child, range)) ?? false;
+	}
+
 	constructor(
 		private readonly client: ITypeScriptServiceClient,
+		private readonly cachedNavTree: CachedResponse<Proto.NavTreeResponse>,
 		private readonly formattingOptionsManager: FormattingOptionsManager,
 		commandManager: CommandManager,
 		telemetryReporter: TelemetryReporter
 	) {
-		const didApplyRefactoringCommand = commandManager.register(new DidApplyRefactoringCommand(telemetryReporter));
+		const didApplyRefactoringCommand = new DidApplyRefactoringCommand(telemetryReporter);
+		commandManager.register(didApplyRefactoringCommand);
+
 		commandManager.register(new CompositeCommand());
 		commandManager.register(new SelectRefactorCommand(this.client));
 		commandManager.register(new MoveToFileRefactorCommand(this.client, didApplyRefactoringCommand));
+		commandManager.register(new EditorChatFollowUp(this.client, telemetryReporter));
 	}
 
 	public static readonly metadata: vscode.CodeActionProviderMetadata = {
@@ -460,17 +541,19 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 			return undefined;
 		}
 
-		const response = await this.client.interruptGetErr(() => {
+		const response = await this.interruptGetErrIfNeeded(context, () => {
 			const file = this.client.toOpenTsFilePath(document);
 			if (!file) {
 				return undefined;
 			}
+
 			this.formattingOptionsManager.ensureConfigurationForDocument(document, token);
 
-			const args: Proto.GetApplicableRefactorsRequestArgs & { kind?: string } = {
+			const args: Proto.GetApplicableRefactorsRequestArgs = {
 				...typeConverters.Range.toFileRangeRequestArgs(file, rangeOrSelection),
 				triggerReason: this.toTsTriggerReason(context),
-				kind: context.only?.value
+				kind: context.only?.value,
+				includeInteractiveActions: this.client.apiVersion.gte(API.v520),
 			};
 			return this.client.execute('getApplicableRefactors', args, token);
 		});
@@ -478,21 +561,50 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 			return undefined;
 		}
 
-		const actions = Array.from(this.convertApplicableRefactors(document, response.body, rangeOrSelection)).filter(action => {
+		const applicableRefactors = this.convertApplicableRefactors(document, context, response.body, rangeOrSelection);
+		const actions = coalesce(await Promise.all(Array.from(applicableRefactors, async action => {
 			if (this.client.apiVersion.lt(API.v430)) {
 				// Don't show 'infer return type' refactoring unless it has been explicitly requested
 				// https://github.com/microsoft/TypeScript/issues/42993
 				if (!context.only && action.kind?.value === 'refactor.rewrite.function.returnType') {
-					return false;
+					return undefined;
 				}
 			}
-			return true;
-		});
+
+			// Don't include move actions on auto light bulb unless you are on a declaration name
+			if (this.client.apiVersion.lt(API.v540) && context.triggerKind === vscode.CodeActionTriggerKind.Automatic) {
+				if (action.kind?.value === Move_NewFile.kind.value || action.kind?.value === Move_File.kind.value) {
+					const file = this.client.toOpenTsFilePath(document);
+					if (!file) {
+						return undefined;
+					}
+
+					const navTree = await this.cachedNavTree.execute(document, () => this.client.execute('navtree', { file }, token));
+					if (navTree.type !== 'response' || !navTree.body || !TypeScriptRefactorProvider.isOnSignatureName(navTree.body, rangeOrSelection)) {
+						return undefined;
+					}
+				}
+			}
+
+			return action;
+		})));
 
 		if (!context.only) {
 			return actions;
 		}
+
 		return this.pruneInvalidActions(this.appendInvalidActions(actions), context.only, /* numberOfInvalid = */ 5);
+	}
+
+	private interruptGetErrIfNeeded<R>(context: vscode.CodeActionContext, f: () => R): R {
+		// Only interrupt diagnostics computation when code actions are explicitly
+		// (such as using the refactor command or a keybinding). This is a clear
+		// user action so we want to return results as quickly as possible.
+		if (context.triggerKind === vscode.CodeActionTriggerKind.Invoke) {
+			return this.client.interruptGetErr(f);
+		} else {
+			return f();
+		}
 	}
 
 	public async resolveCodeAction(
@@ -506,44 +618,46 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 	}
 
 	private toTsTriggerReason(context: vscode.CodeActionContext): Proto.RefactorTriggerReason | undefined {
-		if (context.triggerKind === vscode.CodeActionTriggerKind.Invoke) {
-			return 'invoked';
-		}
-		return undefined;
+		return context.triggerKind === vscode.CodeActionTriggerKind.Invoke ? 'invoked' : 'implicit';
 	}
 
 	private *convertApplicableRefactors(
 		document: vscode.TextDocument,
+		context: vscode.CodeActionContext,
 		refactors: readonly Proto.ApplicableRefactorInfo[],
 		rangeOrSelection: vscode.Range | vscode.Selection
 	): Iterable<TsCodeAction> {
 		for (const refactor of refactors) {
 			if (refactor.inlineable === false) {
-				yield new SelectCodeAction(refactor, document, rangeOrSelection);
+				yield new SelectCodeAction(refactor, document, rangeOrSelection, context.triggerKind);
 			} else {
 				for (const action of refactor.actions) {
-					yield this.refactorActionToCodeAction(document, refactor, action, rangeOrSelection, refactor.actions);
+					for (const codeAction of this.refactorActionToCodeActions(document, context, refactor, action, rangeOrSelection, refactor.actions)) {
+						yield codeAction;
+					}
 				}
 			}
 		}
 	}
 
-	private refactorActionToCodeAction(
+	private refactorActionToCodeActions(
 		document: vscode.TextDocument,
+		context: vscode.CodeActionContext,
 		refactor: Proto.ApplicableRefactorInfo,
 		action: Proto.RefactorActionInfo,
 		rangeOrSelection: vscode.Range | vscode.Selection,
 		allActions: readonly Proto.RefactorActionInfo[],
-	): TsCodeAction {
-		let codeAction: TsCodeAction;
+	): TsCodeAction[] {
+		const codeActions: TsCodeAction[] = [];
 		if (action.name === 'Move to file') {
-			codeAction = new MoveToFileCodeAction(document, action, rangeOrSelection);
+			codeActions.push(new MoveToFileCodeAction(document, action, rangeOrSelection, context.triggerKind));
 		} else {
-			codeAction = new InlinedCodeAction(this.client, document, refactor, action, rangeOrSelection);
+			codeActions.push(new InlinedCodeAction(this.client, document, refactor, action, rangeOrSelection, context.triggerKind));
 		}
-
-		codeAction.isPreferred = TypeScriptRefactorProvider.isPreferred(action, allActions);
-		return codeAction;
+		for (const codeAction of codeActions) {
+			codeAction.isPreferred = TypeScriptRefactorProvider.isPreferred(action, allActions);
+		}
+		return codeActions;
 	}
 
 	private shouldTrigger(context: vscode.CodeActionContext, rangeOrSelection: vscode.Range | vscode.Selection) {
@@ -653,6 +767,7 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 export function register(
 	selector: DocumentSelector,
 	client: ITypeScriptServiceClient,
+	cachedNavTree: CachedResponse<Proto.NavTreeResponse>,
 	formattingOptionsManager: FormattingOptionsManager,
 	commandManager: CommandManager,
 	telemetryReporter: TelemetryReporter,
@@ -661,7 +776,7 @@ export function register(
 		requireSomeCapability(client, ClientCapability.Semantic),
 	], () => {
 		return vscode.languages.registerCodeActionsProvider(selector.semantic,
-			new TypeScriptRefactorProvider(client, formattingOptionsManager, commandManager, telemetryReporter),
+			new TypeScriptRefactorProvider(client, cachedNavTree, formattingOptionsManager, commandManager, telemetryReporter),
 			TypeScriptRefactorProvider.metadata);
 	});
 }

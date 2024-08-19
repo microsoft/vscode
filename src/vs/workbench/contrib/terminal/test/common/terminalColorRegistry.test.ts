@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { Extensions as ThemeingExtensions, IColorRegistry, ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ansiColorIdentifiers, registerColors } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { IColorTheme } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 registerColors();
 
@@ -29,6 +30,7 @@ function getMockTheme(type: ColorScheme): IColorTheme {
 }
 
 suite('Workbench - TerminalColorRegistry', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('hc colors', function () {
 		const theme = getMockTheme(ColorScheme.HIGH_CONTRAST_DARK);
@@ -62,7 +64,7 @@ suite('Workbench - TerminalColorRegistry', () => {
 		assert.deepStrictEqual(colors, [
 			'#000000',
 			'#cd3131',
-			'#00bc00',
+			'#107c10',
 			'#949800',
 			'#0451a5',
 			'#bc05bc',

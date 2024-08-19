@@ -15,7 +15,7 @@ export function revealResourcesInOS(resources: URI[], nativeHostService: INative
 	if (resources.length) {
 		sequence(resources.map(r => async () => {
 			if (r.scheme === Schemas.file || r.scheme === Schemas.vscodeUserData) {
-				nativeHostService.showItemInFolder(r.fsPath);
+				nativeHostService.showItemInFolder(r.with({ scheme: Schemas.file }).fsPath);
 			}
 		}));
 	} else if (workspaceContextService.getWorkspace().folders.length) {

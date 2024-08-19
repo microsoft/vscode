@@ -14,9 +14,10 @@ import { coalesce } from 'vs/base/common/arrays';
 import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditableData } from 'vs/workbench/common/views';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
 import { ProgressLocation } from 'vs/platform/progress/common/progress';
+import { isActiveElement } from 'vs/base/browser/dom';
 
 export interface IExplorerService {
 	readonly _serviceBrand: undefined;
@@ -49,20 +50,25 @@ export interface IExplorerService {
 export const IExplorerService = createDecorator<IExplorerService>('explorerService');
 
 export interface IExplorerView {
+	autoReveal: boolean | 'force' | 'focusNoScroll';
 	getContext(respectMultiSelection: boolean): ExplorerItem[];
-	refresh(recursive: boolean, item?: ExplorerItem): Promise<void>;
-	selectResource(resource: URI | undefined, reveal?: boolean | string): Promise<void>;
+	refresh(recursive: boolean, item?: ExplorerItem, cancelEditing?: boolean): Promise<void>;
+	selectResource(resource: URI | undefined, reveal?: boolean | string, retry?: number): Promise<void>;
 	setTreeInput(): Promise<void>;
 	itemsCopied(tats: ExplorerItem[], cut: boolean, previousCut: ExplorerItem[] | undefined): void;
 	setEditable(stat: ExplorerItem, isEditing: boolean): Promise<void>;
 	isItemVisible(item: ExplorerItem): boolean;
 	isItemCollapsed(item: ExplorerItem): boolean;
 	hasFocus(): boolean;
+	getFocus(): ExplorerItem[];
+	focusNext(): void;
+	focusLast(): void;
 }
 
 function getFocus(listService: IListService): unknown | undefined {
 	const list = listService.lastFocusedList;
-	if (list?.getHTMLElement() === document.activeElement) {
+	const element = list?.getHTMLElement();
+	if (element && isActiveElement(element)) {
 		let focus: unknown;
 		if (list instanceof List) {
 			const focused = list.getFocusedElements();
@@ -84,9 +90,9 @@ function getFocus(listService: IListService): unknown | undefined {
 
 // Commands can get executed from a command palette, from a context menu or from some list using a keybinding
 // To cover all these cases we need to properly compute the resource on which the command is being executed
-export function getResourceForCommand(resource: URI | object | undefined, listService: IListService, editorService: IEditorService): URI | undefined {
-	if (URI.isUri(resource)) {
-		return resource;
+export function getResourceForCommand(commandArg: unknown, editorService: IEditorService, listService: IListService): URI | undefined {
+	if (URI.isUri(commandArg)) {
+		return commandArg;
 	}
 
 	const focus = getFocus(listService);
@@ -99,9 +105,10 @@ export function getResourceForCommand(resource: URI | object | undefined, listSe
 	return EditorResourceAccessor.getOriginalUri(editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 }
 
-export function getMultiSelectedResources(resource: URI | object | undefined, listService: IListService, editorService: IEditorService, explorerService: IExplorerService): Array<URI> {
+export function getMultiSelectedResources(commandArg: unknown, listService: IListService, editorSerice: IEditorService, editorGroupService: IEditorGroupsService, explorerService: IExplorerService): Array<URI> {
 	const list = listService.lastFocusedList;
-	if (list?.getHTMLElement() === document.activeElement) {
+	const element = list?.getHTMLElement();
+	if (element && isActiveElement(element)) {
 		// Explorer
 		if (list instanceof AsyncDataTree && list.getFocus().every(item => item instanceof ExplorerItem)) {
 			// Explorer
@@ -117,26 +124,47 @@ export function getMultiSelectedResources(resource: URI | object | undefined, li
 			const focusedElements = list.getFocusedElements();
 			const focus = focusedElements.length ? focusedElements[0] : undefined;
 			let mainUriStr: string | undefined = undefined;
-			if (URI.isUri(resource)) {
-				mainUriStr = resource.toString();
+			if (URI.isUri(commandArg)) {
+				mainUriStr = commandArg.toString();
 			} else if (focus instanceof OpenEditor) {
 				const focusedResource = focus.getResource();
 				mainUriStr = focusedResource ? focusedResource.toString() : undefined;
 			}
 			// We only respect the selection if it contains the main element.
-			if (selection.some(s => s.toString() === mainUriStr)) {
+			const mainIndex = selection.findIndex(s => s.toString() === mainUriStr);
+			if (mainIndex !== -1) {
+				// Move the main resource to the front of the selection.
+				const mainResource = selection[mainIndex];
+				selection.splice(mainIndex, 1);
+				selection.unshift(mainResource);
 				return selection;
 			}
 		}
 	}
 
-	const result = getResourceForCommand(resource, listService, editorService);
+	// Check for tabs multiselect
+	const activeGroup = editorGroupService.activeGroup;
+	const selection = activeGroup.selectedEditors;
+	if (selection.length > 1 && URI.isUri(commandArg)) {
+		// If the resource is part of the tabs selection, return all selected tabs/resources.
+		// It's possible that multiple tabs are selected but the action was applied to a resource that is not part of the selection.
+		const mainEditorSelectionIndex = selection.findIndex(e => e.matches({ resource: commandArg }));
+		if (mainEditorSelectionIndex !== -1) {
+			const mainEditor = selection[mainEditorSelectionIndex];
+			selection.splice(mainEditorSelectionIndex, 1);
+			selection.unshift(mainEditor);
+			return selection.map(editor => EditorResourceAccessor.getOriginalUri(editor)).filter(uri => !!uri);
+		}
+	}
+
+	const result = getResourceForCommand(commandArg, editorSerice, listService);
 	return !!result ? [result] : [];
 }
 
-export function getOpenEditorsViewMultiSelection(listService: IListService, editorGroupService: IEditorGroupsService): Array<IEditorIdentifier> | undefined {
-	const list = listService.lastFocusedList;
-	if (list?.getHTMLElement() === document.activeElement) {
+export function getOpenEditorsViewMultiSelection(accessor: ServicesAccessor): Array<IEditorIdentifier> | undefined {
+	const list = accessor.get(IListService).lastFocusedList;
+	const element = list?.getHTMLElement();
+	if (element && isActiveElement(element)) {
 		// Open editors view
 		if (list instanceof List) {
 			const selection = coalesce(list.getSelectedElements().filter(s => s instanceof OpenEditor));
@@ -150,6 +178,7 @@ export function getOpenEditorsViewMultiSelection(listService: IListService, edit
 			if (selection.some(s => s === mainEditor)) {
 				return selection;
 			}
+			return mainEditor ? [mainEditor] : undefined;
 		}
 	}
 

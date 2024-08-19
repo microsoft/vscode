@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { MainThreadDocumentsAndEditors } from 'vs/workbench/api/browser/mainThreadDocumentsAndEditors';
 import { SingleProxyRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -27,10 +27,15 @@ import { TestTextResourcePropertiesService, TestWorkingCopyFileService } from 'v
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { LanguageService } from 'vs/editor/common/services/languageService';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { ILanguageService } from 'vs/editor/common/languages/language';
+import { LanguageService } from 'vs/editor/common/services/languageService';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
+import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 
 suite('MainThreadDocumentsAndEditors', () => {
 
@@ -60,12 +65,15 @@ suite('MainThreadDocumentsAndEditors', () => {
 		const notificationService = new TestNotificationService();
 		const undoRedoService = new UndoRedoService(dialogService, notificationService);
 		const themeService = new TestThemeService();
+		const instantiationService = new TestInstantiationService();
+		instantiationService.set(ILanguageService, disposables.add(new LanguageService()));
+		instantiationService.set(ILanguageConfigurationService, new TestLanguageConfigurationService());
+		instantiationService.set(IUndoRedoService, undoRedoService);
 		modelService = new ModelService(
 			configService,
 			new TestTextResourcePropertiesService(configService),
 			undoRedoService,
-			disposables.add(new LanguageService()),
-			new TestLanguageConfigurationService(),
+			instantiationService
 		);
 		codeEditorService = new TestCodeEditorService(themeService);
 		textFileService = new class extends mock<ITextFileService>() {
@@ -76,7 +84,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 				onDidChangeDirty: Event.None
 			};
 		};
-		const workbenchEditorService = new TestEditorService();
+		const workbenchEditorService = disposables.add(new TestEditorService());
 		const editorGroupService = new TestEditorGroupsService();
 
 		const fileService = new class extends mock<IFileService>() {
@@ -120,10 +128,12 @@ suite('MainThreadDocumentsAndEditors', () => {
 		disposables.dispose();
 	});
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('Model#add', () => {
 		deltas.length = 0;
 
-		modelService.createModel('farboo', null);
+		disposables.add(modelService.createModel('farboo', null));
 
 		assert.strictEqual(deltas.length, 1);
 		const [delta] = deltas;
@@ -143,6 +153,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 			TextModel._MODEL_SYNC_LIMIT = largeModelString.length / 2;
 
 			const model = modelService.createModel(largeModelString, null);
+			disposables.add(model);
 			assert.ok(model.isTooLargeForSyncing());
 
 			assert.strictEqual(deltas.length, 1);
@@ -172,6 +183,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 			deltas.length = 0;
 			assert.strictEqual(deltas.length, 0);
 			editor.dispose();
+			model.dispose();
 
 		} finally {
 			TextModel._MODEL_SYNC_LIMIT = oldLimit;
@@ -182,6 +194,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 		this.timeout(1000 * 60); // increase timeout for this one test
 
 		const model = modelService.createModel('test', null, undefined, true);
+		disposables.add(model);
 		assert.ok(model.isForSimpleWidget);
 
 		assert.strictEqual(deltas.length, 1);
@@ -227,10 +240,10 @@ suite('MainThreadDocumentsAndEditors', () => {
 		assert.strictEqual(second.newActiveEditor, undefined);
 
 		editor.dispose();
+		model.dispose();
 	});
 
 	test('editor with dispos-ed/-ing model', () => {
-		modelService.createModel('foobar', null);
 		const model = modelService.createModel('farboo', null);
 		const editor = myCreateTestCodeEditor(model);
 
@@ -248,5 +261,6 @@ suite('MainThreadDocumentsAndEditors', () => {
 		assert.strictEqual(first.addedEditors, undefined);
 
 		editor.dispose();
+		model.dispose();
 	});
 });

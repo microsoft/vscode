@@ -354,10 +354,27 @@
 		copyImage();
 	});
 
-	async function copyImage() {
+	async function copyImage(retries = 5) {
+		if (!document.hasFocus() && retries > 0) {
+			// copyImage is called at the same time as webview.reveal, which means this function is running whilst the webview is gaining focus.
+			// Since navigator.clipboard.write requires the document to be focused, we need to wait for focus.
+			// We cannot use a listener, as there is a high chance the focus is gained during the setup of the listener resulting in us missing it.
+			setTimeout(() => { copyImage(retries - 1); }, 20);
+			return;
+		}
+
 		try {
 			await navigator.clipboard.write([new ClipboardItem({
-				'image/png': fetch(image.src).then(request => request.blob())
+				'image/png': new Promise((resolve, reject) => {
+					const canvas = document.createElement('canvas');
+					canvas.width = image.naturalWidth;
+					canvas.height = image.naturalHeight;
+					canvas.getContext('2d').drawImage(image, 0, 0);
+					canvas.toBlob((blob) => {
+						resolve(blob);
+						canvas.remove();
+					}, 'image/png');
+				})
 			})]);
 		} catch (e) {
 			console.error(e);

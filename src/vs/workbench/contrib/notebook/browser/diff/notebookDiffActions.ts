@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IBulkEditService, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ActiveEditorContext } from 'vs/workbench/common/contextkeys';
-import { DiffElementViewModelBase, SideBySideDiffElementViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
-import { INotebookTextDiffEditor, NOTEBOOK_DIFF_CELL_INPUT, NOTEBOOK_DIFF_CELL_PROPERTY, NOTEBOOK_DIFF_CELL_PROPERTY_EXPANDED } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
+import { DiffElementCellViewModelBase, SideBySideDiffElementViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
+import { INotebookTextDiffEditor, NOTEBOOK_DIFF_CELL_IGNORE_WHITESPACE_KEY, NOTEBOOK_DIFF_CELL_INPUT, NOTEBOOK_DIFF_CELL_PROPERTY, NOTEBOOK_DIFF_CELL_PROPERTY_EXPANDED } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
 import { NotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditor';
 import { NotebookDiffEditorInput } from 'vs/workbench/contrib/notebook/common/notebookDiffEditorInput';
-import { nextChangeIcon, openAsTextIcon, previousChangeIcon, renderOutputIcon, revertIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
+import { nextChangeIcon, openAsTextIcon, previousChangeIcon, renderOutputIcon, revertIcon, toggleWhitespace } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
@@ -23,6 +23,7 @@ import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { CellEditType, NOTEBOOK_DIFF_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 
 // ActiveEditorContext.isEqualTo(SearchEditorConstants.SearchEditorID)
 
@@ -31,7 +32,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'notebook.diff.switchToText',
 			icon: openAsTextIcon,
-			title: { value: localize('notebook.diff.switchToText', "Open Text Diff Editor"), original: 'Open Text Diff Editor' },
+			title: localize2('notebook.diff.switchToText', 'Open Text Diff Editor'),
 			precondition: ActiveEditorContext.isEqualTo(NotebookTextDiffEditor.ID),
 			menu: [{
 				id: MenuId.EditorTitle,
@@ -78,7 +79,7 @@ registerAction2(class extends Action2 {
 			}
 		);
 	}
-	run(accessor: ServicesAccessor, context?: { cell: DiffElementViewModelBase }) {
+	run(accessor: ServicesAccessor, context?: { cell: DiffElementCellViewModelBase }) {
 		if (!context) {
 			return;
 		}
@@ -133,7 +134,7 @@ registerAction2(class extends Action2 {
 			}
 		);
 	}
-	run(accessor: ServicesAccessor, context?: { cell: DiffElementViewModelBase }) {
+	run(accessor: ServicesAccessor, context?: { cell: DiffElementCellViewModelBase }) {
 		if (!context) {
 			return;
 		}
@@ -158,7 +159,7 @@ registerAction2(class extends Action2 {
 			}
 		);
 	}
-	run(accessor: ServicesAccessor, context?: { cell: DiffElementViewModelBase }) {
+	run(accessor: ServicesAccessor, context?: { cell: DiffElementCellViewModelBase }) {
 		if (!context) {
 			return;
 		}
@@ -186,20 +187,53 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super(
 			{
+				id: 'notebook.toggle.diff.cell.ignoreTrimWhitespace',
+				title: localize('ignoreTrimWhitespace.label', "Show Leading/Trailing Whitespace Differences"),
+				icon: toggleWhitespace,
+				f1: false,
+				menu: {
+					id: MenuId.NotebookDiffCellInputTitle,
+					when: NOTEBOOK_DIFF_CELL_INPUT,
+					order: 1,
+				},
+				precondition: NOTEBOOK_DIFF_CELL_INPUT,
+				toggled: ContextKeyExpr.equals(NOTEBOOK_DIFF_CELL_IGNORE_WHITESPACE_KEY, false),
+			}
+		);
+	}
+	run(accessor: ServicesAccessor, context?: { cell: DiffElementCellViewModelBase }) {
+		const cell = context?.cell;
+		if (!cell?.modified) {
+			return;
+		}
+		const uri = cell.modified.uri;
+		const configService = accessor.get(ITextResourceConfigurationService);
+		const key = 'diffEditor.ignoreTrimWhitespace';
+		const val = configService.getValue(uri, key);
+		configService.updateValue(uri, key, !val);
+	}
+});
+
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super(
+			{
 				id: 'notebook.diff.cell.revertInput',
 				title: localize('notebook.diff.cell.revertInput', "Revert Input"),
 				icon: revertIcon,
 				f1: false,
 				menu: {
 					id: MenuId.NotebookDiffCellInputTitle,
-					when: NOTEBOOK_DIFF_CELL_INPUT
+					when: NOTEBOOK_DIFF_CELL_INPUT,
+					order: 2
 				},
 				precondition: NOTEBOOK_DIFF_CELL_INPUT
 
 			}
 		);
 	}
-	run(accessor: ServicesAccessor, context?: { cell: DiffElementViewModelBase }) {
+	run(accessor: ServicesAccessor, context?: { cell: DiffElementCellViewModelBase }) {
 		if (!context) {
 			return;
 		}
@@ -252,7 +286,7 @@ class ToggleRenderAction extends Action2 {
 registerAction2(class extends ToggleRenderAction {
 	constructor() {
 		super('notebook.diff.showOutputs',
-			{ value: localize('notebook.diff.showOutputs', "Show Outputs Differences"), original: 'Show Outputs Differences' },
+			localize2('notebook.diff.showOutputs', 'Show Outputs Differences'),
 			ActiveEditorContext.isEqualTo(NotebookTextDiffEditor.ID),
 			ContextKeyExpr.notEquals('config.notebook.diff.ignoreOutputs', true),
 			2,
@@ -265,7 +299,7 @@ registerAction2(class extends ToggleRenderAction {
 registerAction2(class extends ToggleRenderAction {
 	constructor() {
 		super('notebook.diff.showMetadata',
-			{ value: localize('notebook.diff.showMetadata', "Show Metadata Differences"), original: 'Show Metadata Differences' },
+			localize2('notebook.diff.showMetadata', 'Show Metadata Differences'),
 			ActiveEditorContext.isEqualTo(NotebookTextDiffEditor.ID),
 			ContextKeyExpr.notEquals('config.notebook.diff.ignoreMetadata', true),
 			1,

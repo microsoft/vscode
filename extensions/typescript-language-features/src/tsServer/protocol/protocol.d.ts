@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as ts from 'typescript/lib/tsserverlibrary';
+import type ts from '../../../../node_modules/typescript/lib/typescript';
 export = ts.server.protocol;
 
 
@@ -11,54 +11,13 @@ declare enum ServerType {
 	Semantic = 'semantic',
 }
 
-declare module 'typescript/lib/tsserverlibrary' {
+declare module '../../../../node_modules/typescript/lib/typescript' {
 	namespace server.protocol {
 		type TextInsertion = ts.TextInsertion;
 		type ScriptElementKind = ts.ScriptElementKind;
 
 		interface Response {
 			readonly _serverType?: ServerType;
-		}
-
-		interface GetMoveToRefactoringFileSuggestionsRequest extends Request {
-			command: 'getMoveToRefactoringFileSuggestions';
-			arguments: GetMoveToRefactoringFileSuggestionsRequestArgs;
-		}
-
-		type GetMoveToRefactoringFileSuggestionsRequestArgs = FileLocationOrRangeRequestArgs & {
-			triggerReason?: RefactorTriggerReason;
-			kind?: string;
-		};
-
-		interface GetMoveToRefactoringFileSuggestionsResponse extends Response {
-			body?: {
-				newFilename: string;
-				files: string[];
-			};
-		}
-
-		interface GetEditsForMoveToFileRefactorRequest extends Request {
-			command: 'getEditsForMoveToFileRefactor';
-			arguments: GetEditsForMoveToFileRefactorRequestArgs;
-		}
-
-		interface GetEditsForMoveToFileRefactorResponse extends Response {
-			body?: RefactorEditInfo;
-		}
-
-		type GetEditsForMoveToFileRefactorRequestArgs = FileLocationOrRangeRequestArgs & {
-			refactor: string;
-			action: string;
-			filepath: string;
-		};
-
-		interface LinkedEditingRangesBody {
-			ranges: TextSpan[];
-			wordPattern?: string;
-		}
-
-		interface LinkedEditingRangeResponse extends Response {
-			readonly body: LinkedEditingRangesBody;
 		}
 	}
 }

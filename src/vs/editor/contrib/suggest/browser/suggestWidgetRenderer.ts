@@ -15,7 +15,7 @@ import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { CompletionItemKind, CompletionItemKinds, CompletionItemTag } from 'vs/editor/common/languages';
-import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
+import { getIconClasses } from 'vs/editor/browser/services/getIconClasses';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import * as nls from 'vs/nls';
@@ -45,9 +45,14 @@ const _completionItemColor = new class ColorExtractor {
 			out[0] = item.completion.detail;
 			return true;
 		}
-		if (typeof item.completion.documentation === 'string') {
-			const match = ColorExtractor._regexRelaxed.exec(item.completion.documentation);
-			if (match && (match.index === 0 || match.index + match[0].length === item.completion.documentation.length)) {
+
+		if (item.completion.documentation) {
+			const value = typeof item.completion.documentation === 'string'
+				? item.completion.documentation
+				: item.completion.documentation.value;
+
+			const match = ColorExtractor._regexRelaxed.exec(value);
+			if (match && (match.index === 0 || match.index + match[0].length === value.length)) {
 				out[0] = match[0];
 				return true;
 			}
@@ -80,6 +85,8 @@ export interface ISuggestionTemplateData {
 	readonly detailsLabel: HTMLElement;
 	readonly readMore: HTMLElement;
 	readonly disposables: DisposableStore;
+
+	readonly configureFont: () => void;
 }
 
 export class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTemplateData> {
@@ -151,18 +158,14 @@ export class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTe
 			readMore.style.width = lineHeightPx;
 		};
 
-		configureFont();
-
-		disposables.add(this._editor.onDidChangeConfiguration(e => {
-			if (e.hasChanged(EditorOption.fontInfo) || e.hasChanged(EditorOption.suggestFontSize) || e.hasChanged(EditorOption.suggestLineHeight)) {
-				configureFont();
-			}
-		}));
-
-		return { root, left, right, icon, colorspan, iconLabel, iconContainer, parametersLabel, qualifierLabel, detailsLabel, readMore, disposables };
+		return { root, left, right, icon, colorspan, iconLabel, iconContainer, parametersLabel, qualifierLabel, detailsLabel, readMore, disposables, configureFont };
 	}
 
 	renderElement(element: CompletionItem, index: number, data: ISuggestionTemplateData): void {
+
+
+		data.configureFont();
+
 		const { completion } = element;
 		data.root.id = getAriaId(index);
 		data.colorspan.style.backgroundColor = '';

@@ -23,7 +23,7 @@ class MenuActions extends Disposable {
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
 
-	private disposables = this._register(new DisposableStore());
+	private readonly disposables = this._register(new DisposableStore());
 
 	constructor(
 		menuId: MenuId,
@@ -96,9 +96,8 @@ export class CompositeMenuActions extends Disposable {
 		const actions: IAction[] = [];
 
 		if (this.contextMenuId) {
-			const menu = this.menuService.createMenu(this.contextMenuId, this.contextKeyService);
-			createAndFillInActionBarActions(menu, this.options, { primary: [], secondary: actions });
-			menu.dispose();
+			const menu = this.menuService.getMenuActions(this.contextMenuId, this.contextKeyService, this.options);
+			createAndFillInActionBarActions(menu, { primary: [], secondary: actions });
 		}
 
 		return actions;

@@ -15,7 +15,7 @@ import { ExtHostEditorInsetsShape, MainThreadEditorInsetsShape } from './extHost
 export class ExtHostEditorInsets implements ExtHostEditorInsetsShape {
 
 	private _handlePool = 0;
-	private _disposables = new DisposableStore();
+	private readonly _disposables = new DisposableStore();
 	private _insets = new Map<number, { editor: vscode.TextEditor; inset: vscode.WebviewEditorInset; onDidReceiveMessage: Emitter<any> }>();
 
 	constructor(

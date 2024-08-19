@@ -76,19 +76,19 @@ export class ReplVariableElement implements INestingReplElement {
 	private readonly id = generateUuid();
 
 	constructor(
-		public readonly expr: IExpression,
+		public readonly expression: IExpression,
 		public readonly severity: severity,
 		public readonly sourceData?: IReplElementSource,
 	) {
-		this.hasChildren = expr.hasChildren;
+		this.hasChildren = expression.hasChildren;
 	}
 
 	getChildren(): IReplElement[] | Promise<IReplElement[]> {
-		return this.expr.getChildren();
+		return this.expression.getChildren();
 	}
 
 	toString(): string {
-		return this.expr.toString();
+		return this.expression.toString();
 	}
 
 	getId(): string {
@@ -169,7 +169,7 @@ export class ReplEvaluationResult extends ExpressionContainer implements IReplEl
 		return this._available;
 	}
 
-	constructor() {
+	constructor(public readonly originalExpression: string) {
 		super(undefined, undefined, 0, generateUuid());
 	}
 
@@ -260,7 +260,7 @@ export interface INewReplElementData {
 
 export class ReplModel {
 	private replElements: IReplElement[] = [];
-	private readonly _onDidChangeElements = new Emitter<void>();
+	private readonly _onDidChangeElements = new Emitter<IReplElement | undefined>();
 	readonly onDidChangeElements = this._onDidChangeElements.event;
 
 	constructor(private readonly configurationService: IConfigurationService) { }
@@ -269,10 +269,10 @@ export class ReplModel {
 		return this.replElements;
 	}
 
-	async addReplExpression(session: IDebugSession, stackFrame: IStackFrame | undefined, name: string): Promise<void> {
-		this.addReplElement(new ReplEvaluationInput(name));
-		const result = new ReplEvaluationResult();
-		await result.evaluateExpression(name, session, stackFrame, 'repl');
+	async addReplExpression(session: IDebugSession, stackFrame: IStackFrame | undefined, expression: string): Promise<void> {
+		this.addReplElement(new ReplEvaluationInput(expression));
+		const result = new ReplEvaluationResult(expression);
+		await result.evaluateExpression(expression, session, stackFrame, 'repl');
 		this.addReplElement(result);
 	}
 
@@ -306,7 +306,7 @@ export class ReplModel {
 			if (!previousElement.value.endsWith('\n') && !previousElement.value.endsWith('\r\n') && previousElement.count === 1) {
 				this.replElements[this.replElements.length - 1] = new ReplOutputElement(
 					session, getUniqueId(), previousElement.value + output, sev, source);
-				this._onDidChangeElements.fire();
+				this._onDidChangeElements.fire(undefined);
 				return;
 			}
 		}
@@ -337,14 +337,13 @@ export class ReplModel {
 				this.replElements.splice(0, this.replElements.length - MAX_REPL_LENGTH);
 			}
 		}
-
-		this._onDidChangeElements.fire();
+		this._onDidChangeElements.fire(newElement);
 	}
 
 	removeReplExpressions(): void {
 		if (this.replElements.length > 0) {
 			this.replElements = [];
-			this._onDidChangeElements.fire();
+			this._onDidChangeElements.fire(undefined);
 		}
 	}
 

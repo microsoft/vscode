@@ -41,7 +41,12 @@ export interface MessagePort {
  */
 export class Protocol implements IMessagePassingProtocol {
 
-	readonly onMessage = Event.fromDOMEventEmitter<VSBuffer>(this.port, 'message', (e: MessageEvent) => VSBuffer.wrap(e.data));
+	readonly onMessage = Event.fromDOMEventEmitter<VSBuffer>(this.port, 'message', (e: MessageEvent) => {
+		if (e.data) {
+			return VSBuffer.wrap(e.data);
+		}
+		return VSBuffer.alloc(0);
+	});
 
 	constructor(private port: MessagePort) {
 
@@ -74,5 +79,7 @@ export class Client extends IPCClient implements IDisposable {
 
 	override dispose(): void {
 		this.protocol.disconnect();
+
+		super.dispose();
 	}
 }

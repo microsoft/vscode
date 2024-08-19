@@ -5,32 +5,58 @@
 
 (function () {
 
-	const MonacoEnvironment = (<any>globalThis).MonacoEnvironment;
-	const monacoBaseUrl = MonacoEnvironment && MonacoEnvironment.baseUrl ? MonacoEnvironment.baseUrl : '../../../';
+	interface IMonacoEnvironment {
+		baseUrl?: string;
+		createTrustedTypesPolicy<Options extends TrustedTypePolicyOptions>(
+			policyName: string,
+			policyOptions?: Options,
+		): undefined | Pick<TrustedTypePolicy<Options>, 'name' | Extract<keyof Options, keyof TrustedTypePolicyOptions>>;
+	}
+	const monacoEnvironment: IMonacoEnvironment | undefined = (globalThis as any).MonacoEnvironment;
 
-	const trustedTypesPolicy = (
-		typeof self.trustedTypes?.createPolicy === 'function'
-			? self.trustedTypes?.createPolicy('amdLoader', {
-				createScriptURL: value => value,
-				createScript: (_, ...args: string[]) => {
-					// workaround a chrome issue not allowing to create new functions
-					// see https://github.com/w3c/webappsec-trusted-types/wiki/Trusted-Types-for-function-constructor
-					const fnArgs = args.slice(0, -1).join(',');
-					const fnBody = args.pop()!.toString();
-					// Do not add a new line to fnBody, as this will confuse source maps.
-					const body = `(function anonymous(${fnArgs}) { ${fnBody}\n})`;
-					return body;
-				}
-			})
-			: undefined
-	);
+	const monacoBaseUrl = monacoEnvironment && monacoEnvironment.baseUrl ? monacoEnvironment.baseUrl : '../../../';
+
+	function createTrustedTypesPolicy<Options extends TrustedTypePolicyOptions>(
+		policyName: string,
+		policyOptions?: Options,
+	): undefined | Pick<TrustedTypePolicy<Options>, 'name' | Extract<keyof Options, keyof TrustedTypePolicyOptions>> {
+
+		if (monacoEnvironment?.createTrustedTypesPolicy) {
+			try {
+				return monacoEnvironment.createTrustedTypesPolicy(policyName, policyOptions);
+			} catch (err) {
+				console.warn(err);
+				return undefined;
+			}
+		}
+
+		try {
+			return self.trustedTypes?.createPolicy(policyName, policyOptions);
+		} catch (err) {
+			console.warn(err);
+			return undefined;
+		}
+	}
+
+	const trustedTypesPolicy = createTrustedTypesPolicy('amdLoader', {
+		createScriptURL: value => value,
+		createScript: (_, ...args: string[]) => {
+			// workaround a chrome issue not allowing to create new functions
+			// see https://github.com/w3c/webappsec-trusted-types/wiki/Trusted-Types-for-function-constructor
+			const fnArgs = args.slice(0, -1).join(',');
+			const fnBody = args.pop()!.toString();
+			// Do not add a new line to fnBody, as this will confuse source maps.
+			const body = `(function anonymous(${fnArgs}) { ${fnBody}\n})`;
+			return body;
+		}
+	});
 
 	function canUseEval(): boolean {
 		try {
 			const func = (
 				trustedTypesPolicy
-					? globalThis.eval(<any>trustedTypesPolicy.createScript('', 'true'))
-					: new Function('true')
+					? globalThis.eval(<any>trustedTypesPolicy.createScript('', 'true')) // CodeQL [SM01632] fetch + eval is used on the web worker instead of importScripts if possible because importScripts is synchronous and we observed deadlocks on Safari
+					: new Function('true') // CodeQL [SM01632] fetch + eval is used on the web worker instead of importScripts if possible because importScripts is synchronous and we observed deadlocks on Safari
 			);
 			func.call(globalThis);
 			return true;
@@ -59,8 +85,8 @@
 					text = `${text}\n//# sourceURL=${loaderSrc}`;
 					const func = (
 						trustedTypesPolicy
-							? globalThis.eval(trustedTypesPolicy.createScript('', text) as unknown as string)
-							: new Function(text)
+							? globalThis.eval(trustedTypesPolicy.createScript('', text) as unknown as string) // CodeQL [SM01632] fetch + eval is used on the web worker instead of importScripts if possible because importScripts is synchronous and we observed deadlocks on Safari
+							: new Function(text) // CodeQL [SM01632] fetch + eval is used on the web worker instead of importScripts if possible because importScripts is synchronous and we observed deadlocks on Safari
 					);
 					func.call(globalThis);
 					resolve();
@@ -86,23 +112,43 @@
 		});
 	}
 
-	function loadCode(moduleId: string) {
-		loadAMDLoader().then(() => {
-			configureAMDLoader();
-			require([moduleId], function (ws) {
-				setTimeout(function () {
-					const messageHandler = ws.create((msg: any, transfer?: Transferable[]) => {
-						(<any>globalThis).postMessage(msg, transfer);
-					}, null);
+	function loadCode(moduleId: string): Promise<SimpleWorkerModule> {
+		// ESM-uncomment-begin
+		// if (typeof loadAMDLoader === 'function') { /* fixes unused import, remove me */}
+		// const moduleUrl = new URL(`${moduleId}.js`, globalThis._VSCODE_FILE_ROOT);
+		// return import(moduleUrl.href);
+		// ESM-uncomment-end
 
-					globalThis.onmessage = (e: MessageEvent) => messageHandler.onmessage(e.data, e.ports);
-					while (beforeReadyMessages.length > 0) {
-						const e = beforeReadyMessages.shift()!;
-						messageHandler.onmessage(e.data, e.ports);
-					}
-				}, 0);
+		// ESM-comment-begin
+		return loadAMDLoader().then(() => {
+			configureAMDLoader();
+			return new Promise<SimpleWorkerModule>((resolve, reject) => {
+				require([moduleId], resolve, reject);
 			});
 		});
+		// ESM-comment-end
+	}
+
+	interface MessageHandler {
+		onmessage(msg: any, ports: readonly MessagePort[]): void;
+	}
+
+	// shape of vs/base/common/worker/simpleWorker.ts
+	interface SimpleWorkerModule {
+		create(postMessage: (msg: any, transfer?: Transferable[]) => void): MessageHandler;
+	}
+
+	function setupWorkerServer(ws: SimpleWorkerModule) {
+		setTimeout(function () {
+			const messageHandler = ws.create((msg: any, transfer?: Transferable[]) => {
+				(<any>globalThis).postMessage(msg, transfer);
+			});
+
+			self.onmessage = (e: MessageEvent) => messageHandler.onmessage(e.data, e.ports);
+			while (beforeReadyMessages.length > 0) {
+				self.onmessage(beforeReadyMessages.shift()!);
+			}
+		}, 0);
 	}
 
 	// If the loader is already defined, configure it immediately
@@ -121,6 +167,10 @@
 		}
 
 		isFirstMessage = false;
-		loadCode(message.data);
+		loadCode(message.data).then((ws) => {
+			setupWorkerServer(ws);
+		}, (err) => {
+			console.error(err);
+		});
 	};
 })();

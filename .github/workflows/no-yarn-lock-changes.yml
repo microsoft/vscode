@@ -19,13 +19,13 @@ jobs:
           echo "user: ${{ github.event.pull_request.user.login }}"
           echo "role: ${{ fromJson(steps.get_permissions.outputs.data).permission }}"
           echo "is dependabot: ${{ github.event.pull_request.user.login == 'dependabot[bot]' }}"
-          echo "should_run: ${{ !contains(fromJson('["admin", "write"]'), fromJson(steps.get_permissions.outputs.data).permission) }}"
-          echo "should_run=${{ !contains(fromJson('["admin", "write"]'), fromJson(steps.get_permissions.outputs.data).permission) && github.event.pull_request.user.login != 'dependabot[bot]' }}" >> $GITHUB_OUTPUT
+          echo "should_run: ${{ !contains(fromJson('["admin", "maintain", "write"]'), fromJson(steps.get_permissions.outputs.data).permission) }}"
+          echo "should_run=${{ !contains(fromJson('["admin", "maintain", "write"]'), fromJson(steps.get_permissions.outputs.data).permission) && github.event.pull_request.user.login != 'dependabot[bot]' }}" >> $GITHUB_OUTPUT
       - name: Get file changes
         uses: trilom/file-changes-action@ce38c8ce2459ca3c303415eec8cb0409857b4272
         if: ${{ steps.control.outputs.should_run == 'true' }}
-      - name: Check for yarn.lock changes
+      - name: Check for lockfile changes
         if: ${{ steps.control.outputs.should_run == 'true' }}
         run: |
-          cat $HOME/files.json | jq -e 'any(test("yarn\\.lock$")) | not' \
-            || (echo "Changes to yarn.lock files aren't allowed in PRs." && exit 1)
+          cat $HOME/files.json | jq -e 'any(test("yarn\\.lock$|Cargo\\.lock$")) | not' \
+            || (echo "Changes to yarn.lock/Cargo.lock files aren't allowed in PRs." && exit 1)

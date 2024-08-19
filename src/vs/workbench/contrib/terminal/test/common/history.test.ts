@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { deepStrictEqual, fail, strictEqual, ok } from 'assert';
+import { deepStrictEqual, strictEqual, ok } from 'assert';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Schemas } from 'vs/base/common/network';
 import { join } from 'vs/base/common/path';
 import { isWindows, OperatingSystem } from 'vs/base/common/platform';
 import { env } from 'vs/base/common/process';
 import { URI } from 'vs/base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -40,20 +41,24 @@ const expectedCommands = [
 ];
 
 suite('Terminal history', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
 	suite('TerminalPersistedHistory', () => {
 		let history: ITerminalPersistedHistory<number>;
 		let instantiationService: TestInstantiationService;
-		let storageService: TestStorageService;
 		let configurationService: TestConfigurationService;
 
 		setup(() => {
 			configurationService = new TestConfigurationService(getConfig(5));
-			storageService = new TestStorageService();
-			instantiationService = new TestInstantiationService();
+			instantiationService = store.add(new TestInstantiationService());
 			instantiationService.set(IConfigurationService, configurationService);
-			instantiationService.set(IStorageService, storageService);
+			instantiationService.set(IStorageService, store.add(new TestStorageService()));
 
-			history = instantiationService.createInstance(TerminalPersistedHistory<number>, 'test');
+			history = store.add(instantiationService.createInstance(TerminalPersistedHistory<number>, 'test'));
+		});
+
+		teardown(() => {
+			instantiationService.dispose();
 		});
 
 		test('should support adding items to the cache and respect LRU', () => {
@@ -112,7 +117,7 @@ suite('Terminal history', () => {
 			history.add('2', 2);
 			history.add('3', 3);
 			strictEqual(Array.from(history.entries).length, 3);
-			const history2 = instantiationService.createInstance(TerminalPersistedHistory, 'test');
+			const history2 = store.add(instantiationService.createInstance(TerminalPersistedHistory, 'test'));
 			strictEqual(Array.from(history2.entries).length, 3);
 		});
 	});
@@ -151,8 +156,12 @@ suite('Terminal history', () => {
 			} as Pick<IRemoteAgentService, 'getConnection' | 'getEnvironment'>);
 		});
 
+		teardown(() => {
+			instantiationService.dispose();
+		});
+
 		if (!isWindows) {
-			suite('local', async () => {
+			suite('local', () => {
 				let originalEnvValues: { HOME: string | undefined };
 				setup(() => {
 					originalEnvValues = { HOME: env['HOME'] };
@@ -239,6 +248,10 @@ suite('Terminal history', () => {
 			} as Pick<IRemoteAgentService, 'getConnection' | 'getEnvironment'>);
 		});
 
+		teardown(() => {
+			instantiationService.dispose();
+		});
+
 		if (!isWindows) {
 			suite('local', () => {
 				let originalEnvValues: { HOME: string | undefined };
@@ -315,10 +328,13 @@ suite('Terminal history', () => {
 			instantiationService = new TestInstantiationService();
 			instantiationService.stub(IFileService, {
 				async readFile(resource: URI) {
-					const expected = URI.from({ scheme: fileScheme, path: filePath });
-					if (resource.scheme !== expected.scheme || resource.fsPath !== expected.fsPath) {
-						fail(`Unexpected file scheme/path ${resource.scheme} ${resource.fsPath}`);
-					}
+					const expected = URI.from({
+						scheme: fileScheme,
+						authority: remoteConnection?.remoteAuthority,
+						path: URI.file(filePath).path
+					});
+					// Sanitize the encoded `/` chars as they don't impact behavior
+					strictEqual(resource.toString().replaceAll('%5C', '/'), expected.toString().replaceAll('%5C', '/'));
 					return { value: VSBuffer.fromString(fileContent) };
 				}
 			} as Pick<IFileService, 'readFile'>);
@@ -328,7 +344,11 @@ suite('Terminal history', () => {
 			} as Pick<IRemoteAgentService, 'getConnection' | 'getEnvironment'>);
 		});
 
-		suite('local', async () => {
+		teardown(() => {
+			instantiationService.dispose();
+		});
+
+		suite('local', () => {
 			let originalEnvValues: { HOME: string | undefined; APPDATA: string | undefined };
 			setup(() => {
 				originalEnvValues = { HOME: env['HOME'], APPDATA: env['APPDATA'] };
@@ -431,6 +451,10 @@ suite('Terminal history', () => {
 				async getEnvironment() { return remoteEnvironment; },
 				getConnection() { return remoteConnection; }
 			} as Pick<IRemoteAgentService, 'getConnection' | 'getEnvironment'>);
+		});
+
+		teardown(() => {
+			instantiationService.dispose();
 		});
 
 		if (!isWindows) {

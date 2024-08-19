@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { WorkbenchListFocusContextKey } from 'vs/platform/list/browser/listService';
-import { IViewsService } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { searchClearIcon, searchCollapseAllIcon, searchExpandAllIcon, searchRefreshIcon, searchShowAsList, searchShowAsTree, searchStopIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
 import * as Constants from 'vs/workbench/contrib/search/common/constants';
 import { ISearchHistoryService } from 'vs/workbench/contrib/search/common/searchHistoryService';
@@ -26,11 +26,8 @@ registerAction2(class ClearSearchHistoryCommandAction extends Action2 {
 	constructor(
 	) {
 		super({
-			id: Constants.ClearSearchHistoryCommandId,
-			title: {
-				value: nls.localize('clearSearchHistoryLabel', "Clear Search History"),
-				original: 'Clear Search History'
-			},
+			id: Constants.SearchCommandIds.ClearSearchHistoryCommandId,
+			title: nls.localize2('clearSearchHistoryLabel', "Clear Search History"),
 			category,
 			f1: true
 		});
@@ -45,18 +42,15 @@ registerAction2(class ClearSearchHistoryCommandAction extends Action2 {
 registerAction2(class CancelSearchAction extends Action2 {
 	constructor() {
 		super({
-			id: Constants.CancelSearchActionId,
-			title: {
-				value: nls.localize('CancelSearchAction.label', "Cancel Search"),
-				original: 'Cancel Search'
-			},
+			id: Constants.SearchCommandIds.CancelSearchActionId,
+			title: nls.localize2('CancelSearchAction.label', "Cancel Search"),
 			icon: searchStopIcon,
 			category,
 			f1: true,
 			precondition: SearchStateKey.isEqualTo(SearchUIState.Idle).negate(),
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, WorkbenchListFocusContextKey),
+				when: ContextKeyExpr.and(Constants.SearchContext.SearchViewVisibleKey, WorkbenchListFocusContextKey),
 				primary: KeyCode.Escape,
 			},
 			menu: [{
@@ -75,13 +69,10 @@ registerAction2(class CancelSearchAction extends Action2 {
 registerAction2(class RefreshAction extends Action2 {
 	constructor() {
 		super({
-			id: Constants.RefreshSearchResultsActionId,
-			title: {
-				value: nls.localize('RefreshAction.label', "Refresh"),
-				original: 'Refresh'
-			},
+			id: Constants.SearchCommandIds.RefreshSearchResultsActionId,
+			title: nls.localize2('RefreshAction.label', "Refresh"),
 			icon: searchRefreshIcon,
-			precondition: Constants.ViewHasSearchPatternKey,
+			precondition: Constants.SearchContext.ViewHasSearchPatternKey,
 			category,
 			f1: true,
 			menu: [{
@@ -100,20 +91,17 @@ registerAction2(class RefreshAction extends Action2 {
 registerAction2(class CollapseDeepestExpandedLevelAction extends Action2 {
 	constructor() {
 		super({
-			id: Constants.CollapseSearchResultsActionId,
-			title: {
-				value: nls.localize('CollapseDeepestExpandedLevelAction.label', "Collapse All"),
-				original: 'Collapse All'
-			},
+			id: Constants.SearchCommandIds.CollapseSearchResultsActionId,
+			title: nls.localize2('CollapseDeepestExpandedLevelAction.label', "Collapse All"),
 			category,
 			icon: searchCollapseAllIcon,
 			f1: true,
-			precondition: ContextKeyExpr.and(Constants.HasSearchResults, Constants.ViewHasSomeCollapsibleKey),
+			precondition: ContextKeyExpr.and(Constants.SearchContext.HasSearchResults, Constants.SearchContext.ViewHasSomeCollapsibleKey),
 			menu: [{
 				id: MenuId.ViewTitle,
 				group: 'navigation',
-				order: 3,
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_ID), ContextKeyExpr.or(Constants.HasSearchResults.negate(), Constants.ViewHasSomeCollapsibleKey)),
+				order: 4,
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_ID), ContextKeyExpr.or(Constants.SearchContext.HasSearchResults.negate(), Constants.SearchContext.ViewHasSomeCollapsibleKey)),
 			}]
 		});
 	}
@@ -125,20 +113,17 @@ registerAction2(class CollapseDeepestExpandedLevelAction extends Action2 {
 registerAction2(class ExpandAllAction extends Action2 {
 	constructor() {
 		super({
-			id: Constants.ExpandSearchResultsActionId,
-			title: {
-				value: nls.localize('ExpandAllAction.label', "Expand All"),
-				original: 'Expand All'
-			},
+			id: Constants.SearchCommandIds.ExpandSearchResultsActionId,
+			title: nls.localize2('ExpandAllAction.label', "Expand All"),
 			category,
 			icon: searchExpandAllIcon,
 			f1: true,
-			precondition: ContextKeyExpr.and(Constants.HasSearchResults, Constants.ViewHasSomeCollapsibleKey.toNegated()),
+			precondition: ContextKeyExpr.and(Constants.SearchContext.HasSearchResults, Constants.SearchContext.ViewHasSomeCollapsibleKey.toNegated()),
 			menu: [{
 				id: MenuId.ViewTitle,
 				group: 'navigation',
-				order: 3,
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_ID), Constants.HasSearchResults, Constants.ViewHasSomeCollapsibleKey.toNegated()),
+				order: 4,
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_ID), Constants.SearchContext.HasSearchResults, Constants.SearchContext.ViewHasSomeCollapsibleKey.toNegated()),
 			}]
 		});
 	}
@@ -150,15 +135,12 @@ registerAction2(class ExpandAllAction extends Action2 {
 registerAction2(class ClearSearchResultsAction extends Action2 {
 	constructor() {
 		super({
-			id: Constants.ClearSearchResultsActionId,
-			title: {
-				value: nls.localize('ClearSearchResultsAction.label', "Clear Search Results"),
-				original: 'Clear Search Results'
-			},
+			id: Constants.SearchCommandIds.ClearSearchResultsActionId,
+			title: nls.localize2('ClearSearchResultsAction.label', "Clear Search Results"),
 			category,
 			icon: searchClearIcon,
 			f1: true,
-			precondition: ContextKeyExpr.or(Constants.HasSearchResults, Constants.ViewHasSearchPatternKey, Constants.ViewHasReplacePatternKey, Constants.ViewHasFilePatternKey),
+			precondition: ContextKeyExpr.or(Constants.SearchContext.HasSearchResults, Constants.SearchContext.ViewHasSearchPatternKey, Constants.SearchContext.ViewHasReplacePatternKey, Constants.SearchContext.ViewHasFilePatternKey),
 			menu: [{
 				id: MenuId.ViewTitle,
 				group: 'navigation',
@@ -176,20 +158,17 @@ registerAction2(class ClearSearchResultsAction extends Action2 {
 registerAction2(class ViewAsTreeAction extends Action2 {
 	constructor() {
 		super({
-			id: Constants.ViewAsTreeActionId,
-			title: {
-				value: nls.localize('ViewAsTreeAction.label', "View as Tree"),
-				original: 'View as Tree'
-			},
+			id: Constants.SearchCommandIds.ViewAsTreeActionId,
+			title: nls.localize2('ViewAsTreeAction.label', "View as Tree"),
 			category,
 			icon: searchShowAsList,
 			f1: true,
-			precondition: ContextKeyExpr.and(Constants.HasSearchResults, Constants.InTreeViewKey.toNegated()),
+			precondition: ContextKeyExpr.and(Constants.SearchContext.HasSearchResults, Constants.SearchContext.InTreeViewKey.toNegated()),
 			menu: [{
 				id: MenuId.ViewTitle,
 				group: 'navigation',
 				order: 2,
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_ID), Constants.InTreeViewKey.toNegated()),
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_ID), Constants.SearchContext.InTreeViewKey.toNegated()),
 			}]
 		});
 	}
@@ -204,20 +183,17 @@ registerAction2(class ViewAsTreeAction extends Action2 {
 registerAction2(class ViewAsListAction extends Action2 {
 	constructor() {
 		super({
-			id: Constants.ViewAsListActionId,
-			title: {
-				value: nls.localize('ViewAsListAction.label', "View as List"),
-				original: 'View as List'
-			},
+			id: Constants.SearchCommandIds.ViewAsListActionId,
+			title: nls.localize2('ViewAsListAction.label', "View as List"),
 			category,
 			icon: searchShowAsTree,
 			f1: true,
-			precondition: ContextKeyExpr.and(Constants.HasSearchResults, Constants.InTreeViewKey),
+			precondition: ContextKeyExpr.and(Constants.SearchContext.HasSearchResults, Constants.SearchContext.InTreeViewKey),
 			menu: [{
 				id: MenuId.ViewTitle,
 				group: 'navigation',
 				order: 2,
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_ID), Constants.InTreeViewKey),
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_ID), Constants.SearchContext.InTreeViewKey),
 			}]
 		});
 	}
@@ -228,6 +204,7 @@ registerAction2(class ViewAsListAction extends Action2 {
 		}
 	}
 });
+
 
 //#endregion
 

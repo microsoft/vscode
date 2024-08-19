@@ -63,42 +63,78 @@ export function diffMaps<K, V>(before: Map<K, V>, after: Map<K, V>): { removed: 
 	}
 	return { removed, added };
 }
-export class SetMap<K, V> {
 
-	private map = new Map<K, Set<V>>();
-
-	add(key: K, value: V): void {
-		let values = this.map.get(key);
-
-		if (!values) {
-			values = new Set<V>();
-			this.map.set(key, values);
-		}
-
-		values.add(value);
-	}
-
-	delete(key: K, value: V): void {
-		const values = this.map.get(key);
-
-		if (!values) {
-			return;
-		}
-
-		values.delete(value);
-
-		if (values.size === 0) {
-			this.map.delete(key);
+/**
+ * Computes the intersection of two sets.
+ *
+ * @param setA - The first set.
+ * @param setB - The second iterable.
+ * @returns A new set containing the elements that are in both `setA` and `setB`.
+ */
+export function intersection<T>(setA: Set<T>, setB: Iterable<T>): Set<T> {
+	const result = new Set<T>();
+	for (const elem of setB) {
+		if (setA.has(elem)) {
+			result.add(elem);
 		}
 	}
+	return result;
+}
 
-	forEach(key: K, fn: (value: V) => void): void {
-		const values = this.map.get(key);
+export class SetWithKey<T> implements Set<T> {
+	private _map = new Map<any, T>();
 
-		if (!values) {
-			return;
+	constructor(values: T[], private toKey: (t: T) => any) {
+		for (const value of values) {
+			this.add(value);
 		}
-
-		values.forEach(fn);
 	}
+
+	get size(): number {
+		return this._map.size;
+	}
+
+	add(value: T): this {
+		const key = this.toKey(value);
+		this._map.set(key, value);
+		return this;
+	}
+
+	delete(value: T): boolean {
+		return this._map.delete(this.toKey(value));
+	}
+
+	has(value: T): boolean {
+		return this._map.has(this.toKey(value));
+	}
+
+	*entries(): IterableIterator<[T, T]> {
+		for (const entry of this._map.values()) {
+			yield [entry, entry];
+		}
+	}
+
+	keys(): IterableIterator<T> {
+		return this.values();
+	}
+
+	*values(): IterableIterator<T> {
+		for (const entry of this._map.values()) {
+			yield entry;
+		}
+	}
+
+	clear(): void {
+		this._map.clear();
+	}
+
+	forEach(callbackfn: (value: T, value2: T, set: Set<T>) => void, thisArg?: any): void {
+		this._map.forEach(entry => callbackfn.call(thisArg, entry, entry, this));
+	}
+
+	[Symbol.iterator](): IterableIterator<T> {
+		return this.values();
+	}
+
+	[Symbol.toStringTag]: string = 'SetWithKey';
 }

@@ -237,7 +237,7 @@ class HistoryItem {
 	}
 }
 
-class TreeInputHistory implements vscode.TreeDataProvider<HistoryItem>{
+class TreeInputHistory implements vscode.TreeDataProvider<HistoryItem> {
 
 	private readonly _onDidChangeTreeData = new vscode.EventEmitter<HistoryItem | undefined>();
 	readonly onDidChangeTreeData = this._onDidChangeTreeData.event;

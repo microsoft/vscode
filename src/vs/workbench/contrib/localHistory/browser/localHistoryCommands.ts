@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { Schemas } from 'vs/base/common/network';
@@ -14,7 +14,7 @@ import { API_OPEN_DIFF_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/edit
 import { LocalHistoryFileSystemProvider } from 'vs/workbench/contrib/localHistory/browser/localHistoryFileSystemProvider';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
+import { registerAction2, Action2, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { basename, basenameOrAuthority, dirname } from 'vs/base/common/resources';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { EditorResourceAccessor, SaveSourceRegistry, SideBySideEditor } from 'vs/workbench/common/editor';
@@ -24,15 +24,20 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ActiveEditorContext, ResourceContextKey } from 'vs/workbench/common/contextkeys';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
+import { getIconClasses } from 'vs/editor/browser/services/getIconClasses';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { firstOrDefault } from 'vs/base/common/arrays';
+import { coalesce, firstOrDefault } from 'vs/base/common/arrays';
 import { getLocalHistoryDateFormatter, LOCAL_HISTORY_ICON_RESTORE, LOCAL_HISTORY_MENU_CONTEXT_KEY } from 'vs/workbench/contrib/localHistory/browser/localHistory';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
+import { ResourceSet } from 'vs/base/common/map';
+import { IHistoryService } from 'vs/workbench/services/history/common/history';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { IEditorOptions } from 'vs/platform/editor/common/editor';
 
-const LOCAL_HISTORY_CATEGORY = { value: localize('localHistory.category', "Local History"), original: 'Local History' };
+const LOCAL_HISTORY_CATEGORY = localize2('localHistory.category', 'Local History');
+const CTX_LOCAL_HISTORY_ENABLED = ContextKeyExpr.has('config.workbench.localHistory.enabled');
 
 export interface ITimelineCommandArgument {
 	uri: URI;
@@ -41,7 +46,7 @@ export interface ITimelineCommandArgument {
 
 //#region Compare with File
 
-export const COMPARE_WITH_FILE_LABEL = { value: localize('localHistory.compareWithFile', "Compare with File"), original: 'Compare with File' };
+export const COMPARE_WITH_FILE_LABEL = localize2('localHistory.compareWithFile', 'Compare with File');
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -75,7 +80,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.localHistory.compareWithPrevious',
-			title: { value: localize('localHistory.compareWithPrevious', "Compare with Previous"), original: 'Compare with Previous' },
+			title: localize2('localHistory.compareWithPrevious', 'Compare with Previous'),
 			menu: {
 				id: MenuId.TimelineItemContext,
 				group: '1_compare',
@@ -115,7 +120,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.localHistory.selectForCompare',
-			title: { value: localize('localHistory.selectForCompare', "Select for Compare"), original: 'Select for Compare' },
+			title: localize2('localHistory.selectForCompare', 'Select for Compare'),
 			menu: {
 				id: MenuId.TimelineItemContext,
 				group: '2_compare_with',
@@ -140,7 +145,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.localHistory.compareWithSelected',
-			title: { value: localize('localHistory.compareWithSelected', "Compare with Selected"), original: 'Compare with Selected' },
+			title: localize2('localHistory.compareWithSelected', 'Compare with Selected'),
 			menu: {
 				id: MenuId.TimelineItemContext,
 				group: '2_compare_with',
@@ -177,7 +182,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.localHistory.open',
-			title: { value: localize('localHistory.open', "Show Contents"), original: 'Show Contents' },
+			title: localize2('localHistory.open', 'Show Contents'),
 			menu: {
 				id: MenuId.TimelineItemContext,
 				group: '3_contents',
@@ -199,7 +204,7 @@ registerAction2(class extends Action2 {
 
 //#region Restore Contents
 
-const RESTORE_CONTENTS_LABEL = { value: localize('localHistory.restore', "Restore Contents"), original: 'Restore Contents' };
+const RESTORE_CONTENTS_LABEL = localize2('localHistory.restore', 'Restore Contents');
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -314,9 +319,10 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.localHistory.restoreViaPicker',
-			title: { value: localize('localHistory.restoreViaPicker', "Find Entry to Restore"), original: 'Find Entry to Restore' },
+			title: localize2('localHistory.restoreViaPicker', 'Find Entry to Restore'),
 			f1: true,
-			category: LOCAL_HISTORY_CATEGORY
+			category: LOCAL_HISTORY_CATEGORY,
+			precondition: CTX_LOCAL_HISTORY_ENABLED
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
@@ -328,34 +334,49 @@ registerAction2(class extends Action2 {
 		const editorService = accessor.get(IEditorService);
 		const fileService = accessor.get(IFileService);
 		const commandService = accessor.get(ICommandService);
+		const historyService = accessor.get(IHistoryService);
 
 		// Show all resources with associated history entries in picker
 		// with progress because this operation will take longer the more
 		// files have been saved overall.
+		//
+		// Sort the resources by history to put more relevant entries
+		// to the top.
 
-		const resourcePicker = quickInputService.createQuickPick<IQuickPickItem & { resource: URI }>();
+		const resourcePickerDisposables = new DisposableStore();
+		const resourcePicker = resourcePickerDisposables.add(quickInputService.createQuickPick<IQuickPickItem & { resource: URI }>());
 
 		let cts = new CancellationTokenSource();
-		resourcePicker.onDidHide(() => cts.dispose(true));
+		resourcePickerDisposables.add(resourcePicker.onDidHide(() => cts.dispose(true)));
 
 		resourcePicker.busy = true;
 		resourcePicker.show();
 
-		const resources = await workingCopyHistoryService.getAll(cts.token);
+		const resources = new ResourceSet(await workingCopyHistoryService.getAll(cts.token));
+		const recentEditorResources = new ResourceSet(coalesce(historyService.getHistory().map(({ resource }) => resource)));
+
+		const resourcesSortedByRecency: URI[] = [];
+		for (const resource of recentEditorResources) {
+			if (resources.has(resource)) {
+				resourcesSortedByRecency.push(resource);
+				resources.delete(resource);
+			}
+		}
+		resourcesSortedByRecency.push(...[...resources].sort((r1, r2) => r1.fsPath < r2.fsPath ? -1 : 1));
 
 		resourcePicker.busy = false;
 		resourcePicker.placeholder = localize('restoreViaPicker.filePlaceholder', "Select the file to show local history for");
 		resourcePicker.matchOnLabel = true;
 		resourcePicker.matchOnDescription = true;
-		resourcePicker.items = resources.map(resource => ({
+		resourcePicker.items = [...resourcesSortedByRecency].map(resource => ({
 			resource,
 			label: basenameOrAuthority(resource),
 			description: labelService.getUriLabel(dirname(resource), { relative: true }),
 			iconClasses: getIconClasses(modelService, languageService, resource)
-		})).sort((r1, r2) => r1.resource.fsPath < r2.resource.fsPath ? -1 : 1);
+		}));
 
 		await Event.toPromise(resourcePicker.onDidAccept);
-		resourcePicker.dispose();
+		resourcePickerDisposables.dispose();
 
 		const resource = firstOrDefault(resourcePicker.selectedItems)?.resource;
 		if (!resource) {
@@ -365,10 +386,11 @@ registerAction2(class extends Action2 {
 		// Show all entries for the picked resource in another picker
 		// and open the entry in the end that was selected by the user
 
-		const entryPicker = quickInputService.createQuickPick<IQuickPickItem & { entry: IWorkingCopyHistoryEntry }>();
+		const entryPickerDisposables = new DisposableStore();
+		const entryPicker = entryPickerDisposables.add(quickInputService.createQuickPick<IQuickPickItem & { entry: IWorkingCopyHistoryEntry }>());
 
 		cts = new CancellationTokenSource();
-		entryPicker.onDidHide(() => cts.dispose(true));
+		entryPickerDisposables.add(entryPicker.onDidHide(() => cts.dispose(true)));
 
 		entryPicker.busy = true;
 		entryPicker.show();
@@ -376,6 +398,7 @@ registerAction2(class extends Action2 {
 		const entries = await workingCopyHistoryService.getEntries(resource, cts.token);
 
 		entryPicker.busy = false;
+		entryPicker.canAcceptInBackground = true;
 		entryPicker.placeholder = localize('restoreViaPicker.entryPlaceholder', "Select the local history entry to open");
 		entryPicker.matchOnLabel = true;
 		entryPicker.matchOnDescription = true;
@@ -385,22 +408,27 @@ registerAction2(class extends Action2 {
 			description: toLocalHistoryEntryDateLabel(entry.timestamp)
 		}));
 
-		await Event.toPromise(entryPicker.onDidAccept);
-		entryPicker.dispose();
+		entryPickerDisposables.add(entryPicker.onDidAccept(async e => {
+			if (!e.inBackground) {
+				entryPickerDisposables.dispose();
+			}
 
-		const selectedItem = firstOrDefault(entryPicker.selectedItems);
-		if (!selectedItem) {
-			return;
-		}
+			const selectedItem = firstOrDefault(entryPicker.selectedItems);
+			if (!selectedItem) {
+				return;
+			}
 
-		const resourceExists = await fileService.exists(selectedItem.entry.workingCopy.resource);
-		if (resourceExists) {
-			return commandService.executeCommand(API_OPEN_DIFF_EDITOR_COMMAND_ID, ...toDiffEditorArguments(selectedItem.entry, selectedItem.entry.workingCopy.resource));
-		}
+			const resourceExists = await fileService.exists(selectedItem.entry.workingCopy.resource);
+			if (resourceExists) {
+				return commandService.executeCommand(API_OPEN_DIFF_EDITOR_COMMAND_ID, ...toDiffEditorArguments(selectedItem.entry, selectedItem.entry.workingCopy.resource, { preserveFocus: e.inBackground }));
+			}
 
-		return openEntry(selectedItem.entry, editorService);
+			return openEntry(selectedItem.entry, editorService, { preserveFocus: e.inBackground });
+		}));
 	}
 });
+
+MenuRegistry.appendMenuItem(MenuId.TimelineTitle, { command: { id: 'workbench.action.localHistory.restoreViaPicker', title: localize2('localHistory.restoreViaPickerMenu', 'Local History: Find Entry to Restore...') }, group: 'submenu', order: 1, when: CTX_LOCAL_HISTORY_ENABLED });
 
 //#endregion
 
@@ -410,7 +438,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.localHistory.rename',
-			title: { value: localize('localHistory.rename', "Rename"), original: 'Rename' },
+			title: localize2('localHistory.rename', 'Rename'),
 			menu: {
 				id: MenuId.TimelineItemContext,
 				group: '5_edit',
@@ -425,18 +453,19 @@ registerAction2(class extends Action2 {
 
 		const { entry } = await findLocalHistoryEntry(workingCopyHistoryService, item);
 		if (entry) {
-			const inputBox = quickInputService.createInputBox();
+			const disposables = new DisposableStore();
+			const inputBox = disposables.add(quickInputService.createInputBox());
 			inputBox.title = localize('renameLocalHistoryEntryTitle', "Rename Local History Entry");
 			inputBox.ignoreFocusOut = true;
 			inputBox.placeholder = localize('renameLocalHistoryPlaceholder', "Enter the new name of the local history entry");
 			inputBox.value = SaveSourceRegistry.getSourceLabel(entry.source);
 			inputBox.show();
-			inputBox.onDidAccept(() => {
+			disposables.add(inputBox.onDidAccept(() => {
 				if (inputBox.value) {
 					workingCopyHistoryService.updateEntry(entry, { source: inputBox.value }, CancellationToken.None);
 				}
-				inputBox.dispose();
-			});
+				disposables.dispose();
+			}));
 		}
 	}
 });
@@ -449,7 +478,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.localHistory.delete',
-			title: { value: localize('localHistory.delete', "Delete"), original: 'Delete' },
+			title: localize2('localHistory.delete', 'Delete'),
 			menu: {
 				id: MenuId.TimelineItemContext,
 				group: '5_edit',
@@ -495,9 +524,10 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.localHistory.deleteAll',
-			title: { value: localize('localHistory.deleteAll', "Delete All"), original: 'Delete All' },
+			title: localize2('localHistory.deleteAll', 'Delete All'),
 			f1: true,
-			category: LOCAL_HISTORY_CATEGORY
+			category: LOCAL_HISTORY_CATEGORY,
+			precondition: CTX_LOCAL_HISTORY_ENABLED
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
@@ -529,10 +559,10 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.localHistory.create',
-			title: { value: localize('localHistory.create', "Create Entry"), original: 'Create Entry' },
+			title: localize2('localHistory.create', 'Create Entry'),
 			f1: true,
 			category: LOCAL_HISTORY_CATEGORY,
-			precondition: ActiveEditorContext
+			precondition: ContextKeyExpr.and(CTX_LOCAL_HISTORY_ENABLED, ActiveEditorContext)
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
@@ -547,19 +577,20 @@ registerAction2(class extends Action2 {
 			return; // only enable for selected schemes
 		}
 
-		const inputBox = quickInputService.createInputBox();
+		const disposables = new DisposableStore();
+		const inputBox = disposables.add(quickInputService.createInputBox());
 		inputBox.title = localize('createLocalHistoryEntryTitle', "Create Local History Entry");
 		inputBox.ignoreFocusOut = true;
 		inputBox.placeholder = localize('createLocalHistoryPlaceholder', "Enter the new name of the local history entry for '{0}'", labelService.getUriBasenameLabel(resource));
 		inputBox.show();
-		inputBox.onDidAccept(async () => {
+		disposables.add(inputBox.onDidAccept(async () => {
 			const entrySource = inputBox.value;
-			inputBox.dispose();
+			disposables.dispose();
 
 			if (entrySource) {
 				await workingCopyHistoryService.addEntry({ resource, source: inputBox.value }, CancellationToken.None);
 			}
-		});
+		}));
 	}
 });
 
@@ -567,12 +598,13 @@ registerAction2(class extends Action2 {
 
 //#region Helpers
 
-async function openEntry(entry: IWorkingCopyHistoryEntry, editorService: IEditorService): Promise<void> {
+async function openEntry(entry: IWorkingCopyHistoryEntry, editorService: IEditorService, options?: IEditorOptions): Promise<void> {
 	const resource = LocalHistoryFileSystemProvider.toLocalHistoryFileSystem({ location: entry.location, associatedResource: entry.workingCopy.resource });
 
 	await editorService.openEditor({
 		resource,
-		label: localize('localHistoryEditorLabel', "{0} ({1} • {2})", entry.workingCopy.name, SaveSourceRegistry.getSourceLabel(entry.source), toLocalHistoryEntryDateLabel(entry.timestamp))
+		label: localize('localHistoryEditorLabel', "{0} ({1} • {2})", entry.workingCopy.name, SaveSourceRegistry.getSourceLabel(entry.source), toLocalHistoryEntryDateLabel(entry.timestamp)),
+		options
 	});
 }
 
@@ -583,9 +615,9 @@ async function closeEntry(entry: IWorkingCopyHistoryEntry, editorService: IEdito
 	await editorService.closeEditors(editors, { preserveFocus: true });
 }
 
-export function toDiffEditorArguments(entry: IWorkingCopyHistoryEntry, resource: URI): unknown[];
-export function toDiffEditorArguments(previousEntry: IWorkingCopyHistoryEntry, entry: IWorkingCopyHistoryEntry): unknown[];
-export function toDiffEditorArguments(arg1: IWorkingCopyHistoryEntry, arg2: IWorkingCopyHistoryEntry | URI): unknown[] {
+export function toDiffEditorArguments(entry: IWorkingCopyHistoryEntry, resource: URI, options?: IEditorOptions): unknown[];
+export function toDiffEditorArguments(previousEntry: IWorkingCopyHistoryEntry, entry: IWorkingCopyHistoryEntry, options?: IEditorOptions): unknown[];
+export function toDiffEditorArguments(arg1: IWorkingCopyHistoryEntry, arg2: IWorkingCopyHistoryEntry | URI, options?: IEditorOptions): unknown[] {
 
 	// Left hand side is always a working copy history entry
 	const originalResource = LocalHistoryFileSystemProvider.toLocalHistoryFileSystem({ location: arg1.location, associatedResource: arg1.workingCopy.resource });
@@ -618,7 +650,7 @@ export function toDiffEditorArguments(arg1: IWorkingCopyHistoryEntry, arg2: IWor
 		originalResource,
 		modifiedResource,
 		label,
-		undefined // important to keep order of arguments in command proper
+		options ? [undefined, options] : undefined
 	];
 }
 

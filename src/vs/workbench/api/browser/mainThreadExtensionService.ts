@@ -6,7 +6,7 @@
 import { Action } from 'vs/base/common/actions';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { SerializedError } from 'vs/base/common/errors';
+import { SerializedError, transformErrorFromSerialization } from 'vs/base/common/errors';
 import { FileAccess } from 'vs/base/common/network';
 import Severity from 'vs/base/common/severity';
 import { URI, UriComponents } from 'vs/base/common/uri';
@@ -16,7 +16,7 @@ import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensio
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IRemoteConnectionData } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { IRemoteConnectionData, ManagedRemoteConnection, RemoteConnection, RemoteConnectionType, ResolvedAuthority, WebSocketRemoteConnection } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { ExtHostContext, ExtHostExtensionServiceShape, MainContext, MainThreadExtensionServiceShape } from 'vs/workbench/api/common/extHost.protocol';
 import { IExtension, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -26,6 +26,7 @@ import { IExtensionDescriptionDelta } from 'vs/workbench/services/extensions/com
 import { IExtensionHostProxy, IResolveAuthorityResult } from 'vs/workbench/services/extensions/common/extensionHostProxy';
 import { ActivationKind, ExtensionActivationReason, IExtensionService, IInternalExtensionService, MissingExtensionDependency } from 'vs/workbench/services/extensions/common/extensions';
 import { extHostNamedCustomer, IExtHostContext, IInternalExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { Dto } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
 
@@ -72,19 +73,13 @@ export class MainThreadExtensionService implements MainThreadExtensionServiceSha
 		this._internalExtensionService._onDidActivateExtension(extensionId, codeLoadingTime, activateCallTime, activateResolvedTime, activationReason);
 	}
 	$onExtensionRuntimeError(extensionId: ExtensionIdentifier, data: SerializedError): void {
-		const error = new Error();
-		error.name = data.name;
-		error.message = data.message;
-		error.stack = data.stack;
+		const error = transformErrorFromSerialization(data);
 		this._internalExtensionService._onExtensionRuntimeError(extensionId, error);
 		console.error(`[${extensionId.value}]${error.message}`);
 		console.error(error.stack);
 	}
 	async $onExtensionActivationError(extensionId: ExtensionIdentifier, data: SerializedError, missingExtensionDependency: MissingExtensionDependency | null): Promise<void> {
-		const error = new Error();
-		error.name = data.name;
-		error.message = data.message;
-		error.stack = data.stack;
+		const error = transformErrorFromSerialization(data);
 
 		this._internalExtensionService._onDidActivateExtensionError(extensionId, error);
 
@@ -167,10 +162,10 @@ export class MainThreadExtensionService implements MainThreadExtensionServiceSha
 		if (dependencyExtension) {
 			this._notificationService.notify({
 				severity: Severity.Error,
-				message: localize('uninstalledDep', "Cannot activate the '{0}' extension because it depends on the '{1}' extension, which is not installed. Would you like to install the extension and reload the window?", extName, dependencyExtension.displayName),
+				message: localize('uninstalledDep', "Cannot activate the '{0}' extension because it depends on the '{1}' extension from '{2}', which is not installed. Would you like to install the extension and reload the window?", extName, dependencyExtension.displayName, dependencyExtension.publisherDisplayName),
 				actions: {
 					primary: [new Action('install', localize('install missing dep', "Install and Reload"), '', true,
-						() => this._extensionsWorkbenchService.install(dependencyExtension!)
+						() => this._extensionsWorkbenchService.install(dependencyExtension)
 							.then(() => this._hostService.reload(), e => this._notificationService.error(e)))]
 				}
 			});
@@ -199,8 +194,9 @@ class ExtensionHostProxy implements IExtensionHostProxy {
 		private readonly _actual: ExtHostExtensionServiceShape
 	) { }
 
-	resolveAuthority(remoteAuthority: string, resolveAttempt: number): Promise<IResolveAuthorityResult> {
-		return this._actual.$resolveAuthority(remoteAuthority, resolveAttempt);
+	async resolveAuthority(remoteAuthority: string, resolveAttempt: number): Promise<IResolveAuthorityResult> {
+		const resolved = reviveResolveAuthorityResult(await this._actual.$resolveAuthority(remoteAuthority, resolveAttempt));
+		return resolved;
 	}
 	async getCanonicalURI(remoteAuthority: string, uri: URI): Promise<URI | null> {
 		const uriComponents = await this._actual.$getCanonicalURI(remoteAuthority, uri);
@@ -236,4 +232,32 @@ class ExtensionHostProxy implements IExtensionHostProxy {
 	test_down(size: number): Promise<VSBuffer> {
 		return this._actual.$test_down(size);
 	}
+}
+
+function reviveResolveAuthorityResult(result: Dto<IResolveAuthorityResult>): IResolveAuthorityResult {
+	if (result.type === 'ok') {
+		return {
+			type: 'ok',
+			value: {
+				...result.value,
+				authority: reviveResolvedAuthority(result.value.authority),
+			}
+		};
+	} else {
+		return result;
+	}
+}
+
+function reviveResolvedAuthority(resolvedAuthority: Dto<ResolvedAuthority>): ResolvedAuthority {
+	return {
+		...resolvedAuthority,
+		connectTo: reviveConnection(resolvedAuthority.connectTo),
+	};
+}
+
+function reviveConnection(connection: Dto<RemoteConnection>): RemoteConnection {
+	if (connection.type === RemoteConnectionType.WebSocket) {
+		return new WebSocketRemoteConnection(connection.host, connection.port);
+	}
+	return new ManagedRemoteConnection(connection.id);
 }

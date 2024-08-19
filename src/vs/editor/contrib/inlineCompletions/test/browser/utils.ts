@@ -80,8 +80,9 @@ export class GhostTextContext extends Disposable {
 	constructor(model: InlineCompletionsModel, private readonly editor: ITestCodeEditor) {
 		super();
 
-		this._register(autorun('update', reader => {
-			const ghostText = model.ghostText.read(reader);
+		this._register(autorun(reader => {
+			/** @description update */
+			const ghostText = model.primaryGhostText.read(reader);
 			let view: string | undefined;
 			if (ghostText) {
 				view = ghostText.render(this.editor.getValue(), true);
@@ -130,3 +131,4 @@ export class GhostTextContext extends Disposable {
 		CoreEditingCommands.DeleteLeft.runEditorCommand(null, this.editor, null);
 	}
 }
+

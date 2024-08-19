@@ -14,6 +14,9 @@ import { asCSSUrl } from 'vs/base/browser/dom';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IExtensionResourceLoaderService } from 'vs/platform/extensionResourceLoader/common/extensionResourceLoader';
 import { ILanguageService } from 'vs/editor/common/languages/language';
+import { mainWindow } from 'vs/base/browser/window';
+
+const escapeCSS = mainWindow.CSS.escape;
 
 export class FileIconThemeData implements IWorkbenchFileIconTheme {
 
@@ -172,6 +175,8 @@ interface IconsAssociation {
 	folderExpanded?: string;
 	rootFolder?: string;
 	rootFolderExpanded?: string;
+	rootFolderNames?: { [folderName: string]: string };
+	rootFolderNamesExpanded?: { [folderName: string]: string };
 	folderNames?: { [folderName: string]: string };
 	folderNamesExpanded?: { [folderName: string]: string };
 	fileExtensions?: { [extension: string]: string };
@@ -309,6 +314,23 @@ export class FileIconThemeLoader {
 					}
 				}
 
+				const rootFolderNames = associations.rootFolderNames;
+				if (rootFolderNames) {
+					for (const key in rootFolderNames) {
+						const name = key.toLowerCase();
+						addSelector(`${qualifier} .${escapeCSS(name)}-root-name-folder-icon.rootfolder-icon::before`, rootFolderNames[key]);
+						result.hasFolderIcons = true;
+					}
+				}
+				const rootFolderNamesExpanded = associations.rootFolderNamesExpanded;
+				if (rootFolderNamesExpanded) {
+					for (const key in rootFolderNamesExpanded) {
+						const name = key.toLowerCase();
+						addSelector(`${qualifier} ${expanded} .${escapeCSS(name)}-root-name-folder-icon.rootfolder-icon::before`, rootFolderNamesExpanded[key]);
+						result.hasFolderIcons = true;
+					}
+				}
+
 				const languageIds = associations.languageIds;
 				if (languageIds) {
 					if (!languageIds.jsonc && languageIds.json) {
@@ -442,9 +464,4 @@ function handleParentFolder(key: string, selectors: string[]): string {
 		return key.substring(lastIndexOfSlash + 1);
 	}
 	return key;
-}
-
-function escapeCSS(str: string) {
-	str = str.replace(/[\11\12\14\15\40]/g, '/'); // HTML class names can not contain certain whitespace characters, use / instead, which doesn't exist in file names.
-	return window.CSS.escape(str);
 }

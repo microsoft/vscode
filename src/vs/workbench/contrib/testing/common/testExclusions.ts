@@ -16,7 +16,7 @@ export class TestExclusions extends Disposable {
 		MutableObservableValue.stored(new StoredValue<ReadonlySet<string>>({
 			key: 'excludedTestItems',
 			scope: StorageScope.WORKSPACE,
-			target: StorageTarget.USER,
+			target: StorageTarget.MACHINE,
 			serialization: {
 				deserialize: v => new Set(JSON.parse(v)),
 				serialize: v => JSON.stringify([...v])

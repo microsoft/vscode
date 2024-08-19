@@ -15,11 +15,6 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 export const OUTPUT_MIME = 'text/x-code-output';
 
 /**
- * Output resource scheme.
- */
-export const OUTPUT_SCHEME = 'output';
-
-/**
  * Id used by the output editor.
  */
 export const OUTPUT_MODE_ID = 'Log';
@@ -28,11 +23,6 @@ export const OUTPUT_MODE_ID = 'Log';
  * Mime type used by the log output editor.
  */
 export const LOG_MIME = 'text/x-code-log-output';
-
-/**
- * Log resource scheme.
- */
-export const LOG_SCHEME = 'log';
 
 /**
  * Id used by the log output editor.
@@ -46,7 +36,13 @@ export const OUTPUT_VIEW_ID = 'workbench.panel.output';
 
 export const CONTEXT_IN_OUTPUT = new RawContextKey<boolean>('inOutput', false);
 
-export const CONTEXT_ACTIVE_LOG_OUTPUT = new RawContextKey<boolean>('activeLogOutput', false);
+export const CONTEXT_ACTIVE_FILE_OUTPUT = new RawContextKey<boolean>('activeLogOutput', false);
+
+export const CONTEXT_ACTIVE_OUTPUT_LEVEL_SETTABLE = new RawContextKey<boolean>('activeLogOutput.levelSettable', false);
+
+export const CONTEXT_ACTIVE_OUTPUT_LEVEL = new RawContextKey<string>('activeLogOutput.level', '');
+
+export const CONTEXT_ACTIVE_OUTPUT_LEVEL_IS_DEFAULT = new RawContextKey<boolean>('activeLogOutput.levelIsDefault', false);
 
 export const CONTEXT_OUTPUT_SCROLL_LOCK = new RawContextKey<boolean>(`outputView.scrollLock`, false);
 

@@ -9,7 +9,6 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import 'vs/css!./goToDefinitionAtPosition';
 import { CodeEditorStateFlag, EditorState } from 'vs/editor/contrib/editorState/browser/editorState';
 import { ICodeEditor, MouseTargetType } from 'vs/editor/browser/editorBrowser';
@@ -58,7 +57,7 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 		this.toUnhook.add(linkGesture);
 
 		this.toUnhook.add(linkGesture.onMouseMoveOrRelevantKeyDown(([mouseEvent, keyboardEvent]) => {
-			this.startFindDefinitionFromMouse(mouseEvent, withNullAsUndefined(keyboardEvent));
+			this.startFindDefinitionFromMouse(mouseEvent, keyboardEvent ?? undefined);
 		}));
 
 		this.toUnhook.add(linkGesture.onExecute((mouseEvent: ClickLinkMouseEvent) => {
@@ -298,7 +297,7 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 			return Promise.resolve(null);
 		}
 
-		return getDefinitionsAtPosition(this.languageFeaturesService.definitionProvider, model, position, token);
+		return getDefinitionsAtPosition(this.languageFeaturesService.definitionProvider, model, position, false, token);
 	}
 
 	private gotoDefinition(position: Position, openToSide: boolean): Promise<any> {

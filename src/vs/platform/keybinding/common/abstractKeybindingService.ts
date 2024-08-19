@@ -17,7 +17,7 @@ import * as nls from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKeyService, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService, IKeyboardEvent, KeybindingsSchemaContribution } from 'vs/platform/keybinding/common/keybinding';
-import { ResolutionResult, KeybindingResolver, ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
+import { ResolutionResult, KeybindingResolver, ResultKind, NoMatchingKb } from 'vs/platform/keybinding/common/keybindingResolver';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -53,6 +53,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 	private _ignoreSingleModifiers: KeybindingModifierSet;
 	private _currentSingleModifier: SingleModifierChord | null;
 	private _currentSingleModifierClearTimeout: TimeoutTimer;
+	protected _currentlyDispatchingCommandId: string | null;
 
 	protected _logging: boolean;
 
@@ -75,6 +76,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		this._ignoreSingleModifiers = KeybindingModifierSet.EMPTY;
 		this._currentSingleModifier = null;
 		this._currentSingleModifierClearTimeout = new TimeoutTimer();
+		this._currentlyDispatchingCommandId = null;
 		this._logging = false;
 	}
 
@@ -138,18 +140,18 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 
 	// TODO@ulugbekna: update namings to align with `_doDispatch`
 	// TODO@ulugbekna: this fn doesn't seem to take into account single-modifier keybindings, eg `shift shift`
-	public softDispatch(e: IKeyboardEvent, target: IContextKeyServiceTarget): ResolutionResult | null {
+	public softDispatch(e: IKeyboardEvent, target: IContextKeyServiceTarget): ResolutionResult {
 		this._log(`/ Soft dispatching keyboard event`);
 		const keybinding = this.resolveKeyboardEvent(e);
 		if (keybinding.hasMultipleChords()) {
-			console.warn('Unexpected keyboard event mapped to multiple chords');
-			return null;
+			console.warn('keyboard event should not be mapped to multiple chords');
+			return NoMatchingKb;
 		}
 		const [firstChord,] = keybinding.getDispatchChords();
 		if (firstChord === null) {
 			// cannot be dispatched, probably only modifier keys
 			this._log(`\\ Keyboard event cannot be dispatched`);
-			return null;
+			return NoMatchingKb;
 		}
 
 		const contextValue = this._contextKeyService.getContext(target);
@@ -342,16 +344,15 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 
 				this._logService.trace('KeybindingService#dispatch', keypressLabel, `[ Will dispatch command ${resolveResult.commandId} ]`);
 
-				if (resolveResult.commandId === null) {
+				if (resolveResult.commandId === null || resolveResult.commandId === '') {
 
 					if (this.inChordMode) {
 						const currentChordsLabel = this._currentChords.map(({ label }) => label).join(', ');
 						this._log(`+ Leaving chord mode: Nothing bound to "${currentChordsLabel}, ${keypressLabel}".`);
 						this._notificationService.status(nls.localize('missing.chord', "The key combination ({0}, {1}) is not a command.", currentChordsLabel, keypressLabel), { hideAfter: 10 * 1000 /* 10s */ });
 						this._leaveChordMode();
+						shouldPreventDefault = true;
 					}
-
-					shouldPreventDefault = true;
 
 				} else {
 					if (this.inChordMode) {
@@ -363,10 +364,15 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 					}
 
 					this._log(`+ Invoking command ${resolveResult.commandId}.`);
-					if (typeof resolveResult.commandArgs === 'undefined') {
-						this._commandService.executeCommand(resolveResult.commandId).then(undefined, err => this._notificationService.warn(err));
-					} else {
-						this._commandService.executeCommand(resolveResult.commandId, resolveResult.commandArgs).then(undefined, err => this._notificationService.warn(err));
+					this._currentlyDispatchingCommandId = resolveResult.commandId;
+					try {
+						if (typeof resolveResult.commandArgs === 'undefined') {
+							this._commandService.executeCommand(resolveResult.commandId).then(undefined, err => this._notificationService.warn(err));
+						} else {
+							this._commandService.executeCommand(resolveResult.commandId, resolveResult.commandArgs).then(undefined, err => this._notificationService.warn(err));
+						}
+					} finally {
+						this._currentlyDispatchingCommandId = null;
 					}
 
 					if (!HIGH_FREQ_COMMANDS.test(resolveResult.commandId)) {
@@ -378,6 +384,8 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 			}
 		}
 	}
+
+	abstract enableKeybindingHoldMode(commandId: string): Promise<void> | undefined;
 
 	mightProducePrintableCharacter(event: IKeyboardEvent): boolean {
 		if (event.ctrlKey || event.metaKey) {

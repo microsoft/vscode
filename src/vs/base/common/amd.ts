@@ -3,6 +3,37 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+// ESM-comment-begin
+export const isESM = false;
+export const canASAR = true;
+// ESM-comment-end
+// ESM-uncomment-begin
+// export const isESM = true;
+// export const canASAR = false; // TODO@esm: ASAR disabled in ESM
+// ESM-uncomment-end
+
+export const enum LoaderEventType {
+	LoaderAvailable = 1,
+
+	BeginLoadingScript = 10,
+	EndLoadingScriptOK = 11,
+	EndLoadingScriptError = 12,
+
+	BeginInvokeFactory = 21,
+	EndInvokeFactory = 22,
+
+	NodeBeginEvaluatingScript = 31,
+	NodeEndEvaluatingScript = 32,
+
+	NodeBeginNativeRequire = 33,
+	NodeEndNativeRequire = 34,
+
+	CachedDataFound = 60,
+	CachedDataMissed = 61,
+	CachedDataRejected = 62,
+	CachedDataCreated = 63,
+}
+
 export abstract class LoaderStats {
 	abstract get amdLoad(): [string, number][];
 	abstract get amdInvoke(): [string, number][];
@@ -41,7 +72,7 @@ export abstract class LoaderStats {
 		}
 
 		let stats: readonly LoaderEvent[] = [];
-		if (typeof require.getStats === 'function') {
+		if (typeof require === 'function' && typeof require.getStats === 'function') {
 			stats = require.getStats().slice(0).sort((a, b) => a.timestamp - b.timestamp);
 		}
 

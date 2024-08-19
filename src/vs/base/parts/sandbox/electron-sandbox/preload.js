@@ -7,7 +7,14 @@
 (function () {
 	'use strict';
 
-	const { ipcRenderer, webFrame, contextBridge } = require('electron');
+	/**
+	 * @import { ISandboxConfiguration }  from '../common/sandboxTypes'
+	 * @import { IpcRenderer }  from './electronTypes'
+	 * @import { IpcRendererEvent }  from 'electron'
+	 * @import { ISandboxNodeProcess }  from './globals'
+	 */
+
+	const { ipcRenderer, webFrame, contextBridge, webUtils } = require('electron');
 
 	//#region Utilities
 
@@ -41,10 +48,6 @@
 
 	//#region Resolve Configuration
 
-	/**
-	 * @typedef {import('../common/sandboxTypes').ISandboxConfiguration} ISandboxConfiguration
-	 */
-
 	/** @type {ISandboxConfiguration | undefined} */
 	let configuration = undefined;
 
@@ -56,24 +59,23 @@
 		}
 
 		try {
-			if (validateIPC(windowConfigIpcChannel)) {
+			validateIPC(windowConfigIpcChannel);
 
-				// Resolve configuration from electron-main
-				configuration = await ipcRenderer.invoke(windowConfigIpcChannel);
+			// Resolve configuration from electron-main
+			const resolvedConfiguration = configuration = await ipcRenderer.invoke(windowConfigIpcChannel);
 
-				// Apply `userEnv` directly
-				Object.assign(process.env, configuration.userEnv);
+			// Apply `userEnv` directly
+			Object.assign(process.env, resolvedConfiguration.userEnv);
 
-				// Apply zoom level early before even building the
-				// window DOM elements to avoid UI flicker. We always
-				// have to set the zoom level from within the window
-				// because Chrome has it's own way of remembering zoom
-				// settings per origin (if vscode-file:// is used) and
-				// we want to ensure that the user configuration wins.
-				webFrame.setZoomLevel(configuration.zoomLevel ?? 0);
+			// Apply zoom level early before even building the
+			// window DOM elements to avoid UI flicker. We always
+			// have to set the zoom level from within the window
+			// because Chrome has it's own way of remembering zoom
+			// settings per origin (if vscode-file:// is used) and
+			// we want to ensure that the user configuration wins.
+			webFrame.setZoomLevel(resolvedConfiguration.zoomLevel ?? 0);
 
-				return configuration;
-			}
+			return resolvedConfiguration;
 		} catch (error) {
 			throw new Error(`Preload: unable to fetch vscode-window-config: ${error}`);
 		}
@@ -124,9 +126,6 @@
 		 * A minimal set of methods exposed from Electron's `ipcRenderer`
 		 * to support communication to main process.
 		 *
-		 * @typedef {import('./electronTypes').IpcRenderer} IpcRenderer
-		 * @typedef {import('electron').IpcRendererEvent} IpcRendererEvent
-		 *
 		 * @type {IpcRenderer}
 		 */
 
@@ -145,51 +144,51 @@
 			/**
 			 * @param {string} channel
 			 * @param {any[]} args
-			 * @returns {Promise<any> | never}
+			 * @returns {Promise<any>}
 			 */
 			invoke(channel, ...args) {
-				if (validateIPC(channel)) {
-					return ipcRenderer.invoke(channel, ...args);
-				}
+				validateIPC(channel);
+
+				return ipcRenderer.invoke(channel, ...args);
 			},
 
 			/**
 			 * @param {string} channel
 			 * @param {(event: IpcRendererEvent, ...args: any[]) => void} listener
-			 * @returns {IpcRenderer | never}
+			 * @returns {IpcRenderer}
 			 */
 			on(channel, listener) {
-				if (validateIPC(channel)) {
-					ipcRenderer.on(channel, listener);
+				validateIPC(channel);
 
-					return this;
-				}
+				ipcRenderer.on(channel, listener);
+
+				return this;
 			},
 
 			/**
 			 * @param {string} channel
 			 * @param {(event: IpcRendererEvent, ...args: any[]) => void} listener
-			 * @returns {IpcRenderer | never}
+			 * @returns {IpcRenderer}
 			 */
 			once(channel, listener) {
-				if (validateIPC(channel)) {
-					ipcRenderer.once(channel, listener);
+				validateIPC(channel);
 
-					return this;
-				}
+				ipcRenderer.once(channel, listener);
+
+				return this;
 			},
 
 			/**
 			 * @param {string} channel
 			 * @param {(event: IpcRendererEvent, ...args: any[]) => void} listener
-			 * @returns {IpcRenderer | never}
+			 * @returns {IpcRenderer}
 			 */
 			removeListener(channel, listener) {
-				if (validateIPC(channel)) {
-					ipcRenderer.removeListener(channel, listener);
+				validateIPC(channel);
 
-					return this;
-				}
+				ipcRenderer.removeListener(channel, listener);
+
+				return this;
 			}
 		},
 
@@ -239,12 +238,23 @@
 		},
 
 		/**
+		 * Support for subset of Electron's `webUtils` type.
+		 */
+		webUtils: {
+
+			/**
+			 * @param {File} file
+			 */
+			getPathForFile(file) {
+				return webUtils.getPathForFile(file);
+			}
+		},
+
+		/**
 		 * Support for a subset of access to node.js global `process`.
 		 *
 		 * Note: when `sandbox` is enabled, the only properties available
 		 * are https://github.com/electron/electron/blob/master/docs/api/process.md#sandbox
-		 *
-		 * @typedef {import('./globals').ISandboxNodeProcess} ISandboxNodeProcess
 		 *
 		 * @type {ISandboxNodeProcess}
 		 */
@@ -252,11 +262,9 @@
 			get platform() { return process.platform; },
 			get arch() { return process.arch; },
 			get env() { return { ...process.env }; },
-			get pid() { return process.pid; },
 			get versions() { return process.versions; },
 			get type() { return 'renderer'; },
 			get execPath() { return process.execPath; },
-			get sandboxed() { return process.sandboxed; },
 
 			/**
 			 * @returns {string}
