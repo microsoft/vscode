@@ -170,9 +170,17 @@ export class ModelLineProjectionData {
 		if (this.injectionOffsets !== null) {
 			const offsetInInputWithInjections = this.outputPositionToOffsetInInputWithInjections(outputLineIndex, outputOffset);
 			const normalizedOffsetInUnwrappedLine = this.normalizeOffsetInInputWithInjectionsAroundInjections(offsetInInputWithInjections, affinity);
+			const nextOffsetInInputWithInjections = this.outputPositionToOffsetInInputWithInjections(outputLineIndex, outputOffset + 1);
+			const nextNormalizedOffsetInUnwrappedLine = this.normalizeOffsetInInputWithInjectionsAroundInjections(nextOffsetInInputWithInjections, affinity);
+
+			// injected text caused a change
 			if (normalizedOffsetInUnwrappedLine !== offsetInInputWithInjections) {
-				// injected text caused a change
 				return this.offsetInInputWithInjectionsToOutputPosition(normalizedOffsetInUnwrappedLine, affinity);
+			}
+			else if (nextOffsetInInputWithInjections !== nextNormalizedOffsetInUnwrappedLine) {
+				const output = this.offsetInInputWithInjectionsToOutputPosition(nextNormalizedOffsetInUnwrappedLine, affinity);
+				output.outputOffset--;
+				return output;
 			}
 		}
 
