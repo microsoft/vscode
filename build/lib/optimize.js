@@ -258,7 +258,7 @@ function optimizeESMTask(opts, cjsOpts) {
                 platform: 'neutral', // makes esm
                 format: 'esm',
                 plugins: [boilerplateTrimmer],
-                target: ['es2023'],
+                target: ['es2022'],
                 loader: {
                     '.ttf': 'file',
                     '.svg': 'file',
@@ -417,7 +417,7 @@ function minifyTask(src, sourceMapBaseUrl) {
                 sourcemap: 'external',
                 outdir: '.',
                 platform: 'node',
-                target: ['esnext'],
+                target: ['es2022'],
                 write: false
             }).then(res => {
                 const jsFile = res.outputFiles.find(f => /\.js$/.test(f.path));
