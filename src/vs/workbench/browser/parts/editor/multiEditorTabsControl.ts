@@ -96,8 +96,8 @@ interface IScheduledMultiEditorTabsControlLayout extends IDisposable {
 class MultiEditorTabHoverDelegate extends WorkbenchHoverDelegate {
 
 	constructor(
-		private readonly editor: EditorInput,
-		private readonly isPinned: boolean,
+		private readonly index: number,
+		private readonly tabsModel: IReadonlyEditorGroupModel,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IHoverService hoverService: IHoverService,
 		@ICommandService private readonly commandService: ICommandService,
@@ -113,7 +113,9 @@ class MultiEditorTabHoverDelegate extends WorkbenchHoverDelegate {
 	}
 
 	private getOverrideOptions(options: IHoverDelegateOptions): Partial<IHoverOptions> {
-		if (this.isPinned) {
+		const editor = this.tabsModel.getEditorByIndex(this.index);
+		const isPinned = this.tabsModel.isPinned(this.index);
+		if (!editor || isPinned) {
 			return { actions: [] };
 		}
 		return {
@@ -123,7 +125,7 @@ class MultiEditorTabHoverDelegate extends WorkbenchHoverDelegate {
 						commandId: KEEP_EDITOR_COMMAND_ID,
 						label: localize('keepEditor', "Keep Editor"),
 						run: () => {
-							this.commandService.executeCommand(KEEP_EDITOR_COMMAND_ID, this.editor.resource);
+							this.commandService.executeCommand(KEEP_EDITOR_COMMAND_ID, editor.resource);
 						}
 					},
 					{
@@ -172,7 +174,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	private tabActionBars: ActionBar[] = [];
 	private tabDisposables: IDisposable[] = [];
 
-	private mapTabHoverDelegates = new Map<EditorInput, IHoverDelegate>();
+	private mapTabHoverDelegates = new Map<number, IHoverDelegate>();
 
 	private dimensions: IEditorTitleControlDimensions & { used?: Dimension } = {
 		container: Dimension.None,
@@ -858,10 +860,11 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		if (!editor) {
 			return getDefaultHoverDelegate('mouse');
 		}
-		let hoverDelegate = this.mapTabHoverDelegates.get(editor);
+		const index = this.tabsModel.indexOf(editor);
+		let hoverDelegate = this.mapTabHoverDelegates.get(index);
 		if (!hoverDelegate) {
-			hoverDelegate = new MultiEditorTabHoverDelegate(editor, this.tabsModel.isPinned(editor), this.configurationService, this.hoverService, this.commandService);
-			this.mapTabHoverDelegates.set(editor, hoverDelegate);
+			hoverDelegate = new MultiEditorTabHoverDelegate(index, this.tabsModel, this.configurationService, this.hoverService, this.commandService);
+			this.mapTabHoverDelegates.set(index, hoverDelegate);
 		}
 		return hoverDelegate;
 	}
