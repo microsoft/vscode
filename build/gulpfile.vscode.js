@@ -321,6 +321,11 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 			version += '-' + quality;
 		}
 
+		if (isESM() && quality !== 'exploration') {
+			// TODO@esm remove this safeguard
+			throw new Error('Refuse to build ESM on quality other than exploration');
+		}
+
 		const name = product.nameShort;
 		const packageJsonUpdates = { name, version, ...(isESM(`Setting 'type: module' and 'main: out/main.js' in top level package.json`) ? { type: 'module', main: 'out/main.js' } : {}) }; // TODO@esm this should be configured in the top level package.json
 
