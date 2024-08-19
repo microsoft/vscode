@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { equals } from 'vs/base/common/arrays';
 import { DeferredPromise, raceCancellation, timeout } from 'vs/base/common/async';
-import { Emitter, Event } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { mock } from 'vs/base/test/common/mock';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
@@ -33,7 +33,7 @@ import { IAccessibleViewService } from 'vs/platform/accessibility/browser/access
 import { IChatAccessibilityService, IChatWidget, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatAgentLocation, ChatAgentService, IChatAgentData, IChatAgentNameService, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
-import { InlineChatController, InlineChatRunOptions, State } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
+import { InlineChatController, State } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
 import { Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { CTX_INLINE_CHAT_USER_DID_EDIT, EditMode, InlineChatConfigKeys } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { TestViewsService, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
@@ -87,8 +87,8 @@ suite('InteractiveChatController', function () {
 		static INIT_SEQUENCE: readonly State[] = [State.CREATE_SESSION, State.INIT_UI, State.WAIT_FOR_INPUT];
 		static INIT_SEQUENCE_AUTO_SEND: readonly State[] = [...this.INIT_SEQUENCE, State.SHOW_REQUEST, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT];
 
-		private readonly _onDidChangeState = new Emitter<State>();
-		readonly onDidChangeState: Event<State> = this._onDidChangeState.event;
+
+		readonly onDidChangeState: Event<State> = this._onDidEnterState.event;
 
 		readonly states: readonly State[] = [];
 
@@ -109,20 +109,6 @@ suite('InteractiveChatController', function () {
 					resolve(`[${states.join(',')}] <> [${actual.join(',')}]`);
 				}, 1000);
 			});
-		}
-
-		protected override async _nextState(state: State, options: InlineChatRunOptions): Promise<void> {
-			let nextState: State | void = state;
-			while (nextState) {
-				this._onDidChangeState.fire(nextState);
-				(<State[]>this.states).push(nextState);
-				nextState = await this[nextState](options);
-			}
-		}
-
-		override dispose() {
-			super.dispose();
-			this._onDidChangeState.dispose();
 		}
 	}
 
