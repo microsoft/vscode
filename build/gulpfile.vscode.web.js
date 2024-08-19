@@ -21,7 +21,7 @@ const vfs = require('vinyl-fs');
 const packageJson = require('../package.json');
 const { compileBuildTask } = require('./gulpfile.compile');
 const extensions = require('./lib/extensions');
-const isESM = require('./lib/esm');
+const { isESM } = require('./lib/esm');
 
 const REPO_ROOT = path.dirname(__dirname);
 const BUILD_ROOT = path.dirname(REPO_ROOT);
