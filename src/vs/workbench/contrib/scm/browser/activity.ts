@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import { basename } from 'vs/base/common/resources';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 import { VIEW_PANE_ID, ISCMService, ISCMRepository, ISCMViewService } from 'vs/workbench/contrib/scm/common/scm';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
@@ -116,10 +116,12 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 		this._activeRepositoryNameContextKey = ActiveRepositoryContextKeys.ActiveRepositoryName.bindTo(this.contextKeyService);
 		this._activeRepositoryBranchNameContextKey = ActiveRepositoryContextKeys.ActiveRepositoryBranchName.bindTo(this.contextKeyService);
 
-		this.titleService.registerVariables([
+		const titleVariables = [
 			{ name: 'activeRepositoryName', contextKey: ActiveRepositoryContextKeys.ActiveRepositoryName.key },
 			{ name: 'activeRepositoryBranchName', contextKey: ActiveRepositoryContextKeys.ActiveRepositoryBranchName.key, }
-		]);
+		];
+		this.titleService.registerVariables(titleVariables);
+		this._register(toDisposable(() => this.titleService.unregisterVariables(titleVariables.map(v => v.name))));
 
 		this._register(autorunWithStore((reader, store) => {
 			this._updateActivityCountBadge(this._countBadge.read(reader), store);
