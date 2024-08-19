@@ -30,10 +30,11 @@ import { Range } from 'vs/workbench/api/common/extHostTypes';
 import { IURITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
 import { IFileQueryBuilderOptions, ITextQueryBuilderOptions } from 'vs/workbench/services/search/common/queryBuilder';
 import { IRawFileMatch2, ITextSearchResult, resultIsMatch } from 'vs/workbench/services/search/common/search';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import { ExtHostWorkspaceShape, IRelativePatternDto, IWorkspaceData, MainContext, MainThreadMessageOptions, MainThreadMessageServiceShape, MainThreadWorkspaceShape } from './extHost.protocol';
 import { revive } from 'vs/base/common/marshalling';
 import { AuthInfo, Credentials } from 'vs/platform/request/common/request';
+import { ExcludeSettingOptions, TextSearchContextNew, TextSearchMatchNew } from 'vs/workbench/services/search/common/searchExtTypes';
 
 export interface IExtHostWorkspaceProvider {
 	getWorkspaceFolder2(uri: vscode.Uri, resolveParent?: boolean): Promise<vscode.WorkspaceFolder | undefined>;
@@ -528,7 +529,6 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 	}
 	findTextInFilesNew(query: vscode.TextSearchQueryNew, extensionId: ExtensionIdentifier, options?: vscode.FindTextInFilesOptionsNew, token?: vscode.CancellationToken): vscode.FindTextInFilesResponse {
 		this._logService.trace(`extHostWorkspace#findTextInFilesNew: textSearch, extension: ${extensionId.value}, entryPoint: findTextInFilesNew`);
-
 		const queryOptions: QueryOptions[] | undefined = options?.include?.map((include) => {
 			const { includePattern, folder } = parseSearchInclude(GlobPattern.from(include));
 			return {
@@ -538,8 +538,8 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 					disregardIgnoreFiles: typeof options.useIgnoreFiles === 'boolean' ? !options.useIgnoreFiles : undefined,
 					disregardGlobalIgnoreFiles: typeof options.useIgnoreFiles?.global === 'boolean' ? !options.useIgnoreFiles?.global : undefined,
 					disregardParentIgnoreFiles: typeof options.useIgnoreFiles?.parent === 'boolean' ? !options.useIgnoreFiles?.parent : undefined,
-					disregardExcludeSettings: options.useExcludeSettings !== undefined && options.useExcludeSettings === vscode.ExcludeSettingOptions.None,
-					disregardSearchExcludeSettings: options.useExcludeSettings !== undefined && (options.useExcludeSettings !== vscode.ExcludeSettingOptions.SearchAndFilesExclude),
+					disregardExcludeSettings: options.useExcludeSettings !== undefined && options.useExcludeSettings === ExcludeSettingOptions.None,
+					disregardSearchExcludeSettings: options.useExcludeSettings !== undefined && (options.useExcludeSettings !== ExcludeSettingOptions.SearchAndFilesExclude),
 					fileEncoding: options.encoding,
 					maxResults: options.maxResults,
 					previewOptions: options.previewOptions ? {
@@ -560,7 +560,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		const asyncIterable = new AsyncIterableObject<vscode.TextSearchResultNew>(async emitter => {
 			const progress = (result: ITextSearchResult<URI>, uri: URI) => {
 				if (resultIsMatch(result)) {
-					emitter.emitOne(new vscode.TextSearchMatchNew(
+					emitter.emitOne(new TextSearchMatchNew(
 						uri,
 						result.rangeLocations.map((range) => ({
 							previewRange: new Range(range.preview.startLineNumber, range.preview.startColumn, range.preview.endLineNumber, range.preview.endColumn),
@@ -570,7 +570,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 
 					));
 				} else {
-					emitter.emitOne(new vscode.TextSearchContextNew(
+					emitter.emitOne(new TextSearchContextNew(
 						uri,
 						result.text,
 						result.lineNumber
