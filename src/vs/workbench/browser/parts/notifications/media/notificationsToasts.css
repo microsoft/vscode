@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
- .monaco-workbench > .notifications-toasts {
+.monaco-workbench > .notifications-toasts {
 	position: absolute;
 	z-index: 1000;
 	right: 3px;
