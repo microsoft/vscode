@@ -178,7 +178,7 @@ steps:
         sbomEnabled: false
       displayName: Publish compilation artifact
 
-    - script: yarn download-builtin-extensions-cg
+    - script: npm run download-builtin-extensions-cg
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
       displayName: Download component details of built-in extensions
