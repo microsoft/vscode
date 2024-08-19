@@ -12,6 +12,7 @@ import { INTERACTIVE_WINDOW_EDITOR_ID, NOTEBOOK_EDITOR_ID, REPL_EDITOR_ID } from
 export const HAS_OPENED_NOTEBOOK = new RawContextKey<boolean>('userHasOpenedNotebook', false);
 export const KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED = new RawContextKey<boolean>('notebookFindWidgetFocused', false);
 export const InteractiveWindowOpen = new RawContextKey<boolean>('interactiveWindowOpen', false);
+export const NOTEBOOK_WITHIN_ACTIVE_EDITOR = new RawContextKey<boolean>('notebookWithinActiveEditor', false);
 
 // Is Notebook
 export const NOTEBOOK_IS_ACTIVE_EDITOR = ContextKeyExpr.equals('activeEditor', NOTEBOOK_EDITOR_ID);

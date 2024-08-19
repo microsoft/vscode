@@ -9,7 +9,7 @@ import { getDefaultNotebookCreationOptions, NotebookEditorWidget } from 'vs/work
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { isCompositeNotebookEditorInput, NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
+import { isCompositeNotebookEditorInput, isNotebookEditorInput, NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { IBorrowValue, INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 import { INotebookEditor, INotebookEditorCreationOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { Emitter } from 'vs/base/common/event';
@@ -18,7 +18,7 @@ import { Dimension } from 'vs/base/browser/dom';
 import { URI } from 'vs/base/common/uri';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { InteractiveWindowOpen } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
+import { NOTEBOOK_WITHIN_ACTIVE_EDITOR, InteractiveWindowOpen } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 
@@ -112,6 +112,14 @@ export class NotebookEditorWidgetService implements INotebookEditorService {
 				}
 			}
 		}));
+
+		const notebookWithinActiveEditor = NOTEBOOK_WITHIN_ACTIVE_EDITOR.bindTo(contextKeyService);
+		this._disposables.add(editorService.onDidActiveEditorChange(() => {
+			notebookWithinActiveEditor.set(
+				isNotebookEditorInput(editorService.activeEditor || isCompositeNotebookEditorInput(editorService.activeEditor))
+			);
+		}));
+
 	}
 
 	dispose() {
