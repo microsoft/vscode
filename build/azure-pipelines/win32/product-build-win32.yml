@@ -132,6 +132,9 @@ steps:
       retryCountOnTaskFailure: 3
 
   - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
+    - powershell: node migrate.mjs --disable-watch
+      displayName: Migrate to ESM
+
     - powershell: yarn gulp "transpile-client-swc" "transpile-extensions"
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
@@ -182,7 +185,6 @@ steps:
         VSCODE_RUN_UNIT_TESTS: ${{ parameters.VSCODE_RUN_UNIT_TESTS }}
         VSCODE_RUN_INTEGRATION_TESTS: ${{ parameters.VSCODE_RUN_INTEGRATION_TESTS }}
         VSCODE_RUN_SMOKE_TESTS: ${{ parameters.VSCODE_RUN_SMOKE_TESTS }}
-        VSCODE_BUILD_ESM: ${{ parameters.VSCODE_BUILD_ESM }}
         ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
           PUBLISH_TASK_NAME: 1ES.PublishPipelineArtifact@1
 

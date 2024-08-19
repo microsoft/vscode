@@ -27,14 +27,6 @@ export function setESM(enabled: boolean) {
 	return result;
 }
 
-export function isESM(logWarning?: string): boolean {
-	try {
-		const res = fs.readFileSync(esmMarkerFile, 'utf8') === 'true';
-		if (res && logWarning) {
-			console.warn(`ESM: ${logWarning}`);
-		}
-		return res;
-	} catch (error) {
-		return false;
-	}
+export function isESM(_logWarning?: string): boolean {
+	return true;
 }
