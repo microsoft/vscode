@@ -47,7 +47,7 @@ const enum BindingId {
 	Cells,
 	TextureSampler,
 	Texture,
-	Uniforms,
+	CanvasDimensionsUniform,
 	AtlasDimensionsUniform,
 	ScrollOffset,
 }
@@ -167,26 +167,26 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> extends Disposable {
 
 
 		// Write standard uniforms
-		const enum UniformBufferInfo {
+		const enum CanvasDimensionsUniformBufferInfo {
 			FloatsPerEntry = 2,
-			BytesPerEntry = UniformBufferInfo.FloatsPerEntry * 4,
+			BytesPerEntry = CanvasDimensionsUniformBufferInfo.FloatsPerEntry * 4,
 			Offset_CanvasWidth = 0,
 			Offset_CanvasHeight = 1
 		}
-		const uniformBufferValues = new Float32Array(UniformBufferInfo.FloatsPerEntry);
-		const uniformBuffer = this._register(GPULifecycle.createBuffer(this._device, {
+		const canvasDimensionsUniformBufferValues = new Float32Array(CanvasDimensionsUniformBufferInfo.FloatsPerEntry);
+		const canvasDimensionsUniformBuffer = this._register(GPULifecycle.createBuffer(this._device, {
 			label: 'Monaco uniform buffer',
-			size: UniformBufferInfo.BytesPerEntry,
+			size: CanvasDimensionsUniformBufferInfo.BytesPerEntry,
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
 		}, () => {
-			uniformBufferValues[UniformBufferInfo.Offset_CanvasWidth] = this.domNode.width;
-			uniformBufferValues[UniformBufferInfo.Offset_CanvasHeight] = this.domNode.height;
-			return uniformBufferValues;
+			canvasDimensionsUniformBufferValues[CanvasDimensionsUniformBufferInfo.Offset_CanvasWidth] = this.domNode.width;
+			canvasDimensionsUniformBufferValues[CanvasDimensionsUniformBufferInfo.Offset_CanvasHeight] = this.domNode.height;
+			return canvasDimensionsUniformBufferValues;
 		})).value;
 		this._register(observeDevicePixelDimensions(this.domNode, getActiveWindow(), (w, h) => {
-			uniformBufferValues[UniformBufferInfo.Offset_CanvasWidth] = this.domNode.width;
-			uniformBufferValues[UniformBufferInfo.Offset_CanvasHeight] = this.domNode.height;
-			this._device.queue.writeBuffer(uniformBuffer, 0, uniformBufferValues);
+			canvasDimensionsUniformBufferValues[CanvasDimensionsUniformBufferInfo.Offset_CanvasWidth] = this.domNode.width;
+			canvasDimensionsUniformBufferValues[CanvasDimensionsUniformBufferInfo.Offset_CanvasHeight] = this.domNode.height;
+			this._device.queue.writeBuffer(canvasDimensionsUniformBuffer, 0, canvasDimensionsUniformBufferValues);
 		}));
 
 
@@ -277,7 +277,7 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> extends Disposable {
 				{ binding: BindingId.GlyphInfo1, resource: { buffer: this._glyphStorageBuffer[1] } },
 				{ binding: BindingId.TextureSampler, resource: sampler },
 				{ binding: BindingId.Texture, resource: this._atlasGpuTexture.createView() },
-				{ binding: BindingId.Uniforms, resource: { buffer: uniformBuffer } },
+				{ binding: BindingId.CanvasDimensionsUniform, resource: { buffer: canvasDimensionsUniformBuffer } },
 				{ binding: BindingId.AtlasDimensionsUniform, resource: { buffer: atlasInfoUniformBuffer } },
 				...this._renderStrategy.bindGroupEntries
 			],
@@ -402,14 +402,6 @@ interface IRenderStrategy<T extends IVisibleLine> {
 // #region Full file render strategy
 
 const fullFileRenderStrategyWgsl = `
-struct Uniforms {
-	canvasDimensions: vec2f,
-};
-
-struct AtlasDimensionsUniform {
-	size: vec2f,
-}
-
 struct GlyphInfo {
 	position: vec2f,
 	size: vec2f,
@@ -438,14 +430,14 @@ struct VSOutput {
 };
 
 // Uniforms
-@group(0) @binding(${BindingId.Uniforms})               var<uniform>       uniforms:        Uniforms;
-@group(0) @binding(${BindingId.AtlasDimensionsUniform}) var<uniform>       atlasDims:       AtlasDimensionsUniform;
-@group(0) @binding(${BindingId.ScrollOffset})           var<uniform>       scrollOffset:    ScrollOffset;
+@group(0) @binding(${BindingId.CanvasDimensionsUniform}) var<uniform>       canvasDims:      vec2f;
+@group(0) @binding(${BindingId.AtlasDimensionsUniform})  var<uniform>       atlasDims:       vec2f;
+@group(0) @binding(${BindingId.ScrollOffset})            var<uniform>       scrollOffset:    ScrollOffset;
 
 // Storage buffers
-@group(0) @binding(${BindingId.GlyphInfo0})             var<storage, read> glyphInfo0:      array<GlyphInfo>;
-@group(0) @binding(${BindingId.GlyphInfo1})             var<storage, read> glyphInfo1:      array<GlyphInfo>;
-@group(0) @binding(${BindingId.Cells})                  var<storage, read> cells:           array<Cells>;
+@group(0) @binding(${BindingId.GlyphInfo0})              var<storage, read> glyphInfo0:      array<GlyphInfo>;
+@group(0) @binding(${BindingId.GlyphInfo1})              var<storage, read> glyphInfo1:      array<GlyphInfo>;
+@group(0) @binding(${BindingId.Cells})                   var<storage, read> cells:           array<Cells>;
 
 @vertex fn vs(
 	vert: Vertex,
@@ -465,7 +457,7 @@ struct VSOutput {
 	var vsOut: VSOutput;
 	// Multiple vert.position by 2,-2 to get it into clipspace which ranged from -1 to 1
 	vsOut.position = vec4f(
-		(((vert.position * vec2f(2, -2)) / uniforms.canvasDimensions)) * glyph.size + cell.position + ((glyph.origin * vec2f(2, -2)) / uniforms.canvasDimensions) + ((scrollOffset.offset * 2) / uniforms.canvasDimensions),
+		(((vert.position * vec2f(2, -2)) / canvasDims)) * glyph.size + cell.position + ((glyph.origin * vec2f(2, -2)) / canvasDims) + ((scrollOffset.offset * 2) / canvasDims),
 		0.0,
 		1.0
 	);
@@ -475,9 +467,9 @@ struct VSOutput {
 	vsOut.texcoord = vert.position;
 	vsOut.texcoord = (
 		// Glyph offset (0-1)
-		(glyph.position / atlasDims.size) +
+		(glyph.position / atlasDims) +
 		// Glyph coordinate (0-1)
-		(vsOut.texcoord * (glyph.size / atlasDims.size))
+		(vsOut.texcoord * (glyph.size / atlasDims))
 	);
 
 	return vsOut;
