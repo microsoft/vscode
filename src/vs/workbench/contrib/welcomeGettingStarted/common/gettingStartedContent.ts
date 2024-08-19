@@ -406,7 +406,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 				{
 					id: 'accessibilityHelp',
 					title: localize('gettingStarted.accessibilityHelp.title', "Use the accessibility help dialog to learn about features"),
-					description: localize('gettingStarted.accessibilityHelp.description.interpolated', "The accessibility help dialog provides information about features, what to expect, and the commands/keybindings that operate them.\n They exist for the editor, terminal, notebooks, chat, comments, and debug views and can be opened with the Open Accessibility Help command.\n{0}", Button(localize('openAccessibilityHelp', "Open Accessibility Help"), 'command:editor.action.accessibilityHelp')),
+					description: localize('gettingStarted.accessibilityHelp.description.interpolated', "The accessibility help dialog provides information about what to expect from a feature and the commands/keybindings to operate them.\n With focus in an editor, terminal, notebook, chat response, comment, or debug console, the relevant dialog can be opened with the Open Accessibility Help command.\n{0}", Button(localize('openAccessibilityHelp', "Open Accessibility Help"), 'command:editor.action.accessibilityHelp')),
 					media: {
 						type: 'markdown', path: 'empty'
 					}
@@ -414,7 +414,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 				{
 					id: 'accessibleView',
 					title: localize('gettingStarted.accessibleView.title', "Use the accessible view to inspect content line by line, character by character"),
-					description: localize('gettingStarted.accessibleView.description.interpolated', "The accessible view is available for the terminal, hovers, notifications, comments, notebook output, chat responses, inline completions, and debug console output.\n It can be opened with the Open Accessible View command.\n{0}", Button(localize('openAccessibleView', "Open Accessible View"), 'command:editor.action.accessibleView')),
+					description: localize('gettingStarted.accessibleView.description.interpolated', "The accessible view is available for the terminal, hovers, notifications, comments, notebook output, chat responses, inline completions, and debug console output.\n With focus in any of those features, it can be opened with the Open Accessible View command.\n{0}", Button(localize('openAccessibleView', "Open Accessible View"), 'command:editor.action.accessibleView')),
 					media: {
 						type: 'markdown', path: 'empty'
 					}
@@ -422,14 +422,14 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 				{
 					id: 'verbositySettings',
 					title: localize('gettingStarted.verbositySettings.title', "Control the verbosity of aria labels"),
-					description: localize('gettingStarted.verbositySettings.description.interpolated', "Verbosity settings exist for features around the workbench so that once a user is familiar with a feature, they can reduce the noise of its aria labels. For example, features for which an accessibility help dialog exists will indicate how to open the dialog until the verbosity setting for that feature has been disabled.\n These and other accessibility settinggs can be configured by running the Open Accessibility Settings command.\n{0}", Button(localize('openVerbositySettings', "Open Accessibility Settings"), 'command:workbench.action.openAccessibilitySettings')),
+					description: localize('gettingStarted.verbositySettings.description.interpolated', "Verbosity settings exist for features around the workbench so that once a user is familiar with a feature, they can avoid hearing hints about how to operate it. For example, features for which an accessibility help dialog exists will indicate how to open the dialog until the verbosity setting for that feature has been disabled.\n These and other accessibility settings can be configured by running the Open Accessibility Settings command.\n{0}", Button(localize('openVerbositySettings', "Open Accessibility Settings"), 'command:workbench.action.openAccessibilitySettings')),
 					media: {
 						type: 'markdown', path: 'empty'
 					}
 				},
 				{
 					id: 'accessibilitySignals',
-					title: localize('gettingStarted.accessibilitySignals.title', "Fine tune which accessibility signals you want to receive via audio or braille device"),
+					title: localize('gettingStarted.accessibilitySignals.title', "Fine tune which accessibility signals you want to receive via audio or a braille device"),
 					description: localize('gettingStarted.accessibilitySignals.description.interpolated', "Accessibility sounds and announcements are played around the workbench for different events.\n These can be discovered and configured using the List Signal Sounds and List Signal Announcements commands.\n{0}\n{1}", Button(localize('listSignalSounds', "List Signal Sounds"), 'command:signals.sounds.help'), Button(localize('listSignalAnnouncements', "List Signal Announcements"), 'command:signals.announcements.help')),
 					media: {
 						type: 'markdown', path: 'empty'
