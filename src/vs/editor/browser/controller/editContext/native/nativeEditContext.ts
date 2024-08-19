@@ -32,7 +32,7 @@ import { EndOfLinePreference, IModelDeltaDecoration } from 'vs/editor/common/mod
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { deduceInput, findNewLineCountBeforeSelection, ISimpleModel, ITypeData, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/editContext/utilities';
+import { deduceInput, ISimpleModel, ITypeData, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/editContext/utilities';
 
 /**
  * Correctly place the bounding boxes so that they are exactly aligned
@@ -60,13 +60,6 @@ export class NativeEditContext extends AbstractEditContext {
 	private _currentComposition: CompositionContext | undefined;
 	private _selectionOfContent: Range | undefined;
 	private _renderingContext: RenderingContext | undefined;
-	private _editContextState: {
-		value: string;
-		selectionStart: number;
-		selectionEnd: number;
-		newLineCountBeforeSelection: number | undefined;
-		selectionOfContent: Range | undefined;
-	} | undefined;
 
 	private _scrollLeft: number = 0;
 	private _scrollTop: number = 0;
@@ -74,8 +67,6 @@ export class NativeEditContext extends AbstractEditContext {
 	private _hasFocus: boolean = false;
 	private _selectionStartWithinScreenReaderContent: number = 0;
 	private _selectionEndWithinScreenReaderContent: number = 0;
-	private _selectionStartWithinEditContext: number = 0;
-	private _selectionEndWithinEditContext: number = 0;
 
 	private _selectionBounds: IDisposable = Disposable.None;
 	private _controlBounds: IDisposable = Disposable.None;
@@ -157,21 +148,19 @@ export class NativeEditContext extends AbstractEditContext {
 			console.log('platform.OS === platform.OperatingSystem.Macintosh : ', platform.OS === platform.OperatingSystem.Macintosh);
 			console.log('lastKeyDown : ', lastKeyDown);
 			console.log('lastKeyDown.equals(KeyCode.KEY_IN_COMPOSITION) : ', lastKeyDown?.equals(KeyCode.KEY_IN_COMPOSITION));
-			console.log('this._editContextState : ', this._editContextState);
-			console.log('this._editContextState.selectionStart : ', this._editContextState?.selectionStart);
-			console.log('this._editContextState.selectionEnd : ', this._editContextState?.selectionEnd);
-			console.log('this._editContextState.value.substring(this._editContextState.selectionStart - 1, this._editContextState.selectionEnd).substring(this._editContextState.selectionStart - 1, this._editContextState.selectionEnd) : ', this._editContextState?.value.substring(this._editContextState.selectionStart - 1, this._editContextState.selectionEnd).substring(this._editContextState.selectionStart - 1, this._editContextState.selectionEnd));
-			console.log('(e.currentTarget as EditContext).text : ', (e.currentTarget as EditContext).text);
+			console.log('this._editContext.selectionStart : ', this._editContext.selectionStart);
+			console.log('this._editContext.selectionEnd : ', this._editContext.selectionEnd);
+			console.log('this._editContext.text.substring(this._editContext.selectionStart - 1, this._editContext.selectionEnd) : ', this._editContext.text.substring(this._editContext.selectionStart - 1, this._editContext.selectionEnd));
+			console.log('(e.currentTarget as EditContext).text.substring(this._editContext.selectionStart - 1, this._editContext.selectionEnd) : ', (e.currentTarget as EditContext).text.substring(this._editContext.selectionStart - 1, this._editContext.selectionEnd));
 			console.log('(lastKeyDown.code === ArrowRight || lastKeyDown.code === ArrowLeft) : ', (lastKeyDown?.code === 'ArrowRight' || lastKeyDown?.code === 'ArrowLeft'));
 
 			if (
 				platform.OS === platform.OperatingSystem.Macintosh
 				&& lastKeyDown
 				&& lastKeyDown.equals(KeyCode.KEY_IN_COMPOSITION)
-				&& this._editContextState
-				&& this._editContextState.selectionStart === this._editContextState.selectionEnd
-				&& this._editContextState.selectionStart > 0
-				&& this._editContextState.value.substring(this._editContextState.selectionStart - 1, this._editContextState.selectionEnd) === (e.currentTarget as EditContext).text.substring(this._editContextState.selectionStart - 1, this._editContextState.selectionEnd)
+				&& this._editContext.selectionStart === this._editContext.selectionEnd
+				&& this._editContext.selectionStart > 0
+				&& this._editContext.text.substring(this._editContext.selectionStart - 1, this._editContext.selectionEnd) === (e.currentTarget as EditContext).text.substring(this._editContext.selectionStart - 1, this._editContext.selectionEnd)
 				&& (lastKeyDown.code === 'ArrowRight' || lastKeyDown.code === 'ArrowLeft')
 			) {
 				console.log('before handle composition update');
@@ -206,8 +195,6 @@ export class NativeEditContext extends AbstractEditContext {
 
 			if ('data' in e && typeof e.data === 'string') {
 
-				this._editContextState = this._getUpdatedEditContextState();
-
 				const typeInput = currentComposition.handleCompositionUpdate(e.data);
 				this._onType(typeInput);
 
@@ -224,10 +211,8 @@ export class NativeEditContext extends AbstractEditContext {
 			if (e.inputType === 'insertParagraph' || e.inputType === 'insertLineBreak') {
 
 				console.log('this._editContext.text : ', this._editContext.text);
-				console.log('this._selectionStartWithin : ', this._selectionStartWithinEditContext);
-				console.log('this._selectionEndWithin : ', this._selectionEndWithinEditContext);
 
-				const textAfterAddingNewLine = this._editContext.text.substring(0, this._selectionStartWithinEditContext) + '\n' + this._editContext.text.substring(this._selectionEndWithinEditContext);
+				const textAfterAddingNewLine = this._editContext.text.substring(0, this._editContext.selectionStart) + '\n' + this._editContext.text.substring(this._editContext.selectionEnd);
 				this._editContext.updateText(0, Number.MAX_SAFE_INTEGER, textAfterAddingNewLine);
 				this.onInputWithoutComposition('\n');
 			}
@@ -281,8 +266,7 @@ export class NativeEditContext extends AbstractEditContext {
 				screenReaderContentState = {
 					value: screenReaderContentState.value,
 					selectionStart: screenReaderContentState.value.length,
-					selectionEnd: screenReaderContentState.value.length,
-					newLineCountBeforeSelection: undefined
+					selectionEnd: screenReaderContentState.value.length
 				};
 			}
 		}
@@ -296,21 +280,17 @@ export class NativeEditContext extends AbstractEditContext {
 
 		const editContextContentState = this._getEditContextState();
 
-		this._selectionStartWithinEditContext = editContextContentState.selectionStart;
-		this._selectionEndWithinEditContext = editContextContentState.selectionEnd;
-
 		console.log('before updateText value to set : ', editContextContentState.value);
 		this._editContext.updateText(0, Number.MAX_SAFE_INTEGER, editContextContentState.value);
-		this._editContext.updateSelection(this._selectionStartWithinEditContext, this._selectionEndWithinEditContext);
+		this._editContext.updateSelection(editContextContentState.selectionStart, editContextContentState.selectionEnd);
 
 		this._selectionOfContent = editContextContentState.selectionOfContent;
-		this._editContextState = editContextContentState;
 
 		console.log('updateText');
 		console.log('IMEContentData : ', editContextContentState);
 		console.log('this._editContext.text : ', this._editContext.text);
-		console.log('this._selectionStartWithin : ', this._selectionStartWithinEditContext);
-		console.log('this._selectionEndWithin : ', this._selectionEndWithinEditContext);
+		console.log('editContextContentState.selectionStart : ', editContextContentState.selectionStart);
+		console.log('editContextContentState.selectionEnd : ', editContextContentState.selectionEnd);
 		console.log('this._selectionOfContent : ', this._selectionOfContent);
 	}
 
@@ -536,7 +516,8 @@ export class NativeEditContext extends AbstractEditContext {
 			// with our cursor by scrolling the textarea as much as possible
 			this._domElement.domNode.scrollLeft = this._primaryCursorVisibleRange.left;
 			const divValue = this._domElement.domNode.textContent ?? '';
-			const lineCount = this._editContextState?.newLineCountBeforeSelection ?? this._newlinecount(divValue.substring(0, this._selectionStartWithinScreenReaderContent));
+			console.log('_render');
+			const lineCount = this._newlinecount(divValue.substring(0, this._selectionStartWithinScreenReaderContent));
 			this._domElement.domNode.scrollTop = lineCount * this._lineHeight;
 			return;
 		}
@@ -612,7 +593,6 @@ export class NativeEditContext extends AbstractEditContext {
 		value: string;
 		selectionStart: number;
 		selectionEnd: number;
-		newLineCountBeforeSelection: number | undefined;
 	} {
 		const simpleModel: ISimpleModel = {
 			getLineCount: (): number => {
@@ -637,8 +617,7 @@ export class NativeEditContext extends AbstractEditContext {
 			return {
 				value: '',
 				selectionStart: 0,
-				selectionEnd: 0,
-				newLineCountBeforeSelection: undefined
+				selectionEnd: 0
 			};
 		}
 		return PagedScreenReaderStrategy.fromEditorSelection(simpleModel, this._selections[0], this._accessibilityPageSize, this._accessibilitySupport === AccessibilitySupport.Unknown);
@@ -648,10 +627,8 @@ export class NativeEditContext extends AbstractEditContext {
 		value: string;
 		selectionStart: number;
 		selectionEnd: number;
-		newLineCountBeforeSelection: number | undefined;
 		selectionOfContent: Selection;
 	} {
-		const newLineCountBeforeSelection = undefined;
 		const cursorState = this._context.viewModel.getPrimaryCursorState().modelState;
 		const selectionOfContent = cursorState.selection;
 		// Need to do multiline also
@@ -674,7 +651,6 @@ export class NativeEditContext extends AbstractEditContext {
 			selectionStart,
 			selectionEnd,
 			selectionOfContent,
-			newLineCountBeforeSelection,
 		};
 	}
 
@@ -769,14 +745,13 @@ export class NativeEditContext extends AbstractEditContext {
 		if (this._currentComposition) {
 			return;
 		}
-		const newOffset = this._selectionStartWithinEditContext + text.length;
-		this._selectionStartWithinEditContext = newOffset;
-		this._selectionEndWithinEditContext = newOffset;
-		const editContextState = this._getUpdatedEditContextState();
-		const typeInput = deduceInput(this._editContextState, editContextState);
+		const newOffset = this._editContext.selectionStart + text.length;
+		const newValue = this._editContext.text.substring(0, this._editContext.selectionStart) + text + this._editContext.text.substring(this._editContext.selectionEnd);
+		const previousState = { value: this._editContext.text, selectionStart: this._editContext.selectionStart, selectionEnd: this._editContext.selectionEnd };
+		const currentState = { value: newValue, selectionStart: newOffset, selectionEnd: newOffset };
+		const typeInput = deduceInput(previousState, currentState);
 
 		console.log('onInput');
-		console.log('this._textAreaState : ', this._editContextState);
 		console.log('typeInput : ', typeInput);
 
 		if (
@@ -792,12 +767,6 @@ export class NativeEditContext extends AbstractEditContext {
 	public onInputWithComposition(composition: CompositionContext, data: string): void {
 
 		this._updateCompositionEndPosition();
-
-		console.log('this._textAreaState before assignment : ', this._editContextState);
-
-		this._editContextState = this._getUpdatedEditContextState();
-
-		console.log('this._textAreaState after assignment : ', this._editContextState);
 
 		const compositionInput = composition.handleCompositionUpdate(data);
 
@@ -989,23 +958,6 @@ export class NativeEditContext extends AbstractEditContext {
 
 	private _updateCompositionStartPosition(): void {
 		this._compositionStartPosition = this._context.viewModel.getCursorStates()[0].viewState.position;
-	}
-
-	private _getUpdatedEditContextState(): {
-		value: string;
-		selectionStart: number;
-		selectionEnd: number;
-		newLineCountBeforeSelection: number | undefined;
-		selectionOfContent: Range | undefined;
-	} {
-		const current: { value: string; selectionStart: number } = { value: this._editContext.text, selectionStart: this._selectionStartWithinEditContext };
-		return {
-			value: this._editContext.text,
-			selectionStart: this._selectionStartWithinEditContext,
-			selectionEnd: this._selectionEndWithinEditContext,
-			newLineCountBeforeSelection: findNewLineCountBeforeSelection(current, this._editContextState),
-			selectionOfContent: this._selectionOfContent
-		};
 	}
 }
 
