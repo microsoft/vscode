@@ -137,6 +137,7 @@ suite('chat', () => {
 		};
 		disposables.push(participant);
 
+		await commands.executeCommand('workbench.action.chat.newChat');
 		commands.executeCommand('workbench.action.chat.open', { query: '@participant /hello friend' });
 
 		// Wait for title provider to be called once
