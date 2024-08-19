@@ -110,7 +110,7 @@ export class ReplDocumentContribution extends Disposable implements IWorkbenchCo
 			{
 				id: 'repl',
 				label: 'repl Editor',
-				priority: RegisteredEditorPriority.builtin
+				priority: RegisteredEditorPriority.option
 			},
 			{
 				// We want to support all notebook types which could have any file extension,
