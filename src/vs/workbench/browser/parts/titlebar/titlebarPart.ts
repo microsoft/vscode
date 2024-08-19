@@ -84,11 +84,6 @@ export interface ITitlebarPart extends IDisposable {
 	 * Adds variables to be supported in the window title.
 	 */
 	registerVariables(variables: ITitleVariable[]): void;
-
-	/**
-	 * Unregisters variables from being supported in the window title.
-	 */
-	unregisterVariables(variableNames: string[]): void;
 }
 
 export class BrowserTitleService extends MultiWindowParts<BrowserTitlebarPart> implements ITitleService {
@@ -107,7 +102,7 @@ export class BrowserTitleService extends MultiWindowParts<BrowserTitlebarPart> i
 		this._register(this.registerPart(this.mainPart));
 
 		this.registerActions();
-		this.registerCommands();
+		this.registerAPICommands();
 	}
 
 	protected createMainTitlebarPart(): BrowserTitlebarPart {
@@ -135,14 +130,10 @@ export class BrowserTitleService extends MultiWindowParts<BrowserTitlebarPart> i
 		}));
 	}
 
-	private registerCommands(): void {
+	private registerAPICommands(): void {
 		this._register(CommandsRegistry.registerCommand({
 			id: 'registerWindowTitleVariable',
 			handler: (accessor: ServicesAccessor, name: string, contextKey: string) => {
-				if (accessor.get(IContextKeyService).getContextKeyValue(contextKey) === undefined) {
-					console.error(`Unable to register window title variable: Context key '${contextKey}' is not defined.`);
-					return;
-				}
 				this.registerVariables([{ name, contextKey }]);
 			},
 			metadata: {
@@ -150,19 +141,6 @@ export class BrowserTitleService extends MultiWindowParts<BrowserTitlebarPart> i
 				args: [
 					{ name: 'name', schema: { type: 'string' }, description: 'The name of the variable to register' },
 					{ name: 'contextKey', schema: { type: 'string' }, description: 'The context key to use for the value of the variable' }
-				]
-			}
-		}));
-
-		this._register(CommandsRegistry.registerCommand({
-			id: 'unregisterWindowTitleVariable',
-			handler: (_, name: string) => {
-				this.unregisterVariables([name]);
-			},
-			metadata: {
-				description: 'Unregister a title variable',
-				args: [
-					{ name: 'name', schema: { type: 'string' }, description: 'The name of the variable to unregister' },
 				]
 			}
 		}));
@@ -189,8 +167,8 @@ export class BrowserTitleService extends MultiWindowParts<BrowserTitlebarPart> i
 			titlebarPart.updateProperties(this.properties);
 		}
 
-		if (this.variables.length) {
-			titlebarPart.registerVariables(this.variables);
+		if (this.variables.size) {
+			titlebarPart.registerVariables(Array.from(this.variables.values()));
 		}
 
 		Event.once(titlebarPart.onWillDispose)(() => disposables.dispose());
@@ -219,36 +197,20 @@ export class BrowserTitleService extends MultiWindowParts<BrowserTitlebarPart> i
 		}
 	}
 
-	private variables: ITitleVariable[] = [];
+	private readonly variables = new Map<string, ITitleVariable>();
 
 	registerVariables(variables: ITitleVariable[]): void {
-		const unregisteredVariables: ITitleVariable[] = [];
+		const newVariables: ITitleVariable[] = [];
 
-		// Filter out any variables that are already registered
-		const existingVariableNames = new Set(this.variables.map(v => v.name));
-		const existingVariableContexKeys = new Set(this.variables.map(v => v.contextKey));
-		for (const v of variables) {
-			if (existingVariableNames.has(v.name)) {
-				console.error(`A title variable with the name '${v.name}' is already registered.`);
-			} else if (existingVariableContexKeys.has(v.contextKey)) {
-				console.error(`A title variable with the context key '${v.contextKey}' is already registered.`);
-			} else {
-				unregisteredVariables.push(v);
+		for (const variable of variables) {
+			if (!this.variables.has(variable.name)) {
+				this.variables.set(variable.name, variable);
+				newVariables.push(variable);
 			}
 		}
 
-		this.variables.push(...unregisteredVariables);
-
 		for (const part of this.parts) {
-			part.registerVariables(unregisteredVariables);
-		}
-	}
-
-	unregisterVariables(variableNames: string[]): void {
-		this.variables = this.variables.filter(v => !variableNames.includes(v.name));
-
-		for (const part of this.parts) {
-			part.unregisterVariables(variableNames);
+			part.registerVariables(newVariables);
 		}
 	}
 
@@ -461,10 +423,6 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 	registerVariables(variables: ITitleVariable[]): void {
 		this.windowTitle.registerVariables(variables);
-	}
-
-	unregisterVariables(variableNames: string[]): void {
-		this.windowTitle.unregisterVariables(variableNames);
 	}
 
 	protected override createContentArea(parent: HTMLElement): HTMLElement {

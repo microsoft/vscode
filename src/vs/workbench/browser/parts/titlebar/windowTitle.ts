@@ -268,22 +268,6 @@ export class WindowTitle extends Disposable {
 		}
 	}
 
-	unregisterVariables(variableNames: string[]): void {
-		let changed = false;
-
-		for (const [contextKey, name] of this.variables) {
-			if (variableNames.includes(name)) {
-				this.variables.delete(contextKey);
-
-				changed = true;
-			}
-		}
-
-		if (changed) {
-			this.titleUpdater.schedule();
-		}
-	}
-
 	/**
 	 * Possible template values:
 	 *
