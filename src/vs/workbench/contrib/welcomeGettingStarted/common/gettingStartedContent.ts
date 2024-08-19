@@ -408,71 +408,71 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					title: localize('gettingStarted.accessibilityHelp.title', "Use the accessibility help dialog to learn about features"),
 					description: localize('gettingStarted.accessibilityHelp.description.interpolated', "The accessibility help dialog provides information about features, what to expect, and the commands/keybindings that operate them.\n They exist for the editor, terminal, notebooks, chat, comments, and debug views and can be opened with the Open Accessibility Help command.\n{0}", Button(localize('openAccessibilityHelp', "Open Accessibility Help"), 'command:editor.action.accessibilityHelp')),
 					media: {
-						type: 'svg', altText: 'VS Code extension marketplace with featured language extensions', path: 'extensions-web.svg'
-					},
+						type: 'markdown', path: 'empty'
+					}
 				},
 				{
 					id: 'accessibleView',
 					title: localize('gettingStarted.accessibleView.title', "Use the accessible view to inspect content line by line, character by character"),
 					description: localize('gettingStarted.accessibleView.description.interpolated', "The accessible view is available for the terminal, hovers, notifications, comments, notebook output, chat responses, inline completions, and debug console output.\n It can be opened with the Open Accessible View command.\n{0}", Button(localize('openAccessibleView', "Open Accessible View"), 'command:editor.action.accessibleView')),
 					media: {
-						type: 'svg', altText: 'VS Code extension marketplace with featured language extensions', path: 'extensions-web.svg'
-					},
+						type: 'markdown', path: 'empty'
+					}
 				},
 				{
 					id: 'verbositySettings',
 					title: localize('gettingStarted.verbositySettings.title', "Control the verbosity of aria labels"),
 					description: localize('gettingStarted.verbositySettings.description.interpolated', "Verbosity settings exist for features around the workbench so that once a user is familiar with a feature, they can reduce the noise of its aria labels. For example, features for which an accessibility help dialog exists will indicate how to open the dialog until the verbosity setting for that feature has been disabled.\n These and other accessibility settinggs can be configured by running the Open Accessibility Settings command.\n{0}", Button(localize('openVerbositySettings', "Open Accessibility Settings"), 'command:workbench.action.openAccessibilitySettings')),
 					media: {
-						type: 'svg', altText: 'VS Code extension marketplace with featured language extensions', path: 'extensions-web.svg'
-					},
+						type: 'markdown', path: 'empty'
+					}
 				},
 				{
 					id: 'accessibilitySignals',
 					title: localize('gettingStarted.accessibilitySignals.title', "Fine tune which accessibility signals you want to receive via audio or braille device"),
 					description: localize('gettingStarted.accessibilitySignals.description.interpolated', "Accessibility sounds and announcements are played around the workbench for different events.\n These can be discovered and configured using the List Signal Sounds and List Signal Announcements commands.\n{0}\n{1}", Button(localize('listSignalSounds', "List Signal Sounds"), 'command:signals.sounds.help'), Button(localize('listSignalAnnouncements', "List Signal Announcements"), 'command:signals.announcements.help')),
 					media: {
-						type: 'svg', altText: 'VS Code extension marketplace with featured language extensions', path: 'extensions-web.svg'
-					},
+						type: 'markdown', path: 'empty'
+					}
 				},
 				{
 					id: 'hover',
 					title: localize('gettingStarted.hover.title', "Access the hover in the editor to get more information on a variable or symbol"),
 					description: localize('gettingStarted.hover.description.interpolated', "While focus is in the editor on a variable or symbol, a hover can be can be focused with the Show or Open Hover command.\n{0}", Button(localize('showOrFocusHover', "Show or Focus Hover"), 'command:editor.action.showHover')),
 					media: {
-						type: 'svg', altText: 'VS Code extension marketplace with featured language extensions', path: 'extensions-web.svg'
-					},
+						type: 'markdown', path: 'empty'
+					}
 				},
 				{
 					id: 'goToSymbol',
 					title: localize('gettingStarted.goToSymbol.title', "Navigate to symbols in a file"),
 					description: localize('gettingStarted.goToSymbol.description.interpolated', "The Go to Symbol command is useful for navigating between important landmarks in a document.\n{0}", Button(localize('openGoToSymbol', "Go to Symbol"), 'command:editor.action.goToSymbol')),
 					media: {
-						type: 'svg', altText: 'VS Code extension marketplace with featured language extensions', path: 'extensions-web.svg'
-					},
+						type: 'markdown', path: 'empty'
+					}
 				},
 				{
 					id: 'codeFolding',
 					title: localize('gettingStarted.codeFolding.title', "Use code folding to collapse blocks of code and focus on the code you're interested in."),
 					description: localize('gettingStarted.codeFolding.description.interpolated', "Fold or unfold a code section with the Toggle Fold command.\n{0}\n Fold or unfold recursively with the Toggle Fold Recursively Command\n{1}\n", Button(localize('toggleFold', "Toggle Fold"), 'command:editor.toggleFold'), Button(localize('toggleFoldRecursively', "Toggle Fold Recursively"), 'editor.toggleFoldRecursively')),
 					media: {
-						type: 'svg', altText: 'VS Code extension marketplace with featured language extensions', path: 'extensions-web.svg'
-					},
+						type: 'markdown', path: 'empty'
+					}
 				},
 				{
 					id: 'intellisense',
 					title: localize('gettingStarted.intellisense.title', "Use Intellisense to improve coding efficiency"),
 					description: localize('gettingStarted.intellisense.description.interpolated', "Intellisense suggestions can be opened with the Trigger Intellisense command.\n{0}\n Inline intellisense suggestions can be triggered with Trigger Inline Suggestion\n{1}\n Useful settings include editor.inlineCompletionsAccessibilityVerbose and editor.screenReaderAnnounceInlineSuggestion.", Button(localize('triggerIntellisense', "Trigger Intellisense"), 'command:editor.action.triggerSuggest'), Button(localize('triggerInlineSuggestion', 'Trigger Inline Suggestion'), 'command:editor.action.inlineSuggest.trigger')),
 					media: {
-						type: 'svg', altText: 'VS Code extension marketplace with featured language extensions', path: 'extensions-web.svg'
-					},
+						type: 'markdown', path: 'empty'
+					}
 				}
 			]
 		}
 	},
 	{
 		id: 'SetupScreenReaderExtended',
-		title: localize('gettingStarted.setupScreenReaderExtended.title', "Get Started with VS Code using a Screen Reader"),
+		title: localize('gettingStarted.setupScreenReaderExtended.title', "Learn more about using VS Code"),
 		description: localize('gettingStarted.setupScreenReaderExtended.description', "Customize your editor, learn the basics, and start coding"),
 		isFeatured: true,
 		icon: setupIcon,
@@ -486,8 +486,8 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					description: localize('gettingStarted.extensionsWeb.description.interpolated', "Extensions are VS Code's power-ups. A growing number are becoming available in the web.\n{0}", Button(localize('browsePopularWeb', "Browse Popular Web Extensions"), 'command:workbench.extensions.action.showPopularExtensions')),
 					when: 'workspacePlatform == \'webworker\'',
 					media: {
-						type: 'svg', altText: 'VS Code extension marketplace with featured language extensions', path: 'extensions-web.svg'
-					},
+						type: 'markdown', path: 'empty'
+					}
 				},
 				{
 					id: 'findLanguageExtensions',
@@ -495,16 +495,16 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					description: localize('gettingStarted.findLanguageExts.description.interpolated', "Code smarter with syntax highlighting, code completion, linting and debugging. While many languages are built-in, many more can be added as extensions.\n{0}", Button(localize('browseLangExts', "Browse Language Extensions"), 'command:workbench.extensions.action.showLanguageExtensions')),
 					when: 'workspacePlatform != \'webworker\'',
 					media: {
-						type: 'svg', altText: 'Language extensions', path: 'languages.svg'
-					},
+						type: 'markdown', path: 'empty'
+					}
 				},
 				{
 					id: 'settings',
 					title: localize('gettingStarted.settings.title', "Tune your settings"),
 					description: localize('gettingStarted.settings.description.interpolated', "Customize every aspect of VS Code and your extensions to your liking. Commonly used settings are listed first to get you started.\n{0}", Button(localize('tweakSettings', "Open Settings"), 'command:toSide:workbench.action.openSettings')),
 					media: {
-						type: 'svg', altText: 'VS Code Settings', path: 'settings.svg'
-					},
+						type: 'markdown', path: 'empty'
+					}
 				},
 				{
 					id: 'settingsSync',
@@ -513,14 +513,16 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					when: 'syncStatus != uninitialized',
 					completionEvents: ['onEvent:sync-enabled'],
 					media: {
-						type: 'svg', altText: 'The "Turn on Sync" entry in the settings gear menu.', path: 'settingsSync.svg'
-					},
+						type: 'markdown', path: 'empty'
+					}
 				},
 				{
 					id: 'commandPaletteTask',
 					title: localize('gettingStarted.commandPalette.title', "Unlock productivity with the Command Palette "),
 					description: localize('gettingStarted.commandPalette.description.interpolated', "Run commands without reaching for your mouse to accomplish any task in VS Code.\n{0}", Button(localize('commandPalette', "Open Command Palette"), 'command:workbench.action.showCommands')),
-					media: { type: 'svg', altText: 'Command Palette overlay for searching and executing commands.', path: 'commandPalette.svg' },
+					media: {
+						type: 'markdown', path: 'empty'
+					}
 				},
 				{
 					id: 'pickAFolderTask-Mac',
@@ -528,7 +530,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					description: localize('gettingStarted.setup.OpenFolder.description.interpolated', "You're all set to start coding. Open a project folder to get your files into VS Code.\n{0}", Button(localize('pickFolder', "Pick a Folder"), 'command:workbench.action.files.openFileFolder')),
 					when: 'isMac && workspaceFolderCount == 0',
 					media: {
-						type: 'svg', altText: 'Explorer view showing buttons for opening folder and cloning repository.', path: 'openFolder.svg'
+						type: 'markdown', path: 'empty'
 					}
 				},
 				{
@@ -537,7 +539,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					description: localize('gettingStarted.setup.OpenFolder.description.interpolated', "You're all set to start coding. Open a project folder to get your files into VS Code.\n{0}", Button(localize('pickFolder', "Pick a Folder"), 'command:workbench.action.files.openFolder')),
 					when: '!isMac && workspaceFolderCount == 0',
 					media: {
-						type: 'svg', altText: 'Explorer view showing buttons for opening folder and cloning repository.', path: 'openFolder.svg'
+						type: 'markdown', path: 'empty'
 					}
 				},
 				{
@@ -546,7 +548,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					description: localize('gettingStarted.quickOpen.description.interpolated', "Navigate between files in an instant with one keystroke. Tip: Open multiple files by pressing the right arrow key.\n{0}", Button(localize('quickOpen', "Quick Open a File"), 'command:toSide:workbench.action.quickOpen')),
 					when: 'workspaceFolderCount != 0',
 					media: {
-						type: 'svg', altText: 'Go to file in quick search.', path: 'search.svg'
+						type: 'markdown', path: 'empty'
 					}
 				},
 			]
