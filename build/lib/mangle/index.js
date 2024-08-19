@@ -265,7 +265,7 @@ const skippedExportMangledFiles = function () {
         'pfs',
         // entry points
         ...(0, esm_1.isESM)() ? [
-            buildfile.entrypoint('vs/server/node/server.main', []),
+            buildfile.entrypoint('vs/server/node/server.main'),
             buildfile.base,
             buildfile.workerExtensionHost,
             buildfile.workerNotebook,
@@ -279,8 +279,8 @@ const skippedExportMangledFiles = function () {
             buildfile.code,
             buildfile.codeWeb
         ] : [
-            buildfile.entrypoint('vs/server/node/server.main', []),
-            buildfile.entrypoint('vs/workbench/workbench.desktop.main', []),
+            buildfile.entrypoint('vs/server/node/server.main'),
+            buildfile.entrypoint('vs/workbench/workbench.desktop.main'),
             buildfile.base,
             buildfile.workerExtensionHost,
             buildfile.workerNotebook,

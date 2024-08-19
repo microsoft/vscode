@@ -301,7 +301,7 @@ const skippedExportMangledFiles = function () { // using a function() to ensure 
 
 		// entry points
 		...isESM() ? [
-			buildfile.entrypoint('vs/server/node/server.main', []),
+			buildfile.entrypoint('vs/server/node/server.main'),
 			buildfile.base,
 			buildfile.workerExtensionHost,
 			buildfile.workerNotebook,
@@ -315,8 +315,8 @@ const skippedExportMangledFiles = function () { // using a function() to ensure 
 			buildfile.code,
 			buildfile.codeWeb
 		] : [
-			buildfile.entrypoint('vs/server/node/server.main', []),
-			buildfile.entrypoint('vs/workbench/workbench.desktop.main', []),
+			buildfile.entrypoint('vs/server/node/server.main'),
+			buildfile.entrypoint('vs/workbench/workbench.desktop.main'),
 			buildfile.base,
 			buildfile.workerExtensionHost,
 			buildfile.workerNotebook,
