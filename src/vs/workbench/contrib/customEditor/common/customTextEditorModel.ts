@@ -6,12 +6,16 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, IReference } from 'vs/base/common/lifecycle';
+import { basename } from 'vs/base/common/path';
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
+import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ILabelService } from 'vs/platform/label/common/label';
 import { IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
 import { ICustomEditorModel } from 'vs/workbench/contrib/customEditor/common/customEditor';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ITextFileEditorModel, ITextFileService, TextFileEditorModelState } from 'vs/workbench/services/textfile/common/textfiles';
 
 export class CustomTextEditorModel extends Disposable implements ICustomEditorModel {
@@ -40,7 +44,9 @@ export class CustomTextEditorModel extends Disposable implements ICustomEditorMo
 		public readonly viewType: string,
 		private readonly _resource: URI,
 		private readonly _model: IReference<IResolvedTextEditorModel>,
-		@ITextFileService private readonly textFileService: ITextFileService
+		@ITextFileService private readonly textFileService: ITextFileService,
+		@ILabelService private readonly _labelService: ILabelService,
+		@IExtensionService extensionService: IExtensionService,
 	) {
 		super();
 
@@ -58,10 +64,29 @@ export class CustomTextEditorModel extends Disposable implements ICustomEditorMo
 				this._onDidChangeContent.fire();
 			}
 		}));
+
+		this._register(extensionService.onWillStop(e => {
+			if (!this.isDirty()) {
+				return;
+			}
+
+			e.veto((async () => {
+				const didSave = await this.saveCustomEditor();
+				if (!didSave) {
+					// Veto
+					return true;
+				}
+				return false; // Don't veto
+			})(), localize('vetoExtHostRestart', "Custom editor '{0}' could not be saved.", this.name));
+		}));
 	}
 
 	public get resource() {
 		return this._resource;
+	}
+
+	public get name() {
+		return basename(this._labelService.getUriLabel(this._resource));
 	}
 
 	public isReadonly(): boolean | IMarkdownString {
