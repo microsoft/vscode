@@ -149,7 +149,7 @@ class TreeSitterTokenizationSupport extends Disposable implements ITreeSitterTok
 		const lineLength = textModel.getLineMaxColumn(lineNumber);
 		const captures = this._captureAtRange(lineNumber, new ColumnRange(1, lineLength), textModel);
 
-		if (captures.length === 0 && lineLength > 0) {
+		if (captures.length === 0) {
 			return undefined;
 		}
 
