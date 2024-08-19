@@ -158,7 +158,7 @@ class ChatHistoryAction extends Action2 {
 						label: i.title,
 						description: i.isActive ? `(${localize('activeChatLabel', 'active')})` : '',
 						chat: i,
-						buttons: [
+						buttons: i.isActive ? undefined : [
 							openInEditorButton,
 							deleteButton
 						]

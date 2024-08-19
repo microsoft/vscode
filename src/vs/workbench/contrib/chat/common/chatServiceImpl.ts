@@ -333,27 +333,29 @@ export class ChatService extends Disposable implements IChatService {
 					sessionId: session.sessionId,
 					title,
 					lastMessageDate: session.lastMessageDate,
-					isActive: this._sessionModels.has(session.sessionId)
+					isActive: false
 				} satisfies IChatDetail;
 			});
 		const liveSessionItems = Array.from(this._sessionModels.values())
 			.filter(session => !session.isImported)
 			.map(session => {
-				const title = session.title;
+				const title = session.title || localize('newChat', "New Chat");
 				return {
 					sessionId: session.sessionId,
 					title,
 					lastMessageDate: session.lastMessageDate,
-					isActive: this._sessionModels.has(session.sessionId)
+					isActive: true
 				} satisfies IChatDetail;
 			});
 		return [...liveSessionItems, ...persistedSessionItems];
 	}
 
 	removeHistoryEntry(sessionId: string): void {
-		this._deletedChatIds.add(sessionId);
-		delete this._persistedSessions[sessionId];
-		this.saveState();
+		if (this._persistedSessions[sessionId]) {
+			this._deletedChatIds.add(sessionId);
+			delete this._persistedSessions[sessionId];
+			this.saveState();
+		}
 	}
 
 	clearAllHistoryEntries(): void {
