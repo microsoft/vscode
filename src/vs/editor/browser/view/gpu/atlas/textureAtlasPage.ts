@@ -76,10 +76,11 @@ export class TextureAtlasPage extends Disposable implements IReadableTextureAtla
 		}));
 	}
 
-	// TODO: Color, style etc.
 	public getGlyph(rasterizer: GlyphRasterizer, chars: string, metadata: number): Readonly<ITextureAtlasGlyph> {
 		// Ignore metadata that doesn't affect the glyph
 		metadata ^= (MetadataConsts.LANGUAGEID_MASK | MetadataConsts.TOKEN_TYPE_MASK | MetadataConsts.BALANCED_BRACKETS_MASK);
+
+		// TODO: Encode font size and family into key
 
 		return this._glyphMap.get(chars, metadata) ?? this._createGlyph(rasterizer, chars, metadata);
 	}

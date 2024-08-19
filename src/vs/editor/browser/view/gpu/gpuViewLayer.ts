@@ -8,7 +8,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import type { ITextureAtlasGlyph } from 'vs/editor/browser/view/gpu/atlas/atlas';
 import { TextureAtlas } from 'vs/editor/browser/view/gpu/atlas/textureAtlas';
 import { GPULifecycle } from 'vs/editor/browser/view/gpu/gpuDisposable';
-import { ensureNonNullable, observeDevicePixelDimensions } from 'vs/editor/browser/view/gpu/gpuUtils';
+import { ensureNonNullable, observeDevicePixelDimensions, quadVertices } from 'vs/editor/browser/view/gpu/gpuUtils';
 import { GlyphRasterizer } from 'vs/editor/browser/view/gpu/raster/glyphRasterizer';
 import type { IVisibleLine, IVisibleLinesHost } from 'vs/editor/browser/view/viewLayer';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -67,7 +67,6 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> extends Disposable {
 	private _pipeline!: GPURenderPipeline;
 
 	private _vertexBuffer!: GPUBuffer;
-	private _quadVertices!: { vertexData: Float32Array; numVertices: number };
 
 	static atlas: TextureAtlas;
 
@@ -244,22 +243,11 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> extends Disposable {
 
 
 
-		this._quadVertices = {
-			vertexData: new Float32Array([
-				1, 0,
-				1, 1,
-				0, 1,
-				0, 0,
-				0, 1,
-				1, 0,
-			]),
-			numVertices: 6
-		};
 		this._vertexBuffer = this._register(GPULifecycle.createBuffer(this._device, {
-			label: 'Monaco quad vertex buffer',
-			size: this._quadVertices.vertexData.byteLength,
+			label: 'Monaco vertex buffer',
+			size: quadVertices.byteLength,
 			usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-		}, this._quadVertices.vertexData)).value;
+		}, quadVertices)).value;
 
 
 
@@ -376,7 +364,7 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> extends Disposable {
 		if (this._renderStrategy?.draw) {
 			this._renderStrategy.draw(pass, ctx, startLineNumber, stopLineNumber, deltaTop);
 		} else {
-			pass.draw(this._quadVertices.numVertices, visibleObjectCount);
+			pass.draw(quadVertices.length / 2, visibleObjectCount);
 		}
 
 		pass.end();

@@ -33,6 +33,9 @@ export interface IObjectCollectionBuffer<T extends ObjectCollectionBufferPropert
 	 */
 	readonly viewUsedSize: number;
 
+	/**
+	 * Fires when the buffer is modified.
+	 */
 	readonly onDidChange: Event<void>;
 
 	/**
@@ -43,6 +46,10 @@ export interface IObjectCollectionBuffer<T extends ObjectCollectionBufferPropert
 	createEntry(data: ObjectCollectionPropertyValues<T>): IObjectCollectionBufferEntry<T>;
 }
 
+/**
+ * An entry in an {@link ObjectCollectionBuffer}. Property values on the entry can be changed and
+ * their values will be updated automatically in the buffer.
+ */
 export interface IObjectCollectionBufferEntry<T extends ObjectCollectionBufferPropertySpec[]> extends IDisposable {
 	set(propertyName: T[number]['name'], value: number): void;
 	get(propertyName: T[number]['name']): number;
