@@ -37,10 +37,6 @@ const { isESM } = require('./lib/esm');
 const glob = promisify(require('glob'));
 const rcedit = promisify(require('rcedit'));
 
-if (!isESM()) {
-	throw new Error('ESM does not work in gulpfile.vscode.js!');
-}
-
 // Build
 const vscodeEntryPoints = isESM() ? [
 	buildfile.base,

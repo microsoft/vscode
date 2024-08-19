@@ -31,10 +31,6 @@ const commit = getVersion(REPO_ROOT);
 const quality = product.quality;
 const version = (quality && quality !== 'stable') ? `${packageJson.version}-${quality}` : packageJson.version;
 
-if (!isESM()) {
-	throw new Error('ESM does not work in gulpfile.vscode.web.js!');
-}
-
 const vscodeWebResourceIncludes = isESM() ? [
 
 	// NLS
