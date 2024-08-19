@@ -9,7 +9,7 @@ import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
-import { AbstractEditContext, ariaLabelForScreenReaderContent, canUseZeroSizeTextarea, CompositionContext, deduceInput, getAccessibilityOptions, IRenderData, ISimpleModel, ITypeData, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/editContext/editContext';
+import { AbstractEditContext, ariaLabelForScreenReaderContent, canUseZeroSizeTextarea, CompositionContext, deduceInput, getAccessibilityOptions, IRenderData, ISimpleModel, ITypeData, newlinecount, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/editContext/editContext';
 import { HorizontalPosition, RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
 import { ViewController } from 'vs/editor/browser/view/viewController';
 import { EditorOption, IComputedEditorOptions } from 'vs/editor/common/config/editorOptions';
@@ -26,7 +26,6 @@ import { AccessibilitySupport, IAccessibilityService } from 'vs/platform/accessi
 import { IEditorAriaOptions } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
-import { Color } from 'vs/base/common/color';
 import { EndOfLinePreference, IModelDeltaDecoration } from 'vs/editor/common/model';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
@@ -97,12 +96,16 @@ export class NativeEditContext extends AbstractEditContext {
 
 		let lastKeyDown: IKeyboardEvent | null = null;
 		this._register(dom.addDisposableListener(this._domElement.domNode, 'keydown', (e) => {
+
 			console.log('keydown : ', e);
 			console.log('this._currentComposition : ', this._currentComposition);
+
 			const standardKeyboardEvent = new StandardKeyboardEvent(e);
 			if (standardKeyboardEvent.keyCode === KeyCode.KEY_IN_COMPOSITION
 				|| (this._currentComposition && standardKeyboardEvent.keyCode === KeyCode.Backspace)) {
+
 				console.log('stopping the propagation');
+
 				// Stop propagation for keyDown events if the IME is processing key input
 				standardKeyboardEvent.stopPropagation();
 			}
@@ -337,35 +340,11 @@ export class NativeEditContext extends AbstractEditContext {
 		return this._hasFocus;
 	}
 
-	public focusTextArea(): void {
-		// Setting this._hasFocus and writing the screen reader content
-		// will result in a focus() and setSelectionRange() in the textarea
+	public focusScreenReaderContent(): void {
 		this._setHasFocus(true);
-
-		// If the editor is off DOM, focus cannot be really set, so let's double check that we have managed to set the focus
-		this.refreshFocusState();
 	}
 
-	public refreshFocusState(): void {
-		console.log('refreshFocusState');
-
-		// TODO: not sure why this does not work
-		// let hasFocus: boolean = true;
-		// const shadowRoot = dom.getShadowRoot(this._domElement.domNode);
-		// if (shadowRoot) {
-		// 	console.log('1');
-		// 	hasFocus = shadowRoot.activeElement === this._domElement.domNode;
-		// } else if (this._domElement.domNode.isConnected) {
-		// 	console.log('2');
-		// 	hasFocus = dom.getActiveElement() === this._domElement.domNode;
-		// } else {
-		// 	console.log('3');
-		// 	hasFocus = false;
-		// }
-		// console.log('hasFocus : ', hasFocus);
-		const hasFocus = true;
-		this._setHasFocus(hasFocus);
-	}
+	public refreshFocusState(): void { }
 
 	private _setHasFocus(newHasFocus: boolean): void {
 		if (this._hasFocus === newHasFocus) {
@@ -443,7 +422,7 @@ export class NativeEditContext extends AbstractEditContext {
 			this._domElement.domNode.scrollLeft = this._primaryCursorVisibleRange.left;
 			const divValue = this._domElement.domNode.textContent ?? '';
 			console.log('_render');
-			const lineCount = this._newlinecount(divValue.substring(0, this._selectionStartWithinScreenReaderContent));
+			const lineCount = newlinecount(divValue.substring(0, this._selectionStartWithinScreenReaderContent));
 			this._domElement.domNode.scrollTop = lineCount * this._lineHeight;
 			return;
 		}
@@ -456,19 +435,6 @@ export class NativeEditContext extends AbstractEditContext {
 			height: (canUseZeroSizeTextarea ? 0 : 1),
 			useCover: false
 		});
-	}
-
-	private _newlinecount(text: string): number {
-		let result = 0;
-		let startIndex = -1;
-		do {
-			startIndex = text.indexOf('\n', startIndex + 1);
-			if (startIndex === -1) {
-				break;
-			}
-			result++;
-		} while (true);
-		return result;
 	}
 
 	private _renderAtTopLeft(): void {
@@ -485,20 +451,11 @@ export class NativeEditContext extends AbstractEditContext {
 	}
 
 	private _doRender(renderData: IRenderData): void {
-
 		applyFontInfo(this._domElement, this._fontInfo);
 		this._domElement.setTop(renderData.top);
 		this._domElement.setLeft(renderData.left);
 		this._domElement.setWidth(renderData.width);
 		this._domElement.setHeight(renderData.height);
-
-		this._domElement.setColor(renderData.color ? Color.Format.CSS.formatHex(renderData.color) : '');
-		this._domElement.setFontStyle(renderData.italic ? 'italic' : '');
-		if (renderData.bold) {
-			// fontWeight is also set by `applyFontInfo`, so only overwrite it if necessary
-			this._domElement.setFontWeight('bold');
-		}
-		this._domElement.setTextDecoration(`${renderData.underline ? ' underline' : ''}${renderData.strikethrough ? ' line-through' : ''}`);
 	}
 
 	// -- additional code
@@ -537,7 +494,6 @@ export class NativeEditContext extends AbstractEditContext {
 		};
 
 		if (this._accessibilitySupport === AccessibilitySupport.Disabled) {
-			// When accessibility is turned off we not need the screen reader content
 			return {
 				value: '',
 				selectionStart: 0,

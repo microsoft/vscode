@@ -12,7 +12,7 @@ import * as platform from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 import { CopyOptions, ICompositionData, IPasteData, ITextAreaInputHost, TextAreaInput, ClipboardDataToCopy, TextAreaWrapper } from 'vs/editor/browser/controller/editContext/textArea/textAreaInput';
-import { AbstractEditContext, ariaLabelForScreenReaderContent, canUseZeroSizeTextarea, getAccessibilityOptions, IRenderData, ISimpleModel, ITypeData, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/editContext/editContext';
+import { AbstractEditContext, ariaLabelForScreenReaderContent, canUseZeroSizeTextarea, getAccessibilityOptions, IRenderData, ISimpleModel, ITypeData, newlinecount, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/editContext/editContext';
 import { ViewController } from 'vs/editor/browser/view/viewController';
 import { PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
 import { LineNumbersOverlay } from 'vs/editor/browser/viewParts/lineNumbers/lineNumbers';
@@ -644,7 +644,7 @@ export class TextAreaHandler extends AbstractEditContext {
 		return this._textAreaInput.isFocused();
 	}
 
-	public focusTextArea(): void {
+	public focusScreenReaderContent(): void {
 		this._textAreaInput.focusTextArea();
 	}
 
@@ -709,7 +709,7 @@ export class TextAreaHandler extends AbstractEditContext {
 			const endPosition = this._visibleTextArea.endPosition;
 			if (startPosition && endPosition && visibleStart && visibleEnd && visibleEnd.left >= this._scrollLeft && visibleStart.left <= this._scrollLeft + this._contentWidth) {
 				const top = (this._context.viewLayout.getVerticalOffsetForLineNumber(this._primaryCursorPosition.lineNumber) - this._scrollTop);
-				const lineCount = this._newlinecount(this.textArea.domNode.value.substr(0, this.textArea.domNode.selectionStart));
+				const lineCount = newlinecount(this.textArea.domNode.value.substr(0, this.textArea.domNode.selectionStart));
 
 				let scrollLeft = this._visibleTextArea.widthOfHiddenLineTextBefore;
 				let left = (this._contentLeft + visibleStart.left - this._scrollLeft);
@@ -801,7 +801,7 @@ export class TextAreaHandler extends AbstractEditContext {
 			// In case the textarea contains a word, we're going to try to align the textarea's cursor
 			// with our cursor by scrolling the textarea as much as possible
 			this.textArea.domNode.scrollLeft = this._primaryCursorVisibleRange.left;
-			const lineCount = this._textAreaInput.textAreaState.newlineCountBeforeSelection ?? this._newlinecount(this.textArea.domNode.value.substr(0, this.textArea.domNode.selectionStart));
+			const lineCount = this._textAreaInput.textAreaState.newlineCountBeforeSelection ?? newlinecount(this.textArea.domNode.value.substring(0, this.textArea.domNode.selectionStart));
 			this.textArea.domNode.scrollTop = lineCount * this._lineHeight;
 			return;
 		}
@@ -814,19 +814,6 @@ export class TextAreaHandler extends AbstractEditContext {
 			height: (canUseZeroSizeTextarea ? 0 : 1),
 			useCover: false
 		});
-	}
-
-	private _newlinecount(text: string): number {
-		let result = 0;
-		let startIndex = -1;
-		do {
-			startIndex = text.indexOf('\n', startIndex + 1);
-			if (startIndex === -1) {
-				break;
-			}
-			result++;
-		} while (true);
-		return result;
 	}
 
 	private _renderAtTopLeft(): void {

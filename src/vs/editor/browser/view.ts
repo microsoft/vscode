@@ -593,7 +593,7 @@ export class View extends ViewEventHandler {
 	}
 
 	public focus(): void {
-		this._textAreaHandler.focusTextArea();
+		this._textAreaHandler.focusScreenReaderContent();
 	}
 
 	public isFocused(): boolean {

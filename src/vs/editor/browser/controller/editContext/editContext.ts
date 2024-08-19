@@ -20,12 +20,12 @@ import * as browser from 'vs/base/browser/browser';
 export const canUseZeroSizeTextarea = (browser.isFirefox);
 
 export abstract class AbstractEditContext extends ViewPart {
-	abstract isFocused(): boolean;
 	abstract appendTo(overflowGuardContainer: FastDomNode<HTMLElement>): void;
 	abstract writeScreenReaderContent(reason: string): void;
-	abstract focusTextArea(): void;
-	abstract refreshFocusState(): void;
+	abstract focusScreenReaderContent(): void;
 	abstract setAriaOptions(options: IEditorAriaOptions): void;
+	abstract refreshFocusState(): void;
+	abstract isFocused(): boolean;
 }
 
 export interface IRenderData {
@@ -266,4 +266,17 @@ export function getAccessibilityOptions(options: IComputedEditorOptions): {
 		textAreaWrapping,
 		textAreaWidth
 	};
+}
+
+export function newlinecount(text: string): number {
+	let result = 0;
+	let startIndex = -1;
+	do {
+		startIndex = text.indexOf('\n', startIndex + 1);
+		if (startIndex === -1) {
+			break;
+		}
+		result++;
+	} while (true);
+	return result;
 }
