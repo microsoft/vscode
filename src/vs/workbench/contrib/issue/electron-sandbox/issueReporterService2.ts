@@ -10,6 +10,7 @@ import { localize } from 'vs/nls';
 import { isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
 import { IProcessMainService } from 'vs/platform/issue/common/issue';
 import { INativeHostService } from 'vs/platform/native/common/native';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { applyZoom } from 'vs/platform/window/electron-sandbox/window';
 import { BaseIssueReporterService } from 'vs/workbench/contrib/issue/browser/baseIssueReporterService';
 import { IssueReporterData as IssueReporterModelData } from 'vs/workbench/contrib/issue/browser/issueReporterModel';
@@ -34,10 +35,10 @@ export class IssueReporter2 extends BaseIssueReporterService {
 		window: Window,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@IIssueFormService issueFormService: IIssueFormService,
-		@IProcessMainService processMainService: IProcessMainService
+		@IProcessMainService processMainService: IProcessMainService,
+		@IThemeService themeService: IThemeService
 	) {
-		super(disableExtensions, data, os, product, window, false, issueFormService);
-
+		super(disableExtensions, data, os, product, window, false, issueFormService, themeService);
 		this.processMainService = processMainService;
 		this.processMainService.$getSystemInfo().then(info => {
 			this.issueReporterModel.update({ systemInfo: info });
