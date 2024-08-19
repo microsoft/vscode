@@ -112,6 +112,9 @@ export function deduceInput(previousState: { value: string; selectionStart: numb
 	replaceNextCharCnt: number;
 	positionDelta: number;
 } {
+	console.log('deduceInput');
+	console.log('currentState : ', currentState);
+	console.log('previousState : ', previousState);
 	if (!previousState) {
 		// This is the EMPTY state
 		return {

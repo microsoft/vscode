@@ -347,6 +347,8 @@ export class CursorsController extends Disposable {
 	}
 
 	private _executeEditOperation(opResult: EditOperationResult | null): void {
+		console.log('_executeEditOperation');
+		console.log('opResult', opResult);
 
 		if (!opResult) {
 			// Nothing to execute
@@ -574,6 +576,7 @@ export class CursorsController extends Disposable {
 	}
 
 	public compositionType(eventsCollector: ViewModelEventsCollector, text: string, replacePrevCharCnt: number, replaceNextCharCnt: number, positionDelta: number, source?: string | null | undefined): void {
+		console.log('compositionType');
 		if (text.length === 0 && replacePrevCharCnt === 0 && replaceNextCharCnt === 0) {
 			// this edit is a no-op
 			if (positionDelta !== 0) {

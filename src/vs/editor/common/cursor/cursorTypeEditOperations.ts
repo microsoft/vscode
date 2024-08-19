@@ -722,6 +722,8 @@ export class CompositionOperation {
 	}
 
 	private static _compositionType(model: ITextModel, selection: Selection, text: string, replacePrevCharCnt: number, replaceNextCharCnt: number, positionDelta: number): ICommand | null {
+		console.log('_compositionType');
+		console.log('selection.isEmpty(): ' + selection.isEmpty());
 		if (!selection.isEmpty()) {
 			// looks like https://github.com/microsoft/vscode/issues/2773
 			// where a cursor operation occurred before a canceled composition
