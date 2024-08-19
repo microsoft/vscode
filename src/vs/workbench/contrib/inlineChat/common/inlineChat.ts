@@ -118,6 +118,7 @@ export const ACTION_TOGGLE_DIFF = 'inlineChat.toggleDiff';
 
 export const MENU_INLINE_CHAT_CONTENT_STATUS = MenuId.for('inlineChat.content.status');
 export const MENU_INLINE_CHAT_WIDGET_STATUS = MenuId.for('inlineChatWidget.status');
+export const MENU_INLINE_CHAT_ZONE = MenuId.for('inlineChatWidget.changesZone');
 
 // --- colors
 
