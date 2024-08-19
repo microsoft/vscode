@@ -54,7 +54,7 @@ export class NativeEditContext extends AbstractEditContext {
 	private _contentHeight: number;
 	private _fontInfo: FontInfo;
 	private _lineHeight: number;
-	private _selections: Selection[];
+	private _selection: Selection;
 	private _compositionStartPosition: Position | undefined;
 	private _compositionEndPosition: Position | undefined;
 	private _currentComposition: CompositionContext | undefined;
@@ -90,7 +90,7 @@ export class NativeEditContext extends AbstractEditContext {
 		this._fontInfo = options.get(EditorOption.fontInfo);
 		this._lineHeight = options.get(EditorOption.lineHeight);
 
-		this._selections = [new Selection(1, 1, 1, 1)];
+		this._selection = new Selection(1, 1, 1, 1);
 		this._domElement.setClassName(`native-edit-context ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`);
 		const { tabSize } = this._context.viewModel.model.getOptions();
 		this._domElement.domNode.style.tabSize = `${tabSize * this._fontInfo.spaceWidth}px`;
@@ -154,25 +154,28 @@ export class NativeEditContext extends AbstractEditContext {
 			console.log('(e.currentTarget as EditContext).text.substring(this._editContext.selectionStart - 1, this._editContext.selectionEnd) : ', (e.currentTarget as EditContext).text.substring(this._editContext.selectionStart - 1, this._editContext.selectionEnd));
 			console.log('(lastKeyDown.code === ArrowRight || lastKeyDown.code === ArrowLeft) : ', (lastKeyDown?.code === 'ArrowRight' || lastKeyDown?.code === 'ArrowLeft'));
 
+			const isMacintosh = platform.OS === platform.OperatingSystem.Macintosh;
+			const isLastKeyDownInComposition = lastKeyDown && lastKeyDown.equals(KeyCode.KEY_IN_COMPOSITION);
+			const isSelectionStartEqualToSelectionEnd = this._editContext.selectionStart === this._editContext.selectionEnd;
+			const areSubstringsEqual = this._editContext.text.substring(this._editContext.selectionStart - 1, this._editContext.selectionEnd) === (e.currentTarget as EditContext).text.substring(this._editContext.selectionStart - 1, this._editContext.selectionEnd);
+			const isLastKeydownArrowKey = lastKeyDown && (lastKeyDown.code === 'ArrowRight' || lastKeyDown.code === 'ArrowLeft');
 			if (
-				platform.OS === platform.OperatingSystem.Macintosh
-				&& lastKeyDown
-				&& lastKeyDown.equals(KeyCode.KEY_IN_COMPOSITION)
-				&& this._editContext.selectionStart === this._editContext.selectionEnd
+				isMacintosh
+				&& isLastKeyDownInComposition
+				&& isSelectionStartEqualToSelectionEnd
 				&& this._editContext.selectionStart > 0
-				&& this._editContext.text.substring(this._editContext.selectionStart - 1, this._editContext.selectionEnd) === (e.currentTarget as EditContext).text.substring(this._editContext.selectionStart - 1, this._editContext.selectionEnd)
-				&& (lastKeyDown.code === 'ArrowRight' || lastKeyDown.code === 'ArrowLeft')
+				&& areSubstringsEqual
+				&& isLastKeydownArrowKey
 			) {
 				console.log('before handle composition update');
 				// Handling long press case on Chromium/Safari macOS + arrow key => pretend the character was selected
 				// Pretend the previous character was composed (in order to get it removed by subsequent compositionupdate events)
 				currentComposition.handleCompositionUpdate('x');
 			}
-
 			this._context.viewModel.revealRange(
 				'keyboard',
 				true,
-				Range.fromPositions(this._selections[0].getStartPosition()),
+				Range.fromPositions(this._selection.getStartPosition()),
 				viewEvents.VerticalRevealType.Simple,
 				ScrollType.Immediate
 			);
@@ -194,10 +197,8 @@ export class NativeEditContext extends AbstractEditContext {
 			this._currentComposition = undefined;
 
 			if ('data' in e && typeof e.data === 'string') {
-
 				const typeInput = currentComposition.handleCompositionUpdate(e.data);
 				this._onType(typeInput);
-
 				this._render();
 				this._domElement.setClassName(`native-edit-context ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`);
 				this._viewController.compositionEnd();
@@ -259,38 +260,23 @@ export class NativeEditContext extends AbstractEditContext {
 			// Do not write to the text area when doing composition
 			return;
 		}
-		let screenReaderContentState = this._getScreenReaderContentState();
-		// Do we need the following?
-		if (!this._hasFocus) {
-			if (screenReaderContentState.selectionStart !== screenReaderContentState.value.length) {
-				screenReaderContentState = {
-					value: screenReaderContentState.value,
-					selectionStart: screenReaderContentState.value.length,
-					selectionEnd: screenReaderContentState.value.length
-				};
-			}
-		}
+		const screenReaderContentState = this._getScreenReaderContentState();
 		this._setScreenReaderContent(reason, screenReaderContentState.value);
-		if (this._hasFocus) {
-			this._setSelectionOfScreenReaderContent(reason, screenReaderContentState.selectionStart, screenReaderContentState.selectionEnd);
-		}
+		this._setSelectionOfScreenReaderContent(reason, screenReaderContentState.selectionStart, screenReaderContentState.selectionEnd);
 	}
 
 	public writeEditContextContent(): void {
 
-		const editContextContentState = this._getEditContextState();
-
-		console.log('before updateText value to set : ', editContextContentState.value);
-		this._editContext.updateText(0, Number.MAX_SAFE_INTEGER, editContextContentState.value);
-		this._editContext.updateSelection(editContextContentState.selectionStart, editContextContentState.selectionEnd);
-
-		this._selectionOfContent = editContextContentState.selectionOfContent;
+		const editContextState = this._getEditContextState();
+		this._selectionOfContent = editContextState.selectionOfContent;
+		this._editContext.updateText(0, Number.MAX_SAFE_INTEGER, editContextState.value);
+		this._editContext.updateSelection(editContextState.selectionStart, editContextState.selectionEnd);
 
 		console.log('updateText');
-		console.log('IMEContentData : ', editContextContentState);
+		console.log('IMEContentData : ', editContextState);
 		console.log('this._editContext.text : ', this._editContext.text);
-		console.log('editContextContentState.selectionStart : ', editContextContentState.selectionStart);
-		console.log('editContextContentState.selectionEnd : ', editContextContentState.selectionEnd);
+		console.log('editContextContentState.selectionStart : ', editContextState.selectionStart);
+		console.log('editContextContentState.selectionEnd : ', editContextState.selectionEnd);
 		console.log('this._selectionOfContent : ', this._selectionOfContent);
 	}
 
@@ -349,7 +335,6 @@ export class NativeEditContext extends AbstractEditContext {
 	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		const options = this._context.configuration.options;
 		const layoutInfo = options.get(EditorOption.layoutInfo);
-
 		this._setAccessibilityOptions(options);
 		this._contentLeft = layoutInfo.contentLeft;
 		this._contentWidth = layoutInfo.contentWidth;
@@ -359,17 +344,15 @@ export class NativeEditContext extends AbstractEditContext {
 		const { tabSize } = this._context.viewModel.model.getOptions();
 		this._domElement.domNode.style.tabSize = `${tabSize * this._fontInfo.spaceWidth}px`;
 		this._domElement.setAttribute('aria-label', this._getAriaLabel(options));
-		this._domElement.setAttribute('aria-required', options.get(EditorOption.ariaRequired) ? 'true' : 'false');
 		this._domElement.setAttribute('tabindex', String(options.get(EditorOption.tabIndex)));
-
 		if (e.hasChanged(EditorOption.accessibilitySupport)) {
 			this.writeScreenReaderContent('strategy changed');
 		}
-
 		return true;
 	}
+
 	public override onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
-		this._selections = e.selections.slice(0);
+		this._selection = e.selections.slice(0)[0] ?? new Selection(1, 1, 1, 1);
 		// We must update the <textarea> synchronously, otherwise long press IME on macos breaks.
 		// See https://github.com/microsoft/vscode/issues/165821
 		this.writeScreenReaderContent('selection changed');
@@ -377,29 +360,11 @@ export class NativeEditContext extends AbstractEditContext {
 		this._updateBounds();
 		return true;
 	}
-	public override onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
-		// true for inline decorations that can end up relayouting text
-		return true;
-	}
-	public override onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
-		return true;
-	}
-	public override onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
-		return true;
-	}
-	public override onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
-		return true;
-	}
-	public override onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
-		return true;
-	}
+
 	public override onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		this._scrollLeft = e.scrollLeft;
 		this._scrollTop = e.scrollTop;
 		this._updateBounds();
-		return true;
-	}
-	public override onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
 		return true;
 	}
 
@@ -422,6 +387,7 @@ export class NativeEditContext extends AbstractEditContext {
 
 	public refreshFocusState(): void {
 		console.log('refreshFocusState');
+
 		// TODO: not sure why this does not work
 		// let hasFocus: boolean = true;
 		// const shadowRoot = dom.getShadowRoot(this._domElement.domNode);
@@ -467,12 +433,11 @@ export class NativeEditContext extends AbstractEditContext {
 
 	public prepareRender(ctx: RenderingContext): void {
 		this._renderingContext = ctx;
-		this._primaryCursorPosition = new Position(this._selections[0].positionLineNumber, this._selections[0].positionColumn);
+		this._primaryCursorPosition = new Position(this._selection.positionLineNumber, this._selection.positionColumn);
 		this._primaryCursorVisibleRange = ctx.visibleRangeForPosition(this._primaryCursorPosition);
 	}
 
 	public render(ctx: RestrictedRenderingContext): void {
-		// Write the content into the screen reader content div
 		this.writeScreenReaderContent('render');
 		this.writeEditContextContent();
 		this._render();
@@ -492,7 +457,7 @@ export class NativeEditContext extends AbstractEditContext {
 			return;
 		}
 
-		const top = this._context.viewLayout.getVerticalOffsetForLineNumber(this._selections[0].positionLineNumber) - this._scrollTop;
+		const top = this._context.viewLayout.getVerticalOffsetForLineNumber(this._selection.positionLineNumber) - this._scrollTop;
 		if (top < 0 || top > this._contentHeight) {
 			// cursor is outside the viewport
 			this._renderAtTopLeft();
@@ -560,21 +525,19 @@ export class NativeEditContext extends AbstractEditContext {
 
 	private _doRender(renderData: IRenderData): void {
 
-		const ta = this._domElement;
+		applyFontInfo(this._domElement, this._fontInfo);
+		this._domElement.setTop(renderData.top);
+		this._domElement.setLeft(renderData.left);
+		this._domElement.setWidth(renderData.width);
+		this._domElement.setHeight(renderData.height);
 
-		applyFontInfo(ta, this._fontInfo);
-		ta.setTop(renderData.top);
-		ta.setLeft(renderData.left);
-		ta.setWidth(renderData.width);
-		ta.setHeight(renderData.height);
-
-		ta.setColor(renderData.color ? Color.Format.CSS.formatHex(renderData.color) : '');
-		ta.setFontStyle(renderData.italic ? 'italic' : '');
+		this._domElement.setColor(renderData.color ? Color.Format.CSS.formatHex(renderData.color) : '');
+		this._domElement.setFontStyle(renderData.italic ? 'italic' : '');
 		if (renderData.bold) {
 			// fontWeight is also set by `applyFontInfo`, so only overwrite it if necessary
-			ta.setFontWeight('bold');
+			this._domElement.setFontWeight('bold');
 		}
-		ta.setTextDecoration(`${renderData.underline ? ' underline' : ''}${renderData.strikethrough ? ' line-through' : ''}`);
+		this._domElement.setTextDecoration(`${renderData.underline ? ' underline' : ''}${renderData.strikethrough ? ' line-through' : ''}`);
 	}
 
 	// -- additional code
@@ -620,7 +583,7 @@ export class NativeEditContext extends AbstractEditContext {
 				selectionEnd: 0
 			};
 		}
-		return PagedScreenReaderStrategy.fromEditorSelection(simpleModel, this._selections[0], this._accessibilityPageSize, this._accessibilitySupport === AccessibilitySupport.Unknown);
+		return PagedScreenReaderStrategy.fromEditorSelection(simpleModel, this._selection, this._accessibilityPageSize, this._accessibilitySupport === AccessibilitySupport.Unknown);
 	}
 
 	public _getEditContextState(): {
@@ -659,12 +622,11 @@ export class NativeEditContext extends AbstractEditContext {
 		console.log('setValue : ', value);
 		console.log('value : ', value);
 
-		const textArea = this._domElement.domNode;
-		if (textArea.textContent === value) {
+		if (this._domElement.domNode.textContent === value) {
 			// No change
 			return;
 		}
-		textArea.textContent = value;
+		this._domElement.domNode.textContent = value;
 	}
 
 	private _setSelectionOfScreenReaderContent(reason: string, selectionStart: number, selectionEnd: number): void {
@@ -673,10 +635,10 @@ export class NativeEditContext extends AbstractEditContext {
 		console.log('selectionStart : ', selectionStart);
 		console.log('selectionEnd : ', selectionEnd);
 
-		const textArea = this._domElement.domNode;
+		const domNode = this._domElement.domNode;
 
 		let activeElement: Element | null = null;
-		const shadowRoot = dom.getShadowRoot(textArea);
+		const shadowRoot = dom.getShadowRoot(domNode);
 		if (shadowRoot) {
 			activeElement = shadowRoot.activeElement;
 		} else {
@@ -684,13 +646,13 @@ export class NativeEditContext extends AbstractEditContext {
 		}
 		const activeWindow = dom.getWindow(activeElement);
 
-		const currentIsFocused = (activeElement === textArea);
+		const currentIsFocused = (activeElement === domNode);
 
 		if (currentIsFocused && this._selectionStartWithinScreenReaderContent === selectionStart && this._selectionEndWithinScreenReaderContent === selectionEnd) {
 			// No change
 			// Firefox iframe bug https://github.com/microsoft/monaco-editor/issues/643#issuecomment-367871377
 			if (browser.isFirefox && activeWindow.parent !== activeWindow) {
-				textArea.focus();
+				domNode.focus();
 			}
 			return;
 		}
@@ -701,7 +663,7 @@ export class NativeEditContext extends AbstractEditContext {
 			// No need to focus, only need to change the selection range
 			this._updateDocumentSelection(selectionStart, selectionEnd);
 			if (browser.isFirefox && activeWindow.parent !== activeWindow) {
-				textArea.focus();
+				domNode.focus();
 			}
 			return;
 		}
@@ -709,10 +671,10 @@ export class NativeEditContext extends AbstractEditContext {
 		// If the focus is outside the textarea, browsers will try really hard to reveal the textarea.
 		// Here, we try to undo the browser's desperate reveal.
 		try {
-			const scrollState = dom.saveParentsScrollTop(textArea);
-			textArea.focus();
+			const scrollState = dom.saveParentsScrollTop(domNode);
+			domNode.focus();
 			this._updateDocumentSelection(selectionStart, selectionEnd);
-			dom.restoreParentsScrollTop(textArea, scrollState);
+			dom.restoreParentsScrollTop(domNode, scrollState);
 		} catch (e) {
 			// Sometimes IE throws when setting selection (e.g. textarea is off-DOM)
 		}
