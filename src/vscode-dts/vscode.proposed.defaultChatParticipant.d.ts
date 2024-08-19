@@ -23,7 +23,7 @@ declare module 'vscode' {
 
 	export interface ChatTitleProvider {
 		/**
-		 * Should this take a ChatResult like the followup provider, or just take a new ChatContext that includes the current message as history?
+		 * TODO@API Should this take a ChatResult like the followup provider, or just take a new ChatContext that includes the current message as history?
 		 */
 		provideChatTitle(context: ChatContext, token: CancellationToken): ProviderResult<string>;
 	}
