@@ -8,7 +8,7 @@ import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IDebugService, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
+import { getIconClasses } from 'vs/editor/browser/services/getIconClasses';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -35,7 +35,7 @@ export async function showLoadedScriptMenu(accessor: ServicesAccessor) {
 	const labelService = accessor.get(ILabelService);
 
 	const localDisposableStore = new DisposableStore();
-	const quickPick = quickInputService.createQuickPick<IPickerDebugItem>();
+	const quickPick = quickInputService.createQuickPick<IPickerDebugItem>({ useSeparators: true });
 	localDisposableStore.add(quickPick);
 	quickPick.matchOnLabel = quickPick.matchOnDescription = quickPick.matchOnDetail = quickPick.sortByLabel = false;
 	quickPick.placeholder = nls.localize('moveFocusedView.selectView', "Search loaded scripts by name");

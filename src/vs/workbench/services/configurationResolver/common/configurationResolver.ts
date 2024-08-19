@@ -8,6 +8,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IProcessEnvironment } from 'vs/base/common/platform';
+import { ErrorNoTelemetry } from 'vs/base/common/errors';
 
 export const IConfigurationResolverService = createDecorator<IConfigurationResolverService>('configurationResolverService');
 
@@ -111,7 +112,7 @@ export enum VariableKind {
 	PathSeparatorAlias = '/'
 }
 
-export class VariableError extends Error {
+export class VariableError extends ErrorNoTelemetry {
 	constructor(public readonly variable: VariableKind, message?: string) {
 		super(message);
 	}

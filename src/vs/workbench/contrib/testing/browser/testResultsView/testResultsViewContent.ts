@@ -328,18 +328,19 @@ export class TestResultsViewContent extends Disposable {
 
 		const topFrame = this.currentTopFrame = this.instantiationService.createInstance(MessageStackFrame, this.messageContainer, this.followupWidget, subject);
 
-		topFrame.showHeader.set(callFrames.length > 0, undefined);
+		const hasMultipleFrames = callFrames.length > 0;
+		topFrame.showHeader.set(hasMultipleFrames, undefined);
 
 		const provider = await findAsync(this.contentProviders, p => p.update(subject));
 		if (provider) {
 			if (this.dimension) {
-				topFrame.height.set(provider.layout(this.dimension)!, undefined);
+				topFrame.height.set(provider.layout(this.dimension, hasMultipleFrames)!, undefined);
 			}
 			if (provider.onDidContentSizeChange) {
 				this.currentSubjectStore.add(provider.onDidContentSizeChange(() => {
 					if (this.dimension && !this.isDoingLayoutUpdate) {
 						this.isDoingLayoutUpdate = true;
-						topFrame.height.set(provider.layout(this.dimension)!, undefined);
+						topFrame.height.set(provider.layout(this.dimension, hasMultipleFrames)!, undefined);
 						this.isDoingLayoutUpdate = false;
 					}
 				}));
@@ -352,7 +353,7 @@ export class TestResultsViewContent extends Disposable {
 	private layoutContentWidgets(dimension: dom.Dimension, width = this.splitView.getViewSize(SubView.Diff)) {
 		this.isDoingLayoutUpdate = true;
 		for (const provider of this.contentProviders) {
-			const frameHeight = provider.layout({ height: dimension.height, width });
+			const frameHeight = provider.layout({ height: dimension.height, width }, !!this.currentTopFrame?.showHeader.get());
 			if (frameHeight) {
 				this.currentTopFrame?.height.set(frameHeight, undefined);
 			}

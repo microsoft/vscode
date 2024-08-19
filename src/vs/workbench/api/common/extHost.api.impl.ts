@@ -107,7 +107,8 @@ import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/c
 import { UIKind } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { checkProposedApiEnabled, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { ProxyIdentifier } from 'vs/workbench/services/extensions/common/proxyIdentifier';
-import { ExcludeSettingOptions, oldToNewTextSearchResult, TextSearchCompleteMessageType, TextSearchCompleteMessageTypeNew, TextSearchContextNew, TextSearchMatchNew } from 'vs/workbench/services/search/common/searchExtTypes';
+import { oldToNewTextSearchResult } from 'vs/workbench/services/search/common/searchExtConversionTypes';
+import { ExcludeSettingOptions, TextSearchCompleteMessageType, TextSearchContextNew, TextSearchMatchNew } from 'vs/workbench/services/search/common/searchExtTypes';
 import type * as vscode from 'vscode';
 
 export interface IExtensionRegistries {
@@ -290,13 +291,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				if (typeof options?.forceNewSession === 'object' && options.forceNewSession.learnMore) {
 					checkProposedApiEnabled(extension, 'authLearnMore');
 				}
-				if (options?.account) {
-					checkProposedApiEnabled(extension, 'authGetSessions');
-				}
 				return extHostAuthentication.getSession(extension, providerId, scopes, options as any);
 			},
 			getAccounts(providerId: string) {
-				checkProposedApiEnabled(extension, 'authGetSessions');
 				return extHostAuthentication.getAccounts(providerId);
 			},
 			// TODO: remove this after GHPR and Codespaces move off of it
@@ -747,15 +744,12 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return _asExtensionEvent(extHostTerminalService.onDidExecuteTerminalCommand)(listener, thisArg, disposables);
 			},
 			onDidChangeTerminalShellIntegration(listener, thisArg?, disposables?) {
-				checkProposedApiEnabled(extension, 'terminalShellIntegration');
 				return _asExtensionEvent(extHostTerminalShellIntegration.onDidChangeTerminalShellIntegration)(listener, thisArg, disposables);
 			},
 			onDidStartTerminalShellExecution(listener, thisArg?, disposables?) {
-				checkProposedApiEnabled(extension, 'terminalShellIntegration');
 				return _asExtensionEvent(extHostTerminalShellIntegration.onDidStartTerminalShellExecution)(listener, thisArg, disposables);
 			},
 			onDidEndTerminalShellExecution(listener, thisArg?, disposables?) {
-				checkProposedApiEnabled(extension, 'terminalShellIntegration');
 				return _asExtensionEvent(extHostTerminalShellIntegration.onDidEndTerminalShellExecution)(listener, thisArg, disposables);
 			},
 			get state() {
@@ -1109,6 +1103,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				}
 
 				return uriPromise.then(uri => {
+					extHostLogService.trace(`openTextDocument from ${extension.identifier}`);
 					if (uri.scheme === Schemas.vscodeRemote && !uri.authority) {
 						extHostApiDeprecation.report('workspace.openTextDocument', extension, `A URI of 'vscode-remote' scheme requires an authority.`);
 					}
@@ -1192,17 +1187,17 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			registerFileSearchProvider: (scheme: string, provider: vscode.FileSearchProvider) => {
 				checkProposedApiEnabled(extension, 'fileSearchProvider');
-				return extHostSearch.registerFileSearchProvider(scheme, provider);
+				return extHostSearch.registerFileSearchProviderOld(scheme, provider);
 			},
 			registerTextSearchProvider: (scheme: string, provider: vscode.TextSearchProvider) => {
 				checkProposedApiEnabled(extension, 'textSearchProvider');
-				return extHostSearch.registerTextSearchProvider(scheme, provider);
+				return extHostSearch.registerTextSearchProviderOld(scheme, provider);
 			},
 			registerAITextSearchProvider: (scheme: string, provider: vscode.AITextSearchProvider) => {
 				// there are some dependencies on textSearchProvider, so we need to check for both
 				checkProposedApiEnabled(extension, 'aiTextSearchProvider');
 				checkProposedApiEnabled(extension, 'textSearchProvider');
-				return extHostSearch.registerAITextSearchProvider(scheme, provider);
+				return extHostSearch.registerAITextSearchProviderOld(scheme, provider);
 			},
 			registerFileSearchProviderNew: (scheme: string, provider: vscode.FileSearchProviderNew) => {
 				checkProposedApiEnabled(extension, 'fileSearchProviderNew');
@@ -1470,8 +1465,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 		// namespace: interactive
 		const interactive: typeof vscode.interactive = {
-			// TODO Can be deleted after another Insiders
-			_version: 1,
 			transferActiveChat(toWorkspace: vscode.Uri) {
 				checkProposedApiEnabled(extension, 'interactive');
 				return extHostChatAgents2.transferActiveChat(toWorkspace);
@@ -1496,10 +1489,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 		// namespace: chat
 		const chat: typeof vscode.chat = {
-			// IMPORTANT
-			// this needs to be updated whenever the API proposal changes and breaks backwards compatibility
-			_version: 1,
-
 			registerChatResponseProvider(id: string, provider: vscode.ChatResponseProvider, metadata: vscode.ChatResponseProviderMetadata) {
 				checkProposedApiEnabled(extension, 'chatProvider');
 				return extHostLanguageModels.registerLanguageModel(extension, id, provider, metadata);
@@ -1776,7 +1765,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			TestResultState: extHostTypes.TestResultState,
 			TestRunRequest: extHostTypes.TestRunRequest,
 			TestMessage: extHostTypes.TestMessage,
-			TestMessage2: extHostTypes.TestMessage,
 			TestMessageStackFrame: extHostTypes.TestMessageStackFrame,
 			TestTag: extHostTypes.TestTag,
 			TestRunProfileKind: extHostTypes.TestRunProfileKind,
@@ -1831,6 +1819,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ChatResponseCommandButtonPart: extHostTypes.ChatResponseCommandButtonPart,
 			ChatResponseDetectedParticipantPart: extHostTypes.ChatResponseDetectedParticipantPart,
 			ChatResponseConfirmationPart: extHostTypes.ChatResponseConfirmationPart,
+			ChatResponseMovePart: extHostTypes.ChatResponseMovePart,
 			ChatResponseReferencePartStatusKind: extHostTypes.ChatResponseReferencePartStatusKind,
 			ChatRequestTurn: extHostTypes.ChatRequestTurn,
 			ChatResponseTurn: extHostTypes.ChatResponseTurn,
@@ -1851,7 +1840,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ExcludeSettingOptions: ExcludeSettingOptions,
 			TextSearchContextNew: TextSearchContextNew,
 			TextSearchMatchNew: TextSearchMatchNew,
-			TextSearchCompleteMessageTypeNew: TextSearchCompleteMessageTypeNew,
+			TextSearchCompleteMessageTypeNew: TextSearchCompleteMessageType,
 		};
 	};
 }

@@ -388,11 +388,8 @@ class VoiceChatSessions {
 		if (!response) {
 			return;
 		}
-
-		if (
-			!this.accessibilityService.isScreenReaderOptimized() && // do not auto synthesize when screen reader is active
-			this.configurationService.getValue<boolean>(AccessibilityVoiceSettingId.AutoSynthesize) === true
-		) {
+		const autoSynthesize = this.configurationService.getValue<'on' | 'off' | 'auto'>(AccessibilityVoiceSettingId.AutoSynthesize);
+		if (autoSynthesize === 'on' || autoSynthesize === 'auto' && !this.accessibilityService.isScreenReaderOptimized()) {
 			let context: IVoiceChatSessionController | 'focused';
 			if (controller.context === 'inline') {
 				// TODO@bpasero this is ugly, but the lightweight inline chat turns into

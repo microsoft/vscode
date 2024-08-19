@@ -14,6 +14,7 @@ import { testingUpdateProfiles } from 'vs/workbench/contrib/testing/browser/icon
 import { testConfigurationGroupNames } from 'vs/workbench/contrib/testing/common/constants';
 import { InternalTestItem, ITestRunProfile, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
 import { canUseProfileWithTest, ITestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 interface IConfigurationPickerOptions {
 	/** Placeholder text */
@@ -82,7 +83,7 @@ function buildPicker(accessor: ServicesAccessor, {
 		}
 	}
 
-	const quickpick = accessor.get(IQuickInputService).createQuickPick<IQuickPickItem & { profile: ITestRunProfile }>();
+	const quickpick = accessor.get(IQuickInputService).createQuickPick<IQuickPickItem & { profile: ITestRunProfile }>({ useSeparators: true });
 	quickpick.items = items;
 	quickpick.placeholder = placeholder;
 	return quickpick;
@@ -108,6 +109,9 @@ CommandsRegistry.registerCommand({
 			return;
 		}
 
+		const disposables = new DisposableStore();
+		disposables.add(quickpick);
+
 		quickpick.canSelectMany = true;
 		if (options.selected) {
 			quickpick.selectedItems = quickpick.items
@@ -116,16 +120,16 @@ CommandsRegistry.registerCommand({
 		}
 
 		const pick = await new Promise<ITestRunProfile[] | undefined>(resolve => {
-			quickpick.onDidAccept(() => {
+			disposables.add(quickpick.onDidAccept(() => {
 				const selected = quickpick.selectedItems as readonly { profile?: ITestRunProfile }[];
 				resolve(selected.map(s => s.profile).filter(isDefined));
-			});
-			quickpick.onDidHide(() => resolve(undefined));
-			quickpick.onDidTriggerItemButton(triggerButtonHandler(profileService, resolve));
+			}));
+			disposables.add(quickpick.onDidHide(() => resolve(undefined)));
+			disposables.add(quickpick.onDidTriggerItemButton(triggerButtonHandler(profileService, resolve)));
 			quickpick.show();
 		});
 
-		quickpick.dispose();
+		disposables.dispose();
 		return pick;
 	}
 });
@@ -139,14 +143,17 @@ CommandsRegistry.registerCommand({
 			return;
 		}
 
+		const disposables = new DisposableStore();
+		disposables.add(quickpick);
+
 		const pick = await new Promise<ITestRunProfile | undefined>(resolve => {
-			quickpick.onDidAccept(() => resolve((quickpick.selectedItems[0] as { profile?: ITestRunProfile })?.profile));
-			quickpick.onDidHide(() => resolve(undefined));
-			quickpick.onDidTriggerItemButton(triggerButtonHandler(profileService, resolve));
+			disposables.add(quickpick.onDidAccept(() => resolve((quickpick.selectedItems[0] as { profile?: ITestRunProfile })?.profile)));
+			disposables.add(quickpick.onDidHide(() => resolve(undefined)));
+			disposables.add(quickpick.onDidTriggerItemButton(triggerButtonHandler(profileService, resolve)));
 			quickpick.show();
 		});
 
-		quickpick.dispose();
+		disposables.dispose();
 		return pick;
 	}
 });

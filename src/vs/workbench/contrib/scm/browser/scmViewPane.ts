@@ -104,7 +104,8 @@ import { MarkdownString } from 'vs/base/common/htmlContent';
 import type { IHoverOptions, IManagedHover, IManagedHoverTooltipMarkdownString } from 'vs/base/browser/ui/hover/hover';
 import { IHoverService, WorkbenchHoverDelegate } from 'vs/platform/hover/browser/hover';
 import { OpenScmGroupAction } from 'vs/workbench/contrib/multiDiffEditor/browser/scmMultiDiffSourceResolver';
-import { HoverController } from 'vs/editor/contrib/hover/browser/hoverController';
+import { ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHoverController2';
+import { MarginHoverController } from 'vs/editor/contrib/hover/browser/marginHoverController';
 import { ITextModel } from 'vs/editor/common/model';
 import { autorun } from 'vs/base/common/observable';
 import { createInstantHoverDelegate, getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
@@ -1333,7 +1334,7 @@ class SeparatorRenderer implements ICompressibleTreeRenderer<SCMViewSeparatorEle
 		]);
 		const menu = this.menuService.createMenu(MenuId.SCMChangesSeparator, contextKeyService);
 		templateData.elementDisposables.add(connectPrimaryMenu(menu, (primary, secondary) => {
-			secondary.push(...this.getFilterActions(element.element.repository));
+			secondary.splice(0, 0, ...this.getFilterActions(element.element.repository), new Separator());
 			templateData.toolBar.setActions(primary, secondary, [MenuId.SCMChangesSeparator]);
 		}));
 		templateData.toolBar.context = provider;
@@ -2273,6 +2274,28 @@ class ExpandAllRepositoriesAction extends ViewAction<SCMViewPane> {
 registerAction2(CollapseAllRepositoriesAction);
 registerAction2(ExpandAllRepositoriesAction);
 
+class ShowHistoryGraphAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.scm.action.showHistoryGraph',
+			title: localize('showHistoryGraph', "Show Incoming/Outgoing Changes"),
+			f1: false,
+			toggled: ContextKeyExpr.equals('config.scm.showHistoryGraph', true),
+			menu: [
+				{ id: MenuId.SCMChangesSeparator },
+				{ id: Menus.ViewSort, group: '3_other' }]
+		});
+	}
+
+	async run(accessor: ServicesAccessor) {
+		const configurationService = accessor.get(IConfigurationService);
+		const configValue = configurationService.getValue('scm.showHistoryGraph') === true;
+		configurationService.updateValue('scm.showHistoryGraph', !configValue);
+	}
+}
+
+registerAction2(ShowHistoryGraphAction);
+
 const enum SCMInputWidgetCommandId {
 	CancelAction = 'scm.input.cancelAction'
 }
@@ -2754,7 +2777,8 @@ class SCMInputWidget {
 				DropIntoEditorController.ID,
 				EditorDictation.ID,
 				FormatOnType.ID,
-				HoverController.ID,
+				ContentHoverController.ID,
+				MarginHoverController.ID,
 				InlineCompletionsController.ID,
 				LinkDetector.ID,
 				MenuPreventer.ID,
@@ -4134,8 +4158,10 @@ class SCMTreeHistoryProviderDataSource extends Disposable {
 		}
 
 		// If we only have one history item that contains all the labels (current, remote, base),
-		// we don't need to show it, unless it is the root commit (does not have any parents).
-		if (historyItemsElement.length === 1 && historyItemsElement[0].parentIds.length > 0) {
+		// we don't need to show it, unless it is the root commit (does not have any parents) and
+		// the repository has not been published yet.
+		if (historyItemsElement.length === 1 &&
+			(historyItemsElement[0].parentIds.length > 0 || currentHistoryItemGroup.remote)) {
 			const currentHistoryItemGroupLabels = [
 				currentHistoryItemGroup.name,
 				...currentHistoryItemGroup.remote ? [currentHistoryItemGroup.remote.name] : [],

@@ -47,6 +47,7 @@ const vscodeWebResourceIncludes = [
 
 	// Extension Worker
 	'out-build/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html',
+	'out-build/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.esm.html',
 
 	// Web node paths (needed for integration tests)
 	'out-build/vs/webPackagePaths.js',
@@ -62,6 +63,8 @@ const vscodeWebResources = [
 	'!out-build/vs/**/{node,electron-sandbox,electron-main}/**',
 	'!out-build/vs/editor/standalone/**',
 	'!out-build/vs/workbench/**/*-tb.png',
+	'!out-build/vs/code/**/*-dev.html',
+	'!out-build/vs/code/**/*-dev.esm.html',
 	'!**/test/**'
 ];
 

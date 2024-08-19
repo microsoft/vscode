@@ -36,7 +36,8 @@ import { LinkDetector } from 'vs/editor/contrib/links/browser/links';
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { MenuId } from 'vs/platform/actions/common/actions';
-import { HoverController } from 'vs/editor/contrib/hover/browser/hoverController';
+import { ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHoverController2';
+import { MarginHoverController } from 'vs/editor/contrib/hover/browser/marginHoverController';
 
 export const ctxCommentEditorFocused = new RawContextKey<boolean>('commentEditorFocused', false);
 export const MIN_EDITOR_HEIGHT = 5 * 18;
@@ -78,7 +79,8 @@ export class SimpleCommentEditor extends CodeEditorWidget {
 					DropIntoEditorController.ID,
 					LinkDetector.ID,
 					MessageController.ID,
-					HoverController.ID,
+					ContentHoverController.ID,
+					MarginHoverController.ID,
 					SelectionClipboardContributionID,
 					InlineCompletionsController.ID,
 					CodeActionController.ID,

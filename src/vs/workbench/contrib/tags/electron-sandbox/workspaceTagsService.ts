@@ -160,6 +160,7 @@ const ModulesToLookFor = [
 	'@azure/attestation',
 	'@azure/data-tables',
 	'@azure/arm-appservice',
+	'@azure-rest/ai-inference',
 	'@azure-rest/arm-appservice',
 	'@azure/arm-appcontainers',
 	'@azure/arm-rediscache',
@@ -249,6 +250,7 @@ const PyMetaModulesToLookFor = [
 
 const PyModulesToLookFor = [
 	'azure',
+	'azure-ai-inference',
 	'azure-ai-language-conversations',
 	'azure-ai-language-questionanswering',
 	'azure-ai-ml',
@@ -671,6 +673,7 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			"workspace.npm.@azure/communication-administration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@azure/attestation" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@azure/data-tables" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.@azure-rest/ai-inference" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@azure-rest/arm-appservice" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@azure/arm-appservice" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@azure/arm-appcontainers" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -761,6 +764,7 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			"workspace.py.pulumi-azure" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.azure" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.azure-ai" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.azure-ai-inference" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.azure-ai-language-conversations" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.azure-ai-language-questionanswering" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.azure-ai-ml" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
