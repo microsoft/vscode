@@ -81,4 +81,4 @@ Licensed under the [MIT](LICENSE.txt) license.
 
 ## Contributor
 
-Contributor João Marcos
+1 Contributor João Marcos
