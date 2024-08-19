@@ -557,7 +557,7 @@ export class QueryBuilder {
 			const excludeRoot = options.excludePattern && isISearchPatternBuilder(excludePattern) ? excludePattern.uri : undefined;
 			const shouldUseExcludeRoot = (!excludeRoot || !(URI.isUri(folder) && this.uriIdentityService.extUri.isEqual(folder, excludeRoot)));
 			return shouldUseExcludeRoot ? excludeRoot : undefined;
-		}) ?? [];
+		}) ?? [undefined];
 
 		if (searchPathExcludes.searchPaths) {
 			const thisFolderExcludeSearchPath = searchPathExcludes.searchPaths.filter(sp => isEqual(sp.searchPath, folderUri))[0];
