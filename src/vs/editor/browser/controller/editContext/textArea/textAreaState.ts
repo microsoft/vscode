@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as strings from 'vs/base/common/strings';
-import { findNewLineCountBeforeSelection, ITypeData } from 'vs/editor/browser/controller/editContext/utilities';
+import { deduceInput, ITypeData } from 'vs/editor/browser/controller/editContext/utilities';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 
@@ -43,17 +43,15 @@ export class TextAreaState {
 		const value = textArea.getValue();
 		const selectionStart = textArea.getSelectionStart();
 		const selectionEnd = textArea.getSelectionEnd();
-		const current: { value: string; selectionStart: number } = { value, selectionStart };
-		let previous: { value: string; selectionStart: number; newLineCountBeforeSelection: number | undefined } | undefined = undefined;
+		let newlineCountBeforeSelection: number | undefined = undefined;
 		if (previousState) {
-			previous = {
-				value: previousState.value,
-				selectionStart: previousState.selectionStart,
-				newLineCountBeforeSelection: previousState.newlineCountBeforeSelection
-			};
+			const valueBeforeSelectionStart = value.substring(0, selectionStart);
+			const previousValueBeforeSelectionStart = previousState.value.substring(0, previousState.selectionStart);
+			if (valueBeforeSelectionStart === previousValueBeforeSelectionStart) {
+				newlineCountBeforeSelection = previousState.newlineCountBeforeSelection;
+			}
 		}
-		const newLineCountBeforeSelection = findNewLineCountBeforeSelection(current, previous);
-		return new TextAreaState(value, selectionStart, selectionEnd, null, newLineCountBeforeSelection);
+		return new TextAreaState(value, selectionStart, selectionEnd, null, newlineCountBeforeSelection);
 	}
 
 	public collapseSelection(): TextAreaState {
@@ -100,67 +98,7 @@ export class TextAreaState {
 	}
 
 	public static deduceInput(previousState: TextAreaState, currentState: TextAreaState, couldBeEmojiInput: boolean): ITypeData {
-		if (!previousState) {
-			// This is the EMPTY state
-			return {
-				text: '',
-				replacePrevCharCnt: 0,
-				replaceNextCharCnt: 0,
-				positionDelta: 0
-			};
-		}
-
-		if (_debugComposition) {
-			console.log('------------------------deduceInput');
-			console.log(`PREVIOUS STATE: ${previousState.toString()}`);
-			console.log(`CURRENT STATE: ${currentState.toString()}`);
-		}
-
-		const prefixLength = Math.min(
-			strings.commonPrefixLength(previousState.value, currentState.value),
-			previousState.selectionStart,
-			currentState.selectionStart
-		);
-		const suffixLength = Math.min(
-			strings.commonSuffixLength(previousState.value, currentState.value),
-			previousState.value.length - previousState.selectionEnd,
-			currentState.value.length - currentState.selectionEnd
-		);
-		const previousValue = previousState.value.substring(prefixLength, previousState.value.length - suffixLength);
-		const currentValue = currentState.value.substring(prefixLength, currentState.value.length - suffixLength);
-		const previousSelectionStart = previousState.selectionStart - prefixLength;
-		const previousSelectionEnd = previousState.selectionEnd - prefixLength;
-		const currentSelectionStart = currentState.selectionStart - prefixLength;
-		const currentSelectionEnd = currentState.selectionEnd - prefixLength;
-
-		if (_debugComposition) {
-			console.log(`AFTER DIFFING PREVIOUS STATE: <${previousValue}>, selectionStart: ${previousSelectionStart}, selectionEnd: ${previousSelectionEnd}`);
-			console.log(`AFTER DIFFING CURRENT STATE: <${currentValue}>, selectionStart: ${currentSelectionStart}, selectionEnd: ${currentSelectionEnd}`);
-		}
-
-		if (currentSelectionStart === currentSelectionEnd) {
-			// no current selection
-			const replacePreviousCharacters = (previousState.selectionStart - prefixLength);
-			if (_debugComposition) {
-				console.log(`REMOVE PREVIOUS: ${replacePreviousCharacters} chars`);
-			}
-
-			return {
-				text: currentValue,
-				replacePrevCharCnt: replacePreviousCharacters,
-				replaceNextCharCnt: 0,
-				positionDelta: 0
-			};
-		}
-
-		// there is a current selection => composition case
-		const replacePreviousCharacters = previousSelectionEnd - previousSelectionStart;
-		return {
-			text: currentValue,
-			replacePrevCharCnt: replacePreviousCharacters,
-			replaceNextCharCnt: 0,
-			positionDelta: 0
-		};
+		return deduceInput(previousState, currentState);
 	}
 
 	public static deduceAndroidCompositionInput(previousState: TextAreaState, currentState: TextAreaState): ITypeData {

@@ -94,18 +94,6 @@ export class PagedScreenReaderStrategy {
 	}
 }
 
-export function findNewLineCountBeforeSelection(current: { value: string; selectionStart: number }, previous: { value: string; selectionStart: number; newLineCountBeforeSelection: number | undefined } | undefined): number | undefined {
-	let newLineCountBeforeSelection: number | undefined = undefined;
-	if (previous) {
-		const valueBeforeSelectionStart = current.value.substring(0, current.selectionStart);
-		const previousValueBeforeSelectionStart = previous.value.substring(0, previous.selectionStart);
-		if (valueBeforeSelectionStart === previousValueBeforeSelectionStart) {
-			newLineCountBeforeSelection = previous.newLineCountBeforeSelection;
-		}
-	}
-	return newLineCountBeforeSelection;
-}
-
 export function deduceInput(previousState: { value: string; selectionStart: number; selectionEnd: number } | undefined, currentState: { value: string; selectionStart: number; selectionEnd: number }): {
 	text: string;
 	replacePrevCharCnt: number;

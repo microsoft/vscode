@@ -184,6 +184,7 @@ export class NativeEditContext extends AbstractEditContext {
 			this._viewController.compositionStart();
 			this._context.viewModel.onCompositionStart();
 		}));
+
 		this._register(editContextAddDisposableListener(this._editContext, 'compositionend', e => {
 
 			console.log('oncompositionend : ', e);
