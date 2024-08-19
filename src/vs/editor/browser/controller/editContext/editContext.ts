@@ -14,6 +14,10 @@ import { EditorOption, EditorOptions, IComputedEditorOptions } from 'vs/editor/c
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import * as nls from 'vs/nls';
+import { Color } from 'vs/base/common/color';
+import * as browser from 'vs/base/browser/browser';
+
+export const canUseZeroSizeTextarea = (browser.isFirefox);
 
 export abstract class AbstractEditContext extends ViewPart {
 	abstract isFocused(): boolean;
@@ -22,6 +26,21 @@ export abstract class AbstractEditContext extends ViewPart {
 	abstract focusTextArea(): void;
 	abstract refreshFocusState(): void;
 	abstract setAriaOptions(options: IEditorAriaOptions): void;
+}
+
+export interface IRenderData {
+	lastRenderPosition: Position | null;
+	top: number;
+	left: number;
+	width: number;
+	height: number;
+	useCover: boolean;
+
+	color?: Color | null;
+	italic?: boolean;
+	bold?: boolean;
+	underline?: boolean;
+	strikethrough?: boolean;
 }
 
 export interface ITypeData {
@@ -210,7 +229,7 @@ export function ariaLabelForScreenReaderContent(options: IComputedEditorOptions,
 	return options.get(EditorOption.ariaLabel);
 }
 
-export function getAccessibilityOptions(options: IComputedEditorOptions, canUseZeroSizeTextarea: boolean): {
+export function getAccessibilityOptions(options: IComputedEditorOptions): {
 	accessibilitySupport: AccessibilitySupport;
 	accessibilityPageSize: number;
 	textAreaWrapping: boolean;

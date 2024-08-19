@@ -9,7 +9,7 @@ import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
-import { AbstractEditContext, ariaLabelForScreenReaderContent, CompositionContext, deduceInput, getAccessibilityOptions, ISimpleModel, ITypeData, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/editContext/editContext';
+import { AbstractEditContext, ariaLabelForScreenReaderContent, canUseZeroSizeTextarea, CompositionContext, deduceInput, getAccessibilityOptions, IRenderData, ISimpleModel, ITypeData, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/editContext/editContext';
 import { HorizontalPosition, RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
 import { ViewController } from 'vs/editor/browser/view/viewController';
 import { EditorOption, IComputedEditorOptions } from 'vs/editor/common/config/editorOptions';
@@ -35,8 +35,6 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 /**
  * Correctly place the bounding boxes so that they are exactly aligned
  */
-
-const canUseZeroSizeTextarea = (browser.isFirefox);
 
 export class NativeEditContext extends AbstractEditContext {
 
@@ -285,7 +283,7 @@ export class NativeEditContext extends AbstractEditContext {
 	}
 
 	private _setAccessibilityOptions(options: IComputedEditorOptions): void {
-		const { accessibilitySupport, accessibilityPageSize, textAreaWrapping, textAreaWidth } = getAccessibilityOptions(options, canUseZeroSizeTextarea);
+		const { accessibilitySupport, accessibilityPageSize, textAreaWrapping, textAreaWidth } = getAccessibilityOptions(options);
 		this._accessibilitySupport = accessibilitySupport;
 		this._accessibilityPageSize = accessibilityPageSize;
 		this._textAreaWrapping = textAreaWrapping;
@@ -893,21 +891,6 @@ function editContextAddDisposableListener<K extends keyof EditContextEventHandle
 			target.removeEventListener(type, listener as any);
 		}
 	};
-}
-
-interface IRenderData {
-	lastRenderPosition: Position | null;
-	top: number;
-	left: number;
-	width: number;
-	height: number;
-	useCover: boolean;
-
-	color?: Color | null;
-	italic?: boolean;
-	bold?: boolean;
-	underline?: boolean;
-	strikethrough?: boolean;
 }
 
 function createRect(rect: DOMRect, color: 'red' | 'blue' | 'green'): IDisposable {
