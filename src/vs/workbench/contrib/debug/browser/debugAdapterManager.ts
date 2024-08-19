@@ -4,18 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import * as strings from 'vs/base/common/strings';
-import { ThemeIcon } from 'vs/base/common/themables';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorModel } from 'vs/editor/common/editorCommon';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ITextModel } from 'vs/editor/common/model';
 import * as nls from 'vs/nls';
+import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -25,7 +24,6 @@ import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/plat
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { ChatAgentLocation, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { Breakpoints } from 'vs/workbench/contrib/debug/common/breakpoints';
 import { CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_DEBUG_EXTENSION_AVAILABLE, IAdapterDescriptor, IAdapterManager, IConfig, IDebugAdapter, IDebugAdapterDescriptorFactory, IDebugAdapterFactory, IDebugConfiguration, IDebugSession, INTERNAL_CONSOLE_OPTIONS_SCHEMA } from 'vs/workbench/contrib/debug/common/debug';
 import { Debugger } from 'vs/workbench/contrib/debug/common/debugger';
@@ -74,7 +72,7 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 		@IDialogService private readonly dialogService: IDialogService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@ITaskService private readonly tasksService: ITaskService,
-		@IChatAgentService private readonly chatAgentService: IChatAgentService,
+		@IMenuService private readonly menuService: IMenuService,
 	) {
 		super();
 		this.adapterDescriptorFactories = [];
@@ -409,7 +407,7 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 			}
 		});
 
-		const picks: { label: string; debugger?: Debugger; type?: string }[] = [];
+		const picks: ({ label: string; debugger?: Debugger; type?: string } | MenuItemAction)[] = [];
 		if (suggestedCandidates.length > 0) {
 			picks.push(
 				{ type: 'separator', label: nls.localize('suggestedDebuggers', "Suggested") },
@@ -427,28 +425,21 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 		picks.push(
 			{ type: 'separator', label: '' },
 			{ label: languageLabel ? nls.localize('installLanguage', "Install an extension for {0}...", languageLabel) : nls.localize('installExt', "Install extension...") });
-		const hasVSCodeChatAgent = this.chatAgentService.getActivatedAgents().find(a => a.id === 'github.copilot.vscode');
-		let copilotLabel: string | undefined;
-		if (hasVSCodeChatAgent) {
-			copilotLabel = nls.localize('copilot', "Generate with GitHub Copilot");
-			const copilotPick: IQuickPickItem = {
-				label: copilotLabel,
-				description: nls.localize('copilotDescription', "Create a launch configuration and start debugging."),
-				iconClass: ThemeIcon.asClassName(Codicon.sparkle)
-			};
-			picks.push(copilotPick);
+
+		const contributed = this.menuService.getMenuActions(MenuId.DebugCreateConfiguration, this.contextKeyService);
+		for (const [, action] of contributed) {
+			for (const item of action) {
+				picks.push(item);
+			}
 		}
 		const placeHolder = nls.localize('selectDebug', "Select debugger");
 		return this.quickInputService.pick<{ label: string; debugger?: Debugger } | IQuickPickItem>(picks, { activeItem: picks[0], placeHolder })
 			.then(async picked => {
 				if (picked && 'debugger' in picked && picked.debugger) {
 					return picked.debugger;
-				} else if (picked && picked.label === copilotLabel) {
-					const query = await this.quickInputService.input({ 'placeHolder': nls.localize('copilotInput', "What type of app are you debugging?") });
-					try {
-						this.commandService.executeCommand('workbench.action.chat.open', '@vscode /startDebugging ' + query, { location: ChatAgentLocation.Panel });
-						return;
-					} catch { }
+				} else if (picked instanceof MenuItemAction) {
+					picked.run();
+					return;
 				}
 				if (picked) {
 					this.commandService.executeCommand('debug.installAdditionalDebuggers', languageLabel);
