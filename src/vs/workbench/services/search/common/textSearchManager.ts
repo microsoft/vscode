@@ -187,7 +187,9 @@ export class TextSearchManager {
 		const excludes = excludeToGlobPattern(fq.excludePattern?.map(e => ({
 			folder: e.folder,
 			patterns: resolvePatternsForProvider(this.query.excludePattern, e.pattern)
-		})) ?? []);
+		})) ?? [{
+			patterns: resolvePatternsForProvider(this.query.excludePattern, undefined)
+		}]);
 
 		const options = {
 			folder: URI.from(fq.folder),

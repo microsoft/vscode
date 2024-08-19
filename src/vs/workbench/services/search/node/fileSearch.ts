@@ -88,6 +88,10 @@ export class FileWalker {
 				Object.assign(folderExcludeExpression, excludePattern.pattern || {}, this.config.excludePattern || {});
 			});
 
+			if (!folderQuery.excludePattern?.length) {
+				Object.assign(folderExcludeExpression, this.config.excludePattern || {});
+			}
+
 			// Add excludes for other root folders
 			const fqPath = folderQuery.folder.fsPath;
 			config.folderQueries

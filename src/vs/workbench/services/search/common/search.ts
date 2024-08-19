@@ -692,7 +692,7 @@ export class QueryGlobTester {
 				...(config.excludePattern || {}),
 				...(excludePattern.pattern || {})
 			} satisfies glob.IExpression;
-		}) ?? [];
+		}) ?? [config.excludePattern || {}];
 
 		this._parsedExcludeExpression = this._excludeExpression.map(e => glob.parse(e));
 
