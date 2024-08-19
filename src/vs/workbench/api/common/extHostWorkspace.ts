@@ -28,7 +28,7 @@ import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { GlobPattern } from 'vs/workbench/api/common/extHostTypeConverters';
 import { Range } from 'vs/workbench/api/common/extHostTypes';
 import { IURITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
-import { IFileQueryBuilderOptions, ITextQueryBuilderOptions } from 'vs/workbench/services/search/common/queryBuilder';
+import { IFileQueryBuilderOptions, ISearchPatternBuilder, ITextQueryBuilderOptions } from 'vs/workbench/services/search/common/queryBuilder';
 import { IRawFileMatch2, ITextSearchResult, resultIsMatch } from 'vs/workbench/services/search/common/search';
 import type * as vscode from 'vscode';
 import { ExtHostWorkspaceShape, IRelativePatternDto, IWorkspaceData, MainContext, MainThreadMessageOptions, MainThreadMessageServiceShape, MainThreadWorkspaceShape } from './extHost.protocol';
@@ -509,16 +509,9 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 			shouldGlobSearch: typeof options.fuzzy === 'boolean' ? !options.fuzzy : true,
 			_reason: 'startFileSearch'
 		};
-		let folderToUse: URI | undefined;
-		if (include) {
-			const { includePattern, folder } = parseSearchInclude(GlobPattern.from(include));
-			folderToUse = folder;
-			fileQueries.includePattern = includePattern;
-		} else {
-			const { includePattern, folder } = parseSearchInclude(GlobPattern.from(filePattern));
-			folderToUse = folder;
-			fileQueries.filePattern = includePattern;
-		}
+		const parseInclude = parseSearchExcludeInclude(GlobPattern.from(include ?? filePattern));
+		const folderToUse: URI | undefined = parseInclude?.folder;
+		fileQueries.includePattern = parseInclude?.pattern;
 
 		return this._proxy.$startFileSearch(
 			folderToUse ?? null,
@@ -529,8 +522,28 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 	}
 	findTextInFilesNew(query: vscode.TextSearchQueryNew, extensionId: ExtensionIdentifier, options?: vscode.FindTextInFilesOptionsNew, token?: vscode.CancellationToken): vscode.FindTextInFilesResponse {
 		this._logService.trace(`extHostWorkspace#findTextInFilesNew: textSearch, extension: ${extensionId.value}, entryPoint: findTextInFilesNew`);
-		const queryOptions: QueryOptions[] | undefined = options?.include?.map((include) => {
-			const { includePattern, folder } = parseSearchInclude(GlobPattern.from(include));
+		const queryOptionsRaw: (QueryOptions | undefined)[] = ((options?.include?.map((include) => {
+			const parsedInclude = parseSearchExcludeInclude(GlobPattern.from(include));
+
+			const excludePatterns = (
+				options.exclude?.map((exclude): ISearchPatternBuilder | undefined => {
+					if (typeof exclude === 'string') {
+						return {
+							pattern: exclude,
+							uri: undefined
+						} satisfies ISearchPatternBuilder;
+					} else {
+						const parsedExclude = parseSearchExcludeInclude(exclude);
+						if (!parsedExclude) {
+							return undefined;
+						}
+						return {
+							pattern: parsedExclude.pattern,
+							uri: parsedExclude.folder
+						} satisfies ISearchPatternBuilder;
+					}
+				}) ?? []
+			).filter((e): e is ISearchPatternBuilder => !!e);
 			return {
 				options: {
 
@@ -548,12 +561,14 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 					} : undefined,
 					surroundingContext: options.surroundingContext,
 
-					includePattern: includePattern,
-					excludePattern: options.exclude && options.exclude.length > 0 ? options.exclude[0] : undefined, // todo: support multiple excludes
+					includePattern: parsedInclude?.pattern,
+					excludePattern: excludePatterns
 				} satisfies ITextQueryBuilderOptions,
-				folder
+				folder: parsedInclude?.folder
 			} satisfies QueryOptions;
-		});
+		}))) ?? [];
+
+		const queryOptions = queryOptionsRaw.filter((queryOps): queryOps is QueryOptions => !!queryOps);
 
 		const complete: Promise<undefined | vscode.TextSearchComplete> = Promise.resolve(undefined);
 
@@ -654,7 +669,8 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 			} :
 			options.previewOptions;
 
-		const { includePattern, folder } = parseSearchInclude(GlobPattern.from(options.include));
+		const parsedInclude = parseSearchExcludeInclude(GlobPattern.from(options.include));
+
 		const excludePattern = (typeof options.exclude === 'string') ? options.exclude :
 			options.exclude ? options.exclude.pattern : undefined;
 		const queryOptions: ITextQueryBuilderOptions = {
@@ -669,7 +685,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 			previewOptions,
 			surroundingContext: options.afterContext, // TODO: remove ability to have before/after context separately
 
-			includePattern: includePattern,
+			includePattern: parsedInclude?.pattern,
 			excludePattern: excludePattern ? [{ pattern: excludePattern }] : undefined,
 		};
 
@@ -696,7 +712,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 			}
 		};
 
-		return this.findTextInFilesBase(query, [{ options: queryOptions, folder }], progress, token);
+		return this.findTextInFilesBase(query, [{ options: queryOptions, folder: parsedInclude?.folder }], progress, token);
 	}
 
 	$handleTextSearchResult(result: IRawFileMatch2, requestId: number): void {
@@ -899,22 +915,23 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 export const IExtHostWorkspace = createDecorator<IExtHostWorkspace>('IExtHostWorkspace');
 export interface IExtHostWorkspace extends ExtHostWorkspace, ExtHostWorkspaceShape, IExtHostWorkspaceProvider { }
 
-function parseSearchInclude(include: string | IRelativePatternDto | undefined | null): { includePattern?: string; folder?: URI } {
-	let includePattern: string | undefined;
+function parseSearchExcludeInclude(include: string | IRelativePatternDto | undefined | null): { pattern: string; folder?: URI } | undefined {
+	let pattern: string | undefined;
 	let includeFolder: URI | undefined;
 	if (include) {
 		if (typeof include === 'string') {
-			includePattern = include;
+			pattern = include;
 		} else {
-			includePattern = include.pattern;
+			pattern = include.pattern;
 			includeFolder = URI.revive(include.baseUri);
 		}
-	}
 
-	return {
-		includePattern,
-		folder: includeFolder
-	};
+		return {
+			pattern,
+			folder: includeFolder
+		};
+	}
+	return undefined;
 }
 
 interface IExtensionListener<E> {

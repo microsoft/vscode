@@ -43,7 +43,7 @@ export interface ISearchPathPattern {
 
 type ISearchPathPatternBuilder = string | string[];
 
-interface ISearchPatternBuilder {
+export interface ISearchPatternBuilder {
 	uri?: uri;
 	pattern: ISearchPathPatternBuilder;
 }

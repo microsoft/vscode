@@ -1106,9 +1106,10 @@ export function assertEqualQueries(actual: ITextQuery | IFileQuery, expected: IT
 	};
 
 	const folderQueryToCompareObject = (fq: IFolderQuery) => {
+		const excludePattern = fq.excludePattern?.map(e => normalizeExpression(e.pattern));
 		return {
 			path: fq.folder.fsPath,
-			excludePattern: fq.excludePattern?.map(e => normalizeExpression(e.pattern)),
+			excludePattern: excludePattern?.length ? excludePattern : undefined,
 			includePattern: normalizeExpression(fq.includePattern),
 			fileEncoding: fq.fileEncoding
 		};
