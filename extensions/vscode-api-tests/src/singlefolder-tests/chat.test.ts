@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import 'mocha';
 import { ChatContext, ChatRequest, ChatResult, ChatVariableLevel, Disposable, Event, EventEmitter, chat, commands } from 'vscode';
-import { DeferredPromise, asPromise, assertNoRpc, closeAllEditors, disposeAll } from '../utils';
+import { DeferredPromise, asPromise, assertNoRpc, closeAllEditors, delay, disposeAll } from '../utils';
 
 suite('chat', () => {
 
@@ -36,7 +36,6 @@ suite('chat', () => {
 		const participant = chat.createChatParticipant(id, (request, context, _progress, _token) => {
 			emitter.fire({ request, context });
 		});
-		participant.isDefault = true;
 		disposables.push(participant);
 		return emitter.event;
 	}
@@ -89,7 +88,6 @@ suite('chat', () => {
 		const participant = chat.createChatParticipant('api-test.participant', (_request, _context, _progress, _token) => {
 			return { metadata: { key: 'value' } };
 		});
-		participant.isDefault = true;
 		participant.followupProvider = {
 			provideFollowups(result, _context, _token) {
 				deferred.complete(result);
@@ -122,5 +120,34 @@ suite('chat', () => {
 		}, 0);
 		const request3 = await asPromise(onRequest2);
 		assert.strictEqual(request3.context.history.length, 2); // request + response = 2
+	});
+
+	test('title provider is called for first request', async () => {
+		let calls = 0;
+		const deferred = new DeferredPromise<void>();
+		const participant = chat.createChatParticipant('api-test.participant', (_request, _context, _progress, _token) => {
+			return { metadata: { key: 'value' } };
+		});
+		participant.titleProvider = {
+			provideChatTitle(_context, _token) {
+				calls++;
+				deferred.complete();
+				return 'title';
+			}
+		};
+		disposables.push(participant);
+
+		await commands.executeCommand('workbench.action.chat.newChat');
+		commands.executeCommand('workbench.action.chat.open', { query: '@participant /hello friend' });
+
+		// Wait for title provider to be called once
+		await deferred.p;
+		assert.strictEqual(calls, 1);
+
+		commands.executeCommand('workbench.action.chat.open', { query: '@participant /hello friend' });
+		await delay(500);
+
+		// Title provider was not called again
+		assert.strictEqual(calls, 1);
 	});
 });
