@@ -34,7 +34,7 @@
     "tas-client-umd": "0.2.0",
     "vscode-oniguruma": "1.7.0",
     "vscode-regexpp": "^3.1.0",
-    "vscode-textmate": "9.0.0",
+    "vscode-textmate": "9.1.0",
     "yauzl": "^3.0.0",
     "yazl": "^2.4.3"
   },

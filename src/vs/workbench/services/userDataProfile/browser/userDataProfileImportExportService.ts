@@ -393,7 +393,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 		const extensions: IQuickPickItem & { id: ProfileResourceType } = { id: ProfileResourceType.Extensions, label: localize('extensions', "Extensions"), picked: !profile?.useDefaultFlags?.extensions };
 		const resources = [settings, keybindings, snippets, tasks, extensions];
 
-		const quickPick = this.quickInputService.createQuickPick();
+		const quickPick = disposables.add(this.quickInputService.createQuickPick());
 		quickPick.title = title;
 		quickPick.placeholder = localize('name placeholder', "Profile name");
 		quickPick.value = profile?.name ?? (isUserDataProfileTemplate(source) ? this.generateProfileName(source.name) : '');
@@ -1163,6 +1163,7 @@ class FileUserDataProfileContentHandler implements IUserDataProfileContentHandle
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IFileService private readonly fileService: IFileService,
+		@IProductService private readonly productService: IProductService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 	) { }
 
@@ -1180,7 +1181,7 @@ class FileUserDataProfileContentHandler implements IUserDataProfileContentHandle
 	}
 
 	async canHandle(uri: URI): Promise<boolean> {
-		return uri.scheme !== Schemas.http && uri.scheme !== Schemas.https && await this.fileService.canHandleResource(uri);
+		return uri.scheme !== Schemas.http && uri.scheme !== Schemas.https && uri.scheme !== this.productService.urlProtocol && await this.fileService.canHandleResource(uri);
 	}
 
 	async readProfile(uri: URI, token: CancellationToken): Promise<string | null> {

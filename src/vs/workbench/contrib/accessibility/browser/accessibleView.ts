@@ -414,26 +414,26 @@ export class AccessibleView extends Disposable {
 		if (!items) {
 			return;
 		}
-		const quickPick: IQuickPick<IQuickPickItem> = this._quickInputService.createQuickPick();
-		this._register(quickPick);
+		const disposables = this._register(new DisposableStore());
+		const quickPick: IQuickPick<IQuickPickItem> = disposables.add(this._quickInputService.createQuickPick());
 		quickPick.items = items;
 		quickPick.title = localize('keybindings', 'Configure keybindings');
 		quickPick.placeholder = localize('selectKeybinding', 'Select a command ID to configure a keybinding for it');
 		quickPick.show();
-		quickPick.onDidAccept(async () => {
+		disposables.add(quickPick.onDidAccept(async () => {
 			const item = quickPick.selectedItems[0];
 			if (item) {
 				await this._commandService.executeCommand('workbench.action.openGlobalKeybindings', item.id);
 			}
 			quickPick.dispose();
-		});
-		quickPick.onDidHide(() => {
+		}));
+		disposables.add(quickPick.onDidHide(() => {
 			if (!quickPick.selectedItems.length && provider) {
 				this.show(provider);
 			}
-			quickPick.dispose();
+			disposables.dispose();
 			this._inQuickPick = false;
-		});
+		}));
 	}
 
 	private _convertTokensToSymbols(tokens: marked.TokensList, symbols: IAccessibleViewSymbol[]): void {
@@ -919,7 +919,8 @@ class AccessibleViewSymbolQuickPick {
 
 	}
 	show(provider: AccesibleViewContentProvider): void {
-		const quickPick = this._quickInputService.createQuickPick<IAccessibleViewSymbol>();
+		const disposables = new DisposableStore();
+		const quickPick = disposables.add(this._quickInputService.createQuickPick<IAccessibleViewSymbol>());
 		quickPick.placeholder = localize('accessibleViewSymbolQuickPickPlaceholder', "Type to search symbols");
 		quickPick.title = localize('accessibleViewSymbolQuickPickTitle', "Go to Symbol Accessible View");
 		const picks = [];
@@ -936,16 +937,17 @@ class AccessibleViewSymbolQuickPick {
 		quickPick.canSelectMany = false;
 		quickPick.items = symbols;
 		quickPick.show();
-		quickPick.onDidAccept(() => {
+		disposables.add(quickPick.onDidAccept(() => {
 			this._accessibleView.showSymbol(provider, quickPick.selectedItems[0]);
 			quickPick.hide();
-		});
-		quickPick.onDidHide(() => {
+		}));
+		disposables.add(quickPick.onDidHide(() => {
 			if (quickPick.selectedItems.length === 0) {
 				// this was escaped, so refocus the accessible view
 				this._accessibleView.show(provider);
 			}
-		});
+			disposables.dispose();
+		}));
 	}
 }
 

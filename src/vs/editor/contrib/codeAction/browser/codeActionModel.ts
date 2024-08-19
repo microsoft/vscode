@@ -22,6 +22,8 @@ import { IEditorProgressService, Progress } from 'vs/platform/progress/common/pr
 import { CodeActionKind, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource } from '../common/types';
 import { getCodeActions } from './codeAction';
 import { HierarchicalKind } from 'vs/base/common/hierarchicalKind';
+import { StopWatch } from 'vs/base/common/stopwatch';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export const SUPPORTED_CODE_ACTIONS = new RawContextKey<string>('supportedCodeAction', '');
 
@@ -172,6 +174,7 @@ export class CodeActionModel extends Disposable {
 		contextKeyService: IContextKeyService,
 		private readonly _progressService?: IEditorProgressService,
 		private readonly _configurationService?: IConfigurationService,
+		private readonly _telemetryService?: ITelemetryService
 	) {
 		super();
 		this._supportedCodeActions = SUPPORTED_CODE_ACTIONS.bindTo(contextKeyService);
@@ -315,7 +318,35 @@ export class CodeActionModel extends Disposable {
 							}
 						}
 					}
-					// temporarilly hiding here as this is enabled/disabled behind a setting.
+
+					// Case for manual triggers - specifically Source Actions and Refactors
+					if (trigger.trigger.type === CodeActionTriggerType.Invoke) {
+						const sw = new StopWatch();
+						const codeActions = await getCodeActions(this._registry, model, trigger.selection, trigger.trigger, Progress.None, token);
+
+						// Telemetry for duration of each code action on save.
+						if (this._telemetryService) {
+							type RenderActionMenu = {
+								codeActions: number;
+								duration: number;
+							};
+
+							type RenderActionMenuClassification = {
+								owner: 'justschen';
+								comment: 'Information about how long it took for code actions to be received from the provider and shown in the UI.';
+								codeActions: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of valid code actions received from TS.' };
+								duration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Duration it took for TS to return the action to run for each kind. ' };
+							};
+
+							this._telemetryService.publicLog2<RenderActionMenu, RenderActionMenuClassification>('codeAction.invokedDurations', {
+								codeActions: codeActions.validActions.length,
+								duration: sw.elapsed()
+							});
+						}
+
+						return codeActions;
+					}
+
 					return getCodeActions(this._registry, model, trigger.selection, trigger.trigger, Progress.None, token);
 				});
 				if (trigger.trigger.type === CodeActionTriggerType.Invoke) {

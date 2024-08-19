@@ -5,7 +5,7 @@
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.bundle = bundle;
-exports.removeDuplicateTSBoilerplate = removeDuplicateTSBoilerplate;
+exports.removeAllTSBoilerplate = removeAllTSBoilerplate;
 const fs = require("fs");
 const path = require("path");
 const vm = require("vm");
@@ -55,9 +55,6 @@ function bundle(entryPoints, config, callback) {
         };
         for (const moduleId in entryPointsMap) {
             const entryPoint = entryPointsMap[moduleId];
-            if (entryPoint.append) {
-                entryPoint.append = entryPoint.append.map(resolvePath);
-            }
             if (entryPoint.prepend) {
                 entryPoint.prepend = entryPoint.prepend.map(resolvePath);
             }
@@ -105,7 +102,7 @@ function emitEntryPoints(modules, entryPoints) {
             return allDependencies[module];
         });
         bundleData.bundles[moduleToBundle] = includedModules;
-        const res = emitEntryPoint(modulesMap, modulesGraph, moduleToBundle, includedModules, info.prepend || [], info.append || [], info.dest);
+        const res = emitEntryPoint(modulesMap, modulesGraph, moduleToBundle, includedModules, info.prepend || [], info.dest);
         result = result.concat(res.files);
         for (const pluginName in res.usedPlugins) {
             usedPlugins[pluginName] = usedPlugins[pluginName] || res.usedPlugins[pluginName];
@@ -226,20 +223,24 @@ function removeAllDuplicateTSBoilerplate(destFiles) {
     });
     return destFiles;
 }
+function removeAllTSBoilerplate(source) {
+    const seen = new Array(BOILERPLATE.length).fill(true, 0, 10);
+    return removeDuplicateTSBoilerplate(source, seen);
+}
+// Taken from typescript compiler => emitFiles
+const BOILERPLATE = [
+    { start: /^var __extends/, end: /^}\)\(\);$/ },
+    { start: /^var __assign/, end: /^};$/ },
+    { start: /^var __decorate/, end: /^};$/ },
+    { start: /^var __metadata/, end: /^};$/ },
+    { start: /^var __param/, end: /^};$/ },
+    { start: /^var __awaiter/, end: /^};$/ },
+    { start: /^var __generator/, end: /^};$/ },
+    { start: /^var __createBinding/, end: /^}\)\);$/ },
+    { start: /^var __setModuleDefault/, end: /^}\);$/ },
+    { start: /^var __importStar/, end: /^};$/ },
+];
 function removeDuplicateTSBoilerplate(source, SEEN_BOILERPLATE = []) {
-    // Taken from typescript compiler => emitFiles
-    const BOILERPLATE = [
-        { start: /^var __extends/, end: /^}\)\(\);$/ },
-        { start: /^var __assign/, end: /^};$/ },
-        { start: /^var __decorate/, end: /^};$/ },
-        { start: /^var __metadata/, end: /^};$/ },
-        { start: /^var __param/, end: /^};$/ },
-        { start: /^var __awaiter/, end: /^};$/ },
-        { start: /^var __generator/, end: /^};$/ },
-        { start: /^var __createBinding/, end: /^}\)\);$/ },
-        { start: /^var __setModuleDefault/, end: /^}\);$/ },
-        { start: /^var __importStar/, end: /^};$/ },
-    ];
     const lines = source.split(/\r\n|\n|\r/);
     const newLines = [];
     let IS_REMOVING_BOILERPLATE = false, END_BOILERPLATE;
@@ -274,7 +275,7 @@ function removeDuplicateTSBoilerplate(source, SEEN_BOILERPLATE = []) {
     }
     return newLines.join('\n');
 }
-function emitEntryPoint(modulesMap, deps, entryPoint, includedModules, prepend, append, dest) {
+function emitEntryPoint(modulesMap, deps, entryPoint, includedModules, prepend, dest) {
     if (!dest) {
         dest = entryPoint + '.js';
     }
@@ -348,8 +349,7 @@ function emitEntryPoint(modulesMap, deps, entryPoint, includedModules, prepend, 
         };
     };
     const toPrepend = (prepend || []).map(toIFile);
-    const toAppend = (append || []).map(toIFile);
-    mainResult.sources = toPrepend.concat(mainResult.sources).concat(toAppend);
+    mainResult.sources = toPrepend.concat(mainResult.sources);
     return {
         files: results,
         usedPlugins: usedPlugins
