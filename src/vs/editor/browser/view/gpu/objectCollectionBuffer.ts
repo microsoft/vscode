@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, type Event } from 'vs/base/common/event';
 import { Disposable, type IDisposable } from 'vs/base/common/lifecycle';
 
 export interface ObjectCollectionBufferPropertySpec {
@@ -23,6 +23,16 @@ export interface IObjectCollectionBuffer<T extends ObjectCollectionBufferPropert
 	 * A view of the underlying buffer. This **should not** be modified externally.
 	 */
 	readonly view: Float32Array;
+	/**
+	 * The size of the used portion of the buffer (in bytes).
+	 */
+	readonly bufferUsedSize: number;
+	/**
+	 * The size of the used portion of the view (in float32s).
+	 */
+	readonly viewUsedSize: number;
+
+	readonly onDidChange: Event<void>;
 
 	/**
 	 * Creates an entry in the collection. This will return a managed object that can be modified
@@ -41,17 +51,27 @@ export function createObjectCollectionBuffer<T extends ObjectCollectionBufferPro
 	propertySpecs: T,
 	capacity: number
 ): IObjectCollectionBuffer<T> {
-	return new ObjectCollectionBuffer(propertySpecs, capacity);
+	return new ObjectCollectionBuffer<T>(propertySpecs, capacity);
 }
 
 class ObjectCollectionBuffer<T extends ObjectCollectionBufferPropertySpec[]> extends Disposable implements IObjectCollectionBuffer<T> {
 	buffer: ArrayBuffer;
 	view: Float32Array;
 
+	get bufferUsedSize() {
+		return this.viewUsedSize * Float32Array.BYTES_PER_ELEMENT;
+	}
+	get viewUsedSize() {
+		return this._entries.size * this._entrySize;
+	}
+
 	private readonly _propertySpecsMap: Map<string, ObjectCollectionBufferPropertySpec & { offset: number }> = new Map();
 	private readonly _entrySize: number;
 	// Linked list for fast access to tail and insertion in middle?
 	private readonly _entries: Set<ObjectCollectionBufferEntry<T>> = new Set();
+
+	private readonly _onDidChange = this._register(new Emitter<void>());
+	readonly onDidChange = this._onDidChange.event;
 
 	constructor(
 		public propertySpecs: T,
@@ -80,10 +100,12 @@ class ObjectCollectionBuffer<T extends ObjectCollectionBufferPropertySpec[]> ext
 		// TODO: Needs unregistering when disposed
 		this._register(value.onDidChange(() => {
 			// TODO: Listen and react to change
+			this._onDidChange.fire();
 		}));
 		this._register(value.onWillDispose(() => {
 			// TODO: A linked list could make this O(1)
 			const deletedEntryIndex = value.i;
+			this._entries.delete(value);
 
 			// Shift all entries after the deleted entry to the left
 			this.view.set(this.view.subarray(deletedEntryIndex * this._entrySize + 2, this._entries.size * this._entrySize + 2), deletedEntryIndex * this._entrySize);
