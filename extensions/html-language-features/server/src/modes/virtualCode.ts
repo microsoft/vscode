@@ -38,7 +38,7 @@ export class HTMLVirtualCode implements VirtualCode {
 function* getGlobalScriptVirtualCodes(documentRegions: HTMLDocumentRegions): Generator<VirtualCode> {
 	const globalScripts = documentRegions
 		.getEmbeddedRegions()
-		.filter(isGlobalScript)
+		.filter(isGlobalScript);
 	let scriptIndex = 0;
 
 	if (globalScripts.length === 1) {

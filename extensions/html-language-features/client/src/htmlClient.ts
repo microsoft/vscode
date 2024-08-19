@@ -13,8 +13,9 @@ import {
 	LanguageClientOptions, RequestType, DocumentRangeFormattingParams,
 	DocumentRangeFormattingRequest, ProvideCompletionItemsSignature, NotificationType, BaseLanguageClient
 } from 'vscode-languageclient';
+import { serveFileSystemRequests } from './requests';
 import { getCustomDataSource } from './customData';
-import { activateAutoInsertion, activateServerSys as serveFileSystemRequests } from '@volar/vscode';
+import { activateAutoInsertion } from '@volar/vscode';
 import { getLanguageParticipants, LanguageParticipants } from './languageParticipants';
 
 namespace CustomDataChangedNotification {

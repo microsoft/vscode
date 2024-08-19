@@ -38,10 +38,10 @@ export function startServer(server: LanguageServer, connection: Connection) {
 	};
 
 	// The settings have changed. Is send on server activation as well.
-	server.onDidChangeConfiguration(async () => {
+	server.configurations.onDidChange(async () => {
 		// dynamically enable & disable the formatter
 		if (dynamicFormatterRegistration) {
-			const enableFormatter = await server.getConfiguration<boolean>('html.format.enable');
+			const enableFormatter = await server.configurations.get<boolean>('html.format.enable');
 			if (enableFormatter) {
 				if (!formatterRegistrations) {
 					const documentSelector = [{ language: 'html' }, { language: 'handlebars' }];
@@ -79,8 +79,6 @@ export function startServer(server: LanguageServer, connection: Connection) {
 		dynamicFormatterRegistration = getClientCapability('textDocument.rangeFormatting.dynamicRegistration', false) && (typeof initializationOptions?.provideFormatter !== 'boolean');
 		formatterMaxNumberOfEdits = initializationOptions?.customCapabilities?.rangeFormatting?.editLimit || Number.MAX_VALUE;
 
-		const supportsDiagnosticPull = getClientCapability('textDocument.diagnostic', undefined);
-
 		const initializeResult = server.initialize(
 			params,
 			createHtmlProject([htmlLanguagePlugin]),
@@ -89,8 +87,7 @@ export function startServer(server: LanguageServer, connection: Connection) {
 				getCustomData: () => fetchHTMLDataProviders(dataPaths, customDataRequestService),
 				onDidChangeCustomData: listener => customDataChangedEmitter.event(listener),
 				formatterMaxNumberOfEdits,
-			}),
-			{ pullModelDiagnostics: supportsDiagnosticPull }
+			})
 		);
 
 		if (!initializationOptions?.provideFormatter) {

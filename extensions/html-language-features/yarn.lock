@@ -102,22 +102,21 @@
   dependencies:
     undici-types "~5.26.4"
 
-"@volar/language-core@2.4.0-alpha.17":
-  version "2.4.0-alpha.17"
-  resolved "https://registry.yarnpkg.com/@volar/language-core/-/language-core-2.4.0-alpha.17.tgz#a87b9ec8bf0c7f1f19362514ffe589da60172a96"
-  integrity sha512-FF9g89QZUVJpgZvrNpA+v5Sgo7MdUjeA1celxCe4nFTpfp4P/FUdZ1lgeYy7ZS5r13oC4Ei6HqWpfLN7PFM60w==
+"@volar/language-core@2.4.0":
+  version "2.4.0"
+  resolved "https://registry.yarnpkg.com/@volar/language-core/-/language-core-2.4.0.tgz#962efc66ff9198ee2412786e99528bf77cdad100"
+  integrity sha512-FTla+khE+sYK0qJP+6hwPAAUwiNHVMph4RUXpxf/FIPKUP61NFrVZorml4mjFShnueR2y9/j8/vnh09YwVdH7A==
   dependencies:
-    "@volar/source-map" "2.4.0-alpha.17"
+    "@volar/source-map" "2.4.0"
 
-"@volar/language-server@2.4.0-alpha.17", "@volar/language-server@~2.4.0-alpha.17":
-  version "2.4.0-alpha.17"
-  resolved "https://registry.yarnpkg.com/@volar/language-server/-/language-server-2.4.0-alpha.17.tgz#94d842dfc50d5ebe89640f9b53c2e0b4aed2ff77"
-  integrity sha512-K+ffVR484Zzq9tTeoRxwtvGzvhR8qCpKhcgsPkCPeCh904yr1zxkMX728fhTePB9nZtKpI0jDuqdQA+338Gl1Q==
+"@volar/language-server@2.4.0", "@volar/language-server@~2.4.0":
+  version "2.4.0"
+  resolved "https://registry.yarnpkg.com/@volar/language-server/-/language-server-2.4.0.tgz#717727df01e0c3da544d7171c9d5b88691b396fb"
+  integrity sha512-rmGIjAxWekWQiGH97Mosb4juiD/hfFYNQKV5Py9r7vDOLSkbIwRhITbwHm88NJKs8P6TNc6w/PfBXN6yjKadJg==
   dependencies:
-    "@volar/language-core" "2.4.0-alpha.17"
-    "@volar/language-service" "2.4.0-alpha.17"
-    "@volar/snapshot-document" "2.4.0-alpha.17"
-    "@volar/typescript" "2.4.0-alpha.17"
+    "@volar/language-core" "2.4.0"
+    "@volar/language-service" "2.4.0"
+    "@volar/typescript" "2.4.0"
     path-browserify "^1.0.1"
     request-light "^0.7.0"
     vscode-languageserver "^9.0.1"
@@ -125,54 +124,46 @@
     vscode-languageserver-textdocument "^1.0.11"
     vscode-uri "^3.0.8"
 
-"@volar/language-service@2.4.0-alpha.17":
-  version "2.4.0-alpha.17"
-  resolved "https://registry.yarnpkg.com/@volar/language-service/-/language-service-2.4.0-alpha.17.tgz#22666141969835447273328566706dae6b305b17"
-  integrity sha512-rq+O/Nf7krrq611khGOH6+f9c5i7vQiDPXOLuGks2bBWjPUqaN7dR8agMm+9BTlAj0IItArKqUncYr5mYU78kQ==
+"@volar/language-service@2.4.0":
+  version "2.4.0"
+  resolved "https://registry.yarnpkg.com/@volar/language-service/-/language-service-2.4.0.tgz#56f14e6888fe63f6beb1ed67d2dfc84877c251d0"
+  integrity sha512-4P3yeQXIL68mLfS3n6P3m02IRg3GnLHUU9k/1PCHEfm5FG9bySkDOc72dbBn2vAa2BxOqm18bmmZXrsWuQ5AOw==
   dependencies:
-    "@volar/language-core" "2.4.0-alpha.17"
+    "@volar/language-core" "2.4.0"
     vscode-languageserver-protocol "^3.17.5"
     vscode-languageserver-textdocument "^1.0.11"
     vscode-uri "^3.0.8"
 
-"@volar/snapshot-document@2.4.0-alpha.17":
-  version "2.4.0-alpha.17"
-  resolved "https://registry.yarnpkg.com/@volar/snapshot-document/-/snapshot-document-2.4.0-alpha.17.tgz#276da13bd98917a8f04de124ad72b81c3f1a5a62"
-  integrity sha512-7h8cf8r+gKU0EEn68pulM1yER1iFshQR/fVT0Bw7T7cbRLe7afnaXbU+jg9yKoEUuJ/B8GU3a/5IBLofY6ZqVg==
-  dependencies:
-    vscode-languageserver-protocol "^3.17.5"
-    vscode-languageserver-textdocument "^1.0.11"
+"@volar/source-map@2.4.0":
+  version "2.4.0"
+  resolved "https://registry.yarnpkg.com/@volar/source-map/-/source-map-2.4.0.tgz#b6690f06c600eaf587bbc81b0153203e4f6db72a"
+  integrity sha512-2ceY8/NEZvN6F44TXw2qRP6AQsvCYhV2bxaBPWxV9HqIfkbRydSksTFObCF1DBDNBfKiZTS8G/4vqV6cvjdOIQ==
 
-"@volar/source-map@2.4.0-alpha.17":
-  version "2.4.0-alpha.17"
-  resolved "https://registry.yarnpkg.com/@volar/source-map/-/source-map-2.4.0-alpha.17.tgz#633d7e87ba792a010ba8135f9537c5ecb90cd486"
-  integrity sha512-6LOuR2nIloQCSNMNcUPRPLjL5CInIE1pYZ8lifOCSxQRiz8GcWaOm34kAvdm7pzPQqMRHBBnV/Ihkdt/w7oWAQ==
-
-"@volar/test-utils@~2.4.0-alpha.17":
-  version "2.4.0-alpha.17"
-  resolved "https://registry.yarnpkg.com/@volar/test-utils/-/test-utils-2.4.0-alpha.17.tgz#85446cfc835f5a3cafd9ba033ba58da10d86a968"
-  integrity sha512-efBuUphNoYL8U6rRtOM6/hO+14nL+B/2zmmqhrC+yj6UwDEg7K16ZYd6tWa405XzQz5kwUifX/GRsSGOKjWcDg==
+"@volar/test-utils@~2.4.0":
+  version "2.4.0"
+  resolved "https://registry.yarnpkg.com/@volar/test-utils/-/test-utils-2.4.0.tgz#d7062da46aef1c58ff4b9d99ab78236b0f6099fb"
+  integrity sha512-hCXPEY/JrH7ooFvMIUu5V3xaqnCLEwqkKoeMT1UHC6DvsQOGsuyaFsJu2k59aCtE8mxAyq7qww7S4k8kRH8hFw==
   dependencies:
-    "@volar/language-core" "2.4.0-alpha.17"
-    "@volar/language-server" "2.4.0-alpha.17"
+    "@volar/language-core" "2.4.0"
+    "@volar/language-server" "2.4.0"
     vscode-languageserver-textdocument "^1.0.11"
     vscode-uri "^3.0.8"
 
-"@volar/typescript@2.4.0-alpha.17":
-  version "2.4.0-alpha.17"
-  resolved "https://registry.yarnpkg.com/@volar/typescript/-/typescript-2.4.0-alpha.17.tgz#4c7c0e90e6db024c7792042061ef6141edda44cf"
-  integrity sha512-oJlz5xJd0O1Xe/I7AV3kPpV6gXlcyxfpMcj/w4/wGY5AxFHxyy5i7VhaE/BVk99zsT6M2KxcZyUSsL55RlNXlQ==
+"@volar/typescript@2.4.0":
+  version "2.4.0"
+  resolved "https://registry.yarnpkg.com/@volar/typescript/-/typescript-2.4.0.tgz#f909d20dfe43dd846d30695f6e5467276ff4418e"
+  integrity sha512-9zx3lQWgHmVd+JRRAHUSRiEhe4TlzL7U7e6ulWXOxHH/WNYxzKwCvZD7WYWEZFdw4dHfTD9vUR0yPQO6GilCaQ==
   dependencies:
-    "@volar/language-core" "2.4.0-alpha.17"
+    "@volar/language-core" "2.4.0"
     path-browserify "^1.0.1"
     vscode-uri "^3.0.8"
 
-"@volar/vscode@~2.4.0-alpha.17":
-  version "2.4.0-alpha.17"
-  resolved "https://registry.yarnpkg.com/@volar/vscode/-/vscode-2.4.0-alpha.17.tgz#4ff86868b117b6d1ae306f20769c523d2b326cce"
-  integrity sha512-pvof2f55xmiUYH7AbPQP3qdi3ylMF0/Z0DLPjbXmLbnaxFCXdLPBoOPqb5hgfHmuasG+BN/Gtv0cwwOebYojRA==
+"@volar/vscode@~2.4.0":
+  version "2.4.0"
+  resolved "https://registry.yarnpkg.com/@volar/vscode/-/vscode-2.4.0.tgz#4deab9cefe635594a6efc370584cb301638b17b2"
+  integrity sha512-VOnUgtmu+xGOqVKouRM8ZSeVOFPqmcTDfi3wif5peXpkOPsCgNdS/zns0xunuh9J6Ck5SV+QffPfmNW9XARnxw==
   dependencies:
-    "@volar/language-server" "2.4.0-alpha.17"
+    "@volar/language-server" "2.4.0"
     path-browserify "^1.0.1"
     vscode-languageclient "^9.0.1"
     vscode-nls "^5.2.0"

@@ -34,7 +34,7 @@ export function createHtmlProject(languagePlugins: LanguagePlugin<URI>[]): Langu
 	return {
 		setup(_server) {
 			server = _server;
-			uriConverter = createUriConverter([...server.workspaceFolders.keys()]);
+			uriConverter = createUriConverter(server.workspaceFolders.all);
 			if (server.initializeParams.locale) {
 				try {
 					tsLocalized = require(`typescript/lib/${server.initializeParams.locale}/diagnosticMessages.generated.json`);
@@ -55,15 +55,6 @@ export function createHtmlProject(languagePlugins: LanguagePlugin<URI>[]): Langu
 						},
 						getScriptFileNames() {
 							return currentRootFiles;
-						},
-						getScriptSnapshot(fileName) {
-							const uri = uriConverter.asUri(fileName);
-							const documentKey = server.getSyncedDocumentKey(uri) ?? uri.toString();
-							const document = server.documents.get(documentKey);
-							if (document) {
-								return document.getSnapshot();
-							}
-							return undefined;
 						},
 						getCompilationSettings() {
 							return compilerOptions;
@@ -86,7 +77,7 @@ export function createHtmlProject(languagePlugins: LanguagePlugin<URI>[]): Langu
 	};
 
 	function updateRootFiles(uri: URI, languageService: LanguageService) {
-		const document = server.documents.get(server.getSyncedDocumentKey(uri) ?? uri.toString());
+		const document = server.documents.get(uri);
 		if (!document) {
 			return;
 		}
@@ -121,7 +112,7 @@ export function createHtmlProject(languagePlugins: LanguagePlugin<URI>[]): Langu
 	}
 
 	function getRootFolder(uri: URI) {
-		for (const folder of server.workspaceFolders) {
+		for (const folder of server.workspaceFolders.all) {
 			let folderURI = folder.toString();
 			if (!folderURI.endsWith('/')) {
 				folderURI = folderURI + '/';

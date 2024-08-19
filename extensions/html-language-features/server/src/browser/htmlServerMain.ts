@@ -5,8 +5,19 @@
 
 import { createConnection, createServer } from '@volar/language-server/browser';
 import { startServer } from '../htmlServer';
+import { getFileSystemProvider } from '../requests';
 
 const connection = createConnection();
 const server = createServer(connection);
+const installedFs = new Set<string>();
+
+server.onInitialized(() => {
+	for (const folder of server.workspaceFolders.all) {
+		if (!installedFs.has(folder.scheme)) {
+			installedFs.add(folder.scheme);
+			server.fileSystem.install(folder.scheme, getFileSystemProvider(connection));
+		}
+	}
+});
 
 startServer(server, connection);

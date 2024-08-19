@@ -13,10 +13,10 @@ import { isTsDocument } from 'volar-service-typescript/lib/shared';
 import { IHTMLDataProvider, TextDocument, TextEdit } from 'vscode-html-languageservice';
 
 export function getLanguageServicePlugins(options: {
-	supportedLanguages: { [languageId: string]: boolean },
-	getCustomData: (context: LanguageServiceContext) => ProviderResult<IHTMLDataProvider[]>,
-	onDidChangeCustomData: (listener: () => void) => Disposable,
-	formatterMaxNumberOfEdits?: number,
+	supportedLanguages: { [languageId: string]: boolean };
+	getCustomData: (context: LanguageServiceContext) => ProviderResult<IHTMLDataProvider[]>;
+	onDidChangeCustomData: (listener: () => void) => Disposable;
+	formatterMaxNumberOfEdits?: number;
 }) {
 	const plugins: LanguageServicePlugin[] = [
 		{
@@ -56,7 +56,7 @@ export function getLanguageServicePlugins(options: {
 				},
 			};
 		},
-	})
+	});
 	if (options.supportedLanguages['css']) {
 		plugins.push(
 			createCssPlugin({
@@ -100,7 +100,7 @@ export function getLanguageServicePlugins(options: {
 										}
 										return await base.provideDocumentFormattingEdits?.(newDocument, range, options, embeddedCodeContext, token);
 									}
-									let newRange = { ...range };
+									const newRange = { ...range };
 									if (document.offsetAt(range.start) !== 0 && document.offsetAt(range.end) !== document.getText().length) {
 										newRange.start = newDocument.positionAt(document.offsetAt(range.start) + prefix.length);
 										newRange.end = newDocument.positionAt(document.offsetAt(range.end) + prefix.length);
@@ -130,7 +130,7 @@ export function getLanguageServicePlugins(options: {
 							},
 						};
 					},
-				})
+				});
 			}
 			else {
 				plugins.push(tsPlugin);

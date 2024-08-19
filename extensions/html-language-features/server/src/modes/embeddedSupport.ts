@@ -31,6 +31,8 @@ export function getDocumentRegions(languageService: LanguageService, text: strin
 	let lastAttributeName: string | null = null;
 	let languageIdFromType: string | undefined = undefined;
 	let isModuleScript = false;
+	let value: string;
+	let region: EmbeddedRegion;
 	const importedScripts: string[] = [];
 
 	let token = scanner.scan();
@@ -46,7 +48,7 @@ export function getDocumentRegions(languageService: LanguageService, text: strin
 				regions.push(createEmbeddedRegion(lastTagName, languageIdFromType, scanner.getTokenOffset(), scanner.getTokenEnd()));
 				break;
 			case TokenType.Script:
-				const region = createEmbeddedRegion(lastTagName, languageIdFromType, scanner.getTokenOffset(), scanner.getTokenEnd());
+				region = createEmbeddedRegion(lastTagName, languageIdFromType, scanner.getTokenOffset(), scanner.getTokenEnd());
 				region.moduleScript = isModuleScript;
 				regions.push(region);
 				break;
@@ -54,7 +56,7 @@ export function getDocumentRegions(languageService: LanguageService, text: strin
 				lastAttributeName = scanner.getTokenText();
 				break;
 			case TokenType.AttributeValue:
-				let value = scanner.getTokenText();
+				value = scanner.getTokenText();
 				if ((value.startsWith('\'') && value.endsWith('\'')) || (value.startsWith('"') && value.endsWith('"'))) {
 					value = value.slice(1, -1);
 				}

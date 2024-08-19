@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { LanguageServer, ProjectContext } from '@volar/language-server';
+import { SnapshotDocument } from '@volar/language-server/lib/utils/snapshotDocument';
 import { createLanguageServiceEnvironment } from '@volar/language-server/browser';
 import { LanguagePlugin, LanguageService, createLanguageService as _createLanguageService, createLanguage, createUriMap } from '@volar/language-service';
-import type { SnapshotDocument } from '@volar/snapshot-document';
 import { TypeScriptProjectHost, createLanguageServiceHost, createSys, resolveFileLanguageId } from '@volar/typescript';
 import * as ts from 'typescript';
 import { URI } from 'vscode-uri';
@@ -21,28 +21,21 @@ export function createLanguageService(
 	},
 ): LanguageService {
 	const fsFileSnapshots = createUriMap<[number | undefined, ts.IScriptSnapshot | undefined]>();
-	const serviceEnv = createLanguageServiceEnvironment(server, [...server.workspaceFolders.keys()])
+	const serviceEnv = createLanguageServiceEnvironment(server, server.workspaceFolders.all);
 	const sys = createSys(ts.sys, serviceEnv, projectHost.getCurrentDirectory, uriConverter);
 	const docOpenWatcher = server.documents.onDidOpen(({ document }) => updateFsCacheFromSyncedDocument(document));
 	const docSaveWatcher = server.documents.onDidSave(({ document }) => updateFsCacheFromSyncedDocument(document));
 	const language = createLanguage<URI>(
 		[
-			{ getLanguageId: uri => server.documents.get(server.getSyncedDocumentKey(uri) ?? uri.toString())?.languageId },
+			{ getLanguageId: uri => server.documents.get(uri)?.languageId },
 			...languagePlugins,
 			{ getLanguageId: uri => resolveFileLanguageId(uri.path) },
 		],
 		createUriMap(sys.useCaseSensitiveFileNames),
-		uri => {
-			const documentUri = server.getSyncedDocumentKey(uri);
-			const syncedDocument = documentUri ? server.documents.get(documentUri) : undefined;
+		(uri, includeFsFiles) => {
+			let snapshot = server.documents.get(uri)?.getSnapshot();
 
-			let snapshot: ts.IScriptSnapshot | undefined;
-
-			if (syncedDocument) {
-				snapshot = syncedDocument.getSnapshot();
-			}
-			else {
-				// fs files
+			if (!snapshot && includeFsFiles) {
 				const cache = fsFileSnapshots.get(uri);
 				const fileName = uriConverter.asFileName(uri);
 				const modifiedTime = sys.getModifiedTime?.(fileName)?.valueOf();

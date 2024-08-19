@@ -3,34 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createConnection, fs } from '@volar/language-server/node';
+import { provider as nodeFsProvider } from '@volar/language-server/lib/fileSystemProviders/node';
 import { createServerBase } from '@volar/language-server/lib/server';
+import { createConnection } from '@volar/language-server/node';
 import { startServer } from '../htmlServer';
+import { getFileSystemProvider } from '../requests';
 
 const connection = createConnection();
-const server = createServerBase(connection, {
-	readFile(uri, encoding) {
-		if (uri.scheme === 'file' && !handledFileSchema()) {
-			return;
+const workspaceFsProvider = getFileSystemProvider(connection);
+const server = createServerBase(connection);
+const installedFs = new Set<string>();
+
+if (server.initializeParams.initializationOptions?.handledSchemas?.indexOf('file') !== -1) {
+	server.fileSystem.install('file', nodeFsProvider);
+	installedFs.add('file');
+}
+
+server.onInitialized(() => {
+	for (const folder of server.workspaceFolders.all) {
+		if (!installedFs.has(folder.scheme)) {
+			installedFs.add(folder.scheme);
+			server.fileSystem.install(folder.scheme, workspaceFsProvider);
 		}
-		return fs.readFile(uri, encoding);
-	},
-	readDirectory(uri) {
-		if (uri.scheme === 'file' && !handledFileSchema()) {
-			return [];
-		}
-		return fs.readDirectory(uri);
-	},
-	stat(uri) {
-		if (uri.scheme === 'file' && !handledFileSchema()) {
-			return;
-		}
-		return fs.stat(uri);
-	},
+	}
 });
 
 startServer(server, connection);
-
-function handledFileSchema() {
-	return server.initializeParams.initializationOptions?.handledSchemas?.indexOf('file') !== -1;
-}

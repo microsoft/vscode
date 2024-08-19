@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ClientCapabilities, LanguageServiceEnvironment, ProjectContext, TextDocument } from '@volar/language-server';
-import { createUriConverter, fs } from '@volar/language-server/node';
+import { createUriConverter } from '@volar/language-server/node';
+import { provider as nodeFsProvider } from '@volar/language-server/lib/fileSystemProviders/node';
 import { createLanguage, createLanguageService, createUriMap, LanguageService } from '@volar/language-service';
 import { createLanguageServiceHost, resolveFileLanguageId, TypeScriptProjectHost } from '@volar/typescript';
 import * as ts from 'typescript';
@@ -18,33 +19,35 @@ let currentDocument: [URI, string, TextDocument, ts.IScriptSnapshot];
 let languageService: LanguageService;
 let uriConverter: ReturnType<typeof createUriConverter>;
 
-const serviceEnv: LanguageServiceEnvironment = { workspaceFolders: [], fs };
+const serviceEnv: LanguageServiceEnvironment = {
+	workspaceFolders: [],
+	fs: {
+		stat(uri) {
+			if (uri.scheme === 'file') {
+				return nodeFsProvider.stat(uri);
+			}
+			return undefined;
+		},
+		readDirectory(uri) {
+			if (uri.scheme === 'file') {
+				return nodeFsProvider.readDirectory(uri);
+			}
+			return [];
+		},
+		readFile(uri, encoding) {
+			if (uri.scheme === 'file') {
+				return nodeFsProvider.readFile(uri, encoding);
+			}
+			return '';
+		}
+	}
+};
 const libSnapshots = new Map<string, ts.IScriptSnapshot | undefined>();
 const projectHost: TypeScriptProjectHost = {
 	getCompilationSettings: () => compilerOptions,
 	getScriptFileNames: () => [currentDocument[1], JQUERY_PATH],
 	getCurrentDirectory: () => '',
 	getProjectVersion: () => currentDocument[1] + ',' + currentDocument[2].version,
-	getScriptSnapshot: fileName => {
-		if (fileName === currentDocument[1]) {
-			return currentDocument[3];
-		}
-		else {
-			let snapshot = libSnapshots.get(fileName);
-			if (!snapshot) {
-				const text = ts.sys.readFile(fileName);
-				if (text !== undefined) {
-					snapshot = {
-						getText: (start, end) => text.substring(start, end),
-						getLength: () => text.length,
-						getChangeRange: () => undefined,
-					};
-				}
-				libSnapshots.set(fileName, snapshot);
-			}
-			return snapshot;
-		}
-	},
 };
 
 export const languageServicePlugins = getLanguageServicePlugins({
@@ -95,7 +98,29 @@ export async function getTestService({
 			],
 			createUriMap(),
 			uri => {
-				const snapshot = projectHost.getScriptSnapshot(uriConverter.asFileName(uri));
+				let snapshot: ts.IScriptSnapshot | undefined;
+
+				const fileName = uriConverter.asFileName(uri);
+				if (fileName === currentDocument[1]) {
+					snapshot = currentDocument[3];
+				}
+				else {
+					if (!libSnapshots.has(fileName)) {
+						const text = ts.sys.readFile(fileName);
+						if (text !== undefined) {
+							libSnapshots.set(fileName, {
+								getText: (start, end) => text.substring(start, end),
+								getLength: () => text.length,
+								getChangeRange: () => undefined,
+							});
+						}
+						else {
+							libSnapshots.set(fileName, undefined);
+						}
+					}
+					snapshot = libSnapshots.get(fileName);
+				}
+
 				if (snapshot) {
 					language.scripts.set(uri, snapshot);
 				}
