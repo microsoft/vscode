@@ -45,6 +45,7 @@ import { localize2 } from 'vs/nls';
 import { NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { INotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
 type SerializedNotebookEditorData = { resource: URI; preferredResource: URI; viewType: string; options?: NotebookEditorInputOptions };
 class ReplEditorSerializer implements IEditorSerializer {
@@ -128,10 +129,12 @@ export class ReplDocumentContribution extends Disposable implements IWorkbenchCo
 					ref.object.notebook.onWillDispose(() => {
 						ref.dispose();
 					});
-					return { editor: this.instantiationService.createInstance(ReplEditorInput, resource!), options };
+					const label = (options as INotebookEditorOptions)?.label ?? undefined;
+					return { editor: this.instantiationService.createInstance(ReplEditorInput, resource!, label), options };
 				},
 				createEditorInput: async ({ resource, options }) => {
-					return { editor: this.instantiationService.createInstance(ReplEditorInput, resource), options };
+					const label = (options as INotebookEditorOptions)?.label ?? undefined;
+					return { editor: this.instantiationService.createInstance(ReplEditorInput, resource, label), options };
 				}
 			}
 		);

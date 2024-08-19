@@ -1057,6 +1057,7 @@ export interface INotebookDocumentShowOptions {
 	preserveFocus?: boolean;
 	pinned?: boolean;
 	selections?: ICellRange[];
+	label?: string;
 }
 
 export type INotebookCellStatusBarEntryDto = Dto<notebookCommon.INotebookCellStatusBarItem>;
