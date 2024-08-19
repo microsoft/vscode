@@ -9,11 +9,20 @@
  * The code in this file is generated from files in ./src/
  */
 
+// ESM-uncomment-begin
+// let __marked_exports = {};
+// (function() {
+//   function define(deps, factory) {
+//     factory(__marked_exports);
+//   }
+//   define.amd = true;
+// ESM-uncomment-end
+
 (function (global, factory) {
+	typeof define === 'function' && define.amd ? define(['exports'], factory) :
 	typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports) :
-		typeof define === 'function' && define.amd ? define(['exports'], factory) :
-			(global = typeof globalThis !== 'undefined' ? globalThis : global || self, factory(global.marked = {}));
-})(this, (function (exports) {
+	(global = typeof globalThis !== 'undefined' ? globalThis : global || self, factory(global.marked = {}));
+  })(this, (function (exports) {
 	'use strict';
 
 	/**
@@ -2502,6 +2511,28 @@
 	exports.setOptions = setOptions;
 	exports.use = use;
 	exports.walkTokens = walkTokens;
-
 }));
+
+// ESM-uncomment-begin
+// })();
+// export var Hooks = (__marked_exports.Hooks || exports.Hooks);
+// export var Lexer = (__marked_exports.Lexer || exports.Lexer);
+// export var Marked = (__marked_exports.Marked || exports.Marked);
+// export var Parser = (__marked_exports.Parser || exports.Parser);
+// export var Renderer = (__marked_exports.Renderer || exports.Renderer);
+// export var TextRenderer = (__marked_exports.TextRenderer || exports.TextRenderer);
+// export var Tokenizer = (__marked_exports.Tokenizer || exports.Tokenizer);
+// export var defaults = (__marked_exports.defaults || exports.defaults);
+// export var getDefaults = (__marked_exports.getDefaults || exports.getDefaults);
+// export var lexer = (__marked_exports.lexer || exports.lexer);
+// export var marked = (__marked_exports.marked || exports.marked);
+// export var options = (__marked_exports.options || exports.options);
+// export var parse = (__marked_exports.parse || exports.parse);
+// export var parseInline = (__marked_exports.parseInline || exports.parseInline);
+// export var parser = (__marked_exports.parser || exports.parser);
+// export var setOptions = (__marked_exports.setOptions || exports.setOptions);
+// export var use = (__marked_exports.use || exports.use);
+// export var walkTokens = (__marked_exports.walkTokens || exports.walkTokens);
+// ESM-uncomment-end
+
 //# sourceMappingURL=marked.umd.js.map

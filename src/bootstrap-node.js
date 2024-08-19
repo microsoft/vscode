@@ -10,8 +10,6 @@
 const path = require('path');
 const fs = require('fs');
 const Module = require('module');
-
-const isESM = false;
 // ESM-comment-end
 // ESM-uncomment-begin
 // import * as path from 'path';
@@ -20,8 +18,6 @@ const isESM = false;
 // import { createRequire } from 'node:module';
 //
 // const require = createRequire(import.meta.url);
-// const Module = require('module');
-// const isESM = true;
 // const module = { exports: {} };
 // const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // ESM-uncomment-end
@@ -86,32 +82,31 @@ module.exports.devInjectNodeModuleLookupPath = function (injectPath) {
 	}
 
 	const Module = require('node:module');
-	if (isESM) {
-		// register a loader hook
-		// ESM-uncomment-begin
-		// Module.register('./bootstrap-import.js', { parentURL: import.meta.url, data: injectPath });
-		// ESM-uncomment-end
-	} else {
-		const nodeModulesPath = path.join(__dirname, '../node_modules');
+	// ESM-uncomment-begin
+	// // register a loader hook
+	// Module.register('./bootstrap-import.js', { parentURL: import.meta.url, data: injectPath });
+	// ESM-uncomment-end
+	// ESM-comment-begin
+	const nodeModulesPath = path.join(__dirname, '../node_modules');
 
-		// @ts-ignore
-		const originalResolveLookupPaths = Module._resolveLookupPaths;
+	// @ts-ignore
+	const originalResolveLookupPaths = Module._resolveLookupPaths;
 
-		// @ts-ignore
-		Module._resolveLookupPaths = function (moduleName, parent) {
-			const paths = originalResolveLookupPaths(moduleName, parent);
-			if (Array.isArray(paths)) {
-				for (let i = 0, len = paths.length; i < len; i++) {
-					if (paths[i] === nodeModulesPath) {
-						paths.splice(i, 0, injectPath);
-						break;
-					}
+	// @ts-ignore
+	Module._resolveLookupPaths = function (moduleName, parent) {
+		const paths = originalResolveLookupPaths(moduleName, parent);
+		if (Array.isArray(paths)) {
+			for (let i = 0, len = paths.length; i < len; i++) {
+				if (paths[i] === nodeModulesPath) {
+					paths.splice(i, 0, injectPath);
+					break;
 				}
 			}
+		}
 
-			return paths;
-		};
-	}
+		return paths;
+	};
+	// ESM-comment-end
 };
 
 module.exports.removeGlobalNodeModuleLookupPaths = function () {
@@ -207,36 +202,34 @@ module.exports.configurePortable = function (product) {
  * Helper to enable ASAR support.
  */
 module.exports.enableASARSupport = function () {
-	if (isESM) {
-		return; // TODO@esm ASAR support is disabled in ESM
-	} else {
-		const NODE_MODULES_PATH = path.join(__dirname, '../node_modules');
-		const NODE_MODULES_ASAR_PATH = `${NODE_MODULES_PATH}.asar`;
+	// ESM-comment-begin
+	const NODE_MODULES_PATH = path.join(__dirname, '../node_modules');
+	const NODE_MODULES_ASAR_PATH = `${NODE_MODULES_PATH}.asar`;
 
-		// @ts-ignore
-		const originalResolveLookupPaths = Module._resolveLookupPaths;
+	// @ts-ignore
+	const originalResolveLookupPaths = Module._resolveLookupPaths;
 
-		// @ts-ignore
-		Module._resolveLookupPaths = function (request, parent) {
-			const paths = originalResolveLookupPaths(request, parent);
-			if (Array.isArray(paths)) {
-				for (let i = 0, len = paths.length; i < len; i++) {
-					if (paths[i] === NODE_MODULES_PATH) {
-						paths.splice(i, 0, NODE_MODULES_ASAR_PATH);
-						break;
-					}
+	// @ts-ignore
+	Module._resolveLookupPaths = function (request, parent) {
+		const paths = originalResolveLookupPaths(request, parent);
+		if (Array.isArray(paths)) {
+			for (let i = 0, len = paths.length; i < len; i++) {
+				if (paths[i] === NODE_MODULES_PATH) {
+					paths.splice(i, 0, NODE_MODULES_ASAR_PATH);
+					break;
 				}
 			}
+		}
 
-			return paths;
-		};
-	}
+		return paths;
+	};
+	// ESM-comment-end
 };
 
 /**
  * Helper to convert a file path to a URI.
  *
- * TODO@bpasero check for removal once ESM has landed.
+ * TODO@bpasero TODO@esm check for removal once ESM has landed.
  *
  * @param {string} path
  * @param {{ isWindows?: boolean, scheme?: string, fallbackAuthority?: string }} config

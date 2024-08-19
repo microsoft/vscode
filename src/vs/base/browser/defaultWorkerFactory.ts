@@ -5,9 +5,18 @@
 
 import { createTrustedTypesPolicy } from 'vs/base/browser/trustedTypes';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { COI } from 'vs/base/common/network';
+import { AppResourcePath, COI, FileAccess } from 'vs/base/common/network';
+import { URI } from 'vs/base/common/uri';
 import { IWorker, IWorkerCallback, IWorkerFactory, logOnceWebWorkerWarning } from 'vs/base/common/worker/simpleWorker';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { coalesce } from 'vs/base/common/arrays';
+
+// ESM-comment-begin
+const isESM = false;
+// ESM-comment-end
+// ESM-uncomment-begin
+// const isESM = true;
+// ESM-uncomment-end
 
 // Reuse the trusted types policy defined from worker bootstrap
 // when available.
@@ -23,10 +32,10 @@ export function createBlobWorker(blobUrl: string, options?: WorkerOptions): Work
 	if (!blobUrl.startsWith('blob:')) {
 		throw new URIError('Not a blob-url: ' + blobUrl);
 	}
-	return new Worker(ttPolicy ? ttPolicy.createScriptURL(blobUrl) as unknown as string : blobUrl, options);
+	return new Worker(ttPolicy ? ttPolicy.createScriptURL(blobUrl) as unknown as string : blobUrl, { ...options, type: isESM ? 'module' : undefined });
 }
 
-function getWorker(label: string): Worker | Promise<Worker> {
+function getWorker(workerMainLocation: URI | undefined, label: string): Worker | Promise<Worker> {
 	// Option for hosts to overwrite the worker script (used in the standalone editor)
 	interface IMonacoEnvironment {
 		getWorker?(moduleId: string, label: string): Worker | Promise<Worker>;
@@ -39,56 +48,76 @@ function getWorker(label: string): Worker | Promise<Worker> {
 		}
 		if (typeof monacoEnvironment.getWorkerUrl === 'function') {
 			const workerUrl = monacoEnvironment.getWorkerUrl('workerMain.js', label);
-			return new Worker(ttPolicy ? ttPolicy.createScriptURL(workerUrl) as unknown as string : workerUrl, { name: label });
+			return new Worker(ttPolicy ? ttPolicy.createScriptURL(workerUrl) as unknown as string : workerUrl, { name: label, type: isESM ? 'module' : undefined });
 		}
 	}
 	// ESM-comment-begin
 	if (typeof require === 'function') {
-		// check if the JS lives on a different origin
-		const workerMain = require.toUrl('vs/base/worker/workerMain.js'); // explicitly using require.toUrl(), see https://github.com/microsoft/vscode/issues/107440#issuecomment-698982321
-		const workerUrl = getWorkerBootstrapUrl(workerMain, label);
-		return new Worker(ttPolicy ? ttPolicy.createScriptURL(workerUrl) as unknown as string : workerUrl, { name: label });
+		const workerMainLocation = require.toUrl('vs/base/worker/workerMain.js'); // explicitly using require.toUrl(), see https://github.com/microsoft/vscode/issues/107440#issuecomment-698982321
+		const factoryModuleId = 'vs/base/worker/defaultWorkerFactory.js';
+		const workerBaseUrl = require.toUrl(factoryModuleId).slice(0, -factoryModuleId.length); // explicitly using require.toUrl(), see https://github.com/microsoft/vscode/issues/107440#issuecomment-698982321
+		const workerUrl = getWorkerBootstrapUrl(label, workerMainLocation, workerBaseUrl);
+		return new Worker(ttPolicy ? ttPolicy.createScriptURL(workerUrl) as unknown as string : workerUrl, { name: label, type: isESM ? 'module' : undefined });
 	}
 	// ESM-comment-end
+	if (workerMainLocation) {
+		const workerUrl = getWorkerBootstrapUrl(label, workerMainLocation.toString(true));
+		const worker = new Worker(ttPolicy ? ttPolicy.createScriptURL(workerUrl) as unknown as string : workerUrl, { name: label, type: isESM ? 'module' : undefined });
+		if (isESM) {
+			return whenESMWorkerReady(worker);
+		} else {
+			return worker;
+		}
+	}
 	throw new Error(`You must define a function MonacoEnvironment.getWorkerUrl or MonacoEnvironment.getWorker`);
 }
 
-// ESM-comment-begin
-export function getWorkerBootstrapUrl(scriptPath: string, label: string): string {
-	if (/^((http:)|(https:)|(file:))/.test(scriptPath) && scriptPath.substring(0, globalThis.origin.length) !== globalThis.origin) {
+function getWorkerBootstrapUrl(label: string, workerScriptUrl: string, workerBaseUrl?: string): string {
+	if (/^((http:)|(https:)|(file:))/.test(workerScriptUrl) && workerScriptUrl.substring(0, globalThis.origin.length) !== globalThis.origin) {
 		// this is the cross-origin case
 		// i.e. the webpage is running at a different origin than where the scripts are loaded from
 	} else {
-		const start = scriptPath.lastIndexOf('?');
-		const end = scriptPath.lastIndexOf('#', start);
+		const start = workerScriptUrl.lastIndexOf('?');
+		const end = workerScriptUrl.lastIndexOf('#', start);
 		const params = start > 0
-			? new URLSearchParams(scriptPath.substring(start + 1, ~end ? end : undefined))
+			? new URLSearchParams(workerScriptUrl.substring(start + 1, ~end ? end : undefined))
 			: new URLSearchParams();
 
 		COI.addSearchParam(params, true, true);
 		const search = params.toString();
 		if (!search) {
-			scriptPath = `${scriptPath}#${label}`;
+			workerScriptUrl = `${workerScriptUrl}#${label}`;
 		} else {
-			scriptPath = `${scriptPath}?${params.toString()}#${label}`;
+			workerScriptUrl = `${workerScriptUrl}?${params.toString()}#${label}`;
 		}
 	}
 
-	const factoryModuleId = 'vs/base/worker/defaultWorkerFactory.js';
-	const workerBaseUrl = require.toUrl(factoryModuleId).slice(0, -factoryModuleId.length); // explicitly using require.toUrl(), see https://github.com/microsoft/vscode/issues/107440#issuecomment-698982321
-	const blob = new Blob([[
+	const blob = new Blob([coalesce([
 		`/*${label}*/`,
-		`globalThis.MonacoEnvironment = { baseUrl: '${workerBaseUrl}' };`,
+		workerBaseUrl ? `globalThis.MonacoEnvironment = { baseUrl: '${workerBaseUrl}' };` : undefined,
 		`globalThis._VSCODE_NLS_MESSAGES = ${JSON.stringify(globalThis._VSCODE_NLS_MESSAGES)};`,
 		`globalThis._VSCODE_NLS_LANGUAGE = ${JSON.stringify(globalThis._VSCODE_NLS_LANGUAGE)};`,
+		`globalThis._VSCODE_FILE_ROOT = '${globalThis._VSCODE_FILE_ROOT}';`,
 		`const ttPolicy = globalThis.trustedTypes?.createPolicy('defaultWorkerFactory', { createScriptURL: value => value });`,
 		`globalThis.workerttPolicy = ttPolicy;`,
-		`importScripts(ttPolicy?.createScriptURL('${scriptPath}') ?? '${scriptPath}');`,
+		isESM ? `await import(ttPolicy?.createScriptURL('${workerScriptUrl}') ?? '${workerScriptUrl}');` : `importScripts(ttPolicy?.createScriptURL('${workerScriptUrl}') ?? '${workerScriptUrl}');`, //
+		isESM ? `globalThis.postMessage({ type: 'vscode-worker-ready' });` : undefined, // in ESM signal we are ready after the async import
 		`/*${label}*/`
-	].join('')], { type: 'application/javascript' });
+	]).join('')], { type: 'application/javascript' });
 	return URL.createObjectURL(blob);
 }
-// ESM-comment-end
+
+function whenESMWorkerReady(worker: Worker): Promise<Worker> {
+	return new Promise<Worker>((resolve, reject) => {
+		worker.onmessage = function (e) {
+			if (e.data.type === 'vscode-worker-ready') {
+				worker.onmessage = null;
+				resolve(worker);
+			}
+		};
+		worker.onerror = reject;
+	});
+}
 
 function isPromiseLike<T>(obj: any): obj is PromiseLike<T> {
 	if (typeof obj.then === 'function') {
@@ -107,11 +136,11 @@ class WebWorker extends Disposable implements IWorker {
 	private readonly label: string;
 	private worker: Promise<Worker> | null;
 
-	constructor(moduleId: string, id: number, label: string, onMessageCallback: IWorkerCallback, onErrorCallback: (err: any) => void) {
+	constructor(workerMainLocation: URI | undefined, moduleId: string, id: number, label: string, onMessageCallback: IWorkerCallback, onErrorCallback: (err: any) => void) {
 		super();
 		this.id = id;
 		this.label = label;
-		const workerOrPromise = getWorker(label);
+		const workerOrPromise = getWorker(workerMainLocation, label);
 		if (isPromiseLike(workerOrPromise)) {
 			this.worker = workerOrPromise;
 		} else {
@@ -161,19 +190,26 @@ export class DefaultWorkerFactory implements IWorkerFactory {
 	private _label: string | undefined;
 	private _webWorkerFailedBeforeError: any;
 
-	constructor(label: string | undefined) {
+	constructor(private readonly workerMainLocation: URI | undefined, label: string | undefined) {
 		this._label = label;
 		this._webWorkerFailedBeforeError = false;
 	}
 
-	public create(moduleId: string, onMessageCallback: IWorkerCallback, onErrorCallback: (err: any) => void): IWorker {
+	public create(modules: { moduleId: string; esmModuleId: string }, onMessageCallback: IWorkerCallback, onErrorCallback: (err: any) => void): IWorker {
 		const workerId = (++DefaultWorkerFactory.LAST_WORKER_ID);
 
 		if (this._webWorkerFailedBeforeError) {
 			throw this._webWorkerFailedBeforeError;
 		}
 
-		return new WebWorker(moduleId, workerId, this._label || 'anonymous' + workerId, onMessageCallback, (err) => {
+		let workerMainLocation = this.workerMainLocation;
+		const moduleId = modules.moduleId;
+
+		if (isESM) {
+			workerMainLocation = FileAccess.asBrowserUri(`${modules.esmModuleId}.esm.js` as AppResourcePath);
+		}
+
+		return new WebWorker(workerMainLocation, moduleId, workerId, this._label || 'anonymous' + workerId, onMessageCallback, (err) => {
 			logOnceWebWorkerWarning(err);
 			this._webWorkerFailedBeforeError = err;
 			onErrorCallback(err);

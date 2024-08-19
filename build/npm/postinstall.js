@@ -81,11 +81,6 @@ for (let dir of dirs) {
 		}
 	}
 
-	if (/^(.build\/distro\/npm\/)?remote/.test(dir) && process.platform === 'win32' && (process.arch === 'arm64' || process.env['npm_config_arch'] === 'arm64')) {
-		// windows arm: do not execute `yarn` on remote folder
-		continue;
-	}
-
 	let opts;
 
 	if (dir === 'build') {

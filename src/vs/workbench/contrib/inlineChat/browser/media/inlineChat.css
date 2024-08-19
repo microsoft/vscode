@@ -93,7 +93,8 @@
 	margin-left: auto;
 }
 
-.monaco-workbench .inline-chat .status .label.hidden {
+.monaco-workbench .inline-chat .status .label.hidden,
+.monaco-workbench .inline-chat .status .label:empty {
 	display: none;
 }
 
@@ -120,15 +121,6 @@
 
 	.actions-container {
 		gap: 3px
-	}
-}
-
-.monaco-workbench .inline-chat .status {
-	.actions.text-style {
-		display: none;
-	}
-	.actions.button-style {
-		display: inherit;
 	}
 }
 
