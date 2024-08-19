@@ -5,8 +5,10 @@
 
 import { getAllMethodNames } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
+import { IWorkerDescriptor } from 'vs/base/common/worker/simpleWorker';
 import { EditorWorkerClient } from 'vs/editor/browser/services/editorWorkerService';
 import { IModelService } from 'vs/editor/common/services/model';
+import { standaloneEditorWorkerDescriptor } from 'vs/editor/standalone/browser/standaloneServices';
 
 /**
  * Create a new web worker that has model syncing capabilities built in.
@@ -68,7 +70,12 @@ class MonacoWebWorkerImpl<T extends object> extends EditorWorkerClient implement
 	private _foreignProxy: Promise<T> | null;
 
 	constructor(modelService: IModelService, opts: IWebWorkerOptions) {
-		super(modelService, opts.keepIdleModels || false, opts.label);
+		const workerDescriptor: IWorkerDescriptor = {
+			amdModuleId: standaloneEditorWorkerDescriptor.amdModuleId,
+			esmModuleLocation: standaloneEditorWorkerDescriptor.esmModuleLocation,
+			label: opts.label,
+		};
+		super(workerDescriptor, opts.keepIdleModels || false, modelService);
 		this._foreignModuleId = opts.moduleId;
 		this._foreignModuleCreateData = opts.createData || null;
 		this._foreignModuleHost = opts.host || null;

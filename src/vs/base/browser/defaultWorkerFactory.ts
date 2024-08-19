@@ -183,7 +183,7 @@ class WebWorker extends Disposable implements IWorker {
 	}
 }
 
-class WorkerDescriptor implements IWorkerDescriptor {
+export class WorkerDescriptor implements IWorkerDescriptor {
 
 	public readonly esmModuleLocation: URI | undefined;
 
@@ -219,9 +219,9 @@ class DefaultWorkerFactory implements IWorkerFactory {
 	}
 }
 
-export function createWebWorker<T extends object>(amdModuleId: string, label: string | undefined): IWorkerClient<T> {
-	return new SimpleWorkerClient<T>(
-		new DefaultWorkerFactory(),
-		new WorkerDescriptor(amdModuleId, label)
-	);
+export function createWebWorker<T extends object>(amdModuleId: string, label: string | undefined): IWorkerClient<T>;
+export function createWebWorker<T extends object>(workerDescriptor: IWorkerDescriptor): IWorkerClient<T>;
+export function createWebWorker<T extends object>(arg0: string | IWorkerDescriptor, arg1?: string | undefined): IWorkerClient<T> {
+	const workerDescriptor = (typeof arg0 === 'string' ? new WorkerDescriptor(arg0, arg1) : arg0);
+	return new SimpleWorkerClient<T>(new DefaultWorkerFactory(), workerDescriptor);
 }

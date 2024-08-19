@@ -6,7 +6,7 @@
 import { timeout } from 'vs/base/common/async';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { logOnceWebWorkerWarning, IWorkerClient, Proxied } from 'vs/base/common/worker/simpleWorker';
+import { logOnceWebWorkerWarning, IWorkerClient, Proxied, IWorkerDescriptor } from 'vs/base/common/worker/simpleWorker';
 import { createWebWorker } from 'vs/base/browser/defaultWorkerFactory';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
@@ -50,7 +50,7 @@ function canSyncModel(modelService: IModelService, resource: URI): boolean {
 	return true;
 }
 
-export class EditorWorkerService extends Disposable implements IEditorWorkerService {
+export abstract class EditorWorkerService extends Disposable implements IEditorWorkerService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -59,6 +59,7 @@ export class EditorWorkerService extends Disposable implements IEditorWorkerServ
 	private readonly _logService: ILogService;
 
 	constructor(
+		workerDescriptor: IWorkerDescriptor,
 		@IModelService modelService: IModelService,
 		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
 		@ILogService logService: ILogService,
@@ -67,7 +68,7 @@ export class EditorWorkerService extends Disposable implements IEditorWorkerServ
 	) {
 		super();
 		this._modelService = modelService;
-		this._workerManager = this._register(new WorkerManager(this._modelService));
+		this._workerManager = this._register(new WorkerManager(workerDescriptor, this._modelService));
 		this._logService = logService;
 
 		// register default link-provider and default completions-provider
@@ -311,7 +312,10 @@ class WorkerManager extends Disposable {
 	private _editorWorkerClient: EditorWorkerClient | null;
 	private _lastWorkerUsedTime: number;
 
-	constructor(modelService: IModelService) {
+	constructor(
+		private readonly _workerDescriptor: IWorkerDescriptor,
+		@IModelService modelService: IModelService
+	) {
 		super();
 		this._modelService = modelService;
 		this._editorWorkerClient = null;
@@ -365,7 +369,7 @@ class WorkerManager extends Disposable {
 	public withWorker(): Promise<EditorWorkerClient> {
 		this._lastWorkerUsedTime = (new Date()).getTime();
 		if (!this._editorWorkerClient) {
-			this._editorWorkerClient = new EditorWorkerClient(this._modelService, false, 'editorWorkerService');
+			this._editorWorkerClient = new EditorWorkerClient(this._workerDescriptor, false, this._modelService);
 		}
 		return Promise.resolve(this._editorWorkerClient);
 	}
@@ -406,9 +410,9 @@ export class EditorWorkerClient extends Disposable implements IEditorWorkerClien
 	private _disposed = false;
 
 	constructor(
-		modelService: IModelService,
+		private readonly _workerDescriptor: IWorkerDescriptor,
 		keepIdleModels: boolean,
-		private readonly _label: string | undefined,
+		@IModelService modelService: IModelService,
 	) {
 		super();
 		this._modelService = modelService;
@@ -425,10 +429,7 @@ export class EditorWorkerClient extends Disposable implements IEditorWorkerClien
 	private _getOrCreateWorker(): IWorkerClient<EditorSimpleWorker> {
 		if (!this._worker) {
 			try {
-				this._worker = this._register(createWebWorker<EditorSimpleWorker>(
-					'vs/editor/common/services/editorSimpleWorker',
-					this._label
-				));
+				this._worker = this._register(createWebWorker<EditorSimpleWorker>(this._workerDescriptor));
 				EditorWorkerHost.setChannel(this._worker, this._createEditorWorkerHost());
 			} catch (err) {
 				logOnceWebWorkerWarning(err);

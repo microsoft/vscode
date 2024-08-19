@@ -88,12 +88,15 @@ import { IStorageService, InMemoryStorageService } from 'vs/platform/storage/com
 import { DefaultConfiguration } from 'vs/platform/configuration/common/configurations';
 import { WorkspaceEdit } from 'vs/editor/common/languages';
 import { AccessibilitySignal, AccessibilityModality, IAccessibilitySignalService, Sound } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { LogService } from 'vs/platform/log/common/logService';
 import { getEditorFeatures } from 'vs/editor/common/editorFeatures';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ExtensionKind, IEnvironmentService, IExtensionHostDebugParams } from 'vs/platform/environment/common/environment';
 import { mainWindow } from 'vs/base/browser/window';
 import { ResourceMap } from 'vs/base/common/map';
+import { IWorkerDescriptor } from 'vs/base/common/worker/simpleWorker';
 
 class SimpleModel implements IResolvedTextEditorModel {
 
@@ -1071,6 +1074,24 @@ class StandaloneContextMenuService extends ContextMenuService {
 	}
 }
 
+export const standaloneEditorWorkerDescriptor: IWorkerDescriptor = {
+	amdModuleId: 'vs/editor/common/services/editorSimpleWorker',
+	esmModuleLocation: undefined,
+	label: 'editorWorkerService'
+};
+
+class StandaloneEditorWorkerService extends EditorWorkerService {
+	constructor(
+		@IModelService modelService: IModelService,
+		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
+		@ILogService logService: ILogService,
+		@ILanguageConfigurationService languageConfigurationService: ILanguageConfigurationService,
+		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
+	) {
+		super(standaloneEditorWorkerDescriptor, modelService, configurationService, logService, languageConfigurationService, languageFeaturesService);
+	}
+}
+
 class StandaloneAccessbilitySignalService implements IAccessibilitySignalService {
 	_serviceBrand: undefined;
 	async playSignal(cue: AccessibilitySignal, options: {}): Promise<void> {
@@ -1129,7 +1150,7 @@ registerSingleton(IContextKeyService, ContextKeyService, InstantiationType.Eager
 registerSingleton(IProgressService, StandaloneProgressService, InstantiationType.Eager);
 registerSingleton(IEditorProgressService, StandaloneEditorProgressService, InstantiationType.Eager);
 registerSingleton(IStorageService, InMemoryStorageService, InstantiationType.Eager);
-registerSingleton(IEditorWorkerService, EditorWorkerService, InstantiationType.Eager);
+registerSingleton(IEditorWorkerService, StandaloneEditorWorkerService, InstantiationType.Eager);
 registerSingleton(IBulkEditService, StandaloneBulkEditService, InstantiationType.Eager);
 registerSingleton(IWorkspaceTrustManagementService, StandaloneWorkspaceTrustManagementService, InstantiationType.Eager);
 registerSingleton(ITextModelService, StandaloneTextModelService, InstantiationType.Eager);
