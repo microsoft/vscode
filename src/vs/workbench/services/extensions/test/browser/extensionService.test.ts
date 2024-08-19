@@ -198,6 +198,9 @@ suite('ExtensionService', () => {
 			return new class extends mock<IExtensionHostManager>() {
 				override onDidExit = Event.None;
 				override onDidChangeResponsiveState = Event.None;
+				override disconnect() {
+					return Promise.resolve();
+				}
 				override dispose(): void {
 					order.push(`dispose ${extensionHostId}`);
 				}
@@ -212,7 +215,7 @@ suite('ExtensionService', () => {
 		protected _scanSingleExtension(extension: IExtension): Promise<IExtensionDescription | null> {
 			throw new Error('Method not implemented.');
 		}
-		protected _onExtensionHostExit(code: number): void {
+		protected _onExtensionHostExit(code: number): Promise<void> {
 			throw new Error('Method not implemented.');
 		}
 		protected _resolveAuthority(remoteAuthority: string): Promise<ResolverResult> {
@@ -255,7 +258,7 @@ suite('ExtensionService', () => {
 		extService = <MyTestExtensionService>instantiationService.get(IExtensionService);
 	});
 
-	teardown(() => {
+	teardown(async () => {
 		disposables.dispose();
 	});
 

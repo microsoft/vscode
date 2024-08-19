@@ -206,6 +206,9 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 
 	async acceptInput(): Promise<IChatResponseModel | undefined> {
 		assertType(this._chatWidget);
+		if (!this._model.value) {
+			await this.reveal();
+		}
 		assertType(this._model.value);
 		const lastInput = this._chatWidget.value.inlineChatWidget.value;
 		if (!lastInput) {
@@ -274,7 +277,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 	}
 
 	hasFocus(): boolean {
-		return !!this._chatWidget?.rawValue?.hasFocus() ?? false;
+		return this._chatWidget?.rawValue?.hasFocus() ?? false;
 	}
 
 	populateHistory(up: boolean) {

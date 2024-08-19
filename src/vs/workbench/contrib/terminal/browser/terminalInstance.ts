@@ -10,7 +10,7 @@ import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { AutoOpenBarrier, Promises, disposableTimeout, timeout } from 'vs/base/common/async';
+import { AutoOpenBarrier, Barrier, Promises, disposableTimeout, timeout } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
 import { debounce } from 'vs/base/common/decorators';
 import { ErrorNoTelemetry, onUnexpectedError } from 'vs/base/common/errors';
@@ -47,7 +47,7 @@ import { IMarkProperties, ITerminalCommand, TerminalCapability } from 'vs/platfo
 import { TerminalCapabilityStoreMultiplexer } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 import { IEnvironmentVariableCollection, IMergedEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
 import { deserializeEnvironmentVariableCollections } from 'vs/platform/terminal/common/environmentVariableShared';
-import { IProcessDataEvent, IProcessPropertyMap, IReconnectionProperties, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalLogService, PosixShellType, ProcessPropertyType, ShellIntegrationStatus, TerminalExitReason, TerminalIcon, TerminalLocation, TerminalSettingId, TerminalShellType, TitleEventSource, WindowsShellType } from 'vs/platform/terminal/common/terminal';
+import { GeneralShellType, IProcessDataEvent, IProcessPropertyMap, IReconnectionProperties, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalLogService, PosixShellType, ProcessPropertyType, ShellIntegrationStatus, TerminalExitReason, TerminalIcon, TerminalLocation, TerminalSettingId, TerminalShellType, TitleEventSource, WindowsShellType } from 'vs/platform/terminal/common/terminal';
 import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalStrings';
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
@@ -94,6 +94,9 @@ import { TerminalResizeDebouncer } from 'vs/workbench/contrib/terminal/browser/t
 // HACK: This file should not depend on terminalContrib
 // eslint-disable-next-line local/code-import-patterns
 import { TerminalAccessibilityCommandId } from 'vs/workbench/contrib/terminalContrib/accessibility/common/terminal.accessibility';
+import { openContextMenu } from 'vs/workbench/contrib/terminal/browser/terminalContextMenu';
+import type { IMenu } from 'vs/platform/actions/common/actions';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 
 const enum Constants {
 	/**
@@ -120,12 +123,11 @@ interface IGridDimensions {
 	rows: number;
 }
 
-const shellIntegrationSupportedShellTypes = [
+const shellIntegrationSupportedShellTypes: (PosixShellType | GeneralShellType | WindowsShellType)[] = [
 	PosixShellType.Bash,
 	PosixShellType.Zsh,
-	PosixShellType.PowerShell,
-	PosixShellType.Python,
-	WindowsShellType.PowerShell
+	GeneralShellType.PowerShell,
+	GeneralShellType.Python,
 ];
 
 export class TerminalInstance extends Disposable implements ITerminalInstance {
@@ -195,6 +197,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _lineDataEventAddon: LineDataEventAddon | undefined;
 	private readonly _scopedContextKeyService: IContextKeyService;
 	private _resizeDebouncer?: TerminalResizeDebouncer;
+	private _pauseInputEventBarrier: Barrier | undefined;
+	pauseInputEvents(barrier: Barrier): void {
+		this._pauseInputEventBarrier = barrier;
+	}
 
 	readonly capabilities = this._register(new TerminalCapabilityStoreMultiplexer());
 	readonly statusList: ITerminalStatusList;
@@ -354,6 +360,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		private readonly _terminalInRunCommandPicker: IContextKey<boolean>,
 		private _shellLaunchConfig: IShellLaunchConfig,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
 		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
@@ -802,6 +809,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		this._register(this._processManager.onProcessData(e => this._onProcessData(e)));
 		this._register(xterm.raw.onData(async data => {
+			await this._pauseInputEventBarrier?.wait();
 			await this._processManager.write(data);
 			this._onDidInputData.fire(data);
 		}));
@@ -1156,6 +1164,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	override dispose(reason?: TerminalExitReason): void {
+		if (this.shellLaunchConfig.type === 'Task' && reason === TerminalExitReason.Process && this._exitCode !== 0 && !this.shellLaunchConfig.waitOnExit) {
+			return;
+		}
 		if (this.isDisposed) {
 			return;
 		}
@@ -1599,7 +1610,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				}
 			});
 		} else {
-			this.dispose(TerminalExitReason.Process);
 			if (exitMessage) {
 				const failedDuringLaunch = this._processManager.processState === ProcessState.KilledDuringLaunch;
 				if (failedDuringLaunch || this._terminalConfigurationService.config.showExitAlert) {
@@ -1615,6 +1625,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					this._logService.warn(exitMessage);
 				}
 			}
+			this.dispose(TerminalExitReason.Process);
 		}
 
 		// First onExit to consumers, this can happen after the terminal has already been disposed.
@@ -1633,7 +1644,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			id: TerminalStatus.ShellIntegrationAttentionNeeded,
 			severity: Severity.Warning,
 			icon: Codicon.warning,
-			tooltip: (`${exitMessage} ` ?? '') + nls.localize('launchFailed.exitCodeOnlyShellIntegration', 'Disabling shell integration in user settings might help.'),
+			tooltip: `${exitMessage} ` + nls.localize('launchFailed.exitCodeOnlyShellIntegration', 'Disabling shell integration in user settings might help.'),
 			hoverActions: [{
 				commandId: TerminalCommandId.ShellIntegrationLearnMore,
 				label: nls.localize('shellIntegration.learnMore', "Learn more about shell integration"),
@@ -2257,12 +2268,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const showAllColorsItem = { label: 'Reset to default' };
 		items.push(showAllColorsItem);
 
-		const quickPick = this._quickInputService.createQuickPick();
+		const disposables: IDisposable[] = [];
+		const quickPick = this._quickInputService.createQuickPick({ useSeparators: true });
+		disposables.push(quickPick);
 		quickPick.items = items;
 		quickPick.matchOnDescription = true;
 		quickPick.placeholder = nls.localize('changeColor', 'Select a color for the terminal');
 		quickPick.show();
-		const disposables: IDisposable[] = [];
 		const result = await new Promise<IQuickPickItem | undefined>(r => {
 			disposables.push(quickPick.onDidHide(() => r(undefined)));
 			disposables.push(quickPick.onDidAccept(() => r(quickPick.selectedItems[0])));
@@ -2289,6 +2301,66 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	setParentContextKeyService(parentContextKeyService: IContextKeyService): void {
 		this._scopedContextKeyService.updateParent(parentContextKeyService);
+	}
+
+	async handleMouseEvent(event: MouseEvent, contextMenu: IMenu): Promise<{ cancelContextMenu: boolean } | void> {
+		// Don't handle mouse event if it was on the scroll bar
+		if (dom.isHTMLElement(event.target) && event.target.classList.contains('scrollbar')) {
+			return { cancelContextMenu: true };
+		}
+
+		// Middle click
+		if (event.which === 2) {
+			switch (this._terminalConfigurationService.config.middleClickBehavior) {
+				case 'paste':
+					this.paste();
+					break;
+				case 'default':
+				default:
+					// Drop selection and focus terminal on Linux to enable middle button paste
+					// when click occurs on the selection itself.
+					this.focus();
+					break;
+			}
+			return;
+		}
+
+		// Right click
+		if (event.which === 3) {
+			const rightClickBehavior = this._terminalConfigurationService.config.rightClickBehavior;
+			if (rightClickBehavior === 'nothing') {
+				if (!event.shiftKey) {
+					return { cancelContextMenu: true };
+				}
+				return;
+			}
+			else if (rightClickBehavior === 'copyPaste' || rightClickBehavior === 'paste') {
+				// copyPaste: Shift+right click should open context menu
+				if (rightClickBehavior === 'copyPaste' && event.shiftKey) {
+					openContextMenu(dom.getActiveWindow(), event, this, contextMenu, this._contextMenuService);
+					return;
+				}
+
+				if (rightClickBehavior === 'copyPaste' && this.hasSelection()) {
+					await this.copySelection();
+					this.clearSelection();
+				} else {
+					if (BrowserFeatures.clipboard.readText) {
+						this.paste();
+					} else {
+						this._notificationService.info(`This browser doesn't support the clipboard.readText API needed to trigger a paste, try ${isMacintosh ? '⌘' : 'Ctrl'}+V instead.`);
+					}
+				}
+				// Clear selection after all click event bubbling is finished on Mac to prevent
+				// right-click selecting a word which is seemed cannot be disabled. There is a
+				// flicker when pasting but this appears to give the best experience if the
+				// setting is enabled.
+				if (isMacintosh) {
+					setTimeout(() => this.clearSelection(), 0);
+				}
+				return { cancelContextMenu: true };
+			}
+		}
 	}
 }
 

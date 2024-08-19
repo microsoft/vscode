@@ -393,7 +393,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 		const extensions: IQuickPickItem & { id: ProfileResourceType } = { id: ProfileResourceType.Extensions, label: localize('extensions', "Extensions"), picked: !profile?.useDefaultFlags?.extensions };
 		const resources = [settings, keybindings, snippets, tasks, extensions];
 
-		const quickPick = this.quickInputService.createQuickPick();
+		const quickPick = disposables.add(this.quickInputService.createQuickPick());
 		quickPick.title = title;
 		quickPick.placeholder = localize('name placeholder', "Profile name");
 		quickPick.value = profile?.name ?? (isUserDataProfileTemplate(source) ? this.generateProfileName(source.name) : '');
@@ -819,9 +819,16 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 			return null;
 		}
 
-		const profileTemplate: Mutable<IUserDataProfileTemplate> = JSON.parse(profileContent);
+		let profileTemplate: Mutable<IUserDataProfileTemplate>;
+
+		try {
+			profileTemplate = JSON.parse(profileContent);
+		} catch (error) {
+			throw new Error(localize('invalid profile content', "This profile is not valid."));
+		}
+
 		if (!isUserDataProfileTemplate(profileTemplate)) {
-			throw new Error('Invalid profile content.');
+			throw new Error(localize('invalid profile content', "This profile is not valid."));
 		}
 
 		if (options?.name) {

@@ -460,14 +460,21 @@ export class DefaultSettings extends Disposable {
 	private _contentWithoutMostCommonlyUsed: string | undefined;
 	private _settingsByName = new Map<string, ISetting>();
 
-	readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
+	private readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
 	constructor(
 		private _mostCommonlyUsedSettingsKeys: string[],
 		readonly target: ConfigurationTarget,
+		readonly configurationService: IConfigurationService
 	) {
 		super();
+		this._register(configurationService.onDidChangeConfiguration(e => {
+			if (e.source === ConfigurationTarget.DEFAULT) {
+				this.reset();
+				this._onDidChange.fire();
+			}
+		}));
 	}
 
 	getContent(forceUpdate = false): string {
@@ -498,6 +505,12 @@ export class DefaultSettings extends Disposable {
 		this._allSettingsGroups = this.parse();
 		this._content = this.toContent(this._allSettingsGroups, 0);
 		this._contentWithoutMostCommonlyUsed = this.toContent(this._allSettingsGroups, 1);
+	}
+
+	private reset(): void {
+		this._content = undefined;
+		this._contentWithoutMostCommonlyUsed = undefined;
+		this._allSettingsGroups = undefined;
 	}
 
 	private parse(): ISettingsGroup[] {

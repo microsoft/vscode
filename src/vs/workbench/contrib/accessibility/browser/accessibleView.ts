@@ -11,7 +11,7 @@ import { IAction } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { marked } from 'vs/base/common/marked/marked';
+import * as marked from 'vs/base/common/marked/marked';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
@@ -40,7 +40,7 @@ import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService, IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { AccessibilityVerbositySettingId, AccessibilityWorkbenchSettingId, accessibilityHelpIsShown, accessibleViewContainsCodeBlocks, accessibleViewCurrentProviderId, accessibleViewGoToSymbolSupported, accessibleViewInCodeBlock, accessibleViewIsShown, accessibleViewOnLastLine, accessibleViewSupportsNavigation, accessibleViewVerbosityEnabled } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { AccessibilityVerbositySettingId, AccessibilityWorkbenchSettingId, accessibilityHelpIsShown, accessibleViewContainsCodeBlocks, accessibleViewCurrentProviderId, accessibleViewGoToSymbolSupported, accessibleViewHasAssignedKeybindings, accessibleViewHasUnassignedKeybindings, accessibleViewInCodeBlock, accessibleViewIsShown, accessibleViewOnLastLine, accessibleViewSupportsNavigation, accessibleViewVerbosityEnabled } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { resolveContentAndKeybindingItems } from 'vs/workbench/contrib/accessibility/browser/accessibleViewKeybindingResolver';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
 import { IChatCodeBlockContextProviderService } from 'vs/workbench/contrib/chat/browser/chat';
@@ -72,6 +72,9 @@ export class AccessibleView extends Disposable {
 	private _accessibleViewCurrentProviderId: IContextKey<string>;
 	private _accessibleViewInCodeBlock: IContextKey<boolean>;
 	private _accessibleViewContainsCodeBlocks: IContextKey<boolean>;
+	private _hasUnassignedKeybindings: IContextKey<boolean>;
+	private _hasAssignedKeybindings: IContextKey<boolean>;
+
 	private _codeBlocks?: ICodeBlock[];
 	private _inQuickPick: boolean = false;
 
@@ -115,6 +118,8 @@ export class AccessibleView extends Disposable {
 		this._accessibleViewInCodeBlock = accessibleViewInCodeBlock.bindTo(this._contextKeyService);
 		this._accessibleViewContainsCodeBlocks = accessibleViewContainsCodeBlocks.bindTo(this._contextKeyService);
 		this._onLastLine = accessibleViewOnLastLine.bindTo(this._contextKeyService);
+		this._hasUnassignedKeybindings = accessibleViewHasUnassignedKeybindings.bindTo(this._contextKeyService);
+		this._hasAssignedKeybindings = accessibleViewHasAssignedKeybindings.bindTo(this._contextKeyService);
 
 		this._container = document.createElement('div');
 		this._container.classList.add('accessible-view');
@@ -191,6 +196,8 @@ export class AccessibleView extends Disposable {
 		this._accessibleViewVerbosityEnabled.reset();
 		this._accessibleViewGoToSymbolSupported.reset();
 		this._accessibleViewCurrentProviderId.reset();
+		this._hasAssignedKeybindings.reset();
+		this._hasUnassignedKeybindings.reset();
 	}
 
 	getPosition(id?: AccessibleViewProviderId): Position | undefined {
@@ -200,10 +207,16 @@ export class AccessibleView extends Disposable {
 		return this._editorWidget.getPosition() || undefined;
 	}
 
-	setPosition(position: Position, reveal?: boolean): void {
+	setPosition(position: Position, reveal?: boolean, select?: boolean): void {
 		this._editorWidget.setPosition(position);
 		if (reveal) {
 			this._editorWidget.revealPosition(position);
+		}
+		if (select) {
+			const lineLength = this._editorWidget.getModel()?.getLineLength(position.lineNumber) ?? 0;
+			if (lineLength) {
+				this._editorWidget.setSelection({ startLineNumber: position.lineNumber, startColumn: 1, endLineNumber: position.lineNumber, endColumn: lineLength + 1 });
+			}
 		}
 	}
 
@@ -379,7 +392,7 @@ export class AccessibleView extends Disposable {
 			// Symbols haven't been provided and we cannot parse this language
 			return;
 		}
-		const markdownTokens: marked.TokensList | undefined = marked.lexer(this._currentContent);
+		const markdownTokens: marked.TokensList | undefined = marked.marked.lexer(this._currentContent);
 		if (!markdownTokens) {
 			return;
 		}
@@ -401,26 +414,26 @@ export class AccessibleView extends Disposable {
 		if (!items) {
 			return;
 		}
-		const quickPick: IQuickPick<IQuickPickItem> = this._quickInputService.createQuickPick();
-		this._register(quickPick);
+		const disposables = this._register(new DisposableStore());
+		const quickPick: IQuickPick<IQuickPickItem> = disposables.add(this._quickInputService.createQuickPick());
 		quickPick.items = items;
 		quickPick.title = localize('keybindings', 'Configure keybindings');
 		quickPick.placeholder = localize('selectKeybinding', 'Select a command ID to configure a keybinding for it');
 		quickPick.show();
-		quickPick.onDidAccept(async () => {
+		disposables.add(quickPick.onDidAccept(async () => {
 			const item = quickPick.selectedItems[0];
 			if (item) {
 				await this._commandService.executeCommand('workbench.action.openGlobalKeybindings', item.id);
 			}
 			quickPick.dispose();
-		});
-		quickPick.onDidHide(() => {
+		}));
+		disposables.add(quickPick.onDidHide(() => {
 			if (!quickPick.selectedItems.length && provider) {
 				this.show(provider);
 			}
-			quickPick.dispose();
+			disposables.dispose();
 			this._inQuickPick = false;
-		});
+		}));
 	}
 
 	private _convertTokensToSymbols(tokens: marked.TokensList, symbols: IAccessibleViewSymbol[]): void {
@@ -435,12 +448,12 @@ export class AccessibleView extends Disposable {
 						label = token.text;
 						break;
 					case 'list': {
-						const firstItem = token.items?.[0];
+						const firstItem = (token as marked.Tokens.List).items[0];
 						if (!firstItem) {
 							break;
 						}
 						firstListItem = `- ${firstItem.text}`;
-						label = token.items?.map(i => i.text).join(', ');
+						label = (token as marked.Tokens.List).items.map(i => i.text).join(', ');
 						break;
 					}
 				}
@@ -503,6 +516,8 @@ export class AccessibleView extends Disposable {
 		let content = updatedContent ?? provider.provideContent();
 		if (provider.options.type === AccessibleViewType.View) {
 			this._currentContent = content;
+			this._hasUnassignedKeybindings.reset();
+			this._hasAssignedKeybindings.reset();
 			return;
 		}
 		const readMoreLinkHint = this._readMoreHint(provider);
@@ -516,11 +531,17 @@ export class AccessibleView extends Disposable {
 			content = resolvedContent.content.value;
 			if (resolvedContent.configureKeybindingItems) {
 				provider.options.configureKeybindingItems = resolvedContent.configureKeybindingItems;
+				this._hasUnassignedKeybindings.set(true);
 				configureKbHint = this._configureUnassignedKbHint();
+			} else {
+				this._hasAssignedKeybindings.reset();
 			}
 			if (resolvedContent.configuredKeybindingItems) {
 				provider.options.configuredKeybindingItems = resolvedContent.configuredKeybindingItems;
+				this._hasAssignedKeybindings.set(true);
 				configureAssignedKbHint = this._configureAssignedKbHint();
+			} else {
+				this._hasAssignedKeybindings.reset();
 			}
 		}
 		this._currentContent = content + configureKbHint + configureAssignedKbHint;
@@ -783,7 +804,7 @@ export class AccessibleView extends Disposable {
 
 	private _configureUnassignedKbHint(): string {
 		const configureKb = this._keybindingService.lookupKeybinding(AccessibilityCommandId.AccessibilityHelpConfigureKeybindings)?.getAriaLabel();
-		const keybindingToConfigureQuickPick = configureKb ? '(' + configureKb + ')' : 'by assigning a keybinding to the command Accessibility Help Configure Keybindings.';
+		const keybindingToConfigureQuickPick = configureKb ? '(' + configureKb + ')' : 'by assigning a keybinding to the command Accessibility Help Configure Unassigned Keybindings.';
 		return localize('configureKb', '\nConfigure keybindings for commands that lack them {0}.', keybindingToConfigureQuickPick);
 	}
 
@@ -882,12 +903,8 @@ export class AccessibleViewService extends Disposable implements IAccessibleView
 		const lastLine = this._accessibleView?.editorWidget.getModel()?.getLineCount();
 		return lastLine !== undefined && lastLine > 0 ? new Position(lastLine, 1) : undefined;
 	}
-	setPosition(position: Position, reveal?: boolean): void {
-		const editorWidget = this._accessibleView?.editorWidget;
-		editorWidget?.setPosition(position);
-		if (reveal) {
-			editorWidget?.revealLine(position.lineNumber);
-		}
+	setPosition(position: Position, reveal?: boolean, select?: boolean): void {
+		this._accessibleView?.setPosition(position, reveal, select);
 	}
 	getCodeBlockContext(): ICodeBlockActionContext | undefined {
 		return this._accessibleView?.getCodeBlockContext();
@@ -902,7 +919,8 @@ class AccessibleViewSymbolQuickPick {
 
 	}
 	show(provider: AccesibleViewContentProvider): void {
-		const quickPick = this._quickInputService.createQuickPick<IAccessibleViewSymbol>();
+		const disposables = new DisposableStore();
+		const quickPick = disposables.add(this._quickInputService.createQuickPick<IAccessibleViewSymbol>());
 		quickPick.placeholder = localize('accessibleViewSymbolQuickPickPlaceholder', "Type to search symbols");
 		quickPick.title = localize('accessibleViewSymbolQuickPickTitle', "Go to Symbol Accessible View");
 		const picks = [];
@@ -919,16 +937,17 @@ class AccessibleViewSymbolQuickPick {
 		quickPick.canSelectMany = false;
 		quickPick.items = symbols;
 		quickPick.show();
-		quickPick.onDidAccept(() => {
+		disposables.add(quickPick.onDidAccept(() => {
 			this._accessibleView.showSymbol(provider, quickPick.selectedItems[0]);
 			quickPick.hide();
-		});
-		quickPick.onDidHide(() => {
+		}));
+		disposables.add(quickPick.onDidHide(() => {
 			if (quickPick.selectedItems.length === 0) {
 				// this was escaped, so refocus the accessible view
 				this._accessibleView.show(provider);
 			}
-		});
+			disposables.dispose();
+		}));
 	}
 }
 

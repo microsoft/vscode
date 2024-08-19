@@ -11,6 +11,7 @@ import { FileWatcherManager } from './fileWatcherManager';
 import { Logger } from './logging';
 import { PathMapper, looksLikeNodeModules, mapUri } from './pathMapper';
 import { findArgument, hasArgument } from './util/args';
+import { URI } from 'vscode-uri';
 
 type ServerHostWithImport = ts.server.ServerHost & { importPlugin(root: string, moduleName: string): Promise<ts.server.ModuleImportResult> };
 
@@ -349,7 +350,13 @@ function createServerHost(
 			return path;
 		}
 
-		let uri = pathMapper.toResource(path);
+		let uri: URI;
+		try {
+			uri = pathMapper.toResource(path);
+		} catch {
+			return path;
+		}
+
 		if (isNm) {
 			uri = mapUri(uri, 'vscode-node-modules');
 		}

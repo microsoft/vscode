@@ -22,8 +22,18 @@ const endpointUrl = 'https://mobile.events.data.microsoft.com/OneCollector/1.0';
 const endpointHealthUrl = 'https://mobile.events.data.microsoft.com/ping';
 
 async function getClient(instrumentationKey: string, addInternalFlag?: boolean, xhrOverride?: IXHROverride): Promise<IAppInsightsCore> {
+	// ESM-comment-begin
 	const oneDs = await importAMDNodeModule<typeof import('@microsoft/1ds-core-js')>('@microsoft/1ds-core-js', 'dist/ms.core.js');
 	const postPlugin = await importAMDNodeModule<typeof import('@microsoft/1ds-post-js')>('@microsoft/1ds-post-js', 'dist/ms.post.js');
+	// ESM-comment-end
+	// ESM-uncomment-begin
+	// if (typeof importAMDNodeModule === 'function') { /* fixes unused import, remove me */}
+	// // eslint-disable-next-line local/code-amd-node-module
+	// const oneDs = await import('@microsoft/1ds-core-js');
+	// // eslint-disable-next-line local/code-amd-node-module
+	// const postPlugin = await import('@microsoft/1ds-post-js');
+	// ESM-uncomment-end
+
 	const appInsightsCore = new oneDs.AppInsightsCore();
 	const collectorChannelPlugin: PostChannel = new postPlugin.PostChannel();
 	// Configure the app insights core to send to collector++ and disable logging of debug info

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { RunOnceScheduler } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
@@ -27,6 +28,7 @@ import { CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_DEBUG_EXTENSION_AVAILABLE, IAdapte
 import { Debugger } from 'vs/workbench/contrib/debug/common/debugger';
 import { breakpointsExtPoint, debuggersExtPoint, launchSchema, presentationSchema } from 'vs/workbench/contrib/debug/common/debugSchemas';
 import { TaskDefinitionRegistry } from 'vs/workbench/contrib/tasks/common/taskDefinitionRegistry';
+import { ITaskService } from 'vs/workbench/contrib/tasks/common/taskService';
 import { launchSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -49,6 +51,7 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 	private readonly _onDidDebuggersExtPointRead = new Emitter<void>();
 	private breakpointContributions: Breakpoints[] = [];
 	private debuggerWhenKeys = new Set<string>();
+	private taskLabels: string[] = [];
 
 	/** Extensions that were already active before any debugger activation events */
 	private earlyActivatedExtensions: Set<string> | undefined;
@@ -66,7 +69,8 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IDialogService private readonly dialogService: IDialogService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@ITaskService private readonly tasksService: ITaskService,
 	) {
 		super();
 		this.adapterDescriptorFactories = [];
@@ -85,12 +89,22 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 		this._register(this.onDidDebuggersExtPointRead(() => {
 			this.debugExtensionsAvailable.set(this.debuggers.length > 0);
 		}));
+
+		// generous debounce since this will end up calling `resolveTask` internally
+		const updateTaskScheduler = this._register(new RunOnceScheduler(() => this.updateTaskLabels(), 5000));
+
+		this._register(Event.any(tasksService.onDidChangeTaskConfig, tasksService.onDidChangeTaskProviders)(() => {
+			updateTaskScheduler.cancel();
+			updateTaskScheduler.schedule();
+		}));
 		this.lifecycleService.when(LifecyclePhase.Eventually)
 			.then(() => this.debugExtensionsAvailable.set(this.debuggers.length > 0)); // If no extensions with a debugger contribution are loaded
 
 		this._register(delegate.onDidNewSession(s => {
 			this.usedDebugTypes.add(s.configuration.type);
 		}));
+
+		updateTaskScheduler.schedule();
 	}
 
 	private registerListeners(): void {
@@ -137,7 +151,14 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 		});
 	}
 
-	private updateDebugAdapterSchema(): void {
+	private updateTaskLabels() {
+		this.tasksService.getKnownTasks().then(tasks => {
+			this.taskLabels = tasks.map(task => task._label);
+			this.updateDebugAdapterSchema();
+		});
+	}
+
+	private updateDebugAdapterSchema() {
 		// update the schema to include all attributes, snippets and types from extensions.
 		const items = (<IJSONSchema>launchSchema.properties!['configurations'].items);
 		const taskSchema = TaskDefinitionRegistry.getJsonSchema();
@@ -160,7 +181,8 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 						}],
 						default: '',
 						defaultSnippets: [{ body: { task: '', type: '' } }],
-						description: nls.localize('debugPrelaunchTask', "Task to run before debug session starts.")
+						description: nls.localize('debugPrelaunchTask', "Task to run before debug session starts."),
+						examples: this.taskLabels,
 					},
 					'postDebugTask': {
 						anyOf: [taskSchema, {
@@ -168,7 +190,8 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 						}],
 						default: '',
 						defaultSnippets: [{ body: { task: '', type: '' } }],
-						description: nls.localize('debugPostDebugTask', "Task to run after debug session ends.")
+						description: nls.localize('debugPostDebugTask', "Task to run after debug session ends."),
+						examples: this.taskLabels,
 					},
 					'presentation': presentationSchema,
 					'internalConsoleOptions': INTERNAL_CONSOLE_OPTIONS_SCHEMA,

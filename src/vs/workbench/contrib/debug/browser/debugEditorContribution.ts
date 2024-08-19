@@ -37,7 +37,7 @@ import { IModelDeltaDecoration, ITextModel, InjectedTextCursorStops } from 'vs/e
 import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { IModelService } from 'vs/editor/common/services/model';
-import { HoverController } from 'vs/editor/contrib/hover/browser/hoverController';
+import { ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHoverController2';
 import { HoverStartMode, HoverStartSource } from 'vs/editor/contrib/hover/browser/hoverOperation';
 import * as nls from 'vs/nls';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
@@ -375,7 +375,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			return;
 		}
 
-		const hoverController = this.editor.getContribution<HoverController>(HoverController.ID);
+		const hoverController = this.editor.getContribution<ContentHoverController>(ContentHoverController.ID);
 		hoverController?.hideContentHover();
 
 		this.editor.updateOptions({ hover: { enabled: false } });
@@ -389,7 +389,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	}
 
 	private showEditorHover(position: Position, focus: boolean) {
-		const hoverController = this.editor.getContribution<HoverController>(HoverController.ID);
+		const hoverController = this.editor.getContribution<ContentHoverController>(ContentHoverController.ID);
 		const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
 		// enable the editor hover, otherwise the content controller will see it
 		// as disabled and hide it on the first mouse move (#193149)

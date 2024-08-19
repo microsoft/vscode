@@ -82,7 +82,7 @@ export enum ChatResponseReferencePartStatusKind {
 }
 
 export interface IChatContentReference {
-	reference: URI | Location | IChatContentVariableReference;
+	reference: URI | Location | IChatContentVariableReference | string;
 	iconPath?: ThemeIcon | { light: URI; dark?: URI };
 	options?: { status?: { description: string; kind: ChatResponseReferencePartStatusKind } };
 	kind: 'reference';
@@ -164,6 +164,12 @@ export interface IChatCommandButton {
 	kind: 'command';
 }
 
+export interface IChatMoveMessage {
+	uri: URI;
+	range: IRange;
+	kind: 'move';
+}
+
 export interface IChatTextEdit {
 	uri: URI;
 	edits: TextEdit[];
@@ -194,6 +200,7 @@ export type IChatProgress =
 	| IChatCommandButton
 	| IChatWarningMessage
 	| IChatTextEdit
+	| IChatMoveMessage
 	| IChatConfirmation;
 
 export interface IChatFollowup {
@@ -236,6 +243,8 @@ export interface IChatInsertAction {
 	codeBlockIndex: number;
 	totalCharacters: number;
 	newFile?: boolean;
+	userAction?: string;
+	codeMapper?: string;
 }
 
 export interface IChatTerminalAction {
@@ -348,6 +357,11 @@ export interface IChatSendRequestOptions {
 	/** The target agent ID can be specified with this property instead of using @ in 'message' */
 	agentId?: string;
 	slashCommand?: string;
+
+	/**
+	 * The label of the confirmation action that was selected.
+	 */
+	confirmation?: string;
 }
 
 export const IChatService = createDecorator<IChatService>('IChatService');
