@@ -362,6 +362,7 @@ extends:
                   - template: build/azure-pipelines/win32/product-build-win32.yml@self
                     parameters:
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                      VSCODE_BUILD_ESM: ${{ variables.VSCODE_BUILD_ESM }}
                       VSCODE_ARCH: x64
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                       VSCODE_RUN_UNIT_TESTS: true
@@ -376,6 +377,7 @@ extends:
                   - template: build/azure-pipelines/win32/product-build-win32.yml@self
                     parameters:
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                      VSCODE_BUILD_ESM: ${{ variables.VSCODE_BUILD_ESM }}
                       VSCODE_ARCH: x64
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                       VSCODE_RUN_UNIT_TESTS: false
@@ -390,6 +392,7 @@ extends:
                   - template: build/azure-pipelines/win32/product-build-win32.yml@self
                     parameters:
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                      VSCODE_BUILD_ESM: ${{ variables.VSCODE_BUILD_ESM }}
                       VSCODE_ARCH: x64
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                       VSCODE_RUN_UNIT_TESTS: false
@@ -405,6 +408,7 @@ extends:
                   - template: build/azure-pipelines/win32/product-build-win32.yml@self
                     parameters:
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                      VSCODE_BUILD_ESM: ${{ variables.VSCODE_BUILD_ESM }}
                       VSCODE_ARCH: x64
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                       VSCODE_RUN_UNIT_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
@@ -428,6 +432,7 @@ extends:
                   - template: build/azure-pipelines/win32/product-build-win32.yml@self
                     parameters:
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                      VSCODE_BUILD_ESM: ${{ variables.VSCODE_BUILD_ESM }}
                       VSCODE_ARCH: arm64
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                       VSCODE_RUN_UNIT_TESTS: false
@@ -456,6 +461,7 @@ extends:
                     parameters:
                       VSCODE_ARCH: x64
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                      VSCODE_BUILD_ESM: ${{ variables.VSCODE_BUILD_ESM }}
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                       VSCODE_RUN_UNIT_TESTS: true
                       VSCODE_RUN_INTEGRATION_TESTS: false
@@ -471,6 +477,7 @@ extends:
                     parameters:
                       VSCODE_ARCH: x64
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                      VSCODE_BUILD_ESM: ${{ variables.VSCODE_BUILD_ESM }}
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                       VSCODE_RUN_UNIT_TESTS: false
                       VSCODE_RUN_INTEGRATION_TESTS: true
@@ -486,6 +493,7 @@ extends:
                     parameters:
                       VSCODE_ARCH: x64
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                      VSCODE_BUILD_ESM: ${{ variables.VSCODE_BUILD_ESM }}
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                       VSCODE_RUN_UNIT_TESTS: false
                       VSCODE_RUN_INTEGRATION_TESTS: false
@@ -503,6 +511,7 @@ extends:
                     parameters:
                       VSCODE_ARCH: x64
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                      VSCODE_BUILD_ESM: ${{ variables.VSCODE_BUILD_ESM }}
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                       VSCODE_RUN_UNIT_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
                       VSCODE_RUN_INTEGRATION_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
@@ -528,6 +537,7 @@ extends:
                     parameters:
                       VSCODE_ARCH: armhf
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                      VSCODE_BUILD_ESM: ${{ variables.VSCODE_BUILD_ESM }}
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                       VSCODE_RUN_UNIT_TESTS: false
                       VSCODE_RUN_INTEGRATION_TESTS: false
@@ -543,6 +553,7 @@ extends:
                     parameters:
                       VSCODE_ARCH: arm64
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                      VSCODE_BUILD_ESM: ${{ variables.VSCODE_BUILD_ESM }}
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                       VSCODE_RUN_UNIT_TESTS: false
                       VSCODE_RUN_INTEGRATION_TESTS: false
@@ -567,6 +578,7 @@ extends:
                     parameters:
                       VSCODE_ARCH: x64
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                      VSCODE_BUILD_ESM: ${{ variables.VSCODE_BUILD_ESM }}
                       VSCODE_RUN_INTEGRATION_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
 
             - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARMHF_LEGACY_SERVER, true) }}:
@@ -579,6 +591,7 @@ extends:
                     parameters:
                       VSCODE_ARCH: armhf
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                      VSCODE_BUILD_ESM: ${{ variables.VSCODE_BUILD_ESM }}
                       VSCODE_RUN_INTEGRATION_TESTS: false
 
             - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARM64_LEGACY_SERVER, true) }}:
@@ -591,6 +604,7 @@ extends:
                     parameters:
                       VSCODE_ARCH: arm64
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                      VSCODE_BUILD_ESM: ${{ variables.VSCODE_BUILD_ESM }}
                       VSCODE_RUN_INTEGRATION_TESTS: false
 
       - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_ALPINE'], true)) }}:
@@ -643,6 +657,7 @@ extends:
                   - template: build/azure-pipelines/darwin/product-build-darwin.yml@self
                     parameters:
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                      VSCODE_BUILD_ESM: ${{ variables.VSCODE_BUILD_ESM }}
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                       VSCODE_RUN_UNIT_TESTS: true
                       VSCODE_RUN_INTEGRATION_TESTS: false
@@ -656,6 +671,7 @@ extends:
                   - template: build/azure-pipelines/darwin/product-build-darwin.yml@self
                     parameters:
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                      VSCODE_BUILD_ESM: ${{ variables.VSCODE_BUILD_ESM }}
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                       VSCODE_RUN_UNIT_TESTS: false
                       VSCODE_RUN_INTEGRATION_TESTS: true
@@ -669,6 +685,7 @@ extends:
                   - template: build/azure-pipelines/darwin/product-build-darwin.yml@self
                     parameters:
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                      VSCODE_BUILD_ESM: ${{ variables.VSCODE_BUILD_ESM }}
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                       VSCODE_RUN_UNIT_TESTS: false
                       VSCODE_RUN_INTEGRATION_TESTS: false
@@ -683,6 +700,7 @@ extends:
                   - template: build/azure-pipelines/darwin/product-build-darwin.yml@self
                     parameters:
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                      VSCODE_BUILD_ESM: ${{ variables.VSCODE_BUILD_ESM }}
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                       VSCODE_RUN_UNIT_TESTS: false
                       VSCODE_RUN_INTEGRATION_TESTS: false
@@ -697,6 +715,7 @@ extends:
                     - template: build/azure-pipelines/darwin/product-build-darwin.yml@self
                       parameters:
                         VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                        VSCODE_BUILD_ESM: ${{ variables.VSCODE_BUILD_ESM }}
                         VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                         VSCODE_RUN_UNIT_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
                         VSCODE_RUN_INTEGRATION_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
@@ -728,6 +747,7 @@ extends:
                   - template: build/azure-pipelines/darwin/product-build-darwin.yml@self
                     parameters:
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                      VSCODE_BUILD_ESM: ${{ variables.VSCODE_BUILD_ESM }}
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                       VSCODE_RUN_UNIT_TESTS: false
                       VSCODE_RUN_INTEGRATION_TESTS: false

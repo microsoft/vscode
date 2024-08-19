@@ -39,6 +39,7 @@ import { registerThemingParticipant } from 'vs/platform/theme/common/themeServic
 import { CodeActionAutoApply, CodeActionFilter, CodeActionItem, CodeActionKind, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/common/types';
 import { CodeActionModel, CodeActionsState } from 'vs/editor/contrib/codeAction/browser/codeActionModel';
 import { HierarchicalKind } from 'vs/base/common/hierarchicalKind';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 interface IActionShowOptions {
 	readonly includeDisabledActions?: boolean;
@@ -77,12 +78,13 @@ export class CodeActionController extends Disposable implements IEditorContribut
 		@ICommandService private readonly _commandService: ICommandService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService
 	) {
 		super();
 
 		this._editor = editor;
-		this._model = this._register(new CodeActionModel(this._editor, languageFeaturesService.codeActionProvider, markerService, contextKeyService, progressService, _configurationService));
+		this._model = this._register(new CodeActionModel(this._editor, languageFeaturesService.codeActionProvider, markerService, contextKeyService, progressService, _configurationService, this._telemetryService));
 		this._register(this._model.onDidChangeState(newState => this.update(newState)));
 
 		this._lightBulbWidget = new Lazy(() => {

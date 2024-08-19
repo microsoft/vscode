@@ -312,7 +312,7 @@ flakySuite('TextSearch-integration', function () {
 		};
 
 		return doSearchTest(config, 1).then(results => {
-			const matchRange = (<ITextSearchMatch>results[0].results![0]).ranges;
+			const matchRange = (<ITextSearchMatch>results[0].results![0]).rangeLocations.map(e => e.source);
 			assert.deepStrictEqual(matchRange, [{
 				startLineNumber: 0,
 				startColumn: 1,
@@ -333,7 +333,7 @@ flakySuite('TextSearch-integration', function () {
 			assert.strictEqual(results.length, 3);
 			assert.strictEqual(results[0].results!.length, 1);
 			const match = <ITextSearchMatch>results[0].results![0];
-			assert.strictEqual((<ISearchRange[]>match.ranges).length, 5);
+			assert.strictEqual((<ISearchRange[]>match.rangeLocations.map(e => e.source)).length, 5);
 		});
 	});
 
