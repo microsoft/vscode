@@ -86,7 +86,7 @@ jobs:
       - name: Run Integration Tests (Electron)
         run: .\scripts\test-integration.bat
 
-      - name: Run Integration Tests (Browser, Firefox)
+      - name: Run Integration Tests (Browser, Chromium)
         timeout-minutes: 20
         run: .\scripts\test-web-integration.bat --browser chromium
 
