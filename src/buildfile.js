@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+const { isESM } = require('../build/lib/esm');
+
 /**
  * @param {string} name
  * @param {string[]=} exclude
@@ -63,22 +65,37 @@ exports.workerNotebook = createEditorWorkerModuleDescription('vs/workbench/contr
 exports.workerLanguageDetection = createEditorWorkerModuleDescription('vs/workbench/services/languageDetection/browser/languageDetectionSimpleWorker');
 exports.workerLocalFileSearch = createEditorWorkerModuleDescription('vs/workbench/services/search/worker/localFileSearch');
 exports.workerProfileAnalysis = createEditorWorkerModuleDescription('vs/platform/profiling/electron-sandbox/profileAnalysisWorker');
+exports.workerOutputLinks = createEditorWorkerModuleDescription('vs/workbench/contrib/output/common/outputLinkComputer');
+exports.workerBackgroundTokenization = createEditorWorkerModuleDescription('vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker');
 
-exports.workbenchDesktop = [
-	...createEditorWorkerModuleDescription('vs/workbench/contrib/output/common/outputLinkComputer'),
-	...createEditorWorkerModuleDescription('vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker'),
-	createModuleDescription('vs/workbench/contrib/debug/node/telemetryApp'),
-	createModuleDescription('vs/platform/files/node/watcher/watcherMain'),
-	createModuleDescription('vs/platform/terminal/node/ptyHostMain'),
-	createModuleDescription('vs/workbench/api/node/extensionHostProcess'),
-	createModuleDescription('vs/workbench/contrib/issue/electron-sandbox/issueReporterMain'),
-];
+exports.workbenchDesktop = function () {
+	return isESM() ? [
+		createModuleDescription('vs/workbench/contrib/debug/node/telemetryApp'),
+		createModuleDescription('vs/platform/files/node/watcher/watcherMain'),
+		createModuleDescription('vs/platform/terminal/node/ptyHostMain'),
+		createModuleDescription('vs/workbench/api/node/extensionHostProcess'),
+		createModuleDescription('vs/workbench/contrib/issue/electron-sandbox/issueReporterMain'),
+		createModuleDescription('vs/workbench/workbench.desktop.main')
+	] : [
+		...createEditorWorkerModuleDescription('vs/workbench/contrib/output/common/outputLinkComputer'),
+		...createEditorWorkerModuleDescription('vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker'),
+		createModuleDescription('vs/workbench/contrib/debug/node/telemetryApp'),
+		createModuleDescription('vs/platform/files/node/watcher/watcherMain'),
+		createModuleDescription('vs/platform/terminal/node/ptyHostMain'),
+		createModuleDescription('vs/workbench/api/node/extensionHostProcess'),
+		createModuleDescription('vs/workbench/contrib/issue/electron-sandbox/issueReporterMain'),
+	];
+};
 
-exports.workbenchWeb = [
-	...createEditorWorkerModuleDescription('vs/workbench/contrib/output/common/outputLinkComputer'),
-	...createEditorWorkerModuleDescription('vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker'),
-	createModuleDescription('vs/code/browser/workbench/workbench', ['vs/workbench/workbench.web.main'])
-];
+exports.workbenchWeb = function () {
+	return isESM() ? [
+		createModuleDescription('vs/workbench/workbench.web.main')
+	] : [
+		...createEditorWorkerModuleDescription('vs/workbench/contrib/output/common/outputLinkComputer'),
+		...createEditorWorkerModuleDescription('vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker'),
+		createModuleDescription('vs/code/browser/workbench/workbench', ['vs/workbench/workbench.web.main'])
+	];
+};
 
 exports.keyboardMaps = [
 	createModuleDescription('vs/workbench/services/keybinding/browser/keyboardLayouts/layout.contribution.linux'),
@@ -92,6 +109,10 @@ exports.code = [
 	createModuleDescription('vs/code/node/cliProcessMain', ['vs/code/node/cli']),
 	createModuleDescription('vs/code/node/sharedProcess/sharedProcessMain'),
 	createModuleDescription('vs/code/electron-sandbox/processExplorer/processExplorerMain')
+];
+
+exports.codeWeb = [
+	createModuleDescription('vs/code/browser/workbench/workbench')
 ];
 
 exports.entrypoint = createModuleDescription;

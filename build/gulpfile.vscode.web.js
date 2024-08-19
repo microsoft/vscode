@@ -21,6 +21,7 @@ const vfs = require('vinyl-fs');
 const packageJson = require('../package.json');
 const { compileBuildTask } = require('./gulpfile.compile');
 const extensions = require('./lib/extensions');
+const { isESM } = require('./lib/esm');
 
 const REPO_ROOT = path.dirname(__dirname);
 const BUILD_ROOT = path.dirname(REPO_ROOT);
@@ -30,7 +31,27 @@ const commit = getVersion(REPO_ROOT);
 const quality = product.quality;
 const version = (quality && quality !== 'stable') ? `${packageJson.version}-${quality}` : packageJson.version;
 
-const vscodeWebResourceIncludes = [
+const vscodeWebResourceIncludes = isESM() ? [
+
+	// NLS
+	'out-build/nls.messages.js',
+
+	// Accessibility Signals
+	'out-build/vs/platform/accessibilitySignal/browser/media/*.mp3',
+
+	// Welcome
+	'out-build/vs/workbench/contrib/welcomeGettingStarted/common/media/**/*.{svg,png}',
+
+	// Extensions
+	'out-build/vs/workbench/contrib/extensions/browser/media/{theme-icon.png,language-icon.svg}',
+	'out-build/vs/workbench/services/extensionManagement/common/media/*.{svg,png}',
+
+	// Webview
+	'out-build/vs/workbench/contrib/webview/browser/pre/*.{js,html}',
+
+	// Extension Host Worker
+	'out-build/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.esm.html',
+]: [
 
 	// Workbench
 	'out-build/vs/{base,platform,editor,workbench}/**/*.{svg,png,jpg,mp3}',
@@ -47,7 +68,6 @@ const vscodeWebResourceIncludes = [
 
 	// Extension Worker
 	'out-build/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html',
-	'out-build/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.esm.html',
 
 	// Web node paths (needed for integration tests)
 	'out-build/vs/webPackagePaths.js',
@@ -70,7 +90,17 @@ const vscodeWebResources = [
 
 const buildfile = require('../src/buildfile');
 
-const vscodeWebEntryPoints = [
+const vscodeWebEntryPoints = isESM() ? [
+	buildfile.base,
+	buildfile.workerExtensionHost,
+	buildfile.workerNotebook,
+	buildfile.workerLanguageDetection,
+	buildfile.workerLocalFileSearch,
+	buildfile.workerOutputLinks,
+	buildfile.workerBackgroundTokenization,
+	buildfile.keyboardMaps,
+	buildfile.workbenchWeb()
+].flat() : [
 	buildfile.entrypoint('vs/workbench/workbench.web.main'),
 	buildfile.base,
 	buildfile.workerExtensionHost,
@@ -78,9 +108,8 @@ const vscodeWebEntryPoints = [
 	buildfile.workerLanguageDetection,
 	buildfile.workerLocalFileSearch,
 	buildfile.keyboardMaps,
-	buildfile.workbenchWeb
+	buildfile.workbenchWeb()
 ].flat();
-exports.vscodeWebEntryPoints = vscodeWebEntryPoints;
 
 /**
  * @param {object} product The parsed product.json file contents
