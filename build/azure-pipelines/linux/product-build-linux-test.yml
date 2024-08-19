@@ -12,7 +12,7 @@ parameters:
     default: PublishPipelineArtifact@0
   - name: VSCODE_BUILD_ESM
     type: boolean
-    default: false
+    default: true
 
 steps:
   - script: yarn npm-run-all -lp "electron $(VSCODE_ARCH)" "playwright-install"

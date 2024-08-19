@@ -103,7 +103,7 @@ parameters:
   - name: VSCODE_BUILD_ESM # TODO@bpasero TODO@esm remove me once ESM is shipped
     displayName: "️❗ Build as ESM (!FOR TESTING ONLY!) ️❗"
     type: boolean
-    default: false
+    default: true
 
 variables:
   - name: VSCODE_PRIVATE_BUILD
