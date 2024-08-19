@@ -314,7 +314,7 @@ const skippedExportMangledFiles = function () { // using a function() to ensure 
 			buildfile.workbenchWeb(),
 			buildfile.code,
 			buildfile.codeWeb
-		] : [
+		].flat().map(x => x.name) : [
 			buildfile.entrypoint('vs/server/node/server.main'),
 			buildfile.entrypoint('vs/workbench/workbench.desktop.main'),
 			buildfile.base,
