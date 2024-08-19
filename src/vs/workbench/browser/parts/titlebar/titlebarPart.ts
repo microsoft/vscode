@@ -21,7 +21,7 @@ import { isMacintosh, isWindows, isLinux, isWeb, isNative, platformLocale } from
 import { Color } from 'vs/base/common/color';
 import { EventType, EventHelper, Dimension, append, $, addDisposableListener, prepend, reset, getWindow, getWindowId, isAncestor, getActiveDocument, isHTMLElement } from 'vs/base/browser/dom';
 import { CustomMenubarControl } from 'vs/workbench/browser/parts/titlebar/menubarControl';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { Parts, IWorkbenchLayoutService, ActivityBarPosition, LayoutSettings, EditorActionsLocation, EditorTabsMode } from 'vs/workbench/services/layout/browser/layoutService';
@@ -96,14 +96,13 @@ export class BrowserTitleService extends MultiWindowParts<BrowserTitlebarPart> i
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
 		@IThemeService themeService: IThemeService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService
+		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super('workbench.titleService', themeService, storageService);
 
 		this._register(this.registerPart(this.mainPart));
 
 		this.registerActions();
-
 		this.registerCommands();
 	}
 
@@ -133,20 +132,20 @@ export class BrowserTitleService extends MultiWindowParts<BrowserTitlebarPart> i
 	}
 
 	private registerCommands(): void {
-		this._register(CommandsRegistry.registerCommand('setWindowTitleVariable', (accessor: ServicesAccessor, key: string, value: string) => {
-			this.setVariable(key, value);
+		this._register(CommandsRegistry.registerCommand('setWindowTitleVariable', (_, key: string, value: string) => {
+			this.setWindowTitleVariable(key, value);
 		}));
 	}
 
-	private readonly _windowTitleVariableContextKeyMap = new Map<string, IContextKey<string>>();
+	private readonly windowTitleVariableContextKeyMap = new Map<string, IContextKey<string>>();
 
-	private setVariable(key: string, value: string): void {
+	private setWindowTitleVariable(key: string, value: string): void {
 		const prefixedKey = `windowTitleVariable.${key}`;
 
-		let contextKey = this._windowTitleVariableContextKeyMap.get(prefixedKey);
+		let contextKey = this.windowTitleVariableContextKeyMap.get(prefixedKey);
 		if (!contextKey) {
-			contextKey = this._contextKeyService.createKey(prefixedKey, value);
-			this._windowTitleVariableContextKeyMap.set(prefixedKey, contextKey);
+			contextKey = this.contextKeyService.createKey(prefixedKey, value);
+			this.windowTitleVariableContextKeyMap.set(prefixedKey, contextKey);
 			this.registerVariables([
 				{ name: prefixedKey, contextKey: prefixedKey }
 			]);
