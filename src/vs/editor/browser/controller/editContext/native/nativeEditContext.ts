@@ -143,8 +143,6 @@ export class NativeEditContext extends AbstractEditContext {
 		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'compositionstart', e => {
 
-			console.log('oncompositionstart : ', e);
-
 			this._updateCompositionStartPosition();
 
 			const currentComposition = new CompositionContext();
@@ -155,6 +153,17 @@ export class NativeEditContext extends AbstractEditContext {
 			}
 			this._currentComposition = currentComposition;
 
+			console.log('oncompositionstart : ', e);
+			console.log('platform.OS === platform.OperatingSystem.Macintosh : ', platform.OS === platform.OperatingSystem.Macintosh);
+			console.log('lastKeyDown : ', lastKeyDown);
+			console.log('lastKeyDown.equals(KeyCode.KEY_IN_COMPOSITION) : ', lastKeyDown?.equals(KeyCode.KEY_IN_COMPOSITION));
+			console.log('this._editContextState : ', this._editContextState);
+			console.log('this._editContextState.selectionStart : ', this._editContextState?.selectionStart);
+			console.log('this._editContextState.selectionEnd : ', this._editContextState?.selectionEnd);
+			console.log('this._editContextState.value.substring(this._editContextState.selectionStart - 1, this._editContextState.selectionEnd).substring(this._editContextState.selectionStart - 1, this._editContextState.selectionEnd) : ', this._editContextState?.value.substring(this._editContextState.selectionStart - 1, this._editContextState.selectionEnd).substring(this._editContextState.selectionStart - 1, this._editContextState.selectionEnd));
+			console.log('(e.currentTarget as EditContext).text : ', (e.currentTarget as EditContext).text);
+			console.log('(lastKeyDown.code === ArrowRight || lastKeyDown.code === ArrowLeft) : ', (lastKeyDown?.code === 'ArrowRight' || lastKeyDown?.code === 'ArrowLeft'));
+
 			if (
 				platform.OS === platform.OperatingSystem.Macintosh
 				&& lastKeyDown
@@ -162,9 +171,10 @@ export class NativeEditContext extends AbstractEditContext {
 				&& this._editContextState
 				&& this._editContextState.selectionStart === this._editContextState.selectionEnd
 				&& this._editContextState.selectionStart > 0
-				&& this._editContextState.value.substring(this._editContextState.selectionStart - 1, 1) === (e.currentTarget as EditContext).text
+				&& this._editContextState.value.substring(this._editContextState.selectionStart - 1, this._editContextState.selectionEnd) === (e.currentTarget as EditContext).text.substring(this._editContextState.selectionStart - 1, this._editContextState.selectionEnd)
 				&& (lastKeyDown.code === 'ArrowRight' || lastKeyDown.code === 'ArrowLeft')
 			) {
+				console.log('before handle composition update');
 				// Handling long press case on Chromium/Safari macOS + arrow key => pretend the character was selected
 				// Pretend the previous character was composed (in order to get it removed by subsequent compositionupdate events)
 				currentComposition.handleCompositionUpdate('x');
