@@ -44,3 +44,52 @@
 	caret-color: var(--vscode-editorCursor-foreground);
 	color: var(--vscode-editor-foreground);
 }
+
+.monaco-editor .ime {
+	text-decoration-color: blue;
+	text-underline-offset: 2px;
+	color: black;
+	background-color: white;
+	opacity: 0.7;
+}
+
+.monaco-editor .ime.underline-style-none {
+	text-decoration-line: none;
+	text-decoration-style: none;
+}
+
+.monaco-editor .ime.underline-style-solid {
+	text-decoration-line: underline;
+	text-decoration-style: solid;
+}
+
+.monaco-editor .ime.underline-style-dotted {
+	text-decoration-line: underline;
+	text-decoration-style: dotted;
+}
+
+.monaco-editor .ime.underline-style-dashed {
+	text-decoration-line: underline;
+	text-decoration-style: dashed;
+}
+
+.monaco-editor .ime.underline-style-wavy {
+	text-decoration-line: underline;
+	text-decoration-style: wavy;
+}
+
+.monaco-editor .ime.underline-thickness-none {
+	text-decoration-line: none;
+	text-decoration-thickness: none;
+}
+
+.monaco-editor .ime.underline-thickness-thin {
+	text-decoration-line: underline;
+	text-decoration-thickness: 1px;
+}
+
+.monaco-editor .ime.underline-thickness-thick {
+	text-decoration-line: underline;
+	text-decoration-thickness: 3px;
+}
+

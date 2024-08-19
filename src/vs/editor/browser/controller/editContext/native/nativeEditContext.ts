@@ -70,6 +70,8 @@ export class NativeEditContext extends AbstractEditContext {
 
 	private _screenReaderContentSelectionOffsetRange: OffsetRange | undefined;
 
+	private _decorations: string[] = [];
+
 	// Bounds
 	private _selectionBounds: IDisposable = Disposable.None;
 	private _controlBounds: IDisposable = Disposable.None;
@@ -665,8 +667,6 @@ export class NativeEditContext extends AbstractEditContext {
 		this._characterBounds = createRect(characterBounds[0], 'green');
 	}
 
-	private _decorations: string[] = [];
-
 	// do we need this? looks like in the current implementation we wouldnt use these format
 	private _handleTextFormatUpdate(e: TextFormatUpdateEvent): void {
 
@@ -683,7 +683,7 @@ export class NativeEditContext extends AbstractEditContext {
 			const range = textPositionTransformer.getRange(offsetRange);
 
 			console.log('range : ', range);
-			console.log('this._selectionOfValue : ', this._selectionOfEditContextText);
+			console.log('this._selectionOfEditContextText : ', this._selectionOfEditContextText);
 
 			if (!this._selectionOfEditContextText) {
 				return;
@@ -691,6 +691,7 @@ export class NativeEditContext extends AbstractEditContext {
 			const startLineNumber = this._selectionOfEditContextText.startLineNumber + range.startLineNumber - 1;
 			const endLineNumber = this._selectionOfEditContextText.startLineNumber + range.endLineNumber - 1;
 			let startColumn: number;
+			console.log('this._selectionOfEditContextText.startColumn : ', this._selectionOfEditContextText.startColumn);
 			if (startLineNumber === this._selectionOfEditContextText.startLineNumber) {
 				startColumn = this._selectionOfEditContextText.startColumn + range.startColumn - 1;
 			} else {
@@ -707,9 +708,9 @@ export class NativeEditContext extends AbstractEditContext {
 			console.log('decorationRange : ', decorationRange);
 
 			const classNames = [
-				'underline',
-				`style-${f.underlineStyle.toLowerCase()}`,
-				`thickness-${f.underlineThickness.toLowerCase()}`,
+				'ime',
+				`underline-style-${f.underlineStyle.toLowerCase()}`,
+				`underline-thickness-${f.underlineThickness.toLowerCase()}`,
 			];
 			decorations.push({
 				range: decorationRange,
@@ -779,7 +780,6 @@ export class NativeEditContext extends AbstractEditContext {
 		this._editContext.updateControlBounds(controlBounds);
 		this._editContext.updateSelectionBounds(selectionBounds);
 
-		// visualizing the selection bounds
 		this._selectionBounds.dispose();
 		this._controlBounds.dispose();
 		this._selectionBounds = createRect(selectionBounds, 'red');
@@ -826,3 +826,4 @@ function createRect(rect: DOMRect, color: 'red' | 'blue' | 'green'): IDisposable
 		}
 	};
 }
+
