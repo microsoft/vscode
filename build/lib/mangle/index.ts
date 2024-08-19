@@ -12,6 +12,7 @@ import * as ts from 'typescript';
 import { pathToFileURL } from 'url';
 import * as workerpool from 'workerpool';
 import { StaticLanguageServiceHost } from './staticLanguageServiceHost';
+import { isESM } from '../esm';
 const buildfile = require('../../../src/buildfile');
 
 class ShortIdent {
@@ -299,7 +300,21 @@ const skippedExportMangledFiles = [
 	'pfs',
 
 	// entry points
-	...[
+	...isESM() ? [
+		buildfile.entrypoint('vs/server/node/server.main', []),
+		buildfile.base,
+		buildfile.workerExtensionHost,
+		buildfile.workerNotebook,
+		buildfile.workerLanguageDetection,
+		buildfile.workerLocalFileSearch,
+		buildfile.workerProfileAnalysis,
+		buildfile.workerOutputLinks,
+		buildfile.workerBackgroundTokenization,
+		buildfile.workbenchDesktop,
+		buildfile.workbenchWeb,
+		buildfile.code,
+		buildfile.codeWeb
+	] : [
 		buildfile.entrypoint('vs/server/node/server.main', []),
 		buildfile.entrypoint('vs/workbench/workbench.desktop.main', []),
 		buildfile.base,
