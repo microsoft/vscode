@@ -88,7 +88,7 @@ jobs:
 
       - name: Run Integration Tests (Browser, Firefox)
         timeout-minutes: 20
-        run: .\scripts\test-web-integration.bat --browser firefox
+        run: .\scripts\test-web-integration.bat --browser chromium
 
       - name: Run Integration Tests (Remote)
         timeout-minutes: 20
