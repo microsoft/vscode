@@ -14,12 +14,11 @@ const workspaceFsProvider = getFileSystemProvider(connection);
 const server = createServerBase(connection);
 const installedFs = new Set<string>();
 
-if (server.initializeParams.initializationOptions?.handledSchemas?.indexOf('file') !== -1) {
-	server.fileSystem.install('file', nodeFsProvider);
-	installedFs.add('file');
-}
-
-server.onInitialized(() => {
+server.onInitialize(() => {
+	if (server.initializeParams.initializationOptions?.handledSchemas?.indexOf('file') !== -1) {
+		server.fileSystem.install('file', nodeFsProvider);
+		installedFs.add('file');
+	}
 	for (const folder of server.workspaceFolders.all) {
 		if (!installedFs.has(folder.scheme)) {
 			installedFs.add(folder.scheme);

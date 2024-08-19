@@ -11,7 +11,7 @@ const connection = createConnection();
 const server = createServer(connection);
 const installedFs = new Set<string>();
 
-server.onInitialized(() => {
+server.onInitialize(() => {
 	for (const folder of server.workspaceFolders.all) {
 		if (!installedFs.has(folder.scheme)) {
 			installedFs.add(folder.scheme);
