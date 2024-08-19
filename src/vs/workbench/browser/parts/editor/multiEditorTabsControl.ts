@@ -58,6 +58,9 @@ import { IReadonlyEditorGroupModel } from 'vs/workbench/common/editor/editorGrou
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { BugIndicatingError } from 'vs/base/common/errors';
 import { applyDragImage } from 'vs/base/browser/dnd';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 interface IEditorInputLabel {
 	readonly editor: EditorInput;
@@ -152,8 +155,11 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		@ITreeViewsDnDService private readonly treeViewsDragAndDropService: ITreeViewsDnDService,
 		@IEditorResolverService editorResolverService: IEditorResolverService,
 		@IHostService hostService: IHostService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IHoverService hoverService: IHoverService,
+		@ICommandService commandService: ICommandService,
 	) {
-		super(parent, editorPartsView, groupsView, groupView, tabsModel, contextMenuService, instantiationService, contextKeyService, keybindingService, notificationService, quickInputService, themeService, editorResolverService, hostService);
+		super(parent, editorPartsView, groupsView, groupView, tabsModel, contextMenuService, instantiationService, contextKeyService, keybindingService, notificationService, quickInputService, themeService, editorResolverService, hostService, configurationService, hoverService, commandService);
 
 		// Resolve the correct path library for the OS we are on
 		// If we are connected to remote, this accounts for the
@@ -815,7 +821,8 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		tabContainer.appendChild(tabBorderTopContainer);
 
 		// Tab Editor Label
-		const editorLabel = this.tabResourceLabels.create(tabContainer, { hoverDelegate: this.getHoverDelegate() });
+		const editor = this.tabsModel.getEditorByIndex(tabIndex);
+		const editorLabel = this.tabResourceLabels.create(tabContainer, { hoverDelegate: this.getHoverDelegate(editor) });
 
 		// Tab Actions
 		const tabActionsContainer = document.createElement('div');

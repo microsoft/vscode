@@ -39,14 +39,18 @@ import { DraggedTreeItemsIdentifier } from 'vs/editor/common/services/treeViewsD
 import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IEditorTitleControlDimensions } from 'vs/workbench/browser/parts/editor/editorTitleControl';
 import { IReadonlyEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
-import { EDITOR_CORE_NAVIGATION_COMMANDS } from 'vs/workbench/browser/parts/editor/editorCommands';
+import { EDITOR_CORE_NAVIGATION_COMMANDS, KEEP_EDITOR_COMMAND_ID, TOGGLE_KEEP_EDITORS_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { IAuxiliaryEditorPart, MergeGroupMode } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { isMacintosh } from 'vs/base/common/platform';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/hover/hoverDelegate';
 import { IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { IHoverOptions } from 'vs/base/browser/ui/hover/hover';
+import { IHoverService, WorkbenchHoverDelegate } from 'vs/platform/hover/browser/hover';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 
 export class EditorCommandsContextActionRunner extends ActionRunner {
 
@@ -71,6 +75,51 @@ export class EditorCommandsContextActionRunner extends ActionRunner {
 		}
 
 		return super.run(action, mergedContext);
+	}
+}
+
+class EditorTabHoverDelegate extends WorkbenchHoverDelegate {
+
+	constructor(
+		private readonly editor: EditorInput,
+		private readonly isPinned: boolean,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IHoverService hoverService: IHoverService,
+		@ICommandService private readonly commandService: ICommandService,
+
+	) {
+		super(
+			'mouse',
+			true,
+			(options) => this.getOverrideOptions(options),
+			configurationService,
+			hoverService
+		);
+	}
+
+	private getOverrideOptions(options: IHoverDelegateOptions): Partial<IHoverOptions> {
+		if (this.isPinned) {
+			return { actions: [] };
+		}
+		return {
+			actions:
+				[
+					{
+						commandId: KEEP_EDITOR_COMMAND_ID,
+						label: localize('keepEditor', "Keep Editor"),
+						run: () => {
+							this.commandService.executeCommand(KEEP_EDITOR_COMMAND_ID, this.editor.resource);
+						}
+					},
+					{
+						commandId: TOGGLE_KEEP_EDITORS_COMMAND_ID,
+						label: localize('disablePreviewEditors', "Disable Preview Editors"),
+						run: () => {
+							this.commandService.executeCommand(TOGGLE_KEEP_EDITORS_COMMAND_ID);
+						}
+					},
+				]
+		};
 	}
 }
 
@@ -125,7 +174,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 
 	private renderDropdownAsChildElement: boolean;
 
-	private readonly tabsHoverDelegate: IHoverDelegate;
+	private mapTabHoverDelegates = new Map<EditorInput, IHoverDelegate>();
 
 	constructor(
 		protected readonly parent: HTMLElement,
@@ -142,6 +191,9 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		@IThemeService themeService: IThemeService,
 		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
 		@IHostService private readonly hostService: IHostService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IHoverService private readonly hoverService: IHoverService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super(themeService);
 
@@ -164,8 +216,6 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		this.groupLockedContext = ActiveEditorGroupLockedContext.bindTo(this.contextMenuContextKeyService);
 
 		this.renderDropdownAsChildElement = false;
-
-		this.tabsHoverDelegate = getDefaultHoverDelegate('mouse');
 
 		this.create(parent);
 	}
@@ -456,8 +506,16 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		return editor.getTitle(Verbosity.LONG);
 	}
 
-	protected getHoverDelegate(): IHoverDelegate {
-		return this.tabsHoverDelegate;
+	protected getHoverDelegate(editor?: EditorInput): IHoverDelegate {
+		if (!editor) {
+			return getDefaultHoverDelegate('mouse');
+		}
+		let hoverDelegate = this.mapTabHoverDelegates.get(editor);
+		if (!hoverDelegate) {
+			hoverDelegate = new EditorTabHoverDelegate(editor, this.tabsModel.isPinned(editor), this.configurationService, this.hoverService, this.commandService);
+			this.mapTabHoverDelegates.set(editor, hoverDelegate);
+		}
+		return hoverDelegate;
 	}
 
 	protected updateTabHeight(): void {
