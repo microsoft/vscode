@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, type Event } from 'vs/base/common/event';
-import { Disposable, type IDisposable } from 'vs/base/common/lifecycle';
+import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable, dispose, toDisposable, type IDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
 
 export interface ObjectCollectionBufferPropertySpec {
@@ -89,6 +89,7 @@ class ObjectCollectionBuffer<T extends ObjectCollectionBufferPropertySpec[]> ext
 			};
 			this._propertySpecsMap.set(spec.name, spec);
 		}
+		this._register(toDisposable(() => dispose(this._entries)));
 	}
 
 	createEntry(data: ObjectCollectionPropertyValues<T>): IObjectCollectionBufferEntry<T> {
@@ -98,12 +99,9 @@ class ObjectCollectionBuffer<T extends ObjectCollectionBufferPropertySpec[]> ext
 
 		const value = new ObjectCollectionBufferEntry(this.view, this._propertySpecsMap, this._entries.size, data);
 		const removeFromEntries = this._entries.push(value);
-		// TODO: Needs unregistering when disposed
-		this._register(value.onDidChange(() => {
-			// TODO: Listen and react to change
-			this._onDidChange.fire();
-		}));
-		this._register(value.onWillDispose(() => {
+		const listeners: IDisposable[] = [];
+		listeners.push(Event.forward(value.onDidChange, this._onDidChange));
+		listeners.push(value.onWillDispose(() => {
 			const deletedEntryIndex = value.i;
 			removeFromEntries();
 
@@ -116,8 +114,7 @@ class ObjectCollectionBuffer<T extends ObjectCollectionBufferPropertySpec[]> ext
 					entry.i--;
 				}
 			}
-
-			// There may be stale data at the end which should be ignored
+			dispose(listeners);
 		}));
 		return value;
 	}
@@ -138,7 +135,6 @@ class ObjectCollectionBufferEntry<T extends ObjectCollectionBufferPropertySpec[]
 	) {
 		super();
 		for (const propertySpec of this._propertySpecsMap.values()) {
-			// TODO: Type isn't that safe
 			this._view[this.i * this._propertySpecsMap.size + propertySpec.offset] = data[propertySpec.name as keyof typeof data];
 		}
 	}
@@ -149,7 +145,6 @@ class ObjectCollectionBufferEntry<T extends ObjectCollectionBufferPropertySpec[]
 	}
 
 	set(propertyName: T[number]['name'], value: number): void {
-		// TODO: 2 -> pull from spec
 		this._view[this.i * this._propertySpecsMap.size + this._propertySpecsMap.get(propertyName)!.offset] = value;
 		this._onDidChange.fire();
 	}
