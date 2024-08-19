@@ -280,54 +280,55 @@ function isNameTakenInFile(node: ts.Node, name: string): boolean {
 	return false;
 }
 
+const skippedExportMangledFiles = function () { // using a function() to ensure late isESM() check
+	return [
+		// Build
+		'css.build',
 
-const skippedExportMangledFiles = [
-	// Build
-	'css.build',
+		// Monaco
+		'editorCommon',
+		'editorOptions',
+		'editorZoom',
+		'standaloneEditor',
+		'standaloneEnums',
+		'standaloneLanguages',
 
-	// Monaco
-	'editorCommon',
-	'editorOptions',
-	'editorZoom',
-	'standaloneEditor',
-	'standaloneEnums',
-	'standaloneLanguages',
+		// Generated
+		'extensionsApiProposals',
 
-	// Generated
-	'extensionsApiProposals',
+		// Module passed around as type
+		'pfs',
 
-	// Module passed around as type
-	'pfs',
-
-	// entry points
-	...isESM() ? [
-		buildfile.entrypoint('vs/server/node/server.main', []),
-		buildfile.base,
-		buildfile.workerExtensionHost,
-		buildfile.workerNotebook,
-		buildfile.workerLanguageDetection,
-		buildfile.workerLocalFileSearch,
-		buildfile.workerProfileAnalysis,
-		buildfile.workerOutputLinks,
-		buildfile.workerBackgroundTokenization,
-		buildfile.workbenchDesktop,
-		buildfile.workbenchWeb,
-		buildfile.code,
-		buildfile.codeWeb
-	] : [
-		buildfile.entrypoint('vs/server/node/server.main', []),
-		buildfile.entrypoint('vs/workbench/workbench.desktop.main', []),
-		buildfile.base,
-		buildfile.workerExtensionHost,
-		buildfile.workerNotebook,
-		buildfile.workerLanguageDetection,
-		buildfile.workerLocalFileSearch,
-		buildfile.workerProfileAnalysis,
-		buildfile.workbenchDesktop,
-		buildfile.workbenchWeb,
-		buildfile.code
-	].flat().map(x => x.name),
-];
+		// entry points
+		...isESM() ? [
+			buildfile.entrypoint('vs/server/node/server.main', []),
+			buildfile.base,
+			buildfile.workerExtensionHost,
+			buildfile.workerNotebook,
+			buildfile.workerLanguageDetection,
+			buildfile.workerLocalFileSearch,
+			buildfile.workerProfileAnalysis,
+			buildfile.workerOutputLinks,
+			buildfile.workerBackgroundTokenization,
+			buildfile.workbenchDesktop(),
+			buildfile.workbenchWeb(),
+			buildfile.code,
+			buildfile.codeWeb
+		] : [
+			buildfile.entrypoint('vs/server/node/server.main', []),
+			buildfile.entrypoint('vs/workbench/workbench.desktop.main', []),
+			buildfile.base,
+			buildfile.workerExtensionHost,
+			buildfile.workerNotebook,
+			buildfile.workerLanguageDetection,
+			buildfile.workerLocalFileSearch,
+			buildfile.workerProfileAnalysis,
+			buildfile.workbenchDesktop(),
+			buildfile.workbenchWeb(),
+			buildfile.code
+		].flat().map(x => x.name),
+	];
+};
 
 const skippedExportMangledProjects = [
 	// Test projects
@@ -624,7 +625,7 @@ export class Mangler {
 		for (const data of this.allExportedSymbols.values()) {
 			if (data.fileName.endsWith('.d.ts')
 				|| skippedExportMangledProjects.some(proj => data.fileName.includes(proj))
-				|| skippedExportMangledFiles.some(file => data.fileName.endsWith(file + '.ts'))
+				|| skippedExportMangledFiles().some(file => data.fileName.endsWith(file + '.ts'))
 			) {
 				continue;
 			}

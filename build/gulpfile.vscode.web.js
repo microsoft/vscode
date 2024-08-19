@@ -31,6 +31,10 @@ const commit = getVersion(REPO_ROOT);
 const quality = product.quality;
 const version = (quality && quality !== 'stable') ? `${packageJson.version}-${quality}` : packageJson.version;
 
+if (!isESM()) {
+	throw new Error('ESM does not work in gulpfile.vscode.web.js!');
+}
+
 const vscodeWebResourceIncludes = isESM() ? [
 
 	// NLS
@@ -99,7 +103,7 @@ const vscodeWebEntryPoints = isESM() ? [
 	buildfile.workerOutputLinks,
 	buildfile.workerBackgroundTokenization,
 	buildfile.keyboardMaps,
-	buildfile.workbenchWeb
+	buildfile.workbenchWeb()
 ].flat() : [
 	buildfile.entrypoint('vs/workbench/workbench.web.main'),
 	buildfile.base,
@@ -108,7 +112,7 @@ const vscodeWebEntryPoints = isESM() ? [
 	buildfile.workerLanguageDetection,
 	buildfile.workerLocalFileSearch,
 	buildfile.keyboardMaps,
-	buildfile.workbenchWeb
+	buildfile.workbenchWeb()
 ].flat();
 
 /**

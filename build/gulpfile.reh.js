@@ -39,6 +39,10 @@ const commit = getVersion(REPO_ROOT);
 const BUILD_ROOT = path.dirname(REPO_ROOT);
 const REMOTE_FOLDER = path.join(REPO_ROOT, 'remote');
 
+if (!isESM()) {
+	throw new Error('ESM does not work in gulpfile.reh.js!');
+}
+
 // Targets
 
 const BUILD_TARGETS = [
@@ -149,7 +153,7 @@ const webEntryPoints = isESM() ? [
 	buildfile.workerLanguageDetection,
 	buildfile.workerLocalFileSearch,
 	buildfile.keyboardMaps,
-	buildfile.workbenchWeb
+	buildfile.workbenchWeb()
 ].flat();
 
 const serverWithWebEntryPoints = [

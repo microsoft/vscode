@@ -37,6 +37,10 @@ const { isESM } = require('./lib/esm');
 const glob = promisify(require('glob'));
 const rcedit = promisify(require('rcedit'));
 
+if (!isESM()) {
+	throw new Error('ESM does not work in gulpfile.vscode.js!');
+}
+
 // Build
 const vscodeEntryPoints = isESM() ? [
 	buildfile.base,
@@ -47,7 +51,7 @@ const vscodeEntryPoints = isESM() ? [
 	buildfile.workerProfileAnalysis,
 	buildfile.workerOutputLinks,
 	buildfile.workerBackgroundTokenization,
-	buildfile.workbenchDesktop,
+	buildfile.workbenchDesktop(),
 	buildfile.code
 ].flat() : [
 	buildfile.entrypoint('vs/workbench/workbench.desktop.main'),
@@ -57,7 +61,7 @@ const vscodeEntryPoints = isESM() ? [
 	buildfile.workerLanguageDetection,
 	buildfile.workerLocalFileSearch,
 	buildfile.workerProfileAnalysis,
-	buildfile.workbenchDesktop,
+	buildfile.workbenchDesktop(),
 	buildfile.code
 ].flat();
 

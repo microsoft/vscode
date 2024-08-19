@@ -71,30 +71,34 @@ exports.workerProfileAnalysis = createEditorWorkerModuleDescription('vs/platform
 exports.workerOutputLinks = createEditorWorkerModuleDescription('vs/workbench/contrib/output/common/outputLinkComputer', true);
 exports.workerBackgroundTokenization = createEditorWorkerModuleDescription('vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker', true);
 
-exports.workbenchDesktop = isESM() ? [
-	createModuleDescription('vs/workbench/contrib/debug/node/telemetryApp'),
-	createModuleDescription('vs/platform/files/node/watcher/watcherMain'),
-	createModuleDescription('vs/platform/terminal/node/ptyHostMain'),
-	createModuleDescription('vs/workbench/api/node/extensionHostProcess'),
-	createModuleDescription('vs/workbench/contrib/issue/electron-sandbox/issueReporterMain'),
-	createModuleDescription('vs/workbench/workbench.desktop.main')
-] : [
-	...createEditorWorkerModuleDescription('vs/workbench/contrib/output/common/outputLinkComputer', true),
-	...createEditorWorkerModuleDescription('vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker', true),
-	createModuleDescription('vs/workbench/contrib/debug/node/telemetryApp'),
-	createModuleDescription('vs/platform/files/node/watcher/watcherMain'),
-	createModuleDescription('vs/platform/terminal/node/ptyHostMain'),
-	createModuleDescription('vs/workbench/api/node/extensionHostProcess'),
-	createModuleDescription('vs/workbench/contrib/issue/electron-sandbox/issueReporterMain'),
-];
+exports.workbenchDesktop = function () {
+	return isESM() ? [
+		createModuleDescription('vs/workbench/contrib/debug/node/telemetryApp'),
+		createModuleDescription('vs/platform/files/node/watcher/watcherMain'),
+		createModuleDescription('vs/platform/terminal/node/ptyHostMain'),
+		createModuleDescription('vs/workbench/api/node/extensionHostProcess'),
+		createModuleDescription('vs/workbench/contrib/issue/electron-sandbox/issueReporterMain'),
+		createModuleDescription('vs/workbench/workbench.desktop.main')
+	] : [
+		...createEditorWorkerModuleDescription('vs/workbench/contrib/output/common/outputLinkComputer', true),
+		...createEditorWorkerModuleDescription('vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker', true),
+		createModuleDescription('vs/workbench/contrib/debug/node/telemetryApp'),
+		createModuleDescription('vs/platform/files/node/watcher/watcherMain'),
+		createModuleDescription('vs/platform/terminal/node/ptyHostMain'),
+		createModuleDescription('vs/workbench/api/node/extensionHostProcess'),
+		createModuleDescription('vs/workbench/contrib/issue/electron-sandbox/issueReporterMain'),
+	];
+};
 
-exports.workbenchWeb = isESM() ? [
-	createModuleDescription('vs/workbench/workbench.web.main')
-] : [
-	...createEditorWorkerModuleDescription('vs/workbench/contrib/output/common/outputLinkComputer', true),
-	...createEditorWorkerModuleDescription('vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker', true),
-	createModuleDescription('vs/code/browser/workbench/workbench', ['vs/workbench/workbench.web.main'])
-];
+exports.workbenchWeb = function () {
+	return isESM() ? [
+		createModuleDescription('vs/workbench/workbench.web.main')
+	] : [
+		...createEditorWorkerModuleDescription('vs/workbench/contrib/output/common/outputLinkComputer', true),
+		...createEditorWorkerModuleDescription('vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker', true),
+		createModuleDescription('vs/code/browser/workbench/workbench', ['vs/workbench/workbench.web.main'])
+	];
+};
 
 exports.keyboardMaps = [
 	createModuleDescription('vs/workbench/services/keybinding/browser/keyboardLayouts/layout.contribution.linux'),
