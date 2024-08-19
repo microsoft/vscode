@@ -16,7 +16,7 @@ import { Mimes } from 'vs/base/common/mime';
 import { OperatingSystem } from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import { _debugComposition, ITextAreaWrapper, TextAreaState } from 'vs/editor/browser/controller/editContext/textArea/textAreaState';
-import { ITypeData } from 'vs/editor/browser/controller/editContext/utilities';
+import { CompositionContext, ITypeData } from 'vs/editor/browser/controller/editContext/editContext';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
@@ -127,27 +127,6 @@ export interface IBrowser {
 	isFirefox: boolean;
 	isChrome: boolean;
 	isSafari: boolean;
-}
-
-class CompositionContext {
-
-	private _lastTypeTextLength: number;
-
-	constructor() {
-		this._lastTypeTextLength = 0;
-	}
-
-	public handleCompositionUpdate(text: string | null | undefined): ITypeData {
-		text = text || '';
-		const typeInput: ITypeData = {
-			text: text,
-			replacePrevCharCnt: this._lastTypeTextLength,
-			replaceNextCharCnt: 0,
-			positionDelta: 0
-		};
-		this._lastTypeTextLength = text.length;
-		return typeInput;
-	}
 }
 
 /**

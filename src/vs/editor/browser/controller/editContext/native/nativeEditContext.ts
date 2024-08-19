@@ -4,16 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./nativeEditContext';
-import * as nls from 'vs/nls';
 import * as browser from 'vs/base/browser/browser';
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
-import { AbstractEditContext } from 'vs/editor/browser/controller/editContext/editContext';
+import { AbstractEditContext, ariaLabelForScreenReaderContent, CompositionContext, deduceInput, getAccessibilityOptions, ISimpleModel, ITypeData, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/editContext/editContext';
 import { HorizontalPosition, RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
 import { ViewController } from 'vs/editor/browser/view/viewController';
-import { EditorOption, EditorOptions, IComputedEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { EditorOption, IComputedEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { PositionOffsetTransformer } from 'vs/editor/common/core/positionToOffset';
 import { Range } from 'vs/editor/common/core/range';
@@ -32,7 +31,6 @@ import { EndOfLinePreference, IModelDeltaDecoration } from 'vs/editor/common/mod
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { deduceInput, ISimpleModel, ITypeData, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/editContext/utilities';
 
 /**
  * Correctly place the bounding boxes so that they are exactly aligned
@@ -48,6 +46,7 @@ export class NativeEditContext extends AbstractEditContext {
 	private _parent!: HTMLElement;
 	private _accessibilitySupport!: AccessibilitySupport;
 	private _accessibilityPageSize!: number;
+	private _textAreaWrapping!: boolean;
 	private _textAreaWidth!: number;
 	private _contentLeft: number;
 	private _contentWidth: number;
@@ -94,7 +93,7 @@ export class NativeEditContext extends AbstractEditContext {
 		this._domElement.setClassName(`native-edit-context ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`);
 		const { tabSize } = this._context.viewModel.model.getOptions();
 		this._domElement.domNode.style.tabSize = `${tabSize * this._fontInfo.spaceWidth}px`;
-		this._domElement.setAttribute('aria-label', this._getAriaLabel(options));
+		this._domElement.setAttribute('aria-label', ariaLabelForScreenReaderContent(options, this._keybindingService));
 		this._domElement.setAttribute('tabindex', String(options.get(EditorOption.tabIndex)));
 		this._domElement.setAttribute('role', 'textbox');
 
@@ -285,50 +284,12 @@ export class NativeEditContext extends AbstractEditContext {
 		super.dispose();
 	}
 
-	private _getAriaLabel(options: IComputedEditorOptions): string {
-		const accessibilitySupport = options.get(EditorOption.accessibilitySupport);
-		if (accessibilitySupport === AccessibilitySupport.Disabled) {
-
-			const toggleKeybindingLabel = this._keybindingService.lookupKeybinding('editor.action.toggleScreenReaderAccessibilityMode')?.getAriaLabel();
-			const runCommandKeybindingLabel = this._keybindingService.lookupKeybinding('workbench.action.showCommands')?.getAriaLabel();
-			const keybindingEditorKeybindingLabel = this._keybindingService.lookupKeybinding('workbench.action.openGlobalKeybindings')?.getAriaLabel();
-			const editorNotAccessibleMessage = nls.localize('accessibilityModeOff', "The editor is not accessible at this time.");
-			if (toggleKeybindingLabel) {
-				return nls.localize('accessibilityOffAriaLabel', "{0} To enable screen reader optimized mode, use {1}", editorNotAccessibleMessage, toggleKeybindingLabel);
-			} else if (runCommandKeybindingLabel) {
-				return nls.localize('accessibilityOffAriaLabelNoKb', "{0} To enable screen reader optimized mode, open the quick pick with {1} and run the command Toggle Screen Reader Accessibility Mode, which is currently not triggerable via keyboard.", editorNotAccessibleMessage, runCommandKeybindingLabel);
-			} else if (keybindingEditorKeybindingLabel) {
-				return nls.localize('accessibilityOffAriaLabelNoKbs', "{0} Please assign a keybinding for the command Toggle Screen Reader Accessibility Mode by accessing the keybindings editor with {1} and run it.", editorNotAccessibleMessage, keybindingEditorKeybindingLabel);
-			} else {
-				// SOS
-				return editorNotAccessibleMessage;
-			}
-		}
-		return options.get(EditorOption.ariaLabel);
-	}
-
 	private _setAccessibilityOptions(options: IComputedEditorOptions): void {
-		this._accessibilitySupport = options.get(EditorOption.accessibilitySupport);
-		const accessibilityPageSize = options.get(EditorOption.accessibilityPageSize);
-		if (this._accessibilitySupport === AccessibilitySupport.Enabled && accessibilityPageSize === EditorOptions.accessibilityPageSize.defaultValue) {
-			// If a screen reader is attached and the default value is not set we should automatically increase the page size to 500 for a better experience
-			this._accessibilityPageSize = 500;
-		} else {
-			this._accessibilityPageSize = accessibilityPageSize;
-		}
-
-		// When wrapping is enabled and a screen reader might be attached,
-		// we will size the textarea to match the width used for wrapping points computation (see `domLineBreaksComputer.ts`).
-		// This is because screen readers will read the text in the textarea and we'd like that the
-		// wrapping points in the textarea match the wrapping points in the editor.
-		const layoutInfo = options.get(EditorOption.layoutInfo);
-		const wrappingColumn = layoutInfo.wrappingColumn;
-		if (wrappingColumn !== -1 && this._accessibilitySupport !== AccessibilitySupport.Disabled) {
-			const fontInfo = options.get(EditorOption.fontInfo);
-			this._textAreaWidth = Math.round(wrappingColumn * fontInfo.typicalHalfwidthCharacterWidth);
-		} else {
-			this._textAreaWidth = (canUseZeroSizeTextarea ? 0 : 1);
-		}
+		const { accessibilitySupport, accessibilityPageSize, textAreaWrapping, textAreaWidth } = getAccessibilityOptions(options, canUseZeroSizeTextarea);
+		this._accessibilitySupport = accessibilitySupport;
+		this._accessibilityPageSize = accessibilityPageSize;
+		this._textAreaWrapping = textAreaWrapping;
+		this._textAreaWidth = textAreaWidth;
 	}
 
 	// --- begin event handlers
@@ -342,9 +303,10 @@ export class NativeEditContext extends AbstractEditContext {
 		this._contentHeight = layoutInfo.height;
 		this._fontInfo = options.get(EditorOption.fontInfo);
 		this._lineHeight = options.get(EditorOption.lineHeight);
+		this._domElement.setAttribute('wrap', this._textAreaWrapping ? 'on' : 'off');
 		const { tabSize } = this._context.viewModel.model.getOptions();
 		this._domElement.domNode.style.tabSize = `${tabSize * this._fontInfo.spaceWidth}px`;
-		this._domElement.setAttribute('aria-label', this._getAriaLabel(options));
+		this._domElement.setAttribute('aria-label', ariaLabelForScreenReaderContent(options, this._keybindingService));
 		this._domElement.setAttribute('tabindex', String(options.get(EditorOption.tabIndex)));
 		if (e.hasChanged(EditorOption.accessibilitySupport)) {
 			this.writeScreenReaderContent('strategy changed');
@@ -473,7 +435,7 @@ export class NativeEditContext extends AbstractEditContext {
 			this._doRender({
 				lastRenderPosition: this._primaryCursorPosition,
 				top,
-				left: left,
+				left: this._textAreaWrapping ? this._contentLeft : left,
 				width: this._textAreaWidth,
 				height: this._lineHeight,
 				useCover: false
@@ -491,7 +453,7 @@ export class NativeEditContext extends AbstractEditContext {
 		this._doRender({
 			lastRenderPosition: this._primaryCursorPosition,
 			top: top,
-			left: left,
+			left: this._textAreaWrapping ? this._contentLeft : left,
 			width: this._textAreaWidth,
 			height: (canUseZeroSizeTextarea ? 0 : 1),
 			useCover: false
@@ -947,28 +909,6 @@ interface IRenderData {
 	underline?: boolean;
 	strikethrough?: boolean;
 }
-
-class CompositionContext {
-
-	private _lastTypeTextLength: number;
-
-	constructor() {
-		this._lastTypeTextLength = 0;
-	}
-
-	public handleCompositionUpdate(text: string | null | undefined): ITypeData {
-		text = text || '';
-		const typeInput: ITypeData = {
-			text: text,
-			replacePrevCharCnt: this._lastTypeTextLength,
-			replaceNextCharCnt: 0,
-			positionDelta: 0
-		};
-		this._lastTypeTextLength = text.length;
-		return typeInput;
-	}
-}
-
 
 function createRect(rect: DOMRect, color: 'red' | 'blue' | 'green'): IDisposable {
 	const ret = document.createElement('div');

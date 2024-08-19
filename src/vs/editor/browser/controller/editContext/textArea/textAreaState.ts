@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as strings from 'vs/base/common/strings';
-import { deduceInput, ITypeData } from 'vs/editor/browser/controller/editContext/utilities';
+import { deduceInput, ITypeData } from 'vs/editor/browser/controller/editContext/editContext';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 

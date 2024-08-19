@@ -7,7 +7,7 @@ import assert from 'assert';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ITextAreaWrapper, TextAreaState } from 'vs/editor/browser/controller/editContext/textArea/textAreaState';
-import { PagedScreenReaderStrategy } from 'vs/editor/browser/controller/editContext/utilities';
+import { PagedScreenReaderStrategy } from 'vs/editor/browser/controller/editContext/editContext';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';

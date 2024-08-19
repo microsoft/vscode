@@ -12,12 +12,12 @@ import * as platform from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 import { CopyOptions, ICompositionData, IPasteData, ITextAreaInputHost, TextAreaInput, ClipboardDataToCopy, TextAreaWrapper } from 'vs/editor/browser/controller/editContext/textArea/textAreaInput';
-import { ISimpleModel, ITypeData, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/editContext/utilities';
+import { AbstractEditContext, ariaLabelForScreenReaderContent, getAccessibilityOptions, ISimpleModel, ITypeData, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/editContext/editContext';
 import { ViewController } from 'vs/editor/browser/view/viewController';
 import { PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
 import { LineNumbersOverlay } from 'vs/editor/browser/viewParts/lineNumbers/lineNumbers';
 import { Margin } from 'vs/editor/browser/viewParts/margin/margin';
-import { RenderLineNumbersType, EditorOption, IComputedEditorOptions, EditorOptions } from 'vs/editor/common/config/editorOptions';
+import { RenderLineNumbersType, EditorOption, IComputedEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { WordCharacterClass, getMapForWordSeparators } from 'vs/editor/common/core/wordCharacterClassifier';
 import { Position } from 'vs/editor/common/core/position';
@@ -37,7 +37,6 @@ import { Color } from 'vs/base/common/color';
 import { IME } from 'vs/base/common/ime';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { AbstractEditContext } from 'vs/editor/browser/controller/editContext/editContext';
 import { _debugComposition, TextAreaState } from 'vs/editor/browser/controller/editContext/textArea/textAreaState';
 
 export interface IVisibleRangeProvider {
@@ -186,7 +185,7 @@ export class TextAreaHandler extends AbstractEditContext {
 		this.textArea.setAttribute('autocapitalize', 'off');
 		this.textArea.setAttribute('autocomplete', 'off');
 		this.textArea.setAttribute('spellcheck', 'false');
-		this.textArea.setAttribute('aria-label', this._getAriaLabel(options));
+		this.textArea.setAttribute('aria-label', ariaLabelForScreenReaderContent(options, this._keybindingService));
 		this.textArea.setAttribute('aria-required', options.get(EditorOption.ariaRequired) ? 'true' : 'false');
 		this.textArea.setAttribute('tabindex', String(options.get(EditorOption.tabIndex)));
 		this.textArea.setAttribute('role', 'textbox');
@@ -566,52 +565,12 @@ export class TextAreaHandler extends AbstractEditContext {
 		return '';
 	}
 
-	private _getAriaLabel(options: IComputedEditorOptions): string {
-		const accessibilitySupport = options.get(EditorOption.accessibilitySupport);
-		if (accessibilitySupport === AccessibilitySupport.Disabled) {
-
-			const toggleKeybindingLabel = this._keybindingService.lookupKeybinding('editor.action.toggleScreenReaderAccessibilityMode')?.getAriaLabel();
-			const runCommandKeybindingLabel = this._keybindingService.lookupKeybinding('workbench.action.showCommands')?.getAriaLabel();
-			const keybindingEditorKeybindingLabel = this._keybindingService.lookupKeybinding('workbench.action.openGlobalKeybindings')?.getAriaLabel();
-			const editorNotAccessibleMessage = nls.localize('accessibilityModeOff', "The editor is not accessible at this time.");
-			if (toggleKeybindingLabel) {
-				return nls.localize('accessibilityOffAriaLabel', "{0} To enable screen reader optimized mode, use {1}", editorNotAccessibleMessage, toggleKeybindingLabel);
-			} else if (runCommandKeybindingLabel) {
-				return nls.localize('accessibilityOffAriaLabelNoKb', "{0} To enable screen reader optimized mode, open the quick pick with {1} and run the command Toggle Screen Reader Accessibility Mode, which is currently not triggerable via keyboard.", editorNotAccessibleMessage, runCommandKeybindingLabel);
-			} else if (keybindingEditorKeybindingLabel) {
-				return nls.localize('accessibilityOffAriaLabelNoKbs', "{0} Please assign a keybinding for the command Toggle Screen Reader Accessibility Mode by accessing the keybindings editor with {1} and run it.", editorNotAccessibleMessage, keybindingEditorKeybindingLabel);
-			} else {
-				// SOS
-				return editorNotAccessibleMessage;
-			}
-		}
-		return options.get(EditorOption.ariaLabel);
-	}
-
 	private _setAccessibilityOptions(options: IComputedEditorOptions): void {
-		this._accessibilitySupport = options.get(EditorOption.accessibilitySupport);
-		const accessibilityPageSize = options.get(EditorOption.accessibilityPageSize);
-		if (this._accessibilitySupport === AccessibilitySupport.Enabled && accessibilityPageSize === EditorOptions.accessibilityPageSize.defaultValue) {
-			// If a screen reader is attached and the default value is not set we should automatically increase the page size to 500 for a better experience
-			this._accessibilityPageSize = 500;
-		} else {
-			this._accessibilityPageSize = accessibilityPageSize;
-		}
-
-		// When wrapping is enabled and a screen reader might be attached,
-		// we will size the textarea to match the width used for wrapping points computation (see `domLineBreaksComputer.ts`).
-		// This is because screen readers will read the text in the textarea and we'd like that the
-		// wrapping points in the textarea match the wrapping points in the editor.
-		const layoutInfo = options.get(EditorOption.layoutInfo);
-		const wrappingColumn = layoutInfo.wrappingColumn;
-		if (wrappingColumn !== -1 && this._accessibilitySupport !== AccessibilitySupport.Disabled) {
-			const fontInfo = options.get(EditorOption.fontInfo);
-			this._textAreaWrapping = true;
-			this._textAreaWidth = Math.round(wrappingColumn * fontInfo.typicalHalfwidthCharacterWidth);
-		} else {
-			this._textAreaWrapping = false;
-			this._textAreaWidth = (canUseZeroSizeTextarea ? 0 : 1);
-		}
+		const { accessibilitySupport, accessibilityPageSize, textAreaWrapping, textAreaWidth } = getAccessibilityOptions(options, canUseZeroSizeTextarea);
+		this._accessibilitySupport = accessibilitySupport;
+		this._accessibilityPageSize = accessibilityPageSize;
+		this._textAreaWrapping = textAreaWrapping;
+		this._textAreaWidth = textAreaWidth;
 	}
 
 	// --- begin event handlers
@@ -631,7 +590,7 @@ export class TextAreaHandler extends AbstractEditContext {
 		this.textArea.setAttribute('wrap', this._textAreaWrapping && !this._visibleTextArea ? 'on' : 'off');
 		const { tabSize } = this._context.viewModel.model.getOptions();
 		this.textArea.domNode.style.tabSize = `${tabSize * this._fontInfo.spaceWidth}px`;
-		this.textArea.setAttribute('aria-label', this._getAriaLabel(options));
+		this.textArea.setAttribute('aria-label', ariaLabelForScreenReaderContent(options, this._keybindingService));
 		this.textArea.setAttribute('aria-required', options.get(EditorOption.ariaRequired) ? 'true' : 'false');
 		this.textArea.setAttribute('tabindex', String(options.get(EditorOption.tabIndex)));
 
