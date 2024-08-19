@@ -266,13 +266,41 @@
 	margin: 0;
 }
 
+/* #region list indent rules */
 .interactive-item-container .value .rendered-markdown ul {
+	/* Keep this in sync with the values for dedented codeblocks below */
 	padding-inline-start: 24px;
 }
 
 .interactive-item-container .value .rendered-markdown ol {
+	/* Keep this in sync with the values for dedented codeblocks below */
 	padding-inline-start: 28px;
 }
+
+/* NOTE- We want to dedent codeblocks in lists specifically to give them the full width. No more elegant way to do this, these values
+have to be updated for changes to the rules above, or to support more deeply nested lists. */
+.interactive-item-container .value .rendered-markdown ul .interactive-result-code-block {
+	margin-left: -24px;
+}
+
+.interactive-item-container .value .rendered-markdown ul ul .interactive-result-code-block {
+	margin-left: -48px;
+}
+
+.interactive-item-container .value .rendered-markdown ol .interactive-result-code-block {
+	margin-left: -28px;
+}
+
+.interactive-item-container .value .rendered-markdown ol ol .interactive-result-code-block {
+	margin-left: -56px;
+}
+
+.interactive-item-container .value .rendered-markdown ol ul .interactive-result-code-block,
+.interactive-item-container .value .rendered-markdown ul ol .interactive-result-code-block {
+	margin-left: -52px;
+}
+
+/* #endregion list indent rules */
 
 .interactive-item-container .value .rendered-markdown li {
 	line-height: 1.3rem;

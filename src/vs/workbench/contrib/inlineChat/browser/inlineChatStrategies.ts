@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { WindowIntervalTimer } from 'vs/base/browser/dom';
+import { getTotalWidth, WindowIntervalTimer } from 'vs/base/browser/dom';
 import { coalesceInPlace } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { themeColorFromId } from 'vs/base/common/themables';
-import { ICodeEditor, IViewZone, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IViewZone, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBrowser';
 import { StableEditorScrollState } from 'vs/editor/browser/stableEditorScroll';
 import { LineSource, RenderOptions, renderLines } from 'vs/editor/browser/widget/diffEditor/components/diffEditorViewZones/renderLines';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
@@ -28,7 +28,7 @@ import { SaveReason } from 'vs/workbench/common/editor';
 import { countWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 import { HunkInformation, Session, HunkState } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { InlineChatZoneWidget } from './inlineChatZoneWidget';
-import { CTX_INLINE_CHAT_CHANGE_HAS_DIFF, CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF, CTX_INLINE_CHAT_DOCUMENT_CHANGED, InlineChatConfigKeys, minimapInlineChatDiffInserted, overviewRulerInlineChatDiffInserted } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { CTX_INLINE_CHAT_CHANGE_HAS_DIFF, CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF, CTX_INLINE_CHAT_DOCUMENT_CHANGED, InlineChatConfigKeys, MENU_INLINE_CHAT_ZONE, minimapInlineChatDiffInserted, overviewRulerInlineChatDiffInserted } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { assertType } from 'vs/base/common/types';
 import { IModelService } from 'vs/editor/common/services/model';
 import { performAsyncTextEdit, asProgressiveEdit } from './utils';
@@ -40,6 +40,8 @@ import { Schemas } from 'vs/base/common/network';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { DefaultChatTextEditor } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
 import { isEqual } from 'vs/base/common/resources';
+import { generateUuid } from 'vs/base/common/uuid';
+import { MenuWorkbenchButtonBar } from 'vs/platform/actions/browser/buttonbar';
 
 export interface IEditObserver {
 	start(): void;
@@ -69,7 +71,7 @@ export abstract class EditModeStrategy {
 		protected readonly _editor: ICodeEditor,
 		protected readonly _zone: InlineChatZoneWidget,
 		@ITextFileService private readonly _textFileService: ITextFileService,
-		@IInstantiationService private readonly _instaService: IInstantiationService,
+		@IInstantiationService protected readonly _instaService: IInstantiationService,
 	) { }
 
 	dispose(): void {
@@ -257,6 +259,7 @@ export class LiveStrategy extends EditModeStrategy {
 		session: Session,
 		editor: ICodeEditor,
 		zone: InlineChatZoneWidget,
+		private readonly _showOverlayToolbar: boolean,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IEditorWorkerService protected readonly _editorWorkerService: IEditorWorkerService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
@@ -438,6 +441,10 @@ export class LiveStrategy extends EditModeStrategy {
 							scrollState.restore(this._editor);
 						};
 
+						const overlay = this._showOverlayToolbar
+							? this._instaService.createInstance(InlineChangeOverlay, this._editor, hunkData)
+							: undefined;
+
 						const remove = () => {
 							changeDecorationsAndViewZones(this._editor, (decorationsAccessor, viewZoneAccessor) => {
 								assertType(data);
@@ -450,6 +457,8 @@ export class LiveStrategy extends EditModeStrategy {
 								data.decorationIds = [];
 								data.viewZoneId = undefined;
 							});
+
+							overlay?.dispose();
 						};
 
 						const move = (next: boolean) => {
@@ -479,7 +488,7 @@ export class LiveStrategy extends EditModeStrategy {
 							}
 						};
 
-						const zoneLineNumber = this._zone.position!.lineNumber;
+						const zoneLineNumber = this._zone.position?.lineNumber ?? this._editor.getPosition()!.lineNumber;
 						const myDistance = zoneLineNumber <= hunkRanges[0].startLineNumber
 							? hunkRanges[0].startLineNumber - zoneLineNumber
 							: zoneLineNumber - hunkRanges[0].endLineNumber;
@@ -505,7 +514,7 @@ export class LiveStrategy extends EditModeStrategy {
 
 					} else {
 						// update distance and position based on modifiedRange-decoration
-						const zoneLineNumber = this._zone.position!.lineNumber;
+						const zoneLineNumber = this._zone.position?.lineNumber ?? this._editor.getPosition()!.lineNumber;
 						const modifiedRangeNow = hunkRanges[0];
 						data.position = modifiedRangeNow.getStartPosition().delta(-1);
 						data.distance = zoneLineNumber <= modifiedRangeNow.startLineNumber
@@ -607,4 +616,66 @@ function changeDecorationsAndViewZones(editor: ICodeEditor, callback: (accessor:
 			callback(decorationsAccessor, viewZoneAccessor);
 		});
 	});
+}
+
+
+class InlineChangeOverlay implements IOverlayWidget {
+
+	readonly allowEditorOverflow: boolean = true;
+
+	private readonly _id: string = `inline-chat-diff-overlay-` + generateUuid();
+	private readonly _domNode: HTMLElement = document.createElement('div');
+	private readonly _store: DisposableStore = new DisposableStore();
+
+	constructor(
+		private readonly _editor: ICodeEditor,
+		private readonly _hunkInfo: HunkInformation,
+		@IInstantiationService private readonly _instaService: IInstantiationService,
+	) {
+
+		this._domNode.classList.add('inline-chat-diff-overlay');
+
+		if (_hunkInfo.getState() === HunkState.Pending) {
+
+			this._store.add(this._instaService.createInstance(MenuWorkbenchButtonBar, this._domNode, MENU_INLINE_CHAT_ZONE, {
+				telemetrySource: 'inlineChat-changesZone',
+				buttonConfigProvider: (_action, idx) => {
+					return {
+						isSecondary: idx > 0,
+						showIcon: true,
+						showLabel: false
+					};
+				}
+			}));
+		}
+
+		this._editor.addOverlayWidget(this);
+		this._store.add(Event.any(this._editor.onDidLayoutChange, this._editor.onDidScrollChange)(() => this._editor.layoutOverlayWidget(this)));
+		queueMicrotask(() => this._editor.layoutOverlayWidget(this)); // FUNKY but needed to get the initial layout right
+	}
+
+	dispose(): void {
+		this._editor.removeOverlayWidget(this);
+		this._store.dispose();
+	}
+
+	getId(): string {
+		return this._id;
+	}
+
+	getDomNode(): HTMLElement {
+		return this._domNode;
+	}
+
+	getPosition(): IOverlayWidgetPosition | null {
+
+		const line = this._hunkInfo.getRangesN()[0].startLineNumber;
+		const info = this._editor.getLayoutInfo();
+		const top = this._editor.getTopForLineNumber(line) - this._editor.getScrollTop();
+		const left = info.contentLeft + info.contentWidth - info.verticalScrollbarWidth;
+
+		const width = getTotalWidth(this._domNode);
+
+		return { preference: { top, left: left - width } };
+	}
 }

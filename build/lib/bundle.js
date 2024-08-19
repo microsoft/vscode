@@ -55,9 +55,6 @@ function bundle(entryPoints, config, callback) {
         };
         for (const moduleId in entryPointsMap) {
             const entryPoint = entryPointsMap[moduleId];
-            if (entryPoint.append) {
-                entryPoint.append = entryPoint.append.map(resolvePath);
-            }
             if (entryPoint.prepend) {
                 entryPoint.prepend = entryPoint.prepend.map(resolvePath);
             }
@@ -105,7 +102,7 @@ function emitEntryPoints(modules, entryPoints) {
             return allDependencies[module];
         });
         bundleData.bundles[moduleToBundle] = includedModules;
-        const res = emitEntryPoint(modulesMap, modulesGraph, moduleToBundle, includedModules, info.prepend || [], info.append || [], info.dest);
+        const res = emitEntryPoint(modulesMap, modulesGraph, moduleToBundle, includedModules, info.prepend || [], info.dest);
         result = result.concat(res.files);
         for (const pluginName in res.usedPlugins) {
             usedPlugins[pluginName] = usedPlugins[pluginName] || res.usedPlugins[pluginName];
@@ -278,7 +275,7 @@ function removeDuplicateTSBoilerplate(source, SEEN_BOILERPLATE = []) {
     }
     return newLines.join('\n');
 }
-function emitEntryPoint(modulesMap, deps, entryPoint, includedModules, prepend, append, dest) {
+function emitEntryPoint(modulesMap, deps, entryPoint, includedModules, prepend, dest) {
     if (!dest) {
         dest = entryPoint + '.js';
     }
@@ -352,8 +349,7 @@ function emitEntryPoint(modulesMap, deps, entryPoint, includedModules, prepend, 
         };
     };
     const toPrepend = (prepend || []).map(toIFile);
-    const toAppend = (append || []).map(toIFile);
-    mainResult.sources = toPrepend.concat(mainResult.sources).concat(toAppend);
+    mainResult.sources = toPrepend.concat(mainResult.sources);
     return {
         files: results,
         usedPlugins: usedPlugins

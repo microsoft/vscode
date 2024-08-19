@@ -23,6 +23,7 @@ import { IWorkspaceContextService, IWorkspaceFolderData, toWorkspaceFolder, Work
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { ExcludeGlobPattern, getExcludes, ICommonQueryProps, IFileQuery, IFolderQuery, IPatternInfo, ISearchConfiguration, ITextQuery, ITextSearchPreviewOptions, pathIncludedInQuery, QueryType } from 'vs/workbench/services/search/common/search';
+import { GlobPattern } from 'vs/workbench/services/search/common/searchExtTypes';
 
 /**
  * One folder to search and a glob expression that should be applied.
@@ -49,6 +50,20 @@ interface ISearchPatternBuilder {
 
 export function isISearchPatternBuilder(object: ISearchPatternBuilder | ISearchPathPatternBuilder): object is ISearchPatternBuilder {
 	return (typeof object === 'object' && 'uri' in object && 'pattern' in object);
+}
+
+export function globPatternToISearchPatternBuilder(globPattern: GlobPattern): ISearchPatternBuilder {
+
+	if (typeof globPattern === 'string') {
+		return {
+			pattern: globPattern
+		};
+	}
+
+	return {
+		pattern: globPattern.pattern,
+		uri: globPattern.baseUri
+	};
 }
 
 /**
