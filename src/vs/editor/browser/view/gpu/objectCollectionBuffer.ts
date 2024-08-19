@@ -5,6 +5,7 @@
 
 import { Emitter, type Event } from 'vs/base/common/event';
 import { Disposable, type IDisposable } from 'vs/base/common/lifecycle';
+import { LinkedList } from 'vs/base/common/linkedList';
 
 export interface ObjectCollectionBufferPropertySpec {
 	name: string;
@@ -67,8 +68,7 @@ class ObjectCollectionBuffer<T extends ObjectCollectionBufferPropertySpec[]> ext
 
 	private readonly _propertySpecsMap: Map<string, ObjectCollectionBufferPropertySpec & { offset: number }> = new Map();
 	private readonly _entrySize: number;
-	// Linked list for fast access to tail and insertion in middle?
-	private readonly _entries: Set<ObjectCollectionBufferEntry<T>> = new Set();
+	private readonly _entries: LinkedList<ObjectCollectionBufferEntry<T>> = new LinkedList();
 
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
@@ -97,15 +97,15 @@ class ObjectCollectionBuffer<T extends ObjectCollectionBufferPropertySpec[]> ext
 		}
 
 		const value = new ObjectCollectionBufferEntry(this.view, this._propertySpecsMap, this._entries.size, data);
+		const removeFromEntries = this._entries.push(value);
 		// TODO: Needs unregistering when disposed
 		this._register(value.onDidChange(() => {
 			// TODO: Listen and react to change
 			this._onDidChange.fire();
 		}));
 		this._register(value.onWillDispose(() => {
-			// TODO: A linked list could make this O(1)
 			const deletedEntryIndex = value.i;
-			this._entries.delete(value);
+			removeFromEntries();
 
 			// Shift all entries after the deleted entry to the left
 			this.view.set(this.view.subarray(deletedEntryIndex * this._entrySize + 2, this._entries.size * this._entrySize + 2), deletedEntryIndex * this._entrySize);
@@ -117,9 +117,8 @@ class ObjectCollectionBuffer<T extends ObjectCollectionBufferPropertySpec[]> ext
 				}
 			}
 
-			// There may be stale data at the end but it doesn't matter
+			// There may be stale data at the end which should be ignored
 		}));
-		this._entries.add(value);
 		return value;
 	}
 }
