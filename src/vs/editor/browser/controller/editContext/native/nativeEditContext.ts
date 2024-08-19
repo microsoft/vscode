@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./nativeEditContext';
-import * as browser from 'vs/base/browser/browser';
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
@@ -37,10 +36,20 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 
 export class NativeEditContext extends AbstractEditContext {
 
+	// HTML Elements
 	private readonly _domElement = new FastDomNode(document.createElement('div'));
-	private readonly _editContext: EditContext = this._domElement.domNode.editContext = new EditContext();
-
 	private _parent!: HTMLElement;
+
+	// Edit Context API
+	private readonly _editContext: EditContext = this._domElement.domNode.editContext = new EditContext();
+	private _selectionOfEditContextText: Range | undefined;
+
+	// Composition
+	private _compositionStartPosition: Position | undefined;
+	private _compositionEndPosition: Position | undefined;
+	private _currentComposition: CompositionContext | undefined;
+
+	// Settings
 	private _accessibilitySupport!: AccessibilitySupport;
 	private _accessibilityPageSize!: number;
 	private _textAreaWrapping!: boolean;
@@ -50,20 +59,18 @@ export class NativeEditContext extends AbstractEditContext {
 	private _contentHeight: number;
 	private _fontInfo: FontInfo;
 	private _lineHeight: number;
-	private _selection: Selection;
-	private _compositionStartPosition: Position | undefined;
-	private _compositionEndPosition: Position | undefined;
-	private _currentComposition: CompositionContext | undefined;
-	private _selectionOfContent: Range | undefined;
+
 	private _renderingContext: RenderingContext | undefined;
 
+	private _primarySelection: Selection;
 	private _scrollLeft: number = 0;
 	private _scrollTop: number = 0;
 	private _rangeStart: number = 0;
 	private _hasFocus: boolean = false;
-	private _selectionStartWithinScreenReaderContent: number = 0;
-	private _selectionEndWithinScreenReaderContent: number = 0;
 
+	private _screenReaderContentSelectionOffsetRange: OffsetRange | undefined;
+
+	// Bounds
 	private _selectionBounds: IDisposable = Disposable.None;
 	private _controlBounds: IDisposable = Disposable.None;
 	private _characterBounds: IDisposable = Disposable.None;
@@ -86,7 +93,7 @@ export class NativeEditContext extends AbstractEditContext {
 		this._fontInfo = options.get(EditorOption.fontInfo);
 		this._lineHeight = options.get(EditorOption.lineHeight);
 
-		this._selection = new Selection(1, 1, 1, 1);
+		this._primarySelection = new Selection(1, 1, 1, 1);
 		this._domElement.setClassName(`native-edit-context ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`);
 		const { tabSize } = this._context.viewModel.model.getOptions();
 		this._domElement.domNode.style.tabSize = `${tabSize * this._fontInfo.spaceWidth}px`;
@@ -175,7 +182,7 @@ export class NativeEditContext extends AbstractEditContext {
 			this._context.viewModel.revealRange(
 				'keyboard',
 				true,
-				Range.fromPositions(this._selection.getStartPosition()),
+				Range.fromPositions(this._primarySelection.getStartPosition()),
 				viewEvents.VerticalRevealType.Simple,
 				ScrollType.Immediate
 			);
@@ -261,6 +268,7 @@ export class NativeEditContext extends AbstractEditContext {
 			// Do not write to the text area when doing composition
 			return;
 		}
+		this._domElement.domNode.focus();
 		const screenReaderContentState = this._getScreenReaderContentState();
 		this._setScreenReaderContent(reason, screenReaderContentState.value);
 		this._setSelectionOfScreenReaderContent(reason, screenReaderContentState.selectionStart, screenReaderContentState.selectionEnd);
@@ -269,7 +277,7 @@ export class NativeEditContext extends AbstractEditContext {
 	public writeEditContextContent(): void {
 
 		const editContextState = this._getEditContextState();
-		this._selectionOfContent = editContextState.selectionOfContent;
+		this._selectionOfEditContextText = editContextState.selectionOfContent;
 		this._editContext.updateText(0, Number.MAX_SAFE_INTEGER, editContextState.value);
 		this._editContext.updateSelection(editContextState.selectionStart, editContextState.selectionEnd);
 
@@ -278,7 +286,7 @@ export class NativeEditContext extends AbstractEditContext {
 		console.log('this._editContext.text : ', this._editContext.text);
 		console.log('editContextContentState.selectionStart : ', editContextState.selectionStart);
 		console.log('editContextContentState.selectionEnd : ', editContextState.selectionEnd);
-		console.log('this._selectionOfContent : ', this._selectionOfContent);
+		console.log('this._selectionOfContent : ', this._selectionOfEditContextText);
 	}
 
 	public override dispose(): void {
@@ -316,7 +324,7 @@ export class NativeEditContext extends AbstractEditContext {
 	}
 
 	public override onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
-		this._selection = e.selections.slice(0)[0] ?? new Selection(1, 1, 1, 1);
+		this._primarySelection = e.selections.slice(0)[0] ?? new Selection(1, 1, 1, 1);
 		// We must update the <textarea> synchronously, otherwise long press IME on macos breaks.
 		// See https://github.com/microsoft/vscode/issues/165821
 		this.writeScreenReaderContent('selection changed');
@@ -373,7 +381,7 @@ export class NativeEditContext extends AbstractEditContext {
 
 	public prepareRender(ctx: RenderingContext): void {
 		this._renderingContext = ctx;
-		this._primaryCursorPosition = new Position(this._selection.positionLineNumber, this._selection.positionColumn);
+		this._primaryCursorPosition = new Position(this._primarySelection.positionLineNumber, this._primarySelection.positionColumn);
 		this._primaryCursorVisibleRange = ctx.visibleRangeForPosition(this._primaryCursorPosition);
 	}
 
@@ -397,7 +405,7 @@ export class NativeEditContext extends AbstractEditContext {
 			return;
 		}
 
-		const top = this._context.viewLayout.getVerticalOffsetForLineNumber(this._selection.positionLineNumber) - this._scrollTop;
+		const top = this._context.viewLayout.getVerticalOffsetForLineNumber(this._primarySelection.positionLineNumber) - this._scrollTop;
 		if (top < 0 || top > this._contentHeight) {
 			// cursor is outside the viewport
 			this._renderAtTopLeft();
@@ -422,7 +430,7 @@ export class NativeEditContext extends AbstractEditContext {
 			this._domElement.domNode.scrollLeft = this._primaryCursorVisibleRange.left;
 			const divValue = this._domElement.domNode.textContent ?? '';
 			console.log('_render');
-			const lineCount = newlinecount(divValue.substring(0, this._selectionStartWithinScreenReaderContent));
+			const lineCount = newlinecount(divValue.substring(0, this._screenReaderContentSelectionOffsetRange?.start));
 			this._domElement.domNode.scrollTop = lineCount * this._lineHeight;
 			return;
 		}
@@ -500,7 +508,7 @@ export class NativeEditContext extends AbstractEditContext {
 				selectionEnd: 0
 			};
 		}
-		return PagedScreenReaderStrategy.fromEditorSelection(simpleModel, this._selection, this._accessibilityPageSize, this._accessibilitySupport === AccessibilitySupport.Unknown);
+		return PagedScreenReaderStrategy.fromEditorSelection(simpleModel, this._primarySelection, this._accessibilityPageSize, this._accessibilitySupport === AccessibilitySupport.Unknown);
 	}
 
 	public _getEditContextState(): {
@@ -552,59 +560,7 @@ export class NativeEditContext extends AbstractEditContext {
 		console.log('selectionStart : ', selectionStart);
 		console.log('selectionEnd : ', selectionEnd);
 
-		const domNode = this._domElement.domNode;
-
-		let activeElement: Element | null = null;
-		const shadowRoot = dom.getShadowRoot(domNode);
-		if (shadowRoot) {
-			activeElement = shadowRoot.activeElement;
-		} else {
-			activeElement = dom.getActiveElement();
-		}
-		const activeWindow = dom.getWindow(activeElement);
-
-		const currentIsFocused = (activeElement === domNode);
-
-		if (currentIsFocused && this._selectionStartWithinScreenReaderContent === selectionStart && this._selectionEndWithinScreenReaderContent === selectionEnd) {
-			// No change
-			// Firefox iframe bug https://github.com/microsoft/monaco-editor/issues/643#issuecomment-367871377
-			if (browser.isFirefox && activeWindow.parent !== activeWindow) {
-				domNode.focus();
-			}
-			return;
-		}
-
-		// console.log('reason: ' + reason + ', setSelectionRange: ' + selectionStart + ' -> ' + selectionEnd);
-
-		if (currentIsFocused) {
-			// No need to focus, only need to change the selection range
-			this._updateDocumentSelection(selectionStart, selectionEnd);
-			if (browser.isFirefox && activeWindow.parent !== activeWindow) {
-				domNode.focus();
-			}
-			return;
-		}
-
-		// If the focus is outside the textarea, browsers will try really hard to reveal the textarea.
-		// Here, we try to undo the browser's desperate reveal.
-		try {
-			const scrollState = dom.saveParentsScrollTop(domNode);
-			domNode.focus();
-			this._updateDocumentSelection(selectionStart, selectionEnd);
-			dom.restoreParentsScrollTop(domNode, scrollState);
-		} catch (e) {
-			// Sometimes IE throws when setting selection (e.g. textarea is off-DOM)
-		}
-	}
-
-	private _updateDocumentSelection(selectionStart: number, selectionEnd: number) {
-
-		console.log('_updateDocumentSelection');
-		console.log('selectionStart : ', selectionStart);
-		console.log('selectionEnd : ', selectionEnd);
-
-		this._selectionStartWithinScreenReaderContent = selectionStart;
-		this._selectionEndWithinScreenReaderContent = selectionEnd;
+		this._screenReaderContentSelectionOffsetRange = new OffsetRange(selectionStart, selectionEnd);
 
 		const activeDocument = dom.getActiveWindow().document;
 		const activeDocumentSelection = activeDocument.getSelection();
@@ -727,22 +683,22 @@ export class NativeEditContext extends AbstractEditContext {
 			const range = textPositionTransformer.getRange(offsetRange);
 
 			console.log('range : ', range);
-			console.log('this._selectionOfValue : ', this._selectionOfContent);
+			console.log('this._selectionOfValue : ', this._selectionOfEditContextText);
 
-			if (!this._selectionOfContent) {
+			if (!this._selectionOfEditContextText) {
 				return;
 			}
-			const startLineNumber = this._selectionOfContent.startLineNumber + range.startLineNumber - 1;
-			const endLineNumber = this._selectionOfContent.startLineNumber + range.endLineNumber - 1;
+			const startLineNumber = this._selectionOfEditContextText.startLineNumber + range.startLineNumber - 1;
+			const endLineNumber = this._selectionOfEditContextText.startLineNumber + range.endLineNumber - 1;
 			let startColumn: number;
-			if (startLineNumber === this._selectionOfContent.startLineNumber) {
-				startColumn = this._selectionOfContent.startColumn + range.startColumn - 1;
+			if (startLineNumber === this._selectionOfEditContextText.startLineNumber) {
+				startColumn = this._selectionOfEditContextText.startColumn + range.startColumn - 1;
 			} else {
 				startColumn = range.startColumn;
 			}
 			let endColumn: number;
-			if (endLineNumber === this._selectionOfContent.startLineNumber) {
-				endColumn = this._selectionOfContent.startColumn + range.endColumn - 1;
+			if (endLineNumber === this._selectionOfEditContextText.startLineNumber) {
+				endColumn = this._selectionOfEditContextText.startColumn + range.endColumn - 1;
 			} else {
 				endColumn = range.endColumn;
 			}
@@ -771,7 +727,6 @@ export class NativeEditContext extends AbstractEditContext {
 
 	private _updateBounds() {
 		this._updateSelectionAndControlBounds();
-		// Need to update character bounds eagerly in order for the IME to be positioned correctly
 		this._updateCharacterBounds(this._rangeStart);
 	}
 
