@@ -18,7 +18,6 @@ import { escape } from 'vs/base/common/strings';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { ITheme } from 'vs/platform/extensions/common/extensions';
 import { OldIssueReporterData } from 'vs/platform/issue/common/issue';
 import { getIconsStyleSheet } from 'vs/platform/theme/browser/iconsStyleSheet';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
