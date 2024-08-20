@@ -127,7 +127,6 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 			const { response } = e.request;
 
 			const prompt = new SessionPrompt(e.request, session.textModelN.getAlternativeVersionId());
-			session.addInput(prompt);
 
 			lastResponseListener.value = response.onDidChange(() => {
 
@@ -218,7 +217,6 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 			store.add(new HunkData(this._editorWorkerService, textModel0, textModelN)),
 			chatModel,
 			options.session?.exchanges, // @ulugbekna: very hacky: we pass exchanges by reference because an exchange is added only on `addRequest` event from chat model which the migrated inline chat misses
-			options.session?.lastInput
 		);
 
 		// store: key -> session
