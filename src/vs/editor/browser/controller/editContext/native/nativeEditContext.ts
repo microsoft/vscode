@@ -680,6 +680,11 @@ export class NativeEditContext extends AbstractEditContext {
 	// do we need this? looks like in the current implementation we wouldnt use these format
 	private _handleTextFormatUpdate(e: TextFormatUpdateEvent): void {
 
+		const selectionOfEditText = this._selectionOfEditContextText;
+		if (!selectionOfEditText) {
+			return;
+		}
+
 		const formats = e.getTextFormats();
 
 		console.log('_handleTextFormatUpdate');
@@ -693,23 +698,19 @@ export class NativeEditContext extends AbstractEditContext {
 			const range = textPositionTransformer.getRange(offsetRange);
 
 			console.log('range : ', range);
-			console.log('this._selectionOfEditContextText : ', this._selectionOfEditContextText);
 
-			if (!this._selectionOfEditContextText) {
-				return;
-			}
-			const startLineNumber = this._selectionOfEditContextText.startLineNumber + range.startLineNumber - 1;
-			const endLineNumber = this._selectionOfEditContextText.startLineNumber + range.endLineNumber - 1;
+			const startLineNumber = selectionOfEditText.startLineNumber + range.startLineNumber - 1;
+			const endLineNumber = selectionOfEditText.startLineNumber + range.endLineNumber - 1;
 			let startColumn: number;
-			console.log('this._selectionOfEditContextText.startColumn : ', this._selectionOfEditContextText.startColumn);
-			if (startLineNumber === this._selectionOfEditContextText.startLineNumber) {
-				startColumn = this._selectionOfEditContextText.startColumn + range.startColumn - 1;
+			console.log('this._selectionOfEditContextText.startColumn : ', selectionOfEditText.startColumn);
+			if (startLineNumber === selectionOfEditText.startLineNumber) {
+				startColumn = selectionOfEditText.startColumn + range.startColumn - 1;
 			} else {
 				startColumn = range.startColumn;
 			}
 			let endColumn: number;
-			if (endLineNumber === this._selectionOfEditContextText.startLineNumber) {
-				endColumn = this._selectionOfEditContextText.startColumn + range.endColumn - 1;
+			if (endLineNumber === selectionOfEditText.startLineNumber) {
+				endColumn = selectionOfEditText.startColumn + range.endColumn - 1;
 			} else {
 				endColumn = range.endColumn;
 			}
