@@ -692,7 +692,12 @@ export class QueryGlobTester {
 				...(config.excludePattern || {}),
 				...(excludePattern.pattern || {})
 			} satisfies glob.IExpression;
-		}) ?? [config.excludePattern || {}];
+		}) ?? [];
+
+		if (this._excludeExpression.length === 0) {
+			// even if there are no folderQueries, we want to observe  the global excludes
+			this._excludeExpression = [config.excludePattern || {}];
+		}
 
 		this._parsedExcludeExpression = this._excludeExpression.map(e => glob.parse(e));
 

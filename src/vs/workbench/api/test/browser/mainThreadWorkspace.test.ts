@@ -77,7 +77,7 @@ suite('MainThreadWorkspace', () => {
 
 		instantiationService.stub(ISearchService, {
 			fileSearch(query: IFileQuery) {
-				assert.deepStrictEqual(query.folderQueries[0].excludePattern, undefined);
+				assert.deepStrictEqual(query.folderQueries[0].excludePattern, []);
 				assert.deepStrictEqual(query.excludePattern, undefined);
 
 				return Promise.resolve({ results: [], messages: [] });
@@ -100,7 +100,7 @@ suite('MainThreadWorkspace', () => {
 			fileSearch(query: IFileQuery) {
 				assert.strictEqual(query.folderQueries.length, 1);
 				assert.strictEqual(query.folderQueries[0].disregardIgnoreFiles, true);
-				assert.deepStrictEqual(query.folderQueries[0].excludePattern, undefined);
+				assert.deepStrictEqual(query.folderQueries[0].excludePattern, []);
 
 				return Promise.resolve({ results: [], messages: [] });
 			}
@@ -113,7 +113,7 @@ suite('MainThreadWorkspace', () => {
 	test('exclude string', () => {
 		instantiationService.stub(ISearchService, {
 			fileSearch(query: IFileQuery) {
-				assert.strictEqual(query.folderQueries[0].excludePattern, undefined);
+				assert.deepStrictEqual(query.folderQueries[0].excludePattern, []);
 				assert.deepStrictEqual({ ...query.excludePattern }, { 'exclude/**': true });
 
 				return Promise.resolve({ results: [], messages: [] });

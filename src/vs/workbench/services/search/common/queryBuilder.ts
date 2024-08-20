@@ -553,11 +553,15 @@ export class QueryBuilder {
 		const folderUri = URI.isUri(folder) ? folder : folder.uri;
 
 		// only use exclude root if it is different from the folder root
-		const excludeFolderRoots = options.excludePattern?.map(excludePattern => {
+		let excludeFolderRoots = options.excludePattern?.map(excludePattern => {
 			const excludeRoot = options.excludePattern && isISearchPatternBuilder(excludePattern) ? excludePattern.uri : undefined;
 			const shouldUseExcludeRoot = (!excludeRoot || !(URI.isUri(folder) && this.uriIdentityService.extUri.isEqual(folder, excludeRoot)));
 			return shouldUseExcludeRoot ? excludeRoot : undefined;
-		}) ?? [undefined];
+		});
+
+		if (!excludeFolderRoots?.length) {
+			excludeFolderRoots = [undefined];
+		}
 
 		if (searchPathExcludes.searchPaths) {
 			const thisFolderExcludeSearchPath = searchPathExcludes.searchPaths.filter(sp => isEqual(sp.searchPath, folderUri))[0];
