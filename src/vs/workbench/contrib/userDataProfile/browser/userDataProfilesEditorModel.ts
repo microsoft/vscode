@@ -884,10 +884,12 @@ export class UserDataProfilesEditorModel extends EditorModel {
 				[[cancelAction], []],
 			));
 			const updateCreateActionLabel = () => {
-				if (this.newProfileElement?.copyFrom && this.userDataProfilesService.profiles.some(p => p.name === this.newProfileElement?.name)) {
-					createAction.label = localize('replace', "Replace");
-				} else {
-					createAction.label = localize('create', "Create");
+				if (createAction.enabled) {
+					if (this.newProfileElement?.copyFrom && this.userDataProfilesService.profiles.some(p => p.name === this.newProfileElement?.name)) {
+						createAction.label = localize('replace', "Replace");
+					} else {
+						createAction.label = localize('create', "Create");
+					}
 				}
 			};
 			updateCreateActionLabel();
