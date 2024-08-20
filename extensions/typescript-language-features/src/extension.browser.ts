@@ -11,8 +11,8 @@ import { registerBaseCommands } from './commands/index';
 import { TypeScriptServiceConfiguration } from './configuration/configuration';
 import { BrowserServiceConfigurationProvider } from './configuration/configuration.browser';
 import { ExperimentationTelemetryReporter, IExperimentationTelemetryReporter } from './experimentTelemetryReporter';
-import { AutoInstallerFs } from './filesystems/autoInstallerFs';
-import { MemFs } from './filesystems/memFs';
+// import { AutoInstallerFs } from './filesystems/autoInstallerFs';
+// import { MemFs } from './filesystems/memFs';
 import { createLazyClientHost, lazilyActivateClient } from './lazyClientHost';
 import { Logger } from './logging/logger';
 import RemoteRepositories from './remoteRepositories.browser';
@@ -101,10 +101,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<Api> {
 	context.subscriptions.push(lazilyActivateClient(lazyClientHost, pluginManager, activeJsTsEditorTracker, async () => {
 		await startPreloadWorkspaceContentsIfNeeded(context, logger);
 	}));
-	context.subscriptions.push(vscode.workspace.registerFileSystemProvider('vscode-global-typings', new MemFs(), {
-		isCaseSensitive: true,
-		isReadonly: false
-	}));
+	// context.subscriptions.push(vscode.workspace.registerFileSystemProvider('vscode-global-typings', new MemFs(), {
+	// 	isCaseSensitive: true,
+	// 	isReadonly: false
+	// }));
 	// context.subscriptions.push(vscode.workspace.registerFileSystemProvider('vscode-node-modules', new AutoInstallerFs(), {
 	// 	isCaseSensitive: true,
 	// 	isReadonly: false
