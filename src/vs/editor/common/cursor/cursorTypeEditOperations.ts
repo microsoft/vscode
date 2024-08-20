@@ -222,7 +222,7 @@ export class AutoClosingOpenCharTypeOperation {
 		// - when typing *, the desired resulting state is (*|*), not (*|*))
 		const containedPair = this._findContainedAutoClosingPair(config, pair);
 		const containedPairClose = containedPair ? containedPair.close : '';
-		let isContainedPairPresent = true;
+		let pairCloseMatchStr = '';
 
 		for (const position of positions) {
 			const { lineNumber, beforeColumn, afterColumn } = position;
@@ -230,9 +230,16 @@ export class AutoClosingOpenCharTypeOperation {
 			const lineBefore = lineText.substring(0, beforeColumn - 1);
 			const lineAfter = lineText.substring(afterColumn - 1);
 
-			if (!lineAfter.startsWith(containedPairClose)) {
-				isContainedPairPresent = false;
+			const minLength = Math.min(lineAfter.length, containedPairClose.length);
+			for (let i = 1; i <= minLength; i++) {
+				const lineAfterEnd = lineAfter.slice(-i);
+				const containedPairCloseEnd = containedPairClose.slice(-i);
+				if (lineAfterEnd !== containedPairCloseEnd) {
+					break;
+				}
+				pairCloseMatchStr = lineAfterEnd;
 			}
+
 			// Only consider auto closing the pair if an allowed character follows or if another autoclosed pair closing brace follows
 			if (lineAfter.length > 0) {
 				const characterAfter = lineAfter.charAt(0);
@@ -277,8 +284,8 @@ export class AutoClosingOpenCharTypeOperation {
 				}
 			}
 		}
-		if (isContainedPairPresent) {
-			return pair.close.substring(0, pair.close.length - containedPairClose.length);
+		if (pairCloseMatchStr.length > 0) {
+			return pair.close.substring(0, pair.close.length - pairCloseMatchStr.length);
 		} else {
 			return pair.close;
 		}
@@ -288,7 +295,7 @@ export class AutoClosingOpenCharTypeOperation {
 	 * Find another auto-closing pair that is contained by the one passed in.
 	 *
 	 * e.g. when having [(,)] and [(*,*)] as auto-closing pairs
-	 * this method will find [(,)] as a containment pair for [(*,*)]
+	 * this method will find [(*,*)] instead of [(,)]
 	 */
 	private static _findContainedAutoClosingPair(config: CursorConfiguration, pair: StandardAutoClosingPairConditional): StandardAutoClosingPairConditional | null {
 		if (pair.open.length <= 1) {
@@ -299,7 +306,7 @@ export class AutoClosingOpenCharTypeOperation {
 		const candidates = config.autoClosingPairs.autoClosingPairsCloseByEnd.get(lastChar) || [];
 		let result: StandardAutoClosingPairConditional | null = null;
 		for (const candidate of candidates) {
-			if (candidate.open !== pair.open && pair.open.includes(candidate.open) && pair.close.endsWith(candidate.close)) {
+			if (pair.open.startsWith(candidate.open) && pair.close.endsWith(candidate.close)) {
 				if (!result || candidate.open.length > result.open.length) {
 					result = candidate;
 				}
