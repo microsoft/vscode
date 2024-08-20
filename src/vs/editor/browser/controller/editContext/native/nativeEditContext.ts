@@ -30,6 +30,11 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { KeyCode } from 'vs/base/common/keyCodes';
 
+/*
+ * 1. Need to create two classes, one which deals with the screen reader content, one which deals with the IME, separate the logic
+ * 2. Need to cut down as much code as possible and only after testing simplify. See if can simplify the existing classes that I am using too.
+ */
+
 // Boolean which determines whether to show the selection, control and character bounding boxes for debugging purposes
 const showBoundingBoxes: boolean = false;
 
@@ -347,19 +352,25 @@ export class NativeEditContext extends AbstractEditContext {
 	}
 
 	public focusScreenReaderContent(): void {
-		// Setting this._hasFocus and writing the screen reader content
-		// will result in a focus() and setSelectionRange() in the textarea
 		this._setHasFocus(true);
-
-		// If the editor is off DOM, focus cannot be really set, so let's double check that we have managed to set the focus
 		this.refreshFocusState();
 	}
 
 	public refreshFocusState(): void {
-		this._setHasFocus(this._hasFocus);
+		// const shadowRoot = dom.getShadowRoot(this._domElement.domNode);
+		// let hasFocus: boolean;
+		// if (shadowRoot) {
+		// 	hasFocus = shadowRoot.activeElement === this._domElement.domNode;
+		// } else if (this._domElement.domNode.isConnected) {
+		// 	hasFocus = dom.getActiveElement() === this._domElement.domNode;
+		// } else {
+		// 	hasFocus = false;
+		// }
+		this._setHasFocus(true);
 	}
 
 	private _setHasFocus(newHasFocus: boolean): void {
+		console.log('newHasFocus : ', newHasFocus);
 		if (this._hasFocus === newHasFocus) {
 			// no change
 			return;
@@ -368,12 +379,17 @@ export class NativeEditContext extends AbstractEditContext {
 
 		if (this._hasFocus) {
 			// write to the screen reader content
-			this.writeScreenReaderContent('focusgain');
+			// this.writeScreenReaderContent('focusgain');
 		}
 
+		// Find how to focus differently
 		if (this._hasFocus) {
+			console.log('focusing');
+			this._domElement.domNode.focus();
 			this._context.viewModel.setHasFocus(true);
 		} else {
+			console.log('bluring');
+			this._domElement.domNode.blur();
 			this._context.viewModel.setHasFocus(false);
 		}
 	}
@@ -398,6 +414,9 @@ export class NativeEditContext extends AbstractEditContext {
 	}
 
 	private _render(): void {
+
+		console.log('_render');
+
 		if (!this._primaryCursorVisibleRange) {
 			// The primary cursor is outside the viewport => place textarea to the top left
 			this._renderAtTopLeft();
