@@ -1078,23 +1078,6 @@
           "type": "object",
           "markdownDescription": "%typescript.preferences.organizeImports%",
           "properties": {
-            "presets": {
-              "type": "string",
-              "markdownDescription": "%typescript.preferences.organizeImports.presets%",
-              "enum": [
-                "auto",
-                "eslint sort-imports",
-                "eslint plugin-simple-import-sort",
-                "dprint"
-              ],
-              "markdownEnumDescriptions": [
-                "%typescript.preferences.organizeImports.presets.auto%",
-                "%typescript.preferences.organizeImports.presets.eslintSortImports%",
-                "%typescript.preferences.organizeImports.presets.eslintPluginSimpleImportSort%",
-                "%typescript.preferences.organizeImports.presets.dprint%"
-              ],
-              "default": "auto"
-            },
             "caseSensitivity": {
               "type": "string",
               "enum": [
@@ -1159,23 +1142,6 @@
           "type": "object",
           "markdownDescription": "%typescript.preferences.organizeImports%",
           "properties": {
-            "presets": {
-              "type": "string",
-              "markdownDescription": "%typescript.preferences.organizeImports.presets%",
-              "enum": [
-                "auto",
-                "eslint sort-imports",
-                "eslint plugin-simple-import-sort",
-                "dprint"
-              ],
-              "markdownEnumDescriptions": [
-                "%typescript.preferences.organizeImports.presets.auto%",
-                "%typescript.preferences.organizeImports.presets.eslintSortImports%",
-                "%typescript.preferences.organizeImports.presets.eslintPluginSimpleImportSort%",
-                "%typescript.preferences.organizeImports.presets.dprint%"
-              ],
-              "default": "auto"
-            },
             "caseSensitivity": {
               "type": "string",
               "enum": [
