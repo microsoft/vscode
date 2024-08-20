@@ -112,7 +112,7 @@
 .monaco-editor .ime {
 	text-decoration-line: underline;
 	text-decoration-color: blue;
-	text-underline-offset: 2px;
+	text-underline-offset: 1px;
 	color: var(--vscode-editor-foreground, inherit);
 	opacity: 0.8;
 

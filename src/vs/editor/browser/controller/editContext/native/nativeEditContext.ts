@@ -8,7 +8,7 @@ import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
-import { AbstractEditContext, ariaLabelForScreenReaderContent, canUseZeroSizeTextarea, CompositionContext, deduceInput, getAccessibilityOptions, IRenderData, ISimpleModel, ITypeData, newlinecount, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/editContext/editContext';
+import { AbstractEditContext, ariaLabelForScreenReaderContent, canUseZeroSizeTextarea, getAccessibilityOptions, IRenderData, ISimpleModel, ITypeData, newlinecount, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/editContext/editContext';
 import { HorizontalPosition, LineVisibleRanges, RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
 import { ViewController } from 'vs/editor/browser/view/viewController';
 import { EditorOption, IComputedEditorOptions } from 'vs/editor/common/config/editorOptions';
@@ -20,7 +20,6 @@ import * as dom from 'vs/base/browser/dom';
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import * as viewEvents from 'vs/editor/common/viewEvents';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { ScrollType } from 'vs/editor/common/editorCommon';
 import { AccessibilitySupport, IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IEditorAriaOptions } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
@@ -51,7 +50,6 @@ export class NativeEditContext extends AbstractEditContext {
 	// Composition
 	private _compositionStartPosition: Position | undefined;
 	private _compositionEndPosition: Position | undefined;
-	private _currentComposition: CompositionContext | undefined;
 
 	// Settings
 	private _accessibilitySupport!: AccessibilitySupport;
@@ -76,6 +74,19 @@ export class NativeEditContext extends AbstractEditContext {
 	private _linesVisibleRanges: LineVisibleRanges[] | null = null;
 
 	private _decorations: string[] = [];
+
+	private _previousState: {
+		value: string;
+		selectionStart: number;
+		selectionEnd: number;
+		selectionOfContent: Selection;
+	} | undefined;
+	private _currentState: {
+		value: string;
+		selectionStart: number;
+		selectionEnd: number;
+		selectionOfContent: Selection;
+	} | undefined;
 
 	// Bounds
 	private _selectionBounds: IDisposable = Disposable.None;
@@ -112,19 +123,20 @@ export class NativeEditContext extends AbstractEditContext {
 		this._register(dom.addDisposableListener(this._domElement.domNode, 'keydown', (e) => {
 
 			console.log('keydown : ', e);
-			console.log('this._currentComposition : ', this._currentComposition);
 
 			const standardKeyboardEvent = new StandardKeyboardEvent(e);
-			if (standardKeyboardEvent.keyCode === KeyCode.KEY_IN_COMPOSITION
-				|| (this._currentComposition && standardKeyboardEvent.keyCode === KeyCode.Backspace)) {
 
+			console.log('standardKeyboardEvent : ', standardKeyboardEvent);
+			console.log('standardKeyboardEvent.keyCode === KeyCode.KEY_IN_COMPOSITION : ', standardKeyboardEvent.keyCode === KeyCode.KEY_IN_COMPOSITION);
+
+			// When the IME is visible, the keys, like arrow-left and arrow-right, should be used to navigate in the IME, and should not be propagated further
+			// Seems like can't do more specific than that because when in composition, left and right are not in keycode
+			if (standardKeyboardEvent.keyCode === KeyCode.KEY_IN_COMPOSITION) { // (this._currentComposition && standardKeyboardEvent.keyCode === KeyCode.Backspace)
 				console.log('stopping the propagation');
-
 				// Stop propagation for keyDown events if the IME is processing key input
 				standardKeyboardEvent.stopPropagation();
 			}
 			lastKeyDown = standardKeyboardEvent;
-			this._domElement.domNode.focus();
 			this._viewController.emitKeyDown(standardKeyboardEvent);
 		}));
 
@@ -138,25 +150,47 @@ export class NativeEditContext extends AbstractEditContext {
 			console.log('e.updateRangeStart : ', e.updateRangeStart);
 			console.log('e.updateRangeEnd : ', e.updateRangeEnd);
 			console.log('this._editContext.text : ', this._editContext.text);
+			console.log('this._editContext.selectionStart : ', this._editContext.selectionStart);
+			console.log('this._editContext.selectionEnd : ', this._editContext.selectionEnd);
+
+			if (!this._previousState) {
+				return;
+			}
+
+			/**
+			 * deduce input from the data above
+			 */
+			const previousSelectionStart = this._previousState.selectionStart;
+			const previousSelectionEnd = this._previousState.selectionEnd;
+
+			let replacePrevCharCnt = 0;
+			if (e.updateRangeStart < previousSelectionStart) {
+				replacePrevCharCnt = previousSelectionStart - e.updateRangeStart;
+			}
+
+			let replaceNextCharCnt = 0;
+			if (e.updateRangeEnd > previousSelectionEnd) {
+				replaceNextCharCnt = e.updateRangeEnd - previousSelectionEnd;
+			}
 
 			const data = e.text.replaceAll(/[^\S\r\n]/gmu, ' ');
-			if (this._currentComposition) {
-				this.onInputWithComposition(this._currentComposition, data);
-			} else {
-				this.onInputWithoutComposition(data);
-			}
+			const typeInput: ITypeData = {
+				text: data,
+				replacePrevCharCnt,
+				replaceNextCharCnt,
+				positionDelta: 0,
+			};
+
+			this._updateCompositionEndPosition();
+			console.log('typeInput : ', typeInput);
+			this._onType(typeInput);
+			this._render();
+			console.log('this._context.viewModel.model.getValue() : ', this._context.viewModel.model.getValue());
+			console.log('end of text update');
 		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'compositionstart', e => {
 
 			this._updateCompositionStartPosition();
-
-			const currentComposition = new CompositionContext();
-			if (this._currentComposition) {
-				// simply reset the composition context
-				this._currentComposition = currentComposition;
-				return;
-			}
-			this._currentComposition = currentComposition;
 
 			console.log('oncompositionstart : ', e);
 			console.log('platform.OS === platform.OperatingSystem.Macintosh : ', platform.OS === platform.OperatingSystem.Macintosh);
@@ -184,15 +218,7 @@ export class NativeEditContext extends AbstractEditContext {
 				console.log('before handle composition update');
 				// Handling long press case on Chromium/Safari macOS + arrow key => pretend the character was selected
 				// Pretend the previous character was composed (in order to get it removed by subsequent compositionupdate events)
-				currentComposition.handleCompositionUpdate('x');
 			}
-			this._context.viewModel.revealRange(
-				'keyboard',
-				true,
-				Range.fromPositions(this._primarySelection.getStartPosition()),
-				viewEvents.VerticalRevealType.Simple,
-				ScrollType.Immediate
-			);
 			this._render();
 			this._viewController.compositionStart();
 			this._context.viewModel.onCompositionStart();
@@ -204,15 +230,7 @@ export class NativeEditContext extends AbstractEditContext {
 
 			this._updateCompositionEndPosition();
 
-			const currentComposition = this._currentComposition;
-			if (!currentComposition) {
-				return;
-			}
-			this._currentComposition = undefined;
-
 			if ('data' in e && typeof e.data === 'string') {
-				const typeInput = currentComposition.handleCompositionUpdate(e.data);
-				this._onType(typeInput);
 				this._render();
 				this._domElement.setClassName(`native-edit-context ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`);
 				this._viewController.compositionEnd();
@@ -229,7 +247,17 @@ export class NativeEditContext extends AbstractEditContext {
 
 				const textAfterAddingNewLine = this._editContext.text.substring(0, this._editContext.selectionStart) + '\n' + this._editContext.text.substring(this._editContext.selectionEnd);
 				this._editContext.updateText(0, Number.MAX_SAFE_INTEGER, textAfterAddingNewLine);
-				this.onInputWithoutComposition('\n');
+
+				const typeInput: ITypeData = {
+					text: '\n',
+					replacePrevCharCnt: 0,
+					replaceNextCharCnt: 0,
+					positionDelta: 0,
+				};
+
+				this._updateCompositionEndPosition();
+				console.log('typeInput : ', typeInput);
+				this._onType(typeInput);
 			}
 		}));
 		this._register(dom.addDisposableListener(this._domElement.domNode, 'paste', (e) => {
@@ -267,7 +295,7 @@ export class NativeEditContext extends AbstractEditContext {
 	}
 
 	public writeScreenReaderContent(reason: string): void {
-		if ((!this._accessibilityService.isScreenReaderOptimized() && reason === 'render') || this._currentComposition) {
+		if ((!this._accessibilityService.isScreenReaderOptimized() && reason === 'render')) {
 			// Do not write to the text on render unless a screen reader is being used #192278
 			// Do not write to the text area when doing composition
 			return;
@@ -279,16 +307,18 @@ export class NativeEditContext extends AbstractEditContext {
 
 	public writeEditContextContent(): void {
 
-		const editContextState = this._getEditContextState();
-		this._selectionOfEditContextText = editContextState.selectionOfContent;
-		this._editContext.updateText(0, Number.MAX_SAFE_INTEGER, editContextState.value);
-		this._editContext.updateSelection(editContextState.selectionStart, editContextState.selectionEnd);
+		this._previousState = this._currentState;
+		this._currentState = this._getEditContextState();
+		this._selectionOfEditContextText = this._currentState.selectionOfContent;
+		this._editContext.updateText(0, Number.MAX_SAFE_INTEGER, this._currentState.value);
+		this._editContext.updateSelection(this._currentState.selectionStart, this._currentState.selectionEnd);
 
 		console.log('writeEditContextContent');
-		console.log('editContextState : ', editContextState);
+		console.log('this._context.viewModel.model.getValue() : ', this._context.viewModel.model.getValue());
+		console.log('editContextState : ', this._currentState);
 		console.log('this._editContext.text : ', this._editContext.text);
-		console.log('editContextState.selectionStart : ', editContextState.selectionStart);
-		console.log('editContextState.selectionEnd : ', editContextState.selectionEnd);
+		console.log('editContextState.selectionStart : ', this._currentState.selectionStart);
+		console.log('editContextState.selectionEnd : ', this._currentState.selectionEnd);
 		console.log('this._selectionOfEditContextText : ', this._selectionOfEditContextText);
 	}
 
@@ -601,41 +631,6 @@ export class NativeEditContext extends AbstractEditContext {
 				activeDocumentSelection.addRange(range);
 			}
 		}
-	}
-
-	public onInputWithoutComposition(text: string) {
-		if (this._currentComposition) {
-			return;
-		}
-		const newOffset = this._editContext.selectionStart + text.length;
-		const newValue = this._editContext.text.substring(0, this._editContext.selectionStart) + text + this._editContext.text.substring(this._editContext.selectionEnd);
-		const previousState = { value: this._editContext.text, selectionStart: this._editContext.selectionStart, selectionEnd: this._editContext.selectionEnd };
-		const currentState = { value: newValue, selectionStart: newOffset, selectionEnd: newOffset };
-		const typeInput = deduceInput(previousState, currentState);
-
-		console.log('onInput');
-		console.log('typeInput : ', typeInput);
-
-		if (
-			typeInput.text !== ''
-			|| typeInput.replacePrevCharCnt !== 0
-			|| typeInput.replaceNextCharCnt !== 0
-			|| typeInput.positionDelta !== 0
-		) {
-			this._onType(typeInput);
-		}
-	}
-
-	public onInputWithComposition(composition: CompositionContext, data: string): void {
-
-		this._updateCompositionEndPosition();
-
-		const compositionInput = composition.handleCompositionUpdate(data);
-
-		console.log('compositionInput : ', compositionInput);
-
-		this._onType(compositionInput);
-		this._render();
 	}
 
 	private _updateCharacterBounds(rangeStart: number) {
