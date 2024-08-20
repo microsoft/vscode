@@ -224,7 +224,14 @@ export class QueryBuilder {
 			return {};
 		}
 
-		pattern = Array.isArray(pattern) ? pattern.map(normalizeSlashes) : normalizeSlashes(pattern);
+		if (Array.isArray(pattern)) {
+			pattern = pattern.filter(p => p.length > 0).map(normalizeSlashes);
+			if (!pattern.length) {
+				return {};
+			}
+		} else {
+			pattern = normalizeSlashes(pattern);
+		}
 		return expandPatterns
 			? this.parseSearchPaths(pattern)
 			: { pattern: patternListToIExpression(...(Array.isArray(pattern) ? pattern : [pattern])) };
