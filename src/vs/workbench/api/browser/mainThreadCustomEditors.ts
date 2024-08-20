@@ -212,7 +212,77 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 			}
 		}));
 
+		void this.reconnectOrphanedEditors(
+			modelType,
+			extension,
+			viewType,
+			options,
+			capabilities,
+			supportsMultipleEditorsPerDocument,
+			serializeBuffersForPostMessage
+		).catch(onUnexpectedError);
+
 		this._editorProviders.set(viewType, disposables);
+	}
+
+	private async reconnectOrphanedEditors(
+		modelType: CustomEditorModelType,
+		extension: WebviewExtensionDescription,
+		viewType: string,
+		options: extHostProtocol.IWebviewPanelOptions,
+		capabilities: extHostProtocol.CustomTextEditorCapabilities,
+		supportsMultipleEditorsPerDocument: boolean,
+		serializeBuffersForPostMessage: boolean,
+	): Promise<void> {
+		for (const editor of this._editorService.editors) {
+			if (
+				editor instanceof CustomEditorInput &&
+				editor.viewType === viewType &&
+				!this.mainThreadWebviewPanels.isWebviewInputRegistered(editor) &&
+				!editor.isDirty
+			) {
+				const webviewInput = editor;
+				const resource = webviewInput.resource;
+				const backupId = webviewInput.backupId;
+				const handle = generateUuid();
+
+				let modelRef: IReference<ICustomEditorModel>;
+				try {
+					modelRef = await this.getOrCreateCustomEditorModel(modelType, resource, viewType, { backupId }, CancellationToken.None);
+				} catch (error) {
+					onUnexpectedError(error);
+					webviewInput.webview.setHtml(this.mainThreadWebview.getWebviewResolvedFailedContent(viewType));
+					return;
+				}
+
+				this.mainThreadWebviewPanels.addWebviewInput(handle, editor, { serializeBuffersForPostMessage });
+				editor.webview.options = options;
+				editor.webview.extension = extension;
+
+				if (capabilities.supportsMove) {
+					editor.onMove(async (newResource: URI) => {
+						const oldModel = modelRef;
+						modelRef = await this.getOrCreateCustomEditorModel(modelType, newResource, viewType, {}, CancellationToken.None);
+						this._proxyCustomEditors.$onMoveCustomEditor(handle, newResource, viewType);
+						oldModel.dispose();
+					});
+				}
+
+				try {
+					await this._proxyCustomEditors.$resolveCustomEditor(resource, handle, viewType, {
+						title: webviewInput.getTitle(),
+						contentOptions: webviewInput.webview.contentOptions,
+						options: webviewInput.webview.options,
+						active: webviewInput === this._editorService.activeEditor,
+					}, editorGroupToColumn(this._editorGroupService, webviewInput.group || 0), CancellationToken.None);
+				} catch (error) {
+					onUnexpectedError(error);
+					webviewInput.webview.setHtml(this.mainThreadWebview.getWebviewResolvedFailedContent(viewType));
+					modelRef.dispose();
+					return;
+				}
+			}
+		}
 	}
 
 	public $unregisterEditorProvider(viewType: string): void {

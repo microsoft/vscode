@@ -137,6 +137,10 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 
 	public get webviewInputs(): Iterable<WebviewInput> { return this._webviewInputs; }
 
+	public isWebviewInputRegistered(input: WebviewInput): boolean {
+		return this._webviewInputs.getHandleForInput(input) !== undefined;
+	}
+
 	public addWebviewInput(handle: extHostProtocol.WebviewHandle, input: WebviewInput, options: { serializeBuffersForPostMessage: boolean }): void {
 		this._webviewInputs.add(handle, input);
 		this._mainThreadWebviews.addWebview(handle, input.webview, options);
