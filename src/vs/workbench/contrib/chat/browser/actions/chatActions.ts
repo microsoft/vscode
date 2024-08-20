@@ -5,7 +5,7 @@
 
 import { coalesce } from 'vs/base/common/arrays';
 import { Codicon } from 'vs/base/common/codicons';
-import { fromNow } from 'vs/base/common/date';
+import { fromNowByDay } from 'vs/base/common/date';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/base/common/themables';
@@ -147,7 +147,7 @@ class ChatHistoryAction extends Action2 {
 
 			let lastDate: string | undefined = undefined;
 			const picks = items.flatMap((i): [IQuickPickSeparator | undefined, IChatPickerItem] => {
-				const timeAgoStr = fromNow(i.lastMessageDate, true);
+				const timeAgoStr = fromNowByDay(i.lastMessageDate, true);
 				const separator: IQuickPickSeparator | undefined = timeAgoStr !== lastDate ? {
 					type: 'separator', label: timeAgoStr,
 				} : undefined;
@@ -156,7 +156,7 @@ class ChatHistoryAction extends Action2 {
 					separator,
 					{
 						label: i.title,
-						description: i.isActive ? `(${localize('activeChatLabel', 'active')})` : '',
+						description: i.isActive ? `(${localize('currentChatLabel', 'current')})` : '',
 						chat: i,
 						buttons: i.isActive ? undefined : [
 							openInEditorButton,
