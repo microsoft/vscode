@@ -112,7 +112,6 @@
 .monaco-editor .ime {
 	text-decoration-line: underline;
 	text-decoration-color: blue;
-	text-underline-offset: 1px;
 	color: var(--vscode-editor-foreground, inherit);
 	opacity: 0.8;
 
@@ -147,7 +146,7 @@
 	}
 
 	&.underline-thickness-thick {
-		text-decoration-thickness: 3px;
+		text-decoration-thickness: 2px;
 	}
 }
 

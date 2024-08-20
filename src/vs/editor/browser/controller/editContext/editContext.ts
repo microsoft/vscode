@@ -9,7 +9,6 @@ import { ViewPart } from 'vs/editor/browser/view/viewPart';
 import { Position } from 'vs/editor/common/core/position';
 import { EndOfLinePreference } from 'vs/editor/common/model';
 import { Range } from 'vs/editor/common/core/range';
-import * as strings from 'vs/base/common/strings';
 import { EditorOption, EditorOptions, IComputedEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -148,63 +147,6 @@ export class CompositionContext {
 		this._lastTypeTextLength = text.length;
 		return typeInput;
 	}
-}
-
-export function deduceInput(previousState: { value: string; selectionStart: number; selectionEnd: number } | undefined, currentState: { value: string; selectionStart: number; selectionEnd: number }): {
-	text: string;
-	replacePrevCharCnt: number;
-	replaceNextCharCnt: number;
-	positionDelta: number;
-} {
-	console.log('deduceInput');
-	console.log('currentState : ', currentState);
-	console.log('previousState : ', previousState);
-	if (!previousState) {
-		// This is the EMPTY state
-		return {
-			text: '',
-			replacePrevCharCnt: 0,
-			replaceNextCharCnt: 0,
-			positionDelta: 0
-		};
-	}
-
-	const prefixLength = Math.min(
-		strings.commonPrefixLength(previousState.value, currentState.value),
-		previousState.selectionStart,
-		currentState.selectionStart
-	);
-	const suffixLength = Math.min(
-		strings.commonSuffixLength(previousState.value, currentState.value),
-		previousState.value.length - previousState.selectionEnd,
-		currentState.value.length - currentState.selectionEnd
-	);
-	const currentValue = currentState.value.substring(prefixLength, currentState.value.length - suffixLength);
-	const previousSelectionStart = previousState.selectionStart - prefixLength;
-	const previousSelectionEnd = previousState.selectionEnd - prefixLength;
-	const currentSelectionStart = currentState.selectionStart - prefixLength;
-	const currentSelectionEnd = currentState.selectionEnd - prefixLength;
-
-	if (currentSelectionStart === currentSelectionEnd) {
-		// no current selection
-		const replacePreviousCharacters = (previousState.selectionStart - prefixLength);
-
-		return {
-			text: currentValue,
-			replacePrevCharCnt: replacePreviousCharacters,
-			replaceNextCharCnt: 0,
-			positionDelta: 0
-		};
-	}
-
-	// there is a current selection => composition case
-	const replacePreviousCharacters = previousSelectionEnd - previousSelectionStart;
-	return {
-		text: currentValue,
-		replacePrevCharCnt: replacePreviousCharacters,
-		replaceNextCharCnt: 0,
-		positionDelta: 0
-	};
 }
 
 export function ariaLabelForScreenReaderContent(options: IComputedEditorOptions, keybindingService: IKeybindingService) {

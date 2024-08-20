@@ -7,7 +7,6 @@ import 'vs/css!./nativeEditContext';
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import * as platform from 'vs/base/common/platform';
 import { AbstractEditContext, ariaLabelForScreenReaderContent, getAccessibilityOptions, ISimpleModel, ITypeData, newlinecount, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/editContext/editContext';
 import { HorizontalPosition, LineVisibleRanges, RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
 import { ViewController } from 'vs/editor/browser/view/viewController';
@@ -19,7 +18,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import * as dom from 'vs/base/browser/dom';
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import * as viewEvents from 'vs/editor/common/viewEvents';
-import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { AccessibilitySupport, IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IEditorAriaOptions } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
@@ -73,6 +72,7 @@ export class NativeEditContext extends AbstractEditContext {
 	private _screenReaderContentSelectionOffsetRange: OffsetRange | undefined;
 	private _linesVisibleRanges: LineVisibleRanges[] | null = null;
 
+	private _isComposing: boolean = false;
 	private _decorations: string[] = [];
 
 	private _previousState: {
@@ -119,7 +119,6 @@ export class NativeEditContext extends AbstractEditContext {
 		this._domElement.setAttribute('tabindex', String(options.get(EditorOption.tabIndex)));
 		this._domElement.setAttribute('role', 'textbox');
 
-		let lastKeyDown: IKeyboardEvent | null = null;
 		this._register(dom.addDisposableListener(this._domElement.domNode, 'keydown', (e) => {
 
 			console.log('keydown : ', e);
@@ -136,7 +135,6 @@ export class NativeEditContext extends AbstractEditContext {
 				// Stop propagation for keyDown events if the IME is processing key input
 				standardKeyboardEvent.stopPropagation();
 			}
-			lastKeyDown = standardKeyboardEvent;
 			this._viewController.emitKeyDown(standardKeyboardEvent);
 		}));
 
@@ -190,35 +188,9 @@ export class NativeEditContext extends AbstractEditContext {
 		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'compositionstart', e => {
 
+			this._isComposing = true;
 			this._updateCompositionStartPosition();
 
-			console.log('oncompositionstart : ', e);
-			console.log('platform.OS === platform.OperatingSystem.Macintosh : ', platform.OS === platform.OperatingSystem.Macintosh);
-			console.log('lastKeyDown : ', lastKeyDown);
-			console.log('lastKeyDown.equals(KeyCode.KEY_IN_COMPOSITION) : ', lastKeyDown?.equals(KeyCode.KEY_IN_COMPOSITION));
-			console.log('this._editContext.selectionStart : ', this._editContext.selectionStart);
-			console.log('this._editContext.selectionEnd : ', this._editContext.selectionEnd);
-			console.log('this._editContext.text.substring(this._editContext.selectionStart - 1, this._editContext.selectionEnd) : ', this._editContext.text.substring(this._editContext.selectionStart - 1, this._editContext.selectionEnd));
-			console.log('(e.currentTarget as EditContext).text.substring(this._editContext.selectionStart - 1, this._editContext.selectionEnd) : ', (e.currentTarget as EditContext).text.substring(this._editContext.selectionStart - 1, this._editContext.selectionEnd));
-			console.log('(lastKeyDown.code === ArrowRight || lastKeyDown.code === ArrowLeft) : ', (lastKeyDown?.code === 'ArrowRight' || lastKeyDown?.code === 'ArrowLeft'));
-
-			const isMacintosh = platform.OS === platform.OperatingSystem.Macintosh;
-			const isLastKeyDownInComposition = lastKeyDown && lastKeyDown.equals(KeyCode.KEY_IN_COMPOSITION);
-			const isSelectionStartEqualToSelectionEnd = this._editContext.selectionStart === this._editContext.selectionEnd;
-			const areSubstringsEqual = this._editContext.text.substring(this._editContext.selectionStart - 1, this._editContext.selectionEnd) === (e.currentTarget as EditContext).text.substring(this._editContext.selectionStart - 1, this._editContext.selectionEnd);
-			const isLastKeydownArrowKey = lastKeyDown && (lastKeyDown.code === 'ArrowRight' || lastKeyDown.code === 'ArrowLeft');
-			if (
-				isMacintosh
-				&& isLastKeyDownInComposition
-				&& isSelectionStartEqualToSelectionEnd
-				&& this._editContext.selectionStart > 0
-				&& areSubstringsEqual
-				&& isLastKeydownArrowKey
-			) {
-				console.log('before handle composition update');
-				// Handling long press case on Chromium/Safari macOS + arrow key => pretend the character was selected
-				// Pretend the previous character was composed (in order to get it removed by subsequent compositionupdate events)
-			}
 			this._render();
 			this._viewController.compositionStart();
 			this._context.viewModel.onCompositionStart();
@@ -228,14 +200,12 @@ export class NativeEditContext extends AbstractEditContext {
 
 			console.log('oncompositionend : ', e);
 
+			this._isComposing = false;
 			this._updateCompositionEndPosition();
 
-			if ('data' in e && typeof e.data === 'string') {
-				this._render();
-				this._domElement.setClassName(`native-edit-context ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`);
-				this._viewController.compositionEnd();
-				this._context.viewModel.onCompositionEnd();
-			}
+			this._render();
+			this._viewController.compositionEnd();
+			this._context.viewModel.onCompositionEnd();
 		}));
 		this._register(dom.addDisposableListener(this._domElement.domNode, 'beforeinput', (e) => {
 
@@ -295,12 +265,15 @@ export class NativeEditContext extends AbstractEditContext {
 	}
 
 	public writeScreenReaderContent(reason: string): void {
-		if ((!this._accessibilityService.isScreenReaderOptimized() && reason === 'render')) {
+		console.log('writeScreenReaderContent');
+		if ((!this._accessibilityService.isScreenReaderOptimized() && reason === 'render') || this._isComposing) {
 			// Do not write to the text on render unless a screen reader is being used #192278
 			// Do not write to the text area when doing composition
+			console.log('early return');
 			return;
 		}
 		const screenReaderContentState = this._getScreenReaderContentState();
+		console.log('screenReaderContentState.value : ', screenReaderContentState.value);
 		this._setScreenReaderContent(reason, screenReaderContentState.value);
 		this._setSelectionOfScreenReaderContent(reason, screenReaderContentState.selectionStart, screenReaderContentState.selectionEnd);
 	}

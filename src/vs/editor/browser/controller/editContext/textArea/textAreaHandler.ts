@@ -296,8 +296,8 @@ export class TextAreaHandler extends AbstractEditContext {
 				}
 
 				const selection = this._selections[0];
-				const data = PagedScreenReaderStrategy.fromEditorSelection(simpleModel, selection, this._accessibilityPageSize, this._accessibilitySupport === AccessibilitySupport.Unknown);
-				return new TextAreaState(data.value, data.selectionStart, data.selectionEnd, selection, data.newLineCountBeforeSelection);
+				const textAreaData = PagedScreenReaderStrategy.fromEditorSelection(simpleModel, selection, this._accessibilityPageSize, this._accessibilitySupport === AccessibilitySupport.Unknown);
+				return new TextAreaState(textAreaData.value, textAreaData.selectionStart, textAreaData.selectionEnd, selection, textAreaData.newLineCountBeforeSelection);
 			},
 
 			deduceModelPosition: (viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position => {
