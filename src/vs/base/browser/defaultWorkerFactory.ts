@@ -8,6 +8,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { COI } from 'vs/base/common/network';
 import { IWorker, IWorkerCallback, IWorkerFactory, logOnceWebWorkerWarning } from 'vs/base/common/worker/simpleWorker';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { getNLSLanguage, getNLSMessages } from 'vs/nls';
 
 // Reuse the trusted types policy defined from worker bootstrap
 // when available.
@@ -80,8 +81,8 @@ export function getWorkerBootstrapUrl(scriptPath: string, label: string): string
 		`/*${label}*/`,
 		`globalThis.MonacoEnvironment = { baseUrl: '${workerBaseUrl}' };`,
 		// VSCODE_GLOBALS: NLS
-		`globalThis._VSCODE_NLS_MESSAGES = ${JSON.stringify(globalThis._VSCODE_NLS_MESSAGES)};`,
-		`globalThis._VSCODE_NLS_LANGUAGE = ${JSON.stringify(globalThis._VSCODE_NLS_LANGUAGE)};`,
+		`globalThis._VSCODE_NLS_MESSAGES = ${JSON.stringify(getNLSMessages())};`,
+		`globalThis._VSCODE_NLS_LANGUAGE = ${JSON.stringify(getNLSLanguage())};`,
 		`const ttPolicy = globalThis.trustedTypes?.createPolicy('defaultWorkerFactory', { createScriptURL: value => value });`,
 		`globalThis.workerttPolicy = ttPolicy;`,
 		`importScripts(ttPolicy?.createScriptURL('${scriptPath}') ?? '${scriptPath}');`,

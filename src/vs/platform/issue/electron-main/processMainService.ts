@@ -10,7 +10,7 @@ import { FileAccess } from 'vs/base/common/network';
 import { IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
 import { listProcesses } from 'vs/base/node/ps';
 import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
-import { localize } from 'vs/nls';
+import { getNLSLanguage, getNLSMessages, localize } from 'vs/nls';
 import { IDiagnosticsService, isRemoteDiagnosticError, PerformanceInfo, SystemInfo } from 'vs/platform/diagnostics/common/diagnostics';
 import { IDiagnosticsMainService } from 'vs/platform/diagnostics/electron-main/diagnosticsMainService';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
@@ -156,8 +156,8 @@ export class ProcessMainService implements IProcessMainService {
 					product,
 					nls: {
 						// VSCODE_GLOBALS: NLS
-						messages: globalThis._VSCODE_NLS_MESSAGES,
-						language: globalThis._VSCODE_NLS_LANGUAGE
+						messages: getNLSMessages(),
+						language: getNLSLanguage()
 					}
 				});
 

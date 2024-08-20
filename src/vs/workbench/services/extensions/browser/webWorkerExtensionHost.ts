@@ -17,6 +17,7 @@ import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
+import { getNLSLanguage, getNLSMessages } from 'vs/nls';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { ILogService, ILoggerService } from 'vs/platform/log/common/log';
@@ -191,8 +192,8 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 						workerUrl: require.toUrl(factoryModuleId),
 						nls: {
 							// VSCODE_GLOBALS: NLS
-							messages: globalThis._VSCODE_NLS_MESSAGES,
-							language: globalThis._VSCODE_NLS_LANGUAGE
+							messages: getNLSMessages(),
+							language: getNLSLanguage()
 						}
 					}
 				}, '*');

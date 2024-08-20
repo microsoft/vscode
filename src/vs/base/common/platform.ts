@@ -104,7 +104,7 @@ else if (typeof navigator === 'object' && !isElectronRenderer) {
 	_isMobile = _userAgent?.indexOf('Mobi') >= 0;
 	_isWeb = true;
 	// VSCODE_GLOBALS: NLS
-	_language = globalThis._VSCODE_NLS_LANGUAGE || LANGUAGE_DEFAULT;
+	_language = nls.getNLSLanguage() || LANGUAGE_DEFAULT;
 	_locale = navigator.language.toLowerCase();
 	_platformLocale = _locale;
 }

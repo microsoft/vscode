@@ -7,7 +7,7 @@ import { safeInnerHtml } from 'vs/base/browser/dom';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import 'vs/css!./media/newIssueReporter';
-import { localize } from 'vs/nls';
+import { getNLSLanguage, getNLSMessages, localize } from 'vs/nls';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -110,8 +110,8 @@ export class IssueFormService2 implements IIssueFormService {
 				product,
 				nls: {
 					// VSCODE_GLOBALS: NLS
-					messages: globalThis._VSCODE_NLS_MESSAGES,
-					language: globalThis._VSCODE_NLS_LANGUAGE
+					messages: getNLSMessages(),
+					language: getNLSLanguage()
 				}
 			};
 
