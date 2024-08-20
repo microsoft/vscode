@@ -33,11 +33,23 @@ const minimist = require('minimist');
 const { compileBuildTask } = require('./gulpfile.compile');
 const { compileExtensionsBuildTask, compileExtensionMediaBuildTask } = require('./gulpfile.extensions');
 const { promisify } = require('util');
+const { isESM } = require('./lib/esm');
 const glob = promisify(require('glob'));
 const rcedit = promisify(require('rcedit'));
 
 // Build
-const vscodeEntryPoints = [
+const vscodeEntryPoints = isESM() ? [
+	buildfile.base,
+	buildfile.workerExtensionHost,
+	buildfile.workerNotebook,
+	buildfile.workerLanguageDetection,
+	buildfile.workerLocalFileSearch,
+	buildfile.workerProfileAnalysis,
+	buildfile.workerOutputLinks,
+	buildfile.workerBackgroundTokenization,
+	buildfile.workbenchDesktop(),
+	buildfile.code
+].flat() : [
 	buildfile.entrypoint('vs/workbench/workbench.desktop.main'),
 	buildfile.base,
 	buildfile.workerExtensionHost,
@@ -45,16 +57,68 @@ const vscodeEntryPoints = [
 	buildfile.workerLanguageDetection,
 	buildfile.workerLocalFileSearch,
 	buildfile.workerProfileAnalysis,
-	buildfile.workbenchDesktop,
+	buildfile.workbenchDesktop(),
 	buildfile.code
 ].flat();
 
-const vscodeResources = [
+const vscodeResourceIncludes = isESM() ? [
+
+	// NLS
+	'out-build/nls.messages.json',
+	'out-build/nls.keys.json',
+
+	// Workbench
+	'out-build/vs/code/electron-sandbox/workbench/workbench.esm.html',
+
+	// Electron Preload
+	'out-build/vs/base/parts/sandbox/electron-sandbox/preload.js',
+	'out-build/vs/base/parts/sandbox/electron-sandbox/preload-aux.js',
+
+	// Node Scripts
+	'out-build/vs/base/node/{terminateProcess.sh,cpuUsage.sh,ps.sh}',
+
+	// Touchbar
+	'out-build/vs/workbench/browser/parts/editor/media/*.png',
+	'out-build/vs/workbench/contrib/debug/browser/media/*.png',
+
+	// External Terminal
+	'out-build/vs/workbench/contrib/externalTerminal/**/*.scpt',
+
+	// Terminal shell integration
+	'out-build/vs/workbench/contrib/terminal/browser/media/fish_xdg_data/fish/vendor_conf.d/*.fish',
+	'out-build/vs/workbench/contrib/terminal/browser/media/*.ps1',
+	'out-build/vs/workbench/contrib/terminal/browser/media/*.psm1',
+	'out-build/vs/workbench/contrib/terminal/browser/media/*.sh',
+	'out-build/vs/workbench/contrib/terminal/browser/media/*.zsh',
+
+	// Accessibility Signals
+	'out-build/vs/platform/accessibilitySignal/browser/media/*.mp3',
+
+	// Welcome
+	'out-build/vs/workbench/contrib/welcomeGettingStarted/common/media/**/*.{svg,png}',
+
+	// Extensions
+	'out-build/vs/workbench/contrib/extensions/browser/media/{theme-icon.png,language-icon.svg}',
+	'out-build/vs/workbench/services/extensionManagement/common/media/*.{svg,png}',
+
+	// Webview
+	'out-build/vs/workbench/contrib/webview/browser/pre/*.{js,html}',
+
+	// Extension Host Worker
+	'out-build/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.esm.html',
+
+	// Process Explorer
+	'out-build/vs/code/electron-sandbox/processExplorer/processExplorer.esm.html',
+
+	// Issue Reporter
+	'out-build/vs/workbench/contrib/issue/electron-sandbox/issueReporter.esm.html'
+] : [
 	'out-build/nls.messages.json',
 	'out-build/nls.keys.json',
 	'out-build/vs/**/*.{svg,png,html,jpg,mp3}',
 	'!out-build/vs/code/browser/**/*.html',
 	'!out-build/vs/code/**/*-dev.html',
+	'!out-build/vs/code/**/*-dev.esm.html',
 	'!out-build/vs/editor/standalone/**/*.svg',
 	'out-build/vs/base/node/{stdForkStart.js,terminateProcess.sh,cpuUsage.sh,ps.sh}',
 	'out-build/vs/base/browser/ui/codicons/codicon/**',
@@ -65,24 +129,40 @@ const vscodeResources = [
 	'out-build/vs/workbench/contrib/externalTerminal/**/*.scpt',
 	'out-build/vs/workbench/contrib/terminal/browser/media/fish_xdg_data/fish/vendor_conf.d/*.fish',
 	'out-build/vs/workbench/contrib/terminal/browser/media/*.ps1',
+	'out-build/vs/workbench/contrib/terminal/browser/media/*.psm1',
 	'out-build/vs/workbench/contrib/terminal/browser/media/*.sh',
 	'out-build/vs/workbench/contrib/terminal/browser/media/*.zsh',
 	'out-build/vs/workbench/contrib/webview/browser/pre/*.js',
-	'!out-build/vs/workbench/contrib/issue/browser/*.html',
 	'!out-build/vs/workbench/contrib/issue/**/*-dev.html',
+	'!out-build/vs/workbench/contrib/issue/**/*-dev.esm.html',
 	'out-build/vs/**/markdown.css',
 	'out-build/vs/workbench/contrib/tasks/**/*.json',
+	'!**/test/**'
+];
+
+const vscodeResources = [
+
+	// Includes
+	...vscodeResourceIncludes,
+
+	// Excludes
+	'!out-build/vs/code/browser/**',
+	'!out-build/vs/editor/standalone/**',
+	'!out-build/vs/code/**/*-dev.html',
+	'!out-build/vs/code/**/*-dev.esm.html',
+	'!out-build/vs/workbench/contrib/issue/**/*-dev.html',
+	'!out-build/vs/workbench/contrib/issue/**/*-dev.esm.html',
 	'!**/test/**'
 ];
 
 // Do not change the order of these files! They will
 // be inlined into the target window file in this order
 // and they depend on each other in this way.
-const windowBootstrapFiles = [
-	'out-build/bootstrap.js',
-	'out-build/vs/loader.js',
-	'out-build/bootstrap-window.js'
-];
+const windowBootstrapFiles = [];
+if (!isESM('Skipping loader.js in window bootstrap files')) {
+	windowBootstrapFiles.push('out-build/vs/loader.js');
+}
+windowBootstrapFiles.push('out-build/bootstrap-window.js');
 
 const commonJSEntryPoints = [
 	'out-build/main.js',
@@ -212,7 +292,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 			'vs/workbench/workbench.desktop.main.js',
 			'vs/workbench/workbench.desktop.main.css',
 			'vs/workbench/api/node/extensionHostProcess.js',
-			'vs/code/electron-sandbox/workbench/workbench.html',
+			isESM() ? 'vs/code/electron-sandbox/workbench/workbench.esm.html' : 'vs/code/electron-sandbox/workbench/workbench.html',
 			'vs/code/electron-sandbox/workbench/workbench.js'
 		]);
 
@@ -241,8 +321,13 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 			version += '-' + quality;
 		}
 
+		if (isESM() && quality !== 'exploration') {
+			// TODO@esm remove this safeguard
+			throw new Error('Refuse to build ESM on quality other than exploration');
+		}
+
 		const name = product.nameShort;
-		const packageJsonUpdates = { name, version };
+		const packageJsonUpdates = { name, version, ...(isESM(`Setting 'type: module' and 'main: out/main.js' in top level package.json`) ? { type: 'module', main: 'out/main.js' } : {}) }; // TODO@esm this should be configured in the top level package.json
 
 		// for linux url handling
 		if (platform === 'linux') {
@@ -275,19 +360,22 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 		const jsFilter = util.filter(data => !data.isDirectory() && /\.js$/.test(data.path));
 		const root = path.resolve(path.join(__dirname, '..'));
 		const productionDependencies = getProductionDependencies(root);
-		const dependenciesSrc = productionDependencies.map(d => path.relative(root, d.path)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]).flat();
+		const dependenciesSrc = productionDependencies.map(d => path.relative(root, d.path)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`, `!**/*.mk`]).flat();
 
-		const deps = gulp.src(dependenciesSrc, { base: '.', dot: true })
+		let deps = gulp.src(dependenciesSrc, { base: '.', dot: true })
 			.pipe(filter(['**', `!**/${config.version}/**`, '!**/bin/darwin-arm64-87/**', '!**/package-lock.json', '!**/yarn.lock', '!**/*.js.map']))
 			.pipe(util.cleanNodeModules(path.join(__dirname, '.moduleignore')))
 			.pipe(util.cleanNodeModules(path.join(__dirname, `.moduleignore.${process.platform}`)))
 			.pipe(jsFilter)
 			.pipe(util.rewriteSourceMappingURL(sourceMappingURLBase))
-			.pipe(jsFilter.restore)
-			.pipe(createAsar(path.join(process.cwd(), 'node_modules'), [
+			.pipe(jsFilter.restore);
+
+		if (!isESM('ASAR disabled in VS Code builds')) { // TODO@esm: ASAR disabled in ESM
+			deps = deps.pipe(createAsar(path.join(process.cwd(), 'node_modules'), [
 				'**/*.node',
 				'**/@vscode/ripgrep/bin/*',
 				'**/node-pty/build/Release/*',
+				'**/node-pty/build/Release/conpty/*',
 				'**/node-pty/lib/worker/conoutSocketWorker.js',
 				'**/node-pty/lib/shared/conout.js',
 				'**/*.wasm',
@@ -295,6 +383,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 			], [
 				'**/*.mk',
 			], 'node_modules.asar'));
+		}
 
 		let all = es.merge(
 			packageJsonStream,

@@ -10,7 +10,7 @@ import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { ITreeElement } from 'vs/base/browser/ui/tree/tree';
 import { Action } from 'vs/base/common/actions';
-import { Delayer, ThrottledDelayer } from 'vs/base/common/async';
+import { Delayer } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { fromNow } from 'vs/base/common/date';
 import { isCancellationError } from 'vs/base/common/errors';
@@ -67,6 +67,7 @@ import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetN
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { CodeWindow } from 'vs/base/browser/window';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 
 export const enum SettingsFocusContext {
@@ -180,8 +181,7 @@ export class SettingsEditor2 extends EditorPane {
 	private tocTree!: TOCTree;
 
 	private delayedFilterLogging: Delayer<void>;
-	private localSearchDelayer: Delayer<void>;
-	private remoteSearchThrottle: ThrottledDelayer<void>;
+	private searchDelayer: Delayer<void>;
 	private searchInProgress: CancellationTokenSource | null = null;
 
 	private searchInputDelayer: Delayer<void>;
@@ -218,6 +218,10 @@ export class SettingsEditor2 extends EditorPane {
 	private dimension!: DOM.Dimension;
 
 	private installedExtensionIds: string[] = [];
+	private dismissedExtensionSettings: string[] = [];
+
+	private readonly DISMISSED_EXTENSION_SETTINGS_STORAGE_KEY = 'settingsEditor2.dismissedExtensionSettings';
+	private readonly DISMISSED_EXTENSION_SETTINGS_DELIMITER = '\t';
 
 	private readonly inputChangeListener: MutableDisposable<IDisposable>;
 
@@ -243,11 +247,11 @@ export class SettingsEditor2 extends EditorPane {
 		@IProductService private readonly productService: IProductService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
 		@IEditorProgressService private readonly editorProgressService: IEditorProgressService,
+		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
 	) {
 		super(SettingsEditor2.ID, group, telemetryService, themeService, storageService);
 		this.delayedFilterLogging = new Delayer<void>(1000);
-		this.localSearchDelayer = new Delayer(300);
-		this.remoteSearchThrottle = new ThrottledDelayer(200);
+		this.searchDelayer = new Delayer(300);
 		this.viewState = { settingsTarget: ConfigurationTarget.USER_LOCAL };
 
 		this.settingFastUpdateDelayer = new Delayer<void>(SettingsEditor2.SETTING_UPDATE_FAST_DEBOUNCE);
@@ -265,10 +269,18 @@ export class SettingsEditor2 extends EditorPane {
 
 		this.editorMemento = this.getEditorMemento<ISettingsEditor2State>(editorGroupService, textResourceConfigurationService, SETTINGS_EDITOR_STATE_KEY);
 
+		this.dismissedExtensionSettings = this.storageService
+			.get(this.DISMISSED_EXTENSION_SETTINGS_STORAGE_KEY, StorageScope.PROFILE, '')
+			.split(this.DISMISSED_EXTENSION_SETTINGS_DELIMITER);
+
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.source !== ConfigurationTarget.DEFAULT) {
 				this.onConfigUpdate(e.affectedKeys);
 			}
+		}));
+
+		this._register(userDataProfileService.onDidChangeCurrentProfile(e => {
+			e.join(this.whenCurrentProfileChanged());
 		}));
 
 		this._register(workspaceTrustManagementService.onDidChangeTrust(() => {
@@ -286,12 +298,28 @@ export class SettingsEditor2 extends EditorPane {
 			}
 		}));
 
+		this._register(extensionManagementService.onDidInstallExtensions(() => {
+			this.refreshInstalledExtensionsList();
+		}));
+		this._register(extensionManagementService.onDidUninstallExtension(() => {
+			this.refreshInstalledExtensionsList();
+		}));
+
 		this.modelDisposables = this._register(new DisposableStore());
 
 		if (ENABLE_LANGUAGE_FILTER && !SettingsEditor2.SUGGESTIONS.includes(`@${LANGUAGE_SETTING_TAG}`)) {
 			SettingsEditor2.SUGGESTIONS.push(`@${LANGUAGE_SETTING_TAG}`);
 		}
 		this.inputChangeListener = this._register(new MutableDisposable());
+	}
+
+	private async whenCurrentProfileChanged(): Promise<void> {
+		this.updatedConfigSchemaDelayer.trigger(() => {
+			this.dismissedExtensionSettings = this.storageService
+				.get(this.DISMISSED_EXTENSION_SETTINGS_STORAGE_KEY, StorageScope.PROFILE, '')
+				.split(this.DISMISSED_EXTENSION_SETTINGS_DELIMITER);
+			this.onConfigUpdate(undefined, true);
+		});
 	}
 
 	override get minimumWidth(): number { return SettingsEditor2.EDITOR_MIN_WIDTH; }
@@ -399,7 +427,7 @@ export class SettingsEditor2 extends EditorPane {
 	private async refreshInstalledExtensionsList(): Promise<void> {
 		const installedExtensions = await this.extensionManagementService.getInstalled();
 		this.installedExtensionIds = installedExtensions
-			.filter(ext => ext.manifest && ext.manifest.contributes && ext.manifest.contributes.configuration)
+			.filter(ext => ext.manifest.contributes?.configuration)
 			.map(ext => ext.identifier.id);
 	}
 
@@ -454,8 +482,7 @@ export class SettingsEditor2 extends EditorPane {
 
 		const target: SettingsTarget | undefined = options.folderUri ?? recoveredViewState?.settingsTarget ?? <SettingsTarget | undefined>options.target;
 		if (target) {
-			this.settingsTargetsWidget.settingsTarget = target;
-			this.viewState.settingsTarget = target;
+			this.settingsTargetsWidget.updateTarget(target);
 		}
 	}
 
@@ -676,6 +703,19 @@ export class SettingsEditor2 extends EditorPane {
 		this.viewState.settingsTarget = target;
 
 		// TODO Instead of rebuilding the whole model, refresh and uncache the inspected setting value
+		this.onConfigUpdate(undefined, true);
+	}
+
+	private onDidDismissExtensionSetting(extensionId: string): void {
+		if (!this.dismissedExtensionSettings.includes(extensionId)) {
+			this.dismissedExtensionSettings.push(extensionId);
+		}
+		this.storageService.store(
+			this.DISMISSED_EXTENSION_SETTINGS_STORAGE_KEY,
+			this.dismissedExtensionSettings.join(this.DISMISSED_EXTENSION_SETTINGS_DELIMITER),
+			StorageScope.PROFILE,
+			StorageTarget.USER
+		);
 		this.onConfigUpdate(undefined, true);
 	}
 
@@ -916,6 +956,7 @@ export class SettingsEditor2 extends EditorPane {
 	private createSettingsTree(container: HTMLElement): void {
 		this.settingRenderers = this._register(this.instantiationService.createInstance(SettingTreeRenderers));
 		this._register(this.settingRenderers.onDidChangeSetting(e => this.onDidChangeSetting(e.key, e.value, e.type, e.manualReset, e.scope)));
+		this._register(this.settingRenderers.onDidDismissExtensionSetting((e) => this.onDidDismissExtensionSetting(e)));
 		this._register(this.settingRenderers.onDidOpenSettings(settingKey => {
 			this.openSettingsFile({ revealSetting: { key: settingKey, edit: true } });
 		}));
@@ -1210,43 +1251,6 @@ export class SettingsEditor2 extends EditorPane {
 		});
 	}
 
-	private addOrRemoveManageExtensionSetting(setting: ISetting, extension: IGalleryExtension, groups: ISettingsGroup[]): ISettingsGroup | undefined {
-		const matchingGroups = groups.filter(g => {
-			const lowerCaseId = g.extensionInfo?.id.toLowerCase();
-			return (lowerCaseId === setting.stableExtensionId!.toLowerCase() ||
-				lowerCaseId === setting.prereleaseExtensionId!.toLowerCase());
-		});
-
-		const extensionId = setting.displayExtensionId!;
-		const extensionInstalled = this.installedExtensionIds.includes(extensionId);
-		if (!matchingGroups.length && !extensionInstalled) {
-			// Only show the recommendation when the extension hasn't been installed.
-			const newGroup: ISettingsGroup = {
-				sections: [{
-					settings: [setting],
-				}],
-				id: extensionId,
-				title: setting.extensionGroupTitle!,
-				titleRange: nullRange,
-				range: nullRange,
-				extensionInfo: {
-					id: extensionId,
-					displayName: extension?.displayName,
-				}
-			};
-			groups.push(newGroup);
-			return newGroup;
-		} else if (matchingGroups.length >= 2 || extensionInstalled) {
-			// Remove the group with the manage extension setting.
-			const matchingGroupIndex = matchingGroups.findIndex(group =>
-				group.sections.length === 1 && group.sections[0].settings.length === 1 && group.sections[0].settings[0].displayExtensionId);
-			if (matchingGroupIndex !== -1) {
-				groups.splice(matchingGroupIndex, 1);
-			}
-		}
-		return undefined;
-	}
-
 	private createSettingsOrderByTocIndex(resolvedSettingsRoot: ITOCEntry<ISetting>): Map<string, number> {
 		const index = new Map<string, number>();
 		function indexSettings(resolvedSettingsRoot: ITOCEntry<ISetting>, counter = 0): number {
@@ -1301,11 +1305,37 @@ export class SettingsEditor2 extends EditorPane {
 		}
 
 		const additionalGroups: ISettingsGroup[] = [];
+		let setAdditionalGroups = false;
 		const toggleData = await getExperimentalExtensionToggleData(this.extensionGalleryService, this.productService);
 		if (toggleData && groups.filter(g => g.extensionInfo).length) {
 			for (const key in toggleData.settingsEditorRecommendedExtensions) {
-				const recommendationInfo = toggleData.settingsEditorRecommendedExtensions[key];
-				const extension = toggleData.recommendedExtensionsGalleryInfo[key];
+				const extension: IGalleryExtension = toggleData.recommendedExtensionsGalleryInfo[key];
+				if (!extension) {
+					continue;
+				}
+
+				const extensionId = extension.identifier.id;
+				const extensionInstalled = this.installedExtensionIds.includes(extensionId);
+
+				// Drill down to see whether the group and setting already exist
+				// and need to be removed.
+				const matchingGroupIndex = groups.findIndex(g =>
+					g.extensionInfo && g.extensionInfo!.id.toLowerCase() === extensionId.toLowerCase() &&
+					g.sections.length === 1 && g.sections[0].settings.length === 1 && g.sections[0].settings[0].displayExtensionId
+				);
+				if (extensionInstalled || this.dismissedExtensionSettings.includes(extensionId)) {
+					if (matchingGroupIndex !== -1) {
+						groups.splice(matchingGroupIndex, 1);
+						setAdditionalGroups = true;
+					}
+					continue;
+				}
+
+				if (matchingGroupIndex !== -1) {
+					continue;
+				}
+
+				// Create the entry. extensionInstalled is false in this case.
 				let manifest: IExtensionManifest | null = null;
 				try {
 					manifest = await this.extensionGalleryService.getManifest(extension, CancellationToken.None);
@@ -1323,7 +1353,8 @@ export class SettingsEditor2 extends EditorPane {
 					groupTitle = contributesConfiguration[0].title;
 				}
 
-				const extensionName = extension?.displayName ?? extension?.name ?? extension.identifier.id;
+				const recommendationInfo = toggleData.settingsEditorRecommendedExtensions[key];
+				const extensionName = extension.displayName ?? extension.name ?? extensionId;
 				const settingKey = `${key}.manageExtension`;
 				const setting: ISetting = {
 					range: nullRange,
@@ -1336,17 +1367,27 @@ export class SettingsEditor2 extends EditorPane {
 					descriptionRanges: [],
 					scope: ConfigurationScope.WINDOW,
 					type: 'null',
-					displayExtensionId: extension.identifier.id,
-					prereleaseExtensionId: key,
-					stableExtensionId: key,
+					displayExtensionId: extensionId,
 					extensionGroupTitle: groupTitle ?? extensionName,
 					categoryLabel: 'Extensions',
 					title: extensionName
 				};
-				const additionalGroup = this.addOrRemoveManageExtensionSetting(setting, extension, groups);
-				if (additionalGroup) {
-					additionalGroups.push(additionalGroup);
-				}
+				const additionalGroup: ISettingsGroup = {
+					sections: [{
+						settings: [setting],
+					}],
+					id: extensionId,
+					title: setting.extensionGroupTitle!,
+					titleRange: nullRange,
+					range: nullRange,
+					extensionInfo: {
+						id: extensionId,
+						displayName: extension.displayName,
+					}
+				};
+				groups.push(additionalGroup);
+				additionalGroups.push(additionalGroup);
+				setAdditionalGroups = true;
 			}
 		}
 
@@ -1356,7 +1397,7 @@ export class SettingsEditor2 extends EditorPane {
 		const commonlyUsed = resolveSettingsTree(commonlyUsedDataToUse, groups, this.logService);
 		resolvedSettingsRoot.children!.unshift(commonlyUsed.tree);
 
-		if (toggleData) {
+		if (toggleData && setAdditionalGroups) {
 			// Add the additional groups to the model to help with searching.
 			this.defaultSettingsEditorModel.setAdditionalGroups(additionalGroups);
 		}
@@ -1583,8 +1624,7 @@ export class SettingsEditor2 extends EditorPane {
 				this.searchResultModel = null;
 			}
 
-			this.localSearchDelayer.cancel();
-			this.remoteSearchThrottle.cancel();
+			this.searchDelayer.cancel();
 			if (this.searchInProgress) {
 				this.searchInProgress.cancel();
 				this.searchInProgress.dispose();
@@ -1675,7 +1715,7 @@ export class SettingsEditor2 extends EditorPane {
 		this.telemetryService.publicLog2<SettingsEditorFilterEvent, SettingsEditorFilterClassification>('settingsEditor.filter', data);
 	}
 
-	private triggerFilterPreferences(query: string): Promise<void> {
+	private async triggerFilterPreferences(query: string): Promise<void> {
 		if (this.searchInProgress) {
 			this.searchInProgress.cancel();
 			this.searchInProgress = null;
@@ -1683,18 +1723,29 @@ export class SettingsEditor2 extends EditorPane {
 
 		// Trigger the local search. If it didn't find an exact match, trigger the remote search.
 		const searchInProgress = this.searchInProgress = new CancellationTokenSource();
-		return this.localSearchDelayer.trigger(async () => {
-			if (searchInProgress && !searchInProgress.token.isCancellationRequested) {
-				const result = await this.localFilterPreferences(query);
-				if (result && !result.exactMatch) {
-					this.remoteSearchThrottle.trigger(async () => {
-						if (searchInProgress && !searchInProgress.token.isCancellationRequested) {
-							await this.remoteSearchPreferences(query, this.searchInProgress?.token);
-						}
-					});
+		return this.searchDelayer.trigger(async () => {
+			if (!searchInProgress.token.isCancellationRequested) {
+				const localResults = await this.localFilterPreferences(query, searchInProgress.token);
+				if (localResults && !localResults.exactMatch && !searchInProgress.token.isCancellationRequested) {
+					await this.remoteSearchPreferences(query, searchInProgress.token);
 				}
+
+				// Update UI only after all the search results are in
+				// ref https://github.com/microsoft/vscode/issues/224946
+				this.onDidFinishSearch();
 			}
 		});
+	}
+
+	private onDidFinishSearch() {
+		this.tocTreeModel.currentSearchModel = this.searchResultModel;
+		this.tocTreeModel.update();
+		this.tocTree.setFocus([]);
+		this.viewState.filterToCategory = undefined;
+		this.tocTree.expandAll();
+		this.settingsTree.scrollTop = 0;
+		this.refreshTOCTree();
+		this.renderTree(undefined, true);
 	}
 
 	private localFilterPreferences(query: string, token?: CancellationToken): Promise<ISearchResult | null> {
@@ -1702,14 +1753,9 @@ export class SettingsEditor2 extends EditorPane {
 		return this.filterOrSearchPreferences(query, SearchResultIdx.Local, localSearchProvider, token);
 	}
 
-	private remoteSearchPreferences(query: string, token?: CancellationToken): Promise<void> {
+	private remoteSearchPreferences(query: string, token?: CancellationToken): Promise<ISearchResult | null> {
 		const remoteSearchProvider = this.preferencesSearchService.getRemoteSearchProvider(query);
-		const newExtSearchProvider = this.preferencesSearchService.getRemoteSearchProvider(query, true);
-
-		return Promise.all([
-			this.filterOrSearchPreferences(query, SearchResultIdx.Remote, remoteSearchProvider, token),
-			this.filterOrSearchPreferences(query, SearchResultIdx.NewExtensions, newExtSearchProvider, token)
-		]).then(() => { });
+		return this.filterOrSearchPreferences(query, SearchResultIdx.Remote, remoteSearchProvider, token);
 	}
 
 	private async filterOrSearchPreferences(query: string, type: SearchResultIdx, searchProvider?: ISearchProvider, token?: CancellationToken): Promise<ISearchResult | null> {
@@ -1718,24 +1764,8 @@ export class SettingsEditor2 extends EditorPane {
 			// Handle cancellation like this because cancellation is lost inside the search provider due to async/await
 			return null;
 		}
-		if (!this.searchResultModel) {
-			this.searchResultModel = this.instantiationService.createInstance(SearchResultModel, this.viewState, this.settingsOrderByTocIndex, this.workspaceTrustManagementService.isWorkspaceTrusted());
-			// Must be called before this.renderTree()
-			// to make sure the search results count is set.
-			this.searchResultModel.setResult(type, result);
-			this.tocTreeModel.currentSearchModel = this.searchResultModel;
-		} else {
-			this.searchResultModel.setResult(type, result);
-			this.tocTreeModel.update();
-		}
-		if (type === SearchResultIdx.Local) {
-			this.tocTree.setFocus([]);
-			this.viewState.filterToCategory = undefined;
-			this.tocTree.expandAll();
-		}
-		this.settingsTree.scrollTop = 0;
-		this.refreshTOCTree();
-		this.renderTree(undefined, true);
+		this.searchResultModel ??= this.instantiationService.createInstance(SearchResultModel, this.viewState, this.settingsOrderByTocIndex, this.workspaceTrustManagementService.isWorkspaceTrusted());
+		this.searchResultModel.setResult(type, result);
 		return result;
 	}
 

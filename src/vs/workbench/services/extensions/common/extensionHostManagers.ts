@@ -20,6 +20,7 @@ export interface IExtensionHostManager {
 	readonly friendyName: string;
 	readonly onDidExit: Event<[number, string | null]>;
 	readonly onDidChangeResponsiveState: Event<ResponsiveState>;
+	disconnect(): Promise<void>;
 	dispose(): void;
 	ready(): Promise<void>;
 	representsRunningLocation(runningLocation: ExtensionRunningLocation): boolean;

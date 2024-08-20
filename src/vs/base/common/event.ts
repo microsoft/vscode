@@ -112,6 +112,15 @@ export namespace Event {
 	}
 
 	/**
+	 * Given an event, returns another event which only fires once, and only when the condition is met.
+	 *
+	 * @param event The event source for the new event.
+	 */
+	export function onceIf<T>(event: Event<T>, condition: (e: T) => boolean): Event<T> {
+		return Event.once(Event.filter(event, condition));
+	}
+
+	/**
 	 * Maps an event of one type into an event of another type using a mapping function, similar to how
 	 * `Array.prototype.map` works.
 	 *
@@ -616,6 +625,25 @@ export namespace Event {
 	}
 
 	/**
+	 * A convenience function for forwarding an event to another emitter which
+	 * improves readability.
+	 *
+	 * This is similar to {@link Relay} but allows instantiating and forwarding
+	 * on a single line and also allows for multiple source events.
+	 * @param from The event to forward.
+	 * @param to The emitter to forward the event to.
+	 * @example
+	 * Event.forward(event, emitter);
+	 * // equivalent to
+	 * event(e => emitter.fire(e));
+	 * // equivalent to
+	 * event(emitter.fire, emitter);
+	 */
+	export function forward<T>(from: Event<T>, to: Emitter<T>): IDisposable {
+		return from(e => to.fire(e));
+	}
+
+	/**
 	 * Adds a listener to an event and calls the listener immediately with undefined as the event object.
 	 *
 	 * @example
@@ -642,6 +670,9 @@ export namespace Event {
 			const options: EmitterOptions = {
 				onWillAddFirstListener: () => {
 					_observable.addObserver(this);
+
+					// Communicate to the observable that we received its current value and would like to be notified about future changes.
+					this._observable.reportChanges();
 				},
 				onDidRemoveLastListener: () => {
 					_observable.removeObserver(this);

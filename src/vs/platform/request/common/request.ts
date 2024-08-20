@@ -37,6 +37,7 @@ export interface IRequestService {
 
 	resolveProxy(url: string): Promise<string | undefined>;
 	lookupAuthorization(authInfo: AuthInfo): Promise<Credentials | undefined>;
+	lookupKerberosAuthorization(url: string): Promise<string | undefined>;
 	loadCertificates(): Promise<string[]>;
 }
 
@@ -96,6 +97,7 @@ export abstract class AbstractRequestService extends Disposable implements IRequ
 	abstract request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext>;
 	abstract resolveProxy(url: string): Promise<string | undefined>;
 	abstract lookupAuthorization(authInfo: AuthInfo): Promise<Credentials | undefined>;
+	abstract lookupKerberosAuthorization(url: string): Promise<string | undefined>;
 	abstract loadCertificates(): Promise<string[]>;
 }
 

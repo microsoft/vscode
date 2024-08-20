@@ -35,7 +35,7 @@ export async function showLoadedScriptMenu(accessor: ServicesAccessor) {
 	const labelService = accessor.get(ILabelService);
 
 	const localDisposableStore = new DisposableStore();
-	const quickPick = quickInputService.createQuickPick<IPickerDebugItem>();
+	const quickPick = quickInputService.createQuickPick<IPickerDebugItem>({ useSeparators: true });
 	localDisposableStore.add(quickPick);
 	quickPick.matchOnLabel = quickPick.matchOnDescription = quickPick.matchOnDetail = quickPick.sortByLabel = false;
 	quickPick.placeholder = nls.localize('moveFocusedView.selectView', "Search loaded scripts by name");

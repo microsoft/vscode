@@ -204,7 +204,7 @@ export class ReleaseNotesManager {
 				throw new Error('Failed to fetch release notes');
 			}
 
-			if (!text || !/^#\s/.test(text)) { // release notes always starts with `#` followed by whitespace
+			if (!text || (!/^#\s/.test(text) && !useCurrentFile)) { // release notes always starts with `#` followed by whitespace, except when using the current file
 				throw new Error('Invalid release notes');
 			}
 
@@ -388,7 +388,7 @@ export class ReleaseNotesManager {
 					});
 
 					window.addEventListener('click', event => {
-						const href = event.target.href ?? event.target.parentElement.href ?? event.target.parentElement.parentElement?.href;
+						const href = event.target.href ?? event.target.parentElement?.href ?? event.target.parentElement?.parentElement?.href;
 						if (href && (href.startsWith('${Schemas.codeSetting}'))) {
 							vscode.postMessage({ type: 'clickSetting', value: { uri: href, x: event.clientX, y: event.clientY }});
 						}

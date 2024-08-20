@@ -20,16 +20,6 @@ export class StableEditorScrollState {
 		const visibleRanges = editor.getVisibleRanges();
 		if (visibleRanges.length > 0) {
 			visiblePosition = visibleRanges[0].getStartPosition();
-
-			const cursorPos = editor.getPosition();
-			if (cursorPos) {
-				const isVisible = visibleRanges.some(range => range.containsPosition(cursorPos));
-				if (isVisible) {
-					// Keep cursor pos fixed if it is visible
-					visiblePosition = cursorPos;
-				}
-			}
-
 			const visiblePositionScrollTop = editor.getTopForPosition(visiblePosition.lineNumber, visiblePosition.column);
 			visiblePositionScrollDelta = editor.getScrollTop() - visiblePositionScrollTop;
 		}

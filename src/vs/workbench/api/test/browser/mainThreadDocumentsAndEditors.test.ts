@@ -27,11 +27,15 @@ import { TestTextResourcePropertiesService, TestWorkingCopyFileService } from 'v
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { LanguageService } from 'vs/editor/common/services/languageService';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { ILanguageService } from 'vs/editor/common/languages/language';
+import { LanguageService } from 'vs/editor/common/services/languageService';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
+import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 
 suite('MainThreadDocumentsAndEditors', () => {
 
@@ -61,12 +65,15 @@ suite('MainThreadDocumentsAndEditors', () => {
 		const notificationService = new TestNotificationService();
 		const undoRedoService = new UndoRedoService(dialogService, notificationService);
 		const themeService = new TestThemeService();
+		const instantiationService = new TestInstantiationService();
+		instantiationService.set(ILanguageService, disposables.add(new LanguageService()));
+		instantiationService.set(ILanguageConfigurationService, new TestLanguageConfigurationService());
+		instantiationService.set(IUndoRedoService, undoRedoService);
 		modelService = new ModelService(
 			configService,
 			new TestTextResourcePropertiesService(configService),
 			undoRedoService,
-			disposables.add(new LanguageService()),
-			new TestLanguageConfigurationService(),
+			instantiationService
 		);
 		codeEditorService = new TestCodeEditorService(themeService);
 		textFileService = new class extends mock<ITextFileService>() {

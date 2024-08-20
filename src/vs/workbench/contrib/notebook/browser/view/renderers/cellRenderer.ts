@@ -288,6 +288,12 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 				width: 0,
 				height: 0
 			},
+			scrollbar: {
+				vertical: 'hidden',
+				horizontal: 'auto',
+				handleMouseWheel: false,
+				useShadows: false,
+			},
 		}, {
 			contributions: this.notebookEditor.creationOptions.cellEditorContributions
 		});

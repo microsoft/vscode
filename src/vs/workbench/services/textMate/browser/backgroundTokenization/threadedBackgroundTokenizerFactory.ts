@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { canASAR } from 'vs/base/common/amd';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { AppResourcePath, FileAccess, nodeModulesAsarPath, nodeModulesPath } from 'vs/base/common/network';
 import { IObservable } from 'vs/base/common/observable';
@@ -127,23 +128,15 @@ export class ThreadedBackgroundTokenizerFactory implements IDisposable {
 	}
 
 	private async _createWorkerProxy(): Promise<TextMateTokenizationWorker | null> {
-		const textmateModuleLocation: AppResourcePath = `${nodeModulesPath}/vscode-textmate`;
-		const textmateModuleLocationAsar: AppResourcePath = `${nodeModulesAsarPath}/vscode-textmate`;
 		const onigurumaModuleLocation: AppResourcePath = `${nodeModulesPath}/vscode-oniguruma`;
 		const onigurumaModuleLocationAsar: AppResourcePath = `${nodeModulesAsarPath}/vscode-oniguruma`;
 
-		const useAsar = this._environmentService.isBuilt && !isWeb;
-		const textmateLocation: AppResourcePath = useAsar ? textmateModuleLocationAsar : textmateModuleLocation;
+		const useAsar = canASAR && this._environmentService.isBuilt && !isWeb;
 		const onigurumaLocation: AppResourcePath = useAsar ? onigurumaModuleLocationAsar : onigurumaModuleLocation;
-		const textmateMain: AppResourcePath = `${textmateLocation}/release/main.js`;
-		const onigurumaMain: AppResourcePath = `${onigurumaLocation}/release/main.js`;
 		const onigurumaWASM: AppResourcePath = `${onigurumaLocation}/release/onig.wasm`;
-		const uri = FileAccess.asBrowserUri(textmateMain).toString(true);
 
 		const createData: ICreateData = {
 			grammarDefinitions: this._grammarDefinitions,
-			textmateMainUri: uri,
-			onigurumaMainUri: FileAccess.asBrowserUri(onigurumaMain).toString(true),
 			onigurumaWASMUri: FileAccess.asBrowserUri(onigurumaWASM).toString(true),
 		};
 		const host: ITextMateWorkerHost = {

@@ -352,6 +352,13 @@ export interface IDebugEvaluatePosition {
 	source: DebugProtocol.Source;
 }
 
+export interface IDebugLocationReferenced {
+	line: number;
+	column: number;
+	endLine?: number;
+	endColumn?: number;
+	source: Source;
+}
 
 export interface IDebugSession extends ITreeElement {
 
@@ -401,7 +408,7 @@ export interface IDebugSession extends ITreeElement {
 	// session events
 	readonly onDidEndAdapter: Event<AdapterEndEvent | undefined>;
 	readonly onDidChangeState: Event<void>;
-	readonly onDidChangeReplElements: Event<void>;
+	readonly onDidChangeReplElements: Event<IReplElement | undefined>;
 
 	// DA capabilities
 	readonly capabilities: DebugProtocol.Capabilities;
@@ -432,6 +439,7 @@ export interface IDebugSession extends ITreeElement {
 	sendExceptionBreakpoints(exbpts: IExceptionBreakpoint[]): Promise<void>;
 	breakpointsLocations(uri: uri, lineNumber: number): Promise<IPosition[]>;
 	getDebugProtocolBreakpoint(breakpointId: string): DebugProtocol.Breakpoint | undefined;
+	resolveLocationReference(locationReference: number): Promise<IDebugLocationReferenced>;
 
 	stackTrace(threadId: number, startFrame: number, levels: number, token: CancellationToken): Promise<DebugProtocol.StackTraceResponse | undefined>;
 	exceptionInfo(threadId: number): Promise<IExceptionInfo | undefined>;
@@ -743,7 +751,14 @@ export interface IDebugModel extends ITreeElement {
 	getBreakpointModes(forBreakpointType: 'source' | 'exception' | 'data' | 'instruction'): DebugProtocol.BreakpointMode[];
 	onDidChangeBreakpoints: Event<IBreakpointsChangeEvent | undefined>;
 	onDidChangeCallStack: Event<void>;
+	/**
+	 * The expression has been added, removed, or repositioned.
+	 */
 	onDidChangeWatchExpressions: Event<IExpression | undefined>;
+	/**
+	 * The expression's value has changed.
+	 */
+	onDidChangeWatchExpressionValue: Event<IExpression | undefined>;
 
 	fetchCallstack(thread: IThread, levels?: number): Promise<void>;
 }
@@ -792,7 +807,7 @@ export interface IDebugConfiguration {
 	disassemblyView: {
 		showSourceCode: boolean;
 	};
-	autoExpandLazyVariables: boolean;
+	autoExpandLazyVariables: 'auto' | 'off' | 'on';
 	enableStatusBarColor: boolean;
 	showVariableTypes: boolean;
 }

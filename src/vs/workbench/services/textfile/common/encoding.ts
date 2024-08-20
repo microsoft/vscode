@@ -8,6 +8,7 @@ import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/comm
 import { importAMDNodeModule } from 'vs/amdX';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { coalesce } from 'vs/base/common/arrays';
+import { isESM } from 'vs/base/common/amd';
 
 export const UTF8 = 'utf8';
 export const UTF8_with_bom = 'utf8bom';
@@ -320,7 +321,11 @@ const IGNORE_ENCODINGS = ['ascii', 'utf-16', 'utf-32'];
  * Guesses the encoding from buffer.
  */
 async function guessEncodingByBuffer(buffer: VSBuffer, candidateGuessEncodings?: string[]): Promise<string | null> {
-	const jschardet = await importAMDNodeModule<typeof import('jschardet')>('jschardet', 'dist/jschardet.min.js');
+
+	// TODO@bpasero TODO@esm: this used to be `dist/jschardet.min.js`, but we are running into an issue that
+	// https://github.com/aadsm/jschardet/pull/96 mitigates. Long-term we should just add minification
+	// of dependencies into our build process so that we do not depend on how others are doing it.
+	const jschardet = await importAMDNodeModule<typeof import('jschardet')>('jschardet', isESM ? 'dist/jschardet.js' : 'dist/jschardet.min.js');
 
 	// ensure to limit buffer for guessing due to https://github.com/aadsm/jschardet/issues/53
 	const limitedBuffer = buffer.slice(0, AUTO_ENCODING_GUESS_MAX_BYTES);

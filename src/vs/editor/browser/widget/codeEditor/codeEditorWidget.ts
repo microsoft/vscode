@@ -577,7 +577,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		if (!this._modelData) {
 			return -1;
 		}
-		return CodeEditorWidget._getVerticalOffsetAfterPosition(this._modelData, lineNumber, 1, includeViewZones);
+		const maxCol = this._modelData.model.getLineMaxColumn(lineNumber);
+		return CodeEditorWidget._getVerticalOffsetAfterPosition(this._modelData, lineNumber, maxCol, includeViewZones);
 	}
 
 	public setHiddenAreas(ranges: IRange[], source?: unknown): void {

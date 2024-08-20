@@ -111,6 +111,12 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('menus.debugToolBar', "The debug toolbar menu")
 	},
 	{
+		key: 'debug/createConfiguration',
+		id: MenuId.DebugCreateConfiguration,
+		proposed: 'contribDebugCreateConfiguration',
+		description: localize('menus.debugCreateConfiguation', "The debug create configuration menu")
+	},
+	{
 		key: 'notebook/variables/context',
 		id: MenuId.NotebookVariablesContext,
 		description: localize('menus.notebookVariablesContext', "The notebook variables view context menu")
@@ -173,6 +179,12 @@ const apiMenus: IAPIMenu[] = [
 		key: 'scm/historyItemChanges/title',
 		id: MenuId.SCMChangesSeparator,
 		description: localize('menus.historyItemChanges', "The Source Control incoming/outgoing changes title menu"),
+		proposed: 'contribSourceControlHistoryItemChangesMenu'
+	},
+	{
+		key: 'scm/historyItem/context',
+		id: MenuId.SCMChangesContext,
+		description: localize('menus.historyItemContext', "The Source Control history item context menu"),
 		proposed: 'contribSourceControlHistoryItemChangesMenu'
 	},
 	{
@@ -243,6 +255,12 @@ const apiMenus: IAPIMenu[] = [
 		key: 'view/title',
 		id: MenuId.ViewTitle,
 		description: localize('view.viewTitle', "The contributed view title menu")
+	},
+	{
+		key: 'viewContainer/title',
+		id: MenuId.ViewContainerTitle,
+		description: localize('view.containerTitle', "The contributed view container title menu"),
+		proposed: 'contribViewContainerTitle'
 	},
 	{
 		key: 'view/item/context',
@@ -1033,6 +1051,12 @@ menusExtensionPoint.setHandler(extensions => {
 					} else {
 						item.group = menuItem.group;
 					}
+				}
+
+				if (menu.id === MenuId.ViewContainerTitle && !menuItem.when?.includes('viewContainer == workbench.view.debug')) {
+					// Not a perfect check but enough to communicate that this proposed extension point is currently only for the debug view container
+					collector.error(localize('viewContainerTitle.when', "The {0} menu contribution must check {1} in its {2} clause.", '`viewContainer/title`', '`viewContainer == workbench.view.debug`', '"when"'));
+					continue;
 				}
 
 				item.when = ContextKeyExpr.deserialize(menuItem.when);

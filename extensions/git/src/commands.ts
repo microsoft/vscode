@@ -4192,17 +4192,36 @@ export class CommandCenter {
 	}
 
 	@command('git.viewCommit', { repository: true })
-	async viewCommit(repository: Repository, historyItem: SourceControlHistoryItem): Promise<void> {
-		if (!repository || !historyItem) {
+	async viewCommit(repository: Repository, historyItem1: SourceControlHistoryItem, historyItem2?: SourceControlHistoryItem): Promise<void> {
+		if (!repository || !historyItem1) {
 			return;
 		}
 
-		const commit = await repository.getCommit(historyItem.id);
-		const title = `${historyItem.id.substring(0, 8)} - ${commit.message}`;
+		if (historyItem2) {
+			const mergeBase = await repository.getMergeBase(historyItem1.id, historyItem2.id);
+			if (!mergeBase || (mergeBase !== historyItem1.id && mergeBase !== historyItem2.id)) {
+				return;
+			}
+		}
 
-		const multiDiffSourceUri = toGitUri(Uri.file(repository.root), historyItem.id, { scheme: 'git-commit' });
+		let title: string | undefined;
+		let historyItemParentId: string | undefined;
 
-		await this._viewChanges(repository, historyItem, multiDiffSourceUri, title);
+		// If historyItem2 is not provided, we are viewing a single commit. If historyItem2 is
+		// provided, we are viewing a range and we have to include both start and end commits.
+		// TODO@lszomoru - handle the case when historyItem2 is the first commit in the repository
+		if (!historyItem2) {
+			const commit = await repository.getCommit(historyItem1.id);
+			title = `${historyItem1.id.substring(0, 8)} - ${commit.message}`;
+			historyItemParentId = historyItem1.parentIds.length > 0 ? historyItem1.parentIds[0] : `${historyItem1.id}^`;
+		} else {
+			title = l10n.t('All Changes ({0} ↔ {1})', historyItem2.id.substring(0, 8), historyItem1.id.substring(0, 8));
+			historyItemParentId = historyItem2.parentIds.length > 0 ? historyItem2.parentIds[0] : `${historyItem2.id}^`;
+		}
+
+		const multiDiffSourceUri = toGitUri(Uri.file(repository.root), `${historyItemParentId}..${historyItem1.id}`, { scheme: 'git-commit', });
+
+		await this._viewChanges(repository, historyItem1.id, historyItemParentId, multiDiffSourceUri, title);
 	}
 
 	@command('git.viewAllChanges', { repository: true })
@@ -4217,20 +4236,32 @@ export class CommandCenter {
 
 		const multiDiffSourceUri = toGitUri(Uri.file(repository.root), historyItem.id, { scheme: 'git-changes' });
 
-		await this._viewChanges(repository, historyItem, multiDiffSourceUri, title);
+		await this._viewChanges(repository, modifiedShortRef, originalShortRef, multiDiffSourceUri, title);
 	}
 
-	async _viewChanges(repository: Repository, historyItem: SourceControlHistoryItem, multiDiffSourceUri: Uri, title: string): Promise<void> {
-		const historyItemParentId = historyItem.parentIds.length > 0 ? historyItem.parentIds[0] : `${historyItem.id}^`;
-		const changes = await repository.diffBetween(historyItemParentId, historyItem.id);
+	async _viewChanges(repository: Repository, historyItemId: string, historyItemParentId: string, multiDiffSourceUri: Uri, title: string): Promise<void> {
+		const changes = await repository.diffBetween(historyItemParentId, historyItemId);
+		const resources = changes.map(c => toMultiFileDiffEditorUris(c, historyItemParentId, historyItemId));
 
-		if (changes.length === 0) {
+		await commands.executeCommand('_workbench.openMultiDiffEditor', { multiDiffSourceUri, title, resources });
+	}
+
+	@command('git.copyCommitId', { repository: true })
+	async copyCommitId(repository: Repository, historyItem: SourceControlHistoryItem): Promise<void> {
+		if (!repository || !historyItem) {
 			return;
 		}
 
-		const resources = changes.map(c => toMultiFileDiffEditorUris(c, historyItemParentId, historyItem.id));
+		env.clipboard.writeText(historyItem.id);
+	}
 
-		await commands.executeCommand('_workbench.openMultiDiffEditor', { multiDiffSourceUri, title, resources });
+	@command('git.copyCommitMessage', { repository: true })
+	async copyCommitMessage(repository: Repository, historyItem: SourceControlHistoryItem): Promise<void> {
+		if (!repository || !historyItem) {
+			return;
+		}
+
+		env.clipboard.writeText(historyItem.message);
 	}
 
 	private createCommand(id: string, key: string, method: Function, options: ScmCommandOptions): (...args: any[]) => any {

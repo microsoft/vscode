@@ -83,16 +83,18 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		this.currentHistoryItemGroup = {
 			id: `refs/heads/${this.repository.HEAD.name ?? ''}`,
 			name: this.repository.HEAD.name ?? '',
-			revision: this.repository.HEAD.commit ?? '',
+			revision: this.repository.HEAD.commit,
 			remote: this.repository.HEAD.upstream ? {
 				id: `refs/remotes/${this.repository.HEAD.upstream.remote}/${this.repository.HEAD.upstream.name}`,
 				name: `${this.repository.HEAD.upstream.remote}/${this.repository.HEAD.upstream.name}`,
-				revision: this.repository.HEAD.upstream.commit ?? ''
+				revision: this.repository.HEAD.upstream.commit
 			} : undefined,
-			base: mergeBase ? {
+			base: mergeBase &&
+				(mergeBase.remote !== this.repository.HEAD.upstream?.remote ||
+					mergeBase.name !== this.repository.HEAD.upstream?.name) ? {
 				id: `refs/remotes/${mergeBase.remote}/${mergeBase.name}`,
 				name: `${mergeBase.remote}/${mergeBase.name}`,
-				revision: mergeBase.commit ?? ''
+				revision: mergeBase.commit
 			} : undefined
 		};
 
@@ -144,15 +146,9 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 
 		try {
 			// Get the common ancestor commit, and commits
-			const [mergeBaseCommit, commits] = await Promise.all([
-				this.repository.getCommit(options.limit.id),
-				this.repository.log({ range: `${options.limit.id}..`, refNames, shortStats: true })
-			]);
-
-			// Add common ancestor commit
-			if (commits.length !== 0) {
-				commits.push(mergeBaseCommit);
-			}
+			const commit = await this.repository.getCommit(options.limit.id);
+			const commitParentId = commit.parents.length > 0 ? commit.parents[0] : await this.repository.getEmptyTree();
+			const commits = await this.repository.log({ range: `${commitParentId}..`, refNames, shortStats: true });
 
 			await ensureEmojis();
 
@@ -180,24 +176,18 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 	}
 
 	async provideHistoryItemSummary(historyItemId: string, historyItemParentId: string | undefined): Promise<SourceControlHistoryItem> {
-		if (!historyItemParentId) {
-			const commit = await this.repository.getCommit(historyItemId);
-			historyItemParentId = commit.parents.length > 0 ? commit.parents[0] : `${historyItemId}^`;
-		}
-
+		historyItemParentId = historyItemParentId ?? await this.repository.getEmptyTree();
 		const allChanges = await this.repository.diffBetweenShortStat(historyItemParentId, historyItemId);
+
 		return { id: historyItemId, parentIds: [historyItemParentId], message: '', statistics: allChanges };
 	}
 
 	async provideHistoryItemChanges(historyItemId: string, historyItemParentId: string | undefined): Promise<SourceControlHistoryItemChange[]> {
-		if (!historyItemParentId) {
-			const commit = await this.repository.getCommit(historyItemId);
-			historyItemParentId = commit.parents.length > 0 ? commit.parents[0] : `${historyItemId}^`;
-		}
+		historyItemParentId = historyItemParentId ?? await this.repository.getEmptyTree();
 
 		const historyItemChangesUri: Uri[] = [];
 		const historyItemChanges: SourceControlHistoryItemChange[] = [];
-		const changes = await this.repository.diffBetween(historyItemParentId, historyItemId);
+		const changes = await this.repository.diffTrees(historyItemParentId, historyItemId);
 
 		for (const change of changes) {
 			const historyItemUri = change.uri.with({
@@ -272,7 +262,11 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 					return ancestor;
 				}
 
-				// TODO@lszomoru - Return first commit
+				// First commit
+				const commits = await this.repository.log({ maxParents: 0, refNames: ['HEAD'] });
+				if (commits.length > 0) {
+					return commits[0].hash;
+				}
 			} else if (historyItemGroupIds.length > 1) {
 				const ancestor = await this.repository.getMergeBase(historyItemGroupIds[0], historyItemGroupIds[1], ...historyItemGroupIds.slice(2));
 				return ancestor;

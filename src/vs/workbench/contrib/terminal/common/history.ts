@@ -10,12 +10,12 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { FileOperationError, FileOperationResult, IFileContent, IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { PosixShellType, TerminalSettingId, TerminalShellType } from 'vs/platform/terminal/common/terminal';
+import { GeneralShellType, PosixShellType, TerminalSettingId, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { URI } from 'vs/base/common/uri';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { Schemas } from 'vs/base/common/network';
 import { isWindows, OperatingSystem } from 'vs/base/common/platform';
-import { posix, win32 } from 'vs/base/common/path';
+import { join } from 'vs/base/common/path';
 
 /**
  * Tracks a list of generic entries.
@@ -83,7 +83,7 @@ export async function getShellFileHistory(accessor: ServicesAccessor, shellType:
 		case PosixShellType.Bash:
 			result = await fetchBashHistory(accessor);
 			break;
-		case PosixShellType.PowerShell: // WindowsShellType.PowerShell has the same value
+		case GeneralShellType.PowerShell:
 			result = await fetchPwshHistory(accessor);
 			break;
 		case PosixShellType.Zsh:
@@ -92,7 +92,7 @@ export async function getShellFileHistory(accessor: ServicesAccessor, shellType:
 		case PosixShellType.Fish:
 			result = await fetchFishHistory(accessor);
 			break;
-		case PosixShellType.Python:
+		case GeneralShellType.Python:
 			result = await fetchPythonHistory(accessor);
 			break;
 		default: return [];
@@ -331,7 +331,7 @@ export async function fetchPwshHistory(accessor: ServicesAccessor) {
 	const isFileWindows = remoteEnvironment?.os === OperatingSystem.Windows || !remoteEnvironment && isWindows;
 	if (isFileWindows) {
 		folderPrefix = env['APPDATA'];
-		filePath = '\\Microsoft\\Windows\\PowerShell\\PSReadLine\\ConsoleHost_history.txt';
+		filePath = 'Microsoft\\Windows\\PowerShell\\PSReadLine\\ConsoleHost_history.txt';
 	} else {
 		folderPrefix = env['HOME'];
 		filePath = '.local/share/powershell/PSReadline/ConsoleHost_history.txt';
@@ -484,10 +484,12 @@ async function fetchFileContents(
 	if (!folderPrefix) {
 		return undefined;
 	}
-	const isRemote = !!remoteAgentService.getConnection()?.remoteAuthority;
+	const connection = remoteAgentService.getConnection();
+	const isRemote = !!connection?.remoteAuthority;
 	const historyFileUri = URI.from({
 		scheme: isRemote ? Schemas.vscodeRemote : Schemas.file,
-		path: (isFileWindows ? win32.join : posix.join)(folderPrefix, filePath)
+		authority: isRemote ? connection.remoteAuthority : undefined,
+		path: URI.file(join(folderPrefix, filePath)).path
 	});
 	let content: IFileContent;
 	try {

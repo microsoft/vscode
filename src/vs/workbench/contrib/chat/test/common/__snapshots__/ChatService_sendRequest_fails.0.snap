@@ -32,7 +32,8 @@
               extensionDisplayName: "",
               locations: [ "panel" ],
               metadata: {  },
-              slashCommands: [  ]
+              slashCommands: [  ],
+              disambiguation: [  ]
             },
             kind: "agent"
           },
@@ -71,11 +72,13 @@
         extensionDisplayName: "",
         locations: [ "panel" ],
         metadata: {  },
-        slashCommands: [  ]
+        slashCommands: [  ],
+        disambiguation: [  ]
       },
       slashCommand: undefined,
       usedContext: undefined,
-      contentReferences: [  ]
+      contentReferences: [  ],
+      codeCitations: [  ]
     }
   ]
 }
