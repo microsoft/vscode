@@ -5291,6 +5291,35 @@ suite('Editor Controller', () => {
 		});
 	});
 
+	test('issue #156031: toggle comment block and type * after pair start', () => {
+		usingCursor({
+			text: [
+				'/* */',
+			],
+			languageId: autoClosingLanguageId,
+		}, (editor, model, viewModel) => {
+			moveTo(editor, viewModel, 1, 3, false);
+			viewModel.type('*', 'keyboard');
+			assert.strictEqual(model.getLineContent(1), '/** */');
+		});
+		usingCursor({
+			text: [
+				'',
+			],
+			languageId: autoClosingLanguageId,
+		}, (editor, model, viewModel) => {
+			viewModel.type('/', 'keyboard');
+			assert.strictEqual(model.getLineContent(1), '/');
+			viewModel.type('*', 'keyboard');
+			assert.strictEqual(model.getLineContent(1), '/*');
+			viewModel.type('*', 'keyboard');
+			assert.strictEqual(model.getLineContent(1), '/** */');
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, { count: 1 });
+			viewModel.type('*', 'keyboard');
+			assert.strictEqual(model.getLineContent(1), '/** */');
+		});
+	});
+
 	test('issue #72177: multi-character autoclose with conflicting patterns', () => {
 		const languageId = 'autoClosingModeMultiChar';
 
