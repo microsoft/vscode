@@ -36,7 +36,7 @@ export class NotebookEditorWidgetService implements INotebookEditorService {
 	readonly onDidAddNotebookEditor = this._onNotebookEditorAdd.event;
 	readonly onDidRemoveNotebookEditor = this._onNotebookEditorsRemove.event;
 
-	private readonly _borrowableEditors = new Map<number, ResourceMap<{ widget: NotebookEditorWidget; token: number | undefined }>>();
+	private readonly _borrowableEditors = new Map<number, ResourceMap<{ widget: NotebookEditorWidget; editorType: string; token: number | undefined }[]>>();
 
 	constructor(
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
@@ -50,20 +50,21 @@ export class NotebookEditorWidgetService implements INotebookEditorService {
 			const { id } = group;
 			const listeners: IDisposable[] = [];
 			listeners.push(group.onDidCloseEditor(e => {
-				const widgets = this._borrowableEditors.get(group.id);
-				if (!widgets) {
+				const widgetMap = this._borrowableEditors.get(group.id);
+				if (!widgetMap) {
 					return;
 				}
 
 				const inputs = e.editor instanceof NotebookEditorInput ? [e.editor] : (isCompositeNotebookEditorInput(e.editor) ? e.editor.editorInputs : []);
 				inputs.forEach(input => {
-					const value = widgets.get(input.resource);
-					if (!value) {
+					const widgets = widgetMap.get(input.resource);
+					const index = widgets?.findIndex(widget => widget.editorType === input.typeId);
+					if (!widgets || index === undefined || index === -1) {
 						return;
 					}
+					const value = widgets.splice(index, 1)[0];
 					value.token = undefined;
 					this._disposeWidget(value.widget);
-					widgets.delete(input.resource);
 					value.widget = (<any>undefined); // unset the widget so that others that still hold a reference don't harm us
 				});
 			}));
@@ -93,9 +94,11 @@ export class NotebookEditorWidgetService implements INotebookEditorService {
 			const widgets = this._borrowableEditors.get(group.id);
 			this._borrowableEditors.delete(group.id);
 			if (widgets) {
-				for (const value of widgets.values()) {
-					value.token = undefined;
-					this._disposeWidget(value.widget);
+				for (const values of widgets.values()) {
+					for (const value of values) {
+						value.token = undefined;
+						this._disposeWidget(value.widget);
+					}
 				}
 			}
 		}));
@@ -137,18 +140,25 @@ export class NotebookEditorWidgetService implements INotebookEditorService {
 			return;
 		}
 
-		const targetWidget = this._borrowableEditors.get(targetID)?.get(input.resource);
-		if (targetWidget) {
-			// not needed
+		const target = this._borrowableEditors.get(targetID)?.get(input.resource)?.findIndex(widget => widget.editorType === input.typeId);
+		if (target !== undefined && target !== -1) {
+			// not needed, a separate widget is already there
 			return;
 		}
 
-		const widget = this._borrowableEditors.get(sourceID)?.get(input.resource);
+		const widget = this._borrowableEditors.get(sourceID)?.get(input.resource)?.find(widget => widget.editorType === input.typeId);
 		if (!widget) {
 			throw new Error('no widget at source group');
 		}
+
 		// don't allow the widget to be retrieved at its previous location any more
-		this._borrowableEditors.get(sourceID)?.delete(input.resource);
+		const sourceWidgets = this._borrowableEditors.get(sourceID)?.get(input.resource);
+		if (sourceWidgets) {
+			const indexToRemove = sourceWidgets.findIndex(widget => widget.editorType === input.typeId);
+			if (indexToRemove !== -1) {
+				sourceWidgets.splice(indexToRemove, 1);
+			}
+		}
 
 		// allow the widget to be retrieved at its new location
 		let targetMap = this._borrowableEditors.get(targetID);
@@ -156,14 +166,16 @@ export class NotebookEditorWidgetService implements INotebookEditorService {
 			targetMap = new ResourceMap();
 			this._borrowableEditors.set(targetID, targetMap);
 		}
-		targetMap.set(input.resource, widget);
+		const widgetsAtTarget = targetMap.get(input.resource) ?? [];
+		widgetsAtTarget?.push(widget);
+		targetMap.set(input.resource, widgetsAtTarget);
 	}
 
 	retrieveExistingWidgetFromURI(resource: URI): IBorrowValue<NotebookEditorWidget> | undefined {
 		for (const widgetInfo of this._borrowableEditors.values()) {
-			const widget = widgetInfo.get(resource);
-			if (widget) {
-				return this._createBorrowValue(widget.token!, widget);
+			const widgets = widgetInfo.get(resource);
+			if (widgets && widgets.length > 0) {
+				return this._createBorrowValue(widgets[0].token!, widgets[0]);
 			}
 		}
 		return undefined;
@@ -172,8 +184,10 @@ export class NotebookEditorWidgetService implements INotebookEditorService {
 	retrieveAllExistingWidgets(): IBorrowValue<NotebookEditorWidget>[] {
 		const ret: IBorrowValue<NotebookEditorWidget>[] = [];
 		for (const widgetInfo of this._borrowableEditors.values()) {
-			for (const widget of widgetInfo.values()) {
-				ret.push(this._createBorrowValue(widget.token!, widget));
+			for (const widgets of widgetInfo.values()) {
+				for (const widget of widgets) {
+					ret.push(this._createBorrowValue(widget.token!, widget));
+				}
 			}
 		}
 		return ret;
@@ -181,7 +195,7 @@ export class NotebookEditorWidgetService implements INotebookEditorService {
 
 	retrieveWidget(accessor: ServicesAccessor, group: IEditorGroup, input: NotebookEditorInput, creationOptions?: INotebookEditorCreationOptions, initialDimension?: Dimension, codeWindow?: CodeWindow): IBorrowValue<NotebookEditorWidget> {
 
-		let value = this._borrowableEditors.get(group.id)?.get(input.resource);
+		let value = this._borrowableEditors.get(group.id)?.get(input.resource)?.find(widget => widget.editorType === input.typeId);
 
 		if (!value) {
 			// NEW widget
@@ -196,14 +210,16 @@ export class NotebookEditorWidgetService implements INotebookEditorService {
 				codeWindow: codeWindow ?? ctorOptions.codeWindow,
 			}, initialDimension);
 			const token = this._tokenPool++;
-			value = { widget, token };
+			value = { widget, editorType: input.typeId, token };
 
 			let map = this._borrowableEditors.get(group.id);
 			if (!map) {
 				map = new ResourceMap();
 				this._borrowableEditors.set(group.id, map);
 			}
-			map.set(input.resource, value);
+			const values = map.get(input.resource) ?? [];
+			values.push(value);
+			map.set(input.resource, values);
 
 		} else {
 			// reuse a widget which was either free'ed before or which
