@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 4
+// version: 5
 // https://github.com/microsoft/vscode/issues/213274
 
 declare module 'vscode' {
@@ -99,19 +99,24 @@ declare module 'vscode' {
 		 * Parameters with which to invoke the tool.
 		 */
 		parameters: Object;
-		/**
-		 * If known, the maximum number of tokens the tool should emit in its result.
-		 * If this is provided, the {@link countTokens} function must also be provided.
-		 */
-		tokenBudget?: number;
 
 		/**
-		 * Count the number of tokens in a message using the model specific tokenizer-logic.
-		 * @param text A string or a message instance.
-		 * @param token Optional cancellation token.  See {@link CancellationTokenSource} for how to create one.
-		 * @returns A thenable that resolves to the number of tokens.
+		 * Options to hint at how many tokens the tool should return in its response.
 		 */
-		countTokens?(text: string | LanguageModelChatMessage, token?: CancellationToken): Thenable<number>;
+		tokenOptions?: {
+			/**
+			 * If known, the maximum number of tokens the tool should emit in its result.
+			 */
+			tokenBudget: number;
+
+			/**
+			 * Count the number of tokens in a message using the model specific tokenizer-logic.
+			 * @param text A string or a message instance.
+			 * @param token Optional cancellation token.  See {@link CancellationTokenSource} for how to create one.
+			 * @returns A thenable that resolves to the number of tokens.
+			 */
+			countTokens(text: string | LanguageModelChatMessage, token?: CancellationToken): Thenable<number>;
+		};
 	}
 
 	export type JSONSchema = object;
