@@ -147,7 +147,7 @@ export class InlineChatWidget {
 					if (isWelcomeVM(item)) {
 						return false;
 					}
-					if (isResponseVM(item) && item.isComplete && item.response.value.every(item => item.kind === 'textEditGroup' && options.chatWidgetViewOptions?.rendererOptions?.renderTextEditsAsSummary?.(item.uri))) {
+					if (isResponseVM(item) && item.isComplete && item.response.value.length > 0 && item.response.value.every(item => item.kind === 'textEditGroup' && options.chatWidgetViewOptions?.rendererOptions?.renderTextEditsAsSummary?.(item.uri))) {
 						// filter responses that are just text edits (prevents the "Made Edits")
 						return false;
 					}
