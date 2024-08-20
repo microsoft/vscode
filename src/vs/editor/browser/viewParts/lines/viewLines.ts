@@ -412,8 +412,10 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		return result;
 	}
 
-	public linesVisibleRangesForRange(_range: Range, includeNewLines: boolean): LineVisibleRanges[] | null {
-		if (this.shouldRender()) {
+	public linesVisibleRangesForRange(_range: Range, includeNewLines: boolean, ignoreShouldRender: boolean = false, debug: boolean = false): LineVisibleRanges[] | null {
+		if (debug) { console.log('linesVisibleRangesForRange'); }
+		if (!ignoreShouldRender && this.shouldRender()) {
+			if (debug) { console.log('return 1'); }
 			// Cannot read from the DOM because it is dirty
 			// i.e. the model & the dom are out of sync, so I'd be reading something stale
 			return null;
@@ -422,6 +424,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		const originalEndLineNumber = _range.endLineNumber;
 		const range = Range.intersectRanges(_range, this._lastRenderedData.getCurrentVisibleRange());
 		if (!range) {
+			if (debug) { console.log('return 2'); }
 			return null;
 		}
 
@@ -466,9 +469,11 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		this._updateLineWidthsSlowIfDomDidLayout(domReadingContext);
 
 		if (visibleRangesLen === 0) {
+			if (debug) { console.log('return 3'); }
 			return null;
 		}
 
+		if (debug) { console.log('return 4'); }
 		return visibleRanges;
 	}
 

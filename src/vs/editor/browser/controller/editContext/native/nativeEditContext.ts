@@ -9,7 +9,7 @@ import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { AbstractEditContext, ariaLabelForScreenReaderContent, canUseZeroSizeTextarea, CompositionContext, deduceInput, getAccessibilityOptions, IRenderData, ISimpleModel, ITypeData, newlinecount, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/editContext/editContext';
-import { HorizontalPosition, RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
+import { HorizontalPosition, LineVisibleRanges, RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
 import { ViewController } from 'vs/editor/browser/view/viewController';
 import { EditorOption, IComputedEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { OffsetRange } from 'vs/editor/common/core/offsetRange';
@@ -69,6 +69,7 @@ export class NativeEditContext extends AbstractEditContext {
 	private _hasFocus: boolean = false;
 
 	private _screenReaderContentSelectionOffsetRange: OffsetRange | undefined;
+	private _linesVisibleRanges: LineVisibleRanges[] | null = null;
 
 	private _decorations: string[] = [];
 
@@ -617,6 +618,7 @@ export class NativeEditContext extends AbstractEditContext {
 	private _updateCharacterBounds(rangeStart: number) {
 
 		console.log('_updateCharacterBounds');
+		console.log('rangeStart : ', rangeStart);
 		console.log('this._parent : ', this._parent);
 		console.log('this._compositionStartPosition : ', this._compositionStartPosition);
 		console.log('this._compositionEndPosition : ', this._compositionEndPosition);
@@ -639,14 +641,21 @@ export class NativeEditContext extends AbstractEditContext {
 
 		if (this._renderingContext) {
 			const range = Range.fromPositions(this._compositionStartPosition, this._compositionEndPosition);
-			const linesVisibleRanges = this._renderingContext.linesVisibleRangesForRange(range, true) ?? [];
+			this._linesVisibleRanges = this._renderingContext.linesVisibleRangesForRange(range, true, true, true) ?? this._linesVisibleRanges;
 
 			console.log('range : ', range);
-			console.log('linesVisibleRanges : ', linesVisibleRanges);
+			console.log('linesVisibleRanges : ', this._linesVisibleRanges);
+			this._linesVisibleRanges?.forEach(visibleRange => {
+				console.log('visibleRange : ', visibleRange);
+				console.log(visibleRange.ranges.forEach(r => {
+					console.log('r : ', r);
+				}));
+			});
 
-			if (linesVisibleRanges.length === 0) { return; }
-			const minLeft = Math.min(...linesVisibleRanges.map(r => Math.min(...r.ranges.map(r => r.left))));
-			const maxLeft = Math.max(...linesVisibleRanges.map(r => Math.max(...r.ranges.map(r => r.left + r.width))));
+			if (!this._linesVisibleRanges || this._linesVisibleRanges.length === 0) { return; }
+
+			const minLeft = Math.min(...this._linesVisibleRanges.map(r => Math.min(...r.ranges.map(r => r.left))));
+			const maxLeft = Math.max(...this._linesVisibleRanges.map(r => Math.max(...r.ranges.map(r => r.left + r.width))));
 			left += minLeft;
 			width = maxLeft - minLeft;
 		}
@@ -660,7 +669,7 @@ export class NativeEditContext extends AbstractEditContext {
 			lineHeight,
 		)];
 
-		console.log('characterBounds : ', characterBounds);
+		console.log('characterBounds[0] : ', characterBounds[0]);
 		this._editContext.updateCharacterBounds(rangeStart, characterBounds);
 
 		// -- dev
@@ -753,7 +762,7 @@ export class NativeEditContext extends AbstractEditContext {
 			const typicalHalfwidthCharacterWidth = options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
 			let left: number = parentBounds.left + this._contentLeft;
 			if (this._renderingContext) {
-				const linesVisibleRanges = this._renderingContext.linesVisibleRangesForRange(primaryViewState.selection, true) ?? [];
+				const linesVisibleRanges = this._renderingContext.linesVisibleRangesForRange(primaryViewState.selection, true, true, true) ?? [];
 				console.log('linesVisibleRanges : ', linesVisibleRanges);
 				if (linesVisibleRanges.length === 0) { return; }
 				const minLeft = Math.min(...linesVisibleRanges.map(r => Math.min(...r.ranges.map(r => r.left))));
