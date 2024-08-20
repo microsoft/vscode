@@ -49,6 +49,9 @@ const vscodeWebResourceIncludes = isESM() ? [
 	// Webview
 	'out-build/vs/workbench/contrib/webview/browser/pre/*.{js,html}',
 
+	// Tree Sitter highlights
+	'out-build/vs/editor/common/languages/highlights/*.scm',
+
 	// Extension Host Worker
 	'out-build/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.esm.html',
 ]: [

@@ -110,6 +110,9 @@ const vscodeResourceIncludes = isESM() ? [
 	// Process Explorer
 	'out-build/vs/code/electron-sandbox/processExplorer/processExplorer.esm.html',
 
+	// Tree Sitter highlights
+	'out-build/vs/editor/common/languages/highlights/*.scm',
+
 	// Issue Reporter
 	'out-build/vs/workbench/contrib/issue/electron-sandbox/issueReporter.esm.html'
 ] : [
