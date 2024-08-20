@@ -181,6 +181,16 @@
 	margin-bottom: 8px;
 }
 
+.interactive-item-container .value .rendered-markdown blockquote {
+	margin: 0px;
+	padding: 0px 16px 0 10px;
+	border-left-width: 5px;
+	border-left-style: solid;
+	border-radius: 2px;
+	background: var(--vscode-textBlockQuote-background);
+	border-color: var(--vscode-textBlockQuote-border);
+}
+
 .interactive-item-container .value .rendered-markdown table {
 	width: 100%;
 	text-align: left;
@@ -233,6 +243,14 @@
 
 .interactive-item-container .value > :last-child.rendered-markdown > :last-child {
 	margin-bottom: 0px;
+}
+
+.interactive-item-container .value .rendered-markdown hr {
+	border-color: rgba(0, 0, 0, 0.18);
+}
+
+.vs-dark .interactive-item-container .value .rendered-markdown hr {
+	border-color: rgba(255, 255, 255, 0.18);
 }
 
 .interactive-item-container .value .rendered-markdown h1 {
