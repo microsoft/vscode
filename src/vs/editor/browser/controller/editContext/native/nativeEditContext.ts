@@ -240,7 +240,6 @@ export class NativeEditContext extends AbstractEditContext {
 			console.log('copy : ', e);
 			// TODO: this does work but corresponding paste and cut do not work
 		}));
-
 		this._register(editContextAddDisposableListener(this._editContext, 'textformatupdate', e => {
 			this._handleTextFormatUpdate(e);
 		}));
@@ -283,12 +282,12 @@ export class NativeEditContext extends AbstractEditContext {
 		this._editContext.updateText(0, Number.MAX_SAFE_INTEGER, editContextState.value);
 		this._editContext.updateSelection(editContextState.selectionStart, editContextState.selectionEnd);
 
-		console.log('updateText');
-		console.log('IMEContentData : ', editContextState);
+		console.log('writeEditContextContent');
+		console.log('editContextState : ', editContextState);
 		console.log('this._editContext.text : ', this._editContext.text);
-		console.log('editContextContentState.selectionStart : ', editContextState.selectionStart);
-		console.log('editContextContentState.selectionEnd : ', editContextState.selectionEnd);
-		console.log('this._selectionOfContent : ', this._selectionOfEditContextText);
+		console.log('editContextState.selectionStart : ', editContextState.selectionStart);
+		console.log('editContextState.selectionEnd : ', editContextState.selectionEnd);
+		console.log('this._selectionOfEditContextText : ', this._selectionOfEditContextText);
 	}
 
 	public override dispose(): void {
@@ -519,23 +518,25 @@ export class NativeEditContext extends AbstractEditContext {
 		selectionEnd: number;
 		selectionOfContent: Selection;
 	} {
+		console.log('_getEditContextState');
+
 		const cursorState = this._context.viewModel.getPrimaryCursorState().modelState;
-		const selectionOfContent = cursorState.selection;
-		// Need to do multiline also
+		const cursorSelection = cursorState.selection;
 		let value = '';
 		let selectionStart: number = 0;
 		let selectionEnd: number = 0;
-		for (let i = selectionOfContent.startLineNumber; i <= selectionOfContent.endLineNumber; i++) {
+		for (let i = cursorSelection.startLineNumber; i <= cursorSelection.endLineNumber; i++) {
 			value += this._context.viewModel.getLineContent(i);
-			if (i === selectionOfContent.startLineNumber) {
-				selectionStart = selectionOfContent.startColumn - 1;
+			if (i === cursorSelection.startLineNumber) {
+				selectionStart = cursorSelection.startColumn - 1;
 			}
-			if (i === selectionOfContent.endLineNumber) {
-				selectionEnd += selectionOfContent.endColumn - 1;
+			if (i === cursorSelection.endLineNumber) {
+				selectionEnd += cursorSelection.endColumn - 1;
 			} else {
 				selectionEnd += this._context.viewModel.getLineMaxColumn(i) - 1;
 			}
 		}
+		const selectionOfContent = new Selection(cursorSelection.startLineNumber, 1, cursorSelection.endLineNumber, this._context.viewModel.getLineMaxColumn(cursorSelection.endLineNumber));
 		return {
 			value,
 			selectionStart,
@@ -712,6 +713,7 @@ export class NativeEditContext extends AbstractEditContext {
 				`underline-style-${f.underlineStyle.toLowerCase()}`,
 				`underline-thickness-${f.underlineThickness.toLowerCase()}`,
 			];
+			// Need to tset the correct range. Range currently not correct because of this._selectionOfEditContextText, need to correctly update it.
 			decorations.push({
 				range: decorationRange,
 				options: {
@@ -752,6 +754,7 @@ export class NativeEditContext extends AbstractEditContext {
 			let left: number = parentBounds.left + this._contentLeft;
 			if (this._renderingContext) {
 				const linesVisibleRanges = this._renderingContext.linesVisibleRangesForRange(primaryViewState.selection, true) ?? [];
+				console.log('linesVisibleRanges : ', linesVisibleRanges);
 				if (linesVisibleRanges.length === 0) { return; }
 				const minLeft = Math.min(...linesVisibleRanges.map(r => Math.min(...r.ranges.map(r => r.left))));
 				left += (minLeft + typicalHalfwidthCharacterWidth / 2);
