@@ -5,7 +5,8 @@
 
 // eslint-disable-next-line local/code-import-patterns
 import { getNLSLanguage, getNLSMessages } from 'vs/nls.messages';
-export { getNLSLanguage, getNLSMessages };
+// eslint-disable-next-line local/code-import-patterns
+export { getNLSLanguage, getNLSMessages } from 'vs/nls.messages';
 
 const isPseudo = getNLSLanguage() === 'pseudo' || (typeof document !== 'undefined' && document.location && document.location.hash.indexOf('pseudo=true') >= 0);
 
