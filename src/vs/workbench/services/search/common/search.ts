@@ -209,17 +209,12 @@ export interface ISearchRange {
 	readonly endColumn: number;
 }
 
-export interface ITextSearchResultPreview {
-	text: string;
-	matches: ISearchRange | ISearchRange[];
-	cellFragment?: string;
-}
-
 export interface ITextSearchMatch<U extends UriComponents = URI> {
 	uri?: U;
-	ranges: ISearchRange | ISearchRange[];
-	preview: ITextSearchResultPreview;
+	rangeLocations: SearchRangeSetPairing[];
+	previewText: string;
 	webviewIndex?: number;
+	cellFragment?: string;
 }
 
 export interface ITextSearchContext<U extends UriComponents = URI> {
@@ -231,7 +226,7 @@ export interface ITextSearchContext<U extends UriComponents = URI> {
 export type ITextSearchResult<U extends UriComponents = URI> = ITextSearchMatch<U> | ITextSearchContext<U>;
 
 export function resultIsMatch(result: ITextSearchResult): result is ITextSearchMatch {
-	return !!(<ITextSearchMatch>result).preview;
+	return !!(<ITextSearchMatch>result).rangeLocations && !!(<ITextSearchMatch>result).previewText;
 }
 
 export interface IProgressMessage {
@@ -310,20 +305,25 @@ export class FileMatch implements IFileMatch {
 	}
 }
 
+export interface SearchRangeSetPairing {
+	source: ISearchRange;
+	preview: ISearchRange;
+}
+
 export class TextSearchMatch implements ITextSearchMatch {
-	ranges: ISearchRange | ISearchRange[];
-	preview: ITextSearchResultPreview;
+	rangeLocations: SearchRangeSetPairing[] = [];
+	previewText: string;
 	webviewIndex?: number;
 
-	constructor(text: string, range: ISearchRange | ISearchRange[], previewOptions?: ITextSearchPreviewOptions, webviewIndex?: number) {
-		this.ranges = range;
+	constructor(text: string, ranges: ISearchRange | ISearchRange[], previewOptions?: ITextSearchPreviewOptions, webviewIndex?: number) {
 		this.webviewIndex = webviewIndex;
 
 		// Trim preview if this is one match and a single-line match with a preview requested.
 		// Otherwise send the full text, like for replace or for showing multiple previews.
 		// TODO this is fishy.
-		const ranges = Array.isArray(range) ? range : [range];
-		if (previewOptions && previewOptions.matchLines === 1 && isSingleLineRangeList(ranges)) {
+		const rangesArr = Array.isArray(ranges) ? ranges : [ranges];
+
+		if (previewOptions && previewOptions.matchLines === 1 && isSingleLineRangeList(rangesArr)) {
 			// 1 line preview requested
 			text = getNLines(text, previewOptions.matchLines);
 
@@ -331,8 +331,7 @@ export class TextSearchMatch implements ITextSearchMatch {
 			let shift = 0;
 			let lastEnd = 0;
 			const leadingChars = Math.floor(previewOptions.charsPerLine / 5);
-			const matches: ISearchRange[] = [];
-			for (const range of ranges) {
+			for (const range of rangesArr) {
 				const previewStart = Math.max(range.startColumn - leadingChars, 0);
 				const previewEnd = range.startColumn + previewOptions.charsPerLine;
 				if (previewStart > lastEnd + leadingChars + SEARCH_ELIDED_MIN_LEN) {
@@ -343,18 +342,25 @@ export class TextSearchMatch implements ITextSearchMatch {
 					result += text.slice(lastEnd, previewEnd);
 				}
 
-				matches.push(new OneLineRange(0, range.startColumn - shift, range.endColumn - shift));
 				lastEnd = previewEnd;
+				this.rangeLocations.push({
+					source: range,
+					preview: new OneLineRange(0, range.startColumn - shift, range.endColumn - shift)
+				});
+
 			}
 
-			this.preview = { text: result, matches: Array.isArray(this.ranges) ? matches : matches[0] };
+			this.previewText = result;
 		} else {
-			const firstMatchLine = Array.isArray(range) ? range[0].startLineNumber : range.startLineNumber;
+			const firstMatchLine = Array.isArray(ranges) ? ranges[0].startLineNumber : ranges.startLineNumber;
 
-			this.preview = {
-				text,
-				matches: mapArrayOrNot(range, r => new SearchRange(r.startLineNumber - firstMatchLine, r.startColumn, r.endLineNumber - firstMatchLine, r.endColumn))
-			};
+			const rangeLocs = mapArrayOrNot(ranges, r => ({
+				preview: new SearchRange(r.startLineNumber - firstMatchLine, r.startColumn, r.endLineNumber - firstMatchLine, r.endColumn),
+				source: r
+			}));
+
+			this.rangeLocations = Array.isArray(rangeLocs) ? rangeLocs : [rangeLocs];
+			this.previewText = text;
 		}
 	}
 }
@@ -434,6 +440,7 @@ export interface ISearchConfigurationProperties {
 		singleClickBehaviour: 'default' | 'peekDefinition';
 		reusePriorSearchConfiguration: boolean;
 		defaultNumberOfContextLines: number | null;
+		focusResultsOnSearch: boolean;
 		experimental: {};
 	};
 	sortOrder: SearchSortOrder;

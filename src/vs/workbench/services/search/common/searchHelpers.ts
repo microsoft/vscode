@@ -81,9 +81,9 @@ export function getTextSearchMatchWithModelContext(matches: ITextSearchMatch[], 
 }
 
 function getMatchStartEnd(match: ITextSearchMatch): { start: number; end: number } {
-	const matchRanges = match.ranges;
-	const matchStartLine = Array.isArray(matchRanges) ? matchRanges[0].startLineNumber : matchRanges.startLineNumber;
-	const matchEndLine = Array.isArray(matchRanges) ? matchRanges[matchRanges.length - 1].endLineNumber : matchRanges.endLineNumber;
+	const matchRanges = match.rangeLocations.map(e => e.source);
+	const matchStartLine = matchRanges[0].startLineNumber;
+	const matchEndLine = matchRanges[matchRanges.length - 1].endLineNumber;
 
 	return {
 		start: matchStartLine,

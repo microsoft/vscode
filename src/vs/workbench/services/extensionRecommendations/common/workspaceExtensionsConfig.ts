@@ -7,7 +7,7 @@ import { distinct } from 'vs/base/common/arrays';
 import { Emitter, Event } from 'vs/base/common/event';
 import { JSONPath, parse } from 'vs/base/common/json';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { getIconClasses } from 'vs/editor/browser/services/getIconClasses';
+import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { FileKind, IFileService } from 'vs/platform/files/common/files';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';

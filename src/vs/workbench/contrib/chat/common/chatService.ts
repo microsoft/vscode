@@ -164,6 +164,12 @@ export interface IChatCommandButton {
 	kind: 'command';
 }
 
+export interface IChatMoveMessage {
+	uri: URI;
+	range: IRange;
+	kind: 'move';
+}
+
 export interface IChatTextEdit {
 	uri: URI;
 	edits: TextEdit[];
@@ -194,6 +200,7 @@ export type IChatProgress =
 	| IChatCommandButton
 	| IChatWarningMessage
 	| IChatTextEdit
+	| IChatMoveMessage
 	| IChatConfirmation;
 
 export interface IChatFollowup {
@@ -297,6 +304,8 @@ export interface IChatCompleteResponse {
 export interface IChatDetail {
 	sessionId: string;
 	title: string;
+	lastMessageDate: number;
+	isActive: boolean;
 }
 
 export interface IChatProviderInfo {

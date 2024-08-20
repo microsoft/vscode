@@ -123,10 +123,17 @@ suite('TreeSitterParserService', function () {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('TextModelTreeSitter race condition: first language is slow to load', async function () {
-		class MockTreeSitterParser extends TreeSitterLanguages {
-			public override async getLanguage(languageId: string): Promise<Parser.Language | undefined> {
+		class MockTreeSitterLanguages extends TreeSitterLanguages {
+			private async _fetchJavascript(): Promise<void> {
+				await timeout(200);
+				const language = new MockLanguage();
+				language.languageId = 'javascript';
+				this._onDidAddLanguage.fire({ id: 'javascript', language });
+			}
+			public override getOrInitLanguage(languageId: string): Parser.Language | undefined {
 				if (languageId === 'javascript') {
-					await timeout(200);
+					this._fetchJavascript();
+					return undefined;
 				}
 				const language = new MockLanguage();
 				language.languageId = languageId;
@@ -134,11 +141,11 @@ suite('TreeSitterParserService', function () {
 			}
 		}
 
-		const treeSitterParser: TreeSitterLanguages = store.add(new MockTreeSitterParser(treeSitterImporter, {} as any, { isBuilt: false } as any));
+		const treeSitterParser: TreeSitterLanguages = store.add(new MockTreeSitterLanguages(treeSitterImporter, {} as any, { isBuilt: false } as any, new Map()));
 		const textModel = store.add(createTextModel('console.log("Hello, world!");', 'javascript'));
 		const textModelTreeSitter = store.add(new TextModelTreeSitter(textModel, treeSitterParser, treeSitterImporter, logService, telemetryService));
 		textModel.setLanguage('typescript');
 		await timeout(300);
-		assert.strictEqual((textModelTreeSitter.tree?.language as MockLanguage).languageId, 'typescript');
+		assert.strictEqual((textModelTreeSitter.parseResult?.language as MockLanguage).languageId, 'typescript');
 	});
 });

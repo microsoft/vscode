@@ -253,15 +253,8 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 				const currLineEmptyOrIndented = isLineEmptyOrIndented(lineNumber);
 				const notEmpty = !nextLineEmptyOrIndented && !prevLineEmptyOrIndented;
 
-				let hasDecoration = false;
 				const currLineDecorations = this._editor.getLineDecorations(lineNumber);
-				if (currLineDecorations) {
-					for (const decoration of currLineDecorations) {
-						if (decoration.options.glyphMarginClassName?.includes(Codicon.debugBreakpoint.id)) {
-							hasDecoration = true;
-						}
-					}
-				}
+				const hasDecoration = !!(currLineDecorations?.length);
 
 				// check above and below. if both are blocked, display lightbulb in the gutter.
 				if (!nextLineEmptyOrIndented && !prevLineEmptyOrIndented && !hasDecoration) {

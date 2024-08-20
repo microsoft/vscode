@@ -445,9 +445,9 @@ class RenderData {
 	) {
 		this.renderedLayout = renderedLayout;
 		this._imageData = imageData;
-		this._renderedLines = new RenderedLinesCollection(
-			() => MinimapLine.INVALID
-		);
+		this._renderedLines = new RenderedLinesCollection({
+			createLine: () => MinimapLine.INVALID
+		});
 		this._renderedLines._set(renderedLayout.startLineNumber, lines);
 	}
 
