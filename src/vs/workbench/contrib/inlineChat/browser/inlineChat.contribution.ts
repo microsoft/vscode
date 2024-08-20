@@ -7,7 +7,7 @@ import { EditorContributionInstantiation, registerEditorContribution } from 'vs/
 import { IMenuItem, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
 import * as InlineChatActions from 'vs/workbench/contrib/inlineChat/browser/inlineChatActions';
-import { CTX_INLINE_CHAT_REQUEST_IN_PROGRESS, INLINE_CHAT_ID, MENU_INLINE_CHAT_CONTENT_STATUS, MENU_INLINE_CHAT_WIDGET_STATUS } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { CTX_INLINE_CHAT_EDITING, CTX_INLINE_CHAT_REQUEST_IN_PROGRESS, INLINE_CHAT_ID, MENU_INLINE_CHAT_CONTENT_STATUS, MENU_INLINE_CHAT_WIDGET_STATUS } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -39,21 +39,38 @@ registerAction2(InlineChatExpandLineAction);
 
 // --- MENU special ---
 
-const sendActionMenuItem: IMenuItem = {
+const editActionMenuItem: IMenuItem = {
 	group: '0_main',
 	order: 0,
 	command: {
 		id: SubmitAction.ID,
-		title: localize('edit', "Send"),
+		title: localize('send.edit', "Edit Code"),
 	},
 	when: ContextKeyExpr.and(
 		CONTEXT_CHAT_INPUT_HAS_TEXT,
 		CTX_INLINE_CHAT_REQUEST_IN_PROGRESS.toNegated(),
+		CTX_INLINE_CHAT_EDITING
 	),
 };
 
-MenuRegistry.appendMenuItem(MENU_INLINE_CHAT_CONTENT_STATUS, sendActionMenuItem);
-MenuRegistry.appendMenuItem(MENU_INLINE_CHAT_WIDGET_STATUS, sendActionMenuItem);
+const generateActionMenuItem: IMenuItem = {
+	group: '0_main',
+	order: 0,
+	command: {
+		id: SubmitAction.ID,
+		title: localize('send.generate', "Generate"),
+	},
+	when: ContextKeyExpr.and(
+		CONTEXT_CHAT_INPUT_HAS_TEXT,
+		CTX_INLINE_CHAT_REQUEST_IN_PROGRESS.toNegated(),
+		CTX_INLINE_CHAT_EDITING.toNegated()
+	),
+};
+
+MenuRegistry.appendMenuItem(MENU_INLINE_CHAT_CONTENT_STATUS, editActionMenuItem);
+MenuRegistry.appendMenuItem(MENU_INLINE_CHAT_CONTENT_STATUS, generateActionMenuItem);
+MenuRegistry.appendMenuItem(MENU_INLINE_CHAT_WIDGET_STATUS, editActionMenuItem);
+MenuRegistry.appendMenuItem(MENU_INLINE_CHAT_WIDGET_STATUS, generateActionMenuItem);
 
 const cancelActionMenuItem: IMenuItem = {
 	group: '0_main',

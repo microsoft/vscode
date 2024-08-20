@@ -10,8 +10,6 @@
 const path = require('path');
 const fs = require('fs');
 const Module = require('module');
-
-const isESM = false;
 // ESM-comment-end
 // ESM-uncomment-begin
 // import * as path from 'path';
@@ -20,8 +18,6 @@ const isESM = false;
 // import { createRequire } from 'node:module';
 //
 // const require = createRequire(import.meta.url);
-// const Module = require('module');
-// const isESM = true;
 // const module = { exports: {} };
 // const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // ESM-uncomment-end
@@ -72,43 +68,54 @@ setupCurrentWorkingDirectory();
 /**
  * Add support for redirecting the loading of node modules
  *
+ * Note: only applies when running out of sources.
+ *
  * @param {string} injectPath
  */
-module.exports.injectNodeModuleLookupPath = function (injectPath) {
+module.exports.devInjectNodeModuleLookupPath = function (injectPath) {
+	if (!process.env['VSCODE_DEV']) {
+		return; // only applies running out of sources
+	}
+
 	if (!injectPath) {
 		throw new Error('Missing injectPath');
 	}
 
 	const Module = require('node:module');
-	if (isESM) {
-		// register a loader hook
-		// ESM-uncomment-begin
-		// Module.register('./loader-lookup-path.mjs', { parentURL: import.meta.url, data: injectPath });
-		// ESM-uncomment-end
-	} else {
-		const nodeModulesPath = path.join(__dirname, '../node_modules');
+	// ESM-uncomment-begin
+	// // register a loader hook
+	// Module.register('./bootstrap-import.js', { parentURL: import.meta.url, data: injectPath });
+	// ESM-uncomment-end
+	// ESM-comment-begin
+	const nodeModulesPath = path.join(__dirname, '../node_modules');
 
-		// @ts-ignore
-		const originalResolveLookupPaths = Module._resolveLookupPaths;
+	// @ts-ignore
+	const originalResolveLookupPaths = Module._resolveLookupPaths;
 
-		// @ts-ignore
-		Module._resolveLookupPaths = function (moduleName, parent) {
-			const paths = originalResolveLookupPaths(moduleName, parent);
-			if (Array.isArray(paths)) {
-				for (let i = 0, len = paths.length; i < len; i++) {
-					if (paths[i] === nodeModulesPath) {
-						paths.splice(i, 0, injectPath);
-						break;
-					}
+	// @ts-ignore
+	Module._resolveLookupPaths = function (moduleName, parent) {
+		const paths = originalResolveLookupPaths(moduleName, parent);
+		if (Array.isArray(paths)) {
+			for (let i = 0, len = paths.length; i < len; i++) {
+				if (paths[i] === nodeModulesPath) {
+					paths.splice(i, 0, injectPath);
+					break;
 				}
 			}
+		}
 
-			return paths;
-		};
-	}
+		return paths;
+	};
+	// ESM-comment-end
 };
 
 module.exports.removeGlobalNodeModuleLookupPaths = function () {
+	if (typeof process?.versions?.electron === 'string') {
+		return; // Electron disables global search paths in https://github.com/electron/electron/blob/3186c2f0efa92d275dc3d57b5a14a60ed3846b0e/shell/common/node_bindings.cc#L653
+	}
+
+	// TODO@esm this might not work anymore (https://github.com/microsoft/vscode/issues/226042)
+
 	const Module = require('module');
 	// @ts-ignore
 	const globalPaths = Module.globalPaths;
@@ -201,6 +208,7 @@ module.exports.configurePortable = function (product) {
  * Helper to enable ASAR support.
  */
 module.exports.enableASARSupport = function () {
+	// ESM-comment-begin
 	const NODE_MODULES_PATH = path.join(__dirname, '../node_modules');
 	const NODE_MODULES_ASAR_PATH = `${NODE_MODULES_PATH}.asar`;
 
@@ -221,12 +229,13 @@ module.exports.enableASARSupport = function () {
 
 		return paths;
 	};
+	// ESM-comment-end
 };
 
 /**
  * Helper to convert a file path to a URI.
  *
- * TODO@bpasero check for removal once ESM has landed.
+ * TODO@bpasero TODO@esm check for removal once ESM has landed.
  *
  * @param {string} path
  * @param {{ isWindows?: boolean, scheme?: string, fallbackAuthority?: string }} config
@@ -262,7 +271,7 @@ module.exports.fileUriFromPath = function (path, config) {
 //#endregion
 
 // ESM-uncomment-begin
-// export const injectNodeModuleLookupPath = module.exports.injectNodeModuleLookupPath;
+// export const devInjectNodeModuleLookupPath = module.exports.devInjectNodeModuleLookupPath;
 // export const removeGlobalNodeModuleLookupPaths = module.exports.removeGlobalNodeModuleLookupPaths;
 // export const configurePortable = module.exports.configurePortable;
 // export const enableASARSupport = module.exports.enableASARSupport;

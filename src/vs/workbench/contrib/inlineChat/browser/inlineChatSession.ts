@@ -128,9 +128,8 @@ export class SessionWholeRange {
 
 export class Session {
 
-	private _lastInput: SessionPrompt | undefined;
 	private _isUnstashed: boolean = false;
-	private readonly _exchanges: SessionExchange[] = [];
+	private readonly _exchanges: SessionExchange[];
 	private readonly _startTime = new Date();
 	private readonly _teldata: TelemetryData;
 
@@ -154,6 +153,7 @@ export class Session {
 		readonly wholeRange: SessionWholeRange,
 		readonly hunkData: HunkData,
 		readonly chatModel: ChatModel,
+		exchanges?: SessionExchange[],
 	) {
 		this.textModelNAltVersion = textModelN.getAlternativeVersionId();
 		this._teldata = {
@@ -170,14 +170,7 @@ export class Session {
 			discardedHunks: 0,
 			responseTypes: ''
 		};
-	}
-
-	addInput(input: SessionPrompt): void {
-		this._lastInput = input;
-	}
-
-	get lastInput() {
-		return this._lastInput;
+		this._exchanges = exchanges ?? [];
 	}
 
 	get isUnstashed(): boolean {
@@ -194,6 +187,10 @@ export class Session {
 		const newLen = this._exchanges.push(exchange);
 		this._teldata.rounds += `${newLen}|`;
 		// this._teldata.responseTypes += `${exchange.response instanceof ReplyResponse ? exchange.response.responseType : InlineChatResponseTypes.Empty}|`;
+	}
+
+	get exchanges(): SessionExchange[] {
+		return this._exchanges;
 	}
 
 	get lastExchange(): SessionExchange | undefined {

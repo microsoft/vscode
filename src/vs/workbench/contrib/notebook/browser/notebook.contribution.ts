@@ -1060,11 +1060,6 @@ configurationRegistry.registerConfiguration({
 			],
 			default: 'fullCell'
 		},
-		[NotebookSetting.cellChat]: {
-			markdownDescription: nls.localize('notebook.cellChat', "Enable experimental floating chat widget in notebooks."),
-			type: 'boolean',
-			default: false
-		},
 		[NotebookSetting.cellGenerate]: {
 			markdownDescription: nls.localize('notebook.cellGenerate', "Enable experimental generate action to create code cell with inline chat enabled."),
 			type: 'boolean',

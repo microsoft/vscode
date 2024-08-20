@@ -39,12 +39,16 @@ type ChatInsertEvent = {
 	newFile: boolean;
 	agentId: string;
 	command: string | undefined;
+	userAction: string | undefined;
+	codeMapper: string | undefined;
 };
 
 type ChatInsertClassification = {
 	newFile: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the code was inserted into a new untitled file.' };
 	agentId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the chat agent that this insertion is for.' };
 	command: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The name of the slash command that this insertion is for.' };
+	userAction: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Id of the UI command that was used to do the insert.' };
+	codeMapper: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The code mapper that wa used to compute the edit.' };
 	owner: 'roblourens';
 	comment: 'Provides insight into the usage of Chat features.';
 };
@@ -124,6 +128,8 @@ export class ChatServiceTelemetry {
 		} else if (action.action.kind === 'insert') {
 			this.telemetryService.publicLog2<ChatInsertEvent, ChatInsertClassification>('interactiveSessionInsert', {
 				newFile: !!action.action.newFile,
+				userAction: action.action.userAction,
+				codeMapper: action.action.codeMapper,
 				agentId: action.agentId ?? '',
 				command: action.command,
 			});

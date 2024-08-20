@@ -212,9 +212,11 @@ suite('QueryBuilder', () => {
 				folderQueries: [{
 					folder: ROOT_1_URI,
 					excludePattern: {
-						'bar/**': true,
-						'foo/**': {
-							'when': '$(basename).ts'
+						pattern: {
+							'bar/**': true,
+							'foo/**': {
+								'when': '$(basename).ts'
+							}
 						}
 					}
 				}],
@@ -338,9 +340,12 @@ suite('QueryBuilder', () => {
 						'foo/**': true
 					},
 					excludePattern: {
-						'foo/**/*.js': true,
-						'bar/**': {
-							'when': '$(basename).ts'
+						pattern: {
+
+							'foo/**/*.js': true,
+							'bar/**': {
+								'when': '$(basename).ts'
+							}
 						}
 					}
 				}],
@@ -375,8 +380,8 @@ suite('QueryBuilder', () => {
 			{
 				contentPattern: PATTERN_INFO,
 				folderQueries: [
-					{ folder: ROOT_1_URI, excludePattern: patternsToIExpression('foo/**/*.js') },
-					{ folder: ROOT_2_URI, excludePattern: patternsToIExpression('bar') },
+					{ folder: ROOT_1_URI, excludePattern: makeExcludePatternFromPatterns('foo/**/*.js') },
+					{ folder: ROOT_2_URI, excludePattern: makeExcludePatternFromPatterns('bar') },
 					{ folder: ROOT_3_URI }
 				],
 				type: QueryType.Text
@@ -403,7 +408,7 @@ suite('QueryBuilder', () => {
 							'src/**': true
 						},
 						excludePattern: {
-							'bar': true
+							pattern: { 'bar': true }
 						},
 					}
 				],
@@ -460,7 +465,7 @@ suite('QueryBuilder', () => {
 				contentPattern: PATTERN_INFO,
 				folderQueries: [{
 					folder: ROOT_1_URI,
-					excludePattern: patternsToIExpression('bar', 'bar/**'),
+					excludePattern: makeExcludePatternFromPatterns('bar', 'bar/**'),
 				}],
 				type: QueryType.Text
 			});
@@ -478,7 +483,7 @@ suite('QueryBuilder', () => {
 				contentPattern: PATTERN_INFO,
 				folderQueries: [{
 					folder: ROOT_1_URI,
-					excludePattern: patternsToIExpression('bar/**/*.ts', 'bar/**/*.ts/**'),
+					excludePattern: makeExcludePatternFromPatterns('bar/**/*.ts', 'bar/**/*.ts/**'),
 				}],
 				type: QueryType.Text
 			});
@@ -496,7 +501,7 @@ suite('QueryBuilder', () => {
 				contentPattern: PATTERN_INFO,
 				folderQueries: [{
 					folder: ROOT_1_URI,
-					excludePattern: patternsToIExpression('bar/**/*.ts', 'bar/**/*.ts/**'),
+					excludePattern: makeExcludePatternFromPatterns('bar/**/*.ts', 'bar/**/*.ts/**'),
 				}],
 				type: QueryType.Text
 			});
@@ -1079,6 +1084,12 @@ suite('QueryBuilder', () => {
 		});
 	});
 });
+function makeExcludePatternFromPatterns(...patterns: string[]): {
+	pattern: IExpression;
+} | undefined {
+	const pattern = patternsToIExpression(...patterns);
+	return pattern ? { pattern } : undefined;
+}
 
 function assertEqualTextQueries(actual: ITextQuery, expected: ITextQuery): void {
 	expected = {
@@ -1098,7 +1109,7 @@ export function assertEqualQueries(actual: ITextQuery | IFileQuery, expected: IT
 	const folderQueryToCompareObject = (fq: IFolderQuery) => {
 		return {
 			path: fq.folder.fsPath,
-			excludePattern: normalizeExpression(fq.excludePattern),
+			excludePattern: normalizeExpression(fq.excludePattern?.pattern),
 			includePattern: normalizeExpression(fq.includePattern),
 			fileEncoding: fq.fileEncoding
 		};

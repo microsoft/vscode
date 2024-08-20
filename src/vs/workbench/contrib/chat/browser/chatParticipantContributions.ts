@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Action } from 'vs/base/common/actions';
-import { isNonEmptyArray } from 'vs/base/common/arrays';
+import { coalesce, isNonEmptyArray } from 'vs/base/common/arrays';
 import { Codicon } from 'vs/base/common/codicons';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
@@ -240,6 +240,22 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 						store.add(this.registerDefaultParticipantView(providerDescriptor));
 					}
 
+					const participantsAndCommandsDisambiguation: {
+						categoryName: string;
+						description: string;
+						examples: string[];
+					}[] = [];
+					if (providerDescriptor.disambiguation?.length) {
+						participantsAndCommandsDisambiguation.push(...providerDescriptor.disambiguation);
+					}
+					if (providerDescriptor.commands) {
+						for (const command of providerDescriptor.commands) {
+							if (command.disambiguation?.length) {
+								participantsAndCommandsDisambiguation.push(...command.disambiguation);
+							}
+						}
+					}
+
 					store.add(this._chatAgentService.registerAgent(
 						providerDescriptor.id,
 						{
@@ -261,7 +277,7 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 								providerDescriptor.locations.map(ChatAgentLocation.fromRaw) :
 								[ChatAgentLocation.Panel],
 							slashCommands: providerDescriptor.commands ?? [],
-							disambiguation: providerDescriptor.disambiguation ?? [],
+							disambiguation: coalesce(participantsAndCommandsDisambiguation.flat()),
 						} satisfies IChatAgentData));
 
 					this._participantRegistrationDisposables.set(

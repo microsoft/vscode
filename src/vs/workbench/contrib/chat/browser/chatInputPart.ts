@@ -371,11 +371,20 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.container = dom.append(container, $('.interactive-input-part'));
 		this.container.classList.toggle('compact', this.options.renderStyle === 'compact');
 
-		this.followupsContainer = dom.append(this.container, $('.interactive-input-followups'));
-		this.attachedContextContainer = dom.append(this.container, $('.chat-attached-context'));
+		let inputContainer: HTMLElement;
+		let inputAndSideToolbar: HTMLElement;
+		if (this.options.renderStyle === 'compact') {
+			inputAndSideToolbar = dom.append(this.container, $('.interactive-input-and-side-toolbar'));
+			this.followupsContainer = dom.append(this.container, $('.interactive-input-followups'));
+			inputContainer = dom.append(inputAndSideToolbar, $('.interactive-input-and-execute-toolbar'));
+			this.attachedContextContainer = dom.append(this.container, $('.chat-attached-context'));
+		} else {
+			this.followupsContainer = dom.append(this.container, $('.interactive-input-followups'));
+			this.attachedContextContainer = dom.append(this.container, $('.chat-attached-context'));
+			inputAndSideToolbar = dom.append(this.container, $('.interactive-input-and-side-toolbar'));
+			inputContainer = dom.append(inputAndSideToolbar, $('.interactive-input-and-execute-toolbar'));
+		}
 		this.initAttachedContext(this.attachedContextContainer);
-		const inputAndSideToolbar = dom.append(this.container, $('.interactive-input-and-side-toolbar'));
-		const inputContainer = dom.append(inputAndSideToolbar, $('.interactive-input-and-execute-toolbar'));
 
 		const inputScopedContextKeyService = this._register(this.contextKeyService.createScoped(inputContainer));
 		CONTEXT_IN_CHAT_INPUT.bindTo(inputScopedContextKeyService).set(true);
@@ -632,12 +641,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			inputEditorBorder: 2,
 			followupsHeight: this.followupsContainer.offsetHeight,
 			inputPartEditorHeight: Math.min(this._inputEditor.getContentHeight(), this.inputEditorMaxHeight),
-			inputPartHorizontalPadding: this.options.renderStyle === 'compact' ? 8 : 40,
+			inputPartHorizontalPadding: this.options.renderStyle === 'compact' ? 12 : 40,
 			inputPartVerticalPadding: this.options.renderStyle === 'compact' ? 12 : 24,
 			implicitContextHeight: this.attachedContextContainer.offsetHeight,
 			editorBorder: 2,
 			editorPadding: 12,
-			toolbarPadding: 4,
+			toolbarPadding: (this.toolbar.getItemsLength() - 1) * 4,
 			executeToolbarWidth: this.cachedToolbarWidth = this.toolbar.getItemsWidth(),
 			sideToolbarWidth: this.inputSideToolbarContainer ? dom.getTotalWidth(this.inputSideToolbarContainer) + 4 /*gap*/ : 0,
 		};

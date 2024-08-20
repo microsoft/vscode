@@ -8,7 +8,7 @@ import { SecretStorageCachePlugin } from '../common/cachePlugin';
 import { SecretStorage, LogOutputChannel, Disposable, SecretStorageChangeEvent, EventEmitter, Memento, window, ProgressLocation, l10n } from 'vscode';
 import { MsalLoggerOptions } from '../common/loggerOptions';
 import { ICachedPublicClientApplication, ICachedPublicClientApplicationManager } from '../common/publicClientCache';
-import { raceCancellationAndTimeoutError } from '../common/async';
+import { Delayer, raceCancellationAndTimeoutError } from '../common/async';
 
 export interface IPublicClientApplicationInfo {
 	clientId: string;
@@ -134,6 +134,8 @@ export class CachedPublicClientApplicationManager implements ICachedPublicClient
 class CachedPublicClientApplication implements ICachedPublicClientApplication {
 	private _pca: PublicClientApplication;
 
+	private readonly _refreshDelayer = new DelayerByKey<any>();
+
 	private _accounts: AccountInfo[] = [];
 	private readonly _disposable: Disposable;
 
@@ -168,7 +170,7 @@ class CachedPublicClientApplication implements ICachedPublicClientApplication {
 		private readonly _authority: string,
 		private readonly _globalMemento: Memento,
 		private readonly _secretStorage: SecretStorage,
-		private readonly _accountChangeHandler: (e: { added: AccountInfo[]; deleted: AccountInfo[] }) => void,
+		private readonly _accountChangeHandler: (e: { added: AccountInfo[]; changed: AccountInfo[]; deleted: AccountInfo[] }) => void,
 		private readonly _logger: LogOutputChannel
 	) {
 		this._pca = new PublicClientApplication(this._config);
@@ -188,8 +190,13 @@ class CachedPublicClientApplication implements ICachedPublicClientApplication {
 		this._disposable.dispose();
 	}
 
-	acquireTokenSilent(request: SilentFlowRequest): Promise<AuthenticationResult> {
-		return this._pca.acquireTokenSilent(request);
+	async acquireTokenSilent(request: SilentFlowRequest): Promise<AuthenticationResult> {
+		const result = await this._pca.acquireTokenSilent(request);
+		this._setupRefresh(result);
+		if (result.account && !result.fromCache) {
+			this._accountChangeHandler({ added: [], changed: [result.account], deleted: [] });
+		}
+		return result;
 	}
 
 	async acquireTokenInteractive(request: InteractiveRequest): Promise<AuthenticationResult> {
@@ -199,7 +206,15 @@ class CachedPublicClientApplication implements ICachedPublicClientApplication {
 				cancellable: true,
 				title: l10n.t('Signing in to Microsoft...')
 			},
-			(_process, token) => raceCancellationAndTimeoutError(this._pca.acquireTokenInteractive(request), token, 1000 * 60 * 5), // 5 minutes
+			(_process, token) => raceCancellationAndTimeoutError(
+				(async () => {
+					const result = await this._pca.acquireTokenInteractive(request);
+					this._setupRefresh(result);
+					return result;
+				})(),
+				token,
+				1000 * 60 * 5
+			), // 5 minutes
 		);
 	}
 
@@ -210,6 +225,24 @@ class CachedPublicClientApplication implements ICachedPublicClientApplication {
 
 	private _registerOnSecretStorageChanged() {
 		return this._secretStorageCachePlugin.onDidChange(() => this._update());
+	}
+
+	private _setupRefresh(result: AuthenticationResult) {
+		const on = result.refreshOn || result.expiresOn;
+		if (!result.account || !on) {
+			return;
+		}
+
+		const account = result.account;
+		const scopes = result.scopes;
+		const timeToRefresh = on.getTime() - Date.now() - 5 * 60 * 1000; // 5 minutes before expiry
+		const key = JSON.stringify({ accountId: account.homeAccountId, scopes });
+		this._refreshDelayer.trigger(
+			key,
+			// This may need the redirectUri when we switch to the broker
+			() => this.acquireTokenSilent({ account, scopes, redirectUri: undefined, forceRefresh: true }),
+			timeToRefresh > 0 ? timeToRefresh : 0
+		);
 	}
 
 	private async _update() {
@@ -233,9 +266,23 @@ class CachedPublicClientApplication implements ICachedPublicClientApplication {
 		const added = after.filter(a => !beforeSet.has(a.homeAccountId));
 		const deleted = before.filter(b => !afterSet.has(b.homeAccountId));
 		if (added.length > 0 || deleted.length > 0) {
-			this._accountChangeHandler({ added, deleted });
+			this._accountChangeHandler({ added, changed: [], deleted });
 			this._logger.debug(this._clientId, this._authority, 'CachedPublicClientApplication accounts changed. added, deleted:', added.length, deleted.length);
 		}
 		this._logger.debug(this._clientId, this._authority, 'CachedPublicClientApplication update complete');
+	}
+}
+
+class DelayerByKey<T> {
+	private _delayers = new Map<string, Delayer<T>>();
+
+	trigger(key: string, fn: () => Promise<T>, delay: number): Promise<T> {
+		let delayer = this._delayers.get(key);
+		if (!delayer) {
+			delayer = new Delayer<T>(delay);
+			this._delayers.set(key, delayer);
+		}
+
+		return delayer.trigger(fn, delay);
 	}
 }
