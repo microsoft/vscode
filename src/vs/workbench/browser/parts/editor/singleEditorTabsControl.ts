@@ -92,6 +92,7 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 	private titleContainer: HTMLElement | undefined;
 	private labelContainer: HTMLElement | undefined;
 	private editorLabel: IResourceLabel | undefined;
+	private hoverDelegate: SingleEditorTabHoverDelegate | undefined;
 	public _activeLabel: IRenderedEditorLabel = Object.create(null);
 
 	public get activeLabel(): IRenderedEditorLabel { return this._activeLabel; }
@@ -125,7 +126,7 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 		const labelContainer = this.labelContainer ?? document.createElement('div');
 
 		// Editor Label
-		const hoverDelegate = new SingleEditorTabHoverDelegate(this, this.configurationService, this.hoverService, this.commandService);
+		const hoverDelegate = this.hoverDelegate = new SingleEditorTabHoverDelegate(this, this.configurationService, this.hoverService, this.commandService);
 		this.editorLabel = this._register(this.instantiationService.createInstance(ResourceLabel, labelContainer, { hoverDelegate: hoverDelegate })).element;
 		this._register(addDisposableListener(this.editorLabel.element, EventType.CLICK, e => this.onTitleLabelClick(e)));
 
@@ -311,6 +312,13 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 
 	override updateStyles(): void {
 		this.redraw();
+	}
+
+	override dispose(): void {
+		super.dispose();
+		this.hoverDelegate?.dispose();
+		this.breadcrumbsControlFactory?.dispose();
+
 	}
 
 	protected handleBreadcrumbsEnablementChange(): void {

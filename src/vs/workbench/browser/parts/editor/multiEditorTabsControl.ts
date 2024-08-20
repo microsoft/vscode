@@ -174,7 +174,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	private tabActionBars: ActionBar[] = [];
 	private tabDisposables: IDisposable[] = [];
 
-	private mapTabHoverDelegates = new Map<number, IHoverDelegate>();
+	private mapTabHoverDelegates = new Map<number, MultiEditorTabHoverDelegate>();
 
 	private dimensions: IEditorTitleControlDimensions & { used?: Dimension } = {
 		container: Dimension.None,
@@ -2353,6 +2353,9 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		super.dispose();
 
 		this.tabDisposables = dispose(this.tabDisposables);
+
+		this.mapTabHoverDelegates.forEach(delegate => delegate.dispose());
+		this.mapTabHoverDelegates.clear();
 	}
 }
 
