@@ -114,12 +114,15 @@ export const CTX_INLINE_CHAT_EDIT_MODE = new RawContextKey<EditMode>('config.inl
 export const CTX_INLINE_CHAT_REQUEST_IN_PROGRESS = new RawContextKey<boolean>('inlineChatRequestInProgress', false, localize('inlineChatRequestInProgress', "Whether an inline chat request is currently in progress"));
 export const CTX_INLINE_CHAT_RESPONSE_TYPE = new RawContextKey<InlineChatResponseType>('inlineChatResponseType', InlineChatResponseType.None, localize('inlineChatResponseTypes', "What type was the responses have been receieved, nothing yet, just messages, or messaged and local edits"));
 
+export const CTX_INLINE_CHAT_SUPPORT_REPORT_ISSUE = new RawContextKey<boolean>('inlineChatSupportReportIssue', false, localize('inlineChatSupportReportIssue', "Whether inline chat supports reporting issues"));
+
 // --- (selected) action identifier
 
 export const ACTION_ACCEPT_CHANGES = 'inlineChat.acceptChanges';
 export const ACTION_REGENERATE_RESPONSE = 'inlineChat.regenerate';
 export const ACTION_VIEW_IN_CHAT = 'inlineChat.viewInChat';
 export const ACTION_TOGGLE_DIFF = 'inlineChat.toggleDiff';
+export const ACTION_REPORT_ISSUE = 'inlineChat.reportIssue';
 
 // --- menus
 
