@@ -292,7 +292,7 @@ export class DiscardHunkAction extends AbstractInlineChatAction {
 		super({
 			id: 'inlineChat.discardHunkChange',
 			title: localize('discard', 'Discard'),
-			icon: Codicon.discard,
+			icon: Codicon.chromeClose,
 			precondition: CTX_INLINE_CHAT_VISIBLE,
 			menu: [{
 				id: MENU_INLINE_CHAT_WIDGET_STATUS,
