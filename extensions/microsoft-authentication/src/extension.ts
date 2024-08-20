@@ -13,14 +13,14 @@ import { IExperimentationService } from 'vscode-tas-client';
 function shouldUseMsal(expService: IExperimentationService): boolean {
 	// First check if there is a setting value to allow user to override the default
 	const inspect = workspace.getConfiguration('microsoft').inspect<boolean>('useMsal');
-	if (inspect?.globalValue !== undefined) {
-		return inspect.globalValue;
+	if (inspect?.workspaceFolderValue !== undefined) {
+		return inspect.workspaceFolderValue;
 	}
 	if (inspect?.workspaceValue !== undefined) {
 		return inspect.workspaceValue;
 	}
-	if (inspect?.workspaceFolderValue !== undefined) {
-		return inspect.workspaceFolderValue;
+	if (inspect?.globalValue !== undefined) {
+		return inspect.globalValue;
 	}
 
 	// Then check if the experiment value
