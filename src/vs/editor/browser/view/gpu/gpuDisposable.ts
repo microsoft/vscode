@@ -3,15 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { type IDisposable } from 'vs/base/common/lifecycle';
+import { type IReference } from 'vs/base/common/lifecycle';
 import { isFunction } from 'vs/base/common/types';
 
-export interface IDisposableGPUObject<T> extends IDisposable {
-	value: T;
-}
-
 export namespace GPULifecycle {
-	export async function requestDevice(): Promise<IDisposableGPUObject<GPUDevice>> {
+	export async function requestDevice(): Promise<IReference<GPUDevice>> {
 		if (!navigator.gpu) {
 			throw new Error('This browser does not support WebGPU');
 		}
@@ -22,7 +18,7 @@ export namespace GPULifecycle {
 		return wrapDestroyableInDisposable(await adapter.requestDevice());
 	}
 
-	export function createBuffer(device: GPUDevice, descriptor: GPUBufferDescriptor, initialValues?: Float32Array | (() => Float32Array)): IDisposableGPUObject<GPUBuffer> {
+	export function createBuffer(device: GPUDevice, descriptor: GPUBufferDescriptor, initialValues?: Float32Array | (() => Float32Array)): IReference<GPUBuffer> {
 		const buffer = device.createBuffer(descriptor);
 		if (initialValues) {
 			device.queue.writeBuffer(buffer, 0, isFunction(initialValues) ? initialValues() : initialValues);
@@ -30,14 +26,14 @@ export namespace GPULifecycle {
 		return wrapDestroyableInDisposable(buffer);
 	}
 
-	export function createTexture(device: GPUDevice, descriptor: GPUTextureDescriptor): IDisposableGPUObject<GPUTexture> {
+	export function createTexture(device: GPUDevice, descriptor: GPUTextureDescriptor): IReference<GPUTexture> {
 		return wrapDestroyableInDisposable(device.createTexture(descriptor));
 	}
 }
 
-function wrapDestroyableInDisposable<T extends { destroy(): void }>(value: T): IDisposableGPUObject<T> {
+function wrapDestroyableInDisposable<T extends { destroy(): void }>(value: T): IReference<T> {
 	return {
-		value,
+		object: value,
 		dispose: () => value.destroy()
 	};
 }

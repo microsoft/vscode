@@ -103,7 +103,7 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> extends Disposable {
 	}
 
 	async initWebgpu() {
-		this._device = this._register(await GPULifecycle.requestDevice()).value;
+		this._device = this._register(await GPULifecycle.requestDevice()).object;
 
 		const presentationFormat = navigator.gpu.getPreferredCanvasFormat();
 		this._gpuCtx.configure({
@@ -181,7 +181,7 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> extends Disposable {
 			canvasDimensionsUniformBufferValues[CanvasDimensionsUniformBufferInfo.Offset_CanvasWidth] = this.domNode.width;
 			canvasDimensionsUniformBufferValues[CanvasDimensionsUniformBufferInfo.Offset_CanvasHeight] = this.domNode.height;
 			return canvasDimensionsUniformBufferValues;
-		})).value;
+		})).object;
 		this._register(observeDevicePixelDimensions(this.domNode, getActiveWindow(), (w, h) => {
 			canvasDimensionsUniformBufferValues[CanvasDimensionsUniformBufferInfo.Offset_CanvasWidth] = this.domNode.width;
 			canvasDimensionsUniformBufferValues[CanvasDimensionsUniformBufferInfo.Offset_CanvasHeight] = this.domNode.height;
@@ -205,22 +205,19 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> extends Disposable {
 			values[AtlasInfoUniformBufferInfo.Offset_Width] = atlas.pageSize;
 			values[AtlasInfoUniformBufferInfo.Offset_Height] = atlas.pageSize;
 			return values;
-		})).value;
+		})).object;
 
 
-		///////////////////
-		// Static buffer //
-		///////////////////
 		this._glyphStorageBuffer[0] = this._register(GPULifecycle.createBuffer(this._device, {
 			label: 'Monaco glyph storage buffer',
 			size: GlyphStorageBufferInfo.BytesPerEntry * Constants.MaxAtlasPageGlyphCount,
 			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-		})).value;
+		})).object;
 		this._glyphStorageBuffer[1] = this._register(GPULifecycle.createBuffer(this._device, {
 			label: 'Monaco glyph storage buffer',
 			size: GlyphStorageBufferInfo.BytesPerEntry * Constants.MaxAtlasPageGlyphCount,
 			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-		})).value;
+		})).object;
 		this._atlasGpuTextureVersions[0] = 0;
 		this._atlasGpuTextureVersions[1] = 0;
 		this._atlasGpuTexture = this._register(GPULifecycle.createTexture(this._device, {
@@ -232,7 +229,7 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> extends Disposable {
 			usage: GPUTextureUsage.TEXTURE_BINDING |
 				GPUTextureUsage.COPY_DST |
 				GPUTextureUsage.RENDER_ATTACHMENT,
-		})).value;
+		})).object;
 
 
 		this._updateAtlas();
@@ -247,7 +244,7 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> extends Disposable {
 			label: 'Monaco vertex buffer',
 			size: quadVertices.byteLength,
 			usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-		}, quadVertices)).value;
+		}, quadVertices)).object;
 
 
 
@@ -520,7 +517,7 @@ class FullFileRenderStrategy<T extends IVisibleLine> extends Disposable implemen
 			label: 'Monaco full file cell buffer',
 			size: bufferSize,
 			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-		})).value;
+		})).object;
 		this._cellValueBuffers = [
 			new ArrayBuffer(bufferSize),
 			new ArrayBuffer(bufferSize),
@@ -531,7 +528,7 @@ class FullFileRenderStrategy<T extends IVisibleLine> extends Disposable implemen
 			label: 'Monaco scroll offset buffer',
 			size: scrollOffsetBufferSize * Float32Array.BYTES_PER_ELEMENT,
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-		})).value;
+		})).object;
 		this._scrollOffsetValueBuffers = [
 			new Float32Array(scrollOffsetBufferSize),
 			new Float32Array(scrollOffsetBufferSize),
