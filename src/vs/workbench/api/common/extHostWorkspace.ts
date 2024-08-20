@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { delta as arrayDelta, mapArrayOrNot } from 'vs/base/common/arrays';
-import { Barrier } from 'vs/base/common/async';
+import { AsyncIterableObject, Barrier } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { AsyncEmitter, Emitter, Event } from 'vs/base/common/event';
 import { toDisposable } from 'vs/base/common/lifecycle';
@@ -30,10 +30,11 @@ import { Range } from 'vs/workbench/api/common/extHostTypes';
 import { IURITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
 import { IFileQueryBuilderOptions, ITextQueryBuilderOptions } from 'vs/workbench/services/search/common/queryBuilder';
 import { IRawFileMatch2, ITextSearchResult, resultIsMatch } from 'vs/workbench/services/search/common/search';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import { ExtHostWorkspaceShape, IRelativePatternDto, IWorkspaceData, MainContext, MainThreadMessageOptions, MainThreadMessageServiceShape, MainThreadWorkspaceShape } from './extHost.protocol';
 import { revive } from 'vs/base/common/marshalling';
 import { AuthInfo, Credentials } from 'vs/platform/request/common/request';
+import { ExcludeSettingOptions, TextSearchContextNew, TextSearchMatchNew } from 'vs/workbench/services/search/common/searchExtTypes';
 
 export interface IExtHostWorkspaceProvider {
 	getWorkspaceFolder2(uri: vscode.Uri, resolveParent?: boolean): Promise<vscode.WorkspaceFolder | undefined>;
@@ -76,6 +77,11 @@ function ignorePathCasing(uri: URI, extHostFileSystemInfo: IExtHostFileSystemInf
 interface MutableWorkspaceFolder extends vscode.WorkspaceFolder {
 	name: string;
 	index: number;
+}
+
+interface QueryOptions {
+	options: ITextQueryBuilderOptions;
+	folder: URI | undefined;
 }
 
 class ExtHostWorkspaceImpl extends Workspace {
@@ -521,11 +527,125 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		)
 			.then(data => Array.isArray(data) ? data.map(d => URI.revive(d)) : []);
 	}
+	findTextInFilesNew(query: vscode.TextSearchQueryNew, extensionId: ExtensionIdentifier, options?: vscode.FindTextInFilesOptionsNew, token?: vscode.CancellationToken): vscode.FindTextInFilesResponse {
+		this._logService.trace(`extHostWorkspace#findTextInFilesNew: textSearch, extension: ${extensionId.value}, entryPoint: findTextInFilesNew`);
+		const queryOptions: QueryOptions[] | undefined = options?.include?.map((include) => {
+			const { includePattern, folder } = parseSearchInclude(GlobPattern.from(include));
+			return {
+				options: {
+
+					ignoreSymlinks: typeof options.followSymlinks === 'boolean' ? !options.followSymlinks : undefined,
+					disregardIgnoreFiles: typeof options.useIgnoreFiles === 'boolean' ? !options.useIgnoreFiles : undefined,
+					disregardGlobalIgnoreFiles: typeof options.useIgnoreFiles?.global === 'boolean' ? !options.useIgnoreFiles?.global : undefined,
+					disregardParentIgnoreFiles: typeof options.useIgnoreFiles?.parent === 'boolean' ? !options.useIgnoreFiles?.parent : undefined,
+					disregardExcludeSettings: options.useExcludeSettings !== undefined && options.useExcludeSettings === ExcludeSettingOptions.None,
+					disregardSearchExcludeSettings: options.useExcludeSettings !== undefined && (options.useExcludeSettings !== ExcludeSettingOptions.SearchAndFilesExclude),
+					fileEncoding: options.encoding,
+					maxResults: options.maxResults,
+					previewOptions: options.previewOptions ? {
+						matchLines: options.previewOptions?.numMatchLines ?? 100,
+						charsPerLine: options.previewOptions?.charsPerLine ?? 10000,
+					} : undefined,
+					surroundingContext: options.surroundingContext,
+
+					includePattern: includePattern,
+					excludePattern: options.exclude && options.exclude.length > 0 ? options.exclude[0] : undefined, // todo: support multiple excludes
+				} satisfies ITextQueryBuilderOptions,
+				folder
+			} satisfies QueryOptions;
+		});
+
+		const complete: Promise<undefined | vscode.TextSearchComplete> = Promise.resolve(undefined);
+
+		const asyncIterable = new AsyncIterableObject<vscode.TextSearchResultNew>(async emitter => {
+			const progress = (result: ITextSearchResult<URI>, uri: URI) => {
+				if (resultIsMatch(result)) {
+					emitter.emitOne(new TextSearchMatchNew(
+						uri,
+						result.rangeLocations.map((range) => ({
+							previewRange: new Range(range.preview.startLineNumber, range.preview.startColumn, range.preview.endLineNumber, range.preview.endColumn),
+							sourceRange: new Range(range.source.startLineNumber, range.source.startColumn, range.source.endLineNumber, range.source.endColumn)
+						})),
+						result.previewText
+
+					));
+				} else {
+					emitter.emitOne(new TextSearchContextNew(
+						uri,
+						result.text,
+						result.lineNumber
+					));
+
+				}
+				return result;
+			};
+
+			await complete.then(e => {
+				return this.findTextInFilesBase(
+					query,
+					queryOptions,
+					progress,
+					token
+				);
+			});
+		});
+
+		return {
+			results: asyncIterable,
+			complete: complete.then((e) => {
+				return {
+					limitHit: e?.limitHit ?? false
+				};
+			}),
+		};
+	}
+
+
+	async findTextInFilesBase(query: vscode.TextSearchQuery, queryOptions: QueryOptions[] | undefined, callback: (result: ITextSearchResult<URI>, uri: URI) => void, token: vscode.CancellationToken = CancellationToken.None): Promise<vscode.TextSearchComplete> {
+		const requestId = this._requestIdProvider.getNext();
+
+		const isCanceled = false;
+
+		this._activeSearchCallbacks[requestId] = p => {
+			if (isCanceled) {
+				return;
+			}
+
+			const uri = URI.revive(p.resource);
+			p.results!.forEach(rawResult => {
+				const result: ITextSearchResult<URI> = revive(rawResult);
+				callback(result, uri);
+			});
+		};
+
+		if (token.isCancellationRequested) {
+			return {};
+		}
+
+		try {
+			const result = await Promise.all(queryOptions?.map(option => this._proxy.$startTextSearch(
+				query,
+				option.folder ?? null,
+				option.options,
+				requestId,
+				token) || {}
+			) ?? []);
+			delete this._activeSearchCallbacks[requestId];
+			return result.reduce((acc, val) => {
+				return {
+					limitHit: acc?.limitHit || (val?.limitHit ?? false),
+					message: [acc?.message ?? [], val?.message ?? []].flat(),
+				};
+			}, {}) ?? { limitHit: false };
+
+		} catch (err) {
+			delete this._activeSearchCallbacks[requestId];
+			throw err;
+		}
+	}
 
 	async findTextInFiles(query: vscode.TextSearchQuery, options: vscode.FindTextInFilesOptions & { useSearchExclude?: boolean }, callback: (result: vscode.TextSearchResult) => void, extensionId: ExtensionIdentifier, token: vscode.CancellationToken = CancellationToken.None): Promise<vscode.TextSearchComplete> {
 		this._logService.trace(`extHostWorkspace#findTextInFiles: textSearch, extension: ${extensionId.value}, entryPoint: findTextInFiles`);
-
-		const requestId = this._requestIdProvider.getNext();
 
 		const previewOptions: vscode.TextSearchPreviewOptions = typeof options.previewOptions === 'undefined' ?
 			{
@@ -553,56 +673,30 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 			excludePattern: excludePattern
 		};
 
-		const isCanceled = false;
-
-		this._activeSearchCallbacks[requestId] = p => {
-			if (isCanceled) {
-				return;
-			}
-
-			const uri = URI.revive(p.resource);
-			p.results!.forEach(rawResult => {
-				const result: ITextSearchResult<URI> = revive(rawResult);
-				if (resultIsMatch(result)) {
-					callback({
-						uri,
-						preview: {
-							text: result.previewText,
-							matches: mapArrayOrNot(
-								result.rangeLocations,
-								m => new Range(m.preview.startLineNumber, m.preview.startColumn, m.preview.endLineNumber, m.preview.endColumn))
-						},
-						ranges: mapArrayOrNot(
+		const progress = (result: ITextSearchResult<URI>, uri: URI) => {
+			if (resultIsMatch(result)) {
+				callback({
+					uri,
+					preview: {
+						text: result.previewText,
+						matches: mapArrayOrNot(
 							result.rangeLocations,
-							r => new Range(r.source.startLineNumber, r.source.startColumn, r.source.endLineNumber, r.source.endColumn))
-					} satisfies vscode.TextSearchMatch);
-				} else {
-					callback({
-						uri,
-						text: result.text,
-						lineNumber: result.lineNumber
-					} satisfies vscode.TextSearchContext);
-				}
-			});
+							m => new Range(m.preview.startLineNumber, m.preview.startColumn, m.preview.endLineNumber, m.preview.endColumn))
+					},
+					ranges: mapArrayOrNot(
+						result.rangeLocations,
+						r => new Range(r.source.startLineNumber, r.source.startColumn, r.source.endLineNumber, r.source.endColumn))
+				} satisfies vscode.TextSearchMatch);
+			} else {
+				callback({
+					uri,
+					text: result.text,
+					lineNumber: result.lineNumber
+				} satisfies vscode.TextSearchContext);
+			}
 		};
 
-		if (token.isCancellationRequested) {
-			return {};
-		}
-
-		try {
-			const result = await this._proxy.$startTextSearch(
-				query,
-				folder ?? null,
-				queryOptions,
-				requestId,
-				token);
-			delete this._activeSearchCallbacks[requestId];
-			return result || {};
-		} catch (err) {
-			delete this._activeSearchCallbacks[requestId];
-			throw err;
-		}
+		return this.findTextInFilesBase(query, [{ options: queryOptions, folder }], progress, token);
 	}
 
 	$handleTextSearchResult(result: IRawFileMatch2, requestId: number): void {

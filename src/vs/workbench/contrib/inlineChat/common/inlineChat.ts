@@ -17,6 +17,7 @@ export const enum InlineChatConfigKeys {
 	FinishOnType = 'inlineChat.finishOnType',
 	AcceptedOrDiscardBeforeSave = 'inlineChat.acceptedOrDiscardBeforeSave',
 	OnlyZoneWidget = 'inlineChat.experimental.onlyZoneWidget',
+	ZoneToolbar = 'inlineChat.experimental.enableZoneToolbar',
 	HoldToSpeech = 'inlineChat.holdToSpeech',
 	AccessibleDiffView = 'inlineChat.accessibleDiffView'
 }
@@ -72,6 +73,12 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			type: 'boolean',
 			tags: ['experimental']
 		},
+		[InlineChatConfigKeys.ZoneToolbar]: {
+			description: localize('zoneToolbar', "Whether to show a toolbar to accept or reject changes in the inline chat changes view."),
+			default: false,
+			type: 'boolean',
+			tags: ['experimental']
+		},
 	}
 });
 
@@ -107,17 +114,21 @@ export const CTX_INLINE_CHAT_EDIT_MODE = new RawContextKey<EditMode>('config.inl
 export const CTX_INLINE_CHAT_REQUEST_IN_PROGRESS = new RawContextKey<boolean>('inlineChatRequestInProgress', false, localize('inlineChatRequestInProgress', "Whether an inline chat request is currently in progress"));
 export const CTX_INLINE_CHAT_RESPONSE_TYPE = new RawContextKey<InlineChatResponseType>('inlineChatResponseType', InlineChatResponseType.None, localize('inlineChatResponseTypes', "What type was the responses have been receieved, nothing yet, just messages, or messaged and local edits"));
 
+export const CTX_INLINE_CHAT_SUPPORT_REPORT_ISSUE = new RawContextKey<boolean>('inlineChatSupportReportIssue', false, localize('inlineChatSupportReportIssue', "Whether inline chat supports reporting issues"));
+
 // --- (selected) action identifier
 
 export const ACTION_ACCEPT_CHANGES = 'inlineChat.acceptChanges';
 export const ACTION_REGENERATE_RESPONSE = 'inlineChat.regenerate';
 export const ACTION_VIEW_IN_CHAT = 'inlineChat.viewInChat';
 export const ACTION_TOGGLE_DIFF = 'inlineChat.toggleDiff';
+export const ACTION_REPORT_ISSUE = 'inlineChat.reportIssue';
 
 // --- menus
 
 export const MENU_INLINE_CHAT_CONTENT_STATUS = MenuId.for('inlineChat.content.status');
 export const MENU_INLINE_CHAT_WIDGET_STATUS = MenuId.for('inlineChatWidget.status');
+export const MENU_INLINE_CHAT_ZONE = MenuId.for('inlineChatWidget.changesZone');
 
 // --- colors
 

@@ -26,7 +26,7 @@ import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { CTX_INLINE_CHAT_HAS_AGENT, EditMode } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
-import { EmptyResponse, ErrorResponse, HunkData, ReplyResponse, Session, SessionExchange, SessionWholeRange, StashedSession, TelemetryData, TelemetryDataClassification } from './inlineChatSession';
+import { EmptyResponse, ErrorResponse, HunkData, ReplyResponse, Session, SessionExchange, SessionPrompt, SessionWholeRange, StashedSession, TelemetryData, TelemetryDataClassification } from './inlineChatSession';
 import { IInlineChatSessionEndEvent, IInlineChatSessionEvent, IInlineChatSessionService, ISessionKeyComputer, Recording } from './inlineChatSessionService';
 
 
@@ -126,6 +126,8 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 
 			const { response } = e.request;
 
+			const prompt = new SessionPrompt(e.request, session.textModelN.getAlternativeVersionId());
+
 			lastResponseListener.value = response.onDidChange(() => {
 
 				if (!response.isComplete) {
@@ -155,7 +157,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 					);
 				}
 
-				session.addExchange(new SessionExchange(session.lastInput!, inlineResponse));
+				session.addExchange(new SessionExchange(prompt, inlineResponse));
 
 				if (inlineResponse instanceof ReplyResponse && inlineResponse.untitledTextModel) {
 					this._textModelService.createModelReference(inlineResponse.untitledTextModel.resource).then(ref => {
@@ -215,7 +217,6 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 			store.add(new HunkData(this._editorWorkerService, textModel0, textModelN)),
 			chatModel,
 			options.session?.exchanges, // @ulugbekna: very hacky: we pass exchanges by reference because an exchange is added only on `addRequest` event from chat model which the migrated inline chat misses
-			options.session?.lastInput
 		);
 
 		// store: key -> session

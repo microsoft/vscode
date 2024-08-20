@@ -362,6 +362,7 @@ export interface INotebookEditorOptions extends ITextEditorOptions {
 	readonly isReadOnly?: boolean;
 	readonly viewState?: INotebookEditorViewState;
 	readonly indexedCellOptions?: { index: number; selection?: IRange };
+	readonly label?: string;
 }
 
 export type INotebookEditorContributionCtor = IConstructorSignature<INotebookEditorContribution, [INotebookEditor]>;

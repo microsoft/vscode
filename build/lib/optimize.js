@@ -15,6 +15,7 @@ const filter = require("gulp-filter");
 const fancyLog = require("fancy-log");
 const ansiColors = require("ansi-colors");
 const path = require("path");
+const fs = require("fs");
 const pump = require("pump");
 const VinylFile = require("vinyl");
 const bundle = require("./bundle");
@@ -22,6 +23,8 @@ const i18n_1 = require("./i18n");
 const stats_1 = require("./stats");
 const util = require("./util");
 const postcss_1 = require("./postcss");
+const esbuild = require("esbuild");
+const sourcemaps = require("gulp-sourcemaps");
 const esm_1 = require("./esm");
 const REPO_ROOT_PATH = path.join(__dirname, '../..');
 function log(prefix, message) {
@@ -154,7 +157,6 @@ function optimizeAMDTask(opts) {
     const loaderConfig = opts.loaderConfig;
     const bundledFileHeader = opts.header || DEFAULT_FILE_HEADER;
     const fileContentMapper = opts.fileContentMapper || ((contents, _path) => contents);
-    const sourcemaps = require('gulp-sourcemaps');
     const bundlesStream = es.through(); // this stream will contain the bundled files
     const resourcesStream = es.through(); // this stream will contain the resources
     const bundleInfoStream = es.through(); // this stream will contain bundleInfo.json
@@ -196,40 +198,29 @@ function optimizeAMDTask(opts) {
     }) : es.through());
 }
 function optimizeESMTask(opts, cjsOpts) {
-    // TODO@esm honor IEntryPoint#prepred/append (unused?)
-    const esbuild = require('esbuild');
-    const bundledFileHeader = opts.header || DEFAULT_FILE_HEADER;
-    const sourcemaps = require('gulp-sourcemaps');
     const resourcesStream = es.through(); // this stream will contain the resources
     const bundlesStream = es.through(); // this stream will contain the bundled files
-    const bundleInfoStream = es.through(); // this stream will contain bundleInfo.json
     const entryPoints = opts.entryPoints.filter(d => d.target !== 'amd');
     if (cjsOpts) {
         cjsOpts.entryPoints.forEach(entryPoint => entryPoints.push({ name: path.parse(entryPoint).name }));
     }
-    // TODO@esm remove hardcoded entry point and support `dest` of `IEntryPoint` or clean that up
-    entryPoints.push({ name: 'vs/base/worker/workerMain' });
+    entryPoints.push({ name: 'vs/base/worker/workerMain' }); // TODO@esm remove hardcoded entry point when workers are cleaned up
     const allMentionedModules = new Set();
     for (const entryPoint of entryPoints) {
         allMentionedModules.add(entryPoint.name);
         entryPoint.include?.forEach(allMentionedModules.add, allMentionedModules);
         entryPoint.exclude?.forEach(allMentionedModules.add, allMentionedModules);
     }
-    // TODO@esm remove this from the bundle files
-    allMentionedModules.delete('vs/css');
+    allMentionedModules.delete('vs/css'); // TODO@esm remove this when vs/css is removed
     const bundleAsync = async () => {
-        let bundleData;
         const files = [];
         const tasks = [];
         for (const entryPoint of entryPoints) {
-            const t1 = performance.now();
-            console.log(`[bundle] STARTING '${entryPoint.name}'...`);
+            console.log(`[bundle] '${entryPoint.name}'`);
             // support for 'dest' via esbuild#in/out
             const dest = entryPoint.dest?.replace(/\.[^/.]+$/, '') ?? entryPoint.name;
-            // const dest = entryPoint.name;
             // boilerplate massage
             const banner = { js: '' };
-            const fs = await Promise.resolve().then(() => require('node:fs'));
             const tslibPath = path.join(require.resolve('tslib'), '../tslib.es6.js');
             banner.js += await fs.promises.readFile(tslibPath, 'utf-8');
             const boilerplateTrimmer = {
@@ -251,20 +242,20 @@ function optimizeESMTask(opts, cjsOpts) {
                 }
             }
             const task = esbuild.build({
-                logLevel: 'silent',
                 bundle: true,
                 external: entryPoint.exclude,
                 packages: 'external', // "external all the things", see https://esbuild.github.io/api/#packages
                 platform: 'neutral', // makes esm
                 format: 'esm',
                 plugins: [boilerplateTrimmer],
-                target: ['es2023'],
+                target: ['es2022'],
                 loader: {
                     '.ttf': 'file',
                     '.svg': 'file',
                     '.png': 'file',
                     '.sh': 'file',
                 },
+                assetNames: 'media/[name]', // moves media assets into a sub-folder "media"
                 banner,
                 entryPoints: [
                     {
@@ -276,25 +267,6 @@ function optimizeESMTask(opts, cjsOpts) {
                 write: false, // enables res.outputFiles
                 metafile: true, // enables res.metafile
             }).then(res => {
-                console.log(`[bundle] DONE for '${entryPoint.name}' (${Math.round(performance.now() - t1)}ms)`);
-                if (opts.bundleInfo) {
-                    // TODO@esm validate that bundleData is correct
-                    bundleData ??= { graph: {}, bundles: {} };
-                    function pathToModule(path) {
-                        return path
-                            .replace(new RegExp(`^${opts.src}\\/`), '')
-                            .replace(/\.js$/, '');
-                    }
-                    for (const [path, value] of Object.entries(res.metafile.outputs)) {
-                        const entryModule = pathToModule(path);
-                        const inputModules = Object.keys(value.inputs).map(pathToModule);
-                        bundleData.bundles[entryModule] = inputModules;
-                    }
-                    for (const [input, value] of Object.entries(res.metafile.inputs)) {
-                        const dependencies = value.imports.map(i => pathToModule(i.path));
-                        bundleData.graph[pathToModule(input)] = dependencies;
-                    }
-                }
                 for (const file of res.outputFiles) {
                     let contents = file.contents;
                     if (file.path.endsWith('.js')) {
@@ -320,25 +292,15 @@ function optimizeESMTask(opts, cjsOpts) {
             tasks.push(task);
         }
         await Promise.all(tasks);
-        return { files, bundleData };
+        return { files };
     };
     bundleAsync().then((output) => {
         // bundle output (JS, CSS, SVG...)
         es.readArray(output.files).pipe(bundlesStream);
-        // bundeInfo.json
-        const bundleInfoArray = [];
-        if (typeof output.bundleData === 'object') {
-            bundleInfoArray.push(new VinylFile({
-                path: 'bundleInfo.json',
-                base: '.',
-                contents: Buffer.from(JSON.stringify(output.bundleData, null, '\t'))
-            }));
-        }
-        es.readArray(bundleInfoArray).pipe(bundleInfoStream);
         // forward all resources
         gulp.src(opts.resources, { base: `${opts.src}`, allowEmpty: true }).pipe(resourcesStream);
     });
-    const result = es.merge(bundlesStream, resourcesStream, bundleInfoStream);
+    const result = es.merge(bundlesStream, resourcesStream);
     return result
         .pipe(sourcemaps.write('./', {
         sourceRoot: undefined,
@@ -347,12 +309,11 @@ function optimizeESMTask(opts, cjsOpts) {
     }))
         .pipe(opts.languages && opts.languages.length ? (0, i18n_1.processNlsFiles)({
         out: opts.src,
-        fileHeader: bundledFileHeader,
+        fileHeader: opts.header || DEFAULT_FILE_HEADER,
         languages: opts.languages
     }) : es.through());
 }
 function optimizeCommonJSTask(opts) {
-    const esbuild = require('esbuild');
     const src = opts.src;
     const entryPoints = opts.entryPoints;
     return gulp.src(entryPoints, { base: `${src}`, allowEmpty: true })
@@ -400,11 +361,9 @@ function optimizeTask(opts) {
     };
 }
 function minifyTask(src, sourceMapBaseUrl) {
-    const esbuild = require('esbuild');
     const sourceMappingURL = sourceMapBaseUrl ? ((f) => `${sourceMapBaseUrl}/${f.relative}.map`) : undefined;
     return cb => {
         const cssnano = require('cssnano');
-        const sourcemaps = require('gulp-sourcemaps');
         const svgmin = require('gulp-svgmin');
         const jsFilter = filter('**/*.js', { restore: true });
         const cssFilter = filter('**/*.css', { restore: true });
@@ -416,7 +375,7 @@ function minifyTask(src, sourceMapBaseUrl) {
                 sourcemap: 'external',
                 outdir: '.',
                 platform: 'node',
-                target: ['esnext'],
+                target: ['es2022'],
                 write: false
             }).then(res => {
                 const jsFile = res.outputFiles.find(f => /\.js$/.test(f.path));

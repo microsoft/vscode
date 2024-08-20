@@ -128,7 +128,6 @@ export class SessionWholeRange {
 
 export class Session {
 
-	private _lastInput: SessionPrompt | undefined;
 	private _isUnstashed: boolean = false;
 	private readonly _exchanges: SessionExchange[];
 	private readonly _startTime = new Date();
@@ -155,7 +154,6 @@ export class Session {
 		readonly hunkData: HunkData,
 		readonly chatModel: ChatModel,
 		exchanges?: SessionExchange[],
-		lastInput?: SessionPrompt,
 	) {
 		this.textModelNAltVersion = textModelN.getAlternativeVersionId();
 		this._teldata = {
@@ -173,15 +171,6 @@ export class Session {
 			responseTypes: ''
 		};
 		this._exchanges = exchanges ?? [];
-		this._lastInput = lastInput;
-	}
-
-	addInput(input: SessionPrompt): void {
-		this._lastInput = input;
-	}
-
-	get lastInput() {
-		return this._lastInput;
 	}
 
 	get isUnstashed(): boolean {

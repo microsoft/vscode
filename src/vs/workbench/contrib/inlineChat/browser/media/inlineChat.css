@@ -114,7 +114,8 @@
 
 
 .monaco-workbench .inline-chat .status .actions,
-.monaco-workbench .inline-chat-content-widget .toolbar  {
+.monaco-workbench .inline-chat-content-widget .toolbar,
+.monaco-workbench .inline-chat-diff-overlay {
 
 	display: flex;
 	height: 18px;
@@ -122,31 +123,57 @@
 	.actions-container {
 		gap: 3px
 	}
+
+	.monaco-button-dropdown > .monaco-dropdown-button {
+		display: flex;
+		align-items: center;
+		padding: 0 4px;
+	}
+
+	.monaco-button.codicon {
+		display: flex;
+	}
+
+	.monaco-button.codicon::before {
+		align-self: center;
+		color: var(--vscode-button-foreground);
+	}
+
+	.monaco-text-button {
+		padding: 0 2px;
+		white-space: nowrap;
+	}
 }
 
-.monaco-workbench .inline-chat .status .actions > .monaco-button,
-.monaco-workbench .inline-chat .status .actions > .monaco-button-dropdown {
-	margin-right: 4px;
+.monaco-workbench .inline-chat .status .actions {
+	gap: 4px;
 }
 
-.monaco-workbench .inline-chat .status .actions > .monaco-button-dropdown > .monaco-dropdown-button {
-	display: flex;
-	align-items: center;
-	padding: 0 4px;
+.monaco-workbench .inline-chat-diff-overlay {
+
+	.monaco-button {
+		border-radius: 0;
+	}
+
+	.monaco-button.secondary.checked {
+		background-color: var(--vscode-button-secondaryHoverBackground);
+	}
+
+	.monaco-button:first-child {
+		border-top-left-radius: 2px;
+		border-bottom-left-radius: 2px;
+	}
+
+	.monaco-button:last-child {
+		border-top-right-radius: 2px;
+		border-bottom-right-radius: 2px;
+	}
+
+	.monaco-button:not(:last-child) {
+		border-right: 1px solid var(--vscode-button-foreground);
+	}
 }
 
-.monaco-workbench .inline-chat .status .actions > .monaco-button.codicon {
-	display: flex;
-}
-
-.monaco-workbench .inline-chat .status .actions > .monaco-button.codicon::before {
-	align-self: center;
-}
-
-.monaco-workbench .inline-chat .status .actions .monaco-text-button {
-	padding: 0 2px;
-	white-space: nowrap;
-}
 
 /* TODO@jrieken not needed? */
 .monaco-workbench .inline-chat .status .monaco-toolbar .action-label.checked {

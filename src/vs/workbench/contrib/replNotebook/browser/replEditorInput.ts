@@ -33,6 +33,7 @@ export class ReplEditorInput extends NotebookEditorInput {
 
 	constructor(
 		resource: URI,
+		label: string | undefined,
 		@INotebookService _notebookService: INotebookService,
 		@INotebookEditorModelResolverService _notebookModelResolverService: INotebookEditorModelResolverService,
 		@IFileDialogService _fileDialogService: IFileDialogService,
@@ -49,7 +50,7 @@ export class ReplEditorInput extends NotebookEditorInput {
 	) {
 		super(resource, undefined, 'jupyter-notebook', {}, _notebookService, _notebookModelResolverService, _fileDialogService, labelService, fileService, filesConfigurationService, extensionService, editorService, textResourceConfigurationService, customEditorLabelService);
 		this.isScratchpad = resource.scheme === 'untitled' && configurationService.getValue<boolean>(NotebookSetting.InteractiveWindowPromptToSave) !== true;
-		this.label = this.createEditorLabel(resource);
+		this.label = label ?? this.createEditorLabel(resource);
 	}
 
 	private createEditorLabel(resource: URI | undefined): string {

@@ -3,25 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AppResourcePath } from 'vs/base/common/network';
 import type { Parser } from '@vscode/tree-sitter-wasm';
+import { Event } from 'vs/base/common/event';
 import { ITextModel } from 'vs/editor/common/model';
-import { ITreeSitterParserService } from 'vs/editor/common/services/treeSitterParserService';
+import { ITreeSitterParserService, ITreeSitterParseResult } from 'vs/editor/common/services/treeSitterParserService';
 
 export class TestTreeSitterParserService implements ITreeSitterParserService {
-	getLanguage(model: ITextModel): Parser.Language | undefined {
+	onDidAddLanguage: Event<{ id: string; language: Parser.Language }> = Event.None;
+	_serviceBrand: undefined;
+	getOrInitLanguage(languageId: string): Parser.Language | undefined {
 		throw new Error('Method not implemented.');
 	}
-	getLanguageLocation(languageId: string): AppResourcePath {
+	waitForLanguage(languageId: string): Promise<Parser.Language | undefined> {
 		throw new Error('Method not implemented.');
 	}
-	readonly _serviceBrand: undefined;
-
-	public initTreeSitter(): Promise<void> {
-		return Promise.resolve();
+	getParseResult(textModel: ITextModel): ITreeSitterParseResult | undefined {
+		throw new Error('Method not implemented.');
 	}
 
-	public getTree(_model: ITextModel): Parser.Tree | undefined {
-		return undefined;
-	}
 }

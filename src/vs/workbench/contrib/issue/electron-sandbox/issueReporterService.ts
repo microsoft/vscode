@@ -18,11 +18,11 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
+import { IIssueMainService, IProcessMainService, OldIssueReporterData, OldIssueReporterExtensionData, OldIssueReporterStyles, OldIssueReporterWindowConfiguration, OldIssueType } from 'vs/platform/issue/common/issue';
 import { INativeHostService } from 'vs/platform/native/common/native';
 import { getIconsStyleSheet } from 'vs/platform/theme/browser/iconsStyleSheet';
 import { applyZoom, zoomIn, zoomOut } from 'vs/platform/window/electron-sandbox/window';
 import { IssueReporterData, IssueReporterModel, IssueReporterData as IssueReporterModelData } from 'vs/workbench/contrib/issue/browser/issueReporterModel';
-import { IProcessMainService, IIssueMainService, OldIssueReporterData, OldIssueReporterExtensionData, OldIssueReporterStyles, OldIssueReporterWindowConfiguration, OldIssueType } from 'vs/platform/issue/common/issue';
 import { normalizeGitHubUrl } from 'vs/workbench/contrib/issue/common/issueReporterUtil';
 
 // GitHub has let us know that we could up our limit here to 8k. We chose 7500 to play it safe.

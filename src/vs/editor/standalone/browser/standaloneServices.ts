@@ -96,6 +96,9 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { ExtensionKind, IEnvironmentService, IExtensionHostDebugParams } from 'vs/platform/environment/common/environment';
 import { mainWindow } from 'vs/base/browser/window';
 import { ResourceMap } from 'vs/base/common/map';
+import { ITreeSitterParserService } from 'vs/editor/common/services/treeSitterParserService';
+import { StandaloneTreeSitterParserService } from 'vs/editor/standalone/browser/standaloneTreeSitterService';
+import { IWorkerDescriptor } from 'vs/base/common/worker/simpleWorker';
 
 class SimpleModel implements IResolvedTextEditorModel {
 
@@ -1073,6 +1076,12 @@ class StandaloneContextMenuService extends ContextMenuService {
 	}
 }
 
+export const standaloneEditorWorkerDescriptor: IWorkerDescriptor = {
+	amdModuleId: 'vs/editor/common/services/editorSimpleWorker',
+	esmModuleLocation: undefined,
+	label: 'editorWorkerService'
+};
+
 class StandaloneEditorWorkerService extends EditorWorkerService {
 	constructor(
 		@IModelService modelService: IModelService,
@@ -1081,7 +1090,7 @@ class StandaloneEditorWorkerService extends EditorWorkerService {
 		@ILanguageConfigurationService languageConfigurationService: ILanguageConfigurationService,
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 	) {
-		super(undefined, modelService, configurationService, logService, languageConfigurationService, languageFeaturesService);
+		super(standaloneEditorWorkerDescriptor, modelService, configurationService, logService, languageConfigurationService, languageFeaturesService);
 	}
 }
 
@@ -1158,6 +1167,7 @@ registerSingleton(IClipboardService, BrowserClipboardService, InstantiationType.
 registerSingleton(IContextMenuService, StandaloneContextMenuService, InstantiationType.Eager);
 registerSingleton(IMenuService, MenuService, InstantiationType.Eager);
 registerSingleton(IAccessibilitySignalService, StandaloneAccessbilitySignalService, InstantiationType.Eager);
+registerSingleton(ITreeSitterParserService, StandaloneTreeSitterParserService, InstantiationType.Eager);
 
 /**
  * We don't want to eagerly instantiate services because embedders get a one time chance

@@ -3,26 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { FileAccess } from 'vs/base/common/network';
 import { getAllMethodNames } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
+import { IWorkerDescriptor } from 'vs/base/common/worker/simpleWorker';
 import { EditorWorkerClient } from 'vs/editor/browser/services/editorWorkerService';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { IModelService } from 'vs/editor/common/services/model';
+import { standaloneEditorWorkerDescriptor } from 'vs/editor/standalone/browser/standaloneServices';
 
 /**
  * Create a new web worker that has model syncing capabilities built in.
  * Specify an AMD module to load that will `create` an object that will be proxied.
  */
-export function createWebWorker<T extends object>(modelService: IModelService, languageConfigurationService: ILanguageConfigurationService, opts: IWebWorkerOptions): MonacoWebWorker<T> {
-	return new MonacoWebWorkerImpl<T>(undefined, modelService, languageConfigurationService, opts);
-}
-
-/**
- * @internal
- */
-export function createWorkbenchWebWorker<T extends object>(modelService: IModelService, languageConfigurationService: ILanguageConfigurationService, opts: IWebWorkerOptions): MonacoWebWorker<T> {
-	return new MonacoWebWorkerImpl<T>(FileAccess.asBrowserUri('vs/base/worker/workerMain.js'), modelService, languageConfigurationService, opts);
+export function createWebWorker<T extends object>(modelService: IModelService, opts: IWebWorkerOptions): MonacoWebWorker<T> {
+	return new MonacoWebWorkerImpl<T>(modelService, opts);
 }
 
 /**
@@ -76,8 +69,13 @@ class MonacoWebWorkerImpl<T extends object> extends EditorWorkerClient implement
 	private _foreignModuleCreateData: any | null;
 	private _foreignProxy: Promise<T> | null;
 
-	constructor(workerMainLocation: URI | undefined, modelService: IModelService, languageConfigurationService: ILanguageConfigurationService, opts: IWebWorkerOptions) {
-		super(workerMainLocation, modelService, opts.keepIdleModels || false, opts.label, languageConfigurationService);
+	constructor(modelService: IModelService, opts: IWebWorkerOptions) {
+		const workerDescriptor: IWorkerDescriptor = {
+			amdModuleId: standaloneEditorWorkerDescriptor.amdModuleId,
+			esmModuleLocation: standaloneEditorWorkerDescriptor.esmModuleLocation,
+			label: opts.label,
+		};
+		super(workerDescriptor, opts.keepIdleModels || false, modelService);
 		this._foreignModuleId = opts.moduleId;
 		this._foreignModuleCreateData = opts.createData || null;
 		this._foreignModuleHost = opts.host || null;
@@ -101,11 +99,11 @@ class MonacoWebWorkerImpl<T extends object> extends EditorWorkerClient implement
 		if (!this._foreignProxy) {
 			this._foreignProxy = this._getProxy().then((proxy) => {
 				const foreignHostMethods = this._foreignModuleHost ? getAllMethodNames(this._foreignModuleHost) : [];
-				return proxy.loadForeignModule(this._foreignModuleId, this._foreignModuleCreateData, foreignHostMethods).then((foreignMethods) => {
+				return proxy.$loadForeignModule(this._foreignModuleId, this._foreignModuleCreateData, foreignHostMethods).then((foreignMethods) => {
 					this._foreignModuleCreateData = null;
 
 					const proxyMethodRequest = (method: string, args: any[]): Promise<any> => {
-						return proxy.fmr(method, args);
+						return proxy.$fmr(method, args);
 					};
 
 					const createProxyMethod = (method: string, proxyMethodRequest: (method: string, args: any[]) => Promise<any>): () => Promise<any> => {
@@ -132,6 +130,6 @@ class MonacoWebWorkerImpl<T extends object> extends EditorWorkerClient implement
 	}
 
 	public withSyncedResources(resources: URI[]): Promise<T> {
-		return this._withSyncedResources(resources).then(_ => this.getProxy());
+		return this.workerWithSyncedResources(resources).then(_ => this.getProxy());
 	}
 }

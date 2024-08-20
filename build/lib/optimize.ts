@@ -10,6 +10,7 @@ import * as filter from 'gulp-filter';
 import * as fancyLog from 'fancy-log';
 import * as ansiColors from 'ansi-colors';
 import * as path from 'path';
+import * as fs from 'fs';
 import * as pump from 'pump';
 import * as VinylFile from 'vinyl';
 import * as bundle from './bundle';
@@ -17,7 +18,8 @@ import { Language, processNlsFiles } from './i18n';
 import { createStatsStream } from './stats';
 import * as util from './util';
 import { gulpPostcss } from './postcss';
-import type { Plugin } from 'esbuild';
+import * as esbuild from 'esbuild';
+import * as sourcemaps from 'gulp-sourcemaps';
 import { isESM } from './esm';
 
 const REPO_ROOT_PATH = path.join(__dirname, '../..');
@@ -221,8 +223,6 @@ function optimizeAMDTask(opts: IOptimizeAMDTaskOpts): NodeJS.ReadWriteStream {
 	const bundledFileHeader = opts.header || DEFAULT_FILE_HEADER;
 	const fileContentMapper = opts.fileContentMapper || ((contents: string, _path: string) => contents);
 
-	const sourcemaps = require('gulp-sourcemaps') as typeof import('gulp-sourcemaps');
-
 	const bundlesStream = es.through(); // this stream will contain the bundled files
 	const resourcesStream = es.through(); // this stream will contain the resources
 	const bundleInfoStream = es.through(); // this stream will contain bundleInfo.json
@@ -274,24 +274,15 @@ function optimizeAMDTask(opts: IOptimizeAMDTaskOpts): NodeJS.ReadWriteStream {
 }
 
 function optimizeESMTask(opts: IOptimizeAMDTaskOpts, cjsOpts?: IOptimizeCommonJSTaskOpts): NodeJS.ReadWriteStream {
-	// TODO@esm honor IEntryPoint#prepred/append (unused?)
-
-	const esbuild = require('esbuild') as typeof import('esbuild');
-
-	const bundledFileHeader = opts.header || DEFAULT_FILE_HEADER;
-	const sourcemaps = require('gulp-sourcemaps') as typeof import('gulp-sourcemaps');
-
 	const resourcesStream = es.through(); // this stream will contain the resources
 	const bundlesStream = es.through(); // this stream will contain the bundled files
-	const bundleInfoStream = es.through(); // this stream will contain bundleInfo.json
 
 	const entryPoints = opts.entryPoints.filter(d => d.target !== 'amd');
 	if (cjsOpts) {
 		cjsOpts.entryPoints.forEach(entryPoint => entryPoints.push({ name: path.parse(entryPoint).name }));
 	}
 
-	// TODO@esm remove hardcoded entry point and support `dest` of `IEntryPoint` or clean that up
-	entryPoints.push({ name: 'vs/base/worker/workerMain' });
+	entryPoints.push({ name: 'vs/base/worker/workerMain' }); // TODO@esm remove hardcoded entry point when workers are cleaned up
 
 	const allMentionedModules = new Set<string>();
 	for (const entryPoint of entryPoints) {
@@ -300,31 +291,26 @@ function optimizeESMTask(opts: IOptimizeAMDTaskOpts, cjsOpts?: IOptimizeCommonJS
 		entryPoint.exclude?.forEach(allMentionedModules.add, allMentionedModules);
 	}
 
-	// TODO@esm remove this from the bundle files
-	allMentionedModules.delete('vs/css');
+	allMentionedModules.delete('vs/css'); // TODO@esm remove this when vs/css is removed
 
 	const bundleAsync = async () => {
 
-		let bundleData: bundle.IBundleData | undefined;
 		const files: VinylFile[] = [];
 		const tasks: Promise<any>[] = [];
 
 		for (const entryPoint of entryPoints) {
 
-			const t1 = performance.now();
-			console.log(`[bundle] STARTING '${entryPoint.name}'...`);
+			console.log(`[bundle] '${entryPoint.name}'`);
 
 			// support for 'dest' via esbuild#in/out
 			const dest = entryPoint.dest?.replace(/\.[^/.]+$/, '') ?? entryPoint.name;
-			// const dest = entryPoint.name;
 
 			// boilerplate massage
 			const banner = { js: '' };
-			const fs = await import('node:fs');
 			const tslibPath = path.join(require.resolve('tslib'), '../tslib.es6.js');
 			banner.js += await fs.promises.readFile(tslibPath, 'utf-8');
 
-			const boilerplateTrimmer: Plugin = {
+			const boilerplateTrimmer: esbuild.Plugin = {
 				name: 'boilerplate-trimmer',
 				setup(build) {
 					build.onLoad({ filter: /\.js$/ }, async args => {
@@ -344,22 +330,21 @@ function optimizeESMTask(opts: IOptimizeAMDTaskOpts, cjsOpts?: IOptimizeCommonJS
 				}
 			}
 
-
 			const task = esbuild.build({
-				logLevel: 'silent',
 				bundle: true,
 				external: entryPoint.exclude,
 				packages: 'external', // "external all the things", see https://esbuild.github.io/api/#packages
 				platform: 'neutral', // makes esm
 				format: 'esm',
 				plugins: [boilerplateTrimmer],
-				target: ['es2023'],
+				target: ['es2022'],
 				loader: {
 					'.ttf': 'file',
 					'.svg': 'file',
 					'.png': 'file',
 					'.sh': 'file',
 				},
+				assetNames: 'media/[name]', // moves media assets into a sub-folder "media"
 				banner,
 				entryPoints: [
 					{
@@ -372,30 +357,6 @@ function optimizeESMTask(opts: IOptimizeAMDTaskOpts, cjsOpts?: IOptimizeCommonJS
 				metafile: true, // enables res.metafile
 
 			}).then(res => {
-				console.log(`[bundle] DONE for '${entryPoint.name}' (${Math.round(performance.now() - t1)}ms)`);
-
-				if (opts.bundleInfo) {
-					// TODO@esm validate that bundleData is correct
-					bundleData ??= { graph: {}, bundles: {} };
-
-					function pathToModule(path: string) {
-						return path
-							.replace(new RegExp(`^${opts.src}\\/`), '')
-							.replace(/\.js$/, '');
-					}
-
-					for (const [path, value] of Object.entries(res.metafile.outputs)) {
-						const entryModule = pathToModule(path);
-						const inputModules = Object.keys(value.inputs).map(pathToModule);
-						bundleData.bundles[entryModule] = inputModules;
-					}
-
-					for (const [input, value] of Object.entries(res.metafile.inputs)) {
-						const dependencies = value.imports.map(i => pathToModule(i.path));
-						bundleData.graph[pathToModule(input)] = dependencies;
-					}
-				}
-
 				for (const file of res.outputFiles) {
 
 					let contents = file.contents;
@@ -427,7 +388,7 @@ function optimizeESMTask(opts: IOptimizeAMDTaskOpts, cjsOpts?: IOptimizeCommonJS
 		}
 
 		await Promise.all(tasks);
-		return { files, bundleData };
+		return { files };
 	};
 
 	bundleAsync().then((output) => {
@@ -435,25 +396,13 @@ function optimizeESMTask(opts: IOptimizeAMDTaskOpts, cjsOpts?: IOptimizeCommonJS
 		// bundle output (JS, CSS, SVG...)
 		es.readArray(output.files).pipe(bundlesStream);
 
-		// bundeInfo.json
-		const bundleInfoArray: VinylFile[] = [];
-		if (typeof output.bundleData === 'object') {
-			bundleInfoArray.push(new VinylFile({
-				path: 'bundleInfo.json',
-				base: '.',
-				contents: Buffer.from(JSON.stringify(output.bundleData, null, '\t'))
-			}));
-		}
-		es.readArray(bundleInfoArray).pipe(bundleInfoStream);
-
 		// forward all resources
 		gulp.src(opts.resources, { base: `${opts.src}`, allowEmpty: true }).pipe(resourcesStream);
 	});
 
 	const result = es.merge(
 		bundlesStream,
-		resourcesStream,
-		bundleInfoStream
+		resourcesStream
 	);
 
 	return result
@@ -464,7 +413,7 @@ function optimizeESMTask(opts: IOptimizeAMDTaskOpts, cjsOpts?: IOptimizeCommonJS
 		}))
 		.pipe(opts.languages && opts.languages.length ? processNlsFiles({
 			out: opts.src,
-			fileHeader: bundledFileHeader,
+			fileHeader: opts.header || DEFAULT_FILE_HEADER,
 			languages: opts.languages
 		}) : es.through());
 }
@@ -489,8 +438,6 @@ export interface IOptimizeCommonJSTaskOpts {
 }
 
 function optimizeCommonJSTask(opts: IOptimizeCommonJSTaskOpts): NodeJS.ReadWriteStream {
-	const esbuild = require('esbuild') as typeof import('esbuild');
-
 	const src = opts.src;
 	const entryPoints = opts.entryPoints;
 
@@ -578,12 +525,10 @@ export function optimizeTask(opts: IOptimizeTaskOpts): () => NodeJS.ReadWriteStr
 }
 
 export function minifyTask(src: string, sourceMapBaseUrl?: string): (cb: any) => void {
-	const esbuild = require('esbuild') as typeof import('esbuild');
 	const sourceMappingURL = sourceMapBaseUrl ? ((f: any) => `${sourceMapBaseUrl}/${f.relative}.map`) : undefined;
 
 	return cb => {
 		const cssnano = require('cssnano') as typeof import('cssnano');
-		const sourcemaps = require('gulp-sourcemaps') as typeof import('gulp-sourcemaps');
 		const svgmin = require('gulp-svgmin') as typeof import('gulp-svgmin');
 
 		const jsFilter = filter('**/*.js', { restore: true });
@@ -601,7 +546,7 @@ export function minifyTask(src: string, sourceMapBaseUrl?: string): (cb: any) =>
 					sourcemap: 'external',
 					outdir: '.',
 					platform: 'node',
-					target: ['esnext'],
+					target: ['es2022'],
 					write: false
 				}).then(res => {
 					const jsFile = res.outputFiles.find(f => /\.js$/.test(f.path))!;
