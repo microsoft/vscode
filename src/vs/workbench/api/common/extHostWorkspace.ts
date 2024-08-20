@@ -511,7 +511,11 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		};
 		const parseInclude = parseSearchExcludeInclude(GlobPattern.from(include ?? filePattern));
 		const folderToUse: URI | undefined = parseInclude?.folder;
-		fileQueries.includePattern = parseInclude?.pattern;
+		if (include) {
+			fileQueries.includePattern = parseInclude?.pattern;
+		} else {
+			fileQueries.filePattern = parseInclude?.pattern;
+		}
 
 		return this._proxy.$startFileSearch(
 			folderToUse ?? null,
