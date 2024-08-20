@@ -627,7 +627,7 @@ export class ChatService extends Disposable implements IChatService {
 						const chatAgentRequest = await prepareChatAgentRequest(defaultAgent, agentSlashCommandPart?.command, enableCommandDetection);
 
 						const result = await this.chatAgentService.detectAgentOrCommand(chatAgentRequest, defaultAgentHistory, { location }, token);
-						if (result) {
+						if (result && this.chatAgentService.getAgent(result.agent.id)?.locations?.includes(location)) {
 							// Update the response in the ChatModel to reflect the detected agent and command
 							request.response?.setAgent(result.agent, result.command);
 							detectedAgent = result.agent;
@@ -641,7 +641,7 @@ export class ChatService extends Disposable implements IChatService {
 
 					// Recompute history in case the agent or command changed
 					const history = this.getHistoryEntriesFromModel(model, location, agent.id);
-					const requestProps = await prepareChatAgentRequest(agent, command, !detectedAgent && enableCommandDetection, request /* Reuse the request object if we already created it for participant detection */);
+					const requestProps = await prepareChatAgentRequest(agent, command, enableCommandDetection, request /* Reuse the request object if we already created it for participant detection */);
 					const pendingRequest = this._pendingRequests.get(sessionId);
 					if (pendingRequest && !pendingRequest.requestId) {
 						pendingRequest.requestId = requestProps.requestId;
