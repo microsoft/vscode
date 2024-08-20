@@ -30,9 +30,8 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { KeyCode } from 'vs/base/common/keyCodes';
 
-/**
- * Correctly place the bounding boxes so that they are exactly aligned
- */
+// Boolean which determines whether to show the selection, control and character bounding boxes for debugging purposes
+const showBoundingBoxes: boolean = false;
 
 export class NativeEditContext extends AbstractEditContext {
 
@@ -672,9 +671,10 @@ export class NativeEditContext extends AbstractEditContext {
 		console.log('characterBounds[0] : ', characterBounds[0]);
 		this._editContext.updateCharacterBounds(rangeStart, characterBounds);
 
-		// -- dev
-		this._characterBounds.dispose();
-		this._characterBounds = createRect(characterBounds[0], 'green');
+		if (showBoundingBoxes) {
+			this._characterBounds.dispose();
+			this._characterBounds = createRect(characterBounds[0], 'green');
+		}
 	}
 
 	// do we need this? looks like in the current implementation we wouldnt use these format
@@ -793,10 +793,12 @@ export class NativeEditContext extends AbstractEditContext {
 		this._editContext.updateControlBounds(controlBounds);
 		this._editContext.updateSelectionBounds(selectionBounds);
 
-		this._selectionBounds.dispose();
-		this._controlBounds.dispose();
-		this._selectionBounds = createRect(selectionBounds, 'red');
-		this._controlBounds = createRect(controlBounds, 'blue');
+		if (showBoundingBoxes) {
+			this._selectionBounds.dispose();
+			this._controlBounds.dispose();
+			this._selectionBounds = createRect(selectionBounds, 'red');
+			this._controlBounds = createRect(controlBounds, 'blue');
+		}
 	}
 
 	private _updateCompositionEndPosition(): void {
