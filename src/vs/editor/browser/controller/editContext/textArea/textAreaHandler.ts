@@ -12,7 +12,7 @@ import * as platform from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 import { CopyOptions, ICompositionData, IPasteData, ITextAreaInputHost, TextAreaInput, ClipboardDataToCopy, TextAreaWrapper } from 'vs/editor/browser/controller/editContext/textArea/textAreaInput';
-import { AbstractEditContext, ariaLabelForScreenReaderContent, canUseZeroSizeTextarea, getAccessibilityOptions, IRenderData, ISimpleModel, ITypeData, newlinecount, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/editContext/editContext';
+import { AbstractEditContext, ariaLabelForScreenReaderContent, getAccessibilityOptions, ISimpleModel, ITypeData, newlinecount, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/editContext/editContext';
 import { ViewController } from 'vs/editor/browser/view/viewController';
 import { PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
 import { LineNumbersOverlay } from 'vs/editor/browser/viewParts/lineNumbers/lineNumbers';
@@ -104,6 +104,8 @@ class VisibleTextAreaData {
 		return this._previousPresentation;
 	}
 }
+
+const canUseZeroSizeTextarea = (browser.isFirefox);
 
 export class TextAreaHandler extends AbstractEditContext {
 
@@ -602,7 +604,6 @@ export class TextAreaHandler extends AbstractEditContext {
 
 		return true;
 	}
-
 	public override onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
 		this._selections = e.selections.slice(0);
 		this._modelSelections = e.modelSelections.slice(0);
@@ -866,6 +867,21 @@ export class TextAreaHandler extends AbstractEditContext {
 			}
 		}
 	}
+}
+
+interface IRenderData {
+	lastRenderPosition: Position | null;
+	top: number;
+	left: number;
+	width: number;
+	height: number;
+	useCover: boolean;
+
+	color?: Color | null;
+	italic?: boolean;
+	bold?: boolean;
+	underline?: boolean;
+	strikethrough?: boolean;
 }
 
 function measureText(targetDocument: Document, text: string, fontInfo: FontInfo, tabSize: number): number {
