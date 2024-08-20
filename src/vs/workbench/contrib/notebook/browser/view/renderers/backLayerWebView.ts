@@ -58,9 +58,9 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { FromWebviewMessage, IAckOutputHeight, IClickedDataUrlMessage, ICodeBlockHighlightRequest, IContentWidgetTopRequest, IControllerPreload, ICreationContent, ICreationRequestMessage, IFindMatch, IMarkupCellInitialization, RendererMetadata, StaticPreloadMetadata, ToWebviewMessage } from './webviewMessages';
 
-const LINE_COLUMN_REGEX = /:([\d]+)(?::([\d]+))?$/;
-const LineQueryRegex = /line=(\d+)$/;
-const FRAGMENT_REGEX = /^(.*)#([^#]*)$/;
+export const LINE_COLUMN_REGEX = /:([\d]+)(?::([\d]+))?$/;
+export const LineQueryRegex = /line=(\d+)$/;
+export const FRAGMENT_REGEX = /^(.*)#([^#]*)$/;
 
 export interface ICachedInset<K extends ICommonCellInfo> {
 	outputId: string;
@@ -100,7 +100,7 @@ export interface INotebookDelegateForWebview {
 	didFocusOutputInputChange(inputFocused: boolean): void;
 }
 
-interface BacklayerWebviewOptions {
+export interface BacklayerWebviewOptions {
 	readonly outputNodePadding: number;
 	readonly outputNodeLeftPadding: number;
 	readonly previewNodePadding: number;
@@ -284,7 +284,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		};
 	}
 
-	private generateContent(baseUrl: string) {
+	protected generateContent(baseUrl: string) {
 		const renderersData = this.getRendererData();
 		const preloadsData = this.getStaticPreloadsData();
 		const renderOptions = {
@@ -344,7 +344,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 					#container > div > div > div.output {
 						font-size: var(--notebook-cell-output-font-size);
 						width: var(--notebook-output-width);
-						margin-left: var(--notebook-output-left-margin);
+						/* margin-left: var(--notebook-output-left-margin); */
 						background-color: var(--theme-notebook-output-background);
 						padding-top: var(--notebook-output-node-padding);
 						padding-right: var(--notebook-output-node-padding);
