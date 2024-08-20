@@ -189,7 +189,6 @@ export class NativeEditContext extends AbstractEditContext {
 				ScrollType.Immediate
 			);
 			this._render();
-			this._domElement.setClassName(`native-edit-context ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME} ime-input`);
 			this._viewController.compositionStart();
 			this._context.viewModel.onCompositionStart();
 		}));
@@ -640,7 +639,7 @@ export class NativeEditContext extends AbstractEditContext {
 
 		if (this._renderingContext) {
 			const range = Range.fromPositions(this._compositionStartPosition, this._compositionEndPosition);
-			this._linesVisibleRanges = this._renderingContext.linesVisibleRangesForRange(range, true, true, true) ?? this._linesVisibleRanges;
+			this._linesVisibleRanges = this._renderingContext.linesVisibleRangesForRange(range, true, true) ?? this._linesVisibleRanges;
 
 			console.log('range : ', range);
 			console.log('linesVisibleRanges : ', this._linesVisibleRanges);
@@ -763,7 +762,7 @@ export class NativeEditContext extends AbstractEditContext {
 			const typicalHalfwidthCharacterWidth = options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
 			let left: number = parentBounds.left + this._contentLeft;
 			if (this._renderingContext) {
-				const linesVisibleRanges = this._renderingContext.linesVisibleRangesForRange(primaryViewState.selection, true, true, true) ?? [];
+				const linesVisibleRanges = this._renderingContext.linesVisibleRangesForRange(primaryViewState.selection, true, true) ?? [];
 				console.log('linesVisibleRanges : ', linesVisibleRanges);
 				if (linesVisibleRanges.length === 0) { return; }
 				const minLeft = Math.min(...linesVisibleRanges.map(r => Math.min(...r.ranges.map(r => r.left))));

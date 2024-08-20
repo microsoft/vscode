@@ -114,7 +114,6 @@
 	text-decoration-color: blue;
 	text-underline-offset: 2px;
 	color: var(--vscode-editor-foreground, inherit);
-	background-color: white;
 	opacity: 0.8;
 
 	&.underline-style-none {

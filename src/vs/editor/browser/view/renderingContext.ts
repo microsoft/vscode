@@ -9,7 +9,7 @@ import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData'
 import { IViewLayout, ViewModelDecoration } from 'vs/editor/common/viewModel';
 
 export interface IViewLines {
-	linesVisibleRangesForRange(range: Range, includeNewLines: boolean, ignoreShouldRender: boolean, debug: boolean): LineVisibleRanges[] | null;
+	linesVisibleRangesForRange(range: Range, includeNewLines: boolean, ignoreShouldRender: boolean): LineVisibleRanges[] | null;
 	visibleRangeForPosition(position: Position): HorizontalPosition | null;
 }
 
@@ -77,8 +77,8 @@ export class RenderingContext extends RestrictedRenderingContext {
 		this._viewLines = viewLines;
 	}
 
-	public linesVisibleRangesForRange(range: Range, includeNewLines: boolean, ignoreShouldRender: boolean = false, debug: boolean = false): LineVisibleRanges[] | null {
-		return this._viewLines.linesVisibleRangesForRange(range, includeNewLines, ignoreShouldRender, debug);
+	public linesVisibleRangesForRange(range: Range, includeNewLines: boolean, ignoreShouldRender: boolean = false): LineVisibleRanges[] | null {
+		return this._viewLines.linesVisibleRangesForRange(range, includeNewLines, ignoreShouldRender);
 	}
 
 	public visibleRangeForPosition(position: Position): HorizontalPosition | null {

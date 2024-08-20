@@ -13,7 +13,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { IPointerHandlerHelper } from 'vs/editor/browser/controller/mouseHandler';
 import { PointerHandlerLastRenderData } from 'vs/editor/browser/controller/mouseTarget';
 import { PointerHandler } from 'vs/editor/browser/controller/pointerHandler';
-import { IVisibleRangeProvider } from 'vs/editor/browser/controller/editContext/textArea/textAreaHandler';
+import { IVisibleRangeProvider, TextAreaHandler } from 'vs/editor/browser/controller/editContext/textArea/textAreaHandler';
 import { IContentWidget, IContentWidgetPosition, IEditorAriaOptions, IGlyphMarginWidget, IGlyphMarginWidgetPosition, IMouseTarget, IOverlayWidget, IOverlayWidgetPosition, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBrowser';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
 import { ICommandDelegate, ViewController } from 'vs/editor/browser/view/viewController';
@@ -57,7 +57,7 @@ import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IColorTheme, getThemeTypeSelector } from 'vs/platform/theme/common/themeService';
 import { AbstractEditContext } from 'vs/editor/browser/controller/editContext/editContext';
-import { EditContextImpl } from 'vs/editor/browser/controller/editContext/impl';
+import { NativeEditContext } from 'vs/editor/browser/controller/editContext/native/nativeEditContext';
 
 
 export interface IContentWidgetData {
@@ -92,7 +92,7 @@ export class View extends ViewEventHandler {
 	private readonly _viewCursors: ViewCursors;
 	private readonly _viewParts: ViewPart[];
 
-	private readonly _textAreaHandler: AbstractEditContext;
+	private readonly _editContext: AbstractEditContext;
 	private readonly _pointerHandler: PointerHandler;
 
 	// Dom nodes
@@ -128,8 +128,13 @@ export class View extends ViewEventHandler {
 		this._viewParts = [];
 
 		// Keyboard handler
-		this._textAreaHandler = this._instantiationService.createInstance(EditContextImpl, this._context, viewController, this._createTextAreaHandlerHelper());
-		this._viewParts.push(this._textAreaHandler);
+		const editContext = this._context.configuration.options.get(EditorOption.editContext);
+		if (editContext.type === 'native') {
+			this._editContext = this._instantiationService.createInstance(NativeEditContext, this._context, viewController);
+		} else {
+			this._editContext = this._instantiationService.createInstance(TextAreaHandler, this._context, viewController, this._createTextAreaHandlerHelper());
+		}
+		this._viewParts.push(this._editContext);
 
 		// These two dom nodes must be constructed up front, since references are needed in the layout provider (scrolling & co.)
 		this._linesContent = createFastDomNode(document.createElement('div'));
@@ -224,7 +229,7 @@ export class View extends ViewEventHandler {
 		this._overflowGuardContainer.appendChild(margin.getDomNode());
 		this._overflowGuardContainer.appendChild(this._scrollbar.getDomNode());
 		this._overflowGuardContainer.appendChild(scrollDecoration.getDomNode());
-		this._textAreaHandler.appendTo(this._overflowGuardContainer);
+		this._editContext.appendTo(this._overflowGuardContainer);
 		this._overflowGuardContainer.appendChild(this._overlayWidgets.getDomNode());
 		this._overflowGuardContainer.appendChild(minimap.getDomNode());
 		this._overflowGuardContainer.appendChild(blockOutline.domNode);
@@ -287,15 +292,18 @@ export class View extends ViewEventHandler {
 			},
 
 			dispatchTextAreaEvent: (event: CustomEvent) => {
-				// TODO
-				// this._textAreaHandler.textArea.domNode.dispatchEvent(event);
+				if (this._editContext instanceof TextAreaHandler) {
+					this._editContext.textArea.domNode.dispatchEvent(event);
+				}
 			},
 
 			getLastRenderData: (): PointerHandlerLastRenderData => {
-				const lastViewCursorsRenderData = this._viewCursors.getLastRenderData() || [];
-				// TODO
-				const lastTextareaPosition = null; // this._textAreaHandler.getLastRenderData();
-				return new PointerHandlerLastRenderData(lastViewCursorsRenderData, lastTextareaPosition);
+				if (this._editContext instanceof TextAreaHandler) {
+					const lastViewCursorsRenderData = this._viewCursors.getLastRenderData() || [];
+					const lastTextareaPosition = this._editContext.getLastRenderData();
+					return new PointerHandlerLastRenderData(lastViewCursorsRenderData, lastTextareaPosition);
+				}
+				return new PointerHandlerLastRenderData([], null);
 			},
 			renderNow: (): void => {
 				this.render(true, false);
@@ -348,7 +356,7 @@ export class View extends ViewEventHandler {
 	}
 
 	private _getEditorClassName() {
-		const focused = this._textAreaHandler.isFocused() ? ' focused' : '';
+		const focused = this._editContext.isFocused() ? ' focused' : '';
 		return this._context.configuration.options.get(EditorOption.editorClassName) + ' ' + getThemeTypeSelector(this._context.theme.type) + focused;
 	}
 
@@ -589,23 +597,23 @@ export class View extends ViewEventHandler {
 	}
 
 	public writeScreenReaderContent(reason: string): void {
-		this._textAreaHandler.writeScreenReaderContent(reason);
+		this._editContext.writeScreenReaderContent(reason);
 	}
 
 	public focus(): void {
-		this._textAreaHandler.focusScreenReaderContent();
+		this._editContext.focusScreenReaderContent();
 	}
 
 	public isFocused(): boolean {
-		return this._textAreaHandler.isFocused();
+		return this._editContext.isFocused();
 	}
 
 	public refreshFocusState() {
-		this._textAreaHandler.refreshFocusState();
+		this._editContext.refreshFocusState();
 	}
 
 	public setAriaOptions(options: IEditorAriaOptions): void {
-		this._textAreaHandler.setAriaOptions(options);
+		this._editContext.setAriaOptions(options);
 	}
 
 	public addContentWidget(widgetData: IContentWidgetData): void {
