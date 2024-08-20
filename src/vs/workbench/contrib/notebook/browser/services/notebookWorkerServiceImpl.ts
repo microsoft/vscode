@@ -219,7 +219,7 @@ class NotebookWorkerClient extends Disposable {
 			try {
 				this._worker = this._register(createWebWorker<NotebookEditorSimpleWorker>(
 					'vs/workbench/contrib/notebook/common/services/notebookSimpleWorker',
-					'notebookEditorWorkerService'
+					'NotebookEditorWorker'
 				));
 			} catch (err) {
 				// logOnceWebWorkerWarning(err);

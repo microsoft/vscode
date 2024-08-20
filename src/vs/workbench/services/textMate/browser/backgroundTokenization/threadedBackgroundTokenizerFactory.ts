@@ -139,7 +139,7 @@ export class ThreadedBackgroundTokenizerFactory implements IDisposable {
 		};
 		const worker = this._worker = createWebWorker<TextMateTokenizationWorker>(
 			'vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker',
-			'textMateWorker'
+			'TextMateWorker'
 		);
 		TextMateWorkerHost.setChannel(worker, {
 			$readFile: async (_resource: UriComponents): Promise<string> => {

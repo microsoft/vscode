@@ -204,7 +204,6 @@ function optimizeESMTask(opts, cjsOpts) {
     if (cjsOpts) {
         cjsOpts.entryPoints.forEach(entryPoint => entryPoints.push({ name: path.parse(entryPoint).name }));
     }
-    entryPoints.push({ name: 'vs/base/worker/workerMain' }); // TODO@esm remove hardcoded entry point when workers are cleaned up
     const allMentionedModules = new Set();
     for (const entryPoint of entryPoints) {
         allMentionedModules.add(entryPoint.name);
