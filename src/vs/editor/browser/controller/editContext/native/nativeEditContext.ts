@@ -251,7 +251,6 @@ export class NativeEditContext extends AbstractEditContext {
 		this._register(dom.addDisposableListener(this._domElement.domNode, 'focus', (e) => {
 			this._setHasFocus(true);
 		}));
-
 		this._register(dom.addDisposableListener(this._domElement.domNode, 'blur', (e) => {
 			this._setHasFocus(false);
 		}));
@@ -268,7 +267,6 @@ export class NativeEditContext extends AbstractEditContext {
 			// Do not write to the text area when doing composition
 			return;
 		}
-		this._domElement.domNode.focus();
 		const screenReaderContentState = this._getScreenReaderContentState();
 		this._setScreenReaderContent(reason, screenReaderContentState.value);
 		this._setSelectionOfScreenReaderContent(reason, screenReaderContentState.selectionStart, screenReaderContentState.selectionEnd);
@@ -349,10 +347,17 @@ export class NativeEditContext extends AbstractEditContext {
 	}
 
 	public focusScreenReaderContent(): void {
+		// Setting this._hasFocus and writing the screen reader content
+		// will result in a focus() and setSelectionRange() in the textarea
 		this._setHasFocus(true);
+
+		// If the editor is off DOM, focus cannot be really set, so let's double check that we have managed to set the focus
+		this.refreshFocusState();
 	}
 
-	public refreshFocusState(): void { }
+	public refreshFocusState(): void {
+		this._setHasFocus(this._hasFocus);
+	}
 
 	private _setHasFocus(newHasFocus: boolean): void {
 		if (this._hasFocus === newHasFocus) {
@@ -363,6 +368,7 @@ export class NativeEditContext extends AbstractEditContext {
 
 		if (this._hasFocus) {
 			// write to the screen reader content
+			this.writeScreenReaderContent('focusgain');
 		}
 
 		if (this._hasFocus) {
