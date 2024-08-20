@@ -42,6 +42,7 @@ import { DefaultChatTextEditor } from 'vs/workbench/contrib/chat/browser/codeBlo
 import { isEqual } from 'vs/base/common/resources';
 import { generateUuid } from 'vs/base/common/uuid';
 import { MenuWorkbenchButtonBar } from 'vs/platform/actions/browser/buttonbar';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 export interface IEditObserver {
 	start(): void;
@@ -432,8 +433,10 @@ export class LiveStrategy extends EditModeStrategy {
 									const [hunkRange] = hunkData.getRangesN();
 									viewZoneData.afterLineNumber = hunkRange.startLineNumber - 1;
 									data.viewZoneId = viewZoneAccessor.addZone(viewZoneData);
+									overlay?.updateExtraTop(result.heightInLines);
 								} else {
 									viewZoneAccessor.removeZone(data.viewZoneId!);
+									overlay?.updateExtraTop(0);
 									data.viewZoneId = undefined;
 								}
 							});
@@ -627,6 +630,8 @@ class InlineChangeOverlay implements IOverlayWidget {
 	private readonly _domNode: HTMLElement = document.createElement('div');
 	private readonly _store: DisposableStore = new DisposableStore();
 
+	private _extraTopLines: number = 0;
+
 	constructor(
 		private readonly _editor: ICodeEditor,
 		private readonly _hunkInfo: HunkInformation,
@@ -674,8 +679,16 @@ class InlineChangeOverlay implements IOverlayWidget {
 		const top = this._editor.getTopForLineNumber(line) - this._editor.getScrollTop();
 		const left = info.contentLeft + info.contentWidth - info.verticalScrollbarWidth;
 
+		const extraTop = this._editor.getOption(EditorOption.lineHeight) * this._extraTopLines;
 		const width = getTotalWidth(this._domNode);
 
-		return { preference: { top, left: left - width } };
+		return { preference: { top: top - extraTop, left: left - width } };
+	}
+
+	updateExtraTop(value: number) {
+		if (this._extraTopLines !== value) {
+			this._extraTopLines = value;
+			this._editor.layoutOverlayWidget(this);
+		}
 	}
 }
