@@ -5,7 +5,7 @@
 
 import { getActiveWindow } from 'vs/base/browser/dom';
 import { Disposable } from 'vs/base/common/lifecycle';
-import type { ITextureAtlasGlyph } from 'vs/editor/browser/view/gpu/atlas/atlas';
+import type { ITextureAtlasPageGlyph } from 'vs/editor/browser/view/gpu/atlas/atlas';
 import { TextureAtlas } from 'vs/editor/browser/view/gpu/atlas/textureAtlas';
 import { GPULifecycle } from 'vs/editor/browser/view/gpu/gpuDisposable';
 import { ensureNonNullable, observeDevicePixelDimensions, quadVertices } from 'vs/editor/browser/view/gpu/gpuUtils';
@@ -386,7 +386,7 @@ interface IRenderStrategy<T extends IVisibleLine> {
 
 // #region Full file render strategy
 
-const fullFileRenderStrategyWgsl = `
+const fullFileRenderStrategyWgsl = /*wgsl*/`
 struct GlyphInfo {
 	position: vec2f,
 	size: vec2f,
@@ -548,7 +548,7 @@ class FullFileRenderStrategy<T extends IVisibleLine> extends Disposable implemen
 		let wgslX = 0;
 		let wgslY = 0;
 		let xOffset = 0;
-		let glyph: Readonly<ITextureAtlasGlyph>;
+		let glyph: Readonly<ITextureAtlasPageGlyph>;
 		let cellIndex = 0;
 
 		let tokenStartIndex = 0;
@@ -671,8 +671,8 @@ class FullFileRenderStrategy<T extends IVisibleLine> extends Disposable implemen
 					cellBuffer[cellIndex + 1] = -wgslY;      // y
 					cellBuffer[cellIndex + 2] = 0;
 					cellBuffer[cellIndex + 3] = 0;
-					cellBuffer[cellIndex + 4] = glyph.index; // glyphIndex
-					cellBuffer[cellIndex + 5] = glyph.textureIndex; // textureIndex
+					cellBuffer[cellIndex + 4] = glyph.glyphIndex; // glyphIndex
+					cellBuffer[cellIndex + 5] = glyph.pageIndex; // textureIndex
 				}
 
 				tokenStartIndex = tokenEndIndex;

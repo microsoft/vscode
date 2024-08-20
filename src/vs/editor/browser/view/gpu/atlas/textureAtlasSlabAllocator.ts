@@ -5,7 +5,7 @@
 
 import { getActiveWindow } from 'vs/base/browser/dom';
 import { TwoKeyMap } from 'vs/base/common/map';
-import { UsagePreviewColors, type ITextureAtlasAllocator, type ITextureAtlasGlyph } from 'vs/editor/browser/view/gpu/atlas/atlas';
+import { UsagePreviewColors, type ITextureAtlasAllocator, type ITextureAtlasPageGlyph } from 'vs/editor/browser/view/gpu/atlas/atlas';
 import { ensureNonNullable } from 'vs/editor/browser/view/gpu/gpuUtils';
 import type { IRasterizedGlyph } from 'vs/editor/browser/view/gpu/raster/glyphRasterizer';
 
@@ -36,7 +36,8 @@ export class TextureAtlasSlabAllocator implements ITextureAtlasAllocator {
 	private _openRegionsByHeight: Map<number, ITextureAtlasSlabUnusedRect[]> = new Map();
 	private _openRegionsByWidth: Map<number, ITextureAtlasSlabUnusedRect[]> = new Map();
 
-	readonly glyphMap: TwoKeyMap<string, number, Readonly<ITextureAtlasGlyph>> = new TwoKeyMap();
+	/** A set of all glyphs allocated, this is only tracked to enable debug related functionality */
+	private _allocatedGlyphs: Set<Readonly<ITextureAtlasPageGlyph>> = new Set();
 
 	private readonly _slabW: number;
 	private readonly _slabH: number;
@@ -65,7 +66,7 @@ export class TextureAtlasSlabAllocator implements ITextureAtlasAllocator {
 		this._slabsPerColumn = Math.floor(this._canvas.height / this._slabH);
 	}
 
-	public allocate(chars: string, tokenFg: number, rasterizedGlyph: IRasterizedGlyph): ITextureAtlasGlyph | undefined {
+	public allocate(rasterizedGlyph: IRasterizedGlyph): ITextureAtlasPageGlyph | undefined {
 		// Find ideal slab, creating it if there is none suitable
 		const glyphWidth = rasterizedGlyph.boundingBox.right - rasterizedGlyph.boundingBox.left + 1;
 		const glyphHeight = rasterizedGlyph.boundingBox.bottom - rasterizedGlyph.boundingBox.top + 1;
@@ -293,9 +294,9 @@ export class TextureAtlasSlabAllocator implements ITextureAtlasAllocator {
 		);
 
 		// Create glyph object
-		const glyph: ITextureAtlasGlyph = {
-			textureIndex: this._textureIndex,
-			index: this._nextIndex++,
+		const glyph: ITextureAtlasPageGlyph = {
+			pageIndex: this._textureIndex,
+			glyphIndex: this._nextIndex++,
 			x: dx,
 			y: dy,
 			w: glyphWidth,
@@ -305,7 +306,7 @@ export class TextureAtlasSlabAllocator implements ITextureAtlasAllocator {
 		};
 
 		// Set the glyph
-		this.glyphMap.set(chars, tokenFg, glyph);
+		this._allocatedGlyphs.add(glyph);
 
 		return glyph;
 	}
@@ -349,7 +350,7 @@ export class TextureAtlasSlabAllocator implements ITextureAtlasAllocator {
 		}
 
 		// Draw glyphs
-		for (const g of this.glyphMap.values()) {
+		for (const g of this._allocatedGlyphs) {
 			usedPixels += g.w * g.h;
 			ctx.fillStyle = UsagePreviewColors.Used;
 			ctx.fillRect(g.x, g.y, g.w, g.h);
@@ -404,7 +405,7 @@ export class TextureAtlasSlabAllocator implements ITextureAtlasAllocator {
 		}
 
 		// Draw glyphs
-		for (const g of this.glyphMap.values()) {
+		for (const g of this._allocatedGlyphs) {
 			usedPixels += g.w * g.h;
 		}
 

@@ -126,7 +126,7 @@ class DrawGlyphAction extends EditorAction {
 		if (!rasterizedGlyph) {
 			return;
 		}
-		const imageData = atlas.pages[rasterizedGlyph.textureIndex].source.getContext('2d')?.getImageData(
+		const imageData = atlas.pages[rasterizedGlyph.pageIndex].source.getContext('2d')?.getImageData(
 			rasterizedGlyph.x,
 			rasterizedGlyph.y,
 			rasterizedGlyph.w,

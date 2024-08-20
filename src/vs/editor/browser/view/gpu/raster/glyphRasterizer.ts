@@ -216,11 +216,17 @@ export interface IBoundingBox {
 	bottom: number;
 }
 
+/**
+ * A glyph that has been rasterized to a canvas.
+ */
 export interface IRasterizedGlyph {
 	source: OffscreenCanvas;
 	/**
 	 * The bounding box of the glyph within {@link source}.
 	 */
 	boundingBox: IBoundingBox;
+	/**
+	 * The offset to the glyph's origin (where it should be drawn to).
+	 */
 	originOffset: { x: number; y: number };
 }

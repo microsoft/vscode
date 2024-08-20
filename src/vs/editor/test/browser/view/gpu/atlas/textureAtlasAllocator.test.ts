@@ -11,7 +11,6 @@ import { TextureAtlasSlabAllocator, TextureAtlasSlabAllocatorOptions } from 'vs/
 import { ensureNonNullable } from 'vs/editor/browser/view/gpu/gpuUtils';
 import type { IRasterizedGlyph } from 'vs/editor/browser/view/gpu/raster/glyphRasterizer';
 
-const blackInt = 0x000000FF;
 const blackArr = [0x00, 0x00, 0x00, 0xFF];
 
 const pixel1x1 = createRasterizedGlyph(1, 1, [...blackArr]);
@@ -31,18 +30,8 @@ function createRasterizedGlyph(w: number, h: number, data: ArrayLike<number>): I
 	};
 }
 
-let lastUniqueGlyph: string | undefined;
-function getUniqueGlyphId(): [chars: string, tokenFg: number] {
-	if (!lastUniqueGlyph) {
-		lastUniqueGlyph = 'a';
-	} else {
-		lastUniqueGlyph = String.fromCharCode(lastUniqueGlyph.charCodeAt(0) + 1);
-	}
-	return [lastUniqueGlyph, blackInt];
-}
-
 function allocateAndAssert(allocator: ITextureAtlasAllocator, rasterizedGlyph: IRasterizedGlyph, expected: { x: number; y: number; w: number; h: number } | undefined): void {
-	const actual = allocator.allocate(...getUniqueGlyphId(), rasterizedGlyph);
+	const actual = allocator.allocate(rasterizedGlyph);
 	if (!actual) {
 		strictEqual(actual, expected);
 		return;
@@ -57,10 +46,6 @@ function allocateAndAssert(allocator: ITextureAtlasAllocator, rasterizedGlyph: I
 
 suite('TextureAtlasAllocator', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
-
-	suiteSetup(() => {
-		lastUniqueGlyph = undefined;
-	});
 
 	suite('TextureAtlasShelfAllocator', () => {
 		function initAllocator(w: number, h: number): { canvas: OffscreenCanvas; allocator: TextureAtlasShelfAllocator } {

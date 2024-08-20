@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TwoKeyMap } from 'vs/base/common/map';
-import { UsagePreviewColors, type ITextureAtlasAllocator, type ITextureAtlasGlyph } from 'vs/editor/browser/view/gpu/atlas/atlas';
+import { UsagePreviewColors, type ITextureAtlasAllocator, type ITextureAtlasPageGlyph } from 'vs/editor/browser/view/gpu/atlas/atlas';
 import { ensureNonNullable } from 'vs/editor/browser/view/gpu/gpuUtils';
 import type { IRasterizedGlyph } from 'vs/editor/browser/view/gpu/raster/glyphRasterizer';
 
@@ -22,7 +21,8 @@ export class TextureAtlasShelfAllocator implements ITextureAtlasAllocator {
 		h: 0
 	};
 
-	readonly glyphMap: TwoKeyMap<string, number, ITextureAtlasGlyph> = new TwoKeyMap();
+	/** A set of all glyphs allocated, this is only tracked to enable debug related functionality */
+	private _allocatedGlyphs: Set<Readonly<ITextureAtlasPageGlyph>> = new Set();
 
 	private _nextIndex = 0;
 
@@ -35,7 +35,7 @@ export class TextureAtlasShelfAllocator implements ITextureAtlasAllocator {
 		}));
 	}
 
-	public allocate(chars: string, tokenFg: number, rasterizedGlyph: IRasterizedGlyph): ITextureAtlasGlyph | undefined {
+	public allocate(rasterizedGlyph: IRasterizedGlyph): ITextureAtlasPageGlyph | undefined {
 		// Finalize and increment row if it doesn't fix horizontally
 		if (rasterizedGlyph.boundingBox.right - rasterizedGlyph.boundingBox.left + 1 > this._canvas.width - this._currentRow.x) {
 			this._currentRow.x = 0;
@@ -66,9 +66,9 @@ export class TextureAtlasShelfAllocator implements ITextureAtlasAllocator {
 		);
 
 		// Create glyph object
-		const glyph: ITextureAtlasGlyph = {
-			textureIndex: this._textureIndex,
-			index: this._nextIndex++,
+		const glyph: ITextureAtlasPageGlyph = {
+			pageIndex: this._textureIndex,
+			glyphIndex: this._nextIndex++,
 			x: this._currentRow.x,
 			y: this._currentRow.y,
 			w: glyphWidth,
@@ -82,7 +82,7 @@ export class TextureAtlasShelfAllocator implements ITextureAtlasAllocator {
 		this._currentRow.h = Math.max(this._currentRow.h, glyphHeight);
 
 		// Set the glyph
-		this.glyphMap.set(chars, tokenFg, glyph);
+		this._allocatedGlyphs.add(glyph);
 
 		return glyph;
 	}
@@ -97,11 +97,11 @@ export class TextureAtlasShelfAllocator implements ITextureAtlasAllocator {
 
 		const rowHeight: Map<number, number> = new Map(); // y -> h
 		const rowWidth: Map<number, number> = new Map(); // y -> w
-		for (const g of this.glyphMap.values()) {
+		for (const g of this._allocatedGlyphs) {
 			rowHeight.set(g.y, Math.max(rowHeight.get(g.y) ?? 0, g.h));
 			rowWidth.set(g.y, Math.max(rowWidth.get(g.y) ?? 0, g.x + g.w));
 		}
-		for (const g of this.glyphMap.values()) {
+		for (const g of this._allocatedGlyphs) {
 			ctx.fillStyle = UsagePreviewColors.Used;
 			ctx.fillRect(g.x, g.y, g.w, g.h);
 			ctx.fillStyle = UsagePreviewColors.Wasted;
@@ -126,11 +126,11 @@ export class TextureAtlasShelfAllocator implements ITextureAtlasAllocator {
 
 		const rowHeight: Map<number, number> = new Map(); // y -> h
 		const rowWidth: Map<number, number> = new Map(); // y -> w
-		for (const g of this.glyphMap.values()) {
+		for (const g of this._allocatedGlyphs) {
 			rowHeight.set(g.y, Math.max(rowHeight.get(g.y) ?? 0, g.h));
 			rowWidth.set(g.y, Math.max(rowWidth.get(g.y) ?? 0, g.x + g.w));
 		}
-		for (const g of this.glyphMap.values()) {
+		for (const g of this._allocatedGlyphs) {
 			usedPixels += g.w * g.h;
 			wastedPixels += g.w * (rowHeight.get(g.y)! - g.h);
 		}

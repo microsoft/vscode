@@ -6,7 +6,7 @@
 import { ok } from 'assert';
 import { isNumber } from 'vs/base/common/types';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import type { ITextureAtlasGlyph } from 'vs/editor/browser/view/gpu/atlas/atlas';
+import type { ITextureAtlasPageGlyph } from 'vs/editor/browser/view/gpu/atlas/atlas';
 import { TextureAtlas } from 'vs/editor/browser/view/gpu/atlas/textureAtlas';
 import { ensureNonNullable } from 'vs/editor/browser/view/gpu/gpuUtils';
 import { GlyphRasterizer } from 'vs/editor/browser/view/gpu/raster/glyphRasterizer';
@@ -25,7 +25,7 @@ function getUniqueGlyphId(): [chars: string, tokenFg: number] {
 	return [lastUniqueGlyph, blackInt];
 }
 
-function assertIsValidGlyph(glyph: Readonly<ITextureAtlasGlyph>, atlas: TextureAtlas) {
+function assertIsValidGlyph(glyph: Readonly<ITextureAtlasPageGlyph>, atlas: TextureAtlas) {
 	// (x,y) are valid coordinates
 	ok(isNumber(glyph.x));
 	ok(glyph.x >= 0);
@@ -51,7 +51,7 @@ function assertIsValidGlyph(glyph: Readonly<ITextureAtlasGlyph>, atlas: TextureA
 	ok(glyph.y + glyph.h <= atlas.pageSize);
 
 	// Each of the glyph's outer pixel edges contain at least 1 non-transparent pixel
-	const ctx = ensureNonNullable(atlas.pages[glyph.textureIndex].source.getContext('2d'));
+	const ctx = ensureNonNullable(atlas.pages[glyph.pageIndex].source.getContext('2d'));
 	const edges = [
 		ctx.getImageData(glyph.x, glyph.y, glyph.w, 1).data,
 		ctx.getImageData(glyph.x, glyph.y + glyph.h - 1, glyph.w, 1).data,

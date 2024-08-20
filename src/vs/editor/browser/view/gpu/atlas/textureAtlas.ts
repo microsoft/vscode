@@ -6,7 +6,7 @@
 import { getActiveWindow } from 'vs/base/browser/dom';
 import { Event } from 'vs/base/common/event';
 import { Disposable, dispose, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import type { IReadableTextureAtlasPage, ITextureAtlasGlyph } from 'vs/editor/browser/view/gpu/atlas/atlas';
+import type { IReadableTextureAtlasPage, ITextureAtlasPageGlyph } from 'vs/editor/browser/view/gpu/atlas/atlas';
 import { TextureAtlasPage } from 'vs/editor/browser/view/gpu/atlas/textureAtlasPage';
 import { GlyphRasterizer } from 'vs/editor/browser/view/gpu/raster/glyphRasterizer';
 import { IdleTaskQueue } from 'vs/editor/browser/view/gpu/taskQueue';
@@ -54,7 +54,7 @@ export class TextureAtlas extends Disposable {
 	}
 
 	// TODO: Color, style etc.
-	public getGlyph(rasterizer: GlyphRasterizer, chars: string, metadata: number): Readonly<ITextureAtlasGlyph> {
+	public getGlyph(rasterizer: GlyphRasterizer, chars: string, metadata: number): Readonly<ITextureAtlasPageGlyph> {
 		if (!this._warmedUpRasterizers.has(rasterizer.id)) {
 			this._warmUpAtlas(rasterizer);
 			this._warmedUpRasterizers.add(rasterizer.id);

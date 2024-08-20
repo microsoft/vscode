@@ -6,7 +6,7 @@
 import { Event } from 'vs/base/common/event';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { TwoKeyMap } from 'vs/base/common/map';
-import type { IBoundingBox, IReadableTextureAtlasPage, ITextureAtlasAllocator, ITextureAtlasGlyph } from 'vs/editor/browser/view/gpu/atlas/atlas';
+import type { IBoundingBox, IReadableTextureAtlasPage, ITextureAtlasAllocator, ITextureAtlasPageGlyph } from 'vs/editor/browser/view/gpu/atlas/atlas';
 import { TextureAtlasShelfAllocator } from 'vs/editor/browser/view/gpu/atlas/textureAtlasShelfAllocator';
 import { TextureAtlasSlabAllocator } from 'vs/editor/browser/view/gpu/atlas/textureAtlasSlabAllocator';
 import type { GlyphRasterizer } from 'vs/editor/browser/view/gpu/raster/glyphRasterizer';
@@ -31,11 +31,11 @@ export class TextureAtlasPage extends Disposable implements IReadableTextureAtla
 
 	private readonly _canvas: OffscreenCanvas;
 
-	private readonly _glyphMap: TwoKeyMap<string, number, ITextureAtlasGlyph> = new TwoKeyMap();
+	private readonly _glyphMap: TwoKeyMap<string, number, ITextureAtlasPageGlyph> = new TwoKeyMap();
 	// HACK: This is an ordered set of glyphs to be passed to the GPU since currently the shader
 	//       uses the index of the glyph. This should be improved to derive from _glyphMap
-	private readonly _glyphInOrderSet: Set<ITextureAtlasGlyph> = new Set();
-	get glyphs(): IterableIterator<ITextureAtlasGlyph> {
+	private readonly _glyphInOrderSet: Set<ITextureAtlasPageGlyph> = new Set();
+	get glyphs(): IterableIterator<ITextureAtlasPageGlyph> {
 		return this._glyphInOrderSet.values();
 	}
 
@@ -76,7 +76,7 @@ export class TextureAtlasPage extends Disposable implements IReadableTextureAtla
 		}));
 	}
 
-	public getGlyph(rasterizer: GlyphRasterizer, chars: string, metadata: number): Readonly<ITextureAtlasGlyph> {
+	public getGlyph(rasterizer: GlyphRasterizer, chars: string, metadata: number): Readonly<ITextureAtlasPageGlyph> {
 		// Ignore metadata that doesn't affect the glyph
 		metadata ^= (MetadataConsts.LANGUAGEID_MASK | MetadataConsts.TOKEN_TYPE_MASK | MetadataConsts.BALANCED_BRACKETS_MASK);
 
@@ -85,10 +85,10 @@ export class TextureAtlasPage extends Disposable implements IReadableTextureAtla
 		return this._glyphMap.get(chars, metadata) ?? this._createGlyph(rasterizer, chars, metadata);
 	}
 
-	private _createGlyph(rasterizer: GlyphRasterizer, chars: string, metadata: number): Readonly<ITextureAtlasGlyph> {
+	private _createGlyph(rasterizer: GlyphRasterizer, chars: string, metadata: number): Readonly<ITextureAtlasPageGlyph> {
 		const rasterizedGlyph = rasterizer.rasterizeGlyph(chars, metadata, this._colorMap);
 		// TODO: Handle undefined allocate result
-		const glyph = this._allocator.allocate(chars, metadata, rasterizedGlyph)!;
+		const glyph = this._allocator.allocate(rasterizedGlyph)!;
 		this._glyphMap.set(chars, metadata, glyph);
 		this._glyphInOrderSet.add(glyph);
 
@@ -109,7 +109,6 @@ export class TextureAtlasPage extends Disposable implements IReadableTextureAtla
 	}
 
 	getUsagePreview(): Promise<Blob> {
-		// TODO: Standardize usage stats and make them loggable
 		return this._allocator.getUsagePreview();
 	}
 
