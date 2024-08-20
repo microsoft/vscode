@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ok } from 'assert';
+import { ok, strictEqual } from 'assert';
 import { isNumber } from 'vs/base/common/types';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import type { ITextureAtlasPageGlyph } from 'vs/editor/browser/view/gpu/atlas/atlas';
 import { TextureAtlas } from 'vs/editor/browser/view/gpu/atlas/textureAtlas';
 import { ensureNonNullable } from 'vs/editor/browser/view/gpu/gpuUtils';
-import { GlyphRasterizer } from 'vs/editor/browser/view/gpu/raster/glyphRasterizer';
+import type { IGlyphRasterizer, IRasterizedGlyph } from 'vs/editor/browser/view/gpu/raster/raster';
 import { createCodeEditorServices } from 'vs/editor/test/browser/testCodeEditor';
 import type { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
@@ -63,6 +63,39 @@ function assertIsValidGlyph(glyph: Readonly<ITextureAtlasPageGlyph>, atlas: Text
 	}
 }
 
+class TestGlyphRasterizer implements IGlyphRasterizer {
+	readonly id = 0;
+	nextGlyphColor: [number, number, number, number] = [0, 0, 0, 0];
+	nextGlyphDimensions: [number, number] = [0, 0];
+	rasterizeGlyph(chars: string, metadata: number, colorMap: string[]): Readonly<IRasterizedGlyph> {
+		const w = this.nextGlyphDimensions[0];
+		const h = this.nextGlyphDimensions[1];
+		if (w === 0 || h === 0) {
+			throw new Error('TestGlyphRasterizer.nextGlyphDimensions must be set to a non-zero value before calling rasterizeGlyph');
+		}
+		const imageData = new ImageData(w, h);
+		let i = 0;
+		for (let y = 0; y < h; y++) {
+			for (let x = 0; x < w; x++) {
+				const [r, g, b, a] = this.nextGlyphColor;
+				i = (y * w + x) * 4;
+				imageData.data[i + 0] = r;
+				imageData.data[i + 1] = g;
+				imageData.data[i + 2] = b;
+				imageData.data[i + 3] = a;
+			}
+		}
+		const canvas = new OffscreenCanvas(w, h);
+		const ctx = ensureNonNullable(canvas.getContext('2d'));
+		ctx.putImageData(imageData, 0, 0);
+		return {
+			source: canvas,
+			boundingBox: { top: 0, left: 0, bottom: h - 1, right: w - 1 },
+			originOffset: { x: 0, y: 0 },
+		};
+	}
+}
+
 suite('TextureAtlas', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -71,26 +104,35 @@ suite('TextureAtlas', () => {
 	});
 
 	let instantiationService: IInstantiationService;
-	let glyphRasterizer: GlyphRasterizer;
+
+	let atlas: TextureAtlas;
+	let glyphRasterizer: TestGlyphRasterizer;
 
 	setup(() => {
 		instantiationService = createCodeEditorServices(store);
-		glyphRasterizer = new GlyphRasterizer(10, 'monospace');
+		atlas = store.add(instantiationService.createInstance(TextureAtlas, 8));
+		glyphRasterizer = new TestGlyphRasterizer();
+		glyphRasterizer.nextGlyphDimensions = [1, 1];
+		glyphRasterizer.nextGlyphColor = [0, 0, 0, 0xFF];
 	});
 
 	test('get single glyph', () => {
-		const atlas = store.add(instantiationService.createInstance(TextureAtlas, 512));
 		assertIsValidGlyph(atlas.getGlyph(glyphRasterizer, ...getUniqueGlyphId()), atlas);
 	});
 
 	test('get multiple glyphs', () => {
-		const atlas = store.add(instantiationService.createInstance(TextureAtlas, 512));
 		for (let i = 0; i < 10; i++) {
 			assertIsValidGlyph(atlas.getGlyph(glyphRasterizer, ...getUniqueGlyphId()), atlas);
 		}
 	});
 
-	test.skip('adding glyph to full page creates new page', () => {
-		throw new Error('NYI'); // TODO: Implement
+	test('adding glyph to full page creates new page', () => {
+		atlas = store.add(instantiationService.createInstance(TextureAtlas, 2));
+		for (let i = 0; i < 4; i++) {
+			assertIsValidGlyph(atlas.getGlyph(glyphRasterizer, ...getUniqueGlyphId()), atlas);
+		}
+		strictEqual(atlas.pages.length, 1);
+		assertIsValidGlyph(atlas.getGlyph(glyphRasterizer, ...getUniqueGlyphId()), atlas);
+		strictEqual(atlas.pages.length, 2);
 	});
 });

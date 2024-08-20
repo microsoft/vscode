@@ -8,7 +8,7 @@ import { Event } from 'vs/base/common/event';
 import { Disposable, dispose, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import type { IReadableTextureAtlasPage, ITextureAtlasPageGlyph } from 'vs/editor/browser/view/gpu/atlas/atlas';
 import { TextureAtlasPage } from 'vs/editor/browser/view/gpu/atlas/textureAtlasPage';
-import { GlyphRasterizer } from 'vs/editor/browser/view/gpu/raster/glyphRasterizer';
+import type { IGlyphRasterizer } from 'vs/editor/browser/view/gpu/raster/raster';
 import { IdleTaskQueue } from 'vs/editor/browser/view/gpu/taskQueue';
 import { MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -49,19 +49,33 @@ export class TextureAtlas extends Disposable {
 
 		this.pageSize = Math.min(1024 * dprFactor, this._maxTextureSize);
 		this._pages.push(this._instantiationService.createInstance(TextureAtlasPage, 0, this.pageSize, 'slab'));
-		this._pages.push(this._instantiationService.createInstance(TextureAtlasPage, 1, this.pageSize, 'slab'));
 		this._register(toDisposable(() => dispose(this._pages)));
 	}
 
 	// TODO: Color, style etc.
-	public getGlyph(rasterizer: GlyphRasterizer, chars: string, metadata: number): Readonly<ITextureAtlasPageGlyph> {
+	public getGlyph(rasterizer: IGlyphRasterizer, chars: string, metadata: number): Readonly<ITextureAtlasPageGlyph> {
 		if (!this._warmedUpRasterizers.has(rasterizer.id)) {
 			this._warmUpAtlas(rasterizer);
 			this._warmedUpRasterizers.add(rasterizer.id);
 		}
-		// HACK: Draw glyphs to different pages to test out multiple textures while there's no overflow logic
-		const targetPage = chars.match(/[a-z]/i) ? 0 : 1;
-		return this._pages[targetPage].getGlyph(rasterizer, chars, metadata);
+		return this._tryGetGlyph(0, rasterizer, chars, metadata);
+	}
+
+	private _tryGetGlyph(pageIndex: number, rasterizer: IGlyphRasterizer, chars: string, metadata: number): Readonly<ITextureAtlasPageGlyph> {
+		// TODO: This should only rasterize a single time, currently it rasterized for each full page before it creates a new page
+		return (
+			this._pages[pageIndex].getGlyph(rasterizer, chars, metadata) ?? (
+				(pageIndex + 1 < this._pages.length
+					? this._tryGetGlyph(pageIndex + 1, rasterizer, chars, metadata)
+					: undefined)
+			) ?? this._getGlyphFromNewPage(rasterizer, chars, metadata)
+		);
+	}
+
+	private _getGlyphFromNewPage(rasterizer: IGlyphRasterizer, chars: string, metadata: number): Readonly<ITextureAtlasPageGlyph> {
+		// TODO: Support more than 2 pages and the GPU texture layer limit
+		this._pages.push(this._instantiationService.createInstance(TextureAtlasPage, this._pages.length, this.pageSize, 'slab'));
+		return this._pages[this._pages.length - 1].getGlyph(rasterizer, chars, metadata)!;
 	}
 
 	public getUsagePreview(): Promise<Blob[]> {
@@ -76,7 +90,7 @@ export class TextureAtlas extends Disposable {
 	 * Warms up the atlas by rasterizing all printable ASCII characters for each token color. This
 	 * is distrubuted over multiple idle callbacks to avoid blocking the main thread.
 	 */
-	private _warmUpAtlas(rasterizer: GlyphRasterizer): void {
+	private _warmUpAtlas(rasterizer: IGlyphRasterizer): void {
 		this._warmUpTask.value?.clear();
 		const taskQueue = this._warmUpTask.value = new IdleTaskQueue();
 		// Warm up using roughly the larger glyphs first to help optimize atlas allocation
@@ -106,3 +120,4 @@ export class TextureAtlas extends Disposable {
 		}
 	}
 }
+

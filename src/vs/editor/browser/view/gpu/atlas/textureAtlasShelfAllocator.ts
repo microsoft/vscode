@@ -5,7 +5,7 @@
 
 import { UsagePreviewColors, type ITextureAtlasAllocator, type ITextureAtlasPageGlyph } from 'vs/editor/browser/view/gpu/atlas/atlas';
 import { ensureNonNullable } from 'vs/editor/browser/view/gpu/gpuUtils';
-import type { IRasterizedGlyph } from 'vs/editor/browser/view/gpu/raster/glyphRasterizer';
+import type { IRasterizedGlyph } from 'vs/editor/browser/view/gpu/raster/raster';
 
 /**
  * The shelf allocator is a simple allocator that places glyphs in rows, starting a new row when the

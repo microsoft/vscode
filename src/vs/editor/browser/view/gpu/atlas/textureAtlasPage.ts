@@ -6,10 +6,10 @@
 import { Event } from 'vs/base/common/event';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { TwoKeyMap } from 'vs/base/common/map';
-import type { IBoundingBox, IReadableTextureAtlasPage, ITextureAtlasAllocator, ITextureAtlasPageGlyph } from 'vs/editor/browser/view/gpu/atlas/atlas';
+import type { IReadableTextureAtlasPage, ITextureAtlasAllocator, ITextureAtlasPageGlyph } from 'vs/editor/browser/view/gpu/atlas/atlas';
 import { TextureAtlasShelfAllocator } from 'vs/editor/browser/view/gpu/atlas/textureAtlasShelfAllocator';
 import { TextureAtlasSlabAllocator } from 'vs/editor/browser/view/gpu/atlas/textureAtlasSlabAllocator';
-import type { GlyphRasterizer } from 'vs/editor/browser/view/gpu/raster/glyphRasterizer';
+import type { IBoundingBox, IGlyphRasterizer } from 'vs/editor/browser/view/gpu/raster/raster';
 import { MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -76,25 +76,30 @@ export class TextureAtlasPage extends Disposable implements IReadableTextureAtla
 		}));
 	}
 
-	public getGlyph(rasterizer: GlyphRasterizer, chars: string, metadata: number): Readonly<ITextureAtlasPageGlyph> {
+	public getGlyph(rasterizer: IGlyphRasterizer, chars: string, metadata: number): Readonly<ITextureAtlasPageGlyph> | undefined {
 		// Ignore metadata that doesn't affect the glyph
 		metadata ^= (MetadataConsts.LANGUAGEID_MASK | MetadataConsts.TOKEN_TYPE_MASK | MetadataConsts.BALANCED_BRACKETS_MASK);
 
 		// TODO: Encode font size and family into key
 
+		// IMPORTANT: There are intentionally no intermediate variables here to aid in runtime
+		// optimization as it's a very hot function
 		return this._glyphMap.get(chars, metadata) ?? this._createGlyph(rasterizer, chars, metadata);
 	}
 
-	private _createGlyph(rasterizer: GlyphRasterizer, chars: string, metadata: number): Readonly<ITextureAtlasPageGlyph> {
+	private _createGlyph(rasterizer: IGlyphRasterizer, chars: string, metadata: number): Readonly<ITextureAtlasPageGlyph> | undefined {
 		const rasterizedGlyph = rasterizer.rasterizeGlyph(chars, metadata, this._colorMap);
-		// TODO: Handle undefined allocate result
 		const glyph = this._allocator.allocate(rasterizedGlyph)!;
+		if (glyph === undefined) {
+			// TODO: Log this? In practice it should not happen
+			return undefined;
+		}
 		this._glyphMap.set(chars, metadata, glyph);
 		this._glyphInOrderSet.add(glyph);
 
 		this._version++;
-		this._usedArea.right = Math.max(this._usedArea.right, glyph.x + glyph.w);
-		this._usedArea.bottom = Math.max(this._usedArea.bottom, glyph.y + glyph.h);
+		this._usedArea.right = Math.max(this._usedArea.right, glyph.x + glyph.w - 1);
+		this._usedArea.bottom = Math.max(this._usedArea.bottom, glyph.y + glyph.h - 1);
 
 		if (this._logService.getLevel() === LogLevel.Trace) {
 			this._logService.trace('New glyph', {

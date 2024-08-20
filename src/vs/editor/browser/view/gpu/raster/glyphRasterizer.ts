@@ -5,6 +5,7 @@
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ensureNonNullable } from 'vs/editor/browser/view/gpu/gpuUtils';
+import type { IBoundingBox, IGlyphRasterizer, IRasterizedGlyph } from 'vs/editor/browser/view/gpu/raster/raster';
 import { StringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { FontStyle, TokenMetadata } from 'vs/editor/common/encodedTokenAttributes';
 
@@ -25,7 +26,7 @@ const $bbox = $rasterizedGlyph.boundingBox;
 
 let nextId = 0;
 
-export class GlyphRasterizer extends Disposable {
+export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 	/**
 	 * A unique identifier for this rasterizer.
 	 */
@@ -207,26 +208,4 @@ export class GlyphRasterizer extends Disposable {
 			}
 		}
 	}
-}
-
-export interface IBoundingBox {
-	left: number;
-	top: number;
-	right: number;
-	bottom: number;
-}
-
-/**
- * A glyph that has been rasterized to a canvas.
- */
-export interface IRasterizedGlyph {
-	source: OffscreenCanvas;
-	/**
-	 * The bounding box of the glyph within {@link source}.
-	 */
-	boundingBox: IBoundingBox;
-	/**
-	 * The offset to the glyph's origin (where it should be drawn to).
-	 */
-	originOffset: { x: number; y: number };
 }

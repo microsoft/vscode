@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IRasterizedGlyph } from 'vs/editor/browser/view/gpu/raster/glyphRasterizer';
+import type { IBoundingBox, IRasterizedGlyph } from 'vs/editor/browser/view/gpu/raster/raster';
 
 /**
  * Information about a {@link IRasterizedGlyph rasterized glyph} that has been drawn to a texture
@@ -30,20 +30,6 @@ export interface ITextureAtlasPageGlyph {
 	originOffsetX: number;
 	/** The y offset from {@link y} of the glyph's origin. */
 	originOffsetY: number;
-}
-
-/**
- * A simple bounding box in a 2D plane.
- */
-export interface IBoundingBox {
-	/** The left x coordinate (inclusive). */
-	left: number;
-	/** The top y coordinate (inclusive). */
-	top: number;
-	/** The right x coordinate (exclusive). */
-	right: number;
-	/** The bottom y coordinate (exclusive). */
-	bottom: number;
 }
 
 /**
