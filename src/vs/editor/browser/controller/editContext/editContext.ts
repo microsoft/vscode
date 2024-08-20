@@ -128,27 +128,6 @@ export class PagedScreenReaderStrategy {
 	}
 }
 
-export class CompositionContext {
-
-	private _lastTypeTextLength: number;
-
-	constructor() {
-		this._lastTypeTextLength = 0;
-	}
-
-	public handleCompositionUpdate(text: string | null | undefined): ITypeData {
-		text = text || '';
-		const typeInput: ITypeData = {
-			text: text,
-			replacePrevCharCnt: this._lastTypeTextLength,
-			replaceNextCharCnt: 0,
-			positionDelta: 0
-		};
-		this._lastTypeTextLength = text.length;
-		return typeInput;
-	}
-}
-
 export function ariaLabelForScreenReaderContent(options: IComputedEditorOptions, keybindingService: IKeybindingService) {
 	const accessibilitySupport = options.get(EditorOption.accessibilitySupport);
 	if (accessibilitySupport === AccessibilitySupport.Disabled) {
