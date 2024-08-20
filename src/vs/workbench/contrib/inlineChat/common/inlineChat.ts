@@ -17,6 +17,7 @@ export const enum InlineChatConfigKeys {
 	FinishOnType = 'inlineChat.finishOnType',
 	AcceptedOrDiscardBeforeSave = 'inlineChat.acceptedOrDiscardBeforeSave',
 	OnlyZoneWidget = 'inlineChat.experimental.onlyZoneWidget',
+	ZoneToolbar = 'inlineChat.experimental.enableZoneToolbar',
 	HoldToSpeech = 'inlineChat.holdToSpeech',
 	AccessibleDiffView = 'inlineChat.accessibleDiffView'
 }
@@ -72,6 +73,12 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			type: 'boolean',
 			tags: ['experimental']
 		},
+		[InlineChatConfigKeys.ZoneToolbar]: {
+			description: localize('zoneToolbar', "Whether to show a toolbar to accept or reject changes in the inline chat changes view."),
+			default: false,
+			type: 'boolean',
+			tags: ['experimental']
+		},
 	}
 });
 
@@ -118,6 +125,7 @@ export const ACTION_TOGGLE_DIFF = 'inlineChat.toggleDiff';
 
 export const MENU_INLINE_CHAT_CONTENT_STATUS = MenuId.for('inlineChat.content.status');
 export const MENU_INLINE_CHAT_WIDGET_STATUS = MenuId.for('inlineChatWidget.status');
+export const MENU_INLINE_CHAT_ZONE = MenuId.for('inlineChatWidget.changesZone');
 
 // --- colors
 

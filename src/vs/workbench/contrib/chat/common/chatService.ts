@@ -304,6 +304,8 @@ export interface IChatCompleteResponse {
 export interface IChatDetail {
 	sessionId: string;
 	title: string;
+	lastMessageDate: number;
+	isActive: boolean;
 }
 
 export interface IChatProviderInfo {

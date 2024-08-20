@@ -210,7 +210,8 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 				position: typeConverters.ViewColumn.from(options.viewColumn),
 				preserveFocus: options.preserveFocus,
 				selections: options.selections && options.selections.map(typeConverters.NotebookRange.from),
-				pinned: typeof options.preview === 'boolean' ? !options.preview : undefined
+				pinned: typeof options.preview === 'boolean' ? !options.preview : undefined,
+				label: options?.label
 			};
 		} else {
 			resolvedOptions = {
