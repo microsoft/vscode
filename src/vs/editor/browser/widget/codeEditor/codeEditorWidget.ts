@@ -1134,8 +1134,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	}
 
 	private _compositionType(source: string | null | undefined, text: string, replacePrevCharCnt: number, replaceNextCharCnt: number, positionDelta: number): void {
-		console.log('_compositionType');
-		console.log('this._modelData : ', this._modelData);
 		if (!this._modelData) {
 			return;
 		}
@@ -1797,7 +1795,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 					this._type('keyboard', text);
 				},
 				compositionType: (text: string, replacePrevCharCnt: number, replaceNextCharCnt: number, positionDelta: number) => {
-					console.log('composition type of create view');
 					this._compositionType('keyboard', text, replacePrevCharCnt, replaceNextCharCnt, positionDelta);
 				},
 				startComposition: () => {
@@ -1821,7 +1818,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 					this._commandService.executeCommand(editorCommon.Handler.Type, payload);
 				},
 				compositionType: (text: string, replacePrevCharCnt: number, replaceNextCharCnt: number, positionDelta: number) => {
-					console.log('composition type command delegate');
 					// Try if possible to go through the existing `replacePreviousChar` command
 					if (replaceNextCharCnt || positionDelta) {
 						// must be handled through the new command
