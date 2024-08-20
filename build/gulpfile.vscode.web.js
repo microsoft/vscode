@@ -71,6 +71,9 @@ const vscodeWebResourceIncludes = isESM() ? [
 
 	// Extension Worker
 	'out-build/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html',
+	
+	// Tree Sitter highlights
+	'out-build/vs/editor/common/languages/highlights/*.scm',
 
 	// Web node paths (needed for integration tests)
 	'out-build/vs/webPackagePaths.js',

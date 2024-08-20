@@ -138,6 +138,7 @@ const vscodeResourceIncludes = isESM() ? [
 	'out-build/vs/workbench/contrib/webview/browser/pre/*.js',
 	'!out-build/vs/workbench/contrib/issue/**/*-dev.html',
 	'!out-build/vs/workbench/contrib/issue/**/*-dev.esm.html',
+	'out-build/vs/editor/common/languages/highlights/*.scm',
 	'out-build/vs/**/markdown.css',
 	'out-build/vs/workbench/contrib/tasks/**/*.json',
 	'!**/test/**'
