@@ -110,6 +110,12 @@ module.exports.devInjectNodeModuleLookupPath = function (injectPath) {
 };
 
 module.exports.removeGlobalNodeModuleLookupPaths = function () {
+	if (typeof process?.versions?.electron === 'string') {
+		return; // Electron disables global search paths in https://github.com/electron/electron/blob/3186c2f0efa92d275dc3d57b5a14a60ed3846b0e/shell/common/node_bindings.cc#L653
+	}
+
+	// TODO@esm this might not work anymore (https://github.com/microsoft/vscode/issues/226042)
+
 	const Module = require('module');
 	// @ts-ignore
 	const globalPaths = Module.globalPaths;
