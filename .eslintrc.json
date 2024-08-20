@@ -1025,7 +1025,7 @@
 						]
 					},
 					{
-						"target": "src/vs/{loader.d.ts,css.ts,css.build.ts,monaco.d.ts,nls.ts}",
+						"target": "src/vs/{loader.d.ts,css.ts,css.build.ts,monaco.d.ts,nls.messages.ts,nls.ts}",
 						"restrictions": []
 					},
 					{
