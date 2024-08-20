@@ -8,7 +8,7 @@ import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
-import { AbstractEditContext, ariaLabelForScreenReaderContent, canUseZeroSizeTextarea, getAccessibilityOptions, IRenderData, ISimpleModel, ITypeData, newlinecount, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/editContext/editContext';
+import { AbstractEditContext, ariaLabelForScreenReaderContent, getAccessibilityOptions, ISimpleModel, ITypeData, newlinecount, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/editContext/editContext';
 import { HorizontalPosition, LineVisibleRanges, RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
 import { ViewController } from 'vs/editor/browser/view/viewController';
 import { EditorOption, IComputedEditorOptions } from 'vs/editor/common/config/editorOptions';
@@ -448,77 +448,39 @@ export class NativeEditContext extends AbstractEditContext {
 		console.log('_render');
 
 		if (!this._primaryCursorVisibleRange) {
-			// The primary cursor is outside the viewport => place textarea to the top left
-			this._renderAtTopLeft();
 			return;
 		}
-
 		const left = this._contentLeft + this._primaryCursorVisibleRange.left - this._scrollLeft;
 		if (left < this._contentLeft || left > this._contentLeft + this._contentWidth) {
-			// cursor is outside the viewport
-			this._renderAtTopLeft();
 			return;
 		}
-
 		const top = this._context.viewLayout.getVerticalOffsetForLineNumber(this._primarySelection.positionLineNumber) - this._scrollTop;
 		if (top < 0 || top > this._contentHeight) {
-			// cursor is outside the viewport
-			this._renderAtTopLeft();
-			return;
-		}
-
-		// The primary cursor is in the viewport (at least vertically) => place textarea on the cursor
-
-		if (platform.isMacintosh || this._accessibilitySupport === AccessibilitySupport.Enabled) {
-			// For the popup emoji input, we will make the text area as high as the line height
-			// We will also make the fontSize and lineHeight the correct dimensions to help with the placement of these pickers
-			this._doRender({
-				lastRenderPosition: this._primaryCursorPosition,
-				top,
-				left: this._textAreaWrapping ? this._contentLeft : left,
-				width: this._textAreaWidth,
-				height: this._lineHeight,
-				useCover: false
-			});
-			// In case the textarea contains a word, we're going to try to align the textarea's cursor
-			// with our cursor by scrolling the textarea as much as possible
-			this._domElement.domNode.scrollLeft = this._primaryCursorVisibleRange.left;
-			const divValue = this._domElement.domNode.textContent ?? '';
-			console.log('_render');
-			const lineCount = newlinecount(divValue.substring(0, this._screenReaderContentSelectionOffsetRange?.start));
-			this._domElement.domNode.scrollTop = lineCount * this._lineHeight;
 			return;
 		}
 
 		this._doRender({
-			lastRenderPosition: this._primaryCursorPosition,
-			top: top,
+			top,
 			left: this._textAreaWrapping ? this._contentLeft : left,
 			width: this._textAreaWidth,
-			height: (canUseZeroSizeTextarea ? 0 : 1),
-			useCover: false
+			height: this._lineHeight,
 		});
+		// In case the textarea contains a word, we're going to try to align the textarea's cursor
+		// with our cursor by scrolling the textarea as much as possible
+		this._domElement.domNode.scrollLeft = this._primaryCursorVisibleRange.left;
+		const divValue = this._domElement.domNode.textContent ?? '';
+		console.log('_render');
+		const lineCount = newlinecount(divValue.substring(0, this._screenReaderContentSelectionOffsetRange?.start));
+		this._domElement.domNode.scrollTop = lineCount * this._lineHeight;
 	}
 
-	private _renderAtTopLeft(): void {
-		// (in WebKit the textarea is 1px by 1px because it cannot handle input to a 0x0 textarea)
-		// specifically, when doing Korean IME, setting the textarea to 0x0 breaks IME badly.
-		this._doRender({
-			lastRenderPosition: null,
-			top: 0,
-			left: 0,
-			width: this._textAreaWidth,
-			height: (canUseZeroSizeTextarea ? 0 : 1),
-			useCover: true
-		});
-	}
-
-	private _doRender(renderData: IRenderData): void {
+	private _doRender(position: { top: number; left: number; width: number; height: number }): void {
+		// For correct alignment of the screen reader content, we need to apply the correct font
 		applyFontInfo(this._domElement, this._fontInfo);
-		this._domElement.setTop(renderData.top);
-		this._domElement.setLeft(renderData.left);
-		this._domElement.setWidth(renderData.width);
-		this._domElement.setHeight(renderData.height);
+		this._domElement.setTop(position.top);
+		this._domElement.setLeft(position.left);
+		this._domElement.setWidth(position.width);
+		this._domElement.setHeight(position.height);
 	}
 
 	// -- additional code
