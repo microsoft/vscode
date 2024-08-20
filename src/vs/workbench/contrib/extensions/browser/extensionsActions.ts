@@ -49,7 +49,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IDialogService, IPromptButton } from 'vs/platform/dialogs/common/dialogs';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IActionViewItemOptions, ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { EXTENSIONS_CONFIG, IExtensionsConfigContent } from 'vs/workbench/services/extensionRecommendations/browser/workspaceExtensionsConfig';
+import { EXTENSIONS_CONFIG, IExtensionsConfigContent } from 'vs/workbench/services/extensionRecommendations/common/workspaceExtensionsConfig';
 import { getErrorMessage, isCancellationError } from 'vs/base/common/errors';
 import { IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { IContextMenuProvider } from 'vs/base/browser/contextmenu';

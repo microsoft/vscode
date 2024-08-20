@@ -45,8 +45,9 @@ import { localize2 } from 'vs/nls';
 import { NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { INotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
-type SerializedNotebookEditorData = { resource: URI; preferredResource: URI; viewType: string; options?: NotebookEditorInputOptions };
+type SerializedNotebookEditorData = { resource: URI; preferredResource: URI; viewType: string; options?: NotebookEditorInputOptions; label?: string };
 class ReplEditorSerializer implements IEditorSerializer {
 	canSerialize(input: EditorInput): boolean {
 		return input.typeId === ReplEditorInput.ID;
@@ -57,7 +58,8 @@ class ReplEditorSerializer implements IEditorSerializer {
 			resource: input.resource,
 			preferredResource: input.preferredResource,
 			viewType: input.viewType,
-			options: input.options
+			options: input.options,
+			label: input.getName()
 		};
 		return JSON.stringify(data);
 	}
@@ -71,7 +73,7 @@ class ReplEditorSerializer implements IEditorSerializer {
 			return undefined;
 		}
 
-		const input = instantiationService.createInstance(ReplEditorInput, resource);
+		const input = instantiationService.createInstance(ReplEditorInput, resource, data.label);
 		return input;
 	}
 }
@@ -128,10 +130,12 @@ export class ReplDocumentContribution extends Disposable implements IWorkbenchCo
 					ref.object.notebook.onWillDispose(() => {
 						ref.dispose();
 					});
-					return { editor: this.instantiationService.createInstance(ReplEditorInput, resource!), options };
+					const label = (options as INotebookEditorOptions)?.label ?? undefined;
+					return { editor: this.instantiationService.createInstance(ReplEditorInput, resource!, label), options };
 				},
 				createEditorInput: async ({ resource, options }) => {
-					return { editor: this.instantiationService.createInstance(ReplEditorInput, resource), options };
+					const label = (options as INotebookEditorOptions)?.label ?? undefined;
+					return { editor: this.instantiationService.createInstance(ReplEditorInput, resource, label), options };
 				}
 			}
 		);
@@ -167,7 +171,7 @@ class ReplWindowWorkingCopyEditorHandler extends Disposable implements IWorkbenc
 	}
 
 	createEditor(workingCopy: IWorkingCopyIdentifier): EditorInput {
-		return this.instantiationService.createInstance(ReplEditorInput, workingCopy.resource);
+		return this.instantiationService.createInstance(ReplEditorInput, workingCopy.resource, undefined);
 	}
 
 	private async _installHandler(): Promise<void> {

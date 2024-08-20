@@ -29,9 +29,9 @@ export function setESM(enabled: boolean) {
 
 export function isESM(logWarning?: string): boolean {
 	try {
-		const res = fs.readFileSync(esmMarkerFile, 'utf8') === 'true';
+		const res = (typeof process.env.VSCODE_BUILD_ESM === 'string' && process.env.VSCODE_BUILD_ESM.toLowerCase() === 'true') || (fs.readFileSync(esmMarkerFile, 'utf8') === 'true');
 		if (res && logWarning) {
-			console.warn(`ESM: ${logWarning}`);
+			console.warn(`[esm] ${logWarning}`);
 		}
 		return res;
 	} catch (error) {

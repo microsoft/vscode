@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { coalesce } from 'vs/base/common/arrays';
 import { Codicon } from 'vs/base/common/codicons';
+import { fromNow } from 'vs/base/common/date';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/base/common/themables';
@@ -14,7 +16,7 @@ import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/act
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IsLinuxContext, IsWindowsContext } from 'vs/platform/contextkey/common/contextkeys';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IQuickInputButton, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { clearChatEditor } from 'vs/workbench/contrib/chat/browser/actions/chatClear';
 import { CHAT_VIEW_ID, IChatWidgetService, showChatView } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatEditor';
@@ -141,20 +143,37 @@ class ChatHistoryAction extends Action2 {
 
 		const getPicks = () => {
 			const items = chatService.getHistory();
-			return items.map((i): IChatPickerItem => ({
-				label: i.title,
-				chat: i,
-				buttons: [
-					openInEditorButton,
-					deleteButton
-				]
-			}));
+			items.sort((a, b) => (b.lastMessageDate ?? 0) - (a.lastMessageDate ?? 0));
+
+			let lastDate: string | undefined = undefined;
+			const picks = items.flatMap((i): [IQuickPickSeparator | undefined, IChatPickerItem] => {
+				const timeAgoStr = fromNow(i.lastMessageDate, true);
+				const separator: IQuickPickSeparator | undefined = timeAgoStr !== lastDate ? {
+					type: 'separator', label: timeAgoStr,
+				} : undefined;
+				lastDate = timeAgoStr;
+				return [
+					separator,
+					{
+						label: i.title,
+						description: i.isActive ? `(${localize('activeChatLabel', 'active')})` : '',
+						chat: i,
+						buttons: i.isActive ? undefined : [
+							openInEditorButton,
+							deleteButton
+						]
+					}
+				];
+			});
+
+			return coalesce(picks);
 		};
 
 		const store = new DisposableStore();
-		const picker = store.add(quickInputService.createQuickPick<IChatPickerItem>());
+		const picker = store.add(quickInputService.createQuickPick<IChatPickerItem>({ useSeparators: true }));
 		picker.placeholder = localize('interactiveSession.history.pick', "Switch to chat");
-		picker.items = getPicks();
+		const picks = getPicks();
+		picker.items = picks;
 		store.add(picker.onDidTriggerItemButton(context => {
 			if (context.button === openInEditorButton) {
 				const options: IChatEditorOptions = { target: { sessionId: context.item.chat.sessionId }, pinned: true };
