@@ -98,6 +98,7 @@ import { mainWindow } from 'vs/base/browser/window';
 import { ResourceMap } from 'vs/base/common/map';
 import { ITreeSitterParserService } from 'vs/editor/common/services/treeSitterParserService';
 import { StandaloneTreeSitterParserService } from 'vs/editor/standalone/browser/standaloneTreeSitterService';
+import { IWorkerDescriptor } from 'vs/base/common/worker/simpleWorker';
 
 class SimpleModel implements IResolvedTextEditorModel {
 
@@ -1075,6 +1076,12 @@ class StandaloneContextMenuService extends ContextMenuService {
 	}
 }
 
+export const standaloneEditorWorkerDescriptor: IWorkerDescriptor = {
+	amdModuleId: 'vs/editor/common/services/editorSimpleWorker',
+	esmModuleLocation: undefined,
+	label: 'editorWorkerService'
+};
+
 class StandaloneEditorWorkerService extends EditorWorkerService {
 	constructor(
 		@IModelService modelService: IModelService,
@@ -1083,7 +1090,7 @@ class StandaloneEditorWorkerService extends EditorWorkerService {
 		@ILanguageConfigurationService languageConfigurationService: ILanguageConfigurationService,
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 	) {
-		super(undefined, modelService, configurationService, logService, languageConfigurationService, languageFeaturesService);
+		super(standaloneEditorWorkerDescriptor, modelService, configurationService, logService, languageConfigurationService, languageFeaturesService);
 	}
 }
 

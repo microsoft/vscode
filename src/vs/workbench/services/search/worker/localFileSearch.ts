@@ -5,8 +5,8 @@
 
 import * as glob from 'vs/base/common/glob';
 import { UriComponents, URI } from 'vs/base/common/uri';
-import { IRequestHandler } from 'vs/base/common/worker/simpleWorker';
-import { ILocalFileSearchSimpleWorker, ILocalFileSearchSimpleWorkerHost, IWorkerFileSearchComplete, IWorkerFileSystemDirectoryHandle, IWorkerFileSystemHandle, IWorkerTextSearchComplete } from 'vs/workbench/services/search/common/localFileSearchWorkerTypes';
+import { IRequestHandler, IWorkerServer } from 'vs/base/common/worker/simpleWorker';
+import { ILocalFileSearchSimpleWorker, LocalFileSearchSimpleWorkerHost, IWorkerFileSearchComplete, IWorkerFileSystemDirectoryHandle, IWorkerFileSystemHandle, IWorkerTextSearchComplete } from 'vs/workbench/services/search/common/localFileSearchWorkerTypes';
 import { ICommonQueryProps, IFileMatch, IFileQueryProps, IFolderQuery, IPatternInfo, ITextQueryProps, } from 'vs/workbench/services/search/common/search';
 import * as paths from 'vs/base/common/path';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
@@ -49,21 +49,24 @@ const time = async <T>(name: string, task: () => Promise<T> | T) => {
 };
 
 /**
- * Called on the worker side
- * @internal
+ * Defines the worker entry point. Must be exported and named `create`.
+ * @skipMangle
  */
-export function create(host: ILocalFileSearchSimpleWorkerHost): IRequestHandler {
-	return new LocalFileSearchSimpleWorker(host);
+export function create(workerServer: IWorkerServer): IRequestHandler {
+	return new LocalFileSearchSimpleWorker(workerServer);
 }
 
 export class LocalFileSearchSimpleWorker implements ILocalFileSearchSimpleWorker, IRequestHandler {
 	_requestHandlerBrand: any;
 
+	private readonly host: LocalFileSearchSimpleWorkerHost;
 	cancellationTokens: Map<number, CancellationTokenSource> = new Map();
 
-	constructor(private host: ILocalFileSearchSimpleWorkerHost) { }
+	constructor(workerServer: IWorkerServer) {
+		this.host = LocalFileSearchSimpleWorkerHost.getChannel(workerServer);
+	}
 
-	cancelQuery(queryId: number): void {
+	$cancelQuery(queryId: number): void {
 		this.cancellationTokens.get(queryId)?.cancel();
 	}
 
@@ -73,7 +76,7 @@ export class LocalFileSearchSimpleWorker implements ILocalFileSearchSimpleWorker
 		return source;
 	}
 
-	async listDirectory(handle: IWorkerFileSystemDirectoryHandle, query: IFileQueryProps<UriComponents>, folderQuery: IFolderQuery<UriComponents>, ignorePathCasing: boolean, queryId: number): Promise<IWorkerFileSearchComplete> {
+	async $listDirectory(handle: IWorkerFileSystemDirectoryHandle, query: IFileQueryProps<UriComponents>, folderQuery: IFolderQuery<UriComponents>, ignorePathCasing: boolean, queryId: number): Promise<IWorkerFileSearchComplete> {
 		const revivedFolderQuery = reviveFolderQuery(folderQuery);
 		const extUri = new ExtUri(() => ignorePathCasing);
 
@@ -108,7 +111,7 @@ export class LocalFileSearchSimpleWorker implements ILocalFileSearchSimpleWorker
 		};
 	}
 
-	async searchDirectory(handle: IWorkerFileSystemDirectoryHandle, query: ITextQueryProps<UriComponents>, folderQuery: IFolderQuery<UriComponents>, ignorePathCasing: boolean, queryId: number): Promise<IWorkerTextSearchComplete> {
+	async $searchDirectory(handle: IWorkerFileSystemDirectoryHandle, query: ITextQueryProps<UriComponents>, folderQuery: IFolderQuery<UriComponents>, ignorePathCasing: boolean, queryId: number): Promise<IWorkerTextSearchComplete> {
 		const revivedQuery = reviveFolderQuery(folderQuery);
 		const extUri = new ExtUri(() => ignorePathCasing);
 
@@ -153,7 +156,7 @@ export class LocalFileSearchSimpleWorker implements ILocalFileSearchSimpleWorker
 						resource: URI.joinPath(revivedQuery.folder, file.path),
 						results: fileResults,
 					};
-					this.host.sendTextSearchMatch(match, queryId);
+					this.host.$sendTextSearchMatch(match, queryId);
 					results.push(match);
 				}
 			};

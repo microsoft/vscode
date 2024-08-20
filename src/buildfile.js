@@ -26,17 +26,14 @@ function createModuleDescription(name, exclude) {
 
 /**
  * @param {string} name
- * @param {boolean?} noEsmSuffix
  */
-function createEditorWorkerModuleDescription(name, noEsmSuffix) {
+function createEditorWorkerModuleDescription(name) {
 	const amdVariant = createModuleDescription(name, ['vs/base/common/worker/simpleWorker', 'vs/editor/common/services/editorSimpleWorker']);
 	amdVariant.target = 'amd';
 
 	const esmVariant = { ...amdVariant, dest: undefined };
 	esmVariant.target = 'esm';
-	if (!noEsmSuffix) {
-		esmVariant.name = `${esmVariant.name}.esm`;
-	}
+	esmVariant.name = `${esmVariant.name}.esm`;
 
 	return [amdVariant, esmVariant];
 }
@@ -68,8 +65,8 @@ exports.workerNotebook = createEditorWorkerModuleDescription('vs/workbench/contr
 exports.workerLanguageDetection = createEditorWorkerModuleDescription('vs/workbench/services/languageDetection/browser/languageDetectionSimpleWorker');
 exports.workerLocalFileSearch = createEditorWorkerModuleDescription('vs/workbench/services/search/worker/localFileSearch');
 exports.workerProfileAnalysis = createEditorWorkerModuleDescription('vs/platform/profiling/electron-sandbox/profileAnalysisWorker');
-exports.workerOutputLinks = createEditorWorkerModuleDescription('vs/workbench/contrib/output/common/outputLinkComputer', true);
-exports.workerBackgroundTokenization = createEditorWorkerModuleDescription('vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker', true);
+exports.workerOutputLinks = createEditorWorkerModuleDescription('vs/workbench/contrib/output/common/outputLinkComputer');
+exports.workerBackgroundTokenization = createEditorWorkerModuleDescription('vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker');
 
 exports.workbenchDesktop = function () {
 	return isESM() ? [
@@ -80,8 +77,8 @@ exports.workbenchDesktop = function () {
 		createModuleDescription('vs/workbench/contrib/issue/electron-sandbox/issueReporterMain'),
 		createModuleDescription('vs/workbench/workbench.desktop.main')
 	] : [
-		...createEditorWorkerModuleDescription('vs/workbench/contrib/output/common/outputLinkComputer', true),
-		...createEditorWorkerModuleDescription('vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker', true),
+		...createEditorWorkerModuleDescription('vs/workbench/contrib/output/common/outputLinkComputer'),
+		...createEditorWorkerModuleDescription('vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker'),
 		createModuleDescription('vs/workbench/contrib/debug/node/telemetryApp'),
 		createModuleDescription('vs/platform/files/node/watcher/watcherMain'),
 		createModuleDescription('vs/platform/terminal/node/ptyHostMain'),
@@ -94,8 +91,8 @@ exports.workbenchWeb = function () {
 	return isESM() ? [
 		createModuleDescription('vs/workbench/workbench.web.main')
 	] : [
-		...createEditorWorkerModuleDescription('vs/workbench/contrib/output/common/outputLinkComputer', true),
-		...createEditorWorkerModuleDescription('vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker', true),
+		...createEditorWorkerModuleDescription('vs/workbench/contrib/output/common/outputLinkComputer'),
+		...createEditorWorkerModuleDescription('vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker'),
 		createModuleDescription('vs/code/browser/workbench/workbench', ['vs/workbench/workbench.web.main'])
 	];
 };

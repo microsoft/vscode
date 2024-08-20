@@ -7,7 +7,7 @@ import { createTrustedTypesPolicy } from 'vs/base/browser/trustedTypes';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { AppResourcePath, COI, FileAccess } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
-import { IWorker, IWorkerCallback, IWorkerFactory, logOnceWebWorkerWarning } from 'vs/base/common/worker/simpleWorker';
+import { IWorker, IWorkerCallback, IWorkerClient, IWorkerDescriptor, IWorkerFactory, logOnceWebWorkerWarning, SimpleWorkerClient } from 'vs/base/common/worker/simpleWorker';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { coalesce } from 'vs/base/common/arrays';
 
@@ -35,7 +35,7 @@ export function createBlobWorker(blobUrl: string, options?: WorkerOptions): Work
 	return new Worker(ttPolicy ? ttPolicy.createScriptURL(blobUrl) as unknown as string : blobUrl, { ...options, type: isESM ? 'module' : undefined });
 }
 
-function getWorker(workerMainLocation: URI | undefined, label: string): Worker | Promise<Worker> {
+function getWorker(esmWorkerLocation: URI | undefined, label: string): Worker | Promise<Worker> {
 	// Option for hosts to overwrite the worker script (used in the standalone editor)
 	interface IMonacoEnvironment {
 		getWorker?(moduleId: string, label: string): Worker | Promise<Worker>;
@@ -60,8 +60,8 @@ function getWorker(workerMainLocation: URI | undefined, label: string): Worker |
 		return new Worker(ttPolicy ? ttPolicy.createScriptURL(workerUrl) as unknown as string : workerUrl, { name: label, type: isESM ? 'module' : undefined });
 	}
 	// ESM-comment-end
-	if (workerMainLocation) {
-		const workerUrl = getWorkerBootstrapUrl(label, workerMainLocation.toString(true));
+	if (esmWorkerLocation) {
+		const workerUrl = getWorkerBootstrapUrl(label, esmWorkerLocation.toString(true));
 		const worker = new Worker(ttPolicy ? ttPolicy.createScriptURL(workerUrl) as unknown as string : workerUrl, { name: label, type: isESM ? 'module' : undefined });
 		if (isESM) {
 			return whenESMWorkerReady(worker);
@@ -136,17 +136,17 @@ class WebWorker extends Disposable implements IWorker {
 	private readonly label: string;
 	private worker: Promise<Worker> | null;
 
-	constructor(workerMainLocation: URI | undefined, moduleId: string, id: number, label: string, onMessageCallback: IWorkerCallback, onErrorCallback: (err: any) => void) {
+	constructor(esmWorkerLocation: URI | undefined, amdModuleId: string, id: number, label: string, onMessageCallback: IWorkerCallback, onErrorCallback: (err: any) => void) {
 		super();
 		this.id = id;
 		this.label = label;
-		const workerOrPromise = getWorker(workerMainLocation, label);
+		const workerOrPromise = getWorker(esmWorkerLocation, label);
 		if (isPromiseLike(workerOrPromise)) {
 			this.worker = workerOrPromise;
 		} else {
 			this.worker = Promise.resolve(workerOrPromise);
 		}
-		this.postMessage(moduleId, []);
+		this.postMessage(amdModuleId, []);
 		this.worker.then((w) => {
 			w.onmessage = function (ev) {
 				onMessageCallback(ev.data);
@@ -183,36 +183,45 @@ class WebWorker extends Disposable implements IWorker {
 	}
 }
 
-export class DefaultWorkerFactory implements IWorkerFactory {
+export class WorkerDescriptor implements IWorkerDescriptor {
+
+	public readonly esmModuleLocation: URI | undefined;
+
+	constructor(
+		public readonly amdModuleId: string,
+		readonly label: string | undefined,
+	) {
+		this.esmModuleLocation = (isESM ? FileAccess.asBrowserUri(`${amdModuleId}.esm.js` as AppResourcePath) : undefined);
+	}
+}
+
+class DefaultWorkerFactory implements IWorkerFactory {
 
 	private static LAST_WORKER_ID = 0;
-
-	private _label: string | undefined;
 	private _webWorkerFailedBeforeError: any;
 
-	constructor(private readonly workerMainLocation: URI | undefined, label: string | undefined) {
-		this._label = label;
+	constructor() {
 		this._webWorkerFailedBeforeError = false;
 	}
 
-	public create(modules: { moduleId: string; esmModuleId: string }, onMessageCallback: IWorkerCallback, onErrorCallback: (err: any) => void): IWorker {
+	public create(desc: IWorkerDescriptor, onMessageCallback: IWorkerCallback, onErrorCallback: (err: any) => void): IWorker {
 		const workerId = (++DefaultWorkerFactory.LAST_WORKER_ID);
 
 		if (this._webWorkerFailedBeforeError) {
 			throw this._webWorkerFailedBeforeError;
 		}
 
-		let workerMainLocation = this.workerMainLocation;
-		const moduleId = modules.moduleId;
-
-		if (isESM) {
-			workerMainLocation = FileAccess.asBrowserUri(`${modules.esmModuleId}.esm.js` as AppResourcePath);
-		}
-
-		return new WebWorker(workerMainLocation, moduleId, workerId, this._label || 'anonymous' + workerId, onMessageCallback, (err) => {
+		return new WebWorker(desc.esmModuleLocation, desc.amdModuleId, workerId, desc.label || 'anonymous' + workerId, onMessageCallback, (err) => {
 			logOnceWebWorkerWarning(err);
 			this._webWorkerFailedBeforeError = err;
 			onErrorCallback(err);
 		});
 	}
+}
+
+export function createWebWorker<T extends object>(amdModuleId: string, label: string | undefined): IWorkerClient<T>;
+export function createWebWorker<T extends object>(workerDescriptor: IWorkerDescriptor): IWorkerClient<T>;
+export function createWebWorker<T extends object>(arg0: string | IWorkerDescriptor, arg1?: string | undefined): IWorkerClient<T> {
+	const workerDescriptor = (typeof arg0 === 'string' ? new WorkerDescriptor(arg0, arg1) : arg0);
+	return new SimpleWorkerClient<T>(new DefaultWorkerFactory(), workerDescriptor);
 }

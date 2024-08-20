@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export interface INotebookWorkerHost {
-	// foreign host request
-	fhr(method: string, args: any[]): Promise<any>;
-}
+import { create } from './outputLinkComputer';
+import { bootstrapSimpleWorker } from 'vs/base/common/worker/simpleWorkerBootstrap';
+
+bootstrapSimpleWorker(create);
