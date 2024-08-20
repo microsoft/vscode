@@ -321,7 +321,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 			version += '-' + quality;
 		}
 
-		if (isESM() && quality !== 'exploration') {
+		if (isESM() && typeof quality === 'string' && quality !== 'exploration') {
 			// TODO@esm remove this safeguard
 			throw new Error('Refuse to build ESM on quality other than exploration');
 		}
