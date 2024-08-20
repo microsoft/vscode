@@ -172,21 +172,22 @@ abstract class InsertCodeBlockAction extends ChatCodeBlockAction {
 		const result = await this.computeEdits(accessor, codeEditor, codeBlockActionContext);
 		this.notifyUserAction(chatService, codeBlockActionContext, result);
 
-		const showWithPreview = await this.applyWithPreview(codeEditorService, result.edits, codeEditor);
+		const showWithPreview = await this.applyWithInlinePreview(codeEditorService, result.edits, codeEditor);
 		if (!showWithPreview) {
-			await bulkEditService.apply(result.edits);
+			await bulkEditService.apply(result.edits, { showPreview: true });
 			const activeModel = codeEditor.getModel();
 			codeEditorService.listCodeEditors().find(editor => editor.getModel()?.uri.toString() === activeModel.uri.toString())?.focus();
 		}
 	}
 
-	private async applyWithPreview(codeEditorService: ICodeEditorService, edits: Array<IWorkspaceTextEdit | IWorkspaceFileEdit>, codeEditor: IActiveCodeEditor) {
-		if (edits.length === 0 || !ResourceTextEdit.is(edits[0])) {
+	private async applyWithInlinePreview(codeEditorService: ICodeEditorService, edits: Array<IWorkspaceTextEdit | IWorkspaceFileEdit>, codeEditor: IActiveCodeEditor) {
+		const firstEdit = edits[0];
+		if (!ResourceTextEdit.is(firstEdit)) {
 			return false;
 		}
-		const resource = edits[0].resource;
+		const resource = firstEdit.resource;
 		const textEdits = coalesce(edits.map(edit => ResourceTextEdit.is(edit) && isEqual(resource, edit.resource) ? edit.textEdit : undefined));
-		if (textEdits.length !== edits.length) {
+		if (textEdits.length !== edits.length) { // more than one file has changed
 			return false;
 		}
 		const editorToApply = await codeEditorService.openCodeEditor({ resource }, codeEditor);
@@ -195,8 +196,7 @@ abstract class InsertCodeBlockAction extends ChatCodeBlockAction {
 			if (inlineChatController) {
 				const cancellationTokenSource = new CancellationTokenSource();
 				try {
-					await inlineChatController.reviewEdits(textEdits[0].range, AsyncIterableObject.fromArray(textEdits), cancellationTokenSource.token);
-					return true;
+					return await inlineChatController.reviewEdits(textEdits[0].range, AsyncIterableObject.fromArray(textEdits), cancellationTokenSource.token);
 				} finally {
 					cancellationTokenSource.dispose();
 				}
