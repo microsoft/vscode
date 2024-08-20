@@ -484,8 +484,11 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		token: vscode.CancellationToken = CancellationToken.None): Promise<vscode.Uri[]> {
 		this._logService.trace(`extHostWorkspace#findFiles2: fileSearch, extension: ${extensionId.value}, entryPoint: findFiles2`);
 
-		const excludeSetting = options.useDefaultExcludes ?
-			(options.useDefaultSearchExcludes ? ExcludeSettingOptions.SearchAndFilesExclude : ExcludeSettingOptions.FilesExclude) :
+
+		const useDefaultExcludes = options.useDefaultExcludes ?? true;
+		const useDefaultSearchExcludes = options.useDefaultSearchExcludes ?? true;
+		const excludeSetting = useDefaultExcludes ?
+			(useDefaultSearchExcludes ? ExcludeSettingOptions.SearchAndFilesExclude : ExcludeSettingOptions.FilesExclude) :
 			ExcludeSettingOptions.None;
 		const newOptions: vscode.FindFiles2OptionsNew = {
 			exclude: options.exclude ? [options.exclude] : undefined,
@@ -498,7 +501,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 			followSymlinks: options.followSymlinks ?? true,
 			maxResults: options.maxResults,
 		};
-		return this._findFilesImpl(undefined, filePattern ? [filePattern] : [], newOptions, token);
+		return this._findFilesImpl(undefined, filePattern !== undefined ? [filePattern] : [], newOptions, token);
 	}
 
 	findFiles2New(filePatterns: vscode.GlobPattern[],
@@ -520,7 +523,9 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 			return Promise.resolve([]);
 		}
 
-		const queryOptions: QueryOptions<IFileQueryBuilderOptions>[] = (filePatterns ?? []).map(filePattern => {
+
+		const filePatternsToUse = include !== undefined ? [include] : filePatterns;
+		const queryOptions: QueryOptions<IFileQueryBuilderOptions>[] = filePatternsToUse?.map(filePattern => {
 
 			const excludePatterns = globsToISearchPatternBuilder(options.exclude);
 
@@ -532,28 +537,22 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 				disregardExcludeSettings: options.useExcludeSettings !== undefined && options.useExcludeSettings === ExcludeSettingOptions.None,
 				disregardSearchExcludeSettings: options.useExcludeSettings !== undefined && (options.useExcludeSettings !== ExcludeSettingOptions.SearchAndFilesExclude),
 				maxResults: options.maxResults,
-				excludePattern: excludePatterns,
+				excludePattern: excludePatterns.length > 0 ? excludePatterns : undefined,
 				_reason: 'startFileSearch'
 			};
 
-			let folderToUse: URI | undefined;
+			const parseInclude = parseSearchExcludeInclude(GlobPattern.from(filePattern));
+			const folderToUse = parseInclude?.folder;
 			if (include) {
-				const parseInclude = parseSearchExcludeInclude(GlobPattern.from(include));
-				folderToUse = parseInclude?.folder;
 				fileQueries.includePattern = parseInclude?.pattern;
 			} else {
-				filePatterns?.map(pattern => parseSearchExcludeInclude(pattern));
-				const parseInclude = parseSearchExcludeInclude(GlobPattern.from(include ?? filePattern));
-				if (include) {
-				} else {
-					fileQueries.filePattern = parseInclude?.pattern;
-				}
+				fileQueries.filePattern = parseInclude?.pattern;
 			}
 			return {
 				folder: folderToUse,
 				options: fileQueries
 			};
-		});
+		}) ?? [];
 
 		return this._findFilesBase(queryOptions, token);
 	}
@@ -975,6 +974,9 @@ function globsToISearchPatternBuilder(excludes: vscode.GlobPattern[] | undefined
 	return (
 		excludes?.map((exclude): ISearchPatternBuilder | undefined => {
 			if (typeof exclude === 'string') {
+				if (exclude === '') {
+					return undefined;
+				}
 				return {
 					pattern: exclude,
 					uri: undefined
