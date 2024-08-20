@@ -376,5 +376,6 @@ export function isCompositeNotebookEditorInput(thing: unknown): thing is ICompos
 export function isNotebookEditorInput(thing: unknown): thing is NotebookEditorInput {
 	return !!thing
 		&& typeof thing === 'object'
-		&& thing instanceof NotebookEditorInput;
+		&& thing instanceof NotebookEditorInput
+		&& thing.editorId === NotebookEditorInput.ID;
 }
