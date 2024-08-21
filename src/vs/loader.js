@@ -661,7 +661,7 @@ var AMDLoader;
 		const { trustedTypesPolicy } = moduleManager.getConfig().getOptionsLiteral();
 		try {
 			const func = (trustedTypesPolicy
-				? self.eval(trustedTypesPolicy.createScript('', 'true'))
+				? self.eval(trustedTypesPolicy.createScript('', 'true')) // CodeQL [SM01632] the loader is responsible with loading code, fetch + eval is used on the web worker instead of importScripts if possible because importScripts is synchronous and we observed deadlocks on Safari
 				: new Function('true') // CodeQL [SM01632] the loader is responsible with loading code, fetch + eval is used on the web worker instead of importScripts if possible because importScripts is synchronous and we observed deadlocks on Safari
 			);
 			func.call(self);
@@ -711,7 +711,7 @@ var AMDLoader;
 					}).then((text) => {
 						text = `${text}\n//# sourceURL=${scriptSrc}`;
 						const func = (trustedTypesPolicy
-							? self.eval(trustedTypesPolicy.createScript('', text))
+							? self.eval(trustedTypesPolicy.createScript('', text)) // CodeQL [SM01632] the loader is responsible with loading code, fetch + eval is used on the web worker instead of importScripts if possible because importScripts is synchronous and we observed deadlocks on Safari
 							: new Function(text) // CodeQL [SM01632] the loader is responsible with loading code, fetch + eval is used on the web worker instead of importScripts if possible because importScripts is synchronous and we observed deadlocks on Safari
 						);
 						func.call(self);
