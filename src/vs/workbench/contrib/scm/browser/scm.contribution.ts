@@ -7,7 +7,7 @@ import { localize, localize2 } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContributionsRegistry, registerWorkbenchContribution2, Extensions as WorkbenchExtensions, WorkbenchPhase } from 'vs/workbench/common/contributions';
 import { DirtyDiffWorkbenchController } from './dirtydiffDecorator';
-import { VIEWLET_ID, ISCMService, VIEW_PANE_ID, ISCMProvider, ISCMViewService, REPOSITORIES_VIEW_PANE_ID } from 'vs/workbench/contrib/scm/common/scm';
+import { VIEWLET_ID, ISCMService, VIEW_PANE_ID, ISCMProvider, ISCMViewService, REPOSITORIES_VIEW_PANE_ID, HISTORY_VIEW_PANE_ID } from 'vs/workbench/contrib/scm/common/scm';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { SCMActiveResourceContextKeyController, SCMActiveRepositoryController } from './activity';
@@ -37,6 +37,7 @@ import { SCMWorkingSetController } from 'vs/workbench/contrib/scm/browser/workin
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { IListService, WorkbenchList } from 'vs/platform/list/browser/listService';
 import { isSCMRepository } from 'vs/workbench/contrib/scm/browser/util';
+import { SCMHistoryViewPane } from 'vs/workbench/contrib/scm/browser/scmHistoryViewPane';
 
 ModesRegistry.registerLanguage({
 	id: 'scminput',
@@ -84,7 +85,7 @@ viewsRegistry.registerViews([{
 	ctorDescriptor: new SyncDescriptor(SCMViewPane),
 	canToggleVisibility: true,
 	canMoveView: true,
-	weight: 80,
+	weight: 40,
 	order: -999,
 	containerIcon: sourceControlViewIcon,
 	openCommandActionDescriptor: {
@@ -112,6 +113,18 @@ viewsRegistry.registerViews([{
 	when: ContextKeyExpr.and(ContextKeyExpr.has('scm.providerCount'), ContextKeyExpr.notEquals('scm.providerCount', 0)),
 	// readonly when = ContextKeyExpr.or(ContextKeyExpr.equals('config.scm.alwaysShowProviders', true), ContextKeyExpr.and(ContextKeyExpr.notEquals('scm.providerCount', 0), ContextKeyExpr.notEquals('scm.providerCount', 1)));
 	containerIcon: sourceControlViewIcon
+}], viewContainer);
+
+viewsRegistry.registerViews([{
+	id: HISTORY_VIEW_PANE_ID,
+	name: localize2('source control history', "Source Control History"),
+	ctorDescriptor: new SyncDescriptor(SCMHistoryViewPane),
+	canToggleVisibility: true,
+	canMoveView: true,
+	collapsed: true,
+	weight: 40,
+	order: -998,
+	when: ContextKeyExpr.and(ContextKeyExpr.has('scm.providerCount'), ContextKeyExpr.notEquals('scm.providerCount', 0)),
 }], viewContainer);
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
