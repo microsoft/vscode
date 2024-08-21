@@ -335,18 +335,7 @@ class SCMHistoryTreeDataSource extends Disposable implements IAsyncDataSource<IS
 			...currentHistoryItemGroup.base ? [currentHistoryItemGroup.base.id] : [],
 		];
 
-		// Common ancestor of current, remote, base independent of the select history item group
-		const ancestor = await historyProvider.resolveHistoryItemGroupCommonAncestor2(historyItemGroupIds);
-		if (!ancestor) {
-			return [];
-		}
-
-		const limit =
-			ancestor !== currentHistoryItemGroup.revision ||
-				(currentHistoryItemGroup.remote && ancestor !== currentHistoryItemGroup.remote.revision) ||
-				(currentHistoryItemGroup.base && ancestor !== currentHistoryItemGroup.base.revision) ? { id: ancestor } : undefined;
-
-		const historyItemsElement = await historyProvider.provideHistoryItems2({ historyItemGroupIds, limit }) ?? [];
+		const historyItemsElement = await historyProvider.provideHistoryItems2({ historyItemGroupIds }) ?? [];
 
 		// Create the color map
 		const colorMap = new Map<string, ColorIdentifier>([

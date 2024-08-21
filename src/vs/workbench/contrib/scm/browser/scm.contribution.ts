@@ -121,7 +121,6 @@ viewsRegistry.registerViews([{
 	ctorDescriptor: new SyncDescriptor(SCMHistoryViewPane),
 	canToggleVisibility: true,
 	canMoveView: true,
-	collapsed: true,
 	weight: 40,
 	order: -998,
 	when: ContextKeyExpr.and(ContextKeyExpr.has('scm.providerCount'), ContextKeyExpr.notEquals('scm.providerCount', 0)),
