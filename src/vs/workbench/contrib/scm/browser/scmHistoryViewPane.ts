@@ -13,7 +13,7 @@ import { createInstantHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelega
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { LabelFuzzyScore } from 'vs/base/browser/ui/tree/abstractTree';
-import { IAsyncDataSource, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
+import { IAsyncDataSource, ITreeContextMenuEvent, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { fromNow } from 'vs/base/common/date';
 import { createMatches, FuzzyScore, IMatch } from 'vs/base/common/filters';
 import { MarkdownString } from 'vs/base/common/htmlContent';
@@ -36,19 +36,20 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { renderSCMHistoryItemGraph, historyItemGroupLocal, historyItemGroupRemote, historyItemGroupBase, historyItemGroupHoverLabelForeground, toISCMHistoryItemViewModelArray } from 'vs/workbench/contrib/scm/browser/scmHistory';
-import { RepositoryRenderer } from 'vs/workbench/contrib/scm/browser/scmRepositoryRenderer';
-import { getActionViewItemProvider, isSCMHistoryItemViewModelTreeElement, isSCMRepository, isSCMViewService } from 'vs/workbench/contrib/scm/browser/util';
-import { ISCMHistoryItemViewModel, SCMHistoryItemViewModelTreeElement } from 'vs/workbench/contrib/scm/common/history';
-import { ISCMRepository, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent } from 'vs/workbench/contrib/scm/common/scm';
+import { RepositoryActionRunner, RepositoryRenderer } from 'vs/workbench/contrib/scm/browser/scmRepositoryRenderer';
+import { collectContextMenuActions, getActionViewItemProvider, isSCMHistoryItemViewModelTreeElement, isSCMRepository, isSCMViewService } from 'vs/workbench/contrib/scm/browser/util';
+import { ISCMHistoryItem, ISCMHistoryItemViewModel, SCMHistoryItemViewModelTreeElement } from 'vs/workbench/contrib/scm/common/history';
+import { ISCMProvider, ISCMRepository, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent } from 'vs/workbench/contrib/scm/common/scm';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { stripIcons } from 'vs/base/common/iconLabels';
 import { IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
-import { MenuId } from 'vs/platform/actions/common/actions';
+import { MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { Iterable } from 'vs/base/common/iterator';
 import { Sequencer, Throttler } from 'vs/base/common/async';
 import { URI } from 'vs/base/common/uri';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { ActionRunner, IAction, IActionRunner } from 'vs/base/common/actions';
 
 const historyItemAdditionsForeground = registerColor('scm.historyItemAdditionsForeground', 'gitDecoration.addedResourceForeground', localize('scm.historyItemAdditionsForeground', "History item additions foreground color."));
 const historyItemDeletionsForeground = registerColor('scm.historyItemDeletionsForeground', 'gitDecoration.deletedResourceForeground', localize('scm.historyItemDeletionsForeground', "History item deletions foreground color."));
@@ -219,6 +220,48 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 
 	disposeTemplate(templateData: HistoryItemTemplate): void {
 		templateData.disposables.dispose();
+	}
+}
+
+class HistoryItemActionRunner extends ActionRunner {
+	constructor(private readonly getSelectedHistoryItems: () => SCMHistoryItemViewModelTreeElement[]) {
+		super();
+	}
+
+	protected override async runAction(action: IAction, context: SCMHistoryItemViewModelTreeElement): Promise<any> {
+		if (!(action instanceof MenuItemAction)) {
+			return super.runAction(action, context);
+		}
+
+		const args: (ISCMProvider | ISCMHistoryItem)[] = [];
+		args.push(context.repository.provider);
+
+		const selection = this.getSelectedHistoryItems();
+		const contextIsSelected = selection.some(s => s === context);
+		if (contextIsSelected && selection.length > 1) {
+			args.push(...selection.map(h => (
+				{
+					id: h.historyItemViewModel.historyItem.id,
+					parentIds: h.historyItemViewModel.historyItem.parentIds,
+					message: h.historyItemViewModel.historyItem.message,
+					author: h.historyItemViewModel.historyItem.author,
+					icon: h.historyItemViewModel.historyItem.icon,
+					timestamp: h.historyItemViewModel.historyItem.timestamp,
+					statistics: h.historyItemViewModel.historyItem.statistics,
+				} satisfies ISCMHistoryItem)));
+		} else {
+			args.push({
+				id: context.historyItemViewModel.historyItem.id,
+				parentIds: context.historyItemViewModel.historyItem.parentIds,
+				message: context.historyItemViewModel.historyItem.message,
+				author: context.historyItemViewModel.historyItem.author,
+				icon: context.historyItemViewModel.historyItem.icon,
+				timestamp: context.historyItemViewModel.historyItem.timestamp,
+				statistics: context.historyItemViewModel.historyItem.statistics,
+			} satisfies ISCMHistoryItem);
+		}
+
+		await action.run(...args);
 	}
 }
 
@@ -472,6 +515,7 @@ export class SCMHistoryViewPane extends ViewPane {
 		this._register(this._tree);
 
 		this._tree.onDidOpen(this._onDidOpen, this, this._store);
+		this._tree.onContextMenu(this._onContextMenu, this, this._store);
 	}
 
 	private async _onDidOpen(e: IOpenEvent<TreeElement | undefined>): Promise<void> {
@@ -501,6 +545,41 @@ export class SCMHistoryViewPane extends ViewPane {
 		}
 	}
 
+	private _onContextMenu(e: ITreeContextMenuEvent<TreeElement | null>): void {
+		const element = e.element;
+
+		if (!element) {
+			return;
+		}
+
+		let actions: IAction[] = [];
+		let context: TreeElement | ISCMProvider = element;
+		let actionRunner: IActionRunner = new HistoryItemActionRunner(() => this._getSelectedHistoryItems());
+
+		if (isSCMRepository(element)) {
+			const menus = this.scmViewService.menus.getRepositoryMenus(element.provider);
+			const menu = menus.repositoryContextMenu;
+
+			actions = collectContextMenuActions(menu);
+			actionRunner = new RepositoryActionRunner(() => this._getSelectedRepositories());
+			context = element.provider;
+		} else if (isSCMHistoryItemViewModelTreeElement(element)) {
+			const menus = this.scmViewService.menus.getRepositoryMenus(element.repository.provider);
+			const menu = menus.historyProviderMenu?.getHistoryItemMenu2(element);
+
+			actions = menu ? collectContextMenuActions(menu) : [];
+		}
+
+		actionRunner.onWillRun(() => this._tree.domFocus());
+
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => e.anchor,
+			getActions: () => actions,
+			getActionsContext: () => context,
+			actionRunner
+		});
+	}
+
 	private _onDidChangeVisibleRepositories({ added, removed }: ISCMViewVisibleRepositoryChangeEvent): void {
 		// Added repositories
 		for (const repository of added) {
@@ -520,6 +599,18 @@ export class SCMHistoryViewPane extends ViewPane {
 		}
 
 		this._updateChildren();
+	}
+
+	private _getSelectedRepositories(): ISCMRepository[] {
+		const focusedRepositories = this._tree.getFocus().filter(r => !!r && isSCMRepository(r))! as ISCMRepository[];
+		const selectedRepositories = this._tree.getSelection().filter(r => !!r && isSCMRepository(r))! as ISCMRepository[];
+
+		return Array.from(new Set<ISCMRepository>([...focusedRepositories, ...selectedRepositories]));
+	}
+
+	private _getSelectedHistoryItems(): SCMHistoryItemViewModelTreeElement[] {
+		return this._tree.getSelection()
+			.filter(r => !!r && isSCMHistoryItemViewModelTreeElement(r))!;
 	}
 
 	private _updateChildren(element?: ISCMRepository): void {
