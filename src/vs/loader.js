@@ -157,7 +157,7 @@ var AMDLoader;
 		 * Does `url` start with http:// or https:// or file:// or / ?
 		 */
 		static isAbsolutePath(url) {
-			return /^((http:\/\/)|(https:\/\/)|(file:\/\/)|(\/))/.test(url);
+			return /^((http:\/\/)|(https:\/\/)|(file:\/\/)|(vscode-file:\/\/)|(\/))/.test(url);
 		}
 		static forEachProperty(obj, callback) {
 			if (obj) {
