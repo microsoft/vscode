@@ -378,6 +378,14 @@ export class UserDataProfileElement extends AbstractUserDataProfileElement {
 		}
 	}
 
+	public async toggleCurrentWindowProfile(): Promise<void> {
+		if (this.userDataProfileService.currentProfile.id === this.profile.id) {
+			await this.userDataProfileManagementService.switchProfile(this.userDataProfilesService.defaultProfile);
+		} else {
+			await this.userDataProfileManagementService.switchProfile(this.profile);
+		}
+	}
+
 	protected override async doSave(): Promise<void> {
 		await this.saveProfile(this.profile);
 	}
