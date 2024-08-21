@@ -169,6 +169,7 @@ export class NotebookMultiTextDiffEditor extends EditorPane {
 		this._multiDiffEditorWidget!.setViewModel(undefined);
 		this.modelSpecificResources.clear();
 		this.viewModel = undefined;
+		this.widgetViewModel = undefined;
 	}
 
 	public expandAll() {
