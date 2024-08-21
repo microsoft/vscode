@@ -210,10 +210,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	private readonly _overflowWidgetsDomNode: HTMLElement | undefined;
 	private readonly _id: number;
 	private readonly _configuration: IEditorConfiguration;
-	public get configuration(): IEditorConfiguration {
-		return this._configuration;
-	}
-
 	private _contributionsDisposable: IDisposable | undefined;
 
 	protected readonly _actions = new Map<string, editorCommon.IEditorAction>();

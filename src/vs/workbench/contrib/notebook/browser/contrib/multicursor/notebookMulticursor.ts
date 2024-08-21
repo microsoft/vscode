@@ -6,6 +6,7 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { EditorConfiguration } from 'vs/editor/browser/config/editorConfiguration';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
 import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
@@ -22,13 +23,16 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ICoordinatesConverter } from 'vs/editor/common/viewModel';
 import { ViewModelEventsCollector } from 'vs/editor/common/viewModelEventDispatcher';
 import { localize } from 'vs/nls';
-import { registerAction2 } from 'vs/platform/actions/common/actions';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { INotebookActionContext, NotebookAction } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { getNotebookEditorFromEditorPane, ICellViewModel, INotebookEditor, INotebookEditorContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
+import { CellEditorOptions } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellEditorOptions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 const NOTEBOOK_ADD_FIND_MATCH_TO_SELECTION_ID = 'notebook.addFindMatchToSelection';
@@ -71,6 +75,8 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@ILanguageConfigurationService private readonly languageConfigurationService: ILanguageConfigurationService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -214,10 +220,11 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 			}
 
 			this.trackedMatches = [];
+			const editorConfig = this.constructCellEditorOptions(this.anchorCell[0]);
 			const newMatch: TrackedMatch = {
 				cellViewModel: cell,
 				selections: [newSelection],
-				config: (this.anchorCell[1] as CodeEditorWidget).configuration, // cache this in the match so we can create new cursors controllers with the correct language config
+				config: editorConfig, // cache this in the match so we can create new cursors controllers with the correct language config
 			};
 			this.trackedMatches.push(newMatch);
 
@@ -263,7 +270,7 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 				newMatch = {
 					cellViewModel: resultCellViewModel,
 					selections: [newSelection],
-					config: (this.anchorCell[1] as CodeEditorWidget).configuration,
+					config: this.constructCellEditorOptions(this.anchorCell[0]),
 				} satisfies TrackedMatch;
 				this.trackedMatches.push(newMatch);
 
@@ -277,6 +284,12 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 
 			this.updateMultiSelectDecorations(newMatch);
 		}
+	}
+
+	private constructCellEditorOptions(cell: ICellViewModel): EditorConfiguration {
+		const cellEditorOptions = new CellEditorOptions(this.notebookEditor.getBaseCellEditorOptions(cell.language), this.notebookEditor.notebookOptions, this.configurationService);
+		const options = cellEditorOptions.getUpdatedValue(cell.internalMetadata, cell.uri);
+		return new EditorConfiguration(false, MenuId.EditorContent, options, null, this.accessibilityService);
 	}
 
 	/**
