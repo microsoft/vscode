@@ -85,7 +85,7 @@ export class NotebookCellEditorPool extends Disposable {
 			}
 
 			const editorDisposable = new DisposableStore();
-
+			editorDisposable.add(ref);
 			this._editor.setModel(ref.object.textEditorModel);
 			this._editor.setSelections(cell.getSelections());
 			this._editor.focus();
