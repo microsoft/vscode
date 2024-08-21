@@ -11,7 +11,7 @@ import { IHoverOptions, IManagedHoverTooltipMarkdownString } from 'vs/base/brows
 import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
 import { createInstantHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
-import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { LabelFuzzyScore } from 'vs/base/browser/ui/tree/abstractTree';
 import { IAsyncDataSource, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { fromNow } from 'vs/base/common/date';
@@ -267,6 +267,22 @@ class SCMHistoryTreeAccessibilityProvider implements IListAccessibilityProvider<
 	}
 }
 
+class SCMHistoryTreeIdentityProvider implements IIdentityProvider<TreeElement> {
+
+	getId(element: TreeElement): string {
+		if (isSCMRepository(element)) {
+			const provider = element.provider;
+			return `repo:${provider.id}`;
+		} else if (isSCMHistoryItemViewModelTreeElement(element)) {
+			const provider = element.repository.provider;
+			const historyItem = element.historyItemViewModel.historyItem;
+			return `historyItem:${provider.id}/${historyItem.id}/${historyItem.parentIds.join(',')}`;
+		} else {
+			throw new Error('Invalid tree element');
+		}
+	}
+}
+
 class SCMHistoryTreeDataSource extends Disposable implements IAsyncDataSource<ISCMViewService, TreeElement> {
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -449,12 +465,16 @@ export class SCMHistoryViewPane extends ViewPane {
 			container,
 			new ListDelegate(),
 			[
-				this.instantiationService.createInstance(RepositoryRenderer, MenuId.SCMTitle, getActionViewItemProvider(this.instantiationService)),
+				this.instantiationService.createInstance(RepositoryRenderer, MenuId.SCMHistoryTitle, (provider) => {
+					const repositoryMenus = this.scmViewService.menus.getRepositoryMenus(provider);
+					return repositoryMenus.historyProviderMenu?.getHistoryTitleMenu();
+				}, getActionViewItemProvider(this.instantiationService)),
 				this.instantiationService.createInstance(HistoryItemRenderer, historyItemHoverDelegate),
 			],
 			this.instantiationService.createInstance(SCMHistoryTreeDataSource),
 			{
 				accessibilityProvider: new SCMHistoryTreeAccessibilityProvider(),
+				identityProvider: new SCMHistoryTreeIdentityProvider(),
 				collapseByDefault: (e: unknown) => !isSCMRepository(e),
 				horizontalScrolling: false,
 				multipleSelectionSupport: false,
