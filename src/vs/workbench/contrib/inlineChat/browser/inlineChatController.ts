@@ -117,6 +117,7 @@ export class InlineChatController implements IEditorContribution {
 
 	private readonly _messages = this._store.add(new Emitter<Message>());
 	protected readonly _onDidEnterState = this._store.add(new Emitter<State>());
+	readonly onDidEnterState = this._onDidEnterState.event;
 
 	private readonly _onWillStartSession = this._store.add(new Emitter<void>());
 	readonly onWillStartSession = this._onWillStartSession.event;
