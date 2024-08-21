@@ -309,6 +309,9 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> extends Disposable {
 				values[entryOffset + GlyphStorageBufferInfo.Offset_OriginPosition + 1] = glyph.originOffsetY;
 				entryOffset += GlyphStorageBufferInfo.FloatsPerEntry;
 			}
+			if (entryOffset / GlyphStorageBufferInfo.FloatsPerEntry > Constants.MaxAtlasPageGlyphCount) {
+				throw new Error(`Attempting to write more glyphs (${entryOffset / GlyphStorageBufferInfo.FloatsPerEntry}) than the GPUBuffer can hold (${Constants.MaxAtlasPageGlyphCount})`);
+			}
 			this._device.queue.writeBuffer(this._glyphStorageBuffer[layerIndex], 0, values);
 			this._device.queue.copyExternalImageToTexture(
 				{ source: page.source },
