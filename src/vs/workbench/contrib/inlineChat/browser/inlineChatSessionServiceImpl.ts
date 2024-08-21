@@ -88,7 +88,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		this._sessions.clear();
 	}
 
-	async createSession(editor: IActiveCodeEditor, options: { editMode: EditMode; wholeRange?: Range; session?: Session }, token: CancellationToken): Promise<Session | undefined> {
+	async createSession(editor: IActiveCodeEditor, options: { editMode: EditMode; headless?: boolean; wholeRange?: Range; session?: Session }, token: CancellationToken): Promise<Session | undefined> {
 
 		const agent = this._chatAgentService.getDefaultAgent(ChatAgentLocation.Editor);
 
@@ -198,6 +198,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 
 		const session = new Session(
 			options.editMode,
+			options.headless ?? false,
 			targetUri,
 			textModel0,
 			textModelN,

@@ -36,7 +36,7 @@ export interface IInlineChatSessionService {
 	onDidStashSession: Event<IInlineChatSessionEvent>;
 	onDidEndSession: Event<IInlineChatSessionEndEvent>;
 
-	createSession(editor: IActiveCodeEditor, options: { editMode: EditMode; wholeRange?: IRange; session?: Session }, token: CancellationToken): Promise<Session | undefined>;
+	createSession(editor: IActiveCodeEditor, options: { editMode: EditMode; wholeRange?: IRange; session?: Session; headless?: boolean }, token: CancellationToken): Promise<Session | undefined>;
 
 	moveSession(session: Session, newEditor: ICodeEditor): void;
 

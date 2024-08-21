@@ -306,14 +306,13 @@ export class InlineChatController implements IEditorContribution {
 
 		let session: Session | undefined = options.existingSession;
 
-
 		let initPosition: Position | undefined;
 		if (options.position) {
 			initPosition = Position.lift(options.position).delta(-1);
 			delete options.position;
 		}
 
-		const widgetPosition = this._showWidget(options, true, initPosition);
+		const widgetPosition = this._showWidget(options.headless ?? session?.headless, true, initPosition);
 
 		// this._updatePlaceholder();
 		let errorMessage = localize('create.fail', "Failed to start editor chat");
@@ -373,7 +372,7 @@ export class InlineChatController implements IEditorContribution {
 				break;
 			case EditMode.Live:
 			default:
-				this._strategy = this._instaService.createInstance(LiveStrategy, session, this._editor, this._ui.value.zone, options.headless || this._configurationService.getValue<boolean>(InlineChatConfigKeys.ZoneToolbar));
+				this._strategy = this._instaService.createInstance(LiveStrategy, session, this._editor, this._ui.value.zone, session.headless || this._configurationService.getValue<boolean>(InlineChatConfigKeys.ZoneToolbar));
 				break;
 		}
 
@@ -414,7 +413,7 @@ export class InlineChatController implements IEditorContribution {
 		const isModelEmpty = !this._session.chatModel.hasRequests;
 		this._ui.value.zone.widget.updateToolbar(true);
 		this._ui.value.zone.widget.toggleStatus(!isModelEmpty);
-		this._showWidget(options, isModelEmpty);
+		this._showWidget(this._session.headless, isModelEmpty);
 
 		this._sessionStore.add(this._editor.onDidChangeModel((e) => {
 			const msg = this._session?.chatModel.hasRequests
@@ -507,7 +506,7 @@ export class InlineChatController implements IEditorContribution {
 			this.updateInput(options.message);
 			aria.alert(options.message);
 			delete options.message;
-			this._showWidget(options, false);
+			this._showWidget(this._session.headless, false);
 		}
 
 		let message = Message.NONE;
@@ -532,7 +531,7 @@ export class InlineChatController implements IEditorContribution {
 
 		if (options.autoSend) {
 			delete options.autoSend;
-			this._showWidget(options, false);
+			this._showWidget(this._session.headless, false);
 			this._ui.value.zone.widget.chatWidget.acceptInput();
 		}
 
@@ -577,7 +576,7 @@ export class InlineChatController implements IEditorContribution {
 
 		this._ctxSupportsReportIssue.set(request.response.agent?.metadata.supportIssueReporting ?? false);
 
-		this._showWidget(options, false);
+		this._showWidget(this._session.headless, false);
 		this._ui.value.zone.widget.selectAll(false);
 		this._ui.value.zone.widget.updateInfo('');
 		this._ui.value.zone.widget.toggleStatus(true);
@@ -715,7 +714,7 @@ export class InlineChatController implements IEditorContribution {
 						// reshow the widget if the start position changed or shows at the wrong position
 						const startNow = this._session!.wholeRange.value.getStartPosition();
 						if (!startNow.equals(startThen) || !this._ui.value.zone.position?.equals(startNow)) {
-							this._showWidget(options, false, startNow.delta(-1));
+							this._showWidget(this._session!.headless, false, startNow.delta(-1));
 						}
 					});
 				}
@@ -782,7 +781,7 @@ export class InlineChatController implements IEditorContribution {
 				}
 			}
 		}
-		this._showWidget(options, false, newPosition);
+		this._showWidget(this._session.headless, false, newPosition);
 
 		return next;
 	}
@@ -851,7 +850,7 @@ export class InlineChatController implements IEditorContribution {
 
 	// ----
 
-	private _showWidget(options: InlineChatRunOptions, initialRender: boolean = false, position?: Position) {
+	private _showWidget(headless: boolean = false, initialRender: boolean = false, position?: Position) {
 		assertType(this._editor.hasModel());
 		this._ctxVisible.set(true);
 
@@ -875,7 +874,7 @@ export class InlineChatController implements IEditorContribution {
 			widgetPosition = this._session.wholeRange.value.getStartPosition().delta(-1);
 		}
 
-		if (!options.headless) {
+		if (!headless) {
 
 			if (this._ui.rawValue?.zone?.position) {
 				this._ui.value.zone.updatePositionAndHeight(widgetPosition);
@@ -1161,7 +1160,7 @@ export class InlineChatController implements IEditorContribution {
 			return false;
 		}
 
-		const session = await this._inlineChatSessionService.createSession(this._editor, { editMode: EditMode.Live, wholeRange: anchor }, token);
+		const session = await this._inlineChatSessionService.createSession(this._editor, { editMode: EditMode.Live, wholeRange: anchor, headless: true }, token);
 		if (!session) {
 			return false;
 		}
