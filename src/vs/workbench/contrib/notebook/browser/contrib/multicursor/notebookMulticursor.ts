@@ -268,7 +268,11 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 				return;
 			}
 
-			const index = notebookTextModel._getCellIndexByHandle(cell.handle);
+			const index = this.notebookEditor.getCellIndex(cell);
+			if (index === undefined) {
+				return;
+			}
+
 			const findResult = notebookTextModel.findNextMatch(
 				this.word,
 				{ cellIndex: index, position: cell.getSelections()[cell.getSelections().length - 1].getEndPosition() },
