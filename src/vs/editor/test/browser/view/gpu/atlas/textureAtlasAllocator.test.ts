@@ -10,6 +10,7 @@ import { TextureAtlasShelfAllocator } from 'vs/editor/browser/view/gpu/atlas/tex
 import { TextureAtlasSlabAllocator, TextureAtlasSlabAllocatorOptions } from 'vs/editor/browser/view/gpu/atlas/textureAtlasSlabAllocator';
 import { ensureNonNullable } from 'vs/editor/browser/view/gpu/gpuUtils';
 import type { IRasterizedGlyph } from 'vs/editor/browser/view/gpu/raster/raster';
+import { assertIsValidGlyph } from 'vs/editor/test/browser/view/gpu/atlas/testUtil';
 
 const blackArr = [0x00, 0x00, 0x00, 0xFF];
 
@@ -44,15 +45,41 @@ function allocateAndAssert(allocator: ITextureAtlasAllocator, rasterizedGlyph: I
 	}, expected);
 }
 
+function initShelfAllocator(w: number, h: number): { canvas: OffscreenCanvas; allocator: TextureAtlasShelfAllocator } {
+	const canvas = new OffscreenCanvas(w, h);
+	const allocator = new TextureAtlasShelfAllocator(canvas, 0);
+	return { canvas, allocator };
+}
+
+function initSlabAllocator(w: number, h: number, options?: TextureAtlasSlabAllocatorOptions): { canvas: OffscreenCanvas; allocator: TextureAtlasSlabAllocator } {
+	const canvas = new OffscreenCanvas(w, h);
+	const allocator = new TextureAtlasSlabAllocator(canvas, 0, options);
+	return { canvas, allocator };
+}
+
+const allocatorDefinitions: { name: string; initAllocator: (w: number, h: number) => { canvas: OffscreenCanvas; allocator: ITextureAtlasAllocator } }[] = [
+	{ name: 'shelf', initAllocator: initShelfAllocator },
+	{ name: 'slab', initAllocator: initSlabAllocator },
+];
+
 suite('TextureAtlasAllocator', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	suite('TextureAtlasShelfAllocator', () => {
-		function initAllocator(w: number, h: number): { canvas: OffscreenCanvas; allocator: TextureAtlasShelfAllocator } {
-			const canvas = new OffscreenCanvas(w, h);
-			const allocator = new TextureAtlasShelfAllocator(canvas, 0);
-			return { canvas, allocator };
+	suite('shared tests', () => {
+		for (const { name, initAllocator } of allocatorDefinitions) {
+			test('single allocation', () => {
+				const { canvas, allocator } = initAllocator(2, 2);
+				assertIsValidGlyph(allocator.allocate(pixel1x1), canvas);
+			});
+			test(`(${name}) glyph too large for canvas`, () => {
+				const { allocator } = initAllocator(1, 1);
+				throws(() => allocateAndAssert(allocator, pixel2x1, undefined), new Error('Glyph is too large for the atlas page'));
+			});
 		}
+	});
+
+	suite('TextureAtlasShelfAllocator', () => {
+		const initAllocator = initShelfAllocator;
 
 		test('single allocation', () => {
 			const { allocator } = initAllocator(2, 2);
@@ -96,11 +123,7 @@ suite('TextureAtlasAllocator', () => {
 	});
 
 	suite('TextureAtlasSlabAllocator', () => {
-		function initAllocator(w: number, h: number, options?: TextureAtlasSlabAllocatorOptions): { canvas: OffscreenCanvas; allocator: TextureAtlasSlabAllocator } {
-			const canvas = new OffscreenCanvas(w, h);
-			const allocator = new TextureAtlasSlabAllocator(canvas, 0, options);
-			return { canvas, allocator };
-		}
+		const initAllocator = initSlabAllocator;
 
 		test('single allocation', () => {
 			const { allocator } = initAllocator(2, 2);
@@ -147,12 +170,6 @@ suite('TextureAtlasAllocator', () => {
 			allocateAndAssert(allocator, pixel1x1, { x: 3, y: 1, w: 1, h: 1 });
 
 			allocateAndAssert(allocator, pixel1x1, undefined);
-		});
-
-		// TODO: Share test with other allocator
-		test('glyph too large for canvas', () => {
-			const { allocator } = initAllocator(1, 1);
-			throws(() => allocateAndAssert(allocator, pixel2x1, undefined), new Error('Glyph is too large for the atlas page'));
 		});
 
 		test('glyph too large for slab (increase slab size for first glyph)', () => {
