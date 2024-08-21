@@ -3,23 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
+import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
+import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
+import { Selection, SelectionDirection } from 'vs/editor/common/core/selection';
 import { IWordAtPosition, USUAL_WORD_SEPARATORS } from 'vs/editor/common/core/wordHelper';
-import { ITextModel } from 'vs/editor/common/model';
-import { SearchParams } from 'vs/editor/common/model/textModelSearch';
+import { CursorsController } from 'vs/editor/common/cursor/cursor';
+import { CursorConfiguration } from 'vs/editor/common/cursorCommon';
+import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { IModelDeltaDecoration, ITextModel, PositionAffinity } from 'vs/editor/common/model';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { ICoordinatesConverter } from 'vs/editor/common/viewModel';
+import { ViewModelEventsCollector } from 'vs/editor/common/viewModelEventDispatcher';
 import { localize } from 'vs/nls';
 import { registerAction2 } from 'vs/platform/actions/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { FindModel } from 'vs/workbench/contrib/notebook/browser/contrib/find/findModel';
 import { INotebookActionContext, NotebookAction } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { getNotebookEditorFromEditorPane, ICellViewModel, INotebookEditor, INotebookEditorContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
-import { ICell, INotebookTextModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 const NOTEBOOK_ADD_FIND_MATCH_TO_SELECTION_ID = 'notebook.addFindMatchToSelection';
@@ -27,76 +35,273 @@ const NOTEBOOK_ADD_FIND_MATCH_TO_SELECTION_ID = 'notebook.addFindMatchToSelectio
 enum NotebookMultiCursorState {
 	Idle,
 	Selecting,
-	Editing
+}
+
+interface TrackedMatch {
+	cellViewModel: ICellViewModel;
+	selections: Selection[];
+	config: IEditorConfiguration;
 }
 
 export class NotebookMultiCursorController extends Disposable implements INotebookEditorContribution {
 
-	static readonly id: string = 'notebook.multiCursor';
-
-	// private findModel: FindModel;
-	private notebookTextModel: INotebookTextModel | undefined; //! not sure about this one... do I even need it
+	static readonly id: string = 'notebook.multiCursorController';
 
 	private state: NotebookMultiCursorState = NotebookMultiCursorState.Idle;
 
 	private word: string = '';
-	private trackedSelections: [ICellViewModel, Selection[]][] = [];
+	private trackedMatches: TrackedMatch[] = [];
+
+	private readonly _onDidChangeAnchorCell = this._register(new Emitter<void>());
+	readonly onDidChangeAnchorCell: Event<void> = this._onDidChangeAnchorCell.event;
+	private anchorCell: [ICellViewModel, ICodeEditor] | undefined;
+
+	private readonly decorationDisposables = new DisposableStore();
+	private readonly anchorDisposables = new DisposableStore();
+	private readonly cursorsDisposables = new DisposableStore();
+	private cursorsControllers: CursorsController[] = [];
 
 	constructor(
 		private readonly notebookEditor: INotebookEditor,
-		@IConfigurationService configurationService: IConfigurationService,
+		@ITextModelService private readonly textModelService: ITextModelService,
+		@ILanguageConfigurationService private readonly languageConfigurationService: ILanguageConfigurationService,
 	) {
 		super();
-		// this.findModel = this._register(new FindModel(this.notebookEditor, this._state, configurationService));
-		this.notebookTextModel = this.notebookEditor.textModel;
 
-		//! need something to listen for typing here to switch to editing mode (maybe)
+		this.anchorCell = this.notebookEditor.activeCellAndCodeEditor;
+
+		// anchor cell will catch and relay all type, cut, paste events to the cursors controllers
+		// need to create new controllers when the anchor cell changes, then update their listeners
+		// ** cursor controllers need to happen first, because anchor listeners relay to them
+		this._register(this.onDidChangeAnchorCell(() => {
+			this.updateCursorsControllers();
+			this.updateAnchorListeners();
+		}));
 	}
 
-	public findAndTrackNextSelection(cell: ICellViewModel): Promise<void> {
+	private updateCursorsControllers() {
+		this.cursorsDisposables.clear();
+		this.trackedMatches.forEach(async match => {
+			// skip this for the anchor cell, there is already a controller for it since it's the focused editor
+			if (match.cellViewModel.handle === this.anchorCell?.[0].handle) {
+				return;
+			}
+
+			const textModelRef = await this.textModelService.createModelReference(match.cellViewModel.uri);
+			const textModel = textModelRef.object.textEditorModel;
+			if (!textModel) {
+				return;
+			}
+
+			const editorConfig = match.config;
+
+			const converter: ICoordinatesConverter = {
+				convertViewPositionToModelPosition(viewPosition: Position): Position {
+					return viewPosition;
+				},
+				convertViewRangeToModelRange(viewRange: Range): Range {
+					return viewRange;
+				},
+				validateViewPosition(viewPosition: Position, expectedModelPosition: Position): Position {
+					return viewPosition;
+				},
+				validateViewRange(viewRange: Range, expectedModelRange: Range): Range {
+					return viewRange;
+				},
+				convertModelPositionToViewPosition(modelPosition: Position, affinity?: PositionAffinity, allowZeroLineNumber?: boolean, belowHiddenRanges?: boolean): Position {
+					return modelPosition;
+				},
+				convertModelRangeToViewRange(modelRange: Range, affinity?: PositionAffinity): Range {
+					return modelRange;
+				},
+				modelPositionIsVisible(modelPosition: Position): boolean {
+					return true;
+				},
+				getModelLineViewLineCount(modelLineNumber: number): number {
+					return 1;
+				},
+				getViewLineNumberOfModelPosition(modelLineNumber: number, modelColumn: number): number {
+					return modelLineNumber;
+				}
+			};
+
+			const controller = this.cursorsDisposables.add(new CursorsController(
+				textModel,
+				match.cellViewModel,
+				converter,
+				new CursorConfiguration(textModel.getLanguageId(), textModel.getOptions(), editorConfig, this.languageConfigurationService)
+			));
+			controller.setSelections(new ViewModelEventsCollector(), undefined, match.selections, CursorChangeReason.Explicit);
+			this.cursorsControllers.push(controller);
+		});
+	}
+
+	private updateAnchorListeners() {
+		this.anchorDisposables.clear();
+
+		if (!this.anchorCell) {
+			throw new Error('Anchor cell is undefined');
+		}
+
+		// typing
+		this.anchorDisposables.add(this.anchorCell[1].onWillType((input) => {
+			this.state = NotebookMultiCursorState.Idle; // typing will continue to work as normal across ranges, just preps for another cmd+d
+			this.cursorsControllers.forEach(cursorController => {
+				cursorController.type(new ViewModelEventsCollector(), input, 'keyboard');
+			});
+		}));
+
+		this.anchorDisposables.add(this.anchorCell[1].onKeyDown((e) => {
+			// this fires after every single character
+			// console.log('did type -- ', input);
+
+			// check for escape key, and that will transition to idle, clear matches, clear decorations, dispose everything
+			//! only for debugging, liekly will remove this to make sure behavior is preserved for escaping other features (suggest, etc)
+			if (e.keyCode === KeyCode.Escape) {
+				this.exitEditingState();
+			}
+		}));
+
+
+		//! todo:
+		//! composite
+		//! cut
+	}
+
+	private exitEditingState() {
+		this.state = NotebookMultiCursorState.Idle;
+		this.decorationDisposables.clear();
+		this.anchorDisposables.clear();
+		this.cursorsDisposables.clear();
+		this.trackedMatches = [];
+	}
+
+	public async findAndTrackNextSelection(cell: ICellViewModel): Promise<void> {
 		if (this.state === NotebookMultiCursorState.Idle) { // move cursor to end of the symbol + track it, transition to selecting state
 			const textModel = cell.textModel;
 			if (!textModel) {
-				return Promise.resolve();
+				return;
 			}
 
-			const word = this.getWord(cell.getSelections()[0], textModel)?.word || '';
+			const inputSelection = cell.getSelections()[0];
+			const word = this.getWord(inputSelection, textModel);
 			if (!word) {
-				return Promise.resolve();
+				return;
 			}
+			this.word = word.word;
 
-			// set selection via the viewmodel here
-
-			this.state = NotebookMultiCursorState.Selecting;
-		} else if (this.state === NotebookMultiCursorState.Selecting) { // use the word we stored from idle state transition to find next match, track it
-			const textSelection = cell.getSelections()[0];
-			const lineCount = cell.textBuffer.getLineCount();
-
-			const searchParams = new SearchParams(this.word, false, true, USUAL_WORD_SEPARATORS);
-			const searchData = searchParams.parseSearchRequest();
-			if (!searchData) {
-				return Promise.resolve();
-			}
-
-
-			const matches = cell.textBuffer.findMatchesLineByLine(
-				new Range(textSelection.startLineNumber, textSelection.startColumn, lineCount, cell.textBuffer.getLineLength(lineCount)),
-				searchData,
-				true, //! what does this do
-				1000, //! may need to limit this later? unsure of perf implications here. many cells w matches in each could be costly
+			const newSelection = new Selection(
+				inputSelection.startLineNumber,
+				word.startColumn,
+				inputSelection.startLineNumber,
+				word.endColumn
 			);
+			cell.setSelections([newSelection]);
 
+			this.anchorCell = this.notebookEditor.activeCellAndCodeEditor;
+			if (!this.anchorCell || this.anchorCell[0].handle !== cell.handle) {
+				throw new Error('Active cell is not the same as the cell passed as context');
+			}
+			if (!(this.anchorCell[1] instanceof CodeEditorWidget)) {
+				throw new Error('Active cell is not an instance of CodeEditorWidget');
+			}
 
+			this.trackedMatches = [];
+			const newMatch: TrackedMatch = {
+				cellViewModel: cell,
+				selections: [newSelection],
+				config: (this.anchorCell[1] as CodeEditorWidget).configuration, // cache this in the match so we can create new cursors controllers with the correct language config
+			};
+			this.trackedMatches.push(newMatch);
 
-			return Promise.resolve();
-		} else if (this.state === NotebookMultiCursorState.Editing) {
-			// bad for now, need to handle this case when they hit ctrlD while in editing state
+			this.updateMultiSelectDecorations(newMatch);
+			this.state = NotebookMultiCursorState.Selecting;
+
+		} else if (this.state === NotebookMultiCursorState.Selecting) { // use the word we stored from idle state transition to find next match, track it
+			const notebookTextModel = this.notebookEditor.textModel;
+			if (!notebookTextModel) {
+				return;
+			}
+
+			const index = notebookTextModel._getCellIndexByHandle(cell.handle);
+			const findResult = notebookTextModel.findNextMatch(
+				this.word,
+				{ cellIndex: index, position: cell.getSelections()[cell.getSelections().length - 1].getEndPosition() },
+				false,
+				true,
+				USUAL_WORD_SEPARATORS //! might want to get these from the editor config
+			);
+			if (!findResult) {
+				return; //todo: some sort of message to the user alerting them that there are no more matches? editor does not do this
+			}
+
+			const resultCellViewModel = this.notebookEditor.getViewModel()?.viewCells.find(cell => cell.handle === findResult.cell.handle);
+			if (!resultCellViewModel) {
+				return;
+			}
+
+			let newMatch: TrackedMatch;
+			if (findResult.cell.handle !== cell.handle) { // result is in a different cell, move focus there and apply selection, then update anchor
+				this.notebookEditor.focusNotebookCell(resultCellViewModel, 'editor');
+
+				const newSelection = Selection.fromRange(findResult.match.range, SelectionDirection.LTR);
+				resultCellViewModel.setSelections([newSelection]);
+
+				this.anchorCell = this.notebookEditor.activeCellAndCodeEditor;
+				if (!this.anchorCell || !(this.anchorCell[1] instanceof CodeEditorWidget)) {
+					throw new Error('Active cell is not an instance of CodeEditorWidget');
+				}
+
+				newMatch = {
+					cellViewModel: resultCellViewModel,
+					selections: [newSelection],
+					config: (this.anchorCell[1] as CodeEditorWidget).configuration,
+				} satisfies TrackedMatch;
+				this.trackedMatches.push(newMatch);
+
+				this._onDidChangeAnchorCell.fire();
+
+			} else { // match is in the same cell, find tracked entry, update and set selections
+				newMatch = this.trackedMatches.find(match => match.cellViewModel.handle === findResult.cell.handle)!;
+				newMatch.selections.push(Selection.fromRange(findResult.match.range, SelectionDirection.LTR));
+				resultCellViewModel.setSelections(newMatch.selections);
+			}
+
+			this.updateMultiSelectDecorations(newMatch);
 		}
 	}
 
-	private applyEditsAcrossSeletions() {
-		// use tracked selections -> text models
-		// apply edits to each text model
+	/**
+	 * Updates the multicursor selection decorations for a specific matched cell
+	 *
+	 * @param match -- match object containing the viewmodel + selections
+	 */
+	private updateMultiSelectDecorations(match: TrackedMatch) {
+		const decorations: IModelDeltaDecoration[] = [];
+
+		match.selections.forEach(selection => {
+			decorations.push({
+				range: selection,
+				options: {
+					description: '',
+					className: 'nb-multicursor-selection',
+				}
+			});
+		});
+
+		const ids = match.cellViewModel.deltaModelDecorations(
+			[],
+			decorations
+		);
+
+		this.decorationDisposables.add({
+			dispose: () => {
+				match.cellViewModel.deltaModelDecorations(
+					ids,
+					[]
+				);
+			}
+		});
 	}
 
 	private getWord(selection: Selection, model: ITextModel): IWordAtPosition | null {
@@ -115,6 +320,10 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 
 	override dispose(): void {
 		super.dispose();
+		this.decorationDisposables.dispose();
+		this.anchorDisposables.dispose();
+		this.cursorsDisposables.dispose();
+		this.trackedMatches = [];
 	}
 
 }
@@ -132,21 +341,20 @@ class NotebookAddFindMatchToSelectionAction extends NotebookAction {
 		});
 	}
 
-	override runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
+	override async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
 		const editorService = accessor.get(IEditorService);
 		const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
 
 		if (!editor) {
-			return Promise.resolve();
+			return;
 		}
 
 		if (!context.cell) {
-			return Promise.resolve();
+			return;
 		}
 
 		const controller = editor.getContribution<NotebookMultiCursorController>(NotebookMultiCursorController.id);
 		controller.findAndTrackNextSelection(context.cell);
-		return Promise.resolve(); //! this isn't right i dont think. but don't want errors rn
 	}
 
 }

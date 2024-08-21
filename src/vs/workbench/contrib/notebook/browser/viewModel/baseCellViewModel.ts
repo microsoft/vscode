@@ -9,11 +9,12 @@ import { Mimes } from 'vs/base/common/mime';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IEditorCommentsOptions } from 'vs/editor/common/config/editorOptions';
-import { IPosition } from 'vs/editor/common/core/position';
+import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as model from 'vs/editor/common/model';
+import { indentOfLine } from 'vs/editor/common/model/textModel';
 import { SearchParams } from 'vs/editor/common/model/textModelSearch';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -717,6 +718,31 @@ export abstract class BaseCellViewModel extends Disposable {
 		}
 
 		return cellMatches;
+	}
+
+	getLineCount(): number {
+		return this.model.textBuffer.getLineCount();
+	}
+	getLineContent(lineNumber: number): string {
+		return this.model.textBuffer.getLineContent(lineNumber);
+	}
+	getLineMinColumn(lineNumber: number): number {
+		return this.model.textBuffer.getLineMinColumn(lineNumber);
+	}
+	getLineMaxColumn(lineNumber: number): number {
+		return this.model.textBuffer.getLineMaxColumn(lineNumber);
+	}
+	getLineFirstNonWhitespaceColumn(lineNumber: number): number {
+		return this.model.textBuffer.getLineFirstNonWhitespaceColumn(lineNumber);
+	}
+	getLineLastNonWhitespaceColumn(lineNumber: number): number {
+		return this.model.textBuffer.getLineLastNonWhitespaceColumn(lineNumber);
+	}
+	normalizePosition(position: Position, affinity: model.PositionAffinity): Position {
+		return position;
+	}
+	getLineIndentColumn(lineNumber: number): number {
+		return indentOfLine(this.model.textBuffer.getLineContent(lineNumber)) + 1;
 	}
 
 	override dispose() {

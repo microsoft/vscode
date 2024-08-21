@@ -386,7 +386,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		// https://github.com/microsoft/vscode/issues/207523
 	}
 
-	private _getCellIndexByHandle(handle: number) {
+	_getCellIndexByHandle(handle: number) {
 		return this.cells.findIndex(c => c.handle === handle);
 	}
 
