@@ -186,6 +186,10 @@ export class ScreenReaderContent extends AbstractEditContext {
 		return this._hasFocus;
 	}
 
+	public get domElement(): HTMLElement {
+		return this._domElement.domNode;
+	}
+
 	public focusScreenReaderContent(): void {
 		console.log('focusScreenReaderContent');
 		this._setHasFocus(true);
@@ -211,6 +215,7 @@ export class ScreenReaderContent extends AbstractEditContext {
 	private _setHasFocus(newHasFocus: boolean): void {
 		console.log('_setHasFocus');
 		console.log('newHasFocus : ', newHasFocus);
+		console.log('this._hasFocus : ', this._hasFocus);
 		if (this._hasFocus === newHasFocus) {
 			// no change
 			return;
@@ -219,7 +224,8 @@ export class ScreenReaderContent extends AbstractEditContext {
 
 		if (this._hasFocus) {
 			// write to the screen reader content
-			console.log('this._domElement.domNode : ', this._domElement.domNode);
+			console.log('this._domElement.domNode before focus : ', this._domElement.domNode);
+			console.log('this._domElement.domNode.textContent : ', this._domElement.domNode.textContent);
 			this._domElement.domNode.focus();
 		}
 
@@ -231,7 +237,7 @@ export class ScreenReaderContent extends AbstractEditContext {
 			console.log('bluring');
 			this._context.viewModel.setHasFocus(false);
 		}
-		console.log('dom.getActiveElement() in _setHasFocus: ', dom.getActiveElement());
+		console.log('dom.getActiveElement() in end of _setHasFocus: ', dom.getActiveElement());
 	}
 
 	public setAriaOptions(options: IEditorAriaOptions): void { }

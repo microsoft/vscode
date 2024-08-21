@@ -543,6 +543,10 @@ export class TextAreaHandler extends AbstractEditContext {
 		return [lineContent.substring(startColumn - 1, endColumn - 1), position.column - startColumn];
 	}
 
+	public get domElement(): HTMLElement {
+		return this.textArea.domNode;
+	}
+
 	private _getWordBeforePosition(position: Position): string {
 		const lineContent = this._context.viewModel.getLineContent(position.lineNumber);
 		const wordSeparators = getMapForWordSeparators(this._context.configuration.options.get(EditorOption.wordSeparators), []);

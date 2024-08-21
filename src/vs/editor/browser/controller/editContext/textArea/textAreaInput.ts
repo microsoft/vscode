@@ -616,6 +616,7 @@ export class TextAreaInput extends Disposable {
 	private _setHasFocus(newHasFocus: boolean): void {
 		console.log('_setHasFocus of textareainput');
 		console.log('newHasFocus of textareainput : ', newHasFocus);
+		console.log('this._hasFocus : ', this._hasFocus);
 		if (this._hasFocus === newHasFocus) {
 			// no change
 			return;

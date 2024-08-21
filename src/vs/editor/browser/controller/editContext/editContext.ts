@@ -19,6 +19,7 @@ import * as browser from 'vs/base/browser/browser';
 export const canUseZeroSizeTextarea = (browser.isFirefox);
 
 export abstract class AbstractEditContext extends ViewPart {
+	abstract domElement: HTMLElement;
 	abstract appendTo(overflowGuardContainer: FastDomNode<HTMLElement>): void;
 	abstract writeScreenReaderContent(reason: string): void;
 	abstract focusScreenReaderContent(): void;

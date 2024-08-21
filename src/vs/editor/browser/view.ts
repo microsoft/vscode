@@ -107,6 +107,7 @@ export class View extends ViewEventHandler {
 	// Edit context
 	private _editContextType: 'native' | 'textarea';
 	private _editContext: AbstractEditContext;
+	private _editContextViewPartIndex: number;
 
 	constructor(
 		commandDelegate: ICommandDelegate,
@@ -117,6 +118,7 @@ export class View extends ViewEventHandler {
 		overflowWidgetsDomNode: HTMLElement | undefined,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
+		console.log('view constructor');
 		super();
 		this._selections = [new Selection(1, 1, 1, 1)];
 		this._renderAnimationFrame = null;
@@ -135,6 +137,7 @@ export class View extends ViewEventHandler {
 		this._editContextType = this._context.configuration.options.get(EditorOption.editContext).type;
 		this._editContext = this._instantiateEditContext(this._editContextType);
 		this._viewParts.push(this._editContext);
+		this._editContextViewPartIndex = 0;
 
 		// These two dom nodes must be constructed up front, since references are needed in the layout provider (scrolling & co.)
 		this._linesContent = createFastDomNode(document.createElement('div'));
@@ -361,6 +364,7 @@ export class View extends ViewEventHandler {
 	}
 
 	private _instantiateEditContext(editContextType: 'native' | 'textarea') {
+		console.log('_instantiateEditContext');
 		let editContext: AbstractEditContext;
 		if (editContextType === 'native') {
 			editContext = this._instantiationService.createInstance(ScreenReaderContent, this._context, this._viewController);
@@ -381,10 +385,14 @@ export class View extends ViewEventHandler {
 		const editContextType = this._context.configuration.options.get(EditorOption.editContext).type;
 		console.log('onConfigurationChanged : ');
 		console.log('edit context type : ', editContextType);
+		console.log('this._editContextType : ', this._editContextType);
 		if (this._editContextType !== editContextType) {
 			this._editContext.dispose();
 			this._editContext = this._instantiateEditContext(editContextType);
 			this._editContextType = editContextType;
+			this._viewParts.splice(this._editContextViewPartIndex, 1);
+			this._viewParts.splice(this._editContextViewPartIndex, 0, this._editContext);
+			this._editContext.appendTo(this._overflowGuardContainer);
 		}
 		return false;
 	}
@@ -628,6 +636,7 @@ export class View extends ViewEventHandler {
 
 	public refreshFocusState() {
 		console.log('this._editContext : ', this._editContext);
+		console.log('this._editContext.domElement : ', this._editContext.domElement.textContent);
 		this._editContext.refreshFocusState();
 	}
 
