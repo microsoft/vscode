@@ -254,6 +254,9 @@ var AMDLoader;
 				}
 			}
 			options = options || {};
+			if (typeof options.allowJsExtension !== 'boolean') {
+				options.allowJsExtension = true; //TODO@esm flip the default for our ESM work
+			}
 			if (typeof options.baseUrl !== 'string') {
 				options.baseUrl = '';
 			}
@@ -425,10 +428,10 @@ var AMDLoader;
 		/**
 		 * Transform a module id to a location. Appends .js to module ids
 		 */
-		moduleIdToPaths(moduleId) {
+		moduleIdToPaths(moduleIdOrPath) {
 			if (this._env.isNode) {
 				const isNodeModule = (this.options.amdModulesPattern instanceof RegExp
-					&& !this.options.amdModulesPattern.test(moduleId));
+					&& !this.options.amdModulesPattern.test(moduleIdOrPath));
 				if (isNodeModule) {
 					// This is a node module...
 					if (this.isBuild()) {
@@ -437,13 +440,16 @@ var AMDLoader;
 					}
 					else {
 						// ...and at runtime we create a `shortcut`-path
-						return ['node|' + moduleId];
+						return ['node|' + moduleIdOrPath];
 					}
 				}
 			}
-			let result = moduleId;
+			const isAbsolutePath = AMDLoader.Utilities.isAbsolutePath(moduleIdOrPath);
+			const isJSFilePath = (this.options.allowJsExtension ? false : AMDLoader.Utilities.endsWith(moduleIdOrPath, '.js'));
+			const isModuleId = !(isAbsolutePath || isJSFilePath);
+			let result = moduleIdOrPath;
 			let results;
-			if (!AMDLoader.Utilities.isAbsolutePath(result)) {
+			if (isModuleId) {
 				results = this._applyPaths(result);
 				for (let i = 0, len = results.length; i < len; i++) {
 					if (this.isBuild() && results[i] === 'empty:') {
@@ -655,7 +661,7 @@ var AMDLoader;
 		const { trustedTypesPolicy } = moduleManager.getConfig().getOptionsLiteral();
 		try {
 			const func = (trustedTypesPolicy
-				? self.eval(trustedTypesPolicy.createScript('', 'true')) // CodeQL [SM01632] the loader is responsible with loading code, fetch + eval is used on the web worker instead of importScripts if possible because importScripts is synchronous and we observed deadlocks on Safari
+				? self.eval(trustedTypesPolicy.createScript('', 'true'))
 				: new Function('true') // CodeQL [SM01632] the loader is responsible with loading code, fetch + eval is used on the web worker instead of importScripts if possible because importScripts is synchronous and we observed deadlocks on Safari
 			);
 			func.call(self);
@@ -705,7 +711,7 @@ var AMDLoader;
 					}).then((text) => {
 						text = `${text}\n//# sourceURL=${scriptSrc}`;
 						const func = (trustedTypesPolicy
-							? self.eval(trustedTypesPolicy.createScript('', text)) // CodeQL [SM01632] the loader is responsible with loading code, fetch + eval is used on the web worker instead of importScripts if possible because importScripts is synchronous and we observed deadlocks on Safari
+							? self.eval(trustedTypesPolicy.createScript('', text))
 							: new Function(text) // CodeQL [SM01632] the loader is responsible with loading code, fetch + eval is used on the web worker instead of importScripts if possible because importScripts is synchronous and we observed deadlocks on Safari
 						);
 						func.call(self);
@@ -1248,7 +1254,9 @@ var AMDLoader;
 			this._buildInfoPath = [];
 			this._buildInfoDefineStack = [];
 			this._buildInfoDependencies = [];
-			this._requireFunc.moduleManager = this;
+			if (this._requireFunc) {
+				this._requireFunc.moduleManager = this;
+			}
 		}
 		reset() {
 			return new ModuleManager(this._env, this._scriptLoader, this._defineFunc, this._requireFunc, this._loaderAvailableTimestamp);
