@@ -41,8 +41,10 @@ import { InstallRecommendedExtensionAction } from 'vs/workbench/contrib/extensio
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { INotebookDocument, INotebookDocumentService } from 'vs/workbench/services/notebook/common/notebookDocumentService';
 import { MergeEditorInput } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
-import type { EditorInputWithOptions, IResourceMergeEditorInput } from 'vs/workbench/common/editor';
+import type { EditorInputWithOptions, IResourceDiffEditorInput, IResourceMergeEditorInput } from 'vs/workbench/common/editor';
 import { streamToBuffer, VSBuffer, VSBufferReadableStream } from 'vs/base/common/buffer';
+import type { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { NotebookMultiDiffEditorInput } from 'vs/workbench/contrib/notebook/browser/diff/notebookMultiDiffEditorInput';
 
 export class NotebookProviderInfoStore extends Disposable {
 
@@ -213,7 +215,11 @@ export class NotebookProviderInfoStore extends Disposable {
 
 				return { editor: NotebookEditorInput.getOrCreate(this._instantiationService, ref.object.resource, undefined, notebookProviderInfo.id), options };
 			};
-			const notebookDiffEditorInputFactory: DiffEditorInputFactoryFunction = ({ modified, original, label, description }) => {
+			const notebookDiffEditorInputFactory: DiffEditorInputFactoryFunction = (diffEditorInput: IResourceDiffEditorInput, group: IEditorGroup) => {
+				if (this._configurationService.getValue('notebook.experimental.enableNewDiffEditor')) {
+					return { editor: NotebookMultiDiffEditorInput.createInput(diffEditorInput, group, notebookProviderInfo.id, this._instantiationService) };
+				}
+				const { modified, original, label, description } = diffEditorInput;
 				return { editor: NotebookDiffEditorInput.create(this._instantiationService, modified.resource!, label, description, original.resource!, notebookProviderInfo.id) };
 			};
 			const mergeEditorInputFactory: MergeEditorInputFactoryFunction = (mergeEditor: IResourceMergeEditorInput): EditorInputWithOptions => {
