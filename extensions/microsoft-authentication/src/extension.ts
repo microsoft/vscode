@@ -9,26 +9,32 @@ import * as extensionV2 from './extensionV2';
 import { createExperimentationService } from './common/experimentation';
 import { MicrosoftAuthenticationTelemetryReporter } from './common/telemetryReporter';
 import { IExperimentationService } from 'vscode-tas-client';
+import Logger from './logger';
 
 function shouldUseMsal(expService: IExperimentationService): boolean {
 	// First check if there is a setting value to allow user to override the default
 	const inspect = workspace.getConfiguration('microsoft').inspect<boolean>('useMsal');
 	if (inspect?.workspaceFolderValue !== undefined) {
+		Logger.debug(`Acquired MSAL enablement value from 'workspaceFolderValue'. Value: ${inspect.workspaceFolderValue}`);
 		return inspect.workspaceFolderValue;
 	}
 	if (inspect?.workspaceValue !== undefined) {
+		Logger.debug(`Acquired MSAL enablement value from 'workspaceValue'. Value: ${inspect.workspaceValue}`);
 		return inspect.workspaceValue;
 	}
 	if (inspect?.globalValue !== undefined) {
+		Logger.debug(`Acquired MSAL enablement value from 'globalValue'. Value: ${inspect.globalValue}`);
 		return inspect.globalValue;
 	}
 
 	// Then check if the experiment value
 	const expValue = expService.getTreatmentVariable<boolean>('vscode', 'microsoft.useMsal');
 	if (expValue !== undefined) {
+		Logger.debug(`Acquired MSAL enablement value from 'exp'. Value: ${expValue}`);
 		return expValue;
 	}
 
+	Logger.debug('Acquired MSAL enablement value from default. Value: false');
 	// If no setting or experiment value is found, default to false
 	return false;
 }
