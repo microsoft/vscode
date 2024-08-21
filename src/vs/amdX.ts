@@ -88,12 +88,27 @@ class AMDModuleImporter {
 			console.warn(`Did not receive a define call from script ${scriptSrc}`);
 			return <T>undefined;
 		}
-		// TODO require, exports, module
-		if (Array.isArray(defineCall.dependencies) && defineCall.dependencies.length > 0) {
-			throw new Error(`Cannot resolve dependencies for script ${scriptSrc}. The dependencies are: ${defineCall.dependencies.join(', ')}`);
+		// TODO require, module
+		const exports = {};
+		const dependencyObjs: any[] = [];
+		const dependencyModules: string[] = [];
+
+		if (Array.isArray(defineCall.dependencies)) {
+
+			for (const mod of defineCall.dependencies) {
+				if (mod === 'exports') {
+					dependencyObjs.push(exports);
+				} else {
+					dependencyModules.push(mod);
+				}
+			}
+		}
+
+		if (dependencyModules.length > 0) {
+			throw new Error(`Cannot resolve dependencies for script ${scriptSrc}. The dependencies are: ${dependencyModules.join(', ')}`);
 		}
 		if (typeof defineCall.callback === 'function') {
-			return defineCall.callback([]);
+			return defineCall.callback(dependencyObjs) ?? exports;
 		} else {
 			return defineCall.callback;
 		}
