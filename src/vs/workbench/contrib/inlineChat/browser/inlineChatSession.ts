@@ -589,6 +589,8 @@ export class HunkData {
 
 		const hunks = mergedChanges.map(change => new RawHunk(change.original, change.modified, change.innerChanges ?? []));
 
+		editState.applied = hunks.length;
+
 		this._textModelN.changeDecorations(accessorN => {
 
 			this._textModel0.changeDecorations(accessor0 => {
@@ -691,6 +693,9 @@ export class HunkData {
 						const edits = this._discardEdits(item);
 						this._textModelN.pushEditOperations(null, edits, () => null);
 						data.state = HunkState.Rejected;
+						if (data.editState.applied > 0) {
+							data.editState.applied -= 1;
+						}
 					}
 				},
 				acceptChanges: () => {
@@ -707,7 +712,6 @@ export class HunkData {
 						}
 						this._textModel0.pushEditOperations(null, edits, () => null);
 						data.state = HunkState.Accepted;
-						data.editState.applied += 1;
 					}
 				}
 			};

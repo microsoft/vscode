@@ -39,7 +39,7 @@ import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatModel, ChatRequestRemovalReason, IChatRequestModel, IChatTextEditGroup, IChatTextEditGroupState, IResponse } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { InlineChatContentWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatContentWidget';
-import { EmptyResponse, ErrorResponse, ReplyResponse, Session, StashedSession } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
+import { Session, StashedSession } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { InlineChatError } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSessionServiceImpl';
 import { EditModeStrategy, IEditObserver, LiveStrategy, PreviewStrategy, ProgressingEditsOptions } from 'vs/workbench/contrib/inlineChat/browser/inlineChatStrategies';
 import { CTX_INLINE_CHAT_EDITING, CTX_INLINE_CHAT_REQUEST_IN_PROGRESS, CTX_INLINE_CHAT_RESPONSE_TYPE, CTX_INLINE_CHAT_SUPPORT_REPORT_ISSUE, CTX_INLINE_CHAT_USER_DID_EDIT, CTX_INLINE_CHAT_VISIBLE, EditMode, INLINE_CHAT_ID, InlineChatConfigKeys, InlineChatResponseType } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
@@ -55,7 +55,6 @@ export const enum State {
 	INIT_UI = 'INIT_UI',
 	WAIT_FOR_INPUT = 'WAIT_FOR_INPUT',
 	SHOW_REQUEST = 'SHOW_REQUEST',
-	SHOW_RESPONSE = 'SHOW_RESPONSE',
 	PAUSE = 'PAUSE',
 	CANCEL = 'CANCEL',
 	ACCEPT = 'DONE',
@@ -382,7 +381,7 @@ export class InlineChatController implements IEditorContribution {
 		return State.INIT_UI;
 	}
 
-	private async [State.INIT_UI](options: InlineChatRunOptions): Promise<State.WAIT_FOR_INPUT | State.SHOW_REQUEST | State.SHOW_RESPONSE> {
+	private async [State.INIT_UI](options: InlineChatRunOptions): Promise<State.WAIT_FOR_INPUT | State.SHOW_REQUEST> {
 		assertType(this._session);
 		assertType(this._strategy);
 
@@ -462,16 +461,39 @@ export class InlineChatController implements IEditorContribution {
 			}
 		}));
 
+		// apply edits from completed requests that haven't been applied yet
+		const editState = this._createChatTextEditGroupState();
+		let didEdit = false;
+		for (const request of this._session.chatModel.getRequests()) {
+			if (!request.response) {
+				// done when seeing the first request that is still pending (no response).
+				break;
+			}
+			for (const part of request.response.response.value) {
+				if (part.kind !== 'textEditGroup' || !isEqual(part.uri, this._session.textModelN.uri)) {
+					continue;
+				}
+				if (part.state?.applied) {
+					continue;
+				}
+				for (const edit of part.edits) {
+					this._makeChanges(edit, undefined, !didEdit);
+					didEdit = true;
+				}
+				part.state ??= editState;
+			}
+		}
+		if (didEdit) {
+			const diff = await this._editorWorkerService.computeDiff(this._session.textModel0.uri, this._session.textModelN.uri, { computeMoves: false, maxComputationTimeMs: Number.MAX_SAFE_INTEGER, ignoreTrimWhitespace: false }, 'advanced');
+			this._session.wholeRange.fixup(diff?.changes ?? []);
+			await this._session.hunkData.recompute(editState, diff);
+		}
+		options.position = await this._strategy.renderChanges();
 
-		if (!this._session.chatModel.hasRequests) {
-			return State.WAIT_FOR_INPUT;
-		} else if (options.isUnstashed) {
-			delete options.isUnstashed;
-			return State.SHOW_RESPONSE;
-		} else if (this._session.chatModel.requestInProgress) {
+		if (this._session.chatModel.requestInProgress) {
 			return State.SHOW_REQUEST;
 		} else {
-			return State.SHOW_RESPONSE;
+			return State.WAIT_FOR_INPUT;
 		}
 	}
 
@@ -540,8 +562,9 @@ export class InlineChatController implements IEditorContribution {
 	}
 
 
-	private async [State.SHOW_REQUEST](options: InlineChatRunOptions): Promise<State.SHOW_RESPONSE | State.CANCEL | State.PAUSE | State.ACCEPT> {
+	private async [State.SHOW_REQUEST](options: InlineChatRunOptions): Promise<State.WAIT_FOR_INPUT | State.CANCEL | State.PAUSE | State.ACCEPT> {
 		assertType(this._session);
+		assertType(this._strategy);
 		assertType(this._session.chatModel.requestInProgress);
 
 		this._ctxRequestInProgress.set(true);
@@ -569,7 +592,7 @@ export class InlineChatController implements IEditorContribution {
 		const progressiveEditsClock = StopWatch.create();
 		const progressiveEditsQueue = new Queue();
 
-		let next: State.SHOW_RESPONSE | State.SHOW_REQUEST | State.CANCEL | State.PAUSE | State.ACCEPT = State.SHOW_RESPONSE;
+		let next: State.WAIT_FOR_INPUT | State.SHOW_REQUEST | State.CANCEL | State.PAUSE | State.ACCEPT = State.WAIT_FOR_INPUT;
 
 		store.add(Event.once(this._messages.event)(message => {
 			this._log('state=_makeRequest) message received', message);
@@ -646,11 +669,7 @@ export class InlineChatController implements IEditorContribution {
 		let lastLength = 0;
 		let isFirstChange = true;
 
-		const sha1 = new DefaultModelSHA1Computer();
-		const textModel0Sha1 = sha1.canComputeSHA1(this._session.textModel0)
-			? sha1.computeSHA1(this._session.textModel0)
-			: generateUuid();
-		const editState: IChatTextEditGroupState = { sha1: textModel0Sha1, applied: 0 };
+		const editState = this._createChatTextEditGroupState();
 		let localEditGroup: IChatTextEditGroup | undefined;
 
 		// apply edits
@@ -718,7 +737,6 @@ export class InlineChatController implements IEditorContribution {
 		await responsePromise.p;
 		await progressiveEditsQueue.whenIdle();
 
-
 		if (response.isCanceled) {
 			await this._session.undoChangesUntil(response.requestId);
 		}
@@ -731,33 +749,22 @@ export class InlineChatController implements IEditorContribution {
 
 		this._ctxRequestInProgress.set(false);
 
-		return next;
-	}
-
-	private async[State.SHOW_RESPONSE](options: InlineChatRunOptions): Promise<State.WAIT_FOR_INPUT> {
-		assertType(this._session);
-		assertType(this._strategy);
-		assertType(this._session.lastExchange, `State ${State.SHOW_RESPONSE} should only be reached if there has been an exchange`);
-		assertType(this._session.lastExchange.response, `State ${State.SHOW_RESPONSE} should only be reached if last exchange had a response`);
-
-		const response = this._session.lastExchange.response;
 
 		let newPosition: Position | undefined;
 
-		if (response instanceof EmptyResponse) {
-			// show status message
+		if (response.response.value.length === 0) {
+			// empty -> show message
 			const status = localize('empty', "No results, please refine your input and try again");
 			this._ui.value.zone.widget.updateStatus(status, { classes: ['warn'] });
-			return State.WAIT_FOR_INPUT;
 
-		} else if (response instanceof ErrorResponse) {
-			// show error
-			if (!response.isCancellation) {
-				this._ui.value.zone.widget.updateStatus(response.message, { classes: ['error'] });
-				this._strategy?.cancel();
+		} else if (response.result?.errorDetails) {
+			// error -> show error
+			if (!response.isCanceled) {
+				this._ui.value.zone.widget.updateStatus(response.result.errorDetails.message, { classes: ['error'] });
 			}
+			this._strategy?.cancel();
 
-		} else if (response instanceof ReplyResponse) {
+		} else {
 			// real response -> complex...
 			this._ui.value.zone.widget.updateStatus('');
 
@@ -777,7 +784,7 @@ export class InlineChatController implements IEditorContribution {
 		}
 		this._showWidget(options, false, newPosition);
 
-		return State.WAIT_FOR_INPUT;
+		return next;
 	}
 
 	private async[State.PAUSE]() {
@@ -924,6 +931,20 @@ export class InlineChatController implements IEditorContribution {
 			}
 		}
 		this._ctxResponseType.set(responseType);
+	}
+
+	private _createChatTextEditGroupState(): IChatTextEditGroupState {
+		assertType(this._session);
+
+		const sha1 = new DefaultModelSHA1Computer();
+		const textModel0Sha1 = sha1.canComputeSHA1(this._session.textModel0)
+			? sha1.computeSHA1(this._session.textModel0)
+			: generateUuid();
+
+		return {
+			sha1: textModel0Sha1,
+			applied: 0
+		};
 	}
 
 	private async _makeChanges(edits: TextEdit[], opts: ProgressingEditsOptions | undefined, undoStopBefore: boolean) {
