@@ -57,26 +57,30 @@ class AMDModuleImporter {
 
 		(<any>globalThis).define.amd = true;
 
-		if (this._isRenderer) {
-			// eslint-disable-next-line no-restricted-globals
-			this._amdPolicy = window.trustedTypes?.createPolicy('amdLoader', {
-				createScriptURL(value) {
-					// eslint-disable-next-line no-restricted-globals
-					if (value.startsWith(window.location.origin)) {
+		try {
+			if (this._isRenderer) {
+				// eslint-disable-next-line no-restricted-globals
+				this._amdPolicy = window.trustedTypes?.createPolicy('amdLoader', {
+					createScriptURL(value) {
+						// eslint-disable-next-line no-restricted-globals
+						if (value.startsWith(window.location.origin)) {
+							return value;
+						}
+						if (value.startsWith('vscode-file://vscode-app')) {
+							return value;
+						}
+						throw new Error(`[trusted_script_src] Invalid script url: ${value}`);
+					}
+				});
+			} else if (this._isWebWorker) {
+				this._amdPolicy = (<any>globalThis).trustedTypes?.createPolicy('amdLoader', {
+					createScriptURL(value: string) {
 						return value;
 					}
-					if (value.startsWith('vscode-file://vscode-app')) {
-						return value;
-					}
-					throw new Error(`[trusted_script_src] Invalid script url: ${value}`);
-				}
-			});
-		} else if (this._isWebWorker) {
-			this._amdPolicy = (<any>globalThis).trustedTypes?.createPolicy('amdLoader', {
-				createScriptURL(value: string) {
-					return value;
-				}
-			});
+				});
+			}
+		} catch (error) {
+			console.warn(error);
 		}
 	}
 
