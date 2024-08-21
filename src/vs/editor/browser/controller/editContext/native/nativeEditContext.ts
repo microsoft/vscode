@@ -46,7 +46,6 @@ export class NativeEditContext extends Disposable {
 
 	private _renderingContext: RenderingContext | undefined;
 	private _rangeStart: number = 0;
-	public isComposing: boolean = false;
 
 	private _linesVisibleRanges: LineVisibleRanges[] | null = null;
 
@@ -99,6 +98,9 @@ export class NativeEditContext extends Disposable {
 			if (standardKeyboardEvent.keyCode === KeyCode.Enter && isNotebook) {
 				this.addNewLine();
 			}
+			if (standardKeyboardEvent.keyCode === KeyCode.Space && isNotebook) {
+				this._updateText({ text: ' ', updateRangeStart: this._editContext.selectionStart, updateRangeEnd: this._editContext.selectionEnd });
+			}
 			this._viewController.emitKeyDown(standardKeyboardEvent);
 		}));
 
@@ -106,51 +108,9 @@ export class NativeEditContext extends Disposable {
 			this._viewController.emitKeyUp(new StandardKeyboardEvent(e));
 		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'textupdate', e => {
-
-			console.log('textupdate : ', e);
-			console.log('e.text : ', e.text);
-			console.log('e.updateRangeStart : ', e.updateRangeStart);
-			console.log('e.updateRangeEnd : ', e.updateRangeEnd);
-			console.log('this._editContext.text : ', this._editContext.text);
-			console.log('this._editContext.selectionStart : ', this._editContext.selectionStart);
-			console.log('this._editContext.selectionEnd : ', this._editContext.selectionEnd);
-
-			if (!this._previousState) {
-				return;
-			}
-
-			/**
-			 * deduce input from the data above
-			 */
-			const previousSelectionStart = this._previousState.selectionStart;
-			const previousSelectionEnd = this._previousState.selectionEnd;
-
-			let replacePrevCharCnt = 0;
-			if (e.updateRangeStart < previousSelectionStart) {
-				replacePrevCharCnt = previousSelectionStart - e.updateRangeStart;
-			}
-
-			let replaceNextCharCnt = 0;
-			if (e.updateRangeEnd > previousSelectionEnd) {
-				replaceNextCharCnt = e.updateRangeEnd - previousSelectionEnd;
-			}
-
-			const data = e.text.replaceAll(/[^\S\r\n]/gmu, ' ');
-			const typeInput: ITypeData = {
-				text: data,
-				replacePrevCharCnt,
-				replaceNextCharCnt,
-				positionDelta: 0,
-			};
-
-			this._updateCompositionEndPosition();
-			console.log('typeInput : ', typeInput);
-			this._onType(typeInput);
-			console.log('this._context.viewModel.model.getValue() : ', this._context.viewModel.model.getValue());
-			console.log('end of text update');
+			this._updateText(e);
 		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'compositionstart', e => {
-			this.isComposing = true;
 			this._updateCompositionStartPosition();
 			this._viewController.compositionStart();
 			this._context.viewModel.onCompositionStart();
@@ -159,7 +119,6 @@ export class NativeEditContext extends Disposable {
 		this._register(editContextAddDisposableListener(this._editContext, 'compositionend', e => {
 
 			console.log('oncompositionend : ', e);
-			this.isComposing = false;
 			this._updateCompositionEndPosition();
 			this._viewController.compositionEnd();
 			this._context.viewModel.onCompositionEnd();
@@ -204,12 +163,65 @@ export class NativeEditContext extends Disposable {
 		this._onType(typeInput);
 	}
 
+	private _updateText(e: { text: string; updateRangeStart: number; updateRangeEnd: number }) {
+		console.log('textupdate : ', e);
+		console.log('e.text : ', e.text);
+		console.log('e.updateRangeStart : ', e.updateRangeStart);
+		console.log('e.updateRangeEnd : ', e.updateRangeEnd);
+		console.log('this._editContext.text : ', this._editContext.text);
+		console.log('this._editContext.selectionStart : ', this._editContext.selectionStart);
+		console.log('this._editContext.selectionEnd : ', this._editContext.selectionEnd);
+
+		console.log('this._currentState : ', this._currentState);
+		console.log('this._previousState : ', this._previousState);
+		console.log('this._context.viewModel.model.getValue() : ', this._context.viewModel.model.getValue());
+
+		if (!this._previousState) {
+			return;
+		}
+
+		/**
+		 * deduce input from the data above
+		 */
+		const previousSelectionStart = this._previousState.selectionStart;
+		const previousSelectionEnd = this._previousState.selectionEnd;
+
+		let replacePrevCharCnt = 0;
+		if (e.updateRangeStart < previousSelectionStart) {
+			replacePrevCharCnt = previousSelectionStart - e.updateRangeStart;
+		}
+
+		let replaceNextCharCnt = 0;
+		if (e.updateRangeEnd > previousSelectionEnd) {
+			replaceNextCharCnt = e.updateRangeEnd - previousSelectionEnd;
+		}
+
+		const data = e.text.replaceAll(/[^\S\r\n]/gmu, ' ');
+		const typeInput: ITypeData = {
+			text: data,
+			replacePrevCharCnt,
+			replaceNextCharCnt,
+			positionDelta: 0,
+		};
+
+		this._updateCompositionEndPosition();
+		console.log('typeInput : ', typeInput);
+		this._onType(typeInput);
+		console.log('this._context.viewModel.model.getValue() : ', this._context.viewModel.model.getValue());
+		console.log('end of text update');
+	}
+
 	public writeEditContextContent(): void {
 
 		console.log('writeEditContextContent');
 
-		this._previousState = this._currentState;
+		if (this._previousState) {
+			this._previousState = this._currentState;
+		}
 		this._currentState = this._getEditContextState();
+		if (!this._previousState) {
+			this._previousState = this._currentState;
+		}
 		this._selectionOfEditContextText = this._currentState.selectionOfContent;
 		this._editContext.updateText(0, Number.MAX_SAFE_INTEGER, this._currentState.value);
 		this._editContext.updateSelection(this._currentState.selectionStart, this._currentState.selectionEnd);
