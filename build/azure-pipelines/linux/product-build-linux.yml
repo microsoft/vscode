@@ -258,6 +258,9 @@ steps:
         displayName: Check GLIBC and GLIBCXX dependencies in server archive
 
   - ${{ else }}:
+    - script: node migrate.mjs --disable-watch --enable-inplace --enable-js-imports-only
+      displayName: Migrate to relative imports
+
     - script: yarn gulp "transpile-client-swc" "transpile-extensions"
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
