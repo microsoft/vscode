@@ -238,6 +238,8 @@ export class TextAreaInput extends Disposable {
 		let lastKeyDown: IKeyboardEvent | null = null;
 
 		this._register(this._textArea.onKeyDown((_e) => {
+
+			console.log('on key down of the text area input: ', _e);
 			const e = new StandardKeyboardEvent(_e);
 			if (e.keyCode === KeyCode.KEY_IN_COMPOSITION
 				|| (this._currentComposition && e.keyCode === KeyCode.Backspace)) {

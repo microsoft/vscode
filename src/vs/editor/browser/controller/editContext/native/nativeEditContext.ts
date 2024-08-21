@@ -93,6 +93,7 @@ export class NativeEditContext extends Disposable {
 				standardKeyboardEvent.stopPropagation();
 			}
 			// For some reason the Enter key is not fired for the dom node in a notebook, but the key down event is
+			// Find out why notebooks are handled differently, maybe because the event is not propagated as it should be, when there is the focus. We want to receive the event, but we do not?
 			const modelUri = this._context.viewModel.model.uri;
 			const isNotebook = modelUri.scheme === Schemas.vscodeNotebookCell;
 			if (standardKeyboardEvent.keyCode === KeyCode.Enter && isNotebook) {

@@ -320,6 +320,7 @@ export class TextAreaHandler extends AbstractEditContext {
 		}));
 
 		this._register(this._textAreaInput.onKeyDown((e: IKeyboardEvent) => {
+			console.log('on key down of text area handler : ', e);
 			this._viewController.emitKeyDown(e);
 		}));
 

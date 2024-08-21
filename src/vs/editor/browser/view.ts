@@ -83,6 +83,7 @@ export class View extends ViewEventHandler {
 
 	// The view lines
 	private readonly _viewLines: ViewLines;
+	private readonly _viewController: ViewController;
 
 	// These are parts, but we must do some API related calls on them, so we keep a reference
 	private readonly _viewZones: ViewZones;
@@ -92,7 +93,6 @@ export class View extends ViewEventHandler {
 	private readonly _viewCursors: ViewCursors;
 	private readonly _viewParts: ViewPart[];
 
-	private readonly _editContext: AbstractEditContext;
 	private readonly _pointerHandler: PointerHandler;
 
 	// Dom nodes
@@ -103,6 +103,10 @@ export class View extends ViewEventHandler {
 	// Actual mutable state
 	private _shouldRecomputeGlyphMarginLanes: boolean = false;
 	private _renderAnimationFrame: IDisposable | null;
+
+	// Edit context
+	private _editContextType: 'native' | 'textarea';
+	private _editContext: AbstractEditContext;
 
 	constructor(
 		commandDelegate: ICommandDelegate,
@@ -117,7 +121,7 @@ export class View extends ViewEventHandler {
 		this._selections = [new Selection(1, 1, 1, 1)];
 		this._renderAnimationFrame = null;
 
-		const viewController = new ViewController(configuration, model, userInputEvents, commandDelegate);
+		this._viewController = new ViewController(configuration, model, userInputEvents, commandDelegate);
 
 		// The view context is passed on to most classes (basically to reduce param. counts in ctors)
 		this._context = new ViewContext(configuration, colorTheme, model);
@@ -128,12 +132,8 @@ export class View extends ViewEventHandler {
 		this._viewParts = [];
 
 		// Keyboard handler
-		const editContext = this._context.configuration.options.get(EditorOption.editContext);
-		if (editContext.type === 'native') {
-			this._editContext = this._instantiationService.createInstance(ScreenReaderContent, this._context, viewController);
-		} else {
-			this._editContext = this._instantiationService.createInstance(TextAreaHandler, this._context, viewController, this._createTextAreaHandlerHelper());
-		}
+		this._editContextType = this._context.configuration.options.get(EditorOption.editContext).type;
+		this._editContext = this._instantiateEditContext(this._editContextType);
 		this._viewParts.push(this._editContext);
 
 		// These two dom nodes must be constructed up front, since references are needed in the layout provider (scrolling & co.)
@@ -246,7 +246,7 @@ export class View extends ViewEventHandler {
 		this._applyLayout();
 
 		// Pointer handler
-		this._pointerHandler = this._register(new PointerHandler(this._context, viewController, this._createPointerHandlerHelper()));
+		this._pointerHandler = this._register(new PointerHandler(this._context, this._viewController, this._createPointerHandlerHelper()));
 	}
 
 	private _computeGlyphMarginLanes(): IGlyphMarginLanesModel {
@@ -360,6 +360,16 @@ export class View extends ViewEventHandler {
 		return this._context.configuration.options.get(EditorOption.editorClassName) + ' ' + getThemeTypeSelector(this._context.theme.type) + focused;
 	}
 
+	private _instantiateEditContext(editContextType: 'native' | 'textarea') {
+		let editContext: AbstractEditContext;
+		if (editContextType === 'native') {
+			editContext = this._instantiationService.createInstance(ScreenReaderContent, this._context, this._viewController);
+		} else {
+			editContext = this._instantiationService.createInstance(TextAreaHandler, this._context, this._viewController, this._createTextAreaHandlerHelper());
+		}
+		return editContext;
+	}
+
 	// --- begin event handlers
 	public override handleEvents(events: viewEvents.ViewEvent[]): void {
 		super.handleEvents(events);
@@ -368,6 +378,10 @@ export class View extends ViewEventHandler {
 	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		this.domNode.setClassName(this._getEditorClassName());
 		this._applyLayout();
+		const editContextType = this._context.configuration.options.get(EditorOption.editContext).type;
+		if (this._editContextType !== editContextType) {
+			this._editContext = this._instantiateEditContext(editContextType);
+		}
 		return false;
 	}
 	public override onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
