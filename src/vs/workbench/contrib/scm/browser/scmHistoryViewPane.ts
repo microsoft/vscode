@@ -22,7 +22,7 @@ import { autorun } from 'vs/base/common/observable';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IHoverService, WorkbenchHoverDelegate } from 'vs/platform/hover/browser/hover';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -412,6 +412,8 @@ export class SCMHistoryViewPane extends ViewPane {
 	private readonly _treeOperationSequencer = new Sequencer();
 	private readonly _updateChildrenThrottler = new Throttler();
 
+	private readonly _scmHistoryItemGroupHasRemoteContextKey: IContextKey<boolean | undefined>;
+
 	private readonly _providerCountBadgeConfig = observableConfigValue<'hidden' | 'auto' | 'visible'>('scm.providerCountBadge', 'hidden', this.configurationService);
 
 	constructor(
@@ -430,6 +432,8 @@ export class SCMHistoryViewPane extends ViewPane {
 		@IHoverService hoverService: IHoverService
 	) {
 		super({ ...options, titleMenuId: MenuId.SCMHistoryTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
+
+		this._scmHistoryItemGroupHasRemoteContextKey = this.scopedContextKeyService.createKey('scmHistoryItemGroupHasRemote', undefined);
 
 		this._register(this._updateChildrenThrottler);
 	}
@@ -500,7 +504,7 @@ export class SCMHistoryViewPane extends ViewPane {
 				this.instantiationService.createInstance(RepositoryRenderer, MenuId.SCMHistoryTitle, (provider) => {
 					const repositoryMenus = this.scmViewService.menus.getRepositoryMenus(provider);
 					return repositoryMenus.historyProviderMenu?.getHistoryTitleMenu();
-				}, getActionViewItemProvider(this.instantiationService)),
+				}, false, getActionViewItemProvider(this.instantiationService)),
 				this.instantiationService.createInstance(HistoryItemRenderer, historyItemHoverDelegate),
 			],
 			this.instantiationService.createInstance(SCMHistoryTreeDataSource),
@@ -586,7 +590,15 @@ export class SCMHistoryViewPane extends ViewPane {
 			const repositoryDisposables = new DisposableStore();
 
 			repositoryDisposables.add(autorun(reader => {
-				repository.provider.historyProvider.read(reader)?.currentHistoryItemGroup.read(reader);
+				const historyProvider = repository.provider.historyProvider.read(reader);
+				const currentHistoryItemGroup = historyProvider?.currentHistoryItemGroup.read(reader);
+
+				if (this.scmViewService.visibleRepositories.length === 1) {
+					this._scmHistoryItemGroupHasRemoteContextKey.set(!!currentHistoryItemGroup?.remote);
+				} else {
+					this._scmHistoryItemGroupHasRemoteContextKey.reset();
+				}
+
 				this._updateChildren(repository);
 			}));
 
@@ -619,7 +631,7 @@ export class SCMHistoryViewPane extends ViewPane {
 				async () => {
 					if (element && this._tree.hasNode(element)) {
 						// Refresh specific repository
-						await this._tree.updateChildren(element);
+						await this._tree.updateChildren(element, true, true);
 					} else {
 						// Refresh the entire tree
 						await this._tree.updateChildren(undefined);

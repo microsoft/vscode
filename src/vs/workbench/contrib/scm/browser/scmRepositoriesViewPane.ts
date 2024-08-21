@@ -78,7 +78,7 @@ export class SCMRepositoriesViewPane extends ViewPane {
 		const renderer = this.instantiationService.createInstance(RepositoryRenderer, MenuId.SCMSourceControlInline, (provider) => {
 			const repositoryMenus = this.scmViewService.menus.getRepositoryMenus(provider);
 			return repositoryMenus.repositoryMenu;
-		}, getActionViewItemProvider(this.instantiationService));
+		}, true, getActionViewItemProvider(this.instantiationService));
 		const identityProvider = { getId: (r: ISCMRepository) => r.provider.id };
 
 		this.list = this.instantiationService.createInstance(WorkbenchList, `SCM Main`, listContainer, delegate, [renderer], {

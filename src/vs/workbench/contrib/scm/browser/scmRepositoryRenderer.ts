@@ -65,6 +65,7 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 	constructor(
 		private readonly toolbarResetMenu: MenuId,
 		private readonly toolbarMenu: (provider: ISCMProvider) => IMenu | undefined,
+		private readonly renderStatusBarCommands: boolean,
 		private readonly actionViewItemProvider: IActionViewItemProvider,
 		@ICommandService private commandService: ICommandService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
@@ -116,11 +117,13 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 			templateData.toolBar.setActions([...statusPrimaryActions, ...menuPrimaryActions], menuSecondaryActions);
 		};
 
-		templateData.elementDisposables.add(autorun(reader => {
-			const commands = repository.provider.statusBarCommands.read(reader) ?? [];
-			statusPrimaryActions = commands.map(c => new StatusBarAction(c, this.commandService));
-			updateToolbar();
-		}));
+		if (this.renderStatusBarCommands) {
+			templateData.elementDisposables.add(autorun(reader => {
+				const commands = repository.provider.statusBarCommands.read(reader) ?? [];
+				statusPrimaryActions = commands.map(c => new StatusBarAction(c, this.commandService));
+				updateToolbar();
+			}));
+		}
 
 		templateData.elementDisposables.add(autorun(reader => {
 			const count = repository.provider.count.read(reader) ?? getRepositoryResourceCount(repository.provider);
