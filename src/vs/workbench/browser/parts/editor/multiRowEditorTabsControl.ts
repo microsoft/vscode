@@ -63,8 +63,8 @@ export class MultiRowEditorControl extends Disposable implements IEditorTabsCont
 		}
 	}
 
-	private isEditorInActiveControl(editor: EditorInput) {
-		return this.activeControl === this.getEditorTabsController(editor);
+	private didActiveControlChange() {
+		return this.activeControl === (this.model.activeEditor ? this.getEditorTabsController(this.model.activeEditor) : undefined);
 	}
 
 	private getEditorTabsController(editor: EditorInput): IEditorTabsControl {
@@ -72,7 +72,7 @@ export class MultiRowEditorControl extends Disposable implements IEditorTabsCont
 	}
 
 	openEditor(editor: EditorInput, options: IInternalEditorOpenOptions): boolean {
-		const didActiveControlChange = !this.isEditorInActiveControl(editor);
+		const didActiveControlChange = this.didActiveControlChange();
 		const didOpenEditorChange = this.getEditorTabsController(editor).openEditor(editor, options);
 
 		const didChange = didOpenEditorChange || didActiveControlChange;
@@ -86,7 +86,7 @@ export class MultiRowEditorControl extends Disposable implements IEditorTabsCont
 		const stickyEditors = editors.filter(e => this.model.isSticky(e));
 		const unstickyEditors = editors.filter(e => !this.model.isSticky(e));
 
-		const didActiveControlChange = !!this.model.activeEditor && !this.isEditorInActiveControl(this.model.activeEditor);
+		const didActiveControlChange = this.didActiveControlChange();
 		const didChangeOpenEditorsSticky = this.stickyEditorTabsControl.openEditors(stickyEditors);
 		const didChangeOpenEditorsUnSticky = this.unstickyEditorTabsControl.openEditors(unstickyEditors);
 
