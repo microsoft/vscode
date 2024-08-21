@@ -16,7 +16,9 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 export type AllocatorType = 'shelf' | 'slab' | ((canvas: OffscreenCanvas, textureIndex: number) => ITextureAtlasAllocator);
 
 export class TextureAtlasPage extends Disposable implements IReadableTextureAtlasPage {
+
 	private _version: number = 0;
+	get version(): number { return this._version; }
 
 	/**
 	 * The maximum number of glyphs that can be drawn to the page. This is currently a hard static
@@ -25,21 +27,10 @@ export class TextureAtlasPage extends Disposable implements IReadableTextureAtla
 	static readonly maximumGlyphCount = 5_000;
 
 	private _usedArea: IBoundingBox = { left: 0, top: 0, right: 0, bottom: 0 };
-	public get usedArea(): Readonly<IBoundingBox> {
-		return this._usedArea;
-	}
-
-	/**
-	 * The version of the texture atlas. This is incremented every time the page's texture changes.
-	 */
-	get version(): number {
-		return this._version;
-	}
+	public get usedArea(): Readonly<IBoundingBox> { return this._usedArea; }
 
 	private readonly _canvas: OffscreenCanvas;
-	get source(): OffscreenCanvas {
-		return this._canvas;
-	}
+	get source(): OffscreenCanvas { return this._canvas; }
 
 	private readonly _glyphMap: TwoKeyMap<string, number, ITextureAtlasPageGlyph> = new TwoKeyMap();
 	private readonly _glyphInOrderSet: Set<ITextureAtlasPageGlyph> = new Set();

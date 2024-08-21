@@ -27,7 +27,6 @@ export class TextureAtlasSlabAllocator implements ITextureAtlasAllocator {
 
 	private readonly _ctx: OffscreenCanvasRenderingContext2D;
 
-	// TODO: Is there a better way to index slabs other than an unsorted list?
 	private _slabs: ITextureAtlasSlab[] = [];
 	private _activeSlabsByDims: TwoKeyMap<number, number, ITextureAtlasSlab> = new TwoKeyMap();
 

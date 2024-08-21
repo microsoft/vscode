@@ -12,9 +12,6 @@ import { FontStyle, TokenMetadata } from 'vs/editor/common/encodedTokenAttribute
 let nextId = 0;
 
 export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
-	/**
-	 * A unique identifier for this rasterizer.
-	 */
 	public readonly id = nextId++;
 
 	private _canvas: OffscreenCanvas;
@@ -33,11 +30,7 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 			y: 0,
 		}
 	};
-
-	private _workGlyphConfig: {
-		chars: string | undefined;
-		metadata: number;
-	} = { chars: undefined, metadata: 0 };
+	private _workGlyphConfig: { chars: string | undefined; metadata: number } = { chars: undefined, metadata: 0 };
 
 	constructor(
 		private readonly _fontSize: number,

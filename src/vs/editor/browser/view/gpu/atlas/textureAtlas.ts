@@ -32,9 +32,7 @@ export class TextureAtlas extends Disposable {
 	 * much less frequently so as to not drop frames.
 	 */
 	private readonly _pages: TextureAtlasPage[] = [];
-	get pages(): IReadableTextureAtlasPage[] {
-		return this._pages;
-	}
+	get pages(): IReadableTextureAtlasPage[] { return this._pages; }
 
 	readonly pageSize: number;
 

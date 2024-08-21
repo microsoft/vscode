@@ -7,7 +7,7 @@ import type { MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
 
 export interface IGlyphRasterizer {
 	/**
-	 * A unique identifier for the rasterizer
+	 * A unique identifier for the rasterizer.
 	 */
 	id: number;
 
