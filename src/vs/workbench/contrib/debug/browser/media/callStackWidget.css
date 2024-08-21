@@ -6,8 +6,9 @@
 .multiCallStackFrame {
 	.header {
 		display: flex;
+
 		align-items: center;
-		height: 32px;
+		height: 24px;
 		background: var(--vscode-multiDiffEditor-headerBackground);
 		border-top: 1px solid var(--vscode-multiDiffEditor-border);
 		color: var(--vscode-foreground);
@@ -50,5 +51,6 @@
 .multiCallStackWidget {
 	.multiCallStackFrameContainer {
 		background: none !important;
+		line-height: inherit !important;
 	}
 }
