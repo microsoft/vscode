@@ -272,6 +272,7 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> extends Disposable {
 
 			this._logService.trace('Updating atlas page[', layerIndex, '] from version ', this._atlasGpuTextureVersions[layerIndex], ' to version ', page.version);
 
+			// TODO: Reuse buffer instead of reconstructing each time
 			// TODO: Dynamically set buffer size
 			const values = new Float32Array(GlyphStorageBufferInfo.FloatsPerEntry * TextureAtlasPage.maximumGlyphCount);
 			let entryOffset = 0;
@@ -333,7 +334,6 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> extends Disposable {
 		pass.setVertexBuffer(0, this._vertexBuffer);
 
 		pass.setBindGroup(0, this._bindGroup);
-		// TODO: Draws could be split by chunk, this would help minimize moving data around in arrays
 
 		if (this._renderStrategy?.draw) {
 			this._renderStrategy.draw(pass, ctx, startLineNumber, stopLineNumber, deltaTop);

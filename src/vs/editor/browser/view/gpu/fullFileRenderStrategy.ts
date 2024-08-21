@@ -9,6 +9,7 @@ import type { ITextureAtlasPageGlyph } from 'vs/editor/browser/view/gpu/atlas/at
 import { TextureAtlas } from 'vs/editor/browser/view/gpu/atlas/textureAtlas';
 import { BindingId, type IRendererContext, type IRenderStrategy } from 'vs/editor/browser/view/gpu/gpu';
 import { GPULifecycle } from 'vs/editor/browser/view/gpu/gpuDisposable';
+import { quadVertices } from 'vs/editor/browser/view/gpu/gpuUtils';
 import { GlyphRasterizer } from 'vs/editor/browser/view/gpu/raster/glyphRasterizer';
 import type { IVisibleLine } from 'vs/editor/browser/view/viewLayer';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -113,6 +114,11 @@ export class FullFileRenderStrategy<T extends IVisibleLine> extends Disposable i
 	private readonly _glyphRasterizer: GlyphRasterizer;
 
 	private _cellBindBuffer!: GPUBuffer;
+
+	/**
+	 * The cell value buffers, these hold the cells and their glyphs. It's double buffers such that
+	 * the thread doesn't block when one is being uploaded to the GPU.
+	 */
 	private _cellValueBuffers!: [ArrayBuffer, ArrayBuffer];
 	private _activeDoubleBufferIndex: 0 | 1 = 0;
 
@@ -143,8 +149,7 @@ export class FullFileRenderStrategy<T extends IVisibleLine> extends Disposable i
 		const fontFamily = this._context.configuration.options.get(EditorOption.fontFamily);
 		const fontSize = Math.ceil(this._context.configuration.options.get(EditorOption.fontSize) * activeWindow.devicePixelRatio);
 
-		// TODO: Register this
-		this._glyphRasterizer = new GlyphRasterizer(fontSize, fontFamily);
+		this._glyphRasterizer = this._register(new GlyphRasterizer(fontSize, fontFamily));
 	}
 
 	initBuffers(): void {
@@ -355,7 +360,7 @@ export class FullFileRenderStrategy<T extends IVisibleLine> extends Disposable i
 			console.error('Attempt to draw 0 objects');
 		} else {
 			pass.draw(
-				6, // square verticies
+				quadVertices.length / 2,
 				this._visibleObjectCount,
 				undefined,
 				(startLineNumber - 1) * FullFileRenderStrategy._columnCount
