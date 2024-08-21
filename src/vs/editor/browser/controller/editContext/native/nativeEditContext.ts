@@ -5,12 +5,11 @@
 
 import 'vs/css!./nativeEditContext';
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
-import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { AbstractEditContext, ariaLabelForScreenReaderContent, getAccessibilityOptions, ISimpleModel, ITypeData, newlinecount, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/editContext/editContext';
-import { HorizontalPosition, LineVisibleRanges, RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
+import { ITypeData } from 'vs/editor/browser/controller/editContext/editContext';
+import { LineVisibleRanges, RenderingContext } from 'vs/editor/browser/view/renderingContext';
 import { ViewController } from 'vs/editor/browser/view/viewController';
-import { EditorOption, IComputedEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { PositionOffsetTransformer } from 'vs/editor/common/core/positionToOffset';
 import { Range } from 'vs/editor/common/core/range';
@@ -19,13 +18,8 @@ import * as dom from 'vs/base/browser/dom';
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import * as viewEvents from 'vs/editor/common/viewEvents';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { AccessibilitySupport, IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { IEditorAriaOptions } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
-import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
-import { EndOfLinePreference, IModelDeltaDecoration } from 'vs/editor/common/model';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { FontInfo } from 'vs/editor/common/config/fontInfo';
+import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { KeyCode } from 'vs/base/common/keyCodes';
 
 /*
@@ -36,43 +30,26 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 // Boolean which determines whether to show the selection, control and character bounding boxes for debugging purposes
 const showBoundingBoxes: boolean = false;
 
-export class NativeEditContext extends AbstractEditContext {
+export class NativeEditContext extends Disposable {
 
 	// HTML Elements
-	private readonly _domElement = new FastDomNode(document.createElement('div'));
-	private _parent!: HTMLElement;
+	public readonly domElement = new FastDomNode(document.createElement('div'));
+	private _parent: HTMLElement | undefined;
 
 	// Edit Context API
-	private readonly _editContext: EditContext = this._domElement.domNode.editContext = new EditContext();
+	private readonly _editContext: EditContext = this.domElement.domNode.editContext = new EditContext();
 	private _selectionOfEditContextText: Range | undefined;
 
 	// Composition
 	private _compositionStartPosition: Position | undefined;
 	private _compositionEndPosition: Position | undefined;
 
-	// Settings
-	private _accessibilitySupport!: AccessibilitySupport;
-	private _accessibilityPageSize!: number;
-	private _textAreaWrapping!: boolean;
-	private _textAreaWidth!: number;
-	private _contentLeft: number;
-	private _contentWidth: number;
-	private _contentHeight: number;
-	private _fontInfo: FontInfo;
-	private _lineHeight: number;
-
 	private _renderingContext: RenderingContext | undefined;
-
-	private _primarySelection: Selection;
-	private _scrollLeft: number = 0;
-	private _scrollTop: number = 0;
 	private _rangeStart: number = 0;
-	private _hasFocus: boolean = false;
+	public isComposing: boolean = false;
 
-	private _screenReaderContentSelectionOffsetRange: OffsetRange | undefined;
 	private _linesVisibleRanges: LineVisibleRanges[] | null = null;
 
-	private _isComposing: boolean = false;
 	private _decorations: string[] = [];
 
 	private _previousState: {
@@ -94,32 +71,11 @@ export class NativeEditContext extends AbstractEditContext {
 	private _characterBounds: IDisposable = Disposable.None;
 
 	constructor(
-		context: ViewContext,
-		private readonly _viewController: ViewController,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
+		private readonly _context: ViewContext,
+		private readonly _viewController: ViewController
 	) {
-		super(context);
-
-		const options = this._context.configuration.options;
-		const layoutInfo = options.get(EditorOption.layoutInfo);
-
-		this._setAccessibilityOptions(options);
-		this._contentLeft = layoutInfo.contentLeft;
-		this._contentWidth = layoutInfo.contentWidth;
-		this._contentHeight = layoutInfo.height;
-		this._fontInfo = options.get(EditorOption.fontInfo);
-		this._lineHeight = options.get(EditorOption.lineHeight);
-
-		this._primarySelection = new Selection(1, 1, 1, 1);
-		this._domElement.setClassName(`native-edit-context ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`);
-		const { tabSize } = this._context.viewModel.model.getOptions();
-		this._domElement.domNode.style.tabSize = `${tabSize * this._fontInfo.spaceWidth}px`;
-		this._domElement.setAttribute('aria-label', ariaLabelForScreenReaderContent(options, this._keybindingService));
-		this._domElement.setAttribute('tabindex', String(options.get(EditorOption.tabIndex)));
-		this._domElement.setAttribute('role', 'textbox');
-
-		this._register(dom.addDisposableListener(this._domElement.domNode, 'keydown', (e) => {
+		super();
+		this._register(dom.addDisposableListener(this.domElement.domNode, 'keydown', (e) => {
 
 			console.log('keydown : ', e);
 
@@ -138,7 +94,7 @@ export class NativeEditContext extends AbstractEditContext {
 			this._viewController.emitKeyDown(standardKeyboardEvent);
 		}));
 
-		this._register(dom.addDisposableListener(this._domElement.domNode, 'keyup', (e) => {
+		this._register(dom.addDisposableListener(this.domElement.domNode, 'keyup', (e) => {
 			this._viewController.emitKeyUp(new StandardKeyboardEvent(e));
 		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'textupdate', e => {
@@ -182,16 +138,12 @@ export class NativeEditContext extends AbstractEditContext {
 			this._updateCompositionEndPosition();
 			console.log('typeInput : ', typeInput);
 			this._onType(typeInput);
-			this._render();
 			console.log('this._context.viewModel.model.getValue() : ', this._context.viewModel.model.getValue());
 			console.log('end of text update');
 		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'compositionstart', e => {
-
-			this._isComposing = true;
+			this.isComposing = true;
 			this._updateCompositionStartPosition();
-
-			this._render();
 			this._viewController.compositionStart();
 			this._context.viewModel.onCompositionStart();
 		}));
@@ -199,15 +151,12 @@ export class NativeEditContext extends AbstractEditContext {
 		this._register(editContextAddDisposableListener(this._editContext, 'compositionend', e => {
 
 			console.log('oncompositionend : ', e);
-
-			this._isComposing = false;
+			this.isComposing = false;
 			this._updateCompositionEndPosition();
-
-			this._render();
 			this._viewController.compositionEnd();
 			this._context.viewModel.onCompositionEnd();
 		}));
-		this._register(dom.addDisposableListener(this._domElement.domNode, 'beforeinput', (e) => {
+		this._register(dom.addDisposableListener(this.domElement.domNode, 'beforeinput', (e) => {
 
 			console.log('beforeinput : ', e);
 
@@ -230,52 +179,18 @@ export class NativeEditContext extends AbstractEditContext {
 				this._onType(typeInput);
 			}
 		}));
-		this._register(dom.addDisposableListener(this._domElement.domNode, 'paste', (e) => {
-			console.log('paste : ', e);
-			// TODO does not work
-		}));
-		this._register(dom.addDisposableListener(this._domElement.domNode, 'cut', (e) => {
-			console.log('cut : ', e);
-			// TODO does not work
-		}));
-		this._register(dom.addDisposableListener(this._domElement.domNode, 'copy', (e) => {
-			console.log('copy : ', e);
-			// TODO: this does work but corresponding paste and cut do not work
-		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'textformatupdate', e => {
 			this._handleTextFormatUpdate(e);
 		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'characterboundsupdate', e => {
 			console.log('characterboundsupdate : ', e);
-
 			this._rangeStart = e.rangeStart;
 			this._updateCharacterBounds(e.rangeStart);
 		}));
-		this._register(dom.addDisposableListener(this._domElement.domNode, 'focus', (e) => {
-			this._setHasFocus(true);
-		}));
-		this._register(dom.addDisposableListener(this._domElement.domNode, 'blur', (e) => {
-			this._setHasFocus(false);
-		}));
 	}
 
-	appendTo(overflowGuardContainer: FastDomNode<HTMLElement>): void {
-		overflowGuardContainer.appendChild(this._domElement);
-		this._parent = overflowGuardContainer.domNode;
-	}
-
-	public writeScreenReaderContent(reason: string): void {
-		console.log('writeScreenReaderContent');
-		if ((!this._accessibilityService.isScreenReaderOptimized() && reason === 'render') || this._isComposing) {
-			// Do not write to the text on render unless a screen reader is being used #192278
-			// Do not write to the text area when doing composition
-			console.log('early return');
-			return;
-		}
-		const screenReaderContentState = this._getScreenReaderContentState();
-		console.log('screenReaderContentState.value : ', screenReaderContentState.value);
-		this._setScreenReaderContent(reason, screenReaderContentState.value);
-		this._setSelectionOfScreenReaderContent(reason, screenReaderContentState.selectionStart, screenReaderContentState.selectionEnd);
+	public override dispose(): void {
+		super.dispose();
 	}
 
 	public writeEditContextContent(): void {
@@ -295,168 +210,26 @@ export class NativeEditContext extends AbstractEditContext {
 		console.log('this._selectionOfEditContextText : ', this._selectionOfEditContextText);
 	}
 
-	public override dispose(): void {
-		super.dispose();
-	}
-
-	private _setAccessibilityOptions(options: IComputedEditorOptions): void {
-		const { accessibilitySupport, accessibilityPageSize, textAreaWrapping, textAreaWidth } = getAccessibilityOptions(options);
-		this._accessibilitySupport = accessibilitySupport;
-		this._accessibilityPageSize = accessibilityPageSize;
-		this._textAreaWrapping = textAreaWrapping;
-		this._textAreaWidth = textAreaWidth;
-	}
-
-	// --- begin event handlers
-
-	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		const options = this._context.configuration.options;
-		const layoutInfo = options.get(EditorOption.layoutInfo);
-		this._setAccessibilityOptions(options);
-		this._contentLeft = layoutInfo.contentLeft;
-		this._contentWidth = layoutInfo.contentWidth;
-		this._contentHeight = layoutInfo.height;
-		this._fontInfo = options.get(EditorOption.fontInfo);
-		this._lineHeight = options.get(EditorOption.lineHeight);
-		this._domElement.setAttribute('wrap', this._textAreaWrapping ? 'on' : 'off');
-		const { tabSize } = this._context.viewModel.model.getOptions();
-		this._domElement.domNode.style.tabSize = `${tabSize * this._fontInfo.spaceWidth}px`;
-		this._domElement.setAttribute('aria-label', ariaLabelForScreenReaderContent(options, this._keybindingService));
-		this._domElement.setAttribute('tabindex', String(options.get(EditorOption.tabIndex)));
-		if (e.hasChanged(EditorOption.accessibilitySupport)) {
-			this.writeScreenReaderContent('strategy changed');
-		}
-		return true;
-	}
-
-	public override onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
-		this._primarySelection = e.selections.slice(0)[0] ?? new Selection(1, 1, 1, 1);
+	// -- need to use this in composition
+	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
 		// We must update the <textarea> synchronously, otherwise long press IME on macos breaks.
 		// See https://github.com/microsoft/vscode/issues/165821
-		this.writeScreenReaderContent('selection changed');
 		this.writeEditContextContent();
 		this._updateBounds();
 		return true;
 	}
 
-	public override onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
-		this._scrollLeft = e.scrollLeft;
-		this._scrollTop = e.scrollTop;
+	// -- need to use this in composition
+	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		this._updateBounds();
 		return true;
+	}
+
+	public setParent(parent: HTMLElement): void {
+		this._parent = parent;
 	}
 
 	// --- end event handlers
-
-	// --- begin view API
-
-	public isFocused(): boolean {
-		return this._hasFocus;
-	}
-
-	public focusScreenReaderContent(): void {
-		this._setHasFocus(true);
-		this.refreshFocusState();
-	}
-
-	public refreshFocusState(): void {
-		// const shadowRoot = dom.getShadowRoot(this._domElement.domNode);
-		// let hasFocus: boolean;
-		// if (shadowRoot) {
-		// 	hasFocus = shadowRoot.activeElement === this._domElement.domNode;
-		// } else if (this._domElement.domNode.isConnected) {
-		// 	hasFocus = dom.getActiveElement() === this._domElement.domNode;
-		// } else {
-		// 	hasFocus = false;
-		// }
-		this._setHasFocus(true);
-	}
-
-	private _setHasFocus(newHasFocus: boolean): void {
-		console.log('newHasFocus : ', newHasFocus);
-		if (this._hasFocus === newHasFocus) {
-			// no change
-			return;
-		}
-		this._hasFocus = newHasFocus;
-
-		if (this._hasFocus) {
-			// write to the screen reader content
-			// this.writeScreenReaderContent('focusgain');
-		}
-
-		// Find how to focus differently
-		if (this._hasFocus) {
-			console.log('focusing');
-			this._domElement.domNode.focus();
-			this._context.viewModel.setHasFocus(true);
-		} else {
-			console.log('bluring');
-			this._domElement.domNode.blur();
-			this._context.viewModel.setHasFocus(false);
-		}
-	}
-
-	public setAriaOptions(options: IEditorAriaOptions): void { }
-
-	// --- end view API
-
-	private _primaryCursorPosition: Position = new Position(1, 1);
-	private _primaryCursorVisibleRange: HorizontalPosition | null = null;
-
-	public prepareRender(ctx: RenderingContext): void {
-		this._renderingContext = ctx;
-		this._primaryCursorPosition = new Position(this._primarySelection.positionLineNumber, this._primarySelection.positionColumn);
-		this._primaryCursorVisibleRange = ctx.visibleRangeForPosition(this._primaryCursorPosition);
-	}
-
-	public render(ctx: RestrictedRenderingContext): void {
-		this.writeScreenReaderContent('render');
-		this.writeEditContextContent();
-		this._render();
-	}
-
-	private _render(): void {
-
-		console.log('_render');
-
-		if (!this._primaryCursorVisibleRange) {
-			return;
-		}
-		const left = this._contentLeft + this._primaryCursorVisibleRange.left - this._scrollLeft;
-		if (left < this._contentLeft || left > this._contentLeft + this._contentWidth) {
-			return;
-		}
-		const top = this._context.viewLayout.getVerticalOffsetForLineNumber(this._primarySelection.positionLineNumber) - this._scrollTop;
-		if (top < 0 || top > this._contentHeight) {
-			return;
-		}
-
-		this._doRender({
-			top,
-			left: this._textAreaWrapping ? this._contentLeft : left,
-			width: this._textAreaWidth,
-			height: this._lineHeight,
-		});
-		// In case the textarea contains a word, we're going to try to align the textarea's cursor
-		// with our cursor by scrolling the textarea as much as possible
-		this._domElement.domNode.scrollLeft = this._primaryCursorVisibleRange.left;
-		const divValue = this._domElement.domNode.textContent ?? '';
-		console.log('_render');
-		const lineCount = newlinecount(divValue.substring(0, this._screenReaderContentSelectionOffsetRange?.start));
-		this._domElement.domNode.scrollTop = lineCount * this._lineHeight;
-	}
-
-	private _doRender(position: { top: number; left: number; width: number; height: number }): void {
-		// For correct alignment of the screen reader content, we need to apply the correct font
-		applyFontInfo(this._domElement, this._fontInfo);
-		this._domElement.setTop(position.top);
-		this._domElement.setLeft(position.left);
-		this._domElement.setWidth(position.width);
-		this._domElement.setHeight(position.height);
-	}
-
-	// -- additional code
 
 	private _onType(typeInput: ITypeData): void {
 		console.log('_onType');
@@ -466,39 +239,6 @@ export class NativeEditContext extends AbstractEditContext {
 		} else {
 			this._viewController.type(typeInput.text);
 		}
-	}
-
-	private _getScreenReaderContentState(): {
-		value: string;
-		selectionStart: number;
-		selectionEnd: number;
-	} {
-		const simpleModel: ISimpleModel = {
-			getLineCount: (): number => {
-				return this._context.viewModel.getLineCount();
-			},
-			getLineMaxColumn: (lineNumber: number): number => {
-				return this._context.viewModel.getLineMaxColumn(lineNumber);
-			},
-			getValueInRange: (range: Range, eol: EndOfLinePreference): string => {
-				return this._context.viewModel.getValueInRange(range, eol);
-			},
-			getValueLengthInRange: (range: Range, eol: EndOfLinePreference): number => {
-				return this._context.viewModel.getValueLengthInRange(range, eol);
-			},
-			modifyPosition: (position: Position, offset: number): Position => {
-				return this._context.viewModel.modifyPosition(position, offset);
-			}
-		};
-
-		if (this._accessibilitySupport === AccessibilitySupport.Disabled) {
-			return {
-				value: '',
-				selectionStart: 0,
-				selectionEnd: 0
-			};
-		}
-		return PagedScreenReaderStrategy.fromEditorSelection(simpleModel, this._primarySelection, this._accessibilityPageSize, this._accessibilitySupport === AccessibilitySupport.Unknown);
 	}
 
 	public _getEditContextState(): {
@@ -534,40 +274,6 @@ export class NativeEditContext extends AbstractEditContext {
 		};
 	}
 
-	private _setScreenReaderContent(reason: string, value: string): void {
-
-		console.log('setValue : ', value);
-		console.log('value : ', value);
-
-		if (this._domElement.domNode.textContent === value) {
-			// No change
-			return;
-		}
-		this._domElement.domNode.textContent = value;
-	}
-
-	private _setSelectionOfScreenReaderContent(reason: string, selectionStart: number, selectionEnd: number): void {
-
-		console.log('setSelectionRange');
-		console.log('selectionStart : ', selectionStart);
-		console.log('selectionEnd : ', selectionEnd);
-
-		this._screenReaderContentSelectionOffsetRange = new OffsetRange(selectionStart, selectionEnd);
-
-		const activeDocument = dom.getActiveWindow().document;
-		const activeDocumentSelection = activeDocument.getSelection();
-		if (activeDocumentSelection) {
-			const range = new globalThis.Range();
-			const firstChild = this._domElement.domNode.firstChild;
-			if (firstChild) {
-				range.setStart(firstChild, selectionStart);
-				range.setEnd(firstChild, selectionEnd);
-				activeDocumentSelection.removeAllRanges();
-				activeDocumentSelection.addRange(range);
-			}
-		}
-	}
-
 	private _updateCharacterBounds(rangeStart: number) {
 
 		console.log('_updateCharacterBounds');
@@ -583,10 +289,11 @@ export class NativeEditContext extends AbstractEditContext {
 
 		const options = this._context.configuration.options;
 		const lineHeight = options.get(EditorOption.lineHeight);
+		const contentLeft = options.get(EditorOption.layoutInfo).contentLeft;
 		const typicalHalfwidthCharacterWidth = options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
 		const parentBounds = this._parent.getBoundingClientRect();
 		const verticalOffsetStart = this._context.viewLayout.getVerticalOffsetForLineNumber(this._compositionStartPosition.lineNumber);
-		let left: number = parentBounds.left + this._contentLeft;
+		let left: number = parentBounds.left + contentLeft;
 		let width: number = typicalHalfwidthCharacterWidth / 2;
 
 		console.log('before using this rendering context');
@@ -617,7 +324,7 @@ export class NativeEditContext extends AbstractEditContext {
 
 		const characterBounds = [new DOMRect(
 			left,
-			parentBounds.top + verticalOffsetStart - this._scrollTop,
+			parentBounds.top + verticalOffsetStart - this._context.viewLayout.getCurrentScrollTop(),
 			width,
 			lineHeight,
 		)];
@@ -631,7 +338,6 @@ export class NativeEditContext extends AbstractEditContext {
 		}
 	}
 
-	// do we need this? looks like in the current implementation we wouldnt use these format
 	private _handleTextFormatUpdate(e: TextFormatUpdateEvent): void {
 
 		const selectionOfEditText = this._selectionOfEditContextText;
@@ -710,12 +416,13 @@ export class NativeEditContext extends AbstractEditContext {
 		const verticalOffsetStart = this._context.viewLayout.getVerticalOffsetForLineNumber(primarySelection.startLineNumber);
 		const options = this._context.configuration.options;
 		const lineHeight = options.get(EditorOption.lineHeight);
+		const contentLeft = options.get(EditorOption.layoutInfo).contentLeft;
 
 		let selectionBounds: DOMRect;
 		let controlBounds: DOMRect;
 		if (primarySelection.isEmpty()) {
 			const typicalHalfwidthCharacterWidth = options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
-			let left: number = parentBounds.left + this._contentLeft;
+			let left: number = parentBounds.left + contentLeft;
 			if (this._renderingContext) {
 				const linesVisibleRanges = this._renderingContext.linesVisibleRangesForRange(primaryViewState.selection, true, true) ?? [];
 				console.log('linesVisibleRanges : ', linesVisibleRanges);
@@ -725,7 +432,7 @@ export class NativeEditContext extends AbstractEditContext {
 			}
 			selectionBounds = new DOMRect(
 				left,
-				parentBounds.top + verticalOffsetStart - this._scrollTop,
+				parentBounds.top + verticalOffsetStart - this._context.viewLayout.getCurrentScrollTop(),
 				typicalHalfwidthCharacterWidth / 2,
 				lineHeight,
 			);
@@ -733,9 +440,9 @@ export class NativeEditContext extends AbstractEditContext {
 		} else {
 			const numberOfLines = primarySelection.endLineNumber - primarySelection.startLineNumber;
 			selectionBounds = new DOMRect(
-				parentBounds.left + this._contentLeft,
-				parentBounds.top + verticalOffsetStart - this._scrollTop,
-				parentBounds.width - this._contentLeft,
+				parentBounds.left + contentLeft,
+				parentBounds.top + verticalOffsetStart - this._context.viewLayout.getCurrentScrollTop(),
+				parentBounds.width - contentLeft,
 				(numberOfLines + 1) * lineHeight,
 			);
 			controlBounds = selectionBounds;
