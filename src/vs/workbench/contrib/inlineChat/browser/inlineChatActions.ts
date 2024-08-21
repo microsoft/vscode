@@ -14,15 +14,11 @@ import { InlineChatController, InlineChatRunOptions } from 'vs/workbench/contrib
 import { ACTION_ACCEPT_CHANGES, CTX_INLINE_CHAT_HAS_AGENT, CTX_INLINE_CHAT_HAS_STASHED_SESSION, CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_INNER_CURSOR_FIRST, CTX_INLINE_CHAT_INNER_CURSOR_LAST, CTX_INLINE_CHAT_VISIBLE, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, CTX_INLINE_CHAT_USER_DID_EDIT, CTX_INLINE_CHAT_DOCUMENT_CHANGED, CTX_INLINE_CHAT_EDIT_MODE, EditMode, MENU_INLINE_CHAT_WIDGET_STATUS, CTX_INLINE_CHAT_REQUEST_IN_PROGRESS, CTX_INLINE_CHAT_RESPONSE_TYPE, InlineChatResponseType, ACTION_REGENERATE_RESPONSE, MENU_INLINE_CHAT_CONTENT_STATUS, ACTION_VIEW_IN_CHAT, ACTION_TOGGLE_DIFF, CTX_INLINE_CHAT_CHANGE_HAS_DIFF, CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF, MENU_INLINE_CHAT_ZONE, CTX_INLINE_CHAT_SUPPORT_REPORT_ISSUE, ACTION_REPORT_ISSUE } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { localize, localize2 } from 'vs/nls';
 import { Action2, IAction2Options } from 'vs/platform/actions/common/actions';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { fromNow } from 'vs/base/common/date';
-import { IInlineChatSessionService, Recording } from './inlineChatSessionService';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
@@ -453,42 +449,6 @@ export class MoveToPreviousHunk extends AbstractInlineChatAction {
 
 	override runInlineChatCommand(accessor: ServicesAccessor, ctrl: InlineChatController, editor: ICodeEditor, ...args: any[]): void {
 		ctrl.moveHunk(false);
-	}
-}
-
-export class CopyRecordings extends AbstractInlineChatAction {
-
-	constructor() {
-		super({
-			id: 'inlineChat.copyRecordings',
-			f1: true,
-			title: localize2('copyRecordings', "(Developer) Write Exchange to Clipboard")
-		});
-	}
-
-	override async runInlineChatCommand(accessor: ServicesAccessor): Promise<void> {
-
-		const clipboardService = accessor.get(IClipboardService);
-		const quickPickService = accessor.get(IQuickInputService);
-		const ieSessionService = accessor.get(IInlineChatSessionService);
-
-		const recordings = ieSessionService.recordings().filter(r => r.exchanges.length > 0);
-		if (recordings.length === 0) {
-			return;
-		}
-
-		const picks: (IQuickPickItem & { rec: Recording })[] = recordings.map(rec => {
-			return {
-				rec,
-				label: localize('label', "'{0}' and {1} follow ups ({2})", rec.exchanges[0].prompt, rec.exchanges.length - 1, fromNow(rec.when, true)),
-				tooltip: rec.exchanges.map(ex => ex.prompt).join('\n'),
-			};
-		});
-
-		const pick = await quickPickService.pick(picks, { canPickMany: false });
-		if (pick) {
-			clipboardService.writeText(JSON.stringify(pick.rec, undefined, 2));
-		}
 	}
 }
 

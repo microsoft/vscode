@@ -10,16 +10,8 @@ import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser'
 import { IRange } from 'vs/editor/common/core/range';
 import { IValidEditOperation } from 'vs/editor/common/model';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IChatResponseModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { EditMode } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { Session, StashedSession } from './inlineChatSession';
-
-
-export type Recording = {
-	when: Date;
-	session: string;
-	exchanges: { prompt: string; res: IChatResponseModel }[];
-};
 
 export interface ISessionKeyComputer {
 	getComparisonKey(editor: ICodeEditor, uri: URI): string;
@@ -57,9 +49,6 @@ export interface IInlineChatSessionService {
 	stashSession(session: Session, editor: ICodeEditor, undoCancelEdits: IValidEditOperation[]): StashedSession;
 
 	registerSessionKeyComputer(scheme: string, value: ISessionKeyComputer): IDisposable;
-
-	//
-	recordings(): readonly Recording[];
 
 	dispose(): void;
 }
