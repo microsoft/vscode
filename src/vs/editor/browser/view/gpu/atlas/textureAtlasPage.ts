@@ -18,6 +18,8 @@ export type AllocatorType = 'shelf' | 'slab' | ((canvas: OffscreenCanvas, textur
 export class TextureAtlasPage extends Disposable implements IReadableTextureAtlasPage {
 	private _version: number = 0;
 
+	static readonly maximumGlyphCount = 5_000;
+
 	private _usedArea: IBoundingBox = { left: 0, top: 0, right: 0, bottom: 0 };
 	public get usedArea(): Readonly<IBoundingBox> {
 		return this._usedArea;
@@ -85,6 +87,9 @@ export class TextureAtlasPage extends Disposable implements IReadableTextureAtla
 	}
 
 	private _createGlyph(rasterizer: IGlyphRasterizer, chars: string, metadata: number): Readonly<ITextureAtlasPageGlyph> | undefined {
+		if (this._glyphInOrderSet.size >= TextureAtlasPage.maximumGlyphCount) {
+			return undefined;
+		}
 		const rasterizedGlyph = rasterizer.rasterizeGlyph(chars, metadata, this._colorMap);
 		const glyph = this._allocator.allocate(rasterizedGlyph);
 		if (glyph === undefined) {

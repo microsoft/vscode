@@ -7,6 +7,7 @@ import { getActiveWindow } from 'vs/base/browser/dom';
 import { Disposable } from 'vs/base/common/lifecycle';
 import type { ITextureAtlasPageGlyph } from 'vs/editor/browser/view/gpu/atlas/atlas';
 import { TextureAtlas } from 'vs/editor/browser/view/gpu/atlas/textureAtlas';
+import { TextureAtlasPage } from 'vs/editor/browser/view/gpu/atlas/textureAtlasPage';
 import { GPULifecycle } from 'vs/editor/browser/view/gpu/gpuDisposable';
 import { ensureNonNullable, observeDevicePixelDimensions, quadVertices } from 'vs/editor/browser/view/gpu/gpuUtils';
 import { GlyphRasterizer } from 'vs/editor/browser/view/gpu/raster/glyphRasterizer';
@@ -29,8 +30,6 @@ interface IRendererContext<T extends IVisibleLine> {
 
 const enum Constants {
 	IndicesPerCell = 6,
-
-	MaxAtlasPageGlyphCount = 10_000,
 }
 
 const enum GlyphStorageBufferInfo {
@@ -210,12 +209,12 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> extends Disposable {
 
 		this._glyphStorageBuffer[0] = this._register(GPULifecycle.createBuffer(this._device, {
 			label: 'Monaco glyph storage buffer',
-			size: GlyphStorageBufferInfo.BytesPerEntry * Constants.MaxAtlasPageGlyphCount,
+			size: GlyphStorageBufferInfo.BytesPerEntry * TextureAtlasPage.maximumGlyphCount,
 			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
 		})).object;
 		this._glyphStorageBuffer[1] = this._register(GPULifecycle.createBuffer(this._device, {
 			label: 'Monaco glyph storage buffer',
-			size: GlyphStorageBufferInfo.BytesPerEntry * Constants.MaxAtlasPageGlyphCount,
+			size: GlyphStorageBufferInfo.BytesPerEntry * TextureAtlasPage.maximumGlyphCount,
 			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
 		})).object;
 		this._atlasGpuTextureVersions[0] = 0;
@@ -298,7 +297,7 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> extends Disposable {
 			this._logService.trace('Updating atlas page[', layerIndex, '] from version ', this._atlasGpuTextureVersions[layerIndex], ' to version ', page.version);
 
 			// TODO: Dynamically set buffer size
-			const values = new Float32Array(GlyphStorageBufferInfo.FloatsPerEntry * Constants.MaxAtlasPageGlyphCount);
+			const values = new Float32Array(GlyphStorageBufferInfo.FloatsPerEntry * TextureAtlasPage.maximumGlyphCount);
 			let entryOffset = 0;
 			for (const glyph of page.glyphs) {
 				values[entryOffset + GlyphStorageBufferInfo.Offset_TexturePosition] = glyph.x;
@@ -309,8 +308,8 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> extends Disposable {
 				values[entryOffset + GlyphStorageBufferInfo.Offset_OriginPosition + 1] = glyph.originOffsetY;
 				entryOffset += GlyphStorageBufferInfo.FloatsPerEntry;
 			}
-			if (entryOffset / GlyphStorageBufferInfo.FloatsPerEntry > Constants.MaxAtlasPageGlyphCount) {
-				throw new Error(`Attempting to write more glyphs (${entryOffset / GlyphStorageBufferInfo.FloatsPerEntry}) than the GPUBuffer can hold (${Constants.MaxAtlasPageGlyphCount})`);
+			if (entryOffset / GlyphStorageBufferInfo.FloatsPerEntry > TextureAtlasPage.maximumGlyphCount) {
+				throw new Error(`Attempting to write more glyphs (${entryOffset / GlyphStorageBufferInfo.FloatsPerEntry}) than the GPUBuffer can hold (${TextureAtlasPage.maximumGlyphCount})`);
 			}
 			this._device.queue.writeBuffer(this._glyphStorageBuffer[layerIndex], 0, values);
 			this._device.queue.copyExternalImageToTexture(
