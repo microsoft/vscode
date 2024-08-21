@@ -203,7 +203,7 @@ suite('normalizeSerializableChatData', () => {
 		const newData = normalizeSerializableChatData(v1Data);
 		assert.strictEqual(newData.creationDate, v1Data.creationDate);
 		assert.strictEqual(newData.lastMessageDate, v1Data.creationDate);
-		assert.strictEqual(newData.version, 2);
+		assert.strictEqual(newData.version, 3);
 		assert.ok('computedTitle' in newData);
 	});
 

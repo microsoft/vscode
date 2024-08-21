@@ -41,7 +41,7 @@ suite('Date', () => {
 		test('daysAgo', () => {
 			const daysAgo = new Date();
 			daysAgo.setDate(daysAgo.getDate() - 5);
-			strictEqual(fromNowByDay(daysAgo), '5 days ago');
+			strictEqual(fromNowByDay(daysAgo, true), '5 days ago');
 		});
 	});
 
