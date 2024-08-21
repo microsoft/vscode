@@ -103,6 +103,7 @@ export class ScreenReaderContent extends AbstractEditContext {
 			console.log('blur');
 			this._setHasFocus(false);
 		}));
+		this.writeScreenReaderContent('ctor');
 	}
 
 	appendTo(overflowGuardContainer: FastDomNode<HTMLElement>): void {
@@ -128,6 +129,7 @@ export class ScreenReaderContent extends AbstractEditContext {
 
 	public override dispose(): void {
 		super.dispose();
+		this._domElement.domNode.remove();
 	}
 
 	private _setAccessibilityOptions(options: IComputedEditorOptions): void {
@@ -217,6 +219,7 @@ export class ScreenReaderContent extends AbstractEditContext {
 
 		if (this._hasFocus) {
 			// write to the screen reader content
+			console.log('this._domElement.domNode : ', this._domElement.domNode);
 			this._domElement.domNode.focus();
 		}
 

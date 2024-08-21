@@ -25,6 +25,10 @@ import { Schemas } from 'vs/base/common/network';
 
 /*
  * 2. Need to cut down as much code as possible and only after testing simplify. See if can simplify the existing classes that I am using too.
+ * 3. Why does notebook loose focus?
+ * 4. Why can't use space in notebook
+ * 5. Why is there focusing problem when changing config
+ * 6. Why can not do copy paste?
  */
 
 // Boolean which determines whether to show the selection, control and character bounding boxes for debugging purposes
@@ -99,7 +103,7 @@ export class NativeEditContext extends Disposable {
 			if (standardKeyboardEvent.keyCode === KeyCode.Enter && isNotebook) {
 				this.addNewLine();
 			}
-			if (standardKeyboardEvent.keyCode === KeyCode.Space && isNotebook) {
+			if (standardKeyboardEvent.keyCode === KeyCode.Space) {
 				this._updateText({ text: ' ', updateRangeStart: this._editContext.selectionStart, updateRangeEnd: this._editContext.selectionEnd });
 			}
 			this._viewController.emitKeyDown(standardKeyboardEvent);
@@ -129,6 +133,16 @@ export class NativeEditContext extends Disposable {
 			console.log('beforeinput : ', e);
 
 			if (e.inputType === 'insertParagraph' || e.inputType === 'insertLineBreak') {
+
+				console.log('this._editContext.text : ', this._editContext.text);
+				this.addNewLine();
+			}
+		}));
+		this._register(dom.addDisposableListener(this.domElement.domNode, 'input', (e) => {
+
+			console.log('input : ', e);
+
+			if ('inputType' in e && (e.inputType === 'insertParagraph' || e.inputType === 'insertLineBreak')) {
 
 				console.log('this._editContext.text : ', this._editContext.text);
 				this.addNewLine();

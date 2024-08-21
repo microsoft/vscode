@@ -379,8 +379,12 @@ export class View extends ViewEventHandler {
 		this.domNode.setClassName(this._getEditorClassName());
 		this._applyLayout();
 		const editContextType = this._context.configuration.options.get(EditorOption.editContext).type;
+		console.log('onConfigurationChanged : ');
+		console.log('edit context type : ', editContextType);
 		if (this._editContextType !== editContextType) {
+			this._editContext.dispose();
 			this._editContext = this._instantiateEditContext(editContextType);
+			this._editContextType = editContextType;
 		}
 		return false;
 	}
@@ -623,6 +627,7 @@ export class View extends ViewEventHandler {
 	}
 
 	public refreshFocusState() {
+		console.log('this._editContext : ', this._editContext);
 		this._editContext.refreshFocusState();
 	}
 

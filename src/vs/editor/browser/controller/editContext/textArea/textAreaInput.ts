@@ -363,6 +363,9 @@ export class TextAreaInput extends Disposable {
 		}));
 
 		this._register(this._textArea.onInput((e) => {
+
+			console.log('oninput with : ', e);
+
 			if (_debugComposition) {
 				console.log(`[input]`, e);
 			}

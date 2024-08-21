@@ -345,6 +345,7 @@ export class TextAreaHandler extends AbstractEditContext {
 		}));
 
 		this._register(this._textAreaInput.onType((e: ITypeData) => {
+			console.log('onType of text area handler : ', e);
 			if (e.replacePrevCharCnt || e.replaceNextCharCnt || e.positionDelta) {
 				// must be handled through the new command
 				if (_debugComposition) {
@@ -498,6 +499,7 @@ export class TextAreaHandler extends AbstractEditContext {
 
 	public override dispose(): void {
 		super.dispose();
+		this.textArea.domNode.remove();
 	}
 
 	private _getAndroidWordAtPosition(position: Position): [string, number] {
