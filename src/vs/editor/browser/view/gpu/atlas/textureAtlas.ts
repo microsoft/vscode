@@ -6,6 +6,7 @@
 import { getActiveWindow } from 'vs/base/browser/dom';
 import { Event } from 'vs/base/common/event';
 import { Disposable, dispose, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { TwoKeyMap } from 'vs/base/common/map';
 import type { IReadableTextureAtlasPage, ITextureAtlasPageGlyph } from 'vs/editor/browser/view/gpu/atlas/atlas';
 import { TextureAtlasPage, type AllocatorType } from 'vs/editor/browser/view/gpu/atlas/textureAtlasPage';
 import type { IGlyphRasterizer } from 'vs/editor/browser/view/gpu/raster/raster';
@@ -36,6 +37,14 @@ export class TextureAtlas extends Disposable {
 
 	readonly pageSize: number;
 
+	/**
+	 * A maps of glyph keys to the page to start searching for the glyph. This is set before
+	 * searching to have as little runtime overhead (branching, intermediate variables) as possible,
+	 * so it is not guaranteed to be the actual page the glyph is on. But it is guaranteed that all
+	 * pages with a lower index do not contain the glyph.
+	 */
+	private readonly _glyphPageIndex: TwoKeyMap<string, number, number> = new TwoKeyMap();
+
 	constructor(
 		/** The maximum texture size supported by the GPU. */
 		private readonly _maxTextureSize: number,
@@ -56,32 +65,38 @@ export class TextureAtlas extends Disposable {
 
 		this.pageSize = Math.min(1024 * dprFactor, this._maxTextureSize);
 		this._pages.push(this._instantiationService.createInstance(TextureAtlasPage, 0, this.pageSize, this._allocatorType));
+
 		this._register(toDisposable(() => dispose(this._pages)));
 	}
 
-	// TODO: Color, style etc.
 	public getGlyph(rasterizer: IGlyphRasterizer, chars: string, metadata: number): Readonly<ITextureAtlasPageGlyph> {
+		// Ignore metadata that doesn't affect the glyph
+		metadata &= ~(MetadataConsts.LANGUAGEID_MASK | MetadataConsts.TOKEN_TYPE_MASK | MetadataConsts.BALANCED_BRACKETS_MASK);
+
+		// TODO: Encode font size and family into key
+
 		if (!this._warmedUpRasterizers.has(rasterizer.id)) {
 			this._warmUpAtlas(rasterizer);
 			this._warmedUpRasterizers.add(rasterizer.id);
 		}
-		return this._tryGetGlyph(0, rasterizer, chars, metadata);
+		return this._tryGetGlyph(this._glyphPageIndex.get(chars, metadata) ?? 0, rasterizer, chars, metadata);
 	}
 
 	private _tryGetGlyph(pageIndex: number, rasterizer: IGlyphRasterizer, chars: string, metadata: number): Readonly<ITextureAtlasPageGlyph> {
-		// TODO: Should the texture atlas have a map of glyphs to pages so this doesn't iterate through all pages?
+		this._glyphPageIndex.set(chars, metadata, pageIndex);
 		return (
-			this._pages[pageIndex].getGlyph(rasterizer, chars, metadata) ?? (
-				(pageIndex + 1 < this._pages.length
-					? this._tryGetGlyph(pageIndex + 1, rasterizer, chars, metadata)
-					: undefined)
-			) ?? this._getGlyphFromNewPage(rasterizer, chars, metadata)
+			this._pages[pageIndex].getGlyph(rasterizer, chars, metadata)
+			?? (pageIndex + 1 < this._pages.length
+				? this._tryGetGlyph(pageIndex + 1, rasterizer, chars, metadata)
+				: undefined)
+			?? this._getGlyphFromNewPage(rasterizer, chars, metadata)
 		);
 	}
 
 	private _getGlyphFromNewPage(rasterizer: IGlyphRasterizer, chars: string, metadata: number): Readonly<ITextureAtlasPageGlyph> {
 		// TODO: Support more than 2 pages and the GPU texture layer limit
 		this._pages.push(this._instantiationService.createInstance(TextureAtlasPage, this._pages.length, this.pageSize, this._allocatorType));
+		this._glyphPageIndex.set(chars, metadata, this._pages.length - 1);
 		return this._pages[this._pages.length - 1].getGlyph(rasterizer, chars, metadata)!;
 	}
 

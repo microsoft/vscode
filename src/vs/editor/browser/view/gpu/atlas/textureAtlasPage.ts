@@ -10,7 +10,6 @@ import type { IReadableTextureAtlasPage, ITextureAtlasAllocator, ITextureAtlasPa
 import { TextureAtlasShelfAllocator } from 'vs/editor/browser/view/gpu/atlas/textureAtlasShelfAllocator';
 import { TextureAtlasSlabAllocator } from 'vs/editor/browser/view/gpu/atlas/textureAtlasSlabAllocator';
 import type { IBoundingBox, IGlyphRasterizer } from 'vs/editor/browser/view/gpu/raster/raster';
-import { MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 
@@ -80,11 +79,6 @@ export class TextureAtlasPage extends Disposable implements IReadableTextureAtla
 	}
 
 	public getGlyph(rasterizer: IGlyphRasterizer, chars: string, metadata: number): Readonly<ITextureAtlasPageGlyph> | undefined {
-		// Ignore metadata that doesn't affect the glyph
-		metadata ^= (MetadataConsts.LANGUAGEID_MASK | MetadataConsts.TOKEN_TYPE_MASK | MetadataConsts.BALANCED_BRACKETS_MASK);
-
-		// TODO: Encode font size and family into key
-
 		// IMPORTANT: There are intentionally no intermediate variables here to aid in runtime
 		// optimization as it's a very hot function
 		return this._glyphMap.get(chars, metadata) ?? this._createGlyph(rasterizer, chars, metadata);

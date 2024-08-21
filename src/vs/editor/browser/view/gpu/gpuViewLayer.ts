@@ -298,8 +298,7 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> extends Disposable {
 			this._logService.trace('Updating atlas page[', layerIndex, '] from version ', this._atlasGpuTextureVersions[layerIndex], ' to version ', page.version);
 
 			// TODO: Dynamically set buffer size
-			const bufferSize = GlyphStorageBufferInfo.FloatsPerEntry * Constants.MaxAtlasPageGlyphCount;
-			const values = new Float32Array(bufferSize / 4);
+			const values = new Float32Array(GlyphStorageBufferInfo.FloatsPerEntry * Constants.MaxAtlasPageGlyphCount);
 			let entryOffset = 0;
 			for (const glyph of page.glyphs) {
 				values[entryOffset + GlyphStorageBufferInfo.Offset_TexturePosition] = glyph.x;
