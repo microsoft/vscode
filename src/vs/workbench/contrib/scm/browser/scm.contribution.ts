@@ -125,6 +125,7 @@ viewsRegistry.registerViews([{
 	weight: 40,
 	order: -998,
 	when: ContextKeyExpr.and(ContextKeyExpr.has('scm.providerCount'), ContextKeyExpr.notEquals('scm.providerCount', 0)),
+	containerIcon: sourceControlViewIcon
 }], viewContainer);
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)

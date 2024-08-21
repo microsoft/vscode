@@ -47,7 +47,6 @@ import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { Iterable } from 'vs/base/common/iterator';
 import { Sequencer, Throttler } from 'vs/base/common/async';
-import { equals } from 'vs/base/common/arrays';
 import { URI } from 'vs/base/common/uri';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 
@@ -326,29 +325,12 @@ class SCMHistoryTreeDataSource extends Disposable implements IAsyncDataSource<IS
 			return [];
 		}
 
-		const historyItemsElement = await historyProvider.provideHistoryItems2({
-			historyItemGroupIds,
-			limit: { id: ancestor }
-		}) ?? [];
+		const limit =
+			ancestor !== currentHistoryItemGroup.revision ||
+				ancestor !== currentHistoryItemGroup.remote?.revision ||
+				ancestor !== currentHistoryItemGroup.base?.revision ? { id: ancestor } : undefined;
 
-		// If we only have one history item that contains all the labels (current, remote, base),
-		// we don't need to show it, unless it is the root commit (does not have any parents) and
-		// the repository has not been published yet.
-		if (historyItemsElement.length === 1 &&
-			(historyItemsElement[0].parentIds.length > 0 || currentHistoryItemGroup.remote)) {
-			const currentHistoryItemGroupLabels = [
-				currentHistoryItemGroup.name,
-				...currentHistoryItemGroup.remote ? [currentHistoryItemGroup.remote.name] : [],
-				...currentHistoryItemGroup.base ? [currentHistoryItemGroup.base.name] : [],
-			];
-
-			const labels = (historyItemsElement[0].labels ?? [])
-				.map(l => l.title);
-
-			if (equals(currentHistoryItemGroupLabels.sort(), labels.sort())) {
-				return [];
-			}
-		}
+		const historyItemsElement = await historyProvider.provideHistoryItems2({ historyItemGroupIds, limit }) ?? [];
 
 		// Create the color map
 		const colorMap = new Map<string, ColorIdentifier>([
@@ -376,7 +358,7 @@ export class SCMHistoryViewPane extends ViewPane {
 	private _tree!: WorkbenchAsyncDataTree<ISCMViewService, TreeElement, FuzzyScore>;
 	private _treeScrollTop: number | undefined;
 
-	private readonly _repositories = new DisposableMap<ISCMRepository, IDisposable>();
+	private readonly _repositories = new DisposableMap<ISCMRepository>();
 	private readonly _visibilityDisposables = new DisposableStore();
 
 	private readonly _treeOperationSequencer = new Sequencer();
