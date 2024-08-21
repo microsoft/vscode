@@ -140,6 +140,7 @@ export interface IChatAgentRequest {
 	message: string;
 	attempt?: number;
 	enableCommandDetection?: boolean;
+	isParticipantDetected?: boolean;
 	variables: IChatRequestVariableData;
 	location: ChatAgentLocation;
 	locationData?: IChatLocationData;
