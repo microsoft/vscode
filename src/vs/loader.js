@@ -443,7 +443,7 @@ var AMDLoader;
 			}
 			let result = moduleId;
 			let results;
-			if (!AMDLoader.Utilities.endsWith(result, '.js') && !AMDLoader.Utilities.isAbsolutePath(result)) {
+			if (!AMDLoader.Utilities.isAbsolutePath(result)) {
 				results = this._applyPaths(result);
 				for (let i = 0, len = results.length; i < len; i++) {
 					if (this.isBuild() && results[i] === 'empty:') {

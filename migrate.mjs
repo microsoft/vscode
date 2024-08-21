@@ -20,10 +20,12 @@ import { fileURLToPath } from 'node:url';
 // @ts-expect-error
 import watch from './build/lib/watch/index.js';
 
-const enableWatching = !process.argv.includes('--disable-watch');
+const enableInPlace = process.argv.includes('--enable-inplace');
+const enableWatching = !enableInPlace && !process.argv.includes('--disable-watch');
+const jsImportsOnly = process.argv.includes('--enable-js-imports-only');
 
 const srcFolder = fileURLToPath(new URL('src', import.meta.url));
-const dstFolder = fileURLToPath(new URL('src2', import.meta.url));
+const dstFolder = fileURLToPath(new URL(enableInPlace ? 'src' : 'src2', import.meta.url));
 
 const binaryFileExtensions = new Set([
 	'.svg', '.ttf', '.png', '.sh', '.html', '.json', '.zsh', '.scpt', '.mp3', '.fish', '.ps1', '.psm1', '.md', '.txt', '.zip', '.pdf', '.qwoff', '.jxs', '.tst', '.wuff', '.less', '.utf16le', '.snap', '.tsx'
@@ -31,7 +33,7 @@ const binaryFileExtensions = new Set([
 
 function migrate() {
 	console.log(`~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`);
-	console.log(`STARTING AMD->ESM MIGRATION of src to src2.`);
+	console.log(`STARTING AMD->ESM MIGRATION of src ${enableInPlace ? 'in-place' : 'to src2'}.`);
 
 	// installing watcher quickly to avoid missing early events
 	const watchSrc = enableWatching ? watch('src/**', { base: 'src', readDelay: 200 }) : undefined;
@@ -45,11 +47,15 @@ function migrate() {
 		migrateOne(filePath, fileContents);
 	}
 
-	writeFileSync(join(dstFolder, 'package.json'), `{"type": "module"}`);
-	writeFileSync(join(dstFolder, '.gitignore'), `*`);
+	if (!jsImportsOnly) {
+		writeFileSync(join(dstFolder, 'package.json'), `{"type": "module"}`);
+	}
+	if (!enableInPlace) {
+		writeFileSync(join(dstFolder, '.gitignore'), `*`);
+	}
 
 	console.log(`~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`);
-	console.log(`COMPLETED AMD->ESM MIGRATION of src to src2. You can now launch yarn watch-esm or yarn watch-client-esm`);
+	console.log(`COMPLETED AMD->ESM MIGRATION of src ${enableInPlace ? 'in-place' : 'to src2'}. You can now launch yarn watch-esm or yarn watch-client-esm`);
 	console.log(`Make sure to set the environment variable VSCODE_BUILD_ESM to a string of value 'true' if you want to build VS Code`);
 
 	if (watchSrc) {
@@ -73,41 +79,47 @@ function posixFilePath(filePath) {
 function migrateOne(filePath, fileContents) {
 	const fileExtension = extname(filePath);
 
-	if (fileExtension === '.ts') {
-		migrateTS(filePath, fileContents.toString());
-	} else if (fileExtension === '.js' || fileExtension === '.cjs') {
-		if (
-			posixFilePath(filePath).endsWith('vs/loader.js')
-		) {
-			// fake loader
-			writeDestFile(filePath, `(function () {
-	if (typeof require !== 'undefined') {
-		return;
-	}
-	globalThis.require = function () {
-		console.trace('[require(...)] this is ESM, no more AMD/CJS require');
-	};
-	globalThis.require.config = function () {
-		console.trace('[require.config(...)] this is ESM, no more AMD/CJS require');
-	};
-})();`);
-
-		} else {
-			writeDestFile(filePath, fileContents);
+	if (jsImportsOnly) {
+		if (fileExtension === '.ts') {
+			migrateTS(filePath, fileContents.toString());
 		}
-	} else if (fileExtension === '.mjs') {
-		writeDestFile(filePath, fileContents);
-	} else if (fileExtension === '.css') {
-		writeDestFile(filePath, fileContents);
-	} else if (filePath.endsWith('tsconfig.base.json')) {
-		const opts = JSON.parse(fileContents.toString());
-		opts.compilerOptions.module = 'es2022';
-		opts.compilerOptions.allowSyntheticDefaultImports = true;
-		writeDestFile(filePath, JSON.stringify(opts, null, '\t'));
-	} else if (binaryFileExtensions.has(fileExtension)) {
-		writeDestFile(filePath, fileContents);
 	} else {
-		console.log(`ignoring ${filePath}`);
+		if (fileExtension === '.ts') {
+			migrateTS(filePath, fileContents.toString());
+		} else if (fileExtension === '.js' || fileExtension === '.cjs') {
+			if (
+				posixFilePath(filePath).endsWith('vs/loader.js')
+			) {
+				// fake loader
+				writeDestFile(filePath, `(function () {
+		if (typeof require !== 'undefined') {
+			return;
+		}
+		globalThis.require = function () {
+			console.trace('[require(...)] this is ESM, no more AMD/CJS require');
+		};
+		globalThis.require.config = function () {
+			console.trace('[require.config(...)] this is ESM, no more AMD/CJS require');
+		};
+	})();`);
+
+			} else {
+				writeDestFile(filePath, fileContents);
+			}
+		} else if (fileExtension === '.mjs') {
+			writeDestFile(filePath, fileContents);
+		} else if (fileExtension === '.css') {
+			writeDestFile(filePath, fileContents);
+		} else if (filePath.endsWith('tsconfig.base.json')) {
+			const opts = JSON.parse(fileContents.toString());
+			opts.compilerOptions.module = 'es2022';
+			opts.compilerOptions.allowSyntheticDefaultImports = true;
+			writeDestFile(filePath, JSON.stringify(opts, null, '\t'));
+		} else if (binaryFileExtensions.has(fileExtension)) {
+			writeDestFile(filePath, fileContents);
+		} else {
+			console.log(`ignoring ${filePath}`);
+		}
 	}
 }
 
@@ -168,6 +180,9 @@ function migrateTS(filePath, fileContents) {
 		/** @type {string} */
 		let importedFilepath;
 		if (/^vs\/css!/.test(importedFilename)) {
+			if (jsImportsOnly) {
+				continue;
+			}
 			importedFilepath = importedFilename.substr('vs/css!'.length) + '.css';
 		} else {
 			importedFilepath = importedFilename;
@@ -202,7 +217,9 @@ function migrateTS(filePath, fileContents) {
 
 	fileContents = applyReplacements(fileContents, replacements);
 
-	fileContents = fileContents.replace(/require\.__\$__nodeRequire/g, 'require');
+	if (!jsImportsOnly) {
+		fileContents = fileContents.replace(/require\.__\$__nodeRequire/g, 'require');
+	}
 
 
 	writeDestFile(filePath, fileContents);
@@ -259,7 +276,7 @@ function writeDestFile(srcFilePath, fileContents) {
 	const destFilePath = srcFilePath.replace(srcFolder, dstFolder);
 	ensureDir(dirname(destFilePath));
 
-	if (/(\.ts$)|(\.js$)|(\.html$)/.test(destFilePath)) {
+	if (/(\.ts$)|(\.js$)|(\.html$)/.test(destFilePath) && !jsImportsOnly) {
 		fileContents = toggleComments(fileContents);
 	}
 
