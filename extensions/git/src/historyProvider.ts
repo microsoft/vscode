@@ -157,8 +157,8 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 				logOptions = { ...logOptions, range: `${commitParentId}..` };
 			}
 
-			if (typeof options.cursor === 'string') {
-				logOptions = { ...logOptions, refNames: [options.cursor] };
+			if (typeof options.skip === 'number') {
+				logOptions = { ...logOptions, skip: options.skip };
 			}
 
 			const commits = await this.repository.log(logOptions);

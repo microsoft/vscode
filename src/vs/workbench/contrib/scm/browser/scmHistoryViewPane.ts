@@ -368,7 +368,6 @@ class SCMHistoryTreeIdentityProvider implements IIdentityProvider<TreeElement> {
 }
 
 class SCMHistoryTreeDataSource extends Disposable implements IAsyncDataSource<ISCMViewService, TreeElement> {
-	private readonly _repositoryCursor = new Map<ISCMRepository, string>();
 	private readonly _repositoryHistoryItems = new Map<ISCMRepository, ISCMHistoryItem[]>();
 
 	constructor(
@@ -420,13 +419,13 @@ class SCMHistoryTreeDataSource extends Disposable implements IAsyncDataSource<IS
 		}
 	}
 
-	setCursor(repository: ISCMRepository, cursor: string | undefined): void {
-		if (!cursor) {
-			this._repositoryCursor.delete(repository);
+	clearHistoryItems(repository?: ISCMRepository): void {
+		if (!repository) {
+			this._repositoryHistoryItems.clear();
 			return;
 		}
 
-		this._repositoryCursor.set(repository, cursor);
+		this._repositoryHistoryItems.delete(repository);
 	}
 
 	private async _getHistoryItems(element: ISCMRepository): Promise<SCMHistoryItemViewModelTreeElement[]> {
@@ -443,17 +442,10 @@ class SCMHistoryTreeDataSource extends Disposable implements IAsyncDataSource<IS
 			...currentHistoryItemGroup.base ? [currentHistoryItemGroup.base.id] : [],
 		];
 
-		const cursor = this._repositoryCursor.get(element);
-		const historyItemsElement = await historyProvider.provideHistoryItems2({ cursor, historyItemGroupIds }) ?? [];
+		const existingHistoryItems = this._repositoryHistoryItems.get(element) ?? [];
+		const historyItemsElement = await historyProvider.provideHistoryItems2({ historyItemGroupIds, skip: existingHistoryItems.length }) ?? [];
 
-		if (!cursor) {
-			// No cursor means we are starting from the beginning
-			this._repositoryHistoryItems.set(element, historyItemsElement);
-		} else {
-			// If the cursor is set, we are loading more history items, so we need to append to the existing list
-			const existingHistoryItems = this._repositoryHistoryItems.get(element) ?? [];
-			this._repositoryHistoryItems.set(element, [...existingHistoryItems, ...historyItemsElement]);
-		}
+		this._repositoryHistoryItems.set(element, [...existingHistoryItems, ...historyItemsElement]);
 
 		// Create the color map
 		const colorMap = new Map<string, ColorIdentifier>([
@@ -712,16 +704,18 @@ export class SCMHistoryViewPane extends ViewPane {
 		}
 
 		this._isLoadMoreInProgress = true;
-		this._treeDataSource.setCursor(repository, cursor);
-
-		this._updateChildren(repository)
+		this._updateChildren(repository, false)
 			.finally(() => this._isLoadMoreInProgress = false);
 	}
 
-	private _updateChildren(element?: ISCMRepository): Promise<void> {
+	private _updateChildren(element?: ISCMRepository, reset = true): Promise<void> {
 		return this._updateChildrenThrottler.queue(
 			() => this._treeOperationSequencer.queue(
 				async () => {
+					if (reset) {
+						this._treeDataSource.clearHistoryItems(element);
+					}
+
 					if (element && this._tree.hasNode(element)) {
 						// Refresh specific repository
 						await this._tree.updateChildren(element, true, true);

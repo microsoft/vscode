@@ -42,6 +42,7 @@ export interface ISCMHistoryProviderCacheEntry {
 
 export interface ISCMHistoryOptions {
 	readonly cursor?: string;
+	readonly skip?: number;
 	readonly limit?: number | { id?: string };
 	readonly historyItemGroupIds?: readonly string[];
 }
