@@ -9,6 +9,7 @@ import { AzureActiveDirectoryService, IStoredSession } from './AADHelper';
 import { BetterTokenStorage } from './betterSecretStorage';
 import { UriEventHandler } from './UriEventHandler';
 import TelemetryReporter from '@vscode/extension-telemetry';
+import Logger from './logger';
 
 async function initMicrosoftSovereignCloudAuthProvider(context: vscode.ExtensionContext, telemetryReporter: TelemetryReporter, uriHandler: UriEventHandler, tokenStorage: BetterTokenStorage<IStoredSession>): Promise<vscode.Disposable | undefined> {
 	const environment = vscode.workspace.getConfiguration('microsoft-sovereign-cloud').get<string | undefined>('environment');
@@ -109,7 +110,7 @@ export async function activate(context: vscode.ExtensionContext, telemetryReport
 	const betterSecretStorage = new BetterTokenStorage<IStoredSession>('microsoft.login.keylist', context);
 
 	const loginService = new AzureActiveDirectoryService(
-		vscode.window.createOutputChannel(vscode.l10n.t('Microsoft Authentication'), { log: true }),
+		Logger,
 		context,
 		uriHandler,
 		betterSecretStorage,
