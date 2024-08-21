@@ -33,7 +33,7 @@ struct Vertex {
 	@location(0) position: vec2f,
 };
 
-struct Cells {
+struct Cell {
 	position: vec2f,
 	unused1: vec2f,
 	glyphIndex: f32,
@@ -58,7 +58,7 @@ struct VSOutput {
 // Storage buffers
 @group(0) @binding(${BindingId.GlyphInfo0})              var<storage, read> glyphInfo0:      array<GlyphInfo>;
 @group(0) @binding(${BindingId.GlyphInfo1})              var<storage, read> glyphInfo1:      array<GlyphInfo>;
-@group(0) @binding(${BindingId.Cells})                   var<storage, read> cells:           array<Cells>;
+@group(0) @binding(${BindingId.Cells})                   var<storage, read> cells:           array<Cell>;
 
 @vertex fn vs(
 	vert: Vertex,
@@ -103,6 +103,17 @@ struct VSOutput {
 	return textureSample(ourTexture, ourSampler, vsOut.texcoord, u32(vsOut.layerIndex));
 }
 `;
+
+const enum CellBufferInfo {
+	FloatsPerEntry = 6,
+	BytesPerEntry = CellBufferInfo.FloatsPerEntry * 4,
+	Offset_X = 0,
+	Offset_Y = 1,
+	Offset_Unused1 = 2,
+	Offset_Unused2 = 3,
+	GlyphIndex = 4,
+	TextureIndex = 5,
+}
 
 export class FullFileRenderStrategy<T extends IVisibleLine> extends Disposable implements IRenderStrategy<T> {
 
@@ -150,9 +161,7 @@ export class FullFileRenderStrategy<T extends IVisibleLine> extends Disposable i
 		const fontSize = Math.ceil(this._context.configuration.options.get(EditorOption.fontSize) * activeWindow.devicePixelRatio);
 
 		this._glyphRasterizer = this._register(new GlyphRasterizer(fontSize, fontFamily));
-	}
 
-	initBuffers(): void {
 		const bufferSize = FullFileRenderStrategy._lineCount * FullFileRenderStrategy._columnCount * Constants.IndicesPerCell * Float32Array.BYTES_PER_ELEMENT;
 		this._cellBindBuffer = this._register(GPULifecycle.createBuffer(this._device, {
 			label: 'Monaco full file cell buffer',
@@ -308,12 +317,10 @@ export class FullFileRenderStrategy<T extends IVisibleLine> extends Disposable i
 					wgslY = zeroToOneY * 2 - 1;
 
 					cellIndex = ((y - 1) * FullFileRenderStrategy._columnCount + (x + xOffset)) * Constants.IndicesPerCell;
-					cellBuffer[cellIndex + 0] = wgslX;       // x
-					cellBuffer[cellIndex + 1] = -wgslY;      // y
-					cellBuffer[cellIndex + 2] = 0;
-					cellBuffer[cellIndex + 3] = 0;
-					cellBuffer[cellIndex + 4] = glyph.glyphIndex; // glyphIndex
-					cellBuffer[cellIndex + 5] = glyph.pageIndex; // textureIndex
+					cellBuffer[cellIndex + CellBufferInfo.Offset_X] = wgslX;
+					cellBuffer[cellIndex + CellBufferInfo.Offset_Y] = -wgslY;
+					cellBuffer[cellIndex + CellBufferInfo.GlyphIndex] = glyph.glyphIndex;
+					cellBuffer[cellIndex + CellBufferInfo.TextureIndex] = glyph.pageIndex;
 				}
 
 				tokenStartIndex = tokenEndIndex;

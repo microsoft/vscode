@@ -26,7 +26,6 @@ export interface IRenderStrategy<T extends IVisibleLine> {
 	readonly wgsl: string;
 	readonly bindGroupEntries: GPUBindGroupEntry[];
 
-	initBuffers(): void;
 	update(ctx: IRendererContext<T>, startLineNumber: number, stopLineNumber: number, deltaTop: number[]): number;
 	draw?(pass: GPURenderPassEncoder, ctx: IRendererContext<T>, startLineNumber: number, stopLineNumber: number, deltaTop: number[]): void;
 }

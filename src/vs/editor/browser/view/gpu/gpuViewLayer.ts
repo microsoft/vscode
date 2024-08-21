@@ -211,10 +211,6 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> extends Disposable {
 
 
 
-		this._renderStrategy.initBuffers();
-
-
-
 		this._vertexBuffer = this._register(GPULifecycle.createBuffer(this._device, {
 			label: 'Monaco vertex buffer',
 			size: quadVertices.byteLength,
