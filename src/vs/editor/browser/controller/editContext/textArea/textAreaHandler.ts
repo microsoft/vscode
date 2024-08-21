@@ -206,6 +206,8 @@ export class TextAreaHandler extends AbstractEditContext {
 				return this._context.viewModel.getLineMaxColumn(lineNumber);
 			},
 			getValueInRange: (range: Range, eol: EndOfLinePreference): string => {
+				console.log('getValueInRange');
+				console.log('this._context.viewModel.model.getValue() : ', this._context.viewModel.model.getValue());
 				return this._context.viewModel.getValueInRange(range, eol);
 			},
 			getValueLengthInRange: (range: Range, eol: EndOfLinePreference): number => {
@@ -299,6 +301,7 @@ export class TextAreaHandler extends AbstractEditContext {
 
 				const selection = this._selections[0];
 				const textAreaData = PagedScreenReaderStrategy.fromEditorSelection(simpleModel, selection, this._accessibilityPageSize, this._accessibilitySupport === AccessibilitySupport.Unknown);
+				console.log('textAreaData : ', textAreaData);
 				return new TextAreaState(textAreaData.value, textAreaData.selectionStart, textAreaData.selectionEnd, selection, textAreaData.newLineCountBeforeSelection);
 			},
 

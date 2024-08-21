@@ -23,7 +23,6 @@ import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { KeyCode } from 'vs/base/common/keyCodes';
 
 /*
- * 1. Need to create two classes, one which deals with the screen reader content, one which deals with the IME, separate the logic
  * 2. Need to cut down as much code as possible and only after testing simplify. See if can simplify the existing classes that I am using too.
  */
 
