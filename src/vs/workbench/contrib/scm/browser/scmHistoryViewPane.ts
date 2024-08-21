@@ -327,8 +327,8 @@ class SCMHistoryTreeDataSource extends Disposable implements IAsyncDataSource<IS
 
 		const limit =
 			ancestor !== currentHistoryItemGroup.revision ||
-				ancestor !== currentHistoryItemGroup.remote?.revision ||
-				ancestor !== currentHistoryItemGroup.base?.revision ? { id: ancestor } : undefined;
+				(currentHistoryItemGroup.remote && ancestor !== currentHistoryItemGroup.remote.revision) ||
+				(currentHistoryItemGroup.base && ancestor !== currentHistoryItemGroup.base.revision) ? { id: ancestor } : undefined;
 
 		const historyItemsElement = await historyProvider.provideHistoryItems2({ historyItemGroupIds, limit }) ?? [];
 
@@ -381,7 +381,7 @@ export class SCMHistoryViewPane extends ViewPane {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
+		super({ ...options, titleMenuId: MenuId.SCMHistoryTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
 
 		this._register(this._updateChildrenThrottler);
 	}
