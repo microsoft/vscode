@@ -25,6 +25,10 @@ import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { NativeEditContext } from 'vs/editor/browser/controller/editContext/native/nativeEditContext';
 import { ViewController } from 'vs/editor/browser/view/viewController';
 
+/**
+ * without screen reader incorrect focusing behavior, does not focus
+ * With screen reader incorrect focusing behavior when changing from editor to editor
+ */
 export class ScreenReaderContent extends AbstractEditContext {
 
 	// HTML Elements
@@ -57,6 +61,7 @@ export class ScreenReaderContent extends AbstractEditContext {
 	) {
 		super(context);
 
+		console.log('screen reader content handler constructor');
 		this._nativeEditContext = new NativeEditContext(context, viewController);
 		this._domElement = this._nativeEditContext.domElement;
 
@@ -91,9 +96,11 @@ export class ScreenReaderContent extends AbstractEditContext {
 			// TODO: this does work but corresponding paste and cut do not work
 		}));
 		this._register(dom.addDisposableListener(this._domElement.domNode, 'focus', (e) => {
+			console.log('focus');
 			this._setHasFocus(true);
 		}));
 		this._register(dom.addDisposableListener(this._domElement.domNode, 'blur', (e) => {
+			console.log('blur');
 			this._setHasFocus(false);
 		}));
 	}
@@ -105,16 +112,18 @@ export class ScreenReaderContent extends AbstractEditContext {
 
 	public writeScreenReaderContent(reason: string): void {
 		console.log('writeScreenReaderContent');
-		if ((!this._accessibilityService.isScreenReaderOptimized() && reason === 'render') || this._nativeEditContext.isComposing) {
-			// Do not write to the text on render unless a screen reader is being used #192278
-			// Do not write to the text area when doing composition
-			console.log('early return');
-			return;
+		this._writeScreenReaderContent(reason);
+		this._nativeEditContext.writeEditContextContent();
+	}
+
+	private _writeScreenReaderContent(reason: string): void {
+		console.log('_writeScreenReaderContent');
+		if (this._accessibilitySupport === AccessibilitySupport.Enabled) {
+			const screenReaderContentState = this._getScreenReaderContentState();
+			console.log('screenReaderContentState.value : ', screenReaderContentState.value);
+			this._setScreenReaderContent(reason, screenReaderContentState.value); // can we allow empty string?
+			this._setSelectionOfScreenReaderContent(reason, screenReaderContentState.selectionStart, screenReaderContentState.selectionEnd);
 		}
-		const screenReaderContentState = this._getScreenReaderContentState();
-		console.log('screenReaderContentState.value : ', screenReaderContentState.value);
-		this._setScreenReaderContent(reason, screenReaderContentState.value);
-		this._setSelectionOfScreenReaderContent(reason, screenReaderContentState.selectionStart, screenReaderContentState.selectionEnd);
 	}
 
 	public override dispose(): void {
@@ -146,7 +155,7 @@ export class ScreenReaderContent extends AbstractEditContext {
 		this._domElement.setAttribute('aria-label', ariaLabelForScreenReaderContent(options, this._keybindingService));
 		this._domElement.setAttribute('tabindex', String(options.get(EditorOption.tabIndex)));
 		if (e.hasChanged(EditorOption.accessibilitySupport)) {
-			this.writeScreenReaderContent('strategy changed');
+			this._writeScreenReaderContent('strategy changed');
 		}
 		return true;
 	}
@@ -155,7 +164,7 @@ export class ScreenReaderContent extends AbstractEditContext {
 		this._primarySelection = e.selections.slice(0)[0] ?? new Selection(1, 1, 1, 1);
 		// We must update the <textarea> synchronously, otherwise long press IME on macos breaks.
 		// See https://github.com/microsoft/vscode/issues/165821
-		this.writeScreenReaderContent('selection changed');
+		this._writeScreenReaderContent('selection changed');
 		this._nativeEditContext.onCursorStateChanged(e);
 		return true;
 	}
@@ -176,24 +185,29 @@ export class ScreenReaderContent extends AbstractEditContext {
 	}
 
 	public focusScreenReaderContent(): void {
+		console.log('focusScreenReaderContent');
 		this._setHasFocus(true);
 		this.refreshFocusState();
 	}
 
 	public refreshFocusState(): void {
-		// const shadowRoot = dom.getShadowRoot(this._domElement.domNode);
-		// let hasFocus: boolean;
-		// if (shadowRoot) {
-		// 	hasFocus = shadowRoot.activeElement === this._domElement.domNode;
-		// } else if (this._domElement.domNode.isConnected) {
-		// 	hasFocus = dom.getActiveElement() === this._domElement.domNode;
-		// } else {
-		// 	hasFocus = false;
-		// }
-		this._setHasFocus(true);
+		console.log('refreshFocusState');
+		const shadowRoot = dom.getShadowRoot(this._domElement.domNode);
+		let hasFocus: boolean;
+		if (shadowRoot) {
+			console.log(' shadowRoot.activeElement : ', shadowRoot.activeElement);
+			hasFocus = shadowRoot.activeElement === this._domElement.domNode;
+		} else if (this._domElement.domNode.isConnected) {
+			console.log('dom.getActiveElement() in refreshFocusState : ', dom.getActiveElement());
+			hasFocus = dom.getActiveElement() === this._domElement.domNode;
+		} else {
+			hasFocus = false;
+		}
+		this._setHasFocus(hasFocus);
 	}
 
 	private _setHasFocus(newHasFocus: boolean): void {
+		console.log('_setHasFocus');
 		console.log('newHasFocus : ', newHasFocus);
 		if (this._hasFocus === newHasFocus) {
 			// no change
@@ -203,19 +217,18 @@ export class ScreenReaderContent extends AbstractEditContext {
 
 		if (this._hasFocus) {
 			// write to the screen reader content
-			// this.writeScreenReaderContent('focusgain');
+			this._domElement.domNode.focus();
 		}
 
 		// Find how to focus differently
 		if (this._hasFocus) {
 			console.log('focusing');
-			this._domElement.domNode.focus();
 			this._context.viewModel.setHasFocus(true);
 		} else {
 			console.log('bluring');
-			this._domElement.domNode.blur();
 			this._context.viewModel.setHasFocus(false);
 		}
+		console.log('dom.getActiveElement() in _setHasFocus: ', dom.getActiveElement());
 	}
 
 	public setAriaOptions(options: IEditorAriaOptions): void { }
@@ -231,7 +244,7 @@ export class ScreenReaderContent extends AbstractEditContext {
 	}
 
 	public render(ctx: RestrictedRenderingContext): void {
-		this.writeScreenReaderContent('render');
+		this._writeScreenReaderContent('render');
 		this._nativeEditContext.writeEditContextContent();
 		this._render();
 	}
@@ -298,14 +311,7 @@ export class ScreenReaderContent extends AbstractEditContext {
 				return this._context.viewModel.modifyPosition(position, offset);
 			}
 		};
-
-		if (this._accessibilitySupport === AccessibilitySupport.Disabled) {
-			return {
-				value: '',
-				selectionStart: 0,
-				selectionEnd: 0
-			};
-		}
+		console.log('_getScreenReaderContentState');
 		return PagedScreenReaderStrategy.fromEditorSelection(simpleModel, this._primarySelection, this._accessibilityPageSize, this._accessibilitySupport === AccessibilitySupport.Unknown);
 	}
 
@@ -323,7 +329,7 @@ export class ScreenReaderContent extends AbstractEditContext {
 
 	private _setSelectionOfScreenReaderContent(reason: string, selectionStart: number, selectionEnd: number): void {
 
-		console.log('setSelectionRange');
+		console.log('_setSelectionOfScreenReaderContent');
 		console.log('selectionStart : ', selectionStart);
 		console.log('selectionEnd : ', selectionEnd);
 
@@ -331,15 +337,21 @@ export class ScreenReaderContent extends AbstractEditContext {
 
 		const activeDocument = dom.getActiveWindow().document;
 		const activeDocumentSelection = activeDocument.getSelection();
+		console.log('activeDocumentSelection : ', activeDocumentSelection);
 		if (activeDocumentSelection) {
 			const range = new globalThis.Range();
 			const firstChild = this._domElement.domNode.firstChild;
+			console.log('this._domElement.domNode : ', this._domElement.domNode);
+			console.log('firstChild : ', firstChild);
 			if (firstChild) {
 				range.setStart(firstChild, selectionStart);
 				range.setEnd(firstChild, selectionEnd);
 				activeDocumentSelection.removeAllRanges();
 				activeDocumentSelection.addRange(range);
+				console.log('activeDocumentSelection updated : ', activeDocumentSelection);
 			}
 		}
+
+		console.log('dom.getActiveElement() in _setSelectionOfScreenReaderContent : ', dom.getActiveElement());
 	}
 }

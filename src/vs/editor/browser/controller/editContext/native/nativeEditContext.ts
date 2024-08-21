@@ -21,6 +21,7 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Position } from 'vs/editor/common/core/position';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { KeyCode } from 'vs/base/common/keyCodes';
+import { Schemas } from 'vs/base/common/network';
 
 /*
  * 2. Need to cut down as much code as possible and only after testing simplify. See if can simplify the existing classes that I am using too.
@@ -82,6 +83,8 @@ export class NativeEditContext extends Disposable {
 
 			console.log('standardKeyboardEvent : ', standardKeyboardEvent);
 			console.log('standardKeyboardEvent.keyCode === KeyCode.KEY_IN_COMPOSITION : ', standardKeyboardEvent.keyCode === KeyCode.KEY_IN_COMPOSITION);
+			console.log('this._editContext : ', this._editContext);
+			console.log('this.domElement.domNode.textContent ; ', this.domElement.domNode.textContent);
 
 			// When the IME is visible, the keys, like arrow-left and arrow-right, should be used to navigate in the IME, and should not be propagated further
 			// Seems like can't do more specific than that because when in composition, left and right are not in keycode
@@ -89,6 +92,12 @@ export class NativeEditContext extends Disposable {
 				console.log('stopping the propagation');
 				// Stop propagation for keyDown events if the IME is processing key input
 				standardKeyboardEvent.stopPropagation();
+			}
+			// For some reason the Enter key is not fired for the dom node in a notebook, but the key down event is
+			const modelUri = this._context.viewModel.model.uri;
+			const isNotebook = modelUri.scheme === Schemas.vscodeNotebookCell;
+			if (standardKeyboardEvent.keyCode === KeyCode.Enter && isNotebook) {
+				this.addNewLine();
 			}
 			this._viewController.emitKeyDown(standardKeyboardEvent);
 		}));
@@ -162,20 +171,7 @@ export class NativeEditContext extends Disposable {
 			if (e.inputType === 'insertParagraph' || e.inputType === 'insertLineBreak') {
 
 				console.log('this._editContext.text : ', this._editContext.text);
-
-				const textAfterAddingNewLine = this._editContext.text.substring(0, this._editContext.selectionStart) + '\n' + this._editContext.text.substring(this._editContext.selectionEnd);
-				this._editContext.updateText(0, Number.MAX_SAFE_INTEGER, textAfterAddingNewLine);
-
-				const typeInput: ITypeData = {
-					text: '\n',
-					replacePrevCharCnt: 0,
-					replaceNextCharCnt: 0,
-					positionDelta: 0,
-				};
-
-				this._updateCompositionEndPosition();
-				console.log('typeInput : ', typeInput);
-				this._onType(typeInput);
+				this.addNewLine();
 			}
 		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'textformatupdate', e => {
@@ -192,7 +188,25 @@ export class NativeEditContext extends Disposable {
 		super.dispose();
 	}
 
+	private addNewLine(): void {
+		const textAfterAddingNewLine = this._editContext.text.substring(0, this._editContext.selectionStart) + '\n' + this._editContext.text.substring(this._editContext.selectionEnd);
+		this._editContext.updateText(0, Number.MAX_SAFE_INTEGER, textAfterAddingNewLine);
+
+		const typeInput: ITypeData = {
+			text: '\n',
+			replacePrevCharCnt: 0,
+			replaceNextCharCnt: 0,
+			positionDelta: 0,
+		};
+
+		this._updateCompositionEndPosition();
+		console.log('typeInput : ', typeInput);
+		this._onType(typeInput);
+	}
+
 	public writeEditContextContent(): void {
+
+		console.log('writeEditContextContent');
 
 		this._previousState = this._currentState;
 		this._currentState = this._getEditContextState();
@@ -200,7 +214,6 @@ export class NativeEditContext extends Disposable {
 		this._editContext.updateText(0, Number.MAX_SAFE_INTEGER, this._currentState.value);
 		this._editContext.updateSelection(this._currentState.selectionStart, this._currentState.selectionEnd);
 
-		console.log('writeEditContextContent');
 		console.log('this._context.viewModel.model.getValue() : ', this._context.viewModel.model.getValue());
 		console.log('editContextState : ', this._currentState);
 		console.log('this._editContext.text : ', this._editContext.text);
@@ -211,6 +224,7 @@ export class NativeEditContext extends Disposable {
 
 	// -- need to use this in composition
 	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
+		console.log('onCursorStateChanged');
 		// We must update the <textarea> synchronously, otherwise long press IME on macos breaks.
 		// See https://github.com/microsoft/vscode/issues/165821
 		this.writeEditContextContent();

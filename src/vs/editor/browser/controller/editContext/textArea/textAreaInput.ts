@@ -453,6 +453,9 @@ export class TextAreaInput extends Disposable {
 			}
 		}));
 		this._register(this._textArea.onBlur(() => {
+
+			console.log('onblur of textareainput');
+
 			if (this._currentComposition) {
 				// See https://github.com/microsoft/vscode/issues/112621
 				// where compositionend is not triggered when the editor
@@ -585,6 +588,9 @@ export class TextAreaInput extends Disposable {
 	}
 
 	public focusTextArea(): void {
+
+		console.log('focusTextArea of textareainput');
+
 		// Setting this._hasFocus and writing the screen reader content
 		// will result in a focus() and setSelectionRange() in the textarea
 		this._setHasFocus(true);
@@ -598,10 +604,13 @@ export class TextAreaInput extends Disposable {
 	}
 
 	public refreshFocusState(): void {
+		console.log('refreshFocusState of textareainput');
 		this._setHasFocus(this._textArea.hasFocus());
 	}
 
 	private _setHasFocus(newHasFocus: boolean): void {
+		console.log('_setHasFocus of textareainput');
+		console.log('newHasFocus of textareainput : ', newHasFocus);
 		if (this._hasFocus === newHasFocus) {
 			// no change
 			return;
@@ -625,15 +634,19 @@ export class TextAreaInput extends Disposable {
 		} else {
 			this._onBlur.fire();
 		}
+
+		console.log('dom.getActiveElement() of textareainput in _setHasFocus: ', dom.getActiveElement());
 	}
 
 	private _setAndWriteTextAreaState(reason: string, textAreaState: TextAreaState): void {
+		console.log('_setAndWriteTextAreaState of textareainput');
 		if (!this._hasFocus) {
 			textAreaState = textAreaState.collapseSelection();
 		}
 
 		textAreaState.writeToTextArea(reason, this._textArea, this._hasFocus);
 		this._textAreaState = textAreaState;
+		console.log('dom.getActiveElement() of textareainput in _setAndWriteTextAreaState: ', dom.getActiveElement());
 	}
 
 	public writeNativeTextAreaContent(reason: string): void {

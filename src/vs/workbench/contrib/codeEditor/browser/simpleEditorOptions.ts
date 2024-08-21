@@ -43,7 +43,10 @@ export function getSimpleEditorOptions(configurationService: IConfigurationServi
 			indentation: false
 		},
 		accessibilitySupport: configurationService.getValue<'auto' | 'off' | 'on'>('editor.accessibilitySupport'),
-		cursorBlinking: configurationService.getValue<'blink' | 'smooth' | 'phase' | 'expand' | 'solid'>('editor.cursorBlinking')
+		cursorBlinking: configurationService.getValue<'blink' | 'smooth' | 'phase' | 'expand' | 'solid'>('editor.cursorBlinking'),
+		editContext: {
+			type: configurationService.getValue<'native' | 'textarea'>('editor.editContext.type')
+		}
 	};
 }
 

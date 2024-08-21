@@ -152,6 +152,7 @@ export class TextAreaHandler extends AbstractEditContext {
 	) {
 		super(context);
 
+		console.log('text area handler constructor');
 		this._viewController = viewController;
 		this._visibleRangeProvider = visibleRangeProvider;
 		this._scrollLeft = 0;
