@@ -14,6 +14,7 @@ import { ITextEditorOptions, TextEditorSelectionRevealType } from 'vs/platform/e
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { resolveCommandsContext } from 'vs/workbench/browser/parts/editor/editorCommandsContext';
+import { ActiveEditorContext } from 'vs/workbench/common/contextkeys';
 import { MultiDiffEditor } from 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffEditor';
 import { MultiDiffEditorInput } from 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -27,7 +28,7 @@ export class GoToFileAction extends Action2 {
 			icon: Codicon.goToFile,
 			precondition: EditorContextKeys.inMultiDiffEditor,
 			menu: {
-				when: EditorContextKeys.inMultiDiffEditor,
+				when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(MultiDiffEditor.ID), EditorContextKeys.inMultiDiffEditor),
 				id: MenuId.MultiDiffEditorFileToolbar,
 				order: 22,
 				group: 'navigation',
