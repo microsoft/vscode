@@ -23,6 +23,7 @@ import { ICoordinatesConverter } from 'vs/editor/common/viewModel';
 import { ViewModelEventsCollector } from 'vs/editor/common/viewModelEventDispatcher';
 import { localize } from 'vs/nls';
 import { registerAction2 } from 'vs/platform/actions/common/actions';
+import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { INotebookActionContext, NotebookAction } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
@@ -31,6 +32,10 @@ import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/brow
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 const NOTEBOOK_ADD_FIND_MATCH_TO_SELECTION_ID = 'notebook.addFindMatchToSelection';
+
+export const NOTEBOOK_MULTI_SELECTION_CONTEXT = {
+	IsNotebookMultiSelect: new RawContextKey<boolean>('isNotebookMultiSelect', false),
+};
 
 enum NotebookMultiCursorState {
 	Idle,
@@ -63,6 +68,7 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 
 	constructor(
 		private readonly notebookEditor: INotebookEditor,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@ILanguageConfigurationService private readonly languageConfigurationService: ILanguageConfigurationService,
 	) {
@@ -151,25 +157,15 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 			});
 		}));
 
-		this.anchorDisposables.add(this.anchorCell[1].onKeyDown((e) => {
-			// this fires after every single character
-			// console.log('did type -- ', input);
-
-			// check for escape key, and that will transition to idle, clear matches, clear decorations, dispose everything
-			//! only for debugging, liekly will remove this to make sure behavior is preserved for escaping other features (suggest, etc)
-			if (e.keyCode === KeyCode.Escape) {
-				this.exitEditingState();
-			}
-		}));
-
-
 		//! todo:
 		//! composite
 		//! cut
 	}
 
-	private exitEditingState() {
+	public exitEditingState() {
 		this.state = NotebookMultiCursorState.Idle;
+		NOTEBOOK_MULTI_SELECTION_CONTEXT.IsNotebookMultiSelect.bindTo(this.contextKeyService).set(false);
+
 		this.decorationDisposables.clear();
 		this.anchorDisposables.clear();
 		this.cursorsDisposables.clear();
@@ -215,6 +211,7 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 			this.trackedMatches.push(newMatch);
 
 			this.updateMultiSelectDecorations(newMatch);
+			NOTEBOOK_MULTI_SELECTION_CONTEXT.IsNotebookMultiSelect.bindTo(this.contextKeyService).set(true);
 			this.state = NotebookMultiCursorState.Selecting;
 
 		} else if (this.state === NotebookMultiCursorState.Selecting) { // use the word we stored from idle state transition to find next match, track it
@@ -328,7 +325,7 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 
 }
 
-class NotebookAddFindMatchToSelectionAction extends NotebookAction {
+class NotebookAddMatchToMultiSelectionAction extends NotebookAction {
 	constructor() {
 		super({
 			id: NOTEBOOK_ADD_FIND_MATCH_TO_SELECTION_ID,
@@ -359,5 +356,32 @@ class NotebookAddFindMatchToSelectionAction extends NotebookAction {
 
 }
 
+class NotebookExitMultiSelectionAction extends NotebookAction {
+	constructor() {
+		super({
+			id: 'noteMultiCursor.exit',
+			title: localize('exitMultiSelection', "Exit Multi Cursor Mode"),
+			keybinding: {
+				when: NOTEBOOK_MULTI_SELECTION_CONTEXT.IsNotebookMultiSelect,
+				primary: KeyCode.Escape,
+				weight: KeybindingWeight.WorkbenchContrib
+			}
+		});
+	}
+
+	override async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
+
+		if (!editor) {
+			return;
+		}
+
+		const controller = editor.getContribution<NotebookMultiCursorController>(NotebookMultiCursorController.id);
+		controller.exitEditingState();
+	}
+}
+
 registerNotebookContribution(NotebookMultiCursorController.id, NotebookMultiCursorController);
-registerAction2(NotebookAddFindMatchToSelectionAction);
+registerAction2(NotebookAddMatchToMultiSelectionAction);
+registerAction2(NotebookExitMultiSelectionAction);
