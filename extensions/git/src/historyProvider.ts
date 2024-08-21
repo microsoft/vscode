@@ -6,11 +6,10 @@
 
 import { Disposable, Event, EventEmitter, FileDecoration, FileDecorationProvider, SourceControlHistoryItem, SourceControlHistoryItemChange, SourceControlHistoryItemGroup, SourceControlHistoryOptions, SourceControlHistoryProvider, ThemeIcon, Uri, window, LogOutputChannel, SourceControlHistoryItemLabel } from 'vscode';
 import { Repository, Resource } from './repository';
-import { IDisposable, dispose, filterEvent } from './util';
+import { IDisposable, dispose } from './util';
 import { toGitUri } from './uri';
 import { Branch, LogOptions, RefType, UpstreamRef } from './api/git';
 import { emojify, ensureEmojis } from './emoji';
-import { Operation } from './operation';
 import { Commit } from './git';
 
 export class GitHistoryProvider implements SourceControlHistoryProvider, FileDecorationProvider, IDisposable {
@@ -43,12 +42,10 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 
 	constructor(protected readonly repository: Repository, private readonly logger: LogOutputChannel) {
 		this.disposables.push(repository.onDidRunGitStatus(() => this.onDidRunGitStatus(), this));
-		this.disposables.push(filterEvent(repository.onDidRunOperation, e => e.operation === Operation.Refresh)(() => this.onDidRunGitStatus(true), this));
-
 		this.disposables.push(window.registerFileDecorationProvider(this));
 	}
 
-	private async onDidRunGitStatus(force = false): Promise<void> {
+	private async onDidRunGitStatus(): Promise<void> {
 		this.logger.trace('[GitHistoryProvider][onDidRunGitStatus] HEAD:', JSON.stringify(this._HEAD));
 		this.logger.trace('[GitHistoryProvider][onDidRunGitStatus] repository.HEAD:', JSON.stringify(this.repository.HEAD));
 
@@ -56,8 +53,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		const mergeBase = await this.resolveHEADMergeBase();
 
 		// Check if HEAD has changed
-		if (!force &&
-			this._HEAD?.name === this.repository.HEAD?.name &&
+		if (this._HEAD?.name === this.repository.HEAD?.name &&
 			this._HEAD?.commit === this.repository.HEAD?.commit &&
 			this._HEAD?.upstream?.name === this.repository.HEAD?.upstream?.name &&
 			this._HEAD?.upstream?.remote === this.repository.HEAD?.upstream?.remote &&
@@ -98,7 +94,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 			} : undefined
 		};
 
-		this.logger.trace(`[GitHistoryProvider][onDidRunGitStatus] currentHistoryItemGroup(${force}): ${JSON.stringify(this.currentHistoryItemGroup)}`);
+		this.logger.trace(`[GitHistoryProvider][onDidRunGitStatus] currentHistoryItemGroup: ${JSON.stringify(this.currentHistoryItemGroup)}`);
 	}
 
 	async provideHistoryItems(historyItemGroupId: string, options: SourceControlHistoryOptions): Promise<SourceControlHistoryItem[]> {
