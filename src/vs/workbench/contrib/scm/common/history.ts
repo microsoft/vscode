@@ -106,6 +106,13 @@ export interface SCMHistoryItemViewModelTreeElement {
 	readonly type: 'historyItem2';
 }
 
+export interface SCMHistoryItemLoadMoreTreeElement {
+	readonly repository: ISCMRepository;
+	readonly cursor: string;
+	readonly graphColumnCount: number;
+	readonly type: 'historyItemLoadMore';
+}
+
 export interface SCMHistoryItemTreeElement extends ISCMHistoryItem {
 	readonly historyItemGroup: SCMHistoryItemGroupTreeElement;
 	readonly type: 'allChanges' | 'historyItem';

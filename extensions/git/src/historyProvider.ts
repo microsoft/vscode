@@ -157,6 +157,10 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 				logOptions = { ...logOptions, range: `${commitParentId}..` };
 			}
 
+			if (typeof options.cursor === 'string') {
+				logOptions = { ...logOptions, refNames: [options.cursor] };
+			}
+
 			const commits = await this.repository.log(logOptions);
 
 			await ensureEmojis();
