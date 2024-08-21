@@ -6,8 +6,10 @@
 import type { IExtendedConfiguration, IExtendedTelemetryItem, ITelemetryItem, ITelemetryUnloadState } from '@microsoft/1ds-core-js';
 import type { IChannelConfiguration, IXHROverride, PostChannel } from '@microsoft/1ds-post-js';
 import { importAMDNodeModule } from 'vs/amdX';
+import { isESM } from 'vs/base/common/amd';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { mixin } from 'vs/base/common/objects';
+import { isWeb } from 'vs/base/common/platform';
 import { ITelemetryAppender, validateTelemetryData } from 'vs/platform/telemetry/common/telemetryUtils';
 
 // Interface type which is a subset of @microsoft/1ds-core-js AppInsightsCore.
@@ -86,6 +88,7 @@ export abstract class AbstractOneDataSystemAppender implements ITelemetryAppende
 	private _asyncAiCore: Promise<IAppInsightsCore> | null;
 	protected readonly endPointUrl = endpointUrl;
 	protected readonly endPointHealthUrl = endpointHealthUrl;
+	private _asyncAiCoreErrorLogged = false;
 
 	constructor(
 		private readonly _isInternalTelemetry: boolean,
@@ -125,6 +128,10 @@ export abstract class AbstractOneDataSystemAppender implements ITelemetryAppende
 				callback(aiClient);
 			},
 			(err) => {
+				if (isESM && isWeb && this._asyncAiCoreErrorLogged) {
+					return; // TODO@esm reduce error spam
+				}
+				this._asyncAiCoreErrorLogged = true;
 				onUnexpectedError(err);
 				console.error(err);
 			}
