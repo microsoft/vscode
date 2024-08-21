@@ -573,7 +573,7 @@ CommandsRegistry.registerCommand({
 		// MEMBRANE: We override this functionality in vscode-extension
 		const commandService = accessor.get(ICommandService);
 		const name = 'path' in resource ? resource.path.slice(1) : undefined;
-		commandService.executeCommand('membrane.deleteProgram', { name });
+		commandService.executeCommand('membrane.programs.delete', { name });
 		/*
 		const workspaceEditingService = accessor.get(IWorkspaceEditingService);
 		const contextService = accessor.get(IWorkspaceContextService);
