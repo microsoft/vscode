@@ -11,10 +11,10 @@ import { URI } from 'vs/base/common/uri';
 import { IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
-import { IPosition, Position } from 'vs/editor/common/core/position';
+import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { FindMatch, IModelDeltaDecoration, IReadonlyTextBuffer, ITextModel, PositionAffinity, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { FindMatch, IModelDeltaDecoration, IReadonlyTextBuffer, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { ITextEditorOptions, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IConstructorSignature } from 'vs/platform/instantiation/common/instantiation';
@@ -281,16 +281,6 @@ export interface ICellViewModel extends IGenericCellViewModel {
 	deltaModelDecorations(oldDecorations: readonly string[], newDecorations: readonly IModelDeltaDecoration[]): string[];
 	getCellDecorationRange(id: string): Range | null;
 	enableAutoLanguageDetection(): void;
-
-	// completing for cursor simple model
-	getLineCount(): number;
-	getLineContent(lineNumber: number): string;
-	getLineMinColumn(lineNumber: number): number;
-	getLineMaxColumn(lineNumber: number): number;
-	getLineFirstNonWhitespaceColumn(lineNumber: number): number;
-	getLineLastNonWhitespaceColumn(lineNumber: number): number;
-	normalizePosition(position: Position, affinity: PositionAffinity): Position;
-	getLineIndentColumn(lineNumber: number): number;
 }
 
 export interface IEditableCellViewModel extends ICellViewModel {

@@ -15,10 +15,11 @@ import { Range } from 'vs/editor/common/core/range';
 import { Selection, SelectionDirection } from 'vs/editor/common/core/selection';
 import { IWordAtPosition, USUAL_WORD_SEPARATORS } from 'vs/editor/common/core/wordHelper';
 import { CursorsController } from 'vs/editor/common/cursor/cursor';
-import { CursorConfiguration } from 'vs/editor/common/cursorCommon';
+import { CursorConfiguration, ICursorSimpleModel } from 'vs/editor/common/cursorCommon';
 import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { IModelDeltaDecoration, ITextModel, PositionAffinity } from 'vs/editor/common/model';
+import { indentOfLine } from 'vs/editor/common/model/textModel';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ICoordinatesConverter } from 'vs/editor/common/viewModel';
 import { ViewModelEventsCollector } from 'vs/editor/common/viewModelEventDispatcher';
@@ -139,13 +140,42 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 
 			const controller = this.cursorsDisposables.add(new CursorsController(
 				textModel,
-				match.cellViewModel,
+				this.constructCursorSimpleModel(match.cellViewModel),
 				converter,
 				new CursorConfiguration(textModel.getLanguageId(), textModel.getOptions(), editorConfig, this.languageConfigurationService)
 			));
 			controller.setSelections(new ViewModelEventsCollector(), undefined, match.selections, CursorChangeReason.Explicit);
 			this.cursorsControllers.push(controller);
 		});
+	}
+
+	constructCursorSimpleModel(cell: ICellViewModel): ICursorSimpleModel {
+		return {
+			getLineCount(): number {
+				return cell.textBuffer.getLineCount();
+			},
+			getLineContent(lineNumber: number): string {
+				return cell.textBuffer.getLineContent(lineNumber);
+			},
+			getLineMinColumn(lineNumber: number): number {
+				return cell.textBuffer.getLineMinColumn(lineNumber);
+			},
+			getLineMaxColumn(lineNumber: number): number {
+				return cell.textBuffer.getLineMaxColumn(lineNumber);
+			},
+			getLineFirstNonWhitespaceColumn(lineNumber: number): number {
+				return cell.textBuffer.getLineFirstNonWhitespaceColumn(lineNumber);
+			},
+			getLineLastNonWhitespaceColumn(lineNumber: number): number {
+				return cell.textBuffer.getLineLastNonWhitespaceColumn(lineNumber);
+			},
+			normalizePosition(position: Position, affinity: PositionAffinity): Position {
+				return position;
+			},
+			getLineIndentColumn(lineNumber: number): number {
+				return indentOfLine(cell.textBuffer.getLineContent(lineNumber)) + 1;
+			}
+		};
 	}
 
 	private updateAnchorListeners() {
