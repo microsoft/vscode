@@ -319,6 +319,13 @@ export class UserDataProfilesEditor extends EditorPane implements IUserDataProfi
 		await this.model?.createNewProfile(copyFrom);
 	}
 
+	selectProfile(profile: IUserDataProfile): void {
+		const index = this.model?.profiles.findIndex(p => p instanceof UserDataProfileElement && p.profile.id === profile.id);
+		if (index !== undefined && index >= 0) {
+			this.profilesList?.setSelection([index]);
+		}
+	}
+
 	private async getProfileUriFromFileSystem(): Promise<URI | null> {
 		const profileLocation = await this.fileDialogService.showOpenDialog({
 			canSelectFolders: false,
@@ -889,7 +896,7 @@ class ProfileNameRenderer extends ProfilePropertyRenderer {
 						}
 						const initialName = profileElement?.root.getInitialName();
 						value = value.trim();
-						if (initialName !== value && this.userDataProfilesService.profiles.some(p => p.name === value)) {
+						if (initialName !== value && this.userDataProfilesService.profiles.some(p => !p.isTransient && p.name === value)) {
 							return {
 								content: localize('profileExists', "Profile with name {0} already exists.", value),
 								type: MessageType.WARNING
