@@ -2041,6 +2041,43 @@ export namespace TestCoverage {
 		return 'line' in location ? Position.from(location) : Range.from(location);
 	}
 
+	function toLocation(location: IPosition | editorRange.IRange): types.Position | types.Range;
+	function toLocation(location: IPosition | editorRange.IRange | undefined): types.Position | types.Range | undefined;
+	function toLocation(location: IPosition | editorRange.IRange | undefined): types.Position | types.Range | undefined {
+		if (!location) { return undefined; }
+		return 'endLineNumber' in location ? Range.to(location) : Position.to(location);
+	}
+
+	export function to(serialized: CoverageDetails.Serialized): vscode.FileCoverageDetail {
+		if (serialized.type === DetailType.Statement) {
+			const branches: vscode.BranchCoverage[] = [];
+			if (serialized.branches) {
+				for (const branch of serialized.branches) {
+					branches.push({
+						executed: branch.count,
+						location: toLocation(branch.location),
+						label: branch.label
+					});
+				}
+			}
+			return new types.StatementCoverage(
+				serialized.count,
+				toLocation(serialized.location),
+				serialized.branches?.map(b => new types.BranchCoverage(
+					b.count,
+					toLocation(b.location)!,
+					b.label,
+				))
+			);
+		} else {
+			return new types.DeclarationCoverage(
+				serialized.name,
+				serialized.count,
+				toLocation(serialized.location),
+			);
+		}
+	}
+
 	export function fromDetails(coverage: vscode.FileCoverageDetail): CoverageDetails.Serialized {
 		if (typeof coverage.executed === 'number' && coverage.executed < 0) {
 			throw new Error(`Invalid coverage count ${coverage.executed}`);

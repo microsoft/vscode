@@ -399,6 +399,12 @@ export class ExtHostTesting extends Disposable implements ExtHostTestingShape {
 			results
 				.map(r => {
 					const o = Convert.TestResults.to(r);
+					const taskWithCoverage = r.tasks.findIndex(t => t.hasCoverage);
+					if (taskWithCoverage !== -1) {
+						o.getDetailedCoverage = (uri, token = CancellationToken.None) =>
+							this.proxy.$getCoverageDetails(r.id, taskWithCoverage, uri, token).then(r => r.map(Convert.TestCoverage.to));
+					}
+
 					testResultInternalIDs.set(o, r.id);
 					return o;
 				})
