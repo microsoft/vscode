@@ -157,9 +157,20 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 			});
 		}));
 
-		//! todo:
-		//! composite
-		//! cut
+		// composition
+		this.anchorDisposables.add(this.anchorCell[1].onDidCompositionStart(() => {
+			this.state = NotebookMultiCursorState.Idle;
+			this.cursorsControllers.forEach(cursorController => {
+				cursorController.startComposition(new ViewModelEventsCollector());
+			});
+		}));
+
+		// cut
+		// this.anchorDisposables.add(this.anchorCell[1].asdfasdfasdf(() => {
+		// 	this.cursorsControllers.forEach(cursorController => {
+		// 		cursorController.cut(new ViewModelEventsCollector());
+		// 	});
+		// }));
 	}
 
 	public exitEditingState() {
