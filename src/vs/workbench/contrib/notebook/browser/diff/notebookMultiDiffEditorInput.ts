@@ -7,23 +7,21 @@ import { URI } from 'vs/base/common/uri';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { type IResourceDiffEditorInput } from 'vs/workbench/common/editor';
 import { MultiDiffEditorInput } from 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput';
 import { IMultiDiffSourceResolverService, IResolvedMultiDiffSource, type IMultiDiffSourceResolver } from 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffSourceResolverService';
 import { NotebookDiffViewModel } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffViewModel';
 import { NotebookDiffEditorInput } from 'vs/workbench/contrib/notebook/common/notebookDiffEditorInput';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
-import type { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 export const NotebookMultiDiffEditorScheme = 'multi-cell-notebook-diff-editor';
 
 export class NotebookMultiDiffEditorInput extends NotebookDiffEditorInput {
 	static override readonly ID: string = 'workbench.input.multiDiffNotebookInput';
-	static createInput(diffEditorInput: IResourceDiffEditorInput, group: IEditorGroup, viewType: string, instantiationService: IInstantiationService) {
-		const original = NotebookEditorInput.getOrCreate(instantiationService, diffEditorInput.original.resource!, undefined, viewType);
-		const modified = NotebookEditorInput.getOrCreate(instantiationService, diffEditorInput.modified.resource!, undefined, viewType);
-		return instantiationService.createInstance(NotebookMultiDiffEditorInput, diffEditorInput.label, diffEditorInput.description, original, modified, viewType);
+	static override create(instantiationService: IInstantiationService, resource: URI, name: string | undefined, description: string | undefined, originalResource: URI, viewType: string) {
+		const original = NotebookEditorInput.getOrCreate(instantiationService, originalResource, undefined, viewType);
+		const modified = NotebookEditorInput.getOrCreate(instantiationService, resource, undefined, viewType);
+		return instantiationService.createInstance(NotebookMultiDiffEditorInput, name, description, original, modified, viewType);
 	}
 }
 

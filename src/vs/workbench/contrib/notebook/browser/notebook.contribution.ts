@@ -162,6 +162,7 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 );
 
 class NotebookDiffEditorSerializer implements IEditorSerializer {
+	constructor(@IConfigurationService private readonly _configurationService: IConfigurationService) { }
 	canSerialize(): boolean {
 		return true;
 	}
@@ -189,8 +190,11 @@ class NotebookDiffEditorSerializer implements IEditorSerializer {
 			return undefined;
 		}
 
-		const input = NotebookDiffEditorInput.create(instantiationService, resource, name, undefined, originalResource, viewType);
-		return input;
+		if (this._configurationService.getValue('notebook.experimental.enableNewDiffEditor')) {
+			return NotebookMultiDiffEditorInput.create(instantiationService, resource, name, undefined, originalResource, viewType);
+		} else {
+			return NotebookDiffEditorInput.create(instantiationService, resource, name, undefined, originalResource, viewType);
+		}
 	}
 
 	static canResolveBackup(editorInput: EditorInput, backupResource: URI): boolean {

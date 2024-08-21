@@ -216,10 +216,11 @@ export class NotebookProviderInfoStore extends Disposable {
 				return { editor: NotebookEditorInput.getOrCreate(this._instantiationService, ref.object.resource, undefined, notebookProviderInfo.id), options };
 			};
 			const notebookDiffEditorInputFactory: DiffEditorInputFactoryFunction = (diffEditorInput: IResourceDiffEditorInput, group: IEditorGroup) => {
-				if (this._configurationService.getValue('notebook.experimental.enableNewDiffEditor')) {
-					return { editor: NotebookMultiDiffEditorInput.createInput(diffEditorInput, group, notebookProviderInfo.id, this._instantiationService) };
-				}
 				const { modified, original, label, description } = diffEditorInput;
+
+				if (this._configurationService.getValue('notebook.experimental.enableNewDiffEditor')) {
+					return { editor: NotebookMultiDiffEditorInput.create(this._instantiationService, modified.resource!, label, description, original.resource!, notebookProviderInfo.id) };
+				}
 				return { editor: NotebookDiffEditorInput.create(this._instantiationService, modified.resource!, label, description, original.resource!, notebookProviderInfo.id) };
 			};
 			const mergeEditorInputFactory: MergeEditorInputFactoryFunction = (mergeEditor: IResourceMergeEditorInput): EditorInputWithOptions => {
