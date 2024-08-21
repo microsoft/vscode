@@ -115,23 +115,6 @@ export class NotebookMultiTextDiffEditor extends EditorPane {
 		const widgetInput = this.modelSpecificResources.add(NotebookMultiDiffEditorWidgetInput.createInput(this.viewModel, this.instantiationService));
 		this.widgetViewModel = this.modelSpecificResources.add(await widgetInput.getViewModel());
 		this._multiDiffEditorWidget!.setViewModel(this.widgetViewModel);
-
-		// const viewState = this.loadEditorViewState(input, context);
-		// if (viewState) {
-		// 	this._multiDiffEditorWidget!.setViewState(viewState);
-		// }
-		this._applyOptions(options);
-
-	}
-	private _applyOptions(options: IMultiDiffEditorOptions | undefined): void {
-		// const viewState = options?.viewState;
-		// if (!viewState || !viewState.revealData) {
-		// 	return;
-		// }
-		// this._multiDiffEditorWidget?.reveal(viewState.revealData.resource, {
-		// 	range: viewState.revealData.range ? Range.lift(viewState.revealData.range) : undefined,
-		// 	highlight: true
-		// });
 	}
 
 	private _detachModel() {
@@ -143,11 +126,6 @@ export class NotebookMultiTextDiffEditor extends EditorPane {
 	}
 	override setOptions(options: IMultiDiffEditorOptions | undefined): void {
 		super.setOptions(options);
-		// const selections = options?.cellSelections ? cellRangesToIndexes(options.cellSelections) : undefined;
-		// if (selections) {
-		// 	// this._list.setFocus(selections);
-		// }
-		this._applyOptions(options);
 	}
 
 	override getControl() {

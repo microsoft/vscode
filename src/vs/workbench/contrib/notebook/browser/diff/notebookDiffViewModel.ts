@@ -110,8 +110,6 @@ export class NotebookDiffViewModel extends Disposable implements INotebookDiffVi
 				}
 				case 'insert': {
 					this.diffEditorItems.push(new NotebookMultiDiffEditorItem(undefined, item.modified!.uri, item.modified!.uri, item.type));
-					// If displayed, then UX looks like the old metadata has been deleted.
-					// Hence disabled for now.
 					const modifiedMetadata = CellUri.generateCellPropertyUri(modifiedSourceUri, item.modified!.handle, Schemas.vscodeNotebookCellMetadata);
 					this.diffEditorItems.push(new NotebookMultiDiffEditorItem(modifiedMetadata, undefined, item.modified!.uri, item.type));
 					break;
@@ -133,16 +131,12 @@ export class NotebookDiffViewModel extends Disposable implements INotebookDiffVi
 				case 'unchanged': {
 					this._hasUnchangedCells = true;
 					this.diffEditorItems.push(new NotebookMultiDiffEditorItem(item.original!.uri, item.modified!.uri, item.modified!.uri, item.type));
-					// if (item.checkMetadataIfModified()) {
 					const originalMetadata = CellUri.generateCellPropertyUri(originalSourceUri, item.original!.handle, Schemas.vscodeNotebookCellMetadata);
 					const modifiedMetadata = CellUri.generateCellPropertyUri(modifiedSourceUri, item.modified!.handle, Schemas.vscodeNotebookCellMetadata);
 					this.diffEditorItems.push(new NotebookMultiDiffEditorItem(originalMetadata, modifiedMetadata, item.modified!.uri, item.type));
-					// }
-					// if (item.checkIfOutputsModified()) {
 					const originalOutput = CellUri.generateCellPropertyUri(originalSourceUri, item.original!.handle, Schemas.vscodeNotebookCellOutput);
 					const modifiedOutput = CellUri.generateCellPropertyUri(modifiedSourceUri, item.modified!.handle, Schemas.vscodeNotebookCellOutput);
 					this.diffEditorItems.push(new NotebookMultiDiffEditorItem(originalOutput, modifiedOutput, item.modified!.uri, item.type));
-					// }
 					break;
 				}
 			}
