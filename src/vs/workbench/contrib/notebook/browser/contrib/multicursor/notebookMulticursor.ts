@@ -108,39 +108,11 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 
 			const editorConfig = match.config;
 
-			const converter: ICoordinatesConverter = {
-				convertViewPositionToModelPosition(viewPosition: Position): Position {
-					return viewPosition;
-				},
-				convertViewRangeToModelRange(viewRange: Range): Range {
-					return viewRange;
-				},
-				validateViewPosition(viewPosition: Position, expectedModelPosition: Position): Position {
-					return viewPosition;
-				},
-				validateViewRange(viewRange: Range, expectedModelRange: Range): Range {
-					return viewRange;
-				},
-				convertModelPositionToViewPosition(modelPosition: Position, affinity?: PositionAffinity, allowZeroLineNumber?: boolean, belowHiddenRanges?: boolean): Position {
-					return modelPosition;
-				},
-				convertModelRangeToViewRange(modelRange: Range, affinity?: PositionAffinity): Range {
-					return modelRange;
-				},
-				modelPositionIsVisible(modelPosition: Position): boolean {
-					return true;
-				},
-				getModelLineViewLineCount(modelLineNumber: number): number {
-					return 1;
-				},
-				getViewLineNumberOfModelPosition(modelLineNumber: number, modelColumn: number): number {
-					return modelLineNumber;
-				}
-			};
-
+			const converter = this.constructCoordinatesConverter(match.cellViewModel);
+			const cursorSimpleModel = this.constructCursorSimpleModel(match.cellViewModel);
 			const controller = this.cursorsDisposables.add(new CursorsController(
 				textModel,
-				this.constructCursorSimpleModel(match.cellViewModel),
+				cursorSimpleModel,
 				converter,
 				new CursorConfiguration(textModel.getLanguageId(), textModel.getOptions(), editorConfig, this.languageConfigurationService)
 			));
@@ -149,7 +121,39 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 		});
 	}
 
-	constructCursorSimpleModel(cell: ICellViewModel): ICursorSimpleModel {
+	private constructCoordinatesConverter(cell: ICellViewModel): ICoordinatesConverter {
+		return {
+			convertViewPositionToModelPosition(viewPosition: Position): Position {
+				return viewPosition;
+			},
+			convertViewRangeToModelRange(viewRange: Range): Range {
+				return viewRange;
+			},
+			validateViewPosition(viewPosition: Position, expectedModelPosition: Position): Position {
+				return viewPosition;
+			},
+			validateViewRange(viewRange: Range, expectedModelRange: Range): Range {
+				return viewRange;
+			},
+			convertModelPositionToViewPosition(modelPosition: Position, affinity?: PositionAffinity, allowZeroLineNumber?: boolean, belowHiddenRanges?: boolean): Position {
+				return modelPosition;
+			},
+			convertModelRangeToViewRange(modelRange: Range, affinity?: PositionAffinity): Range {
+				return modelRange;
+			},
+			modelPositionIsVisible(modelPosition: Position): boolean {
+				return true;
+			},
+			getModelLineViewLineCount(modelLineNumber: number): number {
+				return 1;
+			},
+			getViewLineNumberOfModelPosition(modelLineNumber: number, modelColumn: number): number {
+				return modelLineNumber;
+			}
+		};
+	}
+
+	private constructCursorSimpleModel(cell: ICellViewModel): ICursorSimpleModel {
 		return {
 			getLineCount(): number {
 				return cell.textBuffer.getLineCount();
