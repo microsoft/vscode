@@ -127,6 +127,7 @@ export class Session {
 
 	constructor(
 		readonly editMode: EditMode,
+		readonly headless: boolean,
 		/**
 		 * The URI of the document which is being EditorEdit
 		 */
