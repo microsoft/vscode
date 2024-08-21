@@ -110,6 +110,9 @@ const vscodeResourceIncludes = isESM() ? [
 	// Process Explorer
 	'out-build/vs/code/electron-sandbox/processExplorer/processExplorer.esm.html',
 
+	// Tree Sitter highlights
+	'out-build/vs/editor/common/languages/highlights/*.scm',
+
 	// Issue Reporter
 	'out-build/vs/workbench/contrib/issue/electron-sandbox/issueReporter.esm.html'
 ] : [
@@ -135,6 +138,7 @@ const vscodeResourceIncludes = isESM() ? [
 	'out-build/vs/workbench/contrib/webview/browser/pre/*.js',
 	'!out-build/vs/workbench/contrib/issue/**/*-dev.html',
 	'!out-build/vs/workbench/contrib/issue/**/*-dev.esm.html',
+	'out-build/vs/editor/common/languages/highlights/*.scm',
 	'out-build/vs/**/markdown.css',
 	'out-build/vs/workbench/contrib/tasks/**/*.json',
 	'!**/test/**'
@@ -321,7 +325,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 			version += '-' + quality;
 		}
 
-		if (isESM() && quality !== 'exploration') {
+		if (isESM() && typeof quality === 'string' && quality !== 'exploration') {
 			// TODO@esm remove this safeguard
 			throw new Error('Refuse to build ESM on quality other than exploration');
 		}

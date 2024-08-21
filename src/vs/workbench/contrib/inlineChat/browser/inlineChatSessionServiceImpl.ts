@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { CancellationError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
@@ -26,8 +25,11 @@ import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { CTX_INLINE_CHAT_HAS_AGENT, EditMode } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
-import { EmptyResponse, ErrorResponse, HunkData, ReplyResponse, Session, SessionExchange, SessionPrompt, SessionWholeRange, StashedSession, TelemetryData, TelemetryDataClassification } from './inlineChatSession';
-import { IInlineChatSessionEndEvent, IInlineChatSessionEvent, IInlineChatSessionService, ISessionKeyComputer, Recording } from './inlineChatSessionService';
+import { HunkData, Session, SessionWholeRange, StashedSession, TelemetryData, TelemetryDataClassification } from './inlineChatSession';
+import { IInlineChatSessionEndEvent, IInlineChatSessionEvent, IInlineChatSessionService, ISessionKeyComputer } from './inlineChatSessionService';
+import { isEqual } from 'vs/base/common/resources';
+import { ILanguageService } from 'vs/editor/common/languages/language';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 
 type SessionData = {
@@ -65,8 +67,6 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 
 	private readonly _sessions = new Map<string, SessionData>();
 	private readonly _keyComputers = new Map<string, ISessionKeyComputer>();
-	private _recordings: Recording[] = [];
-
 
 	constructor(
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
@@ -76,6 +76,8 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		@ILogService private readonly _logService: ILogService,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@IEditorService private readonly _editorService: IEditorService,
+		@ITextFileService private readonly _textFileService: ITextFileService,
+		@ILanguageService private readonly _languageService: ILanguageService,
 		@IChatService private readonly _chatService: IChatService,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService
 	) { }
@@ -86,7 +88,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		this._sessions.clear();
 	}
 
-	async createSession(editor: IActiveCodeEditor, options: { editMode: EditMode; wholeRange?: Range; session?: Session }, token: CancellationToken): Promise<Session | undefined> {
+	async createSession(editor: IActiveCodeEditor, options: { editMode: EditMode; headless?: boolean; wholeRange?: Range; session?: Session }, token: CancellationToken): Promise<Session | undefined> {
 
 		const agent = this._chatAgentService.getDefaultAgent(ChatAgentLocation.Editor);
 
@@ -126,8 +128,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 
 			const { response } = e.request;
 
-			const prompt = new SessionPrompt(e.request, session.textModelN.getAlternativeVersionId());
-
+			session.markModelVersion(e.request);
 			lastResponseListener.value = response.onDidChange(() => {
 
 				if (!response.isComplete) {
@@ -136,34 +137,22 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 
 				lastResponseListener.clear(); // ONCE
 
-				let inlineResponse: ErrorResponse | EmptyResponse | ReplyResponse;
-
-				// make an response from the ChatResponseModel
-				if (response.isCanceled) {
-					// error: cancelled
-					inlineResponse = new ErrorResponse(new CancellationError());
-				} else if (response.result?.errorDetails) {
-					// error: "real" error
-					inlineResponse = new ErrorResponse(new Error(response.result.errorDetails.message));
-				} else if (response.response.value.length === 0) {
-					// epmty response
-					inlineResponse = new EmptyResponse();
-				} else {
-					inlineResponse = this._instaService.createInstance(
-						ReplyResponse,
-						session.textModelN.uri,
-						e.request,
-						response
-					);
-				}
-
-				session.addExchange(new SessionExchange(prompt, inlineResponse));
-
-				if (inlineResponse instanceof ReplyResponse && inlineResponse.untitledTextModel) {
-					this._textModelService.createModelReference(inlineResponse.untitledTextModel.resource).then(ref => {
+				// special handling for untitled files
+				for (const part of response.response.value) {
+					if (part.kind !== 'textEditGroup' || part.uri.scheme !== Schemas.untitled || isEqual(part.uri, session.textModelN.uri)) {
+						continue;
+					}
+					const langSelection = this._languageService.createByFilepathOrFirstLine(part.uri, undefined);
+					const untitledTextModel = this._textFileService.untitled.create({
+						associatedResource: part.uri,
+						languageId: langSelection.languageId
+					});
+					untitledTextModel.resolve();
+					this._textModelService.createModelReference(part.uri).then(ref => {
 						store.add(ref);
 					});
 				}
+
 			});
 		}));
 
@@ -209,6 +198,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 
 		const session = new Session(
 			options.editMode,
+			options.headless ?? false,
 			targetUri,
 			textModel0,
 			textModelN,
@@ -216,7 +206,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 			store.add(new SessionWholeRange(textModelN, wholeRange)),
 			store.add(new HunkData(this._editorWorkerService, textModel0, textModelN)),
 			chatModel,
-			options.session?.exchanges, // @ulugbekna: very hacky: we pass exchanges by reference because an exchange is added only on `addRequest` event from chat model which the migrated inline chat misses
+			options.session?.versionsByRequest,
 		);
 
 		// store: key -> session
@@ -279,7 +269,6 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 			return;
 		}
 
-		this._keepRecording(session);
 		this._telemetryService.publicLog2<TelemetryData, TelemetryDataClassification>('interactiveEditor/session', session.asTelemetryData());
 
 		const [key, value] = tuple;
@@ -291,7 +280,6 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 	}
 
 	stashSession(session: Session, editor: ICodeEditor, undoCancelEdits: IValidEditOperation[]): StashedSession {
-		this._keepRecording(session);
 		const result = this._instaService.createInstance(StashedSession, editor, session, undoCancelEdits);
 		this._onDidStashSession.fire({ editor, session });
 		this._logService.trace(`[IE] did STASH session for ${editor.getId()}, ${session.agent.extensionId}`);
@@ -323,19 +311,6 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 	registerSessionKeyComputer(scheme: string, value: ISessionKeyComputer): IDisposable {
 		this._keyComputers.set(scheme, value);
 		return toDisposable(() => this._keyComputers.delete(scheme));
-	}
-
-	// --- debug
-
-	private _keepRecording(session: Session) {
-		const newLen = this._recordings.unshift(session.asRecording());
-		if (newLen > 5) {
-			this._recordings.pop();
-		}
-	}
-
-	recordings(): readonly Recording[] {
-		return this._recordings;
 	}
 }
 

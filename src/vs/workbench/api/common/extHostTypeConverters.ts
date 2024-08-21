@@ -2644,6 +2644,7 @@ export namespace ChatAgentRequest {
 			command: request.command,
 			attempt: request.attempt ?? 0,
 			enableCommandDetection: request.enableCommandDetection ?? true,
+			isParticipantDetected: request.isParticipantDetected ?? false,
 			references: variableReferences.map(ChatPromptReference.to),
 			toolReferences: toolReferences.map(ChatLanguageModelToolReference.to),
 			location: ChatLocation.to(request.location),

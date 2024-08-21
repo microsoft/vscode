@@ -15,7 +15,7 @@ import { EditorInputCapabilities } from 'vs/workbench/common/editor';
 import { IInteractiveHistoryService } from 'vs/workbench/contrib/interactive/browser/interactiveHistoryService';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CellEditType, CellKind, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
+import { ICompositeNotebookEditorInput, NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { ICustomEditorLabelService } from 'vs/workbench/services/editor/common/customEditorLabelService';
@@ -23,7 +23,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
-export class ReplEditorInput extends NotebookEditorInput {
+export class ReplEditorInput extends NotebookEditorInput implements ICompositeNotebookEditorInput {
 	static override ID: string = 'workbench.editorinputs.replEditorInput';
 
 	private inputModelRef: IReference<IResolvedTextEditorModel> | undefined;
@@ -79,6 +79,10 @@ export class ReplEditorInput extends NotebookEditorInput {
 
 	override getName() {
 		return this.label;
+	}
+
+	get editorInputs() {
+		return [this];
 	}
 
 	override get capabilities() {

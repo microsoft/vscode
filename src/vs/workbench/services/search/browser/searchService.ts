@@ -185,7 +185,7 @@ export class LocalFileSearchWorkerClient extends Disposable implements ISearchRe
 			try {
 				this._worker = this._register(createWebWorker<ILocalFileSearchSimpleWorker>(
 					'vs/workbench/services/search/worker/localFileSearch',
-					'localFileSearchWorker'
+					'LocalFileSearchWorker'
 				));
 				LocalFileSearchSimpleWorkerHost.setChannel(this._worker, {
 					$sendTextSearchMatch: (match, queryId) => {

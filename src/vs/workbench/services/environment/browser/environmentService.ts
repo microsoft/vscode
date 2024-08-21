@@ -257,7 +257,7 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	get disableWorkspaceTrust(): boolean { return !this.options.enableWorkspaceTrust; }
 
 	@memoize
-	get lastActiveProfile(): string | undefined { return this.payload?.get('lastActiveProfile'); }
+	get profile(): string | undefined { return this.payload?.get('profile'); }
 
 	editSessionId: string | undefined = this.options.editSessionId;
 

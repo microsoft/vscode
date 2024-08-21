@@ -49,7 +49,7 @@ class ProfileAnalysisWorkerService implements IProfileAnalysisWorkerService {
 
 		const worker = createWebWorker<IProfileAnalysisWorker>(
 			'vs/platform/profiling/electron-sandbox/profileAnalysisWorker',
-			'CpuProfileAnalysis'
+			'CpuProfileAnalysisWorker'
 		);
 
 		try {

@@ -37,6 +37,7 @@ import { ContextMenuController } from 'vs/editor/contrib/contextmenu/browser/con
 import { GotoDefinitionAtPositionEditorContribution } from 'vs/editor/contrib/gotoSymbol/browser/link/goToDefinitionAtPosition';
 import { ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHoverController2';
 import { MarginHoverController } from 'vs/editor/contrib/hover/browser/marginHoverController';
+import { LinkDetector } from 'vs/editor/contrib/links/browser/links';
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
 import { ViewportSemanticTokensContribution } from 'vs/editor/contrib/semanticTokens/browser/viewportSemanticTokens';
 import { SmartSelectController } from 'vs/editor/contrib/smartSelect/browser/smartSelect';
@@ -48,10 +49,13 @@ import { MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { FileKind } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { ResourceLabel } from 'vs/workbench/browser/labels';
+import { ResourceContextKey } from 'vs/workbench/common/contextkeys';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { ChatTreeItem } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatRendererDelegate } from 'vs/workbench/contrib/chat/browser/chatListRenderer';
@@ -63,9 +67,6 @@ import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreve
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { IMarkdownVulnerability } from '../common/annotations';
-import { ResourceLabel } from 'vs/workbench/browser/labels';
-import { FileKind } from 'vs/platform/files/common/files';
-import { ResourceContextKey } from 'vs/workbench/common/contextkeys';
 
 const $ = dom.$;
 
@@ -295,7 +296,8 @@ export class CodeBlockPart extends Disposable {
 				MarginHoverController.ID,
 				MessageController.ID,
 				GotoDefinitionAtPositionEditorContribution.ID,
-				ColorDetector.ID
+				ColorDetector.ID,
+				LinkDetector.ID,
 			])
 		}));
 	}
@@ -691,7 +693,9 @@ export class CodeCompareBlockPart extends Disposable {
 	}
 
 	private getContentHeight() {
-		return this.diffEditor.getContentHeight();
+		return this.diffEditor.getModel()
+			? this.diffEditor.getContentHeight()
+			: dom.getTotalHeight(this.messageElement);
 	}
 
 	async render(data: ICodeCompareBlockData, width: number, token: CancellationToken) {

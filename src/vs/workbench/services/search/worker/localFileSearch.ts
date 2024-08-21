@@ -179,12 +179,18 @@ export class LocalFileSearchSimpleWorker implements ILocalFileSearchSimpleWorker
 
 	private async walkFolderQuery(handle: IWorkerFileSystemDirectoryHandle, queryProps: ICommonQueryProps<URI>, folderQuery: IFolderQuery<URI>, extUri: ExtUri, onFile: (file: FileNode) => any, token: CancellationToken): Promise<void> {
 
-		const folderExcludes = glob.parse(folderQuery.excludePattern?.pattern ?? {}, { trimForExclusions: true }) as glob.ParsedExpression;
+		const folderExcludes = folderQuery.excludePattern?.map(excludePattern => glob.parse(excludePattern.pattern ?? {}, { trimForExclusions: true }) as glob.ParsedExpression);
 
+		const evalFolderExcludes = (path: string, basename: string, hasSibling: (query: string) => boolean) => {
+			return folderExcludes?.some(folderExclude => {
+				return folderExclude(path, basename, hasSibling);
+			});
+
+		};
 		// For folders, only check if the folder is explicitly excluded so walking continues.
 		const isFolderExcluded = (path: string, basename: string, hasSibling: (query: string) => boolean) => {
 			path = path.slice(1);
-			if (folderExcludes(path, basename, hasSibling)) { return true; }
+			if (evalFolderExcludes(path, basename, hasSibling)) { return true; }
 			if (pathExcludedInQuery(queryProps, path)) { return true; }
 			return false;
 		};
@@ -192,7 +198,7 @@ export class LocalFileSearchSimpleWorker implements ILocalFileSearchSimpleWorker
 		// For files ensure the full check takes place.
 		const isFileIncluded = (path: string, basename: string, hasSibling: (query: string) => boolean) => {
 			path = path.slice(1);
-			if (folderExcludes(path, basename, hasSibling)) { return false; }
+			if (evalFolderExcludes(path, basename, hasSibling)) { return false; }
 			if (!pathIncludedInQuery(queryProps, path, extUri)) { return false; }
 			return true;
 		};
