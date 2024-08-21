@@ -36,7 +36,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ExplorerItem, NewExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 import { ResourceLabels } from 'vs/workbench/browser/labels';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IAsyncDataTreeViewState } from 'vs/base/browser/ui/tree/asyncDataTree';
+import { IAsyncDataTreeViewState, IAsyncFindProvider } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
@@ -56,6 +56,10 @@ import { ResourceMap } from 'vs/base/common/map';
 import { isInputElement } from 'vs/base/browser/ui/list/listWidget';
 import { AbstractTreePart } from 'vs/base/browser/ui/tree/abstractTree';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
+import { ISearchService, QueryType } from 'vs/workbench/services/search/common/search';
+import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { relativePath } from 'vs/base/common/resources';
 
 
 function hasExpandedRootChild(tree: WorkbenchCompressibleAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>, treeInput: ExplorerItem[]): boolean {
@@ -149,6 +153,68 @@ export interface IExplorerViewContainerDelegate {
 
 export interface IExplorerViewPaneOptions extends IViewPaneOptions {
 	delegate: IExplorerViewContainerDelegate;
+}
+
+class ExplorerFindProvider implements IAsyncFindProvider<ExplorerItem> {
+
+	constructor(
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@ISearchService private readonly searchService: ISearchService,
+		@IFileService private readonly fileService: IFileService,
+		@IConfigurationService private readonly configService: IConfigurationService,
+		@IFilesConfigurationService private readonly filesConfigService: IFilesConfigurationService,
+		@IProgressService private readonly progressService: IProgressService,
+	) { }
+
+	async *getFindResults(pattern: string, token: CancellationToken): AsyncIterable<ExplorerItem> {
+		if (pattern === '') {
+			return;
+		}
+
+		const workspace = this.workspaceContextService.getWorkspace();
+
+		const folderPromises = Promise.all(workspace.folders.map(async folder => {
+			const result = await this.searchService.fileSearch({
+				folderQueries: [{ folder: folder.uri }],
+				type: QueryType.File,
+				filePattern: pattern,
+				maxResults: 100,
+				sortByScore: true,
+				excludePattern: { '**/node_modules/**': true, '**/out/**': true }
+			}, token);
+
+			return { folder: folder.uri, result };
+		}));
+
+		const folderResults = await this.progressService.withProgress({
+			location: ProgressLocation.Explorer,
+			delay: 100,
+		}, _progress => folderPromises);
+
+		for (const { folder, result } of folderResults) {
+			const root = new ExplorerItem(folder, this.fileService, this.configService, this.filesConfigService, undefined);
+			for (const file of result.results) {
+				const pathTraversal = relativePath(folder, file.resource);
+				if (!pathTraversal) {
+					continue;
+				}
+
+				let currentItem = root;
+				let currentResource = root.resource;
+				const segments = pathTraversal.split('/');
+				for (const stat of segments) {
+					let child = currentItem.children.get(stat);
+					currentResource = currentResource.with({ path: currentResource.path + '/' + stat });
+					if (!child) {
+						child = new ExplorerItem(currentResource, this.fileService, this.configService, this.filesConfigService, currentItem, stat !== segments[segments.length - 1]);
+					}
+					currentItem = child;
+				}
+
+				yield currentItem;
+			}
+		}
+	}
 }
 
 export class ExplorerView extends ViewPane implements IExplorerView {
@@ -489,7 +555,8 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 				return false;
 			},
 			paddingBottom: ExplorerDelegate.ITEM_HEIGHT,
-			overrideStyles: this.getLocationBasedColors().listOverrideStyles
+			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
+			findResultsProvider: this.instantiationService.createInstance(ExplorerFindProvider),
 		});
 		this._register(this.tree);
 		this._register(this.themeService.onDidColorThemeChange(() => this.tree.rerender()));

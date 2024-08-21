@@ -20,7 +20,7 @@ import { IContextMenuService, IContextViewService } from 'vs/platform/contextvie
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFilesConfiguration, UndoConfirmLevel } from 'vs/workbench/contrib/files/common/files';
-import { dirname, joinPath, distinctParents } from 'vs/base/common/resources';
+import { dirname, joinPath, distinctParents, isEqual } from 'vs/base/common/resources';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { localize } from 'vs/nls';
 import { createSingleCallFunction } from 'vs/base/common/functional';
@@ -93,6 +93,23 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IFilesConfigurationService private readonly filesConfigService: IFilesConfigurationService
 	) { }
+
+	getParent(element: ExplorerItem): ExplorerItem {
+		if (element.parent) {
+			return element.parent;
+		}
+
+		for (const folder of this.contextService.getWorkspace().folders) {
+			if (isEqual(folder.uri, element.resource)) {
+				return element;
+			}
+		}
+
+		const parentResource = element.resource.with({ path: path.dirname(element.resource.path) });
+		const parent = new ExplorerItem(parentResource, this.fileService, this.configService, this.filesConfigService, undefined, true);
+		parent.addChild(element);
+		return parent;
+	}
 
 	hasChildren(element: ExplorerItem | ExplorerItem[]): boolean {
 		// don't render nest parents as containing children when all the children are filtered out

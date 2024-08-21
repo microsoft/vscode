@@ -8,7 +8,7 @@ import { AbstractTree, IAbstractTreeOptions, IAbstractTreeOptionsUpdate, ISticky
 import { CompressibleObjectTreeModel, ElementMapper, ICompressedTreeElement, ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 import { IList } from 'vs/base/browser/ui/tree/indexTreeModel';
 import { IObjectTreeModel, ObjectTreeModel } from 'vs/base/browser/ui/tree/objectTreeModel';
-import { ICollapseStateChangeEvent, IObjectTreeElement, ITreeModel, ITreeNode, ITreeRenderer, ITreeSorter } from 'vs/base/browser/ui/tree/tree';
+import { ICollapseStateChangeEvent, IObjectTreeElement, ITreeModel, ITreeModelSpliceEvent, ITreeNode, ITreeRenderer, ITreeSorter } from 'vs/base/browser/ui/tree/tree';
 import { memoize } from 'vs/base/common/decorators';
 import { Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
@@ -41,6 +41,7 @@ export class ObjectTree<T extends NonNullable<any>, TFilterData = void> extends 
 	protected declare model: IObjectTreeModel<T, TFilterData>;
 
 	override get onDidChangeCollapseState(): Event<ICollapseStateChangeEvent<T | null, TFilterData>> { return this.model.onDidChangeCollapseState; }
+	get onDidSplice(): Event<ITreeModelSpliceEvent<T | null, TFilterData>> { return this.model.onDidSplice; }
 
 	constructor(
 		protected readonly user: string,

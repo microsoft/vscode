@@ -21,6 +21,10 @@ import { Iterable } from 'vs/base/common/iterator';
 import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { ScrollEvent } from 'vs/base/common/scrollable';
 import { isIterable } from 'vs/base/common/types';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { IResourceNode, ResourceTree } from 'vs/base/common/resourceTree';
+// eslint-disable-next-line local/code-import-patterns
+import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 
 interface IAsyncDataTreeNode<TInput, T> {
 	element: TInput | T;
@@ -290,6 +294,10 @@ function asObjectTreeOptions<TInput, T, TFilterData>(options?: IAsyncDataTreeOpt
 	};
 }
 
+export interface IAsyncFindProvider<T> {
+	getFindResults(pattern: string, token: CancellationToken): AsyncIterable<T>;
+}
+
 export interface IAsyncDataTreeOptionsUpdate extends IAbstractTreeOptionsUpdate { }
 export interface IAsyncDataTreeUpdateChildrenOptions<T> extends IObjectTreeSetChildrenOptions<T> { }
 
@@ -298,6 +306,7 @@ export interface IAsyncDataTreeOptions<T, TFilterData = void> extends IAsyncData
 	readonly identityProvider?: IIdentityProvider<T>;
 	readonly sorter?: ITreeSorter<T>;
 	readonly autoExpandSingleChildren?: boolean;
+	readonly findResultsProvider?: IAsyncFindProvider<T>;
 }
 
 export interface IAsyncDataTreeViewState {
@@ -321,6 +330,7 @@ function dfs<TInput, T>(node: IAsyncDataTreeNode<TInput, T>, fn: (node: IAsyncDa
 export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable {
 
 	protected readonly tree: ObjectTree<IAsyncDataTreeNode<TInput, T>, TFilterData>;
+	protected readonly findProvider: IAsyncFindProvider<T> | undefined;
 	protected readonly root: IAsyncDataTreeNode<TInput, T>;
 	private readonly nodes = new Map<null | T, IAsyncDataTreeNode<TInput, T>>();
 	private readonly sorter?: ITreeSorter<T>;
@@ -418,6 +428,11 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		this.nodes.set(null, this.root);
 
 		this.tree.onDidChangeCollapseState(this._onDidChangeCollapseState, this, this.disposables);
+
+		if (options.findResultsProvider) {
+			this.findProvider = options.findResultsProvider;
+			this.disposables.add(this.tree.onDidChangeFindPattern(pattern => this.findPatternChanged(pattern)));
+		}
 	}
 
 	protected createTree(
@@ -695,6 +710,105 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 
 	closeFind(): void {
 		this.tree.closeFind();
+	}
+
+	private findTreeActive: boolean = false;
+	private activeTokenSource: CancellationTokenSource | undefined;
+	private findPatternChanged(pattern: string): void {
+		if (!this.findProvider) {
+			return;
+		}
+
+		if (pattern && !this.findTreeActive) {
+			this.findTreeActive = true;
+		} else if (!pattern && this.findTreeActive) {
+			this.findTreeActive = false;
+			return;
+		}
+
+		const resourceTree = new ResourceTree<T | TInput, null>(null, (this.root.element as ExplorerItem).resource);
+
+		this.activeTokenSource?.cancel();
+		this.activeTokenSource = new CancellationTokenSource();
+		const results = this.findProvider.getFindResults(pattern, this.activeTokenSource.token);
+		this.pocessFindResults(results, resourceTree, this.activeTokenSource.token);
+	}
+
+	private async pocessFindResults(results: AsyncIterable<T>, resourceTree: ResourceTree<T | TInput, null>, token: CancellationToken): Promise<void> {
+		if (!this.dataSource.getParent) {
+			return;
+		}
+
+		this.tree.setChildren(null, []);
+		this.tree!.refilter();
+		this.tree!.rerender();
+
+		resourceTree.clear();
+
+		for await (const result of results) {
+			if (token.isCancellationRequested) {
+				return;
+			}
+
+			const resource = (result as ExplorerItem).resource;
+			resourceTree.add(resource, result);
+
+			// resolve all parent elements of the node
+			let currentNode = resourceTree.getNode(resource)!;
+			while (currentNode.parent && currentNode.parent.parent && !currentNode.parent.element) {
+
+				// If the node of the parent has not be resolved yet, resolve it
+				if (!currentNode.parent.element) {
+					const newParent = this.dataSource.getParent(currentNode.element as T);
+					resourceTree.add(currentNode.parent.uri, newParent);
+				}
+
+				currentNode = currentNode.parent;
+			}
+		}
+
+		// Redraw at the end
+		this.setFindChildren(resourceTree);
+		this.tree!.rerender();
+
+		this.activeTokenSource?.dispose();
+		this.activeTokenSource = undefined;
+	}
+
+	private setFindChildren(resourceTree: ResourceTree<T | TInput, null>) {
+		if (resourceTree.root) {
+			const node = this.asFindTreeElement(resourceTree.root, null);
+			const objectNode = this.asTreeElement(node);
+			this.tree.setChildren(null, objectNode.children);
+		}
+	}
+
+	protected asFindTreeElement(node: IResourceNode<T | TInput, null>, parent: IAsyncDataTreeNode<TInput, T> | null): IAsyncDataTreeNode<TInput, T> {
+		const children: IAsyncDataTreeNode<TInput, T>[] = [];
+
+		if (node.element === undefined) {
+			throw new TreeError(this.user, 'Found node without an element');
+		}
+
+		const asyncNode: IAsyncDataTreeNode<TInput, T> = {
+			element: node.element,
+			parent,
+			children,
+			hasChildren: false,
+			defaultCollapseState: ObjectTreeElementCollapseState.PreserveOrExpanded,
+			stale: false,
+			refreshPromise: undefined,
+			slow: false,
+			forceExpanded: false
+		};
+
+		for (const child of node.children) {
+			children.push(this.asFindTreeElement(child, asyncNode));
+		}
+
+		asyncNode.hasChildren = !!children.length;
+
+		return asyncNode;
 	}
 
 	refilter(): void {
