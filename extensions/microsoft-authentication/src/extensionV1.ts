@@ -103,10 +103,7 @@ async function initMicrosoftSovereignCloudAuthProvider(context: vscode.Extension
 	return disposable;
 }
 
-export async function activate(context: vscode.ExtensionContext) {
-	const aiKey: string = context.extension.packageJSON.aiKey;
-	const telemetryReporter = new TelemetryReporter(aiKey);
-
+export async function activate(context: vscode.ExtensionContext, telemetryReporter: TelemetryReporter) {
 	const uriHandler = new UriEventHandler();
 	context.subscriptions.push(uriHandler);
 	const betterSecretStorage = new BetterTokenStorage<IStoredSession>('microsoft.login.keylist', context);
