@@ -158,7 +158,7 @@ export class InlineChatWidget {
 						if (item.response.value.length === 0) {
 							return false;
 						}
-						return false;
+						return true;
 					}
 					return true;
 				},
