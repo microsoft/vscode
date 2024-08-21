@@ -37,7 +37,12 @@
 	}
 
 	.collapse-button {
-		cursor: pointer;
+		width: 16px;
+		min-height: 1px; /* show even if empty */
+
+		a {
+			cursor: pointer;
+		}
 	}
 
 	.actions {
