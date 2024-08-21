@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { deepStrictEqual, strictEqual } from 'assert';
+import { deepStrictEqual, strictEqual, throws } from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import type { ITextureAtlasAllocator } from 'vs/editor/browser/view/gpu/atlas/atlas';
 import { TextureAtlasShelfAllocator } from 'vs/editor/browser/view/gpu/atlas/textureAtlasShelfAllocator';
@@ -149,13 +149,20 @@ suite('TextureAtlasAllocator', () => {
 			allocateAndAssert(allocator, pixel1x1, undefined);
 		});
 
+		// TODO: Share test with other allocator
 		test('glyph too large for canvas', () => {
-			const { allocator } = initAllocator(1, 1, { slabW: 1, slabH: 1 });
-			allocateAndAssert(allocator, pixel2x1, undefined);
+			const { allocator } = initAllocator(1, 1);
+			throws(() => allocateAndAssert(allocator, pixel2x1, undefined), new Error('Glyph is too large for the atlas page'));
 		});
 
-		test('glyph too large for slab', () => {
+		test('glyph too large for slab (increase slab size for first glyph)', () => {
 			const { allocator } = initAllocator(2, 2, { slabW: 1, slabH: 1 });
+			allocateAndAssert(allocator, pixel2x1, { x: 0, y: 0, w: 2, h: 1 });
+		});
+
+		test('glyph too large for slab (undefined as it\'s not the first glyph)', () => {
+			const { allocator } = initAllocator(2, 2, { slabW: 1, slabH: 1 });
+			allocateAndAssert(allocator, pixel1x1, { x: 0, y: 0, w: 1, h: 1 });
 			allocateAndAssert(allocator, pixel2x1, undefined);
 		});
 

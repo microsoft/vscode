@@ -18,6 +18,10 @@ export type AllocatorType = 'shelf' | 'slab' | ((canvas: OffscreenCanvas, textur
 export class TextureAtlasPage extends Disposable implements IReadableTextureAtlasPage {
 	private _version: number = 0;
 
+	/**
+	 * The maximum number of glyphs that can be drawn to the page. This is currently a hard static
+	 * cap that must not be reached as it will cause the GPU buffer to overflow.
+	 */
 	static readonly maximumGlyphCount = 5_000;
 
 	private _usedArea: IBoundingBox = { left: 0, top: 0, right: 0, bottom: 0 };
@@ -33,24 +37,19 @@ export class TextureAtlasPage extends Disposable implements IReadableTextureAtla
 	}
 
 	private readonly _canvas: OffscreenCanvas;
+	get source(): OffscreenCanvas {
+		return this._canvas;
+	}
 
 	private readonly _glyphMap: TwoKeyMap<string, number, ITextureAtlasPageGlyph> = new TwoKeyMap();
-	// HACK: This is an ordered set of glyphs to be passed to the GPU since currently the shader
-	//       uses the index of the glyph. This should be improved to derive from _glyphMap
 	private readonly _glyphInOrderSet: Set<ITextureAtlasPageGlyph> = new Set();
 	get glyphs(): IterableIterator<ITextureAtlasPageGlyph> {
 		return this._glyphInOrderSet.values();
 	}
 
 	private readonly _allocator: ITextureAtlasAllocator;
-
 	private _colorMap!: string[];
 
-	get source(): OffscreenCanvas {
-		return this._canvas;
-	}
-
-	// TODO: Should pull in the font size from config instead of random dom node
 	constructor(
 		textureIndex: number,
 		pageSize: number,
@@ -87,18 +86,25 @@ export class TextureAtlasPage extends Disposable implements IReadableTextureAtla
 	}
 
 	private _createGlyph(rasterizer: IGlyphRasterizer, chars: string, metadata: number): Readonly<ITextureAtlasPageGlyph> | undefined {
+		// Ensure the glyph can fit on the page
 		if (this._glyphInOrderSet.size >= TextureAtlasPage.maximumGlyphCount) {
 			return undefined;
 		}
+
+		// Rasterize and allocate the glyph
 		const rasterizedGlyph = rasterizer.rasterizeGlyph(chars, metadata, this._colorMap);
 		const glyph = this._allocator.allocate(rasterizedGlyph);
+
+		// Ensure the glyph was allocated
 		if (glyph === undefined) {
-			// TODO: Log this? In practice it should not happen
 			return undefined;
 		}
+
+		// Save the glyph
 		this._glyphMap.set(chars, metadata, glyph);
 		this._glyphInOrderSet.add(glyph);
 
+		// Update page version and it's tracked used area
 		this._version++;
 		this._usedArea.right = Math.max(this._usedArea.right, glyph.x + glyph.w - 1);
 		this._usedArea.bottom = Math.max(this._usedArea.bottom, glyph.y + glyph.h - 1);
