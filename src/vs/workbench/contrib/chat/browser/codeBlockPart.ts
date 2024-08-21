@@ -693,7 +693,9 @@ export class CodeCompareBlockPart extends Disposable {
 	}
 
 	private getContentHeight() {
-		return this.diffEditor.getContentHeight();
+		return this.diffEditor.getModel()
+			? this.diffEditor.getContentHeight()
+			: dom.getTotalHeight(this.messageElement);
 	}
 
 	async render(data: ICodeCompareBlockData, width: number, token: CancellationToken) {
