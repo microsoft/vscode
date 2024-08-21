@@ -599,6 +599,7 @@ suite('vscode API - workspace', () => {
 
 	test('`findFiles2`', () => {
 		return vscode.workspace.findFiles2('**/image.png').then((res) => {
+			res.forEach(r => console.log(r.toString()));
 			assert.strictEqual(res.length, 2);
 		});
 	});
@@ -619,6 +620,7 @@ suite('vscode API - workspace', () => {
 
 	test('findFiles2, exclude', () => {
 		return vscode.workspace.findFiles2('**/image.png', { exclude: '**/sub/**' }).then((res) => {
+			res.forEach(r => console.log(r.toString()));
 			assert.strictEqual(res.length, 1);
 		});
 	});
