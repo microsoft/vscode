@@ -9,6 +9,7 @@ import { Disposable, dispose, MutableDisposable, toDisposable } from 'vs/base/co
 import { TwoKeyMap } from 'vs/base/common/map';
 import type { IReadableTextureAtlasPage, ITextureAtlasPageGlyph } from 'vs/editor/browser/view/gpu/atlas/atlas';
 import { TextureAtlasPage, type AllocatorType } from 'vs/editor/browser/view/gpu/atlas/textureAtlasPage';
+import { GlyphRasterizer } from 'vs/editor/browser/view/gpu/raster/glyphRasterizer';
 import type { IGlyphRasterizer } from 'vs/editor/browser/view/gpu/raster/raster';
 import { IdleTaskQueue } from 'vs/editor/browser/view/gpu/taskQueue';
 import { MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
@@ -64,21 +65,28 @@ export class TextureAtlas extends Disposable {
 		const dprFactor = Math.max(1, Math.floor(getActiveWindow().devicePixelRatio));
 
 		this.pageSize = Math.min(1024 * dprFactor, this._maxTextureSize);
-		this._pages.push(this._instantiationService.createInstance(TextureAtlasPage, 0, this.pageSize, this._allocatorType));
+		const firstPage = this._instantiationService.createInstance(TextureAtlasPage, 0, this.pageSize, this._allocatorType);
+		this._pages.push(firstPage);
+
+		// IMPORTANT: The first glyph on the first page must be an empty glyph such that zeroed out
+		// cells end up rendering nothing
+		firstPage.getGlyph(new GlyphRasterizer(1, ''), '', 0);
 
 		this._register(toDisposable(() => dispose(this._pages)));
 	}
 
 	public getGlyph(rasterizer: IGlyphRasterizer, chars: string, metadata: number): Readonly<ITextureAtlasPageGlyph> {
+		// TODO: Encode font size and family into key
 		// Ignore metadata that doesn't affect the glyph
 		metadata &= ~(MetadataConsts.LANGUAGEID_MASK | MetadataConsts.TOKEN_TYPE_MASK | MetadataConsts.BALANCED_BRACKETS_MASK);
 
-		// TODO: Encode font size and family into key
-
+		// Warm up common glyphs
 		if (!this._warmedUpRasterizers.has(rasterizer.id)) {
 			this._warmUpAtlas(rasterizer);
 			this._warmedUpRasterizers.add(rasterizer.id);
 		}
+
+		// Try get the glyph, overflowing to a new page if necessary
 		return this._tryGetGlyph(this._glyphPageIndex.get(chars, metadata) ?? 0, rasterizer, chars, metadata);
 	}
 

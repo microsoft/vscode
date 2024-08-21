@@ -18,7 +18,6 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 	public readonly id = nextId++;
 
 	private _canvas: OffscreenCanvas;
-	// A temporary context that glyphs are drawn to before being transfered to the atlas.
 	private _ctx: OffscreenCanvasRenderingContext2D;
 
 	private _workGlyph: IRasterizedGlyph = {
@@ -36,9 +35,9 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 	};
 
 	private _workGlyphConfig: {
-		chars: string;
+		chars: string | undefined;
 		metadata: number;
-	} = { chars: '', metadata: 0 };
+	} = { chars: undefined, metadata: 0 };
 
 	constructor(
 		private readonly _fontSize: number,
@@ -137,9 +136,6 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 		// 		y: Math.floor(boundingBox.top - originY)
 		// 	}
 		// };
-
-		// DEBUG: Show image data in console
-		// (console as any).image(imageData);
 
 		// TODO: Verify result 1 and 2 are the same
 

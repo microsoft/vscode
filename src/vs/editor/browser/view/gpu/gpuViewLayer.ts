@@ -483,6 +483,7 @@ class FullFileRenderStrategy<T extends IVisibleLine> extends Disposable implemen
 	private _activeDoubleBufferIndex: 0 | 1 = 0;
 
 	private readonly _upToDateLines: [Set<number>, Set<number>] = [new Set(), new Set()];
+	private _visibleObjectCount: number = 0;
 
 	private _scrollOffsetBindBuffer!: GPUBuffer;
 	private _scrollOffsetValueBuffers!: [Float32Array, Float32Array];
@@ -711,18 +712,17 @@ class FullFileRenderStrategy<T extends IVisibleLine> extends Disposable implemen
 
 		this._activeDoubleBufferIndex = this._activeDoubleBufferIndex ? 0 : 1;
 
+		this._visibleObjectCount = visibleObjectCount;
 		return visibleObjectCount;
 	}
 
 	draw(pass: GPURenderPassEncoder, ctx: IRendererContext<T>, startLineNumber: number, stopLineNumber: number, deltaTop: number[]): void {
-		const visibleObjectCount = (stopLineNumber - startLineNumber + 1) * FullFileRenderStrategy._columnCount * Constants.IndicesPerCell;
-
-		if (visibleObjectCount <= 0) {
+		if (this._visibleObjectCount <= 0) {
 			console.error('Attempt to draw 0 objects');
 		} else {
 			pass.draw(
 				6, // square verticies
-				visibleObjectCount,
+				this._visibleObjectCount,
 				undefined,
 				(startLineNumber - 1) * FullFileRenderStrategy._columnCount
 			);
