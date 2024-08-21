@@ -76,7 +76,7 @@
 	"npm.exclude": "**/extensions/**",
 	"npm.packageManager": "yarn",
 	"emmet.excludeLanguages": [],
-	"typescript.preferences.importModuleSpecifier": "non-relative",
+	"typescript.preferences.importModuleSpecifier": "relative",
 	"typescript.preferences.quoteStyle": "single",
 	"json.schemas": [
 		{
