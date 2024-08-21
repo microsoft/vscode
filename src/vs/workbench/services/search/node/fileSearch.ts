@@ -488,6 +488,7 @@ export class FileWalker {
 			// are searching for and we want to include the result in that case anyway
 			const currentRelativePath = relativeParentPath ? [relativeParentPath, file].join(path.sep) : file;
 			if (this.folderExcludePatterns.get(folderQuery.folder.fsPath)!.test(currentRelativePath, file, this.config.filePattern !== file ? hasSibling : undefined)) {
+				console.log(`${currentRelativePath} got excluded for check ${this.folderExcludePatterns.get(folderQuery.folder.fsPath)!.expression.pattern}`);
 				return clb(null);
 			}
 
@@ -567,6 +568,7 @@ export class FileWalker {
 	private matchFile(onResult: (result: IRawFileMatch) => void, candidate: IRawFileMatch): void {
 		if (this.isFileMatch(candidate) && (!this.includePattern || this.includePattern(candidate.relativePath, path.basename(candidate.relativePath)))) {
 			this.resultCount++;
+			console.log(`${candidate} is a match`);
 
 			if (this.exists || (this.maxResults && this.resultCount > this.maxResults)) {
 				this.isLimitHit = true;
