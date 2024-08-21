@@ -740,7 +740,6 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		}
 
 		this.tree.setChildren(null, []);
-		this.tree!.refilter();
 		this.tree!.rerender();
 
 		resourceTree.clear();
@@ -777,9 +776,12 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 
 	private setFindChildren(resourceTree: ResourceTree<T | TInput, null>) {
 		if (resourceTree.root) {
-			const node = this.asFindTreeElement(resourceTree.root, null);
-			const objectNode = this.asTreeElement(node);
-			this.tree.setChildren(null, objectNode.children);
+			const children: IObjectTreeElement<IAsyncDataTreeNode<TInput, T>>[] = [];
+			for (const child of resourceTree.root.children) {
+				children.push(this.asTreeElement(this.asFindTreeElement(child, null)));
+			}
+
+			this.tree.setChildren(null, children);
 		}
 	}
 
