@@ -1076,7 +1076,9 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 					owner: 'sandy081';
 					comment: 'Report when update check is triggered on product update';
 				}>('extensions:updatecheckonproductupdate');
-				this.eventuallyCheckForUpdates(true);
+				if (this.isAutoCheckUpdatesEnabled()) {
+					this.checkForUpdates();
+				}
 			}
 		}));
 
