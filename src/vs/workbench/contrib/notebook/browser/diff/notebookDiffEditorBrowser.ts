@@ -17,6 +17,7 @@ import { NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebo
 import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { localize } from 'vs/nls';
 
 export enum DiffSide {
 	Original = 0,
@@ -145,6 +146,9 @@ export const NOTEBOOK_DIFF_CELL_IGNORE_WHITESPACE_KEY = 'notebookDiffCellIgnoreW
 export const NOTEBOOK_DIFF_CELL_IGNORE_WHITESPACE = new RawContextKey<boolean>(NOTEBOOK_DIFF_CELL_IGNORE_WHITESPACE_KEY, false);
 export const NOTEBOOK_DIFF_CELL_PROPERTY = new RawContextKey<boolean>('notebookDiffCellPropertyChanged', false);
 export const NOTEBOOK_DIFF_CELL_PROPERTY_EXPANDED = new RawContextKey<boolean>('notebookDiffCellPropertyExpanded', false);
+export const NOTEBOOK_DIFF_CELLS_COLLAPSED = new RawContextKey<boolean>('notebookDiffEditorAllCollapsed', undefined, localize('notebookDiffEditorAllCollapsed', "Whether all cells in notebook diff editor are collapsed"));
+export const NOTEBOOK_DIFF_HAS_UNCHANGED_CELLS = new RawContextKey<boolean>('notebookDiffEditorHasUnchangedCells', undefined, localize('notebookDiffEditorHasUnchangedCells', "Whether there are unchanged cells in the notebook diff editor"));
+export const NOTEBOOK_DIFF_UNCHANGED_CELLS_HIDDEN = new RawContextKey<boolean>('notebookDiffEditorHiddenUnchangedCells', undefined, localize('notebookDiffEditorHiddenUnchangedCells', "Whether the unchanged cells in the notebook diff editor are hidden"));
 
 export interface INotebookDiffViewModelUpdateEvent {
 	readonly start: number;

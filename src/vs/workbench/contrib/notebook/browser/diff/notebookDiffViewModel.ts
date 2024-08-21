@@ -37,12 +37,16 @@ export class NotebookDiffViewModel extends Disposable implements INotebookDiffVi
 		return this.diffEditorItems.filter(item => item.type !== 'placeholder').filter(item => this._includeUnchanged ? true : item.type !== 'unchanged');
 	}
 
+	private _hasUnchangedCells?: boolean;
+	public get hasUnchangedCells() {
+		return this._hasUnchangedCells === true;
+	}
 	private _includeUnchanged?: boolean;
 	public get includeUnchanged() {
 		return this._includeUnchanged === true;
 	}
 	public set includeUnchanged(value) {
-		this.includeUnchanged = value;
+		this._includeUnchanged = value;
 		this._onDidChange.fire();
 	}
 
@@ -95,6 +99,7 @@ export class NotebookDiffViewModel extends Disposable implements INotebookDiffVi
 		this.diffEditorItems = [];
 		const originalSourceUri = this.model.original.resource!;
 		const modifiedSourceUri = this.model.modified.resource!;
+		this._hasUnchangedCells = false;
 		this.items.forEach(item => {
 			switch (item.type) {
 				case 'delete': {
@@ -126,6 +131,7 @@ export class NotebookDiffViewModel extends Disposable implements INotebookDiffVi
 					break;
 				}
 				case 'unchanged': {
+					this._hasUnchangedCells = true;
 					this.diffEditorItems.push(new NotebookMultiDiffEditorItem(item.original!.uri, item.modified!.uri, item.modified!.uri, item.type));
 					// if (item.checkMetadataIfModified()) {
 					const originalMetadata = CellUri.generateCellPropertyUri(originalSourceUri, item.original!.handle, Schemas.vscodeNotebookCellMetadata);

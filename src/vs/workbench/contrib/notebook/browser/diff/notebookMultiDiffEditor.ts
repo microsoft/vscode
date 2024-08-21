@@ -34,6 +34,8 @@ import { Schemas } from 'vs/base/common/network';
 import { getIconClassesForLanguageId } from 'vs/editor/common/services/getIconClasses';
 import { NotebookDiffViewModel } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffViewModel';
 import { NotebookDiffEditorEventDispatcher } from 'vs/workbench/contrib/notebook/browser/diff/eventDispatcher';
+import { NOTEBOOK_DIFF_CELLS_COLLAPSED, NOTEBOOK_DIFF_HAS_UNCHANGED_CELLS, NOTEBOOK_DIFF_UNCHANGED_CELLS_HIDDEN } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
+import type { MultiDiffEditorViewModel } from 'vs/editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel';
 
 export class NotebookMultiTextDiffEditor extends EditorPane {
 	private _multiDiffEditorWidget?: MultiDiffEditorWidget;
@@ -43,6 +45,7 @@ export class NotebookMultiTextDiffEditor extends EditorPane {
 	private readonly modelSpecificResources = this._register(new DisposableStore());
 	private _model?: INotebookDiffEditorModel;
 	private viewModel?: NotebookDiffViewModel;
+	private widgetViewModel?: MultiDiffEditorViewModel;
 	get textModel() {
 		return this._model?.modified.notebook;
 	}
@@ -50,12 +53,15 @@ export class NotebookMultiTextDiffEditor extends EditorPane {
 	get notebookOptions() {
 		return this._notebookOptions;
 	}
+	private readonly ctxAllCollapsed = this._parentContextKeyService.createKey<boolean>(NOTEBOOK_DIFF_CELLS_COLLAPSED.key, false);
+	private readonly ctxHasUnchangedCells = this._parentContextKeyService.createKey<boolean>(NOTEBOOK_DIFF_HAS_UNCHANGED_CELLS.key, false);
+	private readonly ctxHiddenUnchangedCells = this._parentContextKeyService.createKey<boolean>(NOTEBOOK_DIFF_UNCHANGED_CELLS_HIDDEN.key, true);
 
 	constructor(
 		group: IEditorGroup,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
-		// @IContextKeyService private readonly _parentContextKeyService: IContextKeyService,
+		@IContextKeyService private readonly _parentContextKeyService: IContextKeyService,
 		@INotebookEditorWorkerService private readonly notebookEditorWorkerService: INotebookEditorWorkerService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -104,10 +110,11 @@ export class NotebookMultiTextDiffEditor extends EditorPane {
 		const eventDispatcher = this.modelSpecificResources.add(new NotebookDiffEditorEventDispatcher());
 		this.viewModel = this.modelSpecificResources.add(new NotebookDiffViewModel(model, this.notebookEditorWorkerService, this.instantiationService, this.configurationService, eventDispatcher, this.notebookService, undefined, true));
 		await this.viewModel.computeDiff(this.modelSpecificResources.add(new CancellationTokenSource()).token);
+		this.ctxHasUnchangedCells.set(this.viewModel.hasUnchangedCells);
 
 		const widgetInput = this.modelSpecificResources.add(NotebookMultiDiffEditorWidgetInput.createInput(this.viewModel, this.instantiationService));
-		const widgetViewModel = this.modelSpecificResources.add(await widgetInput.getViewModel());
-		this._multiDiffEditorWidget!.setViewModel(widgetViewModel);
+		this.widgetViewModel = this.modelSpecificResources.add(await widgetInput.getViewModel());
+		this._multiDiffEditorWidget!.setViewModel(this.widgetViewModel);
 
 		// const viewState = this.loadEditorViewState(input, context);
 		// if (viewState) {
@@ -162,6 +169,26 @@ export class NotebookMultiTextDiffEditor extends EditorPane {
 		this._multiDiffEditorWidget!.setViewModel(undefined);
 		this.modelSpecificResources.clear();
 		this.viewModel = undefined;
+	}
+
+	public expandAll() {
+		if (this.widgetViewModel) {
+			this.widgetViewModel.expandAll();
+			this.ctxAllCollapsed.set(false);
+		}
+	}
+	public collapseAll() {
+		if (this.widgetViewModel) {
+			this.widgetViewModel.collapseAll();
+			this.ctxAllCollapsed.set(true);
+		}
+	}
+
+	public toggleUnchangedCells() {
+		if (this.viewModel) {
+			this.viewModel.includeUnchanged = !this.viewModel.includeUnchanged;
+			this.ctxHiddenUnchangedCells.set(this.viewModel.includeUnchanged);
+		}
 	}
 }
 
