@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ok, strictEqual } from 'assert';
+import { ok, strictEqual, throws } from 'assert';
 import { isNumber } from 'vs/base/common/types';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import type { ITextureAtlasPageGlyph } from 'vs/editor/browser/view/gpu/atlas/atlas';
 import { TextureAtlas } from 'vs/editor/browser/view/gpu/atlas/textureAtlas';
+import { TextureAtlasSlabAllocator } from 'vs/editor/browser/view/gpu/atlas/textureAtlasSlabAllocator';
 import { ensureNonNullable } from 'vs/editor/browser/view/gpu/gpuUtils';
 import type { IGlyphRasterizer, IRasterizedGlyph } from 'vs/editor/browser/view/gpu/raster/raster';
 import { createCodeEditorServices } from 'vs/editor/test/browser/testCodeEditor';
@@ -37,10 +38,10 @@ function assertIsValidGlyph(glyph: Readonly<ITextureAtlasPageGlyph>, atlas: Text
 	// (w,h) are valid dimensions
 	ok(isNumber(glyph.w));
 	ok(glyph.w > 0);
-	ok(glyph.w < atlas.pageSize);
+	ok(glyph.w <= atlas.pageSize);
 	ok(isNumber(glyph.h));
 	ok(glyph.h > 0);
-	ok(glyph.h < atlas.pageSize);
+	ok(glyph.h <= atlas.pageSize);
 
 	// (originOffsetX, originOffsetY) are valid offsets
 	ok(isNumber(glyph.originOffsetX));
@@ -110,7 +111,7 @@ suite('TextureAtlas', () => {
 
 	setup(() => {
 		instantiationService = createCodeEditorServices(store);
-		atlas = store.add(instantiationService.createInstance(TextureAtlas, 8));
+		atlas = store.add(instantiationService.createInstance(TextureAtlas, 2, undefined));
 		glyphRasterizer = new TestGlyphRasterizer();
 		glyphRasterizer.nextGlyphDimensions = [1, 1];
 		glyphRasterizer.nextGlyphColor = [0, 0, 0, 0xFF];
@@ -121,18 +122,42 @@ suite('TextureAtlas', () => {
 	});
 
 	test('get multiple glyphs', () => {
+		atlas = store.add(instantiationService.createInstance(TextureAtlas, 32, undefined));
 		for (let i = 0; i < 10; i++) {
 			assertIsValidGlyph(atlas.getGlyph(glyphRasterizer, ...getUniqueGlyphId()), atlas);
 		}
 	});
 
 	test('adding glyph to full page creates new page', () => {
-		atlas = store.add(instantiationService.createInstance(TextureAtlas, 2));
 		for (let i = 0; i < 4; i++) {
 			assertIsValidGlyph(atlas.getGlyph(glyphRasterizer, ...getUniqueGlyphId()), atlas);
 		}
 		strictEqual(atlas.pages.length, 1);
 		assertIsValidGlyph(atlas.getGlyph(glyphRasterizer, ...getUniqueGlyphId()), atlas);
-		strictEqual(atlas.pages.length, 2);
+		strictEqual(atlas.pages.length, 2, 'the 5th glyph should overflow to a new page');
+	});
+
+	test('adding a glyph larger than the atlas', () => {
+		glyphRasterizer.nextGlyphDimensions = [3, 2];
+		throws(() => atlas.getGlyph(glyphRasterizer, ...getUniqueGlyphId()), 'should throw when the glyph is too large, this should not happen in practice');
+	});
+
+	test('adding a glyph larger than the standard slab size', () => {
+		glyphRasterizer.nextGlyphDimensions = [2, 2];
+		atlas = store.add(instantiationService.createInstance(TextureAtlas, 32, {
+			allocatorType: (canvas, textureIndex) => new TextureAtlasSlabAllocator(canvas, textureIndex, { slabW: 1, slabH: 1 })
+		}));
+		assertIsValidGlyph(atlas.getGlyph(glyphRasterizer, ...getUniqueGlyphId()), atlas);
+	});
+
+	test('adding a non-first glyph larger than the standard slab size, causing an overflow to a new page', () => {
+		atlas = store.add(instantiationService.createInstance(TextureAtlas, 2, {
+			allocatorType: (canvas, textureIndex) => new TextureAtlasSlabAllocator(canvas, textureIndex, { slabW: 1, slabH: 1 })
+		}));
+		assertIsValidGlyph(atlas.getGlyph(glyphRasterizer, ...getUniqueGlyphId()), atlas);
+		strictEqual(atlas.pages.length, 1);
+		glyphRasterizer.nextGlyphDimensions = [2, 2];
+		assertIsValidGlyph(atlas.getGlyph(glyphRasterizer, ...getUniqueGlyphId()), atlas);
+		strictEqual(atlas.pages.length, 2, 'the 2nd glyph should overflow to a new page with a larger slab size');
 	});
 });

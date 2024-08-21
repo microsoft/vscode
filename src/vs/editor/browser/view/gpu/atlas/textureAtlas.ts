@@ -7,18 +7,22 @@ import { getActiveWindow } from 'vs/base/browser/dom';
 import { Event } from 'vs/base/common/event';
 import { Disposable, dispose, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import type { IReadableTextureAtlasPage, ITextureAtlasPageGlyph } from 'vs/editor/browser/view/gpu/atlas/atlas';
-import { TextureAtlasPage } from 'vs/editor/browser/view/gpu/atlas/textureAtlasPage';
+import { TextureAtlasPage, type AllocatorType } from 'vs/editor/browser/view/gpu/atlas/textureAtlasPage';
 import type { IGlyphRasterizer } from 'vs/editor/browser/view/gpu/raster/raster';
 import { IdleTaskQueue } from 'vs/editor/browser/view/gpu/taskQueue';
 import { MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 
+export interface ITextureAtlasOptions {
+	allocatorType?: AllocatorType;
+}
+
 export class TextureAtlas extends Disposable {
 	private _colorMap!: string[];
 	private readonly _warmUpTask: MutableDisposable<IdleTaskQueue> = this._register(new MutableDisposable());
-
 	private readonly _warmedUpRasterizers = new Set<number>();
+	private readonly _allocatorType: AllocatorType;
 
 	/**
 	 * The main texture atlas pages which are both larger textures and more efficiently packed
@@ -35,10 +39,13 @@ export class TextureAtlas extends Disposable {
 	constructor(
 		/** The maximum texture size supported by the GPU. */
 		private readonly _maxTextureSize: number,
+		options: ITextureAtlasOptions | undefined,
 		@IThemeService private readonly _themeService: IThemeService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
+
+		this._allocatorType = options?.allocatorType ?? 'slab';
 
 		this._register(Event.runAndSubscribe(this._themeService.onDidColorThemeChange, () => {
 			// TODO: Clear entire atlas on theme change
@@ -48,7 +55,7 @@ export class TextureAtlas extends Disposable {
 		const dprFactor = Math.max(1, Math.floor(getActiveWindow().devicePixelRatio));
 
 		this.pageSize = Math.min(1024 * dprFactor, this._maxTextureSize);
-		this._pages.push(this._instantiationService.createInstance(TextureAtlasPage, 0, this.pageSize, 'slab'));
+		this._pages.push(this._instantiationService.createInstance(TextureAtlasPage, 0, this.pageSize, this._allocatorType));
 		this._register(toDisposable(() => dispose(this._pages)));
 	}
 
@@ -62,7 +69,7 @@ export class TextureAtlas extends Disposable {
 	}
 
 	private _tryGetGlyph(pageIndex: number, rasterizer: IGlyphRasterizer, chars: string, metadata: number): Readonly<ITextureAtlasPageGlyph> {
-		// TODO: This should only rasterize a single time, currently it rasterized for each full page before it creates a new page
+		// TODO: Should the texture atlas have a map of glyphs to pages so this doesn't iterate through all pages?
 		return (
 			this._pages[pageIndex].getGlyph(rasterizer, chars, metadata) ?? (
 				(pageIndex + 1 < this._pages.length
@@ -74,7 +81,7 @@ export class TextureAtlas extends Disposable {
 
 	private _getGlyphFromNewPage(rasterizer: IGlyphRasterizer, chars: string, metadata: number): Readonly<ITextureAtlasPageGlyph> {
 		// TODO: Support more than 2 pages and the GPU texture layer limit
-		this._pages.push(this._instantiationService.createInstance(TextureAtlasPage, this._pages.length, this.pageSize, 'slab'));
+		this._pages.push(this._instantiationService.createInstance(TextureAtlasPage, this._pages.length, this.pageSize, this._allocatorType));
 		return this._pages[this._pages.length - 1].getGlyph(rasterizer, chars, metadata)!;
 	}
 

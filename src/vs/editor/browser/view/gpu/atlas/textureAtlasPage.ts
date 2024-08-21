@@ -14,6 +14,8 @@ import { MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 
+export type AllocatorType = 'shelf' | 'slab' | ((canvas: OffscreenCanvas, textureIndex: number) => ITextureAtlasAllocator);
+
 export class TextureAtlasPage extends Disposable implements IReadableTextureAtlasPage {
 	private _version: number = 0;
 
@@ -51,7 +53,7 @@ export class TextureAtlasPage extends Disposable implements IReadableTextureAtla
 	constructor(
 		textureIndex: number,
 		pageSize: number,
-		allocatorType: 'shelf' | 'slab',
+		allocatorType: AllocatorType,
 		@ILogService private readonly _logService: ILogService,
 		@IThemeService private readonly _themeService: IThemeService,
 	) {
@@ -62,6 +64,7 @@ export class TextureAtlasPage extends Disposable implements IReadableTextureAtla
 		switch (allocatorType) {
 			case 'shelf': this._allocator = new TextureAtlasShelfAllocator(this._canvas, textureIndex); break;
 			case 'slab': this._allocator = new TextureAtlasSlabAllocator(this._canvas, textureIndex); break;
+			default: this._allocator = allocatorType(this._canvas, textureIndex); break;
 		}
 
 		this._register(Event.runAndSubscribe(this._themeService.onDidColorThemeChange, () => {
@@ -89,7 +92,7 @@ export class TextureAtlasPage extends Disposable implements IReadableTextureAtla
 
 	private _createGlyph(rasterizer: IGlyphRasterizer, chars: string, metadata: number): Readonly<ITextureAtlasPageGlyph> | undefined {
 		const rasterizedGlyph = rasterizer.rasterizeGlyph(chars, metadata, this._colorMap);
-		const glyph = this._allocator.allocate(rasterizedGlyph)!;
+		const glyph = this._allocator.allocate(rasterizedGlyph);
 		if (glyph === undefined) {
 			// TODO: Log this? In practice it should not happen
 			return undefined;

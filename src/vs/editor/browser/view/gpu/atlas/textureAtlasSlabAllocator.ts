@@ -39,10 +39,10 @@ export class TextureAtlasSlabAllocator implements ITextureAtlasAllocator {
 	/** A set of all glyphs allocated, this is only tracked to enable debug related functionality */
 	private _allocatedGlyphs: Set<Readonly<ITextureAtlasPageGlyph>> = new Set();
 
-	private readonly _slabW: number;
-	private readonly _slabH: number;
-	private readonly _slabsPerRow: number;
-	private readonly _slabsPerColumn: number;
+	private _slabW: number;
+	private _slabH: number;
+	private _slabsPerRow: number;
+	private _slabsPerColumn: number;
 	private _nextIndex = 0;
 
 	constructor(
@@ -70,6 +70,30 @@ export class TextureAtlasSlabAllocator implements ITextureAtlasAllocator {
 		// Find ideal slab, creating it if there is none suitable
 		const glyphWidth = rasterizedGlyph.boundingBox.right - rasterizedGlyph.boundingBox.left + 1;
 		const glyphHeight = rasterizedGlyph.boundingBox.bottom - rasterizedGlyph.boundingBox.top + 1;
+
+		// The glyph does not fit into the atlas page, glyphs should never be this large in practice
+		if (glyphWidth > this._canvas.width || glyphHeight > this._canvas.height) {
+			throw new Error('Glyph is too large for the atlas page');
+		}
+
+		// The glyph does not fit into a slab
+		if (glyphWidth > this._slabW || glyphHeight > this._slabH) {
+			// Only if this is the allocator's first glyph, resize the slab size to fit the glyph.
+			if (this._allocatedGlyphs.size > 0) {
+				return undefined;
+			}
+			// Find the largest power of 2 devisor that the glyph fits into, this ensure there is no
+			// wasted space outside the allocated slabs.
+			let sizeCandidate = this._canvas.width;
+			while (glyphWidth < sizeCandidate / 2 && glyphHeight < sizeCandidate / 2) {
+				sizeCandidate /= 2;
+			}
+			this._slabW = sizeCandidate;
+			this._slabH = sizeCandidate;
+			this._slabsPerRow = Math.floor(this._canvas.width / this._slabW);
+			this._slabsPerColumn = Math.floor(this._canvas.height / this._slabH);
+		}
+
 		// const dpr = getActiveWindow().devicePixelRatio;
 
 		// TODO: Include font size as well as DPR in nearestXPixels calculation
@@ -105,11 +129,6 @@ export class TextureAtlasSlabAllocator implements ITextureAtlasAllocator {
 			if (slab.count >= glyphsPerSlab) {
 				slab = undefined;
 			}
-		}
-
-		// The glyph does not fit into a slab
-		if (glyphWidth > this._slabW || glyphHeight > this._slabH) {
-			return undefined;
 		}
 
 		let dx: number | undefined;

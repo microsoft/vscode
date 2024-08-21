@@ -9,21 +9,6 @@ import type { IBoundingBox, IGlyphRasterizer, IRasterizedGlyph } from 'vs/editor
 import { StringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { FontStyle, TokenMetadata } from 'vs/editor/common/encodedTokenAttributes';
 
-const $rasterizedGlyph: IRasterizedGlyph = {
-	source: null!,
-	boundingBox: {
-		left: 0,
-		bottom: 0,
-		right: 0,
-		top: 0,
-	},
-	originOffset: {
-		x: 0,
-		y: 0,
-	}
-};
-const $bbox = $rasterizedGlyph.boundingBox;
-
 let nextId = 0;
 
 export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
@@ -35,6 +20,25 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 	private _canvas: OffscreenCanvas;
 	// A temporary context that glyphs are drawn to before being transfered to the atlas.
 	private _ctx: OffscreenCanvasRenderingContext2D;
+
+	private _workGlyph: IRasterizedGlyph = {
+		source: null!,
+		boundingBox: {
+			left: 0,
+			bottom: 0,
+			right: 0,
+			top: 0,
+		},
+		originOffset: {
+			x: 0,
+			y: 0,
+		}
+	};
+
+	private _workGlyphConfig: {
+		chars: string;
+		metadata: number;
+	} = { chars: '', metadata: 0 };
 
 	constructor(
 		private readonly _fontSize: number,
@@ -57,6 +61,22 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 	 * therefore is only safe for synchronous access.
 	 */
 	public rasterizeGlyph(
+		chars: string,
+		metadata: number,
+		colorMap: string[],
+	): Readonly<IRasterizedGlyph> {
+		// Check if the last glyph matches the config, reuse if so. This helps avoid unnecessary
+		// work when the rasterizer is called multiple times like when the glyph doesn't fit into a
+		// page.
+		if (this._workGlyphConfig.chars === chars && this._workGlyphConfig.metadata === metadata) {
+			return this._workGlyph;
+		}
+		this._workGlyphConfig.chars = chars;
+		this._workGlyphConfig.metadata = metadata;
+		return this._rasterizeGlyph(chars, metadata, colorMap);
+	}
+
+	public _rasterizeGlyph(
 		chars: string,
 		metadata: number,
 		colorMap: string[],
@@ -88,7 +108,7 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 		this._ctx.fillText(chars, originX, originY);
 
 		const imageData = this._ctx.getImageData(0, 0, this._canvas.width, this._canvas.height);
-		this._findGlyphBoundingBox(imageData, $rasterizedGlyph.boundingBox);
+		this._findGlyphBoundingBox(imageData, this._workGlyph.boundingBox);
 		// const offset = {
 		// 	x: textMetrics.actualBoundingBoxLeft,
 		// 	y: textMetrics.actualBoundingBoxAscent
@@ -100,9 +120,9 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 		// 	yInt: Math.ceil(textMetrics.actualBoundingBoxDescent + textMetrics.actualBoundingBoxAscent),
 		// };
 		// console.log(`${chars}_${fg}`, textMetrics, boundingBox, originX, originY, { width: boundingBox.right - boundingBox.left, height: boundingBox.bottom - boundingBox.top });
-		$rasterizedGlyph.source = this._canvas;
-		$rasterizedGlyph.originOffset.x = $bbox.left - originX;
-		$rasterizedGlyph.originOffset.y = $bbox.top - originY;
+		this._workGlyph.source = this._canvas;
+		this._workGlyph.originOffset.x = this._workGlyph.boundingBox.left - originX;
+		this._workGlyph.originOffset.y = this._workGlyph.boundingBox.top - originY;
 
 		// const result2: IRasterizedGlyph = {
 		// 	source: this._canvas,
@@ -139,7 +159,9 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 		// 	debugger;
 		// }
 
-		return $rasterizedGlyph;
+
+
+		return this._workGlyph;
 	}
 
 	// TODO: Does this even need to happen when measure text is used?

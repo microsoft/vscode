@@ -36,6 +36,13 @@ export class TextureAtlasShelfAllocator implements ITextureAtlasAllocator {
 	}
 
 	public allocate(rasterizedGlyph: IRasterizedGlyph): ITextureAtlasPageGlyph | undefined {
+		// The glyph does not fit into the atlas page
+		const glyphWidth = rasterizedGlyph.boundingBox.right - rasterizedGlyph.boundingBox.left + 1;
+		const glyphHeight = rasterizedGlyph.boundingBox.bottom - rasterizedGlyph.boundingBox.top + 1;
+		if (glyphWidth > this._canvas.width || glyphHeight > this._canvas.height) {
+			throw new Error('Glyph is too large for the atlas page');
+		}
+
 		// Finalize and increment row if it doesn't fix horizontally
 		if (rasterizedGlyph.boundingBox.right - rasterizedGlyph.boundingBox.left + 1 > this._canvas.width - this._currentRow.x) {
 			this._currentRow.x = 0;
@@ -49,8 +56,6 @@ export class TextureAtlasShelfAllocator implements ITextureAtlasAllocator {
 		}
 
 		// Draw glyph
-		const glyphWidth = rasterizedGlyph.boundingBox.right - rasterizedGlyph.boundingBox.left + 1;
-		const glyphHeight = rasterizedGlyph.boundingBox.bottom - rasterizedGlyph.boundingBox.top + 1;
 		this._ctx.drawImage(
 			rasterizedGlyph.source,
 			// source

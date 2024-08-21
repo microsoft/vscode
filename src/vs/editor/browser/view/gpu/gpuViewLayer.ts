@@ -115,7 +115,7 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> extends Disposable {
 
 		// Create texture atlas
 		if (!GpuViewLayerRenderer.atlas) {
-			GpuViewLayerRenderer.atlas = this._instantiationService.createInstance(TextureAtlas, this._device.limits.maxTextureDimension2D);
+			GpuViewLayerRenderer.atlas = this._instantiationService.createInstance(TextureAtlas, this._device.limits.maxTextureDimension2D, undefined);
 		}
 		const atlas = GpuViewLayerRenderer.atlas;
 
