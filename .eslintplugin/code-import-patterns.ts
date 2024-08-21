@@ -181,8 +181,8 @@ export = new class implements eslint.Rule.RuleModule {
 
 			if (targetIsVS) {
 				// Always add "vs/nls" and "vs/amdX"
-				restrictions.push('vs/nls');
-				restrictions.push('vs/amdX'); // TODO@jrieken remove after ESM is real
+				restrictions.push('vs/nls.js');
+				restrictions.push('vs/amdX.js'); // TODO@jrieken remove after ESM is real
 			}
 
 			if (targetIsVS && option.layer) {
