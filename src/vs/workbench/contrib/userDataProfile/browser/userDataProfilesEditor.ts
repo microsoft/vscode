@@ -20,7 +20,7 @@ import { IEditorOpenContext, IEditorSerializer, IUntypedEditorInput } from 'vs/w
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IUserDataProfilesEditor } from 'vs/workbench/contrib/userDataProfile/common/userDataProfile';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { defaultUserDataProfileIcon, IProfileTemplateInfo, PROFILE_FILTER } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { defaultUserDataProfileIcon, IProfileTemplateInfo, IUserDataProfileService, PROFILE_FILTER } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { Orientation, Sizing, SplitView } from 'vs/base/browser/ui/splitview/splitview';
 import { Button, ButtonWithDropdown } from 'vs/base/browser/ui/button/button';
 import { defaultButtonStyles, defaultCheckboxStyles, defaultInputBoxStyles, defaultSelectBoxStyles, getInputBoxStyle, getListStyles } from 'vs/platform/theme/browser/defaultStyles';
@@ -411,7 +411,7 @@ class ProfileElementRenderer implements IListRenderer<AbstractUserDataProfileEle
 		const label = append(container, $('.profile-list-item-label'));
 		const dirty = append(container, $(`span${ThemeIcon.asCSSSelector(Codicon.circleFilled)}`));
 		const description = append(container, $('.profile-list-item-description'));
-		append(description, $('span', undefined, localize('activeProfile', "In use")));
+		append(description, $(`span${ThemeIcon.asCSSSelector(Codicon.check)}`), $('span', undefined, localize('activeProfile', "In use")));
 
 		const actionsContainer = append(container, $('.profile-tree-item-actions-container'));
 		const actionBar = disposables.add(this.instantiationService.createInstance(WorkbenchToolBar,
@@ -501,6 +501,7 @@ class ProfileWidget extends Disposable {
 			[
 				this._register(this.instantiationService.createInstance(ProfileNameRenderer)),
 				this._register(this.instantiationService.createInstance(ProfileIconRenderer)),
+				this._register(this.instantiationService.createInstance(UseForCurrentWindowPropertyRenderer)),
 				this._register(this.instantiationService.createInstance(UseAsDefaultProfileRenderer)),
 				this.copyFromProfileRenderer,
 				contentsRenderer,
@@ -642,7 +643,7 @@ class ProfileWidget extends Disposable {
 
 }
 
-type ProfileProperty = 'name' | 'icon' | 'copyFrom' | 'useAsDefault' | 'contents';
+type ProfileProperty = 'name' | 'icon' | 'copyFrom' | 'useForCurrent' | 'useAsDefault' | 'contents';
 
 interface ProfileTreeElement {
 	element: ProfileProperty;
@@ -667,6 +668,7 @@ class ProfileTreeDelegate extends CachedListVirtualDelegate<ProfileTreeElement> 
 				return 68;
 			case 'copyFrom':
 				return 90;
+			case 'useForCurrent':
 			case 'useAsDefault':
 				return 68;
 			case 'contents':
@@ -694,6 +696,7 @@ class ProfileTreeDataSource implements IAsyncDataSource<AbstractUserDataProfileE
 					children.push({ element: 'name', root: element });
 					children.push({ element: 'icon', root: element });
 				}
+				children.push({ element: 'useForCurrent', root: element });
 				children.push({ element: 'useAsDefault', root: element });
 				children.push({ element: 'contents', root: element });
 			}
@@ -1040,6 +1043,63 @@ class ProfileIconRenderer extends ProfilePropertyRenderer {
 	}
 }
 
+class UseForCurrentWindowPropertyRenderer extends ProfilePropertyRenderer {
+
+	readonly templateId: ProfileProperty = 'useForCurrent';
+
+	constructor(
+		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
+	) {
+		super();
+	}
+
+	renderTemplate(parent: HTMLElement): IProfilePropertyRendererTemplate {
+		const disposables = new DisposableStore();
+		const elementDisposables = disposables.add(new DisposableStore());
+		let profileElement: ProfileTreeElement | undefined;
+
+		const useForCurrentWindowContainer = append(parent, $('.profile-row-container'));
+		append(useForCurrentWindowContainer, $('.profile-label-element', undefined, localize('use for curren window', "Use for Current Window")));
+		const useForCurrentWindowValueContainer = append(useForCurrentWindowContainer, $('.profile-use-for-current-container'));
+		const useForCurrentWindowTitle = localize('enable for current window', "Use this profile for the current window");
+		const useForCurrentWindowCheckbox = disposables.add(new Checkbox(useForCurrentWindowTitle, false, defaultCheckboxStyles));
+		append(useForCurrentWindowValueContainer, useForCurrentWindowCheckbox.domNode);
+		const useForCurrentWindowLabel = append(useForCurrentWindowValueContainer, $('.profile-description-element', undefined, useForCurrentWindowTitle));
+		disposables.add(useForCurrentWindowCheckbox.onChange(() => {
+			if (profileElement?.root instanceof UserDataProfileElement) {
+				profileElement.root.toggleCurrentWindowProfile();
+			}
+		}));
+		disposables.add(addDisposableListener(useForCurrentWindowLabel, EventType.CLICK, () => {
+			if (profileElement?.root instanceof UserDataProfileElement) {
+				profileElement.root.toggleCurrentWindowProfile();
+			}
+		}));
+
+		const renderUseCurrentProfile = (profileElement: ProfileTreeElement) => {
+			useForCurrentWindowCheckbox.checked = profileElement.root instanceof UserDataProfileElement && this.userDataProfileService.currentProfile.id === profileElement.root.profile.id;
+			if (useForCurrentWindowCheckbox.checked && this.userDataProfileService.currentProfile.isDefault) {
+				useForCurrentWindowCheckbox.disable();
+			} else {
+				useForCurrentWindowCheckbox.enable();
+			}
+		};
+
+		const that = this;
+		return {
+			set element(element: ProfileTreeElement) {
+				profileElement = element;
+				renderUseCurrentProfile(profileElement);
+				elementDisposables.add(that.userDataProfileService.onDidChangeCurrentProfile(e => {
+					renderUseCurrentProfile(element);
+				}));
+			},
+			disposables,
+			elementDisposables
+		};
+	}
+}
+
 class UseAsDefaultProfileRenderer extends ProfilePropertyRenderer {
 
 	readonly templateId: ProfileProperty = 'useAsDefault';
@@ -1050,7 +1110,7 @@ class UseAsDefaultProfileRenderer extends ProfilePropertyRenderer {
 		let profileElement: ProfileTreeElement | undefined;
 
 		const useAsDefaultProfileContainer = append(parent, $('.profile-row-container'));
-		append(useAsDefaultProfileContainer, $('.profile-label-element', undefined, localize('use as default', "Use as Default")));
+		append(useAsDefaultProfileContainer, $('.profile-label-element', undefined, localize('use for new windows', "Use for New Windows")));
 		const useAsDefaultProfileValueContainer = append(useAsDefaultProfileContainer, $('.profile-use-as-default-container'));
 		const useAsDefaultProfileTitle = localize('enable for new windows', "Use this profile as the default for new windows");
 		const useAsDefaultProfileCheckbox = disposables.add(new Checkbox(useAsDefaultProfileTitle, false, defaultCheckboxStyles));

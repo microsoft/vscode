@@ -157,7 +157,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		const getProfilesTitle = () => {
 			return localize('profiles', "Profile ({0})", this.userDataProfileService.currentProfile.name);
 		};
-		const when = ContextKeyExpr.or(CONTEXT_ENABLE_NEW_PROFILES_UI.negate(), HAS_PROFILES_CONTEXT);
+		const when = CONTEXT_ENABLE_NEW_PROFILES_UI.negate();
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 			get title() {
 				return getProfilesTitle();
@@ -358,18 +358,13 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 							id: MenuId.GlobalActivity,
 							group: '2_configuration',
 							order: 1,
-							when: ContextKeyExpr.and(CONTEXT_ENABLE_NEW_PROFILES_UI, HAS_PROFILES_CONTEXT.negate()),
+							when: CONTEXT_ENABLE_NEW_PROFILES_UI,
 						},
 						{
 							id: MenuId.MenubarPreferencesMenu,
 							group: '2_configuration',
 							order: 1,
-							when: ContextKeyExpr.and(CONTEXT_ENABLE_NEW_PROFILES_UI, HAS_PROFILES_CONTEXT.negate()),
-						},
-						{
-							id: ProfilesMenu,
-							group: '1_manage',
-							when: ContextKeyExpr.and(CONTEXT_ENABLE_NEW_PROFILES_UI, HAS_PROFILES_CONTEXT),
+							when: CONTEXT_ENABLE_NEW_PROFILES_UI,
 						},
 					]
 				});
