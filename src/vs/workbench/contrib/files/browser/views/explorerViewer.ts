@@ -111,6 +111,10 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 		return parent;
 	}
 
+	getId(element: ExplorerItem): string {
+		return element.getId();
+	}
+
 	hasChildren(element: ExplorerItem | ExplorerItem[]): boolean {
 		// don't render nest parents as containing children when all the children are filtered out
 		return Array.isArray(element) || element.hasChildren((stat) => this.fileFilter.filter(stat, TreeVisibility.Visible));
