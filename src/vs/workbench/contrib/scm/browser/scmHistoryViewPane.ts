@@ -798,12 +798,12 @@ export class SCMHistoryViewPane extends ViewPane {
 					if (element && this._tree.hasNode(element)) {
 						// Refresh specific repository
 						await this._tree.updateChildren(element, true, true, {
-							diffIdentityProvider: this._treeIdentityProvider
+							// diffIdentityProvider: this._treeIdentityProvider
 						});
 					} else {
 						// Refresh the entire tree
 						await this._tree.updateChildren(undefined, undefined, undefined, {
-							diffIdentityProvider: this._treeIdentityProvider
+							// diffIdentityProvider: this._treeIdentityProvider
 						});
 					}
 				}));
