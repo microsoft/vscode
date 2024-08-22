@@ -47,6 +47,7 @@ export const NOTEBOOK_MULTI_SELECTION_CONTEXT = {
 enum NotebookMultiCursorState {
 	Idle,
 	Selecting,
+	Editing,
 }
 
 interface TrackedMatch {
@@ -69,7 +70,6 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 	readonly onDidChangeAnchorCell: Event<void> = this._onDidChangeAnchorCell.event;
 	private anchorCell: [ICellViewModel, ICodeEditor] | undefined;
 
-	private readonly decorationDisposables = this._register(new DisposableStore());
 	private readonly anchorDisposables = this._register(new DisposableStore());
 	private readonly cursorsDisposables = this._register(new DisposableStore());
 	private cursorsControllers: ResourceMap<CursorsController> = new ResourceMap<CursorsController>();
@@ -200,7 +200,7 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 
 		// typing
 		this.anchorDisposables.add(this.anchorCell[1].onWillType((input) => {
-			this.state = NotebookMultiCursorState.Idle; // typing will continue to work as normal across ranges, just preps for another cmd+d
+			this.state = NotebookMultiCursorState.Editing; // typing will continue to work as normal across ranges, just preps for another cmd+d
 			this.cursorsControllers.forEach(cursorController => {
 				cursorController.type(new ViewModelEventsCollector(), input, 'keyboard');
 
@@ -215,18 +215,31 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 		// exit mode
 		this.anchorDisposables.add(this.anchorCell[1].onDidChangeCursorSelection((e) => {
 			if (e.source === 'mouse' || e.source === 'deleteLeft' || e.source === 'deleteRight') {
-				this.exitEditingState();
+				this.resetToIdleState();
+			}
+		}));
+
+		this.anchorDisposables.add(this.anchorCell[1].onDidBlurEditorWidget(() => {
+			if (this.state === NotebookMultiCursorState.Editing || this.state === NotebookMultiCursorState.Selecting) {
+				this.resetToIdleState();
 			}
 		}));
 	}
 
-	public exitEditingState() {
+	public resetToIdleState() {
 		this.state = NotebookMultiCursorState.Idle;
 		this._nbIsMultiSelectSession.set(false);
 
-		this.decorationDisposables.clear();
+		this.trackedMatches.forEach(match => {
+			this.clearDecorations(match);
+		});
+
+		// todo: polish -- store the precise first selection the user makes. this just sets to the end of the word (due to idle->selecting state transition logic)
+		this.trackedMatches[0].cellViewModel.setSelections([this.trackedMatches[0].selections[0]]);
+
 		this.anchorDisposables.clear();
 		this.cursorsDisposables.clear();
+		this.cursorsControllers.clear();
 		this.trackedMatches = [];
 	}
 
@@ -270,7 +283,7 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 			};
 			this.trackedMatches.push(newMatch);
 
-			this.updateMultiSelectDecorations(newMatch);
+			this.initializeMultiSelectDecorations(newMatch);
 			this._nbIsMultiSelectSession.set(true);
 			this.state = NotebookMultiCursorState.Selecting;
 			this._onDidChangeAnchorCell.fire();
@@ -331,7 +344,7 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 				resultCellViewModel.setSelections(newMatch.selections);
 			}
 
-			this.updateMultiSelectDecorations(newMatch);
+			this.initializeMultiSelectDecorations(newMatch);
 		}
 	}
 
@@ -346,7 +359,7 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 	 *
 	 * @param match -- match object containing the viewmodel + selections
 	 */
-	private updateMultiSelectDecorations(match: TrackedMatch) {
+	private initializeMultiSelectDecorations(match: TrackedMatch) {
 		const decorations: IModelDeltaDecoration[] = [];
 
 		match.selections.forEach(selection => {
@@ -359,22 +372,10 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 			});
 		});
 
-		const ids = match.cellViewModel.deltaModelDecorations(
-			[],
+		match.decorationIds = match.cellViewModel.deltaModelDecorations(
+			match.decorationIds,
 			decorations
 		);
-
-		match.decorationIds = ids;
-
-		this.decorationDisposables.add({
-			dispose: () => {
-				match.cellViewModel.deltaModelDecorations(
-					match.decorationIds,
-					[]
-				);
-			}
-		});
-
 	}
 
 	private updateLazyDecorations() {
@@ -409,16 +410,14 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 				match.decorationIds,
 				newDecorations ?? []
 			);
-
-			this.decorationDisposables.add({
-				dispose: () => {
-					match.cellViewModel.deltaModelDecorations(
-						match.decorationIds,
-						[]
-					);
-				}
-			});
 		});
+	}
+
+	private clearDecorations(match: TrackedMatch) {
+		match.decorationIds = match.cellViewModel.deltaModelDecorations(
+			match.decorationIds,
+			[]
+		);
 	}
 
 	private getWord(selection: Selection, model: ITextModel): IWordAtPosition | null {
@@ -437,9 +436,12 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 
 	override dispose(): void {
 		super.dispose();
-		this.decorationDisposables.dispose();
 		this.anchorDisposables.dispose();
 		this.cursorsDisposables.dispose();
+
+		this.trackedMatches.forEach(match => {
+			this.clearDecorations(match);
+		});
 		this.trackedMatches = [];
 	}
 
@@ -505,7 +507,7 @@ class NotebookExitMultiSelectionAction extends NotebookAction {
 		}
 
 		const controller = editor.getContribution<NotebookMultiCursorController>(NotebookMultiCursorController.id);
-		controller.exitEditingState();
+		controller.resetToIdleState();
 	}
 }
 
