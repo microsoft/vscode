@@ -15,7 +15,6 @@ import { PointerHandlerLastRenderData } from 'vs/editor/browser/controller/mouse
 import { PointerHandler } from 'vs/editor/browser/controller/pointerHandler';
 import { IVisibleRangeProvider, TextAreaHandler } from 'vs/editor/browser/controller/textAreaHandler';
 import { IContentWidget, IContentWidgetPosition, IEditorAriaOptions, IGlyphMarginWidget, IGlyphMarginWidgetPosition, IMouseTarget, IOverlayWidget, IOverlayWidgetPosition, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBrowser';
-import { disableNonGpuRendering } from 'vs/editor/browser/view/gpu/gpuViewLayer';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
 import { ICommandDelegate, ViewController } from 'vs/editor/browser/view/viewController';
 import { ContentViewOverlays, MarginViewOverlays } from 'vs/editor/browser/view/viewOverlays';
@@ -27,7 +26,7 @@ import { CurrentLineHighlightOverlay, CurrentLineMarginHighlightOverlay } from '
 import { DecorationsOverlay } from 'vs/editor/browser/viewParts/decorations/decorations';
 import { EditorScrollbar } from 'vs/editor/browser/viewParts/editorScrollbar/editorScrollbar';
 import { GlyphMarginWidgets } from 'vs/editor/browser/viewParts/glyphMargin/glyphMargin';
-import { ViewLinesGpu } from 'vs/editor/browser/viewParts/gpu/viewLinesGpu';
+import { disableNonGpuRendering, ViewLinesGpu } from 'vs/editor/browser/viewParts/gpu/viewLinesGpu';
 import { IndentGuidesOverlay } from 'vs/editor/browser/viewParts/indentGuides/indentGuides';
 import { LineNumbersOverlay } from 'vs/editor/browser/viewParts/lineNumbers/lineNumbers';
 import { ViewLines } from 'vs/editor/browser/viewParts/lines/viewLines';
@@ -154,7 +153,7 @@ export class View extends ViewEventHandler {
 
 		// View Lines
 		this._viewLines = this._instantiationService.createInstance(ViewLines, this._context, this._linesContent);
-		this._viewLinesGpu = new ViewLinesGpu(this._context, this._canvas.domNode);
+		this._viewLinesGpu = this._instantiationService.createInstance(ViewLinesGpu, this._context, this._canvas.domNode);
 
 		// View Zones
 		this._viewZones = new ViewZones(this._context);

@@ -6,14 +6,10 @@
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { createTrustedTypesPolicy } from 'vs/base/browser/trustedTypes';
 import { BugIndicatingError } from 'vs/base/common/errors';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { GpuViewLayerRenderer } from 'vs/editor/browser/view/gpu/gpuViewLayer';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { StringBuilder } from 'vs/editor/common/core/stringBuilder';
 import * as viewEvents from 'vs/editor/common/viewEvents';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
-import type { ViewContext } from 'vs/editor/common/viewModel/viewContext';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 /**
  * Represents a visible line
@@ -253,7 +249,7 @@ export class RenderedLinesCollection<T extends ILine> {
 	}
 }
 
-export class VisibleLinesCollection<T extends IVisibleLine> extends Disposable {
+export class VisibleLinesCollection<T extends IVisibleLine> {
 
 	public readonly domNode: FastDomNode<HTMLElement> = this._createDomNode();
 	private readonly _linesCollection: RenderedLinesCollection<T> = new RenderedLinesCollection<T>(this._lineFactory);
@@ -261,12 +257,8 @@ export class VisibleLinesCollection<T extends IVisibleLine> extends Disposable {
 	private readonly _canvas: HTMLCanvasElement;
 
 	constructor(
-		// TODO: Remove when GPU renderer is moved into view part
-		private readonly _context: ViewContext,
-		private readonly _lineFactory: ILineFactory<T>,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
+		private readonly _lineFactory: ILineFactory<T>
 	) {
-		super();
 		this._canvas = document.createElement('canvas');
 		this._canvas.style.height = '100%';
 		this._canvas.style.width = '100%';
@@ -352,26 +344,24 @@ export class VisibleLinesCollection<T extends IVisibleLine> extends Disposable {
 		return this._linesCollection.getLine(lineNumber);
 	}
 
-	private _gpuRenderer: GpuViewLayerRenderer<T> | undefined;
-
 	public renderLines(viewportData: ViewportData, viewOverlays?: boolean): void {
 		const inp = this._linesCollection._get();
 
-		let renderer;
-		if (viewOverlays) {
-			renderer = new ViewLayerRenderer<T>(this.domNode.domNode, this._lineFactory, viewportData);
-		} else {
-			// If not yet attached, listen for device pixel size and attach
-			if (!this._canvas.parentElement) {
-				this.domNode.domNode.appendChild(this._canvas);
-			}
+		// let renderer;
+		// if (viewOverlays) {
+		const renderer = new ViewLayerRenderer<T>(this.domNode.domNode, this._lineFactory, viewportData);
+		// } else {
+		// 	// If not yet attached, listen for device pixel size and attach
+		// 	if (!this._canvas.parentElement) {
+		// 		this.domNode.domNode.appendChild(this._canvas);
+		// 	}
 
-			if (!this._gpuRenderer) {
-				this._gpuRenderer = this._register(this._instantiationService.createInstance(GpuViewLayerRenderer<T>, this._canvas, this._context, this._lineFactory, viewportData));
-			}
-			renderer = this._gpuRenderer;
-			renderer.update(viewportData);
-		}
+		// 	if (!this._gpuRenderer) {
+		// 		this._gpuRenderer = this._register(this._instantiationService.createInstance(GpuViewLayerRenderer<T>, this._canvas, this._context, this._lineFactory, viewportData));
+		// 	}
+		// 	renderer = this._gpuRenderer;
+		// 	renderer.update(viewportData);
+		// }
 
 		const ctx: IRendererContext<T> = {
 			rendLineNumberStart: inp.rendLineNumberStart,

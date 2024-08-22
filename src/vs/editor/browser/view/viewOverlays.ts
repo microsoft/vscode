@@ -15,7 +15,7 @@ import * as viewEvents from 'vs/editor/common/viewEvents';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { disableNonGpuRendering } from 'vs/editor/browser/view/gpu/gpuViewLayer';
+import { disableNonGpuRendering } from 'vs/editor/browser/viewParts/gpu/viewLinesGpu';
 
 export class ViewOverlays extends ViewPart {
 	private readonly _visibleLines: VisibleLinesCollection<ViewOverlayLine>;
@@ -29,9 +29,9 @@ export class ViewOverlays extends ViewPart {
 	) {
 		super(context);
 
-		this._visibleLines = this._register(instantiationService.createInstance(VisibleLinesCollection, context, {
+		this._visibleLines = new VisibleLinesCollection({
 			createLine: () => new ViewOverlayLine(this._dynamicOverlays)
-		}));
+		});
 		this.domNode = this._visibleLines.domNode;
 
 		const options = this._context.configuration.options;

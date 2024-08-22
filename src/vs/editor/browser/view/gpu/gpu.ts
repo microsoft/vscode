@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IVisibleLine } from 'vs/editor/browser/view/viewLayer';
+import type { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 
 export const enum BindingId {
 	GlyphInfo0,
@@ -16,16 +16,10 @@ export const enum BindingId {
 	ScrollOffset,
 }
 
-export interface IRendererContext<T extends IVisibleLine> {
-	rendLineNumberStart: number;
-	lines: T[];
-	linesLength: number;
-}
-
-export interface IRenderStrategy<T extends IVisibleLine> {
+export interface IGpuRenderStrategy {
 	readonly wgsl: string;
 	readonly bindGroupEntries: GPUBindGroupEntry[];
 
-	update(ctx: IRendererContext<T>, startLineNumber: number, stopLineNumber: number, deltaTop: number[]): number;
-	draw?(pass: GPURenderPassEncoder, ctx: IRendererContext<T>, startLineNumber: number, stopLineNumber: number, deltaTop: number[]): void;
+	update(viewportData: ViewportData): number;
+	draw?(pass: GPURenderPassEncoder, viewportData: ViewportData): void;
 }

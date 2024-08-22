@@ -7,11 +7,10 @@ import { getActiveWindow } from 'vs/base/browser/dom';
 import { Disposable } from 'vs/base/common/lifecycle';
 import type { ITextureAtlasPageGlyph } from 'vs/editor/browser/view/gpu/atlas/atlas';
 import { TextureAtlas } from 'vs/editor/browser/view/gpu/atlas/textureAtlas';
-import { BindingId, type IRendererContext, type IRenderStrategy } from 'vs/editor/browser/view/gpu/gpu';
+import { BindingId, type IGpuRenderStrategy } from 'vs/editor/browser/view/gpu/gpu';
 import { GPULifecycle } from 'vs/editor/browser/view/gpu/gpuDisposable';
 import { quadVertices } from 'vs/editor/browser/view/gpu/gpuUtils';
 import { GlyphRasterizer } from 'vs/editor/browser/view/gpu/raster/glyphRasterizer';
-import type { IVisibleLine } from 'vs/editor/browser/view/viewLayer';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import type { IViewLineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
@@ -78,7 +77,8 @@ struct VSOutput {
 	var vsOut: VSOutput;
 	// Multiple vert.position by 2,-2 to get it into clipspace which ranged from -1 to 1
 	vsOut.position = vec4f(
-		(((vert.position * vec2f(2, -2)) / canvasDims)) * glyph.size + cell.position + ((glyph.origin * vec2f(2, -2)) / canvasDims) + ((scrollOffset.offset * 2) / canvasDims),
+		// TODO: Fix hacky scroll offset which moves the text beside the line numbers
+		(((vert.position * vec2f(2, -2)) / canvasDims)) * glyph.size + cell.position + ((glyph.origin * vec2f(2, -2)) / canvasDims) + (((scrollOffset.offset - vec2f(-110, 0)) * 2) / canvasDims),
 		0.0,
 		1.0
 	);
@@ -115,7 +115,7 @@ const enum CellBufferInfo {
 	TextureIndex = 5,
 }
 
-export class FullFileRenderStrategy<T extends IVisibleLine> extends Disposable implements IRenderStrategy<T> {
+export class FullFileRenderStrategy extends Disposable implements IGpuRenderStrategy {
 
 	private static _lineCount = 3000;
 	private static _columnCount = 200;
@@ -150,7 +150,6 @@ export class FullFileRenderStrategy<T extends IVisibleLine> extends Disposable i
 		private readonly _context: ViewContext,
 		private readonly _device: GPUDevice,
 		private readonly _canvas: HTMLCanvasElement,
-		private readonly _viewportData: ViewportData,
 		private readonly _atlas: TextureAtlas,
 	) {
 		super();
@@ -185,7 +184,7 @@ export class FullFileRenderStrategy<T extends IVisibleLine> extends Disposable i
 		];
 	}
 
-	update(ctx: IRendererContext<T>, startLineNumber: number, stopLineNumber: number, deltaTop: number[]): number {
+	update(viewportData: ViewportData): number {
 		// Pre-allocate variables to be shared within the loop - don't trust the JIT compiler to do
 		// this optimization to avoid additional blocking time in garbage collector
 		let chars = '';
@@ -215,14 +214,12 @@ export class FullFileRenderStrategy<T extends IVisibleLine> extends Disposable i
 		const activeWindow = getActiveWindow();
 
 		// Update scroll offset
-		// TODO: Get at ViewModel in a safe way
-		const scrollTop = (this._viewportData as any)._model.viewLayout.getCurrentScrollTop() * activeWindow.devicePixelRatio;
+		const scrollTop = this._context.viewLayout.getCurrentScrollTop() * activeWindow.devicePixelRatio;
 		const scrollOffsetBuffer = this._scrollOffsetValueBuffers[this._activeDoubleBufferIndex];
 		scrollOffsetBuffer[1] = scrollTop;
 		this._device.queue.writeBuffer(this._scrollOffsetBindBuffer, 0, scrollOffsetBuffer);
 
 		// Update cell data
-		const viewportData = this._viewportData;
 		const cellBuffer = new Float32Array(this._cellValueBuffers[this._activeDoubleBufferIndex]);
 		const lineIndexCount = FullFileRenderStrategy._columnCount * Constants.IndicesPerCell;
 
@@ -233,7 +230,7 @@ export class FullFileRenderStrategy<T extends IVisibleLine> extends Disposable i
 		// const theme = this._themeService.getColorTheme() as ColorThemeData;
 		// const tokenStyle = theme.getTokenStyleMetadata(type, modifiers, defaultLanguage, true, definitions);
 
-		for (y = startLineNumber; y <= stopLineNumber; y++) {
+		for (y = viewportData.startLineNumber; y <= viewportData.endLineNumber; y++) {
 			// TODO: Update on dirty lines; is this known by line before rendering?
 			// if (upToDateLines.has(y)) {
 			// 	continue;
@@ -310,7 +307,7 @@ export class FullFileRenderStrategy<T extends IVisibleLine> extends Disposable i
 					glyph = this._atlas.getGlyph(this._glyphRasterizer, chars, tokenMetadata);
 
 					screenAbsoluteX = Math.round((x + xOffset) * 7 * activeWindow.devicePixelRatio);
-					screenAbsoluteY = Math.round(deltaTop[y - startLineNumber] * activeWindow.devicePixelRatio);
+					screenAbsoluteY = Math.round(viewportData.relativeVerticalOffset[y - viewportData.startLineNumber] * activeWindow.devicePixelRatio);
 					zeroToOneX = screenAbsoluteX / this._canvas.width;
 					zeroToOneY = screenAbsoluteY / this._canvas.height;
 					wgslX = zeroToOneX * 2 - 1;
@@ -334,7 +331,7 @@ export class FullFileRenderStrategy<T extends IVisibleLine> extends Disposable i
 			upToDateLines.add(y);
 		}
 
-		const visibleObjectCount = (stopLineNumber - startLineNumber + 1) * lineIndexCount;
+		const visibleObjectCount = (viewportData.endLineNumber - viewportData.startLineNumber + 1) * lineIndexCount;
 
 		// Only write when there is changed data
 		if (dirtyLineStart <= dirtyLineEnd) {
@@ -362,7 +359,7 @@ export class FullFileRenderStrategy<T extends IVisibleLine> extends Disposable i
 		return visibleObjectCount;
 	}
 
-	draw(pass: GPURenderPassEncoder, ctx: IRendererContext<T>, startLineNumber: number, stopLineNumber: number, deltaTop: number[]): void {
+	draw(pass: GPURenderPassEncoder, viewportData: ViewportData): void {
 		if (this._visibleObjectCount <= 0) {
 			console.error('Attempt to draw 0 objects');
 		} else {
@@ -370,7 +367,7 @@ export class FullFileRenderStrategy<T extends IVisibleLine> extends Disposable i
 				quadVertices.length / 2,
 				this._visibleObjectCount,
 				undefined,
-				(startLineNumber - 1) * FullFileRenderStrategy._columnCount
+				(viewportData.startLineNumber - 1) * FullFileRenderStrategy._columnCount
 			);
 		}
 	}

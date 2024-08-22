@@ -8,8 +8,8 @@ import { URI } from 'vs/base/common/uri';
 import type { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, registerEditorAction, type ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { ensureNonNullable } from 'vs/editor/browser/view/gpu/gpuUtils';
-import { GpuViewLayerRenderer } from 'vs/editor/browser/view/gpu/gpuViewLayer';
 import { GlyphRasterizer } from 'vs/editor/browser/view/gpu/raster/glyphRasterizer';
+import { ViewLinesGpu } from 'vs/editor/browser/viewParts/gpu/viewLinesGpu';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -33,8 +33,8 @@ class LogTextureAtlasStatsAction extends EditorAction {
 	async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		const logService = accessor.get(ILogService);
 
-		const atlas = GpuViewLayerRenderer.atlas;
-		if (!GpuViewLayerRenderer.atlas) {
+		const atlas = ViewLinesGpu.atlas;
+		if (!ViewLinesGpu.atlas) {
 			logService.error('No texture atlas found');
 			return;
 		}
@@ -60,7 +60,7 @@ class SaveTextureAtlasAction extends EditorAction {
 		const fileService = accessor.get(IFileService);
 		const folders = workspaceContextService.getWorkspace().folders;
 		if (folders.length > 0) {
-			const atlas = GpuViewLayerRenderer.atlas;
+			const atlas = ViewLinesGpu.atlas;
 			const promises = [];
 			for (const [layerIndex, page] of atlas.pages.entries()) {
 				promises.push(...[
@@ -102,8 +102,8 @@ class DrawGlyphAction extends EditorAction {
 			return;
 		}
 
-		const atlas = GpuViewLayerRenderer.atlas;
-		if (!GpuViewLayerRenderer.atlas) {
+		const atlas = ViewLinesGpu.atlas;
+		if (!ViewLinesGpu.atlas) {
 			logService.error('No texture atlas found');
 			return;
 		}

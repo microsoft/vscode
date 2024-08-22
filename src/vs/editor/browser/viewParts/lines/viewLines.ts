@@ -145,9 +145,9 @@ export class ViewLines extends ViewPart implements IViewLines {
 
 		this._linesContent = linesContent;
 		this._textRangeRestingSpot = document.createElement('div');
-		this._visibleLines = this._register(instantiationService.createInstance(VisibleLinesCollection, context, {
+		this._visibleLines = new VisibleLinesCollection({
 			createLine: () => new ViewLine(this._viewLineOptions),
-		}));
+		});
 		this.domNode = this._visibleLines.domNode;
 
 		PartFingerprints.write(this.domNode, PartFingerprint.ViewLines);
