@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'vs/base/common/path';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import * as glob from 'vs/base/common/glob';
-import * as resources from 'vs/base/common/resources';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { URI } from 'vs/base/common/uri';
-import { IFileMatch, IFileSearchProviderStats, IFolderQuery, ISearchCompleteStats, IFileQuery, QueryGlobTester, resolvePatternsForProvider, hasSiblingFn, excludeToGlobPattern, DEFAULT_MAX_SEARCH_RESULTS } from 'vs/workbench/services/search/common/search';
-import { FileSearchProviderFolderOptions, FileSearchProviderNew, FileSearchProviderOptions } from 'vs/workbench/services/search/common/searchExtTypes';
-import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
+import * as path from '../../../../base/common/path';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation';
+import { toErrorMessage } from '../../../../base/common/errorMessage';
+import * as glob from '../../../../base/common/glob';
+import * as resources from '../../../../base/common/resources';
+import { StopWatch } from '../../../../base/common/stopwatch';
+import { URI } from '../../../../base/common/uri';
+import { IFileMatch, IFileSearchProviderStats, IFolderQuery, ISearchCompleteStats, IFileQuery, QueryGlobTester, resolvePatternsForProvider, hasSiblingFn, excludeToGlobPattern, DEFAULT_MAX_SEARCH_RESULTS } from './search';
+import { FileSearchProviderFolderOptions, FileSearchProviderNew, FileSearchProviderOptions } from './searchExtTypes';
+import { TernarySearchTree } from '../../../../base/common/ternarySearchTree';
 
 interface IInternalFileMatch {
 	base: URI;

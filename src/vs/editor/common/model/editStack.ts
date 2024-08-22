@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Selection } from 'vs/editor/common/core/selection';
-import { EndOfLineSequence, ICursorStateComputer, IValidEditOperation, ITextModel } from 'vs/editor/common/model';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { IUndoRedoService, IResourceUndoRedoElement, UndoRedoElementType, IWorkspaceUndoRedoElement, UndoRedoGroup } from 'vs/platform/undoRedo/common/undoRedo';
-import { URI } from 'vs/base/common/uri';
-import { TextChange, compressConsecutiveTextChanges } from 'vs/editor/common/core/textChange';
-import * as buffer from 'vs/base/common/buffer';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { basename } from 'vs/base/common/resources';
-import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
+import * as nls from '../../../nls';
+import { onUnexpectedError } from '../../../base/common/errors';
+import { Selection } from '../core/selection';
+import { EndOfLineSequence, ICursorStateComputer, IValidEditOperation, ITextModel } from '../model';
+import { TextModel } from './textModel';
+import { IUndoRedoService, IResourceUndoRedoElement, UndoRedoElementType, IWorkspaceUndoRedoElement, UndoRedoGroup } from '../../../platform/undoRedo/common/undoRedo';
+import { URI } from '../../../base/common/uri';
+import { TextChange, compressConsecutiveTextChanges } from '../core/textChange';
+import * as buffer from '../../../base/common/buffer';
+import { IDisposable } from '../../../base/common/lifecycle';
+import { basename } from '../../../base/common/resources';
+import { ISingleEditOperation } from '../core/editOperation';
 
 function uriGetComparisonKey(resource: URI): string {
 	return resource.toString();

@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { h } from 'vs/base/browser/dom';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { Action } from 'vs/base/common/actions';
-import { booleanComparator, compareBy, numberComparator, tieBreakComparators } from 'vs/base/common/arrays';
-import { findMaxIdx } from 'vs/base/common/arraysFind';
-import { Codicon } from 'vs/base/common/codicons';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, autorun, autorunHandleChanges, autorunWithStore, constObservable, derived, derivedWithStore, observableFromEvent, observableSignalFromEvent, observableValue, recomputeInitiallyAndOnChange } from 'vs/base/common/observable';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { DiffEditorEditors } from 'vs/editor/browser/widget/diffEditor/components/diffEditorEditors';
-import { DiffEditorViewModel } from 'vs/editor/browser/widget/diffEditor/diffEditorViewModel';
-import { PlaceholderViewZone, ViewZoneOverlayWidget, applyStyle, applyViewZones } from 'vs/editor/browser/widget/diffEditor/utils';
-import { EditorLayoutInfo } from 'vs/editor/common/config/editorOptions';
-import { LineRange } from 'vs/editor/common/core/lineRange';
-import { OffsetRange, OffsetRangeSet } from 'vs/editor/common/core/offsetRange';
-import { MovedText } from 'vs/editor/common/diff/linesDiffComputer';
-import { localize } from 'vs/nls';
+import { h } from '../../../../../base/browser/dom';
+import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar';
+import { Action } from '../../../../../base/common/actions';
+import { booleanComparator, compareBy, numberComparator, tieBreakComparators } from '../../../../../base/common/arrays';
+import { findMaxIdx } from '../../../../../base/common/arraysFind';
+import { Codicon } from '../../../../../base/common/codicons';
+import { Disposable, toDisposable } from '../../../../../base/common/lifecycle';
+import { IObservable, autorun, autorunHandleChanges, autorunWithStore, constObservable, derived, derivedWithStore, observableFromEvent, observableSignalFromEvent, observableValue, recomputeInitiallyAndOnChange } from '../../../../../base/common/observable';
+import { ThemeIcon } from '../../../../../base/common/themables';
+import { ICodeEditor } from '../../../editorBrowser';
+import { DiffEditorEditors } from '../components/diffEditorEditors';
+import { DiffEditorViewModel } from '../diffEditorViewModel';
+import { PlaceholderViewZone, ViewZoneOverlayWidget, applyStyle, applyViewZones } from '../utils';
+import { EditorLayoutInfo } from '../../../../common/config/editorOptions';
+import { LineRange } from '../../../../common/core/lineRange';
+import { OffsetRange, OffsetRangeSet } from '../../../../common/core/offsetRange';
+import { MovedText } from '../../../../common/diff/linesDiffComputer';
+import { localize } from '../../../../../nls';
 
 export class MovedBlocksLinesFeature extends Disposable {
 	public static readonly movedCodeBlockPadding = 4;

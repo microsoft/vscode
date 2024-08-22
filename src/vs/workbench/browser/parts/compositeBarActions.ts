@@ -3,30 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { Action, IAction, Separator } from 'vs/base/common/actions';
-import { $, addDisposableListener, append, clearNode, EventHelper, EventType, getDomNodePagePosition, hide, show } from 'vs/base/browser/dom';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { toDisposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
-import { NumberBadge, IBadge, IActivity, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { DelayedDragHandler } from 'vs/base/browser/dnd';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { Emitter, Event } from 'vs/base/common/event';
-import { CompositeDragAndDropObserver, ICompositeDragAndDrop, Before2D, toggleDropEffect } from 'vs/workbench/browser/dnd';
-import { Color } from 'vs/base/common/color';
-import { BaseActionViewItem, IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
-import { URI } from 'vs/base/common/uri';
-import { badgeBackground, badgeForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import type { IHoverWidget } from 'vs/base/browser/ui/hover/hover';
+import { localize } from '../../../nls';
+import { Action, IAction, Separator } from '../../../base/common/actions';
+import { $, addDisposableListener, append, clearNode, EventHelper, EventType, getDomNodePagePosition, hide, show } from '../../../base/browser/dom';
+import { ICommandService } from '../../../platform/commands/common/commands';
+import { toDisposable, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle';
+import { IContextMenuService } from '../../../platform/contextview/browser/contextView';
+import { IThemeService, IColorTheme } from '../../../platform/theme/common/themeService';
+import { NumberBadge, IBadge, IActivity, ProgressBadge } from '../../services/activity/common/activity';
+import { IInstantiationService } from '../../../platform/instantiation/common/instantiation';
+import { DelayedDragHandler } from '../../../base/browser/dnd';
+import { IKeybindingService } from '../../../platform/keybinding/common/keybinding';
+import { Emitter, Event } from '../../../base/common/event';
+import { CompositeDragAndDropObserver, ICompositeDragAndDrop, Before2D, toggleDropEffect } from '../dnd';
+import { Color } from '../../../base/common/color';
+import { BaseActionViewItem, IActionViewItemOptions } from '../../../base/browser/ui/actionbar/actionViewItems';
+import { Codicon } from '../../../base/common/codicons';
+import { ThemeIcon } from '../../../base/common/themables';
+import { IHoverService } from '../../../platform/hover/browser/hover';
+import { RunOnceScheduler } from '../../../base/common/async';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration';
+import { HoverPosition } from '../../../base/browser/ui/hover/hoverWidget';
+import { URI } from '../../../base/common/uri';
+import { badgeBackground, badgeForeground, contrastBorder } from '../../../platform/theme/common/colorRegistry';
+import type { IHoverWidget } from '../../../base/browser/ui/hover/hover';
 
 export interface ICompositeBar {
 

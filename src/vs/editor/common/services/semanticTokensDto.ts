@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
-import * as platform from 'vs/base/common/platform';
+import { VSBuffer } from '../../../base/common/buffer';
+import * as platform from '../../../base/common/platform';
 
 export interface IFullSemanticTokensDto {
 	id: number;

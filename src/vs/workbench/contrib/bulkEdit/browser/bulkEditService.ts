@@ -3,31 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { LinkedList } from 'vs/base/common/linkedList';
-import { ResourceMap, ResourceSet } from 'vs/base/common/map';
-import { URI } from 'vs/base/common/uri';
-import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { IBulkEditOptions, IBulkEditPreviewHandler, IBulkEditResult, IBulkEditService, ResourceEdit, ResourceFileEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { WorkspaceEdit } from 'vs/editor/common/languages';
-import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IProgress, IProgressStep, Progress } from 'vs/platform/progress/common/progress';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { UndoRedoGroup, UndoRedoSource } from 'vs/platform/undoRedo/common/undoRedo';
-import { BulkCellEdits, ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
-import { BulkFileEdits } from 'vs/workbench/contrib/bulkEdit/browser/bulkFileEdits';
-import { BulkTextEdits } from 'vs/workbench/contrib/bulkEdit/browser/bulkTextEdits';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ILifecycleService, ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import { IDisposable, toDisposable } from '../../../../base/common/lifecycle';
+import { LinkedList } from '../../../../base/common/linkedList';
+import { ResourceMap, ResourceSet } from '../../../../base/common/map';
+import { URI } from '../../../../base/common/uri';
+import { ICodeEditor, isCodeEditor, isDiffEditor } from '../../../../editor/browser/editorBrowser';
+import { IBulkEditOptions, IBulkEditPreviewHandler, IBulkEditResult, IBulkEditService, ResourceEdit, ResourceFileEdit, ResourceTextEdit } from '../../../../editor/browser/services/bulkEditService';
+import { EditorOption } from '../../../../editor/common/config/editorOptions';
+import { WorkspaceEdit } from '../../../../editor/common/languages';
+import { localize } from '../../../../nls';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration';
+import { Extensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { ILogService } from '../../../../platform/log/common/log';
+import { IProgress, IProgressStep, Progress } from '../../../../platform/progress/common/progress';
+import { Registry } from '../../../../platform/registry/common/platform';
+import { UndoRedoGroup, UndoRedoSource } from '../../../../platform/undoRedo/common/undoRedo';
+import { BulkCellEdits, ResourceNotebookCellEdit } from './bulkCellEdits';
+import { BulkFileEdits } from './bulkFileEdits';
+import { BulkTextEdits } from './bulkTextEdits';
+import { IEditorService } from '../../../services/editor/common/editorService';
+import { ILifecycleService, ShutdownReason } from '../../../services/lifecycle/common/lifecycle';
+import { IWorkingCopyService } from '../../../services/workingCopy/common/workingCopyService';
 
 function liftEdits(edits: ResourceEdit[]): ResourceEdit[] {
 	return edits.map(edit => {

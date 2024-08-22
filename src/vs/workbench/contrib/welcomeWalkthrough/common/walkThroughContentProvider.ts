@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ITextModel, DefaultEndOfLine, EndOfLinePreference, ITextBufferFactory } from 'vs/editor/common/model';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import * as marked from 'vs/base/common/marked/marked';
-import { Schemas } from 'vs/base/common/network';
-import { Range } from 'vs/editor/common/core/range';
-import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
-import { assertIsDefined } from 'vs/base/common/types';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { URI } from '../../../../base/common/uri';
+import { ITextModelService, ITextModelContentProvider } from '../../../../editor/common/services/resolverService';
+import { IModelService } from '../../../../editor/common/services/model';
+import { ITextModel, DefaultEndOfLine, EndOfLinePreference, ITextBufferFactory } from '../../../../editor/common/model';
+import { ILanguageService } from '../../../../editor/common/languages/language';
+import { IWorkbenchContribution } from '../../../common/contributions';
+import * as marked from '../../../../base/common/marked/marked';
+import { Schemas } from '../../../../base/common/network';
+import { Range } from '../../../../editor/common/core/range';
+import { createTextBufferFactory } from '../../../../editor/common/model/textModel';
+import { assertIsDefined } from '../../../../base/common/types';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation';
 
 interface IWalkThroughContentProvider {
 	(accessor: ServicesAccessor): string;
@@ -58,7 +58,7 @@ export async function moduleToContent(instantiationService: IInstantiationServic
 		});
 		// ESM-comment-end
 		// ESM-uncomment-begin
-		// throw new Error(`Walkthrough: no provider registered for ${query.moduleId}`);
+// 		throw new Error(`Walkthrough: no provider registered for ${query.moduleId}`);
 		// ESM-uncomment-end
 	}
 

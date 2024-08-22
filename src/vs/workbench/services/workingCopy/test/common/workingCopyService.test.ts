@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { URI } from 'vs/base/common/uri';
-import { TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices';
-import { IWorkingCopySaveEvent, WorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { IWorkingCopy } from '../../common/workingCopy';
+import { URI } from '../../../../../base/common/uri';
+import { TestWorkingCopy } from '../../../../test/common/workbenchTestServices';
+import { IWorkingCopySaveEvent, WorkingCopyService } from '../../common/workingCopyService';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils';
+import { DisposableStore } from '../../../../../base/common/lifecycle';
 
 suite('WorkingCopyService', () => {
 

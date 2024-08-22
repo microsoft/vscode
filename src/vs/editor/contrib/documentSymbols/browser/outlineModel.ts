@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { binarySearch, coalesceInPlace, equals } from 'vs/base/common/arrays';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { Iterable } from 'vs/base/common/iterator';
-import { LRUCache } from 'vs/base/common/map';
-import { commonPrefixLength } from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { ITextModel } from 'vs/editor/common/model';
-import { DocumentSymbol, DocumentSymbolProvider } from 'vs/editor/common/languages';
-import { MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IModelService } from 'vs/editor/common/services/model';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { binarySearch, coalesceInPlace, equals } from '../../../../base/common/arrays';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation';
+import { onUnexpectedExternalError } from '../../../../base/common/errors';
+import { Iterable } from '../../../../base/common/iterator';
+import { LRUCache } from '../../../../base/common/map';
+import { commonPrefixLength } from '../../../../base/common/strings';
+import { URI } from '../../../../base/common/uri';
+import { IPosition, Position } from '../../../common/core/position';
+import { IRange, Range } from '../../../common/core/range';
+import { ITextModel } from '../../../common/model';
+import { DocumentSymbol, DocumentSymbolProvider } from '../../../common/languages';
+import { MarkerSeverity } from '../../../../platform/markers/common/markers';
+import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from '../../../common/services/languageFeatureDebounce';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions';
+import { IModelService } from '../../../common/services/model';
+import { DisposableStore } from '../../../../base/common/lifecycle';
+import { LanguageFeatureRegistry } from '../../../common/languageFeatureRegistry';
+import { ILanguageFeaturesService } from '../../../common/services/languageFeatures';
 
 export abstract class TreeElement {
 

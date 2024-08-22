@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize2 } from 'vs/nls';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ActiveEditorContext } from 'vs/workbench/common/contextkeys';
-import { CHAT_CATEGORY, isChatViewTitleActionContext } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
-import { CHAT_VIEW_ID, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
-import { IChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatEditor';
-import { ChatEditorInput } from 'vs/workbench/contrib/chat/browser/chatEditorInput';
-import { ChatViewPane } from 'vs/workbench/contrib/chat/browser/chatViewPane';
-import { CONTEXT_CHAT_ENABLED } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { ACTIVE_GROUP, AUX_WINDOW_GROUP, IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
+import { localize2 } from '../../../../../nls';
+import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey';
+import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation';
+import { ActiveEditorContext } from '../../../../common/contextkeys';
+import { CHAT_CATEGORY, isChatViewTitleActionContext } from './chatActions';
+import { CHAT_VIEW_ID, IChatWidgetService } from '../chat';
+import { IChatEditorOptions } from '../chatEditor';
+import { ChatEditorInput } from '../chatEditorInput';
+import { ChatViewPane } from '../chatViewPane';
+import { CONTEXT_CHAT_ENABLED } from '../../common/chatContextKeys';
+import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService';
+import { ACTIVE_GROUP, AUX_WINDOW_GROUP, IEditorService } from '../../../../services/editor/common/editorService';
+import { IViewsService } from '../../../../services/views/common/viewsService';
 
 enum MoveToNewLocation {
 	Editor = 'Editor',

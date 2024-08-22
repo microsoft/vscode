@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, EditorCommand, EditorContributionInstantiation, IActionOptions, registerEditorAction, registerEditorCommand, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { IMarkerNavigationService, MarkerList } from 'vs/editor/contrib/gotoError/browser/markerNavigationService';
-import * as nls from 'vs/nls';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IMarker } from 'vs/platform/markers/common/markers';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+import { Codicon } from '../../../../base/common/codicons';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes';
+import { DisposableStore } from '../../../../base/common/lifecycle';
+import { URI } from '../../../../base/common/uri';
+import { ICodeEditor } from '../../../browser/editorBrowser';
+import { EditorAction, EditorCommand, EditorContributionInstantiation, IActionOptions, registerEditorAction, registerEditorCommand, registerEditorContribution, ServicesAccessor } from '../../../browser/editorExtensions';
+import { ICodeEditorService } from '../../../browser/services/codeEditorService';
+import { Position } from '../../../common/core/position';
+import { Range } from '../../../common/core/range';
+import { IEditorContribution } from '../../../common/editorCommon';
+import { EditorContextKeys } from '../../../common/editorContextKeys';
+import { IMarkerNavigationService, MarkerList } from './markerNavigationService';
+import * as nls from '../../../../nls';
+import { MenuId } from '../../../../platform/actions/common/actions';
+import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey';
+import { TextEditorSelectionRevealType } from '../../../../platform/editor/common/editor';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry';
+import { IMarker } from '../../../../platform/markers/common/markers';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry';
 import { MarkerNavigationWidget } from './gotoErrorWidget';
 
 export class MarkerController implements IEditorContribution {

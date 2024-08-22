@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { Button } from 'vs/base/browser/ui/button/button';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { localize } from 'vs/nls';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { IChatContentPart, IChatContentPartRenderContext } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatContentParts';
-import { IChatProgressRenderableResponseContent } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IChatCommandButton } from 'vs/workbench/contrib/chat/common/chatService';
-import { isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
+import * as dom from '../../../../../base/browser/dom';
+import { Button } from '../../../../../base/browser/ui/button/button';
+import { Disposable } from '../../../../../base/common/lifecycle';
+import { localize } from '../../../../../nls';
+import { ICommandService } from '../../../../../platform/commands/common/commands';
+import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles';
+import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts';
+import { IChatProgressRenderableResponseContent } from '../../common/chatModel';
+import { IChatCommandButton } from '../../common/chatService';
+import { isResponseVM } from '../../common/chatViewModel';
 
 const $ = dom.$;
 

@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Action } from 'vs/base/common/actions';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { isDefined } from 'vs/base/common/types';
-import { localize } from 'vs/nls';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
-import { EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { Action } from '../../../../base/common/actions';
+import { onUnexpectedError } from '../../../../base/common/errors';
+import { isDefined } from '../../../../base/common/types';
+import { localize } from '../../../../nls';
+import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification';
+import { IOpenerService } from '../../../../platform/opener/common/opener';
+import { Registry } from '../../../../platform/registry/common/platform';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage';
+import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from '../../../common/contributions';
+import { IExtensionsWorkbenchService } from '../../extensions/common/extensions';
+import { EnablementState } from '../../../services/extensionManagement/common/extensionManagement';
+import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle';
 
 class DeprecatedExtensionMigratorContribution {
 	constructor(

@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { localize } from 'vs/nls';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { TreeView, TreeViewPane } from 'vs/workbench/browser/parts/views/treeView';
-import { Extensions, ITreeItem, ITreeViewDataProvider, ITreeViewDescriptor, IViewsRegistry, TreeItemCollapsibleState, TreeViewItemHandleArg, ViewContainer } from 'vs/workbench/common/views';
-import { ChangeType, EDIT_SESSIONS_DATA_VIEW_ID, EDIT_SESSIONS_SCHEME, EDIT_SESSIONS_SHOW_VIEW, EDIT_SESSIONS_TITLE, EditSession, IEditSessionsStorageService } from 'vs/workbench/contrib/editSessions/common/editSessions';
-import { URI } from 'vs/base/common/uri';
-import { fromNow } from 'vs/base/common/date';
-import { Codicon } from 'vs/base/common/codicons';
-import { API_OPEN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
-import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { joinPath } from 'vs/base/common/resources';
-import { IFileService } from 'vs/platform/files/common/files';
-import { basename } from 'vs/base/common/path';
+import { Disposable } from '../../../../base/common/lifecycle';
+import { localize } from '../../../../nls';
+import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation';
+import { Registry } from '../../../../platform/registry/common/platform';
+import { TreeView, TreeViewPane } from '../../../browser/parts/views/treeView';
+import { Extensions, ITreeItem, ITreeViewDataProvider, ITreeViewDescriptor, IViewsRegistry, TreeItemCollapsibleState, TreeViewItemHandleArg, ViewContainer } from '../../../common/views';
+import { ChangeType, EDIT_SESSIONS_DATA_VIEW_ID, EDIT_SESSIONS_SCHEME, EDIT_SESSIONS_SHOW_VIEW, EDIT_SESSIONS_TITLE, EditSession, IEditSessionsStorageService } from '../common/editSessions';
+import { URI } from '../../../../base/common/uri';
+import { fromNow } from '../../../../base/common/date';
+import { Codicon } from '../../../../base/common/codicons';
+import { API_OPEN_EDITOR_COMMAND_ID } from '../../../browser/parts/editor/editorCommands';
+import { registerAction2, Action2, MenuId } from '../../../../platform/actions/common/actions';
+import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey';
+import { ICommandService } from '../../../../platform/commands/common/commands';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace';
+import { joinPath } from '../../../../base/common/resources';
+import { IFileService } from '../../../../platform/files/common/files';
+import { basename } from '../../../../base/common/path';
 
 const EDIT_SESSIONS_COUNT_KEY = 'editSessionsCount';
 const EDIT_SESSIONS_COUNT_CONTEXT_KEY = new RawContextKey<number>(EDIT_SESSIONS_COUNT_KEY, 0);

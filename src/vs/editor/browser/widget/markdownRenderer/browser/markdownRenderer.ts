@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MarkdownRenderOptions, MarkedOptions, renderMarkdown } from 'vs/base/browser/markdownRenderer';
-import { createTrustedTypesPolicy } from 'vs/base/browser/trustedTypes';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Emitter } from 'vs/base/common/event';
-import { IMarkdownString, MarkdownStringTrustedOptions } from 'vs/base/common/htmlContent';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { MarkdownRenderOptions, MarkedOptions, renderMarkdown } from '../../../../../base/browser/markdownRenderer';
+import { createTrustedTypesPolicy } from '../../../../../base/browser/trustedTypes';
+import { onUnexpectedError } from '../../../../../base/common/errors';
+import { Emitter } from '../../../../../base/common/event';
+import { IMarkdownString, MarkdownStringTrustedOptions } from '../../../../../base/common/htmlContent';
+import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle';
 import 'vs/css!./renderedMarkdown';
-import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { tokenizeToString } from 'vs/editor/common/languages/textToHtmlTokenizer';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { applyFontInfo } from '../../../config/domFontInfo';
+import { ICodeEditor } from '../../../editorBrowser';
+import { EditorOption } from '../../../../common/config/editorOptions';
+import { ILanguageService } from '../../../../common/languages/language';
+import { PLAINTEXT_LANGUAGE_ID } from '../../../../common/languages/modesRegistry';
+import { tokenizeToString } from '../../../../common/languages/textToHtmlTokenizer';
+import { IOpenerService } from '../../../../../platform/opener/common/opener';
 
 export interface IMarkdownRenderResult extends IDisposable {
 	readonly element: HTMLElement;

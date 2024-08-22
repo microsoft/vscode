@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import type { IManagedHover } from 'vs/base/browser/ui/hover/hover';
-import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
-import { getBaseLayerHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate2';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { Disposable } from 'vs/base/common/lifecycle';
-import * as objects from 'vs/base/common/objects';
+import * as dom from '../../dom';
+import type { IManagedHover } from '../hover/hover';
+import { IHoverDelegate } from '../hover/hoverDelegate';
+import { getBaseLayerHoverDelegate } from '../hover/hoverDelegate2';
+import { getDefaultHoverDelegate } from '../hover/hoverDelegateFactory';
+import { renderLabelWithIcons } from '../iconLabel/iconLabels';
+import { Disposable } from '../../../common/lifecycle';
+import * as objects from '../../../common/objects';
 
 /**
  * A range to be highlighted.

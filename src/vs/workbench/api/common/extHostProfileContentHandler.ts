@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { toDisposable } from 'vs/base/common/lifecycle';
-import { isString } from 'vs/base/common/types';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
-import { ISaveProfileResult } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { CancellationToken } from '../../../base/common/cancellation';
+import { toDisposable } from '../../../base/common/lifecycle';
+import { isString } from '../../../base/common/types';
+import { URI, UriComponents } from '../../../base/common/uri';
+import { IExtensionDescription } from '../../../platform/extensions/common/extensions';
+import { checkProposedApiEnabled } from '../../services/extensions/common/extensions';
+import { ISaveProfileResult } from '../../services/userDataProfile/common/userDataProfile';
 import type * as vscode from 'vscode';
 import { ExtHostProfileContentHandlersShape, IMainContext, MainContext, MainThreadProfileContentHandlersShape } from './extHost.protocol';
 

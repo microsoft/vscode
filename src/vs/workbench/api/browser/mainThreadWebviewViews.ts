@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Disposable, DisposableMap } from 'vs/base/common/lifecycle';
-import { generateUuid } from 'vs/base/common/uuid';
-import { MainThreadWebviews, reviveWebviewExtension } from 'vs/workbench/api/browser/mainThreadWebviews';
-import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
-import { IViewBadge } from 'vs/workbench/common/views';
-import { IWebviewViewService, WebviewView } from 'vs/workbench/contrib/webviewView/browser/webviewViewService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { CancellationToken } from '../../../base/common/cancellation';
+import { onUnexpectedError } from '../../../base/common/errors';
+import { Disposable, DisposableMap } from '../../../base/common/lifecycle';
+import { generateUuid } from '../../../base/common/uuid';
+import { MainThreadWebviews, reviveWebviewExtension } from './mainThreadWebviews';
+import * as extHostProtocol from '../common/extHost.protocol';
+import { IViewBadge } from '../../common/views';
+import { IWebviewViewService, WebviewView } from '../../contrib/webviewView/browser/webviewViewService';
+import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
+import { IExtHostContext } from '../../services/extensions/common/extHostCustomers';
 
 
 export class MainThreadWebviewsViews extends Disposable implements extHostProtocol.MainThreadWebviewViewsShape {

@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { Barrier, Promises } from 'vs/base/common/async';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IUserDataInitializer } from 'vs/workbench/services/userData/browser/userDataInit';
-import { IProfileResourceInitializer, IUserDataProfileService, IUserDataProfileTemplate } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { SettingsResourceInitializer } from 'vs/workbench/services/userDataProfile/browser/settingsResource';
-import { GlobalStateResourceInitializer } from 'vs/workbench/services/userDataProfile/browser/globalStateResource';
-import { KeybindingsResourceInitializer } from 'vs/workbench/services/userDataProfile/browser/keybindingsResource';
-import { TasksResourceInitializer } from 'vs/workbench/services/userDataProfile/browser/tasksResource';
-import { SnippetsResourceInitializer } from 'vs/workbench/services/userDataProfile/browser/snippetsResource';
-import { ExtensionsResourceInitializer } from 'vs/workbench/services/userDataProfile/browser/extensionsResource';
-import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
-import { isString } from 'vs/base/common/types';
-import { IRequestService, asJson } from 'vs/platform/request/common/request';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { URI } from 'vs/base/common/uri';
-import { ProfileResourceType } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage';
+import { IFileService } from '../../../../platform/files/common/files';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { ILogService } from '../../../../platform/log/common/log';
+import { Barrier, Promises } from '../../../../base/common/async';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity';
+import { IUserDataInitializer } from '../../userData/browser/userDataInit';
+import { IProfileResourceInitializer, IUserDataProfileService, IUserDataProfileTemplate } from '../common/userDataProfile';
+import { SettingsResourceInitializer } from './settingsResource';
+import { GlobalStateResourceInitializer } from './globalStateResource';
+import { KeybindingsResourceInitializer } from './keybindingsResource';
+import { TasksResourceInitializer } from './tasksResource';
+import { SnippetsResourceInitializer } from './snippetsResource';
+import { ExtensionsResourceInitializer } from './extensionsResource';
+import { IBrowserWorkbenchEnvironmentService } from '../../environment/browser/environmentService';
+import { isString } from '../../../../base/common/types';
+import { IRequestService, asJson } from '../../../../platform/request/common/request';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import { URI } from '../../../../base/common/uri';
+import { ProfileResourceType } from '../../../../platform/userDataProfile/common/userDataProfile';
 
 export class UserDataProfileInitializer implements IUserDataInitializer {
 

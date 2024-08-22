@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
-import { MarshalledObject } from 'vs/base/common/marshalling';
-import { MarshalledId } from 'vs/base/common/marshallingIds';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { VSBuffer } from './buffer';
+import { MarshalledObject } from './marshalling';
+import { MarshalledId } from './marshallingIds';
+import { URI, UriComponents } from './uri';
 
 export interface IURITransformer {
 	transformIncoming(uri: UriComponents): UriComponents;

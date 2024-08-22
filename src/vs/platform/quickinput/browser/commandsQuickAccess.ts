@@ -3,28 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { isCancellationError } from 'vs/base/common/errors';
-import { matchesContiguousSubString, matchesPrefix, matchesWords, or } from 'vs/base/common/filters';
-import { createSingleCallFunction } from 'vs/base/common/functional';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { LRUCache } from 'vs/base/common/map';
-import { TfIdfCalculator, normalizeTfIdfScores } from 'vs/base/common/tfIdf';
-import { localize } from 'vs/nls';
-import { ILocalizedString } from 'vs/platform/action/common/action';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ILogService } from 'vs/platform/log/common/log';
-import { FastAndSlowPicks, IPickerQuickAccessItem, IPickerQuickAccessProviderOptions, PickerQuickAccessProvider, Picks } from 'vs/platform/quickinput/browser/pickerQuickAccess';
-import { IQuickAccessProviderRunOptions } from 'vs/platform/quickinput/common/quickAccess';
-import { IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../base/common/actions';
+import { CancellationToken } from '../../../base/common/cancellation';
+import { toErrorMessage } from '../../../base/common/errorMessage';
+import { isCancellationError } from '../../../base/common/errors';
+import { matchesContiguousSubString, matchesPrefix, matchesWords, or } from '../../../base/common/filters';
+import { createSingleCallFunction } from '../../../base/common/functional';
+import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle';
+import { LRUCache } from '../../../base/common/map';
+import { TfIdfCalculator, normalizeTfIdfScores } from '../../../base/common/tfIdf';
+import { localize } from '../../../nls';
+import { ILocalizedString } from '../../action/common/action';
+import { ICommandService } from '../../commands/common/commands';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../configuration/common/configuration';
+import { IDialogService } from '../../dialogs/common/dialogs';
+import { IInstantiationService } from '../../instantiation/common/instantiation';
+import { IKeybindingService } from '../../keybinding/common/keybinding';
+import { ILogService } from '../../log/common/log';
+import { FastAndSlowPicks, IPickerQuickAccessItem, IPickerQuickAccessProviderOptions, PickerQuickAccessProvider, Picks } from './pickerQuickAccess';
+import { IQuickAccessProviderRunOptions } from '../common/quickAccess';
+import { IQuickPickSeparator } from '../common/quickInput';
+import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from '../../storage/common/storage';
+import { ITelemetryService } from '../../telemetry/common/telemetry';
 
 export interface ICommandQuickPick extends IPickerQuickAccessItem {
 	readonly commandId: string;

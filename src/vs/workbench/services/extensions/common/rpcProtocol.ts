@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { CharCode } from 'vs/base/common/charCode';
-import * as errors from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { MarshalledObject } from 'vs/base/common/marshalling';
-import { MarshalledId } from 'vs/base/common/marshallingIds';
-import { IURITransformer, transformIncomingURIs } from 'vs/base/common/uriIpc';
-import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
-import { CanceledLazyPromise, LazyPromise } from 'vs/workbench/services/extensions/common/lazyPromise';
-import { getStringIdentifierForProxy, IRPCProtocol, Proxied, ProxyIdentifier, SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
+import { RunOnceScheduler } from '../../../../base/common/async';
+import { VSBuffer } from '../../../../base/common/buffer';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation';
+import { CharCode } from '../../../../base/common/charCode';
+import * as errors from '../../../../base/common/errors';
+import { Emitter, Event } from '../../../../base/common/event';
+import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle';
+import { MarshalledObject } from '../../../../base/common/marshalling';
+import { MarshalledId } from '../../../../base/common/marshallingIds';
+import { IURITransformer, transformIncomingURIs } from '../../../../base/common/uriIpc';
+import { IMessagePassingProtocol } from '../../../../base/parts/ipc/common/ipc';
+import { CanceledLazyPromise, LazyPromise } from './lazyPromise';
+import { getStringIdentifierForProxy, IRPCProtocol, Proxied, ProxyIdentifier, SerializableObjectWithBuffers } from './proxyIdentifier';
 
 export interface JSONStringifyReplacer {
 	(key: string, value: any): any;

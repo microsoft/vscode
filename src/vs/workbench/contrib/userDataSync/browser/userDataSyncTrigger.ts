@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { isWeb } from 'vs/base/common/platform';
-import { isEqual } from 'vs/base/common/resources';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { IUserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataSync';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
-import { VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { KeybindingsEditorInput } from 'vs/workbench/services/preferences/browser/keybindingsEditorInput';
-import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
+import { Event } from '../../../../base/common/event';
+import { Disposable } from '../../../../base/common/lifecycle';
+import { isWeb } from '../../../../base/common/platform';
+import { isEqual } from '../../../../base/common/resources';
+import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile';
+import { IUserDataAutoSyncService } from '../../../../platform/userDataSync/common/userDataSync';
+import { IWorkbenchContribution } from '../../../common/contributions';
+import { EditorInput } from '../../../common/editor/editorInput';
+import { IViewsService } from '../../../services/views/common/viewsService';
+import { VIEWLET_ID } from '../../extensions/common/extensions';
+import { IEditorService } from '../../../services/editor/common/editorService';
+import { IHostService } from '../../../services/host/browser/host';
+import { KeybindingsEditorInput } from '../../../services/preferences/browser/keybindingsEditorInput';
+import { SettingsEditor2Input } from '../../../services/preferences/common/preferencesEditorInput';
 
 export class UserDataSyncTrigger extends Disposable implements IWorkbenchContribution {
 

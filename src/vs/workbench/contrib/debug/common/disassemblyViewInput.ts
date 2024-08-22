@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { localize } from 'vs/nls';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { Codicon } from 'vs/base/common/codicons';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+import { EditorInput } from '../../../common/editor/editorInput';
+import { localize } from '../../../../nls';
+import { ThemeIcon } from '../../../../base/common/themables';
+import { Codicon } from '../../../../base/common/codicons';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry';
 
 const DisassemblyEditorIcon = registerIcon('disassembly-editor-label-icon', Codicon.debug, localize('disassemblyEditorLabelIcon', 'Icon of the disassembly editor label.'));
 

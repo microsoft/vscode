@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getAllCodicons } from 'vs/base/common/codicons';
-import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
-import { OperatingSystem, Platform, PlatformToString } from 'vs/base/common/platform';
-import { localize } from 'vs/nls';
-import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IExtensionTerminalProfile, ITerminalProfile, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { createProfileSchemaEnums } from 'vs/platform/terminal/common/terminalProfiles';
+import { getAllCodicons } from '../../../base/common/codicons';
+import { IJSONSchema, IJSONSchemaMap } from '../../../base/common/jsonSchema';
+import { OperatingSystem, Platform, PlatformToString } from '../../../base/common/platform';
+import { localize } from '../../../nls';
+import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegistry } from '../../configuration/common/configurationRegistry';
+import { Registry } from '../../registry/common/platform';
+import { IExtensionTerminalProfile, ITerminalProfile, TerminalSettingId } from './terminal';
+import { createProfileSchemaEnums } from './terminalProfiles';
 
 export const terminalColorSchema: IJSONSchema = {
 	type: ['string', 'null'],

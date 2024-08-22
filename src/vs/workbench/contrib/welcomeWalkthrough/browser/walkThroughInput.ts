@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { EditorModel } from 'vs/workbench/common/editor/editorModel';
-import { URI } from 'vs/base/common/uri';
-import { DisposableStore, IReference } from 'vs/base/common/lifecycle';
-import { ITextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { marked, Tokens } from 'vs/base/common/marked/marked';
-import { isEqual } from 'vs/base/common/resources';
-import { moduleToContent } from 'vs/workbench/contrib/welcomeWalkthrough/common/walkThroughContentProvider';
-import { Dimension } from 'vs/base/browser/dom';
-import { EditorInputCapabilities, IUntypedEditorInput } from 'vs/workbench/common/editor';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Schemas } from 'vs/base/common/network';
+import { EditorInput } from '../../../common/editor/editorInput';
+import { EditorModel } from '../../../common/editor/editorModel';
+import { URI } from '../../../../base/common/uri';
+import { DisposableStore, IReference } from '../../../../base/common/lifecycle';
+import { ITextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService';
+import { marked, Tokens } from '../../../../base/common/marked/marked';
+import { isEqual } from '../../../../base/common/resources';
+import { moduleToContent } from '../common/walkThroughContentProvider';
+import { Dimension } from '../../../../base/browser/dom';
+import { EditorInputCapabilities, IUntypedEditorInput } from '../../../common/editor';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { Schemas } from '../../../../base/common/network';
 
 class WalkThroughModel extends EditorModel {
 

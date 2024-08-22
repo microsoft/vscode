@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { SashSettingsController } from 'vs/workbench/contrib/sash/browser/sash';
-import { isIOS } from 'vs/base/common/platform';
+import { localize } from '../../../../nls';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../platform/configuration/common/configurationRegistry';
+import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle';
+import { Registry } from '../../../../platform/registry/common/platform';
+import { workbenchConfigurationNodeBase } from '../../../common/configuration';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../common/contributions';
+import { SashSettingsController } from './sash';
+import { isIOS } from '../../../../base/common/platform';
 
 // Sash size contribution
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)

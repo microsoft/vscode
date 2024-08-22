@@ -3,23 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IDiffResult, IDiffChange } from 'vs/base/common/diff/diff';
-import { Emitter, type IValueWithChangeEvent } from 'vs/base/common/event';
-import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import type { URI } from 'vs/base/common/uri';
-import { FontInfo } from 'vs/editor/common/config/fontInfo';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { MultiDiffEditorItem } from 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffSourceResolverService';
-import { DiffElementCellViewModelBase, DiffElementPlaceholderViewModel, IDiffElementViewModelBase, SideBySideDiffElementViewModel, SingleSideDiffElementViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
-import { NotebookDiffEditorEventDispatcher } from 'vs/workbench/contrib/notebook/browser/diff/eventDispatcher';
-import { INotebookDiffViewModel, INotebookDiffViewModelUpdateEvent } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellUri, INotebookDiffEditorModel, INotebookDiffResult } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { INotebookEditorWorkerService } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerService';
+import { CancellationToken } from '../../../../../base/common/cancellation';
+import { IDiffResult, IDiffChange } from '../../../../../base/common/diff/diff';
+import { Emitter, type IValueWithChangeEvent } from '../../../../../base/common/event';
+import { Disposable, DisposableStore, dispose } from '../../../../../base/common/lifecycle';
+import { Schemas } from '../../../../../base/common/network';
+import type { URI } from '../../../../../base/common/uri';
+import { FontInfo } from '../../../../../editor/common/config/fontInfo';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation';
+import { MultiDiffEditorItem } from '../../../multiDiffEditor/browser/multiDiffSourceResolverService';
+import { DiffElementCellViewModelBase, DiffElementPlaceholderViewModel, IDiffElementViewModelBase, SideBySideDiffElementViewModel, SingleSideDiffElementViewModel } from './diffElementViewModel';
+import { NotebookDiffEditorEventDispatcher } from './eventDispatcher';
+import { INotebookDiffViewModel, INotebookDiffViewModelUpdateEvent } from './notebookDiffEditorBrowser';
+import { NotebookTextModel } from '../../common/model/notebookTextModel';
+import { CellUri, INotebookDiffEditorModel, INotebookDiffResult } from '../../common/notebookCommon';
+import { INotebookService } from '../../common/notebookService';
+import { INotebookEditorWorkerService } from '../../common/services/notebookWorkerService';
 
 export class NotebookDiffViewModel extends Disposable implements INotebookDiffViewModel, IValueWithChangeEvent<readonly MultiDiffEditorItem[]> {
 	private readonly placeholderAndRelatedCells = new Map<DiffElementPlaceholderViewModel, DiffElementCellViewModelBase[]>();

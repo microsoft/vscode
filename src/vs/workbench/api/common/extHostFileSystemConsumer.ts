@@ -5,17 +5,17 @@
 
 import { MainContext, MainThreadFileSystemShape } from './extHost.protocol';
 import type * as vscode from 'vscode';
-import * as files from 'vs/platform/files/common/files';
-import { FileSystemError } from 'vs/workbench/api/common/extHostTypes';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ResourceQueue } from 'vs/base/common/async';
-import { IExtUri, extUri, extUriIgnorePathCase } from 'vs/base/common/resources';
-import { Schemas } from 'vs/base/common/network';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
+import * as files from '../../../platform/files/common/files';
+import { FileSystemError } from './extHostTypes';
+import { VSBuffer } from '../../../base/common/buffer';
+import { createDecorator } from '../../../platform/instantiation/common/instantiation';
+import { IExtHostRpcService } from './extHostRpcService';
+import { IExtHostFileSystemInfo } from './extHostFileSystemInfo';
+import { IDisposable, toDisposable } from '../../../base/common/lifecycle';
+import { ResourceQueue } from '../../../base/common/async';
+import { IExtUri, extUri, extUriIgnorePathCase } from '../../../base/common/resources';
+import { Schemas } from '../../../base/common/network';
+import { IMarkdownString } from '../../../base/common/htmlContent';
 
 export class ExtHostConsumerFileSystem {
 

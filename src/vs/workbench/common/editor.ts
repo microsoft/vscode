@@ -3,31 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { Event } from 'vs/base/common/event';
-import { DeepRequiredNonNullable, assertIsDefined } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ICodeEditorViewState, IDiffEditor, IDiffEditorViewState, IEditor, IEditorViewState } from 'vs/editor/common/editorCommon';
-import { IEditorOptions, IResourceEditorInput, ITextResourceEditorInput, IBaseTextResourceEditorInput, IBaseUntypedEditorInput, ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import type { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IInstantiationService, IConstructorSignature, ServicesAccessor, BrandedService } from 'vs/platform/instantiation/common/instantiation';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IEncodingSupport, ILanguageSupport } from 'vs/workbench/services/textfile/common/textfiles';
-import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { ICompositeControl, IComposite } from 'vs/workbench/common/composite';
-import { FileType, IFileReadLimits, IFileService } from 'vs/platform/files/common/files';
-import { IPathData } from 'vs/platform/window/common/window';
-import { IExtUri } from 'vs/base/common/resources';
-import { Schemas } from 'vs/base/common/network';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IErrorWithActions, createErrorWithActions, isErrorWithActions } from 'vs/base/common/errorMessage';
-import { IAction, toAction } from 'vs/base/common/actions';
-import Severity from 'vs/base/common/severity';
-import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { IReadonlyEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
+import { localize } from '../../nls';
+import { Event } from '../../base/common/event';
+import { DeepRequiredNonNullable, assertIsDefined } from '../../base/common/types';
+import { URI } from '../../base/common/uri';
+import { Disposable, IDisposable, toDisposable } from '../../base/common/lifecycle';
+import { ICodeEditorViewState, IDiffEditor, IDiffEditorViewState, IEditor, IEditorViewState } from '../../editor/common/editorCommon';
+import { IEditorOptions, IResourceEditorInput, ITextResourceEditorInput, IBaseTextResourceEditorInput, IBaseUntypedEditorInput, ITextEditorOptions } from '../../platform/editor/common/editor';
+import type { EditorInput } from './editor/editorInput';
+import { IInstantiationService, IConstructorSignature, ServicesAccessor, BrandedService } from '../../platform/instantiation/common/instantiation';
+import { IContextKeyService } from '../../platform/contextkey/common/contextkey';
+import { Registry } from '../../platform/registry/common/platform';
+import { IEncodingSupport, ILanguageSupport } from '../services/textfile/common/textfiles';
+import { IEditorGroup } from '../services/editor/common/editorGroupsService';
+import { ICompositeControl, IComposite } from './composite';
+import { FileType, IFileReadLimits, IFileService } from '../../platform/files/common/files';
+import { IPathData } from '../../platform/window/common/window';
+import { IExtUri } from '../../base/common/resources';
+import { Schemas } from '../../base/common/network';
+import { IEditorService } from '../services/editor/common/editorService';
+import { ILogService } from '../../platform/log/common/log';
+import { IErrorWithActions, createErrorWithActions, isErrorWithActions } from '../../base/common/errorMessage';
+import { IAction, toAction } from '../../base/common/actions';
+import Severity from '../../base/common/severity';
+import { IPreferencesService } from '../services/preferences/common/preferences';
+import { IReadonlyEditorGroupModel } from './editor/editorGroupModel';
 
 // Static values for editor contributions
 export const EditorExtensions = {

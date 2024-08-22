@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
-import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
-import { IVisibleLine, VisibleLinesCollection } from 'vs/editor/browser/view/viewLayer';
-import { ViewPart } from 'vs/editor/browser/view/viewPart';
-import { StringBuilder } from 'vs/editor/common/core/stringBuilder';
-import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
-import * as viewEvents from 'vs/editor/common/viewEvents';
-import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { FastDomNode, createFastDomNode } from '../../../base/browser/fastDomNode';
+import { applyFontInfo } from '../config/domFontInfo';
+import { DynamicViewOverlay } from './dynamicViewOverlay';
+import { IVisibleLine, VisibleLinesCollection } from './viewLayer';
+import { ViewPart } from './viewPart';
+import { StringBuilder } from '../../common/core/stringBuilder';
+import { RenderingContext, RestrictedRenderingContext } from './renderingContext';
+import { ViewContext } from '../../common/viewModel/viewContext';
+import * as viewEvents from '../../common/viewEvents';
+import { ViewportData } from '../../common/viewLayout/viewLinesViewportData';
+import { EditorOption } from '../../common/config/editorOptions';
 
 export class ViewOverlays extends ViewPart {
 	private readonly _visibleLines: VisibleLinesCollection<ViewOverlayLine>;

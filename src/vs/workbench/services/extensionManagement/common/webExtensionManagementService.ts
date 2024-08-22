@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ExtensionIdentifier, ExtensionType, IExtension, IExtensionIdentifier, IExtensionManifest, TargetPlatform } from 'vs/platform/extensions/common/extensions';
-import { ILocalExtension, IGalleryExtension, InstallOperation, IExtensionGalleryService, Metadata, InstallOptions, IProductVersion } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { URI } from 'vs/base/common/uri';
-import { Emitter, Event } from 'vs/base/common/event';
-import { areSameExtensions, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { IProfileAwareExtensionManagementService, IScannedExtension, IWebExtensionsScannerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { ILogService } from 'vs/platform/log/common/log';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { AbstractExtensionManagementService, AbstractExtensionTask, IInstallExtensionTask, InstallExtensionTaskOptions, IUninstallExtensionTask, toExtensionManagementError, UninstallExtensionTaskOptions } from 'vs/platform/extensionManagement/common/abstractExtensionManagementService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { isBoolean, isUndefined } from 'vs/base/common/types';
-import { DidChangeUserDataProfileEvent, IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { delta } from 'vs/base/common/arrays';
-import { compare } from 'vs/base/common/strings';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { ExtensionIdentifier, ExtensionType, IExtension, IExtensionIdentifier, IExtensionManifest, TargetPlatform } from '../../../../platform/extensions/common/extensions';
+import { ILocalExtension, IGalleryExtension, InstallOperation, IExtensionGalleryService, Metadata, InstallOptions, IProductVersion } from '../../../../platform/extensionManagement/common/extensionManagement';
+import { URI } from '../../../../base/common/uri';
+import { Emitter, Event } from '../../../../base/common/event';
+import { areSameExtensions, getGalleryExtensionId } from '../../../../platform/extensionManagement/common/extensionManagementUtil';
+import { IProfileAwareExtensionManagementService, IScannedExtension, IWebExtensionsScannerService } from './extensionManagement';
+import { ILogService } from '../../../../platform/log/common/log';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import { AbstractExtensionManagementService, AbstractExtensionTask, IInstallExtensionTask, InstallExtensionTaskOptions, IUninstallExtensionTask, toExtensionManagementError, UninstallExtensionTaskOptions } from '../../../../platform/extensionManagement/common/abstractExtensionManagementService';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
+import { IExtensionManifestPropertiesService } from '../../extensions/common/extensionManifestPropertiesService';
+import { IProductService } from '../../../../platform/product/common/productService';
+import { isBoolean, isUndefined } from '../../../../base/common/types';
+import { DidChangeUserDataProfileEvent, IUserDataProfileService } from '../../userDataProfile/common/userDataProfile';
+import { delta } from '../../../../base/common/arrays';
+import { compare } from '../../../../base/common/strings';
+import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity';
+import { DisposableStore } from '../../../../base/common/lifecycle';
 
 export class WebExtensionManagementService extends AbstractExtensionManagementService implements IProfileAwareExtensionManagementService {
 

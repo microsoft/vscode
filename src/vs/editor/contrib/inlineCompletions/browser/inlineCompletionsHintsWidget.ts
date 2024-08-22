@@ -3,37 +3,37 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { h } from 'vs/base/browser/dom';
-import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { KeybindingLabel, unthemedKeybindingLabelOptions } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
-import { Action, IAction, Separator } from 'vs/base/common/actions';
-import { equals } from 'vs/base/common/arrays';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { Codicon } from 'vs/base/common/codicons';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, autorun, autorunWithStore, derived, derivedObservableWithCache, observableFromEvent } from 'vs/base/common/observable';
-import { derivedWithStore } from 'vs/base/common/observableInternal/derived';
-import { OS } from 'vs/base/common/platform';
-import { ThemeIcon } from 'vs/base/common/themables';
+import { h } from '../../../../base/browser/dom';
+import { ActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems';
+import { KeybindingLabel, unthemedKeybindingLabelOptions } from '../../../../base/browser/ui/keybindingLabel/keybindingLabel';
+import { Action, IAction, Separator } from '../../../../base/common/actions';
+import { equals } from '../../../../base/common/arrays';
+import { RunOnceScheduler } from '../../../../base/common/async';
+import { Codicon } from '../../../../base/common/codicons';
+import { Disposable, toDisposable } from '../../../../base/common/lifecycle';
+import { IObservable, autorun, autorunWithStore, derived, derivedObservableWithCache, observableFromEvent } from '../../../../base/common/observable';
+import { derivedWithStore } from '../../../../base/common/observableInternal/derived';
+import { OS } from '../../../../base/common/platform';
+import { ThemeIcon } from '../../../../base/common/themables';
 import 'vs/css!./inlineCompletionsHintsWidget';
-import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Position } from 'vs/editor/common/core/position';
-import { Command, InlineCompletionTriggerKind } from 'vs/editor/common/languages';
-import { PositionAffinity } from 'vs/editor/common/model';
-import { showNextInlineSuggestionActionId, showPreviousInlineSuggestionActionId } from 'vs/editor/contrib/inlineCompletions/browser/commandIds';
-import { InlineCompletionsModel } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsModel';
-import { localize } from 'vs/nls';
-import { MenuEntryActionViewItem, createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenuWorkbenchToolBarOptions, WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
-import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from '../../../browser/editorBrowser';
+import { EditorOption } from '../../../common/config/editorOptions';
+import { Position } from '../../../common/core/position';
+import { Command, InlineCompletionTriggerKind } from '../../../common/languages';
+import { PositionAffinity } from '../../../common/model';
+import { showNextInlineSuggestionActionId, showPreviousInlineSuggestionActionId } from './commandIds';
+import { InlineCompletionsModel } from './inlineCompletionsModel';
+import { localize } from '../../../../nls';
+import { MenuEntryActionViewItem, createAndFillInActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem';
+import { IMenuWorkbenchToolBarOptions, WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar';
+import { IMenuService, MenuId, MenuItemAction } from '../../../../platform/actions/common/actions';
+import { ICommandService } from '../../../../platform/commands/common/commands';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry';
 
 export class InlineCompletionsHintsWidget extends Disposable {
 	private readonly alwaysShowToolbar = observableFromEvent(this, this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineSuggest).showToolbar === 'always');

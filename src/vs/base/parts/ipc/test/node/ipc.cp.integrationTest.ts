@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Event } from 'vs/base/common/event';
-import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
+import { Event } from '../../../../common/event';
+import { IChannel } from '../../common/ipc';
+import { Client } from '../../node/ipc.cp';
 import { ITestService, TestServiceClient } from './testService';
-import { FileAccess } from 'vs/base/common/network';
+import { FileAccess } from '../../../../common/network';
 
 function createClient(): Client {
 	return new Client(FileAccess.asFileUri('bootstrap-fork').fsPath, {

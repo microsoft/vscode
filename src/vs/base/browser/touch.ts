@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DomUtils from 'vs/base/browser/dom';
-import { mainWindow } from 'vs/base/browser/window';
-import * as arrays from 'vs/base/common/arrays';
-import { memoize } from 'vs/base/common/decorators';
-import { Event as EventUtils } from 'vs/base/common/event';
-import { Disposable, IDisposable, markAsSingleton, toDisposable } from 'vs/base/common/lifecycle';
-import { LinkedList } from 'vs/base/common/linkedList';
+import * as DomUtils from './dom';
+import { mainWindow } from './window';
+import * as arrays from '../common/arrays';
+import { memoize } from '../common/decorators';
+import { Event as EventUtils } from '../common/event';
+import { Disposable, IDisposable, markAsSingleton, toDisposable } from '../common/lifecycle';
+import { LinkedList } from '../common/linkedList';
 
 export namespace EventType {
 	export const Tap = '-monaco-gesturetap';

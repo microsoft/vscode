@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IBufferLine, IBufferRange, Terminal } from '@xterm/xterm';
-import { URI } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
-import { IParsedLink } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkParsing';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { ITerminalExternalLinkProvider } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { Event } from 'vs/base/common/event';
-import { ITerminalBackend } from 'vs/platform/terminal/common/terminal';
-import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
-import type { IHoverAction } from 'vs/base/browser/ui/hover/hover';
+import { URI } from '../../../../../base/common/uri';
+import { createDecorator } from '../../../../../platform/instantiation/common/instantiation';
+import { ITerminalProcessManager } from '../../../terminal/common/terminal';
+import { IParsedLink } from './terminalLinkParsing';
+import { IDisposable } from '../../../../../base/common/lifecycle';
+import { ITerminalExternalLinkProvider } from '../../../terminal/browser/terminal';
+import { Event } from '../../../../../base/common/event';
+import { ITerminalBackend } from '../../../../../platform/terminal/common/terminal';
+import { ITextEditorSelection } from '../../../../../platform/editor/common/editor';
+import type { IHoverAction } from '../../../../../base/browser/ui/hover/hover';
 
 export const ITerminalLinkProviderService = createDecorator<ITerminalLinkProviderService>('terminalLinkProviderService');
 export interface ITerminalLinkProviderService {

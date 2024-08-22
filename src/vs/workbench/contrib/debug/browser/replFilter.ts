@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { matchesFuzzy } from 'vs/base/common/filters';
-import { splitGlobAware } from 'vs/base/common/glob';
-import { ITreeFilter, TreeVisibility, TreeFilterResult } from 'vs/base/browser/ui/tree/tree';
-import { IReplElement } from 'vs/workbench/contrib/debug/common/debug';
-import { ReplEvaluationResult, ReplEvaluationInput } from 'vs/workbench/contrib/debug/common/replModel';
-import { Variable } from 'vs/workbench/contrib/debug/common/debugModel';
+import { matchesFuzzy } from '../../../../base/common/filters';
+import { splitGlobAware } from '../../../../base/common/glob';
+import { ITreeFilter, TreeVisibility, TreeFilterResult } from '../../../../base/browser/ui/tree/tree';
+import { IReplElement } from '../common/debug';
+import { ReplEvaluationResult, ReplEvaluationInput } from '../common/replModel';
+import { Variable } from '../common/debugModel';
 
 
 type ParsedQuery = {

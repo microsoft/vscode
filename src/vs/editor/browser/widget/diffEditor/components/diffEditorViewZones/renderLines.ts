@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createTrustedTypesPolicy } from 'vs/base/browser/trustedTypes';
-import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorFontLigatures, EditorOption, FindComputedEditorOptionValueById } from 'vs/editor/common/config/editorOptions';
-import { FontInfo } from 'vs/editor/common/config/fontInfo';
-import { StringBuilder } from 'vs/editor/common/core/stringBuilder';
-import { ModelLineProjectionData } from 'vs/editor/common/modelLineProjectionData';
-import { IViewLineTokens, LineTokens } from 'vs/editor/common/tokens/lineTokens';
-import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
-import { RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
-import { InlineDecoration, ViewLineRenderingData } from 'vs/editor/common/viewModel';
+import { createTrustedTypesPolicy } from '../../../../../../base/browser/trustedTypes';
+import { applyFontInfo } from '../../../../config/domFontInfo';
+import { ICodeEditor } from '../../../../editorBrowser';
+import { EditorFontLigatures, EditorOption, FindComputedEditorOptionValueById } from '../../../../../common/config/editorOptions';
+import { FontInfo } from '../../../../../common/config/fontInfo';
+import { StringBuilder } from '../../../../../common/core/stringBuilder';
+import { ModelLineProjectionData } from '../../../../../common/modelLineProjectionData';
+import { IViewLineTokens, LineTokens } from '../../../../../common/tokens/lineTokens';
+import { LineDecoration } from '../../../../../common/viewLayout/lineDecorations';
+import { RenderLineInput, renderViewLine } from '../../../../../common/viewLayout/viewLineRenderer';
+import { InlineDecoration, ViewLineRenderingData } from '../../../../../common/viewModel';
 
 const ttPolicy = createTrustedTypesPolicy('diffEditorWidget', { createHTML: value => value });
 

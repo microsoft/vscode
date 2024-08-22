@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { Schemas, matchesSomeScheme } from 'vs/base/common/network';
-import { dirname, isEqual } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { FileKind } from 'vs/platform/files/common/files';
-import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { BreadcrumbsConfig } from 'vs/workbench/browser/parts/editor/breadcrumbs';
-import { IEditorPane } from 'vs/workbench/common/editor';
-import { IOutline, IOutlineService, OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
+import { CancellationTokenSource } from '../../../../base/common/cancellation';
+import { onUnexpectedError } from '../../../../base/common/errors';
+import { Emitter, Event } from '../../../../base/common/event';
+import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle';
+import { Schemas, matchesSomeScheme } from '../../../../base/common/network';
+import { dirname, isEqual } from '../../../../base/common/resources';
+import { URI } from '../../../../base/common/uri';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration';
+import { FileKind } from '../../../../platform/files/common/files';
+import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from '../../../../platform/workspace/common/workspace';
+import { BreadcrumbsConfig } from './breadcrumbs';
+import { IEditorPane } from '../../../common/editor';
+import { IOutline, IOutlineService, OutlineTarget } from '../../../services/outline/browser/outline';
 
 export class FileElement {
 	constructor(

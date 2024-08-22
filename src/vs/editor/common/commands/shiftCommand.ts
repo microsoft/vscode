@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import * as strings from 'vs/base/common/strings';
-import { CursorColumns } from 'vs/editor/common/core/cursorColumns';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection, SelectionDirection } from 'vs/editor/common/core/selection';
-import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
-import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
-import { getEnterAction } from 'vs/editor/common/languages/enterAction';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { CharCode } from '../../../base/common/charCode';
+import * as strings from '../../../base/common/strings';
+import { CursorColumns } from '../core/cursorColumns';
+import { Range } from '../core/range';
+import { Selection, SelectionDirection } from '../core/selection';
+import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from '../editorCommon';
+import { ITextModel } from '../model';
+import { EditorAutoIndentStrategy } from '../config/editorOptions';
+import { getEnterAction } from '../languages/enterAction';
+import { ILanguageConfigurationService } from '../languages/languageConfigurationRegistry';
 
 export interface IShiftCommandOpts {
 	isUnshift: boolean;

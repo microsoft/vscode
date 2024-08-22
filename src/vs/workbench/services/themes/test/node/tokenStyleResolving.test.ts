@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ColorThemeData } from 'vs/workbench/services/themes/common/colorThemeData';
+import { ColorThemeData } from '../../common/colorThemeData';
 import assert from 'assert';
-import { ITokenColorCustomizations } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { TokenStyle, getTokenClassificationRegistry } from 'vs/platform/theme/common/tokenClassificationRegistry';
-import { Color } from 'vs/base/common/color';
-import { isString } from 'vs/base/common/types';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
-import { FileAccess, Schemas } from 'vs/base/common/network';
-import { ExtensionResourceLoaderService } from 'vs/platform/extensionResourceLoader/common/extensionResourceLoaderService';
-import { ITokenStyle } from 'vs/platform/theme/common/themeService';
-import { mock, TestProductService } from 'vs/workbench/test/common/workbenchTestServices';
-import { IRequestService } from 'vs/platform/request/common/request';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { ITokenColorCustomizations } from '../../common/workbenchThemeService';
+import { TokenStyle, getTokenClassificationRegistry } from '../../../../../platform/theme/common/tokenClassificationRegistry';
+import { Color } from '../../../../../base/common/color';
+import { isString } from '../../../../../base/common/types';
+import { FileService } from '../../../../../platform/files/common/fileService';
+import { NullLogService } from '../../../../../platform/log/common/log';
+import { DiskFileSystemProvider } from '../../../../../platform/files/node/diskFileSystemProvider';
+import { FileAccess, Schemas } from '../../../../../base/common/network';
+import { ExtensionResourceLoaderService } from '../../../../../platform/extensionResourceLoader/common/extensionResourceLoaderService';
+import { ITokenStyle } from '../../../../../platform/theme/common/themeService';
+import { mock, TestProductService } from '../../../../test/common/workbenchTestServices';
+import { IRequestService } from '../../../../../platform/request/common/request';
+import { IStorageService } from '../../../../../platform/storage/common/storage';
+import { IEnvironmentService } from '../../../../../platform/environment/common/environment';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils';
 
 const undefinedStyle = { bold: undefined, underline: undefined, italic: undefined };
 const unsetStyle = { bold: false, underline: false, italic: false };

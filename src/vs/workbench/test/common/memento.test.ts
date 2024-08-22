@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { StorageScope, IStorageService, StorageTarget } from 'vs/platform/storage/common/storage';
-import { Memento } from 'vs/workbench/common/memento';
-import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+import { DisposableStore } from '../../../base/common/lifecycle';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils';
+import { StorageScope, IStorageService, StorageTarget } from '../../../platform/storage/common/storage';
+import { Memento } from '../../common/memento';
+import { TestStorageService } from './workbenchTestServices';
 
 suite('Memento', () => {
 	const disposables = new DisposableStore();

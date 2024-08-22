@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Emitter, Event } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
-import { InMemoryStorageDatabase, IStorageItemsChangeEvent, IUpdateRequest, Storage } from 'vs/base/parts/storage/common/storage';
-import { AbstractUserDataProfileStorageService, IUserDataProfileStorageService } from 'vs/platform/userDataProfile/common/userDataProfileStorageService';
-import { InMemoryStorageService, loadKeyTargets, StorageTarget, TARGET_KEY } from 'vs/platform/storage/common/storage';
-import { IUserDataProfile, toUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { Emitter, Event } from '../../../../base/common/event';
+import { URI } from '../../../../base/common/uri';
+import { InMemoryStorageDatabase, IStorageItemsChangeEvent, IUpdateRequest, Storage } from '../../../../base/parts/storage/common/storage';
+import { AbstractUserDataProfileStorageService, IUserDataProfileStorageService } from '../../common/userDataProfileStorageService';
+import { InMemoryStorageService, loadKeyTargets, StorageTarget, TARGET_KEY } from '../../../storage/common/storage';
+import { IUserDataProfile, toUserDataProfile } from '../../common/userDataProfile';
+import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils';
 
 class TestStorageDatabase extends InMemoryStorageDatabase {
 

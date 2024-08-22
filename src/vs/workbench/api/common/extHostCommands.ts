@@ -5,33 +5,33 @@
 
 /* eslint-disable local/code-no-native-private */
 
-import { validateConstraint } from 'vs/base/common/types';
-import { ICommandMetadata } from 'vs/platform/commands/common/commands';
-import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
-import * as extHostTypeConverter from 'vs/workbench/api/common/extHostTypeConverters';
-import { cloneAndChange } from 'vs/base/common/objects';
+import { validateConstraint } from '../../../base/common/types';
+import { ICommandMetadata } from '../../../platform/commands/common/commands';
+import * as extHostTypes from './extHostTypes';
+import * as extHostTypeConverter from './extHostTypeConverters';
+import { cloneAndChange } from '../../../base/common/objects';
 import { MainContext, MainThreadCommandsShape, ExtHostCommandsShape, ICommandDto, ICommandMetadataDto, MainThreadTelemetryShape } from './extHost.protocol';
-import { isNonEmptyArray } from 'vs/base/common/arrays';
-import * as languages from 'vs/editor/common/languages';
+import { isNonEmptyArray } from '../../../base/common/arrays';
+import * as languages from '../../../editor/common/languages';
 import type * as vscode from 'vscode';
-import { ILogService } from 'vs/platform/log/common/log';
-import { revive } from 'vs/base/common/marshalling';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { URI } from 'vs/base/common/uri';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { ISelection } from 'vs/editor/common/core/selection';
-import { TestItemImpl } from 'vs/workbench/api/common/extHostTestItem';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { TelemetryTrustedValue } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
-import { generateUuid } from 'vs/base/common/uuid';
+import { ILogService } from '../../../platform/log/common/log';
+import { revive } from '../../../base/common/marshalling';
+import { IRange, Range } from '../../../editor/common/core/range';
+import { IPosition, Position } from '../../../editor/common/core/position';
+import { URI } from '../../../base/common/uri';
+import { DisposableStore, toDisposable } from '../../../base/common/lifecycle';
+import { createDecorator } from '../../../platform/instantiation/common/instantiation';
+import { IExtHostRpcService } from './extHostRpcService';
+import { ISelection } from '../../../editor/common/core/selection';
+import { TestItemImpl } from './extHostTestItem';
+import { VSBuffer } from '../../../base/common/buffer';
+import { SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier';
+import { toErrorMessage } from '../../../base/common/errorMessage';
+import { StopWatch } from '../../../base/common/stopwatch';
+import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions';
+import { TelemetryTrustedValue } from '../../../platform/telemetry/common/telemetryUtils';
+import { IExtHostTelemetry } from './extHostTelemetry';
+import { generateUuid } from '../../../base/common/uuid';
 
 interface CommandHandler {
 	callback: Function;

@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { canASAR } from 'vs/base/common/amd';
-import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { AppResourcePath, FileAccess, nodeModulesAsarPath, nodeModulesPath } from 'vs/base/common/network';
-import { IObservable } from 'vs/base/common/observable';
-import { isWeb } from 'vs/base/common/platform';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IBackgroundTokenizationStore, IBackgroundTokenizer } from 'vs/editor/common/languages';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { ITextModel } from 'vs/editor/common/model';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IExtensionResourceLoaderService } from 'vs/platform/extensionResourceLoader/common/extensionResourceLoader';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ICreateData, StateDeltas, TextMateTokenizationWorker } from 'vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker';
+import { canASAR } from '../../../../../base/common/amd';
+import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle';
+import { AppResourcePath, FileAccess, nodeModulesAsarPath, nodeModulesPath } from '../../../../../base/common/network';
+import { IObservable } from '../../../../../base/common/observable';
+import { isWeb } from '../../../../../base/common/platform';
+import { URI, UriComponents } from '../../../../../base/common/uri';
+import { IBackgroundTokenizationStore, IBackgroundTokenizer } from '../../../../../editor/common/languages';
+import { ILanguageService } from '../../../../../editor/common/languages/language';
+import { ITextModel } from '../../../../../editor/common/model';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration';
+import { IEnvironmentService } from '../../../../../platform/environment/common/environment';
+import { IExtensionResourceLoaderService } from '../../../../../platform/extensionResourceLoader/common/extensionResourceLoader';
+import { INotificationService } from '../../../../../platform/notification/common/notification';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry';
+import { ICreateData, StateDeltas, TextMateTokenizationWorker } from './worker/textMateTokenizationWorker.worker';
 import { TextMateWorkerHost } from './worker/textMateWorkerHost';
-import { TextMateWorkerTokenizerController } from 'vs/workbench/services/textMate/browser/backgroundTokenization/textMateWorkerTokenizerController';
-import { IValidGrammarDefinition } from 'vs/workbench/services/textMate/common/TMScopeRegistry';
+import { TextMateWorkerTokenizerController } from './textMateWorkerTokenizerController';
+import { IValidGrammarDefinition } from '../../common/TMScopeRegistry';
 import type { IRawTheme } from 'vscode-textmate';
-import { createWebWorker } from 'vs/base/browser/defaultWorkerFactory';
-import { IWorkerClient, Proxied } from 'vs/base/common/worker/simpleWorker';
+import { createWebWorker } from '../../../../../base/browser/defaultWorkerFactory';
+import { IWorkerClient, Proxied } from '../../../../../base/common/worker/simpleWorker';
 
 export class ThreadedBackgroundTokenizerFactory implements IDisposable {
 	private static _reportedMismatchingTokens = false;

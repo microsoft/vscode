@@ -3,31 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createCancelablePromise, firstParallel, timeout } from 'vs/base/common/async';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import * as platform from 'vs/base/common/platform';
-import * as nls from 'vs/nls';
-import { IExternalTerminalService } from 'vs/platform/externalTerminal/common/externalTerminal';
-import { LinuxExternalTerminalService, MacExternalTerminalService, WindowsExternalTerminalService } from 'vs/platform/externalTerminal/node/externalTerminalService';
-import { ISignService } from 'vs/platform/sign/common/sign';
-import { SignService } from 'vs/platform/sign/node/signService';
-import { ExtHostDebugServiceBase, ExtHostDebugSession } from 'vs/workbench/api/common/extHostDebugService';
-import { IExtHostEditorTabs } from 'vs/workbench/api/common/extHostEditorTabs';
-import { IExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { IExtHostTerminalService } from 'vs/workbench/api/common/extHostTerminalService';
-import { DebugAdapterExecutable, ThemeIcon } from 'vs/workbench/api/common/extHostTypes';
-import { IExtHostVariableResolverProvider } from 'vs/workbench/api/common/extHostVariableResolverService';
-import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
-import { AbstractDebugAdapter } from 'vs/workbench/contrib/debug/common/abstractDebugAdapter';
-import { IAdapterDescriptor } from 'vs/workbench/contrib/debug/common/debug';
-import { ExecutableDebugAdapter, NamedPipeDebugAdapter, SocketDebugAdapter } from 'vs/workbench/contrib/debug/node/debugAdapter';
-import { hasChildProcesses, prepareCommand } from 'vs/workbench/contrib/debug/node/terminals';
-import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
+import { createCancelablePromise, firstParallel, timeout } from '../../../base/common/async';
+import { IDisposable } from '../../../base/common/lifecycle';
+import * as platform from '../../../base/common/platform';
+import * as nls from '../../../nls';
+import { IExternalTerminalService } from '../../../platform/externalTerminal/common/externalTerminal';
+import { LinuxExternalTerminalService, MacExternalTerminalService, WindowsExternalTerminalService } from '../../../platform/externalTerminal/node/externalTerminalService';
+import { ISignService } from '../../../platform/sign/common/sign';
+import { SignService } from '../../../platform/sign/node/signService';
+import { ExtHostDebugServiceBase, ExtHostDebugSession } from '../common/extHostDebugService';
+import { IExtHostEditorTabs } from '../common/extHostEditorTabs';
+import { IExtHostExtensionService } from '../common/extHostExtensionService';
+import { IExtHostRpcService } from '../common/extHostRpcService';
+import { IExtHostTerminalService } from '../common/extHostTerminalService';
+import { DebugAdapterExecutable, ThemeIcon } from '../common/extHostTypes';
+import { IExtHostVariableResolverProvider } from '../common/extHostVariableResolverService';
+import { IExtHostWorkspace } from '../common/extHostWorkspace';
+import { AbstractDebugAdapter } from '../../contrib/debug/common/abstractDebugAdapter';
+import { IAdapterDescriptor } from '../../contrib/debug/common/debug';
+import { ExecutableDebugAdapter, NamedPipeDebugAdapter, SocketDebugAdapter } from '../../contrib/debug/node/debugAdapter';
+import { hasChildProcesses, prepareCommand } from '../../contrib/debug/node/terminals';
+import { ExtensionDescriptionRegistry } from '../../services/extensions/common/extensionDescriptionRegistry';
 import type * as vscode from 'vscode';
 import { ExtHostConfigProvider, IExtHostConfiguration } from '../common/extHostConfiguration';
-import { IExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
-import { IExtHostTesting } from 'vs/workbench/api/common/extHostTesting';
+import { IExtHostCommands } from '../common/extHostCommands';
+import { IExtHostTesting } from '../common/extHostTesting';
 
 export class ExtHostDebugService extends ExtHostDebugServiceBase {
 

@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IChatRequestVariableEntry } from 'vs/workbench/contrib/chat/common/chatModel';
-import { Emitter } from 'vs/base/common/event';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ResourceLabels } from 'vs/workbench/browser/labels';
-import { URI } from 'vs/base/common/uri';
-import { FileKind } from 'vs/platform/files/common/files';
-import { Range } from 'vs/editor/common/core/range';
-import { basename, dirname } from 'vs/base/common/path';
-import { localize } from 'vs/nls';
-import { ChatResponseReferencePartStatusKind, IChatContentReference } from 'vs/workbench/contrib/chat/common/chatService';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
+import * as dom from '../../../../../base/browser/dom';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle';
+import { IChatRequestVariableEntry } from '../../common/chatModel';
+import { Emitter } from '../../../../../base/common/event';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation';
+import { ResourceLabels } from '../../../../browser/labels';
+import { URI } from '../../../../../base/common/uri';
+import { FileKind } from '../../../../../platform/files/common/files';
+import { Range } from '../../../../../editor/common/core/range';
+import { basename, dirname } from '../../../../../base/common/path';
+import { localize } from '../../../../../nls';
+import { ChatResponseReferencePartStatusKind, IChatContentReference } from '../../common/chatService';
+import { IOpenerService } from '../../../../../platform/opener/common/opener';
 
 export class ChatAttachmentsContentPart extends Disposable {
 	private readonly attachedContextDisposables = this._register(new DisposableStore());

@@ -3,28 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { URI } from 'vs/base/common/uri';
-import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { Position } from 'vs/editor/common/core/position';
-import { IEditorContribution, IDiffEditorContribution } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { MenuId, MenuRegistry, Action2 } from 'vs/platform/actions/common/actions';
-import { CommandsRegistry, ICommandMetadata } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpr, IContextKeyService, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
-import { ServicesAccessor as InstantiationServicesAccessor, BrandedService, IInstantiationService, IConstructorSignature } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindings, KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { assertType } from 'vs/base/common/types';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { ILogService } from 'vs/platform/log/common/log';
-import { getActiveElement } from 'vs/base/browser/dom';
+import * as nls from '../../nls';
+import { URI } from '../../base/common/uri';
+import { ICodeEditor, IDiffEditor } from './editorBrowser';
+import { ICodeEditorService } from './services/codeEditorService';
+import { Position } from '../common/core/position';
+import { IEditorContribution, IDiffEditorContribution } from '../common/editorCommon';
+import { ITextModel } from '../common/model';
+import { IModelService } from '../common/services/model';
+import { ITextModelService } from '../common/services/resolverService';
+import { MenuId, MenuRegistry, Action2 } from '../../platform/actions/common/actions';
+import { CommandsRegistry, ICommandMetadata } from '../../platform/commands/common/commands';
+import { ContextKeyExpr, IContextKeyService, ContextKeyExpression } from '../../platform/contextkey/common/contextkey';
+import { ServicesAccessor as InstantiationServicesAccessor, BrandedService, IInstantiationService, IConstructorSignature } from '../../platform/instantiation/common/instantiation';
+import { IKeybindings, KeybindingsRegistry, KeybindingWeight } from '../../platform/keybinding/common/keybindingsRegistry';
+import { Registry } from '../../platform/registry/common/platform';
+import { ITelemetryService } from '../../platform/telemetry/common/telemetry';
+import { assertType } from '../../base/common/types';
+import { ThemeIcon } from '../../base/common/themables';
+import { IDisposable } from '../../base/common/lifecycle';
+import { KeyMod, KeyCode } from '../../base/common/keyCodes';
+import { ILogService } from '../../platform/log/common/log';
+import { getActiveElement } from '../../base/browser/dom';
 
 export type ServicesAccessor = InstantiationServicesAccessor;
 export type EditorContributionCtor = IConstructorSignature<IEditorContribution, [ICodeEditor]>;

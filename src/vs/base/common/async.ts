@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { BugIndicatingError, CancellationError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { extUri as defaultExtUri, IExtUri } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { setTimeout0 } from 'vs/base/common/platform';
+import { CancellationToken, CancellationTokenSource } from './cancellation';
+import { BugIndicatingError, CancellationError } from './errors';
+import { Emitter, Event } from './event';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from './lifecycle';
+import { extUri as defaultExtUri, IExtUri } from './resources';
+import { URI } from './uri';
+import { setTimeout0 } from './platform';
 import { MicrotaskDelay } from './symbols';
-import { Lazy } from 'vs/base/common/lazy';
+import { Lazy } from './lazy';
 
 export function isThenable<T>(obj: unknown): obj is Promise<T> {
 	return !!obj && typeof (obj as unknown as Promise<T>).then === 'function';

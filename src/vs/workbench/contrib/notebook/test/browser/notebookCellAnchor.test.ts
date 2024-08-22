@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ScrollEvent } from 'vs/base/common/scrollable';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { CellFocusMode } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NotebookCellAnchor } from 'vs/workbench/contrib/notebook/browser/view/notebookCellAnchor';
-import { Emitter } from 'vs/base/common/event';
-import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { CellKind, NotebookCellExecutionState, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IListView } from 'vs/base/browser/ui/list/listView';
+import { ScrollEvent } from '../../../../../base/common/scrollable';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService';
+import { CellFocusMode } from '../../browser/notebookBrowser';
+import { NotebookCellAnchor } from '../../browser/view/notebookCellAnchor';
+import { Emitter } from '../../../../../base/common/event';
+import { INotebookExecutionStateService } from '../../common/notebookExecutionStateService';
+import { CellKind, NotebookCellExecutionState, NotebookSetting } from '../../common/notebookCommon';
+import { CodeCellViewModel } from '../../browser/viewModel/codeCellViewModel';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils';
+import { IListView } from '../../../../../base/browser/ui/list/listView';
 
 
 suite('NotebookCellAnchor', () => {

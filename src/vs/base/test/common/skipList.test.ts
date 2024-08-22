@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { binarySearch } from 'vs/base/common/arrays';
-import { SkipList } from 'vs/base/common/skipList';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { binarySearch } from '../../common/arrays';
+import { SkipList } from '../../common/skipList';
+import { StopWatch } from '../../common/stopwatch';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils';
 
 
 suite('SkipList', function () {

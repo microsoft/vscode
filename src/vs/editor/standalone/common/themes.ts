@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { editorActiveIndentGuide1, editorIndentGuide1 } from 'vs/editor/common/core/editorColorRegistry';
-import { IStandaloneThemeData } from 'vs/editor/standalone/common/standaloneTheme';
-import { editorBackground, editorForeground, editorInactiveSelection, editorSelectionHighlight } from 'vs/platform/theme/common/colorRegistry';
+import { editorActiveIndentGuide1, editorIndentGuide1 } from '../../common/core/editorColorRegistry';
+import { IStandaloneThemeData } from './standaloneTheme';
+import { editorBackground, editorForeground, editorInactiveSelection, editorSelectionHighlight } from '../../../platform/theme/common/colorRegistry';
 
 /* -------------------------------- Begin vs theme -------------------------------- */
 export const vs: IStandaloneThemeData = {

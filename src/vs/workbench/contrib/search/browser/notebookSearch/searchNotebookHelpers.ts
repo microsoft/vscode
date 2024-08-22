@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { FindMatch } from 'vs/editor/common/model';
-import { IFileMatch, ITextSearchMatch, TextSearchMatch } from 'vs/workbench/services/search/common/search';
-import { Range } from 'vs/editor/common/core/range';
-import { INotebookCellMatchNoModel, INotebookFileMatchNoModel, genericCellMatchesToTextSearchMatches, rawCellPrefix } from 'vs/workbench/contrib/search/common/searchNotebookHelpers';
-import { CellWebviewFindMatch, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { URI } from 'vs/base/common/uri';
+import { FindMatch } from '../../../../../editor/common/model';
+import { IFileMatch, ITextSearchMatch, TextSearchMatch } from '../../../../services/search/common/search';
+import { Range } from '../../../../../editor/common/core/range';
+import { INotebookCellMatchNoModel, INotebookFileMatchNoModel, genericCellMatchesToTextSearchMatches, rawCellPrefix } from '../../common/searchNotebookHelpers';
+import { CellWebviewFindMatch, ICellViewModel } from '../../../notebook/browser/notebookBrowser';
+import { URI } from '../../../../../base/common/uri';
 
 export type INotebookCellMatch = INotebookCellMatchWithModel | INotebookCellMatchNoModel;
 export type INotebookFileMatch = INotebookFileMatchWithModel | INotebookFileMatchNoModel;

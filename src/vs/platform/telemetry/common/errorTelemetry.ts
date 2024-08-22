@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { binarySearch } from 'vs/base/common/arrays';
-import { errorHandler, ErrorNoTelemetry } from 'vs/base/common/errors';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { safeStringify } from 'vs/base/common/objects';
-import { FileOperationError } from 'vs/platform/files/common/files';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { binarySearch } from '../../../base/common/arrays';
+import { errorHandler, ErrorNoTelemetry } from '../../../base/common/errors';
+import { DisposableStore, toDisposable } from '../../../base/common/lifecycle';
+import { safeStringify } from '../../../base/common/objects';
+import { FileOperationError } from '../../files/common/files';
+import { ITelemetryService } from './telemetry';
 
 type ErrorEventFragment = {
 	owner: 'lramos15, sbatten';

@@ -4,19 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { TrimTrailingWhitespaceCommand, trimTrailingWhitespace } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
-import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { MetadataConsts, StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
-import { EncodedTokenizationResult, ITokenizationSupport, TokenizationRegistry } from 'vs/editor/common/languages';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { NullState } from 'vs/editor/common/languages/nullTokenize';
-import { getEditOperation } from 'vs/editor/test/browser/testCommand';
-import { createModelServices, instantiateTextModel, withEditorModel } from 'vs/editor/test/common/testTextModel';
+import { DisposableStore } from '../../../../base/common/lifecycle';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils';
+import { TrimTrailingWhitespaceCommand, trimTrailingWhitespace } from '../../../common/commands/trimTrailingWhitespaceCommand';
+import { ISingleEditOperation } from '../../../common/core/editOperation';
+import { Position } from '../../../common/core/position';
+import { Range } from '../../../common/core/range';
+import { Selection } from '../../../common/core/selection';
+import { MetadataConsts, StandardTokenType } from '../../../common/encodedTokenAttributes';
+import { EncodedTokenizationResult, ITokenizationSupport, TokenizationRegistry } from '../../../common/languages';
+import { ILanguageService } from '../../../common/languages/language';
+import { NullState } from '../../../common/languages/nullTokenize';
+import { getEditOperation } from '../testCommand';
+import { createModelServices, instantiateTextModel, withEditorModel } from '../../common/testTextModel';
 
 /**
  * Create single edit operation

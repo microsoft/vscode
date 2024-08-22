@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EqualityComparer } from 'vs/base/common/equals';
-import { ISettableObservable, ITransaction } from 'vs/base/common/observable';
-import { BaseObservable, IObserver, TransactionImpl } from 'vs/base/common/observableInternal/base';
-import { DebugNameData } from 'vs/base/common/observableInternal/debugName';
+import { EqualityComparer } from '../equals';
+import { ISettableObservable, ITransaction } from '../observable';
+import { BaseObservable, IObserver, TransactionImpl } from './base';
+import { DebugNameData } from './debugName';
 
 /**
  * Holds off updating observers until the value is actually read.

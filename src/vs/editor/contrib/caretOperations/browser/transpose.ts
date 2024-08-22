@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, registerEditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { ReplaceCommand } from 'vs/editor/common/commands/replaceCommand';
-import { MoveOperations } from 'vs/editor/common/cursor/cursorMoveOperations';
-import { Range } from 'vs/editor/common/core/range';
-import { ICommand } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import * as nls from 'vs/nls';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes';
+import { ICodeEditor } from '../../../browser/editorBrowser';
+import { EditorAction, registerEditorAction, ServicesAccessor } from '../../../browser/editorExtensions';
+import { ReplaceCommand } from '../../../common/commands/replaceCommand';
+import { MoveOperations } from '../../../common/cursor/cursorMoveOperations';
+import { Range } from '../../../common/core/range';
+import { ICommand } from '../../../common/editorCommon';
+import { EditorContextKeys } from '../../../common/editorContextKeys';
+import * as nls from '../../../../nls';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry';
 
 class TransposeLettersAction extends EditorAction {
 

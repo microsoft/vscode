@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Action, IAction, Separator, SubmenuAction } from 'vs/base/common/actions';
-import { Codicon } from 'vs/base/common/codicons';
-import { Schemas } from 'vs/base/common/network';
-import { localize, localize2 } from 'vs/nls';
-import { IMenu, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IExtensionTerminalProfile, ITerminalProfile, TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { ResourceContextKey } from 'vs/workbench/common/contextkeys';
-import { TaskExecutionSupportedContext } from 'vs/workbench/contrib/tasks/common/taskService';
-import { ICreateTerminalOptions, ITerminalLocationOptions, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { TerminalCommandId, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
-import { TerminalContextKeys, TerminalContextKeyStrings } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
-import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { Action, IAction, Separator, SubmenuAction } from '../../../../base/common/actions';
+import { Codicon } from '../../../../base/common/codicons';
+import { Schemas } from '../../../../base/common/network';
+import { localize, localize2 } from '../../../../nls';
+import { IMenu, MenuId, MenuRegistry } from '../../../../platform/actions/common/actions';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey';
+import { IExtensionTerminalProfile, ITerminalProfile, TerminalLocation, TerminalSettingId } from '../../../../platform/terminal/common/terminal';
+import { ResourceContextKey } from '../../../common/contextkeys';
+import { TaskExecutionSupportedContext } from '../../tasks/common/taskService';
+import { ICreateTerminalOptions, ITerminalLocationOptions, ITerminalService } from './terminal';
+import { TerminalCommandId, TERMINAL_VIEW_ID } from '../common/terminal';
+import { TerminalContextKeys, TerminalContextKeyStrings } from '../common/terminalContextKey';
+import { terminalStrings } from '../common/terminalStrings';
+import { ACTIVE_GROUP, SIDE_GROUP } from '../../../services/editor/common/editorService';
 
 const enum ContextMenuGroup {
 	Create = '1_create',

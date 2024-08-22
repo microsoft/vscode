@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { localize2 } from 'vs/nls';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { getNotebookEditorFromEditorPane, ICellViewModel, ICommonCellViewModelLayoutChangeInfo, INotebookDeltaCellStatusBarItems, INotebookEditor, INotebookEditorContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
-import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
-import { CellStatusbarAlignment, INotebookCellStatusBarItem } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { Disposable, DisposableStore, dispose, IDisposable } from '../../../../../../base/common/lifecycle';
+import { localize2 } from '../../../../../../nls';
+import { Categories } from '../../../../../../platform/action/common/actionCommonCategories';
+import { Action2, registerAction2 } from '../../../../../../platform/actions/common/actions';
+import { ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation';
+import { getNotebookEditorFromEditorPane, ICellViewModel, ICommonCellViewModelLayoutChangeInfo, INotebookDeltaCellStatusBarItems, INotebookEditor, INotebookEditorContribution } from '../../notebookBrowser';
+import { registerNotebookContribution } from '../../notebookEditorExtensions';
+import { NotebookEditorWidget } from '../../notebookEditorWidget';
+import { CellStatusbarAlignment, INotebookCellStatusBarItem } from '../../../common/notebookCommon';
+import { INotebookService } from '../../../common/notebookService';
+import { IEditorService } from '../../../../../services/editor/common/editorService';
 
 export class TroubleshootController extends Disposable implements INotebookEditorContribution {
 	static id: string = 'workbench.notebook.troubleshoot';

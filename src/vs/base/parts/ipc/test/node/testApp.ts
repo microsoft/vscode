@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Server } from 'vs/base/parts/ipc/node/ipc.cp';
+import { Server } from '../../node/ipc.cp';
 import { TestChannel, TestService } from './testService';
 
 const server = new Server('test');

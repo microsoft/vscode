@@ -4,18 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { isWeb } from 'vs/base/common/platform';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { ExtensionUntrustedWorkspaceSupportType, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IWorkspaceTrustEnablementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { ExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
-import { TestProductService, TestWorkspaceTrustEnablementService } from 'vs/workbench/test/common/workbenchTestServices';
+import { DisposableStore } from '../../../../../base/common/lifecycle';
+import { isWeb } from '../../../../../base/common/platform';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService';
+import { ExtensionUntrustedWorkspaceSupportType, IExtensionManifest } from '../../../../../platform/extensions/common/extensions';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock';
+import { NullLogService } from '../../../../../platform/log/common/log';
+import { IProductService } from '../../../../../platform/product/common/productService';
+import { IWorkspaceTrustEnablementService } from '../../../../../platform/workspace/common/workspaceTrust';
+import { ExtensionManifestPropertiesService } from '../../common/extensionManifestPropertiesService';
+import { TestProductService, TestWorkspaceTrustEnablementService } from '../../../../test/common/workbenchTestServices';
 
 suite('ExtensionManifestPropertiesService - ExtensionKind', () => {
 

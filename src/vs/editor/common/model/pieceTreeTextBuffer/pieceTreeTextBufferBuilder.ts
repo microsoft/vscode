@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import * as strings from 'vs/base/common/strings';
-import { DefaultEndOfLine, ITextBuffer, ITextBufferBuilder, ITextBufferFactory } from 'vs/editor/common/model';
-import { StringBuffer, createLineStarts, createLineStartsFast } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeBase';
-import { PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
+import { CharCode } from '../../../../base/common/charCode';
+import { IDisposable } from '../../../../base/common/lifecycle';
+import * as strings from '../../../../base/common/strings';
+import { DefaultEndOfLine, ITextBuffer, ITextBufferBuilder, ITextBufferFactory } from '../../model';
+import { StringBuffer, createLineStarts, createLineStartsFast } from './pieceTreeBase';
+import { PieceTreeTextBuffer } from './pieceTreeTextBuffer';
 
 class PieceTreeTextBufferFactory implements ITextBufferFactory {
 

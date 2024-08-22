@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { IPickerQuickAccessItem, PickerQuickAccessProvider, TriggerAction } from 'vs/platform/quickinput/browser/pickerQuickAccess';
-import { matchesFuzzy } from 'vs/base/common/filters';
-import { ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { killTerminalIcon, renameTerminalIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
-import { getColorClass, getIconId, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
-import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
-import { TerminalLocation } from 'vs/platform/terminal/common/terminal';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { localize } from '../../../../nls';
+import { IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput';
+import { IPickerQuickAccessItem, PickerQuickAccessProvider, TriggerAction } from '../../../../platform/quickinput/browser/pickerQuickAccess';
+import { matchesFuzzy } from '../../../../base/common/filters';
+import { ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService } from './terminal';
+import { ICommandService } from '../../../../platform/commands/common/commands';
+import { TerminalCommandId } from '../common/terminal';
+import { IThemeService } from '../../../../platform/theme/common/themeService';
+import { ThemeIcon } from '../../../../base/common/themables';
+import { killTerminalIcon, renameTerminalIcon } from './terminalIcons';
+import { getColorClass, getIconId, getUriClasses } from './terminalIcon';
+import { terminalStrings } from '../common/terminalStrings';
+import { TerminalLocation } from '../../../../platform/terminal/common/terminal';
+import { IEditorService } from '../../../services/editor/common/editorService';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
 let terminalPicks: Array<IPickerQuickAccessItem | IQuickPickSeparator> = [];
 
 export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPickerQuickAccessItem> {

@@ -3,33 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createCancelablePromise, CancelablePromise, RunOnceScheduler } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import * as platform from 'vs/base/common/platform';
-import * as resources from 'vs/base/common/resources';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { URI } from 'vs/base/common/uri';
+import { createCancelablePromise, CancelablePromise, RunOnceScheduler } from '../../../../base/common/async';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import { onUnexpectedError } from '../../../../base/common/errors';
+import { MarkdownString } from '../../../../base/common/htmlContent';
+import { Disposable } from '../../../../base/common/lifecycle';
+import { Schemas } from '../../../../base/common/network';
+import * as platform from '../../../../base/common/platform';
+import * as resources from '../../../../base/common/resources';
+import { StopWatch } from '../../../../base/common/stopwatch';
+import { URI } from '../../../../base/common/uri';
 import 'vs/css!./links';
-import { ICodeEditor, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, EditorContributionInstantiation, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Position } from 'vs/editor/common/core/position';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
-import { LinkProvider } from 'vs/editor/common/languages';
-import { IModelDecorationsChangeAccessor, IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { ClickLinkGesture, ClickLinkKeyboardEvent, ClickLinkMouseEvent } from 'vs/editor/contrib/gotoSymbol/browser/link/clickLinkGesture';
-import { getLinks, Link, LinksList } from 'vs/editor/contrib/links/browser/getLinks';
-import * as nls from 'vs/nls';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { ICodeEditor, MouseTargetType } from '../../../browser/editorBrowser';
+import { EditorAction, EditorContributionInstantiation, registerEditorAction, registerEditorContribution, ServicesAccessor } from '../../../browser/editorExtensions';
+import { EditorOption } from '../../../common/config/editorOptions';
+import { Position } from '../../../common/core/position';
+import { IEditorContribution } from '../../../common/editorCommon';
+import { LanguageFeatureRegistry } from '../../../common/languageFeatureRegistry';
+import { LinkProvider } from '../../../common/languages';
+import { IModelDecorationsChangeAccessor, IModelDeltaDecoration, TrackedRangeStickiness } from '../../../common/model';
+import { ModelDecorationOptions } from '../../../common/model/textModel';
+import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from '../../../common/services/languageFeatureDebounce';
+import { ILanguageFeaturesService } from '../../../common/services/languageFeatures';
+import { ClickLinkGesture, ClickLinkKeyboardEvent, ClickLinkMouseEvent } from '../../gotoSymbol/browser/link/clickLinkGesture';
+import { getLinks, Link, LinksList } from './getLinks';
+import * as nls from '../../../../nls';
+import { INotificationService } from '../../../../platform/notification/common/notification';
+import { IOpenerService } from '../../../../platform/opener/common/opener';
 
 export class LinkDetector extends Disposable implements IEditorContribution {
 

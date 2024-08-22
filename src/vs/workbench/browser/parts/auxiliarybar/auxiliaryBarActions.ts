@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
-import { localize, localize2 } from 'vs/nls';
-import { Action2, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { AuxiliaryBarVisibleContext } from 'vs/workbench/common/contextkeys';
-import { ViewContainerLocation, ViewContainerLocationToString } from 'vs/workbench/common/views';
-import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { Codicon } from '../../../../base/common/codicons';
+import { localize, localize2 } from '../../../../nls';
+import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories';
+import { AuxiliaryBarVisibleContext } from '../../../common/contextkeys';
+import { ViewContainerLocation, ViewContainerLocationToString } from '../../../common/views';
+import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService';
+import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes';
 
 
 const auxiliaryBarRightIcon = registerIcon('auxiliarybar-right-layout-icon', Codicon.layoutSidebarRight, localize('toggleAuxiliaryIconRight', 'Icon to toggle the auxiliary bar off in its right position.'));

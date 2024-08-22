@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { TextEdit, WorkspaceEdit, WorkspaceEditMetadata, IWorkspaceFileEdit, WorkspaceFileEditOptions, IWorkspaceTextEdit } from 'vs/editor/common/languages';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { isObject } from 'vs/base/common/types';
-import { UndoRedoSource } from 'vs/platform/undoRedo/common/undoRedo';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { ICodeEditor } from '../editorBrowser';
+import { TextEdit, WorkspaceEdit, WorkspaceEditMetadata, IWorkspaceFileEdit, WorkspaceFileEditOptions, IWorkspaceTextEdit } from '../../common/languages';
+import { createDecorator } from '../../../platform/instantiation/common/instantiation';
+import { IProgress, IProgressStep } from '../../../platform/progress/common/progress';
+import { IDisposable } from '../../../base/common/lifecycle';
+import { URI } from '../../../base/common/uri';
+import { isObject } from '../../../base/common/types';
+import { UndoRedoSource } from '../../../platform/undoRedo/common/undoRedo';
+import { CancellationToken } from '../../../base/common/cancellation';
 
 export const IBulkEditService = createDecorator<IBulkEditService>('IWorkspaceEditService');
 

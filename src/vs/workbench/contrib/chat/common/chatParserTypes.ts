@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { revive } from 'vs/base/common/marshalling';
-import { IOffsetRange, OffsetRange } from 'vs/editor/common/core/offsetRange';
-import { IRange } from 'vs/editor/common/core/range';
-import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentService, reviveSerializedAgent } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { IChatSlashData } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
-import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
+import { revive } from '../../../../base/common/marshalling';
+import { IOffsetRange, OffsetRange } from '../../../../editor/common/core/offsetRange';
+import { IRange } from '../../../../editor/common/core/range';
+import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentService, reviveSerializedAgent } from './chatAgents';
+import { IChatSlashData } from './chatSlashCommands';
+import { IChatRequestVariableValue } from './chatVariables';
 
 // These are in a separate file to avoid circular dependencies with the dependencies of the parser
 

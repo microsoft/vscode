@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event, AsyncEmitter, IWaitUntil, IWaitUntilData } from 'vs/base/common/event';
-import { GLOBSTAR, GLOB_SPLIT, parse } from 'vs/base/common/glob';
-import { URI } from 'vs/base/common/uri';
-import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
+import { Emitter, Event, AsyncEmitter, IWaitUntil, IWaitUntilData } from '../../../base/common/event';
+import { GLOBSTAR, GLOB_SPLIT, parse } from '../../../base/common/glob';
+import { URI } from '../../../base/common/uri';
+import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors';
 import type * as vscode from 'vscode';
 import { ExtHostFileSystemEventServiceShape, FileSystemEvents, IMainContext, SourceTargetPair, IWorkspaceEditDto, IWillRunFileOperationParticipation, MainContext, IRelativePatternDto } from './extHost.protocol';
 import * as typeConverter from './extHostTypeConverters';
 import { Disposable, WorkspaceEdit } from './extHostTypes';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { FileChangeFilter, FileOperation } from 'vs/platform/files/common/files';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
-import { Lazy } from 'vs/base/common/lazy';
+import { IExtensionDescription } from '../../../platform/extensions/common/extensions';
+import { FileChangeFilter, FileOperation } from '../../../platform/files/common/files';
+import { CancellationToken } from '../../../base/common/cancellation';
+import { ILogService } from '../../../platform/log/common/log';
+import { IExtHostWorkspace } from './extHostWorkspace';
+import { Lazy } from '../../../base/common/lazy';
 
 export interface FileSystemWatcherCreateOptions {
 	readonly correlate: boolean;

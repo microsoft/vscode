@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { distinct } from 'vs/base/common/arrays';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import * as types from 'vs/base/common/types';
-import * as nls from 'vs/nls';
-import { getLanguageTagSettingPlainKey } from 'vs/platform/configuration/common/configuration';
-import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import { PolicyName } from 'vs/platform/policy/common/policy';
-import { Registry } from 'vs/platform/registry/common/platform';
+import { distinct } from '../../../base/common/arrays';
+import { IStringDictionary } from '../../../base/common/collections';
+import { Emitter, Event } from '../../../base/common/event';
+import { IJSONSchema } from '../../../base/common/jsonSchema';
+import * as types from '../../../base/common/types';
+import * as nls from '../../../nls';
+import { getLanguageTagSettingPlainKey } from './configuration';
+import { Extensions as JSONExtensions, IJSONContributionRegistry } from '../../jsonschemas/common/jsonContributionRegistry';
+import { PolicyName } from '../../policy/common/policy';
+import { Registry } from '../../registry/common/platform';
 
 export enum EditPresentationTypes {
 	Multiline = 'multilineText',

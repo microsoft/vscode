@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { ExtHostDocumentData } from 'vs/workbench/api/common/extHostDocumentData';
-import { Position } from 'vs/workbench/api/common/extHostTypes';
-import { Range } from 'vs/editor/common/core/range';
-import { MainThreadDocumentsShape } from 'vs/workbench/api/common/extHost.protocol';
-import { IModelChangedEvent } from 'vs/editor/common/model/mirrorTextModel';
-import { mock } from 'vs/base/test/common/mock';
+import { URI } from '../../../../base/common/uri';
+import { ExtHostDocumentData } from '../../common/extHostDocumentData';
+import { Position } from '../../common/extHostTypes';
+import { Range } from '../../../../editor/common/core/range';
+import { MainThreadDocumentsShape } from '../../common/extHost.protocol';
+import { IModelChangedEvent } from '../../../../editor/common/model/mirrorTextModel';
+import { mock } from '../../../../base/test/common/mock';
 import * as perfData from './extHostDocumentData.test.perf-data';
-import { setDefaultGetWordAtTextConfig } from 'vs/editor/common/core/wordHelper';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { setDefaultGetWordAtTextConfig } from '../../../../editor/common/core/wordHelper';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils';
 
 suite('ExtHostDocumentData', () => {
 

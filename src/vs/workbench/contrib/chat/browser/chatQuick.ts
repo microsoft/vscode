@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { Orientation, Sash } from 'vs/base/browser/ui/sash/sash';
-import { disposableTimeout } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { Selection } from 'vs/editor/common/core/selection';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
-import { IQuickInputService, IQuickWidget } from 'vs/platform/quickinput/common/quickInput';
-import { editorBackground, inputBackground, quickInputBackground, quickInputForeground } from 'vs/platform/theme/common/colorRegistry';
-import { IQuickChatOpenOptions, IQuickChatService, showChatView } from 'vs/workbench/contrib/chat/browser/chat';
-import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
-import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { ChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatProgress, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
+import * as dom from '../../../../base/browser/dom';
+import { Orientation, Sash } from '../../../../base/browser/ui/sash/sash';
+import { disposableTimeout } from '../../../../base/common/async';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import { Emitter, Event } from '../../../../base/common/event';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle';
+import { Selection } from '../../../../editor/common/core/selection';
+import { MenuId } from '../../../../platform/actions/common/actions';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection';
+import { ILayoutService } from '../../../../platform/layout/browser/layoutService';
+import { IQuickInputService, IQuickWidget } from '../../../../platform/quickinput/common/quickInput';
+import { editorBackground, inputBackground, quickInputBackground, quickInputForeground } from '../../../../platform/theme/common/colorRegistry';
+import { IQuickChatOpenOptions, IQuickChatService, showChatView } from './chat';
+import { ChatWidget } from './chatWidget';
+import { ChatAgentLocation } from '../common/chatAgents';
+import { ChatModel } from '../common/chatModel';
+import { IParsedChatRequest } from '../common/chatParserTypes';
+import { IChatProgress, IChatService } from '../common/chatService';
+import { IViewsService } from '../../../services/views/common/viewsService';
 
 export class QuickChatService extends Disposable implements IQuickChatService {
 	readonly _serviceBrand: undefined;

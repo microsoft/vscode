@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { strictEquals, EqualityComparer } from 'vs/base/common/equals';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { keepObserved, recomputeInitiallyAndOnChange } from 'vs/base/common/observable';
-import { DebugNameData, DebugOwner, getFunctionName } from 'vs/base/common/observableInternal/debugName';
-import type { derivedOpts } from 'vs/base/common/observableInternal/derived';
-import { getLogger } from 'vs/base/common/observableInternal/logging';
+import { strictEquals, EqualityComparer } from '../equals';
+import { DisposableStore, IDisposable } from '../lifecycle';
+import { keepObserved, recomputeInitiallyAndOnChange } from '../observable';
+import { DebugNameData, DebugOwner, getFunctionName } from './debugName';
+import type { derivedOpts } from './derived';
+import { getLogger } from './logging';
 
 /**
  * Represents an observable value.

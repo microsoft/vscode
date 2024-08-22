@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { isHTMLAnchorElement } from 'vs/base/browser/dom';
-import { isWindows } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ITunnelService } from 'vs/platform/tunnel/common/tunnel';
-import { WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
-import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { isHTMLAnchorElement } from '../../../../../base/browser/dom';
+import { isWindows } from '../../../../../base/common/platform';
+import { URI } from '../../../../../base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock';
+import { ITunnelService } from '../../../../../platform/tunnel/common/tunnel';
+import { WorkspaceFolder } from '../../../../../platform/workspace/common/workspace';
+import { LinkDetector } from '../../browser/linkDetector';
+import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices';
 
 suite('Debug - Link Detector', () => {
 

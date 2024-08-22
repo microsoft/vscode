@@ -4,22 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./inspectTokens';
-import { $, append, reset } from 'vs/base/browser/dom';
-import { CharCode } from 'vs/base/common/charCode';
-import { Color } from 'vs/base/common/color';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ContentWidgetPositionPreference, IActiveCodeEditor, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution, EditorContributionInstantiation } from 'vs/editor/browser/editorExtensions';
-import { Position } from 'vs/editor/common/core/position';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
-import { IState, ITokenizationSupport, TokenizationRegistry, ILanguageIdCodec, Token } from 'vs/editor/common/languages';
-import { FontStyle, StandardTokenType, TokenMetadata } from 'vs/editor/common/encodedTokenAttributes';
-import { NullState, nullTokenize, nullTokenizeEncoded } from 'vs/editor/common/languages/nullTokenize';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneTheme';
-import { InspectTokensNLS } from 'vs/editor/common/standaloneStrings';
+import { $, append, reset } from '../../../../base/browser/dom';
+import { CharCode } from '../../../../base/common/charCode';
+import { Color } from '../../../../base/common/color';
+import { KeyCode } from '../../../../base/common/keyCodes';
+import { Disposable } from '../../../../base/common/lifecycle';
+import { ContentWidgetPositionPreference, IActiveCodeEditor, ICodeEditor, IContentWidget, IContentWidgetPosition } from '../../../browser/editorBrowser';
+import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution, EditorContributionInstantiation } from '../../../browser/editorExtensions';
+import { Position } from '../../../common/core/position';
+import { IEditorContribution } from '../../../common/editorCommon';
+import { ITextModel } from '../../../common/model';
+import { IState, ITokenizationSupport, TokenizationRegistry, ILanguageIdCodec, Token } from '../../../common/languages';
+import { FontStyle, StandardTokenType, TokenMetadata } from '../../../common/encodedTokenAttributes';
+import { NullState, nullTokenize, nullTokenizeEncoded } from '../../../common/languages/nullTokenize';
+import { ILanguageService } from '../../../common/languages/language';
+import { IStandaloneThemeService } from '../../common/standaloneTheme';
+import { InspectTokensNLS } from '../../../common/standaloneStrings';
 
 
 class InspectTokensController extends Disposable implements IEditorContribution {

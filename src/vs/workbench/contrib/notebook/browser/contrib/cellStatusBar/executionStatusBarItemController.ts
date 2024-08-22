@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { disposableTimeout, RunOnceScheduler } from 'vs/base/common/async';
-import { Disposable, dispose, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { language } from 'vs/base/common/platform';
-import { localize } from 'vs/nls';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { themeColorFromId } from 'vs/platform/theme/common/themeService';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { ICellVisibilityChangeEvent, NotebookVisibleCellObserver } from 'vs/workbench/contrib/notebook/browser/contrib/cellStatusBar/notebookVisibleCellObserver';
-import { ICellViewModel, INotebookEditor, INotebookEditorContribution, INotebookViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
-import { cellStatusIconError, cellStatusIconSuccess } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
-import { errorStateIcon, executingStateIcon, pendingStateIcon, successStateIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
-import { CellStatusbarAlignment, INotebookCellStatusBarItem, NotebookCellExecutionState, NotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookCellExecution, INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { disposableTimeout, RunOnceScheduler } from '../../../../../../base/common/async';
+import { Disposable, dispose, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle';
+import { language } from '../../../../../../base/common/platform';
+import { localize } from '../../../../../../nls';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation';
+import { themeColorFromId } from '../../../../../../platform/theme/common/themeService';
+import { ThemeIcon } from '../../../../../../base/common/themables';
+import { ICellVisibilityChangeEvent, NotebookVisibleCellObserver } from './notebookVisibleCellObserver';
+import { ICellViewModel, INotebookEditor, INotebookEditorContribution, INotebookViewModel } from '../../notebookBrowser';
+import { registerNotebookContribution } from '../../notebookEditorExtensions';
+import { cellStatusIconError, cellStatusIconSuccess } from '../../notebookEditorWidget';
+import { errorStateIcon, executingStateIcon, pendingStateIcon, successStateIcon } from '../../notebookIcons';
+import { CellStatusbarAlignment, INotebookCellStatusBarItem, NotebookCellExecutionState, NotebookCellInternalMetadata } from '../../../common/notebookCommon';
+import { INotebookCellExecution, INotebookExecutionStateService, NotebookExecutionType } from '../../../common/notebookExecutionStateService';
+import { INotebookService } from '../../../common/notebookService';
+import { IMarkdownString } from '../../../../../../base/common/htmlContent';
 
 export function formatCellDuration(duration: number, showMilliseconds: boolean = true): string {
 	if (showMilliseconds && duration < 1000) {

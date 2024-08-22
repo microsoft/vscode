@@ -2,18 +2,18 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { URI } from 'vs/base/common/uri';
-import { mock } from 'vs/base/test/common/mock';
-import { Range } from 'vs/editor/common/core/range';
-import { IModelService } from 'vs/editor/common/services/model';
-import { assertType } from 'vs/base/common/types';
-import { DiffAlgorithmName, IEditorWorkerService, ILineChange } from 'vs/editor/common/services/editorWorker';
-import { IDocumentDiff, IDocumentDiffProviderOptions } from 'vs/editor/common/diff/documentDiffProvider';
-import { BaseEditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';
-import { LineRange } from 'vs/editor/common/core/lineRange';
-import { MovedText } from 'vs/editor/common/diff/linesDiffComputer';
-import { LineRangeMapping, DetailedLineRangeMapping, RangeMapping } from 'vs/editor/common/diff/rangeMapping';
-import { TextEdit } from 'vs/editor/common/languages';
+import { URI } from '../../../../../base/common/uri';
+import { mock } from '../../../../../base/test/common/mock';
+import { Range } from '../../../../../editor/common/core/range';
+import { IModelService } from '../../../../../editor/common/services/model';
+import { assertType } from '../../../../../base/common/types';
+import { DiffAlgorithmName, IEditorWorkerService, ILineChange } from '../../../../../editor/common/services/editorWorker';
+import { IDocumentDiff, IDocumentDiffProviderOptions } from '../../../../../editor/common/diff/documentDiffProvider';
+import { BaseEditorSimpleWorker } from '../../../../../editor/common/services/editorSimpleWorker';
+import { LineRange } from '../../../../../editor/common/core/lineRange';
+import { MovedText } from '../../../../../editor/common/diff/linesDiffComputer';
+import { LineRangeMapping, DetailedLineRangeMapping, RangeMapping } from '../../../../../editor/common/diff/rangeMapping';
+import { TextEdit } from '../../../../../editor/common/languages';
 
 
 export class TestWorkerService extends mock<IEditorWorkerService>() {

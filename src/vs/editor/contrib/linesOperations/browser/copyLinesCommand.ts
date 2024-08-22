@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Range } from 'vs/editor/common/core/range';
-import { Selection, SelectionDirection } from 'vs/editor/common/core/selection';
-import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
+import { Range } from '../../../common/core/range';
+import { Selection, SelectionDirection } from '../../../common/core/selection';
+import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from '../../../common/editorCommon';
+import { ITextModel } from '../../../common/model';
 
 export class CopyLinesCommand implements ICommand {
 

@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { URI } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { CancellationToken } from '../../../base/common/cancellation';
+import { URI } from '../../../base/common/uri';
+import { createDecorator } from '../../instantiation/common/instantiation';
 
 export const IDownloadService = createDecorator<IDownloadService>('downloadService');
 

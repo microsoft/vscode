@@ -4,22 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
 import * as sinon from 'sinon';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { sep } from 'vs/base/common/path';
-import { isWindows } from 'vs/base/common/platform';
-import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { mock } from 'vs/base/test/common/mock';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { Selection } from 'vs/editor/common/core/selection';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { SnippetParser, Variable, VariableResolver } from 'vs/editor/contrib/snippet/browser/snippetParser';
-import { ClipboardBasedVariableResolver, CompositeSnippetVariableResolver, ModelBasedVariableResolver, SelectionBasedVariableResolver, TimeBasedVariableResolver, WorkspaceBasedVariableResolver } from 'vs/editor/contrib/snippet/browser/snippetVariables';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { IWorkspace, IWorkspaceContextService, toWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
-import { toWorkspaceFolders } from 'vs/platform/workspaces/common/workspaces';
+import { DisposableStore } from '../../../../../base/common/lifecycle';
+import { sep } from '../../../../../base/common/path';
+import { isWindows } from '../../../../../base/common/platform';
+import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources';
+import { URI } from '../../../../../base/common/uri';
+import { mock } from '../../../../../base/test/common/mock';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils';
+import { Selection } from '../../../../common/core/selection';
+import { TextModel } from '../../../../common/model/textModel';
+import { SnippetParser, Variable, VariableResolver } from '../../browser/snippetParser';
+import { ClipboardBasedVariableResolver, CompositeSnippetVariableResolver, ModelBasedVariableResolver, SelectionBasedVariableResolver, TimeBasedVariableResolver, WorkspaceBasedVariableResolver } from '../../browser/snippetVariables';
+import { createTextModel } from '../../../../test/common/testTextModel';
+import { ILabelService } from '../../../../../platform/label/common/label';
+import { IWorkspace, IWorkspaceContextService, toWorkspaceFolder } from '../../../../../platform/workspace/common/workspace';
+import { Workspace } from '../../../../../platform/workspace/test/common/testWorkspace';
+import { toWorkspaceFolders } from '../../../../../platform/workspaces/common/workspaces';
 
 suite('Snippet Variables Resolver', function () {
 

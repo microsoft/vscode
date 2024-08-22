@@ -4,29 +4,29 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as vscode from 'vscode';
-import { Event, Emitter } from 'vs/base/common/event';
-import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, ITerminalDimensionsDto, ITerminalLinkDto, ExtHostTerminalIdentifier, ICommandDto, ITerminalQuickFixOpenerDto, ITerminalQuickFixTerminalCommandDto, TerminalCommandMatchResultDto, ITerminalCommandDto } from 'vs/workbench/api/common/extHost.protocol';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { URI } from 'vs/base/common/uri';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { IDisposable, DisposableStore, Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Event, Emitter } from '../../../base/common/event';
+import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, ITerminalDimensionsDto, ITerminalLinkDto, ExtHostTerminalIdentifier, ICommandDto, ITerminalQuickFixOpenerDto, ITerminalQuickFixTerminalCommandDto, TerminalCommandMatchResultDto, ITerminalCommandDto } from './extHost.protocol';
+import { createDecorator } from '../../../platform/instantiation/common/instantiation';
+import { URI } from '../../../base/common/uri';
+import { IExtHostRpcService } from './extHostRpcService';
+import { IDisposable, DisposableStore, Disposable, MutableDisposable } from '../../../base/common/lifecycle';
 import { Disposable as VSCodeDisposable, EnvironmentVariableMutatorType, TerminalExitReason } from './extHostTypes';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { localize } from 'vs/nls';
-import { NotSupportedError } from 'vs/base/common/errors';
-import { serializeEnvironmentDescriptionMap, serializeEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariableShared';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { generateUuid } from 'vs/base/common/uuid';
-import { IEnvironmentVariableCollectionDescription, IEnvironmentVariableMutator, ISerializableEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
-import { ICreateContributedTerminalProfileOptions, IProcessReadyEvent, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalLaunchError, ITerminalProfile, TerminalIcon, TerminalLocation, IProcessProperty, ProcessPropertyType, IProcessPropertyMap } from 'vs/platform/terminal/common/terminal';
-import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
-import { ThemeColor } from 'vs/base/common/themables';
-import { Promises } from 'vs/base/common/async';
-import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
-import { TerminalQuickFix, ViewColumn } from 'vs/workbench/api/common/extHostTypeConverters';
-import { IExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
-import { MarshalledId } from 'vs/base/common/marshallingIds';
-import { ISerializedTerminalInstanceContext } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IExtensionDescription } from '../../../platform/extensions/common/extensions';
+import { localize } from '../../../nls';
+import { NotSupportedError } from '../../../base/common/errors';
+import { serializeEnvironmentDescriptionMap, serializeEnvironmentVariableCollection } from '../../../platform/terminal/common/environmentVariableShared';
+import { CancellationTokenSource } from '../../../base/common/cancellation';
+import { generateUuid } from '../../../base/common/uuid';
+import { IEnvironmentVariableCollectionDescription, IEnvironmentVariableMutator, ISerializableEnvironmentVariableCollection } from '../../../platform/terminal/common/environmentVariable';
+import { ICreateContributedTerminalProfileOptions, IProcessReadyEvent, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalLaunchError, ITerminalProfile, TerminalIcon, TerminalLocation, IProcessProperty, ProcessPropertyType, IProcessPropertyMap } from '../../../platform/terminal/common/terminal';
+import { TerminalDataBufferer } from '../../../platform/terminal/common/terminalDataBuffering';
+import { ThemeColor } from '../../../base/common/themables';
+import { Promises } from '../../../base/common/async';
+import { EditorGroupColumn } from '../../services/editor/common/editorGroupColumn';
+import { TerminalQuickFix, ViewColumn } from './extHostTypeConverters';
+import { IExtHostCommands } from './extHostCommands';
+import { MarshalledId } from '../../../base/common/marshallingIds';
+import { ISerializedTerminalInstanceContext } from '../../contrib/terminal/common/terminal';
 
 export interface IExtHostTerminalService extends ExtHostTerminalServiceShape, IDisposable {
 

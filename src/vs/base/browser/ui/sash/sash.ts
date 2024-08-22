@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, append, createStyleSheet, EventHelper, EventLike, getWindow, isHTMLElement } from 'vs/base/browser/dom';
-import { DomEmitter } from 'vs/base/browser/event';
-import { EventType, Gesture } from 'vs/base/browser/touch';
-import { Delayer } from 'vs/base/common/async';
-import { memoize } from 'vs/base/common/decorators';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { isMacintosh } from 'vs/base/common/platform';
+import { $, append, createStyleSheet, EventHelper, EventLike, getWindow, isHTMLElement } from '../../dom';
+import { DomEmitter } from '../../event';
+import { EventType, Gesture } from '../../touch';
+import { Delayer } from '../../../common/async';
+import { memoize } from '../../../common/decorators';
+import { Emitter, Event } from '../../../common/event';
+import { Disposable, DisposableStore, toDisposable } from '../../../common/lifecycle';
+import { isMacintosh } from '../../../common/platform';
 import 'vs/css!./sash';
 
 /**

@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as sinon from 'sinon';
-import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
-import { InstantiationService, Trace } from 'vs/platform/instantiation/common/instantiationService';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle';
+import { SyncDescriptor } from '../../common/descriptors';
+import { ServiceIdentifier } from '../../common/instantiation';
+import { InstantiationService, Trace } from '../../common/instantiationService';
+import { ServiceCollection } from '../../common/serviceCollection';
 
 interface IServiceMock<T> {
 	id: ServiceIdentifier<T>;

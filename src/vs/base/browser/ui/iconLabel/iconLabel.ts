@@ -4,19 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./iconlabel';
-import * as dom from 'vs/base/browser/dom';
-import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
-import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
-import { IMatch } from 'vs/base/common/filters';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { equals } from 'vs/base/common/objects';
-import { Range } from 'vs/base/common/range';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import type { IManagedHoverTooltipMarkdownString } from 'vs/base/browser/ui/hover/hover';
-import { getBaseLayerHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate2';
-import { isString } from 'vs/base/common/types';
-import { stripIcons } from 'vs/base/common/iconLabels';
-import { URI } from 'vs/base/common/uri';
+import * as dom from '../../dom';
+import { HighlightedLabel } from '../highlightedlabel/highlightedLabel';
+import { IHoverDelegate } from '../hover/hoverDelegate';
+import { IMatch } from '../../../common/filters';
+import { Disposable, IDisposable } from '../../../common/lifecycle';
+import { equals } from '../../../common/objects';
+import { Range } from '../../../common/range';
+import { getDefaultHoverDelegate } from '../hover/hoverDelegateFactory';
+import type { IManagedHoverTooltipMarkdownString } from '../hover/hover';
+import { getBaseLayerHoverDelegate } from '../hover/hoverDelegate2';
+import { isString } from '../../../common/types';
+import { stripIcons } from '../../../common/iconLabels';
+import { URI } from '../../../common/uri';
 
 export interface IIconLabelCreationOptions {
 	readonly supportHighlights?: boolean;

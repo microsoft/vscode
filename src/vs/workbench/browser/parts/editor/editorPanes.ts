@@ -3,31 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { IAction } from 'vs/base/common/actions';
-import { Emitter } from 'vs/base/common/event';
-import Severity from 'vs/base/common/severity';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { EditorExtensions, EditorInputCapabilities, IEditorOpenContext, IVisibleEditorPane, isEditorOpenError } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { Dimension, show, hide, IDomNodePagePosition, isAncestor, getActiveElement, getWindowById } from 'vs/base/browser/dom';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IEditorPaneRegistry, IEditorPaneDescriptor } from 'vs/workbench/browser/editor';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorProgressService, LongRunningOperation } from 'vs/platform/progress/common/progress';
-import { IEditorGroupView, DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIMENSIONS, IInternalEditorOpenOptions } from 'vs/workbench/browser/parts/editor/editor';
-import { assertIsDefined } from 'vs/base/common/types';
-import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { ErrorPlaceholderEditor, IErrorEditorPlaceholderOptions, WorkspaceTrustRequiredPlaceholderEditor } from 'vs/workbench/browser/parts/editor/editorPlaceholder';
-import { EditorOpenSource, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { isCancellationError } from 'vs/base/common/errors';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IDialogService, IPromptButton, IPromptCancelButton } from 'vs/platform/dialogs/common/dialogs';
-import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { localize } from '../../../../nls';
+import { IAction } from '../../../../base/common/actions';
+import { Emitter } from '../../../../base/common/event';
+import Severity from '../../../../base/common/severity';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle';
+import { EditorExtensions, EditorInputCapabilities, IEditorOpenContext, IVisibleEditorPane, isEditorOpenError } from '../../../common/editor';
+import { EditorInput } from '../../../common/editor/editorInput';
+import { Dimension, show, hide, IDomNodePagePosition, isAncestor, getActiveElement, getWindowById } from '../../../../base/browser/dom';
+import { Registry } from '../../../../platform/registry/common/platform';
+import { IEditorPaneRegistry, IEditorPaneDescriptor } from '../../editor';
+import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService';
+import { EditorPane } from './editorPane';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { IEditorProgressService, LongRunningOperation } from '../../../../platform/progress/common/progress';
+import { IEditorGroupView, DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIMENSIONS, IInternalEditorOpenOptions } from './editor';
+import { assertIsDefined } from '../../../../base/common/types';
+import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust';
+import { ErrorPlaceholderEditor, IErrorEditorPlaceholderOptions, WorkspaceTrustRequiredPlaceholderEditor } from './editorPlaceholder';
+import { EditorOpenSource, IEditorOptions } from '../../../../platform/editor/common/editor';
+import { isCancellationError } from '../../../../base/common/errors';
+import { toErrorMessage } from '../../../../base/common/errorMessage';
+import { ILogService } from '../../../../platform/log/common/log';
+import { IDialogService, IPromptButton, IPromptCancelButton } from '../../../../platform/dialogs/common/dialogs';
+import { IBoundarySashes } from '../../../../base/browser/ui/sash/sash';
+import { IHostService } from '../../../services/host/browser/host';
 
 export interface IOpenEditorResult {
 

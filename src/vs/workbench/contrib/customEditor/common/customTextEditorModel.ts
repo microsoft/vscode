@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { Disposable, IReference } from 'vs/base/common/lifecycle';
-import { isEqual } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
-import { ICustomEditorModel } from 'vs/workbench/contrib/customEditor/common/customEditor';
-import { ITextFileEditorModel, ITextFileService, TextFileEditorModelState } from 'vs/workbench/services/textfile/common/textfiles';
+import { Emitter, Event } from '../../../../base/common/event';
+import { IMarkdownString } from '../../../../base/common/htmlContent';
+import { Disposable, IReference } from '../../../../base/common/lifecycle';
+import { isEqual } from '../../../../base/common/resources';
+import { URI } from '../../../../base/common/uri';
+import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { IRevertOptions, ISaveOptions } from '../../../common/editor';
+import { ICustomEditorModel } from './customEditor';
+import { ITextFileEditorModel, ITextFileService, TextFileEditorModelState } from '../../../services/textfile/common/textfiles';
 
 export class CustomTextEditorModel extends Disposable implements ICustomEditorModel {
 

@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DeferredPromise } from 'vs/base/common/async';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Lazy } from 'vs/base/common/lazy';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IObservable, observableValue } from 'vs/base/common/observable';
-import { language } from 'vs/base/common/platform';
-import { WellDefinedPrefixTree } from 'vs/base/common/prefixTree';
-import { localize } from 'vs/nls';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IComputedStateAccessor, refreshComputedState } from 'vs/workbench/contrib/testing/common/getComputedState';
-import { TestCoverage } from 'vs/workbench/contrib/testing/common/testCoverage';
-import { TestId } from 'vs/workbench/contrib/testing/common/testId';
-import { makeEmptyCounts, maxPriority, statesInOrder, terminalStatePriorities, TestStateCount } from 'vs/workbench/contrib/testing/common/testingStates';
-import { getMarkId, IRichLocation, ISerializedTestResults, ITestItem, ITestMessage, ITestOutputMessage, ITestRunTask, ITestTaskState, ResolvedTestRunRequest, TestItemExpandState, TestMessageType, TestResultItem, TestResultState } from 'vs/workbench/contrib/testing/common/testTypes';
+import { DeferredPromise } from '../../../../base/common/async';
+import { VSBuffer } from '../../../../base/common/buffer';
+import { Emitter, Event } from '../../../../base/common/event';
+import { Lazy } from '../../../../base/common/lazy';
+import { Disposable } from '../../../../base/common/lifecycle';
+import { IObservable, observableValue } from '../../../../base/common/observable';
+import { language } from '../../../../base/common/platform';
+import { WellDefinedPrefixTree } from '../../../../base/common/prefixTree';
+import { localize } from '../../../../nls';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity';
+import { IComputedStateAccessor, refreshComputedState } from './getComputedState';
+import { TestCoverage } from './testCoverage';
+import { TestId } from './testId';
+import { makeEmptyCounts, maxPriority, statesInOrder, terminalStatePriorities, TestStateCount } from './testingStates';
+import { getMarkId, IRichLocation, ISerializedTestResults, ITestItem, ITestMessage, ITestOutputMessage, ITestRunTask, ITestTaskState, ResolvedTestRunRequest, TestItemExpandState, TestMessageType, TestResultItem, TestResultState } from './testTypes';
 
 export interface ITestRunTaskResults extends ITestRunTask {
 	/**

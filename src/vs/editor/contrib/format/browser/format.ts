@@ -3,34 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { asArray, isNonEmptyArray } from 'vs/base/common/arrays';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { Iterable } from 'vs/base/common/iterator';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { LinkedList } from 'vs/base/common/linkedList';
-import { assertType } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { CodeEditorStateFlag, EditorStateCancellationTokenSource, TextModelCancellationTokenSource } from 'vs/editor/contrib/editorState/browser/editorState';
-import { IActiveCodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ScrollType } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
-import { DocumentFormattingEditProvider, DocumentRangeFormattingEditProvider, FormattingOptions, TextEdit } from 'vs/editor/common/languages';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { FormattingEdit } from 'vs/editor/contrib/format/browser/formattingEdit';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { ExtensionIdentifierSet } from 'vs/platform/extensions/common/extensions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IProgress } from 'vs/platform/progress/common/progress';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
-import { ILogService } from 'vs/platform/log/common/log';
-import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
+import { asArray, isNonEmptyArray } from '../../../../base/common/arrays';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation';
+import { onUnexpectedExternalError } from '../../../../base/common/errors';
+import { Iterable } from '../../../../base/common/iterator';
+import { IDisposable } from '../../../../base/common/lifecycle';
+import { LinkedList } from '../../../../base/common/linkedList';
+import { assertType } from '../../../../base/common/types';
+import { URI } from '../../../../base/common/uri';
+import { CodeEditorStateFlag, EditorStateCancellationTokenSource, TextModelCancellationTokenSource } from '../../editorState/browser/editorState';
+import { IActiveCodeEditor, isCodeEditor } from '../../../browser/editorBrowser';
+import { ServicesAccessor } from '../../../browser/editorExtensions';
+import { Position } from '../../../common/core/position';
+import { Range } from '../../../common/core/range';
+import { Selection } from '../../../common/core/selection';
+import { ScrollType } from '../../../common/editorCommon';
+import { ITextModel } from '../../../common/model';
+import { DocumentFormattingEditProvider, DocumentRangeFormattingEditProvider, FormattingOptions, TextEdit } from '../../../common/languages';
+import { IEditorWorkerService } from '../../../common/services/editorWorker';
+import { ITextModelService } from '../../../common/services/resolverService';
+import { FormattingEdit } from './formattingEdit';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands';
+import { ExtensionIdentifierSet } from '../../../../platform/extensions/common/extensions';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { IProgress } from '../../../../platform/progress/common/progress';
+import { ILanguageFeaturesService } from '../../../common/services/languageFeatures';
+import { LanguageFeatureRegistry } from '../../../common/languageFeatureRegistry';
+import { ILogService } from '../../../../platform/log/common/log';
+import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService';
 
 export function getRealAndSyntheticDocumentFormattersOrdered(
 	documentFormattingEditProvider: LanguageFeatureRegistry<DocumentFormattingEditProvider>,

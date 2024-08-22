@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce } from 'vs/base/common/arrays';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { IDataTransferFile, IReadonlyVSDataTransfer } from 'vs/base/common/dataTransfer';
+import { coalesce } from '../../../../base/common/arrays';
+import { VSBuffer } from '../../../../base/common/buffer';
+import { IDataTransferFile, IReadonlyVSDataTransfer } from '../../../../base/common/dataTransfer';
 
 export class DataTransferFileCache {
 

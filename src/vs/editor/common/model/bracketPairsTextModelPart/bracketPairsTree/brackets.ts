@@ -2,9 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { escapeRegExpCharacters } from 'vs/base/common/strings';
-import { ResolvedLanguageConfiguration } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { BracketKind } from 'vs/editor/common/languages/supports/languageBracketsConfiguration';
+import { escapeRegExpCharacters } from '../../../../../base/common/strings';
+import { ResolvedLanguageConfiguration } from '../../../languages/languageConfigurationRegistry';
+import { BracketKind } from '../../../languages/supports/languageBracketsConfiguration';
 import { BracketAstNode } from './ast';
 import { toLength } from './length';
 import { DenseKeyProvider, identityKeyProvider, SmallImmutableSet } from './smallImmutableSet';

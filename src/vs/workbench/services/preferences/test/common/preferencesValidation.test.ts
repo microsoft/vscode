@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
-import { createValidator, getInvalidTypeError } from 'vs/workbench/services/preferences/common/preferencesValidation';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils';
+import { IConfigurationPropertySchema } from '../../../../../platform/configuration/common/configurationRegistry';
+import { createValidator, getInvalidTypeError } from '../../common/preferencesValidation';
 
 
 suite('Preferences Validation', () => {

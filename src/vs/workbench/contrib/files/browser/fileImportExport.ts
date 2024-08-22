@@ -3,39 +3,39 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { getFileNamesMessage, IConfirmation, IDialogService, IFileDialogService, IPromptButton } from 'vs/platform/dialogs/common/dialogs';
-import { ByteSize, FileSystemProviderCapabilities, IFileService, IFileStatWithMetadata } from 'vs/platform/files/common/files';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IProgress, IProgressService, IProgressStep, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
-import { IFilesConfiguration, UndoConfirmLevel, VIEW_ID } from 'vs/workbench/contrib/files/common/files';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { Limiter, Promises, RunOnceWorker } from 'vs/base/common/async';
-import { newWriteableBufferStream, VSBuffer } from 'vs/base/common/buffer';
-import { basename, dirname, joinPath } from 'vs/base/common/resources';
-import { ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
-import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
-import { URI } from 'vs/base/common/uri';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { extractEditorsAndFilesDropData } from 'vs/platform/dnd/browser/dnd';
-import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
-import { isWeb } from 'vs/base/common/platform';
-import { getActiveWindow, isDragEvent, triggerDownload } from 'vs/base/browser/dom';
-import { ILogService } from 'vs/platform/log/common/log';
-import { FileAccess, Schemas } from 'vs/base/common/network';
-import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { listenStream } from 'vs/base/common/stream';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { createSingleCallFunction } from 'vs/base/common/functional';
-import { coalesce } from 'vs/base/common/arrays';
-import { canceled } from 'vs/base/common/errors';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAccess';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { localize } from '../../../../nls';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation';
+import { getFileNamesMessage, IConfirmation, IDialogService, IFileDialogService, IPromptButton } from '../../../../platform/dialogs/common/dialogs';
+import { ByteSize, FileSystemProviderCapabilities, IFileService, IFileStatWithMetadata } from '../../../../platform/files/common/files';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification';
+import { IProgress, IProgressService, IProgressStep, ProgressLocation } from '../../../../platform/progress/common/progress';
+import { IExplorerService } from './files';
+import { IFilesConfiguration, UndoConfirmLevel, VIEW_ID } from '../common/files';
+import { IEditorService } from '../../../services/editor/common/editorService';
+import { Limiter, Promises, RunOnceWorker } from '../../../../base/common/async';
+import { newWriteableBufferStream, VSBuffer } from '../../../../base/common/buffer';
+import { basename, dirname, joinPath } from '../../../../base/common/resources';
+import { ResourceFileEdit } from '../../../../editor/browser/services/bulkEditService';
+import { ExplorerItem } from '../common/explorerModel';
+import { URI } from '../../../../base/common/uri';
+import { IHostService } from '../../../services/host/browser/host';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace';
+import { extractEditorsAndFilesDropData } from '../../../../platform/dnd/browser/dnd';
+import { IWorkspaceEditingService } from '../../../services/workspaces/common/workspaceEditing';
+import { isWeb } from '../../../../base/common/platform';
+import { getActiveWindow, isDragEvent, triggerDownload } from '../../../../base/browser/dom';
+import { ILogService } from '../../../../platform/log/common/log';
+import { FileAccess, Schemas } from '../../../../base/common/network';
+import { mnemonicButtonLabel } from '../../../../base/common/labels';
+import { listenStream } from '../../../../base/common/stream';
+import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle';
+import { createSingleCallFunction } from '../../../../base/common/functional';
+import { coalesce } from '../../../../base/common/arrays';
+import { canceled } from '../../../../base/common/errors';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration';
+import { WebFileSystemAccess } from '../../../../platform/files/browser/webFileSystemAccess';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage';
 
 //#region Browser File Upload (drag and drop, input element)
 

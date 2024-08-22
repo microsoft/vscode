@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
-import { languagesExtPoint } from 'vs/workbench/services/language/common/languageService';
+import * as nls from '../../../../nls';
+import { IConfigurationPropertySchema } from '../../../../platform/configuration/common/configurationRegistry';
+import { languagesExtPoint } from '../../../services/language/common/languageService';
 
 enum DocumentationExtensionPointFields {
 	when = 'when',

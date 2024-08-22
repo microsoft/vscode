@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { isWeb } from 'vs/base/common/platform';
-import { escape } from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IProductService } from 'vs/platform/product/common/productService';
-import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
-import { deserializeWebviewMessage, serializeWebviewMessage } from 'vs/workbench/api/common/extHostWebviewMessaging';
-import { IOverlayWebview, IWebview, WebviewContentOptions, WebviewExtensionDescription } from 'vs/workbench/contrib/webview/browser/webview';
-import { IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
+import { VSBuffer } from '../../../base/common/buffer';
+import { Disposable, DisposableStore } from '../../../base/common/lifecycle';
+import { Schemas } from '../../../base/common/network';
+import { isWeb } from '../../../base/common/platform';
+import { escape } from '../../../base/common/strings';
+import { URI } from '../../../base/common/uri';
+import { localize } from '../../../nls';
+import { ExtensionIdentifier } from '../../../platform/extensions/common/extensions';
+import { IOpenerService } from '../../../platform/opener/common/opener';
+import { IProductService } from '../../../platform/product/common/productService';
+import * as extHostProtocol from '../common/extHost.protocol';
+import { deserializeWebviewMessage, serializeWebviewMessage } from '../common/extHostWebviewMessaging';
+import { IOverlayWebview, IWebview, WebviewContentOptions, WebviewExtensionDescription } from '../../contrib/webview/browser/webview';
+import { IExtHostContext } from '../../services/extensions/common/extHostCustomers';
+import { SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier';
 
 export class MainThreadWebviews extends Disposable implements extHostProtocol.MainThreadWebviewsShape {
 

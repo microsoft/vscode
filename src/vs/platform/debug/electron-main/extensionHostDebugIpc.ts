@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { AddressInfo, createServer } from 'net';
-import { IOpenExtensionWindowResult } from 'vs/platform/debug/common/extensionHostDebug';
-import { ExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/common/extensionHostDebugIpc';
-import { OPTIONS, parseArgs } from 'vs/platform/environment/node/argv';
-import { IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
+import { IOpenExtensionWindowResult } from '../common/extensionHostDebug';
+import { ExtensionHostDebugBroadcastChannel } from '../common/extensionHostDebugIpc';
+import { OPTIONS, parseArgs } from '../../environment/node/argv';
+import { IWindowsMainService, OpenContext } from '../../windows/electron-main/windows';
 
 export class ElectronExtensionHostDebugBroadcastChannel<TContext> extends ExtensionHostDebugBroadcastChannel<TContext> {
 

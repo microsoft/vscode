@@ -2,17 +2,17 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { IndentationRule } from 'vs/editor/common/languages/languageConfiguration';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { LanguageService } from 'vs/editor/common/services/languageService';
-import { MoveLinesCommand } from 'vs/editor/contrib/linesOperations/browser/moveLinesCommand';
-import { testCommand } from 'vs/editor/test/browser/testCommand';
-import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils';
+import { EditorAutoIndentStrategy } from '../../../../common/config/editorOptions';
+import { Selection } from '../../../../common/core/selection';
+import { ILanguageService } from '../../../../common/languages/language';
+import { IndentationRule } from '../../../../common/languages/languageConfiguration';
+import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry';
+import { LanguageService } from '../../../../common/services/languageService';
+import { MoveLinesCommand } from '../../browser/moveLinesCommand';
+import { testCommand } from '../../../../test/browser/testCommand';
+import { TestLanguageConfigurationService } from '../../../../test/common/modes/testLanguageConfigurationService';
 
 const enum MoveLinesDirection {
 	Up,

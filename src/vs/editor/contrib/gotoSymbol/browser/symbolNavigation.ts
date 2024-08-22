@@ -3,23 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { combinedDisposable, DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { isEqual } from 'vs/base/common/resources';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { Range } from 'vs/editor/common/core/range';
-import { OneReference, ReferencesModel } from 'vs/editor/contrib/gotoSymbol/browser/referencesModel';
-import { localize } from 'vs/nls';
-import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { Emitter, Event } from '../../../../base/common/event';
+import { KeyCode } from '../../../../base/common/keyCodes';
+import { combinedDisposable, DisposableStore, dispose, IDisposable } from '../../../../base/common/lifecycle';
+import { isEqual } from '../../../../base/common/resources';
+import { ICodeEditor } from '../../../browser/editorBrowser';
+import { EditorCommand, registerEditorCommand } from '../../../browser/editorExtensions';
+import { ICodeEditorService } from '../../../browser/services/codeEditorService';
+import { Range } from '../../../common/core/range';
+import { OneReference, ReferencesModel } from './referencesModel';
+import { localize } from '../../../../nls';
+import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey';
+import { TextEditorSelectionRevealType } from '../../../../platform/editor/common/editor';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions';
+import { createDecorator, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry';
+import { INotificationService } from '../../../../platform/notification/common/notification';
 
 export const ctxHasSymbols = new RawContextKey('hasSymbols', false, localize('hasSymbols', "Whether there are symbol locations that can be navigated via keyboard-only."));
 

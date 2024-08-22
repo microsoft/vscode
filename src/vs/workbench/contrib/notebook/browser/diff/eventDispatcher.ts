@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IDiffElementLayoutInfo } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
-import { NotebookLayoutChangeEvent, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
+import { Emitter } from '../../../../../base/common/event';
+import { Disposable } from '../../../../../base/common/lifecycle';
+import { IDiffElementLayoutInfo } from './notebookDiffEditorBrowser';
+import { NotebookLayoutChangeEvent, NotebookLayoutInfo } from '../notebookViewEvents';
 
 export enum NotebookDiffViewEventType {
 	LayoutChanged = 1,

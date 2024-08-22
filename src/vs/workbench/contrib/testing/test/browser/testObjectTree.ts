@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
-import { ITestTreeProjection, TestExplorerTreeElement, TestItemTreeElement, TestTreeErrorMessage } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
-import { MainThreadTestCollection } from 'vs/workbench/contrib/testing/common/mainThreadTestCollection';
-import { TestsDiff, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testTypes';
-import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
-import { testStubs } from 'vs/workbench/contrib/testing/test/common/testStubs';
-import { ITreeRenderer, ITreeSorter } from 'vs/base/browser/ui/tree/tree';
+import { ObjectTree } from '../../../../../base/browser/ui/tree/objectTree';
+import { Emitter } from '../../../../../base/common/event';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle';
+import { IWorkspaceFoldersChangeEvent } from '../../../../../platform/workspace/common/workspace';
+import { ITestTreeProjection, TestExplorerTreeElement, TestItemTreeElement, TestTreeErrorMessage } from '../../browser/explorerProjections/index';
+import { MainThreadTestCollection } from '../../common/mainThreadTestCollection';
+import { TestsDiff, TestsDiffOp } from '../../common/testTypes';
+import { ITestService } from '../../common/testService';
+import { testStubs } from '../common/testStubs';
+import { ITreeRenderer, ITreeSorter } from '../../../../../base/browser/ui/tree/tree';
 
 type SerializedTree = { e: string; children?: SerializedTree[]; data?: string };
 

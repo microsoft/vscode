@@ -4,27 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { TestContextService, TestStorageService, TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IWorkingCopyHistoryEntry, IWorkingCopyHistoryEntryDescriptor, IWorkingCopyHistoryEvent } from 'vs/workbench/services/workingCopy/common/workingCopyHistory';
-import { IFileService } from 'vs/platform/files/common/files';
-import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
-import { LabelService } from 'vs/workbench/services/label/common/labelService';
-import { TestEnvironmentService, TestLifecycleService, TestPathService, TestRemoteAgentService, TestWillShutdownEvent } from 'vs/workbench/test/browser/workbenchTestServices';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { NativeWorkingCopyHistoryService } from 'vs/workbench/services/workingCopy/common/workingCopyHistoryService';
-import { joinPath, dirname, basename } from 'vs/base/common/resources';
-import { firstOrDefault } from 'vs/base/common/arrays';
-import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
-import { generateUuid } from 'vs/base/common/uuid';
-import { join } from 'vs/base/common/path';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { TestContextService, TestStorageService, TestWorkingCopy } from '../../../../test/common/workbenchTestServices';
+import { NullLogService } from '../../../../../platform/log/common/log';
+import { FileService } from '../../../../../platform/files/common/fileService';
+import { Schemas } from '../../../../../base/common/network';
+import { URI } from '../../../../../base/common/uri';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation';
+import { IWorkingCopyHistoryEntry, IWorkingCopyHistoryEntryDescriptor, IWorkingCopyHistoryEvent } from '../../common/workingCopyHistory';
+import { IFileService } from '../../../../../platform/files/common/files';
+import { UriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentityService';
+import { LabelService } from '../../../label/common/labelService';
+import { TestEnvironmentService, TestLifecycleService, TestPathService, TestRemoteAgentService, TestWillShutdownEvent } from '../../../../test/browser/workbenchTestServices';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService';
+import { NativeWorkingCopyHistoryService } from '../../common/workingCopyHistoryService';
+import { joinPath, dirname, basename } from '../../../../../base/common/resources';
+import { firstOrDefault } from '../../../../../base/common/arrays';
+import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider';
+import { generateUuid } from '../../../../../base/common/uuid';
+import { join } from '../../../../../base/common/path';
+import { VSBuffer } from '../../../../../base/common/buffer';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils';
+import { DisposableStore } from '../../../../../base/common/lifecycle';
 
 export class TestWorkingCopyHistoryService extends NativeWorkingCopyHistoryService {
 

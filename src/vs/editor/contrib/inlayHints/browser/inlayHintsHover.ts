@@ -3,30 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AsyncIterableObject } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IMarkdownString, isEmptyMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
-import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { Position } from 'vs/editor/common/core/position';
-import { IModelDecoration } from 'vs/editor/common/model';
-import { ModelDecorationInjectedTextOptions } from 'vs/editor/common/model/textModel';
-import { HoverAnchor, HoverForeignElementAnchor, IEditorHoverParticipant } from 'vs/editor/contrib/hover/browser/hoverTypes';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { getHoverProviderResultsAsAsyncIterable } from 'vs/editor/contrib/hover/browser/getHover';
-import { MarkdownHover, MarkdownHoverParticipant } from 'vs/editor/contrib/hover/browser/markdownHoverParticipant';
-import { RenderedInlayHintLabelPart, InlayHintsController } from 'vs/editor/contrib/inlayHints/browser/inlayHintsController';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { localize } from 'vs/nls';
-import * as platform from 'vs/base/common/platform';
-import { asCommandLink } from 'vs/editor/contrib/inlayHints/browser/inlayHints';
-import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
-import { ICommandService } from 'vs/platform/commands/common/commands';
+import { AsyncIterableObject } from '../../../../base/common/async';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import { IMarkdownString, isEmptyMarkdownString, MarkdownString } from '../../../../base/common/htmlContent';
+import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from '../../../browser/editorBrowser';
+import { Position } from '../../../common/core/position';
+import { IModelDecoration } from '../../../common/model';
+import { ModelDecorationInjectedTextOptions } from '../../../common/model/textModel';
+import { HoverAnchor, HoverForeignElementAnchor, IEditorHoverParticipant } from '../../hover/browser/hoverTypes';
+import { ILanguageService } from '../../../common/languages/language';
+import { ITextModelService } from '../../../common/services/resolverService';
+import { getHoverProviderResultsAsAsyncIterable } from '../../hover/browser/getHover';
+import { MarkdownHover, MarkdownHoverParticipant } from '../../hover/browser/markdownHoverParticipant';
+import { RenderedInlayHintLabelPart, InlayHintsController } from './inlayHintsController';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration';
+import { IOpenerService } from '../../../../platform/opener/common/opener';
+import { ILanguageFeaturesService } from '../../../common/services/languageFeatures';
+import { EditorOption } from '../../../common/config/editorOptions';
+import { localize } from '../../../../nls';
+import * as platform from '../../../../base/common/platform';
+import { asCommandLink } from './inlayHints';
+import { isNonEmptyArray } from '../../../../base/common/arrays';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding';
+import { IHoverService } from '../../../../platform/hover/browser/hover';
+import { ICommandService } from '../../../../platform/commands/common/commands';
 
 class InlayHintsHoverAnchor extends HoverForeignElementAnchor {
 	constructor(

@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isFirefox } from 'vs/base/browser/browser';
-import { DataTransfers } from 'vs/base/browser/dnd';
-import { addDisposableListener, EventHelper, EventLike, EventType } from 'vs/base/browser/dom';
-import { EventType as TouchEventType, Gesture } from 'vs/base/browser/touch';
-import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
-import { ISelectBoxOptions, ISelectBoxStyles, ISelectOptionItem, SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
-import { IToggleStyles } from 'vs/base/browser/ui/toggle/toggle';
-import { Action, ActionRunner, IAction, IActionChangeEvent, IActionRunner, Separator } from 'vs/base/common/actions';
-import { Disposable } from 'vs/base/common/lifecycle';
-import * as platform from 'vs/base/common/platform';
-import * as types from 'vs/base/common/types';
+import { isFirefox } from '../../browser';
+import { DataTransfers } from '../../dnd';
+import { addDisposableListener, EventHelper, EventLike, EventType } from '../../dom';
+import { EventType as TouchEventType, Gesture } from '../../touch';
+import { IActionViewItem } from './actionbar';
+import { IContextViewProvider } from '../contextview/contextview';
+import { getDefaultHoverDelegate } from '../hover/hoverDelegateFactory';
+import { IHoverDelegate } from '../hover/hoverDelegate';
+import { ISelectBoxOptions, ISelectBoxStyles, ISelectOptionItem, SelectBox } from '../selectBox/selectBox';
+import { IToggleStyles } from '../toggle/toggle';
+import { Action, ActionRunner, IAction, IActionChangeEvent, IActionRunner, Separator } from '../../../common/actions';
+import { Disposable } from '../../../common/lifecycle';
+import * as platform from '../../../common/platform';
+import * as types from '../../../common/types';
 import 'vs/css!./actionbar';
-import * as nls from 'vs/nls';
-import type { IManagedHover } from 'vs/base/browser/ui/hover/hover';
-import { getBaseLayerHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate2';
+import * as nls from '../../../../nls';
+import type { IManagedHover } from '../hover/hover';
+import { getBaseLayerHoverDelegate } from '../hover/hoverDelegate2';
 
 export interface IBaseActionViewItemOptions {
 	draggable?: boolean;

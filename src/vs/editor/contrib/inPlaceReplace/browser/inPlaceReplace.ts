@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancelablePromise, createCancelablePromise, timeout } from 'vs/base/common/async';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { CodeEditorStateFlag, EditorState } from 'vs/editor/contrib/editorState/browser/editorState';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, EditorContributionInstantiation, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { IEditorContribution, IEditorDecorationsCollection } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { IInplaceReplaceSupportResult } from 'vs/editor/common/languages';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import * as nls from 'vs/nls';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { CancelablePromise, createCancelablePromise, timeout } from '../../../../base/common/async';
+import { onUnexpectedError } from '../../../../base/common/errors';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes';
+import { CodeEditorStateFlag, EditorState } from '../../editorState/browser/editorState';
+import { ICodeEditor } from '../../../browser/editorBrowser';
+import { EditorAction, EditorContributionInstantiation, registerEditorAction, registerEditorContribution, ServicesAccessor } from '../../../browser/editorExtensions';
+import { Range } from '../../../common/core/range';
+import { Selection } from '../../../common/core/selection';
+import { IEditorContribution, IEditorDecorationsCollection } from '../../../common/editorCommon';
+import { EditorContextKeys } from '../../../common/editorContextKeys';
+import { ModelDecorationOptions } from '../../../common/model/textModel';
+import { IInplaceReplaceSupportResult } from '../../../common/languages';
+import { IEditorWorkerService } from '../../../common/services/editorWorker';
+import * as nls from '../../../../nls';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry';
 import { InPlaceReplaceCommand } from './inPlaceReplaceCommand';
 import 'vs/css!./inPlaceReplace';
 

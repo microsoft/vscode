@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
-import { MainContext, IWorkspaceEditDto, MainThreadBulkEditsShape, IWorkspaceTextEditDto } from 'vs/workbench/api/common/extHost.protocol';
-import { URI } from 'vs/base/common/uri';
-import { mock } from 'vs/base/test/common/mock';
-import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { SingleProxyRPCProtocol, TestRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { ExtHostBulkEdits } from 'vs/workbench/api/common/extHostBulkEdits';
-import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
+import * as extHostTypes from '../../common/extHostTypes';
+import { MainContext, IWorkspaceEditDto, MainThreadBulkEditsShape, IWorkspaceTextEditDto } from '../../common/extHost.protocol';
+import { URI } from '../../../../base/common/uri';
+import { mock } from '../../../../base/test/common/mock';
+import { ExtHostDocumentsAndEditors } from '../../common/extHostDocumentsAndEditors';
+import { SingleProxyRPCProtocol, TestRPCProtocol } from '../common/testRPCProtocol';
+import { NullLogService } from '../../../../platform/log/common/log';
+import { ExtHostBulkEdits } from '../../common/extHostBulkEdits';
+import { nullExtensionDescription } from '../../../services/extensions/common/extensions';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils';
+import { SerializableObjectWithBuffers } from '../../../services/extensions/common/proxyIdentifier';
 
 suite('ExtHostBulkEdits.applyWorkspaceEdit', () => {
 

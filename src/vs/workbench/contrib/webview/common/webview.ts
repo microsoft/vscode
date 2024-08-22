@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
+import { CharCode } from '../../../../base/common/charCode';
+import { Schemas } from '../../../../base/common/network';
+import { URI } from '../../../../base/common/uri';
 
 export interface WebviewRemoteInfo {
 	readonly isRemote: boolean;

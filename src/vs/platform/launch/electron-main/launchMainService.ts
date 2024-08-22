@@ -4,20 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { app } from 'electron';
-import { coalesce, firstOrDefault } from 'vs/base/common/arrays';
-import { IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { whenDeleted } from 'vs/base/node/pfs';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IURLService } from 'vs/platform/url/common/url';
-import { ICodeWindow } from 'vs/platform/window/electron-main/window';
-import { IWindowSettings } from 'vs/platform/window/common/window';
-import { IOpenConfiguration, IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
-import { IProtocolUrl } from 'vs/platform/url/electron-main/url';
+import { coalesce, firstOrDefault } from '../../../base/common/arrays';
+import { IProcessEnvironment, isMacintosh } from '../../../base/common/platform';
+import { URI } from '../../../base/common/uri';
+import { whenDeleted } from '../../../base/node/pfs';
+import { IConfigurationService } from '../../configuration/common/configuration';
+import { NativeParsedArgs } from '../../environment/common/argv';
+import { isLaunchedFromCli } from '../../environment/node/argvHelper';
+import { createDecorator } from '../../instantiation/common/instantiation';
+import { ILogService } from '../../log/common/log';
+import { IURLService } from '../../url/common/url';
+import { ICodeWindow } from '../../window/electron-main/window';
+import { IWindowSettings } from '../../window/common/window';
+import { IOpenConfiguration, IWindowsMainService, OpenContext } from '../../windows/electron-main/windows';
+import { IProtocolUrl } from '../../url/electron-main/url';
 
 export const ID = 'launchMainService';
 export const ILaunchMainService = createDecorator<ILaunchMainService>(ID);

@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { IReference, dispose, Disposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { ITextModel, shouldSynchronizeModel } from 'vs/editor/common/model';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IFileService, FileOperation } from 'vs/platform/files/common/files';
-import { ExtHostContext, ExtHostDocumentsShape, MainThreadDocumentsShape } from 'vs/workbench/api/common/extHost.protocol';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { toLocalResource, extUri, IExtUri } from 'vs/base/common/resources';
-import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { ResourceMap } from 'vs/base/common/map';
-import { IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { ErrorNoTelemetry } from 'vs/base/common/errors';
+import { toErrorMessage } from '../../../base/common/errorMessage';
+import { IReference, dispose, Disposable } from '../../../base/common/lifecycle';
+import { Schemas } from '../../../base/common/network';
+import { URI, UriComponents } from '../../../base/common/uri';
+import { ITextModel, shouldSynchronizeModel } from '../../../editor/common/model';
+import { IModelService } from '../../../editor/common/services/model';
+import { ITextModelService } from '../../../editor/common/services/resolverService';
+import { IFileService, FileOperation } from '../../../platform/files/common/files';
+import { ExtHostContext, ExtHostDocumentsShape, MainThreadDocumentsShape } from '../common/extHost.protocol';
+import { ITextFileService } from '../../services/textfile/common/textfiles';
+import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService';
+import { toLocalResource, extUri, IExtUri } from '../../../base/common/resources';
+import { IWorkingCopyFileService } from '../../services/workingCopy/common/workingCopyFileService';
+import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIdentity';
+import { Emitter, Event } from '../../../base/common/event';
+import { IPathService } from '../../services/path/common/pathService';
+import { ResourceMap } from '../../../base/common/map';
+import { IExtHostContext } from '../../services/extensions/common/extHostCustomers';
+import { ErrorNoTelemetry } from '../../../base/common/errors';
 
 export class BoundModelReferenceCollection {
 

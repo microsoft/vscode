@@ -3,23 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancelablePromise, createCancelablePromise, DeferredPromise } from 'vs/base/common/async';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { memoize } from 'vs/base/common/decorators';
-import { isCancellationError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Iterable } from 'vs/base/common/iterator';
-import { combinedDisposable, Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { EditorActivation } from 'vs/platform/editor/common/editor';
-import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { GroupIdentifier } from 'vs/workbench/common/editor';
-import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IOverlayWebview, IWebviewService, WebviewInitInfo } from 'vs/workbench/contrib/webview/browser/webview';
-import { CONTEXT_ACTIVE_WEBVIEW_PANEL_ID } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditor';
-import { WebviewIconManager, WebviewIcons } from 'vs/workbench/contrib/webviewPanel/browser/webviewIconManager';
-import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { ACTIVE_GROUP_TYPE, IEditorService, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
+import { CancelablePromise, createCancelablePromise, DeferredPromise } from '../../../../base/common/async';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation';
+import { memoize } from '../../../../base/common/decorators';
+import { isCancellationError } from '../../../../base/common/errors';
+import { Emitter, Event } from '../../../../base/common/event';
+import { Iterable } from '../../../../base/common/iterator';
+import { combinedDisposable, Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle';
+import { EditorActivation } from '../../../../platform/editor/common/editor';
+import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { GroupIdentifier } from '../../../common/editor';
+import { DiffEditorInput } from '../../../common/editor/diffEditorInput';
+import { EditorInput } from '../../../common/editor/editorInput';
+import { IOverlayWebview, IWebviewService, WebviewInitInfo } from '../../webview/browser/webview';
+import { CONTEXT_ACTIVE_WEBVIEW_PANEL_ID } from './webviewEditor';
+import { WebviewIconManager, WebviewIcons } from './webviewIconManager';
+import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService';
+import { ACTIVE_GROUP_TYPE, IEditorService, SIDE_GROUP_TYPE } from '../../../services/editor/common/editorService';
 import { WebviewInput, WebviewInputInitInfo } from './webviewEditorInput';
 
 export interface IWebViewShowOptions {

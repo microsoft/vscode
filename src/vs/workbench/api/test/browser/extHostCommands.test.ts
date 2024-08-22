@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
-import { MainThreadCommandsShape } from 'vs/workbench/api/common/extHost.protocol';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { SingleProxyRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
-import { mock } from 'vs/base/test/common/mock';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { ExtHostCommands } from '../../common/extHostCommands';
+import { MainThreadCommandsShape } from '../../common/extHost.protocol';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands';
+import { SingleProxyRPCProtocol } from '../common/testRPCProtocol';
+import { mock } from '../../../../base/test/common/mock';
+import { NullLogService } from '../../../../platform/log/common/log';
+import { IExtHostTelemetry } from '../../common/extHostTelemetry';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils';
 
 suite('ExtHostCommands', function () {
 	ensureNoDisposablesAreLeakedInTestSuite();

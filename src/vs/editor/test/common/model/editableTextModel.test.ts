@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { Range } from 'vs/editor/common/core/range';
-import { EndOfLinePreference, EndOfLineSequence } from 'vs/editor/common/model';
-import { MirrorTextModel } from 'vs/editor/common/model/mirrorTextModel';
-import { IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
-import { assertSyncedModels, testApplyEditsWithSyncedModels } from 'vs/editor/test/common/model/editableTextModelTestUtils';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
+import { IDisposable } from '../../../../base/common/lifecycle';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils';
+import { ISingleEditOperation } from '../../../common/core/editOperation';
+import { Range } from '../../../common/core/range';
+import { EndOfLinePreference, EndOfLineSequence } from '../../../common/model';
+import { MirrorTextModel } from '../../../common/model/mirrorTextModel';
+import { IModelContentChangedEvent } from '../../../common/textModelEvents';
+import { assertSyncedModels, testApplyEditsWithSyncedModels } from './editableTextModelTestUtils';
+import { createTextModel } from '../testTextModel';
 
 suite('EditorModel - EditableTextModel.applyEdits updates mightContainRTL', () => {
 

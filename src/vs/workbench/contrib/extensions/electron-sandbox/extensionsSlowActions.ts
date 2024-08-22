@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IProductService } from 'vs/platform/product/common/productService';
-import { Action } from 'vs/base/common/actions';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { URI } from 'vs/base/common/uri';
-import { IExtensionHostProfile } from 'vs/workbench/services/extensions/common/extensions';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { localize } from 'vs/nls';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IRequestService, asText } from 'vs/platform/request/common/request';
-import { joinPath } from 'vs/base/common/resources';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { INativeHostService } from 'vs/platform/native/common/native';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { Utils } from 'vs/platform/profiling/common/profiling';
-import { IFileService } from 'vs/platform/files/common/files';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { IRequestContext } from 'vs/base/parts/request/common/request';
+import { IProductService } from '../../../../platform/product/common/productService';
+import { Action } from '../../../../base/common/actions';
+import { IExtensionDescription } from '../../../../platform/extensions/common/extensions';
+import { URI } from '../../../../base/common/uri';
+import { IExtensionHostProfile } from '../../../services/extensions/common/extensions';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation';
+import { localize } from '../../../../nls';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import { IRequestService, asText } from '../../../../platform/request/common/request';
+import { joinPath } from '../../../../base/common/resources';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs';
+import { IOpenerService } from '../../../../platform/opener/common/opener';
+import { INativeHostService } from '../../../../platform/native/common/native';
+import { INativeWorkbenchEnvironmentService } from '../../../services/environment/electron-sandbox/environmentService';
+import { Utils } from '../../../../platform/profiling/common/profiling';
+import { IFileService } from '../../../../platform/files/common/files';
+import { VSBuffer } from '../../../../base/common/buffer';
+import { IRequestContext } from '../../../../base/parts/request/common/request';
 
 abstract class RepoInfo {
 	abstract get base(): string;

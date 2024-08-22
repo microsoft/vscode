@@ -14,20 +14,20 @@ export type {
 	ITransaction,
 	IChangeContext,
 	IChangeTracker,
-} from 'vs/base/common/observableInternal/base';
+} from './observableInternal/base';
 
 export {
 	observableValue,
 	disposableObservableValue,
 	transaction,
 	subtransaction,
-} from 'vs/base/common/observableInternal/base';
+} from './observableInternal/base';
 export {
 	derived,
 	derivedOpts,
 	derivedHandleChanges,
 	derivedWithStore,
-} from 'vs/base/common/observableInternal/derived';
+} from './observableInternal/derived';
 export {
 	autorun,
 	autorunDelta,
@@ -35,10 +35,10 @@ export {
 	autorunWithStore,
 	autorunOpts,
 	autorunWithStoreHandleChanges,
-} from 'vs/base/common/observableInternal/autorun';
+} from './observableInternal/autorun';
 export type {
 	IObservableSignal,
-} from 'vs/base/common/observableInternal/utils';
+} from './observableInternal/utils';
 export {
 	constObservable,
 	debouncedObservable,
@@ -51,7 +51,7 @@ export {
 	observableSignal,
 	observableSignalFromEvent,
 	wasEventTriggeredRecently,
-} from 'vs/base/common/observableInternal/utils';
+} from './observableInternal/utils';
 export {
 	ObservableLazy,
 	ObservableLazyPromise,
@@ -59,12 +59,12 @@ export {
 	PromiseResult,
 	waitForState,
 	derivedWithCancellationToken,
-} from 'vs/base/common/observableInternal/promise';
+} from './observableInternal/promise';
 export {
 	observableValueOpts
-} from 'vs/base/common/observableInternal/api';
+} from './observableInternal/api';
 
-import { ConsoleObservableLogger, setLogger } from 'vs/base/common/observableInternal/logging';
+import { ConsoleObservableLogger, setLogger } from './observableInternal/logging';
 
 // Remove "//" in the next line to enable logging
 const enableLogging = false

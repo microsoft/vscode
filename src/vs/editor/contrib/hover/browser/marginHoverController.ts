@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ICodeEditor, IEditorMouseEvent, IPartialEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
-import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IEditorContribution, IScrollEvent } from 'vs/editor/common/editorCommon';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IHoverWidget } from 'vs/editor/contrib/hover/browser/hoverTypes';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { isMousePositionWithinElement } from 'vs/editor/contrib/hover/browser/hoverUtils';
+import { IKeyboardEvent } from '../../../../base/browser/keyboardEvent';
+import { KeyCode } from '../../../../base/common/keyCodes';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle';
+import { ICodeEditor, IEditorMouseEvent, IPartialEditorMouseEvent } from '../../../browser/editorBrowser';
+import { ConfigurationChangedEvent, EditorOption } from '../../../common/config/editorOptions';
+import { IEditorContribution, IScrollEvent } from '../../../common/editorCommon';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { IHoverWidget } from './hoverTypes';
+import { RunOnceScheduler } from '../../../../base/common/async';
+import { isMousePositionWithinElement } from './hoverUtils';
 import 'vs/css!./hover';
-import { MarginHoverWidget } from 'vs/editor/contrib/hover/browser/marginHoverWidget';
+import { MarginHoverWidget } from './marginHoverWidget';
 
 // sticky hover widget which doesn't disappear on focus out and such
 const _sticky = false

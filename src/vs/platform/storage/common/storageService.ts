@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Promises } from 'vs/base/common/async';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { joinPath } from 'vs/base/common/resources';
-import { IStorage, Storage } from 'vs/base/parts/storage/common/storage';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IRemoteService } from 'vs/platform/ipc/common/services';
-import { AbstractStorageService, isProfileUsingDefaultStorage, StorageScope, WillSaveStateReason } from 'vs/platform/storage/common/storage';
-import { ApplicationStorageDatabaseClient, ProfileStorageDatabaseClient, WorkspaceStorageDatabaseClient } from 'vs/platform/storage/common/storageIpc';
-import { isUserDataProfile, IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { IAnyWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
+import { Promises } from '../../../base/common/async';
+import { DisposableStore } from '../../../base/common/lifecycle';
+import { Schemas } from '../../../base/common/network';
+import { joinPath } from '../../../base/common/resources';
+import { IStorage, Storage } from '../../../base/parts/storage/common/storage';
+import { IEnvironmentService } from '../../environment/common/environment';
+import { IRemoteService } from '../../ipc/common/services';
+import { AbstractStorageService, isProfileUsingDefaultStorage, StorageScope, WillSaveStateReason } from './storage';
+import { ApplicationStorageDatabaseClient, ProfileStorageDatabaseClient, WorkspaceStorageDatabaseClient } from './storageIpc';
+import { isUserDataProfile, IUserDataProfile } from '../../userDataProfile/common/userDataProfile';
+import { IAnyWorkspaceIdentifier } from '../../workspace/common/workspace';
 
 export class RemoteStorageService extends AbstractStorageService {
 

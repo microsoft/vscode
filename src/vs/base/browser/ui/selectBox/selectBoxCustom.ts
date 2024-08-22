@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { DomEmitter } from 'vs/base/browser/event';
-import { IContentActionHandler } from 'vs/base/browser/formattedTextRenderer';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
-import { AnchorPosition, IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
-import type { IManagedHover } from 'vs/base/browser/ui/hover/hover';
-import { getBaseLayerHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate2';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { IListEvent, IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { List } from 'vs/base/browser/ui/list/listWidget';
-import { ISelectBoxDelegate, ISelectBoxOptions, ISelectBoxStyles, ISelectData, ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
-import * as arrays from 'vs/base/common/arrays';
-import { Emitter, Event } from 'vs/base/common/event';
-import { KeyCode, KeyCodeUtils } from 'vs/base/common/keyCodes';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { isMacintosh } from 'vs/base/common/platform';
-import { ScrollbarVisibility } from 'vs/base/common/scrollable';
+import * as dom from '../../dom';
+import { DomEmitter } from '../../event';
+import { IContentActionHandler } from '../../formattedTextRenderer';
+import { StandardKeyboardEvent } from '../../keyboardEvent';
+import { renderMarkdown } from '../../markdownRenderer';
+import { AnchorPosition, IContextViewProvider } from '../contextview/contextview';
+import type { IManagedHover } from '../hover/hover';
+import { getBaseLayerHoverDelegate } from '../hover/hoverDelegate2';
+import { getDefaultHoverDelegate } from '../hover/hoverDelegateFactory';
+import { IListEvent, IListRenderer, IListVirtualDelegate } from '../list/list';
+import { List } from '../list/listWidget';
+import { ISelectBoxDelegate, ISelectBoxOptions, ISelectBoxStyles, ISelectData, ISelectOptionItem } from './selectBox';
+import * as arrays from '../../../common/arrays';
+import { Emitter, Event } from '../../../common/event';
+import { KeyCode, KeyCodeUtils } from '../../../common/keyCodes';
+import { Disposable, IDisposable } from '../../../common/lifecycle';
+import { isMacintosh } from '../../../common/platform';
+import { ScrollbarVisibility } from '../../../common/scrollable';
 import 'vs/css!./selectBoxCustom';
-import { localize } from 'vs/nls';
+import { localize } from '../../../../nls';
 
 
 const $ = dom.$;

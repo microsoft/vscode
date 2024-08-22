@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Sash, SashState } from 'vs/base/browser/ui/sash/sash';
-import { IView, LayoutPriority, Sizing, SplitView } from 'vs/base/browser/ui/splitview/splitview';
-import { Emitter } from 'vs/base/common/event';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { Sash, SashState } from '../../../../browser/ui/sash/sash';
+import { IView, LayoutPriority, Sizing, SplitView } from '../../../../browser/ui/splitview/splitview';
+import { Emitter } from '../../../../common/event';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils';
 
 class TestView implements IView<number> {
 

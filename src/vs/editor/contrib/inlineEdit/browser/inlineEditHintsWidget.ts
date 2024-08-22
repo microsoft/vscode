@@ -3,28 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { h } from 'vs/base/browser/dom';
-import { KeybindingLabel, unthemedKeybindingLabelOptions } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
-import { IAction, Separator } from 'vs/base/common/actions';
-import { equals } from 'vs/base/common/arrays';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, autorun, autorunWithStore, derived, observableFromEvent } from 'vs/base/common/observable';
-import { OS } from 'vs/base/common/platform';
+import { h } from '../../../../base/browser/dom';
+import { KeybindingLabel, unthemedKeybindingLabelOptions } from '../../../../base/browser/ui/keybindingLabel/keybindingLabel';
+import { IAction, Separator } from '../../../../base/common/actions';
+import { equals } from '../../../../base/common/arrays';
+import { Disposable, toDisposable } from '../../../../base/common/lifecycle';
+import { IObservable, autorun, autorunWithStore, derived, observableFromEvent } from '../../../../base/common/observable';
+import { OS } from '../../../../base/common/platform';
 import 'vs/css!./inlineEditHintsWidget';
-import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Position } from 'vs/editor/common/core/position';
-import { PositionAffinity } from 'vs/editor/common/model';
-import { GhostTextWidget } from 'vs/editor/contrib/inlineEdit/browser/ghostTextWidget';
-import { MenuEntryActionViewItem, createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenuWorkbenchToolBarOptions, WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
-import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from '../../../browser/editorBrowser';
+import { EditorOption } from '../../../common/config/editorOptions';
+import { Position } from '../../../common/core/position';
+import { PositionAffinity } from '../../../common/model';
+import { GhostTextWidget } from './ghostTextWidget';
+import { MenuEntryActionViewItem, createAndFillInActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem';
+import { IMenuWorkbenchToolBarOptions, WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar';
+import { IMenuService, MenuId, MenuItemAction } from '../../../../platform/actions/common/actions';
+import { ICommandService } from '../../../../platform/commands/common/commands';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
 
 export class InlineEditHintsWidget extends Disposable {
 	private readonly alwaysShowToolbar = observableFromEvent(this, this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineEdit).showToolbar === 'always');

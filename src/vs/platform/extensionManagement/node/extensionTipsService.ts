@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IExtensionRecommendationNotificationService } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
-import { INativeHostService } from 'vs/platform/native/common/native';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { AbstractNativeExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionTipsService';
+import { IExtensionManagementService } from '../common/extensionManagement';
+import { IFileService } from '../../files/common/files';
+import { IProductService } from '../../product/common/productService';
+import { INativeEnvironmentService } from '../../environment/common/environment';
+import { IExtensionRecommendationNotificationService } from '../../extensionRecommendations/common/extensionRecommendations';
+import { INativeHostService } from '../../native/common/native';
+import { IStorageService } from '../../storage/common/storage';
+import { ITelemetryService } from '../../telemetry/common/telemetry';
+import { AbstractNativeExtensionTipsService } from '../common/extensionTipsService';
 
 export class ExtensionTipsService extends AbstractNativeExtensionTipsService {
 

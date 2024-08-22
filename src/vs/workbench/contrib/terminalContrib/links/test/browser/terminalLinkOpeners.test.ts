@@ -4,31 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual } from 'assert';
-import { Schemas } from 'vs/base/common/network';
-import { OperatingSystem } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { ITextEditorSelection, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { IFileService, IFileStatWithPartialMetadata } from 'vs/platform/files/common/files';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ILogService, NullLogService } from 'vs/platform/log/common/log';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { CommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
-import { TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
-import { TerminalLocalFileLinkOpener, TerminalLocalFolderInWorkspaceLinkOpener, TerminalSearchLinkOpener } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkOpeners';
-import { TerminalCapability, IXtermMarker } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
+import { Schemas } from '../../../../../../base/common/network';
+import { OperatingSystem } from '../../../../../../base/common/platform';
+import { URI } from '../../../../../../base/common/uri';
+import { ITextEditorSelection, ITextResourceEditorInput } from '../../../../../../platform/editor/common/editor';
+import { IFileService, IFileStatWithPartialMetadata } from '../../../../../../platform/files/common/files';
+import { FileService } from '../../../../../../platform/files/common/fileService';
+import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock';
+import { ILogService, NullLogService } from '../../../../../../platform/log/common/log';
+import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput';
+import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace';
+import { CommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/commandDetectionCapability';
+import { TerminalBuiltinLinkType } from '../../browser/links';
+import { TerminalLocalFileLinkOpener, TerminalLocalFolderInWorkspaceLinkOpener, TerminalSearchLinkOpener } from '../../browser/terminalLinkOpeners';
+import { TerminalCapability, IXtermMarker } from '../../../../../../platform/terminal/common/capabilities/capabilities';
+import { TerminalCapabilityStore } from '../../../../../../platform/terminal/common/capabilities/terminalCapabilityStore';
+import { IEditorService } from '../../../../../services/editor/common/editorService';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService';
+import { TestContextService } from '../../../../../test/common/workbenchTestServices';
 import type { Terminal } from '@xterm/xterm';
-import { IFileQuery, ISearchComplete, ISearchService } from 'vs/workbench/services/search/common/search';
-import { SearchService } from 'vs/workbench/services/search/common/searchService';
-import { ITerminalLogService } from 'vs/platform/terminal/common/terminal';
-import { importAMDNodeModule } from 'vs/amdX';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { TerminalCommand } from 'vs/platform/terminal/common/capabilities/commandDetection/terminalCommand';
+import { IFileQuery, ISearchComplete, ISearchService } from '../../../../../services/search/common/search';
+import { SearchService } from '../../../../../services/search/common/searchService';
+import { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal';
+import { importAMDNodeModule } from '../../../../../../amdX';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils';
+import { TerminalCommand } from '../../../../../../platform/terminal/common/capabilities/commandDetection/terminalCommand';
 
 interface ITerminalLinkActivationResult {
 	source: 'editor' | 'search';

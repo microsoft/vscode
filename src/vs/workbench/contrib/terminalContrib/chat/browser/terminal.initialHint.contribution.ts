@@ -2,36 +2,36 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
-import { IDetachedTerminalInstance, ITerminalContribution, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle';
+import { IDetachedTerminalInstance, ITerminalContribution, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService, IXtermTerminal } from '../../../terminal/browser/terminal';
+import { registerTerminalContribution } from '../../../terminal/browser/terminalExtensions';
 import type { Terminal as RawXtermTerminal, IDecoration, ITerminalAddon } from '@xterm/xterm';
-import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
-import { ITerminalProcessManager, ITerminalProcessInfo } from 'vs/workbench/contrib/terminal/common/terminal';
-import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { localize } from 'vs/nls';
-import { Emitter, Event } from 'vs/base/common/event';
-import { OS } from 'vs/base/common/platform';
-import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
-import { IContentActionHandler, renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
-import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
-import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { status } from 'vs/base/browser/ui/aria/aria';
-import * as dom from 'vs/base/browser/dom';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { TerminalChatCommandId } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
-import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
+import { TerminalWidgetManager } from '../../../terminal/browser/widgets/widgetManager';
+import { ITerminalProcessManager, ITerminalProcessInfo } from '../../../terminal/common/terminal';
+import { ITerminalCapabilityStore, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding';
+import { localize } from '../../../../../nls';
+import { Emitter, Event } from '../../../../../base/common/event';
+import { OS } from '../../../../../base/common/platform';
+import { KeybindingLabel } from '../../../../../base/browser/ui/keybindingLabel/keybindingLabel';
+import { IContentActionHandler, renderFormattedText } from '../../../../../base/browser/formattedTextRenderer';
+import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../../base/common/actions';
+import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration';
+import { ICommandService } from '../../../../../platform/commands/common/commands';
+import { IProductService } from '../../../../../platform/product/common/productService';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry';
+import { status } from '../../../../../base/browser/ui/aria/aria';
+import * as dom from '../../../../../base/browser/dom';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation';
+import { TerminalChatCommandId } from './terminalChat';
+import { TerminalInstance } from '../../../terminal/browser/terminalInstance';
 import 'vs/css!./media/terminalInitialHint';
-import { TerminalInitialHintSettingId } from 'vs/workbench/contrib/terminalContrib/chat/common/terminalInitialHintConfiguration';
-import { ChatAgentLocation, IChatAgent, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { TerminalInitialHintSettingId } from '../common/terminalInitialHintConfiguration';
+import { ChatAgentLocation, IChatAgent, IChatAgentService } from '../../../chat/common/chatAgents';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView';
+import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent';
 
 const $ = dom.$;
 

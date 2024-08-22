@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { testApplyEditsWithSyncedModels } from 'vs/editor/test/common/model/editableTextModelTestUtils';
+import { CharCode } from '../../../../base/common/charCode';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils';
+import { ISingleEditOperation } from '../../../common/core/editOperation';
+import { Position } from '../../../common/core/position';
+import { Range } from '../../../common/core/range';
+import { testApplyEditsWithSyncedModels } from './editableTextModelTestUtils';
 
 const GENERATE_TESTS = false;
 

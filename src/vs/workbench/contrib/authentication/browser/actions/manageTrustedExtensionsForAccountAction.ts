@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { fromNow } from 'vs/base/common/date';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { localize, localize2 } from 'vs/nls';
-import { Action2 } from 'vs/platform/actions/common/actions';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { IAuthenticationAccessService } from 'vs/workbench/services/authentication/browser/authenticationAccessService';
-import { IAuthenticationUsageService } from 'vs/workbench/services/authentication/browser/authenticationUsageService';
-import { AllowedExtension, IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { fromNow } from '../../../../../base/common/date';
+import { DisposableStore } from '../../../../../base/common/lifecycle';
+import { localize, localize2 } from '../../../../../nls';
+import { Action2 } from '../../../../../platform/actions/common/actions';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs';
+import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation';
+import { IProductService } from '../../../../../platform/product/common/productService';
+import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput';
+import { IAuthenticationAccessService } from '../../../../services/authentication/browser/authenticationAccessService';
+import { IAuthenticationUsageService } from '../../../../services/authentication/browser/authenticationUsageService';
+import { AllowedExtension, IAuthenticationService } from '../../../../services/authentication/common/authentication';
+import { IExtensionService } from '../../../../services/extensions/common/extensions';
 
 export class ManageTrustedExtensionsForAccountAction extends Action2 {
 	constructor() {

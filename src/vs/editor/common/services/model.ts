@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
-import { ITextBufferFactory, ITextModel, ITextModelCreationOptions } from 'vs/editor/common/model';
-import { ILanguageSelection } from 'vs/editor/common/languages/language';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { DocumentSemanticTokensProvider, DocumentRangeSemanticTokensProvider } from 'vs/editor/common/languages';
+import { Event } from '../../../base/common/event';
+import { URI } from '../../../base/common/uri';
+import { ITextBufferFactory, ITextModel, ITextModelCreationOptions } from '../model';
+import { ILanguageSelection } from '../languages/language';
+import { createDecorator } from '../../../platform/instantiation/common/instantiation';
+import { DocumentSemanticTokensProvider, DocumentRangeSemanticTokensProvider } from '../languages';
 
 export const IModelService = createDecorator<IModelService>('modelService');
 

@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/base/browser/ui/codicons/codiconStyles'; // The codicon symbol styles are defined here and must be loaded
-import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { ResolvedKeybinding } from 'vs/base/common/keybindings';
-import { CodeAction } from 'vs/editor/common/languages';
-import { CodeActionItem, CodeActionKind } from 'vs/editor/contrib/codeAction/common/types';
-import 'vs/editor/contrib/symbolIcons/browser/symbolIcons'; // The codicon symbol colors are defined here and must be loaded to get colors
-import { localize } from 'vs/nls';
-import { ActionListItemKind, IActionListItem } from 'vs/platform/actionWidget/browser/actionList';
-import { HierarchicalKind } from 'vs/base/common/hierarchicalKind';
+import '../../../../base/browser/ui/codicons/codiconStyles'; // The codicon symbol styles are defined here and must be loaded
+import { Codicon } from '../../../../base/common/codicons';
+import { ThemeIcon } from '../../../../base/common/themables';
+import { ResolvedKeybinding } from '../../../../base/common/keybindings';
+import { CodeAction } from '../../../common/languages';
+import { CodeActionItem, CodeActionKind } from '../common/types';
+import '../../symbolIcons/browser/symbolIcons'; // The codicon symbol colors are defined here and must be loaded to get colors
+import { localize } from '../../../../nls';
+import { ActionListItemKind, IActionListItem } from '../../../../platform/actionWidget/browser/actionList';
+import { HierarchicalKind } from '../../../../base/common/hierarchicalKind';
 
 interface ActionGroup {
 	readonly kind: HierarchicalKind;

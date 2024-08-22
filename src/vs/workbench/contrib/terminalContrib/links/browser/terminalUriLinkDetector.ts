@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { ILinkComputerTarget, LinkComputer } from 'vs/editor/common/languages/linkComputer';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ITerminalLinkDetector, ITerminalLinkResolver, ITerminalSimpleLink, TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
-import { convertLinkRangeToBuffer, getXtermLineContent } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkHelpers';
-import { ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
+import { Schemas } from '../../../../../base/common/network';
+import { URI } from '../../../../../base/common/uri';
+import { ILinkComputerTarget, LinkComputer } from '../../../../../editor/common/languages/linkComputer';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace';
+import { ITerminalLinkDetector, ITerminalLinkResolver, ITerminalSimpleLink, TerminalBuiltinLinkType } from './links';
+import { convertLinkRangeToBuffer, getXtermLineContent } from './terminalLinkHelpers';
+import { ITerminalProcessManager } from '../../../terminal/common/terminal';
 import type { IBufferLine, Terminal } from '@xterm/xterm';
-import { ITerminalBackend, ITerminalLogService } from 'vs/platform/terminal/common/terminal';
+import { ITerminalBackend, ITerminalLogService } from '../../../../../platform/terminal/common/terminal';
 
 const enum Constants {
 	/**

@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { compareBy, equals, numberComparator, tieBreakComparators } from 'vs/base/common/arrays';
-import { BugIndicatingError } from 'vs/base/common/errors';
-import { splitLines } from 'vs/base/common/strings';
-import { Constants } from 'vs/base/common/uint';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { ITextModel } from 'vs/editor/common/model';
-import { LineRangeEdit, RangeEdit } from 'vs/workbench/contrib/mergeEditor/browser/model/editing';
-import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';
-import { DetailedLineRangeMapping, MappingAlignment } from 'vs/workbench/contrib/mergeEditor/browser/model/mapping';
-import { concatArrays } from 'vs/workbench/contrib/mergeEditor/browser/utils';
+import { compareBy, equals, numberComparator, tieBreakComparators } from '../../../../../base/common/arrays';
+import { BugIndicatingError } from '../../../../../base/common/errors';
+import { splitLines } from '../../../../../base/common/strings';
+import { Constants } from '../../../../../base/common/uint';
+import { Position } from '../../../../../editor/common/core/position';
+import { Range } from '../../../../../editor/common/core/range';
+import { ITextModel } from '../../../../../editor/common/model';
+import { LineRangeEdit, RangeEdit } from './editing';
+import { LineRange } from './lineRange';
+import { DetailedLineRangeMapping, MappingAlignment } from './mapping';
+import { concatArrays } from '../utils';
 
 /**
  * Describes modifications in input 1 and input 2 for a specific range in base.

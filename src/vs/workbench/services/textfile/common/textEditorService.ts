@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { ResourceMap } from 'vs/base/common/map';
-import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorFactoryRegistry, IFileEditorInput, IUntypedEditorInput, IUntypedFileEditorInput, EditorExtensions, isResourceDiffEditorInput, isResourceSideBySideEditorInput, IUntitledTextResourceEditorInput, DEFAULT_EDITOR_ASSOCIATION, isResourceMergeEditorInput } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { INewUntitledTextEditorOptions, IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
-import { Schemas } from 'vs/base/common/network';
-import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
-import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
-import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
-import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
-import { basename } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { Event } from '../../../../base/common/event';
+import { Registry } from '../../../../platform/registry/common/platform';
+import { ResourceMap } from '../../../../base/common/map';
+import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { IEditorFactoryRegistry, IFileEditorInput, IUntypedEditorInput, IUntypedFileEditorInput, EditorExtensions, isResourceDiffEditorInput, isResourceSideBySideEditorInput, IUntitledTextResourceEditorInput, DEFAULT_EDITOR_ASSOCIATION, isResourceMergeEditorInput } from '../../../common/editor';
+import { EditorInput } from '../../../common/editor/editorInput';
+import { INewUntitledTextEditorOptions, IUntitledTextEditorService } from '../../untitled/common/untitledTextEditorService';
+import { Schemas } from '../../../../base/common/network';
+import { DiffEditorInput } from '../../../common/editor/diffEditorInput';
+import { SideBySideEditorInput } from '../../../common/editor/sideBySideEditorInput';
+import { TextResourceEditorInput } from '../../../common/editor/textResourceEditorInput';
+import { UntitledTextEditorInput } from '../../untitled/common/untitledTextEditorInput';
+import { IUntitledTextEditorModel } from '../../untitled/common/untitledTextEditorModel';
+import { basename } from '../../../../base/common/resources';
+import { URI } from '../../../../base/common/uri';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity';
+import { IFileService } from '../../../../platform/files/common/files';
+import { IEditorResolverService, RegisteredEditorPriority } from '../../editor/common/editorResolverService';
+import { Disposable } from '../../../../base/common/lifecycle';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions';
 
 export const ITextEditorService = createDecorator<ITextEditorService>('textEditorService');
 

@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Disposable, DisposableMap, IDisposable } from 'vs/base/common/lifecycle';
-import { revive } from 'vs/base/common/marshalling';
-import { URI } from 'vs/base/common/uri';
-import { ExtHostContext, ExtHostProfileContentHandlersShape, MainContext, MainThreadProfileContentHandlersShape } from 'vs/workbench/api/common/extHost.protocol';
-import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { ISaveProfileResult, IUserDataProfileImportExportService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { CancellationToken } from '../../../base/common/cancellation';
+import { Disposable, DisposableMap, IDisposable } from '../../../base/common/lifecycle';
+import { revive } from '../../../base/common/marshalling';
+import { URI } from '../../../base/common/uri';
+import { ExtHostContext, ExtHostProfileContentHandlersShape, MainContext, MainThreadProfileContentHandlersShape } from '../common/extHost.protocol';
+import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers';
+import { ISaveProfileResult, IUserDataProfileImportExportService } from '../../services/userDataProfile/common/userDataProfile';
 
 @extHostNamedCustomer(MainContext.MainThreadProfileContentHandlers)
 export class MainThreadProfileContentHandlers extends Disposable implements MainThreadProfileContentHandlersShape {

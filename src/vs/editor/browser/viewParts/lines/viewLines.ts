@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { FastDomNode } from 'vs/base/browser/fastDomNode';
-import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import * as platform from 'vs/base/common/platform';
-import { Constants } from 'vs/base/common/uint';
+import { FastDomNode } from '../../../../base/browser/fastDomNode';
+import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from '../../../../base/browser/ui/mouseCursor/mouseCursor';
+import { RunOnceScheduler } from '../../../../base/common/async';
+import * as platform from '../../../../base/common/platform';
+import { Constants } from '../../../../base/common/uint';
 import 'vs/css!./viewLines';
-import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
-import { HorizontalPosition, HorizontalRange, IViewLines, LineVisibleRanges, VisibleRanges } from 'vs/editor/browser/view/renderingContext';
-import { VisibleLinesCollection } from 'vs/editor/browser/view/viewLayer';
-import { PartFingerprint, PartFingerprints, ViewPart } from 'vs/editor/browser/view/viewPart';
-import { DomReadingContext } from 'vs/editor/browser/viewParts/lines/domReadingContext';
-import { ViewLine, ViewLineOptions } from 'vs/editor/browser/viewParts/lines/viewLine';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ScrollType } from 'vs/editor/common/editorCommon';
-import * as viewEvents from 'vs/editor/common/viewEvents';
-import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
-import { Viewport } from 'vs/editor/common/viewModel';
-import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
+import { applyFontInfo } from '../../config/domFontInfo';
+import { HorizontalPosition, HorizontalRange, IViewLines, LineVisibleRanges, VisibleRanges } from '../../view/renderingContext';
+import { VisibleLinesCollection } from '../../view/viewLayer';
+import { PartFingerprint, PartFingerprints, ViewPart } from '../../view/viewPart';
+import { DomReadingContext } from './domReadingContext';
+import { ViewLine, ViewLineOptions } from './viewLine';
+import { EditorOption } from '../../../common/config/editorOptions';
+import { Position } from '../../../common/core/position';
+import { Range } from '../../../common/core/range';
+import { Selection } from '../../../common/core/selection';
+import { ScrollType } from '../../../common/editorCommon';
+import * as viewEvents from '../../../common/viewEvents';
+import { ViewportData } from '../../../common/viewLayout/viewLinesViewportData';
+import { Viewport } from '../../../common/viewModel';
+import { ViewContext } from '../../../common/viewModel/viewContext';
 
 class LastRenderedData {
 

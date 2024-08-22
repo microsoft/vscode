@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize2 } from 'vs/nls';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { Action2, IMenuService } from 'vs/platform/actions/common/actions';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
+import { localize2 } from '../../../nls';
+import { Categories } from '../../action/common/actionCommonCategories';
+import { Action2, IMenuService } from './actions';
+import { ServicesAccessor } from '../../instantiation/common/instantiation';
+import { ILogService } from '../../log/common/log';
 
 export class MenuHiddenStatesReset extends Action2 {
 

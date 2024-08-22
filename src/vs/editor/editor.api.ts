@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EditorOptions, WrappingIndent, EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
-import { createMonacoBaseAPI } from 'vs/editor/common/services/editorBaseApi';
-import { createMonacoEditorAPI } from 'vs/editor/standalone/browser/standaloneEditor';
-import { createMonacoLanguagesAPI } from 'vs/editor/standalone/browser/standaloneLanguages';
-import { FormattingConflicts } from 'vs/editor/contrib/format/browser/format';
+import { EditorOptions, WrappingIndent, EditorAutoIndentStrategy } from './common/config/editorOptions';
+import { createMonacoBaseAPI } from './common/services/editorBaseApi';
+import { createMonacoEditorAPI } from './standalone/browser/standaloneEditor';
+import { createMonacoLanguagesAPI } from './standalone/browser/standaloneLanguages';
+import { FormattingConflicts } from './contrib/format/browser/format';
 
 // Set defaults for standalone editor
 EditorOptions.wrappingIndent.defaultValue = WrappingIndent.None;

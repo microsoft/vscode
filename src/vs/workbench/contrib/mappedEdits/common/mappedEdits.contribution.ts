@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { URI } from 'vs/base/common/uri';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import * as languages from 'vs/editor/common/languages';
+import { CancellationTokenSource } from '../../../../base/common/cancellation';
+import { URI } from '../../../../base/common/uri';
+import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures';
+import { ITextModelService } from '../../../../editor/common/services/resolverService';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation';
+import * as languages from '../../../../editor/common/languages';
 
 CommandsRegistry.registerCommand(
 	'_executeMappedEditsProvider',

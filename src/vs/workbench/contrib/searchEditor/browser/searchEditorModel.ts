@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { ITextModel } from 'vs/editor/common/model';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { parseSavedSearchEditor, parseSerializedSearchEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditorSerialization';
-import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
+import { URI } from '../../../../base/common/uri';
+import { ITextModel } from '../../../../editor/common/model';
+import { IModelService } from '../../../../editor/common/services/model';
+import { ILanguageService } from '../../../../editor/common/languages/language';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation';
+import { parseSavedSearchEditor, parseSerializedSearchEditor } from './searchEditorSerialization';
+import { IWorkingCopyBackupService } from '../../../services/workingCopy/common/workingCopyBackup';
 import { SearchConfiguration } from './searchEditorInput';
-import { assertIsDefined } from 'vs/base/common/types';
-import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
-import { SearchEditorWorkingCopyTypeId } from 'vs/workbench/contrib/searchEditor/browser/constants';
-import { Emitter } from 'vs/base/common/event';
-import { ResourceMap } from 'vs/base/common/map';
-import { SEARCH_RESULT_LANGUAGE_ID } from 'vs/workbench/services/search/common/search';
+import { assertIsDefined } from '../../../../base/common/types';
+import { createTextBufferFactoryFromStream } from '../../../../editor/common/model/textModel';
+import { SearchEditorWorkingCopyTypeId } from './constants';
+import { Emitter } from '../../../../base/common/event';
+import { ResourceMap } from '../../../../base/common/map';
+import { SEARCH_RESULT_LANGUAGE_ID } from '../../../services/search/common/search';
 
 export type SearchEditorData = { resultsModel: ITextModel; configurationModel: SearchConfigurationModel };
 

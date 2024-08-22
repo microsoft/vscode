@@ -3,31 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
-import { Memento } from 'vs/workbench/common/memento';
-import { SIDE_BAR_FOREGROUND } from 'vs/workbench/common/theme';
-import { IViewDescriptorService } from 'vs/workbench/common/views';
-import { IChatViewState, ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
-import { ChatAgentLocation, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { CHAT_PROVIDER_ID } from 'vs/workbench/contrib/chat/common/chatParticipantContribTypes';
-import { ChatModelInitState, IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
-import { IChatViewTitleActionContext } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import { DisposableStore } from '../../../../base/common/lifecycle';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView';
+import { IHoverService } from '../../../../platform/hover/browser/hover';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding';
+import { ILogService } from '../../../../platform/log/common/log';
+import { IOpenerService } from '../../../../platform/opener/common/opener';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
+import { editorBackground } from '../../../../platform/theme/common/colorRegistry';
+import { IThemeService } from '../../../../platform/theme/common/themeService';
+import { IViewPaneOptions, ViewPane } from '../../../browser/parts/views/viewPane';
+import { Memento } from '../../../common/memento';
+import { SIDE_BAR_FOREGROUND } from '../../../common/theme';
+import { IViewDescriptorService } from '../../../common/views';
+import { IChatViewState, ChatWidget } from './chatWidget';
+import { ChatAgentLocation, IChatAgentService } from '../common/chatAgents';
+import { CHAT_PROVIDER_ID } from '../common/chatParticipantContribTypes';
+import { ChatModelInitState, IChatModel } from '../common/chatModel';
+import { IChatService } from '../common/chatService';
+import { IChatViewTitleActionContext } from './actions/chatActions';
 
 interface IViewPaneState extends IChatViewState {
 	sessionId?: string;

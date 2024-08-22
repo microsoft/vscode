@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ExtHostContext, MainContext, MainThreadUrlsShape, ExtHostUrlsShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostContext, MainContext, MainThreadUrlsShape, ExtHostUrlsShape } from '../common/extHost.protocol';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers';
-import { IURLService, IOpenURLOptions } from 'vs/platform/url/common/url';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { IExtensionContributedURLHandler, IExtensionUrlHandler } from 'vs/workbench/services/extensions/browser/extensionUrlHandler';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { IURLService, IOpenURLOptions } from '../../../platform/url/common/url';
+import { URI, UriComponents } from '../../../base/common/uri';
+import { IDisposable } from '../../../base/common/lifecycle';
+import { IExtensionContributedURLHandler, IExtensionUrlHandler } from '../../services/extensions/browser/extensionUrlHandler';
+import { ExtensionIdentifier } from '../../../platform/extensions/common/extensions';
 
 class ExtensionUrlHandler implements IExtensionContributedURLHandler {
 

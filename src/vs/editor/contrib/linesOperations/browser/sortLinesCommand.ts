@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
+import { EditOperation, ISingleEditOperation } from '../../../common/core/editOperation';
+import { Range } from '../../../common/core/range';
+import { Selection } from '../../../common/core/selection';
+import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from '../../../common/editorCommon';
+import { ITextModel } from '../../../common/model';
 
 export class SortLinesCommand implements ICommand {
 

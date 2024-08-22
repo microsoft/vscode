@@ -3,58 +3,58 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+import * as nls from '../../../../nls';
 
 // base
-import * as browser from 'vs/base/browser/browser';
-import { BrowserFeatures, KeyboardSupport } from 'vs/base/browser/canIUse';
-import * as dom from 'vs/base/browser/dom';
-import { printKeyboardEvent, printStandardKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { DeferredPromise, RunOnceScheduler } from 'vs/base/common/async';
-import { Emitter, Event } from 'vs/base/common/event';
-import { parse } from 'vs/base/common/json';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { UserSettingsLabelProvider } from 'vs/base/common/keybindingLabels';
-import { KeybindingParser } from 'vs/base/common/keybindingParser';
-import { Keybinding, KeyCodeChord, ResolvedKeybinding, ScanCodeChord } from 'vs/base/common/keybindings';
-import { IMMUTABLE_CODE_TO_KEY_CODE, KeyCode, KeyCodeUtils, KeyMod, ScanCode, ScanCodeUtils } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import * as objects from 'vs/base/common/objects';
-import { isMacintosh, OperatingSystem, OS } from 'vs/base/common/platform';
-import { dirname } from 'vs/base/common/resources';
-import { mainWindow } from 'vs/base/browser/window';
+import * as browser from '../../../../base/browser/browser';
+import { BrowserFeatures, KeyboardSupport } from '../../../../base/browser/canIUse';
+import * as dom from '../../../../base/browser/dom';
+import { printKeyboardEvent, printStandardKeyboardEvent, StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent';
+import { DeferredPromise, RunOnceScheduler } from '../../../../base/common/async';
+import { Emitter, Event } from '../../../../base/common/event';
+import { parse } from '../../../../base/common/json';
+import { IJSONSchema } from '../../../../base/common/jsonSchema';
+import { UserSettingsLabelProvider } from '../../../../base/common/keybindingLabels';
+import { KeybindingParser } from '../../../../base/common/keybindingParser';
+import { Keybinding, KeyCodeChord, ResolvedKeybinding, ScanCodeChord } from '../../../../base/common/keybindings';
+import { IMMUTABLE_CODE_TO_KEY_CODE, KeyCode, KeyCodeUtils, KeyMod, ScanCode, ScanCodeUtils } from '../../../../base/common/keyCodes';
+import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle';
+import * as objects from '../../../../base/common/objects';
+import { isMacintosh, OperatingSystem, OS } from '../../../../base/common/platform';
+import { dirname } from '../../../../base/common/resources';
+import { mainWindow } from '../../../../base/browser/window';
 
 // platform
-import { MenuRegistry } from 'vs/platform/actions/common/actions';
-import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpr, ContextKeyExpression, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { FileOperation, IFileService } from 'vs/platform/files/common/files';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
-import { IKeybindingService, IKeyboardEvent, KeybindingsSchemaContribution } from 'vs/platform/keybinding/common/keybinding';
-import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
-import { IExtensionKeybindingRule, IKeybindingItem, KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
-import { IKeyboardLayoutService } from 'vs/platform/keyboardLayout/common/keyboardLayout';
-import { IKeyboardMapper } from 'vs/platform/keyboardLayout/common/keyboardMapper';
-import { ILogService } from 'vs/platform/log/common/log';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { ILocalizedString, isLocalizedString } from 'vs/platform/action/common/action';
+import { MenuRegistry } from '../../../../platform/actions/common/actions';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands';
+import { ContextKeyExpr, ContextKeyExpression, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey';
+import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions';
+import { FileOperation, IFileService } from '../../../../platform/files/common/files';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions';
+import { Extensions, IJSONContributionRegistry } from '../../../../platform/jsonschemas/common/jsonContributionRegistry';
+import { AbstractKeybindingService } from '../../../../platform/keybinding/common/abstractKeybindingService';
+import { IKeybindingService, IKeyboardEvent, KeybindingsSchemaContribution } from '../../../../platform/keybinding/common/keybinding';
+import { KeybindingResolver } from '../../../../platform/keybinding/common/keybindingResolver';
+import { IExtensionKeybindingRule, IKeybindingItem, KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry';
+import { ResolvedKeybindingItem } from '../../../../platform/keybinding/common/resolvedKeybindingItem';
+import { IKeyboardLayoutService } from '../../../../platform/keyboardLayout/common/keyboardLayout';
+import { IKeyboardMapper } from '../../../../platform/keyboardLayout/common/keyboardMapper';
+import { ILogService } from '../../../../platform/log/common/log';
+import { INotificationService } from '../../../../platform/notification/common/notification';
+import { Registry } from '../../../../platform/registry/common/platform';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity';
+import { ILocalizedString, isLocalizedString } from '../../../../platform/action/common/action';
 
 // workbench
-import { commandsExtensionPoint } from 'vs/workbench/services/actions/common/menusExtensionPoint';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { ExtensionMessageCollector, ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IKeyboard, INavigatorWithKeyboard } from 'vs/workbench/services/keybinding/browser/navigatorKeyboard';
-import { getAllUnboundCommands } from 'vs/workbench/services/keybinding/browser/unboundCommands';
-import { IUserKeybindingItem, KeybindingIO, OutputBuilder } from 'vs/workbench/services/keybinding/common/keybindingIO';
-import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { commandsExtensionPoint } from '../../actions/common/menusExtensionPoint';
+import { IExtensionService } from '../../extensions/common/extensions';
+import { ExtensionMessageCollector, ExtensionsRegistry } from '../../extensions/common/extensionsRegistry';
+import { IHostService } from '../../host/browser/host';
+import { IKeyboard, INavigatorWithKeyboard } from './navigatorKeyboard';
+import { getAllUnboundCommands } from './unboundCommands';
+import { IUserKeybindingItem, KeybindingIO, OutputBuilder } from '../common/keybindingIO';
+import { IUserDataProfileService } from '../../userDataProfile/common/userDataProfile';
 
 interface ContributedKeyBinding {
 	command: string;

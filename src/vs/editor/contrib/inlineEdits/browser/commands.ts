@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { transaction } from 'vs/base/common/observable';
-import { asyncTransaction } from 'vs/base/common/observableInternal/base';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/embeddedCodeEditorWidget';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { inlineEditAcceptId, inlineEditVisible, showNextInlineEditActionId, showPreviousInlineEditActionId } from 'vs/editor/contrib/inlineEdits/browser/consts';
-import { InlineEditsController } from 'vs/editor/contrib/inlineEdits/browser/inlineEditsController';
-import * as nls from 'vs/nls';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { Codicon } from '../../../../base/common/codicons';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes';
+import { transaction } from '../../../../base/common/observable';
+import { asyncTransaction } from '../../../../base/common/observableInternal/base';
+import { ICodeEditor } from '../../../browser/editorBrowser';
+import { EditorAction, ServicesAccessor } from '../../../browser/editorExtensions';
+import { EmbeddedCodeEditorWidget } from '../../../browser/widget/codeEditor/embeddedCodeEditorWidget';
+import { EditorContextKeys } from '../../../common/editorContextKeys';
+import { inlineEditAcceptId, inlineEditVisible, showNextInlineEditActionId, showPreviousInlineEditActionId } from './consts';
+import { InlineEditsController } from './inlineEditsController';
+import * as nls from '../../../../nls';
+import { MenuId } from '../../../../platform/actions/common/actions';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey';
 
 
 function labelAndAlias(str: nls.ILocalizedString): { label: string; alias: string } {

@@ -3,31 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { assertIsDefined } from 'vs/base/common/types';
-import { ICodeEditor, IPasteEvent } from 'vs/editor/browser/editorBrowser';
-import { IEditorOpenContext, isTextEditorViewState } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
-import { AbstractTextResourceEditorInput, TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
-import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
-import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
-import { AbstractTextCodeEditor } from 'vs/workbench/browser/parts/editor/textCodeEditor';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ScrollType, ICodeEditorViewState } from 'vs/editor/common/editorCommon';
-import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { EditorOption, IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { ModelConstants } from 'vs/editor/common/model';
-import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { IFileService } from 'vs/platform/files/common/files';
+import { assertIsDefined } from '../../../../base/common/types';
+import { ICodeEditor, IPasteEvent } from '../../../../editor/browser/editorBrowser';
+import { IEditorOpenContext, isTextEditorViewState } from '../../../common/editor';
+import { EditorInput } from '../../../common/editor/editorInput';
+import { applyTextEditorOptions } from '../../../common/editor/editorOptions';
+import { AbstractTextResourceEditorInput, TextResourceEditorInput } from '../../../common/editor/textResourceEditorInput';
+import { BaseTextEditorModel } from '../../../common/editor/textEditorModel';
+import { UntitledTextEditorInput } from '../../../services/untitled/common/untitledTextEditorInput';
+import { AbstractTextCodeEditor } from './textCodeEditor';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
+import { IStorageService } from '../../../../platform/storage/common/storage';
+import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { IThemeService } from '../../../../platform/theme/common/themeService';
+import { ScrollType, ICodeEditorViewState } from '../../../../editor/common/editorCommon';
+import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import { IEditorService } from '../../../services/editor/common/editorService';
+import { IModelService } from '../../../../editor/common/services/model';
+import { ILanguageService } from '../../../../editor/common/languages/language';
+import { PLAINTEXT_LANGUAGE_ID } from '../../../../editor/common/languages/modesRegistry';
+import { EditorOption, IEditorOptions as ICodeEditorOptions } from '../../../../editor/common/config/editorOptions';
+import { ModelConstants } from '../../../../editor/common/model';
+import { ITextEditorOptions } from '../../../../platform/editor/common/editor';
+import { IFileService } from '../../../../platform/files/common/files';
 
 /**
  * An editor implementation that is capable of showing the contents of resource inputs. Uses

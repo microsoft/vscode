@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BugIndicatingError } from 'vs/base/common/errors';
-import { CursorColumns } from 'vs/editor/common/core/cursorColumns';
-import { BracketKind } from 'vs/editor/common/languages/supports/languageBracketsConfiguration';
-import { ITextModel } from 'vs/editor/common/model';
+import { BugIndicatingError } from '../../../../../base/common/errors';
+import { CursorColumns } from '../../../core/cursorColumns';
+import { BracketKind } from '../../../languages/supports/languageBracketsConfiguration';
+import { ITextModel } from '../../../model';
 import { Length, lengthAdd, lengthGetLineCount, lengthToObj, lengthZero } from './length';
 import { SmallImmutableSet } from './smallImmutableSet';
 import { OpeningBracketId } from './tokenizer';

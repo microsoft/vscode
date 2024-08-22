@@ -4,22 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { Event } from 'vs/base/common/event';
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { ConfigurationTarget, isConfigured } from 'vs/platform/configuration/common/configuration';
-import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { ConfigurationService } from 'vs/platform/configuration/common/configurationService';
-import { IFileService } from 'vs/platform/files/common/files';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { FilePolicyService } from 'vs/platform/policy/common/filePolicyService';
-import { NullPolicyService } from 'vs/platform/policy/common/policy';
-import { Registry } from 'vs/platform/registry/common/platform';
+import { VSBuffer } from '../../../../base/common/buffer';
+import { Event } from '../../../../base/common/event';
+import { Schemas } from '../../../../base/common/network';
+import { URI } from '../../../../base/common/uri';
+import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils';
+import { ConfigurationTarget, isConfigured } from '../../common/configuration';
+import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../common/configurationRegistry';
+import { ConfigurationService } from '../../common/configurationService';
+import { IFileService } from '../../../files/common/files';
+import { FileService } from '../../../files/common/fileService';
+import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider';
+import { NullLogService } from '../../../log/common/log';
+import { FilePolicyService } from '../../../policy/common/filePolicyService';
+import { NullPolicyService } from '../../../policy/common/policy';
+import { Registry } from '../../../registry/common/platform';
 
 suite('ConfigurationService.test.ts', () => {
 

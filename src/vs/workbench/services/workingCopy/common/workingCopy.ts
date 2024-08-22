@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
-import { ISaveOptions, IRevertOptions, SaveReason, SaveSource } from 'vs/workbench/common/editor';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
+import { Event } from '../../../../base/common/event';
+import { URI } from '../../../../base/common/uri';
+import { ISaveOptions, IRevertOptions, SaveReason, SaveSource } from '../../../common/editor';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import { VSBufferReadable, VSBufferReadableStream } from '../../../../base/common/buffer';
 
 export const enum WorkingCopyCapabilities {
 

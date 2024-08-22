@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LanguageId } from 'vs/editor/common/encodedTokenAttributes';
-import { EncodedTokenizationResult, IBackgroundTokenizationStore, IBackgroundTokenizer, IState, ITokenizationSupport, TokenizationResult } from 'vs/editor/common/languages';
-import { nullTokenizeEncoded } from 'vs/editor/common/languages/nullTokenize';
-import { ITextModel } from 'vs/editor/common/model';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, keepObserved } from 'vs/base/common/observable';
+import { LanguageId } from '../../../../../editor/common/encodedTokenAttributes';
+import { EncodedTokenizationResult, IBackgroundTokenizationStore, IBackgroundTokenizer, IState, ITokenizationSupport, TokenizationResult } from '../../../../../editor/common/languages';
+import { nullTokenizeEncoded } from '../../../../../editor/common/languages/nullTokenize';
+import { ITextModel } from '../../../../../editor/common/model';
+import { Disposable, IDisposable } from '../../../../../base/common/lifecycle';
+import { IObservable, keepObserved } from '../../../../../base/common/observable';
 
 export class TokenizationSupportWithLineLimit extends Disposable implements ITokenizationSupport {
 	get backgroundTokenizerShouldOnlyVerifyTokens(): boolean | undefined {

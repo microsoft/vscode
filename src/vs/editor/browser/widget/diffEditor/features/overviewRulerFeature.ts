@@ -3,23 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EventType, addDisposableListener, addStandardDisposableListener, h } from 'vs/base/browser/dom';
-import { createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
-import { ScrollbarState } from 'vs/base/browser/ui/scrollbar/scrollbarState';
-import { Color } from 'vs/base/common/color';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IObservable, autorun, autorunWithStore, derived, observableFromEvent, observableSignalFromEvent } from 'vs/base/common/observable';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
-import { DiffEditorEditors } from 'vs/editor/browser/widget/diffEditor/components/diffEditorEditors';
-import { DiffEditorViewModel } from 'vs/editor/browser/widget/diffEditor/diffEditorViewModel';
-import { appendRemoveOnDispose } from 'vs/editor/browser/widget/diffEditor/utils';
-import { EditorLayoutInfo, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { LineRange } from 'vs/editor/common/core/lineRange';
-import { Position } from 'vs/editor/common/core/position';
-import { OverviewRulerZone } from 'vs/editor/common/viewModel/overviewZoneManager';
-import { defaultInsertColor, defaultRemoveColor, diffInserted, diffOverviewRulerInserted, diffOverviewRulerRemoved, diffRemoved } from 'vs/platform/theme/common/colorRegistry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { EventType, addDisposableListener, addStandardDisposableListener, h } from '../../../../../base/browser/dom';
+import { createFastDomNode } from '../../../../../base/browser/fastDomNode';
+import { IMouseWheelEvent } from '../../../../../base/browser/mouseEvent';
+import { ScrollbarState } from '../../../../../base/browser/ui/scrollbar/scrollbarState';
+import { Color } from '../../../../../base/common/color';
+import { Disposable } from '../../../../../base/common/lifecycle';
+import { IObservable, autorun, autorunWithStore, derived, observableFromEvent, observableSignalFromEvent } from '../../../../../base/common/observable';
+import { CodeEditorWidget } from '../../codeEditor/codeEditorWidget';
+import { DiffEditorEditors } from '../components/diffEditorEditors';
+import { DiffEditorViewModel } from '../diffEditorViewModel';
+import { appendRemoveOnDispose } from '../utils';
+import { EditorLayoutInfo, EditorOption } from '../../../../common/config/editorOptions';
+import { LineRange } from '../../../../common/core/lineRange';
+import { Position } from '../../../../common/core/position';
+import { OverviewRulerZone } from '../../../../common/viewModel/overviewZoneManager';
+import { defaultInsertColor, defaultRemoveColor, diffInserted, diffOverviewRulerInserted, diffOverviewRulerRemoved, diffRemoved } from '../../../../../platform/theme/common/colorRegistry';
+import { IThemeService } from '../../../../../platform/theme/common/themeService';
 
 export class OverviewRulerFeature extends Disposable {
 	private static readonly ONE_OVERVIEW_WIDTH = 15;

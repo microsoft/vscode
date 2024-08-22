@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { URI } from 'vs/base/common/uri';
-import { mock } from 'vs/base/test/common/mock';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { MainThreadDecorationsShape } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostDecorations } from 'vs/workbench/api/common/extHostDecorations';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { timeout } from '../../../../base/common/async';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import { URI } from '../../../../base/common/uri';
+import { mock } from '../../../../base/test/common/mock';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils';
+import { NullLogService } from '../../../../platform/log/common/log';
+import { MainThreadDecorationsShape } from '../../common/extHost.protocol';
+import { ExtHostDecorations } from '../../common/extHostDecorations';
+import { IExtHostRpcService } from '../../common/extHostRpcService';
+import { nullExtensionDescription } from '../../../services/extensions/common/extensions';
 
 suite('ExtHostDecorations', function () {
 

@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { assertFn } from 'vs/base/common/assert';
-import { DisposableStore, IDisposable, markAsDisposed, toDisposable, trackDisposable } from 'vs/base/common/lifecycle';
-import { IReader, IObservable, IObserver, IChangeContext } from 'vs/base/common/observableInternal/base';
-import { DebugNameData, IDebugNameData } from 'vs/base/common/observableInternal/debugName';
-import { getLogger } from 'vs/base/common/observableInternal/logging';
+import { assertFn } from '../assert';
+import { DisposableStore, IDisposable, markAsDisposed, toDisposable, trackDisposable } from '../lifecycle';
+import { IReader, IObservable, IObserver, IChangeContext } from './base';
+import { DebugNameData, IDebugNameData } from './debugName';
+import { getLogger } from './logging';
 
 /**
  * Runs immediately and whenever a transaction ends and an observed observable changed.

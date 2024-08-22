@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITextAreaInputHost, TextAreaInput, TextAreaWrapper } from 'vs/editor/browser/controller/textAreaInput';
-import { ISimpleModel, PagedScreenReaderStrategy, TextAreaState } from 'vs/editor/browser/controller/textAreaState';
-import { Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { EndOfLinePreference } from 'vs/editor/common/model';
-import * as dom from 'vs/base/browser/dom';
-import * as browser from 'vs/base/browser/browser';
-import * as platform from 'vs/base/common/platform';
-import { mainWindow } from 'vs/base/browser/window';
-import { TestAccessibilityService } from 'vs/platform/accessibility/test/common/testAccessibilityService';
-import { NullLogService } from 'vs/platform/log/common/log';
+import { ITextAreaInputHost, TextAreaInput, TextAreaWrapper } from '../../../browser/controller/textAreaInput';
+import { ISimpleModel, PagedScreenReaderStrategy, TextAreaState } from '../../../browser/controller/textAreaState';
+import { Position } from '../../../common/core/position';
+import { IRange, Range } from '../../../common/core/range';
+import { EndOfLinePreference } from '../../../common/model';
+import * as dom from '../../../../base/browser/dom';
+import * as browser from '../../../../base/browser/browser';
+import * as platform from '../../../../base/common/platform';
+import { mainWindow } from '../../../../base/browser/window';
+import { TestAccessibilityService } from '../../../../platform/accessibility/test/common/testAccessibilityService';
+import { NullLogService } from '../../../../platform/log/common/log';
 
 // To run this test, open imeTester.html
 

@@ -4,22 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { IDataSource } from 'vs/base/browser/ui/tree/tree';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IReference } from 'vs/base/common/lifecycle';
-import { mock } from 'vs/base/test/common/mock';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { ITextModel } from 'vs/editor/common/model';
-import { IOutlineModelService, OutlineModel } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { NotebookBreadcrumbsProvider, NotebookCellOutline, NotebookOutlinePaneProvider, NotebookQuickPickProvider } from 'vs/workbench/contrib/notebook/browser/contrib/outline/notebookOutline';
-import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { INotebookCellOutlineDataSource } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineDataSource';
-import { NotebookOutlineEntryFactory } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineEntryFactory';
-import { OutlineEntry } from 'vs/workbench/contrib/notebook/browser/viewModel/OutlineEntry';
-import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { MockDocumentSymbol } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
+import { IDataSource } from '../../../../../../base/browser/ui/tree/tree';
+import { CancellationToken } from '../../../../../../base/common/cancellation';
+import { IReference } from '../../../../../../base/common/lifecycle';
+import { mock } from '../../../../../../base/test/common/mock';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils';
+import { ITextModel } from '../../../../../../editor/common/model';
+import { IOutlineModelService, OutlineModel } from '../../../../../../editor/contrib/documentSymbols/browser/outlineModel';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService';
+import { TestThemeService } from '../../../../../../platform/theme/test/common/testThemeService';
+import { NotebookBreadcrumbsProvider, NotebookCellOutline, NotebookOutlinePaneProvider, NotebookQuickPickProvider } from '../../../browser/contrib/outline/notebookOutline';
+import { ICellViewModel } from '../../../browser/notebookBrowser';
+import { INotebookCellOutlineDataSource } from '../../../browser/viewModel/notebookOutlineDataSource';
+import { NotebookOutlineEntryFactory } from '../../../browser/viewModel/notebookOutlineEntryFactory';
+import { OutlineEntry } from '../../../browser/viewModel/OutlineEntry';
+import { INotebookExecutionStateService } from '../../../common/notebookExecutionStateService';
+import { MockDocumentSymbol } from '../testNotebookEditor';
 
 suite('Notebook Outline View Providers', function () {
 

@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { localize, localize2 } from 'vs/nls';
-import { MenuId, MenuRegistry, Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IURLService } from 'vs/platform/url/common/url';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
-import { ExternalUriResolverContribution } from 'vs/workbench/contrib/url/browser/externalUriResolver';
-import { manageTrustedDomainSettingsCommand } from 'vs/workbench/contrib/url/browser/trustedDomains';
-import { TrustedDomainsFileSystemProvider } from 'vs/workbench/contrib/url/browser/trustedDomainsFileSystemProvider';
-import { OpenerValidatorContributions } from 'vs/workbench/contrib/url/browser/trustedDomainsValidator';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
-import { ITrustedDomainService, TrustedDomainService } from 'vs/workbench/contrib/url/browser/trustedDomainService';
-import { registerSingleton, InstantiationType } from 'vs/platform/instantiation/common/extensions';
+import { URI } from '../../../../base/common/uri';
+import { localize, localize2 } from '../../../../nls';
+import { MenuId, MenuRegistry, Action2, registerAction2 } from '../../../../platform/actions/common/actions';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands';
+import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle';
+import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput';
+import { Registry } from '../../../../platform/registry/common/platform';
+import { IURLService } from '../../../../platform/url/common/url';
+import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions';
+import { ExternalUriResolverContribution } from './externalUriResolver';
+import { manageTrustedDomainSettingsCommand } from './trustedDomains';
+import { TrustedDomainsFileSystemProvider } from './trustedDomainsFileSystemProvider';
+import { OpenerValidatorContributions } from './trustedDomainsValidator';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories';
+import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry';
+import { workbenchConfigurationNodeBase } from '../../../common/configuration';
+import { ITrustedDomainService, TrustedDomainService } from './trustedDomainService';
+import { registerSingleton, InstantiationType } from '../../../../platform/instantiation/common/extensions';
 
 class OpenUrlAction extends Action2 {
 

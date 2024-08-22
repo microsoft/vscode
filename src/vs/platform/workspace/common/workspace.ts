@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { Event } from 'vs/base/common/event';
-import { basename, extname } from 'vs/base/common/path';
-import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
-import { extname as resourceExtname, basenameOrAuthority, joinPath, extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { Schemas } from 'vs/base/common/network';
+import { localize } from '../../../nls';
+import { Event } from '../../../base/common/event';
+import { basename, extname } from '../../../base/common/path';
+import { TernarySearchTree } from '../../../base/common/ternarySearchTree';
+import { extname as resourceExtname, basenameOrAuthority, joinPath, extUriBiasedIgnorePathCase } from '../../../base/common/resources';
+import { URI, UriComponents } from '../../../base/common/uri';
+import { createDecorator } from '../../instantiation/common/instantiation';
+import { IEnvironmentService } from '../../environment/common/environment';
+import { Schemas } from '../../../base/common/network';
 
 export const IWorkspaceContextService = createDecorator<IWorkspaceContextService>('contextService');
 

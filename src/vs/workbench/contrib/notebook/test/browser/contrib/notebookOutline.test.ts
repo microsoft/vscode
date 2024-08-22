@@ -4,23 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { setupInstantiationService, withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
-import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
-import { IFileIconTheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { mock } from 'vs/base/test/common/mock';
-import { Event } from 'vs/base/common/event';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IMarkerService } from 'vs/platform/markers/common/markers';
-import { MarkerService } from 'vs/platform/markers/common/markerService';
-import { CellKind, IOutputDto, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { IActiveNotebookEditor, INotebookEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { NotebookCellOutline } from 'vs/workbench/contrib/notebook/browser/contrib/outline/notebookOutline';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
-import { IEditorPaneSelectionChangeEvent } from 'vs/workbench/common/editor';
+import { setupInstantiationService, withTestNotebook } from '../testNotebookEditor';
+import { OutlineTarget } from '../../../../../services/outline/browser/outline';
+import { IFileIconTheme, IThemeService } from '../../../../../../platform/theme/common/themeService';
+import { mock } from '../../../../../../base/test/common/mock';
+import { Event } from '../../../../../../base/common/event';
+import { IEditorService } from '../../../../../services/editor/common/editorService';
+import { IMarkerService } from '../../../../../../platform/markers/common/markers';
+import { MarkerService } from '../../../../../../platform/markers/common/markerService';
+import { CellKind, IOutputDto, NotebookCellMetadata } from '../../../common/notebookCommon';
+import { IActiveNotebookEditor, INotebookEditorPane } from '../../../browser/notebookBrowser';
+import { DisposableStore } from '../../../../../../base/common/lifecycle';
+import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock';
+import { NotebookCellOutline } from '../../../browser/contrib/outline/notebookOutline';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils';
+import { ILanguageFeaturesService } from '../../../../../../editor/common/services/languageFeatures';
+import { LanguageFeaturesService } from '../../../../../../editor/common/services/languageFeaturesService';
+import { IEditorPaneSelectionChangeEvent } from '../../../../../common/editor';
 
 suite('Notebook Outline', function () {
 

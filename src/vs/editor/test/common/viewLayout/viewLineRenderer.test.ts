@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { CharCode } from 'vs/base/common/charCode';
-import * as strings from 'vs/base/common/strings';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
-import { IViewLineTokens } from 'vs/editor/common/tokens/lineTokens';
-import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
-import { CharacterMapping, DomPosition, LineRange, RenderLineInput, RenderLineOutput2, renderViewLine2 as renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
-import { InlineDecorationType } from 'vs/editor/common/viewModel';
-import { TestLineToken, TestLineTokens } from 'vs/editor/test/common/core/testLineToken';
+import { CharCode } from '../../../../base/common/charCode';
+import * as strings from '../../../../base/common/strings';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils';
+import { MetadataConsts } from '../../../common/encodedTokenAttributes';
+import { IViewLineTokens } from '../../../common/tokens/lineTokens';
+import { LineDecoration } from '../../../common/viewLayout/lineDecorations';
+import { CharacterMapping, DomPosition, LineRange, RenderLineInput, RenderLineOutput2, renderViewLine2 as renderViewLine } from '../../../common/viewLayout/viewLineRenderer';
+import { InlineDecorationType } from '../../../common/viewModel';
+import { TestLineToken, TestLineTokens } from '../core/testLineToken';
 
 function createViewLineTokens(viewLineTokens: TestLineToken[]): IViewLineTokens {
 	return new TestLineTokens(viewLineTokens);

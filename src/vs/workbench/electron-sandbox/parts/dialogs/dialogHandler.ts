@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { fromNow } from 'vs/base/common/date';
-import { isLinuxSnap } from 'vs/base/common/platform';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { AbstractDialogHandler, IConfirmation, IConfirmationResult, IPrompt, IAsyncPromptResult } from 'vs/platform/dialogs/common/dialogs';
-import { ILogService } from 'vs/platform/log/common/log';
-import { INativeHostService } from 'vs/platform/native/common/native';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
-import { getActiveWindow } from 'vs/base/browser/dom';
+import { localize } from '../../../../nls';
+import { fromNow } from '../../../../base/common/date';
+import { isLinuxSnap } from '../../../../base/common/platform';
+import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService';
+import { AbstractDialogHandler, IConfirmation, IConfirmationResult, IPrompt, IAsyncPromptResult } from '../../../../platform/dialogs/common/dialogs';
+import { ILogService } from '../../../../platform/log/common/log';
+import { INativeHostService } from '../../../../platform/native/common/native';
+import { IProductService } from '../../../../platform/product/common/productService';
+import { process } from '../../../../base/parts/sandbox/electron-sandbox/globals';
+import { getActiveWindow } from '../../../../base/browser/dom';
 
 export class NativeDialogHandler extends AbstractDialogHandler {
 

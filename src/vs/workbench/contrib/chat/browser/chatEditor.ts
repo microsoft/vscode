@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IContextKeyService, IScopedContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { editorBackground, editorForeground, inputBackground } from 'vs/platform/theme/common/colorRegistry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { IEditorOpenContext } from 'vs/workbench/common/editor';
-import { Memento } from 'vs/workbench/common/memento';
-import { clearChatEditor } from 'vs/workbench/contrib/chat/browser/actions/chatClear';
-import { ChatEditorInput } from 'vs/workbench/contrib/chat/browser/chatEditorInput';
-import { ChatWidget, IChatViewState } from 'vs/workbench/contrib/chat/browser/chatWidget';
-import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { IChatModel, IExportableChatData, ISerializableChatData } from 'vs/workbench/contrib/chat/common/chatModel';
-import { CHAT_PROVIDER_ID } from 'vs/workbench/contrib/chat/common/chatParticipantContribTypes';
-import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import * as dom from '../../../../base/browser/dom';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import { IContextKeyService, IScopedContextKeyService } from '../../../../platform/contextkey/common/contextkey';
+import { IEditorOptions } from '../../../../platform/editor/common/editor';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
+import { editorBackground, editorForeground, inputBackground } from '../../../../platform/theme/common/colorRegistry';
+import { IThemeService } from '../../../../platform/theme/common/themeService';
+import { EditorPane } from '../../../browser/parts/editor/editorPane';
+import { IEditorOpenContext } from '../../../common/editor';
+import { Memento } from '../../../common/memento';
+import { clearChatEditor } from './actions/chatClear';
+import { ChatEditorInput } from './chatEditorInput';
+import { ChatWidget, IChatViewState } from './chatWidget';
+import { ChatAgentLocation } from '../common/chatAgents';
+import { IChatModel, IExportableChatData, ISerializableChatData } from '../common/chatModel';
+import { CHAT_PROVIDER_ID } from '../common/chatParticipantContribTypes';
+import { IEditorGroup } from '../../../services/editor/common/editorGroupsService';
 
 export interface IChatEditorOptions extends IEditorOptions {
 	target?: { sessionId: string } | { data: IExportableChatData | ISerializableChatData };

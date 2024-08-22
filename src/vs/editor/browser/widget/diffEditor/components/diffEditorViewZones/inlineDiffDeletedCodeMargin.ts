@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addStandardDisposableListener, getDomNodePagePosition } from 'vs/base/browser/dom';
-import { Action } from 'vs/base/common/actions';
-import { Codicon } from 'vs/base/common/codicons';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { isIOS } from 'vs/base/common/platform';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
-import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { DetailedLineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
-import { EndOfLineSequence, ITextModel } from 'vs/editor/common/model';
-import { localize } from 'vs/nls';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { addStandardDisposableListener, getDomNodePagePosition } from '../../../../../../base/browser/dom';
+import { Action } from '../../../../../../base/common/actions';
+import { Codicon } from '../../../../../../base/common/codicons';
+import { Disposable } from '../../../../../../base/common/lifecycle';
+import { isIOS } from '../../../../../../base/common/platform';
+import { ThemeIcon } from '../../../../../../base/common/themables';
+import { IEditorMouseEvent, MouseTargetType } from '../../../../editorBrowser';
+import { CodeEditorWidget } from '../../../codeEditor/codeEditorWidget';
+import { DiffEditorWidget } from '../../diffEditorWidget';
+import { EditorOption } from '../../../../../common/config/editorOptions';
+import { DetailedLineRangeMapping } from '../../../../../common/diff/rangeMapping';
+import { EndOfLineSequence, ITextModel } from '../../../../../common/model';
+import { localize } from '../../../../../../nls';
+import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService';
+import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView';
 
 export class InlineDiffDeletedCodeMargin extends Disposable {
 	private readonly _diffActions: HTMLElement;

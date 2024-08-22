@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { URI, UriComponents } from '../../../base/common/uri';
 import { MainContext, IMainContext, ExtHostFileSystemShape, MainThreadFileSystemShape, IFileChangeDto } from './extHost.protocol';
 import type * as vscode from 'vscode';
-import * as files from 'vs/platform/files/common/files';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { FileChangeType } from 'vs/workbench/api/common/extHostTypes';
-import * as typeConverter from 'vs/workbench/api/common/extHostTypeConverters';
-import { ExtHostLanguageFeatures } from 'vs/workbench/api/common/extHostLanguageFeatures';
-import { State, StateMachine, LinkComputer, Edge } from 'vs/editor/common/languages/linkComputer';
-import { commonPrefixLength } from 'vs/base/common/strings';
-import { CharCode } from 'vs/base/common/charCode';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
-import { IMarkdownString, isMarkdownString } from 'vs/base/common/htmlContent';
+import * as files from '../../../platform/files/common/files';
+import { IDisposable, toDisposable } from '../../../base/common/lifecycle';
+import { FileChangeType } from './extHostTypes';
+import * as typeConverter from './extHostTypeConverters';
+import { ExtHostLanguageFeatures } from './extHostLanguageFeatures';
+import { State, StateMachine, LinkComputer, Edge } from '../../../editor/common/languages/linkComputer';
+import { commonPrefixLength } from '../../../base/common/strings';
+import { CharCode } from '../../../base/common/charCode';
+import { VSBuffer } from '../../../base/common/buffer';
+import { IExtensionDescription } from '../../../platform/extensions/common/extensions';
+import { checkProposedApiEnabled } from '../../services/extensions/common/extensions';
+import { IMarkdownString, isMarkdownString } from '../../../base/common/htmlContent';
 
 class FsLinkProvider {
 

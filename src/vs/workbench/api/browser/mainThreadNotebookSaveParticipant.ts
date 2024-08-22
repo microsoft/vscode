@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { localize } from 'vs/nls';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IProgressStep, IProgress } from 'vs/platform/progress/common/progress';
-import { extHostCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { CancellationToken } from '../../../base/common/cancellation';
+import { localize } from '../../../nls';
+import { IInstantiationService } from '../../../platform/instantiation/common/instantiation';
+import { IProgressStep, IProgress } from '../../../platform/progress/common/progress';
+import { extHostCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers';
 import { ExtHostContext, ExtHostNotebookDocumentSaveParticipantShape } from '../common/extHost.protocol';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { raceCancellationError } from 'vs/base/common/async';
-import { IStoredFileWorkingCopySaveParticipant, IStoredFileWorkingCopySaveParticipantContext, IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { IStoredFileWorkingCopy, IStoredFileWorkingCopyModel } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
-import { NotebookFileWorkingCopyModel } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
+import { IDisposable } from '../../../base/common/lifecycle';
+import { raceCancellationError } from '../../../base/common/async';
+import { IStoredFileWorkingCopySaveParticipant, IStoredFileWorkingCopySaveParticipantContext, IWorkingCopyFileService } from '../../services/workingCopy/common/workingCopyFileService';
+import { IStoredFileWorkingCopy, IStoredFileWorkingCopyModel } from '../../services/workingCopy/common/storedFileWorkingCopy';
+import { NotebookFileWorkingCopyModel } from '../../contrib/notebook/common/notebookEditorModel';
 
 class ExtHostNotebookDocumentSaveParticipant implements IStoredFileWorkingCopySaveParticipant {
 

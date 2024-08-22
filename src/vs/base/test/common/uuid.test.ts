@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import * as uuid from 'vs/base/common/uuid';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import * as uuid from '../../common/uuid';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils';
 
 suite('UUID', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

@@ -3,23 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { findLast } from 'vs/base/common/arraysFind';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { derived, derivedObservableWithWritableCache, IObservable, IReader, ITransaction, observableValue, transaction } from 'vs/base/common/observable';
-import { Range } from 'vs/editor/common/core/range';
-import { ScrollType } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
-import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';
-import { MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/model/mergeEditorModel';
-import { InputNumber, ModifiedBaseRange, ModifiedBaseRangeState } from 'vs/workbench/contrib/mergeEditor/browser/model/modifiedBaseRange';
-import { observableConfigValue } from 'vs/platform/observable/common/platformObservableUtils';
-import { BaseCodeEditorView } from 'vs/workbench/contrib/mergeEditor/browser/view/editors/baseCodeEditorView';
-import { CodeEditorView } from 'vs/workbench/contrib/mergeEditor/browser/view/editors/codeEditorView';
-import { InputCodeEditorView } from 'vs/workbench/contrib/mergeEditor/browser/view/editors/inputCodeEditorView';
-import { ResultCodeEditorView } from 'vs/workbench/contrib/mergeEditor/browser/view/editors/resultCodeEditorView';
+import { findLast } from '../../../../../base/common/arraysFind';
+import { Disposable } from '../../../../../base/common/lifecycle';
+import { derived, derivedObservableWithWritableCache, IObservable, IReader, ITransaction, observableValue, transaction } from '../../../../../base/common/observable';
+import { Range } from '../../../../../editor/common/core/range';
+import { ScrollType } from '../../../../../editor/common/editorCommon';
+import { ITextModel } from '../../../../../editor/common/model';
+import { localize } from '../../../../../nls';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration';
+import { INotificationService } from '../../../../../platform/notification/common/notification';
+import { LineRange } from '../model/lineRange';
+import { MergeEditorModel } from '../model/mergeEditorModel';
+import { InputNumber, ModifiedBaseRange, ModifiedBaseRangeState } from '../model/modifiedBaseRange';
+import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils';
+import { BaseCodeEditorView } from './editors/baseCodeEditorView';
+import { CodeEditorView } from './editors/codeEditorView';
+import { InputCodeEditorView } from './editors/inputCodeEditorView';
+import { ResultCodeEditorView } from './editors/resultCodeEditorView';
 
 export class MergeEditorViewModel extends Disposable {
 	private readonly manuallySetActiveModifiedBaseRange = observableValue<

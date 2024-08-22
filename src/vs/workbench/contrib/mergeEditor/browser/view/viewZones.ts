@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $ } from 'vs/base/browser/dom';
-import { CompareResult, lastOrDefault } from 'vs/base/common/arrays';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IObservable, IReader } from 'vs/base/common/observable';
-import { ICodeEditor, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBrowser';
-import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';
-import { DetailedLineRangeMapping } from 'vs/workbench/contrib/mergeEditor/browser/model/mapping';
-import { ModifiedBaseRange } from 'vs/workbench/contrib/mergeEditor/browser/model/modifiedBaseRange';
-import { join } from 'vs/workbench/contrib/mergeEditor/browser/utils';
-import { ActionsSource, ConflictActionsFactory, IContentWidgetAction } from 'vs/workbench/contrib/mergeEditor/browser/view/conflictActions';
-import { getAlignments } from 'vs/workbench/contrib/mergeEditor/browser/view/lineAlignment';
-import { MergeEditorViewModel } from 'vs/workbench/contrib/mergeEditor/browser/view/viewModel';
+import { $ } from '../../../../../base/browser/dom';
+import { CompareResult, lastOrDefault } from '../../../../../base/common/arrays';
+import { DisposableStore } from '../../../../../base/common/lifecycle';
+import { IObservable, IReader } from '../../../../../base/common/observable';
+import { ICodeEditor, IViewZoneChangeAccessor } from '../../../../../editor/browser/editorBrowser';
+import { LineRange } from '../model/lineRange';
+import { DetailedLineRangeMapping } from '../model/mapping';
+import { ModifiedBaseRange } from '../model/modifiedBaseRange';
+import { join } from '../utils';
+import { ActionsSource, ConflictActionsFactory, IContentWidgetAction } from './conflictActions';
+import { getAlignments } from './lineAlignment';
+import { MergeEditorViewModel } from './viewModel';
 
 export class ViewZoneComputer {
 	private readonly conflictActionsFactoryInput1 = new ConflictActionsFactory(this.input1Editor);

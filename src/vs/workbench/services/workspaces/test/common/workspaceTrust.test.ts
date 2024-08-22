@@ -4,25 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { mock } from 'vs/base/test/common/mock';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IWorkspaceTrustEnablementService, IWorkspaceTrustInfo } from 'vs/platform/workspace/common/workspaceTrust';
-import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
-import { Memento } from 'vs/workbench/common/memento';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
-import { WorkspaceTrustEnablementService, WorkspaceTrustManagementService, WORKSPACE_TRUST_STORAGE_KEY } from 'vs/workbench/services/workspaces/common/workspaceTrust';
-import { TestContextService, TestStorageService, TestWorkspaceTrustEnablementService } from 'vs/workbench/test/common/workbenchTestServices';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { URI } from '../../../../../base/common/uri';
+import { mock } from '../../../../../base/test/common/mock';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService';
+import { FileService } from '../../../../../platform/files/common/fileService';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock';
+import { NullLogService } from '../../../../../platform/log/common/log';
+import { IRemoteAuthorityResolverService } from '../../../../../platform/remote/common/remoteAuthorityResolver';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace';
+import { IWorkspaceTrustEnablementService, IWorkspaceTrustInfo } from '../../../../../platform/workspace/common/workspaceTrust';
+import { Workspace } from '../../../../../platform/workspace/test/common/testWorkspace';
+import { Memento } from '../../../../common/memento';
+import { IWorkbenchEnvironmentService } from '../../../environment/common/environmentService';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity';
+import { UriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentityService';
+import { WorkspaceTrustEnablementService, WorkspaceTrustManagementService, WORKSPACE_TRUST_STORAGE_KEY } from '../../common/workspaceTrust';
+import { TestContextService, TestStorageService, TestWorkspaceTrustEnablementService } from '../../../../test/common/workbenchTestServices';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils';
 
 suite('Workspace Trust', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

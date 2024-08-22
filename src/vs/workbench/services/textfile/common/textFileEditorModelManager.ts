@@ -3,28 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { Event, Emitter } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
-import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
-import { dispose, IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ITextFileEditorModel, ITextFileEditorModelManager, ITextFileEditorModelResolveOrCreateOptions, ITextFileResolveEvent, ITextFileSaveEvent, ITextFileSaveParticipant } from 'vs/workbench/services/textfile/common/textfiles';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ResourceMap } from 'vs/base/common/map';
-import { IFileService, FileChangesEvent, FileOperation, FileChangeType, IFileSystemProviderRegistrationEvent, IFileSystemProviderCapabilitiesChangeEvent } from 'vs/platform/files/common/files';
-import { Promises, ResourceQueue } from 'vs/base/common/async';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { TextFileSaveParticipant } from 'vs/workbench/services/textfile/common/textFileSaveParticipant';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IStoredFileWorkingCopySaveParticipantContext, IWorkingCopyFileService, WorkingCopyFileEvent } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { ITextSnapshot } from 'vs/editor/common/model';
-import { extname, joinPath } from 'vs/base/common/resources';
-import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
-import { PLAINTEXT_EXTENSION, PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
+import { localize } from '../../../../nls';
+import { toErrorMessage } from '../../../../base/common/errorMessage';
+import { Event, Emitter } from '../../../../base/common/event';
+import { URI } from '../../../../base/common/uri';
+import { TextFileEditorModel } from './textFileEditorModel';
+import { dispose, IDisposable, Disposable, DisposableStore } from '../../../../base/common/lifecycle';
+import { ITextFileEditorModel, ITextFileEditorModelManager, ITextFileEditorModelResolveOrCreateOptions, ITextFileResolveEvent, ITextFileSaveEvent, ITextFileSaveParticipant } from './textfiles';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { ResourceMap } from '../../../../base/common/map';
+import { IFileService, FileChangesEvent, FileOperation, FileChangeType, IFileSystemProviderRegistrationEvent, IFileSystemProviderCapabilitiesChangeEvent } from '../../../../platform/files/common/files';
+import { Promises, ResourceQueue } from '../../../../base/common/async';
+import { onUnexpectedError } from '../../../../base/common/errors';
+import { TextFileSaveParticipant } from './textFileSaveParticipant';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import { INotificationService } from '../../../../platform/notification/common/notification';
+import { IStoredFileWorkingCopySaveParticipantContext, IWorkingCopyFileService, WorkingCopyFileEvent } from '../../workingCopy/common/workingCopyFileService';
+import { ITextSnapshot } from '../../../../editor/common/model';
+import { extname, joinPath } from '../../../../base/common/resources';
+import { createTextBufferFactoryFromSnapshot } from '../../../../editor/common/model/textModel';
+import { PLAINTEXT_EXTENSION, PLAINTEXT_LANGUAGE_ID } from '../../../../editor/common/languages/modesRegistry';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity';
+import { IProgress, IProgressStep } from '../../../../platform/progress/common/progress';
 
 export class TextFileEditorModelManager extends Disposable implements ITextFileEditorModelManager {
 

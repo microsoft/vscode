@@ -4,18 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { app, BrowserWindow, Event as IpcEvent } from 'electron';
-import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { URI } from 'vs/base/common/uri';
-import { IDiagnosticInfo, IDiagnosticInfoOptions, IMainProcessDiagnostics, IProcessDiagnostics, IRemoteDiagnosticError, IRemoteDiagnosticInfo, IWindowDiagnostics } from 'vs/platform/diagnostics/common/diagnostics';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ICodeWindow } from 'vs/platform/window/electron-main/window';
-import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
-import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
-import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
-import { assertIsDefined } from 'vs/base/common/types';
-import { ILogService } from 'vs/platform/log/common/log';
-import { UtilityProcess } from 'vs/platform/utilityProcess/electron-main/utilityProcess';
+import { validatedIpcMain } from '../../../base/parts/ipc/electron-main/ipcMain';
+import { CancellationToken } from '../../../base/common/cancellation';
+import { URI } from '../../../base/common/uri';
+import { IDiagnosticInfo, IDiagnosticInfoOptions, IMainProcessDiagnostics, IProcessDiagnostics, IRemoteDiagnosticError, IRemoteDiagnosticInfo, IWindowDiagnostics } from '../common/diagnostics';
+import { createDecorator } from '../../instantiation/common/instantiation';
+import { ICodeWindow } from '../../window/electron-main/window';
+import { IWindowsMainService } from '../../windows/electron-main/windows';
+import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from '../../workspace/common/workspace';
+import { IWorkspacesManagementMainService } from '../../workspaces/electron-main/workspacesManagementMainService';
+import { assertIsDefined } from '../../../base/common/types';
+import { ILogService } from '../../log/common/log';
+import { UtilityProcess } from '../../utilityProcess/electron-main/utilityProcess';
 
 export const ID = 'diagnosticsMainService';
 export const IDiagnosticsMainService = createDecorator<IDiagnosticsMainService>(ID);

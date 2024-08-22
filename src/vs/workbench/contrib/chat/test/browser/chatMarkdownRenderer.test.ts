@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import { assertSnapshot } from 'vs/base/test/common/snapshot';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { ChatMarkdownRenderer } from 'vs/workbench/contrib/chat/browser/chatMarkdownRenderer';
-import { ITrustedDomainService } from 'vs/workbench/contrib/url/browser/trustedDomainService';
-import { MockTrustedDomainService } from 'vs/workbench/contrib/url/test/browser/mockTrustedDomainService';
-import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { MarkdownString } from '../../../../../base/common/htmlContent';
+import { assertSnapshot } from '../../../../../base/test/common/snapshot';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils';
+import { ChatMarkdownRenderer } from '../../browser/chatMarkdownRenderer';
+import { ITrustedDomainService } from '../../../url/browser/trustedDomainService';
+import { MockTrustedDomainService } from '../../../url/test/browser/mockTrustedDomainService';
+import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices';
 
 suite('ChatMarkdownRenderer', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

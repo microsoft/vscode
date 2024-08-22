@@ -3,28 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { IMenuItem, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
-import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
-import * as InlineChatActions from 'vs/workbench/contrib/inlineChat/browser/inlineChatActions';
-import { CTX_INLINE_CHAT_EDITING, CTX_INLINE_CHAT_REQUEST_IN_PROGRESS, INLINE_CHAT_ID, MENU_INLINE_CHAT_CONTENT_STATUS, MENU_INLINE_CHAT_WIDGET_STATUS } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { InlineChatNotebookContribution } from 'vs/workbench/contrib/inlineChat/browser/inlineChatNotebook';
-import { IWorkbenchContributionsRegistry, registerWorkbenchContribution2, Extensions as WorkbenchExtensions, WorkbenchPhase } from 'vs/workbench/common/contributions';
-import { InlineChatSavingServiceImpl } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSavingServiceImpl';
-import { InlineChatAccessibleView } from 'vs/workbench/contrib/inlineChat/browser/inlineChatAccessibleView';
-import { IInlineChatSavingService } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSavingService';
-import { IInlineChatSessionService } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSessionService';
-import { InlineChatEnabler, InlineChatSessionServiceImpl } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSessionServiceImpl';
-import { AccessibleViewRegistry } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
-import { CancelAction, SubmitAction } from 'vs/workbench/contrib/chat/browser/actions/chatExecuteActions';
-import { localize } from 'vs/nls';
-import { CONTEXT_CHAT_INPUT_HAS_TEXT } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { InlineChatAccessibilityHelp } from 'vs/workbench/contrib/inlineChat/browser/inlineChatAccessibilityHelp';
-import { InlineChatExansionContextKey, InlineChatExpandLineAction } from 'vs/workbench/contrib/inlineChat/browser/inlineChatCurrentLine';
+import { EditorContributionInstantiation, registerEditorContribution } from '../../../../editor/browser/editorExtensions';
+import { IMenuItem, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions';
+import { InlineChatController } from './inlineChatController';
+import * as InlineChatActions from './inlineChatActions';
+import { CTX_INLINE_CHAT_EDITING, CTX_INLINE_CHAT_REQUEST_IN_PROGRESS, INLINE_CHAT_ID, MENU_INLINE_CHAT_CONTENT_STATUS, MENU_INLINE_CHAT_WIDGET_STATUS } from '../common/inlineChat';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions';
+import { Registry } from '../../../../platform/registry/common/platform';
+import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle';
+import { InlineChatNotebookContribution } from './inlineChatNotebook';
+import { IWorkbenchContributionsRegistry, registerWorkbenchContribution2, Extensions as WorkbenchExtensions, WorkbenchPhase } from '../../../common/contributions';
+import { InlineChatSavingServiceImpl } from './inlineChatSavingServiceImpl';
+import { InlineChatAccessibleView } from './inlineChatAccessibleView';
+import { IInlineChatSavingService } from './inlineChatSavingService';
+import { IInlineChatSessionService } from './inlineChatSessionService';
+import { InlineChatEnabler, InlineChatSessionServiceImpl } from './inlineChatSessionServiceImpl';
+import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry';
+import { CancelAction, SubmitAction } from '../../chat/browser/actions/chatExecuteActions';
+import { localize } from '../../../../nls';
+import { CONTEXT_CHAT_INPUT_HAS_TEXT } from '../../chat/common/chatContextKeys';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey';
+import { InlineChatAccessibilityHelp } from './inlineChatAccessibilityHelp';
+import { InlineChatExansionContextKey, InlineChatExpandLineAction } from './inlineChatCurrentLine';
 
 
 // --- browser

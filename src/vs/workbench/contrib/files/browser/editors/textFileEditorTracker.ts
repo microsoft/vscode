@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { URI } from 'vs/base/common/uri';
-import { ITextFileService, TextFileEditorModelState } from 'vs/workbench/services/textfile/common/textfiles';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { distinct, coalesce } from 'vs/base/common/arrays';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { RunOnceWorker } from 'vs/base/common/async';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { FILE_EDITOR_INPUT_ID } from 'vs/workbench/contrib/files/common/files';
-import { Schemas } from 'vs/base/common/network';
-import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
-import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
-import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
+import { IWorkbenchContribution } from '../../../../common/contributions';
+import { URI } from '../../../../../base/common/uri';
+import { ITextFileService, TextFileEditorModelState } from '../../../../services/textfile/common/textfiles';
+import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle';
+import { Disposable } from '../../../../../base/common/lifecycle';
+import { distinct, coalesce } from '../../../../../base/common/arrays';
+import { IHostService } from '../../../../services/host/browser/host';
+import { IEditorService } from '../../../../services/editor/common/editorService';
+import { RunOnceWorker } from '../../../../../base/common/async';
+import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService';
+import { IFilesConfigurationService } from '../../../../services/filesConfiguration/common/filesConfigurationService';
+import { FILE_EDITOR_INPUT_ID } from '../../common/files';
+import { Schemas } from '../../../../../base/common/network';
+import { UntitledTextEditorInput } from '../../../../services/untitled/common/untitledTextEditorInput';
+import { IWorkingCopyEditorService } from '../../../../services/workingCopy/common/workingCopyEditorService';
+import { DEFAULT_EDITOR_ASSOCIATION } from '../../../../common/editor';
 
 export class TextFileEditorTracker extends Disposable implements IWorkbenchContribution {
 

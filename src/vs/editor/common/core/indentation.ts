@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as strings from 'vs/base/common/strings';
-import { CursorColumns } from 'vs/editor/common/core/cursorColumns';
+import * as strings from '../../../base/common/strings';
+import { CursorColumns } from './cursorColumns';
 
 function _normalizeIndentationFromWhitespace(str: string, indentSize: number, insertSpaces: boolean): string {
 	let spacesCnt = 0;

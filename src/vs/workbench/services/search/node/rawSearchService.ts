@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as arrays from 'vs/base/common/arrays';
-import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { canceled } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { compareItemsByFuzzyScore, FuzzyScorerCache, IItemAccessor, prepareQuery } from 'vs/base/common/fuzzyScorer';
-import { revive } from 'vs/base/common/marshalling';
-import { basename, dirname, join, sep } from 'vs/base/common/path';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { ByteSize } from 'vs/platform/files/common/files';
-import { DEFAULT_MAX_SEARCH_RESULTS, ICachedSearchStats, IFileQuery, IFileSearchProgressItem, IFileSearchStats, IFolderQuery, IProgressMessage, IRawFileMatch, IRawFileQuery, IRawQuery, IRawSearchService, IRawTextQuery, ISearchEngine, ISearchEngineSuccess, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedSearchSuccess, isFilePatternMatch, ITextQuery } from 'vs/workbench/services/search/common/search';
-import { Engine as FileSearchEngine } from 'vs/workbench/services/search/node/fileSearch';
-import { TextSearchEngineAdapter } from 'vs/workbench/services/search/node/textSearchAdapter';
+import * as arrays from '../../../../base/common/arrays';
+import { CancelablePromise, createCancelablePromise } from '../../../../base/common/async';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import { canceled } from '../../../../base/common/errors';
+import { Emitter, Event } from '../../../../base/common/event';
+import { compareItemsByFuzzyScore, FuzzyScorerCache, IItemAccessor, prepareQuery } from '../../../../base/common/fuzzyScorer';
+import { revive } from '../../../../base/common/marshalling';
+import { basename, dirname, join, sep } from '../../../../base/common/path';
+import { StopWatch } from '../../../../base/common/stopwatch';
+import { URI, UriComponents } from '../../../../base/common/uri';
+import { ByteSize } from '../../../../platform/files/common/files';
+import { DEFAULT_MAX_SEARCH_RESULTS, ICachedSearchStats, IFileQuery, IFileSearchProgressItem, IFileSearchStats, IFolderQuery, IProgressMessage, IRawFileMatch, IRawFileQuery, IRawQuery, IRawSearchService, IRawTextQuery, ISearchEngine, ISearchEngineSuccess, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedSearchSuccess, isFilePatternMatch, ITextQuery } from '../common/search';
+import { Engine as FileSearchEngine } from './fileSearch';
+import { TextSearchEngineAdapter } from './textSearchAdapter';
 
 export type IProgressCallback = (p: ISerializedSearchProgressItem) => void;
 type IFileProgressCallback = (p: IFileSearchProgressItem) => void;

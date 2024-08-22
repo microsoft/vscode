@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEditorHoverContext, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, IRenderedHoverParts, RenderedHoverParts } from 'vs/editor/contrib/hover/browser/hoverTypes';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ContentHoverComputer } from 'vs/editor/contrib/hover/browser/contentHoverComputer';
-import { EditorHoverStatusBar } from 'vs/editor/contrib/hover/browser/contentHoverStatusBar';
-import { HoverStartSource } from 'vs/editor/contrib/hover/browser/hoverOperation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { HoverResult } from 'vs/editor/contrib/hover/browser/contentHoverTypes';
-import * as dom from 'vs/base/browser/dom';
-import { HoverVerbosityAction } from 'vs/editor/common/languages';
-import { MarkdownHoverParticipant } from 'vs/editor/contrib/hover/browser/markdownHoverParticipant';
-import { ColorHoverParticipant } from 'vs/editor/contrib/colorPicker/browser/colorHoverParticipant';
-import { localize } from 'vs/nls';
-import { InlayHintsHover } from 'vs/editor/contrib/inlayHints/browser/inlayHintsHover';
-import { BugIndicatingError } from 'vs/base/common/errors';
-import { HoverAction } from 'vs/base/browser/ui/hover/hoverWidget';
+import { IEditorHoverContext, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, IRenderedHoverParts, RenderedHoverParts } from './hoverTypes';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle';
+import { ContentHoverComputer } from './contentHoverComputer';
+import { EditorHoverStatusBar } from './contentHoverStatusBar';
+import { HoverStartSource } from './hoverOperation';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding';
+import { ModelDecorationOptions } from '../../../common/model/textModel';
+import { ICodeEditor } from '../../../browser/editorBrowser';
+import { Position } from '../../../common/core/position';
+import { Range } from '../../../common/core/range';
+import { HoverResult } from './contentHoverTypes';
+import * as dom from '../../../../base/browser/dom';
+import { HoverVerbosityAction } from '../../../common/languages';
+import { MarkdownHoverParticipant } from './markdownHoverParticipant';
+import { ColorHoverParticipant } from '../../colorPicker/browser/colorHoverParticipant';
+import { localize } from '../../../../nls';
+import { InlayHintsHover } from '../../inlayHints/browser/inlayHintsHover';
+import { BugIndicatingError } from '../../../../base/common/errors';
+import { HoverAction } from '../../../../base/browser/ui/hover/hoverWidget';
 
 export class RenderedContentHover extends Disposable {
 

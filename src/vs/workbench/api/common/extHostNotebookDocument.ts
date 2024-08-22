@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
-import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import * as extHostTypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
-import { NotebookRange } from 'vs/workbench/api/common/extHostTypes';
-import * as notebookCommon from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { Schemas } from '../../../base/common/network';
+import { URI } from '../../../base/common/uri';
+import * as extHostProtocol from './extHost.protocol';
+import { ExtHostDocuments } from './extHostDocuments';
+import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors';
+import * as extHostTypeConverters from './extHostTypeConverters';
+import { NotebookRange } from './extHostTypes';
+import * as notebookCommon from '../../contrib/notebook/common/notebookCommon';
 import * as vscode from 'vscode';
 
 class RawContentChangeEvent {

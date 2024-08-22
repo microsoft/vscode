@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { CellKind, IOutputDto, NotebookCellMetadata, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { IResourceUndoRedoElement, UndoRedoElementType } from 'vs/platform/undoRedo/common/undoRedo';
-import { URI } from 'vs/base/common/uri';
-import { BaseCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/baseCellViewModel';
-import { CellFocusMode } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { ITextCellEditingDelegate } from 'vs/workbench/contrib/notebook/common/model/cellEdit';
+import { Range } from '../../../../../editor/common/core/range';
+import { Selection } from '../../../../../editor/common/core/selection';
+import { CellKind, IOutputDto, NotebookCellMetadata, SelectionStateType } from '../../common/notebookCommon';
+import { IResourceUndoRedoElement, UndoRedoElementType } from '../../../../../platform/undoRedo/common/undoRedo';
+import { URI } from '../../../../../base/common/uri';
+import { BaseCellViewModel } from './baseCellViewModel';
+import { CellFocusMode } from '../notebookBrowser';
+import { NotebookCellTextModel } from '../../common/model/notebookCellTextModel';
+import { ITextCellEditingDelegate } from '../../common/model/cellEdit';
 
 
 export interface IViewCellEditingDelegate extends ITextCellEditingDelegate {

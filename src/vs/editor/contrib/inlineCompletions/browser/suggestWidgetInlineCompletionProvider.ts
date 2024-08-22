@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { compareBy, numberComparator } from 'vs/base/common/arrays';
-import { findFirstMax } from 'vs/base/common/arraysFind';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { SingleTextEdit } from 'vs/editor/common/core/textEdit';
-import { CompletionItemInsertTextRule, CompletionItemKind, SelectedSuggestionInfo } from 'vs/editor/common/languages';
-import { ITextModel } from 'vs/editor/common/model';
-import { singleTextEditAugments, singleTextRemoveCommonPrefix } from 'vs/editor/contrib/inlineCompletions/browser/singleTextEdit';
-import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
-import { SnippetSession } from 'vs/editor/contrib/snippet/browser/snippetSession';
-import { CompletionItem } from 'vs/editor/contrib/suggest/browser/suggest';
-import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
+import { compareBy, numberComparator } from '../../../../base/common/arrays';
+import { findFirstMax } from '../../../../base/common/arraysFind';
+import { Emitter, Event } from '../../../../base/common/event';
+import { Disposable } from '../../../../base/common/lifecycle';
+import { ICodeEditor } from '../../../browser/editorBrowser';
+import { Position } from '../../../common/core/position';
+import { Range } from '../../../common/core/range';
+import { SingleTextEdit } from '../../../common/core/textEdit';
+import { CompletionItemInsertTextRule, CompletionItemKind, SelectedSuggestionInfo } from '../../../common/languages';
+import { ITextModel } from '../../../common/model';
+import { singleTextEditAugments, singleTextRemoveCommonPrefix } from './singleTextEdit';
+import { SnippetParser } from '../../snippet/browser/snippetParser';
+import { SnippetSession } from '../../snippet/browser/snippetSession';
+import { CompletionItem } from '../../suggest/browser/suggest';
+import { SuggestController } from '../../suggest/browser/suggestController';
 
 export class SuggestWidgetAdaptor extends Disposable {
 	private isSuggestWidgetVisible: boolean = false;

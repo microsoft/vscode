@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { LanguageId } from 'vs/editor/common/encodedTokenAttributes';
-import { IModelChangedEvent } from 'vs/editor/common/model/mirrorTextModel';
-import { ICreateGrammarResult, TMGrammarFactory } from 'vs/workbench/services/textMate/common/TMGrammarFactory';
-import { IValidEmbeddedLanguagesMap, IValidGrammarDefinition, IValidTokenTypeMap } from 'vs/workbench/services/textMate/common/TMScopeRegistry';
+import { URI, UriComponents } from '../../../../../../base/common/uri';
+import { LanguageId } from '../../../../../../editor/common/encodedTokenAttributes';
+import { IModelChangedEvent } from '../../../../../../editor/common/model/mirrorTextModel';
+import { ICreateGrammarResult, TMGrammarFactory } from '../../../common/TMGrammarFactory';
+import { IValidEmbeddedLanguagesMap, IValidGrammarDefinition, IValidTokenTypeMap } from '../../../common/TMScopeRegistry';
 import type { IOnigLib, IRawTheme, StackDiff } from 'vscode-textmate';
 import { TextMateWorkerTokenizer } from './textMateWorkerTokenizer';
-import { importAMDNodeModule } from 'vs/amdX';
-import { IRequestHandler, IWorkerServer } from 'vs/base/common/worker/simpleWorker';
+import { importAMDNodeModule } from '../../../../../../amdX';
+import { IRequestHandler, IWorkerServer } from '../../../../../../base/common/worker/simpleWorker';
 import { TextMateWorkerHost } from './textMateWorkerHost';
 
 /**

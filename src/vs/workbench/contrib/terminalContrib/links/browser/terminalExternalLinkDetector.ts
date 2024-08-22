@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITerminalLinkDetector, ITerminalSimpleLink, OmitFirstArg } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
-import { convertLinkRangeToBuffer, getXtermLineContent } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkHelpers';
-import { ITerminalExternalLinkProvider } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalLinkDetector, ITerminalSimpleLink, OmitFirstArg } from './links';
+import { convertLinkRangeToBuffer, getXtermLineContent } from './terminalLinkHelpers';
+import { ITerminalExternalLinkProvider } from '../../../terminal/browser/terminal';
 import type { IBufferLine, Terminal } from '@xterm/xterm';
 
 export class TerminalExternalLinkDetector implements ITerminalLinkDetector {

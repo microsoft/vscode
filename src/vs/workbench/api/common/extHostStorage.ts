@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { MainContext, MainThreadStorageShape, ExtHostStorageShape } from './extHost.protocol';
-import { Emitter } from 'vs/base/common/event';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IExtensionIdWithVersion } from 'vs/platform/extensionManagement/common/extensionStorage';
-import { ILogService } from 'vs/platform/log/common/log';
+import { Emitter } from '../../../base/common/event';
+import { IExtHostRpcService } from './extHostRpcService';
+import { createDecorator } from '../../../platform/instantiation/common/instantiation';
+import { IExtensionIdWithVersion } from '../../../platform/extensionManagement/common/extensionStorage';
+import { ILogService } from '../../../platform/log/common/log';
 
 export interface IStorageChangeEvent {
 	shared: boolean;

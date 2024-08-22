@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import * as resources from 'vs/base/common/resources';
-import { isString } from 'vs/base/common/types';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Extensions, IExtensionFeatureTableRenderer, IExtensionFeaturesRegistry, IRenderedData, IRowData, ITableData } from 'vs/workbench/services/extensionManagement/common/extensionFeatures';
-import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { MarkdownString } from 'vs/base/common/htmlContent';
+import * as nls from '../../../nls';
+import { ExtensionsRegistry } from '../../services/extensions/common/extensionsRegistry';
+import * as resources from '../../../base/common/resources';
+import { isString } from '../../../base/common/types';
+import { Disposable } from '../../../base/common/lifecycle';
+import { Extensions, IExtensionFeatureTableRenderer, IExtensionFeaturesRegistry, IRenderedData, IRowData, ITableData } from '../../services/extensionManagement/common/extensionFeatures';
+import { IExtensionManifest } from '../../../platform/extensions/common/extensions';
+import { Registry } from '../../../platform/registry/common/platform';
+import { SyncDescriptor } from '../../../platform/instantiation/common/descriptors';
+import { MarkdownString } from '../../../base/common/htmlContent';
 
 interface IJSONValidationExtensionPoint {
 	fileMatch: string | string[];

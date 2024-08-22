@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { FoldingMarkers } from 'vs/editor/common/languages/languageConfiguration';
-import { MAX_FOLDING_REGIONS, FoldRange, FoldingRegions, FoldSource } from 'vs/editor/contrib/folding/browser/foldingRanges';
-import { RangesCollector, computeRanges } from 'vs/editor/contrib/folding/browser/indentRangeProvider';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils';
+import { FoldingMarkers } from '../../../../common/languages/languageConfiguration';
+import { MAX_FOLDING_REGIONS, FoldRange, FoldingRegions, FoldSource } from '../../browser/foldingRanges';
+import { RangesCollector, computeRanges } from '../../browser/indentRangeProvider';
+import { createTextModel } from '../../../../test/common/testTextModel';
 
 const markers: FoldingMarkers = {
 	start: /^#region$/,

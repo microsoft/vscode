@@ -3,30 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { h, svgElem } from 'vs/base/browser/dom';
-import { DEFAULT_FONT_FAMILY } from 'vs/base/browser/fonts';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { autorun, constObservable, derived, IObservable, ISettableObservable } from 'vs/base/common/observable';
-import { derivedWithSetter } from 'vs/base/common/observableInternal/derived';
+import { h, svgElem } from '../../../../base/browser/dom';
+import { DEFAULT_FONT_FAMILY } from '../../../../base/browser/fonts';
+import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle';
+import { autorun, constObservable, derived, IObservable, ISettableObservable } from '../../../../base/common/observable';
+import { derivedWithSetter } from '../../../../base/common/observableInternal/derived';
 import 'vs/css!./inlineEditsWidget';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
-import { observableCodeEditor } from 'vs/editor/browser/observableCodeEditor';
-import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/embeddedCodeEditorWidget';
-import { diffAddDecoration, diffAddDecorationEmpty, diffDeleteDecoration, diffDeleteDecorationEmpty, diffLineAddDecorationBackgroundWithIndicator, diffLineDeleteDecorationBackgroundWithIndicator, diffWholeLineAddDecoration, diffWholeLineDeleteDecoration } from 'vs/editor/browser/widget/diffEditor/registrations.contribution';
-import { appendRemoveOnDispose, applyStyle } from 'vs/editor/browser/widget/diffEditor/utils';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { LineRange } from 'vs/editor/common/core/lineRange';
-import { DetailedLineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { IModelDeltaDecoration } from 'vs/editor/common/model';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { ContextMenuController } from 'vs/editor/contrib/contextmenu/browser/contextmenu';
+import { ICodeEditor } from '../../../browser/editorBrowser';
+import { EditorExtensionsRegistry } from '../../../browser/editorExtensions';
+import { observableCodeEditor } from '../../../browser/observableCodeEditor';
+import { EmbeddedCodeEditorWidget } from '../../../browser/widget/codeEditor/embeddedCodeEditorWidget';
+import { diffAddDecoration, diffAddDecorationEmpty, diffDeleteDecoration, diffDeleteDecorationEmpty, diffLineAddDecorationBackgroundWithIndicator, diffLineDeleteDecorationBackgroundWithIndicator, diffWholeLineAddDecoration, diffWholeLineDeleteDecoration } from '../../../browser/widget/diffEditor/registrations.contribution';
+import { appendRemoveOnDispose, applyStyle } from '../../../browser/widget/diffEditor/utils';
+import { EditorOption } from '../../../common/config/editorOptions';
+import { LineRange } from '../../../common/core/lineRange';
+import { DetailedLineRangeMapping } from '../../../common/diff/rangeMapping';
+import { PLAINTEXT_LANGUAGE_ID } from '../../../common/languages/modesRegistry';
+import { IModelDeltaDecoration } from '../../../common/model';
+import { TextModel } from '../../../common/model/textModel';
+import { ContextMenuController } from '../../contextmenu/browser/contextmenu';
 import { PlaceholderTextContribution } from '../../placeholderText/browser/placeholderTextContribution';
-import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
-import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { SuggestController } from '../../suggest/browser/suggestController';
+import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar';
+import { MenuId } from '../../../../platform/actions/common/actions';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
 
 export class InlineEdit {
 	constructor(

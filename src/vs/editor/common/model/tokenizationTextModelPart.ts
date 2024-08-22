@@ -3,35 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import { BugIndicatingError, onUnexpectedError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableMap, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
-import { countEOL } from 'vs/editor/common/core/eolCounter';
-import { LineRange } from 'vs/editor/common/core/lineRange';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { IWordAtPosition, getWordAtText } from 'vs/editor/common/core/wordHelper';
-import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
-import { IBackgroundTokenizationStore, IBackgroundTokenizer, ILanguageIdCodec, IState, ITokenizationSupport, TokenizationRegistry, TreeSitterTokenizationRegistry } from 'vs/editor/common/languages';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { ILanguageConfigurationService, LanguageConfigurationServiceChangeEvent, ResolvedLanguageConfiguration } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { IAttachedView } from 'vs/editor/common/model';
-import { BracketPairsTextModelPart } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsImpl';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { TextModelPart } from 'vs/editor/common/model/textModelPart';
-import { DefaultBackgroundTokenizer, TokenizerWithStateStoreAndTextModel, TrackingTokenizationStateStore } from 'vs/editor/common/model/textModelTokens';
-import { AbstractTokens, AttachedViewHandler, AttachedViews } from 'vs/editor/common/model/tokens';
-import { TreeSitterTokens } from 'vs/editor/common/model/treeSitterTokens';
-import { ITreeSitterParserService } from 'vs/editor/common/services/treeSitterParserService';
-import { IModelContentChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelTokensChangedEvent } from 'vs/editor/common/textModelEvents';
-import { BackgroundTokenizationState, ITokenizationTextModelPart } from 'vs/editor/common/tokenizationTextModelPart';
-import { ContiguousMultilineTokens } from 'vs/editor/common/tokens/contiguousMultilineTokens';
-import { ContiguousMultilineTokensBuilder } from 'vs/editor/common/tokens/contiguousMultilineTokensBuilder';
-import { ContiguousTokensStore } from 'vs/editor/common/tokens/contiguousTokensStore';
-import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
-import { SparseMultilineTokens } from 'vs/editor/common/tokens/sparseMultilineTokens';
-import { SparseTokensStore } from 'vs/editor/common/tokens/sparseTokensStore';
+import { CharCode } from '../../../base/common/charCode';
+import { BugIndicatingError, onUnexpectedError } from '../../../base/common/errors';
+import { Emitter, Event } from '../../../base/common/event';
+import { DisposableMap, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle';
+import { countEOL } from '../core/eolCounter';
+import { LineRange } from '../core/lineRange';
+import { IPosition, Position } from '../core/position';
+import { Range } from '../core/range';
+import { IWordAtPosition, getWordAtText } from '../core/wordHelper';
+import { StandardTokenType } from '../encodedTokenAttributes';
+import { IBackgroundTokenizationStore, IBackgroundTokenizer, ILanguageIdCodec, IState, ITokenizationSupport, TokenizationRegistry, TreeSitterTokenizationRegistry } from '../languages';
+import { ILanguageService } from '../languages/language';
+import { ILanguageConfigurationService, LanguageConfigurationServiceChangeEvent, ResolvedLanguageConfiguration } from '../languages/languageConfigurationRegistry';
+import { IAttachedView } from '../model';
+import { BracketPairsTextModelPart } from './bracketPairsTextModelPart/bracketPairsImpl';
+import { TextModel } from './textModel';
+import { TextModelPart } from './textModelPart';
+import { DefaultBackgroundTokenizer, TokenizerWithStateStoreAndTextModel, TrackingTokenizationStateStore } from './textModelTokens';
+import { AbstractTokens, AttachedViewHandler, AttachedViews } from './tokens';
+import { TreeSitterTokens } from './treeSitterTokens';
+import { ITreeSitterParserService } from '../services/treeSitterParserService';
+import { IModelContentChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelTokensChangedEvent } from '../textModelEvents';
+import { BackgroundTokenizationState, ITokenizationTextModelPart } from '../tokenizationTextModelPart';
+import { ContiguousMultilineTokens } from '../tokens/contiguousMultilineTokens';
+import { ContiguousMultilineTokensBuilder } from '../tokens/contiguousMultilineTokensBuilder';
+import { ContiguousTokensStore } from '../tokens/contiguousTokensStore';
+import { LineTokens } from '../tokens/lineTokens';
+import { SparseMultilineTokens } from '../tokens/sparseMultilineTokens';
+import { SparseTokensStore } from '../tokens/sparseTokensStore';
 
 export class TokenizationTextModelPart extends TextModelPart implements ITokenizationTextModelPart {
 	private readonly _semanticTokens: SparseTokensStore = new SparseTokensStore(this._languageService.languageIdCodec);

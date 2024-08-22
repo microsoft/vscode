@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import * as nls from 'vs/nls';
-import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { Extensions, IViewContainersRegistry, IViewsRegistry } from 'vs/workbench/common/views';
-import { VIEWLET_ID as debugContainerId } from 'vs/workbench/contrib/debug/common/debug';
-import { NOTEBOOK_VARIABLE_VIEW_ENABLED } from 'vs/workbench/contrib/notebook/browser/contrib/notebookVariables/notebookVariableContextKeys';
-import { NotebookVariablesView } from 'vs/workbench/contrib/notebook/browser/contrib/notebookVariables/notebookVariablesView';
-import { getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { variablesViewIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
-import { NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle';
+import { URI } from '../../../../../../base/common/uri';
+import * as nls from '../../../../../../nls';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration';
+import { IContextKey, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey';
+import { SyncDescriptor } from '../../../../../../platform/instantiation/common/descriptors';
+import { Registry } from '../../../../../../platform/registry/common/platform';
+import { IWorkbenchContribution } from '../../../../../common/contributions';
+import { Extensions, IViewContainersRegistry, IViewsRegistry } from '../../../../../common/views';
+import { VIEWLET_ID as debugContainerId } from '../../../../debug/common/debug';
+import { NOTEBOOK_VARIABLE_VIEW_ENABLED } from './notebookVariableContextKeys';
+import { NotebookVariablesView } from './notebookVariablesView';
+import { getNotebookEditorFromEditorPane } from '../../notebookBrowser';
+import { variablesViewIcon } from '../../notebookIcons';
+import { NotebookSetting } from '../../../common/notebookCommon';
+import { INotebookExecutionStateService } from '../../../common/notebookExecutionStateService';
+import { INotebookKernelService } from '../../../common/notebookKernelService';
+import { INotebookService } from '../../../common/notebookService';
+import { IEditorService } from '../../../../../services/editor/common/editorService';
 
 export class NotebookVariables extends Disposable implements IWorkbenchContribution {
 	private listeners: IDisposable[] = [];

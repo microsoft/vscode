@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ResourceTree } from 'vs/base/common/resourceTree';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { ResourceTree } from '../../common/resourceTree';
+import { URI } from '../../common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils';
 
 suite('ResourceTree', function () {
 	ensureNoDisposablesAreLeakedInTestSuite();

@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
-import { ContextMenuController } from 'vs/editor/contrib/contextmenu/browser/contextmenu';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
-import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
-import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
-import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
-import { TabCompletionController } from 'vs/workbench/contrib/snippets/browser/tabCompletion';
-import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { selectionBackground, inputBackground, inputForeground, editorSelectionBackground } from 'vs/platform/theme/common/colorRegistry';
+import { IEditorOptions } from '../../../../editor/common/config/editorOptions';
+import { ICodeEditorWidgetOptions } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget';
+import { ContextMenuController } from '../../../../editor/contrib/contextmenu/browser/contextmenu';
+import { SnippetController2 } from '../../../../editor/contrib/snippet/browser/snippetController2';
+import { SuggestController } from '../../../../editor/contrib/suggest/browser/suggestController';
+import { MenuPreventer } from './menuPreventer';
+import { SelectionClipboardContributionID } from './selectionClipboard';
+import { TabCompletionController } from '../../snippets/browser/tabCompletion';
+import { EditorExtensionsRegistry } from '../../../../editor/browser/editorExtensions';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration';
+import { registerThemingParticipant } from '../../../../platform/theme/common/themeService';
+import { IDisposable } from '../../../../base/common/lifecycle';
+import { selectionBackground, inputBackground, inputForeground, editorSelectionBackground } from '../../../../platform/theme/common/colorRegistry';
 
 export function getSimpleEditorOptions(configurationService: IConfigurationService): IEditorOptions {
 	return {

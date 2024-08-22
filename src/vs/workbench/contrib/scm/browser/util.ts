@@ -3,23 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'vs/base/common/path';
-import { SCMHistoryItemChangeTreeElement, SCMHistoryItemGroupTreeElement, SCMHistoryItemTreeElement, SCMHistoryItemViewModelTreeElement, SCMViewSeparatorElement } from 'vs/workbench/contrib/scm/common/history';
-import { ISCMResource, ISCMRepository, ISCMResourceGroup, ISCMInput, ISCMActionButton, ISCMViewService, ISCMProvider } from 'vs/workbench/contrib/scm/common/scm';
-import { IMenu, MenuItemAction } from 'vs/platform/actions/common/actions';
-import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { Action, IAction } from 'vs/base/common/actions';
-import { createActionViewItem, createAndFillInActionBarActions, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { equals } from 'vs/base/common/arrays';
-import { ActionViewItem, IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { Command } from 'vs/editor/common/languages';
-import { reset } from 'vs/base/browser/dom';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { URI } from 'vs/base/common/uri';
-import { IResourceNode, ResourceTree } from 'vs/base/common/resourceTree';
+import * as path from '../../../../base/common/path';
+import { SCMHistoryItemChangeTreeElement, SCMHistoryItemGroupTreeElement, SCMHistoryItemTreeElement, SCMHistoryItemViewModelTreeElement, SCMViewSeparatorElement } from '../common/history';
+import { ISCMResource, ISCMRepository, ISCMResourceGroup, ISCMInput, ISCMActionButton, ISCMViewService, ISCMProvider } from '../common/scm';
+import { IMenu, MenuItemAction } from '../../../../platform/actions/common/actions';
+import { ActionBar, IActionViewItemProvider } from '../../../../base/browser/ui/actionbar/actionbar';
+import { IDisposable } from '../../../../base/common/lifecycle';
+import { Action, IAction } from '../../../../base/common/actions';
+import { createActionViewItem, createAndFillInActionBarActions, createAndFillInContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem';
+import { equals } from '../../../../base/common/arrays';
+import { ActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems';
+import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels';
+import { ICommandService } from '../../../../platform/commands/common/commands';
+import { Command } from '../../../../editor/common/languages';
+import { reset } from '../../../../base/browser/dom';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { URI } from '../../../../base/common/uri';
+import { IResourceNode, ResourceTree } from '../../../../base/common/resourceTree';
 
 export function isSCMRepositoryArray(element: any): element is ISCMRepository[] {
 	return Array.isArray(element) && element.every(r => isSCMRepository(r));

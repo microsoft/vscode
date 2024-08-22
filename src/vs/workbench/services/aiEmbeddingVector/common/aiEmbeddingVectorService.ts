@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { CancelablePromise, createCancelablePromise, raceCancellablePromises, timeout } from 'vs/base/common/async';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { ILogService } from 'vs/platform/log/common/log';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import { CancelablePromise, createCancelablePromise, raceCancellablePromises, timeout } from '../../../../base/common/async';
+import { IDisposable } from '../../../../base/common/lifecycle';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions';
+import { StopWatch } from '../../../../base/common/stopwatch';
+import { ILogService } from '../../../../platform/log/common/log';
 
 export const IAiEmbeddingVectorService = createDecorator<IAiEmbeddingVectorService>('IAiEmbeddingVectorService');
 

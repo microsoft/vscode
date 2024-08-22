@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { illegalArgument } from 'vs/base/common/errors';
-import { escapeIcons } from 'vs/base/common/iconLabels';
-import { isEqual } from 'vs/base/common/resources';
-import { escapeRegExpCharacters } from 'vs/base/common/strings';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { illegalArgument } from './errors';
+import { escapeIcons } from './iconLabels';
+import { isEqual } from './resources';
+import { escapeRegExpCharacters } from './strings';
+import { URI, UriComponents } from './uri';
 
 export interface MarkdownStringTrustedOptions {
 	readonly enabledCommands: readonly string[];

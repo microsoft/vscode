@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Promises } from 'vs/base/common/async';
-import { Event, Emitter } from 'vs/base/common/event';
-import { IAuxiliaryWindow } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindow';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { ILifecycleMainService, IRelaunchHandler, LifecycleMainPhase, ShutdownEvent, ShutdownReason } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { IStateService } from 'vs/platform/state/node/state';
-import { ICodeWindow, UnloadReason } from 'vs/platform/window/electron-main/window';
+import { Promises } from '../../../base/common/async';
+import { Event, Emitter } from '../../../base/common/event';
+import { IAuxiliaryWindow } from '../../auxiliaryWindow/electron-main/auxiliaryWindow';
+import { NativeParsedArgs } from '../../environment/common/argv';
+import { ILifecycleMainService, IRelaunchHandler, LifecycleMainPhase, ShutdownEvent, ShutdownReason } from '../../lifecycle/electron-main/lifecycleMainService';
+import { IStateService } from '../../state/node/state';
+import { ICodeWindow, UnloadReason } from '../../window/electron-main/window';
 
 export class TestLifecycleMainService implements ILifecycleMainService {
 

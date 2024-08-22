@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
-import * as markerService from 'vs/platform/markers/common/markerService';
+import { URI } from '../../../../base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils';
+import { IMarkerData, MarkerSeverity } from '../../common/markers';
+import * as markerService from '../../common/markerService';
 
 function randomMarkerData(severity = MarkerSeverity.Error): IMarkerData {
 	return {

@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { dirname, joinPath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IExtensionsProfileScannerService, IProfileExtensionsScanOptions } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
-import { AbstractExtensionsScannerService, ExtensionScannerInput, IExtensionsScannerService, IScannedExtensionManifest, Translations } from 'vs/platform/extensionManagement/common/extensionsScannerService';
-import { ExtensionsProfileScannerService } from 'vs/platform/extensionManagement/node/extensionsProfileScannerService';
-import { ExtensionType, IExtensionManifest, TargetPlatform } from 'vs/platform/extensions/common/extensions';
-import { IFileService } from 'vs/platform/files/common/files';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ILogService, NullLogService } from 'vs/platform/log/common/log';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
-import { IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { VSBuffer } from '../../../../base/common/buffer';
+import { dirname, joinPath } from '../../../../base/common/resources';
+import { URI } from '../../../../base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils';
+import { INativeEnvironmentService } from '../../../environment/common/environment';
+import { IExtensionsProfileScannerService, IProfileExtensionsScanOptions } from '../../common/extensionsProfileScannerService';
+import { AbstractExtensionsScannerService, ExtensionScannerInput, IExtensionsScannerService, IScannedExtensionManifest, Translations } from '../../common/extensionsScannerService';
+import { ExtensionsProfileScannerService } from '../../node/extensionsProfileScannerService';
+import { ExtensionType, IExtensionManifest, TargetPlatform } from '../../../extensions/common/extensions';
+import { IFileService } from '../../../files/common/files';
+import { FileService } from '../../../files/common/fileService';
+import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider';
+import { IInstantiationService } from '../../../instantiation/common/instantiation';
+import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock';
+import { ILogService, NullLogService } from '../../../log/common/log';
+import { IProductService } from '../../../product/common/productService';
+import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils';
+import { IUriIdentityService } from '../../../uriIdentity/common/uriIdentity';
+import { UriIdentityService } from '../../../uriIdentity/common/uriIdentityService';
+import { IUserDataProfilesService, UserDataProfilesService } from '../../../userDataProfile/common/userDataProfile';
 
 let translations: Translations = Object.create(null);
 const ROOT = URI.file('/ROOT');

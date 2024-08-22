@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { status } from 'vs/base/browser/ui/aria/aria';
-import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
-import { Event } from 'vs/base/common/event';
-import { ResolvedKeybinding } from 'vs/base/common/keybindings';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { OS } from 'vs/base/common/platform';
-import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { InteractiveWindowSetting } from 'vs/workbench/contrib/interactive/browser/interactiveCommon';
+import * as dom from '../../../../base/browser/dom';
+import { status } from '../../../../base/browser/ui/aria/aria';
+import { KeybindingLabel } from '../../../../base/browser/ui/keybindingLabel/keybindingLabel';
+import { Event } from '../../../../base/common/event';
+import { ResolvedKeybinding } from '../../../../base/common/keybindings';
+import { Disposable } from '../../../../base/common/lifecycle';
+import { OS } from '../../../../base/common/platform';
+import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from '../../../../editor/browser/editorBrowser';
+import { ConfigurationChangedEvent, EditorOption } from '../../../../editor/common/config/editorOptions';
+import { localize } from '../../../../nls';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding';
+import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration';
+import { InteractiveWindowSetting } from './interactiveCommon';
 
 
 export class ReplInputHintContentWidget extends Disposable implements IContentWidget {

@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { sha1Hex } from 'vs/base/browser/hash';
-import { hash, StringSHA1 } from 'vs/base/common/hash';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { sha1Hex } from '../../browser/hash';
+import { hash, StringSHA1 } from '../../common/hash';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils';
 
 suite('Hash', () => {
 	test('string', () => {

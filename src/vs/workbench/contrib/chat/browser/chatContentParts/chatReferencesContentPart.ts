@@ -3,34 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { Button } from 'vs/base/browser/ui/button/button';
-import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { Codicon } from 'vs/base/common/codicons';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { matchesSomeScheme, Schemas } from 'vs/base/common/network';
-import { basename } from 'vs/base/common/path';
-import { basenameOrAuthority, isEqualAuthority } from 'vs/base/common/resources';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { FileKind } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { WorkbenchList } from 'vs/platform/list/browser/listService';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
-import { ColorScheme } from 'vs/workbench/browser/web.api';
-import { ChatTreeItem } from 'vs/workbench/contrib/chat/browser/chat';
-import { IDisposableReference, ResourcePool } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatCollections';
-import { IChatContentPart } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatContentParts';
-import { ChatResponseReferencePartStatusKind, IChatContentReference, IChatWarningMessage } from 'vs/workbench/contrib/chat/common/chatService';
-import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
-import { IChatRendererContent, IChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
-import { createFileIconThemableTreeContainerScope } from 'vs/workbench/contrib/files/browser/views/explorerView';
-import { SETTINGS_AUTHORITY } from 'vs/workbench/services/preferences/common/preferences';
+import * as dom from '../../../../../base/browser/dom';
+import { Button } from '../../../../../base/browser/ui/button/button';
+import { IListRenderer, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list';
+import { Codicon } from '../../../../../base/common/codicons';
+import { Emitter, Event } from '../../../../../base/common/event';
+import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle';
+import { matchesSomeScheme, Schemas } from '../../../../../base/common/network';
+import { basename } from '../../../../../base/common/path';
+import { basenameOrAuthority, isEqualAuthority } from '../../../../../base/common/resources';
+import { ThemeIcon } from '../../../../../base/common/themables';
+import { URI } from '../../../../../base/common/uri';
+import { localize } from '../../../../../nls';
+import { FileKind } from '../../../../../platform/files/common/files';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation';
+import { WorkbenchList } from '../../../../../platform/list/browser/listService';
+import { IOpenerService } from '../../../../../platform/opener/common/opener';
+import { IProductService } from '../../../../../platform/product/common/productService';
+import { IThemeService } from '../../../../../platform/theme/common/themeService';
+import { IResourceLabel, ResourceLabels } from '../../../../browser/labels';
+import { ColorScheme } from '../../../../browser/web.api';
+import { ChatTreeItem } from '../chat';
+import { IDisposableReference, ResourcePool } from './chatCollections';
+import { IChatContentPart } from './chatContentParts';
+import { ChatResponseReferencePartStatusKind, IChatContentReference, IChatWarningMessage } from '../../common/chatService';
+import { IChatVariablesService } from '../../common/chatVariables';
+import { IChatRendererContent, IChatResponseViewModel } from '../../common/chatViewModel';
+import { createFileIconThemableTreeContainerScope } from '../../../files/browser/views/explorerView';
+import { SETTINGS_AUTHORITY } from '../../../../services/preferences/common/preferences';
 
 const $ = dom.$;
 

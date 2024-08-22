@@ -4,36 +4,36 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { unthemedInboxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
-import { unthemedButtonStyles } from 'vs/base/browser/ui/button/button';
-import { unthemedListStyles } from 'vs/base/browser/ui/list/listWidget';
-import { unthemedToggleStyles } from 'vs/base/browser/ui/toggle/toggle';
-import { Event } from 'vs/base/common/event';
-import { raceTimeout } from 'vs/base/common/async';
-import { unthemedCountStyles } from 'vs/base/browser/ui/countBadge/countBadge';
-import { unthemedKeybindingLabelOptions } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
-import { unthemedProgressBarOptions } from 'vs/base/browser/ui/progressbar/progressbar';
-import { QuickInputController } from 'vs/platform/quickinput/browser/quickInputController';
-import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { toDisposable } from 'vs/base/common/lifecycle';
-import { mainWindow } from 'vs/base/browser/window';
-import { QuickPick } from 'vs/platform/quickinput/browser/quickInput';
-import { IQuickPickItem, ItemActivation } from 'vs/platform/quickinput/common/quickInput';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IListService, ListService } from 'vs/platform/list/browser/listService';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
-import { NoMatchingKb } from 'vs/platform/keybinding/common/keybindingResolver';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { TestAccessibilityService } from 'vs/platform/accessibility/test/common/testAccessibilityService';
+import { unthemedInboxStyles } from '../../../../base/browser/ui/inputbox/inputBox';
+import { unthemedButtonStyles } from '../../../../base/browser/ui/button/button';
+import { unthemedListStyles } from '../../../../base/browser/ui/list/listWidget';
+import { unthemedToggleStyles } from '../../../../base/browser/ui/toggle/toggle';
+import { Event } from '../../../../base/common/event';
+import { raceTimeout } from '../../../../base/common/async';
+import { unthemedCountStyles } from '../../../../base/browser/ui/countBadge/countBadge';
+import { unthemedKeybindingLabelOptions } from '../../../../base/browser/ui/keybindingLabel/keybindingLabel';
+import { unthemedProgressBarOptions } from '../../../../base/browser/ui/progressbar/progressbar';
+import { QuickInputController } from '../../browser/quickInputController';
+import { TestThemeService } from '../../../theme/test/common/testThemeService';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils';
+import { toDisposable } from '../../../../base/common/lifecycle';
+import { mainWindow } from '../../../../base/browser/window';
+import { QuickPick } from '../../browser/quickInput';
+import { IQuickPickItem, ItemActivation } from '../../common/quickInput';
+import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock';
+import { IThemeService } from '../../../theme/common/themeService';
+import { IConfigurationService } from '../../../configuration/common/configuration';
+import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService';
+import { ILayoutService } from '../../../layout/browser/layoutService';
+import { IContextViewService } from '../../../contextview/browser/contextView';
+import { IListService, ListService } from '../../../list/browser/listService';
+import { IContextKeyService } from '../../../contextkey/common/contextkey';
+import { ContextKeyService } from '../../../contextkey/browser/contextKeyService';
+import { NoMatchingKb } from '../../../keybinding/common/keybindingResolver';
+import { IKeybindingService } from '../../../keybinding/common/keybinding';
+import { ContextViewService } from '../../../contextview/browser/contextViewService';
+import { IAccessibilityService } from '../../../accessibility/common/accessibility';
+import { TestAccessibilityService } from '../../../accessibility/test/common/testAccessibilityService';
 
 // Sets up an `onShow` listener to allow us to wait until the quick pick is shown (useful when triggering an `accept()` right after launching a quick pick)
 // kick this off before you launch the picker and then await the promise returned after you launch the picker.

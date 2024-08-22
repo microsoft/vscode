@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
-import { ResourceMap } from 'vs/base/common/map';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { BoundModelReferenceCollection } from 'vs/workbench/api/browser/mainThreadDocuments';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { DisposableStore, dispose } from '../../../base/common/lifecycle';
+import { ResourceMap } from '../../../base/common/map';
+import { URI, UriComponents } from '../../../base/common/uri';
+import { BoundModelReferenceCollection } from './mainThreadDocuments';
+import { NotebookTextModel } from '../../contrib/notebook/common/model/notebookTextModel';
+import { NotebookCellsChangeType } from '../../contrib/notebook/common/notebookCommon';
+import { INotebookEditorModelResolverService } from '../../contrib/notebook/common/notebookEditorModelResolverService';
+import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIdentity';
 import { ExtHostContext, ExtHostNotebookDocumentsShape, MainThreadNotebookDocumentsShape, NotebookCellDto, NotebookCellsChangedEventDto, NotebookDataDto } from '../common/extHost.protocol';
-import { NotebookDto } from 'vs/workbench/api/browser/mainThreadNotebookDto';
-import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
-import { IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { NotebookDto } from './mainThreadNotebookDto';
+import { SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier';
+import { IExtHostContext } from '../../services/extensions/common/extHostCustomers';
 
 export class MainThreadNotebookDocuments implements MainThreadNotebookDocumentsShape {
 

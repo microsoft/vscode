@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
-import { localize } from 'vs/nls';
-import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { Action } from 'vs/base/common/actions';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Promises } from 'vs/base/common/async';
+import { IExtensionsWorkbenchService } from '../common/extensions';
+import { IWorkbenchContribution } from '../../../common/contributions';
+import { IExtensionService } from '../../../services/extensions/common/extensions';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands';
+import { MenuRegistry, MenuId } from '../../../../platform/actions/common/actions';
+import { localize } from '../../../../nls';
+import { areSameExtensions } from '../../../../platform/extensionManagement/common/extensionManagementUtil';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification';
+import { Action } from '../../../../base/common/actions';
+import { IHostService } from '../../../services/host/browser/host';
+import { Disposable } from '../../../../base/common/lifecycle';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import { Promises } from '../../../../base/common/async';
 
 export class ExtensionDependencyChecker extends Disposable implements IWorkbenchContribution {
 

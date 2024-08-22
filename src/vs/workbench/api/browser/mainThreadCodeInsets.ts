@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getWindow } from 'vs/base/browser/dom';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { isEqual } from 'vs/base/common/resources';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IActiveCodeEditor, IViewZone } from 'vs/editor/browser/editorBrowser';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { reviveWebviewContentOptions } from 'vs/workbench/api/browser/mainThreadWebviews';
-import { ExtHostContext, ExtHostEditorInsetsShape, IWebviewContentOptions, MainContext, MainThreadEditorInsetsShape } from 'vs/workbench/api/common/extHost.protocol';
-import { IWebviewService, IWebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
-import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { getWindow } from '../../../base/browser/dom';
+import { DisposableStore } from '../../../base/common/lifecycle';
+import { isEqual } from '../../../base/common/resources';
+import { URI, UriComponents } from '../../../base/common/uri';
+import { IActiveCodeEditor, IViewZone } from '../../../editor/browser/editorBrowser';
+import { ICodeEditorService } from '../../../editor/browser/services/codeEditorService';
+import { ExtensionIdentifier } from '../../../platform/extensions/common/extensions';
+import { reviveWebviewContentOptions } from './mainThreadWebviews';
+import { ExtHostContext, ExtHostEditorInsetsShape, IWebviewContentOptions, MainContext, MainThreadEditorInsetsShape } from '../common/extHost.protocol';
+import { IWebviewService, IWebviewElement } from '../../contrib/webview/browser/webview';
+import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers';
 
 // todo@jrieken move these things back into something like contrib/insets
 class EditorWebviewZone implements IViewZone {

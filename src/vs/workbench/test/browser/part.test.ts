@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Part } from 'vs/workbench/browser/part';
-import { isEmptyObject } from 'vs/base/common/types';
-import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { append, $, hide } from 'vs/base/browser/dom';
-import { TestLayoutService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { mainWindow } from 'vs/base/browser/window';
+import { Part } from '../../browser/part';
+import { isEmptyObject } from '../../../base/common/types';
+import { TestThemeService } from '../../../platform/theme/test/common/testThemeService';
+import { append, $, hide } from '../../../base/browser/dom';
+import { TestLayoutService } from './workbenchTestServices';
+import { StorageScope, StorageTarget } from '../../../platform/storage/common/storage';
+import { TestStorageService } from '../common/workbenchTestServices';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils';
+import { DisposableStore } from '../../../base/common/lifecycle';
+import { mainWindow } from '../../../base/browser/window';
 
 suite('Workbench parts', () => {
 

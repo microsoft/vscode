@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { windowOpenNoOpener } from 'vs/base/browser/dom';
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { AbstractCodeEditorService } from 'vs/editor/browser/services/abstractCodeEditorService';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { IRange } from 'vs/editor/common/core/range';
-import { ScrollType } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { windowOpenNoOpener } from '../../../base/browser/dom';
+import { Schemas } from '../../../base/common/network';
+import { URI } from '../../../base/common/uri';
+import { ICodeEditor } from '../../browser/editorBrowser';
+import { AbstractCodeEditorService } from '../../browser/services/abstractCodeEditorService';
+import { ICodeEditorService } from '../../browser/services/codeEditorService';
+import { IRange } from '../../common/core/range';
+import { ScrollType } from '../../common/editorCommon';
+import { ITextModel } from '../../common/model';
+import { IContextKey, IContextKeyService } from '../../../platform/contextkey/common/contextkey';
+import { ITextResourceEditorInput } from '../../../platform/editor/common/editor';
+import { InstantiationType, registerSingleton } from '../../../platform/instantiation/common/extensions';
+import { IThemeService } from '../../../platform/theme/common/themeService';
 
 export class StandaloneCodeEditorService extends AbstractCodeEditorService {
 

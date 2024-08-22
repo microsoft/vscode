@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { GlyphMarginLanesModel, } from 'vs/editor/common/viewModel/glyphLanesModel';
-import { Range } from 'vs/editor/common/core/range';
-import { GlyphMarginLane } from 'vs/editor/common/model';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils';
+import { GlyphMarginLanesModel, } from '../../../common/viewModel/glyphLanesModel';
+import { Range } from '../../../common/core/range';
+import { GlyphMarginLane } from '../../../common/model';
 
 suite('GlyphLanesModel', () => {
 	let model: GlyphMarginLanesModel;

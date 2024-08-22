@@ -5,16 +5,16 @@
 
 import { MainContext, MainThreadLanguagesShape, IMainContext, ExtHostLanguagesShape } from './extHost.protocol';
 import type * as vscode from 'vscode';
-import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
-import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
-import { StandardTokenType, Range, Position, LanguageStatusSeverity } from 'vs/workbench/api/common/extHostTypes';
-import Severity from 'vs/base/common/severity';
-import { disposableTimeout } from 'vs/base/common/async';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
-import { IURITransformer } from 'vs/base/common/uriIpc';
-import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import { ExtHostDocuments } from './extHostDocuments';
+import * as typeConvert from './extHostTypeConverters';
+import { StandardTokenType, Range, Position, LanguageStatusSeverity } from './extHostTypes';
+import Severity from '../../../base/common/severity';
+import { disposableTimeout } from '../../../base/common/async';
+import { DisposableStore, IDisposable } from '../../../base/common/lifecycle';
+import { IExtensionDescription } from '../../../platform/extensions/common/extensions';
+import { CommandsConverter } from './extHostCommands';
+import { IURITransformer } from '../../../base/common/uriIpc';
+import { checkProposedApiEnabled } from '../../services/extensions/common/extensions';
 
 export class ExtHostLanguages implements ExtHostLanguagesShape {
 

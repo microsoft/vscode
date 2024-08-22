@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { IWorkspace } from 'vs/platform/workspace/common/workspace';
+import { Schemas } from '../../../base/common/network';
+import { URI } from '../../../base/common/uri';
+import { IWorkspace } from './workspace';
 
 export function isVirtualResource(resource: URI) {
 	return resource.scheme !== Schemas.file && resource.scheme !== Schemas.vscodeRemote;

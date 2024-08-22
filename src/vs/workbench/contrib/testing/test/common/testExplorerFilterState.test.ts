@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { InMemoryStorageService } from 'vs/platform/storage/common/storage';
-import { TestExplorerFilterState, TestFilterTerm } from 'vs/workbench/contrib/testing/common/testExplorerFilterState';
+import { DisposableStore } from '../../../../../base/common/lifecycle';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils';
+import { InMemoryStorageService } from '../../../../../platform/storage/common/storage';
+import { TestExplorerFilterState, TestFilterTerm } from '../../common/testExplorerFilterState';
 
 suite('TestExplorerFilterState', () => {
 	let t: TestExplorerFilterState;

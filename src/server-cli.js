@@ -23,7 +23,7 @@ const product = require('./bootstrap-meta').product;
 // import * as bootstrapAmd from './bootstrap-amd.js';
 // import { resolveNLSConfiguration } from './vs/base/node/nls.js';
 // import { product } from './bootstrap-meta.js';
-//
+// 
 // const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // ESM-uncomment-end
 

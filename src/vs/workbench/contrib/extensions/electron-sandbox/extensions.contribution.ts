@@ -3,32 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { MenuRegistry, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { RuntimeExtensionsEditor, StartExtensionHostProfileAction, StopExtensionHostProfileAction, CONTEXT_PROFILE_SESSION_STATE, CONTEXT_EXTENSION_HOST_PROFILE_RECORDED, SaveExtensionHostProfileAction, IExtensionHostProfileService } from 'vs/workbench/contrib/extensions/electron-sandbox/runtimeExtensionsEditor';
-import { DebugExtensionHostAction, DebugExtensionsContribution } from 'vs/workbench/contrib/extensions/electron-sandbox/debugExtensionHostAction';
-import { IEditorSerializer, IEditorFactoryRegistry, EditorExtensions } from 'vs/workbench/common/editor';
-import { ActiveEditorContext } from 'vs/workbench/common/contextkeys';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { RuntimeExtensionsInput } from 'vs/workbench/contrib/extensions/common/runtimeExtensionsInput';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { CleanUpExtensionsFolderAction, OpenExtensionsFolderAction } from 'vs/workbench/contrib/extensions/electron-sandbox/extensionsActions';
-import { IExtensionRecommendationNotificationService } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
-import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
-import { ExtensionRecommendationNotificationServiceChannel } from 'vs/platform/extensionRecommendations/common/extensionRecommendationsIpc';
-import { Codicon } from 'vs/base/common/codicons';
-import { RemoteExtensionsInitializerContribution } from 'vs/workbench/contrib/extensions/electron-sandbox/remoteExtensionsInit';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ExtensionHostProfileService } from 'vs/workbench/contrib/extensions/electron-sandbox/extensionProfileService';
-import { ExtensionsAutoProfiler } from 'vs/workbench/contrib/extensions/electron-sandbox/extensionsAutoProfiler';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { localize } from '../../../../nls';
+import { Registry } from '../../../../platform/registry/common/platform';
+import { MenuRegistry, MenuId, registerAction2 } from '../../../../platform/actions/common/actions';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from '../../../common/contributions';
+import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands';
+import { ServicesAccessor, IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor';
+import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle';
+import { RuntimeExtensionsEditor, StartExtensionHostProfileAction, StopExtensionHostProfileAction, CONTEXT_PROFILE_SESSION_STATE, CONTEXT_EXTENSION_HOST_PROFILE_RECORDED, SaveExtensionHostProfileAction, IExtensionHostProfileService } from './runtimeExtensionsEditor';
+import { DebugExtensionHostAction, DebugExtensionsContribution } from './debugExtensionHostAction';
+import { IEditorSerializer, IEditorFactoryRegistry, EditorExtensions } from '../../../common/editor';
+import { ActiveEditorContext } from '../../../common/contextkeys';
+import { EditorInput } from '../../../common/editor/editorInput';
+import { RuntimeExtensionsInput } from '../common/runtimeExtensionsInput';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey';
+import { CleanUpExtensionsFolderAction, OpenExtensionsFolderAction } from './extensionsActions';
+import { IExtensionRecommendationNotificationService } from '../../../../platform/extensionRecommendations/common/extensionRecommendations';
+import { ISharedProcessService } from '../../../../platform/ipc/electron-sandbox/services';
+import { ExtensionRecommendationNotificationServiceChannel } from '../../../../platform/extensionRecommendations/common/extensionRecommendationsIpc';
+import { Codicon } from '../../../../base/common/codicons';
+import { RemoteExtensionsInitializerContribution } from './remoteExtensionsInit';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions';
+import { ExtensionHostProfileService } from './extensionProfileService';
+import { ExtensionsAutoProfiler } from './extensionsAutoProfiler';
+import { Disposable } from '../../../../base/common/lifecycle';
 
 // Singletons
 registerSingleton(IExtensionHostProfileService, ExtensionHostProfileService, InstantiationType.Delayed);

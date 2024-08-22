@@ -3,34 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { URI } from 'vs/base/common/uri';
-import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
-import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
-import { ITextModel } from 'vs/editor/common/model';
-import { ILifecycleService, LifecyclePhase, StartupKindToString } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { writeTransientState } from 'vs/workbench/contrib/codeEditor/browser/toggleWordWrap';
-import { LoaderEventType, LoaderStats, isESM } from 'vs/base/common/amd';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ByteSize, IFileService } from 'vs/platform/files/common/files';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { isWeb } from 'vs/base/common/platform';
-import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import * as perf from 'vs/base/common/performance';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, getWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { ICustomEditorLabelService } from 'vs/workbench/services/editor/common/customEditorLabelService';
+import { localize } from '../../../../nls';
+import { URI } from '../../../../base/common/uri';
+import { TextResourceEditorInput } from '../../../common/editor/textResourceEditorInput';
+import { ITextModelService, ITextModelContentProvider } from '../../../../editor/common/services/resolverService';
+import { ITextModel } from '../../../../editor/common/model';
+import { ILifecycleService, LifecyclePhase, StartupKindToString } from '../../../services/lifecycle/common/lifecycle';
+import { ILanguageService } from '../../../../editor/common/languages/language';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { IModelService } from '../../../../editor/common/services/model';
+import { ITimerService } from '../../../services/timer/browser/timerService';
+import { IExtensionService } from '../../../services/extensions/common/extensions';
+import { IDisposable, dispose } from '../../../../base/common/lifecycle';
+import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService';
+import { writeTransientState } from '../../codeEditor/browser/toggleWordWrap';
+import { LoaderEventType, LoaderStats, isESM } from '../../../../base/common/amd';
+import { IProductService } from '../../../../platform/product/common/productService';
+import { ITextFileService } from '../../../services/textfile/common/textfiles';
+import { IEditorService } from '../../../services/editor/common/editorService';
+import { ByteSize, IFileService } from '../../../../platform/files/common/files';
+import { ILabelService } from '../../../../platform/label/common/label';
+import { isWeb } from '../../../../base/common/platform';
+import { IFilesConfigurationService } from '../../../services/filesConfiguration/common/filesConfigurationService';
+import { ITerminalService } from '../../terminal/browser/terminal';
+import * as perf from '../../../../base/common/performance';
+import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration';
+import { Registry } from '../../../../platform/registry/common/platform';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, getWorkbenchContribution } from '../../../common/contributions';
+import { ICustomEditorLabelService } from '../../../services/editor/common/customEditorLabelService';
 
 export class PerfviewContrib {
 

@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { h, reset } from 'vs/base/browser/dom';
-import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { BugIndicatingError } from 'vs/base/common/errors';
-import { IObservable, autorun, autorunWithStore, derived } from 'vs/base/common/observable';
-import { IModelDeltaDecoration, MinimapPosition, OverviewRulerLane } from 'vs/editor/common/model';
-import { localize } from 'vs/nls';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { applyObservableDecorations } from 'vs/workbench/contrib/mergeEditor/browser/utils';
-import { handledConflictMinimapOverViewRulerColor, unhandledConflictMinimapOverViewRulerColor } from 'vs/workbench/contrib/mergeEditor/browser/view/colors';
-import { EditorGutter } from 'vs/workbench/contrib/mergeEditor/browser/view/editorGutter';
-import { MergeEditorViewModel } from 'vs/workbench/contrib/mergeEditor/browser/view/viewModel';
+import { h, reset } from '../../../../../../base/browser/dom';
+import { renderLabelWithIcons } from '../../../../../../base/browser/ui/iconLabel/iconLabels';
+import { BugIndicatingError } from '../../../../../../base/common/errors';
+import { IObservable, autorun, autorunWithStore, derived } from '../../../../../../base/common/observable';
+import { IModelDeltaDecoration, MinimapPosition, OverviewRulerLane } from '../../../../../../editor/common/model';
+import { localize } from '../../../../../../nls';
+import { MenuId } from '../../../../../../platform/actions/common/actions';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation';
+import { applyObservableDecorations } from '../../utils';
+import { handledConflictMinimapOverViewRulerColor, unhandledConflictMinimapOverViewRulerColor } from '../colors';
+import { EditorGutter } from '../editorGutter';
+import { MergeEditorViewModel } from '../viewModel';
 import { CodeEditorView, TitleMenu, createSelectionsAutorun } from './codeEditorView';
 
 export class BaseCodeEditorView extends CodeEditorView {

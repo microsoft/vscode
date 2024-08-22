@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { autorunWithStore, IObservable } from 'vs/base/common/observable';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
-import { ScrollType } from 'vs/editor/common/editorCommon';
-import { DocumentLineRangeMap } from 'vs/workbench/contrib/mergeEditor/browser/model/mapping';
+import { Disposable } from '../../../../../base/common/lifecycle';
+import { autorunWithStore, IObservable } from '../../../../../base/common/observable';
+import { CodeEditorWidget } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget';
+import { ScrollType } from '../../../../../editor/common/editorCommon';
+import { DocumentLineRangeMap } from '../model/mapping';
 import { ReentrancyBarrier } from '../../../../../base/common/controlFlow';
-import { BaseCodeEditorView } from 'vs/workbench/contrib/mergeEditor/browser/view/editors/baseCodeEditorView';
-import { IMergeEditorLayout } from 'vs/workbench/contrib/mergeEditor/browser/view/mergeEditor';
-import { MergeEditorViewModel } from 'vs/workbench/contrib/mergeEditor/browser/view/viewModel';
+import { BaseCodeEditorView } from './editors/baseCodeEditorView';
+import { IMergeEditorLayout } from './mergeEditor';
+import { MergeEditorViewModel } from './viewModel';
 import { InputCodeEditorView } from './editors/inputCodeEditorView';
 import { ResultCodeEditorView } from './editors/resultCodeEditorView';
 

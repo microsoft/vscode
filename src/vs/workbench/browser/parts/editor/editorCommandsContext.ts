@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getActiveElement } from 'vs/base/browser/dom';
-import { List } from 'vs/base/browser/ui/list/listWidget';
-import { URI } from 'vs/base/common/uri';
-import { IListService } from 'vs/platform/list/browser/listService';
-import { IEditorCommandsContext, isEditorCommandsContext, IEditorIdentifier, isEditorIdentifier } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IEditorGroup, IEditorGroupsService, isEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { getActiveElement } from '../../../../base/browser/dom';
+import { List } from '../../../../base/browser/ui/list/listWidget';
+import { URI } from '../../../../base/common/uri';
+import { IListService } from '../../../../platform/list/browser/listService';
+import { IEditorCommandsContext, isEditorCommandsContext, IEditorIdentifier, isEditorIdentifier } from '../../../common/editor';
+import { EditorInput } from '../../../common/editor/editorInput';
+import { IEditorGroup, IEditorGroupsService, isEditorGroup } from '../../../services/editor/common/editorGroupsService';
+import { IEditorService } from '../../../services/editor/common/editorService';
 
 export interface IResolvedEditorCommandsContext {
 	readonly groupedEditors: {

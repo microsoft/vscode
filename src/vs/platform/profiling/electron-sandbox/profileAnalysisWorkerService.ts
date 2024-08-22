@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import { createWebWorker } from 'vs/base/browser/defaultWorkerFactory';
-import { URI } from 'vs/base/common/uri';
-import { Proxied } from 'vs/base/common/worker/simpleWorker';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IV8Profile } from 'vs/platform/profiling/common/profiling';
-import { BottomUpSample } from 'vs/platform/profiling/common/profilingModel';
-import { reportSample } from 'vs/platform/profiling/common/profilingTelemetrySpec';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { createWebWorker } from '../../../base/browser/defaultWorkerFactory';
+import { URI } from '../../../base/common/uri';
+import { Proxied } from '../../../base/common/worker/simpleWorker';
+import { InstantiationType, registerSingleton } from '../../instantiation/common/extensions';
+import { createDecorator } from '../../instantiation/common/instantiation';
+import { ILogService } from '../../log/common/log';
+import { IV8Profile } from '../common/profiling';
+import { BottomUpSample } from '../common/profilingModel';
+import { reportSample } from '../common/profilingTelemetrySpec';
+import { ITelemetryService } from '../../telemetry/common/telemetry';
 
 export const enum ProfilingOutput {
 	Failure,

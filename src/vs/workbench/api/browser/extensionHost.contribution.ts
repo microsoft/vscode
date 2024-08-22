@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../common/contributions';
+import { IInstantiationService } from '../../../platform/instantiation/common/instantiation';
 
 // --- other interested parties
-import { JSONValidationExtensionPoint } from 'vs/workbench/api/common/jsonValidationExtensionPoint';
-import { ColorExtensionPoint } from 'vs/workbench/services/themes/common/colorExtensionPoint';
-import { IconExtensionPoint } from 'vs/workbench/services/themes/common/iconExtensionPoint';
-import { TokenClassificationExtensionPoints } from 'vs/workbench/services/themes/common/tokenClassificationExtensionPoint';
-import { LanguageConfigurationFileHandler } from 'vs/workbench/contrib/codeEditor/common/languageConfigurationExtensionPoint';
-import { StatusBarItemsExtensionPoint } from 'vs/workbench/api/browser/statusBarExtensionPoint';
+import { JSONValidationExtensionPoint } from '../common/jsonValidationExtensionPoint';
+import { ColorExtensionPoint } from '../../services/themes/common/colorExtensionPoint';
+import { IconExtensionPoint } from '../../services/themes/common/iconExtensionPoint';
+import { TokenClassificationExtensionPoints } from '../../services/themes/common/tokenClassificationExtensionPoint';
+import { LanguageConfigurationFileHandler } from '../../contrib/codeEditor/common/languageConfigurationExtensionPoint';
+import { StatusBarItemsExtensionPoint } from './statusBarExtensionPoint';
 
 // --- mainThread participants
 import './mainThreadLocalization';

@@ -3,40 +3,40 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { mark } from 'vs/base/common/performance';
-import { assertIsDefined } from 'vs/base/common/types';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { IAction, toAction } from 'vs/base/common/actions';
-import { VIEWLET_ID, TEXT_FILE_EDITOR_ID, BINARY_TEXT_FILE_MODE } from 'vs/workbench/contrib/files/common/files';
-import { ITextFileService, TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
-import { AbstractTextCodeEditor } from 'vs/workbench/browser/parts/editor/textCodeEditor';
-import { IEditorOpenContext, isTextEditorViewState, DEFAULT_EDITOR_ASSOCIATION, createEditorOpenError, IFileEditorInputOptions, createTooLargeFileError } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
-import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
-import { FileEditorInput } from 'vs/workbench/contrib/files/browser/editors/fileEditorInput';
-import { FileOperationError, FileOperationResult, FileChangesEvent, IFileService, FileOperationEvent, FileOperation, ByteSize, TooLargeFileOperationError } from 'vs/platform/files/common/files';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ICodeEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { EditorActivation, ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { ViewContainerLocation } from 'vs/workbench/common/views';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { localize } from '../../../../../nls';
+import { mark } from '../../../../../base/common/performance';
+import { assertIsDefined } from '../../../../../base/common/types';
+import { IPathService } from '../../../../services/path/common/pathService';
+import { IAction, toAction } from '../../../../../base/common/actions';
+import { VIEWLET_ID, TEXT_FILE_EDITOR_ID, BINARY_TEXT_FILE_MODE } from '../../common/files';
+import { ITextFileService, TextFileOperationError, TextFileOperationResult } from '../../../../services/textfile/common/textfiles';
+import { AbstractTextCodeEditor } from '../../../../browser/parts/editor/textCodeEditor';
+import { IEditorOpenContext, isTextEditorViewState, DEFAULT_EDITOR_ASSOCIATION, createEditorOpenError, IFileEditorInputOptions, createTooLargeFileError } from '../../../../common/editor';
+import { EditorInput } from '../../../../common/editor/editorInput';
+import { applyTextEditorOptions } from '../../../../common/editor/editorOptions';
+import { BinaryEditorModel } from '../../../../common/editor/binaryEditorModel';
+import { FileEditorInput } from './fileEditorInput';
+import { FileOperationError, FileOperationResult, FileChangesEvent, IFileService, FileOperationEvent, FileOperation, ByteSize, TooLargeFileOperationError } from '../../../../../platform/files/common/files';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace';
+import { IStorageService } from '../../../../../platform/storage/common/storage';
+import { ITextResourceConfigurationService } from '../../../../../editor/common/services/textResourceConfiguration';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation';
+import { IThemeService } from '../../../../../platform/theme/common/themeService';
+import { ICodeEditorViewState, ScrollType } from '../../../../../editor/common/editorCommon';
+import { IEditorService } from '../../../../services/editor/common/editorService';
+import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService';
+import { CancellationToken } from '../../../../../base/common/cancellation';
+import { EditorActivation, ITextEditorOptions } from '../../../../../platform/editor/common/editor';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity';
+import { IExplorerService } from '../files';
+import { IPaneCompositePartService } from '../../../../services/panecomposite/browser/panecomposite';
+import { ViewContainerLocation } from '../../../../common/views';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration';
+import { IPreferencesService } from '../../../../services/preferences/common/preferences';
+import { IHostService } from '../../../../services/host/browser/host';
+import { IEditorOptions as ICodeEditorOptions } from '../../../../../editor/common/config/editorOptions';
+import { IFilesConfigurationService } from '../../../../services/filesConfiguration/common/filesConfigurationService';
 
 /**
  * An implementation of editor for file system resources.

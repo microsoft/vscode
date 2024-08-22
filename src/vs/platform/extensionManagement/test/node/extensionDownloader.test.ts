@@ -4,27 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { platform } from 'vs/base/common/platform';
-import { arch } from 'vs/base/common/process';
-import { joinPath } from 'vs/base/common/resources';
-import { isBoolean } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import { mock } from 'vs/base/test/common/mock';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { getTargetPlatform, IExtensionGalleryService, IGalleryExtension, IGalleryExtensionAssets, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { ExtensionsDownloader } from 'vs/platform/extensionManagement/node/extensionDownloader';
-import { IExtensionSignatureVerificationService } from 'vs/platform/extensionManagement/node/extensionSignatureVerificationService';
-import { IFileService } from 'vs/platform/files/common/files';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ILogService, NullLogService } from 'vs/platform/log/common/log';
+import { VSBuffer } from '../../../../base/common/buffer';
+import { platform } from '../../../../base/common/platform';
+import { arch } from '../../../../base/common/process';
+import { joinPath } from '../../../../base/common/resources';
+import { isBoolean } from '../../../../base/common/types';
+import { URI } from '../../../../base/common/uri';
+import { generateUuid } from '../../../../base/common/uuid';
+import { mock } from '../../../../base/test/common/mock';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils';
+import { IConfigurationService } from '../../../configuration/common/configuration';
+import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService';
+import { INativeEnvironmentService } from '../../../environment/common/environment';
+import { getTargetPlatform, IExtensionGalleryService, IGalleryExtension, IGalleryExtensionAssets, InstallOperation } from '../../common/extensionManagement';
+import { getGalleryExtensionId } from '../../common/extensionManagementUtil';
+import { ExtensionsDownloader } from '../../node/extensionDownloader';
+import { IExtensionSignatureVerificationService } from '../../node/extensionSignatureVerificationService';
+import { IFileService } from '../../../files/common/files';
+import { FileService } from '../../../files/common/fileService';
+import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider';
+import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock';
+import { ILogService, NullLogService } from '../../../log/common/log';
 
 const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
 

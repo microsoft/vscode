@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Button } from 'vs/base/browser/ui/button/button';
-import { IAction } from 'vs/base/common/actions';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { IMenu } from 'vs/platform/actions/common/actions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { CommentCommandId } from 'vs/workbench/contrib/comments/common/commentCommandIds';
+import { Button } from '../../../../base/browser/ui/button/button';
+import { IAction } from '../../../../base/common/actions';
+import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle';
+import { IMenu } from '../../../../platform/actions/common/actions';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding';
+import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles';
+import { CommentCommandId } from '../common/commentCommandIds';
 
 export class CommentFormActions implements IDisposable {
 	private _buttonElements: HTMLElement[] = [];

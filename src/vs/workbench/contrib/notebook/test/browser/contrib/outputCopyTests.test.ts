@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICellOutputViewModel, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { mock } from 'vs/base/test/common/mock';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { ILogService } from 'vs/platform/log/common/log';
+import { ICellOutputViewModel, ICellViewModel } from '../../../browser/notebookBrowser';
+import { mock } from '../../../../../../base/test/common/mock';
+import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService';
+import { ILogService } from '../../../../../../platform/log/common/log';
 import assert from 'assert';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { IOutputItemDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { copyCellOutput } from 'vs/workbench/contrib/notebook/browser/contrib/clipboard/cellOutputClipboard';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { VSBuffer } from '../../../../../../base/common/buffer';
+import { IOutputItemDto } from '../../../common/notebookCommon';
+import { copyCellOutput } from '../../../browser/contrib/clipboard/cellOutputClipboard';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils';
 
 suite('Cell Output Clipboard Tests', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

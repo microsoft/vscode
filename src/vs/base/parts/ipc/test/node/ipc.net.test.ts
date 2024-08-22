@@ -8,15 +8,15 @@ import sinon from 'sinon';
 import { EventEmitter } from 'events';
 import { AddressInfo, connect, createServer, Server, Socket } from 'net';
 import { tmpdir } from 'os';
-import { Barrier, timeout } from 'vs/base/common/async';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { ILoadEstimator, PersistentProtocol, Protocol, ProtocolConstants, SocketCloseEvent, SocketDiagnosticsEventType } from 'vs/base/parts/ipc/common/ipc.net';
-import { createRandomIPCHandle, createStaticIPCHandle, NodeSocket, WebSocketNodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
-import { flakySuite } from 'vs/base/test/common/testUtils';
-import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { Barrier, timeout } from '../../../../common/async';
+import { VSBuffer } from '../../../../common/buffer';
+import { Emitter, Event } from '../../../../common/event';
+import { Disposable, DisposableStore, toDisposable } from '../../../../common/lifecycle';
+import { ILoadEstimator, PersistentProtocol, Protocol, ProtocolConstants, SocketCloseEvent, SocketDiagnosticsEventType } from '../../common/ipc.net';
+import { createRandomIPCHandle, createStaticIPCHandle, NodeSocket, WebSocketNodeSocket } from '../../node/ipc.net';
+import { flakySuite } from '../../../../test/common/testUtils';
+import { runWithFakedTimers } from '../../../../test/common/timeTravelScheduler';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../test/common/utils';
 
 class MessageStream extends Disposable {
 

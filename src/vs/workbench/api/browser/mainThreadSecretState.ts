@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { Disposable } from '../../../base/common/lifecycle';
+import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers';
 import { ExtHostContext, ExtHostSecretStateShape, MainContext, MainThreadSecretStateShape } from '../common/extHost.protocol';
-import { ILogService } from 'vs/platform/log/common/log';
-import { SequencerByKey } from 'vs/base/common/async';
-import { ISecretStorageService } from 'vs/platform/secrets/common/secrets';
-import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
+import { ILogService } from '../../../platform/log/common/log';
+import { SequencerByKey } from '../../../base/common/async';
+import { ISecretStorageService } from '../../../platform/secrets/common/secrets';
+import { IBrowserWorkbenchEnvironmentService } from '../../services/environment/browser/environmentService';
 
 @extHostNamedCustomer(MainContext.MainThreadSecretState)
 export class MainThreadSecretState extends Disposable implements MainThreadSecretStateShape {

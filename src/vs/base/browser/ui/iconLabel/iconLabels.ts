@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { ThemeIcon } from 'vs/base/common/themables';
+import * as dom from '../../dom';
+import { ThemeIcon } from '../../../common/themables';
 
 const labelWithIconsRegex = new RegExp(`(\\\\)?\\$\\((${ThemeIcon.iconNameExpression}(?:${ThemeIcon.iconModifierExpression})?)\\)`, 'g');
 export function renderLabelWithIcons(text: string): Array<HTMLSpanElement | string> {

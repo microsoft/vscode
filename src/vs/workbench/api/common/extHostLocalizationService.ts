@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LANGUAGE_DEFAULT } from 'vs/base/common/platform';
-import { format2 } from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ExtHostLocalizationShape, IStringDetails, MainContext, MainThreadLocalizationShape } from 'vs/workbench/api/common/extHost.protocol';
-import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
+import { LANGUAGE_DEFAULT } from '../../../base/common/platform';
+import { format2 } from '../../../base/common/strings';
+import { URI } from '../../../base/common/uri';
+import { IExtensionDescription } from '../../../platform/extensions/common/extensions';
+import { createDecorator } from '../../../platform/instantiation/common/instantiation';
+import { ILogService } from '../../../platform/log/common/log';
+import { ExtHostLocalizationShape, IStringDetails, MainContext, MainThreadLocalizationShape } from './extHost.protocol';
+import { IExtHostInitDataService } from './extHostInitDataService';
+import { IExtHostRpcService } from './extHostRpcService';
 
 export class ExtHostLocalizationService implements ExtHostLocalizationShape {
 	readonly _serviceBrand: undefined;

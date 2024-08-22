@@ -4,22 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IDiffResult, ISequence, LcsDiff } from 'vs/base/common/diff/diff';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Mimes } from 'vs/base/common/mime';
-import { mock } from 'vs/base/test/common/mock';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IDiffElementViewModelBase, SideBySideDiffElementViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
-import { NotebookDiffEditorEventDispatcher } from 'vs/workbench/contrib/notebook/browser/diff/eventDispatcher';
-import { INotebookDiffViewModel, INotebookDiffViewModelUpdateEvent } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
-import { NotebookDiffViewModel, prettyChanges } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffViewModel';
-import { CellKind, INotebookTextModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { INotebookEditorWorkerService } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerService';
-import { withTestNotebookDiffModel } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
+import { VSBuffer } from '../../../../../base/common/buffer';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation';
+import { IDiffResult, ISequence, LcsDiff } from '../../../../../base/common/diff/diff';
+import { DisposableStore } from '../../../../../base/common/lifecycle';
+import { Mimes } from '../../../../../base/common/mime';
+import { mock } from '../../../../../base/test/common/mock';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService';
+import { IDiffElementViewModelBase, SideBySideDiffElementViewModel } from '../../browser/diff/diffElementViewModel';
+import { NotebookDiffEditorEventDispatcher } from '../../browser/diff/eventDispatcher';
+import { INotebookDiffViewModel, INotebookDiffViewModelUpdateEvent } from '../../browser/diff/notebookDiffEditorBrowser';
+import { NotebookDiffViewModel, prettyChanges } from '../../browser/diff/notebookDiffViewModel';
+import { CellKind, INotebookTextModel } from '../../common/notebookCommon';
+import { INotebookService } from '../../common/notebookService';
+import { INotebookEditorWorkerService } from '../../common/services/notebookWorkerService';
+import { withTestNotebookDiffModel } from './testNotebookEditor';
 
 class CellSequence implements ISequence {
 

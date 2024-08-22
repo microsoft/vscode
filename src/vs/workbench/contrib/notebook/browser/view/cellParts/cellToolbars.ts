@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { IAction } from 'vs/base/common/actions';
-import { disposableTimeout } from 'vs/base/common/async';
-import { Emitter, Event } from 'vs/base/common/event';
-import { MarshalledId } from 'vs/base/common/marshallingIds';
-import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { createActionViewItem, createAndFillInActionBarActions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenu, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellActionView';
-import { CellOverlayPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
-import { registerCellToolbarStickyScroll } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellToolbarStickyScroll';
-import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
-import { createInstantHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
+import * as DOM from '../../../../../../base/browser/dom';
+import { ToolBar } from '../../../../../../base/browser/ui/toolbar/toolbar';
+import { IAction } from '../../../../../../base/common/actions';
+import { disposableTimeout } from '../../../../../../base/common/async';
+import { Emitter, Event } from '../../../../../../base/common/event';
+import { MarshalledId } from '../../../../../../base/common/marshallingIds';
+import { ServicesAccessor } from '../../../../../../editor/browser/editorExtensions';
+import { createActionViewItem, createAndFillInActionBarActions, MenuEntryActionViewItem } from '../../../../../../platform/actions/browser/menuEntryActionViewItem';
+import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../../../../platform/actions/common/actions';
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey';
+import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation';
+import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding';
+import { INotebookCellActionContext } from '../../controller/coreActions';
+import { ICellViewModel, INotebookEditorDelegate } from '../../notebookBrowser';
+import { CodiconActionViewItem } from './cellActionView';
+import { CellOverlayPart } from '../cellPart';
+import { registerCellToolbarStickyScroll } from './cellToolbarStickyScroll';
+import { WorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar';
+import { createInstantHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory';
+import { IHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegate';
 
 export class BetweenCellToolbar extends CellOverlayPart {
 	private _betweenCellToolbar: ToolBar | undefined;

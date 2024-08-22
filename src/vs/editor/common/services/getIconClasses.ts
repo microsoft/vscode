@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Schemas } from 'vs/base/common/network';
-import { DataUri } from 'vs/base/common/resources';
-import { URI, URI as uri } from 'vs/base/common/uri';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { IModelService } from 'vs/editor/common/services/model';
-import { FileKind } from 'vs/platform/files/common/files';
-import { ThemeIcon } from 'vs/base/common/themables';
+import { Schemas } from '../../../base/common/network';
+import { DataUri } from '../../../base/common/resources';
+import { URI, URI as uri } from '../../../base/common/uri';
+import { PLAINTEXT_LANGUAGE_ID } from '../languages/modesRegistry';
+import { ILanguageService } from '../languages/language';
+import { IModelService } from './model';
+import { FileKind } from '../../../platform/files/common/files';
+import { ThemeIcon } from '../../../base/common/themables';
 
 const fileIconDirectoryRegex = /(?:\/|^)(?:([^\/]+)\/)?([^\/]+)$/;
 

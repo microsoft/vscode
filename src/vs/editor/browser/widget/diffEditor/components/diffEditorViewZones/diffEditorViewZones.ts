@@ -3,34 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener } from 'vs/base/browser/dom';
-import { ArrayQueue } from 'vs/base/common/arrays';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { Codicon } from 'vs/base/common/codicons';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IObservable, autorun, derived, derivedWithStore, observableFromEvent, observableValue } from 'vs/base/common/observable';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { assertIsDefined } from 'vs/base/common/types';
-import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
-import { diffDeleteDecoration, diffRemoveIcon } from 'vs/editor/browser/widget/diffEditor/registrations.contribution';
-import { DiffEditorEditors } from 'vs/editor/browser/widget/diffEditor/components/diffEditorEditors';
-import { DiffEditorViewModel, DiffMapping } from 'vs/editor/browser/widget/diffEditor/diffEditorViewModel';
-import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
-import { InlineDiffDeletedCodeMargin } from 'vs/editor/browser/widget/diffEditor/components/diffEditorViewZones/inlineDiffDeletedCodeMargin';
-import { LineSource, RenderOptions, renderLines } from 'vs/editor/browser/widget/diffEditor/components/diffEditorViewZones/renderLines';
-import { IObservableViewZone, animatedObservable, joinCombine } from 'vs/editor/browser/widget/diffEditor/utils';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { LineRange } from 'vs/editor/common/core/lineRange';
-import { Position } from 'vs/editor/common/core/position';
-import { DetailedLineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
-import { ScrollType } from 'vs/editor/common/editorCommon';
-import { BackgroundTokenizationState } from 'vs/editor/common/tokenizationTextModelPart';
-import { InlineDecoration, InlineDecorationType } from 'vs/editor/common/viewModel';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { $, addDisposableListener } from '../../../../../../base/browser/dom';
+import { ArrayQueue } from '../../../../../../base/common/arrays';
+import { RunOnceScheduler } from '../../../../../../base/common/async';
+import { Codicon } from '../../../../../../base/common/codicons';
+import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle';
+import { IObservable, autorun, derived, derivedWithStore, observableFromEvent, observableValue } from '../../../../../../base/common/observable';
+import { ThemeIcon } from '../../../../../../base/common/themables';
+import { assertIsDefined } from '../../../../../../base/common/types';
+import { applyFontInfo } from '../../../../config/domFontInfo';
+import { CodeEditorWidget } from '../../../codeEditor/codeEditorWidget';
+import { diffDeleteDecoration, diffRemoveIcon } from '../../registrations.contribution';
+import { DiffEditorEditors } from '../diffEditorEditors';
+import { DiffEditorViewModel, DiffMapping } from '../../diffEditorViewModel';
+import { DiffEditorWidget } from '../../diffEditorWidget';
+import { InlineDiffDeletedCodeMargin } from './inlineDiffDeletedCodeMargin';
+import { LineSource, RenderOptions, renderLines } from './renderLines';
+import { IObservableViewZone, animatedObservable, joinCombine } from '../../utils';
+import { EditorOption } from '../../../../../common/config/editorOptions';
+import { LineRange } from '../../../../../common/core/lineRange';
+import { Position } from '../../../../../common/core/position';
+import { DetailedLineRangeMapping } from '../../../../../common/diff/rangeMapping';
+import { ScrollType } from '../../../../../common/editorCommon';
+import { BackgroundTokenizationState } from '../../../../../common/tokenizationTextModelPart';
+import { InlineDecoration, InlineDecorationType } from '../../../../../common/viewModel';
+import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService';
+import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView';
 import { DiffEditorOptions } from '../../diffEditorOptions';
-import { Range } from 'vs/editor/common/core/range';
+import { Range } from '../../../../../common/core/range';
 
 /**
  * Ensures both editors have the same height by aligning unchanged lines.

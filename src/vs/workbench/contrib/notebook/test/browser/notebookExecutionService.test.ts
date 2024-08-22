@@ -5,30 +5,30 @@
 
 import assert from 'assert';
 import * as sinon from 'sinon';
-import { AsyncIterableObject } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { mock } from 'vs/base/test/common/mock';
-import { assertThrowsAsync, ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { IMenu, IMenuService } from 'vs/platform/actions/common/actions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { insertCellAtIndex } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
-import { NotebookExecutionService } from 'vs/workbench/contrib/notebook/browser/services/notebookExecutionServiceImpl';
-import { NotebookKernelService } from 'vs/workbench/contrib/notebook/browser/services/notebookKernelServiceImpl';
-import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellKind, IOutputDto, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { INotebookKernel, INotebookKernelHistoryService, INotebookKernelService, INotebookTextModelLike, VariablesResult } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { INotebookLoggingService } from 'vs/workbench/contrib/notebook/common/notebookLoggingService';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { setupInstantiationService, withTestNotebook as _withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
+import { AsyncIterableObject } from '../../../../../base/common/async';
+import { CancellationToken } from '../../../../../base/common/cancellation';
+import { Event } from '../../../../../base/common/event';
+import { DisposableStore } from '../../../../../base/common/lifecycle';
+import { URI } from '../../../../../base/common/uri';
+import { mock } from '../../../../../base/test/common/mock';
+import { assertThrowsAsync, ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils';
+import { PLAINTEXT_LANGUAGE_ID } from '../../../../../editor/common/languages/modesRegistry';
+import { IMenu, IMenuService } from '../../../../../platform/actions/common/actions';
+import { ICommandService } from '../../../../../platform/commands/common/commands';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey';
+import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock';
+import { insertCellAtIndex } from '../../browser/controller/cellOperations';
+import { NotebookExecutionService } from '../../browser/services/notebookExecutionServiceImpl';
+import { NotebookKernelService } from '../../browser/services/notebookKernelServiceImpl';
+import { NotebookViewModel } from '../../browser/viewModel/notebookViewModelImpl';
+import { NotebookTextModel } from '../../common/model/notebookTextModel';
+import { CellKind, IOutputDto, NotebookCellMetadata } from '../../common/notebookCommon';
+import { INotebookExecutionStateService } from '../../common/notebookExecutionStateService';
+import { INotebookKernel, INotebookKernelHistoryService, INotebookKernelService, INotebookTextModelLike, VariablesResult } from '../../common/notebookKernelService';
+import { INotebookLoggingService } from '../../common/notebookLoggingService';
+import { INotebookService } from '../../common/notebookService';
+import { setupInstantiationService, withTestNotebook as _withTestNotebook } from './testNotebookEditor';
 
 suite('NotebookExecutionService', () => {
 

@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createTrustedTypesPolicy } from 'vs/base/browser/trustedTypes';
-import { Event } from 'vs/base/common/event';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, autorun, derived, observableFromEvent, observableSignalFromEvent, observableValue } from 'vs/base/common/observable';
-import * as strings from 'vs/base/common/strings';
+import { createTrustedTypesPolicy } from '../../../../base/browser/trustedTypes';
+import { Event } from '../../../../base/common/event';
+import { Disposable, toDisposable } from '../../../../base/common/lifecycle';
+import { IObservable, autorun, derived, observableFromEvent, observableSignalFromEvent, observableValue } from '../../../../base/common/observable';
+import * as strings from '../../../../base/common/strings';
 import 'vs/css!./ghostText';
-import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorFontLigatures, EditorOption, IComputedEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { StringBuilder } from 'vs/editor/common/core/stringBuilder';
-import { ILanguageIdCodec } from 'vs/editor/common/languages';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { IModelDeltaDecoration, ITextModel, InjectedTextCursorStops, PositionAffinity } from 'vs/editor/common/model';
-import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
-import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
-import { RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
-import { InlineDecorationType } from 'vs/editor/common/viewModel';
-import { GhostText, GhostTextReplacement } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
-import { ColumnRange, applyObservableDecorations } from 'vs/editor/contrib/inlineCompletions/browser/utils';
+import { applyFontInfo } from '../../../browser/config/domFontInfo';
+import { ICodeEditor } from '../../../browser/editorBrowser';
+import { EditorFontLigatures, EditorOption, IComputedEditorOptions } from '../../../common/config/editorOptions';
+import { Position } from '../../../common/core/position';
+import { Range } from '../../../common/core/range';
+import { StringBuilder } from '../../../common/core/stringBuilder';
+import { ILanguageIdCodec } from '../../../common/languages';
+import { ILanguageService } from '../../../common/languages/language';
+import { IModelDeltaDecoration, ITextModel, InjectedTextCursorStops, PositionAffinity } from '../../../common/model';
+import { LineTokens } from '../../../common/tokens/lineTokens';
+import { LineDecoration } from '../../../common/viewLayout/lineDecorations';
+import { RenderLineInput, renderViewLine } from '../../../common/viewLayout/viewLineRenderer';
+import { InlineDecorationType } from '../../../common/viewModel';
+import { GhostText, GhostTextReplacement } from './ghostText';
+import { ColumnRange, applyObservableDecorations } from './utils';
 
 export const GHOST_TEXT_DESCRIPTION = 'ghost-text';
 export interface IGhostTextWidgetModel {

@@ -3,33 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { Event, Emitter } from 'vs/base/common/event';
-import { assertIsDefined } from 'vs/base/common/types';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { ILifecycleService, LifecyclePhase, WillShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { WorkingCopyHistoryTracker } from 'vs/workbench/services/workingCopy/common/workingCopyHistoryTracker';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IWorkingCopyHistoryEntry, IWorkingCopyHistoryEntryDescriptor, IWorkingCopyHistoryEvent, IWorkingCopyHistoryService, MAX_PARALLEL_HISTORY_IO_OPS } from 'vs/workbench/services/workingCopy/common/workingCopyHistory';
-import { FileOperationError, FileOperationResult, IFileService, IFileStatWithMetadata } from 'vs/platform/files/common/files';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { URI } from 'vs/base/common/uri';
-import { DeferredPromise, Limiter, RunOnceScheduler } from 'vs/base/common/async';
-import { dirname, extname, isEqual, joinPath } from 'vs/base/common/resources';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { hash } from 'vs/base/common/hash';
-import { indexOfPath, randomPath } from 'vs/base/common/extpath';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { ResourceMap } from 'vs/base/common/map';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { ILogService } from 'vs/platform/log/common/log';
-import { SaveSource, SaveSourceRegistry } from 'vs/workbench/common/editor';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { distinct, lastOrDefault } from 'vs/base/common/arrays';
-import { escapeRegExpCharacters } from 'vs/base/common/strings';
+import { localize } from '../../../../nls';
+import { Event, Emitter } from '../../../../base/common/event';
+import { assertIsDefined } from '../../../../base/common/types';
+import { Registry } from '../../../../platform/registry/common/platform';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../common/contributions';
+import { ILifecycleService, LifecyclePhase, WillShutdownEvent } from '../../lifecycle/common/lifecycle';
+import { WorkingCopyHistoryTracker } from './workingCopyHistoryTracker';
+import { Disposable } from '../../../../base/common/lifecycle';
+import { IWorkingCopyHistoryEntry, IWorkingCopyHistoryEntryDescriptor, IWorkingCopyHistoryEvent, IWorkingCopyHistoryService, MAX_PARALLEL_HISTORY_IO_OPS } from './workingCopyHistory';
+import { FileOperationError, FileOperationResult, IFileService, IFileStatWithMetadata } from '../../../../platform/files/common/files';
+import { IRemoteAgentService } from '../../remote/common/remoteAgentService';
+import { URI } from '../../../../base/common/uri';
+import { DeferredPromise, Limiter, RunOnceScheduler } from '../../../../base/common/async';
+import { dirname, extname, isEqual, joinPath } from '../../../../base/common/resources';
+import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService';
+import { hash } from '../../../../base/common/hash';
+import { indexOfPath, randomPath } from '../../../../base/common/extpath';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation';
+import { ResourceMap } from '../../../../base/common/map';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity';
+import { ILabelService } from '../../../../platform/label/common/label';
+import { VSBuffer } from '../../../../base/common/buffer';
+import { ILogService } from '../../../../platform/log/common/log';
+import { SaveSource, SaveSourceRegistry } from '../../../common/editor';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration';
+import { distinct, lastOrDefault } from '../../../../base/common/arrays';
+import { escapeRegExpCharacters } from '../../../../base/common/strings';
 
 interface ISerializedWorkingCopyHistoryModel {
 	readonly version: number;

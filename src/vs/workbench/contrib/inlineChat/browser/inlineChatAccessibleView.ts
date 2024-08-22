@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
-import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_RESPONSE_FOCUSED } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { AccessibleViewProviderId, AccessibleViewType, AccessibleContentProvider } from 'vs/platform/accessibility/browser/accessibleView';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IAccessibleViewImplentation } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import { renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
-import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { InlineChatController } from './inlineChatController';
+import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_RESPONSE_FOCUSED } from '../common/inlineChat';
+import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey';
+import { AccessibleViewProviderId, AccessibleViewType, AccessibleContentProvider } from '../../../../platform/accessibility/browser/accessibleView';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation';
+import { IAccessibleViewImplentation } from '../../../../platform/accessibility/browser/accessibleViewRegistry';
+import { MarkdownString } from '../../../../base/common/htmlContent';
+import { renderMarkdownAsPlaintext } from '../../../../base/browser/markdownRenderer';
+import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration';
 
 export class InlineChatAccessibleView implements IAccessibleViewImplentation {
 	readonly priority = 100;

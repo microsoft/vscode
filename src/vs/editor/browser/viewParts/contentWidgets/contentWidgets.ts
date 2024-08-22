@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { ContentWidgetPositionPreference, IContentWidget } from 'vs/editor/browser/editorBrowser';
-import { PartFingerprint, PartFingerprints, ViewPart } from 'vs/editor/browser/view/viewPart';
-import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
-import * as viewEvents from 'vs/editor/common/viewEvents';
-import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IDimension } from 'vs/editor/common/core/dimension';
-import { PositionAffinity } from 'vs/editor/common/model';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { IViewModel } from 'vs/editor/common/viewModel';
+import * as dom from '../../../../base/browser/dom';
+import { FastDomNode, createFastDomNode } from '../../../../base/browser/fastDomNode';
+import { ContentWidgetPositionPreference, IContentWidget } from '../../editorBrowser';
+import { PartFingerprint, PartFingerprints, ViewPart } from '../../view/viewPart';
+import { RenderingContext, RestrictedRenderingContext } from '../../view/renderingContext';
+import { ViewContext } from '../../../common/viewModel/viewContext';
+import * as viewEvents from '../../../common/viewEvents';
+import { ViewportData } from '../../../common/viewLayout/viewLinesViewportData';
+import { EditorOption } from '../../../common/config/editorOptions';
+import { IDimension } from '../../../common/core/dimension';
+import { PositionAffinity } from '../../../common/model';
+import { IPosition, Position } from '../../../common/core/position';
+import { IViewModel } from '../../../common/viewModel';
 
 export class ViewContentWidgets extends ViewPart {
 

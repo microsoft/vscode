@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { Delayer } from 'vs/base/common/async';
-import { fromNow, getDurationString } from 'vs/base/common/date';
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import { combinedDisposable, Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
+import * as dom from '../../../../../base/browser/dom';
+import { Delayer } from '../../../../../base/common/async';
+import { fromNow, getDurationString } from '../../../../../base/common/date';
+import { MarkdownString } from '../../../../../base/common/htmlContent';
+import { combinedDisposable, Disposable, IDisposable } from '../../../../../base/common/lifecycle';
+import { localize } from '../../../../../nls';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView';
+import { ITerminalCommand } from '../../../../../platform/terminal/common/capabilities/capabilities';
+import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal';
+import { IHoverService } from '../../../../../platform/hover/browser/hover';
 
 const enum DecorationStyles {
 	DefaultDimension = 16,

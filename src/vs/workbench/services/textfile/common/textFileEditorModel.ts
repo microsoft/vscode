@@ -3,37 +3,37 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { Emitter } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
-import { mark } from 'vs/base/common/performance';
-import { assertIsDefined } from 'vs/base/common/types';
-import { EncodingMode, ITextFileService, TextFileEditorModelState, ITextFileEditorModel, ITextFileStreamContent, ITextFileResolveOptions, IResolvedTextFileEditorModel, TextFileResolveReason, ITextFileEditorModelSaveEvent, ITextFileSaveAsOptions } from 'vs/workbench/services/textfile/common/textfiles';
-import { IRevertOptions, SaveReason, SaveSourceRegistry } from 'vs/workbench/common/editor';
-import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
-import { IWorkingCopyBackupService, IResolvedWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { IFileService, FileOperationError, FileOperationResult, FileChangesEvent, FileChangeType, IFileStatWithMetadata, ETAG_DISABLED, NotModifiedSinceFileOperationError } from 'vs/platform/files/common/files';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { IModelService } from 'vs/editor/common/services/model';
-import { timeout, TaskSequentializer } from 'vs/base/common/async';
-import { ITextBufferFactory, ITextModel } from 'vs/editor/common/model';
-import { ILogService } from 'vs/platform/log/common/log';
-import { basename } from 'vs/base/common/path';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { IWorkingCopyBackup, WorkingCopyCapabilities, NO_TYPE_ID, IWorkingCopyBackupMeta } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { UTF16be, UTF16le, UTF8, UTF8_with_bom } from 'vs/workbench/services/textfile/common/encoding';
-import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
-import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { extUri } from 'vs/base/common/resources';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { IProgress, IProgressService, IProgressStep, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { localize } from '../../../../nls';
+import { Emitter } from '../../../../base/common/event';
+import { URI } from '../../../../base/common/uri';
+import { mark } from '../../../../base/common/performance';
+import { assertIsDefined } from '../../../../base/common/types';
+import { EncodingMode, ITextFileService, TextFileEditorModelState, ITextFileEditorModel, ITextFileStreamContent, ITextFileResolveOptions, IResolvedTextFileEditorModel, TextFileResolveReason, ITextFileEditorModelSaveEvent, ITextFileSaveAsOptions } from './textfiles';
+import { IRevertOptions, SaveReason, SaveSourceRegistry } from '../../../common/editor';
+import { BaseTextEditorModel } from '../../../common/editor/textEditorModel';
+import { IWorkingCopyBackupService, IResolvedWorkingCopyBackup } from '../../workingCopy/common/workingCopyBackup';
+import { IFileService, FileOperationError, FileOperationResult, FileChangesEvent, FileChangeType, IFileStatWithMetadata, ETAG_DISABLED, NotModifiedSinceFileOperationError } from '../../../../platform/files/common/files';
+import { ILanguageService } from '../../../../editor/common/languages/language';
+import { IModelService } from '../../../../editor/common/services/model';
+import { timeout, TaskSequentializer } from '../../../../base/common/async';
+import { ITextBufferFactory, ITextModel } from '../../../../editor/common/model';
+import { ILogService } from '../../../../platform/log/common/log';
+import { basename } from '../../../../base/common/path';
+import { IWorkingCopyService } from '../../workingCopy/common/workingCopyService';
+import { IWorkingCopyBackup, WorkingCopyCapabilities, NO_TYPE_ID, IWorkingCopyBackupMeta } from '../../workingCopy/common/workingCopy';
+import { IFilesConfigurationService } from '../../filesConfiguration/common/filesConfigurationService';
+import { ILabelService } from '../../../../platform/label/common/label';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation';
+import { UTF16be, UTF16le, UTF8, UTF8_with_bom } from './encoding';
+import { createTextBufferFactoryFromStream } from '../../../../editor/common/model/textModel';
+import { ILanguageDetectionService } from '../../languageDetection/common/languageDetectionWorkerService';
+import { IPathService } from '../../path/common/pathService';
+import { extUri } from '../../../../base/common/resources';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility';
+import { PLAINTEXT_LANGUAGE_ID } from '../../../../editor/common/languages/modesRegistry';
+import { IExtensionService } from '../../extensions/common/extensions';
+import { IMarkdownString } from '../../../../base/common/htmlContent';
+import { IProgress, IProgressService, IProgressStep, ProgressLocation } from '../../../../platform/progress/common/progress';
 
 interface IBackupMetaData extends IWorkingCopyBackupMeta {
 	mtime: number;

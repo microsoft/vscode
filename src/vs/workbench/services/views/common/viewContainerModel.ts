@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ViewContainer, IViewsRegistry, IViewDescriptor, Extensions as ViewExtensions, IViewContainerModel, IAddedViewDescriptorRef, IViewDescriptorRef, IAddedViewDescriptorState, defaultViewIcon, VIEWS_LOG_ID, VIEWS_LOG_NAME } from 'vs/workbench/common/views';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { Event, Emitter } from 'vs/base/common/event';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { URI } from 'vs/base/common/uri';
-import { coalesce, move } from 'vs/base/common/arrays';
-import { isUndefined, isUndefinedOrNull } from 'vs/base/common/types';
-import { isEqual } from 'vs/base/common/resources';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { ILogger, ILoggerService } from 'vs/platform/log/common/log';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { IOutputService } from 'vs/workbench/services/output/common/output';
-import { CounterSet } from 'vs/base/common/map';
-import { localize2 } from 'vs/nls';
-import { Lazy } from 'vs/base/common/lazy';
+import { ViewContainer, IViewsRegistry, IViewDescriptor, Extensions as ViewExtensions, IViewContainerModel, IAddedViewDescriptorRef, IViewDescriptorRef, IAddedViewDescriptorState, defaultViewIcon, VIEWS_LOG_ID, VIEWS_LOG_NAME } from '../../../common/views';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage';
+import { Registry } from '../../../../platform/registry/common/platform';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle';
+import { Event, Emitter } from '../../../../base/common/event';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation';
+import { URI } from '../../../../base/common/uri';
+import { coalesce, move } from '../../../../base/common/arrays';
+import { isUndefined, isUndefinedOrNull } from '../../../../base/common/types';
+import { isEqual } from '../../../../base/common/resources';
+import { ThemeIcon } from '../../../../base/common/themables';
+import { IStringDictionary } from '../../../../base/common/collections';
+import { ILogger, ILoggerService } from '../../../../platform/log/common/log';
+import { Action2, registerAction2 } from '../../../../platform/actions/common/actions';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories';
+import { IOutputService } from '../../output/common/output';
+import { CounterSet } from '../../../../base/common/map';
+import { localize2 } from '../../../../nls';
+import { Lazy } from '../../../../base/common/lazy';
 
 registerAction2(class extends Action2 {
 	constructor() {

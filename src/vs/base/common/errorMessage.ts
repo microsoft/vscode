@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as arrays from 'vs/base/common/arrays';
-import * as types from 'vs/base/common/types';
-import * as nls from 'vs/nls';
-import { IAction } from 'vs/base/common/actions';
+import * as arrays from './arrays';
+import * as types from './types';
+import * as nls from '../../nls';
+import { IAction } from './actions';
 
 function exceptionToErrorMessage(exception: any, verbose: boolean): string {
 	if (verbose && (exception.stack || exception.stacktrace)) {

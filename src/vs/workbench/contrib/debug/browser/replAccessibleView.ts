@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AccessibleViewProviderId, AccessibleViewType, IAccessibleViewContentProvider, IAccessibleViewService } from 'vs/platform/accessibility/browser/accessibleView';
-import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { IReplElement } from 'vs/workbench/contrib/debug/common/debug';
-import { IAccessibleViewImplentation } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { getReplView, Repl } from 'vs/workbench/contrib/debug/browser/repl';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Position } from 'vs/editor/common/core/position';
+import { AccessibleViewProviderId, AccessibleViewType, IAccessibleViewContentProvider, IAccessibleViewService } from '../../../../platform/accessibility/browser/accessibleView';
+import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration';
+import { IReplElement } from '../common/debug';
+import { IAccessibleViewImplentation } from '../../../../platform/accessibility/browser/accessibleViewRegistry';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation';
+import { getReplView, Repl } from './repl';
+import { IViewsService } from '../../../services/views/common/viewsService';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey';
+import { Emitter, Event } from '../../../../base/common/event';
+import { Disposable } from '../../../../base/common/lifecycle';
+import { Position } from '../../../../editor/common/core/position';
 
 export class ReplAccessibleView implements IAccessibleViewImplentation {
 	priority = 70;

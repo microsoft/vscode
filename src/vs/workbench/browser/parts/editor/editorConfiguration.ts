@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, IConfigurationNode, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
-import { IEditorResolverService, RegisteredEditorInfo, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
-import { IJSONSchemaMap } from 'vs/base/common/jsonSchema';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { coalesce } from 'vs/base/common/arrays';
-import { Event } from 'vs/base/common/event';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { ByteSize, getLargeFileConfirmationLimit } from 'vs/platform/files/common/files';
+import { localize } from '../../../../nls';
+import { Registry } from '../../../../platform/registry/common/platform';
+import { IWorkbenchContribution } from '../../../common/contributions';
+import { Disposable } from '../../../../base/common/lifecycle';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions, IConfigurationNode, ConfigurationScope } from '../../../../platform/configuration/common/configurationRegistry';
+import { workbenchConfigurationNodeBase } from '../../../common/configuration';
+import { IEditorResolverService, RegisteredEditorInfo, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService';
+import { IJSONSchemaMap } from '../../../../base/common/jsonSchema';
+import { IExtensionService } from '../../../services/extensions/common/extensions';
+import { coalesce } from '../../../../base/common/arrays';
+import { Event } from '../../../../base/common/event';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService';
+import { ByteSize, getLargeFileConfirmationLimit } from '../../../../platform/files/common/files';
 
 export class DynamicEditorConfigurations extends Disposable implements IWorkbenchContribution {
 

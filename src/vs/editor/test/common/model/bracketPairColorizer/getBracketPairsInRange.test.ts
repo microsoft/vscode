@@ -4,18 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore, disposeOnReturn } from 'vs/base/common/lifecycle';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
-import { TokenizationRegistry } from 'vs/editor/common/languages';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { BracketPairInfo } from 'vs/editor/common/textModelBracketPairs';
-import { TokenInfo, TokenizedDocument } from 'vs/editor/test/common/model/bracketPairColorizer/tokenizer.test';
-import { createModelServices, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
+import { DisposableStore, disposeOnReturn } from '../../../../../base/common/lifecycle';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils';
+import { Position } from '../../../../common/core/position';
+import { Range } from '../../../../common/core/range';
+import { StandardTokenType } from '../../../../common/encodedTokenAttributes';
+import { TokenizationRegistry } from '../../../../common/languages';
+import { ILanguageService } from '../../../../common/languages/language';
+import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry';
+import { TextModel } from '../../../../common/model/textModel';
+import { BracketPairInfo } from '../../../../common/textModelBracketPairs';
+import { TokenInfo, TokenizedDocument } from './tokenizer.test';
+import { createModelServices, instantiateTextModel } from '../../testTextModel';
 
 suite('Bracket Pair Colorizer - getBracketPairsInRange', () => {
 

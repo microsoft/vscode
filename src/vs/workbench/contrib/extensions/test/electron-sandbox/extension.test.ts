@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ExtensionState } from 'vs/workbench/contrib/extensions/common/extensions';
-import { Extension } from 'vs/workbench/contrib/extensions/browser/extensionsWorkbenchService';
-import { IGalleryExtension, IGalleryExtensionProperties, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionType, IExtensionManifest, TargetPlatform } from 'vs/platform/extensions/common/extensions';
-import { URI } from 'vs/base/common/uri';
-import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { generateUuid } from 'vs/base/common/uuid';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { ExtensionState } from '../../common/extensions';
+import { Extension } from '../../browser/extensionsWorkbenchService';
+import { IGalleryExtension, IGalleryExtensionProperties, ILocalExtension } from '../../../../../platform/extensionManagement/common/extensionManagement';
+import { ExtensionType, IExtensionManifest, TargetPlatform } from '../../../../../platform/extensions/common/extensions';
+import { URI } from '../../../../../base/common/uri';
+import { getGalleryExtensionId } from '../../../../../platform/extensionManagement/common/extensionManagementUtil';
+import { generateUuid } from '../../../../../base/common/uuid';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock';
+import { IProductService } from '../../../../../platform/product/common/productService';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils';
 
 suite('Extension Test', () => {
 

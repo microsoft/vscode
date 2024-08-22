@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import * as platform from 'vs/base/common/platform';
-import * as performance from 'vs/base/common/performance';
-import { URI } from 'vs/base/common/uri';
-import { createURITransformer } from 'vs/workbench/api/node/uriTransformer';
-import { IRemoteAgentEnvironmentDTO, IGetEnvironmentDataArguments, IGetExtensionHostExitInfoArguments } from 'vs/workbench/services/remote/common/remoteAgentEnvironmentChannel';
-import { IServerEnvironmentService } from 'vs/server/node/serverEnvironmentService';
-import { IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { transformOutgoingURIs } from 'vs/base/common/uriIpc';
-import { listProcesses } from 'vs/base/node/ps';
-import { getMachineInfo, collectWorkspaceStats } from 'vs/platform/diagnostics/node/diagnosticsService';
-import { IDiagnosticInfoOptions, IDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnostics';
-import { basename } from 'vs/base/common/path';
-import { ProcessItem } from 'vs/base/common/processes';
-import { ServerConnectionToken, ServerConnectionTokenType } from 'vs/server/node/serverConnectionToken';
-import { IExtensionHostStatusService } from 'vs/server/node/extensionHostStatusService';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { joinPath } from 'vs/base/common/resources';
+import { Event } from '../../base/common/event';
+import * as platform from '../../base/common/platform';
+import * as performance from '../../base/common/performance';
+import { URI } from '../../base/common/uri';
+import { createURITransformer } from '../../workbench/api/node/uriTransformer';
+import { IRemoteAgentEnvironmentDTO, IGetEnvironmentDataArguments, IGetExtensionHostExitInfoArguments } from '../../workbench/services/remote/common/remoteAgentEnvironmentChannel';
+import { IServerEnvironmentService } from './serverEnvironmentService';
+import { IServerChannel } from '../../base/parts/ipc/common/ipc';
+import { transformOutgoingURIs } from '../../base/common/uriIpc';
+import { listProcesses } from '../../base/node/ps';
+import { getMachineInfo, collectWorkspaceStats } from '../../platform/diagnostics/node/diagnosticsService';
+import { IDiagnosticInfoOptions, IDiagnosticInfo } from '../../platform/diagnostics/common/diagnostics';
+import { basename } from '../../base/common/path';
+import { ProcessItem } from '../../base/common/processes';
+import { ServerConnectionToken, ServerConnectionTokenType } from './serverConnectionToken';
+import { IExtensionHostStatusService } from './extensionHostStatusService';
+import { IUserDataProfilesService } from '../../platform/userDataProfile/common/userDataProfile';
+import { joinPath } from '../../base/common/resources';
 
 export class RemoteAgentEnvironmentChannel implements IServerChannel {
 

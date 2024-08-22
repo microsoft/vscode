@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import { Position } from 'vs/editor/common/core/position';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { BracketMatchingController } from 'vs/editor/contrib/bracketMatching/browser/bracketMatching';
-import { createCodeEditorServices, instantiateTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { instantiateTextModel } from 'vs/editor/test/common/testTextModel';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { Position } from '../../../../common/core/position';
+import { Selection } from '../../../../common/core/selection';
+import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry';
+import { BracketMatchingController } from '../../browser/bracketMatching';
+import { createCodeEditorServices, instantiateTestCodeEditor } from '../../../../test/browser/testCodeEditor';
+import { instantiateTextModel } from '../../../../test/common/testTextModel';
+import { DisposableStore } from '../../../../../base/common/lifecycle';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock';
+import { ILanguageService } from '../../../../common/languages/language';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils';
 
 suite('bracket matching', () => {
 	let disposables: DisposableStore;

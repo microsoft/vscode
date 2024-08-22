@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import * as Objects from 'vs/base/common/objects';
-import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
+import * as nls from '../../../../nls';
+import * as Objects from '../../../../base/common/objects';
+import { IJSONSchema, IJSONSchemaMap } from '../../../../base/common/jsonSchema';
 
 import commonSchema from './jsonSchemaCommon';
 
-import { ProblemMatcherRegistry } from 'vs/workbench/contrib/tasks/common/problemMatcher';
+import { ProblemMatcherRegistry } from './problemMatcher';
 import { TaskDefinitionRegistry } from './taskDefinitionRegistry';
-import * as ConfigurationResolverUtils from 'vs/workbench/services/configurationResolver/common/configurationResolverUtils';
-import { inputsSchema } from 'vs/workbench/services/configurationResolver/common/configurationResolverSchema';
-import { getAllCodicons } from 'vs/base/common/codicons';
+import * as ConfigurationResolverUtils from '../../../services/configurationResolver/common/configurationResolverUtils';
+import { inputsSchema } from '../../../services/configurationResolver/common/configurationResolverSchema';
+import { getAllCodicons } from '../../../../base/common/codicons';
 
 function fixReferences(literal: any) {
 	if (Array.isArray(literal)) {

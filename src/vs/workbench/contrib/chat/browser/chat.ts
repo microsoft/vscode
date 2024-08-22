@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Selection } from 'vs/editor/common/core/selection';
-import { localize } from 'vs/nls';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ChatViewPane } from 'vs/workbench/contrib/chat/browser/chatViewPane';
-import { IChatViewState, IChatWidgetContrib } from 'vs/workbench/contrib/chat/browser/chatWidget';
-import { ICodeBlockActionContext } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
-import { ChatAgentLocation, IChatAgentCommand, IChatAgentData } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { IChatRequestVariableEntry, IChatResponseModel } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { CHAT_PROVIDER_ID } from 'vs/workbench/contrib/chat/common/chatParticipantContribTypes';
-import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatWelcomeMessageViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
+import { Event } from '../../../../base/common/event';
+import { IDisposable } from '../../../../base/common/lifecycle';
+import { URI } from '../../../../base/common/uri';
+import { ICodeEditor } from '../../../../editor/browser/editorBrowser';
+import { Selection } from '../../../../editor/common/core/selection';
+import { localize } from '../../../../nls';
+import { MenuId } from '../../../../platform/actions/common/actions';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation';
+import { ChatViewPane } from './chatViewPane';
+import { IChatViewState, IChatWidgetContrib } from './chatWidget';
+import { ICodeBlockActionContext } from './codeBlockPart';
+import { ChatAgentLocation, IChatAgentCommand, IChatAgentData } from '../common/chatAgents';
+import { IChatRequestVariableEntry, IChatResponseModel } from '../common/chatModel';
+import { IParsedChatRequest } from '../common/chatParserTypes';
+import { CHAT_PROVIDER_ID } from '../common/chatParticipantContribTypes';
+import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatWelcomeMessageViewModel } from '../common/chatViewModel';
+import { IViewsService } from '../../../services/views/common/viewsService';
 
 export const IChatWidgetService = createDecorator<IChatWidgetService>('chatWidgetService');
 

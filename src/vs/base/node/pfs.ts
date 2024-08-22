@@ -6,13 +6,13 @@
 import * as fs from 'fs';
 import { tmpdir } from 'os';
 import { promisify } from 'util';
-import { ResourceQueue, timeout } from 'vs/base/common/async';
-import { isEqualOrParent, isRootOrDriveLetter, randomPath } from 'vs/base/common/extpath';
-import { normalizeNFC } from 'vs/base/common/normalization';
-import { join } from 'vs/base/common/path';
-import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
+import { ResourceQueue, timeout } from '../common/async';
+import { isEqualOrParent, isRootOrDriveLetter, randomPath } from '../common/extpath';
+import { normalizeNFC } from '../common/normalization';
+import { join } from '../common/path';
+import { isLinux, isMacintosh, isWindows } from '../common/platform';
+import { extUriBiasedIgnorePathCase } from '../common/resources';
+import { URI } from '../common/uri';
 
 //#region rimraf
 

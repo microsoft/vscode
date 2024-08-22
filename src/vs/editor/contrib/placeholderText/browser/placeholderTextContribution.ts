@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { h } from 'vs/base/browser/dom';
-import { structuralEquals } from 'vs/base/common/equals';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { autorun, constObservable, derivedObservableWithCache, derivedOpts, IObservable, IReader } from 'vs/base/common/observable';
-import { DebugOwner } from 'vs/base/common/observableInternal/debugName';
-import { derivedWithStore } from 'vs/base/common/observableInternal/derived';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { observableCodeEditor } from 'vs/editor/browser/observableCodeEditor';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { h } from '../../../../base/browser/dom';
+import { structuralEquals } from '../../../../base/common/equals';
+import { Disposable } from '../../../../base/common/lifecycle';
+import { autorun, constObservable, derivedObservableWithCache, derivedOpts, IObservable, IReader } from '../../../../base/common/observable';
+import { DebugOwner } from '../../../../base/common/observableInternal/debugName';
+import { derivedWithStore } from '../../../../base/common/observableInternal/derived';
+import { ICodeEditor } from '../../../browser/editorBrowser';
+import { observableCodeEditor } from '../../../browser/observableCodeEditor';
+import { EditorOption } from '../../../common/config/editorOptions';
+import { IEditorContribution } from '../../../common/editorCommon';
 
 /**
  * Use the editor option to set the placeholder text.

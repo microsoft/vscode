@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { toDisposable } from 'vs/base/common/lifecycle';
-import { IDocumentDiff, IDocumentDiffProvider, IDocumentDiffProviderOptions } from 'vs/editor/common/diff/documentDiffProvider';
-import { linesDiffComputers } from 'vs/editor/common/diff/linesDiffComputers';
-import { ITextModel } from 'vs/editor/common/model';
-import { Event } from 'vs/base/common/event';
-import { IDiffProviderFactoryService } from 'vs/editor/browser/widget/diffEditor/diffProviderFactoryService';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import { toDisposable } from '../../../../base/common/lifecycle';
+import { IDocumentDiff, IDocumentDiffProvider, IDocumentDiffProviderOptions } from '../../../common/diff/documentDiffProvider';
+import { linesDiffComputers } from '../../../common/diff/linesDiffComputers';
+import { ITextModel } from '../../../common/model';
+import { Event } from '../../../../base/common/event';
+import { IDiffProviderFactoryService } from '../../../browser/widget/diffEditor/diffProviderFactoryService';
 
 export class TestDiffProviderFactoryService implements IDiffProviderFactoryService {
 	declare readonly _serviceBrand: undefined;

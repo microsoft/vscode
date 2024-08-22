@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Range } from 'vs/editor/common/core/range';
-import { DefaultEndOfLine, FindMatch, IReadonlyTextBuffer } from 'vs/editor/common/model';
-import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
-import { SearchParams } from 'vs/editor/common/model/textModelSearch';
+import { Disposable } from '../../../../base/common/lifecycle';
+import { Range } from '../../../../editor/common/core/range';
+import { DefaultEndOfLine, FindMatch, IReadonlyTextBuffer } from '../../../../editor/common/model';
+import { PieceTreeTextBufferBuilder } from '../../../../editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
+import { SearchParams } from '../../../../editor/common/model/textModelSearch';
 
 interface RawOutputFindMatch {
 	textBuffer: IReadonlyTextBuffer;

@@ -4,30 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/actions';
-import { URI } from 'vs/base/common/uri';
-import { localize, localize2 } from 'vs/nls';
-import { ApplyZoomTarget, MAX_ZOOM_LEVEL, MIN_ZOOM_LEVEL, applyZoom } from 'vs/platform/window/electron-sandbox/window';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { getZoomLevel } from 'vs/base/browser/browser';
-import { FileKind } from 'vs/platform/files/common/files';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { IQuickInputService, IQuickInputButton, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
-import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
-import { ICommandHandler } from 'vs/platform/commands/common/commands';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { INativeHostService } from 'vs/platform/native/common/native';
-import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
-import { Action2, IAction2Options, MenuId } from 'vs/platform/actions/common/actions';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { isMacintosh } from 'vs/base/common/platform';
-import { getActiveWindow } from 'vs/base/browser/dom';
-import { IOpenedAuxiliaryWindow, IOpenedMainWindow, isOpenedAuxiliaryWindow } from 'vs/platform/window/common/window';
+import { URI } from '../../../base/common/uri';
+import { localize, localize2 } from '../../../nls';
+import { ApplyZoomTarget, MAX_ZOOM_LEVEL, MIN_ZOOM_LEVEL, applyZoom } from '../../../platform/window/electron-sandbox/window';
+import { IKeybindingService } from '../../../platform/keybinding/common/keybinding';
+import { getZoomLevel } from '../../../base/browser/browser';
+import { FileKind } from '../../../platform/files/common/files';
+import { IModelService } from '../../../editor/common/services/model';
+import { ILanguageService } from '../../../editor/common/languages/language';
+import { IQuickInputService, IQuickInputButton, IQuickPickItem, QuickPickInput } from '../../../platform/quickinput/common/quickInput';
+import { getIconClasses } from '../../../editor/common/services/getIconClasses';
+import { ICommandHandler } from '../../../platform/commands/common/commands';
+import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration';
+import { INativeHostService } from '../../../platform/native/common/native';
+import { Codicon } from '../../../base/common/codicons';
+import { ThemeIcon } from '../../../base/common/themables';
+import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from '../../../platform/workspace/common/workspace';
+import { Action2, IAction2Options, MenuId } from '../../../platform/actions/common/actions';
+import { Categories } from '../../../platform/action/common/actionCommonCategories';
+import { KeyCode, KeyMod } from '../../../base/common/keyCodes';
+import { KeybindingWeight } from '../../../platform/keybinding/common/keybindingsRegistry';
+import { isMacintosh } from '../../../base/common/platform';
+import { getActiveWindow } from '../../../base/browser/dom';
+import { IOpenedAuxiliaryWindow, IOpenedMainWindow, isOpenedAuxiliaryWindow } from '../../../platform/window/common/window';
 
 export class CloseWindowAction extends Action2 {
 

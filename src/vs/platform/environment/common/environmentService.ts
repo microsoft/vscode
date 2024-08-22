@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { toLocalISOString } from 'vs/base/common/date';
-import { memoize } from 'vs/base/common/decorators';
-import { FileAccess, Schemas } from 'vs/base/common/network';
-import { dirname, join, normalize, resolve } from 'vs/base/common/path';
-import { env } from 'vs/base/common/process';
-import { joinPath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { ExtensionKind, IExtensionHostDebugParams, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IProductService } from 'vs/platform/product/common/productService';
+import { toLocalISOString } from '../../../base/common/date';
+import { memoize } from '../../../base/common/decorators';
+import { FileAccess, Schemas } from '../../../base/common/network';
+import { dirname, join, normalize, resolve } from '../../../base/common/path';
+import { env } from '../../../base/common/process';
+import { joinPath } from '../../../base/common/resources';
+import { URI } from '../../../base/common/uri';
+import { NativeParsedArgs } from './argv';
+import { ExtensionKind, IExtensionHostDebugParams, INativeEnvironmentService } from './environment';
+import { IProductService } from '../../product/common/productService';
 
 export const EXTENSION_IDENTIFIER_WITH_LOG_REGEX = /^([^.]+\..+)[:=](.+)$/;
 

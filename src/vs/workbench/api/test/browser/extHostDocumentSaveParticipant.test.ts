@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
-import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { TextDocumentSaveReason, TextEdit, Position, EndOfLine } from 'vs/workbench/api/common/extHostTypes';
-import { MainThreadTextEditorsShape, IWorkspaceEditDto, IWorkspaceTextEditDto, MainThreadBulkEditsShape } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostDocumentSaveParticipant } from 'vs/workbench/api/common/extHostDocumentSaveParticipant';
-import { SingleProxyRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
-import { SaveReason } from 'vs/workbench/common/editor';
+import { URI } from '../../../../base/common/uri';
+import { ExtHostDocuments } from '../../common/extHostDocuments';
+import { ExtHostDocumentsAndEditors } from '../../common/extHostDocumentsAndEditors';
+import { TextDocumentSaveReason, TextEdit, Position, EndOfLine } from '../../common/extHostTypes';
+import { MainThreadTextEditorsShape, IWorkspaceEditDto, IWorkspaceTextEditDto, MainThreadBulkEditsShape } from '../../common/extHost.protocol';
+import { ExtHostDocumentSaveParticipant } from '../../common/extHostDocumentSaveParticipant';
+import { SingleProxyRPCProtocol } from '../common/testRPCProtocol';
+import { SaveReason } from '../../../common/editor';
 import type * as vscode from 'vscode';
-import { mock } from 'vs/base/test/common/mock';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
+import { mock } from '../../../../base/test/common/mock';
+import { NullLogService } from '../../../../platform/log/common/log';
+import { nullExtensionDescription } from '../../../services/extensions/common/extensions';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils';
+import { SerializableObjectWithBuffers } from '../../../services/extensions/common/proxyIdentifier';
 
 function timeout(n: number) {
 	return new Promise(resolve => setTimeout(resolve, n));

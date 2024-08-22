@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import * as strings from 'vs/base/common/strings';
-import { ITextModel } from 'vs/editor/common/model';
-import { DEFAULT_WORD_REGEXP, ensureValidWordDefinition } from 'vs/editor/common/core/wordHelper';
-import { EnterAction, FoldingRules, IAutoClosingPair, IndentationRule, LanguageConfiguration, AutoClosingPairs, CharacterPair, ExplicitLanguageConfiguration } from 'vs/editor/common/languages/languageConfiguration';
-import { CharacterPairSupport } from 'vs/editor/common/languages/supports/characterPair';
-import { BracketElectricCharacterSupport } from 'vs/editor/common/languages/supports/electricCharacter';
-import { IndentRulesSupport } from 'vs/editor/common/languages/supports/indentRules';
-import { OnEnterSupport } from 'vs/editor/common/languages/supports/onEnter';
-import { RichEditBrackets } from 'vs/editor/common/languages/supports/richEditBrackets';
-import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { LanguageBracketsConfiguration } from 'vs/editor/common/languages/supports/languageBracketsConfiguration';
+import { Emitter, Event } from '../../../base/common/event';
+import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle';
+import * as strings from '../../../base/common/strings';
+import { ITextModel } from '../model';
+import { DEFAULT_WORD_REGEXP, ensureValidWordDefinition } from '../core/wordHelper';
+import { EnterAction, FoldingRules, IAutoClosingPair, IndentationRule, LanguageConfiguration, AutoClosingPairs, CharacterPair, ExplicitLanguageConfiguration } from './languageConfiguration';
+import { CharacterPairSupport } from './supports/characterPair';
+import { BracketElectricCharacterSupport } from './supports/electricCharacter';
+import { IndentRulesSupport } from './supports/indentRules';
+import { OnEnterSupport } from './supports/onEnter';
+import { RichEditBrackets } from './supports/richEditBrackets';
+import { EditorAutoIndentStrategy } from '../config/editorOptions';
+import { createDecorator } from '../../../platform/instantiation/common/instantiation';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration';
+import { ILanguageService } from './language';
+import { InstantiationType, registerSingleton } from '../../../platform/instantiation/common/extensions';
+import { PLAINTEXT_LANGUAGE_ID } from './modesRegistry';
+import { LanguageBracketsConfiguration } from './supports/languageBracketsConfiguration';
 
 /**
  * Interface used to support insertion of mode specific comments.

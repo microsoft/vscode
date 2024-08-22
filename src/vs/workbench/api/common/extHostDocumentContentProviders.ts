@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { Disposable } from 'vs/workbench/api/common/extHostTypes';
+import { onUnexpectedError } from '../../../base/common/errors';
+import { URI, UriComponents } from '../../../base/common/uri';
+import { IDisposable } from '../../../base/common/lifecycle';
+import { Disposable } from './extHostTypes';
 import type * as vscode from 'vscode';
 import { MainContext, ExtHostDocumentContentProvidersShape, MainThreadDocumentContentProvidersShape, IMainContext } from './extHost.protocol';
 import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors';
-import { Schemas } from 'vs/base/common/network';
-import { ILogService } from 'vs/platform/log/common/log';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { splitLines } from 'vs/base/common/strings';
+import { Schemas } from '../../../base/common/network';
+import { ILogService } from '../../../platform/log/common/log';
+import { CancellationToken } from '../../../base/common/cancellation';
+import { splitLines } from '../../../base/common/strings';
 
 export class ExtHostDocumentContentProvider implements ExtHostDocumentContentProvidersShape {
 

@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { rtrim } from 'vs/base/common/strings';
-import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
-import { chatAgentLeader, chatSubcommandLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { ISpeechService, ISpeechToTextEvent, SpeechToTextStatus } from 'vs/workbench/contrib/speech/common/speechService';
+import { localize } from '../../../../nls';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import { Emitter, Event } from '../../../../base/common/event';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle';
+import { rtrim } from '../../../../base/common/strings';
+import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation';
+import { IChatAgentService } from './chatAgents';
+import { IChatModel } from './chatModel';
+import { chatAgentLeader, chatSubcommandLeader } from './chatParserTypes';
+import { ISpeechService, ISpeechToTextEvent, SpeechToTextStatus } from '../../speech/common/speechService';
 
 export const IVoiceChatService = createDecorator<IVoiceChatService>('voiceChatService');
 

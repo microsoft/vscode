@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
-import { IModelDecorationOptions, ITextModel } from 'vs/editor/common/model';
-import { ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { URI } from 'vs/base/common/uri';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { Event } from '../../../base/common/event';
+import { ICodeEditor, IDiffEditor } from '../editorBrowser';
+import { IDecorationRenderOptions } from '../../common/editorCommon';
+import { IModelDecorationOptions, ITextModel } from '../../common/model';
+import { ITextResourceEditorInput } from '../../../platform/editor/common/editor';
+import { createDecorator } from '../../../platform/instantiation/common/instantiation';
+import { URI } from '../../../base/common/uri';
+import { IDisposable } from '../../../base/common/lifecycle';
 
 export const ICodeEditorService = createDecorator<ICodeEditorService>('codeEditorService');
 

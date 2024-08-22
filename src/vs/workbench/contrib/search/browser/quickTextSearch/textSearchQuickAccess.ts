@@ -2,37 +2,37 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IMatch } from 'vs/base/common/filters';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { ResourceSet } from 'vs/base/common/map';
-import { basenameOrAuthority, dirname } from 'vs/base/common/resources';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { IRange } from 'vs/editor/common/core/range';
-import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { WorkbenchCompressibleObjectTree, getSelectionKeyboardEvent } from 'vs/platform/list/browser/listService';
-import { FastAndSlowPicks, IPickerQuickAccessItem, IPickerQuickAccessSeparator, PickerQuickAccessProvider, Picks, TriggerAction } from 'vs/platform/quickinput/browser/pickerQuickAccess';
-import { DefaultQuickAccessFilterValue, IQuickAccessProviderRunOptions } from 'vs/platform/quickinput/common/quickAccess';
-import { IKeyMods, IQuickPick, IQuickPickItem, QuickInputButtonLocation, QuickInputHideReason } from 'vs/platform/quickinput/common/quickInput';
-import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
-import { searchDetailsIcon, searchOpenInFileIcon, searchActivityBarIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
-import { FileMatch, Match, RenderableMatch, SearchModel, SearchModelLocation, searchComparer } from 'vs/workbench/contrib/search/browser/searchModel';
-import { SearchView, getEditorSelectionFromMatch } from 'vs/workbench/contrib/search/browser/searchView';
-import { IWorkbenchSearchConfiguration, getOutOfWorkspaceEditorResources } from 'vs/workbench/contrib/search/common/search';
-import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/services/search/common/queryBuilder';
-import { IPatternInfo, ISearchComplete, ITextQuery, VIEW_ID } from 'vs/workbench/services/search/common/search';
-import { Event } from 'vs/base/common/event';
-import { PickerEditorState } from 'vs/workbench/browser/quickaccess';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
-import { Sequencer } from 'vs/base/common/async';
-import { URI } from 'vs/base/common/uri';
-import { Codicon } from 'vs/base/common/codicons';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation';
+import { IMatch } from '../../../../../base/common/filters';
+import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle';
+import { ResourceSet } from '../../../../../base/common/map';
+import { basenameOrAuthority, dirname } from '../../../../../base/common/resources';
+import { ThemeIcon } from '../../../../../base/common/themables';
+import { IRange } from '../../../../../editor/common/core/range';
+import { localize } from '../../../../../nls';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration';
+import { ITextEditorSelection } from '../../../../../platform/editor/common/editor';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation';
+import { ILabelService } from '../../../../../platform/label/common/label';
+import { WorkbenchCompressibleObjectTree, getSelectionKeyboardEvent } from '../../../../../platform/list/browser/listService';
+import { FastAndSlowPicks, IPickerQuickAccessItem, IPickerQuickAccessSeparator, PickerQuickAccessProvider, Picks, TriggerAction } from '../../../../../platform/quickinput/browser/pickerQuickAccess';
+import { DefaultQuickAccessFilterValue, IQuickAccessProviderRunOptions } from '../../../../../platform/quickinput/common/quickAccess';
+import { IKeyMods, IQuickPick, IQuickPickItem, QuickInputButtonLocation, QuickInputHideReason } from '../../../../../platform/quickinput/common/quickInput';
+import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace';
+import { IWorkbenchEditorConfiguration } from '../../../../common/editor';
+import { searchDetailsIcon, searchOpenInFileIcon, searchActivityBarIcon } from '../searchIcons';
+import { FileMatch, Match, RenderableMatch, SearchModel, SearchModelLocation, searchComparer } from '../searchModel';
+import { SearchView, getEditorSelectionFromMatch } from '../searchView';
+import { IWorkbenchSearchConfiguration, getOutOfWorkspaceEditorResources } from '../../common/search';
+import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../../services/editor/common/editorService';
+import { ITextQueryBuilderOptions, QueryBuilder } from '../../../../services/search/common/queryBuilder';
+import { IPatternInfo, ISearchComplete, ITextQuery, VIEW_ID } from '../../../../services/search/common/search';
+import { Event } from '../../../../../base/common/event';
+import { PickerEditorState } from '../../../../browser/quickaccess';
+import { IViewsService } from '../../../../services/views/common/viewsService';
+import { Sequencer } from '../../../../../base/common/async';
+import { URI } from '../../../../../base/common/uri';
+import { Codicon } from '../../../../../base/common/codicons';
 
 export const TEXT_SEARCH_QUICK_ACCESS_PREFIX = '%';
 

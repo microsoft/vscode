@@ -3,30 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IModelService } from 'vs/editor/common/services/model';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IFileMatch, IFileQuery, ISearchComplete, ISearchProgressItem, ISearchResultProvider, ISearchService, ITextQuery, SearchProviderType, TextSearchCompleteMessageType } from 'vs/workbench/services/search/common/search';
-import { SearchService } from 'vs/workbench/services/search/common/searchService';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IWorkerClient, logOnceWebWorkerWarning } from 'vs/base/common/worker/simpleWorker';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { createWebWorker } from 'vs/base/browser/defaultWorkerFactory';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ILocalFileSearchSimpleWorker, LocalFileSearchSimpleWorkerHost } from 'vs/workbench/services/search/common/localFileSearchWorkerTypes';
-import { memoize } from 'vs/base/common/decorators';
-import { HTMLFileSystemProvider } from 'vs/platform/files/browser/htmlFileSystemProvider';
-import { Schemas } from 'vs/base/common/network';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { Emitter, Event } from 'vs/base/common/event';
-import { localize } from 'vs/nls';
-import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAccess';
-import { revive } from 'vs/base/common/marshalling';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import { IModelService } from '../../../../editor/common/services/model';
+import { IFileService } from '../../../../platform/files/common/files';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { ILogService } from '../../../../platform/log/common/log';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
+import { IEditorService } from '../../editor/common/editorService';
+import { IExtensionService } from '../../extensions/common/extensions';
+import { IFileMatch, IFileQuery, ISearchComplete, ISearchProgressItem, ISearchResultProvider, ISearchService, ITextQuery, SearchProviderType, TextSearchCompleteMessageType } from '../common/search';
+import { SearchService } from '../common/searchService';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity';
+import { IWorkerClient, logOnceWebWorkerWarning } from '../../../../base/common/worker/simpleWorker';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle';
+import { createWebWorker } from '../../../../base/browser/defaultWorkerFactory';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions';
+import { ILocalFileSearchSimpleWorker, LocalFileSearchSimpleWorkerHost } from '../common/localFileSearchWorkerTypes';
+import { memoize } from '../../../../base/common/decorators';
+import { HTMLFileSystemProvider } from '../../../../platform/files/browser/htmlFileSystemProvider';
+import { Schemas } from '../../../../base/common/network';
+import { URI, UriComponents } from '../../../../base/common/uri';
+import { Emitter, Event } from '../../../../base/common/event';
+import { localize } from '../../../../nls';
+import { WebFileSystemAccess } from '../../../../platform/files/browser/webFileSystemAccess';
+import { revive } from '../../../../base/common/marshalling';
 
 export class RemoteSearchService extends SearchService {
 	constructor(

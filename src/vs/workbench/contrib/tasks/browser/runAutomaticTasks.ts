@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import * as resources from 'vs/base/common/resources';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { ITaskService, IWorkspaceFolderTaskResult } from 'vs/workbench/contrib/tasks/common/taskService';
-import { RunOnOptions, Task, TaskRunSource, TaskSource, TaskSourceKind, TASKS_CATEGORY, WorkspaceFileTaskSource, IWorkspaceTaskSource } from 'vs/workbench/contrib/tasks/common/tasks';
-import { IQuickPickItem, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { Action2 } from 'vs/platform/actions/common/actions';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { URI } from 'vs/base/common/uri';
-import { Event } from 'vs/base/common/event';
-import { ILogService } from 'vs/platform/log/common/log';
+import * as nls from '../../../../nls';
+import * as resources from '../../../../base/common/resources';
+import { Disposable } from '../../../../base/common/lifecycle';
+import { IWorkbenchContribution } from '../../../common/contributions';
+import { ITaskService, IWorkspaceFolderTaskResult } from '../common/taskService';
+import { RunOnOptions, Task, TaskRunSource, TaskSource, TaskSourceKind, TASKS_CATEGORY, WorkspaceFileTaskSource, IWorkspaceTaskSource } from '../common/tasks';
+import { IQuickPickItem, IQuickInputService } from '../../../../platform/quickinput/common/quickInput';
+import { Action2 } from '../../../../platform/actions/common/actions';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation';
+import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust';
+import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration';
+import { URI } from '../../../../base/common/uri';
+import { Event } from '../../../../base/common/event';
+import { ILogService } from '../../../../platform/log/common/log';
 
 const ALLOW_AUTOMATIC_TASKS = 'task.allowAutomaticTasks';
 

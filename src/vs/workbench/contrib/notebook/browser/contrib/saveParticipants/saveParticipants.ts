@@ -3,42 +3,42 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { HierarchicalKind } from 'vs/base/common/hierarchicalKind';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { isEqual } from 'vs/base/common/resources';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IBulkEditService, ResourceEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
-import { trimTrailingWhitespace } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { CodeActionProvider, CodeActionTriggerType, IWorkspaceTextEdit } from 'vs/editor/common/languages';
-import { IReadonlyTextBuffer, ITextModel } from 'vs/editor/common/model';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { ApplyCodeActionReason, applyCodeAction, getCodeActions } from 'vs/editor/contrib/codeAction/browser/codeAction';
-import { CodeActionItem, CodeActionKind, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/common/types';
-import { FormattingMode, getDocumentFormattingEditsWithSelectedProvider } from 'vs/editor/contrib/format/browser/format';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
-import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchContributionsExtensions } from 'vs/workbench/common/contributions';
-import { SaveReason } from 'vs/workbench/common/editor';
-import { getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellKind, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NotebookFileWorkingCopyModel } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IStoredFileWorkingCopy, IStoredFileWorkingCopyModel } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
-import { IStoredFileWorkingCopySaveParticipant, IStoredFileWorkingCopySaveParticipantContext, IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
+import { CancellationToken } from '../../../../../../base/common/cancellation';
+import { HierarchicalKind } from '../../../../../../base/common/hierarchicalKind';
+import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle';
+import { isEqual } from '../../../../../../base/common/resources';
+import { ICodeEditor } from '../../../../../../editor/browser/editorBrowser';
+import { IBulkEditService, ResourceEdit, ResourceTextEdit } from '../../../../../../editor/browser/services/bulkEditService';
+import { trimTrailingWhitespace } from '../../../../../../editor/common/commands/trimTrailingWhitespaceCommand';
+import { Position } from '../../../../../../editor/common/core/position';
+import { Range } from '../../../../../../editor/common/core/range';
+import { Selection } from '../../../../../../editor/common/core/selection';
+import { CodeActionProvider, CodeActionTriggerType, IWorkspaceTextEdit } from '../../../../../../editor/common/languages';
+import { IReadonlyTextBuffer, ITextModel } from '../../../../../../editor/common/model';
+import { IEditorWorkerService } from '../../../../../../editor/common/services/editorWorker';
+import { ILanguageFeaturesService } from '../../../../../../editor/common/services/languageFeatures';
+import { ITextModelService } from '../../../../../../editor/common/services/resolverService';
+import { ApplyCodeActionReason, applyCodeAction, getCodeActions } from '../../../../../../editor/contrib/codeAction/browser/codeAction';
+import { CodeActionItem, CodeActionKind, CodeActionTriggerSource } from '../../../../../../editor/contrib/codeAction/common/types';
+import { FormattingMode, getDocumentFormattingEditsWithSelectedProvider } from '../../../../../../editor/contrib/format/browser/format';
+import { SnippetController2 } from '../../../../../../editor/contrib/snippet/browser/snippetController2';
+import { localize } from '../../../../../../nls';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration';
+import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation';
+import { ILogService } from '../../../../../../platform/log/common/log';
+import { IProgress, IProgressStep } from '../../../../../../platform/progress/common/progress';
+import { Registry } from '../../../../../../platform/registry/common/platform';
+import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust';
+import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchContributionsExtensions } from '../../../../../common/contributions';
+import { SaveReason } from '../../../../../common/editor';
+import { getNotebookEditorFromEditorPane } from '../../notebookBrowser';
+import { NotebookTextModel } from '../../../common/model/notebookTextModel';
+import { CellKind, NotebookSetting } from '../../../common/notebookCommon';
+import { NotebookFileWorkingCopyModel } from '../../../common/notebookEditorModel';
+import { IEditorService } from '../../../../../services/editor/common/editorService';
+import { LifecyclePhase } from '../../../../../services/lifecycle/common/lifecycle';
+import { IStoredFileWorkingCopy, IStoredFileWorkingCopyModel } from '../../../../../services/workingCopy/common/storedFileWorkingCopy';
+import { IStoredFileWorkingCopySaveParticipant, IStoredFileWorkingCopySaveParticipantContext, IWorkingCopyFileService } from '../../../../../services/workingCopy/common/workingCopyFileService';
 
 class FormatOnSaveParticipant implements IStoredFileWorkingCopySaveParticipant {
 	constructor(

@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SequencerByKey } from 'vs/base/common/async';
-import { IEncryptionService } from 'vs/platform/encryption/common/encryptionService';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { Emitter, Event } from 'vs/base/common/event';
-import { ILogService } from 'vs/platform/log/common/log';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { Lazy } from 'vs/base/common/lazy';
+import { SequencerByKey } from '../../../base/common/async';
+import { IEncryptionService } from '../../encryption/common/encryptionService';
+import { createDecorator } from '../../instantiation/common/instantiation';
+import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../storage/common/storage';
+import { Emitter, Event } from '../../../base/common/event';
+import { ILogService } from '../../log/common/log';
+import { Disposable, DisposableStore } from '../../../base/common/lifecycle';
+import { Lazy } from '../../../base/common/lazy';
 
 export const ISecretStorageService = createDecorator<ISecretStorageService>('secretStorageService');
 

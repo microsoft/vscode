@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { HierarchicalKind } from 'vs/base/common/hierarchicalKind';
-import { ResolvedKeybinding } from 'vs/base/common/keybindings';
-import { Lazy } from 'vs/base/common/lazy';
-import { CodeAction } from 'vs/editor/common/languages';
-import { codeActionCommandId, fixAllCommandId, organizeImportsCommandId, refactorCommandId, sourceActionCommandId } from 'vs/editor/contrib/codeAction/browser/codeAction';
-import { CodeActionAutoApply, CodeActionCommandArgs, CodeActionKind } from 'vs/editor/contrib/codeAction/common/types';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { HierarchicalKind } from '../../../../base/common/hierarchicalKind';
+import { ResolvedKeybinding } from '../../../../base/common/keybindings';
+import { Lazy } from '../../../../base/common/lazy';
+import { CodeAction } from '../../../common/languages';
+import { codeActionCommandId, fixAllCommandId, organizeImportsCommandId, refactorCommandId, sourceActionCommandId } from './codeAction';
+import { CodeActionAutoApply, CodeActionCommandArgs, CodeActionKind } from '../common/types';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding';
 
 interface ResolveCodeActionKeybinding {
 	readonly kind: HierarchicalKind;

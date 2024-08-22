@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IContextMenuProvider } from 'vs/base/browser/contextmenu';
-import { $, addDisposableListener, append, EventHelper, EventType, isMouseEvent } from 'vs/base/browser/dom';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { EventType as GestureEventType, Gesture } from 'vs/base/browser/touch';
-import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
-import type { IManagedHover } from 'vs/base/browser/ui/hover/hover';
-import { getBaseLayerHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate2';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { IMenuOptions } from 'vs/base/browser/ui/menu/menu';
-import { ActionRunner, IAction } from 'vs/base/common/actions';
-import { Emitter } from 'vs/base/common/event';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IContextMenuProvider } from '../../contextmenu';
+import { $, addDisposableListener, append, EventHelper, EventType, isMouseEvent } from '../../dom';
+import { StandardKeyboardEvent } from '../../keyboardEvent';
+import { EventType as GestureEventType, Gesture } from '../../touch';
+import { AnchorAlignment } from '../contextview/contextview';
+import type { IManagedHover } from '../hover/hover';
+import { getBaseLayerHoverDelegate } from '../hover/hoverDelegate2';
+import { getDefaultHoverDelegate } from '../hover/hoverDelegateFactory';
+import { IMenuOptions } from '../menu/menu';
+import { ActionRunner, IAction } from '../../../common/actions';
+import { Emitter } from '../../../common/event';
+import { KeyCode } from '../../../common/keyCodes';
+import { IDisposable } from '../../../common/lifecycle';
 import 'vs/css!./dropdown';
 
 export interface ILabelRenderer {

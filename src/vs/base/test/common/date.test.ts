@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { strictEqual } from 'assert';
-import { fromNow, fromNowByDay, getDurationString } from 'vs/base/common/date';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { fromNow, fromNowByDay, getDurationString } from '../../common/date';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils';
 
 suite('Date', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

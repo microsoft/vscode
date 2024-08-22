@@ -6,15 +6,15 @@
 import assert from 'assert';
 import * as fs from 'fs';
 import { tmpdir } from 'os';
-import { timeout } from 'vs/base/common/async';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { randomPath } from 'vs/base/common/extpath';
-import { FileAccess } from 'vs/base/common/network';
-import { basename, dirname, join, sep } from 'vs/base/common/path';
-import { isWindows } from 'vs/base/common/platform';
-import { configureFlushOnWrite, Promises, RimRafMode, rimrafSync, SymlinkSupport, writeFileSync } from 'vs/base/node/pfs';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
+import { timeout } from '../../../common/async';
+import { VSBuffer } from '../../../common/buffer';
+import { randomPath } from '../../../common/extpath';
+import { FileAccess } from '../../../common/network';
+import { basename, dirname, join, sep } from '../../../common/path';
+import { isWindows } from '../../../common/platform';
+import { configureFlushOnWrite, Promises, RimRafMode, rimrafSync, SymlinkSupport, writeFileSync } from '../../../node/pfs';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../common/utils';
+import { flakySuite, getRandomTestPath } from '../testUtils';
 
 configureFlushOnWrite(false); // speed up all unit tests by disabling flush on write
 

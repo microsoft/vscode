@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { equals, groupAdjacentBy } from 'vs/base/common/arrays';
-import { assertFn, checkAdjacentItems } from 'vs/base/common/assert';
-import { LineRange } from 'vs/editor/common/core/lineRange';
-import { OffsetRange } from 'vs/editor/common/core/offsetRange';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { DateTimeout, ITimeout, InfiniteTimeout, SequenceDiff } from 'vs/editor/common/diff/defaultLinesDiffComputer/algorithms/diffAlgorithm';
-import { DynamicProgrammingDiffing } from 'vs/editor/common/diff/defaultLinesDiffComputer/algorithms/dynamicProgrammingDiffing';
-import { MyersDiffAlgorithm } from 'vs/editor/common/diff/defaultLinesDiffComputer/algorithms/myersDiffAlgorithm';
-import { computeMovedLines } from 'vs/editor/common/diff/defaultLinesDiffComputer/computeMovedLines';
-import { extendDiffsToEntireWordIfAppropriate, optimizeSequenceDiffs, removeShortMatches, removeVeryShortMatchingLinesBetweenDiffs, removeVeryShortMatchingTextBetweenLongDiffs } from 'vs/editor/common/diff/defaultLinesDiffComputer/heuristicSequenceOptimizations';
-import { LineSequence } from 'vs/editor/common/diff/defaultLinesDiffComputer/lineSequence';
-import { LinesSliceCharSequence } from 'vs/editor/common/diff/defaultLinesDiffComputer/linesSliceCharSequence';
-import { ILinesDiffComputer, ILinesDiffComputerOptions, LinesDiff, MovedText } from 'vs/editor/common/diff/linesDiffComputer';
+import { equals, groupAdjacentBy } from '../../../../base/common/arrays';
+import { assertFn, checkAdjacentItems } from '../../../../base/common/assert';
+import { LineRange } from '../../core/lineRange';
+import { OffsetRange } from '../../core/offsetRange';
+import { Position } from '../../core/position';
+import { Range } from '../../core/range';
+import { DateTimeout, ITimeout, InfiniteTimeout, SequenceDiff } from './algorithms/diffAlgorithm';
+import { DynamicProgrammingDiffing } from './algorithms/dynamicProgrammingDiffing';
+import { MyersDiffAlgorithm } from './algorithms/myersDiffAlgorithm';
+import { computeMovedLines } from './computeMovedLines';
+import { extendDiffsToEntireWordIfAppropriate, optimizeSequenceDiffs, removeShortMatches, removeVeryShortMatchingLinesBetweenDiffs, removeVeryShortMatchingTextBetweenLongDiffs } from './heuristicSequenceOptimizations';
+import { LineSequence } from './lineSequence';
+import { LinesSliceCharSequence } from './linesSliceCharSequence';
+import { ILinesDiffComputer, ILinesDiffComputerOptions, LinesDiff, MovedText } from '../linesDiffComputer';
 import { DetailedLineRangeMapping, LineRangeMapping, RangeMapping } from '../rangeMapping';
 
 export class DefaultLinesDiffComputer implements ILinesDiffComputer {

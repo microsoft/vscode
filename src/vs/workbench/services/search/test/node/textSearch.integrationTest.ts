@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import * as path from 'vs/base/common/path';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import * as glob from 'vs/base/common/glob';
-import { URI } from 'vs/base/common/uri';
-import { deserializeSearchError, IFolderQuery, ISearchRange, ITextQuery, ITextSearchContext, ITextSearchMatch, QueryType, SearchErrorCode, ISerializedFileMatch } from 'vs/workbench/services/search/common/search';
-import { TextSearchEngineAdapter } from 'vs/workbench/services/search/node/textSearchAdapter';
-import { flakySuite } from 'vs/base/test/node/testUtils';
-import { FileAccess } from 'vs/base/common/network';
+import * as path from '../../../../../base/common/path';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation';
+import * as glob from '../../../../../base/common/glob';
+import { URI } from '../../../../../base/common/uri';
+import { deserializeSearchError, IFolderQuery, ISearchRange, ITextQuery, ITextSearchContext, ITextSearchMatch, QueryType, SearchErrorCode, ISerializedFileMatch } from '../../common/search';
+import { TextSearchEngineAdapter } from '../../node/textSearchAdapter';
+import { flakySuite } from '../../../../../base/test/node/testUtils';
+import { FileAccess } from '../../../../../base/common/network';
 
 const TEST_FIXTURES = path.normalize(FileAccess.asFileUri('vs/workbench/services/search/test/node/fixtures').fsPath);
 const EXAMPLES_FIXTURES = path.join(TEST_FIXTURES, 'examples');

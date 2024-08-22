@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { PerformanceMark } from 'vs/base/common/performance';
-import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
-import { IColorScheme, INativeWindowConfiguration, IOSConfiguration, IPath, IPathsToWaitFor } from 'vs/platform/window/common/window';
-import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { AbstractNativeEnvironmentService } from 'vs/platform/environment/common/environmentService';
-import { memoize } from 'vs/base/common/decorators';
-import { URI } from 'vs/base/common/uri';
-import { Schemas } from 'vs/base/common/network';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { joinPath } from 'vs/base/common/resources';
+import { PerformanceMark } from '../../../../base/common/performance';
+import { IBrowserWorkbenchEnvironmentService } from '../browser/environmentService';
+import { IColorScheme, INativeWindowConfiguration, IOSConfiguration, IPath, IPathsToWaitFor } from '../../../../platform/window/common/window';
+import { IEnvironmentService, INativeEnvironmentService } from '../../../../platform/environment/common/environment';
+import { refineServiceDecorator } from '../../../../platform/instantiation/common/instantiation';
+import { AbstractNativeEnvironmentService } from '../../../../platform/environment/common/environmentService';
+import { memoize } from '../../../../base/common/decorators';
+import { URI } from '../../../../base/common/uri';
+import { Schemas } from '../../../../base/common/network';
+import { IProductService } from '../../../../platform/product/common/productService';
+import { joinPath } from '../../../../base/common/resources';
 
 export const INativeWorkbenchEnvironmentService = refineServiceDecorator<IEnvironmentService, INativeWorkbenchEnvironmentService>(IEnvironmentService);
 

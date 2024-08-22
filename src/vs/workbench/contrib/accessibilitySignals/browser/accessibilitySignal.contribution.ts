@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AccessibilitySignalService, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
-import { registerAction2 } from 'vs/platform/actions/common/actions';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { registerWorkbenchContribution2, WorkbenchPhase } from 'vs/workbench/common/contributions';
-import { AccessibilitySignalLineDebuggerContribution } from 'vs/workbench/contrib/accessibilitySignals/browser/accessibilitySignalDebuggerContribution';
-import { ShowAccessibilityAnnouncementHelp, ShowSignalSoundHelp } from 'vs/workbench/contrib/accessibilitySignals/browser/commands';
-import { EditorTextPropertySignalsContribution } from 'vs/workbench/contrib/accessibilitySignals/browser/editorTextPropertySignalsContribution';
-import { wrapInReloadableClass0 } from 'vs/platform/observable/common/wrapInReloadableClass';
+import { AccessibilitySignalService, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService';
+import { registerAction2 } from '../../../../platform/actions/common/actions';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions';
+import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions';
+import { AccessibilitySignalLineDebuggerContribution } from './accessibilitySignalDebuggerContribution';
+import { ShowAccessibilityAnnouncementHelp, ShowSignalSoundHelp } from './commands';
+import { EditorTextPropertySignalsContribution } from './editorTextPropertySignalsContribution';
+import { wrapInReloadableClass0 } from '../../../../platform/observable/common/wrapInReloadableClass';
 
 registerSingleton(IAccessibilitySignalService, AccessibilitySignalService, InstantiationType.Delayed);
 

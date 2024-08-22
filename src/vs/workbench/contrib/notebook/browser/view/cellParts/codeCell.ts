@@ -3,36 +3,36 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import { raceCancellation } from 'vs/base/common/async';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { clamp } from 'vs/base/common/numbers';
-import * as strings from 'vs/base/common/strings';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IDimension } from 'vs/editor/common/core/dimension';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { tokenizeToStringSync } from 'vs/editor/common/languages/textToHtmlTokenizer';
-import { IReadonlyTextBuffer, ITextModel } from 'vs/editor/common/model';
-import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { CellFocusMode, EXPAND_CELL_INPUT_COMMAND_ID, IActiveNotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellPartsCollection } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
-import { CellEditorOptions } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellEditorOptions';
-import { CellOutputContainer } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellOutput';
-import { CollapsedCodeCellExecutionIcon } from 'vs/workbench/contrib/notebook/browser/view/cellParts/codeCellExecutionIcon';
-import { CodeCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
-import { CodeCellViewModel, outputDisplayLimit } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
-import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { WordHighlighterContribution } from 'vs/editor/contrib/wordHighlighter/browser/wordHighlighter';
-import { CodeActionController } from 'vs/editor/contrib/codeAction/browser/codeActionController';
-import { NotebookCellEditorPool } from 'vs/workbench/contrib/notebook/browser/view/notebookCellEditorPool';
+import * as DOM from '../../../../../../base/browser/dom';
+import { raceCancellation } from '../../../../../../base/common/async';
+import { CancellationTokenSource } from '../../../../../../base/common/cancellation';
+import { Codicon } from '../../../../../../base/common/codicons';
+import { ThemeIcon } from '../../../../../../base/common/themables';
+import { Event } from '../../../../../../base/common/event';
+import { Disposable, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle';
+import { clamp } from '../../../../../../base/common/numbers';
+import * as strings from '../../../../../../base/common/strings';
+import { EditorOption } from '../../../../../../editor/common/config/editorOptions';
+import { IDimension } from '../../../../../../editor/common/core/dimension';
+import { ILanguageService } from '../../../../../../editor/common/languages/language';
+import { tokenizeToStringSync } from '../../../../../../editor/common/languages/textToHtmlTokenizer';
+import { IReadonlyTextBuffer, ITextModel } from '../../../../../../editor/common/model';
+import { localize } from '../../../../../../nls';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation';
+import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding';
+import { IOpenerService } from '../../../../../../platform/opener/common/opener';
+import { CellFocusMode, EXPAND_CELL_INPUT_COMMAND_ID, IActiveNotebookEditorDelegate } from '../../notebookBrowser';
+import { CellPartsCollection } from '../cellPart';
+import { CellEditorOptions } from './cellEditorOptions';
+import { CellOutputContainer } from './cellOutput';
+import { CollapsedCodeCellExecutionIcon } from './codeCellExecutionIcon';
+import { CodeCellRenderTemplate } from '../notebookRenderingCommon';
+import { CodeCellViewModel, outputDisplayLimit } from '../../viewModel/codeCellViewModel';
+import { INotebookExecutionStateService } from '../../../common/notebookExecutionStateService';
+import { WordHighlighterContribution } from '../../../../../../editor/contrib/wordHighlighter/browser/wordHighlighter';
+import { CodeActionController } from '../../../../../../editor/contrib/codeAction/browser/codeActionController';
+import { NotebookCellEditorPool } from '../notebookCellEditorPool';
 
 export class CodeCell extends Disposable {
 	private _outputContainerRenderer: CellOutputContainer;

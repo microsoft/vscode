@@ -16,7 +16,7 @@ const Module = require('module');
 // import * as fs from 'fs';
 // import { fileURLToPath } from 'url';
 // import { createRequire } from 'node:module';
-//
+// 
 // const require = createRequire(import.meta.url);
 // const module = { exports: {} };
 // const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -83,8 +83,8 @@ module.exports.devInjectNodeModuleLookupPath = function (injectPath) {
 
 	const Module = require('node:module');
 	// ESM-uncomment-begin
-	// // register a loader hook
-	// Module.register('./bootstrap-import.js', { parentURL: import.meta.url, data: injectPath });
+// 	// register a loader hook
+// 	Module.register('./bootstrap-import.js', { parentURL: import.meta.url, data: injectPath });
 	// ESM-uncomment-end
 	// ESM-comment-begin
 	const nodeModulesPath = path.join(__dirname, '../node_modules');

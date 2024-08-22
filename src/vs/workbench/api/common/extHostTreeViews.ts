@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { localize } from '../../../nls';
 import type * as vscode from 'vscode';
-import { basename } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { basename } from '../../../base/common/resources';
+import { URI } from '../../../base/common/uri';
+import { Emitter, Event } from '../../../base/common/event';
+import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle';
 import { CheckboxUpdate, DataTransferDTO, ExtHostTreeViewsShape, MainThreadTreeViewsShape } from './extHost.protocol';
-import { ITreeItem, TreeViewItemHandleArg, ITreeItemLabel, IRevealOptions, TreeCommand, TreeViewPaneHandleArg, ITreeItemCheckboxState, NoTreeViewError } from 'vs/workbench/common/views';
-import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
-import { asPromise } from 'vs/base/common/async';
-import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
-import { isUndefinedOrNull, isString } from 'vs/base/common/types';
-import { equals, coalesce } from 'vs/base/common/arrays';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { MarkdownString, ViewBadge, DataTransfer } from 'vs/workbench/api/common/extHostTypeConverters';
-import { IMarkdownString, isMarkdownString } from 'vs/base/common/htmlContent';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { ITreeViewsDnDService, TreeViewsDnDService } from 'vs/editor/common/services/treeViewsDnd';
-import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
-import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import { ITreeItem, TreeViewItemHandleArg, ITreeItemLabel, IRevealOptions, TreeCommand, TreeViewPaneHandleArg, ITreeItemCheckboxState, NoTreeViewError } from '../../common/views';
+import { ExtHostCommands, CommandsConverter } from './extHostCommands';
+import { asPromise } from '../../../base/common/async';
+import * as extHostTypes from './extHostTypes';
+import { isUndefinedOrNull, isString } from '../../../base/common/types';
+import { equals, coalesce } from '../../../base/common/arrays';
+import { ILogService } from '../../../platform/log/common/log';
+import { IExtensionDescription } from '../../../platform/extensions/common/extensions';
+import { MarkdownString, ViewBadge, DataTransfer } from './extHostTypeConverters';
+import { IMarkdownString, isMarkdownString } from '../../../base/common/htmlContent';
+import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation';
+import { ITreeViewsDnDService, TreeViewsDnDService } from '../../../editor/common/services/treeViewsDnd';
+import { IAccessibilityInformation } from '../../../platform/accessibility/common/accessibility';
+import { checkProposedApiEnabled } from '../../services/extensions/common/extensions';
 
 type TreeItemHandle = string;
 

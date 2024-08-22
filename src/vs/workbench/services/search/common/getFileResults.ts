@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITextSearchMatch, ITextSearchPreviewOptions, ITextSearchResult } from 'vs/workbench/services/search/common/search';
-import { Range } from 'vs/editor/common/core/range';
+import { ITextSearchMatch, ITextSearchPreviewOptions, ITextSearchResult } from './search';
+import { Range } from '../../../../editor/common/core/range';
 
 export const getFileResults = (
 	bytes: Uint8Array,

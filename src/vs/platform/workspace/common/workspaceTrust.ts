@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { Event } from '../../../base/common/event';
+import { IDisposable } from '../../../base/common/lifecycle';
+import { URI } from '../../../base/common/uri';
+import { createDecorator } from '../../instantiation/common/instantiation';
 
 export enum WorkspaceTrustScope {
 	Local = 0,

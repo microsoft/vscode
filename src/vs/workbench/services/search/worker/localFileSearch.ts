@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as glob from 'vs/base/common/glob';
-import { UriComponents, URI } from 'vs/base/common/uri';
-import { IRequestHandler, IWorkerServer } from 'vs/base/common/worker/simpleWorker';
-import { ILocalFileSearchSimpleWorker, LocalFileSearchSimpleWorkerHost, IWorkerFileSearchComplete, IWorkerFileSystemDirectoryHandle, IWorkerFileSystemHandle, IWorkerTextSearchComplete } from 'vs/workbench/services/search/common/localFileSearchWorkerTypes';
-import { ICommonQueryProps, IFileMatch, IFileQueryProps, IFolderQuery, IPatternInfo, ITextQueryProps, } from 'vs/workbench/services/search/common/search';
-import * as paths from 'vs/base/common/path';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { getFileResults } from 'vs/workbench/services/search/common/getFileResults';
-import { IgnoreFile } from 'vs/workbench/services/search/common/ignoreFile';
-import { createRegExp } from 'vs/base/common/strings';
-import { Promises } from 'vs/base/common/async';
-import { ExtUri } from 'vs/base/common/resources';
-import { revive } from 'vs/base/common/marshalling';
+import * as glob from '../../../../base/common/glob';
+import { UriComponents, URI } from '../../../../base/common/uri';
+import { IRequestHandler, IWorkerServer } from '../../../../base/common/worker/simpleWorker';
+import { ILocalFileSearchSimpleWorker, LocalFileSearchSimpleWorkerHost, IWorkerFileSearchComplete, IWorkerFileSystemDirectoryHandle, IWorkerFileSystemHandle, IWorkerTextSearchComplete } from '../common/localFileSearchWorkerTypes';
+import { ICommonQueryProps, IFileMatch, IFileQueryProps, IFolderQuery, IPatternInfo, ITextQueryProps, } from '../common/search';
+import * as paths from '../../../../base/common/path';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation';
+import { getFileResults } from '../common/getFileResults';
+import { IgnoreFile } from '../common/ignoreFile';
+import { createRegExp } from '../../../../base/common/strings';
+import { Promises } from '../../../../base/common/async';
+import { ExtUri } from '../../../../base/common/resources';
+import { revive } from '../../../../base/common/marshalling';
 
 const PERF = false;
 

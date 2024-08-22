@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import Severity from 'vs/base/common/severity';
-import { compare } from 'vs/base/common/strings';
-import { ITextModel } from 'vs/editor/common/model';
-import { Command } from 'vs/editor/common/languages';
-import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
-import { LanguageSelector } from 'vs/editor/common/languageSelector';
-import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import { Event } from '../../../../base/common/event';
+import { IDisposable } from '../../../../base/common/lifecycle';
+import Severity from '../../../../base/common/severity';
+import { compare } from '../../../../base/common/strings';
+import { ITextModel } from '../../../../editor/common/model';
+import { Command } from '../../../../editor/common/languages';
+import { LanguageFeatureRegistry } from '../../../../editor/common/languageFeatureRegistry';
+import { LanguageSelector } from '../../../../editor/common/languageSelector';
+import { IAccessibilityInformation } from '../../../../platform/accessibility/common/accessibility';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation';
 
 export interface ILanguageStatus {
 	readonly id: string;

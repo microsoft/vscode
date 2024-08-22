@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./decorations';
-import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
-import { HorizontalRange, RenderingContext } from 'vs/editor/browser/view/renderingContext';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Range } from 'vs/editor/common/core/range';
-import * as viewEvents from 'vs/editor/common/viewEvents';
-import { ViewModelDecoration } from 'vs/editor/common/viewModel';
-import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
+import { DynamicViewOverlay } from '../../view/dynamicViewOverlay';
+import { HorizontalRange, RenderingContext } from '../../view/renderingContext';
+import { EditorOption } from '../../../common/config/editorOptions';
+import { Range } from '../../../common/core/range';
+import * as viewEvents from '../../../common/viewEvents';
+import { ViewModelDecoration } from '../../../common/viewModel';
+import { ViewContext } from '../../../common/viewModel/viewContext';
 
 export class DecorationsOverlay extends DynamicViewOverlay {
 

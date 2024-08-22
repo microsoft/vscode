@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IStringDictionary } from 'vs/base/common/collections';
-import { Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { AbstractPolicyService, IPolicyService, PolicyDefinition, PolicyName, PolicyValue } from 'vs/platform/policy/common/policy';
+import { IStringDictionary } from '../../../base/common/collections';
+import { Event } from '../../../base/common/event';
+import { DisposableStore } from '../../../base/common/lifecycle';
+import { IChannel, IServerChannel } from '../../../base/parts/ipc/common/ipc';
+import { AbstractPolicyService, IPolicyService, PolicyDefinition, PolicyName, PolicyValue } from './policy';
 
 export class PolicyChannel implements IServerChannel {
 

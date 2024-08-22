@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as vscode from 'vscode';
-import * as errors from 'vs/base/common/errors';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
-import { ExtensionIdentifier, ExtensionIdentifierMap } from 'vs/platform/extensions/common/extensions';
-import { ExtensionActivationReason, MissingExtensionDependency } from 'vs/workbench/services/extensions/common/extensions';
-import { ILogService } from 'vs/platform/log/common/log';
-import { Barrier } from 'vs/base/common/async';
+import * as errors from '../../../base/common/errors';
+import { Disposable, IDisposable } from '../../../base/common/lifecycle';
+import { ExtensionDescriptionRegistry } from '../../services/extensions/common/extensionDescriptionRegistry';
+import { ExtensionIdentifier, ExtensionIdentifierMap } from '../../../platform/extensions/common/extensions';
+import { ExtensionActivationReason, MissingExtensionDependency } from '../../services/extensions/common/extensions';
+import { ILogService } from '../../../platform/log/common/log';
+import { Barrier } from '../../../base/common/async';
 
 /**
  * Represents the source code (module) of an extension.

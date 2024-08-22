@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IQuickAccessController } from 'vs/platform/quickinput/common/quickAccess';
-import { IMatch } from 'vs/base/common/filters';
-import { IItemAccessor } from 'vs/base/common/fuzzyScorer';
-import { ResolvedKeybinding } from 'vs/base/common/keybindings';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import Severity from 'vs/base/common/severity';
-import { URI } from 'vs/base/common/uri';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { CancellationToken } from '../../../base/common/cancellation';
+import { Event } from '../../../base/common/event';
+import { createDecorator } from '../../instantiation/common/instantiation';
+import { IQuickAccessController } from './quickAccess';
+import { IMatch } from '../../../base/common/filters';
+import { IItemAccessor } from '../../../base/common/fuzzyScorer';
+import { ResolvedKeybinding } from '../../../base/common/keybindings';
+import { IDisposable } from '../../../base/common/lifecycle';
+import { Schemas } from '../../../base/common/network';
+import Severity from '../../../base/common/severity';
+import { URI } from '../../../base/common/uri';
+import { IMarkdownString } from '../../../base/common/htmlContent';
 
 export interface IQuickPickItemHighlights {
 	label?: IMatch[];

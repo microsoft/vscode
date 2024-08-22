@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { Color } from 'vs/base/common/color';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
-import * as nls from 'vs/nls';
-import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import * as platform from 'vs/platform/registry/common/platform';
-import { IColorTheme } from 'vs/platform/theme/common/themeService';
+import { RunOnceScheduler } from '../../../base/common/async';
+import { Color } from '../../../base/common/color';
+import { Emitter, Event } from '../../../base/common/event';
+import { IJSONSchema, IJSONSchemaMap } from '../../../base/common/jsonSchema';
+import * as nls from '../../../nls';
+import { Extensions as JSONExtensions, IJSONContributionRegistry } from '../../jsonschemas/common/jsonContributionRegistry';
+import * as platform from '../../registry/common/platform';
+import { IColorTheme } from './themeService';
 
 const TOKEN_TYPE_WILDCARD = '*';
 const TOKEN_CLASSIFIER_LANGUAGE_SEPARATOR = ':';

@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, append } from 'vs/base/browser/dom';
-import { format } from 'vs/base/common/strings';
+import { $, append } from '../../dom';
+import { format } from '../../../common/strings';
 import 'vs/css!./countBadge';
 
 export interface ICountBadgeOptions {

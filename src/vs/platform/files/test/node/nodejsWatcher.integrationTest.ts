@@ -6,24 +6,24 @@
 import * as fs from 'fs';
 import assert from 'assert';
 import { tmpdir } from 'os';
-import { basename, dirname, join } from 'vs/base/common/path';
-import { Promises, RimRafMode } from 'vs/base/node/pfs';
-import { getRandomTestPath } from 'vs/base/test/node/testUtils';
-import { FileChangeFilter, FileChangeType } from 'vs/platform/files/common/files';
-import { INonRecursiveWatchRequest, IRecursiveWatcherWithSubscribe } from 'vs/platform/files/common/watcher';
-import { watchFileContents } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcherLib';
-import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { getDriveLetter } from 'vs/base/common/extpath';
-import { ltrim } from 'vs/base/common/strings';
-import { DeferredPromise, timeout } from 'vs/base/common/async';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { NodeJSWatcher } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcher';
-import { FileAccess } from 'vs/base/common/network';
-import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { addUNCHostToAllowlist } from 'vs/base/node/unc';
-import { Emitter, Event } from 'vs/base/common/event';
-import { TestParcelWatcher } from 'vs/platform/files/test/node/parcelWatcher.integrationTest';
+import { basename, dirname, join } from '../../../../base/common/path';
+import { Promises, RimRafMode } from '../../../../base/node/pfs';
+import { getRandomTestPath } from '../../../../base/test/node/testUtils';
+import { FileChangeFilter, FileChangeType } from '../../common/files';
+import { INonRecursiveWatchRequest, IRecursiveWatcherWithSubscribe } from '../../common/watcher';
+import { watchFileContents } from '../../node/watcher/nodejs/nodejsWatcherLib';
+import { isLinux, isMacintosh, isWindows } from '../../../../base/common/platform';
+import { getDriveLetter } from '../../../../base/common/extpath';
+import { ltrim } from '../../../../base/common/strings';
+import { DeferredPromise, timeout } from '../../../../base/common/async';
+import { CancellationTokenSource } from '../../../../base/common/cancellation';
+import { NodeJSWatcher } from '../../node/watcher/nodejs/nodejsWatcher';
+import { FileAccess } from '../../../../base/common/network';
+import { extUriBiasedIgnorePathCase } from '../../../../base/common/resources';
+import { URI } from '../../../../base/common/uri';
+import { addUNCHostToAllowlist } from '../../../../base/node/unc';
+import { Emitter, Event } from '../../../../base/common/event';
+import { TestParcelWatcher } from './parcelWatcher.integrationTest';
 
 // this suite has shown flaky runs in Azure pipelines where
 // tasks would just hang and timeout after a while (not in

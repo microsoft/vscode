@@ -4,20 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ICommand } from 'vs/editor/common/editorCommon';
-import { ColorId, MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
-import { EncodedTokenizationResult, IState, TokenizationRegistry } from 'vs/editor/common/languages';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { CommentRule } from 'vs/editor/common/languages/languageConfiguration';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { NullState } from 'vs/editor/common/languages/nullTokenize';
-import { ILinePreflightData, IPreflightData, ISimpleModel, LineCommentCommand, Type } from 'vs/editor/contrib/comment/browser/lineCommentCommand';
-import { testCommand } from 'vs/editor/test/browser/testCommand';
-import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils';
+import { Selection } from '../../../../common/core/selection';
+import { ICommand } from '../../../../common/editorCommon';
+import { ColorId, MetadataConsts } from '../../../../common/encodedTokenAttributes';
+import { EncodedTokenizationResult, IState, TokenizationRegistry } from '../../../../common/languages';
+import { ILanguageService } from '../../../../common/languages/language';
+import { CommentRule } from '../../../../common/languages/languageConfiguration';
+import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry';
+import { NullState } from '../../../../common/languages/nullTokenize';
+import { ILinePreflightData, IPreflightData, ISimpleModel, LineCommentCommand, Type } from '../../browser/lineCommentCommand';
+import { testCommand } from '../../../../test/browser/testCommand';
+import { TestLanguageConfigurationService } from '../../../../test/common/modes/testLanguageConfigurationService';
+import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation';
 
 function createTestCommandHelper(commentsConfig: CommentRule, commandFactory: (accessor: ServicesAccessor, selection: Selection) => ICommand): (lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection) => void {
 	return (lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection) => {

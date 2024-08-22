@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { BrowserClipboardService as BaseBrowserClipboardService } from 'vs/platform/clipboard/browser/clipboardService';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
-import { getActiveWindow } from 'vs/base/browser/dom';
+import { localize } from '../../../../nls';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions';
+import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService';
+import { BrowserClipboardService as BaseBrowserClipboardService } from '../../../../platform/clipboard/browser/clipboardService';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification';
+import { IOpenerService } from '../../../../platform/opener/common/opener';
+import { Event } from '../../../../base/common/event';
+import { DisposableStore } from '../../../../base/common/lifecycle';
+import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService';
+import { ILogService } from '../../../../platform/log/common/log';
+import { ILayoutService } from '../../../../platform/layout/browser/layoutService';
+import { getActiveWindow } from '../../../../base/browser/dom';
 
 export class BrowserClipboardService extends BaseBrowserClipboardService {
 

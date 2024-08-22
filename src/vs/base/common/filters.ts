@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import { LRUCache } from 'vs/base/common/map';
-import { getKoreanAltChars } from 'vs/base/common/naturalLanguage/korean';
-import * as strings from 'vs/base/common/strings';
+import { CharCode } from './charCode';
+import { LRUCache } from './map';
+import { getKoreanAltChars } from './naturalLanguage/korean';
+import * as strings from './strings';
 
 export interface IFilter {
 	// Returns null if word doesn't match.

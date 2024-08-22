@@ -5,12 +5,12 @@
 
 import type { Terminal } from '@xterm/xterm';
 import { deepStrictEqual, ok } from 'assert';
-import { importAMDNodeModule } from 'vs/amdX';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { CommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
-import { writeP } from 'vs/workbench/contrib/terminal/browser/terminalTestHelpers';
-import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { importAMDNodeModule } from '../../../../../../amdX';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils';
+import { ITerminalCommand } from '../../../../../../platform/terminal/common/capabilities/capabilities';
+import { CommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/commandDetectionCapability';
+import { writeP } from '../../../browser/terminalTestHelpers';
+import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices';
 
 type TestTerminalCommandMatch = Pick<ITerminalCommand, 'command' | 'cwd' | 'exitCode'> & { marker: { line: number } };
 

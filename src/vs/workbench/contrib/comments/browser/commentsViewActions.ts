@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { localize } from 'vs/nls';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { Event, Emitter } from 'vs/base/common/event';
-import { CommentsViewFilterFocusContextKey, ICommentsView } from 'vs/workbench/contrib/comments/browser/comments';
-import { MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { COMMENTS_VIEW_ID } from 'vs/workbench/contrib/comments/browser/commentsTreeViewer';
-import { FocusedViewContext } from 'vs/workbench/common/contextkeys';
-import { viewFilterSubmenu } from 'vs/workbench/browser/parts/views/viewFilter';
-import { Codicon } from 'vs/base/common/codicons';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes';
+import { Disposable } from '../../../../base/common/lifecycle';
+import { localize } from '../../../../nls';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation';
+import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey';
+import { Event, Emitter } from '../../../../base/common/event';
+import { CommentsViewFilterFocusContextKey, ICommentsView } from './comments';
+import { MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions';
+import { ViewAction } from '../../../browser/parts/views/viewPane';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry';
+import { COMMENTS_VIEW_ID } from './commentsTreeViewer';
+import { FocusedViewContext } from '../../../common/contextkeys';
+import { viewFilterSubmenu } from '../../../browser/parts/views/viewFilter';
+import { Codicon } from '../../../../base/common/codicons';
 
 export const enum CommentsSortOrder {
 	ResourceAscending = 'resourceAscending',

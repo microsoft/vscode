@@ -3,31 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as glob from 'vs/base/common/glob';
-import { distinct, firstOrDefault, insert } from 'vs/base/common/arrays';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { basename, extname, isEqual } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { EditorActivation, EditorResolution, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { DEFAULT_EDITOR_ASSOCIATION, EditorResourceAccessor, EditorInputWithOptions, IResourceSideBySideEditorInput, isEditorInputWithOptions, isEditorInputWithOptionsAndGroup, isResourceDiffEditorInput, isResourceSideBySideEditorInput, isUntitledResourceEditorInput, isResourceMergeEditorInput, IUntypedEditorInput, SideBySideEditor, isResourceMultiDiffEditorInput } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { Schemas } from 'vs/base/common/network';
-import { RegisteredEditorInfo, RegisteredEditorPriority, RegisteredEditorOptions, EditorAssociation, EditorAssociations, editorsAssociationsSettingId, globMatchesResource, IEditorResolverService, priorityToRank, ResolvedEditor, ResolvedStatus, EditorInputFactoryObject } from 'vs/workbench/services/editor/common/editorResolverService';
-import { QuickPickItem, IKeyMods, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { localize } from 'vs/nls';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { ILogService } from 'vs/platform/log/common/log';
-import { findGroup } from 'vs/workbench/services/editor/common/editorGroupFinder';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { PreferredGroup } from 'vs/workbench/services/editor/common/editorService';
-import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
-import { PauseableEmitter } from 'vs/base/common/event';
+import * as glob from '../../../../base/common/glob';
+import { distinct, firstOrDefault, insert } from '../../../../base/common/arrays';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle';
+import { basename, extname, isEqual } from '../../../../base/common/resources';
+import { URI } from '../../../../base/common/uri';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration';
+import { EditorActivation, EditorResolution, IEditorOptions } from '../../../../platform/editor/common/editor';
+import { DEFAULT_EDITOR_ASSOCIATION, EditorResourceAccessor, EditorInputWithOptions, IResourceSideBySideEditorInput, isEditorInputWithOptions, isEditorInputWithOptionsAndGroup, isResourceDiffEditorInput, isResourceSideBySideEditorInput, isUntitledResourceEditorInput, isResourceMergeEditorInput, IUntypedEditorInput, SideBySideEditor, isResourceMultiDiffEditorInput } from '../../../common/editor';
+import { EditorInput } from '../../../common/editor/editorInput';
+import { IEditorGroup, IEditorGroupsService } from '../common/editorGroupsService';
+import { Schemas } from '../../../../base/common/network';
+import { RegisteredEditorInfo, RegisteredEditorPriority, RegisteredEditorOptions, EditorAssociation, EditorAssociations, editorsAssociationsSettingId, globMatchesResource, IEditorResolverService, priorityToRank, ResolvedEditor, ResolvedStatus, EditorInputFactoryObject } from '../common/editorResolverService';
+import { QuickPickItem, IKeyMods, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput';
+import { localize } from '../../../../nls';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage';
+import { IExtensionService } from '../../extensions/common/extensions';
+import { ILogService } from '../../../../platform/log/common/log';
+import { findGroup } from '../common/editorGroupFinder';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { PreferredGroup } from '../common/editorService';
+import { SideBySideEditorInput } from '../../../common/editor/sideBySideEditorInput';
+import { PauseableEmitter } from '../../../../base/common/event';
 
 interface RegisteredEditor {
 	globPattern: string | glob.IRelativePattern;

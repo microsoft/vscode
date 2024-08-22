@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { compareBy } from 'vs/base/common/arrays';
-import { assertFn, checkAdjacentItems } from 'vs/base/common/assert';
-import { isDefined } from 'vs/base/common/types';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { TextLength } from 'vs/editor/common/core/textLength';
-import { RangeMapping } from 'vs/workbench/contrib/mergeEditor/browser/model/mapping';
-import { ModifiedBaseRange } from 'vs/workbench/contrib/mergeEditor/browser/model/modifiedBaseRange';
-import { addLength, lengthBetweenPositions, lengthOfRange } from 'vs/workbench/contrib/mergeEditor/browser/model/rangeUtils';
+import { compareBy } from '../../../../../base/common/arrays';
+import { assertFn, checkAdjacentItems } from '../../../../../base/common/assert';
+import { isDefined } from '../../../../../base/common/types';
+import { Position } from '../../../../../editor/common/core/position';
+import { Range } from '../../../../../editor/common/core/range';
+import { TextLength } from '../../../../../editor/common/core/textLength';
+import { RangeMapping } from '../model/mapping';
+import { ModifiedBaseRange } from '../model/modifiedBaseRange';
+import { addLength, lengthBetweenPositions, lengthOfRange } from '../model/rangeUtils';
 
 export type LineAlignment = [input1LineNumber: number | undefined, baseLineNumber: number, input2LineNumber: number | undefined];
 

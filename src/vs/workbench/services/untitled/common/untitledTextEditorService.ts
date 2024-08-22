@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { UntitledTextEditorModel, IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
-import { IFilesConfiguration } from 'vs/platform/files/common/files';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Event, Emitter } from 'vs/base/common/event';
-import { ResourceMap } from 'vs/base/common/map';
-import { Schemas } from 'vs/base/common/network';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { URI } from '../../../../base/common/uri';
+import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { UntitledTextEditorModel, IUntitledTextEditorModel } from './untitledTextEditorModel';
+import { IFilesConfiguration } from '../../../../platform/files/common/files';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration';
+import { Event, Emitter } from '../../../../base/common/event';
+import { ResourceMap } from '../../../../base/common/map';
+import { Schemas } from '../../../../base/common/network';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions';
 
 export const IUntitledTextEditorService = createDecorator<IUntitledTextEditorService>('untitledTextEditorService');
 

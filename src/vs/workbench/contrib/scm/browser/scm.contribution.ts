@@ -3,40 +3,40 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize, localize2 } from 'vs/nls';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchContributionsRegistry, registerWorkbenchContribution2, Extensions as WorkbenchExtensions, WorkbenchPhase } from 'vs/workbench/common/contributions';
+import { localize, localize2 } from '../../../../nls';
+import { Registry } from '../../../../platform/registry/common/platform';
+import { IWorkbenchContributionsRegistry, registerWorkbenchContribution2, Extensions as WorkbenchExtensions, WorkbenchPhase } from '../../../common/contributions';
 import { DirtyDiffWorkbenchController } from './dirtydiffDecorator';
-import { VIEWLET_ID, ISCMService, VIEW_PANE_ID, ISCMProvider, ISCMViewService, REPOSITORIES_VIEW_PANE_ID } from 'vs/workbench/contrib/scm/common/scm';
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
+import { VIEWLET_ID, ISCMService, VIEW_PANE_ID, ISCMProvider, ISCMViewService, REPOSITORIES_VIEW_PANE_ID } from '../common/scm';
+import { KeyMod, KeyCode } from '../../../../base/common/keyCodes';
+import { MenuRegistry, MenuId } from '../../../../platform/actions/common/actions';
 import { SCMActiveResourceContextKeyController, SCMActiveRepositoryController } from './activity';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { SCMService } from 'vs/workbench/contrib/scm/common/scmService';
-import { IViewContainersRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions, IViewsRegistry } from 'vs/workbench/common/views';
-import { SCMViewPaneContainer } from 'vs/workbench/contrib/scm/browser/scmViewPaneContainer';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
-import { Codicon } from 'vs/base/common/codicons';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { ContextKeys, SCMViewPane } from 'vs/workbench/contrib/scm/browser/scmViewPane';
-import { SCMViewService } from 'vs/workbench/contrib/scm/browser/scmViewService';
-import { SCMRepositoriesViewPane } from 'vs/workbench/contrib/scm/browser/scmRepositoriesViewPane';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { Context as SuggestContext } from 'vs/editor/contrib/suggest/browser/suggest';
-import { MANAGE_TRUST_COMMAND_ID, WorkspaceTrustContext } from 'vs/workbench/contrib/workspace/common/workspace';
-import { IQuickDiffService } from 'vs/workbench/contrib/scm/common/quickDiff';
-import { QuickDiffService } from 'vs/workbench/contrib/scm/common/quickDiffService';
-import { getActiveElement, isActiveElement } from 'vs/base/browser/dom';
-import { SCMWorkingSetController } from 'vs/workbench/contrib/scm/browser/workingSet';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
-import { IListService, WorkbenchList } from 'vs/platform/list/browser/listService';
-import { isSCMRepository } from 'vs/workbench/contrib/scm/browser/util';
+import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../../../platform/configuration/common/configurationRegistry';
+import { IContextKeyService, ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions';
+import { SCMService } from '../common/scmService';
+import { IViewContainersRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions, IViewsRegistry } from '../../../common/views';
+import { SCMViewPaneContainer } from './scmViewPaneContainer';
+import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors';
+import { ModesRegistry } from '../../../../editor/common/languages/modesRegistry';
+import { Codicon } from '../../../../base/common/codicons';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry';
+import { ContextKeys, SCMViewPane } from './scmViewPane';
+import { SCMViewService } from './scmViewService';
+import { SCMRepositoriesViewPane } from './scmRepositoriesViewPane';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation';
+import { Context as SuggestContext } from '../../../../editor/contrib/suggest/browser/suggest';
+import { MANAGE_TRUST_COMMAND_ID, WorkspaceTrustContext } from '../../workspace/common/workspace';
+import { IQuickDiffService } from '../common/quickDiff';
+import { QuickDiffService } from '../common/quickDiffService';
+import { getActiveElement, isActiveElement } from '../../../../base/browser/dom';
+import { SCMWorkingSetController } from './workingSet';
+import { IViewsService } from '../../../services/views/common/viewsService';
+import { IListService, WorkbenchList } from '../../../../platform/list/browser/listService';
+import { isSCMRepository } from './util';
 
 ModesRegistry.registerLanguage({
 	id: 'scminput',

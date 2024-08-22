@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { IExtensionTerminalProfile, ITerminalProfile, TerminalIcon } from 'vs/platform/terminal/common/terminal';
-import { ThemeIcon } from 'vs/base/common/themables';
+import { Codicon } from '../../../base/common/codicons';
+import { URI, UriComponents } from '../../../base/common/uri';
+import { localize } from '../../../nls';
+import { IExtensionTerminalProfile, ITerminalProfile, TerminalIcon } from './terminal';
+import { ThemeIcon } from '../../../base/common/themables';
 
 export function createProfileSchemaEnums(detectedProfiles: ITerminalProfile[], extensionProfiles?: readonly IExtensionTerminalProfile[]): {
 	values: (string | null)[] | undefined;

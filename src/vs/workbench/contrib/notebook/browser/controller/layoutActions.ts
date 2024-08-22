@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { localize, localize2 } from 'vs/nls';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { Action2, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { NOTEBOOK_ACTIONS_CATEGORY } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
-import { NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
+import { Codicon } from '../../../../../base/common/codicons';
+import { DisposableStore } from '../../../../../base/common/lifecycle';
+import { URI, UriComponents } from '../../../../../base/common/uri';
+import { localize, localize2 } from '../../../../../nls';
+import { Categories } from '../../../../../platform/action/common/actionCommonCategories';
+import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions';
+import { ICommandService } from '../../../../../platform/commands/common/commands';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey';
+import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation';
+import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput';
+import { NOTEBOOK_ACTIONS_CATEGORY } from './coreActions';
+import { getNotebookEditorFromEditorPane } from '../notebookBrowser';
+import { INotebookEditorService } from '../services/notebookEditorService';
+import { NotebookSetting } from '../../common/notebookCommon';
+import { NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR } from '../../common/notebookContextKeys';
+import { INotebookService } from '../../common/notebookService';
+import { IEditorService } from '../../../../services/editor/common/editorService';
+import { IPreferencesService } from '../../../../services/preferences/common/preferences';
 
 registerAction2(class NotebookConfigureLayoutAction extends Action2 {
 	constructor() {

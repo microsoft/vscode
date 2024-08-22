@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { List } from 'vs/base/browser/ui/list/listWidget';
-import { WorkbenchListFocusContextKey, IListService, WorkbenchListSupportsMultiSelectContextKey, ListWidget, WorkbenchListHasSelectionOrFocus, getSelectionKeyboardEvent, WorkbenchListWidget, WorkbenchListSelectionNavigation, WorkbenchTreeElementCanCollapse, WorkbenchTreeElementHasParent, WorkbenchTreeElementHasChild, WorkbenchTreeElementCanExpand, RawWorkbenchListFocusContextKey, WorkbenchTreeFindOpen, WorkbenchListSupportsFind, WorkbenchListScrollAtBottomContextKey, WorkbenchListScrollAtTopContextKey, WorkbenchTreeStickyScrollFocused } from 'vs/platform/list/browser/listService';
-import { PagedList } from 'vs/base/browser/ui/list/listPaging';
-import { equals, range } from 'vs/base/common/arrays';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
-import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
-import { DataTree } from 'vs/base/browser/ui/tree/dataTree';
-import { ITreeNode } from 'vs/base/browser/ui/tree/tree';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { Table } from 'vs/base/browser/ui/table/tableWidget';
-import { AbstractTree, TreeFindMatchType, TreeFindMode } from 'vs/base/browser/ui/tree/abstractTree';
-import { isActiveElement } from 'vs/base/browser/dom';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { localize, localize2 } from 'vs/nls';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
+import { KeyMod, KeyCode, KeyChord } from '../../../base/common/keyCodes';
+import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../platform/keybinding/common/keybindingsRegistry';
+import { List } from '../../../base/browser/ui/list/listWidget';
+import { WorkbenchListFocusContextKey, IListService, WorkbenchListSupportsMultiSelectContextKey, ListWidget, WorkbenchListHasSelectionOrFocus, getSelectionKeyboardEvent, WorkbenchListWidget, WorkbenchListSelectionNavigation, WorkbenchTreeElementCanCollapse, WorkbenchTreeElementHasParent, WorkbenchTreeElementHasChild, WorkbenchTreeElementCanExpand, RawWorkbenchListFocusContextKey, WorkbenchTreeFindOpen, WorkbenchListSupportsFind, WorkbenchListScrollAtBottomContextKey, WorkbenchListScrollAtTopContextKey, WorkbenchTreeStickyScrollFocused } from '../../../platform/list/browser/listService';
+import { PagedList } from '../../../base/browser/ui/list/listPaging';
+import { equals, range } from '../../../base/common/arrays';
+import { ContextKeyExpr } from '../../../platform/contextkey/common/contextkey';
+import { ObjectTree } from '../../../base/browser/ui/tree/objectTree';
+import { AsyncDataTree } from '../../../base/browser/ui/tree/asyncDataTree';
+import { DataTree } from '../../../base/browser/ui/tree/dataTree';
+import { ITreeNode } from '../../../base/browser/ui/tree/tree';
+import { CommandsRegistry } from '../../../platform/commands/common/commands';
+import { Table } from '../../../base/browser/ui/table/tableWidget';
+import { AbstractTree, TreeFindMatchType, TreeFindMode } from '../../../base/browser/ui/tree/abstractTree';
+import { isActiveElement } from '../../../base/browser/dom';
+import { Action2, registerAction2 } from '../../../platform/actions/common/actions';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration';
+import { localize, localize2 } from '../../../nls';
+import { IHoverService } from '../../../platform/hover/browser/hover';
 
 function ensureDOMFocus(widget: ListWidget | undefined): void {
 	// it can happen that one of the commands is executed while

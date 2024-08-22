@@ -3,38 +3,38 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isHTMLElement, ModifierKeyEmitter } from 'vs/base/browser/dom';
-import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { LRUCache } from 'vs/base/common/map';
-import { IRange } from 'vs/base/common/range';
-import { assertType } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { IActiveCodeEditor, ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { ClassNameReference, CssProperties, DynamicCssRules } from 'vs/editor/browser/editorDom';
-import { StableEditorScrollState } from 'vs/editor/browser/stableEditorScroll';
-import { EditorOption, EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Range } from 'vs/editor/common/core/range';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import * as languages from 'vs/editor/common/languages';
-import { IModelDeltaDecoration, InjectedTextCursorStops, InjectedTextOptions, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { ModelDecorationInjectedTextOptions } from 'vs/editor/common/model/textModel';
-import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { ClickLinkGesture, ClickLinkMouseEvent } from 'vs/editor/contrib/gotoSymbol/browser/link/clickLinkGesture';
-import { InlayHintAnchor, InlayHintItem, InlayHintsFragments } from 'vs/editor/contrib/inlayHints/browser/inlayHints';
-import { goToDefinitionWithLocation, showGoToContextMenu } from 'vs/editor/contrib/inlayHints/browser/inlayHintsLocations';
-import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import * as colors from 'vs/platform/theme/common/colorRegistry';
-import { themeColorFromId } from 'vs/platform/theme/common/themeService';
+import { isHTMLElement, ModifierKeyEmitter } from '../../../../base/browser/dom';
+import { isNonEmptyArray } from '../../../../base/common/arrays';
+import { RunOnceScheduler } from '../../../../base/common/async';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation';
+import { onUnexpectedError } from '../../../../base/common/errors';
+import { DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle';
+import { LRUCache } from '../../../../base/common/map';
+import { IRange } from '../../../../base/common/range';
+import { assertType } from '../../../../base/common/types';
+import { URI } from '../../../../base/common/uri';
+import { IActiveCodeEditor, ICodeEditor, IEditorMouseEvent, MouseTargetType } from '../../../browser/editorBrowser';
+import { ClassNameReference, CssProperties, DynamicCssRules } from '../../../browser/editorDom';
+import { StableEditorScrollState } from '../../../browser/stableEditorScroll';
+import { EditorOption, EDITOR_FONT_DEFAULTS } from '../../../common/config/editorOptions';
+import { EditOperation } from '../../../common/core/editOperation';
+import { Range } from '../../../common/core/range';
+import { IEditorContribution } from '../../../common/editorCommon';
+import * as languages from '../../../common/languages';
+import { IModelDeltaDecoration, InjectedTextCursorStops, InjectedTextOptions, ITextModel, TrackedRangeStickiness } from '../../../common/model';
+import { ModelDecorationInjectedTextOptions } from '../../../common/model/textModel';
+import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from '../../../common/services/languageFeatureDebounce';
+import { ILanguageFeaturesService } from '../../../common/services/languageFeatures';
+import { ITextModelService } from '../../../common/services/resolverService';
+import { ClickLinkGesture, ClickLinkMouseEvent } from '../../gotoSymbol/browser/link/clickLinkGesture';
+import { InlayHintAnchor, InlayHintItem, InlayHintsFragments } from './inlayHints';
+import { goToDefinitionWithLocation, showGoToContextMenu } from './inlayHintsLocations';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions';
+import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification';
+import * as colors from '../../../../platform/theme/common/colorRegistry';
+import { themeColorFromId } from '../../../../platform/theme/common/themeService';
 
 // --- hint caching service (per session)
 

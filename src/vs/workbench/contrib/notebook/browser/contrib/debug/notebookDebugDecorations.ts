@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Delayer } from 'vs/base/common/async';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { debugIconBreakpointForeground } from 'vs/workbench/contrib/debug/browser/breakpointEditorContribution';
-import { focusedStackFrameColor, topStackFrameColor } from 'vs/workbench/contrib/debug/browser/callStackEditorContribution';
-import { IDebugService, IStackFrame } from 'vs/workbench/contrib/debug/common/debug';
-import { INotebookCellDecorationOptions, INotebookDeltaDecoration, INotebookEditor, INotebookEditorContribution, NotebookOverviewRulerLane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
-import { runningCellRulerDecorationColor } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
-import { CellUri, NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { Delayer } from '../../../../../../base/common/async';
+import { Disposable } from '../../../../../../base/common/lifecycle';
+import { IRange, Range } from '../../../../../../editor/common/core/range';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration';
+import { debugIconBreakpointForeground } from '../../../../debug/browser/breakpointEditorContribution';
+import { focusedStackFrameColor, topStackFrameColor } from '../../../../debug/browser/callStackEditorContribution';
+import { IDebugService, IStackFrame } from '../../../../debug/common/debug';
+import { INotebookCellDecorationOptions, INotebookDeltaDecoration, INotebookEditor, INotebookEditorContribution, NotebookOverviewRulerLane } from '../../notebookBrowser';
+import { registerNotebookContribution } from '../../notebookEditorExtensions';
+import { runningCellRulerDecorationColor } from '../../notebookEditorWidget';
+import { CellUri, NotebookCellExecutionState } from '../../../common/notebookCommon';
+import { INotebookExecutionStateService, NotebookExecutionType } from '../../../common/notebookExecutionStateService';
 
 interface ICellAndRange {
 	handle: number;

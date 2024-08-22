@@ -3,29 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { AbstractTextFileService } from 'vs/workbench/services/textfile/browser/textFileService';
-import { ITextFileService, ITextFileStreamContent, ITextFileContent, IReadTextFileOptions, TextFileEditorModelState, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { URI } from 'vs/base/common/uri';
-import { IFileService, IFileReadLimits } from 'vs/platform/files/common/files';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
-import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IModelService } from 'vs/editor/common/services/model';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { IElevatedFileService } from 'vs/workbench/services/files/common/elevatedFileService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { Promises } from 'vs/base/common/async';
-import { IDecorationsService } from 'vs/workbench/services/decorations/common/decorations';
+import { localize } from '../../../../nls';
+import { AbstractTextFileService } from '../browser/textFileService';
+import { ITextFileService, ITextFileStreamContent, ITextFileContent, IReadTextFileOptions, TextFileEditorModelState, ITextFileEditorModel } from '../common/textfiles';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions';
+import { URI } from '../../../../base/common/uri';
+import { IFileService, IFileReadLimits } from '../../../../platform/files/common/files';
+import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration';
+import { IUntitledTextEditorService } from '../../untitled/common/untitledTextEditorService';
+import { ILifecycleService } from '../../lifecycle/common/lifecycle';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { IModelService } from '../../../../editor/common/services/model';
+import { INativeWorkbenchEnvironmentService } from '../../environment/electron-sandbox/environmentService';
+import { IDialogService, IFileDialogService } from '../../../../platform/dialogs/common/dialogs';
+import { IFilesConfigurationService } from '../../filesConfiguration/common/filesConfigurationService';
+import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService';
+import { IPathService } from '../../path/common/pathService';
+import { IWorkingCopyFileService } from '../../workingCopy/common/workingCopyFileService';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity';
+import { ILanguageService } from '../../../../editor/common/languages/language';
+import { IElevatedFileService } from '../../files/common/elevatedFileService';
+import { ILogService } from '../../../../platform/log/common/log';
+import { Promises } from '../../../../base/common/async';
+import { IDecorationsService } from '../../decorations/common/decorations';
 
 export class NativeTextFileService extends AbstractTextFileService {
 

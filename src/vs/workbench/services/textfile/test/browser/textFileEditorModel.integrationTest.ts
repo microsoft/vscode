@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
-import { workbenchInstantiationService, TestServiceAccessor } from 'vs/workbench/test/browser/workbenchTestServices';
-import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from 'vs/base/test/common/utils';
-import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
-import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { URI } from 'vs/base/common/uri';
-import { bufferToStream, VSBuffer } from 'vs/base/common/buffer';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation';
+import { TextFileEditorModel } from '../../common/textFileEditorModel';
+import { workbenchInstantiationService, TestServiceAccessor } from '../../../../test/browser/workbenchTestServices';
+import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from '../../../../../base/test/common/utils';
+import { TextFileEditorModelManager } from '../../common/textFileEditorModelManager';
+import { createTextBufferFactoryFromStream } from '../../../../../editor/common/model/textModel';
+import { CancellationToken } from '../../../../../base/common/cancellation';
+import { URI } from '../../../../../base/common/uri';
+import { bufferToStream, VSBuffer } from '../../../../../base/common/buffer';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle';
 
 suite('Files - TextFileEditorModel (integration)', () => {
 

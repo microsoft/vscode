@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { ITextAreaWrapper, PagedScreenReaderStrategy, TextAreaState } from 'vs/editor/browser/controller/textAreaState';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
+import { Disposable } from '../../../../base/common/lifecycle';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils';
+import { ITextAreaWrapper, PagedScreenReaderStrategy, TextAreaState } from '../../../browser/controller/textAreaState';
+import { Range } from '../../../common/core/range';
+import { Selection } from '../../../common/core/selection';
+import { createTextModel } from '../../common/testTextModel';
 
 class MockTextAreaWrapper extends Disposable implements ITextAreaWrapper {
 

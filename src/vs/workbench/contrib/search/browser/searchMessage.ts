@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import * as dom from 'vs/base/browser/dom';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { parseLinkedText } from 'vs/base/common/linkedText';
-import Severity from 'vs/base/common/severity';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { SeverityIcon } from 'vs/platform/severityIcon/browser/severityIcon';
-import { TextSearchCompleteMessage, TextSearchCompleteMessageType } from 'vs/workbench/services/search/common/searchExtTypes';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { Schemas } from 'vs/base/common/network';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { Link } from 'vs/platform/opener/browser/link';
-import { URI } from 'vs/base/common/uri';
+import * as nls from '../../../../nls';
+import * as dom from '../../../../base/browser/dom';
+import { DisposableStore } from '../../../../base/common/lifecycle';
+import { parseLinkedText } from '../../../../base/common/linkedText';
+import Severity from '../../../../base/common/severity';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { INotificationService } from '../../../../platform/notification/common/notification';
+import { SeverityIcon } from '../../../../platform/severityIcon/browser/severityIcon';
+import { TextSearchCompleteMessage, TextSearchCompleteMessageType } from '../../../services/search/common/searchExtTypes';
+import { IOpenerService } from '../../../../platform/opener/common/opener';
+import { Schemas } from '../../../../base/common/network';
+import { ICommandService } from '../../../../platform/commands/common/commands';
+import { Link } from '../../../../platform/opener/browser/link';
+import { URI } from '../../../../base/common/uri';
 
 export const renderSearchMessage = (
 	message: TextSearchCompleteMessage,

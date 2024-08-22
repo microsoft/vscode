@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { localize } from 'vs/nls';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { SearchExtensionsAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
-import { distinct } from 'vs/base/common/arrays';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IExtensionsWorkbenchService } from '../common/extensions';
+import { IWorkbenchContribution } from '../../../common/contributions';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage';
+import { localize } from '../../../../nls';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { SearchExtensionsAction } from './extensionsActions';
+import { distinct } from '../../../../base/common/arrays';
+import { Disposable } from '../../../../base/common/lifecycle';
+import { IExtensionManagementService } from '../../../../platform/extensionManagement/common/extensionManagement';
+import { areSameExtensions } from '../../../../platform/extensionManagement/common/extensionManagementUtil';
+import { IWorkbenchExtensionEnablementService } from '../../../services/extensionManagement/common/extensionManagement';
 
 export class DeprecatedExtensionsChecker extends Disposable implements IWorkbenchContribution {
 

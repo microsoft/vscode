@@ -3,30 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { URI } from 'vs/base/common/uri';
-import { MenuId, MenuRegistry, IMenuItem } from 'vs/platform/actions/common/actions';
-import { ITerminalGroupService, ITerminalService as IIntegratedTerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { ResourceContextKey } from 'vs/workbench/common/contextkeys';
-import { IFileService } from 'vs/platform/files/common/files';
-import { getMultiSelectedResources, IExplorerService } from 'vs/workbench/contrib/files/browser/files';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { Schemas } from 'vs/base/common/network';
-import { distinct } from 'vs/base/common/arrays';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { isWindows } from 'vs/base/common/platform';
-import { dirname, basename } from 'vs/base/common/path';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IExternalTerminalConfiguration, IExternalTerminalService } from 'vs/platform/externalTerminal/common/externalTerminal';
-import { TerminalLocation } from 'vs/platform/terminal/common/terminal';
-import { IListService } from 'vs/platform/list/browser/listService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import * as nls from '../../../../nls';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration';
+import { URI } from '../../../../base/common/uri';
+import { MenuId, MenuRegistry, IMenuItem } from '../../../../platform/actions/common/actions';
+import { ITerminalGroupService, ITerminalService as IIntegratedTerminalService } from '../../terminal/browser/terminal';
+import { ResourceContextKey } from '../../../common/contextkeys';
+import { IFileService } from '../../../../platform/files/common/files';
+import { getMultiSelectedResources, IExplorerService } from '../../files/browser/files';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands';
+import { Schemas } from '../../../../base/common/network';
+import { distinct } from '../../../../base/common/arrays';
+import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey';
+import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../common/contributions';
+import { Disposable } from '../../../../base/common/lifecycle';
+import { isWindows } from '../../../../base/common/platform';
+import { dirname, basename } from '../../../../base/common/path';
+import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle';
+import { Registry } from '../../../../platform/registry/common/platform';
+import { IExternalTerminalConfiguration, IExternalTerminalService } from '../../../../platform/externalTerminal/common/externalTerminal';
+import { TerminalLocation } from '../../../../platform/terminal/common/terminal';
+import { IListService } from '../../../../platform/list/browser/listService';
+import { IEditorService } from '../../../services/editor/common/editorService';
+import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService';
 
 const OPEN_IN_TERMINAL_COMMAND_ID = 'openInTerminal';
 const OPEN_IN_INTEGRATED_TERMINAL_COMMAND_ID = 'openInIntegratedTerminal';

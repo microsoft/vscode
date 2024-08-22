@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Promises } from 'vs/base/common/async';
-import { canceled } from 'vs/base/common/errors';
-import { Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { IExtensionHostProcessOptions, IExtensionHostStarter } from 'vs/platform/extensions/common/extensionHostStarter';
-import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { WindowUtilityProcess } from 'vs/platform/utilityProcess/electron-main/utilityProcess';
-import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
+import { Promises } from '../../../base/common/async';
+import { canceled } from '../../../base/common/errors';
+import { Event } from '../../../base/common/event';
+import { Disposable, IDisposable } from '../../../base/common/lifecycle';
+import { IExtensionHostProcessOptions, IExtensionHostStarter } from '../common/extensionHostStarter';
+import { ILifecycleMainService } from '../../lifecycle/electron-main/lifecycleMainService';
+import { ILogService } from '../../log/common/log';
+import { ITelemetryService } from '../../telemetry/common/telemetry';
+import { WindowUtilityProcess } from '../../utilityProcess/electron-main/utilityProcess';
+import { IWindowsMainService } from '../../windows/electron-main/windows';
 
 export class ExtensionHostStarter extends Disposable implements IDisposable, IExtensionHostStarter {
 

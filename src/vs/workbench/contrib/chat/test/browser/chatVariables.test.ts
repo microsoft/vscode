@@ -4,25 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { ILogService, NullLogService } from 'vs/platform/log/common/log';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ChatVariablesService } from 'vs/workbench/contrib/chat/browser/chatVariables';
-import { ChatAgentService, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { ChatRequestParser } from 'vs/workbench/contrib/chat/common/chatRequestParser';
-import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
-import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
-import { ILanguageModelToolsService } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
-import { MockChatWidgetService } from 'vs/workbench/contrib/chat/test/browser/mockChatWidget';
-import { MockChatService } from 'vs/workbench/contrib/chat/test/common/mockChatService';
-import { MockLanguageModelToolsService } from 'vs/workbench/contrib/chat/test/common/mockLanguageModelToolsService';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { TestViewsService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { TestExtensionService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+import { CancellationToken } from '../../../../../base/common/cancellation';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log';
+import { IStorageService } from '../../../../../platform/storage/common/storage';
+import { ChatVariablesService } from '../../browser/chatVariables';
+import { ChatAgentService, IChatAgentService } from '../../common/chatAgents';
+import { ChatRequestParser } from '../../common/chatRequestParser';
+import { IChatService } from '../../common/chatService';
+import { IChatVariablesService } from '../../common/chatVariables';
+import { ILanguageModelToolsService } from '../../common/languageModelToolsService';
+import { MockChatWidgetService } from './mockChatWidget';
+import { MockChatService } from '../common/mockChatService';
+import { MockLanguageModelToolsService } from '../common/mockLanguageModelToolsService';
+import { IExtensionService } from '../../../../services/extensions/common/extensions';
+import { TestViewsService } from '../../../../test/browser/workbenchTestServices';
+import { TestExtensionService, TestStorageService } from '../../../../test/common/workbenchTestServices';
 
 suite('ChatVariables', function () {
 

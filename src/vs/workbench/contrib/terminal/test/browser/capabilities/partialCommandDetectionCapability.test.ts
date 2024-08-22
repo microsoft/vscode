@@ -5,10 +5,10 @@
 
 import type { IMarker, Terminal } from '@xterm/xterm';
 import { deepStrictEqual } from 'assert';
-import { importAMDNodeModule } from 'vs/amdX';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { PartialCommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/partialCommandDetectionCapability';
-import { writeP } from 'vs/workbench/contrib/terminal/browser/terminalTestHelpers';
+import { importAMDNodeModule } from '../../../../../../amdX';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils';
+import { PartialCommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/partialCommandDetectionCapability';
+import { writeP } from '../../../browser/terminalTestHelpers';
 
 suite('PartialCommandDetectionCapability', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

@@ -6,14 +6,14 @@
 import assert from 'assert';
 import type { IBuffer, Terminal } from '@xterm/xterm';
 import { SinonStub, stub, useFakeTimers } from 'sinon';
-import { Emitter } from 'vs/base/common/event';
-import { CharPredictState, IPrediction, PredictionStats, TypeAheadAddon } from 'vs/workbench/contrib/terminalContrib/typeAhead/browser/terminalTypeAheadAddon';
-import { IBeforeProcessDataEvent, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { DEFAULT_LOCAL_ECHO_EXCLUDE, type ITerminalTypeAheadConfiguration } from 'vs/workbench/contrib/terminalContrib/typeAhead/common/terminalTypeAheadConfiguration';
+import { Emitter } from '../../../../../../base/common/event';
+import { CharPredictState, IPrediction, PredictionStats, TypeAheadAddon } from '../../browser/terminalTypeAheadAddon';
+import { IBeforeProcessDataEvent, ITerminalProcessManager } from '../../../../terminal/common/terminal';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils';
+import { DisposableStore } from '../../../../../../base/common/lifecycle';
+import { DEFAULT_LOCAL_ECHO_EXCLUDE, type ITerminalTypeAheadConfiguration } from '../../common/terminalTypeAheadConfiguration';
 
 const CSI = `\x1b[`;
 

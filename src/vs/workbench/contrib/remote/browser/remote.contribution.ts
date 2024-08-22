@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbenchContributionsRegistry, WorkbenchPhase, Extensions as WorkbenchExtensions, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { ShowCandidateContribution } from 'vs/workbench/contrib/remote/browser/showCandidate';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { TunnelFactoryContribution } from 'vs/workbench/contrib/remote/browser/tunnelFactory';
-import { RemoteAgentConnectionStatusListener, RemoteMarkers } from 'vs/workbench/contrib/remote/browser/remote';
-import { RemoteStatusIndicator } from 'vs/workbench/contrib/remote/browser/remoteIndicator';
-import { AutomaticPortForwarding, ForwardedPortsView, PortRestore } from 'vs/workbench/contrib/remote/browser/remoteExplorer';
-import { InitialRemoteConnectionHealthContribution } from 'vs/workbench/contrib/remote/browser/remoteConnectionHealth';
+import { IWorkbenchContributionsRegistry, WorkbenchPhase, Extensions as WorkbenchExtensions, registerWorkbenchContribution2 } from '../../../common/contributions';
+import { Registry } from '../../../../platform/registry/common/platform';
+import { ShowCandidateContribution } from './showCandidate';
+import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle';
+import { TunnelFactoryContribution } from './tunnelFactory';
+import { RemoteAgentConnectionStatusListener, RemoteMarkers } from './remote';
+import { RemoteStatusIndicator } from './remoteIndicator';
+import { AutomaticPortForwarding, ForwardedPortsView, PortRestore } from './remoteExplorer';
+import { InitialRemoteConnectionHealthContribution } from './remoteConnectionHealth';
 
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 registerWorkbenchContribution2(ShowCandidateContribution.ID, ShowCandidateContribution, WorkbenchPhase.BlockRestore);

@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { compareBy, lastOrDefault, numberComparator } from 'vs/base/common/arrays';
-import { findLast } from 'vs/base/common/arraysFind';
-import { assertFn, checkAdjacentItems } from 'vs/base/common/assert';
-import { BugIndicatingError } from 'vs/base/common/errors';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { ITextModel } from 'vs/editor/common/model';
-import { concatArrays } from 'vs/workbench/contrib/mergeEditor/browser/utils';
+import { compareBy, lastOrDefault, numberComparator } from '../../../../../base/common/arrays';
+import { findLast } from '../../../../../base/common/arraysFind';
+import { assertFn, checkAdjacentItems } from '../../../../../base/common/assert';
+import { BugIndicatingError } from '../../../../../base/common/errors';
+import { Position } from '../../../../../editor/common/core/position';
+import { Range } from '../../../../../editor/common/core/range';
+import { ITextModel } from '../../../../../editor/common/model';
+import { concatArrays } from '../utils';
 import { LineRangeEdit } from './editing';
 import { LineRange } from './lineRange';
-import { rangeIsBeforeOrTouching, rangeContainsPosition, lengthBetweenPositions, addLength } from 'vs/workbench/contrib/mergeEditor/browser/model/rangeUtils';
+import { rangeIsBeforeOrTouching, rangeContainsPosition, lengthBetweenPositions, addLength } from './rangeUtils';
 
 /**
  * Represents a mapping of an input line range to an output line range.

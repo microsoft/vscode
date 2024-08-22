@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IViewLineTokens, LineTokens } from 'vs/editor/common/tokens/lineTokens';
-import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
-import { ILanguageIdCodec } from 'vs/editor/common/languages';
+import { IViewLineTokens, LineTokens } from '../tokens/lineTokens';
+import { StandardTokenType } from '../encodedTokenAttributes';
+import { ILanguageIdCodec } from '../languages';
 
 export function createScopedLineTokens(context: LineTokens, offset: number): ScopedLineTokens {
 	const tokenCount = context.getCount();

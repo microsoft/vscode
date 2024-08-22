@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { equalsIgnoreCase } from 'vs/base/common/strings';
-import { IDebuggerContribution, IDebugSession, IConfigPresentation } from 'vs/workbench/contrib/debug/common/debug';
-import { URI as uri } from 'vs/base/common/uri';
-import { isAbsolute } from 'vs/base/common/path';
-import { deepClone } from 'vs/base/common/objects';
-import { Schemas } from 'vs/base/common/network';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITextModel } from 'vs/editor/common/model';
-import { Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { coalesce } from 'vs/base/common/arrays';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { equalsIgnoreCase } from '../../../../base/common/strings';
+import { IDebuggerContribution, IDebugSession, IConfigPresentation } from './debug';
+import { URI as uri } from '../../../../base/common/uri';
+import { isAbsolute } from '../../../../base/common/path';
+import { deepClone } from '../../../../base/common/objects';
+import { Schemas } from '../../../../base/common/network';
+import { IEditorService } from '../../../services/editor/common/editorService';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration';
+import { ITextModel } from '../../../../editor/common/model';
+import { Position } from '../../../../editor/common/core/position';
+import { IRange, Range } from '../../../../editor/common/core/range';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import { coalesce } from '../../../../base/common/arrays';
+import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures';
 
 const _formatPIIRegexp = /{([^}]+)}/g;
 

@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter } from 'vs/base/common/event';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
-import { IExtHostWorkspaceProvider } from 'vs/workbench/api/common/extHostWorkspace';
+import { CancellationToken } from '../../../base/common/cancellation';
+import { Emitter } from '../../../base/common/event';
+import { dispose, IDisposable } from '../../../base/common/lifecycle';
+import { ExtHostCommands } from './extHostCommands';
+import { IExtHostWorkspaceProvider } from './extHostWorkspace';
 import { InputBox, InputBoxOptions, InputBoxValidationMessage, QuickInput, QuickInputButton, QuickPick, QuickPickItem, QuickPickItemButtonEvent, QuickPickOptions, WorkspaceFolder, WorkspaceFolderPickOptions } from 'vscode';
 import { ExtHostQuickOpenShape, IMainContext, MainContext, TransferQuickInput, TransferQuickInputButton, TransferQuickPickItemOrSeparator } from './extHost.protocol';
-import { URI } from 'vs/base/common/uri';
-import { ThemeIcon, QuickInputButtons, QuickPickItemKind, InputBoxValidationSeverity } from 'vs/workbench/api/common/extHostTypes';
-import { isCancellationError } from 'vs/base/common/errors';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { coalesce } from 'vs/base/common/arrays';
-import Severity from 'vs/base/common/severity';
-import { ThemeIcon as ThemeIconUtils } from 'vs/base/common/themables';
-import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
-import { MarkdownString } from 'vs/workbench/api/common/extHostTypeConverters';
+import { URI } from '../../../base/common/uri';
+import { ThemeIcon, QuickInputButtons, QuickPickItemKind, InputBoxValidationSeverity } from './extHostTypes';
+import { isCancellationError } from '../../../base/common/errors';
+import { IExtensionDescription } from '../../../platform/extensions/common/extensions';
+import { coalesce } from '../../../base/common/arrays';
+import Severity from '../../../base/common/severity';
+import { ThemeIcon as ThemeIconUtils } from '../../../base/common/themables';
+import { isProposedApiEnabled } from '../../services/extensions/common/extensions';
+import { MarkdownString } from './extHostTypeConverters';
 
 export type Item = string | QuickPickItem;
 

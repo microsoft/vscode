@@ -5,9 +5,9 @@
 
 import * as fs from 'fs';
 import { tmpdir } from 'os';
-import { Queue } from 'vs/base/common/async';
-import { randomPath } from 'vs/base/common/extpath';
-import { resolveTerminalEncoding } from 'vs/base/node/terminalEncoding';
+import { Queue } from '../../../base/common/async';
+import { randomPath } from '../../../base/common/extpath';
+import { resolveTerminalEncoding } from '../../../base/node/terminalEncoding';
 
 export function hasStdinWithoutTty() {
 	try {

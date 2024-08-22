@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { ITextModel } from 'vs/editor/common/model';
-import { computeIndentLevel } from 'vs/editor/common/model/utils';
-import { FoldingMarkers } from 'vs/editor/common/languages/languageConfiguration';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { FoldingRegions, MAX_LINE_NUMBER } from 'vs/editor/contrib/folding/browser/foldingRanges';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import { ITextModel } from '../../../common/model';
+import { computeIndentLevel } from '../../../common/model/utils';
+import { FoldingMarkers } from '../../../common/languages/languageConfiguration';
+import { ILanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry';
+import { FoldingRegions, MAX_LINE_NUMBER } from './foldingRanges';
 import { FoldingLimitReporter, RangeProvider } from './folding';
 
 const MAX_FOLDING_REGIONS_FOR_INDENT_DEFAULT = 5000;

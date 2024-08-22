@@ -3,30 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { IMouseEvent, IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
-import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
-import { IAction, Separator, SubmenuAction } from 'vs/base/common/actions';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { ResolvedKeybinding } from 'vs/base/common/keybindings';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { isIOS } from 'vs/base/common/platform';
-import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, EditorContributionInstantiation, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ITextModel } from 'vs/editor/common/model';
-import * as nls from 'vs/nls';
-import { IMenuService, MenuId, SubmenuItemAction } from 'vs/platform/actions/common/actions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkspaceContextService, isStandaloneEditorWorkspace } from 'vs/platform/workspace/common/workspace';
+import * as dom from '../../../../base/browser/dom';
+import { IKeyboardEvent } from '../../../../base/browser/keyboardEvent';
+import { IMouseEvent, IMouseWheelEvent } from '../../../../base/browser/mouseEvent';
+import { ActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems';
+import { IAnchor } from '../../../../base/browser/ui/contextview/contextview';
+import { IAction, Separator, SubmenuAction } from '../../../../base/common/actions';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes';
+import { ResolvedKeybinding } from '../../../../base/common/keybindings';
+import { DisposableStore } from '../../../../base/common/lifecycle';
+import { isIOS } from '../../../../base/common/platform';
+import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from '../../../browser/editorBrowser';
+import { EditorAction, EditorContributionInstantiation, registerEditorAction, registerEditorContribution, ServicesAccessor } from '../../../browser/editorExtensions';
+import { EditorOption } from '../../../common/config/editorOptions';
+import { IEditorContribution, ScrollType } from '../../../common/editorCommon';
+import { EditorContextKeys } from '../../../common/editorContextKeys';
+import { ITextModel } from '../../../common/model';
+import * as nls from '../../../../nls';
+import { IMenuService, MenuId, SubmenuItemAction } from '../../../../platform/actions/common/actions';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey';
+import { IContextMenuService, IContextViewService } from '../../../../platform/contextview/browser/contextView';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration';
+import { IWorkspaceContextService, isStandaloneEditorWorkspace } from '../../../../platform/workspace/common/workspace';
 
 export class ContextMenuController implements IEditorContribution {
 

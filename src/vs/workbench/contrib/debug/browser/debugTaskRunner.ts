@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Action } from 'vs/base/common/actions';
-import { disposableTimeout } from 'vs/base/common/async';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { createErrorWithActions } from 'vs/base/common/errorMessage';
-import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import severity from 'vs/base/common/severity';
-import * as nls from 'vs/nls';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IWorkspace, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { DEBUG_CONFIGURE_COMMAND_ID, DEBUG_CONFIGURE_LABEL } from 'vs/workbench/contrib/debug/browser/debugCommands';
-import { IDebugConfiguration } from 'vs/workbench/contrib/debug/common/debug';
-import { Markers } from 'vs/workbench/contrib/markers/common/markers';
-import { ConfiguringTask, CustomTask, ITaskEvent, ITaskIdentifier, Task, TaskEventKind } from 'vs/workbench/contrib/tasks/common/tasks';
-import { ITaskService, ITaskSummary } from 'vs/workbench/contrib/tasks/common/taskService';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
+import { Action } from '../../../../base/common/actions';
+import { disposableTimeout } from '../../../../base/common/async';
+import { CancellationTokenSource } from '../../../../base/common/cancellation';
+import { createErrorWithActions } from '../../../../base/common/errorMessage';
+import { Emitter, Event } from '../../../../base/common/event';
+import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle';
+import severity from '../../../../base/common/severity';
+import * as nls from '../../../../nls';
+import { ICommandService } from '../../../../platform/commands/common/commands';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs';
+import { IMarkerService, MarkerSeverity } from '../../../../platform/markers/common/markers';
+import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage';
+import { IWorkspace, IWorkspaceFolder } from '../../../../platform/workspace/common/workspace';
+import { DEBUG_CONFIGURE_COMMAND_ID, DEBUG_CONFIGURE_LABEL } from './debugCommands';
+import { IDebugConfiguration } from '../common/debug';
+import { Markers } from '../../markers/common/markers';
+import { ConfiguringTask, CustomTask, ITaskEvent, ITaskIdentifier, Task, TaskEventKind } from '../../tasks/common/tasks';
+import { ITaskService, ITaskSummary } from '../../tasks/common/taskService';
+import { IViewsService } from '../../../services/views/common/viewsService';
 
 const onceFilter = (event: Event<ITaskEvent>, filter: (e: ITaskEvent) => boolean) => Event.once(Event.filter(event, filter));
 

@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import Severity from 'vs/base/common/severity';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { Event } from '../../../base/common/event';
+import Severity from '../../../base/common/severity';
+import { URI } from '../../../base/common/uri';
+import { localize } from '../../../nls';
+import { createDecorator } from '../../instantiation/common/instantiation';
 
 export interface IMarkerService {
 	readonly _serviceBrand: undefined;

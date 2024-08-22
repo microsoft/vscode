@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { EndOfLineSequence, PositionAffinity } from 'vs/editor/common/model';
-import { ViewEventHandler } from 'vs/editor/common/viewEventHandler';
-import { ViewEvent } from 'vs/editor/common/viewEvents';
-import { testViewModel } from 'vs/editor/test/browser/viewModel/testViewModel';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils';
+import { Position } from '../../../common/core/position';
+import { Range } from '../../../common/core/range';
+import { EndOfLineSequence, PositionAffinity } from '../../../common/model';
+import { ViewEventHandler } from '../../../common/viewEventHandler';
+import { ViewEvent } from '../../../common/viewEvents';
+import { testViewModel } from './testViewModel';
 
 suite('ViewModel', () => {
 

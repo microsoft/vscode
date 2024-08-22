@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { Codicon } from 'vs/base/common/codicons';
-import { getCodiconFontCharacters } from 'vs/base/common/codiconsUtil';
-import { ThemeIcon, IconIdentifier } from 'vs/base/common/themables';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
-import { isString } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import * as platform from 'vs/platform/registry/common/platform';
+import { RunOnceScheduler } from '../../../base/common/async';
+import { Codicon } from '../../../base/common/codicons';
+import { getCodiconFontCharacters } from '../../../base/common/codiconsUtil';
+import { ThemeIcon, IconIdentifier } from '../../../base/common/themables';
+import { Emitter, Event } from '../../../base/common/event';
+import { IJSONSchema, IJSONSchemaMap } from '../../../base/common/jsonSchema';
+import { isString } from '../../../base/common/types';
+import { URI } from '../../../base/common/uri';
+import { localize } from '../../../nls';
+import { Extensions as JSONExtensions, IJSONContributionRegistry } from '../../jsonschemas/common/jsonContributionRegistry';
+import * as platform from '../../registry/common/platform';
 
 //  ------ API types
 

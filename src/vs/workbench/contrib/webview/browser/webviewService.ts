@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/themeing';
-import { IOverlayWebview, IWebview, IWebviewElement, IWebviewService, WebviewInitInfo } from 'vs/workbench/contrib/webview/browser/webview';
-import { WebviewElement } from 'vs/workbench/contrib/webview/browser/webviewElement';
+import { Emitter } from '../../../../base/common/event';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { WebviewThemeDataProvider } from './themeing';
+import { IOverlayWebview, IWebview, IWebviewElement, IWebviewService, WebviewInitInfo } from './webview';
+import { WebviewElement } from './webviewElement';
 import { OverlayWebview } from './overlayWebview';
 
 export class WebviewService extends Disposable implements IWebviewService {

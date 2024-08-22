@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { EditorGroupLayout, GroupDirection, GroupLocation, GroupOrientation, GroupsArrangement, GroupsOrder, IAuxiliaryEditorPart, IEditorGroupContextKeyProvider, IEditorDropTargetDelegate, IEditorGroupsService, IEditorSideGroup, IEditorWorkingSet, IFindGroupScope, IMergeGroupOptions, IEditorWorkingSetOptions, IEditorPart } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { Emitter } from 'vs/base/common/event';
-import { DisposableMap, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { GroupIdentifier } from 'vs/workbench/common/editor';
-import { EditorPart, IEditorPartUIState, MainEditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
-import { IEditorGroupView, IEditorPartsView } from 'vs/workbench/browser/parts/editor/editor';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { distinct, firstOrDefault } from 'vs/base/common/arrays';
-import { AuxiliaryEditorPart, IAuxiliaryEditorPartOpenOptions } from 'vs/workbench/browser/parts/editor/auxiliaryEditorPart';
-import { MultiWindowParts } from 'vs/workbench/browser/part';
-import { DeferredPromise } from 'vs/base/common/async';
-import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IAuxiliaryWindowOpenOptions, IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
-import { generateUuid } from 'vs/base/common/uuid';
-import { ContextKeyValue, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { isHTMLElement } from 'vs/base/browser/dom';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { localize } from '../../../../nls';
+import { EditorGroupLayout, GroupDirection, GroupLocation, GroupOrientation, GroupsArrangement, GroupsOrder, IAuxiliaryEditorPart, IEditorGroupContextKeyProvider, IEditorDropTargetDelegate, IEditorGroupsService, IEditorSideGroup, IEditorWorkingSet, IFindGroupScope, IMergeGroupOptions, IEditorWorkingSetOptions, IEditorPart } from '../../../services/editor/common/editorGroupsService';
+import { Emitter } from '../../../../base/common/event';
+import { DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle';
+import { GroupIdentifier } from '../../../common/editor';
+import { EditorPart, IEditorPartUIState, MainEditorPart } from './editorPart';
+import { IEditorGroupView, IEditorPartsView } from './editor';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { distinct, firstOrDefault } from '../../../../base/common/arrays';
+import { AuxiliaryEditorPart, IAuxiliaryEditorPartOpenOptions } from './auxiliaryEditorPart';
+import { MultiWindowParts } from '../../part';
+import { DeferredPromise } from '../../../../base/common/async';
+import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage';
+import { IThemeService } from '../../../../platform/theme/common/themeService';
+import { IAuxiliaryWindowOpenOptions, IAuxiliaryWindowService } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService';
+import { generateUuid } from '../../../../base/common/uuid';
+import { ContextKeyValue, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey';
+import { isHTMLElement } from '../../../../base/browser/dom';
+import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection';
+import { IEditorService } from '../../../services/editor/common/editorService';
 
 interface IEditorPartsUIState {
 	readonly auxiliary: IAuxiliaryEditorPartState[];

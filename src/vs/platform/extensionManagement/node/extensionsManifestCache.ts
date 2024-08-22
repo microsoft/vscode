@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { DidUninstallExtensionEvent, IExtensionManagementService, InstallExtensionResult } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { USER_MANIFEST_CACHE_FILE } from 'vs/platform/extensions/common/extensions';
-import { FileOperationResult, IFileService, toFileOperationResult } from 'vs/platform/files/common/files';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { Disposable } from '../../../base/common/lifecycle';
+import { URI } from '../../../base/common/uri';
+import { DidUninstallExtensionEvent, IExtensionManagementService, InstallExtensionResult } from '../common/extensionManagement';
+import { USER_MANIFEST_CACHE_FILE } from '../../extensions/common/extensions';
+import { FileOperationResult, IFileService, toFileOperationResult } from '../../files/common/files';
+import { ILogService } from '../../log/common/log';
+import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity';
+import { IUserDataProfile, IUserDataProfilesService } from '../../userDataProfile/common/userDataProfile';
 
 export class ExtensionsManifestCache extends Disposable {
 

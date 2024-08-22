@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { URI } from 'vs/base/common/uri';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { isWindows, isMacintosh } from 'vs/base/common/platform';
-import { Schemas } from 'vs/base/common/network';
-import { INativeHostService } from 'vs/platform/native/common/native';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { getMultiSelectedResources, IExplorerService } from 'vs/workbench/contrib/files/browser/files';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { revealResourcesInOS } from 'vs/workbench/contrib/files/electron-sandbox/fileCommands';
-import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
-import { ResourceContextKey } from 'vs/workbench/common/contextkeys';
-import { appendToCommandPalette, appendEditorTitleContextMenuItem } from 'vs/workbench/contrib/files/browser/fileActions.contribution';
-import { SideBySideEditor, EditorResourceAccessor } from 'vs/workbench/common/editor';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IListService } from 'vs/platform/list/browser/listService';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import * as nls from '../../../../nls';
+import { URI } from '../../../../base/common/uri';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace';
+import { isWindows, isMacintosh } from '../../../../base/common/platform';
+import { Schemas } from '../../../../base/common/network';
+import { INativeHostService } from '../../../../platform/native/common/native';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry';
+import { EditorContextKeys } from '../../../../editor/common/editorContextKeys';
+import { KeyMod, KeyCode, KeyChord } from '../../../../base/common/keyCodes';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation';
+import { getMultiSelectedResources, IExplorerService } from '../browser/files';
+import { IEditorService } from '../../../services/editor/common/editorService';
+import { revealResourcesInOS } from './fileCommands';
+import { MenuRegistry, MenuId } from '../../../../platform/actions/common/actions';
+import { ResourceContextKey } from '../../../common/contextkeys';
+import { appendToCommandPalette, appendEditorTitleContextMenuItem } from '../browser/fileActions.contribution';
+import { SideBySideEditor, EditorResourceAccessor } from '../../../common/editor';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey';
+import { IListService } from '../../../../platform/list/browser/listService';
+import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService';
 
 const REVEAL_IN_OS_COMMAND_ID = 'revealFileInOS';
 const REVEAL_IN_OS_LABEL = isWindows ? nls.localize2('revealInWindows', "Reveal in File Explorer") : isMacintosh ? nls.localize2('revealInMac', "Reveal in Finder") : nls.localize2('openContainer', "Open Containing Folder");

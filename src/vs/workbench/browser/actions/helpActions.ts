@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize, localize2 } from 'vs/nls';
-import product from 'vs/platform/product/common/product';
-import { isMacintosh, isLinux, language, isWeb } from 'vs/base/common/platform';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { URI } from 'vs/base/common/uri';
-import { MenuId, Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { KeyChord, KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
+import { localize, localize2 } from '../../../nls';
+import product from '../../../platform/product/common/product';
+import { isMacintosh, isLinux, language, isWeb } from '../../../base/common/platform';
+import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
+import { IOpenerService } from '../../../platform/opener/common/opener';
+import { URI } from '../../../base/common/uri';
+import { MenuId, Action2, registerAction2 } from '../../../platform/actions/common/actions';
+import { KeyChord, KeyMod, KeyCode } from '../../../base/common/keyCodes';
+import { IProductService } from '../../../platform/product/common/productService';
+import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation';
+import { KeybindingWeight } from '../../../platform/keybinding/common/keybindingsRegistry';
+import { Categories } from '../../../platform/action/common/actionCommonCategories';
 
 class KeybindingsReferenceAction extends Action2 {
 

@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, IValueWithChangeEvent } from 'vs/base/common/event';
-import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { autorun, autorunOpts } from 'vs/base/common/observableInternal/autorun';
-import { BaseObservable, ConvenientObservable, IObservable, IObserver, IReader, ITransaction, _setKeepObserved, _setRecomputeInitiallyAndOnChange, observableValue, subtransaction, transaction } from 'vs/base/common/observableInternal/base';
-import { DebugNameData, IDebugNameData, DebugOwner, getDebugName, } from 'vs/base/common/observableInternal/debugName';
-import { derived, derivedOpts } from 'vs/base/common/observableInternal/derived';
-import { getLogger } from 'vs/base/common/observableInternal/logging';
-import { BugIndicatingError } from 'vs/base/common/errors';
-import { EqualityComparer, strictEquals } from 'vs/base/common/equals';
+import { Event, IValueWithChangeEvent } from '../event';
+import { DisposableStore, IDisposable, toDisposable } from '../lifecycle';
+import { autorun, autorunOpts } from './autorun';
+import { BaseObservable, ConvenientObservable, IObservable, IObserver, IReader, ITransaction, _setKeepObserved, _setRecomputeInitiallyAndOnChange, observableValue, subtransaction, transaction } from './base';
+import { DebugNameData, IDebugNameData, DebugOwner, getDebugName, } from './debugName';
+import { derived, derivedOpts } from './derived';
+import { getLogger } from './logging';
+import { BugIndicatingError } from '../errors';
+import { EqualityComparer, strictEquals } from '../equals';
 
 /**
  * Represents an efficient observable whose value never changes.

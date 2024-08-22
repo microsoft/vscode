@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { equals } from 'vs/base/common/arrays';
-import { isThenable } from 'vs/base/common/async';
-import { CharCode } from 'vs/base/common/charCode';
-import { isEqualOrParent } from 'vs/base/common/extpath';
-import { LRUCache } from 'vs/base/common/map';
-import { basename, extname, posix, sep } from 'vs/base/common/path';
-import { isLinux } from 'vs/base/common/platform';
-import { escapeRegExpCharacters, ltrim } from 'vs/base/common/strings';
+import { equals } from './arrays';
+import { isThenable } from './async';
+import { CharCode } from './charCode';
+import { isEqualOrParent } from './extpath';
+import { LRUCache } from './map';
+import { basename, extname, posix, sep } from './path';
+import { isLinux } from './platform';
+import { escapeRegExpCharacters, ltrim } from './strings';
 
 export interface IRelativePattern {
 

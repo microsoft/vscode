@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { INativeHostService } from 'vs/platform/native/common/native';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IHostColorSchemeService } from 'vs/workbench/services/themes/common/hostColorSchemeService';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { isBoolean, isObject } from 'vs/base/common/types';
-import { IColorScheme } from 'vs/platform/window/common/window';
+import { Emitter } from '../../../../base/common/event';
+import { INativeHostService } from '../../../../platform/native/common/native';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions';
+import { Disposable } from '../../../../base/common/lifecycle';
+import { IHostColorSchemeService } from '../common/hostColorSchemeService';
+import { INativeWorkbenchEnvironmentService } from '../../environment/electron-sandbox/environmentService';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage';
+import { isBoolean, isObject } from '../../../../base/common/types';
+import { IColorScheme } from '../../../../platform/window/common/window';
 
 export class NativeHostColorSchemeService extends Disposable implements IHostColorSchemeService {
 

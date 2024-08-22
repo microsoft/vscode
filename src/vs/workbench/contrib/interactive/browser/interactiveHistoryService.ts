@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { HistoryNavigator2 } from 'vs/base/common/history';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ResourceMap } from 'vs/base/common/map';
-import { URI } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { HistoryNavigator2 } from '../../../../base/common/history';
+import { Disposable } from '../../../../base/common/lifecycle';
+import { ResourceMap } from '../../../../base/common/map';
+import { URI } from '../../../../base/common/uri';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation';
 
 export const IInteractiveHistoryService = createDecorator<IInteractiveHistoryService>('IInteractiveHistoryService');
 

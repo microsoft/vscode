@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as vscode from 'vscode';
-import { Emitter, Event } from 'vs/base/common/event';
-import { MainContext, MainThreadAuthenticationShape, ExtHostAuthenticationShape } from 'vs/workbench/api/common/extHost.protocol';
-import { Disposable } from 'vs/workbench/api/common/extHostTypes';
-import { IExtensionDescription, ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { INTERNAL_AUTH_PROVIDER_PREFIX } from 'vs/workbench/services/authentication/common/authentication';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
+import { Emitter, Event } from '../../../base/common/event';
+import { MainContext, MainThreadAuthenticationShape, ExtHostAuthenticationShape } from './extHost.protocol';
+import { Disposable } from './extHostTypes';
+import { IExtensionDescription, ExtensionIdentifier } from '../../../platform/extensions/common/extensions';
+import { INTERNAL_AUTH_PROVIDER_PREFIX } from '../../services/authentication/common/authentication';
+import { createDecorator } from '../../../platform/instantiation/common/instantiation';
+import { IExtHostRpcService } from './extHostRpcService';
 
 export interface IExtHostAuthentication extends ExtHostAuthentication { }
 export const IExtHostAuthentication = createDecorator<IExtHostAuthentication>('IExtHostAuthentication');

@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { equals } from 'vs/base/common/objects';
-import { ThemeColor } from 'vs/base/common/themables';
-import { URI } from 'vs/base/common/uri';
-import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { TextChange } from 'vs/editor/common/core/textChange';
-import { WordCharacterClassifier } from 'vs/editor/common/core/wordCharacterClassifier';
-import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
-import { FormattingOptions } from 'vs/editor/common/languages';
-import { ILanguageSelection } from 'vs/editor/common/languages/language';
-import { IBracketPairsTextModelPart } from 'vs/editor/common/textModelBracketPairs';
-import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, InternalModelContentChangeEvent, ModelInjectedTextChangedEvent } from 'vs/editor/common/textModelEvents';
-import { IGuidesTextModelPart } from 'vs/editor/common/textModelGuides';
-import { ITokenizationTextModelPart } from 'vs/editor/common/tokenizationTextModelPart';
-import { UndoRedoGroup } from 'vs/platform/undoRedo/common/undoRedo';
+import { Event } from '../../base/common/event';
+import { IMarkdownString } from '../../base/common/htmlContent';
+import { IDisposable } from '../../base/common/lifecycle';
+import { equals } from '../../base/common/objects';
+import { ThemeColor } from '../../base/common/themables';
+import { URI } from '../../base/common/uri';
+import { ISingleEditOperation } from './core/editOperation';
+import { IPosition, Position } from './core/position';
+import { IRange, Range } from './core/range';
+import { Selection } from './core/selection';
+import { TextChange } from './core/textChange';
+import { WordCharacterClassifier } from './core/wordCharacterClassifier';
+import { IWordAtPosition } from './core/wordHelper';
+import { FormattingOptions } from './languages';
+import { ILanguageSelection } from './languages/language';
+import { IBracketPairsTextModelPart } from './textModelBracketPairs';
+import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, InternalModelContentChangeEvent, ModelInjectedTextChangedEvent } from './textModelEvents';
+import { IGuidesTextModelPart } from './textModelGuides';
+import { ITokenizationTextModelPart } from './tokenizationTextModelPart';
+import { UndoRedoGroup } from '../../platform/undoRedo/common/undoRedo';
 
 /**
  * Vertical Lane in the overview ruler of the editor.

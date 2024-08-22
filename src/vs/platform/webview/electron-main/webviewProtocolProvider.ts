@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { protocol } from 'electron';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { AppResourcePath, COI, FileAccess, Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
+import { Disposable } from '../../../base/common/lifecycle';
+import { AppResourcePath, COI, FileAccess, Schemas } from '../../../base/common/network';
+import { URI } from '../../../base/common/uri';
 
 
 export class WebviewProtocolProvider extends Disposable {

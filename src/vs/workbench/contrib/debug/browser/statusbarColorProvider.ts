@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { asCssVariable, asCssVariableName, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IDebugService, State, IDebugSession, IDebugConfiguration } from 'vs/workbench/contrib/debug/common/debug';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { STATUS_BAR_FOREGROUND, STATUS_BAR_BORDER, COMMAND_CENTER_BACKGROUND } from 'vs/workbench/common/theme';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { IStatusbarService } from 'vs/workbench/services/statusbar/browser/statusbar';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
+import { localize } from '../../../../nls';
+import { asCssVariable, asCssVariableName, registerColor, transparent } from '../../../../platform/theme/common/colorRegistry';
+import { IWorkbenchContribution } from '../../../common/contributions';
+import { IDebugService, State, IDebugSession, IDebugConfiguration } from '../common/debug';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace';
+import { STATUS_BAR_FOREGROUND, STATUS_BAR_BORDER, COMMAND_CENTER_BACKGROUND } from '../../../common/theme';
+import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle';
+import { IStatusbarService } from '../../../services/statusbar/browser/statusbar';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration';
+import { ILayoutService } from '../../../../platform/layout/browser/layoutService';
 
 
 // colors for theming

@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { Color } from 'vs/base/common/color';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { ViewPart } from 'vs/editor/browser/view/viewPart';
-import { Position } from 'vs/editor/common/core/position';
-import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
-import { TokenizationRegistry } from 'vs/editor/common/languages';
-import { editorCursorForeground, editorOverviewRulerBorder, editorOverviewRulerBackground, editorMultiCursorSecondaryForeground, editorMultiCursorPrimaryForeground } from 'vs/editor/common/core/editorColorRegistry';
-import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
-import { EditorTheme } from 'vs/editor/common/editorTheme';
-import * as viewEvents from 'vs/editor/common/viewEvents';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { OverviewRulerDecorationsGroup } from 'vs/editor/common/viewModel';
-import { equals } from 'vs/base/common/arrays';
+import { FastDomNode, createFastDomNode } from '../../../../base/browser/fastDomNode';
+import { Color } from '../../../../base/common/color';
+import { IDisposable } from '../../../../base/common/lifecycle';
+import { ViewPart } from '../../view/viewPart';
+import { Position } from '../../../common/core/position';
+import { IEditorConfiguration } from '../../../common/config/editorConfiguration';
+import { TokenizationRegistry } from '../../../common/languages';
+import { editorCursorForeground, editorOverviewRulerBorder, editorOverviewRulerBackground, editorMultiCursorSecondaryForeground, editorMultiCursorPrimaryForeground } from '../../../common/core/editorColorRegistry';
+import { RenderingContext, RestrictedRenderingContext } from '../../view/renderingContext';
+import { ViewContext } from '../../../common/viewModel/viewContext';
+import { EditorTheme } from '../../../common/editorTheme';
+import * as viewEvents from '../../../common/viewEvents';
+import { EditorOption } from '../../../common/config/editorOptions';
+import { OverviewRulerDecorationsGroup } from '../../../common/viewModel';
+import { equals } from '../../../../base/common/arrays';
 
 class Settings {
 

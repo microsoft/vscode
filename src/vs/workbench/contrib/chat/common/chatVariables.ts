@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { URI } from 'vs/base/common/uri';
-import { IRange } from 'vs/editor/common/core/range';
-import { Location } from 'vs/editor/common/languages';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { IChatModel, IChatRequestVariableData, IChatRequestVariableEntry } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatContentReference, IChatProgressMessage } from 'vs/workbench/contrib/chat/common/chatService';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import { IDisposable } from '../../../../base/common/lifecycle';
+import { ThemeIcon } from '../../../../base/common/themables';
+import { URI } from '../../../../base/common/uri';
+import { IRange } from '../../../../editor/common/core/range';
+import { Location } from '../../../../editor/common/languages';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation';
+import { ChatAgentLocation } from './chatAgents';
+import { IChatModel, IChatRequestVariableData, IChatRequestVariableEntry } from './chatModel';
+import { IParsedChatRequest } from './chatParserTypes';
+import { IChatContentReference, IChatProgressMessage } from './chatService';
 
 export interface IChatVariableData {
 	id: string;

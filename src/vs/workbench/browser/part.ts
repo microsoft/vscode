@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/part';
-import { Component } from 'vs/workbench/common/component';
-import { IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
-import { Dimension, size, IDimension, getActiveDocument, prepend, IDomPosition } from 'vs/base/browser/dom';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ISerializableView, IViewSize } from 'vs/base/browser/ui/grid/grid';
-import { Event, Emitter } from 'vs/base/common/event';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { assertIsDefined } from 'vs/base/common/types';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Component } from '../common/component';
+import { IThemeService, IColorTheme } from '../../platform/theme/common/themeService';
+import { Dimension, size, IDimension, getActiveDocument, prepend, IDomPosition } from '../../base/browser/dom';
+import { IStorageService } from '../../platform/storage/common/storage';
+import { ISerializableView, IViewSize } from '../../base/browser/ui/grid/grid';
+import { Event, Emitter } from '../../base/common/event';
+import { IWorkbenchLayoutService } from '../services/layout/browser/layoutService';
+import { assertIsDefined } from '../../base/common/types';
+import { IDisposable, toDisposable } from '../../base/common/lifecycle';
 
 export interface IPartOptions {
 	readonly hasTitle?: boolean;

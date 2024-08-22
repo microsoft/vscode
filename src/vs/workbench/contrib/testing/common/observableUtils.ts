@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, IObserver } from 'vs/base/common/observable';
+import { IDisposable } from '../../../../base/common/lifecycle';
+import { IObservable, IObserver } from '../../../../base/common/observable';
 
 export function onObservableChange<T>(observable: IObservable<unknown, T>, callback: (value: T) => void): IDisposable {
 	const o: IObserver = {

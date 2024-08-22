@@ -4,21 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { Range } from 'vs/editor/common/core/range';
-import { DocumentSymbol, SymbolKind } from 'vs/editor/common/languages';
-import { LanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
-import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
-import { IModelService } from 'vs/editor/common/services/model';
-import { createModelServices, createTextModel } from 'vs/editor/test/common/testTextModel';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation';
+import { DisposableStore } from '../../../../../base/common/lifecycle';
+import { URI } from '../../../../../base/common/uri';
+import { Range } from '../../../../common/core/range';
+import { DocumentSymbol, SymbolKind } from '../../../../common/languages';
+import { LanguageFeatureDebounceService } from '../../../../common/services/languageFeatureDebounce';
+import { LanguageFeaturesService } from '../../../../common/services/languageFeaturesService';
+import { IModelService } from '../../../../common/services/model';
+import { createModelServices, createTextModel } from '../../../../test/common/testTextModel';
+import { NullLogService } from '../../../../../platform/log/common/log';
+import { IMarker, MarkerSeverity } from '../../../../../platform/markers/common/markers';
 import { OutlineElement, OutlineGroup, OutlineModel, OutlineModelService } from '../../browser/outlineModel';
-import { mock } from 'vs/base/test/common/mock';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { mock } from '../../../../../base/test/common/mock';
+import { IEnvironmentService } from '../../../../../platform/environment/common/environment';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils';
 
 suite('OutlineModel', function () {
 

@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CachedFunction } from 'vs/base/common/cache';
-import { RegExpOptions } from 'vs/base/common/strings';
-import { LanguageConfiguration } from 'vs/editor/common/languages/languageConfiguration';
-import { createBracketOrRegExp } from 'vs/editor/common/languages/supports/richEditBrackets';
+import { CachedFunction } from '../../../../base/common/cache';
+import { RegExpOptions } from '../../../../base/common/strings';
+import { LanguageConfiguration } from '../languageConfiguration';
+import { createBracketOrRegExp } from './richEditBrackets';
 
 /**
  * Captures all bracket related configurations for a single language.

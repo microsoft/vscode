@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Barrier, isThenable, RunOnceScheduler } from 'vs/base/common/async';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { assertNever } from 'vs/base/common/assert';
-import { applyTestItemUpdate, ITestItem, ITestTag, namespaceTestTag, TestDiffOpType, TestItemExpandState, TestsDiff, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testTypes';
-import { TestId } from 'vs/workbench/contrib/testing/common/testId';
-import { URI } from 'vs/base/common/uri';
+import { Barrier, isThenable, RunOnceScheduler } from '../../../../base/common/async';
+import { Emitter } from '../../../../base/common/event';
+import { Disposable } from '../../../../base/common/lifecycle';
+import { assertNever } from '../../../../base/common/assert';
+import { applyTestItemUpdate, ITestItem, ITestTag, namespaceTestTag, TestDiffOpType, TestItemExpandState, TestsDiff, TestsDiffOp } from './testTypes';
+import { TestId } from './testId';
+import { URI } from '../../../../base/common/uri';
 
 /**
  * @private

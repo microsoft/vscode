@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/editorHoverWrapper';
-import * as dom from 'vs/base/browser/dom';
-import { IHoverAction } from 'vs/base/browser/ui/hover/hover';
-import { HoverAction } from 'vs/base/browser/ui/hover/hoverWidget';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import * as dom from '../../../../../base/browser/dom';
+import { IHoverAction } from '../../../../../base/browser/ui/hover/hover';
+import { HoverAction } from '../../../../../base/browser/ui/hover/hoverWidget';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding';
 
 const $ = dom.$;
 const h = dom.h;

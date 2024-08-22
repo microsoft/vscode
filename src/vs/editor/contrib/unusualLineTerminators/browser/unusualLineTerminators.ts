@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { basename } from 'vs/base/common/resources';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
-import * as nls from 'vs/nls';
-import { IConfirmationResult, IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { Disposable } from '../../../../base/common/lifecycle';
+import { basename } from '../../../../base/common/resources';
+import { ICodeEditor } from '../../../browser/editorBrowser';
+import { EditorContributionInstantiation, registerEditorContribution } from '../../../browser/editorExtensions';
+import { ICodeEditorService } from '../../../browser/services/codeEditorService';
+import { EditorOption } from '../../../common/config/editorOptions';
+import { IEditorContribution } from '../../../common/editorCommon';
+import { ITextModel } from '../../../common/model';
+import * as nls from '../../../../nls';
+import { IConfirmationResult, IDialogService } from '../../../../platform/dialogs/common/dialogs';
 
 const ignoreUnusualLineTerminators = 'ignoreUnusualLineTerminators';
 

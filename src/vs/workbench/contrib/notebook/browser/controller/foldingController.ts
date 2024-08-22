@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
-import { INotebookEditor, INotebookEditorMouseEvent, INotebookEditorContribution, getNotebookEditorFromEditorPane, CellFoldingState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { FoldingModel } from 'vs/workbench/contrib/notebook/browser/viewModel/foldingModel'; import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
-import { registerAction2, Action2 } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { NOTEBOOK_ACTIONS_CATEGORY } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { localize, localize2 } from 'vs/nls';
-import { FoldingRegion } from 'vs/editor/contrib/folding/browser/foldingRanges';
-import { ICommandMetadata } from 'vs/platform/commands/common/commands';
-import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle';
+import { NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR } from '../../common/notebookContextKeys';
+import { INotebookEditor, INotebookEditorMouseEvent, INotebookEditorContribution, getNotebookEditorFromEditorPane, CellFoldingState } from '../notebookBrowser';
+import { FoldingModel } from '../viewModel/foldingModel'; import { CellKind } from '../../common/notebookCommon';
+import { ICellRange } from '../../common/notebookRange';
+import { registerNotebookContribution } from '../notebookEditorExtensions';
+import { registerAction2, Action2 } from '../../../../../platform/actions/common/actions';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey';
+import { InputFocusedContextKey } from '../../../../../platform/contextkey/common/contextkeys';
+import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes';
+import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry';
+import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation';
+import { IEditorService } from '../../../../services/editor/common/editorService';
+import { NOTEBOOK_ACTIONS_CATEGORY } from './coreActions';
+import { localize, localize2 } from '../../../../../nls';
+import { FoldingRegion } from '../../../../../editor/contrib/folding/browser/foldingRanges';
+import { ICommandMetadata } from '../../../../../platform/commands/common/commands';
+import { NotebookViewModel } from '../viewModel/notebookViewModelImpl';
 
 export class FoldingController extends Disposable implements INotebookEditorContribution {
 	static id: string = 'workbench.notebook.foldingController';

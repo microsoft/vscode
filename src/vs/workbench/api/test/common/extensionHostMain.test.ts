@@ -4,23 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { SerializedError, errorHandler, onUnexpectedError } from 'vs/base/common/errors';
-import { isFirefox, isSafari } from 'vs/base/common/platform';
-import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
-import { URI } from 'vs/base/common/uri';
-import { mock } from 'vs/base/test/common/mock';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ILogService, NullLogService } from 'vs/platform/log/common/log';
-import { MainThreadExtensionServiceShape } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtensionPaths, IExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
-import { ErrorHandler } from 'vs/workbench/api/common/extensionHostMain';
-import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
-import { ProxyIdentifier, Proxied } from 'vs/workbench/services/extensions/common/proxyIdentifier';
+import { SerializedError, errorHandler, onUnexpectedError } from '../../../../base/common/errors';
+import { isFirefox, isSafari } from '../../../../base/common/platform';
+import { TernarySearchTree } from '../../../../base/common/ternarySearchTree';
+import { URI } from '../../../../base/common/uri';
+import { mock } from '../../../../base/test/common/mock';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils';
+import { ExtensionIdentifier, IExtensionDescription } from '../../../../platform/extensions/common/extensions';
+import { InstantiationService } from '../../../../platform/instantiation/common/instantiationService';
+import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection';
+import { ILogService, NullLogService } from '../../../../platform/log/common/log';
+import { MainThreadExtensionServiceShape } from '../../common/extHost.protocol';
+import { ExtensionPaths, IExtHostExtensionService } from '../../common/extHostExtensionService';
+import { IExtHostRpcService } from '../../common/extHostRpcService';
+import { IExtHostTelemetry } from '../../common/extHostTelemetry';
+import { ErrorHandler } from '../../common/extensionHostMain';
+import { nullExtensionDescription } from '../../../services/extensions/common/extensions';
+import { ProxyIdentifier, Proxied } from '../../../services/extensions/common/proxyIdentifier';
 
 
 suite('ExtensionHostMain#ErrorHandler - Wrapping prepareStackTrace can cause slowdown and eventual stack overflow #184926 ', function () {

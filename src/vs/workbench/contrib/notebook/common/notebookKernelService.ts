@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAction } from 'vs/base/common/actions';
-import { AsyncIterableObject } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { INotebookKernelSourceAction } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { IAction } from '../../../../base/common/actions';
+import { AsyncIterableObject } from '../../../../base/common/async';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import { Event } from '../../../../base/common/event';
+import { IDisposable } from '../../../../base/common/lifecycle';
+import { URI } from '../../../../base/common/uri';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey';
+import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation';
+import { INotebookKernelSourceAction } from './notebookCommon';
 
 export interface ISelectedNotebooksChangeEvent {
 	notebook: URI;

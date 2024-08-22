@@ -2,20 +2,20 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as nls from 'vs/nls';
-import { matchesFuzzy } from 'vs/base/common/filters';
-import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
-import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { IDebugService, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import * as nls from '../../../../nls';
+import { matchesFuzzy } from '../../../../base/common/filters';
+import { Source } from './debugSource';
+import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput';
+import { IDebugService, IDebugSession } from './debug';
+import { IEditorService } from '../../../services/editor/common/editorService';
+import { getIconClasses } from '../../../../editor/common/services/getIconClasses';
+import { IModelService } from '../../../../editor/common/services/model';
+import { ILanguageService } from '../../../../editor/common/languages/language';
+import { DisposableStore } from '../../../../base/common/lifecycle';
 
-import { dirname } from 'vs/base/common/resources';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ILabelService } from 'vs/platform/label/common/label';
+import { dirname } from '../../../../base/common/resources';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation';
+import { ILabelService } from '../../../../platform/label/common/label';
 
 export interface IPickerDebugItem extends IQuickPickItem {
 	accept(): void;

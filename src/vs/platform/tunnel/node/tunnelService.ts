@@ -5,21 +5,21 @@
 
 import * as net from 'net';
 import * as os from 'os';
-import { BROWSER_RESTRICTED_PORTS, findFreePortFaster } from 'vs/base/node/ports';
-import { NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
+import { BROWSER_RESTRICTED_PORTS, findFreePortFaster } from '../../../base/node/ports';
+import { NodeSocket } from '../../../base/parts/ipc/node/ipc.net';
 
-import { Barrier } from 'vs/base/common/async';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { OS } from 'vs/base/common/platform';
-import { ISocket } from 'vs/base/parts/ipc/common/ipc.net';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IAddressProvider, IConnectionOptions, connectRemoteAgentTunnel } from 'vs/platform/remote/common/remoteAgentConnection';
-import { IRemoteSocketFactoryService } from 'vs/platform/remote/common/remoteSocketFactoryService';
-import { ISignService } from 'vs/platform/sign/common/sign';
-import { AbstractTunnelService, ISharedTunnelsService, ITunnelProvider, ITunnelService, RemoteTunnel, TunnelPrivacyId, isAllInterfaces, isLocalhost, isPortPrivileged, isTunnelProvider } from 'vs/platform/tunnel/common/tunnel';
-import { VSBuffer } from 'vs/base/common/buffer';
+import { Barrier } from '../../../base/common/async';
+import { Disposable } from '../../../base/common/lifecycle';
+import { OS } from '../../../base/common/platform';
+import { ISocket } from '../../../base/parts/ipc/common/ipc.net';
+import { IConfigurationService } from '../../configuration/common/configuration';
+import { ILogService } from '../../log/common/log';
+import { IProductService } from '../../product/common/productService';
+import { IAddressProvider, IConnectionOptions, connectRemoteAgentTunnel } from '../../remote/common/remoteAgentConnection';
+import { IRemoteSocketFactoryService } from '../../remote/common/remoteSocketFactoryService';
+import { ISignService } from '../../sign/common/sign';
+import { AbstractTunnelService, ISharedTunnelsService, ITunnelProvider, ITunnelService, RemoteTunnel, TunnelPrivacyId, isAllInterfaces, isLocalhost, isPortPrivileged, isTunnelProvider } from '../common/tunnel';
+import { VSBuffer } from '../../../base/common/buffer';
 
 async function createRemoteTunnel(options: IConnectionOptions, defaultTunnelHost: string, tunnelRemoteHost: string, tunnelRemotePort: number, tunnelLocalPort?: number): Promise<RemoteTunnel> {
 	let readyTunnel: NodeRemoteTunnel | undefined;

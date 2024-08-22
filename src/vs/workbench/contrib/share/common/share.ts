@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { Selection } from 'vs/editor/common/core/selection';
-import { LanguageSelector } from 'vs/editor/common/languageSelector';
-import { ISubmenuItem } from 'vs/platform/actions/common/actions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import { IDisposable } from '../../../../base/common/lifecycle';
+import { URI } from '../../../../base/common/uri';
+import { Selection } from '../../../../editor/common/core/selection';
+import { LanguageSelector } from '../../../../editor/common/languageSelector';
+import { ISubmenuItem } from '../../../../platform/actions/common/actions';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation';
 
 export interface IShareableItem {
 	resourceUri: URI;

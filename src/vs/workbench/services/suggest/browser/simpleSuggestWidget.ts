@@ -4,21 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/suggest';
-import * as dom from 'vs/base/browser/dom';
-import { IListEvent, IListGestureEvent, IListMouseEvent } from 'vs/base/browser/ui/list/list';
-import { List } from 'vs/base/browser/ui/list/listWidget';
-import { ResizableHTMLElement } from 'vs/base/browser/ui/resizable/resizable';
-import { SimpleCompletionItem } from 'vs/workbench/services/suggest/browser/simpleCompletionItem';
-import { LineContext, SimpleCompletionModel } from 'vs/workbench/services/suggest/browser/simpleCompletionModel';
-import { SimpleSuggestWidgetItemRenderer, type ISimpleSuggestWidgetFontInfo } from 'vs/workbench/services/suggest/browser/simpleSuggestWidgetRenderer';
-import { TimeoutTimer } from 'vs/base/common/async';
-import { Emitter, Event } from 'vs/base/common/event';
-import { MutableDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { clamp } from 'vs/base/common/numbers';
-import { localize } from 'vs/nls';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { SuggestWidgetStatus } from 'vs/editor/contrib/suggest/browser/suggestWidgetStatus';
-import { MenuId } from 'vs/platform/actions/common/actions';
+import * as dom from '../../../../base/browser/dom';
+import { IListEvent, IListGestureEvent, IListMouseEvent } from '../../../../base/browser/ui/list/list';
+import { List } from '../../../../base/browser/ui/list/listWidget';
+import { ResizableHTMLElement } from '../../../../base/browser/ui/resizable/resizable';
+import { SimpleCompletionItem } from './simpleCompletionItem';
+import { LineContext, SimpleCompletionModel } from './simpleCompletionModel';
+import { SimpleSuggestWidgetItemRenderer, type ISimpleSuggestWidgetFontInfo } from './simpleSuggestWidgetRenderer';
+import { TimeoutTimer } from '../../../../base/common/async';
+import { Emitter, Event } from '../../../../base/common/event';
+import { MutableDisposable, Disposable } from '../../../../base/common/lifecycle';
+import { clamp } from '../../../../base/common/numbers';
+import { localize } from '../../../../nls';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { SuggestWidgetStatus } from '../../../../editor/contrib/suggest/browser/suggestWidgetStatus';
+import { MenuId } from '../../../../platform/actions/common/actions';
 
 const $ = dom.$;
 

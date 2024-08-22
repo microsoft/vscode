@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { autorun } from 'vs/base/common/observable';
-import { localize } from 'vs/nls';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { OPEN_CELL_FAILURE_ACTIONS_COMMAND_ID } from 'vs/workbench/contrib/notebook/browser/contrib/cellDiagnostics/cellDiagnosticsActions';
-import { NotebookStatusBarController } from 'vs/workbench/contrib/notebook/browser/contrib/cellStatusBar/executionStatusBarItemController';
-import { INotebookEditor, INotebookEditorContribution, INotebookViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
-import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
-import { INotebookCellStatusBarItem, CellStatusbarAlignment } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ICellExecutionError } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { Disposable } from '../../../../../../base/common/lifecycle';
+import { autorun } from '../../../../../../base/common/observable';
+import { localize } from '../../../../../../nls';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation';
+import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding';
+import { OPEN_CELL_FAILURE_ACTIONS_COMMAND_ID } from './cellDiagnosticsActions';
+import { NotebookStatusBarController } from '../cellStatusBar/executionStatusBarItemController';
+import { INotebookEditor, INotebookEditorContribution, INotebookViewModel } from '../../notebookBrowser';
+import { registerNotebookContribution } from '../../notebookEditorExtensions';
+import { CodeCellViewModel } from '../../viewModel/codeCellViewModel';
+import { INotebookCellStatusBarItem, CellStatusbarAlignment } from '../../../common/notebookCommon';
+import { ICellExecutionError } from '../../../common/notebookExecutionStateService';
 
 export class DiagnosticCellStatusBarContrib extends Disposable implements INotebookEditorContribution {
 	static id: string = 'workbench.notebook.statusBar.diagtnostic';

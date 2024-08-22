@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { ResourceSet } from 'vs/base/common/map';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { FileOperationError, FileOperationResult, IFileService, IFileStat } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IUserDataProfile, ProfileResourceType } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { API_OPEN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
-import { ITreeItemCheckboxState, TreeItemCollapsibleState } from 'vs/workbench/common/views';
-import { IProfileResource, IProfileResourceChildTreeItem, IProfileResourceInitializer, IProfileResourceTreeItem, IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { VSBuffer } from '../../../../base/common/buffer';
+import { IStringDictionary } from '../../../../base/common/collections';
+import { ResourceSet } from '../../../../base/common/map';
+import { URI } from '../../../../base/common/uri';
+import { localize } from '../../../../nls';
+import { FileOperationError, FileOperationResult, IFileService, IFileStat } from '../../../../platform/files/common/files';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity';
+import { IUserDataProfile, ProfileResourceType } from '../../../../platform/userDataProfile/common/userDataProfile';
+import { API_OPEN_EDITOR_COMMAND_ID } from '../../../browser/parts/editor/editorCommands';
+import { ITreeItemCheckboxState, TreeItemCollapsibleState } from '../../../common/views';
+import { IProfileResource, IProfileResourceChildTreeItem, IProfileResourceInitializer, IProfileResourceTreeItem, IUserDataProfileService } from '../common/userDataProfile';
 
 interface ISnippetsContent {
 	snippets: IStringDictionary<string>;

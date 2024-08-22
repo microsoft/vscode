@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as strings from 'vs/base/common/strings';
-import { Range } from 'vs/editor/common/core/range';
-import { ITextModel } from 'vs/editor/common/model';
-import { IndentAction } from 'vs/editor/common/languages/languageConfiguration';
-import { IndentConsts } from 'vs/editor/common/languages/supports/indentRules';
-import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { IViewLineTokens } from 'vs/editor/common/tokens/lineTokens';
-import { IndentationContextProcessor, isLanguageDifferentFromLineStart, ProcessedIndentRulesSupport } from 'vs/editor/common/languages/supports/indentationLineProcessor';
-import { CursorConfiguration } from 'vs/editor/common/cursorCommon';
+import * as strings from '../../../base/common/strings';
+import { Range } from '../core/range';
+import { ITextModel } from '../model';
+import { IndentAction } from './languageConfiguration';
+import { IndentConsts } from './supports/indentRules';
+import { EditorAutoIndentStrategy } from '../config/editorOptions';
+import { ILanguageConfigurationService } from './languageConfigurationRegistry';
+import { IViewLineTokens } from '../tokens/lineTokens';
+import { IndentationContextProcessor, isLanguageDifferentFromLineStart, ProcessedIndentRulesSupport } from './supports/indentationLineProcessor';
+import { CursorConfiguration } from '../cursorCommon';
 
 export interface IVirtualModel {
 	tokenization: {

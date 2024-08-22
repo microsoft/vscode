@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { watchFile, unwatchFile, Stats } from 'fs';
-import { Disposable, DisposableMap, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { ILogMessage, IRecursiveWatcherWithSubscribe, IUniversalWatchRequest, IWatchRequestWithCorrelation, IWatcher, IWatcherErrorEvent, isWatchRequestWithCorrelation, requestFilterToString } from 'vs/platform/files/common/watcher';
-import { Emitter, Event } from 'vs/base/common/event';
-import { FileChangeType, IFileChange } from 'vs/platform/files/common/files';
-import { URI } from 'vs/base/common/uri';
-import { DeferredPromise, ThrottledDelayer } from 'vs/base/common/async';
+import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../base/common/lifecycle';
+import { ILogMessage, IRecursiveWatcherWithSubscribe, IUniversalWatchRequest, IWatchRequestWithCorrelation, IWatcher, IWatcherErrorEvent, isWatchRequestWithCorrelation, requestFilterToString } from '../../common/watcher';
+import { Emitter, Event } from '../../../../base/common/event';
+import { FileChangeType, IFileChange } from '../../common/files';
+import { URI } from '../../../../base/common/uri';
+import { DeferredPromise, ThrottledDelayer } from '../../../../base/common/async';
 
 export abstract class BaseWatcher extends Disposable implements IWatcher {
 

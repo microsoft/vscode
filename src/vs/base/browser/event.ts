@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { GestureEvent } from 'vs/base/browser/touch';
-import { Emitter, Event as BaseEvent } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { GestureEvent } from './touch';
+import { Emitter, Event as BaseEvent } from '../common/event';
+import { IDisposable } from '../common/lifecycle';
 
 export type EventHandler = HTMLElement | HTMLDocument | Window;
 

@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { deepClone } from 'vs/base/common/objects';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IBaseCellEditorOptions, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NotebookOptions } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
+import { Emitter, Event } from '../../../../../base/common/event';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle';
+import { deepClone } from '../../../../../base/common/objects';
+import { IEditorOptions } from '../../../../../editor/common/config/editorOptions';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration';
+import { IBaseCellEditorOptions, INotebookEditorDelegate } from '../notebookBrowser';
+import { NotebookOptions } from '../notebookOptions';
 
 export class BaseCellEditorOptions extends Disposable implements IBaseCellEditorOptions {
 	private static fixedEditorOptions: IEditorOptions = {

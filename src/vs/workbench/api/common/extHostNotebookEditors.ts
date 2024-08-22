@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ExtHostNotebookEditorsShape, INotebookEditorPropertiesChangeData, INotebookEditorViewColumnInfo } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
-import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
+import { Emitter } from '../../../base/common/event';
+import { ILogService } from '../../../platform/log/common/log';
+import { ExtHostNotebookEditorsShape, INotebookEditorPropertiesChangeData, INotebookEditorViewColumnInfo } from './extHost.protocol';
+import { ExtHostNotebookController } from './extHostNotebook';
+import * as typeConverters from './extHostTypeConverters';
 import type * as vscode from 'vscode';
 
 

@@ -5,12 +5,12 @@
 
 import type { IExtendedConfiguration, IExtendedTelemetryItem, ITelemetryItem, ITelemetryUnloadState } from '@microsoft/1ds-core-js';
 import type { IChannelConfiguration, IXHROverride, PostChannel } from '@microsoft/1ds-post-js';
-import { importAMDNodeModule } from 'vs/amdX';
-import { isESM } from 'vs/base/common/amd';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { mixin } from 'vs/base/common/objects';
-import { isWeb } from 'vs/base/common/platform';
-import { ITelemetryAppender, validateTelemetryData } from 'vs/platform/telemetry/common/telemetryUtils';
+import { importAMDNodeModule } from '../../../amdX';
+import { isESM } from '../../../base/common/amd';
+import { onUnexpectedError } from '../../../base/common/errors';
+import { mixin } from '../../../base/common/objects';
+import { isWeb } from '../../../base/common/platform';
+import { ITelemetryAppender, validateTelemetryData } from './telemetryUtils';
 
 // Interface type which is a subset of @microsoft/1ds-core-js AppInsightsCore.
 // Allows us to more easily build mock objects for testing as the interface is quite large and we only need a few properties.
@@ -29,11 +29,11 @@ async function getClient(instrumentationKey: string, addInternalFlag?: boolean, 
 	const postPlugin = await importAMDNodeModule<typeof import('@microsoft/1ds-post-js')>('@microsoft/1ds-post-js', 'dist/ms.post.js');
 	// ESM-comment-end
 	// ESM-uncomment-begin
-	// if (typeof importAMDNodeModule === 'function') { /* fixes unused import, remove me */}
-	// // eslint-disable-next-line local/code-amd-node-module
-	// const oneDs = await import('@microsoft/1ds-core-js');
-	// // eslint-disable-next-line local/code-amd-node-module
-	// const postPlugin = await import('@microsoft/1ds-post-js');
+// 	if (typeof importAMDNodeModule === 'function') { /* fixes unused import, remove me */}
+// 	// eslint-disable-next-line local/code-amd-node-module
+// 	const oneDs = await import('@microsoft/1ds-core-js');
+// 	// eslint-disable-next-line local/code-amd-node-module
+// 	const postPlugin = await import('@microsoft/1ds-post-js');
 	// ESM-uncomment-end
 
 	const appInsightsCore = new oneDs.AppInsightsCore();

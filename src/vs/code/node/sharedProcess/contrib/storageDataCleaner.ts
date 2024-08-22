@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { join } from 'vs/base/common/path';
-import { Promises } from 'vs/base/node/pfs';
-import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ILogService } from 'vs/platform/log/common/log';
-import { StorageClient } from 'vs/platform/storage/common/storageIpc';
-import { EXTENSION_DEVELOPMENT_EMPTY_WINDOW_WORKSPACE } from 'vs/platform/workspace/common/workspace';
-import { NON_EMPTY_WORKSPACE_ID_LENGTH } from 'vs/platform/workspaces/node/workspaces';
-import { INativeHostService } from 'vs/platform/native/common/native';
-import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
-import { Schemas } from 'vs/base/common/network';
+import { RunOnceScheduler } from '../../../../base/common/async';
+import { onUnexpectedError } from '../../../../base/common/errors';
+import { Disposable } from '../../../../base/common/lifecycle';
+import { join } from '../../../../base/common/path';
+import { Promises } from '../../../../base/node/pfs';
+import { INativeEnvironmentService } from '../../../../platform/environment/common/environment';
+import { ILogService } from '../../../../platform/log/common/log';
+import { StorageClient } from '../../../../platform/storage/common/storageIpc';
+import { EXTENSION_DEVELOPMENT_EMPTY_WINDOW_WORKSPACE } from '../../../../platform/workspace/common/workspace';
+import { NON_EMPTY_WORKSPACE_ID_LENGTH } from '../../../../platform/workspaces/node/workspaces';
+import { INativeHostService } from '../../../../platform/native/common/native';
+import { IMainProcessService } from '../../../../platform/ipc/common/mainProcessService';
+import { Schemas } from '../../../../base/common/network';
 
 export class UnusedWorkspaceStorageDataCleaner extends Disposable {
 

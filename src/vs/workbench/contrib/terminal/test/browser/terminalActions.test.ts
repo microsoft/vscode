@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual } from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { WorkspaceFolderCwdPair, shrinkWorkspaceFolderCwdPairs } from 'vs/workbench/contrib/terminal/browser/terminalActions';
+import { URI } from '../../../../../base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils';
+import { IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace';
+import { WorkspaceFolderCwdPair, shrinkWorkspaceFolderCwdPairs } from '../../browser/terminalActions';
 
 function makeFakeFolder(name: string, uri: URI): IWorkspaceFolder {
 	return {

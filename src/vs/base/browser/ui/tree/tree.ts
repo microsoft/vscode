@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDragAndDropData } from 'vs/base/browser/dnd';
-import { IMouseEvent } from 'vs/base/browser/mouseEvent';
-import { IListDragAndDrop, IListDragOverReaction, IListRenderer, ListDragOverEffectPosition, ListDragOverEffectType } from 'vs/base/browser/ui/list/list';
-import { ListViewTargetSector } from 'vs/base/browser/ui/list/listView';
-import { Event } from 'vs/base/common/event';
+import { IDragAndDropData } from '../../dnd';
+import { IMouseEvent } from '../../mouseEvent';
+import { IListDragAndDrop, IListDragOverReaction, IListRenderer, ListDragOverEffectPosition, ListDragOverEffectType } from '../list/list';
+import { ListViewTargetSector } from '../list/listView';
+import { Event } from '../../../common/event';
 
 export const enum TreeVisibility {
 

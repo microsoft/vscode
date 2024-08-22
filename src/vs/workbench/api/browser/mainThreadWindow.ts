@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { Event } from '../../../base/common/event';
+import { DisposableStore } from '../../../base/common/lifecycle';
+import { URI, UriComponents } from '../../../base/common/uri';
+import { IOpenerService } from '../../../platform/opener/common/opener';
+import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers';
 import { ExtHostContext, ExtHostWindowShape, IOpenUriOptions, MainContext, MainThreadWindowShape } from '../common/extHost.protocol';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IUserActivityService } from 'vs/workbench/services/userActivity/common/userActivityService';
+import { IHostService } from '../../services/host/browser/host';
+import { IUserActivityService } from '../../services/userActivity/common/userActivityService';
 
 @extHostNamedCustomer(MainContext.MainThreadWindow)
 export class MainThreadWindow implements MainThreadWindowShape {

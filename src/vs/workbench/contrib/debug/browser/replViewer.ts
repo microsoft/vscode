@@ -3,36 +3,36 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
-import { HighlightedLabel, IHighlight } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
-import { IManagedHover } from 'vs/base/browser/ui/hover/hover';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { CachedListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { IAsyncDataSource, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
-import { createMatches, FuzzyScore } from 'vs/base/common/filters';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { basename } from 'vs/base/common/path';
-import severity from 'vs/base/common/severity';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { localize } from 'vs/nls';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { defaultCountBadgeStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { AbstractExpressionsRenderer, IExpressionTemplateData, IInputBoxOptions, renderExpressionValue, renderVariable } from 'vs/workbench/contrib/debug/browser/baseDebugView';
-import { handleANSIOutput } from 'vs/workbench/contrib/debug/browser/debugANSIHandling';
-import { debugConsoleEvaluationInput } from 'vs/workbench/contrib/debug/browser/debugIcons';
-import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
-import { IDebugConfiguration, IDebugService, IDebugSession, IExpression, IExpressionContainer, INestingReplElement, IReplElement, IReplElementSource, IReplOptions } from 'vs/workbench/contrib/debug/common/debug';
-import { Variable } from 'vs/workbench/contrib/debug/common/debugModel';
-import { RawObjectReplElement, ReplEvaluationInput, ReplEvaluationResult, ReplGroup, ReplOutputElement, ReplVariableElement } from 'vs/workbench/contrib/debug/common/replModel';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import * as dom from '../../../../base/browser/dom';
+import { CountBadge } from '../../../../base/browser/ui/countBadge/countBadge';
+import { HighlightedLabel, IHighlight } from '../../../../base/browser/ui/highlightedlabel/highlightedLabel';
+import { IManagedHover } from '../../../../base/browser/ui/hover/hover';
+import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory';
+import { CachedListVirtualDelegate } from '../../../../base/browser/ui/list/list';
+import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget';
+import { IAsyncDataSource, ITreeNode, ITreeRenderer } from '../../../../base/browser/ui/tree/tree';
+import { createMatches, FuzzyScore } from '../../../../base/common/filters';
+import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle';
+import { basename } from '../../../../base/common/path';
+import severity from '../../../../base/common/severity';
+import { ThemeIcon } from '../../../../base/common/themables';
+import { localize } from '../../../../nls';
+import { ICommandService } from '../../../../platform/commands/common/commands';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration';
+import { IContextViewService } from '../../../../platform/contextview/browser/contextView';
+import { IHoverService } from '../../../../platform/hover/browser/hover';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { ILabelService } from '../../../../platform/label/common/label';
+import { defaultCountBadgeStyles } from '../../../../platform/theme/browser/defaultStyles';
+import { IThemeService } from '../../../../platform/theme/common/themeService';
+import { AbstractExpressionsRenderer, IExpressionTemplateData, IInputBoxOptions, renderExpressionValue, renderVariable } from './baseDebugView';
+import { handleANSIOutput } from './debugANSIHandling';
+import { debugConsoleEvaluationInput } from './debugIcons';
+import { LinkDetector } from './linkDetector';
+import { IDebugConfiguration, IDebugService, IDebugSession, IExpression, IExpressionContainer, INestingReplElement, IReplElement, IReplElementSource, IReplOptions } from '../common/debug';
+import { Variable } from '../common/debugModel';
+import { RawObjectReplElement, ReplEvaluationInput, ReplEvaluationResult, ReplGroup, ReplOutputElement, ReplVariableElement } from '../common/replModel';
+import { IEditorService } from '../../../services/editor/common/editorService';
 
 const $ = dom.$;
 

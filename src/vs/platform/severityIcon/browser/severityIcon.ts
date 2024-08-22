@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/severityIcon';
-import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/base/common/themables';
-import Severity from 'vs/base/common/severity';
+import { Codicon } from '../../../base/common/codicons';
+import { ThemeIcon } from '../../../base/common/themables';
+import Severity from '../../../base/common/severity';
 
 export namespace SeverityIcon {
 

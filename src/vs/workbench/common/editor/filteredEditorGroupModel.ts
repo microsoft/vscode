@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUntypedEditorInput, IMatchEditorOptions, EditorsOrder, GroupIdentifier } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { Emitter } from 'vs/base/common/event';
-import { IGroupModelChangeEvent, IReadonlyEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { IUntypedEditorInput, IMatchEditorOptions, EditorsOrder, GroupIdentifier } from '../editor';
+import { EditorInput } from './editorInput';
+import { Emitter } from '../../../base/common/event';
+import { IGroupModelChangeEvent, IReadonlyEditorGroupModel } from './editorGroupModel';
+import { Disposable } from '../../../base/common/lifecycle';
 
 abstract class FilteredEditorGroupModel extends Disposable implements IReadonlyEditorGroupModel {
 

@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, append, getWindow, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
-import { DomEmitter } from 'vs/base/browser/event';
-import { ISashEvent as IBaseSashEvent, Orientation, Sash, SashState } from 'vs/base/browser/ui/sash/sash';
-import { SmoothScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { pushToEnd, pushToStart, range } from 'vs/base/common/arrays';
-import { Color } from 'vs/base/common/color';
-import { Emitter, Event } from 'vs/base/common/event';
-import { combinedDisposable, Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { clamp } from 'vs/base/common/numbers';
-import { Scrollable, ScrollbarVisibility, ScrollEvent } from 'vs/base/common/scrollable';
-import * as types from 'vs/base/common/types';
+import { $, addDisposableListener, append, getWindow, scheduleAtNextAnimationFrame } from '../../dom';
+import { DomEmitter } from '../../event';
+import { ISashEvent as IBaseSashEvent, Orientation, Sash, SashState } from '../sash/sash';
+import { SmoothScrollableElement } from '../scrollbar/scrollableElement';
+import { pushToEnd, pushToStart, range } from '../../../common/arrays';
+import { Color } from '../../../common/color';
+import { Emitter, Event } from '../../../common/event';
+import { combinedDisposable, Disposable, dispose, IDisposable, toDisposable } from '../../../common/lifecycle';
+import { clamp } from '../../../common/numbers';
+import { Scrollable, ScrollbarVisibility, ScrollEvent } from '../../../common/scrollable';
+import * as types from '../../../common/types';
 import 'vs/css!./splitview';
-export { Orientation } from 'vs/base/browser/ui/sash/sash';
+export { Orientation } from '../sash/sash';
 
 export interface ISplitViewStyles {
 	readonly separatorBorder: Color;

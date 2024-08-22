@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import Severity from 'vs/base/common/severity';
-import { dispose, toDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { EditorInputCapabilities, IEditorIdentifier, IUntypedEditorInput } from 'vs/workbench/common/editor';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { EditorInput, IEditorCloseHandler } from 'vs/workbench/common/editor/editorInput';
-import { ITerminalInstance, ITerminalInstanceService, terminalEditorId } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { getColorClass, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IShellLaunchConfig, TerminalExitReason, TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { ILifecycleService, ShutdownReason, WillShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { ConfirmOnKill } from 'vs/workbench/contrib/terminal/common/terminal';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { ConfirmResult, IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { Emitter } from 'vs/base/common/event';
+import { localize } from '../../../../nls';
+import Severity from '../../../../base/common/severity';
+import { dispose, toDisposable } from '../../../../base/common/lifecycle';
+import { URI } from '../../../../base/common/uri';
+import { EditorInputCapabilities, IEditorIdentifier, IUntypedEditorInput } from '../../../common/editor';
+import { IThemeService } from '../../../../platform/theme/common/themeService';
+import { ThemeIcon } from '../../../../base/common/themables';
+import { EditorInput, IEditorCloseHandler } from '../../../common/editor/editorInput';
+import { ITerminalInstance, ITerminalInstanceService, terminalEditorId } from './terminal';
+import { getColorClass, getUriClasses } from './terminalIcon';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { IShellLaunchConfig, TerminalExitReason, TerminalLocation, TerminalSettingId } from '../../../../platform/terminal/common/terminal';
+import { IEditorGroup } from '../../../services/editor/common/editorGroupsService';
+import { ILifecycleService, ShutdownReason, WillShutdownEvent } from '../../../services/lifecycle/common/lifecycle';
+import { ConfirmOnKill } from '../common/terminal';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration';
+import { TerminalContextKeys } from '../common/terminalContextKey';
+import { ConfirmResult, IDialogService } from '../../../../platform/dialogs/common/dialogs';
+import { Emitter } from '../../../../base/common/event';
 
 export class TerminalEditorInput extends EditorInput implements IEditorCloseHandler {
 

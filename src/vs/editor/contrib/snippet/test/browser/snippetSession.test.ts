@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import { mock } from 'vs/base/test/common/mock';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
-import { SnippetSession } from 'vs/editor/contrib/snippet/browser/snippetSession';
-import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { mock } from '../../../../../base/test/common/mock';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils';
+import { IActiveCodeEditor } from '../../../../browser/editorBrowser';
+import { IPosition, Position } from '../../../../common/core/position';
+import { Range } from '../../../../common/core/range';
+import { Selection } from '../../../../common/core/selection';
+import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry';
+import { TextModel } from '../../../../common/model/textModel';
+import { SnippetParser } from '../../browser/snippetParser';
+import { SnippetSession } from '../../browser/snippetSession';
+import { createTestCodeEditor } from '../../../../test/browser/testCodeEditor';
+import { TestLanguageConfigurationService } from '../../../../test/common/modes/testLanguageConfigurationService';
+import { createTextModel } from '../../../../test/common/testTextModel';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection';
+import { ILabelService } from '../../../../../platform/label/common/label';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace';
 
 suite('SnippetSession', function () {
 

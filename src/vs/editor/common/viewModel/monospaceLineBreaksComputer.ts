@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import * as strings from 'vs/base/common/strings';
-import { WrappingIndent, IComputedEditorOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { CharacterClassifier } from 'vs/editor/common/core/characterClassifier';
-import { FontInfo } from 'vs/editor/common/config/fontInfo';
-import { LineInjectedText } from 'vs/editor/common/textModelEvents';
-import { InjectedTextOptions } from 'vs/editor/common/model';
-import { ILineBreaksComputerFactory, ILineBreaksComputer, ModelLineProjectionData } from 'vs/editor/common/modelLineProjectionData';
+import { CharCode } from '../../../base/common/charCode';
+import * as strings from '../../../base/common/strings';
+import { WrappingIndent, IComputedEditorOptions, EditorOption } from '../config/editorOptions';
+import { CharacterClassifier } from '../core/characterClassifier';
+import { FontInfo } from '../config/fontInfo';
+import { LineInjectedText } from '../textModelEvents';
+import { InjectedTextOptions } from '../model';
+import { ILineBreaksComputerFactory, ILineBreaksComputer, ModelLineProjectionData } from '../modelLineProjectionData';
 
 export class MonospaceLineBreaksComputerFactory implements ILineBreaksComputerFactory {
 	public static create(options: IComputedEditorOptions): MonospaceLineBreaksComputerFactory {

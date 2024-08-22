@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
 import { stub } from 'sinon';
-import { tail2 } from 'vs/base/common/arrays';
-import { DeferredPromise, timeout } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { errorHandler, setUnexpectedErrorHandler } from 'vs/base/common/errors';
-import { AsyncEmitter, DebounceEmitter, DynamicListEventMultiplexer, Emitter, Event, EventBufferer, EventMultiplexer, IWaitUntil, ListenerLeakError, ListenerRefusalError, MicrotaskEmitter, PauseableEmitter, Relay, createEventDeliveryQueue } from 'vs/base/common/event';
-import { DisposableStore, IDisposable, isDisposable, setDisposableTracker, DisposableTracker } from 'vs/base/common/lifecycle';
-import { observableValue, transaction } from 'vs/base/common/observable';
-import { MicrotaskDelay } from 'vs/base/common/symbols';
-import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { tail2 } from '../../common/arrays';
+import { DeferredPromise, timeout } from '../../common/async';
+import { CancellationToken } from '../../common/cancellation';
+import { errorHandler, setUnexpectedErrorHandler } from '../../common/errors';
+import { AsyncEmitter, DebounceEmitter, DynamicListEventMultiplexer, Emitter, Event, EventBufferer, EventMultiplexer, IWaitUntil, ListenerLeakError, ListenerRefusalError, MicrotaskEmitter, PauseableEmitter, Relay, createEventDeliveryQueue } from '../../common/event';
+import { DisposableStore, IDisposable, isDisposable, setDisposableTracker, DisposableTracker } from '../../common/lifecycle';
+import { observableValue, transaction } from '../../common/observable';
+import { MicrotaskDelay } from '../../common/symbols';
+import { runWithFakedTimers } from './timeTravelScheduler';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils';
 
 namespace Samples {
 

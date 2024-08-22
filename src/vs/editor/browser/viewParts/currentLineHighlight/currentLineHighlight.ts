@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./currentLineHighlight';
-import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
-import { editorLineHighlight, editorLineHighlightBorder } from 'vs/editor/common/core/editorColorRegistry';
-import { RenderingContext } from 'vs/editor/browser/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
-import * as viewEvents from 'vs/editor/common/viewEvents';
-import * as arrays from 'vs/base/common/arrays';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { Selection } from 'vs/editor/common/core/selection';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { isHighContrast } from 'vs/platform/theme/common/theme';
-import { Position } from 'vs/editor/common/core/position';
+import { DynamicViewOverlay } from '../../view/dynamicViewOverlay';
+import { editorLineHighlight, editorLineHighlightBorder } from '../../../common/core/editorColorRegistry';
+import { RenderingContext } from '../../view/renderingContext';
+import { ViewContext } from '../../../common/viewModel/viewContext';
+import * as viewEvents from '../../../common/viewEvents';
+import * as arrays from '../../../../base/common/arrays';
+import { registerThemingParticipant } from '../../../../platform/theme/common/themeService';
+import { Selection } from '../../../common/core/selection';
+import { EditorOption } from '../../../common/config/editorOptions';
+import { isHighContrast } from '../../../../platform/theme/common/theme';
+import { Position } from '../../../common/core/position';
 
 export abstract class AbstractLineHighlightOverlay extends DynamicViewOverlay {
 	private readonly _context: ViewContext;

@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { SmartSnippetInserter } from 'vs/workbench/contrib/preferences/common/smartSnippetInserter';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
-import { Position } from 'vs/editor/common/core/position';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { SmartSnippetInserter } from '../../common/smartSnippetInserter';
+import { createTextModel } from '../../../../../editor/test/common/testTextModel';
+import { Position } from '../../../../../editor/common/core/position';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils';
 
 suite('SmartSnippetInserter', () => {
 

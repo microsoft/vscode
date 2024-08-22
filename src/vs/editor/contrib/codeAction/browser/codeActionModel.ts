@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancelablePromise, createCancelablePromise, TimeoutTimer } from 'vs/base/common/async';
-import { isCancellationError } from 'vs/base/common/errors';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { isEqual } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorOption, ShowLightbulbIconMode } from 'vs/editor/common/config/editorOptions';
-import { Position } from 'vs/editor/common/core/position';
-import { Selection } from 'vs/editor/common/core/selection';
-import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
-import { CodeActionProvider, CodeActionTriggerType } from 'vs/editor/common/languages';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IMarkerService } from 'vs/platform/markers/common/markers';
-import { IEditorProgressService, Progress } from 'vs/platform/progress/common/progress';
+import { CancelablePromise, createCancelablePromise, TimeoutTimer } from '../../../../base/common/async';
+import { isCancellationError } from '../../../../base/common/errors';
+import { Emitter } from '../../../../base/common/event';
+import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle';
+import { isEqual } from '../../../../base/common/resources';
+import { URI } from '../../../../base/common/uri';
+import { ICodeEditor } from '../../../browser/editorBrowser';
+import { EditorOption, ShowLightbulbIconMode } from '../../../common/config/editorOptions';
+import { Position } from '../../../common/core/position';
+import { Selection } from '../../../common/core/selection';
+import { LanguageFeatureRegistry } from '../../../common/languageFeatureRegistry';
+import { CodeActionProvider, CodeActionTriggerType } from '../../../common/languages';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration';
+import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey';
+import { IMarkerService } from '../../../../platform/markers/common/markers';
+import { IEditorProgressService, Progress } from '../../../../platform/progress/common/progress';
 import { CodeActionKind, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource } from '../common/types';
 import { getCodeActions } from './codeAction';
-import { HierarchicalKind } from 'vs/base/common/hierarchicalKind';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { HierarchicalKind } from '../../../../base/common/hierarchicalKind';
+import { StopWatch } from '../../../../base/common/stopwatch';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
 
 export const SUPPORTED_CODE_ACTIONS = new RawContextKey<string>('supportedCodeAction', '');
 

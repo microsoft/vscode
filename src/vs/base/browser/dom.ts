@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as browser from 'vs/base/browser/browser';
-import { BrowserFeatures } from 'vs/base/browser/canIUse';
-import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { IMouseEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { AbstractIdleValue, IntervalTimer, TimeoutTimer, _runWhenIdle, IdleDeadline } from 'vs/base/common/async';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import * as event from 'vs/base/common/event';
-import * as dompurify from 'vs/base/browser/dompurify/dompurify';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { FileAccess, RemoteAuthorities, Schemas } from 'vs/base/common/network';
-import * as platform from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { hash } from 'vs/base/common/hash';
-import { CodeWindow, ensureCodeWindow, mainWindow } from 'vs/base/browser/window';
-import { isPointWithinTriangle } from 'vs/base/common/numbers';
+import * as browser from './browser';
+import { BrowserFeatures } from './canIUse';
+import { IKeyboardEvent, StandardKeyboardEvent } from './keyboardEvent';
+import { IMouseEvent, StandardMouseEvent } from './mouseEvent';
+import { AbstractIdleValue, IntervalTimer, TimeoutTimer, _runWhenIdle, IdleDeadline } from '../common/async';
+import { onUnexpectedError } from '../common/errors';
+import * as event from '../common/event';
+import * as dompurify from './dompurify/dompurify';
+import { KeyCode } from '../common/keyCodes';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../common/lifecycle';
+import { FileAccess, RemoteAuthorities, Schemas } from '../common/network';
+import * as platform from '../common/platform';
+import { URI } from '../common/uri';
+import { hash } from '../common/hash';
+import { CodeWindow, ensureCodeWindow, mainWindow } from './window';
+import { isPointWithinTriangle } from '../common/numbers';
 
 export interface IRegisteredCodeWindow {
 	readonly window: CodeWindow;

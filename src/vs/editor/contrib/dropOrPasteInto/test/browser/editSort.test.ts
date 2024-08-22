@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import { HierarchicalKind } from 'vs/base/common/hierarchicalKind';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { DocumentDropEdit } from 'vs/editor/common/languages';
-import { sortEditsByYieldTo } from 'vs/editor/contrib/dropOrPasteInto/browser/edit';
+import { HierarchicalKind } from '../../../../../base/common/hierarchicalKind';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils';
+import { DocumentDropEdit } from '../../../../common/languages';
+import { sortEditsByYieldTo } from '../../browser/edit';
 
 
 function createTestEdit(kind: string, args?: Partial<DocumentDropEdit>): DocumentDropEdit {

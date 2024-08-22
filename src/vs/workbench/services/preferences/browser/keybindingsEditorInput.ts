@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
-import { OS } from 'vs/base/common/platform';
-import { ThemeIcon } from 'vs/base/common/themables';
-import * as nls from 'vs/nls';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { IUntypedEditorInput } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { KeybindingsEditorModel } from 'vs/workbench/services/preferences/browser/keybindingsEditorModel';
+import { Codicon } from '../../../../base/common/codicons';
+import { OS } from '../../../../base/common/platform';
+import { ThemeIcon } from '../../../../base/common/themables';
+import * as nls from '../../../../nls';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry';
+import { IUntypedEditorInput } from '../../../common/editor';
+import { EditorInput } from '../../../common/editor/editorInput';
+import { KeybindingsEditorModel } from './keybindingsEditorModel';
 
 export interface IKeybindingsEditorSearchOptions {
 	searchValue: string;

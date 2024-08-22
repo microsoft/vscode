@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { ITerminalStatus, ITerminalStatusHoverAction, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
-import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { localize } from 'vs/nls';
-import { Codicon } from 'vs/base/common/codicons';
-import { EnvironmentVariableScope, IExtensionOwnedEnvironmentVariableMutator, IMergedEnvironmentVariableCollection, IMergedEnvironmentVariableCollectionDiff } from 'vs/platform/terminal/common/environmentVariable';
-import { TerminalStatus } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
-import Severity from 'vs/base/common/severity';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IEnvironmentVariableInfo } from '../common/environmentVariable';
+import { ITerminalStatus, ITerminalStatusHoverAction, TerminalCommandId } from '../common/terminal';
+import { ITerminalService } from './terminal';
+import { localize } from '../../../../nls';
+import { Codicon } from '../../../../base/common/codicons';
+import { EnvironmentVariableScope, IExtensionOwnedEnvironmentVariableMutator, IMergedEnvironmentVariableCollection, IMergedEnvironmentVariableCollectionDiff } from '../../../../platform/terminal/common/environmentVariable';
+import { TerminalStatus } from './terminalStatusList';
+import Severity from '../../../../base/common/severity';
+import { ICommandService } from '../../../../platform/commands/common/commands';
+import { IExtensionService } from '../../../services/extensions/common/extensions';
 
 export class EnvironmentVariableInfoStale implements IEnvironmentVariableInfo {
 	readonly requiresAction = true;

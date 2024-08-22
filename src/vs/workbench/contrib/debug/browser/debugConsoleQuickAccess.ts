@@ -2,16 +2,16 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { matchesFuzzy } from 'vs/base/common/filters';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { localize } from 'vs/nls';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { FastAndSlowPicks, IPickerQuickAccessItem, PickerQuickAccessProvider, Picks } from 'vs/platform/quickinput/browser/pickerQuickAccess';
-import { IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
-import { DEBUG_CONSOLE_QUICK_ACCESS_PREFIX, SELECT_AND_START_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
-import { IDebugService, IDebugSession, REPL_VIEW_ID } from 'vs/workbench/contrib/debug/common/debug';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import { matchesFuzzy } from '../../../../base/common/filters';
+import { DisposableStore } from '../../../../base/common/lifecycle';
+import { localize } from '../../../../nls';
+import { ICommandService } from '../../../../platform/commands/common/commands';
+import { FastAndSlowPicks, IPickerQuickAccessItem, PickerQuickAccessProvider, Picks } from '../../../../platform/quickinput/browser/pickerQuickAccess';
+import { IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput';
+import { IViewsService } from '../../../services/views/common/viewsService';
+import { DEBUG_CONSOLE_QUICK_ACCESS_PREFIX, SELECT_AND_START_ID } from './debugCommands';
+import { IDebugService, IDebugSession, REPL_VIEW_ID } from '../common/debug';
 
 export class DebugConsoleQuickAccess extends PickerQuickAccessProvider<IPickerQuickAccessItem> {
 

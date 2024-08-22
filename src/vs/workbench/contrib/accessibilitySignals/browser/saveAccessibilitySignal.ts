@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { SaveReason } from 'vs/workbench/common/editor';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { Disposable } from '../../../../base/common/lifecycle';
+import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService';
+import { IWorkbenchContribution } from '../../../common/contributions';
+import { SaveReason } from '../../../common/editor';
+import { IWorkingCopyService } from '../../../services/workingCopy/common/workingCopyService';
 
 export class SaveAccessibilitySignalContribution extends Disposable implements IWorkbenchContribution {
 

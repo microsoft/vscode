@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as strings from 'vs/base/common/strings';
-import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
-import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
-import { ITextModel } from 'vs/editor/common/model';
+import * as strings from '../../../base/common/strings';
+import { EditOperation, ISingleEditOperation } from '../core/editOperation';
+import { Position } from '../core/position';
+import { Range } from '../core/range';
+import { Selection } from '../core/selection';
+import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from '../editorCommon';
+import { StandardTokenType } from '../encodedTokenAttributes';
+import { ITextModel } from '../model';
 
 export class TrimTrailingWhitespaceCommand implements ICommand {
 

@@ -3,29 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { ISettableObservable, autorun, constObservable, observableFromEvent, observableSignalFromEvent, observableValue, transaction } from 'vs/base/common/observable';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { GhostTextWidget } from 'vs/editor/contrib/inlineEdit/browser/ghostTextWidget';
-import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IInlineEdit, InlineEditTriggerKind } from 'vs/editor/common/languages';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { GhostText, GhostTextPart } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { InlineEditHintsWidget } from 'vs/editor/contrib/inlineEdit/browser/inlineEditHintsWidget';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { createStyleSheet2 } from 'vs/base/browser/dom';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { derivedDisposable } from 'vs/base/common/observableInternal/derived';
-import { InlineEditSideBySideWidget } from 'vs/editor/contrib/inlineEdit/browser/inlineEditSideBySideWidget';
-import { IDiffProviderFactoryService } from 'vs/editor/browser/widget/diffEditor/diffProviderFactoryService';
-import { IModelService } from 'vs/editor/common/services/model';
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle';
+import { ISettableObservable, autorun, constObservable, observableFromEvent, observableSignalFromEvent, observableValue, transaction } from '../../../../base/common/observable';
+import { ICodeEditor } from '../../../browser/editorBrowser';
+import { EditOperation } from '../../../common/core/editOperation';
+import { Position } from '../../../common/core/position';
+import { Range } from '../../../common/core/range';
+import { GhostTextWidget } from './ghostTextWidget';
+import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { IInlineEdit, InlineEditTriggerKind } from '../../../common/languages';
+import { ILanguageFeaturesService } from '../../../common/services/languageFeatures';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation';
+import { GhostText, GhostTextPart } from '../../inlineCompletions/browser/ghostText';
+import { ICommandService } from '../../../../platform/commands/common/commands';
+import { InlineEditHintsWidget } from './inlineEditHintsWidget';
+import { EditorOption } from '../../../common/config/editorOptions';
+import { createStyleSheet2 } from '../../../../base/browser/dom';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration';
+import { onUnexpectedExternalError } from '../../../../base/common/errors';
+import { derivedDisposable } from '../../../../base/common/observableInternal/derived';
+import { InlineEditSideBySideWidget } from './inlineEditSideBySideWidget';
+import { IDiffProviderFactoryService } from '../../../browser/widget/diffEditor/diffProviderFactoryService';
+import { IModelService } from '../../../common/services/model';
 
 export class InlineEditController extends Disposable {
 	static ID = 'editor.contrib.inlineEditController';

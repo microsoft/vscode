@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { IHorizontalSashLayoutProvider, ISashEvent, Orientation, Sash, SashState } from 'vs/base/browser/ui/sash/sash';
-import { Color, RGBA } from 'vs/base/common/color';
-import { IdGenerator } from 'vs/base/common/idGenerator';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import * as objects from 'vs/base/common/objects';
+import * as dom from '../../../../base/browser/dom';
+import { IHorizontalSashLayoutProvider, ISashEvent, Orientation, Sash, SashState } from '../../../../base/browser/ui/sash/sash';
+import { Color, RGBA } from '../../../../base/common/color';
+import { IdGenerator } from '../../../../base/common/idGenerator';
+import { DisposableStore } from '../../../../base/common/lifecycle';
+import * as objects from '../../../../base/common/objects';
 import 'vs/css!./zoneWidget';
-import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IViewZone, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBrowser';
-import { EditorLayoutInfo, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { IEditorDecorationsCollection, ScrollType } from 'vs/editor/common/editorCommon';
-import { TrackedRangeStickiness } from 'vs/editor/common/model';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
+import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IViewZone, IViewZoneChangeAccessor } from '../../../browser/editorBrowser';
+import { EditorLayoutInfo, EditorOption } from '../../../common/config/editorOptions';
+import { IPosition, Position } from '../../../common/core/position';
+import { IRange, Range } from '../../../common/core/range';
+import { IEditorDecorationsCollection, ScrollType } from '../../../common/editorCommon';
+import { TrackedRangeStickiness } from '../../../common/model';
+import { ModelDecorationOptions } from '../../../common/model/textModel';
 
 export interface IOptions {
 	showFrame?: boolean;

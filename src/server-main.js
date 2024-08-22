@@ -41,7 +41,7 @@ const minimist = require('minimist');
 // import { resolveNLSConfiguration } from './vs/base/node/nls.js';
 // import { product } from './bootstrap-meta.js';
 // import * as perf from './vs/base/common/performance.js';
-//
+// 
 // const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // ESM-uncomment-end
 

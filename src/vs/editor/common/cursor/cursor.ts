@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { onUnexpectedError } from 'vs/base/common/errors';
-import * as strings from 'vs/base/common/strings';
-import { CursorCollection } from 'vs/editor/common/cursor/cursorCollection';
-import { CursorConfiguration, CursorState, EditOperationResult, EditOperationType, IColumnSelectData, PartialCursorState, ICursorSimpleModel } from 'vs/editor/common/cursorCommon';
-import { CursorContext } from 'vs/editor/common/cursor/cursorContext';
-import { DeleteOperations } from 'vs/editor/common/cursor/cursorDeleteOperations';
-import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
-import { CompositionOutcome, TypeOperations } from 'vs/editor/common/cursor/cursorTypeOperations';
-import { BaseTypeWithAutoClosingCommand } from 'vs/editor/common/cursor/cursorTypeEditOperations';
-import { Position } from 'vs/editor/common/core/position';
-import { Range, IRange } from 'vs/editor/common/core/range';
-import { ISelection, Selection, SelectionDirection } from 'vs/editor/common/core/selection';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import { ITextModel, TrackedRangeStickiness, IModelDeltaDecoration, ICursorStateComputer, IIdentifiedSingleEditOperation, IValidEditOperation } from 'vs/editor/common/model';
-import { RawContentChangedType, ModelInjectedTextChangedEvent, InternalModelContentChangeEvent } from 'vs/editor/common/textModelEvents';
-import { VerticalRevealType, ViewCursorStateChangedEvent, ViewRevealRangeRequestEvent } from 'vs/editor/common/viewEvents';
-import { dispose, Disposable } from 'vs/base/common/lifecycle';
-import { ICoordinatesConverter } from 'vs/editor/common/viewModel';
-import { CursorStateChangedEvent, ViewModelEventsCollector } from 'vs/editor/common/viewModelEventDispatcher';
+import { onUnexpectedError } from '../../../base/common/errors';
+import * as strings from '../../../base/common/strings';
+import { CursorCollection } from './cursorCollection';
+import { CursorConfiguration, CursorState, EditOperationResult, EditOperationType, IColumnSelectData, PartialCursorState, ICursorSimpleModel } from '../cursorCommon';
+import { CursorContext } from './cursorContext';
+import { DeleteOperations } from './cursorDeleteOperations';
+import { CursorChangeReason } from '../cursorEvents';
+import { CompositionOutcome, TypeOperations } from './cursorTypeOperations';
+import { BaseTypeWithAutoClosingCommand } from './cursorTypeEditOperations';
+import { Position } from '../core/position';
+import { Range, IRange } from '../core/range';
+import { ISelection, Selection, SelectionDirection } from '../core/selection';
+import * as editorCommon from '../editorCommon';
+import { ITextModel, TrackedRangeStickiness, IModelDeltaDecoration, ICursorStateComputer, IIdentifiedSingleEditOperation, IValidEditOperation } from '../model';
+import { RawContentChangedType, ModelInjectedTextChangedEvent, InternalModelContentChangeEvent } from '../textModelEvents';
+import { VerticalRevealType, ViewCursorStateChangedEvent, ViewRevealRangeRequestEvent } from '../viewEvents';
+import { dispose, Disposable } from '../../../base/common/lifecycle';
+import { ICoordinatesConverter } from '../viewModel';
+import { CursorStateChangedEvent, ViewModelEventsCollector } from '../viewModelEventDispatcher';
 
 export class CursorsController extends Disposable {
 

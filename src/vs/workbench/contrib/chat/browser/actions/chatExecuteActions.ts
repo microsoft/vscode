@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { localize2 } from 'vs/nls';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
-import { IChatWidget, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
-import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { CONTEXT_CHAT_INPUT_HAS_AGENT, CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_INPUT } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { chatAgentLeader, extractAgentAndCommand } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
+import { Codicon } from '../../../../../base/common/codicons';
+import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes';
+import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions';
+import { localize2 } from '../../../../../nls';
+import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey';
+import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry';
+import { CHAT_CATEGORY } from './chatActions';
+import { IChatWidget, IChatWidgetService } from '../chat';
+import { IChatAgentService } from '../../common/chatAgents';
+import { CONTEXT_CHAT_INPUT_HAS_AGENT, CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_INPUT } from '../../common/chatContextKeys';
+import { chatAgentLeader, extractAgentAndCommand } from '../../common/chatParserTypes';
+import { IChatService } from '../../common/chatService';
 
 export interface IVoiceChatExecuteActionContext {
 	readonly disableTimeout?: boolean;

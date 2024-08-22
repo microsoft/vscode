@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
-import { Client as MessagePortClient } from 'vs/base/parts/ipc/browser/ipc.mp';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { CancellationToken } from '../../../../common/cancellation';
+import { Event } from '../../../../common/event';
+import { Client as MessagePortClient } from '../../browser/ipc.mp';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../test/common/utils';
 
 suite('IPC, MessagePorts', () => {
 

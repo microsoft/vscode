@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Range } from 'vs/editor/common/core/range';
-import { ITextModel } from 'vs/editor/common/model';
-import { IndentAction, CompleteEnterAction } from 'vs/editor/common/languages/languageConfiguration';
-import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
-import { getIndentationAtPosition, ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { IndentationContextProcessor } from 'vs/editor/common/languages/supports/indentationLineProcessor';
+import { Range } from '../core/range';
+import { ITextModel } from '../model';
+import { IndentAction, CompleteEnterAction } from './languageConfiguration';
+import { EditorAutoIndentStrategy } from '../config/editorOptions';
+import { getIndentationAtPosition, ILanguageConfigurationService } from './languageConfigurationRegistry';
+import { IndentationContextProcessor } from './supports/indentationLineProcessor';
 
 export function getEnterAction(
 	autoIndent: EditorAutoIndentStrategy,

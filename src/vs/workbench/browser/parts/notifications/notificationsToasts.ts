@@ -4,28 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/notificationsToasts';
-import { localize } from 'vs/nls';
-import { INotificationsModel, NotificationChangeType, INotificationChangeEvent, INotificationViewItem, NotificationViewItemContentChangeKind } from 'vs/workbench/common/notifications';
-import { IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { addDisposableListener, EventType, Dimension, scheduleAtNextAnimationFrame, isAncestorOfActiveElement, getWindow } from 'vs/base/browser/dom';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { NotificationsList } from 'vs/workbench/browser/parts/notifications/notificationsList';
-import { Event, Emitter } from 'vs/base/common/event';
-import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
-import { NOTIFICATIONS_TOAST_BORDER, NOTIFICATIONS_BACKGROUND } from 'vs/workbench/common/theme';
-import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
-import { widgetShadow } from 'vs/platform/theme/common/colorRegistry';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { INotificationsToastController } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { Severity, NotificationsFilter, NotificationPriority } from 'vs/platform/notification/common/notification';
-import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IntervalCounter } from 'vs/base/common/async';
-import { assertIsDefined } from 'vs/base/common/types';
-import { NotificationsToastsVisibleContext } from 'vs/workbench/common/contextkeys';
-import { mainWindow } from 'vs/base/browser/window';
+import { localize } from '../../../../nls';
+import { INotificationsModel, NotificationChangeType, INotificationChangeEvent, INotificationViewItem, NotificationViewItemContentChangeKind } from '../../../common/notifications';
+import { IDisposable, dispose, toDisposable, DisposableStore } from '../../../../base/common/lifecycle';
+import { addDisposableListener, EventType, Dimension, scheduleAtNextAnimationFrame, isAncestorOfActiveElement, getWindow } from '../../../../base/browser/dom';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { NotificationsList } from './notificationsList';
+import { Event, Emitter } from '../../../../base/common/event';
+import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService';
+import { NOTIFICATIONS_TOAST_BORDER, NOTIFICATIONS_BACKGROUND } from '../../../common/theme';
+import { IThemeService, Themable } from '../../../../platform/theme/common/themeService';
+import { widgetShadow } from '../../../../platform/theme/common/colorRegistry';
+import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService';
+import { INotificationsToastController } from './notificationsCommands';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey';
+import { Severity, NotificationsFilter, NotificationPriority } from '../../../../platform/notification/common/notification';
+import { ScrollbarVisibility } from '../../../../base/common/scrollable';
+import { ILifecycleService, LifecyclePhase } from '../../../services/lifecycle/common/lifecycle';
+import { IHostService } from '../../../services/host/browser/host';
+import { IntervalCounter } from '../../../../base/common/async';
+import { assertIsDefined } from '../../../../base/common/types';
+import { NotificationsToastsVisibleContext } from '../../../common/contextkeys';
+import { mainWindow } from '../../../../base/browser/window';
 
 interface INotificationToast {
 	readonly item: INotificationViewItem;

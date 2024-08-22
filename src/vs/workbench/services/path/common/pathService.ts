@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isValidBasename } from 'vs/base/common/extpath';
-import { Schemas } from 'vs/base/common/network';
-import { IPath, win32, posix } from 'vs/base/common/path';
-import { OperatingSystem, OS } from 'vs/base/common/platform';
-import { basename } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { getVirtualWorkspaceScheme } from 'vs/platform/workspace/common/virtualWorkspace';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { isValidBasename } from '../../../../base/common/extpath';
+import { Schemas } from '../../../../base/common/network';
+import { IPath, win32, posix } from '../../../../base/common/path';
+import { OperatingSystem, OS } from '../../../../base/common/platform';
+import { basename } from '../../../../base/common/resources';
+import { URI } from '../../../../base/common/uri';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation';
+import { getVirtualWorkspaceScheme } from '../../../../platform/workspace/common/virtualWorkspace';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace';
+import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService';
+import { IRemoteAgentService } from '../../remote/common/remoteAgentService';
 
 export const IPathService = createDecorator<IPathService>('pathService');
 

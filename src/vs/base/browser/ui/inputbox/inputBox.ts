@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { DomEmitter } from 'vs/base/browser/event';
-import { renderFormattedText, renderText } from 'vs/base/browser/formattedTextRenderer';
-import { IHistoryNavigationWidget } from 'vs/base/browser/history';
-import { MarkdownRenderOptions } from 'vs/base/browser/markdownRenderer';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import * as aria from 'vs/base/browser/ui/aria/aria';
-import { AnchorAlignment, IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
-import type { IManagedHover } from 'vs/base/browser/ui/hover/hover';
-import { getBaseLayerHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate2';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { Widget } from 'vs/base/browser/ui/widget';
-import { IAction } from 'vs/base/common/actions';
-import { Emitter, Event } from 'vs/base/common/event';
-import { HistoryNavigator } from 'vs/base/common/history';
-import { equals } from 'vs/base/common/objects';
-import { ScrollbarVisibility } from 'vs/base/common/scrollable';
+import * as dom from '../../dom';
+import { DomEmitter } from '../../event';
+import { renderFormattedText, renderText } from '../../formattedTextRenderer';
+import { IHistoryNavigationWidget } from '../../history';
+import { MarkdownRenderOptions } from '../../markdownRenderer';
+import { ActionBar } from '../actionbar/actionbar';
+import * as aria from '../aria/aria';
+import { AnchorAlignment, IContextViewProvider } from '../contextview/contextview';
+import type { IManagedHover } from '../hover/hover';
+import { getBaseLayerHoverDelegate } from '../hover/hoverDelegate2';
+import { getDefaultHoverDelegate } from '../hover/hoverDelegateFactory';
+import { ScrollableElement } from '../scrollbar/scrollableElement';
+import { Widget } from '../widget';
+import { IAction } from '../../../common/actions';
+import { Emitter, Event } from '../../../common/event';
+import { HistoryNavigator } from '../../../common/history';
+import { equals } from '../../../common/objects';
+import { ScrollbarVisibility } from '../../../common/scrollable';
 import 'vs/css!./inputBox';
-import * as nls from 'vs/nls';
+import * as nls from '../../../../nls';
 
 
 const $ = dom.$;

@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { buildReplaceStringWithCasePreserved } from 'vs/base/common/search';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { parseReplaceString, ReplacePattern, ReplacePiece } from 'vs/editor/contrib/find/browser/replacePattern';
+import { buildReplaceStringWithCasePreserved } from '../../../../../base/common/search';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils';
+import { parseReplaceString, ReplacePattern, ReplacePiece } from '../../browser/replacePattern';
 
 suite('Replace Pattern test', () => {
 

@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
-import { FuzzyScore } from 'vs/base/common/filters';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { localize } from 'vs/nls';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
-import { WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
-import { renderExpressionValue } from 'vs/workbench/contrib/debug/browser/baseDebugView';
-import { INotebookVariableElement } from 'vs/workbench/contrib/notebook/browser/contrib/notebookVariables/notebookVariablesDataSource';
+import * as dom from '../../../../../../base/browser/dom';
+import { IListVirtualDelegate } from '../../../../../../base/browser/ui/list/list';
+import { IListAccessibilityProvider } from '../../../../../../base/browser/ui/list/listWidget';
+import { ITreeNode, ITreeRenderer } from '../../../../../../base/browser/ui/tree/tree';
+import { FuzzyScore } from '../../../../../../base/common/filters';
+import { DisposableStore } from '../../../../../../base/common/lifecycle';
+import { localize } from '../../../../../../nls';
+import { IHoverService } from '../../../../../../platform/hover/browser/hover';
+import { WorkbenchObjectTree } from '../../../../../../platform/list/browser/listService';
+import { renderExpressionValue } from '../../../../debug/browser/baseDebugView';
+import { INotebookVariableElement } from './notebookVariablesDataSource';
 
 const $ = dom.$;
 const MAX_VALUE_RENDER_LENGTH_IN_VIEWLET = 1024;

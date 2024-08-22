@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { context, ipcRenderer, process, webFrame, webUtils } from 'vs/base/parts/sandbox/electron-sandbox/globals';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { context, ipcRenderer, process, webFrame, webUtils } from '../../electron-sandbox/globals';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../test/common/utils';
 
 suite('Sandbox', () => {
 

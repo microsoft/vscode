@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { distinct } from 'vs/base/common/arrays';
-import { Iterable } from 'vs/base/common/iterator';
-import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
+import { distinct } from './arrays';
+import { Iterable } from './iterator';
+import { URI } from './uri';
+import { generateUuid } from './uuid';
 
 export interface IDataTransferFile {
 	readonly id: string;

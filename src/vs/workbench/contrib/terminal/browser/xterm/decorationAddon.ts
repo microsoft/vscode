@@ -4,28 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IDecoration, ITerminalAddon, Terminal } from '@xterm/xterm';
-import * as dom from 'vs/base/browser/dom';
-import { IAction, Separator } from 'vs/base/common/actions';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { localize } from 'vs/nls';
-import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { CommandInvalidationReason, ICommandDetectionCapability, IMarkProperties, ITerminalCapabilityStore, ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { terminalDecorationError, terminalDecorationIncomplete, terminalDecorationMark, terminalDecorationSuccess } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
-import { DecorationSelector, TerminalDecorationHoverManager, updateLayout } from 'vs/workbench/contrib/terminal/browser/xterm/decorationStyles';
-import { TERMINAL_COMMAND_DECORATION_DEFAULT_BACKGROUND_COLOR, TERMINAL_COMMAND_DECORATION_ERROR_BACKGROUND_COLOR, TERMINAL_COMMAND_DECORATION_SUCCESS_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import * as dom from '../../../../../base/browser/dom';
+import { IAction, Separator } from '../../../../../base/common/actions';
+import { Emitter } from '../../../../../base/common/event';
+import { Disposable, DisposableStore, IDisposable, dispose, toDisposable } from '../../../../../base/common/lifecycle';
+import { ThemeIcon } from '../../../../../base/common/themables';
+import { localize } from '../../../../../nls';
+import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService';
+import { ICommandService } from '../../../../../platform/commands/common/commands';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation';
+import { INotificationService, Severity } from '../../../../../platform/notification/common/notification';
+import { IOpenerService } from '../../../../../platform/opener/common/opener';
+import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput';
+import { CommandInvalidationReason, ICommandDetectionCapability, IMarkProperties, ITerminalCapabilityStore, ITerminalCommand, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities';
+import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal';
+import { IThemeService } from '../../../../../platform/theme/common/themeService';
+import { terminalDecorationError, terminalDecorationIncomplete, terminalDecorationMark, terminalDecorationSuccess } from '../terminalIcons';
+import { DecorationSelector, TerminalDecorationHoverManager, updateLayout } from './decorationStyles';
+import { TERMINAL_COMMAND_DECORATION_DEFAULT_BACKGROUND_COLOR, TERMINAL_COMMAND_DECORATION_ERROR_BACKGROUND_COLOR, TERMINAL_COMMAND_DECORATION_SUCCESS_BACKGROUND_COLOR } from '../../common/terminalColorRegistry';
+import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle';
 
 interface IDisposableDecoration { decoration: IDecoration; disposables: IDisposable[]; exitCode?: number; markProperties?: IMarkProperties }
 

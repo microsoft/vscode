@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { illegalArgument, onUnexpectedExternalError } from 'vs/base/common/errors';
-import { URI } from 'vs/base/common/uri';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { ITextModel } from 'vs/editor/common/model';
-import { DocumentColorProvider, IColorInformation, IColorPresentation } from 'vs/editor/common/languages';
-import { IModelService } from 'vs/editor/common/services/model';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
-import { DefaultDocumentColorProvider } from 'vs/editor/contrib/colorPicker/browser/defaultDocumentColorProvider';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import { illegalArgument, onUnexpectedExternalError } from '../../../../base/common/errors';
+import { URI } from '../../../../base/common/uri';
+import { IRange, Range } from '../../../common/core/range';
+import { ITextModel } from '../../../common/model';
+import { DocumentColorProvider, IColorInformation, IColorPresentation } from '../../../common/languages';
+import { IModelService } from '../../../common/services/model';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands';
+import { ILanguageFeaturesService } from '../../../common/services/languageFeatures';
+import { LanguageFeatureRegistry } from '../../../common/languageFeatureRegistry';
+import { DefaultDocumentColorProvider } from './defaultDocumentColorProvider';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration';
+import { ServicesAccessor } from '../../../browser/editorExtensions';
 
 export async function getColors(colorProviderRegistry: LanguageFeatureRegistry<DocumentColorProvider>, model: ITextModel, token: CancellationToken, isDefaultColorDecoratorsEnabled: boolean = true): Promise<IColorData[]> {
 	return _findColorData<IColorData>(new ColorDataCollector(), colorProviderRegistry, model, token, isDefaultColorDecoratorsEnabled);

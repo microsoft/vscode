@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual } from 'assert';
-import { TestExtensionService, TestHistoryService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
-import { EnvironmentVariableService } from 'vs/workbench/contrib/terminal/common/environmentVariableService';
-import { EnvironmentVariableMutatorType, IEnvironmentVariableMutator } from 'vs/platform/terminal/common/environmentVariable';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { Emitter } from 'vs/base/common/event';
-import { IProcessEnvironment } from 'vs/base/common/platform';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { TestExtensionService, TestHistoryService, TestStorageService } from '../../../../test/common/workbenchTestServices';
+import { EnvironmentVariableService } from '../../common/environmentVariableService';
+import { EnvironmentVariableMutatorType, IEnvironmentVariableMutator } from '../../../../../platform/terminal/common/environmentVariable';
+import { IStorageService } from '../../../../../platform/storage/common/storage';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock';
+import { IExtensionService } from '../../../../services/extensions/common/extensions';
+import { Emitter } from '../../../../../base/common/event';
+import { IProcessEnvironment } from '../../../../../base/common/platform';
+import { IHistoryService } from '../../../../services/history/common/history';
+import { URI } from '../../../../../base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils';
 
 class TestEnvironmentVariableService extends EnvironmentVariableService {
 	persistCollections(): void { this._persistCollections(); }

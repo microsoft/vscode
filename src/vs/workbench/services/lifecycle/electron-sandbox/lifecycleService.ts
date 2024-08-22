@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { handleVetos } from 'vs/platform/lifecycle/common/lifecycle';
-import { ShutdownReason, ILifecycleService, IWillShutdownEventJoiner, WillShutdownJoinerOrder } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
-import { ILogService } from 'vs/platform/log/common/log';
-import { AbstractLifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycleService';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { INativeHostService } from 'vs/platform/native/common/native';
-import { Promises, disposableTimeout, raceCancellation } from 'vs/base/common/async';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { handleVetos } from '../../../../platform/lifecycle/common/lifecycle';
+import { ShutdownReason, ILifecycleService, IWillShutdownEventJoiner, WillShutdownJoinerOrder } from '../common/lifecycle';
+import { IStorageService } from '../../../../platform/storage/common/storage';
+import { ipcRenderer } from '../../../../base/parts/sandbox/electron-sandbox/globals';
+import { ILogService } from '../../../../platform/log/common/log';
+import { AbstractLifecycleService } from '../common/lifecycleService';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions';
+import { INativeHostService } from '../../../../platform/native/common/native';
+import { Promises, disposableTimeout, raceCancellation } from '../../../../base/common/async';
+import { toErrorMessage } from '../../../../base/common/errorMessage';
+import { CancellationTokenSource } from '../../../../base/common/cancellation';
 
 export class NativeLifecycleService extends AbstractLifecycleService {
 

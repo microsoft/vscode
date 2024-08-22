@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, clearNode, EventHelper, EventType, getWindow, hide, isActiveElement, isAncestor, show } from 'vs/base/browser/dom';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ButtonBar, ButtonWithDescription, IButtonStyles } from 'vs/base/browser/ui/button/button';
-import { ICheckboxStyles, Checkbox } from 'vs/base/browser/ui/toggle/toggle';
-import { IInputBoxStyles, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
-import { Action } from 'vs/base/common/actions';
-import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
+import { $, addDisposableListener, clearNode, EventHelper, EventType, getWindow, hide, isActiveElement, isAncestor, show } from '../../dom';
+import { StandardKeyboardEvent } from '../../keyboardEvent';
+import { ActionBar } from '../actionbar/actionbar';
+import { ButtonBar, ButtonWithDescription, IButtonStyles } from '../button/button';
+import { ICheckboxStyles, Checkbox } from '../toggle/toggle';
+import { IInputBoxStyles, InputBox } from '../inputbox/inputBox';
+import { Action } from '../../../common/actions';
+import { Codicon } from '../../../common/codicons';
+import { ThemeIcon } from '../../../common/themables';
+import { KeyCode, KeyMod } from '../../../common/keyCodes';
+import { mnemonicButtonLabel } from '../../../common/labels';
+import { Disposable } from '../../../common/lifecycle';
+import { isLinux, isMacintosh, isWindows } from '../../../common/platform';
 import 'vs/css!./dialog';
-import * as nls from 'vs/nls';
+import * as nls from '../../../../nls';
 
 export interface IDialogInputOptions {
 	readonly placeholder?: string;

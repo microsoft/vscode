@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { renderFormattedText, renderText } from 'vs/base/browser/formattedTextRenderer';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { renderFormattedText, renderText } from '../../browser/formattedTextRenderer';
+import { DisposableStore } from '../../common/lifecycle';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils';
 
 suite('FormattedTextRenderer', () => {
 	const store = new DisposableStore();

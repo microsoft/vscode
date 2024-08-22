@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IQuickAccessRegistry, Extensions } from 'vs/platform/quickinput/common/quickAccess';
-import { QuickHelpNLS } from 'vs/editor/common/standaloneStrings';
-import { HelpQuickAccessProvider } from 'vs/platform/quickinput/browser/helpQuickAccess';
+import { Registry } from '../../../../platform/registry/common/platform';
+import { IQuickAccessRegistry, Extensions } from '../../../../platform/quickinput/common/quickAccess';
+import { QuickHelpNLS } from '../../../common/standaloneStrings';
+import { HelpQuickAccessProvider } from '../../../../platform/quickinput/browser/helpQuickAccess';
 
 Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess).registerQuickAccessProvider({
 	ctor: HelpQuickAccessProvider,

@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CompareResult, equals } from 'vs/base/common/arrays';
-import { BugIndicatingError } from 'vs/base/common/errors';
-import { autorunHandleChanges, derived, IObservable, IReader, ISettableObservable, ITransaction, keepObserved, observableValue, transaction, waitForState } from 'vs/base/common/observable';
-import { URI } from 'vs/base/common/uri';
-import { Range } from 'vs/editor/common/core/range';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { ITextModel } from 'vs/editor/common/model';
-import { localize } from 'vs/nls';
-import { IResourceUndoRedoElement, IUndoRedoService, UndoRedoElementType, UndoRedoGroup } from 'vs/platform/undoRedo/common/undoRedo';
-import { EditorModel } from 'vs/workbench/common/editor/editorModel';
-import { IMergeDiffComputer } from 'vs/workbench/contrib/mergeEditor/browser/model/diffComputer';
-import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';
-import { DetailedLineRangeMapping, DocumentLineRangeMap, DocumentRangeMap, LineRangeMapping } from 'vs/workbench/contrib/mergeEditor/browser/model/mapping';
-import { TextModelDiffChangeReason, TextModelDiffs, TextModelDiffState } from 'vs/workbench/contrib/mergeEditor/browser/model/textModelDiffs';
-import { MergeEditorTelemetry } from 'vs/workbench/contrib/mergeEditor/browser/telemetry';
-import { leftJoin } from 'vs/workbench/contrib/mergeEditor/browser/utils';
+import { CompareResult, equals } from '../../../../../base/common/arrays';
+import { BugIndicatingError } from '../../../../../base/common/errors';
+import { autorunHandleChanges, derived, IObservable, IReader, ISettableObservable, ITransaction, keepObserved, observableValue, transaction, waitForState } from '../../../../../base/common/observable';
+import { URI } from '../../../../../base/common/uri';
+import { Range } from '../../../../../editor/common/core/range';
+import { ILanguageService } from '../../../../../editor/common/languages/language';
+import { ITextModel } from '../../../../../editor/common/model';
+import { localize } from '../../../../../nls';
+import { IResourceUndoRedoElement, IUndoRedoService, UndoRedoElementType, UndoRedoGroup } from '../../../../../platform/undoRedo/common/undoRedo';
+import { EditorModel } from '../../../../common/editor/editorModel';
+import { IMergeDiffComputer } from './diffComputer';
+import { LineRange } from './lineRange';
+import { DetailedLineRangeMapping, DocumentLineRangeMap, DocumentRangeMap, LineRangeMapping } from './mapping';
+import { TextModelDiffChangeReason, TextModelDiffs, TextModelDiffState } from './textModelDiffs';
+import { MergeEditorTelemetry } from '../telemetry';
+import { leftJoin } from '../utils';
 import { InputNumber, ModifiedBaseRange, ModifiedBaseRangeState, ModifiedBaseRangeStateKind } from './modifiedBaseRange';
 
 export interface InputData {

@@ -4,28 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { notStrictEqual, strictEqual } from 'assert';
-import { Schemas } from 'vs/base/common/network';
-import { joinPath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import { OPTIONS, parseArgs } from 'vs/platform/environment/node/argv';
-import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { NullLogService } from 'vs/platform/log/common/log';
-import product from 'vs/platform/product/common/product';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { SaveStrategy, StateService } from 'vs/platform/state/node/stateService';
-import { IS_NEW_KEY, StorageScope } from 'vs/platform/storage/common/storage';
-import { IStorageChangeEvent, IStorageMain, IStorageMainOptions } from 'vs/platform/storage/electron-main/storageMain';
-import { StorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
-import { currentSessionDateStorageKey, firstSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
-import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
-import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { UserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
-import { TestLifecycleMainService } from 'vs/platform/test/electron-main/workbenchTestServices';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { Schemas } from '../../../../base/common/network';
+import { joinPath } from '../../../../base/common/resources';
+import { URI } from '../../../../base/common/uri';
+import { generateUuid } from '../../../../base/common/uuid';
+import { OPTIONS, parseArgs } from '../../../environment/node/argv';
+import { NativeEnvironmentService } from '../../../environment/node/environmentService';
+import { FileService } from '../../../files/common/fileService';
+import { ILifecycleMainService } from '../../../lifecycle/electron-main/lifecycleMainService';
+import { NullLogService } from '../../../log/common/log';
+import product from '../../../product/common/product';
+import { IProductService } from '../../../product/common/productService';
+import { SaveStrategy, StateService } from '../../../state/node/stateService';
+import { IS_NEW_KEY, StorageScope } from '../../common/storage';
+import { IStorageChangeEvent, IStorageMain, IStorageMainOptions } from '../../electron-main/storageMain';
+import { StorageMainService } from '../../electron-main/storageMainService';
+import { currentSessionDateStorageKey, firstSessionDateStorageKey } from '../../../telemetry/common/telemetry';
+import { UriIdentityService } from '../../../uriIdentity/common/uriIdentityService';
+import { IUserDataProfile } from '../../../userDataProfile/common/userDataProfile';
+import { UserDataProfilesMainService } from '../../../userDataProfile/electron-main/userDataProfile';
+import { TestLifecycleMainService } from '../../../test/electron-main/workbenchTestServices';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils';
+import { DisposableStore } from '../../../../base/common/lifecycle';
 
 suite('StorageMainService', function () {
 

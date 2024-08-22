@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { IRange } from 'vs/editor/common/core/range';
-import { DiffAlgorithmName, IEditorWorkerService, IUnicodeHighlightsResult } from 'vs/editor/common/services/editorWorker';
-import { TextEdit, IInplaceReplaceSupportResult, IColorInformation } from 'vs/editor/common/languages';
-import { IDocumentDiff, IDocumentDiffProviderOptions } from 'vs/editor/common/diff/documentDiffProvider';
-import { IChange } from 'vs/editor/common/diff/legacyLinesDiffComputer';
-import { SectionHeader } from 'vs/editor/common/services/findSectionHeaders';
+import { URI } from '../../../../base/common/uri';
+import { IRange } from '../../../common/core/range';
+import { DiffAlgorithmName, IEditorWorkerService, IUnicodeHighlightsResult } from '../../../common/services/editorWorker';
+import { TextEdit, IInplaceReplaceSupportResult, IColorInformation } from '../../../common/languages';
+import { IDocumentDiff, IDocumentDiffProviderOptions } from '../../../common/diff/documentDiffProvider';
+import { IChange } from '../../../common/diff/legacyLinesDiffComputer';
+import { SectionHeader } from '../../../common/services/findSectionHeaders';
 
 export class TestEditorWorkerService implements IEditorWorkerService {
 

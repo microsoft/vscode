@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { MonotonousArray, findFirstMonotonous, findLastMonotonous } from 'vs/base/common/arraysFind';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { MonotonousArray, findFirstMonotonous, findLastMonotonous } from '../../common/arraysFind';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils';
 
 suite('Arrays', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

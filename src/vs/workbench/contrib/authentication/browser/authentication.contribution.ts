@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { isFalsyOrWhitespace } from 'vs/base/common/strings';
-import { localize } from 'vs/nls';
-import { MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
-import { SignOutOfAccountAction } from 'vs/workbench/contrib/authentication/browser/actions/signOutOfAccountAction';
-import { AuthenticationProviderInformation, IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
-import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
-import { Extensions, IExtensionFeatureTableRenderer, IExtensionFeaturesRegistry, IRenderedData, IRowData, ITableData } from 'vs/workbench/services/extensionManagement/common/extensionFeatures';
-import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
+import { IJSONSchema } from '../../../../base/common/jsonSchema';
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle';
+import { isFalsyOrWhitespace } from '../../../../base/common/strings';
+import { localize } from '../../../../nls';
+import { MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey';
+import { IExtensionManifest } from '../../../../platform/extensions/common/extensions';
+import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors';
+import { Registry } from '../../../../platform/registry/common/platform';
+import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions';
+import { SignOutOfAccountAction } from './actions/signOutOfAccountAction';
+import { AuthenticationProviderInformation, IAuthenticationService } from '../../../services/authentication/common/authentication';
+import { IBrowserWorkbenchEnvironmentService } from '../../../services/environment/browser/environmentService';
+import { Extensions, IExtensionFeatureTableRenderer, IExtensionFeaturesRegistry, IRenderedData, IRowData, ITableData } from '../../../services/extensionManagement/common/extensionFeatures';
+import { ExtensionsRegistry } from '../../../services/extensions/common/extensionsRegistry';
 import { ManageTrustedExtensionsForAccountAction } from './actions/manageTrustedExtensionsForAccountAction';
 
 const codeExchangeProxyCommand = CommandsRegistry.registerCommand('workbench.getCodeExchangeProxyEndpoints', function (accessor, _) {

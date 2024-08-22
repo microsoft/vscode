@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Promises } from 'vs/base/common/async';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { equals } from 'vs/base/common/objects';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { defaultUserDataProfileIcon, DidChangeUserDataProfileEvent, IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { Promises } from '../../../../base/common/async';
+import { Emitter } from '../../../../base/common/event';
+import { Disposable } from '../../../../base/common/lifecycle';
+import { equals } from '../../../../base/common/objects';
+import { ThemeIcon } from '../../../../base/common/themables';
+import { IUserDataProfile } from '../../../../platform/userDataProfile/common/userDataProfile';
+import { defaultUserDataProfileIcon, DidChangeUserDataProfileEvent, IUserDataProfileService } from './userDataProfile';
 
 export class UserDataProfileService extends Disposable implements IUserDataProfileService {
 

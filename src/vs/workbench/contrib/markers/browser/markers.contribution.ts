@@ -3,39 +3,39 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/workbench/contrib/markers/browser/markersFileDecorations';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { localize, localize2 } from 'vs/nls';
-import { Marker, RelatedInformation, ResourceMarkers } from 'vs/workbench/contrib/markers/browser/markersModel';
-import { MarkersView } from 'vs/workbench/contrib/markers/browser/markersView';
-import { MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { MarkersViewMode, Markers, MarkersContextKeys } from 'vs/workbench/contrib/markers/common/markers';
-import Messages from 'vs/workbench/contrib/markers/browser/messages';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IMarkersView } from 'vs/workbench/contrib/markers/browser/markers';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { Disposable, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment, IStatusbarEntry } from 'vs/workbench/services/statusbar/browser/statusbar';
-import { IMarkerService, MarkerStatistics } from 'vs/platform/markers/common/markers';
-import { ViewContainer, IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewsRegistry } from 'vs/workbench/common/views';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
-import { getVisbileViewContextKey, FocusedViewContext } from 'vs/workbench/common/contextkeys';
-import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { Codicon } from 'vs/base/common/codicons';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
-import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
-import { viewFilterSubmenu } from 'vs/workbench/browser/parts/views/viewFilter';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { problemsConfigurationNodeBase } from 'vs/workbench/common/configuration';
+import './markersFileDecorations';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey';
+import { Extensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes';
+import { localize, localize2 } from '../../../../nls';
+import { Marker, RelatedInformation, ResourceMarkers } from './markersModel';
+import { MarkersView } from './markersView';
+import { MenuId, registerAction2, Action2 } from '../../../../platform/actions/common/actions';
+import { Registry } from '../../../../platform/registry/common/platform';
+import { MarkersViewMode, Markers, MarkersContextKeys } from '../common/markers';
+import Messages from './messages';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from '../../../common/contributions';
+import { IMarkersView } from './markers';
+import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle';
+import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService';
+import { Disposable, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle';
+import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment, IStatusbarEntry } from '../../../services/statusbar/browser/statusbar';
+import { IMarkerService, MarkerStatistics } from '../../../../platform/markers/common/markers';
+import { ViewContainer, IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewsRegistry } from '../../../common/views';
+import { IViewsService } from '../../../services/views/common/viewsService';
+import { getVisbileViewContextKey, FocusedViewContext } from '../../../common/contextkeys';
+import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContainer';
+import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation';
+import { Codicon } from '../../../../base/common/codicons';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry';
+import { ViewAction } from '../../../browser/parts/views/viewPane';
+import { IActivityService, NumberBadge } from '../../../services/activity/common/activity';
+import { viewFilterSubmenu } from '../../../browser/parts/views/viewFilter';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration';
+import { problemsConfigurationNodeBase } from '../../../common/configuration';
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: Markers.MARKER_OPEN_ACTION_ID,

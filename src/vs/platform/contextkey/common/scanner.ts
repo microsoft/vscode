@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import { illegalState } from 'vs/base/common/errors';
-import { localize } from 'vs/nls';
+import { CharCode } from '../../../base/common/charCode';
+import { illegalState } from '../../../base/common/errors';
+import { localize } from '../../../nls';
 
 export const enum TokenType {
 	LParen,

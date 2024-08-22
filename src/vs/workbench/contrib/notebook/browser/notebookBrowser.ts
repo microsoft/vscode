@@ -3,35 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CodeWindow } from 'vs/base/browser/window';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import { FontInfo } from 'vs/editor/common/config/fontInfo';
-import { IPosition } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { FindMatch, IModelDeltaDecoration, IReadonlyTextBuffer, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { ITextEditorOptions, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { IConstructorSignature } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorPane, IEditorPaneWithSelection } from 'vs/workbench/common/editor';
-import { CellViewModelStateChangeEvent, NotebookCellStateChangedEvent, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
-import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellKind, ICellOutput, INotebookCellStatusBarItem, INotebookRendererInfo, INotebookFindOptions, IOrderedMimeType, NotebookCellInternalMetadata, NotebookCellMetadata, NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { isCompositeNotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
-import { INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { NotebookOptions } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
-import { cellRangesToIndexes, ICellRange, reduceCellRanges } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import { IWebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
-import { IEditorCommentsOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IObservable } from 'vs/base/common/observable';
+import { CodeWindow } from '../../../../base/browser/window';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import { Event } from '../../../../base/common/event';
+import { IDisposable } from '../../../../base/common/lifecycle';
+import { URI } from '../../../../base/common/uri';
+import { IEditorContributionDescription } from '../../../../editor/browser/editorExtensions';
+import * as editorCommon from '../../../../editor/common/editorCommon';
+import { FontInfo } from '../../../../editor/common/config/fontInfo';
+import { IPosition } from '../../../../editor/common/core/position';
+import { IRange, Range } from '../../../../editor/common/core/range';
+import { Selection } from '../../../../editor/common/core/selection';
+import { FindMatch, IModelDeltaDecoration, IReadonlyTextBuffer, ITextModel, TrackedRangeStickiness } from '../../../../editor/common/model';
+import { MenuId } from '../../../../platform/actions/common/actions';
+import { ITextEditorOptions, ITextResourceEditorInput } from '../../../../platform/editor/common/editor';
+import { IConstructorSignature } from '../../../../platform/instantiation/common/instantiation';
+import { IEditorPane, IEditorPaneWithSelection } from '../../../common/editor';
+import { CellViewModelStateChangeEvent, NotebookCellStateChangedEvent, NotebookLayoutInfo } from './notebookViewEvents';
+import { NotebookCellTextModel } from '../common/model/notebookCellTextModel';
+import { NotebookTextModel } from '../common/model/notebookTextModel';
+import { CellKind, ICellOutput, INotebookCellStatusBarItem, INotebookRendererInfo, INotebookFindOptions, IOrderedMimeType, NotebookCellInternalMetadata, NotebookCellMetadata, NOTEBOOK_EDITOR_ID } from '../common/notebookCommon';
+import { isCompositeNotebookEditorInput } from '../common/notebookEditorInput';
+import { INotebookKernel } from '../common/notebookKernelService';
+import { NotebookOptions } from './notebookOptions';
+import { cellRangesToIndexes, ICellRange, reduceCellRanges } from '../common/notebookRange';
+import { IWebviewElement } from '../../webview/browser/webview';
+import { IEditorCommentsOptions, IEditorOptions } from '../../../../editor/common/config/editorOptions';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey';
+import { ICodeEditor } from '../../../../editor/browser/editorBrowser';
+import { IObservable } from '../../../../base/common/observable';
 
 //#region Shared commands
 export const EXPAND_CELL_INPUT_COMMAND_ID = 'notebook.cell.expandCellInput';

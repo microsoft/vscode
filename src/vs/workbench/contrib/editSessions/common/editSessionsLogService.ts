@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { joinPath } from 'vs/base/common/resources';
-import { localize } from 'vs/nls';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { AbstractLogger, ILogger, ILoggerService } from 'vs/platform/log/common/log';
-import { IEditSessionsLogService, editSessionsLogId } from 'vs/workbench/contrib/editSessions/common/editSessions';
+import { joinPath } from '../../../../base/common/resources';
+import { localize } from '../../../../nls';
+import { IEnvironmentService } from '../../../../platform/environment/common/environment';
+import { AbstractLogger, ILogger, ILoggerService } from '../../../../platform/log/common/log';
+import { IEditSessionsLogService, editSessionsLogId } from './editSessions';
 
 export class EditSessionsLogService extends AbstractLogger implements IEditSessionsLogService {
 

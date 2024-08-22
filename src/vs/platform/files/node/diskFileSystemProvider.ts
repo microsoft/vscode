@@ -4,27 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Stats, promises } from 'fs';
-import { Barrier, retry } from 'vs/base/common/async';
-import { ResourceMap } from 'vs/base/common/map';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
-import { isEqual } from 'vs/base/common/extpath';
-import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { basename, dirname, join } from 'vs/base/common/path';
-import { isLinux, isWindows } from 'vs/base/common/platform';
-import { extUriBiasedIgnorePathCase, joinPath, basename as resourcesBasename, dirname as resourcesDirname } from 'vs/base/common/resources';
-import { newWriteableStream, ReadableStreamEvents } from 'vs/base/common/stream';
-import { URI } from 'vs/base/common/uri';
-import { IDirent, Promises, RimRafMode, SymlinkSupport } from 'vs/base/node/pfs';
-import { localize } from 'vs/nls';
-import { createFileSystemProviderError, IFileAtomicReadOptions, IFileDeleteOptions, IFileOpenOptions, IFileOverwriteOptions, IFileReadStreamOptions, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, IFileWriteOptions, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileCloneCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, isFileOpenForWriteOptions, IStat, FilePermission, IFileSystemProviderWithFileAtomicWriteCapability, IFileSystemProviderWithFileAtomicDeleteCapability, IFileChange } from 'vs/platform/files/common/files';
-import { readFileIntoStream } from 'vs/platform/files/common/io';
-import { AbstractNonRecursiveWatcherClient, AbstractUniversalWatcherClient, ILogMessage } from 'vs/platform/files/common/watcher';
-import { ILogService } from 'vs/platform/log/common/log';
-import { AbstractDiskFileSystemProvider, IDiskFileSystemProviderOptions } from 'vs/platform/files/common/diskFileSystemProvider';
-import { UniversalWatcherClient } from 'vs/platform/files/node/watcher/watcherClient';
-import { NodeJSWatcherClient } from 'vs/platform/files/node/watcher/nodejs/nodejsClient';
+import { Barrier, retry } from '../../../base/common/async';
+import { ResourceMap } from '../../../base/common/map';
+import { VSBuffer } from '../../../base/common/buffer';
+import { CancellationToken } from '../../../base/common/cancellation';
+import { Event } from '../../../base/common/event';
+import { isEqual } from '../../../base/common/extpath';
+import { DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle';
+import { basename, dirname, join } from '../../../base/common/path';
+import { isLinux, isWindows } from '../../../base/common/platform';
+import { extUriBiasedIgnorePathCase, joinPath, basename as resourcesBasename, dirname as resourcesDirname } from '../../../base/common/resources';
+import { newWriteableStream, ReadableStreamEvents } from '../../../base/common/stream';
+import { URI } from '../../../base/common/uri';
+import { IDirent, Promises, RimRafMode, SymlinkSupport } from '../../../base/node/pfs';
+import { localize } from '../../../nls';
+import { createFileSystemProviderError, IFileAtomicReadOptions, IFileDeleteOptions, IFileOpenOptions, IFileOverwriteOptions, IFileReadStreamOptions, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, IFileWriteOptions, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileCloneCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, isFileOpenForWriteOptions, IStat, FilePermission, IFileSystemProviderWithFileAtomicWriteCapability, IFileSystemProviderWithFileAtomicDeleteCapability, IFileChange } from '../common/files';
+import { readFileIntoStream } from '../common/io';
+import { AbstractNonRecursiveWatcherClient, AbstractUniversalWatcherClient, ILogMessage } from '../common/watcher';
+import { ILogService } from '../../log/common/log';
+import { AbstractDiskFileSystemProvider, IDiskFileSystemProviderOptions } from '../common/diskFileSystemProvider';
+import { UniversalWatcherClient } from './watcher/watcherClient';
+import { NodeJSWatcherClient } from './watcher/nodejs/nodejsClient';
 
 export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider implements
 	IFileSystemProviderWithFileReadWriteCapability,

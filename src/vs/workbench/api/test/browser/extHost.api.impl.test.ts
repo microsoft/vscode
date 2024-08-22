@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { originalFSPath } from 'vs/base/common/resources';
-import { isWindows } from 'vs/base/common/platform';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { URI } from '../../../../base/common/uri';
+import { originalFSPath } from '../../../../base/common/resources';
+import { isWindows } from '../../../../base/common/platform';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils';
 
 suite('ExtHost API', function () {
 	test('issue #51387: originalFSPath', function () {

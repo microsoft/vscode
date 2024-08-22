@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancelablePromise, RunOnceScheduler } from 'vs/base/common/async';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { EditorOption, IEditorMinimapOptions } from 'vs/editor/common/config/editorOptions';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { IModelDeltaDecoration, MinimapPosition, MinimapSectionHeaderStyle, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import { FindSectionHeaderOptions, SectionHeader } from 'vs/editor/common/services/findSectionHeaders';
+import { CancelablePromise, RunOnceScheduler } from '../../../../base/common/async';
+import { Disposable } from '../../../../base/common/lifecycle';
+import { ICodeEditor } from '../../../browser/editorBrowser';
+import { EditorContributionInstantiation, registerEditorContribution } from '../../../browser/editorExtensions';
+import { EditorOption, IEditorMinimapOptions } from '../../../common/config/editorOptions';
+import { IEditorContribution } from '../../../common/editorCommon';
+import { StandardTokenType } from '../../../common/encodedTokenAttributes';
+import { ILanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry';
+import { IModelDeltaDecoration, MinimapPosition, MinimapSectionHeaderStyle, TrackedRangeStickiness } from '../../../common/model';
+import { ModelDecorationOptions } from '../../../common/model/textModel';
+import { IEditorWorkerService } from '../../../common/services/editorWorker';
+import { FindSectionHeaderOptions, SectionHeader } from '../../../common/services/findSectionHeaders';
 
 export class SectionHeaderDetector extends Disposable implements IEditorContribution {
 

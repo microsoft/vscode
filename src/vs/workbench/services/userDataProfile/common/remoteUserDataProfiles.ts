@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { DidChangeProfilesEvent, IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { distinct } from 'vs/base/common/arrays';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfileIpc';
+import { Disposable } from '../../../../base/common/lifecycle';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation';
+import { DidChangeProfilesEvent, IUserDataProfile, IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile';
+import { IRemoteAgentService } from '../../remote/common/remoteAgentService';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage';
+import { IStringDictionary } from '../../../../base/common/collections';
+import { ILogService } from '../../../../platform/log/common/log';
+import { IUserDataProfileService } from './userDataProfile';
+import { distinct } from '../../../../base/common/arrays';
+import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService';
+import { UserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfileIpc';
 
 const associatedRemoteProfilesKey = 'associatedRemoteProfiles';
 

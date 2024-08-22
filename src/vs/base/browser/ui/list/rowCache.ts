@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $ } from 'vs/base/browser/dom';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { $ } from '../../dom';
+import { IDisposable } from '../../../common/lifecycle';
 import { IListRenderer } from './list';
 
 export interface IRow {

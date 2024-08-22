@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Color, RGBA } from 'vs/base/common/color';
-import { ITextModel } from 'vs/editor/common/model';
-import { DocumentColorProvider, IColor, IColorInformation, IColorPresentation } from 'vs/editor/common/languages';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { registerEditorFeature } from 'vs/editor/common/editorFeatures';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import { Color, RGBA } from '../../../../base/common/color';
+import { ITextModel } from '../../../common/model';
+import { DocumentColorProvider, IColor, IColorInformation, IColorPresentation } from '../../../common/languages';
+import { Disposable } from '../../../../base/common/lifecycle';
+import { ILanguageFeaturesService } from '../../../common/services/languageFeatures';
+import { registerEditorFeature } from '../../../common/editorFeatures';
+import { IEditorWorkerService } from '../../../common/services/editorWorker';
 
 export class DefaultDocumentColorProvider implements DocumentColorProvider {
 

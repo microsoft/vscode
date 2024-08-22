@@ -114,9 +114,9 @@
 
 	function loadCode(moduleId: string): Promise<SimpleWorkerModule> {
 		// ESM-uncomment-begin
-		// if (typeof loadAMDLoader === 'function') { /* fixes unused import, remove me */}
-		// const moduleUrl = new URL(`${moduleId}.js`, globalThis._VSCODE_FILE_ROOT);
-		// return import(moduleUrl.href);
+// 		if (typeof loadAMDLoader === 'function') { /* fixes unused import, remove me */}
+// 		const moduleUrl = new URL(`${moduleId}.js`, globalThis._VSCODE_FILE_ROOT);
+// 		return import(moduleUrl.href);
 		// ESM-uncomment-end
 
 		// ESM-comment-begin

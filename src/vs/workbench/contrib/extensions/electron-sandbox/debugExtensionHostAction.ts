@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Action } from 'vs/base/common/actions';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { randomPort } from 'vs/base/common/ports';
-import * as nls from 'vs/nls';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { INativeHostService } from 'vs/platform/native/common/native';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
-import { ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensionHostKind';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { Action } from '../../../../base/common/actions';
+import { Disposable } from '../../../../base/common/lifecycle';
+import { randomPort } from '../../../../base/common/ports';
+import * as nls from '../../../../nls';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { INativeHostService } from '../../../../platform/native/common/native';
+import { IProductService } from '../../../../platform/product/common/productService';
+import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage';
+import { IWorkbenchContribution } from '../../../common/contributions';
+import { IDebugService } from '../../debug/common/debug';
+import { ExtensionHostKind } from '../../../services/extensions/common/extensionHostKind';
+import { IExtensionService } from '../../../services/extensions/common/extensions';
+import { IHostService } from '../../../services/host/browser/host';
 
 export class DebugExtensionHostAction extends Action {
 	static readonly ID = 'workbench.extensions.action.debugExtensionHost';

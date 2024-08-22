@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, IActionOptions, registerEditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { ICommand } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { MoveCaretCommand } from 'vs/editor/contrib/caretOperations/browser/moveCaretCommand';
-import * as nls from 'vs/nls';
+import { ICodeEditor } from '../../../browser/editorBrowser';
+import { EditorAction, IActionOptions, registerEditorAction, ServicesAccessor } from '../../../browser/editorExtensions';
+import { ICommand } from '../../../common/editorCommon';
+import { EditorContextKeys } from '../../../common/editorContextKeys';
+import { MoveCaretCommand } from './moveCaretCommand';
+import * as nls from '../../../../nls';
 
 class MoveCaretAction extends EditorAction {
 

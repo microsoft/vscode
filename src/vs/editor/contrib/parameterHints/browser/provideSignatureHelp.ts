@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { assertType } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
-import * as languages from 'vs/editor/common/languages';
-import { ITextModel } from 'vs/editor/common/model';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import { onUnexpectedExternalError } from '../../../../base/common/errors';
+import { assertType } from '../../../../base/common/types';
+import { URI } from '../../../../base/common/uri';
+import { IPosition, Position } from '../../../common/core/position';
+import { LanguageFeatureRegistry } from '../../../common/languageFeatureRegistry';
+import * as languages from '../../../common/languages';
+import { ITextModel } from '../../../common/model';
+import { ILanguageFeaturesService } from '../../../common/services/languageFeatures';
+import { ITextModelService } from '../../../common/services/resolverService';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands';
+import { RawContextKey } from '../../../../platform/contextkey/common/contextkey';
 
 export const Context = {
 	Visible: new RawContextKey<boolean>('parameterHintsVisible', false),

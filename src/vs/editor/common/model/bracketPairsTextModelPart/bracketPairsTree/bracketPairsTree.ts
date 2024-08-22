@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Range } from 'vs/editor/common/core/range';
-import { ITextModel } from 'vs/editor/common/model';
-import { BracketInfo, BracketPairWithMinIndentationInfo, IFoundBracket } from 'vs/editor/common/textModelBracketPairs';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { IModelContentChangedEvent, IModelTokensChangedEvent } from 'vs/editor/common/textModelEvents';
-import { ResolvedLanguageConfiguration } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { Emitter } from '../../../../../base/common/event';
+import { Disposable } from '../../../../../base/common/lifecycle';
+import { Range } from '../../../core/range';
+import { ITextModel } from '../../../model';
+import { BracketInfo, BracketPairWithMinIndentationInfo, IFoundBracket } from '../../../textModelBracketPairs';
+import { TextModel } from '../../textModel';
+import { IModelContentChangedEvent, IModelTokensChangedEvent } from '../../../textModelEvents';
+import { ResolvedLanguageConfiguration } from '../../../languages/languageConfigurationRegistry';
 import { AstNode, AstNodeKind } from './ast';
 import { TextEditInfo } from './beforeEditPositionMapper';
 import { LanguageAgnosticBracketTokens } from './brackets';
@@ -18,11 +18,11 @@ import { Length, lengthAdd, lengthGreaterThanEqual, lengthLessThan, lengthLessTh
 import { parseDocument } from './parser';
 import { DenseKeyProvider } from './smallImmutableSet';
 import { FastTokenizer, TextBufferTokenizer } from './tokenizer';
-import { BackgroundTokenizationState } from 'vs/editor/common/tokenizationTextModelPart';
-import { Position } from 'vs/editor/common/core/position';
-import { CallbackIterable } from 'vs/base/common/arrays';
-import { combineTextEditInfos } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/combineTextEditInfos';
-import { ClosingBracketKind, OpeningBracketKind } from 'vs/editor/common/languages/supports/languageBracketsConfiguration';
+import { BackgroundTokenizationState } from '../../../tokenizationTextModelPart';
+import { Position } from '../../../core/position';
+import { CallbackIterable } from '../../../../../base/common/arrays';
+import { combineTextEditInfos } from './combineTextEditInfos';
+import { ClosingBracketKind, OpeningBracketKind } from '../../../languages/supports/languageBracketsConfiguration';
 
 export class BracketPairsTree extends Disposable {
 	private readonly didChangeEmitter = new Emitter<void>();

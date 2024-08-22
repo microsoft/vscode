@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { TfIdfCalculator, TfIdfDocument, TfIdfScore } from 'vs/base/common/tfIdf';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { CancellationToken } from '../../common/cancellation';
+import { TfIdfCalculator, TfIdfDocument, TfIdfScore } from '../../common/tfIdf';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils';
 
 /**
  * Generates all permutations of an array.

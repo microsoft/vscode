@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BroadcastDataChannel } from 'vs/base/browser/broadcast';
-import { isSafari } from 'vs/base/browser/browser';
-import { getActiveWindow } from 'vs/base/browser/dom';
-import { IndexedDB } from 'vs/base/browser/indexedDB';
-import { DeferredPromise, Promises } from 'vs/base/common/async';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { assertIsDefined } from 'vs/base/common/types';
-import { InMemoryStorageDatabase, isStorageItemsChangeEvent, IStorage, IStorageDatabase, IStorageItemsChangeEvent, IUpdateRequest, Storage } from 'vs/base/parts/storage/common/storage';
-import { ILogService } from 'vs/platform/log/common/log';
-import { AbstractStorageService, isProfileUsingDefaultStorage, IS_NEW_KEY, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { isUserDataProfile, IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { IAnyWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
-import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { BroadcastDataChannel } from '../../../../base/browser/broadcast';
+import { isSafari } from '../../../../base/browser/browser';
+import { getActiveWindow } from '../../../../base/browser/dom';
+import { IndexedDB } from '../../../../base/browser/indexedDB';
+import { DeferredPromise, Promises } from '../../../../base/common/async';
+import { toErrorMessage } from '../../../../base/common/errorMessage';
+import { Emitter } from '../../../../base/common/event';
+import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle';
+import { assertIsDefined } from '../../../../base/common/types';
+import { InMemoryStorageDatabase, isStorageItemsChangeEvent, IStorage, IStorageDatabase, IStorageItemsChangeEvent, IUpdateRequest, Storage } from '../../../../base/parts/storage/common/storage';
+import { ILogService } from '../../../../platform/log/common/log';
+import { AbstractStorageService, isProfileUsingDefaultStorage, IS_NEW_KEY, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage';
+import { isUserDataProfile, IUserDataProfile } from '../../../../platform/userDataProfile/common/userDataProfile';
+import { IAnyWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace';
+import { IUserDataProfileService } from '../../userDataProfile/common/userDataProfile';
 
 export class BrowserStorageService extends AbstractStorageService {
 

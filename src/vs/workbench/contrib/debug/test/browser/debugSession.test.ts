@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { ThreadStatusScheduler } from 'vs/workbench/contrib/debug/browser/debugSession';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils';
+import { ThreadStatusScheduler } from '../../browser/debugSession';
 
 
 suite('DebugSession - ThreadStatusScheduler', () => {

@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as arrays from 'vs/base/common/arrays';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { WrappingIndent } from 'vs/editor/common/config/editorOptions';
-import { FontInfo } from 'vs/editor/common/config/fontInfo';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { IModelDecoration, IModelDeltaDecoration, ITextModel, PositionAffinity } from 'vs/editor/common/model';
-import { IActiveIndentGuideInfo, BracketGuideOptions, IndentGuide, IndentGuideHorizontalLine } from 'vs/editor/common/textModelGuides';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { LineInjectedText } from 'vs/editor/common/textModelEvents';
-import * as viewEvents from 'vs/editor/common/viewEvents';
-import { createModelLineProjection, IModelLineProjection } from 'vs/editor/common/viewModel/modelLineProjection';
-import { ILineBreaksComputer, ModelLineProjectionData, InjectedText, ILineBreaksComputerFactory } from 'vs/editor/common/modelLineProjectionData';
-import { ConstantTimePrefixSumComputer } from 'vs/editor/common/model/prefixSumComputer';
-import { ICoordinatesConverter, ViewLineData } from 'vs/editor/common/viewModel';
+import * as arrays from '../../../base/common/arrays';
+import { IDisposable } from '../../../base/common/lifecycle';
+import { WrappingIndent } from '../config/editorOptions';
+import { FontInfo } from '../config/fontInfo';
+import { IPosition, Position } from '../core/position';
+import { Range } from '../core/range';
+import { IModelDecoration, IModelDeltaDecoration, ITextModel, PositionAffinity } from '../model';
+import { IActiveIndentGuideInfo, BracketGuideOptions, IndentGuide, IndentGuideHorizontalLine } from '../textModelGuides';
+import { ModelDecorationOptions } from '../model/textModel';
+import { LineInjectedText } from '../textModelEvents';
+import * as viewEvents from '../viewEvents';
+import { createModelLineProjection, IModelLineProjection } from './modelLineProjection';
+import { ILineBreaksComputer, ModelLineProjectionData, InjectedText, ILineBreaksComputerFactory } from '../modelLineProjectionData';
+import { ConstantTimePrefixSumComputer } from '../model/prefixSumComputer';
+import { ICoordinatesConverter, ViewLineData } from '../viewModel';
 
 export interface IViewModelLines extends IDisposable {
 	createCoordinatesConverter(): ICoordinatesConverter;

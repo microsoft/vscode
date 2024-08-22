@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { IWorkspaceTextEditDto } from 'vs/workbench/api/common/extHost.protocol';
-import { mock } from 'vs/base/test/common/mock';
-import { Event } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
-import { FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
-import { reviveWorkspaceEditDto } from 'vs/workbench/api/browser/mainThreadBulkEdits';
-import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
-import { IWorkspaceTextEdit } from 'vs/editor/common/languages';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { IWorkspaceTextEditDto } from '../../common/extHost.protocol';
+import { mock } from '../../../../base/test/common/mock';
+import { Event } from '../../../../base/common/event';
+import { URI } from '../../../../base/common/uri';
+import { FileSystemProviderCapabilities, IFileService } from '../../../../platform/files/common/files';
+import { reviveWorkspaceEditDto } from '../../browser/mainThreadBulkEdits';
+import { UriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentityService';
+import { IWorkspaceTextEdit } from '../../../../editor/common/languages';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils';
 
 suite('MainThreadBulkEdits', function () {
 

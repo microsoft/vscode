@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { Selection } from 'vs/editor/common/core/selection';
-import { localize, localize2 } from 'vs/nls';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
-import { IQuickChatOpenOptions, IQuickChatService } from 'vs/workbench/contrib/chat/browser/chat';
-import { CONTEXT_CHAT_ENABLED } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
+import { Codicon } from '../../../../../base/common/codicons';
+import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes';
+import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService';
+import { Selection } from '../../../../../editor/common/core/selection';
+import { localize, localize2 } from '../../../../../nls';
+import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions';
+import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation';
+import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry';
+import { CHAT_CATEGORY } from './chatActions';
+import { IQuickChatOpenOptions, IQuickChatService } from '../chat';
+import { CONTEXT_CHAT_ENABLED } from '../../common/chatContextKeys';
+import { InlineChatController } from '../../../inlineChat/browser/inlineChatController';
 
 export const ASK_QUICK_QUESTION_ACTION_ID = 'workbench.action.quickchat.toggle';
 export function registerQuickChatActions() {

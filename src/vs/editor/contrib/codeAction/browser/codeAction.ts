@@ -3,29 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce, equals, isNonEmptyArray } from 'vs/base/common/arrays';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { illegalArgument, isCancellationError, onUnexpectedExternalError } from 'vs/base/common/errors';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
-import * as languages from 'vs/editor/common/languages';
-import { ITextModel } from 'vs/editor/common/model';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { IModelService } from 'vs/editor/common/services/model';
-import { TextModelCancellationTokenSource } from 'vs/editor/contrib/editorState/browser/editorState';
-import * as nls from 'vs/nls';
-import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IProgress, Progress } from 'vs/platform/progress/common/progress';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { coalesce, equals, isNonEmptyArray } from '../../../../base/common/arrays';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import { illegalArgument, isCancellationError, onUnexpectedExternalError } from '../../../../base/common/errors';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle';
+import { URI } from '../../../../base/common/uri';
+import { ICodeEditor } from '../../../browser/editorBrowser';
+import { IBulkEditService } from '../../../browser/services/bulkEditService';
+import { Range } from '../../../common/core/range';
+import { Selection } from '../../../common/core/selection';
+import { LanguageFeatureRegistry } from '../../../common/languageFeatureRegistry';
+import * as languages from '../../../common/languages';
+import { ITextModel } from '../../../common/model';
+import { ILanguageFeaturesService } from '../../../common/services/languageFeatures';
+import { IModelService } from '../../../common/services/model';
+import { TextModelCancellationTokenSource } from '../../editorState/browser/editorState';
+import * as nls from '../../../../nls';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation';
+import { INotificationService } from '../../../../platform/notification/common/notification';
+import { IProgress, Progress } from '../../../../platform/progress/common/progress';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
 import { CodeActionFilter, CodeActionItem, CodeActionKind, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource, filtersAction, mayIncludeActionsOfKind } from '../common/types';
-import { HierarchicalKind } from 'vs/base/common/hierarchicalKind';
+import { HierarchicalKind } from '../../../../base/common/hierarchicalKind';
 
 export const codeActionCommandId = 'editor.action.codeAction';
 export const quickFixCommandId = 'editor.action.quickFix';

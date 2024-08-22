@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { binarySearch } from 'vs/base/common/arrays';
-import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { LinkedList } from 'vs/base/common/linkedList';
-import { compare } from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { ITextModel } from 'vs/editor/common/model';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IMarker, IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { binarySearch } from '../../../../base/common/arrays';
+import { Emitter, Event } from '../../../../base/common/event';
+import { DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle';
+import { LinkedList } from '../../../../base/common/linkedList';
+import { compare } from '../../../../base/common/strings';
+import { URI } from '../../../../base/common/uri';
+import { Position } from '../../../common/core/position';
+import { Range } from '../../../common/core/range';
+import { ITextModel } from '../../../common/model';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation';
+import { IMarker, IMarkerService, MarkerSeverity } from '../../../../platform/markers/common/markers';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration';
 
 export class MarkerCoordinate {
 	constructor(

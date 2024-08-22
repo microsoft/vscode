@@ -3,36 +3,36 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize, localize2 } from 'vs/nls';
-import { GettingStartedInputSerializer, GettingStartedPage, inWelcomeContext } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStarted';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { EditorExtensions, IEditorFactoryRegistry } from 'vs/workbench/common/editor';
-import { MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IWalkthroughsService } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedService';
-import { GettingStartedEditorOptions, GettingStartedInput } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedInput';
-import { registerWorkbenchContribution2, WorkbenchPhase } from 'vs/workbench/common/contributions';
-import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
-import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { isLinux, isMacintosh, isWindows, OperatingSystem as OS } from 'vs/base/common/platform';
-import { IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { StartupPageEditorResolverContribution, StartupPageRunnerContribution } from 'vs/workbench/contrib/welcomeGettingStarted/browser/startupPage';
-import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { localize, localize2 } from '../../../../nls';
+import { GettingStartedInputSerializer, GettingStartedPage, inWelcomeContext } from './gettingStarted';
+import { Registry } from '../../../../platform/registry/common/platform';
+import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor';
+import { MenuId, registerAction2, Action2 } from '../../../../platform/actions/common/actions';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation';
+import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey';
+import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry';
+import { KeyCode } from '../../../../base/common/keyCodes';
+import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor';
+import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors';
+import { IWalkthroughsService } from './gettingStartedService';
+import { GettingStartedEditorOptions, GettingStartedInput } from './gettingStartedInput';
+import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions';
+import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry';
+import { workbenchConfigurationNodeBase } from '../../../common/configuration';
+import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands';
+import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput';
+import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService';
+import { isLinux, isMacintosh, isWindows, OperatingSystem as OS } from '../../../../base/common/platform';
+import { IExtensionManagementServerService } from '../../../services/extensionManagement/common/extensionManagement';
+import { IExtensionService } from '../../../services/extensions/common/extensions';
+import { StartupPageEditorResolverContribution, StartupPageRunnerContribution } from './startupPage';
+import { ExtensionsInput } from '../../extensions/common/extensionsInput';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories';
+import { DisposableStore } from '../../../../base/common/lifecycle';
 
-export * as icons from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedIcons';
+export * as icons from './gettingStartedIcons';
 
 registerAction2(class extends Action2 {
 	constructor() {

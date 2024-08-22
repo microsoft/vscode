@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isLinux, isWindows } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { toWorkspaceFolder, Workspace as BaseWorkspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { isLinux, isWindows } from '../../../../base/common/platform';
+import { URI } from '../../../../base/common/uri';
+import { toWorkspaceFolder, Workspace as BaseWorkspace, WorkspaceFolder } from '../../common/workspace';
 
 export class Workspace extends BaseWorkspace {
 	constructor(

@@ -4,22 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { IEditorFactoryRegistry, EditorExtensions, EditorInputCapabilities } from 'vs/workbench/common/editor';
-import { URI } from 'vs/base/common/uri';
-import { workbenchInstantiationService, TestFileEditorInput, registerTestEditor, TestEditorPart, createEditorPart, registerTestSideBySideEditor } from 'vs/workbench/test/browser/workbenchTestServices';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { GroupDirection, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { EditorActivation } from 'vs/platform/editor/common/editor';
-import { WillSaveStateReason } from 'vs/platform/storage/common/storage';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { EditorsObserver } from 'vs/workbench/browser/parts/editor/editorsObserver';
-import { timeout } from 'vs/base/common/async';
-import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
-import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { IEditorFactoryRegistry, EditorExtensions, EditorInputCapabilities } from '../../../../common/editor';
+import { URI } from '../../../../../base/common/uri';
+import { workbenchInstantiationService, TestFileEditorInput, registerTestEditor, TestEditorPart, createEditorPart, registerTestSideBySideEditor } from '../../../../test/browser/workbenchTestServices';
+import { Registry } from '../../../../../platform/registry/common/platform';
+import { EditorPart } from '../../../../browser/parts/editor/editorPart';
+import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors';
+import { GroupDirection, IEditorGroupsService } from '../../common/editorGroupsService';
+import { EditorActivation } from '../../../../../platform/editor/common/editor';
+import { WillSaveStateReason } from '../../../../../platform/storage/common/storage';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle';
+import { EditorsObserver } from '../../../../browser/parts/editor/editorsObserver';
+import { timeout } from '../../../../../base/common/async';
+import { TestStorageService } from '../../../../test/common/workbenchTestServices';
+import { SideBySideEditorInput } from '../../../../common/editor/sideBySideEditorInput';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils';
 
 suite('EditorsObserver', function () {
 

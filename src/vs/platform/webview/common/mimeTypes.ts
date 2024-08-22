@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getMediaMime, Mimes } from 'vs/base/common/mime';
-import { extname } from 'vs/base/common/path';
-import { URI } from 'vs/base/common/uri';
+import { getMediaMime, Mimes } from '../../../base/common/mime';
+import { extname } from '../../../base/common/path';
+import { URI } from '../../../base/common/uri';
 
 const webviewMimeTypes = new Map([
 	['.svg', 'image/svg+xml'],

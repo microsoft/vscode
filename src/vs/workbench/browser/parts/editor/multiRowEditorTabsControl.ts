@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Dimension } from 'vs/base/browser/dom';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorGroupsView, IEditorGroupView, IEditorPartsView, IInternalEditorOpenOptions } from 'vs/workbench/browser/parts/editor/editor';
-import { IEditorTabsControl } from 'vs/workbench/browser/parts/editor/editorTabsControl';
-import { MultiEditorTabsControl } from 'vs/workbench/browser/parts/editor/multiEditorTabsControl';
-import { IEditorPartOptions } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { StickyEditorGroupModel, UnstickyEditorGroupModel } from 'vs/workbench/common/editor/filteredEditorGroupModel';
-import { IEditorTitleControlDimensions } from 'vs/workbench/browser/parts/editor/editorTitleControl';
-import { IReadonlyEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
+import { Dimension } from '../../../../base/browser/dom';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { IEditorGroupsView, IEditorGroupView, IEditorPartsView, IInternalEditorOpenOptions } from './editor';
+import { IEditorTabsControl } from './editorTabsControl';
+import { MultiEditorTabsControl } from './multiEditorTabsControl';
+import { IEditorPartOptions } from '../../../common/editor';
+import { EditorInput } from '../../../common/editor/editorInput';
+import { Disposable } from '../../../../base/common/lifecycle';
+import { StickyEditorGroupModel, UnstickyEditorGroupModel } from '../../../common/editor/filteredEditorGroupModel';
+import { IEditorTitleControlDimensions } from './editorTitleControl';
+import { IReadonlyEditorGroupModel } from '../../../common/editor/editorGroupModel';
 
 export class MultiRowEditorControl extends Disposable implements IEditorTabsControl {
 

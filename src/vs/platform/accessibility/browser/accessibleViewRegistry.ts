@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { AccessibleViewType, AccessibleContentProvider, ExtensionContentProvider } from 'vs/platform/accessibility/browser/accessibleView';
-import { ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IDisposable } from '../../../base/common/lifecycle';
+import { AccessibleViewType, AccessibleContentProvider, ExtensionContentProvider } from './accessibleView';
+import { ContextKeyExpression } from '../../contextkey/common/contextkey';
+import { ServicesAccessor } from '../../instantiation/common/instantiation';
 
 export interface IAccessibleViewImplentation {
 	type: AccessibleViewType;

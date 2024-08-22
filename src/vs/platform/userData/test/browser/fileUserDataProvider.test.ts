@@ -4,25 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { dirname, isEqual, joinPath } from 'vs/base/common/resources';
-import { ReadableStreamEvents } from 'vs/base/common/stream';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { AbstractNativeEnvironmentService } from 'vs/platform/environment/common/environmentService';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { FileChangeType, FileSystemProviderCapabilities, FileType, IFileChange, IFileOpenOptions, IFileReadStreamOptions, IFileService, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IStat } from 'vs/platform/files/common/files';
-import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
-import { NullLogService } from 'vs/platform/log/common/log';
-import product from 'vs/platform/product/common/product';
-import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
-import { FileUserDataProvider } from 'vs/platform/userData/common/fileUserDataProvider';
-import { IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { VSBuffer } from '../../../../base/common/buffer';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import { Emitter, Event } from '../../../../base/common/event';
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle';
+import { Schemas } from '../../../../base/common/network';
+import { dirname, isEqual, joinPath } from '../../../../base/common/resources';
+import { ReadableStreamEvents } from '../../../../base/common/stream';
+import { URI } from '../../../../base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils';
+import { IEnvironmentService } from '../../../environment/common/environment';
+import { AbstractNativeEnvironmentService } from '../../../environment/common/environmentService';
+import { FileService } from '../../../files/common/fileService';
+import { FileChangeType, FileSystemProviderCapabilities, FileType, IFileChange, IFileOpenOptions, IFileReadStreamOptions, IFileService, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IStat } from '../../../files/common/files';
+import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider';
+import { NullLogService } from '../../../log/common/log';
+import product from '../../../product/common/product';
+import { UriIdentityService } from '../../../uriIdentity/common/uriIdentityService';
+import { FileUserDataProvider } from '../../common/fileUserDataProvider';
+import { IUserDataProfilesService, UserDataProfilesService } from '../../../userDataProfile/common/userDataProfile';
 
 const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
 

@@ -4,32 +4,32 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/editorplaceholder';
-import { localize } from 'vs/nls';
-import { truncate, truncateMiddle } from 'vs/base/common/strings';
-import Severity from 'vs/base/common/severity';
-import { IEditorOpenContext, isEditorOpenError } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { Dimension, size, clearNode, $, EventHelper } from 'vs/base/browser/dom';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { assertAllDefined } from 'vs/base/common/types';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IWorkspaceContextService, isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
-import { EditorOpenSource, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { computeEditorAriaLabel, EditorPaneDescriptor } from 'vs/workbench/browser/editor';
-import { ButtonBar } from 'vs/base/browser/ui/button/button';
-import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { SimpleIconLabel } from 'vs/base/browser/ui/iconLabel/simpleIconLabel';
-import { FileChangeType, FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { localize } from '../../../../nls';
+import { truncate, truncateMiddle } from '../../../../base/common/strings';
+import Severity from '../../../../base/common/severity';
+import { IEditorOpenContext, isEditorOpenError } from '../../../common/editor';
+import { EditorInput } from '../../../common/editor/editorInput';
+import { EditorPane } from './editorPane';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
+import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement';
+import { ScrollbarVisibility } from '../../../../base/common/scrollable';
+import { IThemeService } from '../../../../platform/theme/common/themeService';
+import { Dimension, size, clearNode, $, EventHelper } from '../../../../base/browser/dom';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import { DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle';
+import { IStorageService } from '../../../../platform/storage/common/storage';
+import { assertAllDefined } from '../../../../base/common/types';
+import { ICommandService } from '../../../../platform/commands/common/commands';
+import { IWorkspaceContextService, isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace';
+import { EditorOpenSource, IEditorOptions } from '../../../../platform/editor/common/editor';
+import { computeEditorAriaLabel, EditorPaneDescriptor } from '../../editor';
+import { ButtonBar } from '../../../../base/browser/ui/button/button';
+import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles';
+import { SimpleIconLabel } from '../../../../base/browser/ui/iconLabel/simpleIconLabel';
+import { FileChangeType, FileOperationError, FileOperationResult, IFileService } from '../../../../platform/files/common/files';
+import { toErrorMessage } from '../../../../base/common/errorMessage';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs';
+import { IEditorGroup } from '../../../services/editor/common/editorGroupsService';
 
 export interface IEditorPlaceholderContents {
 	icon: string;

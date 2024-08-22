@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { MarshalledId } from 'vs/base/common/marshallingIds';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { TestId } from 'vs/workbench/contrib/testing/common/testId';
+import { IMarkdownString } from '../../../../base/common/htmlContent';
+import { MarshalledId } from '../../../../base/common/marshallingIds';
+import { URI, UriComponents } from '../../../../base/common/uri';
+import { IPosition, Position } from '../../../../editor/common/core/position';
+import { IRange, Range } from '../../../../editor/common/core/range';
+import { TestId } from './testId';
 
 export const enum TestResultState {
 	Unset = 0,

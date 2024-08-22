@@ -4,22 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IpcMainEvent, MessagePortMain } from 'electron';
-import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
-import { Barrier, DeferredPromise } from 'vs/base/common/async';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ISharedProcessConfiguration } from 'vs/platform/sharedProcess/node/sharedProcess';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { IPolicyService } from 'vs/platform/policy/common/policy';
-import { ILoggerMainService } from 'vs/platform/log/electron-main/loggerService';
-import { UtilityProcess } from 'vs/platform/utilityProcess/electron-main/utilityProcess';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { parseSharedProcessDebugPort } from 'vs/platform/environment/node/environmentService';
-import { assertIsDefined } from 'vs/base/common/types';
-import { SharedProcessChannelConnection, SharedProcessRawConnection, SharedProcessLifecycle } from 'vs/platform/sharedProcess/common/sharedProcess';
-import { Emitter } from 'vs/base/common/event';
+import { validatedIpcMain } from '../../../base/parts/ipc/electron-main/ipcMain';
+import { Barrier, DeferredPromise } from '../../../base/common/async';
+import { Disposable, IDisposable } from '../../../base/common/lifecycle';
+import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService';
+import { ILifecycleMainService } from '../../lifecycle/electron-main/lifecycleMainService';
+import { ILogService } from '../../log/common/log';
+import { ISharedProcessConfiguration } from '../node/sharedProcess';
+import { IUserDataProfilesService } from '../../userDataProfile/common/userDataProfile';
+import { IPolicyService } from '../../policy/common/policy';
+import { ILoggerMainService } from '../../log/electron-main/loggerService';
+import { UtilityProcess } from '../../utilityProcess/electron-main/utilityProcess';
+import { NullTelemetryService } from '../../telemetry/common/telemetryUtils';
+import { parseSharedProcessDebugPort } from '../../environment/node/environmentService';
+import { assertIsDefined } from '../../../base/common/types';
+import { SharedProcessChannelConnection, SharedProcessRawConnection, SharedProcessLifecycle } from '../common/sharedProcess';
+import { Emitter } from '../../../base/common/event';
 
 export class SharedProcess extends Disposable {
 

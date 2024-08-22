@@ -4,21 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import electron from 'electron';
-import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
-import { Barrier, Promises, timeout } from 'vs/base/common/async';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { isMacintosh, isWindows } from 'vs/base/common/platform';
-import { cwd } from 'vs/base/common/process';
-import { assertIsDefined } from 'vs/base/common/types';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IStateService } from 'vs/platform/state/node/state';
-import { ICodeWindow, LoadReason, UnloadReason } from 'vs/platform/window/electron-main/window';
-import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
-import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { IAuxiliaryWindow } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindow';
+import { validatedIpcMain } from '../../../base/parts/ipc/electron-main/ipcMain';
+import { Barrier, Promises, timeout } from '../../../base/common/async';
+import { Emitter, Event } from '../../../base/common/event';
+import { Disposable, DisposableStore } from '../../../base/common/lifecycle';
+import { isMacintosh, isWindows } from '../../../base/common/platform';
+import { cwd } from '../../../base/common/process';
+import { assertIsDefined } from '../../../base/common/types';
+import { NativeParsedArgs } from '../../environment/common/argv';
+import { createDecorator } from '../../instantiation/common/instantiation';
+import { ILogService } from '../../log/common/log';
+import { IStateService } from '../../state/node/state';
+import { ICodeWindow, LoadReason, UnloadReason } from '../../window/electron-main/window';
+import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from '../../workspace/common/workspace';
+import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService';
+import { IAuxiliaryWindow } from '../../auxiliaryWindow/electron-main/auxiliaryWindow';
 
 export const ILifecycleMainService = createDecorator<ILifecycleMainService>('lifecycleMainService');
 

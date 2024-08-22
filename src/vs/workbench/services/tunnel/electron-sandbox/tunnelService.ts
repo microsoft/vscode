@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILogService } from 'vs/platform/log/common/log';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { URI } from 'vs/base/common/uri';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ITunnelService, AbstractTunnelService, RemoteTunnel, TunnelPrivacyId, isPortPrivileged, ITunnelProvider, isTunnelProvider } from 'vs/platform/tunnel/common/tunnel';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IAddressProvider } from 'vs/platform/remote/common/remoteAgentConnection';
-import { ISharedProcessTunnelService } from 'vs/platform/remote/common/sharedProcessTunnelService';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { OS } from 'vs/base/common/platform';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ILogService } from '../../../../platform/log/common/log';
+import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService';
+import { URI } from '../../../../base/common/uri';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions';
+import { ITunnelService, AbstractTunnelService, RemoteTunnel, TunnelPrivacyId, isPortPrivileged, ITunnelProvider, isTunnelProvider } from '../../../../platform/tunnel/common/tunnel';
+import { Disposable } from '../../../../base/common/lifecycle';
+import { IAddressProvider } from '../../../../platform/remote/common/remoteAgentConnection';
+import { ISharedProcessTunnelService } from '../../../../platform/remote/common/sharedProcessTunnelService';
+import { ILifecycleService } from '../../lifecycle/common/lifecycle';
+import { IRemoteAuthorityResolverService } from '../../../../platform/remote/common/remoteAuthorityResolver';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { INativeWorkbenchEnvironmentService } from '../../environment/electron-sandbox/environmentService';
+import { OS } from '../../../../base/common/platform';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration';
 
 class SharedProcessTunnel extends Disposable implements RemoteTunnel {
 

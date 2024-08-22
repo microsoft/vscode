@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ModelService } from 'vs/editor/common/services/modelService';
-import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfiguration';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { URI } from '../../../../base/common/uri';
+import { IModelService } from '../../../../editor/common/services/model';
+import { ModelService } from '../../../../editor/common/services/modelService';
+import { ITextResourcePropertiesService } from '../../../../editor/common/services/textResourceConfiguration';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions';
+import { IUndoRedoService } from '../../../../platform/undoRedo/common/undoRedo';
+import { IPathService } from '../../path/common/pathService';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
 
 export class WorkbenchModelService extends ModelService {
 	constructor(

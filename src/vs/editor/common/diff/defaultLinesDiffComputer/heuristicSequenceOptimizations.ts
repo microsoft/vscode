@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { forEachWithNeighbors } from 'vs/base/common/arrays';
-import { OffsetRange } from 'vs/editor/common/core/offsetRange';
-import { ISequence, OffsetPair, SequenceDiff } from 'vs/editor/common/diff/defaultLinesDiffComputer/algorithms/diffAlgorithm';
-import { LineSequence } from 'vs/editor/common/diff/defaultLinesDiffComputer/lineSequence';
-import { LinesSliceCharSequence } from 'vs/editor/common/diff/defaultLinesDiffComputer/linesSliceCharSequence';
+import { forEachWithNeighbors } from '../../../../base/common/arrays';
+import { OffsetRange } from '../../core/offsetRange';
+import { ISequence, OffsetPair, SequenceDiff } from './algorithms/diffAlgorithm';
+import { LineSequence } from './lineSequence';
+import { LinesSliceCharSequence } from './linesSliceCharSequence';
 
 export function optimizeSequenceDiffs(sequence1: ISequence, sequence2: ISequence, sequenceDiffs: SequenceDiff[]): SequenceDiff[] {
 	let result = sequenceDiffs;

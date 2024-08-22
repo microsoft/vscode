@@ -3,32 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IExtensionManagementService, IExtensionGalleryService, InstallOperation, InstallExtensionResult } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IExtensionRecommendationsService, ExtensionRecommendationReason, IExtensionIgnoredRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { shuffle } from 'vs/base/common/arrays';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { LifecyclePhase, ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { ExeBasedRecommendations } from 'vs/workbench/contrib/extensions/browser/exeBasedRecommendations';
-import { WorkspaceRecommendations } from 'vs/workbench/contrib/extensions/browser/workspaceRecommendations';
-import { FileBasedRecommendations } from 'vs/workbench/contrib/extensions/browser/fileBasedRecommendations';
-import { KeymapRecommendations } from 'vs/workbench/contrib/extensions/browser/keymapRecommendations';
-import { LanguageRecommendations } from 'vs/workbench/contrib/extensions/browser/languageRecommendations';
-import { ExtensionRecommendation } from 'vs/workbench/contrib/extensions/browser/extensionRecommendations';
-import { ConfigBasedRecommendations } from 'vs/workbench/contrib/extensions/browser/configBasedRecommendations';
-import { IExtensionRecommendationNotificationService } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
-import { CancelablePromise, timeout } from 'vs/base/common/async';
-import { URI } from 'vs/base/common/uri';
-import { WebRecommendations } from 'vs/workbench/contrib/extensions/browser/webRecommendations';
-import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
-import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { RemoteRecommendations } from 'vs/workbench/contrib/extensions/browser/remoteRecommendations';
-import { IRemoteExtensionsScannerService } from 'vs/platform/remote/common/remoteExtensionsScanner';
-import { IUserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
-import { isString } from 'vs/base/common/types';
+import { Disposable, toDisposable } from '../../../../base/common/lifecycle';
+import { IExtensionManagementService, IExtensionGalleryService, InstallOperation, InstallExtensionResult } from '../../../../platform/extensionManagement/common/extensionManagement';
+import { IExtensionRecommendationsService, ExtensionRecommendationReason, IExtensionIgnoredRecommendationsService } from '../../../services/extensionRecommendations/common/extensionRecommendations';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
+import { shuffle } from '../../../../base/common/arrays';
+import { Emitter, Event } from '../../../../base/common/event';
+import { IEnvironmentService } from '../../../../platform/environment/common/environment';
+import { LifecyclePhase, ILifecycleService } from '../../../services/lifecycle/common/lifecycle';
+import { ExeBasedRecommendations } from './exeBasedRecommendations';
+import { WorkspaceRecommendations } from './workspaceRecommendations';
+import { FileBasedRecommendations } from './fileBasedRecommendations';
+import { KeymapRecommendations } from './keymapRecommendations';
+import { LanguageRecommendations } from './languageRecommendations';
+import { ExtensionRecommendation } from './extensionRecommendations';
+import { ConfigBasedRecommendations } from './configBasedRecommendations';
+import { IExtensionRecommendationNotificationService } from '../../../../platform/extensionRecommendations/common/extensionRecommendations';
+import { CancelablePromise, timeout } from '../../../../base/common/async';
+import { URI } from '../../../../base/common/uri';
+import { WebRecommendations } from './webRecommendations';
+import { IExtensionsWorkbenchService } from '../common/extensions';
+import { areSameExtensions } from '../../../../platform/extensionManagement/common/extensionManagementUtil';
+import { RemoteRecommendations } from './remoteRecommendations';
+import { IRemoteExtensionsScannerService } from '../../../../platform/remote/common/remoteExtensionsScanner';
+import { IUserDataInitializationService } from '../../../services/userData/browser/userDataInit';
+import { isString } from '../../../../base/common/types';
 
 type IgnoreRecommendationClassification = {
 	owner: 'sandy081';

@@ -5,12 +5,12 @@
 
 import { createWriteStream, WriteStream, promises } from 'fs';
 import { Readable } from 'stream';
-import { createCancelablePromise, Sequencer } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import * as path from 'vs/base/common/path';
-import { assertIsDefined } from 'vs/base/common/types';
-import { Promises } from 'vs/base/node/pfs';
-import * as nls from 'vs/nls';
+import { createCancelablePromise, Sequencer } from '../common/async';
+import { CancellationToken } from '../common/cancellation';
+import * as path from '../common/path';
+import { assertIsDefined } from '../common/types';
+import { Promises } from './pfs';
+import * as nls from '../../nls';
 import type { Entry, ZipFile } from 'yauzl';
 
 export const CorruptZipMessage: string = 'end of central directory record signature not found';

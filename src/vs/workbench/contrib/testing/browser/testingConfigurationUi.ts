@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { groupBy } from 'vs/base/common/arrays';
-import { isDefined } from 'vs/base/common/types';
-import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { localize } from 'vs/nls';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { QuickPickInput, IQuickPickItem, IQuickInputService, IQuickPickItemButtonEvent } from 'vs/platform/quickinput/common/quickInput';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { testingUpdateProfiles } from 'vs/workbench/contrib/testing/browser/icons';
-import { testConfigurationGroupNames } from 'vs/workbench/contrib/testing/common/constants';
-import { InternalTestItem, ITestRunProfile, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
-import { canUseProfileWithTest, ITestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { groupBy } from '../../../../base/common/arrays';
+import { isDefined } from '../../../../base/common/types';
+import { ServicesAccessor } from '../../../../editor/browser/editorExtensions';
+import { localize } from '../../../../nls';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands';
+import { QuickPickInput, IQuickPickItem, IQuickInputService, IQuickPickItemButtonEvent } from '../../../../platform/quickinput/common/quickInput';
+import { ThemeIcon } from '../../../../base/common/themables';
+import { testingUpdateProfiles } from './icons';
+import { testConfigurationGroupNames } from '../common/constants';
+import { InternalTestItem, ITestRunProfile, TestRunProfileBitset } from '../common/testTypes';
+import { canUseProfileWithTest, ITestProfileService } from '../common/testProfileService';
+import { DisposableStore } from '../../../../base/common/lifecycle';
 
 interface IConfigurationPickerOptions {
 	/** Placeholder text */

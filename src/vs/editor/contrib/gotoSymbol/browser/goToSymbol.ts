@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce } from 'vs/base/common/arrays';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { matchesSomeScheme, Schemas } from 'vs/base/common/network';
-import { registerModelAndPositionCommand } from 'vs/editor/browser/editorExtensions';
-import { Position } from 'vs/editor/common/core/position';
-import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
-import { DeclarationProvider, DefinitionProvider, ImplementationProvider, LocationLink, ProviderResult, ReferenceProvider, TypeDefinitionProvider } from 'vs/editor/common/languages';
-import { ITextModel } from 'vs/editor/common/model';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { ReferencesModel } from 'vs/editor/contrib/gotoSymbol/browser/referencesModel';
+import { coalesce } from '../../../../base/common/arrays';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import { onUnexpectedExternalError } from '../../../../base/common/errors';
+import { matchesSomeScheme, Schemas } from '../../../../base/common/network';
+import { registerModelAndPositionCommand } from '../../../browser/editorExtensions';
+import { Position } from '../../../common/core/position';
+import { LanguageFeatureRegistry } from '../../../common/languageFeatureRegistry';
+import { DeclarationProvider, DefinitionProvider, ImplementationProvider, LocationLink, ProviderResult, ReferenceProvider, TypeDefinitionProvider } from '../../../common/languages';
+import { ITextModel } from '../../../common/model';
+import { ILanguageFeaturesService } from '../../../common/services/languageFeatures';
+import { ReferencesModel } from './referencesModel';
 
 function shouldIncludeLocationLink(sourceModel: ITextModel, loc: LocationLink): boolean {
 	// Always allow the location if the request comes from a document with the same scheme.

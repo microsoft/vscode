@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { ThemeColor } from 'vs/base/common/themables';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { IDimension } from 'vs/editor/common/core/dimension';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { ISelection, Selection } from 'vs/editor/common/core/selection';
-import { IModelDecoration, IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel, IValidEditOperation, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { IModelDecorationsChangedEvent } from 'vs/editor/common/textModelEvents';
-import { ICommandMetadata } from 'vs/platform/commands/common/commands';
+import { Event } from '../../base/common/event';
+import { IMarkdownString } from '../../base/common/htmlContent';
+import { IDisposable } from '../../base/common/lifecycle';
+import { ThemeColor } from '../../base/common/themables';
+import { URI, UriComponents } from '../../base/common/uri';
+import { IEditorOptions } from './config/editorOptions';
+import { IDimension } from './core/dimension';
+import { IPosition, Position } from './core/position';
+import { IRange, Range } from './core/range';
+import { ISelection, Selection } from './core/selection';
+import { IModelDecoration, IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel, IValidEditOperation, OverviewRulerLane, TrackedRangeStickiness } from './model';
+import { IModelDecorationsChangedEvent } from './textModelEvents';
+import { ICommandMetadata } from '../../platform/commands/common/commands';
 
 /**
  * A builder and helper for edit operations for a command.

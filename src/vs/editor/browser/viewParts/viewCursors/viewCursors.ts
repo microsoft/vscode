@@ -4,24 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./viewCursors';
-import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { IntervalTimer, TimeoutTimer } from 'vs/base/common/async';
-import { ViewPart } from 'vs/editor/browser/view/viewPart';
-import { IViewCursorRenderData, ViewCursor, CursorPlurality } from 'vs/editor/browser/viewParts/viewCursors/viewCursor';
-import { TextEditorCursorBlinkingStyle, TextEditorCursorStyle, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Position } from 'vs/editor/common/core/position';
+import { FastDomNode, createFastDomNode } from '../../../../base/browser/fastDomNode';
+import { IntervalTimer, TimeoutTimer } from '../../../../base/common/async';
+import { ViewPart } from '../../view/viewPart';
+import { IViewCursorRenderData, ViewCursor, CursorPlurality } from './viewCursor';
+import { TextEditorCursorBlinkingStyle, TextEditorCursorStyle, EditorOption } from '../../../common/config/editorOptions';
+import { Position } from '../../../common/core/position';
 import {
 	editorCursorBackground, editorCursorForeground,
 	editorMultiCursorPrimaryForeground, editorMultiCursorPrimaryBackground,
 	editorMultiCursorSecondaryForeground, editorMultiCursorSecondaryBackground
-} from 'vs/editor/common/core/editorColorRegistry';
-import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
-import * as viewEvents from 'vs/editor/common/viewEvents';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { isHighContrast } from 'vs/platform/theme/common/theme';
-import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
-import { WindowIntervalTimer, getWindow } from 'vs/base/browser/dom';
+} from '../../../common/core/editorColorRegistry';
+import { RenderingContext, RestrictedRenderingContext } from '../../view/renderingContext';
+import { ViewContext } from '../../../common/viewModel/viewContext';
+import * as viewEvents from '../../../common/viewEvents';
+import { registerThemingParticipant } from '../../../../platform/theme/common/themeService';
+import { isHighContrast } from '../../../../platform/theme/common/theme';
+import { CursorChangeReason } from '../../../common/cursorEvents';
+import { WindowIntervalTimer, getWindow } from '../../../../base/browser/dom';
 
 export class ViewCursors extends ViewPart {
 

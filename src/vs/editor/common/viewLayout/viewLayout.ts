@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Emitter } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { IScrollPosition, ScrollEvent, Scrollable, ScrollbarVisibility, INewScrollPosition } from 'vs/base/common/scrollable';
-import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { ScrollType } from 'vs/editor/common/editorCommon';
-import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
-import { LinesLayout } from 'vs/editor/common/viewLayout/linesLayout';
-import { IEditorWhitespace, IPartialViewLinesViewportData, IViewLayout, IViewWhitespaceViewportData, IWhitespaceChangeAccessor, Viewport } from 'vs/editor/common/viewModel';
-import { ContentSizeChangedEvent } from 'vs/editor/common/viewModelEventDispatcher';
+import { Event, Emitter } from '../../../base/common/event';
+import { Disposable, IDisposable } from '../../../base/common/lifecycle';
+import { IScrollPosition, ScrollEvent, Scrollable, ScrollbarVisibility, INewScrollPosition } from '../../../base/common/scrollable';
+import { ConfigurationChangedEvent, EditorOption } from '../config/editorOptions';
+import { ScrollType } from '../editorCommon';
+import { IEditorConfiguration } from '../config/editorConfiguration';
+import { LinesLayout } from './linesLayout';
+import { IEditorWhitespace, IPartialViewLinesViewportData, IViewLayout, IViewWhitespaceViewportData, IWhitespaceChangeAccessor, Viewport } from '../viewModel';
+import { ContentSizeChangedEvent } from '../viewModelEventDispatcher';
 
 const SMOOTH_SCROLLING_TIME = 125;
 

@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDragAndDropData } from 'vs/base/browser/dnd';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { IMouseEvent } from 'vs/base/browser/mouseEvent';
-import { GestureEvent } from 'vs/base/browser/touch';
-import { ListViewTargetSector } from 'vs/base/browser/ui/list/listView';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDragAndDropData } from '../../dnd';
+import { IKeyboardEvent } from '../../keyboardEvent';
+import { IMouseEvent } from '../../mouseEvent';
+import { GestureEvent } from '../../touch';
+import { ListViewTargetSector } from './listView';
+import { IDisposable } from '../../../common/lifecycle';
 
 export interface IListVirtualDelegate<T> {
 	getHeight(element: T): number;

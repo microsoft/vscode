@@ -4,22 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, strictEqual, ok } from 'assert';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { Schemas } from 'vs/base/common/network';
-import { join } from 'vs/base/common/path';
-import { isWindows, OperatingSystem } from 'vs/base/common/platform';
-import { env } from 'vs/base/common/process';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IFileService } from 'vs/platform/files/common/files';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { fetchBashHistory, fetchFishHistory, fetchPwshHistory, fetchZshHistory, ITerminalPersistedHistory, sanitizeFishHistoryCmd, TerminalPersistedHistory } from 'vs/workbench/contrib/terminal/common/history';
-import { IRemoteAgentConnection, IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+import { VSBuffer } from '../../../../../base/common/buffer';
+import { Schemas } from '../../../../../base/common/network';
+import { join } from '../../../../../base/common/path';
+import { isWindows, OperatingSystem } from '../../../../../base/common/platform';
+import { env } from '../../../../../base/common/process';
+import { URI } from '../../../../../base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService';
+import { IFileService } from '../../../../../platform/files/common/files';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock';
+import { IRemoteAgentEnvironment } from '../../../../../platform/remote/common/remoteAgentEnvironment';
+import { IStorageService } from '../../../../../platform/storage/common/storage';
+import { fetchBashHistory, fetchFishHistory, fetchPwshHistory, fetchZshHistory, ITerminalPersistedHistory, sanitizeFishHistoryCmd, TerminalPersistedHistory } from '../../common/history';
+import { IRemoteAgentConnection, IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService';
+import { TestStorageService } from '../../../../test/common/workbenchTestServices';
 
 function getConfig(limit: number) {
 	return {

@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AbstractExtHostConsoleForwarder } from 'vs/workbench/api/common/extHostConsoleForwarder';
-import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
+import { AbstractExtHostConsoleForwarder } from '../common/extHostConsoleForwarder';
+import { IExtHostInitDataService } from '../common/extHostInitDataService';
+import { IExtHostRpcService } from '../common/extHostRpcService';
 
 export class ExtHostConsoleForwarder extends AbstractExtHostConsoleForwarder {
 

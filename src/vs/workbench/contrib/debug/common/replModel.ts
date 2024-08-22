@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import severity from 'vs/base/common/severity';
-import { isObject, isString } from 'vs/base/common/types';
-import { generateUuid } from 'vs/base/common/uuid';
-import * as nls from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IDebugConfiguration, IDebugSession, IExpression, INestingReplElement, IReplElement, IReplElementSource, IStackFrame } from 'vs/workbench/contrib/debug/common/debug';
-import { ExpressionContainer } from 'vs/workbench/contrib/debug/common/debugModel';
+import { Emitter, Event } from '../../../../base/common/event';
+import severity from '../../../../base/common/severity';
+import { isObject, isString } from '../../../../base/common/types';
+import { generateUuid } from '../../../../base/common/uuid';
+import * as nls from '../../../../nls';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration';
+import { IDebugConfiguration, IDebugSession, IExpression, INestingReplElement, IReplElement, IReplElementSource, IStackFrame } from './debug';
+import { ExpressionContainer } from './debugModel';
 
 const MAX_REPL_LENGTH = 10000;
 let topReplElementCounter = 0;

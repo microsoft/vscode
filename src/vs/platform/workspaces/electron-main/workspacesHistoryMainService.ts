@@ -4,27 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { app, JumpListCategory, JumpListItem } from 'electron';
-import { coalesce } from 'vs/base/common/arrays';
-import { ThrottledDelayer } from 'vs/base/common/async';
-import { Emitter, Event as CommonEvent } from 'vs/base/common/event';
-import { normalizeDriveLetter, splitRecentLabel } from 'vs/base/common/labels';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { isMacintosh, isWindows } from 'vs/base/common/platform';
-import { basename, extUriBiasedIgnorePathCase, originalFSPath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { Promises } from 'vs/base/node/pfs';
-import { localize } from 'vs/nls';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ILifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IApplicationStorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
-import { IRecent, IRecentFile, IRecentFolder, IRecentlyOpened, IRecentWorkspace, isRecentFile, isRecentFolder, isRecentWorkspace, restoreRecentlyOpened, toStoreData } from 'vs/platform/workspaces/common/workspaces';
-import { IWorkspaceIdentifier, WORKSPACE_EXTENSION } from 'vs/platform/workspace/common/workspace';
-import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
-import { ResourceMap } from 'vs/base/common/map';
-import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
+import { coalesce } from '../../../base/common/arrays';
+import { ThrottledDelayer } from '../../../base/common/async';
+import { Emitter, Event as CommonEvent } from '../../../base/common/event';
+import { normalizeDriveLetter, splitRecentLabel } from '../../../base/common/labels';
+import { Disposable } from '../../../base/common/lifecycle';
+import { Schemas } from '../../../base/common/network';
+import { isMacintosh, isWindows } from '../../../base/common/platform';
+import { basename, extUriBiasedIgnorePathCase, originalFSPath } from '../../../base/common/resources';
+import { URI } from '../../../base/common/uri';
+import { Promises } from '../../../base/node/pfs';
+import { localize } from '../../../nls';
+import { createDecorator } from '../../instantiation/common/instantiation';
+import { ILifecycleMainService, LifecycleMainPhase } from '../../lifecycle/electron-main/lifecycleMainService';
+import { ILogService } from '../../log/common/log';
+import { StorageScope, StorageTarget } from '../../storage/common/storage';
+import { IApplicationStorageMainService } from '../../storage/electron-main/storageMainService';
+import { IRecent, IRecentFile, IRecentFolder, IRecentlyOpened, IRecentWorkspace, isRecentFile, isRecentFolder, isRecentWorkspace, restoreRecentlyOpened, toStoreData } from '../common/workspaces';
+import { IWorkspaceIdentifier, WORKSPACE_EXTENSION } from '../../workspace/common/workspace';
+import { IWorkspacesManagementMainService } from './workspacesManagementMainService';
+import { ResourceMap } from '../../../base/common/map';
+import { IDialogMainService } from '../../dialogs/electron-main/dialogMainService';
 
 export const IWorkspacesHistoryMainService = createDecorator<IWorkspacesHistoryMainService>('workspacesHistoryMainService');
 

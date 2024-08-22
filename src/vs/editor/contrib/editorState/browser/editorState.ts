@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as strings from 'vs/base/common/strings';
-import { ICodeEditor, IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Position } from 'vs/editor/common/core/position';
-import { Range, IRange } from 'vs/editor/common/core/range';
-import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
-import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ITextModel } from 'vs/editor/common/model';
-import { EditorKeybindingCancellationTokenSource } from 'vs/editor/contrib/editorState/browser/keybindingCancellation';
+import * as strings from '../../../../base/common/strings';
+import { ICodeEditor, IActiveCodeEditor } from '../../../browser/editorBrowser';
+import { Position } from '../../../common/core/position';
+import { Range, IRange } from '../../../common/core/range';
+import { CancellationTokenSource, CancellationToken } from '../../../../base/common/cancellation';
+import { IDisposable, DisposableStore } from '../../../../base/common/lifecycle';
+import { ITextModel } from '../../../common/model';
+import { EditorKeybindingCancellationTokenSource } from './keybindingCancellation';
 
 export const enum CodeEditorStateFlag {
 	Value = 1,

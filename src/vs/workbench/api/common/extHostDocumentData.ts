@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ok } from 'vs/base/common/assert';
-import { Schemas } from 'vs/base/common/network';
-import { regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import { MirrorTextModel } from 'vs/editor/common/model/mirrorTextModel';
-import { ensureValidWordDefinition, getWordAtText } from 'vs/editor/common/core/wordHelper';
-import { MainThreadDocumentsShape } from 'vs/workbench/api/common/extHost.protocol';
-import { EndOfLine, Position, Range } from 'vs/workbench/api/common/extHostTypes';
+import { ok } from '../../../base/common/assert';
+import { Schemas } from '../../../base/common/network';
+import { regExpLeadsToEndlessLoop } from '../../../base/common/strings';
+import { URI } from '../../../base/common/uri';
+import { MirrorTextModel } from '../../../editor/common/model/mirrorTextModel';
+import { ensureValidWordDefinition, getWordAtText } from '../../../editor/common/core/wordHelper';
+import { MainThreadDocumentsShape } from './extHost.protocol';
+import { EndOfLine, Position, Range } from './extHostTypes';
 import type * as vscode from 'vscode';
-import { equals } from 'vs/base/common/arrays';
+import { equals } from '../../../base/common/arrays';
 
 const _languageId2WordDefinition = new Map<string, RegExp>();
 export function setWordDefinitionFor(languageId: string, wordDefinition: RegExp | undefined): void {

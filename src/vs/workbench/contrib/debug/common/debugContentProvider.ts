@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI as uri } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { getMimeTypes } from 'vs/editor/common/services/languagesAssociations';
-import { ITextModel } from 'vs/editor/common/model';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { DEBUG_SCHEME, IDebugService, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
-import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Range } from 'vs/editor/common/core/range';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { ErrorNoTelemetry } from 'vs/base/common/errors';
+import { URI as uri } from '../../../../base/common/uri';
+import { localize } from '../../../../nls';
+import { getMimeTypes } from '../../../../editor/common/services/languagesAssociations';
+import { ITextModel } from '../../../../editor/common/model';
+import { IModelService } from '../../../../editor/common/services/model';
+import { ILanguageService } from '../../../../editor/common/languages/language';
+import { ITextModelService, ITextModelContentProvider } from '../../../../editor/common/services/resolverService';
+import { IWorkbenchContribution } from '../../../common/contributions';
+import { DEBUG_SCHEME, IDebugService, IDebugSession } from './debug';
+import { Source } from './debugSource';
+import { IEditorWorkerService } from '../../../../editor/common/services/editorWorker';
+import { EditOperation } from '../../../../editor/common/core/editOperation';
+import { Range } from '../../../../editor/common/core/range';
+import { CancellationTokenSource } from '../../../../base/common/cancellation';
+import { PLAINTEXT_LANGUAGE_ID } from '../../../../editor/common/languages/modesRegistry';
+import { ErrorNoTelemetry } from '../../../../base/common/errors';
 
 /**
  * Debug URI format

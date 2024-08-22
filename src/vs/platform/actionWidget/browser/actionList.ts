@@ -2,22 +2,22 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as dom from 'vs/base/browser/dom';
-import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
-import { IListEvent, IListMouseEvent, IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { List } from 'vs/base/browser/ui/list/listWidget';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Codicon } from 'vs/base/common/codicons';
-import { ResolvedKeybinding } from 'vs/base/common/keybindings';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { OS } from 'vs/base/common/platform';
-import { ThemeIcon } from 'vs/base/common/themables';
+import * as dom from '../../../base/browser/dom';
+import { KeybindingLabel } from '../../../base/browser/ui/keybindingLabel/keybindingLabel';
+import { IListEvent, IListMouseEvent, IListRenderer, IListVirtualDelegate } from '../../../base/browser/ui/list/list';
+import { List } from '../../../base/browser/ui/list/listWidget';
+import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation';
+import { Codicon } from '../../../base/common/codicons';
+import { ResolvedKeybinding } from '../../../base/common/keybindings';
+import { Disposable } from '../../../base/common/lifecycle';
+import { OS } from '../../../base/common/platform';
+import { ThemeIcon } from '../../../base/common/themables';
 import 'vs/css!./actionWidget';
-import { localize } from 'vs/nls';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { defaultListStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { asCssVariable } from 'vs/platform/theme/common/colorRegistry';
+import { localize } from '../../../nls';
+import { IContextViewService } from '../../contextview/browser/contextView';
+import { IKeybindingService } from '../../keybinding/common/keybinding';
+import { defaultListStyles } from '../../theme/browser/defaultStyles';
+import { asCssVariable } from '../../theme/common/colorRegistry';
 
 export const acceptSelectedActionCommand = 'acceptSelectedCodeAction';
 export const previewSelectedActionCommand = 'previewSelectedCodeAction';

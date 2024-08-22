@@ -6,13 +6,13 @@
 import * as fs from 'fs';
 import assert from 'assert';
 import { tmpdir } from 'os';
-import { createCancelablePromise } from 'vs/base/common/async';
-import { FileAccess } from 'vs/base/common/network';
-import * as path from 'vs/base/common/path';
-import { Promises } from 'vs/base/node/pfs';
-import { extract } from 'vs/base/node/zip';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { getRandomTestPath } from 'vs/base/test/node/testUtils';
+import { createCancelablePromise } from '../../../common/async';
+import { FileAccess } from '../../../common/network';
+import * as path from '../../../common/path';
+import { Promises } from '../../../node/pfs';
+import { extract } from '../../../node/zip';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../common/utils';
+import { getRandomTestPath } from '../testUtils';
 
 suite('Zip', () => {
 

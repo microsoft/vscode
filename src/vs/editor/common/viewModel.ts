@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as arrays from 'vs/base/common/arrays';
-import { IScrollPosition, Scrollable } from 'vs/base/common/scrollable';
-import * as strings from 'vs/base/common/strings';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { CursorConfiguration, CursorState, EditOperationType, IColumnSelectData, ICursorSimpleModel, PartialCursorState } from 'vs/editor/common/cursorCommon';
-import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
-import { INewScrollPosition, ScrollType } from 'vs/editor/common/editorCommon';
-import { EditorTheme } from 'vs/editor/common/editorTheme';
-import { EndOfLinePreference, IGlyphMarginLanesModel, IModelDecorationOptions, ITextModel, PositionAffinity } from 'vs/editor/common/model';
-import { ILineBreaksComputer, InjectedText } from 'vs/editor/common/modelLineProjectionData';
-import { BracketGuideOptions, IActiveIndentGuideInfo, IndentGuide } from 'vs/editor/common/textModelGuides';
-import { IViewLineTokens } from 'vs/editor/common/tokens/lineTokens';
-import { ViewEventHandler } from 'vs/editor/common/viewEventHandler';
-import { VerticalRevealType } from 'vs/editor/common/viewEvents';
+import * as arrays from '../../base/common/arrays';
+import { IScrollPosition, Scrollable } from '../../base/common/scrollable';
+import * as strings from '../../base/common/strings';
+import { IPosition, Position } from './core/position';
+import { Range } from './core/range';
+import { CursorConfiguration, CursorState, EditOperationType, IColumnSelectData, ICursorSimpleModel, PartialCursorState } from './cursorCommon';
+import { CursorChangeReason } from './cursorEvents';
+import { INewScrollPosition, ScrollType } from './editorCommon';
+import { EditorTheme } from './editorTheme';
+import { EndOfLinePreference, IGlyphMarginLanesModel, IModelDecorationOptions, ITextModel, PositionAffinity } from './model';
+import { ILineBreaksComputer, InjectedText } from './modelLineProjectionData';
+import { BracketGuideOptions, IActiveIndentGuideInfo, IndentGuide } from './textModelGuides';
+import { IViewLineTokens } from './tokens/lineTokens';
+import { ViewEventHandler } from './viewEventHandler';
+import { VerticalRevealType } from './viewEvents';
 
 export interface IViewModel extends ICursorSimpleModel {
 

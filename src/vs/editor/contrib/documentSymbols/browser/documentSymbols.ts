@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { assertType } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IOutlineModelService } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import { assertType } from '../../../../base/common/types';
+import { URI } from '../../../../base/common/uri';
+import { ITextModelService } from '../../../common/services/resolverService';
+import { IOutlineModelService } from './outlineModel';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands';
 
 CommandsRegistry.registerCommand('_executeDocumentSymbolProvider', async function (accessor, ...args) {
 	const [resource] = args;

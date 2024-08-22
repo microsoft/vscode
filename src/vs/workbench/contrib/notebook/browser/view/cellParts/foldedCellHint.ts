@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { localize } from 'vs/nls';
-import { FoldingController } from 'vs/workbench/contrib/notebook/browser/controller/foldingController';
-import { CellEditState, CellFoldingState, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellContentPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
-import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
-import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import { executingStateIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
-import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { CellKind, NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { MutableDisposable } from 'vs/base/common/lifecycle';
+import * as DOM from '../../../../../../base/browser/dom';
+import { Codicon } from '../../../../../../base/common/codicons';
+import { ThemeIcon } from '../../../../../../base/common/themables';
+import { localize } from '../../../../../../nls';
+import { FoldingController } from '../../controller/foldingController';
+import { CellEditState, CellFoldingState, INotebookEditor } from '../../notebookBrowser';
+import { CellContentPart } from '../cellPart';
+import { MarkupCellViewModel } from '../../viewModel/markupCellViewModel';
+import { ICellRange } from '../../../common/notebookRange';
+import { executingStateIcon } from '../../notebookIcons';
+import { INotebookExecutionStateService } from '../../../common/notebookExecutionStateService';
+import { CellKind, NotebookCellExecutionState } from '../../../common/notebookCommon';
+import { MutableDisposable } from '../../../../../../base/common/lifecycle';
 
 export class FoldedCellHint extends CellContentPart {
 

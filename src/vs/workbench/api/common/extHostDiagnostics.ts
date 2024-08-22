@@ -5,20 +5,20 @@
 
 /* eslint-disable local/code-no-native-private */
 
-import { localize } from 'vs/nls';
-import { IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { localize } from '../../../nls';
+import { IMarkerData, MarkerSeverity } from '../../../platform/markers/common/markers';
+import { URI, UriComponents } from '../../../base/common/uri';
 import type * as vscode from 'vscode';
 import { MainContext, MainThreadDiagnosticsShape, ExtHostDiagnosticsShape, IMainContext } from './extHost.protocol';
 import { DiagnosticSeverity } from './extHostTypes';
 import * as converter from './extHostTypeConverters';
-import { Event, Emitter, DebounceEmitter } from 'vs/base/common/event';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ResourceMap } from 'vs/base/common/map';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
-import { IExtUri } from 'vs/base/common/resources';
-import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
+import { Event, Emitter, DebounceEmitter } from '../../../base/common/event';
+import { ILogService } from '../../../platform/log/common/log';
+import { ResourceMap } from '../../../base/common/map';
+import { ExtensionIdentifier } from '../../../platform/extensions/common/extensions';
+import { IExtHostFileSystemInfo } from './extHostFileSystemInfo';
+import { IExtUri } from '../../../base/common/resources';
+import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors';
 
 export class DiagnosticCollection implements vscode.DiagnosticCollection {
 

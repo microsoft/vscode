@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce } from 'vs/base/common/arrays';
-import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
-import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import * as languages from 'vs/editor/common/languages';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
-import { CommentThreadWidget } from 'vs/workbench/contrib/comments/browser/commentThreadWidget';
-import { ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellContentPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
-import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
+import { coalesce } from '../../../../../../base/common/arrays';
+import { DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle';
+import { EDITOR_FONT_DEFAULTS, IEditorOptions } from '../../../../../../editor/common/config/editorOptions';
+import * as languages from '../../../../../../editor/common/languages';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration';
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation';
+import { IThemeService } from '../../../../../../platform/theme/common/themeService';
+import { ICommentService } from '../../../../comments/browser/commentService';
+import { CommentThreadWidget } from '../../../../comments/browser/commentThreadWidget';
+import { ICellViewModel, INotebookEditorDelegate } from '../../notebookBrowser';
+import { CellContentPart } from '../cellPart';
+import { ICellRange } from '../../../common/notebookRange';
 
 export class CellComments extends CellContentPart {
 	private readonly _commentThreadWidget: MutableDisposable<CommentThreadWidget<ICellRange>>;

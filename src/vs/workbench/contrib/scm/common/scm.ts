@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { Command } from 'vs/editor/common/languages';
-import { IAction } from 'vs/base/common/actions';
-import { IMenu } from 'vs/platform/actions/common/actions';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { ResourceTree } from 'vs/base/common/resourceTree';
-import { ISCMHistoryProvider, ISCMHistoryProviderMenus } from 'vs/workbench/contrib/scm/common/history';
-import { ITextModel } from 'vs/editor/common/model';
-import { IObservable } from 'vs/base/common/observable';
+import { URI } from '../../../../base/common/uri';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation';
+import { Event } from '../../../../base/common/event';
+import { IDisposable } from '../../../../base/common/lifecycle';
+import { Command } from '../../../../editor/common/languages';
+import { IAction } from '../../../../base/common/actions';
+import { IMenu } from '../../../../platform/actions/common/actions';
+import { ThemeIcon } from '../../../../base/common/themables';
+import { IMarkdownString } from '../../../../base/common/htmlContent';
+import { ResourceTree } from '../../../../base/common/resourceTree';
+import { ISCMHistoryProvider, ISCMHistoryProviderMenus } from './history';
+import { ITextModel } from '../../../../editor/common/model';
+import { IObservable } from '../../../../base/common/observable';
 
 export const VIEWLET_ID = 'workbench.view.scm';
 export const VIEW_PANE_ID = 'workbench.scm';

@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { localize2 } from 'vs/nls';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { CHAT_CATEGORY, stringifyItem } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
-import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
-import { CONTEXT_RESPONSE_FILTERED } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
+import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions';
+import { localize2 } from '../../../../../nls';
+import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService';
+import { CHAT_CATEGORY, stringifyItem } from './chatActions';
+import { IChatWidgetService } from '../chat';
+import { CONTEXT_RESPONSE_FILTERED } from '../../common/chatContextKeys';
+import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../../common/chatViewModel';
 
 export function registerChatCopyActions() {
 	registerAction2(class CopyAllAction extends Action2 {

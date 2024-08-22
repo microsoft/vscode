@@ -4,26 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { joinPath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { isUUID } from 'vs/base/common/uuid';
-import { mock } from 'vs/base/test/common/mock';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IRawGalleryExtensionVersion, sortExtensionVersions } from 'vs/platform/extensionManagement/common/extensionGalleryService';
-import { IFileService } from 'vs/platform/files/common/files';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
-import { NullLogService } from 'vs/platform/log/common/log';
-import product from 'vs/platform/product/common/product';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { resolveMarketplaceHeaders } from 'vs/platform/externalServices/common/marketplace';
-import { InMemoryStorageService, IStorageService } from 'vs/platform/storage/common/storage';
-import { TelemetryConfiguration, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
-import { TargetPlatform } from 'vs/platform/extensions/common/extensions';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { joinPath } from '../../../../base/common/resources';
+import { URI } from '../../../../base/common/uri';
+import { isUUID } from '../../../../base/common/uuid';
+import { mock } from '../../../../base/test/common/mock';
+import { IConfigurationService } from '../../../configuration/common/configuration';
+import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService';
+import { IEnvironmentService } from '../../../environment/common/environment';
+import { IRawGalleryExtensionVersion, sortExtensionVersions } from '../../common/extensionGalleryService';
+import { IFileService } from '../../../files/common/files';
+import { FileService } from '../../../files/common/fileService';
+import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider';
+import { NullLogService } from '../../../log/common/log';
+import product from '../../../product/common/product';
+import { IProductService } from '../../../product/common/productService';
+import { resolveMarketplaceHeaders } from '../../../externalServices/common/marketplace';
+import { InMemoryStorageService, IStorageService } from '../../../storage/common/storage';
+import { TelemetryConfiguration, TELEMETRY_SETTING_ID } from '../../../telemetry/common/telemetry';
+import { TargetPlatform } from '../../../extensions/common/extensions';
+import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils';
 
 class EnvironmentServiceMock extends mock<IEnvironmentService>() {
 	override readonly serviceMachineIdResource: URI;

@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { quickSelect } from 'vs/base/common/arrays';
-import { CharCode } from 'vs/base/common/charCode';
-import { anyScore, fuzzyScore, FuzzyScore, fuzzyScoreGracefulAggressive, FuzzyScoreOptions, FuzzyScorer } from 'vs/base/common/filters';
-import { compareIgnoreCase } from 'vs/base/common/strings';
-import { InternalSuggestOptions } from 'vs/editor/common/config/editorOptions';
-import { CompletionItemKind, CompletionItemProvider } from 'vs/editor/common/languages';
-import { WordDistance } from 'vs/editor/contrib/suggest/browser/wordDistance';
+import { quickSelect } from '../../../../base/common/arrays';
+import { CharCode } from '../../../../base/common/charCode';
+import { anyScore, fuzzyScore, FuzzyScore, fuzzyScoreGracefulAggressive, FuzzyScoreOptions, FuzzyScorer } from '../../../../base/common/filters';
+import { compareIgnoreCase } from '../../../../base/common/strings';
+import { InternalSuggestOptions } from '../../../common/config/editorOptions';
+import { CompletionItemKind, CompletionItemProvider } from '../../../common/languages';
+import { WordDistance } from './wordDistance';
 import { CompletionItem } from './suggest';
 
 type StrictCompletionItem = Required<CompletionItem>;

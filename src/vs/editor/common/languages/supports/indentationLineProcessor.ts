@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as strings from 'vs/base/common/strings';
-import { Range } from 'vs/editor/common/core/range';
-import { ITextModel } from 'vs/editor/common/model';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { createScopedLineTokens, ScopedLineTokens } from 'vs/editor/common/languages/supports';
-import { IVirtualModel } from 'vs/editor/common/languages/autoIndent';
-import { IViewLineTokens, LineTokens } from 'vs/editor/common/tokens/lineTokens';
-import { IndentRulesSupport } from 'vs/editor/common/languages/supports/indentRules';
-import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
-import { Position } from 'vs/editor/common/core/position';
+import * as strings from '../../../../base/common/strings';
+import { Range } from '../../core/range';
+import { ITextModel } from '../../model';
+import { ILanguageConfigurationService } from '../languageConfigurationRegistry';
+import { createScopedLineTokens, ScopedLineTokens } from '../supports';
+import { IVirtualModel } from '../autoIndent';
+import { IViewLineTokens, LineTokens } from '../../tokens/lineTokens';
+import { IndentRulesSupport } from './indentRules';
+import { StandardTokenType } from '../../encodedTokenAttributes';
+import { Position } from '../../core/position';
 
 /**
  * This class is a wrapper class around {@link IndentRulesSupport}.

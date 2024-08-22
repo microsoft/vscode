@@ -3,28 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Promises } from 'vs/base/common/async';
-import { getErrorMessage } from 'vs/base/common/errors';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { joinPath } from 'vs/base/common/resources';
-import * as semver from 'vs/base/common/semver/semver';
-import { isBoolean } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import { Promises as FSPromises } from 'vs/base/node/pfs';
-import { buffer, CorruptZipMessage } from 'vs/base/node/zip';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ExtensionVerificationStatus, toExtensionManagementError } from 'vs/platform/extensionManagement/common/abstractExtensionManagementService';
-import { ExtensionManagementError, ExtensionManagementErrorCode, IExtensionGalleryService, IGalleryExtension, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionKey, groupByExtension } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { fromExtractError } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
-import { ExtensionSignatureVerificationError, ExtensionSignatureVerificationCode, IExtensionSignatureVerificationService } from 'vs/platform/extensionManagement/node/extensionSignatureVerificationService';
-import { TargetPlatform } from 'vs/platform/extensions/common/extensions';
-import { IFileService, IFileStatWithMetadata } from 'vs/platform/files/common/files';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { Promises } from '../../../base/common/async';
+import { getErrorMessage } from '../../../base/common/errors';
+import { Disposable } from '../../../base/common/lifecycle';
+import { Schemas } from '../../../base/common/network';
+import { joinPath } from '../../../base/common/resources';
+import * as semver from '../../../base/common/semver/semver';
+import { isBoolean } from '../../../base/common/types';
+import { URI } from '../../../base/common/uri';
+import { generateUuid } from '../../../base/common/uuid';
+import { Promises as FSPromises } from '../../../base/node/pfs';
+import { buffer, CorruptZipMessage } from '../../../base/node/zip';
+import { IConfigurationService } from '../../configuration/common/configuration';
+import { INativeEnvironmentService } from '../../environment/common/environment';
+import { ExtensionVerificationStatus, toExtensionManagementError } from '../common/abstractExtensionManagementService';
+import { ExtensionManagementError, ExtensionManagementErrorCode, IExtensionGalleryService, IGalleryExtension, InstallOperation } from '../common/extensionManagement';
+import { ExtensionKey, groupByExtension } from '../common/extensionManagementUtil';
+import { fromExtractError } from './extensionManagementUtil';
+import { ExtensionSignatureVerificationError, ExtensionSignatureVerificationCode, IExtensionSignatureVerificationService } from './extensionSignatureVerificationService';
+import { TargetPlatform } from '../../extensions/common/extensions';
+import { IFileService, IFileStatWithMetadata } from '../../files/common/files';
+import { ILogService } from '../../log/common/log';
+import { ITelemetryService } from '../../telemetry/common/telemetry';
 
 type RetryDownloadClassification = {
 	owner: 'sandy081';

@@ -3,30 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import * as strings from 'vs/base/common/strings';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, EditorContributionInstantiation, IActionOptions, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { ShiftCommand } from 'vs/editor/common/commands/shiftCommand';
-import { EditorAutoIndentStrategy, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ICommand, ICursorStateComputerData, IEditOperationBuilder, IEditorContribution } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { EndOfLineSequence, ITextModel } from 'vs/editor/common/model';
-import { TextEdit } from 'vs/editor/common/languages';
-import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { IndentConsts } from 'vs/editor/common/languages/supports/indentRules';
-import { IModelService } from 'vs/editor/common/services/model';
-import * as indentUtils from 'vs/editor/contrib/indentation/common/indentUtils';
-import * as nls from 'vs/nls';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { getGoodIndentForLine, getIndentMetadata } from 'vs/editor/common/languages/autoIndent';
+import { DisposableStore } from '../../../../base/common/lifecycle';
+import * as strings from '../../../../base/common/strings';
+import { ICodeEditor } from '../../../browser/editorBrowser';
+import { EditorAction, EditorContributionInstantiation, IActionOptions, registerEditorAction, registerEditorContribution, ServicesAccessor } from '../../../browser/editorExtensions';
+import { ShiftCommand } from '../../../common/commands/shiftCommand';
+import { EditorAutoIndentStrategy, EditorOption } from '../../../common/config/editorOptions';
+import { ISingleEditOperation } from '../../../common/core/editOperation';
+import { IRange, Range } from '../../../common/core/range';
+import { Selection } from '../../../common/core/selection';
+import { ICommand, ICursorStateComputerData, IEditOperationBuilder, IEditorContribution } from '../../../common/editorCommon';
+import { EditorContextKeys } from '../../../common/editorContextKeys';
+import { EndOfLineSequence, ITextModel } from '../../../common/model';
+import { TextEdit } from '../../../common/languages';
+import { StandardTokenType } from '../../../common/encodedTokenAttributes';
+import { ILanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry';
+import { IndentConsts } from '../../../common/languages/supports/indentRules';
+import { IModelService } from '../../../common/services/model';
+import * as indentUtils from '../common/indentUtils';
+import * as nls from '../../../../nls';
+import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput';
+import { getGoodIndentForLine, getIndentMetadata } from '../../../common/languages/autoIndent';
 import { getReindentEditOperations } from '../common/indentation';
-import { getStandardTokenTypeAtPosition } from 'vs/editor/common/tokens/lineTokens';
-import { Position } from 'vs/editor/common/core/position';
+import { getStandardTokenTypeAtPosition } from '../../../common/tokens/lineTokens';
+import { Position } from '../../../common/core/position';
 
 export class IndentationToSpacesAction extends EditorAction {
 	public static readonly ID = 'editor.action.indentationToSpaces';

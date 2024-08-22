@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SimpleCompletionItem } from 'vs/workbench/services/suggest/browser/simpleCompletionItem';
-import { quickSelect } from 'vs/base/common/arrays';
-import { CharCode } from 'vs/base/common/charCode';
-import { FuzzyScore, fuzzyScore, fuzzyScoreGracefulAggressive, FuzzyScoreOptions, FuzzyScorer } from 'vs/base/common/filters';
-import { isWindows } from 'vs/base/common/platform';
+import { SimpleCompletionItem } from './simpleCompletionItem';
+import { quickSelect } from '../../../../base/common/arrays';
+import { CharCode } from '../../../../base/common/charCode';
+import { FuzzyScore, fuzzyScore, fuzzyScoreGracefulAggressive, FuzzyScoreOptions, FuzzyScorer } from '../../../../base/common/filters';
+import { isWindows } from '../../../../base/common/platform';
 
 export interface ISimpleCompletionStats {
 	pLabelLen: number;

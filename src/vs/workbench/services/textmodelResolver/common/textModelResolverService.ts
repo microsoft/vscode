@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ITextModel } from 'vs/editor/common/model';
-import { IDisposable, toDisposable, IReference, ReferenceCollection, Disposable, AsyncReferenceCollection } from 'vs/base/common/lifecycle';
-import { IModelService } from 'vs/editor/common/services/model';
-import { TextResourceEditorModel } from 'vs/workbench/common/editor/textResourceEditorModel';
-import { ITextFileService, TextFileResolveReason } from 'vs/workbench/services/textfile/common/textfiles';
-import { Schemas } from 'vs/base/common/network';
-import { ITextModelService, ITextModelContentProvider, ITextEditorModel, IResolvedTextEditorModel, isResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
-import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
-import { IFileService } from 'vs/platform/files/common/files';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { ModelUndoRedoParticipant } from 'vs/editor/common/services/modelUndoRedoParticipant';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { UntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
+import { URI } from '../../../../base/common/uri';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { ITextModel } from '../../../../editor/common/model';
+import { IDisposable, toDisposable, IReference, ReferenceCollection, Disposable, AsyncReferenceCollection } from '../../../../base/common/lifecycle';
+import { IModelService } from '../../../../editor/common/services/model';
+import { TextResourceEditorModel } from '../../../common/editor/textResourceEditorModel';
+import { ITextFileService, TextFileResolveReason } from '../../textfile/common/textfiles';
+import { Schemas } from '../../../../base/common/network';
+import { ITextModelService, ITextModelContentProvider, ITextEditorModel, IResolvedTextEditorModel, isResolvedTextEditorModel } from '../../../../editor/common/services/resolverService';
+import { TextFileEditorModel } from '../../textfile/common/textFileEditorModel';
+import { IFileService } from '../../../../platform/files/common/files';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions';
+import { IUndoRedoService } from '../../../../platform/undoRedo/common/undoRedo';
+import { ModelUndoRedoParticipant } from '../../../../editor/common/services/modelUndoRedoParticipant';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity';
+import { UntitledTextEditorModel } from '../../untitled/common/untitledTextEditorModel';
 
 class ResourceModelCollection extends ReferenceCollection<Promise<IResolvedTextEditorModel>> {
 

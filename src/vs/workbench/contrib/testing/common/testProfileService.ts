@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Iterable } from 'vs/base/common/iterator';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { deepClone } from 'vs/base/common/objects';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
-import { TestId } from 'vs/workbench/contrib/testing/common/testId';
-import { IMainThreadTestController } from 'vs/workbench/contrib/testing/common/testService';
-import { ITestItem, ITestRunProfile, InternalTestItem, TestRunProfileBitset, testRunProfileBitsetList } from 'vs/workbench/contrib/testing/common/testTypes';
-import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
+import { Emitter, Event } from '../../../../base/common/event';
+import { Iterable } from '../../../../base/common/iterator';
+import { Disposable } from '../../../../base/common/lifecycle';
+import { deepClone } from '../../../../base/common/objects';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage';
+import { StoredValue } from './storedValue';
+import { TestId } from './testId';
+import { IMainThreadTestController } from './testService';
+import { ITestItem, ITestRunProfile, InternalTestItem, TestRunProfileBitset, testRunProfileBitsetList } from './testTypes';
+import { TestingContextKeys } from './testingContextKeys';
 
 export const ITestProfileService = createDecorator<ITestProfileService>('testProfileService');
 

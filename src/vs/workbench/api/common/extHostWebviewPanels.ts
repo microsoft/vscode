@@ -5,15 +5,15 @@
 
 /* eslint-disable local/code-no-native-private */
 
-import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
-import { serializeWebviewOptions, ExtHostWebview, ExtHostWebviews, toExtensionData, shouldSerializeBuffersForPostMessage } from 'vs/workbench/api/common/extHostWebview';
-import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
-import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
+import { Emitter } from '../../../base/common/event';
+import { Disposable } from '../../../base/common/lifecycle';
+import { URI } from '../../../base/common/uri';
+import { generateUuid } from '../../../base/common/uuid';
+import { IExtensionDescription } from '../../../platform/extensions/common/extensions';
+import * as typeConverters from './extHostTypeConverters';
+import { serializeWebviewOptions, ExtHostWebview, ExtHostWebviews, toExtensionData, shouldSerializeBuffersForPostMessage } from './extHostWebview';
+import { IExtHostWorkspace } from './extHostWorkspace';
+import { EditorGroupColumn } from '../../services/editor/common/editorGroupColumn';
 import type * as vscode from 'vscode';
 import * as extHostProtocol from './extHost.protocol';
 import * as extHostTypes from './extHostTypes';

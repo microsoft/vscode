@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { equals } from 'vs/base/common/arrays';
-import { splitLines } from 'vs/base/common/strings';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { SingleTextEdit, TextEdit } from 'vs/editor/common/core/textEdit';
-import { ColumnRange } from 'vs/editor/contrib/inlineCompletions/browser/utils';
+import { equals } from '../../../../base/common/arrays';
+import { splitLines } from '../../../../base/common/strings';
+import { Position } from '../../../common/core/position';
+import { Range } from '../../../common/core/range';
+import { SingleTextEdit, TextEdit } from '../../../common/core/textEdit';
+import { ColumnRange } from './utils';
 
 export class GhostText {
 	constructor(

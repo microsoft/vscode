@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITreeNavigator } from 'vs/base/browser/ui/tree/tree';
-import * as nls from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { getSelectionKeyboardEvent, WorkbenchCompressibleObjectTree } from 'vs/platform/list/browser/listService';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
-import { searchRemoveIcon, searchReplaceIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
-import { SearchView } from 'vs/workbench/contrib/search/browser/searchView';
-import * as Constants from 'vs/workbench/contrib/search/common/constants';
-import { IReplaceService } from 'vs/workbench/contrib/search/browser/replace';
-import { arrayContainsElementOrParent, FileMatch, FolderMatch, Match, MatchInNotebook, RenderableMatch, SearchResult } from 'vs/workbench/contrib/search/browser/searchModel';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ISearchConfiguration, ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { category, getElementsToOperateOn, getSearchView, shouldRefocus } from 'vs/workbench/contrib/search/browser/searchActionsBase';
-import { equals } from 'vs/base/common/arrays';
+import { ITreeNavigator } from '../../../../base/browser/ui/tree/tree';
+import * as nls from '../../../../nls';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation';
+import { getSelectionKeyboardEvent, WorkbenchCompressibleObjectTree } from '../../../../platform/list/browser/listService';
+import { IViewsService } from '../../../services/views/common/viewsService';
+import { searchRemoveIcon, searchReplaceIcon } from './searchIcons';
+import { SearchView } from './searchView';
+import * as Constants from '../common/constants';
+import { IReplaceService } from './replace';
+import { arrayContainsElementOrParent, FileMatch, FolderMatch, Match, MatchInNotebook, RenderableMatch, SearchResult } from './searchModel';
+import { IEditorService } from '../../../services/editor/common/editorService';
+import { ISearchConfiguration, ISearchConfigurationProperties } from '../../../services/search/common/search';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey';
+import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes';
+import { category, getElementsToOperateOn, getSearchView, shouldRefocus } from './searchActionsBase';
+import { equals } from '../../../../base/common/arrays';
 
 
 //#region Interfaces

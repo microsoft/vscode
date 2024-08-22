@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
-import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService, IScopedContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { CellFocusMode, ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellEditorOptions } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellEditorOptions';
+import * as DOM from '../../../../../base/browser/dom';
+import { CancelablePromise, createCancelablePromise } from '../../../../../base/common/async';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle';
+import { CodeEditorWidget } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget';
+import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys';
+import { ITextModelService } from '../../../../../editor/common/services/resolverService';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration';
+import { IContextKeyService, IScopedContextKeyService } from '../../../../../platform/contextkey/common/contextkey';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection';
+import { CellFocusMode, ICellViewModel, INotebookEditorDelegate } from '../notebookBrowser';
+import { CellEditorOptions } from './cellParts/cellEditorOptions';
 
 export class NotebookCellEditorPool extends Disposable {
 	private readonly _focusedEditorDOM: HTMLElement;

@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./iconSelectBox';
-import * as dom from 'vs/base/browser/dom';
-import { alert } from 'vs/base/browser/ui/aria/aria';
-import { IInputBoxStyles, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
-import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { Emitter } from 'vs/base/common/event';
-import { IDisposable, DisposableStore, Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { localize } from 'vs/nls';
-import { IMatch } from 'vs/base/common/filters';
-import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
+import * as dom from '../../dom';
+import { alert } from '../aria/aria';
+import { IInputBoxStyles, InputBox } from '../inputbox/inputBox';
+import { DomScrollableElement } from '../scrollbar/scrollableElement';
+import { Emitter } from '../../../common/event';
+import { IDisposable, DisposableStore, Disposable, MutableDisposable } from '../../../common/lifecycle';
+import { ThemeIcon } from '../../../common/themables';
+import { localize } from '../../../../nls';
+import { IMatch } from '../../../common/filters';
+import { ScrollbarVisibility } from '../../../common/scrollable';
+import { HighlightedLabel } from '../highlightedlabel/highlightedLabel';
 
 export interface IIconSelectBoxOptions {
 	readonly icons: ThemeIcon[];

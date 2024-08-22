@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { BaseActionViewItem, IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { Widget } from 'vs/base/browser/ui/widget';
-import { IAction } from 'vs/base/common/actions';
-import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { Emitter, Event } from 'vs/base/common/event';
-import { KeyCode } from 'vs/base/common/keyCodes';
+import { IKeyboardEvent } from '../../keyboardEvent';
+import { BaseActionViewItem, IActionViewItemOptions } from '../actionbar/actionViewItems';
+import { Widget } from '../widget';
+import { IAction } from '../../../common/actions';
+import { Codicon } from '../../../common/codicons';
+import { ThemeIcon } from '../../../common/themables';
+import { Emitter, Event } from '../../../common/event';
+import { KeyCode } from '../../../common/keyCodes';
 import 'vs/css!./toggle';
-import { isActiveElement, $, addDisposableListener, EventType } from 'vs/base/browser/dom';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
-import type { IManagedHover } from 'vs/base/browser/ui/hover/hover';
-import { getBaseLayerHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate2';
+import { isActiveElement, $, addDisposableListener, EventType } from '../../dom';
+import { getDefaultHoverDelegate } from '../hover/hoverDelegateFactory';
+import { IHoverDelegate } from '../hover/hoverDelegate';
+import type { IManagedHover } from '../hover/hover';
+import { getBaseLayerHoverDelegate } from '../hover/hoverDelegate2';
 
 export interface IToggleOpts extends IToggleStyles {
 	readonly actionClassName?: string;

@@ -3,41 +3,41 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { IProcessEnvironment, isMacintosh, isWindows, OperatingSystem } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ILocalPtyService, IProcessPropertyMap, IPtyHostLatencyMeasurement, IPtyService, IShellLaunchConfig, ITerminalBackend, ITerminalBackendRegistry, ITerminalChildProcess, ITerminalEnvironment, ITerminalLogService, ITerminalProcessOptions, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, ProcessPropertyType, TerminalExtensions, TerminalIpcChannels, TerminalSettingId, TitleEventSource } from 'vs/platform/terminal/common/terminal';
-import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { ITerminalConfiguration, ITerminalProfileResolverService, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
-import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
-import { LocalPty } from 'vs/workbench/contrib/terminal/electron-sandbox/localPty';
-import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { IShellEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/shellEnvironmentService';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IEnvironmentVariableService } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { BaseTerminalBackend } from 'vs/workbench/contrib/terminal/browser/baseTerminalBackend';
-import { INativeHostService } from 'vs/platform/native/common/native';
-import { Client as MessagePortClient } from 'vs/base/parts/ipc/common/ipc.mp';
-import { acquirePort } from 'vs/base/parts/ipc/electron-sandbox/ipc.mp';
-import { getDelayedChannel, ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
-import { mark, PerformanceMark } from 'vs/base/common/performance';
-import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { DeferredPromise } from 'vs/base/common/async';
-import { IStatusbarService } from 'vs/workbench/services/statusbar/browser/statusbar';
-import { memoize } from 'vs/base/common/decorators';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { shouldUseEnvironmentVariableCollection } from 'vs/platform/terminal/common/terminalEnvironment';
+import { Emitter } from '../../../../base/common/event';
+import { IProcessEnvironment, isMacintosh, isWindows, OperatingSystem } from '../../../../base/common/platform';
+import { URI } from '../../../../base/common/uri';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { ILabelService } from '../../../../platform/label/common/label';
+import { Registry } from '../../../../platform/registry/common/platform';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage';
+import { ILocalPtyService, IProcessPropertyMap, IPtyHostLatencyMeasurement, IPtyService, IShellLaunchConfig, ITerminalBackend, ITerminalBackendRegistry, ITerminalChildProcess, ITerminalEnvironment, ITerminalLogService, ITerminalProcessOptions, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, ProcessPropertyType, TerminalExtensions, TerminalIpcChannels, TerminalSettingId, TitleEventSource } from '../../../../platform/terminal/common/terminal';
+import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs } from '../../../../platform/terminal/common/terminalProcess';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace';
+import { IWorkbenchContribution } from '../../../common/contributions';
+import { ITerminalInstanceService } from '../browser/terminal';
+import { ITerminalConfiguration, ITerminalProfileResolverService, TERMINAL_CONFIG_SECTION } from '../common/terminal';
+import { TerminalStorageKeys } from '../common/terminalStorageKeys';
+import { LocalPty } from './localPty';
+import { IConfigurationResolverService } from '../../../services/configurationResolver/common/configurationResolver';
+import { IShellEnvironmentService } from '../../../services/environment/electron-sandbox/shellEnvironmentService';
+import { IHistoryService } from '../../../services/history/common/history';
+import * as terminalEnvironment from '../common/terminalEnvironment';
+import { IProductService } from '../../../../platform/product/common/productService';
+import { IEnvironmentVariableService } from '../common/environmentVariable';
+import { BaseTerminalBackend } from '../browser/baseTerminalBackend';
+import { INativeHostService } from '../../../../platform/native/common/native';
+import { Client as MessagePortClient } from '../../../../base/parts/ipc/common/ipc.mp';
+import { acquirePort } from '../../../../base/parts/ipc/electron-sandbox/ipc.mp';
+import { getDelayedChannel, ProxyChannel } from '../../../../base/parts/ipc/common/ipc';
+import { mark, PerformanceMark } from '../../../../base/common/performance';
+import { ILifecycleService, LifecyclePhase } from '../../../services/lifecycle/common/lifecycle';
+import { DeferredPromise } from '../../../../base/common/async';
+import { IStatusbarService } from '../../../services/statusbar/browser/statusbar';
+import { memoize } from '../../../../base/common/decorators';
+import { StopWatch } from '../../../../base/common/stopwatch';
+import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService';
+import { shouldUseEnvironmentVariableCollection } from '../../../../platform/terminal/common/terminalEnvironment';
 
 export class LocalTerminalBackendContribution implements IWorkbenchContribution {
 

@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { CharCode } from '../../../../base/common/charCode';
+import { EditOperation, ISingleEditOperation } from '../../../common/core/editOperation';
+import { Position } from '../../../common/core/position';
+import { Range } from '../../../common/core/range';
+import { Selection } from '../../../common/core/selection';
+import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from '../../../common/editorCommon';
+import { ITextModel } from '../../../common/model';
+import { ILanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry';
 
 export class BlockCommentCommand implements ICommand {
 

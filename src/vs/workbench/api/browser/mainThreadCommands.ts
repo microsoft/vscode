@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableMap, IDisposable } from 'vs/base/common/lifecycle';
-import { revive } from 'vs/base/common/marshalling';
-import { CommandsRegistry, ICommandMetadata, ICommandService } from 'vs/platform/commands/common/commands';
-import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { Dto, SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
+import { DisposableMap, IDisposable } from '../../../base/common/lifecycle';
+import { revive } from '../../../base/common/marshalling';
+import { CommandsRegistry, ICommandMetadata, ICommandService } from '../../../platform/commands/common/commands';
+import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers';
+import { IExtensionService } from '../../services/extensions/common/extensions';
+import { Dto, SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier';
 import { ExtHostCommandsShape, ExtHostContext, MainContext, MainThreadCommandsShape } from '../common/extHost.protocol';
-import { isString } from 'vs/base/common/types';
+import { isString } from '../../../base/common/types';
 
 
 @extHostNamedCustomer(MainContext.MainThreadCommands)

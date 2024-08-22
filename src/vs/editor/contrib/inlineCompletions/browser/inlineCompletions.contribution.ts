@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EditorContributionInstantiation, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { HoverParticipantRegistry } from 'vs/editor/contrib/hover/browser/hoverTypes';
-import { TriggerInlineSuggestionAction, ShowNextInlineSuggestionAction, ShowPreviousInlineSuggestionAction, AcceptNextWordOfInlineCompletion, AcceptInlineCompletion, HideInlineCompletion, ToggleAlwaysShowInlineSuggestionToolbar, AcceptNextLineOfInlineCompletion } from 'vs/editor/contrib/inlineCompletions/browser/commands';
-import { InlineCompletionsHoverParticipant } from 'vs/editor/contrib/inlineCompletions/browser/hoverParticipant';
-import { InlineCompletionsAccessibleView } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsAccessibleView';
-import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsController';
-import { AccessibleViewRegistry } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
-import { registerAction2 } from 'vs/platform/actions/common/actions';
+import { EditorContributionInstantiation, registerEditorAction, registerEditorContribution } from '../../../browser/editorExtensions';
+import { HoverParticipantRegistry } from '../../hover/browser/hoverTypes';
+import { TriggerInlineSuggestionAction, ShowNextInlineSuggestionAction, ShowPreviousInlineSuggestionAction, AcceptNextWordOfInlineCompletion, AcceptInlineCompletion, HideInlineCompletion, ToggleAlwaysShowInlineSuggestionToolbar, AcceptNextLineOfInlineCompletion } from './commands';
+import { InlineCompletionsHoverParticipant } from './hoverParticipant';
+import { InlineCompletionsAccessibleView } from './inlineCompletionsAccessibleView';
+import { InlineCompletionsController } from './inlineCompletionsController';
+import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry';
+import { registerAction2 } from '../../../../platform/actions/common/actions';
 
 registerEditorContribution(InlineCompletionsController.ID, InlineCompletionsController, EditorContributionInstantiation.Eventually);
 

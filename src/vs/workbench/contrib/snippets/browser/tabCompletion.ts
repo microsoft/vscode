@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { RawContextKey, IContextKeyService, ContextKeyExpr, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeyCode } from '../../../../base/common/keyCodes';
+import { RawContextKey, IContextKeyService, ContextKeyExpr, IContextKey } from '../../../../platform/contextkey/common/contextkey';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry';
 import { ISnippetsService } from './snippets';
 import { getNonWhitespacePrefix } from './snippetsService';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { Range } from 'vs/editor/common/core/range';
-import { registerEditorContribution, EditorCommand, registerEditorCommand, EditorContributionInstantiation } from 'vs/editor/browser/editorExtensions';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
-import { showSimpleSuggestions } from 'vs/editor/contrib/suggest/browser/suggest';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IDisposable } from '../../../../base/common/lifecycle';
+import { IEditorContribution } from '../../../../editor/common/editorCommon';
+import { Range } from '../../../../editor/common/core/range';
+import { registerEditorContribution, EditorCommand, registerEditorCommand, EditorContributionInstantiation } from '../../../../editor/browser/editorExtensions';
+import { SnippetController2 } from '../../../../editor/contrib/snippet/browser/snippetController2';
+import { showSimpleSuggestions } from '../../../../editor/contrib/suggest/browser/suggest';
+import { EditorContextKeys } from '../../../../editor/common/editorContextKeys';
+import { ICodeEditor } from '../../../../editor/browser/editorBrowser';
 import { Snippet } from './snippetsFile';
 import { SnippetCompletion } from './snippetCompletionProvider';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { EditorState, CodeEditorStateFlag } from 'vs/editor/contrib/editorState/browser/editorState';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { CompletionItemProvider } from 'vs/editor/common/languages';
+import { EditorOption } from '../../../../editor/common/config/editorOptions';
+import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService';
+import { EditorState, CodeEditorStateFlag } from '../../../../editor/contrib/editorState/browser/editorState';
+import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures';
+import { CompletionItemProvider } from '../../../../editor/common/languages';
 
 export class TabCompletionController implements IEditorContribution {
 
