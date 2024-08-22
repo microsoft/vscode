@@ -26,6 +26,7 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import { ILogService } from 'vs/platform/log/common/log';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_IN_CHAT_INPUT } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { HunkInformation } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 
 CommandsRegistry.registerCommandAlias('interactiveEditor.start', 'inlineChat.start');
 CommandsRegistry.registerCommandAlias('interactive.acceptChanges', ACTION_ACCEPT_CHANGES);
@@ -277,8 +278,8 @@ export class AcceptChanges extends AbstractInlineChatAction {
 		});
 	}
 
-	override async runInlineChatCommand(_accessor: ServicesAccessor, ctrl: InlineChatController): Promise<void> {
-		ctrl.acceptHunk();
+	override async runInlineChatCommand(_accessor: ServicesAccessor, ctrl: InlineChatController, _editor: ICodeEditor, hunk?: HunkInformation | any): Promise<void> {
+		ctrl.acceptHunk(hunk);
 	}
 }
 
@@ -313,8 +314,8 @@ export class DiscardHunkAction extends AbstractInlineChatAction {
 		});
 	}
 
-	async runInlineChatCommand(_accessor: ServicesAccessor, ctrl: InlineChatController, _editor: ICodeEditor, ..._args: any[]): Promise<void> {
-		return ctrl.discardHunk();
+	async runInlineChatCommand(_accessor: ServicesAccessor, ctrl: InlineChatController, _editor: ICodeEditor, hunk?: HunkInformation | any): Promise<void> {
+		return ctrl.discardHunk(hunk);
 	}
 }
 
@@ -505,13 +506,14 @@ export class ToggleDiffForChange extends AbstractInlineChatAction {
 			}, {
 				id: MENU_INLINE_CHAT_ZONE,
 				group: 'navigation',
+				when: CTX_INLINE_CHAT_CHANGE_HAS_DIFF,
 				order: 2
 			}]
 		});
 	}
 
-	override runInlineChatCommand(accessor: ServicesAccessor, ctrl: InlineChatController): void {
-		ctrl.toggleDiff();
+	override runInlineChatCommand(_accessor: ServicesAccessor, ctrl: InlineChatController, _editor: ICodeEditor, hunkInfo: HunkInformation | any): void {
+		ctrl.toggleDiff(hunkInfo);
 	}
 }
 

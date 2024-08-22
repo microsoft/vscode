@@ -43,10 +43,19 @@ import { isEqual } from 'vs/base/common/resources';
 import { generateUuid } from 'vs/base/common/uuid';
 import { MenuWorkbenchButtonBar } from 'vs/platform/actions/browser/buttonbar';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { Iterable } from 'vs/base/common/iterator';
 
 export interface IEditObserver {
 	start(): void;
 	stop(): void;
+}
+
+export const enum HunkAction {
+	Accept,
+	Discard,
+	MoveNext,
+	MovePrev,
+	ToggleDiff
 }
 
 export abstract class EditModeStrategy {
@@ -65,8 +74,6 @@ export abstract class EditModeStrategy {
 	readonly onDidAccept: Event<void> = this._onDidAccept.event;
 	readonly onDidDiscard: Event<void> = this._onDidDiscard.event;
 
-	toggleDiff?: () => any;
-
 	constructor(
 		protected readonly _session: Session,
 		protected readonly _editor: ICodeEditor,
@@ -77,6 +84,14 @@ export abstract class EditModeStrategy {
 
 	dispose(): void {
 		this._store.dispose();
+	}
+
+	performHunkAction(_hunk: HunkInformation | undefined, action: HunkAction) {
+		if (action === HunkAction.Accept) {
+			this._onDidAccept.fire();
+		} else if (action === HunkAction.Discard) {
+			this._onDidDiscard.fire();
+		}
 	}
 
 	protected async _doApplyChanges(ignoreLocal: boolean): Promise<void> {
@@ -125,21 +140,13 @@ export abstract class EditModeStrategy {
 		return this._session.hunkData.discardAll();
 	}
 
-	async acceptHunk(): Promise<void> {
-		this._onDidAccept.fire();
-	}
 
-	async discardHunk(): Promise<void> {
-		this._onDidDiscard.fire();
-	}
 
 	abstract makeProgressiveChanges(edits: ISingleEditOperation[], obs: IEditObserver, timings: ProgressingEditsOptions, undoStopBefore: boolean): Promise<void>;
 
 	abstract makeChanges(edits: ISingleEditOperation[], obs: IEditObserver, undoStopBefore: boolean): Promise<void>;
 
 	abstract renderChanges(): Promise<Position | undefined>;
-
-	move?(next: boolean): void;
 
 	abstract hasFocus(): boolean;
 
@@ -253,9 +260,6 @@ export class LiveStrategy extends EditModeStrategy {
 	private readonly _progressiveEditingDecorations: IEditorDecorationsCollection;
 	private _editCount: number = 0;
 
-	override acceptHunk: () => Promise<void> = () => super.acceptHunk();
-	override discardHunk: () => Promise<void> = () => super.discardHunk();
-
 	constructor(
 		session: Session,
 		editor: ICodeEditor,
@@ -364,6 +368,58 @@ export class LiveStrategy extends EditModeStrategy {
 		}
 	}
 
+	override performHunkAction(hunk: HunkInformation | undefined, action: HunkAction) {
+		const displayData = this._findDisplayData(hunk);
+		if (!displayData) {
+			return;
+		}
+		if (action === HunkAction.Accept) {
+			displayData.acceptHunk();
+		} else if (action === HunkAction.Discard) {
+			displayData.discardHunk();
+		} else if (action === HunkAction.MoveNext) {
+			displayData.move(true);
+		} else if (action === HunkAction.MovePrev) {
+			displayData.move(false);
+		} else if (action === HunkAction.ToggleDiff) {
+			displayData.toggleDiff?.();
+		}
+	}
+
+	private _findDisplayData(hunkInfo?: HunkInformation) {
+		let result: HunkDisplayData | undefined;
+		if (hunkInfo) {
+			// use context hunk (from tool/buttonbar)
+			result = this._hunkDisplayData.get(hunkInfo);
+		}
+
+		if (!result && this._zone.position) {
+			// find nearest from zone position
+			const zoneLine = this._zone.position.lineNumber;
+			let distance: number = Number.MAX_SAFE_INTEGER;
+			for (const candidate of this._hunkDisplayData.values()) {
+				if (candidate.hunk.getState() !== HunkState.Pending) {
+					continue;
+				}
+				const hunkRanges = candidate.hunk.getRangesN();
+				const myDistance = zoneLine <= hunkRanges[0].startLineNumber
+					? hunkRanges[0].startLineNumber - zoneLine
+					: zoneLine - hunkRanges[0].endLineNumber;
+
+				if (myDistance < distance) {
+					distance = myDistance;
+					result = candidate;
+				}
+			}
+		}
+
+		if (!result) {
+			// fallback: first hunk that is pending
+			result = Iterable.first(Iterable.filter(this._hunkDisplayData.values(), candidate => candidate.hunk.getState() === HunkState.Pending));
+		}
+		return result;
+	}
+
 	private readonly _hunkDisplayData = new Map<HunkInformation, HunkDisplayData>();
 
 	override async renderChanges() {
@@ -465,29 +521,13 @@ export class LiveStrategy extends EditModeStrategy {
 						};
 
 						const move = (next: boolean) => {
-							assertType(widgetData);
-
-							const candidates: Position[] = [];
-							for (const item of this._session.hunkData.getInfo()) {
-								if (item.getState() === HunkState.Pending) {
-									candidates.push(item.getRangesN()[0].getStartPosition().delta(-1));
-								}
-							}
-							if (candidates.length < 2) {
-								return;
-							}
-							for (let i = 0; i < candidates.length; i++) {
-								if (candidates[i].equals(widgetData.position)) {
-									let newPos: Position;
-									if (next) {
-										newPos = candidates[(i + 1) % candidates.length];
-									} else {
-										newPos = candidates[(i + candidates.length - 1) % candidates.length];
-									}
-									this._zone.updatePositionAndHeight(newPos);
-									renderHunks();
-									break;
-								}
+							const keys = Array.from(this._hunkDisplayData.keys());
+							const idx = keys.indexOf(hunkData);
+							const nextIdx = (idx + (next ? 1 : -1) + keys.length) % keys.length;
+							if (nextIdx !== idx) {
+								const nextData = this._hunkDisplayData.get(keys[nextIdx])!;
+								this._zone.updatePositionAndHeight(nextData?.position);
+								renderHunks();
 							}
 						};
 
@@ -552,10 +592,6 @@ export class LiveStrategy extends EditModeStrategy {
 				}
 
 				this._ctxCurrentChangeHasDiff.set(Boolean(widgetData.toggleDiff));
-				this.toggleDiff = widgetData.toggleDiff;
-				this.acceptHunk = async () => widgetData!.acceptHunk();
-				this.discardHunk = async () => widgetData!.discardHunk();
-				this.move = next => widgetData!.move(next);
 
 			} else if (this._hunkDisplayData.size > 0) {
 				// everything accepted or rejected
@@ -643,6 +679,7 @@ class InlineChangeOverlay implements IOverlayWidget {
 		if (_hunkInfo.getState() === HunkState.Pending) {
 
 			this._store.add(this._instaService.createInstance(MenuWorkbenchButtonBar, this._domNode, MENU_INLINE_CHAT_ZONE, {
+				menuOptions: { arg: _hunkInfo },
 				telemetrySource: 'inlineChat-changesZone',
 				buttonConfigProvider: (_action, idx) => {
 					return {
@@ -650,7 +687,7 @@ class InlineChangeOverlay implements IOverlayWidget {
 						showIcon: true,
 						showLabel: false
 					};
-				}
+				},
 			}));
 		}
 
