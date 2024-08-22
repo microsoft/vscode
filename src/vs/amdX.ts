@@ -59,7 +59,7 @@ class AMDModuleImporter {
 
 		if (this._isRenderer) {
 			// eslint-disable-next-line no-restricted-globals
-			this._amdPolicy = window.trustedTypes?.createPolicy('amdLoader', globalThis._VSCODE_WEB_PACKAGE_TTP_OPTIONS ?? {
+			this._amdPolicy = globalThis._VSCODE_WEB_PACKAGE_TTP ?? window.trustedTypes?.createPolicy('amdLoader', {
 				createScriptURL(value) {
 					// eslint-disable-next-line no-restricted-globals
 					if (value.startsWith(window.location.origin)) {
@@ -69,7 +69,7 @@ class AMDModuleImporter {
 				}
 			});
 		} else if (this._isWebWorker) {
-			this._amdPolicy = (<any>globalThis).trustedTypes?.createPolicy('amdLoader', {
+			this._amdPolicy = globalThis._VSCODE_WEB_PACKAGE_TTP ?? (<any>globalThis).trustedTypes?.createPolicy('amdLoader', {
 				createScriptURL(value: string) {
 					return value;
 				}
