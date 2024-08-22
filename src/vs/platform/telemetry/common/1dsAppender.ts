@@ -6,7 +6,6 @@
 import type { IExtendedConfiguration, IExtendedTelemetryItem, ITelemetryItem, ITelemetryUnloadState } from '@microsoft/1ds-core-js';
 import type { IChannelConfiguration, IXHROverride, PostChannel } from '@microsoft/1ds-post-js';
 import { importAMDNodeModule } from 'vs/amdX';
-import { isESM } from 'vs/base/common/amd';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { mixin } from 'vs/base/common/objects';
 import { isWeb } from 'vs/base/common/platform';
@@ -25,15 +24,15 @@ const endpointHealthUrl = 'https://mobile.events.data.microsoft.com/ping';
 
 async function getClient(instrumentationKey: string, addInternalFlag?: boolean, xhrOverride?: IXHROverride): Promise<IAppInsightsCore> {
 	// ESM-comment-begin
+	if (isWeb) { /* fix the import warning */ }
 	const oneDs = await importAMDNodeModule<typeof import('@microsoft/1ds-core-js')>('@microsoft/1ds-core-js', 'dist/ms.core.js');
 	const postPlugin = await importAMDNodeModule<typeof import('@microsoft/1ds-post-js')>('@microsoft/1ds-post-js', 'dist/ms.post.js');
 	// ESM-comment-end
 	// ESM-uncomment-begin
-	// if (typeof importAMDNodeModule === 'function') { /* fixes unused import, remove me */}
 	// // eslint-disable-next-line local/code-amd-node-module
-	// const oneDs = await import('@microsoft/1ds-core-js');
+	// const oneDs = isWeb ? await importAMDNodeModule<typeof import('@microsoft/1ds-core-js')>('@microsoft/1ds-core-js', 'bundle/ms.core.min.js') : await import('@microsoft/1ds-core-js');
 	// // eslint-disable-next-line local/code-amd-node-module
-	// const postPlugin = await import('@microsoft/1ds-post-js');
+	// const postPlugin = isWeb ? await importAMDNodeModule<typeof import('@microsoft/1ds-post-js')>('@microsoft/1ds-post-js', 'bundle/ms.post.min.js'): await import('@microsoft/1ds-post-js');
 	// ESM-uncomment-end
 
 	const appInsightsCore = new oneDs.AppInsightsCore();
@@ -88,7 +87,6 @@ export abstract class AbstractOneDataSystemAppender implements ITelemetryAppende
 	private _asyncAiCore: Promise<IAppInsightsCore> | null;
 	protected readonly endPointUrl = endpointUrl;
 	protected readonly endPointHealthUrl = endpointHealthUrl;
-	private _asyncAiCoreErrorLogged = false;
 
 	constructor(
 		private readonly _isInternalTelemetry: boolean,
@@ -128,10 +126,6 @@ export abstract class AbstractOneDataSystemAppender implements ITelemetryAppende
 				callback(aiClient);
 			},
 			(err) => {
-				if (isESM && isWeb && this._asyncAiCoreErrorLogged) {
-					return; // TODO@esm reduce error spam
-				}
-				this._asyncAiCoreErrorLogged = true;
 				onUnexpectedError(err);
 				console.error(err);
 			}

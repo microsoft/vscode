@@ -323,33 +323,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			markdownDescription: localize('showInputActionButton', "Controls whether an action button can be shown in the Source Control input."),
 			default: true
 		},
-		'scm.showIncomingChanges': {
-			type: 'string',
-			enum: ['always', 'never', 'auto'],
-			enumDescriptions: [
-				localize('scm.showIncomingChanges.always', "Always show incoming changes in the Source Control view."),
-				localize('scm.showIncomingChanges.never', "Never show incoming changes in the Source Control view."),
-				localize('scm.showIncomingChanges.auto', "Only show incoming changes in the Source Control view when any exist."),
-			],
-			description: localize('scm.showIncomingChanges', "Controls whether incoming changes are shown in the Source Control view."),
-			default: 'auto'
-		},
-		'scm.showOutgoingChanges': {
-			type: 'string',
-			enum: ['always', 'never', 'auto'],
-			enumDescriptions: [
-				localize('scm.showOutgoingChanges.always', "Always show outgoing changes in the Source Control view."),
-				localize('scm.showOutgoingChanges.never', "Never show outgoing changes in the Source Control view."),
-				localize('scm.showOutgoingChanges.auto', "Only show outgoing changes in the Source Control view when any exist."),
-			],
-			description: localize('scm.showOutgoingChanges', "Controls whether outgoing changes are shown in the Source Control view."),
-			default: 'auto'
-		},
-		'scm.showChangesSummary': {
-			type: 'boolean',
-			description: localize('scm.showChangesSummary', "Controls whether the All Changes entry is shown for incoming/outgoing changes in the Source Control view."),
-			default: true
-		},
 		'scm.workingSets.enabled': {
 			type: 'boolean',
 			description: localize('scm.workingSets.enabled', "Controls whether to store editor working sets when switching between source control history item groups."),
@@ -364,11 +337,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			],
 			description: localize('scm.workingSets.default', "Controls the default working set to use when switching to a source control history item group that does not have a working set."),
 			default: 'current'
-		},
-		'scm.showHistoryGraph': {
-			type: 'boolean',
-			description: localize('scm.showHistoryGraph', "Controls whether to render incoming/outgoing changes using a graph in the Source Control view."),
-			default: true
 		},
 		'scm.compactFolders': {
 			type: 'boolean',
