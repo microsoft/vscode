@@ -305,11 +305,6 @@ class AsyncFindTree<TInput, T> {
 			currentNode = newParent;
 		}
 	}
-
-	clear(): void {
-		this.cachedNodes.clear();
-		this.root.clear();
-	}
 }
 
 function asObjectTreeOptions<TInput, T, TFilterData>(options?: IAsyncDataTreeOptions<T, TFilterData>): IObjectTreeOptions<IAsyncDataTreeNode<TInput, T>, TFilterData> | undefined {
