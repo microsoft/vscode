@@ -108,7 +108,7 @@ class AMDModuleImporter {
 			throw new Error(`Cannot resolve dependencies for script ${scriptSrc}. The dependencies are: ${dependencyModules.join(', ')}`);
 		}
 		if (typeof defineCall.callback === 'function') {
-			return defineCall.callback(dependencyObjs) ?? exports;
+			return defineCall.callback(...dependencyObjs) ?? exports;
 		} else {
 			return defineCall.callback;
 		}
