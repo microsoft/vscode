@@ -23,7 +23,7 @@ import { ICommentThreadWidget } from 'vs/workbench/contrib/comments/common/comme
 import { IColorTheme } from 'vs/platform/theme/common/themeService';
 import { contrastBorder, focusBorder, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { PANEL_BORDER } from 'vs/workbench/common/theme';
-import { IRange } from 'vs/editor/common/core/range';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import { commentThreadStateBackgroundColorVar, commentThreadStateColorVar } from 'vs/workbench/contrib/comments/browser/commentColors';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
@@ -35,7 +35,8 @@ import { localize } from 'vs/nls';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
-import { LayoutableEditor } from 'vs/workbench/contrib/comments/browser/simpleCommentEditor';
+import { DomEmitter } from 'vs/base/browser/event';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
 
@@ -61,7 +62,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 	}
 	constructor(
 		readonly container: HTMLElement,
-		readonly _parentEditor: LayoutableEditor,
+		readonly _parentEditor: ICodeEditor,
 		private _owner: string,
 		private _parentResourceUri: URI,
 		private _contextKeyService: IContextKeyService,
@@ -156,6 +157,14 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		}
 
 		this.currentThreadListeners();
+		this._register(new DomEmitter(this.container, 'keydown').event(e => {
+			if (dom.isKeyboardEvent(e) && e.key === 'Escape') {
+				if (Range.isIRange(this.commentThread.range)) {
+					this._parentEditor.setSelection(this.commentThread.range);
+				}
+				this.collapse();
+			}
+		}));
 	}
 
 	private _setAriaLabel(): void {
