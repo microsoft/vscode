@@ -16,7 +16,7 @@ export const enum InlineChatConfigKeys {
 	Mode = 'inlineChat.mode',
 	FinishOnType = 'inlineChat.finishOnType',
 	AcceptedOrDiscardBeforeSave = 'inlineChat.acceptedOrDiscardBeforeSave',
-	OnlyZoneWidget = 'inlineChat.experimental.onlyZoneWidget',
+	StartWithOverlayWidget = 'inlineChat.startWithOverlayWidget',
 	ZoneToolbar = 'inlineChat.experimental.enableZoneToolbar',
 	HoldToSpeech = 'inlineChat.holdToSpeech',
 	AccessibleDiffView = 'inlineChat.accessibleDiffView'
@@ -67,11 +67,10 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 				localize('accessibleDiffView.off', "The accessible diff viewer is never enabled."),
 			],
 		},
-		[InlineChatConfigKeys.OnlyZoneWidget]: {
-			description: localize('onlyZone', "Whether inline chat opens directly as zone widget, between the lines, instead of the overlay widget which turns into a zone."),
+		[InlineChatConfigKeys.StartWithOverlayWidget]: {
+			description: localize('onlyZone', "Whether inline chat opens directly as zone widget, between the lines, or as overlay widget which turns into a zone."),
 			default: false,
 			type: 'boolean',
-			tags: ['experimental']
 		},
 		[InlineChatConfigKeys.ZoneToolbar]: {
 			description: localize('zoneToolbar', "Whether to show a toolbar to accept or reject changes in the inline chat changes view."),
