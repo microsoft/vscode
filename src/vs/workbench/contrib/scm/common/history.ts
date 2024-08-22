@@ -130,10 +130,3 @@ export interface SCMHistoryItemChangeTreeElement extends ISCMHistoryItemChange {
 	readonly historyItem: SCMHistoryItemTreeElement;
 	readonly type: 'historyItemChange';
 }
-
-export interface SCMViewSeparatorElement {
-	readonly label: string;
-	readonly ariaLabel?: string;
-	readonly repository: ISCMRepository;
-	readonly type: 'separator';
-}

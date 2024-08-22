@@ -10,7 +10,7 @@ import { IDisposable, Disposable, DisposableStore, combinedDisposable, dispose, 
 import { ViewPane, IViewPaneOptions, ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { append, $, Dimension, asCSSUrl, trackFocus, clearNode, prepend, isPointerEvent, isActiveElement } from 'vs/base/browser/dom';
 import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
-import { ISCMHistoryItem, ISCMHistoryItemViewModel, SCMHistoryItemViewModelTreeElement, SCMHistoryItemChangeTreeElement, SCMHistoryItemGroupTreeElement, SCMHistoryItemTreeElement, SCMViewSeparatorElement } from 'vs/workbench/contrib/scm/common/history';
+import { ISCMHistoryItem, ISCMHistoryItemViewModel, SCMHistoryItemViewModelTreeElement, SCMHistoryItemChangeTreeElement, SCMHistoryItemGroupTreeElement, SCMHistoryItemTreeElement } from 'vs/workbench/contrib/scm/common/history';
 import { ISCMResourceGroup, ISCMResource, InputValidationType, ISCMRepository, ISCMInput, IInputValidation, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, ISCMService, SCMInputChangeReason, VIEW_PANE_ID, ISCMActionButton, ISCMActionButtonDescriptor, ISCMRepositorySortKey, ISCMInputValueProviderContext, ISCMProvider } from 'vs/workbench/contrib/scm/common/scm';
 import { ResourceLabels, IResourceLabel, IFileLabelOptions } from 'vs/workbench/browser/labels';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
@@ -24,7 +24,7 @@ import { MenuItemAction, IMenuService, registerAction2, MenuId, IAction2Options,
 import { IAction, ActionRunner, Action, Separator, IActionRunner } from 'vs/base/common/actions';
 import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IThemeService, IFileIconTheme } from 'vs/platform/theme/common/themeService';
-import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar, isSCMRepository, isSCMInput, collectContextMenuActions, getActionViewItemProvider, isSCMActionButton, isSCMViewService, isSCMHistoryItemGroupTreeElement, isSCMHistoryItemTreeElement, isSCMHistoryItemChangeTreeElement, toDiffEditorArguments, isSCMResourceNode, isSCMHistoryItemChangeNode, isSCMViewSeparator, connectPrimaryMenu, isSCMHistoryItemViewModelTreeElement } from './util';
+import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar, isSCMRepository, isSCMInput, collectContextMenuActions, getActionViewItemProvider, isSCMActionButton, isSCMViewService, isSCMHistoryItemGroupTreeElement, isSCMHistoryItemTreeElement, isSCMHistoryItemChangeTreeElement, toDiffEditorArguments, isSCMResourceNode, isSCMHistoryItemChangeNode, connectPrimaryMenu, isSCMHistoryItemViewModelTreeElement } from './util';
 import { WorkbenchCompressibleAsyncDataTree, IOpenEvent } from 'vs/platform/list/browser/listService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { disposableTimeout, Sequencer, ThrottledDelayer, Throttler } from 'vs/base/common/async';
@@ -130,8 +130,7 @@ type TreeElement =
 	SCMHistoryItemTreeElement |
 	SCMHistoryItemViewModelTreeElement |
 	SCMHistoryItemChangeTreeElement |
-	IResourceNode<SCMHistoryItemChangeTreeElement, SCMHistoryItemTreeElement> |
-	SCMViewSeparatorElement;
+	IResourceNode<SCMHistoryItemChangeTreeElement, SCMHistoryItemTreeElement>;
 
 const historyItemAdditionsForeground = registerColor('scm.historyItemAdditionsForeground', 'gitDecoration.addedResourceForeground', localize('scm.historyItemAdditionsForeground', "History item additions foreground color."));
 
@@ -1277,80 +1276,6 @@ class HistoryItemChangeRenderer implements ICompressibleTreeRenderer<SCMHistoryI
 	}
 }
 
-interface SeparatorTemplate {
-	readonly label: IconLabel;
-	readonly toolBar: WorkbenchToolBar;
-	readonly elementDisposables: DisposableStore;
-	readonly templateDisposables: DisposableStore;
-}
-
-class SeparatorRenderer implements ICompressibleTreeRenderer<SCMViewSeparatorElement, void, SeparatorTemplate> {
-
-	static readonly TEMPLATE_ID = 'separator';
-	get templateId(): string { return SeparatorRenderer.TEMPLATE_ID; }
-
-	constructor(
-		private readonly getFilterActions: (repository: ISCMRepository) => IAction[],
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@ICommandService private readonly commandService: ICommandService,
-		@IMenuService private readonly menuService: IMenuService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService
-	) { }
-
-	renderTemplate(container: HTMLElement): SeparatorTemplate {
-		// hack
-		(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement).classList.add('force-no-twistie');
-
-		// Use default cursor & disable hover for list item
-		container.parentElement!.parentElement!.classList.add('cursor-default', 'force-no-hover');
-
-		const templateDisposables = new DisposableStore();
-		const element = append(container, $('.separator-container'));
-		const label = new IconLabel(element, { supportIcons: true, });
-		append(element, $('.separator'));
-		templateDisposables.add(label);
-
-		const toolBar = new WorkbenchToolBar(append(element, $('.actions')), undefined, this.menuService, this.contextKeyService, this.contextMenuService, this.keybindingService, this.commandService, this.telemetryService);
-		templateDisposables.add(toolBar);
-
-		return { label, toolBar, elementDisposables: new DisposableStore(), templateDisposables };
-	}
-	renderElement(element: ITreeNode<SCMViewSeparatorElement, void>, index: number, templateData: SeparatorTemplate, height: number | undefined): void {
-		const provider = element.element.repository.provider;
-		const historyProvider = provider.historyProvider.get();
-		const currentHistoryItemGroup = historyProvider?.currentHistoryItemGroup.get();
-
-		// Label
-		templateData.label.setLabel(element.element.label, undefined, { title: element.element.ariaLabel });
-
-		// Toolbar
-		const contextKeyService = this.contextKeyService.createOverlay([
-			['scmHistoryItemGroupHasRemote', !!currentHistoryItemGroup?.remote],
-		]);
-		const menu = this.menuService.createMenu(MenuId.SCMChangesSeparator, contextKeyService);
-		templateData.elementDisposables.add(connectPrimaryMenu(menu, (primary, secondary) => {
-			secondary.splice(0, 0, ...this.getFilterActions(element.element.repository), new Separator());
-			templateData.toolBar.setActions(primary, secondary, [MenuId.SCMChangesSeparator]);
-		}));
-		templateData.toolBar.context = provider;
-	}
-
-	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<SCMViewSeparatorElement>, void>, index: number, templateData: SeparatorTemplate, height: number | undefined): void {
-		throw new Error('Should never happen since node is incompressible');
-	}
-
-	disposeElement(node: ITreeNode<SCMViewSeparatorElement>, index: number, templateData: SeparatorTemplate, height: number | undefined): void {
-		templateData.elementDisposables.clear();
-	}
-
-	disposeTemplate(templateData: SeparatorTemplate): void {
-		templateData.elementDisposables.dispose();
-		templateData.templateDisposables.dispose();
-	}
-}
-
 class ListDelegate implements IListVirtualDelegate<TreeElement> {
 
 	constructor(private readonly inputRenderer: InputRenderer) { }
@@ -1384,8 +1309,6 @@ class ListDelegate implements IListVirtualDelegate<TreeElement> {
 			return HistoryItem2Renderer.TEMPLATE_ID;
 		} else if (isSCMHistoryItemChangeTreeElement(element) || isSCMHistoryItemChangeNode(element)) {
 			return HistoryItemChangeRenderer.TEMPLATE_ID;
-		} else if (isSCMViewSeparator(element)) {
-			return SeparatorRenderer.TEMPLATE_ID;
 		} else {
 			throw new Error('Unknown element');
 		}
@@ -1444,10 +1367,6 @@ export class SCMTreeSorter implements ITreeSorter<TreeElement> {
 
 		if (isSCMResourceGroup(one)) {
 			return isSCMResourceGroup(other) ? 0 : -1;
-		}
-
-		if (isSCMViewSeparator(one)) {
-			return isSCMResourceGroup(other) ? 1 : -1;
 		}
 
 		if (isSCMHistoryItemGroupTreeElement(one)) {
@@ -1555,8 +1474,6 @@ export class SCMTreeKeyboardNavigationLabelProvider implements ICompressibleKeyb
 			// the author. A match in the message takes precedence over
 			// a match in the author.
 			return [element.historyItemViewModel.historyItem.message, element.historyItemViewModel.historyItem.author];
-		} else if (isSCMViewSeparator(element)) {
-			return element.label;
 		} else {
 			if (this.viewMode() === ViewMode.List) {
 				// In List mode match using the file name and the path.
@@ -1619,9 +1536,6 @@ function getSCMResourceId(element: TreeElement): string {
 		const historyItemGroup = historyItem.historyItemGroup;
 		const provider = historyItemGroup.repository.provider;
 		return `folder:${provider.id}/${historyItemGroup.id}/${historyItem.id}/$FOLDER/${element.uri.toString()}`;
-	} else if (isSCMViewSeparator(element)) {
-		const provider = element.repository.provider;
-		return `separator:${provider.id}`;
 	} else {
 		throw new Error('Invalid tree element');
 	}
@@ -1671,8 +1585,6 @@ export class SCMAccessibilityProvider implements IListAccessibilityProvider<Tree
 			}
 
 			return result.join(', ');
-		} else if (isSCMViewSeparator(element)) {
-			return element.ariaLabel ?? element.label;
 		} else {
 			const result: string[] = [];
 
@@ -3845,8 +3757,6 @@ class SCMTreeDataSource extends Disposable implements IAsyncDataSource<ISCMViewS
 		} else if (isSCMHistoryItemViewModelTreeElement(inputOrElement)) {
 			return false;
 		} else if (isSCMHistoryItemChangeTreeElement(inputOrElement)) {
-			return false;
-		} else if (isSCMViewSeparator(inputOrElement)) {
 			return false;
 		} else {
 			throw new Error('hasChildren not implemented.');

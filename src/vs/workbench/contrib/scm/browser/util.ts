@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as path from 'vs/base/common/path';
-import { SCMHistoryItemChangeTreeElement, SCMHistoryItemGroupTreeElement, SCMHistoryItemLoadMoreTreeElement, SCMHistoryItemTreeElement, SCMHistoryItemViewModelTreeElement, SCMViewSeparatorElement } from 'vs/workbench/contrib/scm/common/history';
+import { SCMHistoryItemChangeTreeElement, SCMHistoryItemGroupTreeElement, SCMHistoryItemLoadMoreTreeElement, SCMHistoryItemTreeElement, SCMHistoryItemViewModelTreeElement } from 'vs/workbench/contrib/scm/common/history';
 import { ISCMResource, ISCMRepository, ISCMResourceGroup, ISCMInput, ISCMActionButton, ISCMViewService, ISCMProvider } from 'vs/workbench/contrib/scm/common/scm';
 import { IMenu, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -76,10 +76,6 @@ export function isSCMHistoryItemChangeTreeElement(element: any): element is SCMH
 
 export function isSCMHistoryItemChangeNode(element: any): element is IResourceNode<SCMHistoryItemChangeTreeElement, SCMHistoryItemTreeElement> {
 	return ResourceTree.isResourceNode(element) && isSCMHistoryItemTreeElement(element.context);
-}
-
-export function isSCMViewSeparator(element: any): element is SCMViewSeparatorElement {
-	return (element as SCMViewSeparatorElement).type === 'separator';
 }
 
 export function toDiffEditorArguments(uri: URI, originalUri: URI, modifiedUri: URI): unknown[] {
