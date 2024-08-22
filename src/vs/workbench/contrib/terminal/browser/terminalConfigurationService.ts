@@ -7,15 +7,20 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { EDITOR_FONT_DEFAULTS, type IEditorOptions } from '../../../../editor/common/config/editorOptions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { ITerminalConfigurationService, LinuxDistro } from './terminal.js';
 import type { IXtermCore } from './xterm-private.js';
 import { DEFAULT_BOLD_FONT_WEIGHT, DEFAULT_FONT_WEIGHT, DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, FontWeight, ITerminalConfiguration, MAXIMUM_FONT_WEIGHT, MINIMUM_FONT_WEIGHT, MINIMUM_LETTER_SPACING, TERMINAL_CONFIG_SECTION, type ITerminalFont } from '../common/terminal.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
+import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 
 // #region TerminalConfigurationService
 
 export class TerminalConfigurationService extends Disposable implements ITerminalConfigurationService {
 	declare _serviceBrand: undefined;
+
+	_terminalSettingShellIntegrationEnabled: IContextKey<boolean>;
 
 	protected _fontMetrics: TerminalFontMetrics;
 
@@ -27,14 +32,18 @@ export class TerminalConfigurationService extends Disposable implements ITermina
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 	) {
 		super();
+		this._terminalSettingShellIntegrationEnabled = TerminalContextKeys.terminalSettingShellIntegrationEnabled.bindTo(this._contextKeyService);
+		this._terminalSettingShellIntegrationEnabled.set(this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled));
 
 		this._fontMetrics = this._register(new TerminalFontMetrics(this, this._configurationService));
 
 		this._register(Event.runAndSubscribe(this._configurationService.onDidChangeConfiguration, e => {
 			if (!e || e.affectsConfiguration(TERMINAL_CONFIG_SECTION)) {
 				this._updateConfig();
+				this._terminalSettingShellIntegrationEnabled.set(this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled));
 			}
 		}));
 	}

@@ -23,7 +23,8 @@ const enum ContextMenuGroup {
 	Edit = '3_edit',
 	Clear = '5_clear',
 	Kill = '7_kill',
-	Config = '9_config'
+	Config = '9_config',
+	Navigation = '11_navigation'
 }
 
 export const enum TerminalMenuBarGroup {
@@ -184,6 +185,39 @@ export function setupTerminalMenus(): void {
 					order: 3
 				}
 			},
+			{
+				id: MenuId.TerminalInstanceContext,
+				item: {
+					command: {
+						id: TerminalCommandId.RevealInFinder,
+						title: localize('reveal in finder', "Reveal in Finder"),
+					},
+					group: ContextMenuGroup.Navigation,
+					when: ContextKeyExpr.equals(TerminalContextKeyStrings.TerminalSettingShellIntegrationEnabled, true)
+				},
+			},
+			{
+				id: MenuId.TerminalInstanceContext,
+				item: {
+					command: {
+						id: TerminalCommandId.RevealInExplorer,
+						title: localize('reveal in explorer', "Reveal in Explorer"),
+					},
+					group: ContextMenuGroup.Navigation,
+					when: ContextKeyExpr.equals(TerminalContextKeyStrings.TerminalSettingShellIntegrationEnabled, true)
+				}
+			},
+			{
+				id: MenuId.TerminalInstanceContext,
+				item: {
+					command: {
+						id: TerminalCommandId.OpenInExternalTerminal,
+						title: localize('open in external terminal', "Open in External Terminal"),
+					},
+					group: ContextMenuGroup.Navigation,
+					when: ContextKeyExpr.equals(TerminalContextKeyStrings.TerminalSettingShellIntegrationEnabled, true)
+				}
+			}
 		]
 	);
 
@@ -281,6 +315,36 @@ export function setupTerminalMenus(): void {
 						title: terminalStrings.toggleSizeToContentWidth
 					},
 					group: ContextMenuGroup.Config
+				}
+			},
+			{
+				id: MenuId.TerminalEditorInstanceContext,
+				item: {
+					command: {
+						id: TerminalCommandId.RevealInFinder,
+						title: localize('reveal in finder', "Reveal in Finder"),
+					},
+					group: ContextMenuGroup.Navigation,
+				}
+			},
+			{
+				id: MenuId.TerminalEditorInstanceContext,
+				item: {
+					command: {
+						id: TerminalCommandId.RevealInExplorer,
+						title: localize('reveal in explorer', "Reveal in Explorer"),
+					},
+					group: ContextMenuGroup.Navigation,
+				}
+			},
+			{
+				id: MenuId.TerminalEditorInstanceContext,
+				item: {
+					command: {
+						id: TerminalCommandId.OpenInExternalTerminal,
+						title: localize('open in external terminal', "Open in External Terminal"),
+					},
+					group: ContextMenuGroup.Navigation,
 				}
 			}
 		]
@@ -613,6 +677,36 @@ export function setupTerminalMenus(): void {
 						title: terminalStrings.kill.value
 					},
 					group: ContextMenuGroup.Kill,
+				}
+			},
+			{
+				id: MenuId.TerminalTabContext,
+				item: {
+					command: {
+						id: TerminalCommandId.RevealInFinder,
+						title: localize('reveal in finder', "Reveal in Finder"),
+					},
+					group: ContextMenuGroup.Navigation,
+				}
+			},
+			{
+				id: MenuId.TerminalTabContext,
+				item: {
+					command: {
+						id: TerminalCommandId.RevealInExplorer,
+						title: localize('reveal in explorer', "Reveal in Explorer"),
+					},
+					group: ContextMenuGroup.Navigation,
+				}
+			},
+			{
+				id: MenuId.TerminalTabContext,
+				item: {
+					command: {
+						id: TerminalCommandId.OpenInExternalTerminal,
+						title: localize('open in external terminal', "Open in External Terminal"),
+					},
+					group: ContextMenuGroup.Navigation,
 				}
 			}
 		]

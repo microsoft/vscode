@@ -65,6 +65,8 @@ import { isKeyboardEvent, isMouseEvent, isPointerEvent } from '../../../../base/
 import { editorGroupToColumn } from '../../../services/editor/common/editorGroupColumn.js';
 import { InstanceContext } from './terminalContextMenu.js';
 import { AccessibleViewProviderId } from '../../../../platform/accessibility/browser/accessibleView.js';
+import { INativeHostService } from 'vs/platform/native/common/native';
+import { REVEAL_IN_EXPLORER_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileConstants';
 
 export const switchTerminalActionViewItemSeparator = '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';
 export const switchTerminalShowTabsTitle = localize('showTerminalTabs', "Show Tabs");
@@ -1639,6 +1641,43 @@ export function registerTerminalActions() {
 				}
 			} else {
 				console.warn(`Unmatched terminal item: "${item}"`);
+			}
+		}
+	});
+
+	registerContextualInstanceAction({
+		id: TerminalCommandId.RevealInFinder,
+		title: localize2('workbench.action.terminal.revealInFinder', 'Reveal in Finder'),
+		run: async (instance, c, accessor) => {
+			const nativeHostService = accessor.get(INativeHostService);
+			// TODO: cwd is empty when the terminal is restore from editor.
+			// const cwd = instance.cwd || instance.initialCwd;
+			const cwd = instance.cwd;
+			if (cwd) {
+				const uri = URI.file(cwd);
+				nativeHostService.showItemInFolder(uri.fsPath);
+			}
+		}
+	});
+	registerContextualInstanceAction({
+		id: TerminalCommandId.RevealInExplorer,
+		title: localize2('workbench.action.terminal.revealInExplorer', 'Reveal in Explorer'),
+		run: async (instance, c, accessor) => {
+			const commandService = accessor.get(ICommandService);
+			if (instance.cwd) {
+				const uri = URI.file(instance.cwd);
+				commandService.executeCommand(REVEAL_IN_EXPLORER_COMMAND_ID, uri);
+			}
+		}
+	});
+	registerContextualInstanceAction({
+		id: TerminalCommandId.OpenInExternalTerminal,
+		title: localize2('workbench.action.terminal.openInExternalTerminal', 'Open in External Terminal'),
+		run: (instance, c, accessor) => {
+			const commandService = accessor.get(ICommandService);
+			if (instance.cwd) {
+				const uri = URI.file(instance.cwd);
+				commandService.executeCommand('openInTerminal', uri);
 			}
 		}
 	});
