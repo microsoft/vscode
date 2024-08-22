@@ -20,6 +20,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { FullFileRenderStrategy } from 'vs/editor/browser/view/gpu/fullFileRenderStrategy';
 import { TextureAtlasPage } from 'vs/editor/browser/view/gpu/atlas/textureAtlasPage';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import type { ViewGpuContext } from 'vs/editor/browser/view/gpu/viewGpuContext';
 
 export const disableNonGpuRendering = false;
 
@@ -34,6 +35,8 @@ const enum GlyphStorageBufferInfo {
 export class ViewLinesGpu extends ViewPart {
 
 	private readonly _gpuCtx!: GPUCanvasContext;
+
+	private readonly canvas: HTMLCanvasElement;
 
 	private _device!: GPUDevice;
 	private _renderPassDescriptor!: GPURenderPassDescriptor;
@@ -55,23 +58,25 @@ export class ViewLinesGpu extends ViewPart {
 
 	constructor(
 		context: ViewContext,
-		private readonly canvas: HTMLCanvasElement,
+		private readonly viewGpuContext: ViewGpuContext,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super(context);
 
+		this.canvas = this.viewGpuContext.canvas.domNode;
+
 		// TODO: Add canvas device pixel resize event to gpu context
 		const win = getActiveWindow();
 		this.canvas.width = this.canvas.clientWidth * win.devicePixelRatio;
 		this.canvas.height = this.canvas.clientHeight * win.devicePixelRatio;
-		this._register(observeDevicePixelDimensions(canvas, getActiveWindow(), (w, h) => {
+		this._register(observeDevicePixelDimensions(this.canvas, getActiveWindow(), (w, h) => {
 			this.canvas.width = w;
 			this.canvas.height = h;
 			// TODO: Request render, should this just call renderText with the last viewportData
 		}));
 
-		this._gpuCtx = ensureNonNullable(canvas.getContext('webgpu'));
+		this._gpuCtx = ensureNonNullable(this.canvas.getContext('webgpu'));
 
 		// TODO: It would be nice if the async part of this (requesting device) was done before
 		//       ViewLinesGpu was constructed

@@ -15,6 +15,7 @@ import { PointerHandlerLastRenderData } from 'vs/editor/browser/controller/mouse
 import { PointerHandler } from 'vs/editor/browser/controller/pointerHandler';
 import { IVisibleRangeProvider, TextAreaHandler } from 'vs/editor/browser/controller/textAreaHandler';
 import { IContentWidget, IContentWidgetPosition, IEditorAriaOptions, IGlyphMarginWidget, IGlyphMarginWidgetPosition, IMouseTarget, IOverlayWidget, IOverlayWidgetPosition, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBrowser';
+import { ViewGpuContext } from 'vs/editor/browser/view/gpu/viewGpuContext';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
 import { ICommandDelegate, ViewController } from 'vs/editor/browser/view/viewController';
 import { ContentViewOverlays, MarginViewOverlays } from 'vs/editor/browser/view/viewOverlays';
@@ -77,6 +78,7 @@ export class View extends ViewEventHandler {
 
 	private readonly _scrollbar: EditorScrollbar;
 	private readonly _context: ViewContext;
+	private readonly _viewGpuContext: ViewGpuContext;
 	private _selections: Selection[];
 
 	// The view lines
@@ -96,7 +98,6 @@ export class View extends ViewEventHandler {
 
 	// Dom nodes
 	private readonly _linesContent: FastDomNode<HTMLElement>;
-	private readonly _canvas: FastDomNode<HTMLCanvasElement>;
 	public readonly domNode: FastDomNode<HTMLElement>;
 	private readonly _overflowGuardContainer: FastDomNode<HTMLElement>;
 
@@ -136,13 +137,12 @@ export class View extends ViewEventHandler {
 		this._linesContent.setClassName('lines-content' + ' monaco-editor-background');
 		this._linesContent.setPosition('absolute');
 
-		this._canvas = createFastDomNode(document.createElement('canvas'));
-		this._canvas.setClassName('editorCanvas');
-
 		this.domNode = createFastDomNode(document.createElement('div'));
 		this.domNode.setClassName(this._getEditorClassName());
 		// Set role 'code' for better screen reader support https://github.com/microsoft/vscode/issues/93438
 		this.domNode.setAttribute('role', 'code');
+
+		this._viewGpuContext = new ViewGpuContext();
 
 		this._overflowGuardContainer = createFastDomNode(document.createElement('div'));
 		PartFingerprints.write(this._overflowGuardContainer, PartFingerprint.OverflowGuard);
@@ -153,7 +153,7 @@ export class View extends ViewEventHandler {
 
 		// View Lines
 		this._viewLines = this._instantiationService.createInstance(ViewLines, this._context, this._linesContent);
-		this._viewLinesGpu = this._instantiationService.createInstance(ViewLinesGpu, this._context, this._canvas.domNode);
+		this._viewLinesGpu = this._instantiationService.createInstance(ViewLinesGpu, this._context, this._viewGpuContext);
 
 		// View Zones
 		this._viewZones = new ViewZones(this._context);
@@ -227,7 +227,7 @@ export class View extends ViewEventHandler {
 		this._linesContent.appendChild(this._viewCursors.getDomNode());
 		this._overflowGuardContainer.appendChild(margin.getDomNode());
 		this._overflowGuardContainer.appendChild(this._scrollbar.getDomNode());
-		this._overflowGuardContainer.appendChild(this._canvas);
+		this._overflowGuardContainer.appendChild(this._viewGpuContext.canvas);
 		this._overflowGuardContainer.appendChild(scrollDecoration.getDomNode());
 		this._overflowGuardContainer.appendChild(this._textAreaHandler.textArea);
 		this._overflowGuardContainer.appendChild(this._textAreaHandler.textAreaCover);
