@@ -5,20 +5,23 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDiffResult, IDiffChange } from 'vs/base/common/diff/diff';
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, type IValueWithChangeEvent } from 'vs/base/common/event';
 import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
+import { Schemas } from 'vs/base/common/network';
+import type { URI } from 'vs/base/common/uri';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { MultiDiffEditorItem } from 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffSourceResolverService';
 import { DiffElementCellViewModelBase, DiffElementPlaceholderViewModel, IDiffElementViewModelBase, SideBySideDiffElementViewModel, SingleSideDiffElementViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
 import { NotebookDiffEditorEventDispatcher } from 'vs/workbench/contrib/notebook/browser/diff/eventDispatcher';
 import { INotebookDiffViewModel, INotebookDiffViewModelUpdateEvent } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { INotebookDiffEditorModel, INotebookDiffResult } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellUri, INotebookDiffEditorModel, INotebookDiffResult } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { INotebookEditorWorkerService } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerService';
 
-export class NotebookDiffViewModel extends Disposable implements INotebookDiffViewModel {
+export class NotebookDiffViewModel extends Disposable implements INotebookDiffViewModel, IValueWithChangeEvent<readonly MultiDiffEditorItem[]> {
 	private readonly placeholderAndRelatedCells = new Map<DiffElementPlaceholderViewModel, DiffElementCellViewModelBase[]>();
 	private readonly _items: IDiffElementViewModelBase[] = [];
 	get items(): readonly IDiffElementViewModelBase[] {
@@ -27,6 +30,25 @@ export class NotebookDiffViewModel extends Disposable implements INotebookDiffVi
 	private readonly _onDidChangeItems = this._register(new Emitter<INotebookDiffViewModelUpdateEvent>());
 	public readonly onDidChangeItems = this._onDidChangeItems.event;
 	private readonly disposables = this._register(new DisposableStore());
+	private _onDidChange = this._register(new Emitter<void>());
+	private diffEditorItems: NotebookMultiDiffEditorItem[] = [];
+	public onDidChange = this._onDidChange.event;
+	get value(): readonly NotebookMultiDiffEditorItem[] {
+		return this.diffEditorItems.filter(item => item.type !== 'placeholder').filter(item => this._includeUnchanged ? true : item.type !== 'unchanged');
+	}
+
+	private _hasUnchangedCells?: boolean;
+	public get hasUnchangedCells() {
+		return this._hasUnchangedCells === true;
+	}
+	private _includeUnchanged?: boolean;
+	public get includeUnchanged() {
+		return this._includeUnchanged === true;
+	}
+	public set includeUnchanged(value) {
+		this._includeUnchanged = value;
+		this._onDidChange.fire();
+	}
 
 	private originalCellViewModels: DiffElementCellViewModelBase[] = [];
 	constructor(private readonly model: INotebookDiffEditorModel,
@@ -36,6 +58,7 @@ export class NotebookDiffViewModel extends Disposable implements INotebookDiffVi
 		private readonly eventDispatcher: NotebookDiffEditorEventDispatcher,
 		private readonly notebookService: INotebookService,
 		private readonly fontInfo?: FontInfo,
+		private readonly excludeUnchangedPlaceholder?: boolean,
 	) {
 		super();
 	}
@@ -67,8 +90,59 @@ export class NotebookDiffViewModel extends Disposable implements INotebookDiffVi
 			return;
 		} else {
 			this.updateViewModels(cellDiffInfo);
+			this.updateDiffEditorItems();
 			return { firstChangeIndex };
 		}
+	}
+
+	private updateDiffEditorItems() {
+		this.diffEditorItems = [];
+		const originalSourceUri = this.model.original.resource!;
+		const modifiedSourceUri = this.model.modified.resource!;
+		this._hasUnchangedCells = false;
+		this.items.forEach(item => {
+			switch (item.type) {
+				case 'delete': {
+					this.diffEditorItems.push(new NotebookMultiDiffEditorItem(item.original!.uri, undefined, undefined, item.type));
+					const originalMetadata = CellUri.generateCellPropertyUri(originalSourceUri, item.original!.handle, Schemas.vscodeNotebookCellMetadata);
+					this.diffEditorItems.push(new NotebookMultiDiffEditorItem(originalMetadata, undefined, undefined, item.type));
+					break;
+				}
+				case 'insert': {
+					this.diffEditorItems.push(new NotebookMultiDiffEditorItem(undefined, item.modified!.uri, item.modified!.uri, item.type));
+					const modifiedMetadata = CellUri.generateCellPropertyUri(modifiedSourceUri, item.modified!.handle, Schemas.vscodeNotebookCellMetadata);
+					this.diffEditorItems.push(new NotebookMultiDiffEditorItem(modifiedMetadata, undefined, item.modified!.uri, item.type));
+					break;
+				}
+				case 'modified': {
+					this.diffEditorItems.push(new NotebookMultiDiffEditorItem(item.original!.uri, item.modified!.uri, item.modified!.uri, item.type));
+					if (item.checkMetadataIfModified()) {
+						const originalMetadata = CellUri.generateCellPropertyUri(originalSourceUri, item.original!.handle, Schemas.vscodeNotebookCellMetadata);
+						const modifiedMetadata = CellUri.generateCellPropertyUri(modifiedSourceUri, item.modified!.handle, Schemas.vscodeNotebookCellMetadata);
+						this.diffEditorItems.push(new NotebookMultiDiffEditorItem(originalMetadata, modifiedMetadata, item.modified!.uri, item.type));
+					}
+					if (item.checkIfOutputsModified()) {
+						const originalOutput = CellUri.generateCellPropertyUri(originalSourceUri, item.original!.handle, Schemas.vscodeNotebookCellOutput);
+						const modifiedOutput = CellUri.generateCellPropertyUri(modifiedSourceUri, item.modified!.handle, Schemas.vscodeNotebookCellOutput);
+						this.diffEditorItems.push(new NotebookMultiDiffEditorItem(originalOutput, modifiedOutput, item.modified!.uri, item.type));
+					}
+					break;
+				}
+				case 'unchanged': {
+					this._hasUnchangedCells = true;
+					this.diffEditorItems.push(new NotebookMultiDiffEditorItem(item.original!.uri, item.modified!.uri, item.modified!.uri, item.type));
+					const originalMetadata = CellUri.generateCellPropertyUri(originalSourceUri, item.original!.handle, Schemas.vscodeNotebookCellMetadata);
+					const modifiedMetadata = CellUri.generateCellPropertyUri(modifiedSourceUri, item.modified!.handle, Schemas.vscodeNotebookCellMetadata);
+					this.diffEditorItems.push(new NotebookMultiDiffEditorItem(originalMetadata, modifiedMetadata, item.modified!.uri, item.type));
+					const originalOutput = CellUri.generateCellPropertyUri(originalSourceUri, item.original!.handle, Schemas.vscodeNotebookCellOutput);
+					const modifiedOutput = CellUri.generateCellPropertyUri(modifiedSourceUri, item.modified!.handle, Schemas.vscodeNotebookCellOutput);
+					this.diffEditorItems.push(new NotebookMultiDiffEditorItem(originalOutput, modifiedOutput, item.modified!.uri, item.type));
+					break;
+				}
+			}
+		});
+
+		this._onDidChange.fire();
 	}
 
 	private updateViewModels(cellDiffInfo: CellDiffInfo[]) {
@@ -80,7 +154,7 @@ export class NotebookDiffViewModel extends Disposable implements INotebookDiffVi
 		let placeholder: DiffElementPlaceholderViewModel | undefined = undefined;
 		this.originalCellViewModels = cellViewModels;
 		cellViewModels.forEach((vm, index) => {
-			if (vm.type === 'unchanged') {
+			if (vm.type === 'unchanged' && !this.excludeUnchangedPlaceholder) {
 				if (!placeholder) {
 					vm.displayIconToHideUnmodifiedCells = true;
 					placeholder = new DiffElementPlaceholderViewModel(vm.mainDocumentTextModel, vm.editorEventDispatcher, vm.initData);
@@ -363,4 +437,16 @@ function computeModifiedLCS(change: IDiffChange, originalModel: NotebookTextMode
 	}
 
 	return result;
+}
+
+
+class NotebookMultiDiffEditorItem extends MultiDiffEditorItem {
+	constructor(
+		originalUri: URI | undefined,
+		modifiedUri: URI | undefined,
+		goToFileUri: URI | undefined,
+		public readonly type: IDiffElementViewModelBase['type'],
+	) {
+		super(originalUri, modifiedUri, goToFileUri);
+	}
 }

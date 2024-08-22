@@ -11,7 +11,7 @@
 // *                                                               *
 // *****************************************************************
 
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, unlinkSync } from 'node:fs';
 import { join, extname, dirname, relative } from 'node:path';
 import { preProcessFile } from 'typescript';
 import { existsSync, mkdirSync, readdirSync, statSync } from 'fs';
@@ -21,17 +21,20 @@ import { fileURLToPath } from 'node:url';
 import watch from './build/lib/watch/index.js';
 
 const enableWatching = !process.argv.includes('--disable-watch');
+const enableInPlace = process.argv.includes('--enable-in-place');
+const esmToAmd = process.argv.includes('--enable-esm-to-amd');
+const amdToEsm = !esmToAmd;
 
 const srcFolder = fileURLToPath(new URL('src', import.meta.url));
-const dstFolder = fileURLToPath(new URL('src2', import.meta.url));
+const dstFolder = fileURLToPath(new URL(enableInPlace ? 'src' : 'src2', import.meta.url));
 
 const binaryFileExtensions = new Set([
-	'.svg', '.ttf', '.png', '.sh', '.html', '.json', '.zsh', '.scpt', '.mp3', '.fish', '.ps1', '.psm1', '.md', '.txt', '.zip', '.pdf', '.qwoff', '.jxs', '.tst', '.wuff', '.less', '.utf16le', '.snap', '.tsx'
+	'.svg', '.ttf', '.png', '.sh', '.html', '.json', '.zsh', '.scpt', '.mp3', '.fish', '.ps1', '.psm1', '.md', '.txt', '.zip', '.pdf', '.qwoff', '.jxs', '.tst', '.wuff', '.less', '.utf16le', '.snap', '.actual', '.tsx', '.scm'
 ]);
 
 function migrate() {
 	console.log(`~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`);
-	console.log(`STARTING AMD->ESM MIGRATION of src to src2.`);
+	console.log(`STARTING ${amdToEsm ? 'AMD->ESM' : 'ESM->AMD'} MIGRATION of ${enableInPlace ? 'src in-place' : 'src to src2'}.`);
 
 	// installing watcher quickly to avoid missing early events
 	const watchSrc = enableWatching ? watch('src/**', { base: 'src', readDelay: 200 }) : undefined;
@@ -45,12 +48,21 @@ function migrate() {
 		migrateOne(filePath, fileContents);
 	}
 
-	writeFileSync(join(dstFolder, 'package.json'), `{"type": "module"}`);
-	writeFileSync(join(dstFolder, '.gitignore'), `*`);
+	if (amdToEsm) {
+		writeFileSync(join(dstFolder, 'package.json'), `{"type": "module"}`);
+	} else {
+		unlinkSync(join(dstFolder, 'package.json'));
+	}
+
+	if (!enableInPlace) {
+		writeFileSync(join(dstFolder, '.gitignore'), `*`);
+	}
 
 	console.log(`~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`);
-	console.log(`COMPLETED AMD->ESM MIGRATION of src to src2. You can now launch yarn watch-esm or yarn watch-client-esm`);
-	console.log(`Make sure to set the environment variable VSCODE_BUILD_ESM to a string of value 'true' if you want to build VS Code`);
+	console.log(`COMPLETED ${amdToEsm ? 'AMD->ESM' : 'ESM->AMD'} MIGRATION of ${enableInPlace ? 'src in-place' : 'src to src2'}. You can now launch yarn watch-esm or yarn watch-client-esm`);
+	if (amdToEsm) {
+		console.log(`Make sure to set the environment variable VSCODE_BUILD_ESM to a string of value 'true' if you want to build VS Code`);
+	}
 
 	if (watchSrc) {
 		console.log(`WATCHING src for changes...`);
@@ -62,10 +74,6 @@ function migrate() {
 	}
 }
 
-function posixFilePath(filePath) {
-	return filePath.replace(/\\/g, '/');
-}
-
 /**
  * @param filePath
  * @param fileContents
@@ -75,36 +83,17 @@ function migrateOne(filePath, fileContents) {
 
 	if (fileExtension === '.ts') {
 		migrateTS(filePath, fileContents.toString());
-	} else if (fileExtension === '.js' || fileExtension === '.cjs') {
-		if (
-			posixFilePath(filePath).endsWith('vs/loader.js')
-		) {
-			// fake loader
-			writeDestFile(filePath, `(function () {
-	if (typeof require !== 'undefined') {
-		return;
-	}
-	globalThis.require = function () {
-		console.trace('[require(...)] this is ESM, no more AMD/CJS require');
-	};
-	globalThis.require.config = function () {
-		console.trace('[require.config(...)] this is ESM, no more AMD/CJS require');
-	};
-})();`);
-
-		} else {
-			writeDestFile(filePath, fileContents);
-		}
-	} else if (fileExtension === '.mjs') {
-		writeDestFile(filePath, fileContents);
-	} else if (fileExtension === '.css') {
-		writeDestFile(filePath, fileContents);
 	} else if (filePath.endsWith('tsconfig.base.json')) {
 		const opts = JSON.parse(fileContents.toString());
-		opts.compilerOptions.module = 'es2022';
-		opts.compilerOptions.allowSyntheticDefaultImports = true;
+		if (amdToEsm) {
+			opts.compilerOptions.module = 'es2022';
+			opts.compilerOptions.allowSyntheticDefaultImports = true;
+		} else {
+			opts.compilerOptions.module = 'amd';
+			delete opts.compilerOptions.allowSyntheticDefaultImports;
+		}
 		writeDestFile(filePath, JSON.stringify(opts, null, '\t'));
-	} else if (binaryFileExtensions.has(fileExtension)) {
+	} else if (fileExtension === '.js' || fileExtension === '.cjs' || fileExtension === '.mjs' || fileExtension === '.css' || binaryFileExtensions.has(fileExtension)) {
 		writeDestFile(filePath, fileContents);
 	} else {
 		console.log(`ignoring ${filePath}`);
@@ -152,7 +141,6 @@ function discoverImports(fileContents) {
  * @param fileContents
  */
 function migrateTS(filePath, fileContents) {
-	const filePathPosix = posixFilePath(filePath);
 	if (filePath.endsWith('.d.ts')) {
 		return writeDestFile(filePath, fileContents);
 	}
@@ -165,22 +153,39 @@ function migrateTS(filePath, fileContents) {
 		const end = imports[i].end + 1;
 		const importedFilename = fileContents.substring(pos, end);
 
-		/** @type {string} */
-		let importedFilepath;
-		if (/^vs\/css!/.test(importedFilename)) {
-			importedFilepath = importedFilename.substr('vs/css!'.length) + '.css';
+		/** @type {string|undefined} */
+		let importedFilepath = undefined;
+		if (amdToEsm) {
+			if (/^vs\/css!/.test(importedFilename)) {
+				importedFilepath = importedFilename.substr('vs/css!'.length) + '.css';
+			} else {
+				importedFilepath = importedFilename;
+			}
 		} else {
-			importedFilepath = importedFilename;
+			if (importedFilename.endsWith('.css')) {
+				importedFilepath = `vs/css!${importedFilename.substr(0, importedFilename.length - 4)}`;
+			} else if (importedFilename.endsWith('.js')) {
+				importedFilepath = importedFilename.substr(0, importedFilename.length - 3);
+			}
+		}
+
+		if (typeof importedFilepath !== 'string') {
+			continue;
 		}
 
 		/** @type {boolean} */
 		let isRelativeImport;
-		if (/(^\.\/)|(^\.\.\/)/.test(importedFilepath)) {
-			importedFilepath = join(dirname(filePath), importedFilepath);
-			isRelativeImport = true;
-		} else if (/^vs\//.test(importedFilepath)) {
-			importedFilepath = join(srcFolder, importedFilepath);
-			isRelativeImport = true;
+		if (amdToEsm) {
+			if (/(^\.\/)|(^\.\.\/)/.test(importedFilepath)) {
+				importedFilepath = join(dirname(filePath), importedFilepath);
+				isRelativeImport = true;
+			} else if (/^vs\//.test(importedFilepath)) {
+				importedFilepath = join(srcFolder, importedFilepath);
+				isRelativeImport = true;
+			} else {
+				importedFilepath = importedFilepath;
+				isRelativeImport = false;
+			}
 		} else {
 			importedFilepath = importedFilepath;
 			isRelativeImport = false;
@@ -198,12 +203,7 @@ function migrateTS(filePath, fileContents) {
 		replacements.push({ pos, end, text: replacementImport });
 	}
 
-	// replacements = replacements.concat(rewriteDefaultImports(fileContents));
-
 	fileContents = applyReplacements(fileContents, replacements);
-
-	fileContents = fileContents.replace(/require\.__\$__nodeRequire/g, 'require');
-
 
 	writeDestFile(filePath, fileContents);
 }
@@ -282,11 +282,11 @@ function writeDestFile(srcFilePath, fileContents) {
 		for (let i = 0; i < lines.length; i++) {
 			const line = lines[i];
 			if (mode === 0) {
-				if (/\/\/ ESM-comment-begin/.test(line)) {
+				if (amdToEsm ? /\/\/ ESM-comment-begin/.test(line) : /\/\/ ESM-uncomment-begin/.test(line)) {
 					mode = 1;
 					continue;
 				}
-				if (/\/\/ ESM-uncomment-begin/.test(line)) {
+				if (amdToEsm ? /\/\/ ESM-uncomment-begin/.test(line) : /\/\/ ESM-comment-begin/.test(line)) {
 					mode = 2;
 					continue;
 				}
@@ -294,17 +294,17 @@ function writeDestFile(srcFilePath, fileContents) {
 			}
 
 			if (mode === 1) {
-				if (/\/\/ ESM-comment-end/.test(line)) {
+				if (amdToEsm ? /\/\/ ESM-comment-end/.test(line) : /\/\/ ESM-uncomment-end/.test(line)) {
 					mode = 0;
 					continue;
 				}
 				didChange = true;
-				lines[i] = '// ' + line;
+				lines[i] = line.replace(/^\s*/, (match) => match + '// ');
 				continue;
 			}
 
 			if (mode === 2) {
-				if (/\/\/ ESM-uncomment-end/.test(line)) {
+				if (amdToEsm ? /\/\/ ESM-uncomment-end/.test(line) : /\/\/ ESM-comment-end/.test(line)) {
 					mode = 0;
 					continue;
 				}

@@ -62,6 +62,7 @@ import { MarginHoverController } from 'vs/editor/contrib/hover/browser/marginHov
 import { ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHoverController2';
 import { ReplEditorInput } from 'vs/workbench/contrib/replNotebook/browser/replEditorInput';
 import { ReplInputHintContentWidget } from 'vs/workbench/contrib/interactive/browser/replInputHintContentWidget';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 
 const INTERACTIVE_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'InteractiveEditorViewState';
 
@@ -142,9 +143,7 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 			themeService,
 			storageService
 		);
-		this._instantiationService = instantiationService;
 		this._notebookWidgetService = notebookWidgetService;
-		this._contextKeyService = contextKeyService;
 		this._configurationService = configurationService;
 		this._notebookKernelService = notebookKernelService;
 		this._languageService = languageService;
@@ -153,6 +152,11 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 		this._contextMenuService = contextMenuService;
 		this._editorGroupService = editorGroupService;
 		this._extensionService = extensionService;
+
+		this._rootElement = DOM.$('.interactive-editor');
+		this._contextKeyService = this._register(contextKeyService.createScoped(this._rootElement));
+		this._contextKeyService.createKey('isCompositeNotebook', true);
+		this._instantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, this._contextKeyService])));
 
 		this._editorOptions = this._computeEditorOptions();
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
@@ -183,7 +187,7 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 	}
 
 	protected createEditor(parent: HTMLElement): void {
-		this._rootElement = DOM.append(parent, DOM.$('.interactive-editor'));
+		DOM.append(parent, this._rootElement);
 		this._rootElement.style.position = 'relative';
 		this._notebookEditorContainer = DOM.append(this._rootElement, DOM.$('.notebook-editor-container'));
 		this._inputCellContainer = DOM.append(this._rootElement, DOM.$('.input-cell-container'));
@@ -355,7 +359,7 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 
 		this._widgetDisposableStore.clear();
 
-		this._notebookWidget = <IBorrowValue<NotebookEditorWidget>>this._instantiationService.invokeFunction(this._notebookWidgetService.retrieveWidget, this.group, input, {
+		this._notebookWidget = <IBorrowValue<NotebookEditorWidget>>this._instantiationService.invokeFunction(this._notebookWidgetService.retrieveWidget, this.group.id, input, {
 			isEmbedded: true,
 			isReadOnly: true,
 			forRepl: true,

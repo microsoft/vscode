@@ -10,6 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { IWorker, IWorkerCallback, IWorkerClient, IWorkerDescriptor, IWorkerFactory, logOnceWebWorkerWarning, SimpleWorkerClient } from 'vs/base/common/worker/simpleWorker';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { coalesce } from 'vs/base/common/arrays';
+import { getNLSLanguage, getNLSMessages } from 'vs/nls';
 
 // ESM-comment-begin
 const isESM = false;
@@ -95,8 +96,8 @@ function getWorkerBootstrapUrl(label: string, workerScriptUrl: string, workerBas
 	const blob = new Blob([coalesce([
 		`/*${label}*/`,
 		workerBaseUrl ? `globalThis.MonacoEnvironment = { baseUrl: '${workerBaseUrl}' };` : undefined,
-		`globalThis._VSCODE_NLS_MESSAGES = ${JSON.stringify(globalThis._VSCODE_NLS_MESSAGES)};`,
-		`globalThis._VSCODE_NLS_LANGUAGE = ${JSON.stringify(globalThis._VSCODE_NLS_LANGUAGE)};`,
+		`globalThis._VSCODE_NLS_MESSAGES = ${JSON.stringify(getNLSMessages())};`,
+		`globalThis._VSCODE_NLS_LANGUAGE = ${JSON.stringify(getNLSLanguage())};`,
 		`globalThis._VSCODE_FILE_ROOT = '${globalThis._VSCODE_FILE_ROOT}';`,
 		`const ttPolicy = globalThis.trustedTypes?.createPolicy('defaultWorkerFactory', { createScriptURL: value => value });`,
 		`globalThis.workerttPolicy = ttPolicy;`,

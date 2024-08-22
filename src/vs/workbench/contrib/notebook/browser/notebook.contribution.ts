@@ -44,7 +44,7 @@ import { NotebookEditorWidgetService } from 'vs/workbench/contrib/notebook/brows
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { Event } from 'vs/base/common/event';
-import { getFormattedMetadataJSON, getStreamOutputData } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
+import { getFormattedMetadataJSON, getFormattedOutputJSON, getStreamOutputData } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
 import { NotebookModelResolverServiceImpl } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverServiceImpl';
 import { INotebookKernelHistoryService, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { NotebookKernelService } from 'vs/workbench/contrib/notebook/browser/services/notebookKernelServiceImpl';
@@ -123,6 +123,8 @@ import { AccessibleViewRegistry } from 'vs/platform/accessibility/browser/access
 import { NotebookAccessibilityHelp } from 'vs/workbench/contrib/notebook/browser/notebookAccessibilityHelp';
 import { NotebookAccessibleView } from 'vs/workbench/contrib/notebook/browser/notebookAccessibleView';
 import { DefaultFormatter } from 'vs/workbench/contrib/format/browser/formatActionsMultiple';
+import { NotebookMultiTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/notebookMultiDiffEditor';
+import { NotebookMultiDiffEditorInput } from 'vs/workbench/contrib/notebook/browser/diff/notebookMultiDiffEditorInput';
 
 /*--------------------------------------------------------------------------------------------- */
 
@@ -148,7 +150,19 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	]
 );
 
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+	EditorPaneDescriptor.create(
+		NotebookMultiTextDiffEditor,
+		NotebookMultiTextDiffEditor.ID,
+		'Notebook Diff Editor'
+	),
+	[
+		new SyncDescriptor(NotebookMultiDiffEditorInput)
+	]
+);
+
 class NotebookDiffEditorSerializer implements IEditorSerializer {
+	constructor(@IConfigurationService private readonly _configurationService: IConfigurationService) { }
 	canSerialize(): boolean {
 		return true;
 	}
@@ -176,8 +190,11 @@ class NotebookDiffEditorSerializer implements IEditorSerializer {
 			return undefined;
 		}
 
-		const input = NotebookDiffEditorInput.create(instantiationService, resource, name, undefined, originalResource, viewType);
-		return input;
+		if (this._configurationService.getValue('notebook.experimental.enableNewDiffEditor')) {
+			return NotebookMultiDiffEditorInput.create(instantiationService, resource, name, undefined, originalResource, viewType);
+		} else {
+			return NotebookDiffEditorInput.create(instantiationService, resource, name, undefined, originalResource, viewType);
+		}
 	}
 
 	static canResolveBackup(editorInput: EditorInput, backupResource: URI): boolean {
@@ -493,6 +510,40 @@ class CellInfoContentProvider {
 		return result;
 	}
 
+	async provideOutputsTextContent(resource: URI): Promise<ITextModel | null> {
+		const existing = this._modelService.getModel(resource);
+		if (existing) {
+			return existing;
+		}
+
+		const data = CellUri.parseCellPropertyUri(resource, Schemas.vscodeNotebookCellOutput);
+		if (!data) {
+			return null;
+		}
+
+		const ref = await this._notebookModelResolverService.resolve(data.notebook);
+		const cell = ref.object.notebook.cells.find(cell => cell.handle === data.handle);
+
+		if (!cell) {
+			ref.dispose();
+			return null;
+		}
+
+		const mode = this._languageService.createById('json');
+		const model = this._modelService.createModel(getFormattedOutputJSON(cell.outputs || []), mode, resource, true);
+		const cellModelListener = Event.any(cell.onDidChangeOutputs ?? Event.None, cell.onDidChangeOutputItems ?? Event.None)(() => {
+			model.setValue(getFormattedOutputJSON(cell.outputs || []));
+		});
+
+		const once = model.onWillDispose(() => {
+			once.dispose();
+			cellModelListener.dispose();
+			ref.dispose();
+		});
+
+		return model;
+	}
+
 	async provideOutputTextContent(resource: URI): Promise<ITextModel | null> {
 		const existing = this._modelService.getModel(resource);
 		if (existing) {
@@ -501,7 +552,7 @@ class CellInfoContentProvider {
 
 		const data = CellUri.parseCellOutputUri(resource);
 		if (!data) {
-			return null;
+			return this.provideOutputsTextContent(resource);
 		}
 
 		const ref = await this._notebookModelResolverService.resolve(data.notebook);
