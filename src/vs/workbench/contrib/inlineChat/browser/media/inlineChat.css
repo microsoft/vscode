@@ -139,6 +139,11 @@
 		color: var(--vscode-button-foreground);
 	}
 
+	.monaco-button.secondary.codicon::before {
+		align-self: center;
+		color: var(--vscode-button-secondaryForeground);
+	}
+
 	.monaco-text-button {
 		padding: 0 2px;
 		white-space: nowrap;

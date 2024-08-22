@@ -130,6 +130,9 @@ const _allApiProposals = {
 	contribSourceControlHistoryItemMenu: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.contribSourceControlHistoryItemMenu.d.ts',
 	},
+	contribSourceControlHistoryTitleMenu: {
+		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.contribSourceControlHistoryTitleMenu.d.ts',
+	},
 	contribSourceControlInputBoxMenu: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.contribSourceControlInputBoxMenu.d.ts',
 	},
@@ -243,7 +246,7 @@ const _allApiProposals = {
 	},
 	lmTools: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.lmTools.d.ts',
-		version: 4
+		version: 5
 	},
 	mappedEditsProvider: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.mappedEditsProvider.d.ts',

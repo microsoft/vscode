@@ -31,7 +31,6 @@ function getModuleLocation(environmentService: IEnvironmentService): AppResource
 	return `${(canASAR && environmentService.isBuilt) ? nodeModulesAsarUnpackedPath : nodeModulesPath}/${MODULE_LOCATION_SUBPATH}`;
 }
 
-
 export class TextModelTreeSitter extends Disposable {
 	private _parseResult: TreeSitterParseResult | undefined;
 
@@ -149,6 +148,7 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 		return this._onDidChangeContentQueue;
 	}
 
+	private _newEdits = true;
 	private _applyEdits(model: ITextModel, changes: IModelContentChange[]) {
 		for (const change of changes) {
 			const newEndOffset = change.rangeOffset + change.text.length;
@@ -162,11 +162,15 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 				oldEndPosition: { row: change.range.endLineNumber - 1, column: change.range.endColumn - 1 },
 				newEndPosition: { row: newEndPosition.lineNumber - 1, column: newEndPosition.column - 1 }
 			});
+			this._newEdits = true;
 		}
 	}
 
 	private async _parseAndUpdateTree(model: ITextModel) {
-		this.tree = await this._parse(model);
+		const tree = await this._parse(model);
+		if (!this._newEdits) {
+			this.tree = tree;
+		}
 	}
 
 	private _parse(model: ITextModel): Promise<Parser.Tree | undefined> {
@@ -182,6 +186,7 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 		let tree: Parser.Tree | undefined;
 		let time: number = 0;
 		let passes: number = 0;
+		this._newEdits = false;
 		do {
 			const timer = performance.now();
 			try {
@@ -199,7 +204,7 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 			if (model.isDisposed() || this.isDisposed) {
 				return;
 			}
-		} while (!tree);
+		} while (!tree && !this._newEdits); // exit if there a new edits, as anhy parsing done while there are new edits is throw away work
 		this.sendParseTimeTelemetry(parseType, language, time, passes);
 		return tree;
 	}

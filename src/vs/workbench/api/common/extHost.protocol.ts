@@ -56,7 +56,7 @@ import { IChatProgressResponseContent } from 'vs/workbench/contrib/chat/common/c
 import { ChatAgentVoteDirection, IChatFollowup, IChatProgress, IChatResponseErrorDetails, IChatTask, IChatTaskDto, IChatUserActionEvent } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatRequestVariableValue, IChatVariableData, IChatVariableResolverProgress } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { IChatMessage, IChatResponseFragment, ILanguageModelChatMetadata, ILanguageModelChatSelector, ILanguageModelsChangeEvent } from 'vs/workbench/contrib/chat/common/languageModels';
-import { IToolData, IToolDelta, IToolResult } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
+import { IToolData, IToolDelta, IToolInvokation, IToolResult } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
 import { DebugConfigurationProviderTriggerKind, IAdapterDescriptor, IConfig, IDebugSessionReplMode, IDebugTestRunReference, IDebugVisualization, IDebugVisualizationContext, IDebugVisualizationTreeItem, MainThreadDebugVisualization } from 'vs/workbench/contrib/debug/common/debug';
 import * as notebookCommon from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellExecutionUpdateType } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
@@ -1313,7 +1313,8 @@ export interface MainThreadChatVariablesShape extends IDisposable {
 
 export interface MainThreadLanguageModelToolsShape extends IDisposable {
 	$getTools(): Promise<Dto<IToolData>[]>;
-	$invokeTool(name: string, parameters: any, token: CancellationToken): Promise<IToolResult>;
+	$invokeTool(dto: IToolInvokation, token: CancellationToken): Promise<IToolResult>;
+	$countTokensForInvokation(callId: string, input: string | IChatMessage, token: CancellationToken): Promise<number>;
 	$registerTool(id: string): void;
 	$unregisterTool(name: string): void;
 }
@@ -1326,7 +1327,8 @@ export interface ExtHostChatVariablesShape {
 
 export interface ExtHostLanguageModelToolsShape {
 	$acceptToolDelta(delta: IToolDelta): Promise<void>;
-	$invokeTool(id: string, parameters: any, token: CancellationToken): Promise<IToolResult>;
+	$invokeTool(dto: IToolInvokation, token: CancellationToken): Promise<IToolResult>;
+	$countTokensForInvokation(callId: string, input: string | IChatMessage, token: CancellationToken): Promise<number>;
 }
 
 export interface MainThreadUrlsShape extends IDisposable {

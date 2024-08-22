@@ -20,6 +20,7 @@ import { IObservable } from 'vs/base/common/observable';
 export const VIEWLET_ID = 'workbench.view.scm';
 export const VIEW_PANE_ID = 'workbench.scm';
 export const REPOSITORIES_VIEW_PANE_ID = 'workbench.scm.repositories';
+export const HISTORY_VIEW_PANE_ID = 'workbench.scm.history';
 
 export interface IBaselineResourceProvider {
 	getBaselineResource(resource: URI): Promise<URI>;

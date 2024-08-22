@@ -22,7 +22,7 @@ import { cwd } from 'vs/base/common/process';
 import { extUriBiasedIgnorePathCase, isEqualAuthority, normalizePath, originalFSPath, removeTrailingPathSeparator } from 'vs/base/common/resources';
 import { assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
+import { getNLSLanguage, getNLSMessages, localize } from 'vs/nls';
 import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
 import { IEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -1447,8 +1447,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			userEnv: { ...this.initialUserEnv, ...options.userEnv },
 
 			nls: {
-				messages: globalThis._VSCODE_NLS_MESSAGES,
-				language: globalThis._VSCODE_NLS_LANGUAGE
+				messages: getNLSMessages(),
+				language: getNLSLanguage()
 			},
 
 			filesToOpenOrCreate: options.filesToOpen?.filesToOpenOrCreate,

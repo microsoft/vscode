@@ -176,6 +176,12 @@ const apiMenus: IAPIMenu[] = [
 		proposed: 'contribSourceControlInputBoxMenu'
 	},
 	{
+		key: 'scm/history/title',
+		id: MenuId.SCMHistoryTitle,
+		description: localize('menus.scmHistoryTitle', "The Source Control History title menu"),
+		proposed: 'contribSourceControlHistoryTitleMenu'
+	},
+	{
 		key: 'scm/historyItemChanges/title',
 		id: MenuId.SCMChangesSeparator,
 		description: localize('menus.historyItemChanges', "The Source Control incoming/outgoing changes title menu"),

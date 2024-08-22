@@ -11,6 +11,7 @@ import { ColorIdentifier } from 'vs/platform/theme/common/colorUtils';
 import { ISCMRepository } from 'vs/workbench/contrib/scm/common/scm';
 
 export interface ISCMHistoryProviderMenus {
+	getHistoryTitleMenu(): IMenu;
 	getHistoryItemGroupMenu(historyItemGroup: SCMHistoryItemGroupTreeElement): IMenu;
 	getHistoryItemGroupContextMenu(historyItemGroup: SCMHistoryItemGroupTreeElement): IMenu;
 
@@ -41,6 +42,7 @@ export interface ISCMHistoryProviderCacheEntry {
 
 export interface ISCMHistoryOptions {
 	readonly cursor?: string;
+	readonly skip?: number;
 	readonly limit?: number | { id?: string };
 	readonly historyItemGroupIds?: readonly string[];
 }
@@ -103,6 +105,13 @@ export interface SCMHistoryItemViewModelTreeElement {
 	readonly repository: ISCMRepository;
 	readonly historyItemViewModel: ISCMHistoryItemViewModel;
 	readonly type: 'historyItem2';
+}
+
+export interface SCMHistoryItemLoadMoreTreeElement {
+	readonly repository: ISCMRepository;
+	readonly cursor: string;
+	readonly graphColumnCount: number;
+	readonly type: 'historyItemLoadMore';
 }
 
 export interface SCMHistoryItemTreeElement extends ISCMHistoryItem {
