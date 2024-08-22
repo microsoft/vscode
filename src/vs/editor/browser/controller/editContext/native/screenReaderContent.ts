@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./nativeEditContext';
+import * as platform from 'vs/base/common/platform';
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
 import { AbstractEditContext, ariaLabelForScreenReaderContent, getAccessibilityOptions, ISimpleModel, newlinecount, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/editContext/editContext';
@@ -24,10 +25,16 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { NativeEditContext } from 'vs/editor/browser/controller/editContext/native/nativeEditContext';
 import { ViewController } from 'vs/editor/browser/view/viewController';
+import { PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
+import { CopyOptions } from 'vs/editor/browser/controller/editContext/textArea/textAreaInput';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { KeyCode } from 'vs/base/common/keyCodes';
 
 /**
  * without screen reader incorrect focusing behavior, does not focus
  * With screen reader incorrect focusing behavior when changing from editor to editor
+
+ * When Entering in the notebook, does not work, also can not add space in a notebook. This seems to be somehow related maybe to the notebooks in general.
  */
 export class ScreenReaderContent extends AbstractEditContext {
 
@@ -50,8 +57,11 @@ export class ScreenReaderContent extends AbstractEditContext {
 	private _scrollLeft: number = 0;
 	private _scrollTop: number = 0;
 	private _hasFocus: boolean = false;
-
 	private _screenReaderContentSelectionOffsetRange: OffsetRange | undefined;
+
+	private _modelSelections = [new Selection(1, 1, 1, 1)];
+	private _emptySelectionClipboard: boolean;
+	private _copyWithSyntaxHighlighting: boolean;
 
 	constructor(
 		context: ViewContext,
@@ -74,33 +84,87 @@ export class ScreenReaderContent extends AbstractEditContext {
 		this._contentHeight = layoutInfo.height;
 		this._fontInfo = options.get(EditorOption.fontInfo);
 		this._lineHeight = options.get(EditorOption.lineHeight);
+		this._emptySelectionClipboard = options.get(EditorOption.emptySelectionClipboard);
+		this._copyWithSyntaxHighlighting = options.get(EditorOption.copyWithSyntaxHighlighting);
 
 		this._primarySelection = new Selection(1, 1, 1, 1);
 		this._domElement.setClassName(`native-edit-context ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`);
+		PartFingerprints.write(this._domElement, PartFingerprint.TextArea);
 		const { tabSize } = this._context.viewModel.model.getOptions();
 		this._domElement.domNode.style.tabSize = `${tabSize * this._fontInfo.spaceWidth}px`;
 		this._domElement.setAttribute('aria-label', ariaLabelForScreenReaderContent(options, this._keybindingService));
 		this._domElement.setAttribute('tabindex', String(options.get(EditorOption.tabIndex)));
 		this._domElement.setAttribute('role', 'textbox');
 
-		this._register(dom.addDisposableListener(this._domElement.domNode, 'paste', (e) => {
-			console.log('paste : ', e);
-			// TODO does not work
-		}));
-		this._register(dom.addDisposableListener(this._domElement.domNode, 'cut', (e) => {
-			console.log('cut : ', e);
-			// TODO does not work
-		}));
+		/*
+		// https://issues.chromium.org/issues/40642681
+		// As soon as the edit context is sent the paste event is not fired and pasting no longer pastes into the content editable
+		// Copy however still works
+		EditContext: disable dom mutation for Paste as plain text
+		This CL disables DOM mutation for Paste as plain text.
+		The corresponding test, ctrl+shift+v, is also added.
+
+		document.execCommand and related commands (queryCommandValue,
+		queryCommandState, queryCommandEnabled, queryCommandIndeterm) do not
+		work in a way that makes sense with EditContext. They do not fire
+		beforeinput, which EditContext depends on, and they modify the DOM
+		directly rather than going through EditContext, which will cause the
+		editor view implemented in the DOM to become out of sync with the
+		editor model whose state is in the EditContext.
+
+		Furthermore execCommand is deprecated and non-interoperable in many
+		cases.
+
+		Given these factors, in this CL make execCommand a no-op when
+		an EditContext-based Editing Host has focus, and make all the
+		related query commands return false/null values. This change is
+		limited to command types that are conditionally enabled based on
+		whether an Editing Host has focus. Command types that are
+		unconditionally enabled (such as "copy") are not affected.
+		*/
+
+		let clipboardStoredMetada: {
+			isFromEmptySelection: boolean;
+			multicursorText: string[] | null;
+			text: string;
+			html: string | undefined;
+			mode: string | null;
+		} | undefined;
 		this._register(dom.addDisposableListener(this._domElement.domNode, 'copy', (e) => {
 			console.log('copy : ', e);
-			// TODO: this does work but corresponding paste and cut do not work
+
+			clipboardStoredMetada = this._getDataToCopy();
+			e.preventDefault();
+		}));
+		this._register(dom.addDisposableListener(this._domElement.domNode, 'keydown', (e) => {
+			const standardKeyboardEvent = new StandardKeyboardEvent(e);
+			// For the paste event
+			if (standardKeyboardEvent.metaKey && standardKeyboardEvent.keyCode === KeyCode.KeyV) {
+				e.preventDefault();
+
+				let pasteOnNewLine = false;
+				let multicursorText: string[] | null = null;
+				let mode: string | null = null;
+				if (clipboardStoredMetada) {
+					pasteOnNewLine = (this._emptySelectionClipboard && !!clipboardStoredMetada.isFromEmptySelection);
+					multicursorText = (typeof clipboardStoredMetada.multicursorText !== 'undefined' ? clipboardStoredMetada.multicursorText : null);
+					mode = clipboardStoredMetada.mode;
+					viewController.paste(clipboardStoredMetada.text, pasteOnNewLine, multicursorText, mode);
+				}
+			}
+			if (standardKeyboardEvent.metaKey && standardKeyboardEvent.keyCode === KeyCode.KeyX) {
+				clipboardStoredMetada = this._getDataToCopy();
+				viewController.cut();
+			}
 		}));
 		this._register(dom.addDisposableListener(this._domElement.domNode, 'focus', (e) => {
 			console.log('focus');
+			this._domElement.domNode.style.background = 'yellow';
 			this._setHasFocus(true);
 		}));
 		this._register(dom.addDisposableListener(this._domElement.domNode, 'blur', (e) => {
 			console.log('blur');
+			this._domElement.domNode.style.background = 'white';
 			this._setHasFocus(false);
 		}));
 		this.writeScreenReaderContent('ctor');
@@ -151,6 +215,9 @@ export class ScreenReaderContent extends AbstractEditContext {
 		this._contentHeight = layoutInfo.height;
 		this._fontInfo = options.get(EditorOption.fontInfo);
 		this._lineHeight = options.get(EditorOption.lineHeight);
+		this._emptySelectionClipboard = options.get(EditorOption.emptySelectionClipboard);
+		this._copyWithSyntaxHighlighting = options.get(EditorOption.copyWithSyntaxHighlighting);
+
 		this._domElement.setAttribute('wrap', this._textAreaWrapping ? 'on' : 'off');
 		const { tabSize } = this._context.viewModel.model.getOptions();
 		this._domElement.domNode.style.tabSize = `${tabSize * this._fontInfo.spaceWidth}px`;
@@ -164,6 +231,7 @@ export class ScreenReaderContent extends AbstractEditContext {
 
 	public override onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
 		this._primarySelection = e.selections.slice(0)[0] ?? new Selection(1, 1, 1, 1);
+		this._modelSelections = e.modelSelections.slice(0);
 		// We must update the <textarea> synchronously, otherwise long press IME on macos breaks.
 		// See https://github.com/microsoft/vscode/issues/165821
 		this._writeScreenReaderContent('selection changed');
@@ -362,5 +430,31 @@ export class ScreenReaderContent extends AbstractEditContext {
 		}
 
 		console.log('dom.getActiveElement() in _setSelectionOfScreenReaderContent : ', dom.getActiveElement());
+	}
+
+	private _getDataToCopy() {
+		const rawTextToCopy = this._context.viewModel.getPlainTextToCopy(this._modelSelections, this._emptySelectionClipboard, platform.isWindows);
+		const newLineCharacter = this._context.viewModel.model.getEOL();
+
+		const isFromEmptySelection = (this._emptySelectionClipboard && this._modelSelections.length === 1 && this._modelSelections[0].isEmpty());
+		const multicursorText = (Array.isArray(rawTextToCopy) ? rawTextToCopy : null);
+		const text = (Array.isArray(rawTextToCopy) ? rawTextToCopy.join(newLineCharacter) : rawTextToCopy);
+
+		let html: string | null | undefined = undefined;
+		let mode: string | null = null;
+		if (CopyOptions.forceCopyWithSyntaxHighlighting || (this._copyWithSyntaxHighlighting && text.length < 65536)) {
+			const richText = this._context.viewModel.getRichTextToCopy(this._modelSelections, this._emptySelectionClipboard);
+			if (richText) {
+				html = richText.html;
+				mode = richText.mode;
+			}
+		}
+		return {
+			isFromEmptySelection,
+			multicursorText,
+			text,
+			html,
+			mode
+		};
 	}
 }

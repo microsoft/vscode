@@ -21,14 +21,11 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Position } from 'vs/editor/common/core/position';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { Schemas } from 'vs/base/common/network';
 
 /*
  * 2. Need to cut down as much code as possible and only after testing simplify. See if can simplify the existing classes that I am using too.
  * 3. Why does notebook loose focus?
  * 4. Why can't use space in notebook
- * 5. Why is there focusing problem when changing config
- * 6. Why can not do copy paste?
  */
 
 // Boolean which determines whether to show the selection, control and character bounding boxes for debugging purposes
@@ -78,7 +75,10 @@ export class NativeEditContext extends Disposable {
 		private readonly _viewController: ViewController
 	) {
 		super();
-		this._register(dom.addDisposableListener(this.domElement.domNode, 'keydown', (e) => {
+		const domNode = this.domElement.domNode;
+		domNode.contentEditable = 'true';
+
+		this._register(dom.addDisposableListener(domNode, 'keydown', (e) => {
 
 			console.log('keydown : ', e);
 
@@ -95,21 +95,13 @@ export class NativeEditContext extends Disposable {
 				console.log('stopping the propagation');
 				// Stop propagation for keyDown events if the IME is processing key input
 				standardKeyboardEvent.stopPropagation();
-			}
-			// For some reason the Enter key is not fired for the dom node in a notebook, but the key down event is
-			// Find out why notebooks are handled differently, maybe because the event is not propagated as it should be, when there is the focus. We want to receive the event, but we do not?
-			const modelUri = this._context.viewModel.model.uri;
-			const isNotebook = modelUri.scheme === Schemas.vscodeNotebookCell;
-			if (standardKeyboardEvent.keyCode === KeyCode.Enter && isNotebook) {
+			} else if (standardKeyboardEvent.keyCode === KeyCode.Enter) {
+				console.log('enter key pressed');
 				this.addNewLine();
-			}
-			if (standardKeyboardEvent.keyCode === KeyCode.Space) {
-				this._updateText({ text: ' ', updateRangeStart: this._editContext.selectionStart, updateRangeEnd: this._editContext.selectionEnd });
 			}
 			this._viewController.emitKeyDown(standardKeyboardEvent);
 		}));
-
-		this._register(dom.addDisposableListener(this.domElement.domNode, 'keyup', (e) => {
+		this._register(dom.addDisposableListener(domNode, 'keyup', (e) => {
 			this._viewController.emitKeyUp(new StandardKeyboardEvent(e));
 		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'textupdate', e => {
@@ -127,26 +119,6 @@ export class NativeEditContext extends Disposable {
 			this._updateCompositionEndPosition();
 			this._viewController.compositionEnd();
 			this._context.viewModel.onCompositionEnd();
-		}));
-		this._register(dom.addDisposableListener(this.domElement.domNode, 'beforeinput', (e) => {
-
-			console.log('beforeinput : ', e);
-
-			if (e.inputType === 'insertParagraph' || e.inputType === 'insertLineBreak') {
-
-				console.log('this._editContext.text : ', this._editContext.text);
-				this.addNewLine();
-			}
-		}));
-		this._register(dom.addDisposableListener(this.domElement.domNode, 'input', (e) => {
-
-			console.log('input : ', e);
-
-			if ('inputType' in e && (e.inputType === 'insertParagraph' || e.inputType === 'insertLineBreak')) {
-
-				console.log('this._editContext.text : ', this._editContext.text);
-				this.addNewLine();
-			}
 		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'textformatupdate', e => {
 			this._handleTextFormatUpdate(e);

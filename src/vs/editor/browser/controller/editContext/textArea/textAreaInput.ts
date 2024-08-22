@@ -256,7 +256,6 @@ export class TextAreaInput extends Disposable {
 			lastKeyDown = e;
 			this._onKeyDown.fire(e);
 		}));
-
 		this._register(this._textArea.onKeyUp((_e) => {
 			const e = new StandardKeyboardEvent(_e);
 			this._onKeyUp.fire(e);
@@ -444,6 +443,9 @@ export class TextAreaInput extends Disposable {
 		}));
 
 		this._register(this._textArea.onFocus(() => {
+
+			console.log('onfocus of textareainput');
+
 			const hadFocus = this._hasFocus;
 
 			this._setHasFocus(true);
