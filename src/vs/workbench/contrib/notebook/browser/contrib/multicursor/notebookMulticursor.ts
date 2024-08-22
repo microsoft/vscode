@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Delayer } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -70,8 +69,6 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 	readonly onDidChangeAnchorCell: Event<void> = this._onDidChangeAnchorCell.event;
 	private anchorCell: [ICellViewModel, ICodeEditor] | undefined;
 
-	private readonly typeDelayer: Delayer<void> = this._register(new Delayer<void>(0));
-
 	private readonly decorationDisposables = this._register(new DisposableStore());
 	private readonly anchorDisposables = this._register(new DisposableStore());
 	private readonly cursorsDisposables = this._register(new DisposableStore());
@@ -89,9 +86,9 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 	) {
 		super();
 
-		// if (!this.configurationService.getValue<boolean>('notebook.multiCursor.enabled')) {
-		// 	return;
-		// }
+		if (!this.configurationService.getValue<boolean>('notebook.multiSelect.enabled')) {
+			return;
+		}
 
 		this.anchorCell = this.notebookEditor.activeCellAndCodeEditor;
 
@@ -212,23 +209,15 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 
 		this.anchorDisposables.add(this.anchorCell[1].onDidType(() => {
 			this.state = NotebookMultiCursorState.Idle;
-			this.typeDelayer.trigger(() => { this.updateLazyDecorations(); });
+			this.updateLazyDecorations();
 		}));
 
-		// composition
-		this.anchorDisposables.add(this.anchorCell[1].onDidCompositionStart(() => {
-			this.state = NotebookMultiCursorState.Idle;
-			this.cursorsControllers.forEach(cursorController => {
-				cursorController.startComposition(new ViewModelEventsCollector());
-			});
+		// exit mode
+		this.anchorDisposables.add(this.anchorCell[1].onDidChangeCursorSelection((e) => {
+			if (e.source === 'mouse' || e.source === 'deleteLeft' || e.source === 'deleteRight') {
+				this.exitEditingState();
+			}
 		}));
-
-		// cut
-		// this.anchorDisposables.add(this.anchorCell[1].asdfasdfasdf(() => {
-		// 	this.cursorsControllers.forEach(cursorController => {
-		// 		cursorController.cut(new ViewModelEventsCollector());
-		// 	});
-		// }));
 	}
 
 	public exitEditingState() {
@@ -380,7 +369,7 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 		this.decorationDisposables.add({
 			dispose: () => {
 				match.cellViewModel.deltaModelDecorations(
-					ids,
+					match.decorationIds,
 					[]
 				);
 			}
@@ -398,10 +387,9 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 				return;
 			}
 
-			// if (!visibleRange.some(range => range.start <= cellIndex && cellIndex >= range.end)) {
 			let selections;
 			const controller = this.cursorsControllers.get(match.cellViewModel.uri);
-			if (!controller) {
+			if (!controller) { // active cell doesn't get a stored controller from us
 				selections = this.notebookEditor.activeCodeEditor?.getSelections();
 			} else {
 				selections = controller.getSelections();
@@ -464,6 +452,7 @@ class NotebookAddMatchToMultiSelectionAction extends NotebookAction {
 			title: localize('addFindMatchToSelection', "Add Find Match to Selection"),
 			keybinding: {
 				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals('config.notebook.multiSelect.enabled', true),
 					NOTEBOOK_IS_ACTIVE_EDITOR,
 					NOTEBOOK_CELL_EDITOR_FOCUSED,
 				),
@@ -497,6 +486,7 @@ class NotebookExitMultiSelectionAction extends NotebookAction {
 			title: localize('exitMultiSelection', "Exit Multi Cursor Mode"),
 			keybinding: {
 				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals('config.notebook.multiSelect.enabled', true),
 					NOTEBOOK_IS_ACTIVE_EDITOR,
 					NOTEBOOK_MULTI_SELECTION_CONTEXT.IsNotebookMultiSelect,
 				),
