@@ -223,7 +223,6 @@ export interface IAsyncFindTreeNode<T> {
 	readonly element: T | undefined;
 	readonly children: Iterable<IAsyncFindTreeNode<T>>;
 	readonly childrenCount: number;
-	readonly parent: IAsyncFindTreeNode<T> | undefined;
 }
 
 class AsyncFindTreeNode<T> implements IAsyncFindTreeNode<T> {
@@ -241,7 +240,6 @@ class AsyncFindTreeNode<T> implements IAsyncFindTreeNode<T> {
 	constructor(
 		public element: T | undefined,
 		public id: string,
-		readonly parent: IAsyncFindTreeNode<T> | undefined = undefined
 	) { }
 
 	addChild(child: AsyncFindTreeNode<T>): void {
@@ -256,7 +254,7 @@ class AsyncFindTreeNode<T> implements IAsyncFindTreeNode<T> {
 class AsyncFindTree<TInput, T> {
 
 	private cachedNodes = new Map<string, AsyncFindTreeNode<T>>();
-	public readonly root = new AsyncFindTreeNode<T>(undefined, '');
+	public root: AsyncFindTreeNode<T> | undefined;
 
 	constructor(private readonly dataSource: IAsyncDataSource<TInput, T>) {
 		if (!dataSource.getParent) {
@@ -284,7 +282,10 @@ class AsyncFindTree<TInput, T> {
 
 			// is root
 			if (currentParentElement === currentNode.element) {
-				this.root.addChild(currentNode);
+				if (this.root) {
+					throw new Error('More than one root found');
+				}
+				this.root = currentNode;
 				break;
 			}
 			currentParentElement = currentParentElement as T;
@@ -298,7 +299,7 @@ class AsyncFindTree<TInput, T> {
 			}
 
 			// create parent node
-			const newParent = new AsyncFindTreeNode(currentParentElement as T, parentId);
+			const newParent = new AsyncFindTreeNode(currentParentElement, parentId);
 			this.cachedNodes.set(parentId, newParent);
 			newParent.addChild(currentNode);
 
@@ -821,17 +822,18 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 
 		this.activeTokenSource?.cancel();
 		this.activeTokenSource = new CancellationTokenSource();
+
 		const results = this.findProvider.getFindResults(pattern, this.activeTokenSource.token);
-		this.pocessFindResults(results, findTree, this.activeTokenSource.token);
+		this.pocessFindResults(results, this.activeTokenSource.token);
 	}
 
-	private async pocessFindResults(results: AsyncIterable<T>, findTree: AsyncFindTree<TInput, T>, token: CancellationToken): Promise<void> {
+	private async pocessFindResults(results: AsyncIterable<T>, token: CancellationToken): Promise<void> {
 		if (!this.dataSource.getParent) {
 			return;
 		}
 
-		findTree.clear();
-		this.setFindChildren(findTree);
+		const findTree = new AsyncFindTree<TInput, T>(this.dataSource);
+		this.setFindResults(findTree);
 
 		for await (const result of results) {
 			if (token.isCancellationRequested) {
@@ -842,16 +844,16 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		}
 
 		// Redraw at the end
-		this.setFindChildren(findTree);
+		this.setFindResults(findTree);
 
 		this.activeTokenSource?.dispose();
 		this.activeTokenSource = undefined;
 	}
 
-	private setFindChildren(findTree: AsyncFindTree<TInput, T>) {
-		const children: IObjectTreeElement<IAsyncDataTreeNode<TInput, T>>[] = [];
-		for (const child of findTree.root.children) {
-			children.push(this.asTreeElement(this.findNodeToAsyncNode(child, null)));
+	private setFindResults(findTree: AsyncFindTree<TInput, T>) {
+		const roots: IObjectTreeElement<IAsyncDataTreeNode<TInput, T>>[] = [];
+		for (const root of findTree.root?.children ?? []) {
+			roots.push(this.asTreeElement(this.findNodeToAsyncNode(root, null)));
 		}
 
 		this.tree.setChildren(null, children);

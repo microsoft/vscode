@@ -105,10 +105,7 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 			}
 		}
 
-		const parentResource = element.resource.with({ path: path.dirname(element.resource.path) });
-		const parent = new ExplorerItem(parentResource, this.fileService, this.configService, this.filesConfigService, undefined, true);
-		parent.addChild(element);
-		return parent;
+		throw new Error('getParent only supported for cached parents');
 	}
 
 	getId(element: ExplorerItem): string {
