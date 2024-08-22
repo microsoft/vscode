@@ -12,7 +12,7 @@ import { ViewLinesChangedEvent, ViewScrollChangedEvent } from 'vs/editor/common/
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import { ViewLineOptions } from '../lines/viewLineOptions';
-import { ensureNonNullable, observeDevicePixelDimensions, quadVertices } from 'vs/editor/browser/view/gpu/gpuUtils';
+import { observeDevicePixelDimensions, quadVertices } from 'vs/editor/browser/view/gpu/gpuUtils';
 import { getActiveWindow } from 'vs/base/browser/dom';
 import { GPULifecycle } from 'vs/editor/browser/view/gpu/gpuDisposable';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -33,8 +33,6 @@ const enum GlyphStorageBufferInfo {
 }
 
 export class ViewLinesGpu extends ViewPart {
-
-	private readonly _gpuCtx!: GPUCanvasContext;
 
 	private readonly canvas: HTMLCanvasElement;
 
@@ -58,25 +56,17 @@ export class ViewLinesGpu extends ViewPart {
 
 	constructor(
 		context: ViewContext,
-		private readonly viewGpuContext: ViewGpuContext,
+		private readonly _viewGpuContext: ViewGpuContext,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super(context);
 
-		this.canvas = this.viewGpuContext.canvas.domNode;
+		this.canvas = this._viewGpuContext.canvas.domNode;
 
-		// TODO: Add canvas device pixel resize event to gpu context
-		const win = getActiveWindow();
-		this.canvas.width = this.canvas.clientWidth * win.devicePixelRatio;
-		this.canvas.height = this.canvas.clientHeight * win.devicePixelRatio;
-		this._register(observeDevicePixelDimensions(this.canvas, getActiveWindow(), (w, h) => {
-			this.canvas.width = w;
-			this.canvas.height = h;
+		this._register(this._viewGpuContext.onDidChangeCanvasDevicePixelDimensions(({ width, height }) => {
 			// TODO: Request render, should this just call renderText with the last viewportData
 		}));
-
-		this._gpuCtx = ensureNonNullable(this.canvas.getContext('webgpu'));
 
 		// TODO: It would be nice if the async part of this (requesting device) was done before
 		//       ViewLinesGpu was constructed
@@ -86,10 +76,10 @@ export class ViewLinesGpu extends ViewPart {
 	async initWebgpu() {
 		// #region General
 
-		this._device = this._register(await GPULifecycle.requestDevice()).object;
+		this._device = await this._viewGpuContext.device;
 
 		const presentationFormat = navigator.gpu.getPreferredCanvasFormat();
-		this._gpuCtx.configure({
+		this._viewGpuContext.ctx.configure({
 			device: this._device,
 			format: presentationFormat,
 			alphaMode: 'premultiplied',
@@ -399,7 +389,7 @@ export class ViewLinesGpu extends ViewPart {
 
 		const encoder = this._device.createCommandEncoder({ label: 'Monaco command encoder' });
 
-		this._renderPassColorAttachment.view = this._gpuCtx.getCurrentTexture().createView({ label: 'Monaco canvas texture view' });
+		this._renderPassColorAttachment.view = this._viewGpuContext.ctx.getCurrentTexture().createView({ label: 'Monaco canvas texture view' });
 		const pass = encoder.beginRenderPass(this._renderPassDescriptor);
 		pass.setPipeline(this._pipeline);
 		pass.setVertexBuffer(0, this._vertexBuffer);
