@@ -8,7 +8,7 @@ import { Disposable, Event, EventEmitter, FileDecoration, FileDecorationProvider
 import { Repository, Resource } from './repository';
 import { IDisposable, dispose } from './util';
 import { toGitUri } from './uri';
-import { Branch, RefType, UpstreamRef } from './api/git';
+import { Branch, LogOptions, RefType, UpstreamRef } from './api/git';
 import { emojify, ensureEmojis } from './emoji';
 import { Commit } from './git';
 
@@ -133,18 +133,31 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 	}
 
 	async provideHistoryItems2(options: SourceControlHistoryOptions): Promise<SourceControlHistoryItem[]> {
-		if (!this.currentHistoryItemGroup || !options.historyItemGroupIds || typeof options.limit === 'number' || !options.limit?.id) {
+		if (!this.currentHistoryItemGroup || !options.historyItemGroupIds) {
 			return [];
 		}
 
 		// Deduplicate refNames
 		const refNames = Array.from(new Set<string>(options.historyItemGroupIds));
 
+		let logOptions: LogOptions = { refNames, shortStats: true };
+
 		try {
-			// Get the common ancestor commit, and commits
-			const commit = await this.repository.getCommit(options.limit.id);
-			const commitParentId = commit.parents.length > 0 ? commit.parents[0] : await this.repository.getEmptyTree();
-			const commits = await this.repository.log({ range: `${commitParentId}..`, refNames, shortStats: true });
+			if (options.limit === undefined || typeof options.limit === 'number') {
+				logOptions = { ...logOptions, maxEntries: options.limit ?? 50 };
+			} else if (typeof options.limit.id === 'string') {
+				// Get the common ancestor commit, and commits
+				const commit = await this.repository.getCommit(options.limit.id);
+				const commitParentId = commit.parents.length > 0 ? commit.parents[0] : await this.repository.getEmptyTree();
+
+				logOptions = { ...logOptions, range: `${commitParentId}..` };
+			}
+
+			if (typeof options.skip === 'number') {
+				logOptions = { ...logOptions, skip: options.skip };
+			}
+
+			const commits = await this.repository.log(logOptions);
 
 			await ensureEmojis();
 
@@ -166,7 +179,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 				};
 			});
 		} catch (err) {
-			this.logger.error(`[GitHistoryProvider][provideHistoryItems2] Failed to get history items '${options.limit.id}..': ${err}`);
+			this.logger.error(`[GitHistoryProvider][provideHistoryItems2] Failed to get history items with options '${JSON.stringify(options)}': ${err}`);
 			return [];
 		}
 	}

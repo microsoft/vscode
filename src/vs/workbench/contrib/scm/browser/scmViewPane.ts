@@ -3103,7 +3103,10 @@ export class SCMViewPane extends ViewPane {
 			[
 				this.inputRenderer,
 				this.actionButtonRenderer,
-				this.instantiationService.createInstance(RepositoryRenderer, MenuId.SCMTitle, getActionViewItemProvider(this.instantiationService)),
+				this.instantiationService.createInstance(RepositoryRenderer, MenuId.SCMTitle, provider => {
+					const repositoryMenus = this.scmViewService.menus.getRepositoryMenus(provider);
+					return repositoryMenus.titleMenu.menu;
+				}, true, getActionViewItemProvider(this.instantiationService)),
 				this.instantiationService.createInstance(ResourceGroupRenderer, getActionViewItemProvider(this.instantiationService)),
 				this.instantiationService.createInstance(ResourceRenderer, () => this.viewMode, this.listLabels, getActionViewItemProvider(this.instantiationService), resourceActionRunner)
 			],
