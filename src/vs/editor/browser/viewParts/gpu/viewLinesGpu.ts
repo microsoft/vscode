@@ -19,6 +19,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ILogService } from 'vs/platform/log/common/log';
 import { FullFileRenderStrategy } from 'vs/editor/browser/view/gpu/fullFileRenderStrategy';
 import { TextureAtlasPage } from 'vs/editor/browser/view/gpu/atlas/textureAtlasPage';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 export const disableNonGpuRendering = false;
 
@@ -140,28 +141,39 @@ export class ViewLinesGpu extends ViewPart {
 		});
 
 
-
 		// Write standard uniforms
-		const enum CanvasDimensionsUniformBufferInfo {
-			FloatsPerEntry = 2,
-			BytesPerEntry = CanvasDimensionsUniformBufferInfo.FloatsPerEntry * 4,
+		const enum LayoutInfoUniformBufferInfo {
+			FloatsPerEntry = 6,
+			BytesPerEntry = LayoutInfoUniformBufferInfo.FloatsPerEntry * 4,
 			Offset_CanvasWidth = 0,
-			Offset_CanvasHeight = 1
+			Offset_CanvasHeight = 1,
+			Offset_ViewportOffsetX = 2,
+			Offset_ViewportOffsetY = 3,
+			Offset_ViewportWidth = 4,
+			Offset_ViewportHeight = 5,
 		}
-		const canvasDimensionsUniformBufferValues = new Float32Array(CanvasDimensionsUniformBufferInfo.FloatsPerEntry);
-		const canvasDimensionsUniformBuffer = this._register(GPULifecycle.createBuffer(this._device, {
+		const layoutInfoUniformBufferValues = new Float32Array(LayoutInfoUniformBufferInfo.FloatsPerEntry);
+		const layoutInfoUniformBuffer = this._register(GPULifecycle.createBuffer(this._device, {
 			label: 'Monaco uniform buffer',
-			size: CanvasDimensionsUniformBufferInfo.BytesPerEntry,
+			size: LayoutInfoUniformBufferInfo.BytesPerEntry,
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
 		}, () => {
-			canvasDimensionsUniformBufferValues[CanvasDimensionsUniformBufferInfo.Offset_CanvasWidth] = this.canvas.width;
-			canvasDimensionsUniformBufferValues[CanvasDimensionsUniformBufferInfo.Offset_CanvasHeight] = this.canvas.height;
-			return canvasDimensionsUniformBufferValues;
+			layoutInfoUniformBufferValues[LayoutInfoUniformBufferInfo.Offset_CanvasWidth] = this.canvas.width;
+			layoutInfoUniformBufferValues[LayoutInfoUniformBufferInfo.Offset_CanvasHeight] = this.canvas.height;
+			layoutInfoUniformBufferValues[LayoutInfoUniformBufferInfo.Offset_ViewportOffsetX] = Math.ceil(this._context.configuration.options.get(EditorOption.layoutInfo).contentLeft * getActiveWindow().devicePixelRatio);
+			layoutInfoUniformBufferValues[LayoutInfoUniformBufferInfo.Offset_ViewportOffsetY] = 0;
+			layoutInfoUniformBufferValues[LayoutInfoUniformBufferInfo.Offset_ViewportWidth] = this.canvas.width - layoutInfoUniformBufferValues[LayoutInfoUniformBufferInfo.Offset_ViewportOffsetX];
+			layoutInfoUniformBufferValues[LayoutInfoUniformBufferInfo.Offset_ViewportHeight] = this.canvas.height - layoutInfoUniformBufferValues[LayoutInfoUniformBufferInfo.Offset_ViewportOffsetY];
+			return layoutInfoUniformBufferValues;
 		})).object;
 		this._register(observeDevicePixelDimensions(this.canvas, getActiveWindow(), (w, h) => {
-			canvasDimensionsUniformBufferValues[CanvasDimensionsUniformBufferInfo.Offset_CanvasWidth] = this.canvas.width;
-			canvasDimensionsUniformBufferValues[CanvasDimensionsUniformBufferInfo.Offset_CanvasHeight] = this.canvas.height;
-			this._device.queue.writeBuffer(canvasDimensionsUniformBuffer, 0, canvasDimensionsUniformBufferValues);
+			layoutInfoUniformBufferValues[LayoutInfoUniformBufferInfo.Offset_CanvasWidth] = this.canvas.width;
+			layoutInfoUniformBufferValues[LayoutInfoUniformBufferInfo.Offset_CanvasHeight] = this.canvas.height;
+			layoutInfoUniformBufferValues[LayoutInfoUniformBufferInfo.Offset_ViewportOffsetX] = Math.ceil(this._context.configuration.options.get(EditorOption.layoutInfo).contentLeft * getActiveWindow().devicePixelRatio);
+			layoutInfoUniformBufferValues[LayoutInfoUniformBufferInfo.Offset_ViewportOffsetY] = 0;
+			layoutInfoUniformBufferValues[LayoutInfoUniformBufferInfo.Offset_ViewportWidth] = this.canvas.width - layoutInfoUniformBufferValues[LayoutInfoUniformBufferInfo.Offset_ViewportOffsetX];
+			layoutInfoUniformBufferValues[LayoutInfoUniformBufferInfo.Offset_ViewportHeight] = this.canvas.height - layoutInfoUniformBufferValues[LayoutInfoUniformBufferInfo.Offset_ViewportOffsetY];
+			this._device.queue.writeBuffer(layoutInfoUniformBuffer, 0, layoutInfoUniformBufferValues);
 		}));
 
 
@@ -234,7 +246,7 @@ export class ViewLinesGpu extends ViewPart {
 				{ binding: BindingId.GlyphInfo1, resource: { buffer: this._glyphStorageBuffer[1] } },
 				{ binding: BindingId.TextureSampler, resource: sampler },
 				{ binding: BindingId.Texture, resource: this._atlasGpuTexture.createView() },
-				{ binding: BindingId.CanvasDimensionsUniform, resource: { buffer: canvasDimensionsUniformBuffer } },
+				{ binding: BindingId.ViewportUniform, resource: { buffer: layoutInfoUniformBuffer } },
 				{ binding: BindingId.AtlasDimensionsUniform, resource: { buffer: atlasInfoUniformBuffer } },
 				...this._renderStrategy.bindGroupEntries
 			],

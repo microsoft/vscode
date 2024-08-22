@@ -11,7 +11,7 @@ export const enum BindingId {
 	Cells,
 	TextureSampler,
 	Texture,
-	CanvasDimensionsUniform,
+	ViewportUniform,
 	AtlasDimensionsUniform,
 	ScrollOffset,
 }

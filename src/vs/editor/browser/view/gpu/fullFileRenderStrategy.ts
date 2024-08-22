@@ -39,6 +39,12 @@ struct Cell {
 	textureIndex: f32
 };
 
+struct LayoutInfo {
+	canvasDims: vec2f,
+	viewportOffset: vec2f,
+	viewportDims: vec2f,
+}
+
 struct ScrollOffset {
 	offset: vec2f
 }
@@ -50,7 +56,7 @@ struct VSOutput {
 };
 
 // Uniforms
-@group(0) @binding(${BindingId.CanvasDimensionsUniform}) var<uniform>       canvasDims:      vec2f;
+@group(0) @binding(${BindingId.ViewportUniform})         var<uniform>       layoutInfo:      LayoutInfo;
 @group(0) @binding(${BindingId.AtlasDimensionsUniform})  var<uniform>       atlasDims:       vec2f;
 @group(0) @binding(${BindingId.ScrollOffset})            var<uniform>       scrollOffset:    ScrollOffset;
 
@@ -78,7 +84,7 @@ struct VSOutput {
 	// Multiple vert.position by 2,-2 to get it into clipspace which ranged from -1 to 1
 	vsOut.position = vec4f(
 		// TODO: Fix hacky scroll offset which moves the text beside the line numbers
-		(((vert.position * vec2f(2, -2)) / canvasDims)) * glyph.size + cell.position + ((glyph.origin * vec2f(2, -2)) / canvasDims) + (((scrollOffset.offset - vec2f(-110, 0)) * 2) / canvasDims),
+		(((vert.position * vec2f(2, -2)) / layoutInfo.canvasDims)) * glyph.size + cell.position + ((glyph.origin * vec2f(2, -2)) / layoutInfo.canvasDims) + (((scrollOffset.offset + layoutInfo.viewportOffset) * 2) / layoutInfo.canvasDims),
 		0.0,
 		1.0
 	);
