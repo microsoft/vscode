@@ -72,18 +72,38 @@ declare module 'vscode' {
 	}
 
 	export interface LanguageModelToolResult {
-		/**
-		 * The result can contain arbitrary representations of the content. An example might be 'prompt-tsx' to indicate an element that can be rendered with the @vscode/prompt-tsx library.
-		 */
-		[contentType: string]: any;
-
-		/**
-		 * A string representation of the result which can be incorporated back into an LLM prompt without any special handling.
-		 */
-		toString(): string;
+		// Type determined by LanguageModelToolInvokationOptions#contentType
+		value: any;
 	}
 
 	// Tool registration/invoking between extensions
+
+	export interface LanguageModelToolInvokationOptions {
+		contentType?: 'string' | string;
+
+		/**
+		 * Parameters with which to invoke the tool.
+		 */
+		parameters: Object;
+
+		/**
+		 * Options to hint at how many tokens the tool should return in its response.
+		 */
+		tokenOptions?: {
+			/**
+			 * If known, the maximum number of tokens the tool should emit in its result.
+			 */
+			tokenBudget: number;
+
+			/**
+			 * Count the number of tokens in a message using the model specific tokenizer-logic.
+			 * @param text A string or a message instance.
+			 * @param token Optional cancellation token.  See {@link CancellationTokenSource} for how to create one.
+			 * @returns A thenable that resolves to the number of tokens.
+			 */
+			countTokens(text: string | LanguageModelChatMessage, token?: CancellationToken): Thenable<number>;
+		};
+	}
 
 	export namespace lm {
 		/**
@@ -98,9 +118,8 @@ declare module 'vscode' {
 
 		/**
 		 * Invoke a tool with the given parameters.
-		 * TODO@API Could request a set of contentTypes to be returned so they don't all need to be computed?
 		 */
-		export function invokeTool(id: string, parameters: Object, token: CancellationToken): Thenable<LanguageModelToolResult>;
+		export function invokeTool(id: string, options: LanguageModelToolInvokationOptions, token: CancellationToken): Thenable<LanguageModelToolResult>;
 	}
 
 	export type JSONSchema = object;
@@ -127,9 +146,27 @@ declare module 'vscode' {
 		parametersSchema?: JSONSchema;
 	}
 
+	export interface LanguageModelToolResponseStream {
+		/**
+		 * This progress appears inline in the chat response, only when the tool was invoked via ChatContext#invokeTool.
+		 *
+		 * @param value
+		 * @returns This stream.
+		 */
+		progress(value: string): void;
+
+		/**
+		 * Pushes a part to this stream.
+		 *
+		 * @param part A response part, rendered or metadata
+		 */
+		push(part: LanguageModelToolResponsePart): void;
+	}
+
+	export type LanguageModelToolResponsePart = ChatResponseProgressPart | ChatResponseReferencePart;
+
 	export interface LanguageModelTool {
-		// TODO@API should it be LanguageModelToolResult | string?
-		invoke(parameters: any, token: CancellationToken): Thenable<LanguageModelToolResult>;
+		invoke(parameters: any, stream: LanguageModelToolResponseStream, token: CancellationToken): Thenable<LanguageModelToolResult>;
 	}
 
 	export interface ChatLanguageModelToolReference {
@@ -166,5 +203,13 @@ declare module 'vscode' {
 		 * The list of tools were attached to this request.
 		 */
 		readonly toolReferences?: readonly ChatLanguageModelToolReference[];
+	}
+
+	export interface ChatContext {
+		/**
+		 * Invoke a tool with the given parameters, for ChatParticipants.
+		 * When a chat participant invokes a tool using this method, a progress spinner will be shown in the chat panel.
+		 */
+		invokeTool(id: string, options: LanguageModelToolInvokationOptions, token: CancellationToken): Thenable<LanguageModelToolResult>;
 	}
 }
