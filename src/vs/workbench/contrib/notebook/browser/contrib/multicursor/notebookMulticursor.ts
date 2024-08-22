@@ -3,9 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Delayer } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { ResourceMap } from 'vs/base/common/map';
 import { EditorConfiguration } from 'vs/editor/browser/config/editorConfiguration';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
@@ -27,13 +29,14 @@ import { localize } from 'vs/nls';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { INotebookActionContext, NotebookAction } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { getNotebookEditorFromEditorPane, ICellViewModel, INotebookEditor, INotebookEditorContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { CellEditorOptions } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellEditorOptions';
+import { NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_CELL_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 const NOTEBOOK_ADD_FIND_MATCH_TO_SELECTION_ID = 'notebook.addFindMatchToSelection';
@@ -51,6 +54,7 @@ interface TrackedMatch {
 	cellViewModel: ICellViewModel;
 	selections: Selection[];
 	config: IEditorConfiguration;
+	decorationIds: string[];
 }
 
 export class NotebookMultiCursorController extends Disposable implements INotebookEditorContribution {
@@ -66,10 +70,14 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 	readonly onDidChangeAnchorCell: Event<void> = this._onDidChangeAnchorCell.event;
 	private anchorCell: [ICellViewModel, ICodeEditor] | undefined;
 
-	private readonly decorationDisposables = new DisposableStore();
-	private readonly anchorDisposables = new DisposableStore();
-	private readonly cursorsDisposables = new DisposableStore();
-	private cursorsControllers: CursorsController[] = [];
+	private readonly typeDelayer: Delayer<void> = this._register(new Delayer<void>(0));
+
+	private readonly decorationDisposables = this._register(new DisposableStore());
+	private readonly anchorDisposables = this._register(new DisposableStore());
+	private readonly cursorsDisposables = this._register(new DisposableStore());
+	private cursorsControllers: ResourceMap<CursorsController> = new ResourceMap<CursorsController>();
+
+	private _nbIsMultiSelectSession = NOTEBOOK_MULTI_SELECTION_CONTEXT.IsNotebookMultiSelect.bindTo(this.contextKeyService);
 
 	constructor(
 		private readonly notebookEditor: INotebookEditor,
@@ -80,6 +88,10 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
+
+		// if (!this.configurationService.getValue<boolean>('notebook.multiCursor.enabled')) {
+		// 	return;
+		// }
 
 		this.anchorCell = this.notebookEditor.activeCellAndCodeEditor;
 
@@ -108,7 +120,7 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 
 			const editorConfig = match.config;
 
-			const converter = this.constructCoordinatesConverter(match.cellViewModel);
+			const converter = this.constructCoordinatesConverter();
 			const cursorSimpleModel = this.constructCursorSimpleModel(match.cellViewModel);
 			const controller = this.cursorsDisposables.add(new CursorsController(
 				textModel,
@@ -117,11 +129,11 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 				new CursorConfiguration(textModel.getLanguageId(), textModel.getOptions(), editorConfig, this.languageConfigurationService)
 			));
 			controller.setSelections(new ViewModelEventsCollector(), undefined, match.selections, CursorChangeReason.Explicit);
-			this.cursorsControllers.push(controller);
+			this.cursorsControllers.set(match.cellViewModel.uri, controller);
 		});
 	}
 
-	private constructCoordinatesConverter(cell: ICellViewModel): ICoordinatesConverter {
+	private constructCoordinatesConverter(): ICoordinatesConverter {
 		return {
 			convertViewPositionToModelPosition(viewPosition: Position): Position {
 				return viewPosition;
@@ -194,7 +206,13 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 			this.state = NotebookMultiCursorState.Idle; // typing will continue to work as normal across ranges, just preps for another cmd+d
 			this.cursorsControllers.forEach(cursorController => {
 				cursorController.type(new ViewModelEventsCollector(), input, 'keyboard');
+
 			});
+		}));
+
+		this.anchorDisposables.add(this.anchorCell[1].onDidType(() => {
+			this.state = NotebookMultiCursorState.Idle;
+			this.typeDelayer.trigger(() => { this.updateLazyDecorations(); });
 		}));
 
 		// composition
@@ -215,7 +233,7 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 
 	public exitEditingState() {
 		this.state = NotebookMultiCursorState.Idle;
-		NOTEBOOK_MULTI_SELECTION_CONTEXT.IsNotebookMultiSelect.bindTo(this.contextKeyService).set(false);
+		this._nbIsMultiSelectSession.set(false);
 
 		this.decorationDisposables.clear();
 		this.anchorDisposables.clear();
@@ -259,12 +277,14 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 				cellViewModel: cell,
 				selections: [newSelection],
 				config: editorConfig, // cache this in the match so we can create new cursors controllers with the correct language config
+				decorationIds: []
 			};
 			this.trackedMatches.push(newMatch);
 
 			this.updateMultiSelectDecorations(newMatch);
-			NOTEBOOK_MULTI_SELECTION_CONTEXT.IsNotebookMultiSelect.bindTo(this.contextKeyService).set(true);
+			this._nbIsMultiSelectSession.set(true);
 			this.state = NotebookMultiCursorState.Selecting;
+			this._onDidChangeAnchorCell.fire();
 
 		} else if (this.state === NotebookMultiCursorState.Selecting) { // use the word we stored from idle state transition to find next match, track it
 			const notebookTextModel = this.notebookEditor.textModel;
@@ -288,13 +308,14 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 				return; //todo: some sort of message to the user alerting them that there are no more matches? editor does not do this
 			}
 
-			const resultCellViewModel = this.notebookEditor.getViewModel()?.viewCells.find(cell => cell.handle === findResult.cell.handle);
+			const resultCellViewModel = this.notebookEditor.getCellByHandle(findResult.cell.handle);
 			if (!resultCellViewModel) {
 				return;
 			}
 
 			let newMatch: TrackedMatch;
 			if (findResult.cell.handle !== cell.handle) { // result is in a different cell, move focus there and apply selection, then update anchor
+				await this.notebookEditor.revealRangeInViewAsync(resultCellViewModel, findResult.match.range);
 				this.notebookEditor.focusNotebookCell(resultCellViewModel, 'editor');
 
 				const newSelection = Selection.fromRange(findResult.match.range, SelectionDirection.LTR);
@@ -309,6 +330,7 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 					cellViewModel: resultCellViewModel,
 					selections: [newSelection],
 					config: this.constructCellEditorOptions(this.anchorCell[0]),
+					decorationIds: []
 				} satisfies TrackedMatch;
 				this.trackedMatches.push(newMatch);
 
@@ -353,6 +375,8 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 			decorations
 		);
 
+		match.decorationIds = ids;
+
 		this.decorationDisposables.add({
 			dispose: () => {
 				match.cellViewModel.deltaModelDecorations(
@@ -360,6 +384,52 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 					[]
 				);
 			}
+		});
+
+	}
+
+	private updateLazyDecorations() {
+		// const visibleRange = this.notebookEditor.visibleRanges;
+
+		// for every tracked match that is not in the visible range, dispose of their decorations and update them based off the cursorcontroller
+		this.trackedMatches.forEach(match => {
+			const cellIndex = this.notebookEditor.getCellIndex(match.cellViewModel);
+			if (cellIndex === undefined) {
+				return;
+			}
+
+			// if (!visibleRange.some(range => range.start <= cellIndex && cellIndex >= range.end)) {
+			let selections;
+			const controller = this.cursorsControllers.get(match.cellViewModel.uri);
+			if (!controller) {
+				selections = this.notebookEditor.activeCodeEditor?.getSelections();
+			} else {
+				selections = controller.getSelections();
+			}
+
+			const newDecorations = selections?.map(selection => {
+				return {
+					range: selection,
+					options: {
+						description: '',
+						className: 'nb-multicursor-selection',
+					}
+				};
+			});
+
+			match.decorationIds = match.cellViewModel.deltaModelDecorations(
+				match.decorationIds,
+				newDecorations ?? []
+			);
+
+			this.decorationDisposables.add({
+				dispose: () => {
+					match.cellViewModel.deltaModelDecorations(
+						match.decorationIds,
+						[]
+					);
+				}
+			});
 		});
 	}
 
@@ -393,7 +463,10 @@ class NotebookAddMatchToMultiSelectionAction extends NotebookAction {
 			id: NOTEBOOK_ADD_FIND_MATCH_TO_SELECTION_ID,
 			title: localize('addFindMatchToSelection', "Add Find Match to Selection"),
 			keybinding: {
-				when: undefined,
+				when: ContextKeyExpr.and(
+					NOTEBOOK_IS_ACTIVE_EDITOR,
+					NOTEBOOK_CELL_EDITOR_FOCUSED,
+				),
 				primary: KeyMod.CtrlCmd | KeyCode.KeyD,
 				weight: KeybindingWeight.WorkbenchContrib
 			}
@@ -415,7 +488,6 @@ class NotebookAddMatchToMultiSelectionAction extends NotebookAction {
 		const controller = editor.getContribution<NotebookMultiCursorController>(NotebookMultiCursorController.id);
 		controller.findAndTrackNextSelection(context.cell);
 	}
-
 }
 
 class NotebookExitMultiSelectionAction extends NotebookAction {
@@ -424,7 +496,10 @@ class NotebookExitMultiSelectionAction extends NotebookAction {
 			id: 'noteMultiCursor.exit',
 			title: localize('exitMultiSelection', "Exit Multi Cursor Mode"),
 			keybinding: {
-				when: NOTEBOOK_MULTI_SELECTION_CONTEXT.IsNotebookMultiSelect,
+				when: ContextKeyExpr.and(
+					NOTEBOOK_IS_ACTIVE_EDITOR,
+					NOTEBOOK_MULTI_SELECTION_CONTEXT.IsNotebookMultiSelect,
+				),
 				primary: KeyCode.Escape,
 				weight: KeybindingWeight.WorkbenchContrib
 			}

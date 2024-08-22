@@ -448,6 +448,7 @@
 
 /** Cell Multi-Selection highlight */
 .nb-multicursor-selection {
+	min-width: 2px;
 	background-color: fuchsia;
 }
 
