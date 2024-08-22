@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { ViewLineOptions } from 'vs/editor/browser/viewParts/lines/viewLineOptions';
 import type { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 
 export const enum BindingId {
@@ -20,6 +21,6 @@ export interface IGpuRenderStrategy {
 	readonly wgsl: string;
 	readonly bindGroupEntries: GPUBindGroupEntry[];
 
-	update(viewportData: ViewportData): number;
+	update(viewportData: ViewportData, viewLineOptions: ViewLineOptions): number;
 	draw?(pass: GPURenderPassEncoder, viewportData: ViewportData): void;
 }

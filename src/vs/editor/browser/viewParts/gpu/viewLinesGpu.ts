@@ -386,7 +386,9 @@ export class ViewLinesGpu extends ViewPart {
 	}
 
 	private _renderText(viewportData: ViewportData): void {
-		const visibleObjectCount = this._renderStrategy.update(viewportData);
+		const options = new ViewLineOptions(this._context.configuration, this._context.theme.type);
+
+		const visibleObjectCount = this._renderStrategy.update(viewportData, options);
 
 		this._updateAtlasStorageBufferAndTexture();
 

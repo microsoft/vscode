@@ -11,6 +11,7 @@ import { BindingId, type IGpuRenderStrategy } from 'vs/editor/browser/view/gpu/g
 import { GPULifecycle } from 'vs/editor/browser/view/gpu/gpuDisposable';
 import { quadVertices } from 'vs/editor/browser/view/gpu/gpuUtils';
 import { GlyphRasterizer } from 'vs/editor/browser/view/gpu/raster/glyphRasterizer';
+import type { ViewLineOptions } from 'vs/editor/browser/viewParts/lines/viewLineOptions';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import type { IViewLineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
@@ -190,7 +191,7 @@ export class FullFileRenderStrategy extends Disposable implements IGpuRenderStra
 		];
 	}
 
-	update(viewportData: ViewportData): number {
+	update(viewportData: ViewportData, viewLineOptions: ViewLineOptions): number {
 		// Pre-allocate variables to be shared within the loop - don't trust the JIT compiler to do
 		// this optimization to avoid additional blocking time in garbage collector
 		let chars = '';
@@ -312,8 +313,8 @@ export class FullFileRenderStrategy extends Disposable implements IGpuRenderStra
 
 					glyph = this._atlas.getGlyph(this._glyphRasterizer, chars, tokenMetadata);
 
-					// TODO: Proper char width
-					screenAbsoluteX = Math.round((x + xOffset) * 7 * activeWindow.devicePixelRatio);
+					// TODO: Support non-standard character widths
+					screenAbsoluteX = Math.round((x + xOffset) * viewLineOptions.spaceWidth * activeWindow.devicePixelRatio);
 					screenAbsoluteY = (
 						Math.ceil((
 							// Top of line including line height
