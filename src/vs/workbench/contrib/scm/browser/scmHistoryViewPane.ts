@@ -751,6 +751,7 @@ export class SCMHistoryViewPane extends ViewPane {
 					this._scmHistoryItemGroupHasRemoteContextKey.reset();
 				}
 
+				this._tree.scrollTop = 0;
 				this._treeDataSource.clearCache(repository);
 				this._updateChildren(repository);
 			}));
@@ -797,9 +798,19 @@ export class SCMHistoryViewPane extends ViewPane {
 				async () => {
 					if (element && this._tree.hasNode(element)) {
 						// Refresh specific repository
-						await this._tree.updateChildren(element, true, true, {
-							// diffIdentityProvider: this._treeIdentityProvider
-						});
+						const repositoryCount = this.scmViewService.visibleRepositories.length;
+						const alwaysShowRepositories = this.configurationService.getValue<boolean>('scm.alwaysShowRepositories') === true;
+
+						if (alwaysShowRepositories || repositoryCount > 1) {
+							// Rerender so that the toolbar is updated
+							await this._tree.updateChildren(element, true, true, {
+								// diffIdentityProvider: this._treeIdentityProvider
+							});
+						} else {
+							await this._tree.updateChildren(element, undefined, undefined, {
+								// diffIdentityProvider: this._treeIdentityProvider
+							});
+						}
 					} else {
 						// Refresh the entire tree
 						await this._tree.updateChildren(undefined, undefined, undefined, {
