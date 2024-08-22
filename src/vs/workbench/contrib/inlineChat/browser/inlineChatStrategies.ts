@@ -679,7 +679,7 @@ class InlineChangeOverlay implements IOverlayWidget {
 
 		if (_hunkInfo.getState() === HunkState.Pending) {
 
-			this._store.add(this._instaService.createInstance(MenuWorkbenchButtonBar, this._domNode, MENU_INLINE_CHAT_ZONE, {
+			const menuBar = this._store.add(this._instaService.createInstance(MenuWorkbenchButtonBar, this._domNode, MENU_INLINE_CHAT_ZONE, {
 				menuOptions: { arg: _hunkInfo },
 				telemetrySource: 'inlineChat-changesZone',
 				buttonConfigProvider: (_action, idx) => {
@@ -690,6 +690,8 @@ class InlineChangeOverlay implements IOverlayWidget {
 					};
 				},
 			}));
+
+			this._store.add(menuBar.onDidChange(() => this._editor.layoutOverlayWidget(this)));
 		}
 
 		this._editor.addOverlayWidget(this);
