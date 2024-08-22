@@ -11,11 +11,12 @@ import { Schemas } from 'vs/base/common/network';
 import type { URI } from 'vs/base/common/uri';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import type { ContextKeyValue } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { MultiDiffEditorItem } from 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffSourceResolverService';
 import { DiffElementCellViewModelBase, DiffElementPlaceholderViewModel, IDiffElementViewModelBase, SideBySideDiffElementViewModel, SingleSideDiffElementViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
 import { NotebookDiffEditorEventDispatcher } from 'vs/workbench/contrib/notebook/browser/diff/eventDispatcher';
-import { INotebookDiffViewModel, INotebookDiffViewModelUpdateEvent } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
+import { INotebookDiffViewModel, INotebookDiffViewModelUpdateEvent, NOTEBOOK_DIFF_ITEM_DIFF_STATE, NOTEBOOK_DIFF_ITEM_KIND } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CellUri, INotebookDiffEditorModel, INotebookDiffResult } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
@@ -99,44 +100,62 @@ export class NotebookDiffViewModel extends Disposable implements INotebookDiffVi
 		this.diffEditorItems = [];
 		const originalSourceUri = this.model.original.resource!;
 		const modifiedSourceUri = this.model.modified.resource!;
+		const hideOutput = this.model.modified.notebook.transientOptions.transientOutputs;
+		const hideMetadata = this.model.modified.notebook.transientOptions.transientCellMetadata;
 		this._hasUnchangedCells = false;
 		this.items.forEach(item => {
 			switch (item.type) {
 				case 'delete': {
-					this.diffEditorItems.push(new NotebookMultiDiffEditorItem(item.original!.uri, undefined, undefined, item.type));
-					const originalMetadata = CellUri.generateCellPropertyUri(originalSourceUri, item.original!.handle, Schemas.vscodeNotebookCellMetadata);
-					this.diffEditorItems.push(new NotebookMultiDiffEditorItem(originalMetadata, undefined, undefined, item.type));
+					this.diffEditorItems.push(new NotebookMultiDiffEditorCellItem(item.original!.uri, undefined, item.type));
+					if (!hideMetadata) {
+						const originalMetadata = CellUri.generateCellPropertyUri(originalSourceUri, item.original!.handle, Schemas.vscodeNotebookCellMetadata);
+						this.diffEditorItems.push(new NotebookMultiDiffEditorMetadataItem(originalMetadata, undefined, item.type));
+					}
+					if (!hideOutput) {
+						const originalOutput = CellUri.generateCellPropertyUri(originalSourceUri, item.original!.handle, Schemas.vscodeNotebookCellOutput);
+						this.diffEditorItems.push(new NotebookMultiDiffEditorOutputItem(originalOutput, undefined, item.type));
+					}
 					break;
 				}
 				case 'insert': {
-					this.diffEditorItems.push(new NotebookMultiDiffEditorItem(undefined, item.modified!.uri, item.modified!.uri, item.type));
-					const modifiedMetadata = CellUri.generateCellPropertyUri(modifiedSourceUri, item.modified!.handle, Schemas.vscodeNotebookCellMetadata);
-					this.diffEditorItems.push(new NotebookMultiDiffEditorItem(modifiedMetadata, undefined, item.modified!.uri, item.type));
+					this.diffEditorItems.push(new NotebookMultiDiffEditorCellItem(undefined, item.modified!.uri, item.type));
+					if (!hideMetadata) {
+						const modifiedMetadata = CellUri.generateCellPropertyUri(modifiedSourceUri, item.modified!.handle, Schemas.vscodeNotebookCellMetadata);
+						this.diffEditorItems.push(new NotebookMultiDiffEditorMetadataItem(modifiedMetadata, undefined, item.type));
+					}
+					if (!hideOutput) {
+						const modifiedOutput = CellUri.generateCellPropertyUri(modifiedSourceUri, item.modified!.handle, Schemas.vscodeNotebookCellOutput);
+						this.diffEditorItems.push(new NotebookMultiDiffEditorOutputItem(undefined, modifiedOutput, item.type));
+					}
 					break;
 				}
 				case 'modified': {
-					this.diffEditorItems.push(new NotebookMultiDiffEditorItem(item.original!.uri, item.modified!.uri, item.modified!.uri, item.type));
-					if (item.checkMetadataIfModified()) {
+					this.diffEditorItems.push(new NotebookMultiDiffEditorCellItem(item.original!.uri, item.modified!.uri, item.type));
+					if (item.checkMetadataIfModified() && !hideMetadata) {
 						const originalMetadata = CellUri.generateCellPropertyUri(originalSourceUri, item.original!.handle, Schemas.vscodeNotebookCellMetadata);
 						const modifiedMetadata = CellUri.generateCellPropertyUri(modifiedSourceUri, item.modified!.handle, Schemas.vscodeNotebookCellMetadata);
-						this.diffEditorItems.push(new NotebookMultiDiffEditorItem(originalMetadata, modifiedMetadata, item.modified!.uri, item.type));
+						this.diffEditorItems.push(new NotebookMultiDiffEditorMetadataItem(originalMetadata, modifiedMetadata, item.type));
 					}
-					if (item.checkIfOutputsModified()) {
+					if (item.checkIfOutputsModified() && !hideOutput) {
 						const originalOutput = CellUri.generateCellPropertyUri(originalSourceUri, item.original!.handle, Schemas.vscodeNotebookCellOutput);
 						const modifiedOutput = CellUri.generateCellPropertyUri(modifiedSourceUri, item.modified!.handle, Schemas.vscodeNotebookCellOutput);
-						this.diffEditorItems.push(new NotebookMultiDiffEditorItem(originalOutput, modifiedOutput, item.modified!.uri, item.type));
+						this.diffEditorItems.push(new NotebookMultiDiffEditorOutputItem(originalOutput, modifiedOutput, item.type));
 					}
 					break;
 				}
 				case 'unchanged': {
 					this._hasUnchangedCells = true;
-					this.diffEditorItems.push(new NotebookMultiDiffEditorItem(item.original!.uri, item.modified!.uri, item.modified!.uri, item.type));
-					const originalMetadata = CellUri.generateCellPropertyUri(originalSourceUri, item.original!.handle, Schemas.vscodeNotebookCellMetadata);
-					const modifiedMetadata = CellUri.generateCellPropertyUri(modifiedSourceUri, item.modified!.handle, Schemas.vscodeNotebookCellMetadata);
-					this.diffEditorItems.push(new NotebookMultiDiffEditorItem(originalMetadata, modifiedMetadata, item.modified!.uri, item.type));
-					const originalOutput = CellUri.generateCellPropertyUri(originalSourceUri, item.original!.handle, Schemas.vscodeNotebookCellOutput);
-					const modifiedOutput = CellUri.generateCellPropertyUri(modifiedSourceUri, item.modified!.handle, Schemas.vscodeNotebookCellOutput);
-					this.diffEditorItems.push(new NotebookMultiDiffEditorItem(originalOutput, modifiedOutput, item.modified!.uri, item.type));
+					this.diffEditorItems.push(new NotebookMultiDiffEditorCellItem(item.original!.uri, item.modified!.uri, item.type));
+					if (!hideMetadata) {
+						const originalMetadata = CellUri.generateCellPropertyUri(originalSourceUri, item.original!.handle, Schemas.vscodeNotebookCellMetadata);
+						const modifiedMetadata = CellUri.generateCellPropertyUri(modifiedSourceUri, item.modified!.handle, Schemas.vscodeNotebookCellMetadata);
+						this.diffEditorItems.push(new NotebookMultiDiffEditorMetadataItem(originalMetadata, modifiedMetadata, item.type));
+					}
+					if (!hideOutput) {
+						const originalOutput = CellUri.generateCellPropertyUri(originalSourceUri, item.original!.handle, Schemas.vscodeNotebookCellOutput);
+						const modifiedOutput = CellUri.generateCellPropertyUri(modifiedSourceUri, item.modified!.handle, Schemas.vscodeNotebookCellOutput);
+						this.diffEditorItems.push(new NotebookMultiDiffEditorOutputItem(originalOutput, modifiedOutput, item.type));
+					}
 					break;
 				}
 			}
@@ -440,13 +459,54 @@ function computeModifiedLCS(change: IDiffChange, originalModel: NotebookTextMode
 }
 
 
-class NotebookMultiDiffEditorItem extends MultiDiffEditorItem {
+abstract class NotebookMultiDiffEditorItem extends MultiDiffEditorItem {
 	constructor(
 		originalUri: URI | undefined,
 		modifiedUri: URI | undefined,
 		goToFileUri: URI | undefined,
 		public readonly type: IDiffElementViewModelBase['type'],
+		contextKeys?: Record<string, ContextKeyValue>,
 	) {
 		super(originalUri, modifiedUri, goToFileUri);
+		// super(originalUri, modifiedUri, goToFileUri, contextKeys);
+	}
+}
+
+class NotebookMultiDiffEditorCellItem extends NotebookMultiDiffEditorItem {
+	constructor(
+		originalUri: URI | undefined,
+		modifiedUri: URI | undefined,
+		type: IDiffElementViewModelBase['type'],
+	) {
+		super(originalUri, modifiedUri, modifiedUri || originalUri, type, {
+			[NOTEBOOK_DIFF_ITEM_KIND.key]: 'Cell',
+			[NOTEBOOK_DIFF_ITEM_DIFF_STATE.key]: type
+		});
+	}
+}
+
+class NotebookMultiDiffEditorMetadataItem extends NotebookMultiDiffEditorItem {
+	constructor(
+		originalUri: URI | undefined,
+		modifiedUri: URI | undefined,
+		type: IDiffElementViewModelBase['type'],
+	) {
+		super(originalUri, modifiedUri, modifiedUri || originalUri, type, {
+			[NOTEBOOK_DIFF_ITEM_KIND.key]: 'Metadata',
+			[NOTEBOOK_DIFF_ITEM_DIFF_STATE.key]: type
+		});
+	}
+}
+
+class NotebookMultiDiffEditorOutputItem extends NotebookMultiDiffEditorItem {
+	constructor(
+		originalUri: URI | undefined,
+		modifiedUri: URI | undefined,
+		type: IDiffElementViewModelBase['type'],
+	) {
+		super(originalUri, modifiedUri, modifiedUri || originalUri, type, {
+			[NOTEBOOK_DIFF_ITEM_KIND.key]: 'Output',
+			[NOTEBOOK_DIFF_ITEM_DIFF_STATE.key]: type
+		});
 	}
 }

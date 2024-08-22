@@ -29,7 +29,7 @@ import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEd
 import { NotebookEditorInput, NotebookEditorInputOptions } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { NotebookService } from 'vs/workbench/contrib/notebook/browser/services/notebookServiceImpl';
-import { CellKind, CellUri, IResolvedNotebookEditorModel, NotebookWorkingCopyTypeIdentifier, NotebookSetting, ICellOutput, ICell } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, CellUri, IResolvedNotebookEditorModel, NotebookWorkingCopyTypeIdentifier, NotebookSetting, ICellOutput, ICell, NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
@@ -437,15 +437,24 @@ class CellInfoContentProvider {
 		let result: ITextModel | null = null;
 
 		const mode = this._languageService.createById('json');
-
+		const disposables = new DisposableStore();
 		for (const cell of ref.object.notebook.cells) {
 			if (cell.handle === data.handle) {
+				const cellIndex = ref.object.notebook.cells.indexOf(cell);
 				const metadataSource = getFormattedMetadataJSON(ref.object.notebook, cell.metadata, cell.language);
 				result = this._modelService.createModel(
 					metadataSource,
 					mode,
 					resource
 				);
+				this._disposables.push(disposables.add(ref.object.notebook.onDidChangeContent(e => {
+					if (result && e.rawEvents.some(event => event.kind === NotebookCellsChangeType.ChangeCellMetadata && event.index === cellIndex)) {
+						const value = getFormattedMetadataJSON(ref.object.notebook, cell.metadata, cell.language);
+						if (result.getValue() !== value) {
+							result.setValue(getFormattedMetadataJSON(ref.object.notebook, cell.metadata, cell.language));
+						}
+					}
+				})));
 				break;
 			}
 		}
@@ -456,6 +465,7 @@ class CellInfoContentProvider {
 		}
 
 		const once = result.onWillDispose(() => {
+			disposables.dispose();
 			once.dispose();
 			ref.dispose();
 		});
