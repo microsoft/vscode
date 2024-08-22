@@ -74,7 +74,7 @@ registerAction2(class extends Action2 {
 registerAction2(class CollapseAllAction extends Action2 {
 	constructor() {
 		super({
-			id: 'notebook.multiDiffEditor.collapseAll',
+			id: 'notebook.diffEditor.2.collapseAll',
 			title: localize2('collapseAllDiffs', 'Collapse All Diffs'),
 			icon: Codicon.collapseAll,
 			precondition: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(NotebookMultiTextDiffEditor.ID), ContextKeyExpr.not(NOTEBOOK_DIFF_CELLS_COLLAPSED.key)),
@@ -102,7 +102,7 @@ registerAction2(class CollapseAllAction extends Action2 {
 registerAction2(class ExpandAllAction extends Action2 {
 	constructor() {
 		super({
-			id: 'notebook.multiDiffEditor.expandAll',
+			id: 'notebook.diffEditor.2.expandAll',
 			title: localize2('ExpandAllDiffs', 'Expand All Diffs'),
 			icon: Codicon.expandAll,
 			precondition: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(NotebookMultiTextDiffEditor.ID), ContextKeyExpr.has(NOTEBOOK_DIFF_CELLS_COLLAPSED.key)),
@@ -130,13 +130,12 @@ registerAction2(class ExpandAllAction extends Action2 {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'notebook.diffEditor.toggleCollapseUnchangedCells',
-			title: localize2('toggleCollapseUnchangedCells', 'Toggle Collapse Unchanged Cells'),
-			icon: Codicon.map,
-			toggled: ContextKeyExpr.has(NOTEBOOK_DIFF_UNCHANGED_CELLS_HIDDEN.key),
+			id: 'notebook.diffEditor.showUnchangedCells',
+			title: localize2('showUnchangedCells', 'Show Unchanged Cells'),
+			icon: Codicon.unfold,
 			precondition: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(NotebookMultiTextDiffEditor.ID), ContextKeyExpr.has(NOTEBOOK_DIFF_HAS_UNCHANGED_CELLS.key)),
 			menu: {
-				when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(NotebookMultiTextDiffEditor.ID), ContextKeyExpr.has(NOTEBOOK_DIFF_HAS_UNCHANGED_CELLS.key)),
+				when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(NotebookMultiTextDiffEditor.ID), ContextKeyExpr.has(NOTEBOOK_DIFF_HAS_UNCHANGED_CELLS.key), ContextKeyExpr.equals(NOTEBOOK_DIFF_UNCHANGED_CELLS_HIDDEN.key, true)),
 				id: MenuId.EditorTitle,
 				order: 22,
 				group: 'navigation',
@@ -150,7 +149,34 @@ registerAction2(class extends Action2 {
 			return;
 		}
 		if (activeEditor instanceof NotebookMultiTextDiffEditor) {
-			activeEditor.toggleUnchangedCells();
+			activeEditor.showUnchanged();
+		}
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'notebook.diffEditor.hideUnchangedCells',
+			title: localize2('hideUnchangedCells', 'Hide Unchanged Cells'),
+			icon: Codicon.fold,
+			precondition: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(NotebookMultiTextDiffEditor.ID), ContextKeyExpr.has(NOTEBOOK_DIFF_HAS_UNCHANGED_CELLS.key)),
+			menu: {
+				when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(NotebookMultiTextDiffEditor.ID), ContextKeyExpr.has(NOTEBOOK_DIFF_HAS_UNCHANGED_CELLS.key), ContextKeyExpr.equals(NOTEBOOK_DIFF_UNCHANGED_CELLS_HIDDEN.key, false)),
+				id: MenuId.EditorTitle,
+				order: 22,
+				group: 'navigation',
+			},
+		});
+	}
+
+	run(accessor: ServicesAccessor, ...args: unknown[]): void {
+		const activeEditor = accessor.get(IEditorService).activeEditorPane;
+		if (!activeEditor) {
+			return;
+		}
+		if (activeEditor instanceof NotebookMultiTextDiffEditor) {
+			activeEditor.hideUnchanged();
 		}
 	}
 });
@@ -158,7 +184,7 @@ registerAction2(class extends Action2 {
 registerAction2(class GoToFileAction extends Action2 {
 	constructor() {
 		super({
-			id: 'notebook.multiDiffEditor.goToCell',
+			id: 'notebook.diffEditor.2.goToCell',
 			title: localize2('goToCell', 'Go To Cell'),
 			icon: Codicon.goToFile,
 			menu: {
@@ -192,7 +218,7 @@ const revertInput = localize('notebook.diff.cell.revertInput', "Revert Input");
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'notebook.multiDiffEditor.cell.revertInput',
+			id: 'notebook.diffEditor.2.cell.revertInput',
 			title: revertInput,
 			icon: revertIcon,
 			menu: {
@@ -235,7 +261,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super(
 			{
-				id: 'notebook.multiDiffEditor.cell.revertOutputs',
+				id: 'notebook.diffEditor.2.cell.revertOutputs',
 				title: revertOutputs,
 				icon: revertIcon,
 				f1: false,
@@ -278,7 +304,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super(
 			{
-				id: 'notebook.multiDiffEditor.cell.revertMetadata',
+				id: 'notebook.diffEditor.2.cell.revertMetadata',
 				title: revertMetadata,
 				icon: revertIcon,
 				f1: false,
@@ -539,7 +565,7 @@ registerAction2(class extends ToggleRenderAction {
 	constructor() {
 		super('notebook.diff.showOutputs',
 			localize2('notebook.diff.showOutputs', 'Show Outputs Differences'),
-			ActiveEditorContext.isEqualTo(NotebookTextDiffEditor.ID),
+			ContextKeyExpr.or(ActiveEditorContext.isEqualTo(NotebookTextDiffEditor.ID), ActiveEditorContext.isEqualTo(NotebookMultiTextDiffEditor.ID)),
 			ContextKeyExpr.notEquals('config.notebook.diff.ignoreOutputs', true),
 			2,
 			true,
@@ -552,7 +578,7 @@ registerAction2(class extends ToggleRenderAction {
 	constructor() {
 		super('notebook.diff.showMetadata',
 			localize2('notebook.diff.showMetadata', 'Show Metadata Differences'),
-			ActiveEditorContext.isEqualTo(NotebookTextDiffEditor.ID),
+			ContextKeyExpr.or(ActiveEditorContext.isEqualTo(NotebookTextDiffEditor.ID), ActiveEditorContext.isEqualTo(NotebookMultiTextDiffEditor.ID)),
 			ContextKeyExpr.notEquals('config.notebook.diff.ignoreMetadata', true),
 			1,
 			undefined,
