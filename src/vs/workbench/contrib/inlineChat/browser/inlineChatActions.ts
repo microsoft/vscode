@@ -505,6 +505,7 @@ export class ToggleDiffForChange extends AbstractInlineChatAction {
 			}, {
 				id: MENU_INLINE_CHAT_ZONE,
 				group: 'navigation',
+				when: CTX_INLINE_CHAT_CHANGE_HAS_DIFF,
 				order: 2
 			}]
 		});
