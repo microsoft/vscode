@@ -30,7 +30,7 @@ interface IToolEntry {
 	impl?: IToolImpl;
 }
 
-export interface IToolInvokationDto {
+export interface IToolInvokation {
 	callId: string;
 	toolId: string;
 	parameters: any;
@@ -43,7 +43,7 @@ export interface IToolResult {
 }
 
 export interface IToolImpl {
-	invoke(dto: IToolInvokationDto, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult>;
+	invoke(dto: IToolInvokation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult>;
 }
 
 export const ILanguageModelToolsService = createDecorator<ILanguageModelToolsService>('ILanguageModelToolsService');
@@ -63,7 +63,7 @@ export interface ILanguageModelToolsService {
 	getTools(): Iterable<Readonly<IToolData>>;
 	getTool(id: string): IToolData | undefined;
 	getToolByName(name: string): IToolData | undefined;
-	invokeTool(dto: IToolInvokationDto, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult>;
+	invokeTool(dto: IToolInvokation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult>;
 }
 
 export class LanguageModelToolsService implements ILanguageModelToolsService {
@@ -127,7 +127,7 @@ export class LanguageModelToolsService implements ILanguageModelToolsService {
 		return undefined;
 	}
 
-	async invokeTool(dto: IToolInvokationDto, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult> {
+	async invokeTool(dto: IToolInvokation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult> {
 		let tool = this._tools.get(dto.toolId);
 		if (!tool) {
 			throw new Error(`Tool ${dto.toolId} was not contributed`);

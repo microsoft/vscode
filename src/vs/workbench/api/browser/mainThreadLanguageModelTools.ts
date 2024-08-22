@@ -7,7 +7,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Disposable, DisposableMap } from 'vs/base/common/lifecycle';
 import { ExtHostLanguageModelToolsShape, ExtHostContext, MainContext, MainThreadLanguageModelToolsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { IChatMessage } from 'vs/workbench/contrib/chat/common/languageModels';
-import { IToolData, ILanguageModelToolsService, IToolResult, IToolInvokationDto, CountTokensCallback } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
+import { IToolData, ILanguageModelToolsService, IToolResult, IToolInvokation, CountTokensCallback } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
 import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageModelTools)
@@ -31,7 +31,7 @@ export class MainThreadLanguageModelTools extends Disposable implements MainThre
 		return Array.from(this._languageModelToolsService.getTools());
 	}
 
-	$invokeTool(dto: IToolInvokationDto, token: CancellationToken): Promise<IToolResult> {
+	$invokeTool(dto: IToolInvokation, token: CancellationToken): Promise<IToolResult> {
 		return this._languageModelToolsService.invokeTool(
 			dto,
 			(input, token) => this._proxy.$countTokensForInvokation(dto.callId, input, token),

@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { raceCancellation } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { CancellationError } from 'vs/base/common/errors';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { revive } from 'vs/base/common/marshalling';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -11,7 +13,7 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { ExtHostLanguageModelToolsShape, IMainContext, MainContext, MainThreadLanguageModelToolsShape } from 'vs/workbench/api/common/extHost.protocol';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
 import { IChatMessage } from 'vs/workbench/contrib/chat/common/languageModels';
-import { IToolData, IToolDelta, IToolInvokationDto, IToolResult } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
+import { IToolData, IToolDelta, IToolInvokation, IToolResult } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
 import type * as vscode from 'vscode';
 
 export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape {
@@ -76,7 +78,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			.map(tool => typeConvert.LanguageModelToolDescription.to(tool));
 	}
 
-	async $invokeTool(dto: IToolInvokationDto, token: CancellationToken): Promise<IToolResult> {
+	async $invokeTool(dto: IToolInvokation, token: CancellationToken): Promise<IToolResult> {
 		const item = this._registeredTools.get(dto.toolId);
 		if (!item) {
 			throw new Error(`Unknown tool ${dto.toolId}`);
@@ -91,7 +93,11 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			};
 		}
 
-		const extensionResult = await item.tool.invoke(options, token);
+		const extensionResult = await raceCancellation(Promise.resolve(item.tool.invoke(options, token)), token);
+		if (!extensionResult) {
+			throw new CancellationError();
+		}
+
 		return typeConvert.LanguageModelToolResult.from(extensionResult);
 	}
 
