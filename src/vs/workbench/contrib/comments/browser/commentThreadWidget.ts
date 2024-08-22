@@ -35,11 +35,11 @@ import { localize } from 'vs/nls';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
+import { LayoutableEditor } from 'vs/workbench/contrib/comments/browser/simpleCommentEditor';
 import { DomEmitter } from 'vs/base/browser/event';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 
 export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
-
 
 export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends Disposable implements ICommentThreadWidget {
 	private _header!: CommentThreadHeader<T>;
@@ -62,7 +62,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 	}
 	constructor(
 		readonly container: HTMLElement,
-		readonly _parentEditor: ICodeEditor,
+		readonly _parentEditor: LayoutableEditor,
 		private _owner: string,
 		private _parentResourceUri: URI,
 		private _contextKeyService: IContextKeyService,
@@ -159,7 +159,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		this.currentThreadListeners();
 		this._register(new DomEmitter(this.container, 'keydown').event(e => {
 			if (dom.isKeyboardEvent(e) && e.key === 'Escape') {
-				if (Range.isIRange(this.commentThread.range)) {
+				if (Range.isIRange(this.commentThread.range) && isCodeEditor(this._parentEditor)) {
 					this._parentEditor.setSelection(this.commentThread.range);
 				}
 				this.collapse();
