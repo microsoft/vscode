@@ -830,10 +830,8 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 			return;
 		}
 
-		this.tree.setChildren(null);
-		this.tree!.rerender();
-
 		findTree.clear();
+		this.setFindChildren(findTree);
 
 		for await (const result of results) {
 			if (token.isCancellationRequested) {
@@ -845,21 +843,19 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 
 		// Redraw at the end
 		this.setFindChildren(findTree);
-		this.tree!.rerender();
 
 		this.activeTokenSource?.dispose();
 		this.activeTokenSource = undefined;
 	}
 
 	private setFindChildren(findTree: AsyncFindTree<TInput, T>) {
-		if (findTree.root) {
-			const children: IObjectTreeElement<IAsyncDataTreeNode<TInput, T>>[] = [];
-			for (const child of findTree.root.children) {
-				children.push(this.asTreeElement(this.findNodeToAsyncNode(child, null)));
-			}
-
-			this.tree.setChildren(null, children);
+		const children: IObjectTreeElement<IAsyncDataTreeNode<TInput, T>>[] = [];
+		for (const child of findTree.root.children) {
+			children.push(this.asTreeElement(this.findNodeToAsyncNode(child, null)));
 		}
+
+		this.tree.setChildren(null, children);
+		this.tree!.rerender();
 	}
 
 	protected findNodeToAsyncNode(node: AsyncFindTreeNode<T>, parent: IAsyncDataTreeNode<TInput, T> | null): IAsyncDataTreeNode<TInput, T> {
