@@ -10,8 +10,10 @@ declare module 'vscode' {
 
 	// TODO@API capabilities
 
+	// TODO@API functions or tools?
 	// API -> LM: an tool/function that is available to the language model
-	export interface LanguageModelChatFunction {
+	export interface LanguageModelChatTool {
+		// TODO@API should use "id" here to match vscode tools, or keep name to match OpenAI?
 		name: string;
 		description: string;
 		parametersSchema?: JSONSchema;
@@ -19,8 +21,8 @@ declare module 'vscode' {
 
 	// API -> LM: add tools as request option
 	export interface LanguageModelChatRequestOptions {
-		// TODO@API this will a heterogeneous array of different types of tools
-		tools?: LanguageModelChatFunction[];
+		// TODO@API this will be a heterogeneous array of different types of tools
+		tools?: LanguageModelChatTool[];
 
 		/**
 		 * Force a specific tool to be used.
@@ -29,11 +31,17 @@ declare module 'vscode' {
 	}
 
 	// LM -> USER: function that should be used
-	export class LanguageModelChatResponseFunctionUsePart {
+	export class LanguageModelChatResponseToolCallPart {
 		name: string;
+		toolCallId: string;
 		parameters: any;
 
-		constructor(name: string, parameters: any);
+		constructor(name: string, parameters: any, toolCallId: string);
+	}
+
+	// TODO@API- this type is returned by LanguageModelChatMessage.Assistant
+	export class LanguageModelAssistantChatMessage extends LanguageModelChatMessage {
+		toolCalls?: LanguageModelChatResponseToolCallPart[];
 	}
 
 	// LM -> USER: text chunk
@@ -45,21 +53,22 @@ declare module 'vscode' {
 
 	export interface LanguageModelChatResponse {
 
-		stream: AsyncIterable<LanguageModelChatResponseTextPart | LanguageModelChatResponseFunctionUsePart>;
+		stream: AsyncIterable<LanguageModelChatResponseTextPart | LanguageModelChatResponseToolCallPart>;
 	}
 
 
 	// USER -> LM: the result of a function call
-	export class LanguageModelChatMessageFunctionResultPart {
+	export class LanguageModelChatMessageToolResultPart {
 		name: string;
+		toolUseId: string;
 		content: string;
 		isError: boolean;
 
-		constructor(name: string, content: string, isError?: boolean);
+		constructor(name: string, toolUseId: string, content: string, isError?: boolean);
 	}
 
 	export interface LanguageModelChatMessage {
-		content2: string | LanguageModelChatMessageFunctionResultPart;
+		content2: string | LanguageModelChatMessageToolResultPart;
 	}
 
 	export interface LanguageModelToolResult {

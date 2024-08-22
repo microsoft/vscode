@@ -2277,11 +2277,11 @@ export namespace LanguageModelChatMessage {
 
 	export function to(message: chatProvider.IChatMessage): vscode.LanguageModelChatMessage {
 		let content: string = '';
-		let content2: vscode.LanguageModelChatMessageFunctionResultPart | undefined;
+		let content2: vscode.LanguageModelChatMessageToolResultPart | undefined;
 		if (message.content.type === 'text') {
 			content = message.content.value;
 		} else {
-			content2 = new types.LanguageModelFunctionResultPart(message.content.name, message.content.value, message.content.isError);
+			content2 = new types.LanguageModelToolResultPart(message.content.name, message.content.name, message.content.value, message.content.isError);
 		}
 		const role = LanguageModelChatMessageRole.to(message.role);
 		const result = new types.LanguageModelChatMessage(role, content, message.name);
@@ -2298,10 +2298,11 @@ export namespace LanguageModelChatMessage {
 
 		let content: chatProvider.IChatMessagePart;
 
-		if (message.content2 instanceof types.LanguageModelFunctionResultPart) {
+		if (message.content2 instanceof types.LanguageModelToolResultPart) {
 			content = {
-				type: 'function_result',
+				type: 'tool_result',
 				name: message.content2.name,
+				toolCallId: message.content2.toolUseId,
 				value: message.content2.content,
 				isError: message.content2.isError
 			};

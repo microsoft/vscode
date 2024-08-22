@@ -4557,14 +4557,16 @@ export enum LanguageModelChatMessageRole {
 	System = 3
 }
 
-export class LanguageModelFunctionResultPart implements vscode.LanguageModelChatMessageFunctionResultPart {
+export class LanguageModelToolResultPart implements vscode.LanguageModelChatMessageToolResultPart {
 
 	name: string;
+	toolUseId: string;
 	content: string;
 	isError: boolean;
 
-	constructor(name: string, content: string, isError?: boolean) {
+	constructor(name: string, toolUseId: string, content: string, isError?: boolean) {
 		this.name = name;
+		this.toolUseId = toolUseId;
 		this.content = content;
 		this.isError = isError ?? false;
 	}
@@ -4572,7 +4574,7 @@ export class LanguageModelFunctionResultPart implements vscode.LanguageModelChat
 
 export class LanguageModelChatMessage implements vscode.LanguageModelChatMessage {
 
-	static User(content: string | LanguageModelFunctionResultPart, name?: string): LanguageModelChatMessage {
+	static User(content: string | LanguageModelToolResultPart, name?: string): LanguageModelChatMessage {
 		const value = new LanguageModelChatMessage(LanguageModelChatMessageRole.User, typeof content === 'string' ? content : '', name);
 		value.content2 = content;
 		return value;
@@ -4584,7 +4586,7 @@ export class LanguageModelChatMessage implements vscode.LanguageModelChatMessage
 
 	role: vscode.LanguageModelChatMessageRole;
 	content: string;
-	content2: string | vscode.LanguageModelChatMessageFunctionResultPart;
+	content2: string | vscode.LanguageModelChatMessageToolResultPart;
 	name: string | undefined;
 
 	constructor(role: vscode.LanguageModelChatMessageRole, content: string, name?: string) {
@@ -4595,12 +4597,14 @@ export class LanguageModelChatMessage implements vscode.LanguageModelChatMessage
 	}
 }
 
-export class LanguageModelFunctionUsePart implements vscode.LanguageModelChatResponseFunctionUsePart {
+export class LanguageModelToolUsePart implements vscode.LanguageModelChatResponseToolCallPart {
 	name: string;
+	toolCallId: string;
 	parameters: any;
 
-	constructor(name: string, parameters: any) {
+	constructor(name: string, toolUseId: string, parameters: any) {
 		this.name = name;
+		this.toolCallId = toolUseId;
 		this.parameters = parameters;
 	}
 }
