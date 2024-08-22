@@ -22,10 +22,10 @@ import { autorun } from 'vs/base/common/observable';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IHoverService, WorkbenchHoverDelegate } from 'vs/platform/hover/browser/hover';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IOpenEvent, WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { observableConfigValue } from 'vs/platform/observable/common/platformObservableUtils';
@@ -33,29 +33,59 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ColorIdentifier, registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
+import { IViewPaneOptions, ViewAction, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { renderSCMHistoryItemGraph, historyItemGroupLocal, historyItemGroupRemote, historyItemGroupBase, historyItemGroupHoverLabelForeground, toISCMHistoryItemViewModelArray } from 'vs/workbench/contrib/scm/browser/scmHistory';
 import { RepositoryActionRunner, RepositoryRenderer } from 'vs/workbench/contrib/scm/browser/scmRepositoryRenderer';
 import { collectContextMenuActions, getActionViewItemProvider, isSCMHistoryItemLoadMoreTreeElement, isSCMHistoryItemViewModelTreeElement, isSCMRepository, isSCMViewService } from 'vs/workbench/contrib/scm/browser/util';
 import { ISCMHistoryItem, ISCMHistoryItemViewModel, SCMHistoryItemLoadMoreTreeElement, SCMHistoryItemViewModelTreeElement } from 'vs/workbench/contrib/scm/common/history';
-import { ISCMProvider, ISCMRepository, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent } from 'vs/workbench/contrib/scm/common/scm';
+import { HISTORY_VIEW_PANE_ID, ISCMProvider, ISCMRepository, ISCMService, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent } from 'vs/workbench/contrib/scm/common/scm';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { stripIcons } from 'vs/base/common/iconLabels';
 import { IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
-import { MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
+import { MenuId, MenuItemAction, registerAction2 } from 'vs/platform/actions/common/actions';
 import { Iterable } from 'vs/base/common/iterator';
 import { Sequencer, Throttler } from 'vs/base/common/async';
 import { URI } from 'vs/base/common/uri';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ActionRunner, IAction, IActionRunner } from 'vs/base/common/actions';
 import { tail } from 'vs/base/common/arrays';
+import { Codicon } from 'vs/base/common/codicons';
+import { ContextKeys } from 'vs/workbench/contrib/scm/browser/scmViewPane';
 
 const historyItemAdditionsForeground = registerColor('scm.historyItemAdditionsForeground', 'gitDecoration.addedResourceForeground', localize('scm.historyItemAdditionsForeground', "History item additions foreground color."));
 const historyItemDeletionsForeground = registerColor('scm.historyItemDeletionsForeground', 'gitDecoration.deletedResourceForeground', localize('scm.historyItemDeletionsForeground', "History item deletions foreground color."));
 
 type TreeElement = ISCMRepository | SCMHistoryItemViewModelTreeElement | SCMHistoryItemLoadMoreTreeElement;
+
+registerAction2(class extends ViewAction<SCMHistoryViewPane> {
+	constructor() {
+		super({
+			id: 'workbench.scm.action.refreshGraph',
+			title: localize('refreshGraph', "Refresh"),
+			viewId: HISTORY_VIEW_PANE_ID,
+			f1: false,
+			icon: Codicon.refresh,
+			menu: {
+				id: MenuId.SCMHistoryTitle,
+				when: ContextKeyExpr.or(
+					ContextKeyExpr.has('scmRepository'),
+					ContextKeyExpr.and(ContextKeys.RepositoryVisibilityCount.isEqualTo(1), ContextKeyExpr.equals('config.scm.alwaysShowRepositories', false))
+				),
+				group: 'navigation',
+				order: 1000
+			}
+		});
+	}
+
+	async runInView(accessor: ServicesAccessor, view: SCMHistoryViewPane, provider?: ISCMProvider): Promise<void> {
+		const scmService = accessor.get(ISCMService);
+		const repository = provider?.id ? scmService.getRepository(provider.id) : undefined;
+
+		view.refresh(repository);
+	}
+});
 
 class ListDelegate implements IListVirtualDelegate<TreeElement> {
 
@@ -367,7 +397,7 @@ class SCMHistoryTreeIdentityProvider implements IIdentityProvider<TreeElement> {
 	}
 }
 
-export class SCMHistoryTreeKeyboardNavigationLabelProvider implements IKeyboardNavigationLabelProvider<TreeElement> {
+class SCMHistoryTreeKeyboardNavigationLabelProvider implements IKeyboardNavigationLabelProvider<TreeElement> {
 	getKeyboardNavigationLabel(element: TreeElement): { toString(): string } | { toString(): string }[] | undefined {
 		if (isSCMRepository(element)) {
 			return undefined;
@@ -593,6 +623,13 @@ export class SCMHistoryViewPane extends ViewPane {
 				this._repositories.clearAndDisposeAll();
 			}
 		});
+	}
+
+	async refresh(repository?: ISCMRepository): Promise<void> {
+		this._treeDataSource.clearCache(repository);
+		this._updateChildren(repository);
+
+		this._tree.scrollTop = 0;
 	}
 
 	private _createTree(container: HTMLElement): void {

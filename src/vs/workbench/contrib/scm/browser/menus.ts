@@ -266,6 +266,7 @@ export class SCMHistoryProviderMenus implements ISCMHistoryProviderMenus, IDispo
 
 	getHistoryTitleMenu(): IMenu {
 		const contextKeyService = this.contextKeyService.createOverlay([
+			['scmRepository', this._provider.id],
 			['scmHistoryItemGroupHasRemote', !!this._provider.historyProvider.get()?.currentHistoryItemGroup.get()?.remote],
 		]);
 
