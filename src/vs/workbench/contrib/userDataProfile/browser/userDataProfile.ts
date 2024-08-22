@@ -86,7 +86,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		this.reportWorkspaceProfileInfo();
 
 		if (environmentService.options?.profileToPreview) {
-			this.handleURL(URI.revive(environmentService.options.profileToPreview));
+			lifecycleService.when(LifecyclePhase.Restored).then(() => this.handleURL(URI.revive(environmentService.options!.profileToPreview!)));
 		}
 	}
 
