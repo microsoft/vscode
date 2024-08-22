@@ -76,7 +76,6 @@ export class NativeEditContext extends Disposable {
 	) {
 		super();
 		const domNode = this.domElement.domNode;
-		domNode.contentEditable = 'true';
 
 		this._register(dom.addDisposableListener(domNode, 'keydown', (e) => {
 

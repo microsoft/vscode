@@ -414,10 +414,14 @@ export class TextAreaInput extends Disposable {
 		}));
 
 		this._register(this._textArea.onCopy((e) => {
+			console.log('copy of ta input e : ', e);
 			this._ensureClipboardGetsEditorSelection(e);
 		}));
 
 		this._register(this._textArea.onPaste((e) => {
+
+			console.log('paste of ta input e : ', e);
+
 			// Pretend here we touched the text area, as the `paste` event will most likely
 			// result in a `selectionchange` event which we want to ignore
 			this._textArea.setIgnoreSelectionChangeTime('received paste event');

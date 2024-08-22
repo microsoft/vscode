@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./nativeEditContext';
+import * as browser from 'vs/base/browser/browser';
 import * as platform from 'vs/base/common/platform';
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
@@ -26,9 +27,10 @@ import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { NativeEditContext } from 'vs/editor/browser/controller/editContext/native/nativeEditContext';
 import { ViewController } from 'vs/editor/browser/view/viewController';
 import { PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
-import { CopyOptions } from 'vs/editor/browser/controller/editContext/textArea/textAreaInput';
+import { ClipboardEventUtils, ClipboardStoredMetadata, CopyOptions, InMemoryClipboardMetadataManager } from 'vs/editor/browser/controller/editContext/textArea/textAreaInput';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 
 /**
  * without screen reader incorrect focusing behavior, does not focus
@@ -68,6 +70,7 @@ export class ScreenReaderContent extends AbstractEditContext {
 		viewController: ViewController,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
+		@IClipboardService private readonly _clipboardService: IClipboardService
 	) {
 		super(context);
 
@@ -123,39 +126,57 @@ export class ScreenReaderContent extends AbstractEditContext {
 		unconditionally enabled (such as "copy") are not affected.
 		*/
 
-		let clipboardStoredMetada: {
-			isFromEmptySelection: boolean;
-			multicursorText: string[] | null;
-			text: string;
-			html: string | undefined;
-			mode: string | null;
-		} | undefined;
 		this._register(dom.addDisposableListener(this._domElement.domNode, 'copy', (e) => {
 			console.log('copy : ', e);
 
-			clipboardStoredMetada = this._getDataToCopy();
+			const clipboardStoredMetada = this._getDataToCopy();
+			const storedMetadata: ClipboardStoredMetadata = {
+				version: 1,
+				isFromEmptySelection: clipboardStoredMetada.isFromEmptySelection,
+				multicursorText: clipboardStoredMetada.multicursorText,
+				mode: clipboardStoredMetada.mode
+			};
+			InMemoryClipboardMetadataManager.INSTANCE.set(
+				// When writing "LINE\r\n" to the clipboard and then pasting,
+				// Firefox pastes "LINE\n", so let's work around this quirk
+				(browser.isFirefox ? clipboardStoredMetada.text.replace(/\r\n/g, '\n') : clipboardStoredMetada.text),
+				storedMetadata
+			);
 			e.preventDefault();
+			if (e.clipboardData) {
+				ClipboardEventUtils.setTextData(e.clipboardData, clipboardStoredMetada.text, clipboardStoredMetada.html, storedMetadata);
+			}
 		}));
-		this._register(dom.addDisposableListener(this._domElement.domNode, 'keydown', (e) => {
+		// But I want the current clipboard data because I need it in case
+		this._register(dom.addDisposableListener(this._domElement.domNode, 'keydown', async (e) => {
+
+			console.log('inside of keydown of screen reader content');
+
+			const clipboardText = await this._clipboardService.readText();
+			console.log('clipboardText : ', clipboardText);
 			const standardKeyboardEvent = new StandardKeyboardEvent(e);
 			// For the paste event
 			if (standardKeyboardEvent.metaKey && standardKeyboardEvent.keyCode === KeyCode.KeyV) {
 				e.preventDefault();
 
-				let pasteOnNewLine = false;
-				let multicursorText: string[] | null = null;
-				let mode: string | null = null;
-				if (clipboardStoredMetada) {
-					pasteOnNewLine = (this._emptySelectionClipboard && !!clipboardStoredMetada.isFromEmptySelection);
-					multicursorText = (typeof clipboardStoredMetada.multicursorText !== 'undefined' ? clipboardStoredMetada.multicursorText : null);
-					mode = clipboardStoredMetada.mode;
-					viewController.paste(clipboardStoredMetada.text, pasteOnNewLine, multicursorText, mode);
+				const clipboardText = await this._clipboardService.readText();
+				if (clipboardText !== '') {
+					const metadata = InMemoryClipboardMetadataManager.INSTANCE.get(clipboardText);
+					let pasteOnNewLine = false;
+					let multicursorText: string[] | null = null;
+					let mode: string | null = null;
+					if (metadata) {
+						pasteOnNewLine = (this._context.configuration.options.get(EditorOption.emptySelectionClipboard) && !!metadata.isFromEmptySelection);
+						multicursorText = (typeof metadata.multicursorText !== 'undefined' ? metadata.multicursorText : null);
+						mode = metadata.mode;
+					}
+					viewController.paste(clipboardText, pasteOnNewLine, multicursorText, mode);
 				}
 			}
-			if (standardKeyboardEvent.metaKey && standardKeyboardEvent.keyCode === KeyCode.KeyX) {
-				clipboardStoredMetada = this._getDataToCopy();
-				viewController.cut();
-			}
+			// if (standardKeyboardEvent.metaKey && standardKeyboardEvent.keyCode === KeyCode.KeyX) {
+			// 	clipboardStoredMetada = this._getDataToCopy();
+			// 	viewController.cut();
+			// }
 		}));
 		this._register(dom.addDisposableListener(this._domElement.domNode, 'focus', (e) => {
 			console.log('focus');

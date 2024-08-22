@@ -329,6 +329,7 @@ export class TextAreaHandler extends AbstractEditContext {
 		}));
 
 		this._register(this._textAreaInput.onPaste((e: IPasteData) => {
+			console.log('on paste of text area handler');
 			let pasteOnNewLine = false;
 			let multicursorText: string[] | null = null;
 			let mode: string | null = null;

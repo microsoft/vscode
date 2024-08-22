@@ -247,6 +247,7 @@ if (PasteAction) {
 							multicursorText = (typeof metadata.multicursorText !== 'undefined' ? metadata.multicursorText : null);
 							mode = metadata.mode;
 						}
+						console.log('before keyboard handler paste');
 						focusedEditor.trigger('keyboard', Handler.Paste, {
 							text: clipboardText,
 							pasteOnNewLine,
